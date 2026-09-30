@@ -217,19 +217,33 @@ The shipped probe adds a `LEFT JOIN LATERAL` for the projector work row's
 
 ## +5% bar waiver
 
-Arbiter ruling (#7389, round 2): the +5% relative bar stays waived for the
-heartbeat supersede at the shipped work-then-generation SKIP LOCKED shape.
-Measured median cost over the pre-#7389 statement is +23 to +25 us in the
-steady state (T1hot/T1typ) and up to +53 us (T2), paid once per heartbeat
-(lease/3, about 20 s) per running work item. That is a fraction of a
-millisecond every 20 s per item, and it comes from locking the work row on
-every heartbeat. That lock is required: the generation-first order deadlocked
-(40P01) with the delta-baseline refusal, and the one-predicate shape lost 341
-of 1,000 interleaved races. The heartbeat takes only SKIP LOCKED locks, so it
-cannot join a wait cycle, and contention with Ack, Fail and retry is
-sub-millisecond. The waiver covers this statement's cost. It does not waive
-the end-to-end no-regression run on the built binary. The round-1 ruling
-waived +10 to +35 us for the earlier generation-then-work shape.
+Arbiter ruling (#7389, round 2, re-affirmed after the remote runs): the +5%
+bar stays waived for the heartbeat supersede at the shipped
+work-then-generation SKIP LOCKED shape. The cost is +28% to +37% of the
+pre-#7389 statement cost on the T1 cases:
+
+- **Local:** +23 to +29 us.
+- **Remote validation host:** +90 to +99 us, and up to +148 us on T2. Every
+  call there costs about 3.5 times the local cost. These figures come from
+  the shipped constants at both SHAs, with a same-host A/A control at or
+  below 4 us (see
+  [7389-remote-no-regression.md](7389-remote-no-regression.md)).
+
+The statement runs only on a heartbeat tick (lease/3: 20 s for the projector,
+60 s for the ingester), at most once per tick per running item. This closes
+the "not re-measured on the shipped constant" item.
+
+The cost comes from locking the work row on every heartbeat, and that lock is
+required. The generation-first order deadlocked (40P01) with the
+delta-baseline refusal, and the one-predicate shape lost 341 of 1,000
+interleaved races. The heartbeat takes only SKIP LOCKED locks, so it cannot
+join a wait cycle, and contention with Ack, Fail and retry is
+sub-millisecond.
+
+The waiver covers this statement's cost only. It does not waive the
+end-to-end no-regression run on the built binary; that run is now done and
+recorded in the remote file. The round-1 ruling waived +10 to +35 us for the
+earlier generation-then-work shape.
 
 ## Follow-up ruling: replayed failed generations and the latest write start
 
@@ -367,13 +381,22 @@ shipped:
   `TestSupersedeRunningGateLocksGenerationWithFullPredicate`.
 
 No-Regression Evidence: local shim measurements above on the 1,002,001-row
-fixture: the heartbeat supersede adds +23 to +53 us per heartbeat per running
-item (waived bar, re-affirmed), the marker costs one statement per attempt (median 0.032
-ms, 7 buffers, HOT with fillfactor 90), and the probe one read per git sync per
-scope (p99 0.587 ms on the hot scope). No worker count, batch size, lease
-duration or claim statement changed. Before merge-ready, a bounded remote run
-on the built binary with a steady-state mutation phase is required and is not
-yet done (see Not checked).
+fixture. The heartbeat supersede adds +23 to +53 us per heartbeat per running
+item (waived bar, re-affirmed). The marker costs one statement per attempt
+(median 0.032 ms, 7 buffers, HOT with fillfactor 90), and the probe one read
+per git sync per scope (p99 0.587 ms on the hot scope). No worker count,
+batch size, lease duration or claim statement changed.
+
+The bounded remote runs on the built binary are done and recorded in
+[7389-remote-no-regression.md](7389-remote-no-regression.md), with audits in
+[7389-remote-no-regression-audits.md](7389-remote-no-regression-audits.md):
+- Pair 1 (steady workload): no regression, and the fix was not exercised.
+- Pair 2 (deterministic burst workload): PASS under the arbiter's fallback
+  gates, with 5 race-refused bursts on HEAD. It measures race-path timing,
+  rates and cost under the change; it does not demonstrate the fix's
+  differential at runtime.
+- A first-slot BASE control shows that the ingester difference is the run
+  slot.
 
 Observability Evidence: `eshu_dp_collector_reconciliation_full_snapshots_total{reason="graph_dirty"}`
 with the `git_reconcile_forced` log, and the `git_delta_baseline_graph_dirty`
@@ -409,14 +432,30 @@ The review-round record moved to
 [7389-superseded-writer-overlay-review-rounds.md](7389-superseded-writer-overlay-review-rounds.md)
 to keep this file under the Markdown line cap.
 
+## Remote runs and follow-ups
+
+The remote runs, their manifests and the declarations the arbiter required
+are in [7389-remote-no-regression.md](7389-remote-no-regression.md):
+- the race-path cost on either side;
+- the base drift record for #7455;
+- the first-slot harness caveat;
+- the reducer follow-up #7458: a search-document item never re-checks its
+  generation after claim. It is out of scope, because this change touches no
+  reducer or search file.
+
+Tracked follow-ups: #7447 items 1, 3 and 7, plus the retention item 4; #7458.
+
 ## Not checked
 
-- The bounded remote run on the built binary with a steady-state mutation
-  phase (No-Regression Evidence) is the coordinator's step before
-  merge-ready.
-- The shim benchmark tables are from the arbiter's shim harness on the shim
-  statements, byte-equivalent to the shipped SQL except comments and the
-  interpolated constants; they were not re-measured on the shipped constant.
+- NOT_CHECKED: a heartbeat tick meeting a started write with a newer
+  generation pending, at runtime on the remote host. It rests on the local
+  live Neo4j proofs above; see the remote file for what the runs did cover.
+- NOT_CHECKED: NornicDB. The live tests and the remote runs used Neo4j only.
+- NOT_CHECKED: the golden corpus (B-7).
+- NOT_CHECKED: clock skew between projector hosts (see the accepted residual
+  above).
+- NOT_CHECKED: the per-service resource sampler in remote pair 1; pair 2 and
+  the slot control have it.
 - NOT_CHECKED: the marker's HOT measurement (300 of 300 HOT, buffers median 7)
   was taken with the keep-first `COALESCE` SET and a `pending`-only status
   list. The shipped one-column `GREATEST` SET on the same fresh row should
