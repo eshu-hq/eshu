@@ -11,7 +11,7 @@ budget. The clip is a response-shaping rule; it never changes what is stored.
 | `POST /api/v0/code/search` (content-store rows) | `find_code` |
 | `POST /api/v0/content/entities/search` | `search_entity_content` |
 
-The `docstring` clip (below) also applies to three routes that carry a
+The `docstring` clip (below) also applies to four routes that carry a
 docstring but no stored source body:
 
 | Route | MCP tool |
