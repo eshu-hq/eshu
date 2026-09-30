@@ -87,9 +87,14 @@ Hermetic (`go/internal/storage/cypher/edge/writer/repository_stubs_test.go`):
 per statement shape (atomic group, sequential, both writers), a group
 retried three times counting once, a live target counting zero, a
 non-reporting executor logging the DEBUG `not counted` line with no counter,
-and forwarding to an outer collector. Mutations: disabling the report fails
+forwarding to an outer collector, and a multi-row batch (2 rows, and 12 rows for
+the 10-candidate cap) logging one INFO line with `attributed=false`,
+`batch_rows`, no single `source_repo_id`/`target_repo_id`, and only
+`source->target@generation` candidates. Mutations: disabling the report fails
 the counter and log cases; dropping the last-k window reports 3 for the
-retried group.
+retried group; flipping `attributed` to true on the multi-row path, removing the
+candidate cap, or sending every batch down the single-row path each fail the
+multi-row test.
 
 No-Regression Evidence: the writer Cypher is unchanged. The counter reads
 counts the Bolt executors already return (`ReportWriteCounts` in

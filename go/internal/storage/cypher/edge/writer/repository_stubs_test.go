@@ -7,7 +7,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -263,7 +265,8 @@ func TestWriteEdgesRepositoryStubsNotCountedWithoutWriteSummary(t *testing.T) {
 }
 
 // The stub collector must forward every entry to a collector the caller
-// already stashed (the #6783 differential recorder).
+// already stashed. (The #6783 differential recorder is not one: with capture
+// on it wraps below the edge writer and stashes its own collector.)
 func TestWriteEdgesRepositoryStubCaptureForwardsToOuterCollector(t *testing.T) {
 	t.Parallel()
 	outer := sourcecypher.NewWriteCountsCollector()
@@ -276,5 +279,69 @@ func TestWriteEdgesRepositoryStubCaptureForwardsToOuterCollector(t *testing.T) {
 	}
 	if got := len(outer.Entries()); got != 1 {
 		t.Fatalf("outer collector entries = %d, want 1 (forwarded)", got)
+	}
+}
+
+// A batch with several intent rows is one statement, and the backend counts
+// NodesCreated per statement, not per row. The INFO line must say so
+// (attributed=false, batch_rows=n) and list at most repositoryStubCandidateLimit
+// source->target@generation pairs instead of naming one target.
+func TestWriteEdgesRepositoryStubMultiRowLogListsUnattributedCandidates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		rowCount       int
+		wantCandidates int
+	}{
+		{name: "two rows list both candidates", rowCount: 2, wantCandidates: 2},
+		{name: "more rows than the limit are capped", rowCount: repositoryStubCandidateLimit + 2, wantCandidates: repositoryStubCandidateLimit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			instruments, reader := newStubMetrics(t)
+			created := int64(tt.rowCount)
+			base := &stubCountingExecutor{nodesCreated: map[string]int64{sourcecypher.BatchCanonicalRepoDependencyUpsertCypher: created}}
+			var logs bytes.Buffer
+			writer := NewEdgeWriter(groupStubCountingExecutor{base}, 0)
+			writer.Instruments = instruments
+			writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			rows := make([]reducer.SharedProjectionIntentRow, 0, tt.rowCount)
+			for i := 0; i < tt.rowCount; i++ {
+				rows = append(rows, stubRepoDependencyRow(fmt.Sprintf("repository:retired-%02d", i)))
+			}
+			if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+				t.Fatalf("WriteEdges() error = %v", err)
+			}
+			if got := stubCounterTotal(t, reader, telemetry.RepositoryStubWriterRepoDependency); got != created {
+				t.Fatalf("%s{writer=repo_dependency} = %d, want %d", repositoryStubsMetric, got, created)
+			}
+			entries := stubLogEntries(&logs, "canonical repository stub created")
+			if len(entries) != 1 {
+				t.Fatalf("stub-created log lines = %d, want 1 for one statement; logs:\n%s", len(entries), logs.String())
+			}
+			entry := entries[0]
+			if entry["attributed"] != false || entry["batch_rows"] != float64(tt.rowCount) || entry["nodes_created"] != float64(created) {
+				t.Fatalf("multi-row log = %v, want attributed=false batch_rows=%d nodes_created=%d", entry, tt.rowCount, created)
+			}
+			for _, key := range []string{"source_repo_id", "target_repo_id"} {
+				if _, present := entry[key]; present {
+					t.Fatalf("multi-row log names %s although the backend counts per statement: %v", key, entry)
+				}
+			}
+			candidates, _ := entry["candidates"].([]any)
+			if len(candidates) != tt.wantCandidates {
+				t.Fatalf("candidates = %d, want %d: %v", len(candidates), tt.wantCandidates, candidates)
+			}
+			seen := map[string]bool{}
+			for _, candidate := range candidates {
+				text, _ := candidate.(string)
+				if !strings.HasPrefix(text, "repository:source->repository:retired-") || !strings.HasSuffix(text, "@gen-7446") || seen[text] {
+					t.Fatalf("candidate %q is malformed or repeated: %v", text, candidates)
+				}
+				seen[text] = true
+			}
+		})
 	}
 }
