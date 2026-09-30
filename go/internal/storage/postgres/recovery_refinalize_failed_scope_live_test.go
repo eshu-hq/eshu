@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 	"time"
 
@@ -25,6 +26,22 @@ import (
 //
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres -run RefinalizeFailedScope -count=1
+
+// refinalizeFailedScopeLiveDB gives each #7116 proof a schema of its own
+// (openIsolatedBootstrapSchema). An all-scopes recovery re-drives every scope
+// in the database and the proof then claims projector work until it reaches
+// its own, so on the shared schema other proofs' rows crowd it out (#7479).
+func refinalizeFailedScopeLiveDB(t *testing.T) (*sql.DB, context.Context) {
+	t.Helper()
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the #7116 refinalize failed-scope proofs")
+	}
+	database := openIsolatedBootstrapSchema(t, dsn, "refinalize_failed_scope")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
+	return database, ctx
+}
 
 // refinalizeFailedScope seeds the shape observed on ops-qa: a failed scope with
 // no active generation, an older superseded generation, and a newest generation
@@ -124,7 +141,7 @@ func refinalizeResultNamesScope(ids []string, scopeID string) bool {
 // it does for an active one. Then the re-projection has to be able to finish:
 // the projector ack must turn the failed scope back into an active one.
 func TestRefinalizeFailedScopeAllScopesEnqueuesNewestFailedGeneration(t *testing.T) {
-	database, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)
 
 	activeScope, activeGeneration, _ := refinalizeResetScope(t, ctx, database, suffix)
@@ -247,7 +264,7 @@ func TestRefinalizeFailedScopeAllScopesEnqueuesNewestFailedGeneration(t *testing
 // all-scopes paths share one selection, so "recover repo X" cannot answer
 // differently from "recover everything" for the same scope.
 func TestRefinalizeFailedScopeExplicitScopeIDsIncludesFailedScope(t *testing.T) {
-	database, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)
 
 	failedScope, failedGeneration, _ := refinalizeFailedScope(t, ctx, database, suffix)
@@ -274,7 +291,7 @@ func TestRefinalizeFailedScopeExplicitScopeIDsIncludesFailedScope(t *testing.T) 
 // to a complete one. A named scope's counts are exact because the request bounds
 // the set, so this test names one scope per outcome.
 func TestRefinalizeFailedScopeReportsSkippedScopesByReason(t *testing.T) {
-	database, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)
 	now := time.Now().UTC()
 
@@ -334,7 +351,7 @@ func TestRefinalizeFailedScopeReportsSkippedScopesByReason(t *testing.T) {
 // path fills the same report. The shared test database may hold other scopes, so
 // the counts are lower bounds here; the named-scope test above pins them exactly.
 func TestRefinalizeFailedScopeAllScopesReportsSkippedScopes(t *testing.T) {
-	database, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)
 	now := time.Now().UTC()
 
@@ -367,7 +384,7 @@ func TestRefinalizeFailedScopeAllScopesReportsSkippedScopes(t *testing.T) {
 // failed generation the read returned, so the newly active generation's dedup
 // state is neither reset nor deleted by a re-derived, different selection.
 func TestRefinalizeFailedScopeBindsTheGenerationSetItRead(t *testing.T) {
-	database, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)
 
 	failedScope, failedGeneration, _ := refinalizeFailedScope(t, ctx, database, suffix)
@@ -423,7 +440,7 @@ func TestRefinalizeFailedScopeBindsTheGenerationSetItRead(t *testing.T) {
 // rebuild is re-runnable, like the active-scope one: the runbook's answer to an
 // interrupted rebuild is to run the same command again.
 func TestRefinalizeFailedScopeConvergesAcrossTwoCalls(t *testing.T) {
-	database, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)
 	failedScope, failedGeneration, _ := refinalizeFailedScope(t, ctx, database, suffix)
 	seedRefinalizeResetReducerWork(t, ctx, database, failedScope, failedGeneration, "converge-failed-entity", "succeeded")
