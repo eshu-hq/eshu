@@ -66,6 +66,9 @@ func TestCrossRepoDeadCodeClipsDocstringsWithinBudget(t *testing.T) {
 	if rows == 0 {
 		t.Fatal("reply carried no rows, so the test proves nothing")
 	}
+	if suppressed, _ := buckets["suppressed"].([]any); len(suppressed) == 0 {
+		t.Fatal("suppressed bucket is empty, so the test no longer proves the clip reaches it")
+	}
 	if got := numberValue(data["docstring_clipped_rows"]); got != rows {
 		t.Fatalf("docstring_clipped_rows = %v, want %d (every row, suppressed included)", data["docstring_clipped_rows"], rows)
 	}
