@@ -85,6 +85,15 @@ FROM generate_series(0, 599) AS n`, cappedScanScope, replaceSetLiveNow); err != 
 	if err != nil || !truncated || len(limited) != 500 {
 		t.Fatalf("limited read = %d envelopes, truncated=%v, err=%v; want the crossing page of 500 and truncated", len(limited), truncated, err)
 	}
+	// The crossing rule is strict: a drain reports truncated only when it loaded
+	// more than its limit. The core marks a pass partial from this flag alone,
+	// so a reader that stopped at exactly the limit without flagging it would
+	// let the pass retract findings it never read; a >= would instead cut the
+	// drain a page early, which the length assertion below pins.
+	crossing, _, crossed, err := store.ListOSPackageAdvisoryFactEnvelopes(ctx, []string{"debian"}, cappedPackageIDs(targets), 500)
+	if err != nil || !crossed || len(crossing) != 1000 {
+		t.Fatalf("limit 500 read = %d envelopes, truncated=%v, err=%v; want the page that crosses the limit (1000) and truncated", len(crossing), crossed, err)
+	}
 	other, _, _, err := store.ListOSPackageAdvisoryFactEnvelopes(ctx, []string{"alpine"}, cappedPackageIDs(targets), 1_000_000)
 	if err != nil || len(other) != 0 {
 		t.Fatalf("a different ecosystem returned %d envelopes, err %v; want 0", len(other), err)

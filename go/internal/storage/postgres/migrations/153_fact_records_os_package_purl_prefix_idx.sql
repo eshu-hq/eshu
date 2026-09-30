@@ -7,8 +7,9 @@
 -- (core.packageIDFromPURL). Without an index the read scanned every active
 -- installed package of the ecosystem for every intent, about 60,000 buffers per
 -- page at 50,000 rows. With this index and the materialized candidates query in
--- go/internal/storage/postgres/installed_advisory_targets.go a page reads a few
--- thousand buffers at most; the measured figures are in
+-- go/internal/storage/postgres/installed_advisory_targets.go a page reads in
+-- proportion to the installs of the intent's affected packages, not to the
+-- fleet; the measured figures are in
 -- docs/internal/evidence/7154-capped-scope-convergence.md.
 --
 -- The expression text must stay identical to osPackagePURLPrefixExpression in
