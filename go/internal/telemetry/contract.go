@@ -61,6 +61,10 @@ const (
 	// MetricDimensionPhase labels the delta-baseline fence counter (#7319)
 	// with the closed phase that decided: preflight or ack.
 	MetricDimensionPhase = "phase"
+	// MetricDimensionWriter labels the Repository stub-creation counter
+	// (#7446) with the closed shared-edge writer: repo_dependency or
+	// submodule_pin.
+	MetricDimensionWriter = "writer"
 	// MetricDimensionGuardrail labels counters for bounded guardrail classes
 	// that are not admission or correlation outcomes.
 	MetricDimensionGuardrail = "guardrail"

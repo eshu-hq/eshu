@@ -260,10 +260,12 @@ func (w *EdgeWriter) WriteEdges(
 					end = len(stmts)
 				}
 				start := time.Now()
-				if err := ge.ExecuteGroup(ctx, stmts[i:end]); err != nil {
+				stubCtx, stubs := captureRepositoryStubs(ctx, domain)
+				if err := ge.ExecuteGroup(stubCtx, stmts[i:end]); err != nil {
 					return report, sourcecypher.WrapRetryableNeo4jError(err)
 				}
 				duration := time.Since(start).Seconds()
+				w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, stmts[i:end])
 				w.recordGroupedWrite(ctx, domain, "group", duration, stmts[i:end])
 				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
 				if domain == reducer.DomainCodeCalls {
@@ -272,10 +274,12 @@ func (w *EdgeWriter) WriteEdges(
 			}
 		} else {
 			start := time.Now()
-			if err := ge.ExecuteGroup(ctx, stmts); err != nil {
+			stubCtx, stubs := captureRepositoryStubs(ctx, domain)
+			if err := ge.ExecuteGroup(stubCtx, stmts); err != nil {
 				return report, sourcecypher.WrapRetryableNeo4jError(err)
 			}
 			duration := time.Since(start).Seconds()
+			w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, stmts)
 			w.recordGroupedWrite(ctx, domain, "group", duration, stmts)
 			w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, stmts)
 		}
@@ -285,10 +289,12 @@ func (w *EdgeWriter) WriteEdges(
 		artifactStmts = nil
 		for _, stmt := range stmts {
 			start := time.Now()
-			if err := w.executor.Execute(ctx, stmt); err != nil {
+			stubCtx, stubs := captureRepositoryStubs(ctx, domain)
+			if err := w.executor.Execute(stubCtx, stmt); err != nil {
 				return report, sourcecypher.WrapRetryableNeo4jError(err)
 			}
 			duration := time.Since(start).Seconds()
+			w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, []sourcecypher.Statement{stmt})
 			w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []sourcecypher.Statement{stmt})
 			if domain == reducer.DomainCodeCalls {
 				w.recordCodeCallBatch(ctx, duration)

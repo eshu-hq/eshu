@@ -1570,6 +1570,14 @@ type Instruments struct {
 	// record nothing.
 	CanonicalRepositoryRetirements metric.Int64Counter
 
+	// CanonicalRepositoryStubsCreated counts Repository nodes the
+	// repo_dependency and submodule_pin shared-edge writers MERGE-created by
+	// id because no node held that id (#7446): a path-less stub, typically
+	// under an id the path-conflict retirement removed. Labeled by a closed
+	// writer (repo_dependency, submodule_pin), from the backend's
+	// NodesCreated write summary. A write to live targets records nothing.
+	CanonicalRepositoryStubsCreated metric.Int64Counter
+
 	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
 	// one of the four handler-wide relationship source-tool breakdown permits.
 	// RelationshipBreakdownQueued and RelationshipBreakdownInFlight expose the

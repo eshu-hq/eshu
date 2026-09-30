@@ -25,7 +25,14 @@ rows = re.findall(
     re.M,
 )
 targets = []
-for path, tag, cls, backends in [(p, t, c, b or "both") for p, t, c, _, b in rows]:
+for path, tag, cls, reason, backends in rows:
+    backends = backends or "both"
+    # Same YAML-comment hazard as the ledger checker (#7425): this regex
+    # sees the raw line, but a real YAML parser truncates an unquoted
+    # reason at ` #` (or nulls one starting with `#`). Reject it here too
+    # instead of scheduling from a silently altered row.
+    if not reason.lstrip().startswith(('"', "'")) and (reason.lstrip().startswith("#") or re.search(r"\s#", reason)):
+        sys.exit(f"unquoted '#' in reason for {path}: quote the full reason so YAML keeps it")
     if cls != "ci":
         continue
     if tag != EXPECTED_CI_TAG:

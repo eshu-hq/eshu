@@ -29,6 +29,11 @@ the package contract.
   intent defers without spending its retry budget; the reducer handler ends
   the wait after 30 minutes with a counting error (#7268). A probe fault
   carries no class and counts.
+- `eshu_dp_canonical_repository_stubs_created_total{writer}` counts the
+  path-less `Repository` stubs the `repo_dependency` and `submodule_pin`
+  upserts MERGE-create by id (#7446), from the backend's `NodesCreated`,
+  once per committed execution unit (`repository_stubs.go`). The upserts keep
+  MERGE-by-id; do not switch them to MATCH (see the #7324 design note).
 
 ## Change guidance
 

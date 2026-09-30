@@ -56,6 +56,13 @@ printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_
 tag_err="$(python3 "${targets}" "${seed_dir}/ledger.yaml" "${repo_root}" 2>&1)" && fail "wrong-tag ci row accepted"
 [[ "${tag_err}" == *"unexpected tag"* ]] || fail "wrong-tag rejection names no tag: ${tag_err}"
 
+# ── RED: unquoted '#' in a reason fails extraction, not silent truncation ──
+# (a YAML `#` after whitespace opens a comment: the row regex sees the full
+# line while a real parser truncates it, so the extractor must fail loud)
+printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_live_test.go\n    tag: live_nornicdb_answer_truth\n    class: ci\n    reason: seeded RED for the truncation guard #7425\n' >"${seed_dir}/ledger-truncated.yaml"
+trunc_err="$(python3 "${targets}" "${seed_dir}/ledger-truncated.yaml" "${repo_root}" 2>&1)" && fail "truncated-reason ci row accepted"
+[[ "${trunc_err}" == *"unquoted '#'"* ]] || fail "truncation rejection names no cause: ${trunc_err}"
+
 # ── RED: extractor crash dies naming extraction, not "no targets" ─────────
 # (mapfile succeeds even when the process substitution fails, so the runner
 # must capture the extractor failure explicitly)
@@ -171,11 +178,11 @@ EOF
 # (guards the runs-loop field split: the tests field holds |-joined
 # names, so a left-anchored split silently dropped multi-Test files)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "54" ]] || fail "planned runs ${#plan[@]}, want 54 (28 nornicdb + 26 neo4j)"
+[[ "${#plan[@]}" == "55" ]] || fail "planned runs ${#plan[@]}, want 55 (28 nornicdb + 27 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "28" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 28"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "26" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 26"
+[[ "${#plan_neo4j[@]}" == "27" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 27"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*ownership_neo4j_live_test' ||
 	fail "directory ownership regression missing from neo4j plan"
 printf '%s\n' "${plan_nornicdb[@]}" | rg -q '^nornicdb\|[^|]*\|.*ownership_neo4j_live_test' &&

@@ -49,6 +49,43 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-blank.yaml" "${script
 	fail "validator passed with a planted blank reason"
 fi
 
+# ── RED: a mid-string unquoted '#' fails (#7425) ──────────────────────────
+# A YAML `#` after whitespace opens a comment: the regex sees the full line
+# while a real parser silently truncates it, so the validator must fail loud.
+cp "${ledger}" "${fixture}/ledger-truncated.yaml"
+python3 - "${fixture}/ledger-truncated.yaml" <<'EOF'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job"
+assert text.count(old) >= 1, "anchor reason not found"
+new = "    reason: deterministic seeded answer-truth proof #planted truncation for issue 7425"
+open(path, "w").write(text.replace(old, new, 1))
+EOF
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-truncated.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator passed with a planted unquoted '#' truncation"
+fi
+trunc_err="$(REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-truncated.yaml" "${script}" 2>&1)" || true
+[[ "${trunc_err}" == *"unquoted '#'"* ]] || fail "truncation rejection names no cause: ${trunc_err}"
+
+# ── RED: a leading unquoted '#' fails (#7425) ─────────────────────────────
+# `reason: #...` parses as null under YAML, which the blank-reason gate
+# would miss because the regex still sees text.
+cp "${ledger}" "${fixture}/ledger-nullhash.yaml"
+python3 - "${fixture}/ledger-nullhash.yaml" <<'EOF'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "    reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job"
+assert text.count(old) >= 1, "anchor reason not found"
+open(path, "w").write(text.replace(old, "    reason: #planted null for issue 7425", 1))
+EOF
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-nullhash.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator passed with a planted leading '#' null"
+fi
+null_err="$(REPO_ROOT="${repo_root}" LEDGER_PATH="${fixture}/ledger-nullhash.yaml" "${script}" 2>&1)" || true
+[[ "${null_err}" == *"unquoted '#'"* ]] || fail "null rejection names no cause: ${null_err}"
+
 # ── RED: a retired row naming a still-live file fails ────────────────────
 cp "${ledger}" "${fixture}/ledger-retired-live.yaml"
 python3 - "${fixture}/ledger-retired-live.yaml" <<'EOF'

@@ -45,6 +45,12 @@ for path, tag, cls, reason, backends in rows:
         backends = "both"
     if backends not in ("nornicdb", "neo4j", "both"):
         sys.exit(f"invalid backends {backends!r} for {path}")
+    # A YAML `#` after whitespace opens a comment, so an unquoted reason
+    # containing ` #` (or starting with `#`) is silently truncated (or
+    # nulled) under a real YAML parser while this line regex sees the full
+    # text. Fail loudly instead: quote the reason (#7425).
+    if not reason.lstrip().startswith(('"', "'")) and (reason.lstrip().startswith("#") or re.search(r"\s#", reason)):
+        sys.exit(f"unquoted '#' in reason for {path}: quote the full reason so YAML keeps it")
     if not reason.strip():
         sys.exit(f"blank reason for {path}")
     try:
