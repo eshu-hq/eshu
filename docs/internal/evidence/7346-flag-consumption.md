@@ -62,14 +62,16 @@ with one no-flag edge, an inferred cycle, and the Python relative-import fallbac
 
 | Backend | Result |
 | --- | --- |
-| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the first implementation build; NOT re-run at the final head (the pinned image is not local and the Docker VM disk was full). Cycles: `rt_a` runtime, `lg_a` flags_unknown, `in_a` ambiguous; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1 |
-| Neo4j, digest-pinned `neo4j:2026-community@sha256:eabfbb04...` (Kernel 2026.08.1, primary) | PASS at the head that carries the order-independence fix (3.69 s). Cycles: `in_a` ambiguous, `lg_a` flags_unknown, `rt_a` runtime; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1, identical to the NornicDB run. Data and logs ran on tmpfs because the Docker VM disk was full |
+| NornicDB, pinned `ghcr.io/eshu-hq/nornicdb-amd64-cpu` v1.3.3 (secondary) | PASS at the first implementation build; not re-run at this head (secondary backend, #7331). Cycles: `rt_a` runtime, `lg_a` flags_unknown, `in_a` ambiguous; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1 |
+| Neo4j, digest-pinned `neo4j:2026-community@sha256:eabfbb04...` (Kernel 2026.08.1, primary) | PASS at the head rebased onto the merged carriage change (#7345): `ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=neo4j go test ./internal/replay/offlinetier -run 'TestFileImportCyclesFlagTruthAgainstARealGraph|TestCanonicalImportEdgesGraphTruth' -count=1 -v` on a throwaway tmpfs container, exit 0 (1.62 s for this test). Cycles: `in_a` ambiguous, `lg_a` flags_unknown, `rt_a` runtime; no type-only, deferred or `./x` cycle. Coverage: considered 12, type-only excluded 1, deferred excluded 1, inferred 2, unknown 1, identical to the NornicDB run. Data and logs ran on tmpfs because the Docker VM disk was full |
 
 The NornicDB run answers the question the design left open: a relationship
 property that was never written comes back from the pinned NornicDB as a null
 that the reader classifies as `flags_unknown`, not as false. The test seeds edges
-in the writer's property shape and does not go through the canonical writer; a
-writer-driven case should join it once #7345 has merged.
+in the writer's property shape and does not go through the canonical writer. #7345 has
+since merged, and its live test `TestCanonicalImportEdgesGraphTruth`, which does go through
+the production writer and reads explicit booleans back, passes on the same pinned Neo4j at this
+head in the same run. The two tests are not joined into one writer-to-reader case.
 
 ## Order independence
 
@@ -202,7 +204,7 @@ this data.
   inferred Python edge cannot close a cycle. The label is exercised on seeded
   edges. The matcher was deliberately not widened here: doing so risks false
   cycles and is a separate change.
-- The NornicDB leg was not re-run at the final head (see Graph truth), and wall time is
+- The NornicDB leg (secondary, #7331) was not re-run at this head (see Graph truth), and wall time is
   NOT_CHECKED.
 - **The console does not show the labels yet.** `apps/console/src/api/codeImports.ts`
   normalizes cycle rows and drops `cycle_label` and `flag_state`, so a cycle still
