@@ -1,0 +1,38 @@
+go/internal/query/codetopicparallel/reader.go
+  s_b0d7e3abc26c5a::t_6f8997963cdf43 1-20,23-41,43-212,214-232,234-235,237-269,271-282
+  s_b0d7e3abc26c5a::t_9675cea192cece 21-22,42,233,236
+  s_b0d7e3abc26c5a::t_541c192b6f3471 213,270
+go/internal/query/code_topic_parallel_driver_test.go
+  s_b0d7e3abc26c5a::t_8bf6d6140edb29 1-29,31,33-34,36-100,102-107,116-119,123-176,180,190-200,216-232
+  s_b0d7e3abc26c5a::t_c4251fac29c797 30,32,35,101,108-115,120-122,177-179,181-189,201-215
+  s_b0d7e3abc26c5a::t_096217a63c6593 233-234
+go/internal/query/content_reader_code_topic.go
+  s_b0d7e3abc26c5a::t_9675cea192cece 14,82,84-85,88,90,93,107
+  s_b0d7e3abc26c5a::t_235ac6f1efd075 81,83,86-87,89,91-92,94-95
+go/internal/query/codetopicparallel/README.md
+  s_b0d7e3abc26c5a::t_cc98f7c0a7e7ad 1-52
+go/internal/query/codetopicparallel/doc.go
+  s_b0d7e3abc26c5a::t_cc98f7c0a7e7ad 1-11
+go/internal/query/codetopicparallel/AGENTS.md
+  s_b0d7e3abc26c5a::t_cc98f7c0a7e7ad 1-15
+go/internal/query/code_topic_parallel_test.go
+  s_b0d7e3abc26c5a::t_3343e213fd7c64 8,18-20,22-33,73-76
+  s_b0d7e3abc26c5a::t_b33198c83eae0a 1-7,9-13,16-17,34,36-51,53-54,58-72,77-78,80-89,91-105
+  s_b0d7e3abc26c5a::t_ebfa062909e5b4 14-15,21,35,52,55-57,79,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1e335f99acec7cdebbda7c21c79c114ba663df39",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
