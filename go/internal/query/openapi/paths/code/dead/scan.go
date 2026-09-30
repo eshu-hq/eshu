@@ -56,6 +56,8 @@ const Scan = `
                     "candidate_scan_limit": {"type": "integer", "description": "Maximum raw candidate rows the bounded dead-code scan may inspect across all selected candidate labels before policy exclusions."},
                     "candidate_scan_limit_per_label": {"type": "integer", "description": "Maximum share one candidate label may consume from the bounded scan's shared raw-row limit."},
                     "candidate_scan_pages": {"type": "integer", "description": "Number of raw candidate pages read before returning results."},
+                    "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
+                    "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."},
                     "candidate_scan_rows": {"type": "integer", "description": "Number of raw candidate rows inspected before policy exclusions."},
                     "results": {
                       "type": "array",
@@ -69,7 +71,10 @@ const Scan = `
                                 "type": "string",
                                 "description": "Per-result dead-code classification. Returned graph candidates are classified without upgrading the envelope truth level.",
                                 "enum": ["unused", "reachable", "excluded", "ambiguous", "derived_candidate_only", "unsupported_language"]
-                              }
+                              },
+                              "docstring_clipped": {"type": "boolean", "description": "Present and true only when this row's docstring was clipped at read time to docstring_clip_bytes. Every echo of the docstring (metadata, semantic_summary, semantic_profile, the language block, story) is derived from the clipped value; get_entity_content returns the stored docstring whole."},
+                              "docstring_clip_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the read-time docstring ceiling in bytes (512)."},
+                              "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."}
                             }
                           }
                         ]

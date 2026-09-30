@@ -42,6 +42,22 @@ recent shipped work grouped by feature area.
   over 16 KiB docstrings went from `mcp_response_over_budget` (3.5 MB) to
   157 KB, delivered as the single resource copy the dispatcher keeps when two
   full copies would exceed the budget.
+- **The clip now covers `find_dead_code`, `investigate_dead_code`,
+  `find_cross_repo_dead_code`, and `find_most_complex_functions`**
+  ([#7234](https://github.com/eshu-hq/eshu/issues/7234)). Over rows with a
+  16 KiB docstring these four returned `mcp_response_over_budget` at their
+  default limits, because each row echoes the docstring five times. They now
+  clip to 512 bytes and carry the same `docstring_clipped` markers, and the
+  investigation route clips its `suppressed` bucket too. Measured through the
+  MCP dispatcher: `find_dead_code` 203,410 bytes (25 rows), `investigate_dead_code`
+  249,562 bytes (25 active rows, 95.2% of the 262,144-byte budget), and
+  `find_most_complex_functions` 68,876 bytes (10 rows). `calculate_cyclomatic_complexity`
+  with an entity id returns one row, measured 166,420 bytes, and is unchanged.
+  `find_cross_repo_dead_code` builds rows the same way and is clipped too: with
+  a 16 KiB docstring on every row its default reply went from
+  `mcp_response_over_budget` to 235,095 bytes (89.7% of the budget, delivered as
+  the single resource copy).
+  The change is additive: rows that fit are unchanged.
 
 ### Compact-by-default catalog and playbook/workflow list responses
 

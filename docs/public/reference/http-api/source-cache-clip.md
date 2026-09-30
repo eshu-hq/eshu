@@ -11,6 +11,16 @@ budget. The clip is a response-shaping rule; it never changes what is stored.
 | `POST /api/v0/code/search` (content-store rows) | `find_code` |
 | `POST /api/v0/content/entities/search` | `search_entity_content` |
 
+The `docstring` clip (below) also applies to four routes that carry a
+docstring but no stored source body:
+
+| Route | MCP tool |
+| --- | --- |
+| `POST /api/v0/code/dead-code` | `find_dead_code` |
+| `POST /api/v0/code/dead-code/investigate` | `investigate_dead_code` |
+| `POST /api/v0/code/dead-code/cross-repo` | `find_cross_repo_dead_code` |
+| `POST /api/v0/code/complexity` (list mode) | `find_most_complex_functions`, `calculate_cyclomatic_complexity` with no entity |
+
 ## Contract
 
 - Each row's `source_cache` is cut to at most **4,096 bytes**. The cut never
@@ -37,6 +47,16 @@ budget. The clip is a response-shaping rule; it never changes what is stored.
   `docstring_clip_bytes: 512` and `docstring_clipped_rows` (`0` when no row was
   clipped). The stored docstring is untouched; `get_entity_content` returns it
   whole.
+- On the dead-code and complexity routes the same clip and markers apply. The
+  investigation route clips every bucket (`cleanup_ready`, `ambiguous`, and
+  `suppressed`) and the cross-repo route clips `dead`, `live_by_consumer`,
+  `unknown`, and `suppressed`; `docstring_clipped_rows` counts all of them. The
+  complexity list carries the response markers even when the caller's grant
+  leaves no visible row, so an empty answer has the same shape as a real one.
+  A single-entity complexity lookup (`entity_id`, or a `function_name` that
+  resolves to one) returns one row, is not clipped, and carries no markers:
+  one row with a 16 KiB docstring measured 166,420 bytes by the dispatcher's
+  accounting, 63.5% of the budget.
 - These markers are distinct from the write-time
   `metadata.source_cache_truncated` family, which records a lossy cut made when
   the body was stored (variables at 4,096 bytes, GitHub Actions files at

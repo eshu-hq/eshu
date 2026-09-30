@@ -96,6 +96,8 @@ func (a *Analyzer) HandleDeadCodeInvestigation(w http.ResponseWriter, r *http.Re
 		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Clip every bucket before coverage and analysis read the rows (#7234).
+	clippedDocstrings := clipDeadCodeInvestigationDocstrings(&scan)
 	coverage, err := a.deadCodeInvestigationCoverage(r.Context(), req, scan)
 	if err != nil {
 		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
@@ -104,7 +106,7 @@ func (a *Analyzer) HandleDeadCodeInvestigation(w http.ResponseWriter, r *http.Re
 	allReturned := deadCodeInvestigationAllReturned(scan)
 	analysis := codemodel.BuildDeadCodeAnalysisForLanguage(allReturned, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language)
 
-	a.deps.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	data := map[string]any{
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
 		"limit":                          req.Limit,
@@ -138,7 +140,9 @@ func (a *Analyzer) HandleDeadCodeInvestigation(w http.ResponseWriter, r *http.Re
 		"observed_exactness_blockers": analysis["dead_code_observed_exactness_blockers"],
 		"recommended_next_calls":      a.deps.NextCalls(scan),
 		"analysis":                    analysis,
-	}, querycontract.BuildTruthEnvelope(a.deps.Profile, deadCodeInvestigationCapability, querycontract.TruthBasisHybrid, "resolved from bounded dead-code investigation with coverage and root-policy metadata"))
+	}
+	querycontract.AddDocstringClipMarkers(data, clippedDocstrings)
+	a.deps.WriteSuccess(w, r, http.StatusOK, data, querycontract.BuildTruthEnvelope(a.deps.Profile, deadCodeInvestigationCapability, querycontract.TruthBasisHybrid, "resolved from bounded dead-code investigation with coverage and root-policy metadata"))
 }
 
 func normalizeDeadCodeInvestigationRequest(req *DeadCodeInvestigationRequest) error {

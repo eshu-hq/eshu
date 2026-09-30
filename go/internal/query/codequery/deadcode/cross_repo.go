@@ -125,6 +125,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	clippedDocstrings := clipCrossRepoDeadCodeDocstrings(&scan)
 	evidence, hiddenConsumers, evidenceAvailable, err := a.crossRepoDeadCodeConsumerEvidence(
 		r.Context(),
 		req.RepoID,
@@ -143,7 +144,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		Boundary:        boundaryEvidence,
 		Available:       evidenceAvailable,
 	})
-	a.deps.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	a.deps.WriteSuccess(w, r, http.StatusOK, withDocstringClipMarkers(clippedDocstrings, map[string]any{
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
 		"limit":                          req.Limit,
@@ -166,7 +167,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 			scan.PolicyStats,
 			req.Language,
 		),
-	}, querycontract.BuildTruthEnvelope(a.deps.Profile, crossRepoDeadCodeCapability, querycontract.TruthBasisHybrid, "resolved from bounded candidate scan plus active cross-repo consumer evidence"))
+	}), querycontract.BuildTruthEnvelope(a.deps.Profile, crossRepoDeadCodeCapability, querycontract.TruthBasisHybrid, "resolved from bounded candidate scan plus active cross-repo consumer evidence"))
 }
 
 func normalizeCrossRepoDeadCodeRequest(req *CrossRepoDeadCodeRequest) error {

@@ -82,9 +82,12 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Clip after the scan's final page trim and policy filter so the count matches
+	// the rows returned and analysis is built from the clipped rows (#7234).
+	clippedDocstrings := querycontract.ClipRowsDocstring(scan.Results, entitysemantics.ReattachSemanticSummary)
 	truncated := scan.CandidateScanTruncated || scan.DisplayTruncated
 
-	a.deps.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	data := map[string]any{
 		"candidate_kind":                 req.CandidateKind,
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
@@ -98,7 +101,9 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 		"candidate_scan_rows":            scan.CandidateScanRows,
 		"results":                        scan.Results,
 		"analysis":                       codemodel.BuildDeadCodeAnalysisForLanguage(scan.Results, req.ExcludeDecoratedWith, scan.PolicyStats, req.Language),
-	}, querycontract.BuildTruthEnvelope(a.deps.Profile, "code_quality.dead_code", querycontract.TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
+	}
+	querycontract.AddDocstringClipMarkers(data, clippedDocstrings)
+	a.deps.WriteSuccess(w, r, http.StatusOK, data, querycontract.BuildTruthEnvelope(a.deps.Profile, "code_quality.dead_code", querycontract.TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
 }
 
 func (a *Analyzer) buildDeadCodeResults(
