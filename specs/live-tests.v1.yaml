@@ -1543,6 +1543,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip (ESHU_POSTGRES_TEST_DSN); about 2s on a local PostgreSQL 16 — promote to blocking with CI timing evidence
+  - file: go/internal/storage/postgres/content_writer_full_snapshot_reap_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_POSTGRES_TEST_DSN); about 4s for the six tests on a local PostgreSQL 18.6 — promote to blocking with CI timing evidence
   - file: go/internal/storage/postgres/content_writer_infra_fence_bench_live_test.go
     tag: ~
     class: scheduled

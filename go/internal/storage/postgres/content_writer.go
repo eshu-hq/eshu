@@ -244,6 +244,30 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	//
 	// PurgeEntityPaths and deletedFilePaths are unioned for the entity
 	// batch: both use the same (repo_id, relative_path) key.
+	//
+	// A full snapshot also removes every stored path it does not carry: it has
+	// no tombstone for a path an earlier, never-activated generation wrote
+	// (#7447 item 5). Those paths take the same three deletes as a tombstone.
+	reapStart := time.Now()
+	stalePaths, err := w.staleContentFilePaths(ctx, cloned)
+	if err != nil {
+		return content.Result{}, err
+	}
+	if cloned.FullSnapshot {
+		w.logStage(
+			ctx, cloned, "reap_stale_files", reapStart,
+			"stale_file_count", len(stalePaths),
+		)
+	}
+	deletedFilePaths = append(deletedFilePaths, stalePaths...)
+	// The infra read model is derived from the paths of cloned.Records, so a
+	// reaped path must be among them as a deleted record. Without it the path's
+	// content_entities rows go and its infra_resource_entities rows stay, with
+	// nothing marking the repository dirty (#7447 review).
+	for _, path := range stalePaths {
+		cloned.Records = append(cloned.Records, content.Record{Path: path, Deleted: true})
+	}
+
 	allEntityDeletePaths := make([]string, 0, len(deletedFilePaths)+len(purgeEntityPaths))
 	allEntityDeletePaths = append(allEntityDeletePaths, deletedFilePaths...)
 	allEntityDeletePaths = append(allEntityDeletePaths, purgeEntityPaths...)

@@ -27,7 +27,7 @@ package.
 - `BuildContentRecord`, `BuildContentEntityRecord`, `BuildReducerIntent` — the
   record builders the per-family stages call.
 
-## Three behaviors worth knowing before changing anything here
+## Four behaviors worth knowing before changing anything here
 
 **Admission runs before any writer.** A fact whose schema version the
 projector does not support, or whose `generation_id` does not match the
@@ -45,5 +45,14 @@ buys.
 projections of different scopes share the package identity keyspace;
 `PackageRegistryIdentityLocker` is what keeps them from interleaving on it.
 Removing the bracket is a concurrency defect, not an optimization.
+
+**A full snapshot is what lets the content writer delete.** `buildProjection`
+sets `content.Materialization.FullSnapshot` only for a repository-scoped
+generation that is not a delta (by the generation flag and by the repository
+fact's `delta_generation`, the marker `canonical.BuildMaterialization` reads)
+and that carries the repository fact. The writer then removes every stored path
+the snapshot lacks, so loosening any of those conditions can delete a
+repository's content: a terraform-state scope carries `repo_id` and no file
+facts. `TestBuildProjectionMarksContentFullSnapshot` pins each case.
 
 See `doc.go` for the full godoc contract.

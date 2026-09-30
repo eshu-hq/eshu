@@ -48,8 +48,14 @@ Write contract:
   adapter.
 - `Materialization` — payload for one scope generation: `RepoID`, `ScopeID`,
   `GenerationID`, `SourceSystem`, `Records []Record`,
-  `Entities []EntityRecord`, and `RepositoryRefs []RepositoryRef`.
-  `ScopeGenerationKey()` returns the durable `"scopeID:generationID"` boundary.
+  `Entities []EntityRecord`, `RepositoryRefs []RepositoryRef`, and
+  `FullSnapshot`. `ScopeGenerationKey()` returns the durable
+  `"scopeID:generationID"` boundary. `FullSnapshot` says `Records` is the
+  complete file set of `RepoID`, so the writer also removes every stored path
+  the snapshot does not carry (content files, entities, references and their
+  fingerprints); a full snapshot has no `Deleted` tombstone for a path an
+  earlier, never-activated generation wrote. Only the projector sets it, and
+  the zero value never removes a row.
 - `Record` — one file write candidate: `Path`, `Body`, `Digest`, `Deleted`,
   `Metadata map[string]string`.
 - `EntityRecord` — one entity write candidate; carries `EntityID`, `Path`,

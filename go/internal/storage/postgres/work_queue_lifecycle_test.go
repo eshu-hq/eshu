@@ -164,6 +164,12 @@ type fakeExecQueryer struct {
 	// yields zero rows: shared fixtures model side tables whose entities all
 	// still exist, so the reap reads nothing stale and issues no delete.
 	staleFingerprintRows map[string][][]any
+
+	// contentFilePathRows answers the #7447 full-snapshot reap's stored-path
+	// read (listContentFilePathsSQL) with one {relative_path} row per stored
+	// path, independent of FIFO order. Nil yields zero rows: shared fixtures
+	// model a repository with nothing stored.
+	contentFilePathRows [][]any
 }
 
 type fakeExecCall struct {
@@ -245,6 +251,9 @@ func (f *fakeExecQueryer) QueryContext(
 	// deterministically anyway now that publication fans out concurrently.
 	if query == staleFingerprintEntityIDsSQL || query == staleFingerprintBandEntityIDsSQL {
 		return &queueFakeRows{rows: f.staleFingerprintRows[query]}, nil
+	}
+	if query == listContentFilePathsSQL {
+		return &queueFakeRows{rows: f.contentFilePathRows}, nil
 	}
 
 	if strings.HasPrefix(query, activeScopeGenerationQuery) {

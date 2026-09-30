@@ -290,3 +290,75 @@ func (w ContentWriter) reapStaleContentEntities(ctx context.Context, repoID stri
 
 	return nil
 }
+
+// listContentFilePathsSQL reads every stored path of one repository. It is a
+// single range scan of content_files_pkey with the (repo_id, relative_path)
+// prefix and no join, so the planner has one plan to choose. Measured on
+// PostgreSQL 18.6 as an Index Only Scan with one index search: 21 ms for a
+// 200,000-file repository and 139 ms for a 1,000,000-file one, warm.
+const listContentFilePathsSQL = `SELECT relative_path FROM content_files WHERE repo_id = $1`
+
+// staleContentFilePaths returns, sorted, the stored paths of the
+// materialization's repository that its Records do not carry. Only a
+// FullSnapshot materialization has a stale set: a delta names just the paths it
+// touched, so for it the answer is always empty and no read is issued.
+//
+// A full snapshot has no Deleted tombstone for a path an earlier generation
+// wrote and the snapshot no longer contains, for example a path written by a
+// delta that was superseded before it activated, so those rows are found by
+// difference against the stored set instead. The set difference runs in Go over
+// the streamed paths and retains only the stale ones, which keeps a repository
+// with nothing stale (every first generation, and most reconciliation
+// snapshots) at one read and zero deletes.
+//
+// The read and the later deletes are separate statements. That is safe while
+// the entity reap's assumption holds: no two Write calls for one repository run
+// at once (claimProjectorWorkQuery's scope_id guard), so nothing re-creates a
+// stale path between them. A path in Records is never in the stale set, so the
+// deletes cannot remove a fresh row of this Write. The exception is a writer
+// whose lease expired but is still running, which the guard does not cover and
+// which can upsert after this read (see the known limits in
+// docs/internal/evidence/7447-content-full-snapshot-reap.md).
+func (w ContentWriter) staleContentFilePaths(ctx context.Context, mat content.Materialization) ([]string, error) {
+	if !mat.FullSnapshot {
+		return nil, nil
+	}
+
+	fresh := make(map[string]struct{}, len(mat.Records)+len(mat.RetainedPaths))
+	// Every record path is fresh, tombstones included: a path this snapshot
+	// deletes explicitly is deleted by the tombstone loop in Write, so counting
+	// it as stale too would delete it twice and inflate stale_file_count, which
+	// is meant to count true leftovers only.
+	for _, record := range mat.Records {
+		fresh[record.Path] = struct{}{}
+	}
+	// A retained path is in the snapshot without a Record (its body read was
+	// skipped), so it keeps the content it already has.
+	for _, path := range mat.RetainedPaths {
+		fresh[path] = struct{}{}
+	}
+
+	rows, err := w.database.QueryContext(ctx, listContentFilePathsSQL, mat.RepoID)
+	if err != nil {
+		return nil, fmt.Errorf("list content_files paths for full snapshot reap: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var stale []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, fmt.Errorf("scan content_files path for full snapshot reap: %w", err)
+		}
+		if _, ok := fresh[path]; !ok {
+			stale = append(stale, path)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read content_files paths for full snapshot reap: %w", err)
+	}
+
+	// Sorted so delete chunk boundaries and row-lock order are reproducible.
+	sort.Strings(stale)
+	return stale, nil
+}

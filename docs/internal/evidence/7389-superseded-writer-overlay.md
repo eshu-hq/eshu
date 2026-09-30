@@ -337,8 +337,12 @@ shipped:
   reconcile or heal full survive a newer delta in claim maintenance is the
   tracked design follow-up (#7447 item 7; retention is item 4).
 - The content store keeps a superseded writer's `content_files` rows (for
-  example x.go at commit b) after a full sweep until retention reaps them; the
-  graph is correct.
+  example x.go at commit b) after a full sweep. Generation retention's
+  `prune_content_files` phase (#7279) removes a row whose only file facts sit in
+  pruned generations, but only once the superseded generation passes the age gate
+  (168 h) and falls out of the newest 24 per scope. #7447 item 5 removes the rows
+  at the next full snapshot instead (see `7447-content-full-snapshot-reap.md`).
+  The graph is correct.
 - A marked writer is released only by its own completion, its own failure, or
   a lease expiry after its process dies: the heartbeat no longer supersedes it.
   On Neo4j `ESHU_CANONICAL_WRITE_TIMEOUT` defaults to unbounded, so a hung
