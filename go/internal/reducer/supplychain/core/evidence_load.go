@@ -21,13 +21,21 @@ import (
 // (loadSupplyChainImpactEvidence) while Handle stays focused on
 // classification, suppression, and the write/emit tail.
 type supplyChainImpactLoadedEvidence struct {
-	envelopes                       []facts.Envelope
-	scopeFacts                      int
-	repositoryFacts                 int
-	manifestDependencyFacts         int
-	activeEvidenceFacts             int
-	activeEvidenceTruncated         bool
-	suppressionEvidenceTruncated    bool
+	envelopes               []facts.Envelope
+	scopeFacts              int
+	repositoryFacts         int
+	manifestDependencyFacts int
+	activeEvidenceFacts     int
+	// truncation names why a bounded load stopped short, by cause (#7154).
+	// Only truncation.partial() makes the finding set incomplete.
+	truncation supplyChainImpactTruncation
+	// suppressionEvidenceTruncated is true when any bounded load stopped
+	// short: a suppression candidate set that is not provably complete is
+	// discarded so findings fail open.
+	suppressionEvidenceTruncated bool
+	// expansionEnvelopes counts the expansion envelopes charged against the
+	// per-intent evidence budget.
+	expansionEnvelopes              int
 	osPackageAdvisoryFacts          int
 	osPackageAdvisoryTargetsSkipped int
 	scannerAnalysisScopeFacts       int
@@ -123,58 +131,26 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
 
+	budget := newSupplyChainImpactEvidenceBudget(h.EvidenceBudget)
+	var truncation supplyChainImpactTruncation
+
 	activeEvidenceStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	envelopes, activeEvidenceTruncated, err := h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes, activeEvidenceFilter)
+	envelopes, truncation, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes, activeEvidenceFilter, budget)
 	timing.loadActiveEvidenceDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
 	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
-	suppressionEvidenceTruncated := activeEvidenceTruncated
 
-	osPackageAdvisoryStartCount := len(envelopes)
-	phaseStarted = time.Now()
-	osPackageAdvisoryEnvelopes, osPackageAdvisorySkipped, osPackageAdvisoryTruncated, err := h.loadSupplyChainImpactOSPackageAdvisoryFacts(ctx, envelopes)
-	timing.loadOSPackageAdvisoryDuration = time.Since(phaseStarted)
+	envelopes, expansion, err := h.loadSupplyChainImpactExpansionEvidence(ctx, envelopes, budget, &truncation, &timing)
 	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact os package advisory facts: %w", err)
+		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, osPackageAdvisoryEnvelopes...)
-	osPackageAdvisoryFacts := len(envelopes) - osPackageAdvisoryStartCount
-
-	scannerAnalysisScopeStartCount := len(envelopes)
-	phaseStarted = time.Now()
-	scannerAnalysisScopeEnvelopes, scannerAnalysisScopeTruncated, err := h.loadSupplyChainImpactScannerAnalysisScopeFacts(ctx, envelopes)
-	timing.loadScannerAnalysisScopeDuration = time.Since(phaseStarted)
-	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact scanner analysis scope facts: %w", err)
-	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, scannerAnalysisScopeEnvelopes...)
-	scannerAnalysisScopeFacts := len(envelopes) - scannerAnalysisScopeStartCount
-
-	resolvedDigestEvidenceStartCount := len(envelopes)
-	phaseStarted = time.Now()
-	resolvedDigestEvidenceEnvelopes, resolvedDigestTruncated, err := h.loadSupplyChainImpactResolvedDigestEvidenceFacts(ctx, scannerAnalysisScopeEnvelopes)
-	timing.loadResolvedDigestEvidenceDuration = time.Since(phaseStarted)
-	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact resolved digest evidence facts: %w", err)
-	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, resolvedDigestEvidenceEnvelopes...)
-	resolvedDigestEvidenceFacts := len(envelopes) - resolvedDigestEvidenceStartCount
-	// osPackageAdvisoryTruncated joins the same flag as the other bounded
-	// stages: the OS-package load is capped, so hitting the cap makes this pass
-	// a partial view that must not retract (#6831).
-	activeEvidenceTruncated = activeEvidenceTruncated || osPackageAdvisoryTruncated || scannerAnalysisScopeTruncated || resolvedDigestTruncated
-	suppressionEvidenceTruncated = suppressionEvidenceTruncated || resolvedDigestTruncated
-
-	peerIdentityEnvelopes, peerIdentityTruncated, err := h.loadSupplyChainImpactPeerIdentityFacts(ctx, resolvedDigestEvidenceEnvelopes)
-	if err != nil {
-		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact peer identity facts: %w", err)
-	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, peerIdentityEnvelopes...)
-	activeEvidenceTruncated = activeEvidenceTruncated || peerIdentityTruncated
-	suppressionEvidenceTruncated = suppressionEvidenceTruncated || peerIdentityTruncated
+	osPackageAdvisoryFacts := expansion.osPackageAdvisory
+	osPackageAdvisorySkipped := expansion.osPackageAdvisorySkipped
+	scannerAnalysisScopeFacts := expansion.scannerAnalysisScope
+	resolvedDigestEvidenceFacts := expansion.resolvedDigest
 
 	// Every stage that can return producer output has now run: the until-stable
 	// loop, the resolved-digest re-run (#5464), and the peer-identity pass
@@ -225,8 +201,9 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		repositoryFacts:                 repositoryFacts,
 		manifestDependencyFacts:         manifestDependencyFacts,
 		activeEvidenceFacts:             activeEvidenceFacts,
-		activeEvidenceTruncated:         activeEvidenceTruncated,
-		suppressionEvidenceTruncated:    suppressionEvidenceTruncated,
+		truncation:                      truncation,
+		suppressionEvidenceTruncated:    truncation.any(),
+		expansionEnvelopes:              budget.used,
 		osPackageAdvisoryFacts:          osPackageAdvisoryFacts,
 		osPackageAdvisoryTargetsSkipped: osPackageAdvisorySkipped,
 		scannerAnalysisScopeFacts:       scannerAnalysisScopeFacts,

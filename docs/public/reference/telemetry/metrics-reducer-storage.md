@@ -315,6 +315,7 @@ remain available for exact scope/generation diagnosis.
 | `eshu_dp_sbom_attestation_attachments_total` | counter | SBOM and attestation attachment decisions by reducer domain and outcome. |
 | `eshu_dp_supply_chain_impact_findings_total` | counter | Supply-chain impact findings by reducer domain and outcome. |
 | `eshu_dp_supply_chain_impact_findings_retracted_total` | counter | Superseded supply-chain impact finding rows a reducer pass tombstoned because its complete finding set for the (scope, generation) no longer derives them, by reducer domain. |
+| `eshu_dp_supply_chain_impact_evidence_truncated_total` | counter | Supply-chain impact evidence truncations, one increment per pass per reason, for a cause that can hide a live finding so the pass retracted nothing, by reducer domain and reason (`active_expansion_rounds` or `evidence_budget`). A scope that increments it on every pass keeps its stale findings; the WARN log line carries the scope and generation. |
 
 Package names, image digests, run IDs, commit SHAs, environment names, and
 artifact identifiers stay in logs, traces, or durable facts.

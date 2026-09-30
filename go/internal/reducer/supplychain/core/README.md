@@ -54,9 +54,29 @@ Each pass's finding set is the complete truth for its `(scope, generation)`.
 every other active finding row of that `(scope, generation)` in one
 transaction, behind a `pg_advisory_xact_lock` on that pair, so a superseded
 finding -- for example a repo-less row replaced once repository anchoring
-arrived -- stops being served (#6831). A pass whose evidence load hit a cap
-(`SupplyChainImpactWrite.PartialEvidence`) upserts only. Evidence and
-measurements: `docs/internal/evidence/6831-supply-chain-impact-replace-set.md`.
+arrived -- stops being served (#6831). A pass whose evidence load stopped
+short for a cause that can change a finding's identity -- the 8-round
+expansion cap or the per-intent evidence budget --
+(`SupplyChainImpactWrite.PartialEvidence`) upserts only. The per-key caps the
+OS-package, scanner-analysis-scope, resolved-digest and peer-identity stages
+used to carry are paged to completion, and a bounded suppression tail does not
+block retraction, so a scope larger than one page converges (#7154). Evidence
+and measurements:
+`docs/internal/evidence/6831-supply-chain-impact-replace-set.md`,
+`docs/internal/evidence/7154-capped-scope-convergence.md`.
+
+Truncation is recorded by cause (`evidence_truncation.go`): `active_expansion_rounds`
+(the 8-round expansion cap) and `evidence_budget` (the per-intent expansion
+envelope budget, default 100,000) set `PartialEvidence`; `suppression_tail`
+(only the `vulnerability.suppression` tail of a read was bounded) does not,
+because a suppression is not part of a finding's identity and core evidence is
+always loaded in full before the tail is counted, so that pass still retracts
+and only discards its suppression candidates. The OS-package read is narrowed to
+the intent's affected-package lookup keys and drained in one snapshot
+(`ListOSPackageAdvisoryFactEnvelopes(ecosystems, packageIDs, limit)`); the
+digest and repository-id filters read in chunks of 256. Operators see a stuck scope through
+`eshu_dp_supply_chain_impact_evidence_truncated_total{domain,reason}` and one
+WARN log line naming the scope and generation.
 - Types: `SupplyChainImpactFinding`, `SupplyChainImpactFactFilter`,
   `SupplyChainImpactWrite`, `SupplyChainImpactWriteResult`,
   `SupplyChainSuppressionDecision`, `SupplyChainSuppressionState`,

@@ -72,11 +72,15 @@ type SupplyChainImpactWrite struct {
 	SourceSystem string
 	Cause        string
 	Findings     []SupplyChainImpactFinding
-	// PartialEvidence marks a pass whose active-evidence expansion was
-	// truncated. Its finding set is not the complete truth for the
-	// (scope, generation), so the writer upserts it but retracts nothing:
-	// hiding a finding because a bounded load did not reach it would trade a
-	// stale row for a missing one (#6831).
+	// PartialEvidence marks a pass whose evidence load stopped short for a
+	// cause that can change a finding's identity: the active-evidence round cap
+	// or the per-intent evidence budget (supplyChainImpactTruncation.partial).
+	// Its finding set is not the complete truth for the (scope, generation), so
+	// the writer upserts it but retracts nothing: hiding a finding because a
+	// bounded load did not reach it would trade a stale row for a missing one
+	// (#6831). Per-key caps are paged to completion and a bounded suppression
+	// tail does not set it, so a scope larger than one page still converges
+	// (#7154).
 	PartialEvidence bool
 }
 
@@ -96,9 +100,11 @@ type SupplyChainImpactWriter interface {
 }
 
 type activeSupplyChainImpactFactLoader interface {
-	// The bool return reports pagination truncation (#5466 P1-B, see
-	// handler_helpers.go): callers OR it into the same
-	// truncation signal maxSupplyChainImpactActiveEvidenceLoads produces.
+	// The bool return reports that the vulnerability.suppression tail of the
+	// read was bounded (#5466 P1-B, see handler_helpers.go). It must never
+	// report truncated core evidence: the handler treats it as the
+	// suppression-tail signal only, which does not block retraction (#7154), so
+	// an implementation that bounds core evidence must not use it.
 	ListActiveSupplyChainImpactFacts(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, bool, error)
 }
 
@@ -124,6 +130,10 @@ type SupplyChainImpactHandler struct {
 	// anchors the producer-wait bound across superseding generations
 	// (#6814). Nil keeps the pre-ledger per-row bound.
 	ReadinessWaits crossscope.ReadinessWaitLedger
+	// EvidenceBudget overrides the per-intent expansion evidence budget
+	// (maxSupplyChainImpactEvidenceEnvelopesPerIntent) when positive.
+	// Optional: zero keeps the default.
+	EvidenceBudget int
 	// Logger records a cross-scope readiness deferral as its own structured
 	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
 	// class freezes attempt_count, so the queue row alone cannot tell an
@@ -159,7 +169,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, fmt.Errorf("build supply chain impact findings: %w", err)
 	}
-	if loaded.activeEvidenceTruncated {
+	if loaded.truncation.partial() {
 		findings = markSupplyChainImpactFindingsActiveExpansionTruncated(findings)
 	}
 	timing.buildFindingsDuration = time.Since(phaseStarted)
@@ -206,9 +216,12 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		Findings:     findings,
-		// A truncated evidence load is not the complete finding set, so
-		// the writer must not retract rows it did not reach (#6831).
-		PartialEvidence: loaded.activeEvidenceTruncated,
+		// A load truncated for a cause that can change a finding's identity
+		// is not the complete finding set, so the writer must not retract
+		// rows it did not reach (#6831). A suppression-tail truncation does
+		// not qualify: suppression is not part of a finding's identity, so
+		// such a pass still converges (#7154).
+		PartialEvidence: loaded.truncation.partial(),
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
@@ -218,12 +231,16 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	phaseStarted = time.Now()
 	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
 	h.emitRetraction(ctx, intent, writeResult.FactsRetracted)
+	h.emitEvidenceTruncation(ctx, intent, loaded, len(findings))
 	timing.emitCountersDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
 
 	evidenceSummary := supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites)
-	if loaded.activeEvidenceTruncated {
+	if loaded.truncation.partial() {
 		evidenceSummary += " active_evidence_truncated=true"
+	}
+	if loaded.truncation.suppressionTail {
+		evidenceSummary += " suppression_evidence_truncated=true"
 	}
 	subSignals := supplyChainImpactDiagnosticSignals(
 		loaded.scopeFacts,
@@ -240,9 +257,14 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		loaded.securityAlertScopingApplied,
 		loaded.securityAlertScopedOutFacts,
 		len(findings),
-		loaded.activeEvidenceTruncated,
+		loaded.truncation.partial(),
 		writeResult.FactsWritten,
 	)
+	subSignals["evidence_truncated_rounds"] = boolSignal(loaded.truncation.rounds)
+	subSignals["evidence_truncated_budget"] = boolSignal(loaded.truncation.budget)
+	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
+	subSignals["evidence_envelopes"] = float64(len(envelopes))
+	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}

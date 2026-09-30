@@ -173,23 +173,112 @@ func (s FactStore) ListOSPackageAdvisoryTargets(
 		); err != nil {
 			return nil, fmt.Errorf("list OS package advisory targets: %w", err)
 		}
-		target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
-		target.Distro = strings.ToLower(strings.TrimSpace(target.Distro))
-		target.DistroVersion = strings.TrimSpace(target.DistroVersion)
-		target.PackageName = strings.TrimSpace(target.PackageName)
-		target.InstalledVersion = strings.TrimSpace(target.InstalledVersion)
-		target.PackageManager = strings.ToLower(strings.TrimSpace(target.PackageManager))
-		target.Arch = strings.TrimSpace(target.Arch)
-		target.VendorAdvisorySource = strings.ToLower(strings.TrimSpace(target.VendorAdvisorySource))
-		target.RepositoryClass = strings.ToLower(strings.TrimSpace(target.RepositoryClass))
-		target.ScopeID = strings.TrimSpace(target.ScopeID)
-		target.GenerationID = strings.TrimSpace(target.GenerationID)
+		normalizeOSPackageAdvisoryTarget(&target)
 		targets = append(targets, target)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list OS package advisory targets: %w", err)
 	}
 	return targets, nil
+}
+
+// osPackagePURLTrimSet is the character set btrim strips in
+// osPackagePURLPrefixExpression: exactly the runes Go's strings.TrimSpace
+// strips (unicode.IsSpace: 25 runes), written as escapes so the text is
+// identical in the query and in migration 153. Postgres btrim(string, chars)
+// trims any character in chars from both ends, so this reproduces
+// TrimSpace, and TestOSPackagePURLTrimSetMatchesGoTrimSpace enumerates the
+// runes to prove it. VT is written as \u000b because Postgres escape strings
+// do not define \v.
+const osPackagePURLTrimSet = `E' \t\n\u000b\f\r\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000'`
+
+// osPackagePURLPrefixExpression is the SQL form of the installed package id
+// the reducer matches on: core.packageIDFromPURL, which is strings.TrimSpace of
+// the purl cut at its first '@' (go/internal/reducer/supplychain/core/
+// purl_match.go). payloadColumn names the jsonb payload column, with or
+// without a table alias. Migration 153 builds an expression index on exactly
+// this text with payload unqualified, and TestOSPackagePURLPrefixExpression
+// MatchesMigration pins the two together: an index on any other spelling would
+// not serve the query.
+func osPackagePURLPrefixExpression(payloadColumn string) string {
+	return "split_part(btrim(" + payloadColumn + "->>'purl', " + osPackagePURLTrimSet + "), '@', 1)"
+}
+
+// listOSPackageAdvisoryTargetsForPackagesQuery is one keyset page of installed
+// vulnerability.os_package targets whose package id is one of $1 (#7154).
+//
+// The finding set of an impact intent depends only on installed rows whose
+// package id equals one of the intent's affected-package lookup keys, so
+// narrowing the read to those keys is complete over a small closed set, where
+// the ecosystem-only read it replaces drained every installed package of the
+// ecosystem across the whole fleet for every intent. The candidates CTE is
+// MATERIALIZED and driven by fact_records_os_package_purl_prefix_idx: without
+// the CTE the planner drove from the scope join, misestimated it, and read every
+// row on every page even with the index present.
+//
+// Every candidate row advances the cursor and counts toward the page, whether or
+// not its generation is active, so a page of inactive rows cannot end a drain
+// early; the active flag (an active scope generation and an ecosystem in $4,
+// the same predicate the rotation reader applies) is applied by the caller. A
+// page shorter than $3 candidates is the last one. ORDER BY and the `>` cursor
+// use the same fact_id column and collation, so they agree.
+//
+// An empty $2 starts from the first target: every fact id sorts after the
+// empty string.
+func listOSPackageAdvisoryTargetsForPackagesQuery() string {
+	return `
+WITH candidates AS MATERIALIZED (
+  SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+  FROM fact_records AS fact
+  WHERE fact.fact_kind = 'vulnerability.os_package'
+    AND fact.is_tombstone = FALSE
+    AND ` + osPackagePURLPrefixExpression("fact.payload") + ` = ANY($1::text[])
+    AND fact.fact_id > $2
+  ORDER BY fact.fact_id ASC
+  LIMIT $3
+)
+SELECT
+  LOWER(COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) AS ecosystem,
+  COALESCE(c.payload->>'distro', '') AS distro,
+  COALESCE(c.payload->>'distro_version', '') AS distro_version,
+  COALESCE(c.payload->>'name', '') AS package_name,
+  COALESCE(c.payload->>'installed_version_raw', '') AS installed_version,
+  COALESCE(c.payload->>'package_manager', '') AS package_manager,
+  COALESCE(c.payload->>'arch', '') AS arch,
+  COALESCE(c.payload->>'vendor_advisory_source', '') AS vendor_advisory_source,
+  COALESCE(c.payload->>'repository_class', '') AS repository_class,
+  COALESCE(c.payload->>'purl', '') AS purl,
+  c.fact_id,
+  c.scope_id,
+  c.generation_id,
+  (scope.scope_id IS NOT NULL
+    AND COALESCE(generation.status, '') = 'active'
+    AND LOWER(COALESCE(NULLIF(c.payload->>'vendor_advisory_source', ''), c.payload->>'distro')) = ANY($4::text[])) AS active
+FROM candidates AS c
+LEFT JOIN ingestion_scopes AS scope
+  ON scope.scope_id = c.scope_id
+ AND scope.active_generation_id = c.generation_id
+LEFT JOIN scope_generations AS generation
+  ON generation.scope_id = c.scope_id
+ AND generation.generation_id = c.generation_id
+ORDER BY c.fact_id ASC
+`
+}
+
+// normalizeOSPackageAdvisoryTarget applies the trimming and case folding the
+// rotation reader applies to every scanned target.
+func normalizeOSPackageAdvisoryTarget(target *workflow.OSPackageAdvisoryTarget) {
+	target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
+	target.Distro = strings.ToLower(strings.TrimSpace(target.Distro))
+	target.DistroVersion = strings.TrimSpace(target.DistroVersion)
+	target.PackageName = strings.TrimSpace(target.PackageName)
+	target.InstalledVersion = strings.TrimSpace(target.InstalledVersion)
+	target.PackageManager = strings.ToLower(strings.TrimSpace(target.PackageManager))
+	target.Arch = strings.TrimSpace(target.Arch)
+	target.VendorAdvisorySource = strings.ToLower(strings.TrimSpace(target.VendorAdvisorySource))
+	target.RepositoryClass = strings.ToLower(strings.TrimSpace(target.RepositoryClass))
+	target.ScopeID = strings.TrimSpace(target.ScopeID)
+	target.GenerationID = strings.TrimSpace(target.GenerationID)
 }
 
 // ListSBOMComponentAdvisoryTargets loads active attached SBOM component

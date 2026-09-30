@@ -353,4 +353,5 @@ var orderedBootstrapDefinitionNames = []string{
 	// seek its delete statements filter on.
 	"code_fingerprint_band_entity_idx",
 	"fact_records_story_support_link_repo_idx",
+	"fact_records_os_package_purl_prefix_idx",
 }

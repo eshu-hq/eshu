@@ -55,10 +55,11 @@ type scanScopedSupplyChainImpactFactLoader struct {
 func (l *scanScopedSupplyChainImpactFactLoader) ListOSPackageAdvisoryFactEnvelopes(
 	_ context.Context,
 	ecosystems []string,
+	_ []string,
 	_ int,
-) ([]facts.Envelope, int, error) {
+) ([]facts.Envelope, int, bool, error) {
 	l.osPackageAdvisoryEcosystemCalls = append(l.osPackageAdvisoryEcosystemCalls, append([]string(nil), ecosystems...))
-	return append([]facts.Envelope(nil), l.osPackageAdvisoryFactEnvelopes...), 0, nil
+	return append([]facts.Envelope(nil), l.osPackageAdvisoryFactEnvelopes...), 0, false, nil
 }
 
 func scanScopedFactLoaderKey(scopeID, generationID string) string {

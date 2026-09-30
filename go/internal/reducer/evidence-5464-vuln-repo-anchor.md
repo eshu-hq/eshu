@@ -5,9 +5,10 @@
 `loadSupplyChainImpactResolvedDigestEvidenceFacts` is a new evidence-load stage
 that re-runs the active-evidence reader seeded with image digests resolved by the
 scanner-analysis-scope stage immediately above it. Each scanner-analysis digests
-maps to at most one `reducer_container_image_identity` fact (keyed by digest),
-and the stage is bounded to `maxSupplyChainImpactResolvedDigestLoads` = 256
-distinct digests. The stage is purely additive — no existing stage was reordered
+maps to at most one `reducer_container_image_identity` fact (keyed by digest).
+Since #7154 the digests are read in chunks of `supplyChainImpactFilterChunkSize`
+= 256 (paged, not dropped past a cap), so one stage covers every distinct
+digest. The stage is purely additive — no existing stage was reordered
 or replaced.
 
 ## Why no regression
