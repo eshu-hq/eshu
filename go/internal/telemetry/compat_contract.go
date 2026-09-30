@@ -75,6 +75,15 @@ const (
 	LogKeyGraphReadError                  = contract.LogKeyGraphReadError
 )
 
+// Postgres store bounded-error log record (from contract/postgres_store.go).
+const (
+	EventPostgresStoreError          = contract.EventPostgresStoreError
+	LogKeyPostgresStoreOperation     = contract.LogKeyPostgresStoreOperation
+	LogKeyPostgresStoreSQLState      = contract.LogKeyPostgresStoreSQLState
+	LogKeyPostgresStoreStatementHead = contract.LogKeyPostgresStoreStatementHead
+	LogKeyPostgresStoreError         = contract.LogKeyPostgresStoreError
+)
+
 // Kubernetes correlation query span (from contract/kubernetes.go).
 const SpanQueryKubernetesCorrelations = contract.SpanQueryKubernetesCorrelations
 

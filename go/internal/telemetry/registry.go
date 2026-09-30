@@ -238,6 +238,10 @@ var logKeys = []string{
 	LogKeyFileGroupPostCallbackDuration,
 	LogKeyGraphReadQueryName,
 	LogKeyGraphReadError,
+	LogKeyPostgresStoreOperation,
+	LogKeyPostgresStoreSQLState,
+	LogKeyPostgresStoreStatementHead,
+	LogKeyPostgresStoreError,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

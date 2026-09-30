@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +30,9 @@ type Config struct {
 	PingTimeout        time.Duration
 	ReplayTimeout      time.Duration
 	ExpectedSystemID   string
+	// Logger receives the postgres.store.error record for a failed writer-pool
+	// driver call. A nil Logger uses slog.Default.
+	Logger *slog.Logger
 }
 
 // LoadConfig resolves the optional reader endpoint and validates the shared

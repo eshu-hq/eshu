@@ -89,8 +89,8 @@ retryable, unlike a `500`. The routes carrying this contract advertise `503`
 and `504` in the OpenAPI spec; the deadline, retry, and telemetry semantics
 behind it are owned by
 [Graph-read safety](telemetry/graph-read-safety.md), which also records the one
-route still exempt. Routes backed by Postgres or the content store rather than
-the graph are unaffected.
+route still exempt. The graph-read contract does not apply to Postgres or
+content-store reads; those follow the store-error contract below.
 
 Any other graph-read failure (a driver fault that is neither a deadline nor an
 availability problem) answers `500` whose detail ends in `graph query failed`;
@@ -102,6 +102,25 @@ The response carries no trace id and no statement fingerprint, so an operator
 matches a reported failure to its log record by the time of the failure, and
 reads the query name, statement fingerprint, and statement head from the record
 to name the offending shape.
+
+A failed Postgres call on the API and MCP server answers `500`, `503`, or `504`
+per the handler, and its detail never carries the driver's own message, which
+names the database user, the database, and the dialed address on a connection
+failure and a relation, column, constraint, or bound value on a server error. A
+business read through the guarded reader pool ends in a fixed text such as
+`PostgreSQL reader query failed` (#7482). A call through the writer pool
+(authorization, audit, mutation, sign-in) ends in one of four fixed texts:
+`postgres store unavailable` (a connection that could not be made or was lost),
+`postgres store timed out` (a statement or transaction ran out of time),
+`postgres store request canceled` (the caller went away), or
+`postgres store statement failed` (any other driver or server failure). A handler
+may prefix its own step name, for example
+`get file content: postgres store statement failed`. The writer pool's detail is
+in the `postgres.store.error` log (`postgres_store.operation`,
+`postgres_store.sqlstate`, `postgres_store.statement_head`,
+`postgres_store.error`). The ingester, reducer, projector, collectors, and
+`admin-status` pools are not bounded and still return the driver's text on their
+own admin endpoints.
 
 The two routes that run a caller-authored statement, `POST /api/v0/code/cypher`
 (`execute_cypher_query`) and `POST /api/v0/code/visualize`, treat a statement

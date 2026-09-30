@@ -160,6 +160,12 @@
 // availability classes: its first line passes through the same literal
 // redaction and the lines that quote the statement are dropped, because the
 // client-facing error is the fixed "graph query failed" (#7253).
+// LogKeyPostgresStoreOperation, LogKeyPostgresStoreSQLState,
+// LogKeyPostgresStoreStatementHead and LogKeyPostgresStoreError (the
+// postgres.store.error log, #7253) are the Postgres counterpart: the error field
+// carries the driver's own text, truncated, because the client-facing error for
+// a failed store read is one of four fixed strings; the statement head carries
+// the store's SQL with $N placeholders, never a bound value.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in
