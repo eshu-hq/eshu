@@ -126,7 +126,7 @@ operators are identical (`NodeUniqueIndexSeek`, then `Expand(All)` twice, with
 `Filter` between): no new scan, no new expand, no eager operator. This is
 reported as measured; the criterion was not relaxed to make it pass.
 
-Wall time: NOT_CHECKED on a valid test bed. The same runs on the shared laptop
+Laptop smoke figures, superseded by the remote run recorded under "Remote wall-time result" below. The same runs on the shared laptop
 measured medians of 116 ms to 155 ms at 4,522 edges and 646 ms to 775 ms (scoped)
 at 25,000 edges, an increase of roughly 18% to 34% across the four shapes (unscoped
 4,522 edges 123.8 to 145.7 ms is the low end). That laptop was under heavy contention
@@ -171,14 +171,58 @@ cited for the production capability row (`prod-import-dependencies`) is a compos
 checked and which binds no statement; it is not refreshed here, and this note does not claim it re-validates the
 changed statement.
 
-Wall time: NOT_CHECKED until that run has happened; its result goes in this note before the PR opens.
+### Remote wall-time result
+
+Rig: the dedicated 16-CPU Linux host, the pinned `neo4j:2026-community` image (digest
+`sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`, 8 GiB heap and page cache),
+the production schema from `bootstrap-data-plane`, base statements from merge-base
+`6ec0073d0980e9a44af632b2ed3187cd3987f6f1` and new statements from head
+`c6b7dc2bb3600e9b0f8f7746bfa686d8f372e272`, both dumped from the real `FileImportCycleEdgeRowsCypher` (the
+unscoped statement built with `AllScopes: true`). Rule PD held: load1 2.39 at start, 2.94 at end, 3.02 the
+in-run maximum of the 1 s samples, against a limit of 8. Each statement text had a 15 s discarded warm-up. The
+control bound came from two A/A sets (72 pooled ratios, range 0.9473 to 1.0159, SD 0.0084) and is B = 0.0778;
+every shape had 9 valid rounds from 9 attempts. The A/B rounds ran in a rotating Latin-square order.
+
+| Shape (edges, variant) | G1: hits new - base | G2: ratio of medians / same-round mean (limit) | Fetch max new / base | G3 |
+| --- | --- | --- | --- | --- |
+| 4,522 scoped | 13,566 = 3 x 4,522 | 1.0429 / 1.0374 (1.4229) | 0.103 s / 0.100 s | reported |
+| 4,522 unscoped | 13,566 = 3 x 4,522 | 1.0369 / 1.0371 (1.6650) | 0.103 s / 0.099 s | reported |
+| 25,000 scoped | 75,000 = 3 x 25,000 | 1.0348 / 1.0329 (1.4307) | 0.557 s / 0.542 s | pass, bar 1.25 s |
+| 25,000 unscoped | 75,000 = 3 x 25,000 | 1.0384 / 1.0368 (1.7028) | 0.560 s / 0.539 s | pass, bar 1.25 s |
+
+Wall time rose 3.5% to 4.3% at the median while DB hits rose 35% to 62% (the ratios above 1.35 that set the
+G2 limits): the extra property reads are cheap next to the index seek, expand and sort. In all four shapes the
+new plan differs from the base plan by exactly one added `CacheProperties`, with the same access path and no
+`Eager`. The cold first execution was 0.197 s and 0.170 s (4,522 scoped, unscoped) and 0.615 s and 0.599 s
+(25,000 scoped, unscoped) for the new statement.
+
+G4, per call, in process: the walk was driven to its budget by a ring fixture (626 files, 24,414 edges, every
+edge resolving in-repo, no cycle of length 8 or less, so the run reports `rows=0`, `stop=step_budget`,
+`steps=250000`), and this was asserted by the evaluator. Scoped: cold 0.311 s, warm maximum 0.277 s.
+Unscoped: cold 0.297 s, warm maximum 0.251 s, both against 1.5 s. On the random 25,000-edge graph, which has
+no cycle and so reports `rows=0`, `steps=0`, the same calls took 0.264 s to 0.270 s cold and at most 0.251 s
+warm (report-only; that graph does not exercise the walk). Report-only findings: the 25,000-edge fetch maximum
+fits 0.750 s and every per-call time fits 1.0 s, so the 1,000 ms local profiles would also hold on this rig,
+which does not model them.
+
+`eval_reader.py` (G1 to G4 as fixed above) reported PASS. What this does not show: it is a synthetic
+Python-shaped graph on one rig, not the deployed corpus, and the per-call figure uses a test-local reader
+without the production deadlines, retries or telemetry.
+
+Two earlier remote attempts at this head were void under the pre-registered validity rule (derived control
+bound 0.2079 and 0.2077 against the 0.15 cap) and are not used for any claim. The passing run is the third.
+The other tenants on the host were not quiet: the per-second container CPU samples show foreign containers
+using up to about 2.9 cores in bursts (host busy cores mean 3.0, maximum 5.9 of 16), which stayed within rule PD
+and inside the derived control bound; it is stated here rather than hidden. The Neo4j query log could not be made
+to record on the pinned image (only `db.logs.query.enabled` and `db.logs.query.threshold` are accepted and the
+log stayed empty), so per-statement server-side timing is not part of this evidence.
 
 ## Benchmark Evidence:
 
 No new benchmark. The walk is unchanged for a strongly connected graph; the
 added work is a state decode per edge row and a fold per duplicate key, both
 linear in the row count and allocation-light. The walk's own cost is pinned by
-part 1's step counts and benchmark. Timing is NOT_CHECKED (see above).
+part 1's step counts and benchmark. The reader's wall time is measured on the remote rig (see above).
 
 ## Observability Evidence:
 
@@ -250,8 +294,8 @@ this data.
   inferred Python edge cannot close a cycle. The label is exercised on seeded
   edges. The matcher was deliberately not widened here: doing so risks false
   cycles and is a separate change.
-- The NornicDB leg (secondary, #7331) was not re-run at this head (see Graph truth), and wall time is
-  NOT_CHECKED.
+- The NornicDB leg (secondary, #7331) was not re-run at this head (see Graph truth), and its wall time was not
+  measured; the timing above is Neo4j only.
 - **The console does not show the labels yet.** `apps/console/src/api/codeImports.ts`
   normalizes cycle rows and drops `cycle_label` and `flag_state`, so a cycle still
   renders without its label. Rendering them is a separate console change; it is not
