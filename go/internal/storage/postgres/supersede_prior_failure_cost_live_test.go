@@ -148,15 +148,19 @@ func costBeforeText(t *testing.T, name, shipped string) string {
 	return costBeforeTextWith(t, name, shipped, priorFailureStaleSQL)
 }
 
-// costBeforeTextWith cuts the given fragment constant (the stale or work alias
-// variant) out of a shipped statement.
+// costBeforeTextWith cuts every use of the given fragment constant (the stale or
+// work alias variant) out of a shipped statement. Every use, not the first: the
+// projector claim also carries the fold in its two reclaim UPDATEs (#7388), which
+// come before the supersede CTEs, so cutting only the first would cut the wrong
+// one. The reclaim uses are inert in the #7320 seeds, which hold no expired
+// duplicate lease.
 func costBeforeTextWith(t *testing.T, name, shipped, fold string) string {
 	t.Helper()
 	fragment := " || " + fold
 	if !strings.Contains(shipped, fragment) {
 		t.Fatalf("%s: shipped statement does not contain the fold, so there is no before variant to derive", name)
 	}
-	return strings.Replace(shipped, fragment, "", 1)
+	return strings.ReplaceAll(shipped, fragment, "")
 }
 
 // costRun executes one claim statement text and drains its rows, the work the

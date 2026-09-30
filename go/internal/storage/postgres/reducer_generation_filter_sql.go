@@ -249,3 +249,10 @@ const priorFailureWorkSQL = `(CASE
         ))
         ELSE '{}'::jsonb
     END)`
+
+// PriorFailureWorkSQL is priorFailureWorkSQL for a writer outside this package
+// that updates fact_work_items under the `work` alias and rewrites
+// failure_details, such as the admin operator note (#7388): it keeps the row's
+// current failure evidence under `prior_failure` instead of replacing it. It is
+// the same constant, so the fold keeps one definition.
+const PriorFailureWorkSQL = priorFailureWorkSQL

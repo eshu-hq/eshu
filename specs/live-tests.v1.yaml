@@ -188,6 +188,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/admin/operator_note_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7388 an operator note keeps the failure it replaces under prior_failure for dead-letter and skip; about 2 s on Postgres 18 — promote to blocking with timing evidence
   - file: go/internal/query/admin/replay_superseded_live_test.go
     tag: ~
     class: scheduled
@@ -2310,6 +2314,14 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7407 Fail-time failure_details bound and the #7320 fold copying the stored string byte for byte; about 2 s on Postgres 18 — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_reclaim_cost_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN plus ESHU_7320_COST_PROOF=1, pg_stat_statements preloaded); #7388 WAL and page cost of the reclaim fold per reclaimed row, before derived from the shipped constant; the derivation self-check runs without a database — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_reclaim_evidence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7388 both projector_stale_scope_reclaim UPDATEs keep the prior failure, no nesting, and the reclaim-then-supersede chain; about 8 s on Postgres 18 — promote to blocking with timing evidence
   - file: go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
     tag: ~
     class: scheduled
