@@ -232,6 +232,26 @@ func md5Violation(t *testing.T, repoRoot, path, site string) string {
 	return rel + ": " + site
 }
 
+// md5ShippedSQLViolations reports every md5() call in one shipped SQL file,
+// with repo-root-relative file:line sites. The match runs against the whole
+// file and the line is derived from the match offset, so an md5 token broken
+// across a line break still reports instead of passing silently.
+func md5ShippedSQLViolations(t *testing.T, repoRoot, path, text string) []string {
+	t.Helper()
+	var violations []string
+	for _, loc := range md5CallPattern.FindAllStringIndex(text, -1) {
+		lineNo := 1 + strings.Count(text[:loc[0]], "\n")
+		lineStart := strings.LastIndex(text[:loc[0]], "\n") + 1
+		lineEnd := strings.Index(text[loc[0]:], "\n")
+		line := text[lineStart:]
+		if lineEnd >= 0 {
+			line = text[lineStart : loc[0]+lineEnd]
+		}
+		violations = append(violations, md5Violation(t, repoRoot, path, strconv.Itoa(lineNo)+": "+strings.TrimSpace(line)))
+	}
+	return violations
+}
+
 // TestProductionSQLHasNoMD5Calls sweeps production Go string literals and
 // shipped schema SQL for md5() calls, which fail on FIPS-enabled PostgreSQL
 // (#6753). Tests, fixtures, and evidence files may still use md5(); only
@@ -258,14 +278,7 @@ func TestProductionSQLHasNoMD5Calls(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read shipped SQL %s: %v", path, err)
 		}
-		for _, site := range md5CallSitesInLiterals([]string{string(raw)}) {
-			lines := strings.Split(site, "\n")
-			for i, line := range lines {
-				if md5CallPattern.MatchString(line) {
-					violations = append(violations, md5Violation(t, repoRoot, path, strconv.Itoa(i+1)+": "+strings.TrimSpace(line)))
-				}
-			}
-		}
+		violations = append(violations, md5ShippedSQLViolations(t, repoRoot, path, string(raw))...)
 	}
 	if len(violations) > 0 {
 		t.Fatalf("production SQL md5() calls (FIPS-incompatible, #6753):\n%s", strings.Join(violations, "\n"))
@@ -351,5 +364,19 @@ func TestCollectShippedSQLFilesRecurses(t *testing.T) {
 	files := collectShippedSQLFiles(t, root, []string{"migrations"})
 	if len(files) != 2 || files[0] != deep || files[1] != top {
 		t.Fatalf("collected = %q, want [%q %q] sorted", files, deep, top)
+	}
+}
+
+// TestMD5ShippedSQLFlagsCrossLineCall pins the line-split soundness behind
+// review P2: an md5 token broken across a line break still reports, with the
+// line where the match starts.
+func TestMD5ShippedSQLFlagsCrossLineCall(t *testing.T) {
+	violations := md5ShippedSQLViolations(t, "repo", filepath.Join("repo", "migrations", "01.sql"),
+		"SELECT sha256(a),\n  md5\n  (payload::text)\nFROM t;\n")
+	if len(violations) != 1 {
+		t.Fatalf("cross-line violations = %q, want exactly one", violations)
+	}
+	if !strings.HasPrefix(violations[0], "migrations/01.sql: 2:") && !strings.HasPrefix(violations[0], "migrations/01.sql:2:") {
+		t.Fatalf("cross-line violation site = %q, want migrations/01.sql line 2", violations[0])
 	}
 }
