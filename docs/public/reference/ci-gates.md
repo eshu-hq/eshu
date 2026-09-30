@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 124 gates. Local execution runs the primary
+The registry currently defines 125 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -91,7 +91,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (46 gates)
+### Contract: Do declared or generated artifacts match the code? (47 gates)
 
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `route-coverage` (blocking): Fails when a registered HTTP route has no test that actually references it.
@@ -131,6 +131,7 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-contract-layer` (blocking): Runs the Ifá contract-layer test suite, verifying the Odù catalog, coverage manifest, and reducer code stay in lockstep.
 - `content-entity-bucket-sync` (blocking): Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code.
 - `index-key-guard-sweep` (blocking): Scans production Cypher literals across storage, reducer, projector, collector, and cmd code to keep indexed writes schema-guarded.
+- `fips-md5-sql-sweep` (blocking): Scans production Go SQL literals, migrations, and shipped schema SQL for md5() calls, which fail on FIPS-enabled PostgreSQL.
 - `hot-cypher-source-coverage` (blocking): Checks that the hot-Cypher manifest lists every production query call site so no query runs outside the tracked manifest.
 - `ask-overlay-inventory-coverage` (blocking): Checks that the Ask catalog's overlay covers every surface listed in the generated surface-inventory registry.
 - `ifa-materialized-edge-coverage` (blocking): Checks that the Ifá materialized-edge coverage manifest stays exhaustive against the reducer, Cypher writers, and cassette fixtures.
@@ -267,6 +268,7 @@ results are derived from the inputs rather than written by hand. See
 | `ifa-contract-layer` | Ifa contract-layer Odù skeleton | exactness | pre-pr | true | `cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 10 path(s): go/internal/ifa/**, go/internal/reducer/**, go/cmd/ifa/**, … |
 | `content-entity-bucket-sync` | Content-entity bucket<->label sync and projector-label totality (#5531, #6206) | exactness | pre-pr | true | `cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin\|TestContentEntityLabelsHaveProjectorLabels\|TestBucketSyncDriftLedgerIsHonest\|TestEveryProjectorLabelHasASource' -count=1` | static-contract-gates.yml / Verify content-entity bucket sync gate | 4 path(s): go/internal/content/shape/**, go/internal/collector/repo/git/snapshot_entity_buckets.go, go/internal/projector/canonical/materialization.go, … |
 | `index-key-guard-sweep` | Production indexed-write Cypher literals are guarded (#7058) | exactness | pre-pr | true | `cd go && go test ./internal/graph -run '^TestProductionCypherLiteralsAreGuarded$' -count=1`<br>then self-test: `cd go && go test ./internal/graph -run '^(TestSweepFlagsSeededViolations\|TestSweepReadsJoinedLabelTemplateWhole)$' -count=1` | test.yml / go-core | 7 path(s): go/internal/graph/**, go/internal/storage/**, go/internal/reducer/**, … |
+| `fips-md5-sql-sweep` | Production SQL has no md5() calls (FIPS, #6753) | exactness | pre-pr | true | `cd go && go test ./internal/storage/postgres -run '^TestProductionSQLHasNoMD5Calls$' -count=1`<br>then self-test: `cd go && go test ./internal/storage/postgres -run '^TestMD5SweepFlagsSeededViolation$' -count=1` | test.yml / go-core | 3 path(s): go/**, schema/data-plane/**, specs/ci-gates.v1.yaml |
 | `hot-cypher-source-coverage` | Hot Cypher manifest covers every production query call | exactness | pre-pr | true | `cd go && go test ./internal/queryplan -run '^TestHotCypherManifestCoversEveryProductionQueryCall$' -count=1`<br>then self-test: `cd go && go test ./internal/queryplan -run '^TestValidateSourceCoverage' -count=1` | test.yml / go-core | 3 path(s): go/internal/queryplan/**, go/internal/query/**, specs/ci-gates.v1.yaml |
 | `ask-overlay-inventory-coverage` | Ask catalog overlay covers the surface inventory | exactness | pre-pr | true | `cd go && go test ./internal/ask/catalog -run '^TestOverlayCoversInventory$' -count=1` | test.yml / go-core | 3 path(s): go/internal/ask/catalog/**, go/internal/capabilitycatalog/data/surface-inventory.generated.json, specs/ci-gates.v1.yaml |
 | `ifa-materialized-edge-coverage` | Ifa materialized-edge exhaustiveness gate (#5351) | exactness | pre-pr | true | `cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 36 path(s): go/internal/ifa/**, go/cmd/ifa/**, go/internal/reducer/**, … |
