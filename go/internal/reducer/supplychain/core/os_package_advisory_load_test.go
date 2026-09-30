@@ -186,14 +186,14 @@ func TestSupplyChainImpactOSPackageAdvisoryEcosystemsDerivesVendorSourceNotRawEc
 		),
 	}
 
-	got := supplyChainImpactOSPackageAdvisoryEcosystems(envelopes)
+	got, _ := supplyChainImpactOSPackageAdvisoryTargets(envelopes)
 	want := []string{"alpine", "debian"}
 	if len(got) != len(want) {
-		t.Fatalf("supplyChainImpactOSPackageAdvisoryEcosystems() = %#v, want %#v", got, want)
+		t.Fatalf("supplyChainImpactOSPackageAdvisoryTargets() ecosystems = %#v, want %#v", got, want)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("supplyChainImpactOSPackageAdvisoryEcosystems() = %#v, want %#v", got, want)
+			t.Fatalf("supplyChainImpactOSPackageAdvisoryTargets() ecosystems = %#v, want %#v", got, want)
 		}
 	}
 }

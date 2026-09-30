@@ -4,7 +4,10 @@
 
 `reconcileSupplyChainScannerIdentityDigest` cross-checks the scanner worker's
 image digest against every other `container_image_identity` fact for the same
-repository (same `sourceRepositoryIDs` entry). When CI declared a different
+repository (same `sourceRepositoryIDs` entry) among the identities the pass
+loaded: the matched digests' identities plus same-OCI-repository peers (#7154
+narrowed the OS-package read, so an unrelated scan's identity under a different
+OCI repository is no longer loaded or compared). When CI declared a different
 digest for the same repo, the disagreement is surfaced as explicit
 `missing_evidence` rather than silently trusting either pipeline.
 

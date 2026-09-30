@@ -706,6 +706,17 @@ type Instruments struct {
 	// nonzero rate on a steady corpus means passes disagree about the same
 	// generation's evidence and is worth a look.
 	SupplyChainImpactFindingsRetracted metric.Int64Counter
+	// SupplyChainImpactEvidenceTruncated counts supply-chain impact evidence
+	// truncations, one increment per pass per reason, whose cause can hide a
+	// live finding, so the pass wrote its findings but retracted nothing
+	// (#7154). A pass stopped by both reasons increments twice.
+	// Labels: domain (supply_chain_impact) and reason, a closed set of
+	// active_expansion_rounds (the 8-round expansion cap) and evidence_budget
+	// (the per-intent envelope budget). A suppression-tail truncation is not
+	// counted: it does not stop retraction. A scope that keeps incrementing
+	// this on every pass keeps its stale findings; the WARN log line carries
+	// the scope and generation.
+	SupplyChainImpactEvidenceTruncated metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -3404,6 +3415,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFindingsRetracted counter: %w", err)
+	}
+
+	inst.SupplyChainImpactEvidenceTruncated, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_evidence_truncated_total",
+		metric.WithDescription("Total supply-chain impact evidence truncations, one per pass per reason (active expansion rounds or per-intent evidence budget), whose pass retracted nothing, by reducer domain and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactEvidenceTruncated counter: %w", err)
 	}
 
 	inst.SupplyChainSuppressionDecisions, err = meter.Int64Counter(

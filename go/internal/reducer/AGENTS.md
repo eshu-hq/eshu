@@ -1155,13 +1155,13 @@ intent's vulnerability-intelligence scope — so `supplyChainImpactFactKinds`
 (the intent-scope base load) cannot reach it. A new `loadSupplyChainImpactEvidence`
 stage (`loadSupplyChainImpactScannerAnalysisScopeFacts`) runs right after the
 active-evidence stage and queries each LOADED os_package envelope's own
-ScopeID+GenerationID for its sibling analysis (bounded by
-`maxSupplyChainImpactScannerAnalysisScopeLoads`, truncation folded into the
-existing active-evidence marker).
+ScopeID+GenerationID for its sibling analysis (every pair loads since #7154;
+the per-intent evidence budget bounds the total, see
+docs/internal/evidence/7154-capped-scope-convergence.md).
 
-No-regression (#5463): the sibling-load stage adds at most
-`maxSupplyChainImpactScannerAnalysisScopeLoads` sequential scoped
-`loadFactsForKinds` reads per intent — one per DISTINCT os_package scan scope
+No-regression (#5463): the sibling-load stage adds sequential scoped
+`loadFactsForKinds` reads per intent (bounded by the #7154 evidence budget, not
+a pair cap) — one per DISTINCT os_package scan scope
 already present in the envelope set, deduped by
 `supplychainmodel.ScopeGenerationKey`, and zero when no os_package fact was loaded
 (the common case for a non-vendor intent). It follows the same bounded,

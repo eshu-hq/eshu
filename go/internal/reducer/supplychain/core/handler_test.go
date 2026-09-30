@@ -194,11 +194,24 @@ func TestSupplyChainImpactHandlerFailsOpenWhenSuppressionCandidatesAreTruncated(
 	if decision.SuppressionID != "" {
 		t.Fatalf("Suppression.SuppressionID = %q, want empty for incomplete candidate set", decision.SuppressionID)
 	}
-	if !strings.Contains(result.EvidenceSummary, "active_evidence_truncated=true") {
-		t.Fatalf("EvidenceSummary = %q, want truncation marker", result.EvidenceSummary)
+	// Only the suppression tail was bounded. Suppression is not part of a
+	// finding's identity, so the finding set is still the complete function of
+	// the evidence: the pass must stay eligible to retract (#7154), while the
+	// suppression decision above stays fail-open.
+	if writer.write.PartialEvidence {
+		t.Fatal("PartialEvidence = true for a suppression-tail truncation; a scope whose suppression tail always exceeds the cap could never retract (#7154)")
 	}
-	if !writer.write.PartialEvidence {
-		t.Fatal("PartialEvidence = false for a truncated evidence load; the writer would retract findings it never reached (#6831)")
+	if strings.Contains(result.EvidenceSummary, "active_evidence_truncated=true") {
+		t.Fatalf("EvidenceSummary = %q, want no identity-affecting truncation marker for a suppression-only tail", result.EvidenceSummary)
+	}
+	if !strings.Contains(result.EvidenceSummary, "suppression_evidence_truncated=true") {
+		t.Fatalf("EvidenceSummary = %q, want the suppression truncation marker", result.EvidenceSummary)
+	}
+	if got := result.SubSignals["suppression_evidence_truncated"]; got != 1 {
+		t.Fatalf("SubSignals[suppression_evidence_truncated] = %v, want 1", got)
+	}
+	if got := result.SubSignals["active_evidence_truncated"]; got != 0 {
+		t.Fatalf("SubSignals[active_evidence_truncated] = %v, want 0", got)
 	}
 }
 

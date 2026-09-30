@@ -12,10 +12,10 @@ import (
 )
 
 // osPackageAdvisoryFactLoader loads active installed OS package advisory
-// evidence cross-scope by ecosystem, already reconstructed as
-// vulnerability.os_package fact envelopes, so
-// loadSupplyChainImpactOSPackageAdvisoryFacts can feed them through the
-// same decode/index/match path a natively-loaded os_package fact takes.
+// evidence cross-scope, already reconstructed as vulnerability.os_package fact
+// envelopes, so loadSupplyChainImpactOSPackageAdvisoryFacts can feed them
+// through the same decode/index/match path a natively-loaded os_package fact
+// takes.
 //
 // This interface is declared with only leaf types (context.Context,
 // []string, int, []facts.Envelope) rather than
@@ -26,32 +26,31 @@ import (
 // store.go), so the reverse import would be a compile-time cycle. The
 // production postgres.FactStore.ListOSPackageAdvisoryFactEnvelopes method
 // (internal/storage/postgres/installed_advisory_targets_os_package_envelope.go)
-// already satisfies this signature: it delegates to the SAME
-// advisory-matched ListOSPackageAdvisoryTargets reader and SQL matching
-// logic the vulnerability-intelligence coordinator planner uses
-// (internal/coordinator/service_installed_advisory_targets.go), then
-// reconstructs the envelope there, where both internal/workflow and
-// internal/facts are importable.
+// satisfies this signature, and a compile-time assertion in the core_test
+// package pins that (os_package_advisory_loader_binding_test.go): the handler
+// reaches the reader through a runtime type assertion, and a drifted signature
+// would skip the stage silently and let the pass retract every OS-package
+// finding.
+//
+// The reader is narrowed to packageIDs (the intent's affected-package lookup
+// keys) and ecosystems (their vendor sources), and drains every matching
+// installed package inside one snapshot. It stops once the envelopes it holds
+// exceed limit, keeps the page that crossed it, and reports truncated. The int
+// return counts targets skipped for missing required fields.
 type osPackageAdvisoryFactLoader interface {
-	ListOSPackageAdvisoryFactEnvelopes(ctx context.Context, ecosystems []string, limit int) ([]facts.Envelope, int, error)
+	ListOSPackageAdvisoryFactEnvelopes(
+		ctx context.Context,
+		ecosystems []string,
+		packageIDs []string,
+		limit int,
+	) (envelopes []facts.Envelope, skipped int, truncated bool, err error)
 }
-
-// maxSupplyChainImpactOSPackageAdvisoryTargets bounds how many active
-// installed OS package advisory targets loadSupplyChainImpactOSPackageAdvisoryFacts
-// will request per intent, so a pathological ecosystem with an unbounded
-// number of installed-package observations cannot turn one intent's evidence
-// load into an unbounded read. Matches the postgres advisory-target reader's
-// own max clamp (maxOwnedPackageDependencyTargetLimit,
-// internal/storage/postgres/owned_package_targets.go). The stage requests one
-// target past this cap as a probe, and reaching past it marks the pass's
-// evidence partial so the writer retracts nothing (#6831).
-const maxSupplyChainImpactOSPackageAdvisoryTargets = 500
 
 // loadSupplyChainImpactOSPackageAdvisoryFacts loads vulnerability.os_package
 // evidence for one supply-chain-impact intent through the cross-scope
-// advisory-target reader, keyed by the vendor advisory source(s) the
-// intent's already-loaded vulnerability.affected_package facts name
-// (supplyChainImpactOSPackageAdvisoryEcosystems). Before this stage existed,
+// advisory-target reader, narrowed to the installed packages the intent's
+// already-loaded vulnerability.affected_package facts could match
+// (supplyChainImpactOSPackageAdvisoryTargets). Before this stage existed,
 // loadSupplyChainImpactEvidence never loaded vulnerability.os_package facts
 // at all — supplyChainImpactFactKinds intentionally omits that kind (it lives
 // cross-scope, not in the intent's own vulnerability-intelligence scope), and
@@ -60,59 +59,61 @@ const maxSupplyChainImpactOSPackageAdvisoryTargets = 500
 // stage MUST run before loadSupplyChainImpactScannerAnalysisScopeFacts, which
 // keys its own sibling scanner_worker.analysis load off the os_package
 // envelopes this stage adds (supplyChainImpactOSPackageScopeGenerationPairs).
+//
+// An intent with no OS affected package, or none with a usable lookup key,
+// reads nothing and is not partial: the finding set depends only on installed
+// rows matching one of those keys. The reader drains to completion inside one
+// snapshot unless the per-intent evidence budget is spent first; the caller
+// reads that through budget.exhausted(). The returned int counts rows the
+// reader skipped for missing fields.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactOSPackageAdvisoryFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]facts.Envelope, int, bool, error) {
+	budget *supplyChainImpactEvidenceBudget,
+) ([]facts.Envelope, int, error) {
 	loader, ok := h.FactLoader.(osPackageAdvisoryFactLoader)
 	if !ok {
-		return nil, 0, false, nil
+		return nil, 0, nil
 	}
-	ecosystems := supplyChainImpactOSPackageAdvisoryEcosystems(envelopes)
-	if len(ecosystems) == 0 {
-		return nil, 0, false, nil
+	ecosystems, packageIDs := supplyChainImpactOSPackageAdvisoryTargets(envelopes)
+	if len(ecosystems) == 0 || len(packageIDs) == 0 {
+		return nil, 0, nil
 	}
-	// Ask for one target beyond the cap. The reader orders by fact id with no
-	// rotation, so a full page cannot tell "exactly the cap" from "more than the
-	// cap"; the extra row can. Reaching past the cap means this pass did not see
-	// every installed target, so the evidence is partial and the writer must not
-	// retract findings for targets it never reached (#6831). Rows the reader
-	// skipped for missing fields consumed the limit too, so they count.
-	loaded, skipped, err := loader.ListOSPackageAdvisoryFactEnvelopes(ctx, ecosystems, maxSupplyChainImpactOSPackageAdvisoryTargets+1)
+	loaded, skipped, _, err := loader.ListOSPackageAdvisoryFactEnvelopes(
+		ctx, ecosystems, packageIDs, budget.remaining(),
+	)
 	if err != nil {
-		return nil, 0, false, factload.ClassifyFactLoadError(err)
+		return nil, 0, factload.ClassifyFactLoadError(err)
 	}
-	truncated := false
-	if len(loaded)+skipped > maxSupplyChainImpactOSPackageAdvisoryTargets {
-		truncated = true
-		// Keep the load at the documented cap: the overflow target is only the
-		// probe that proved more exist.
-		if keep := maxSupplyChainImpactOSPackageAdvisoryTargets - skipped; keep < len(loaded) {
-			loaded = loaded[:max(keep, 0)]
-		}
-	}
-	return loaded, skipped, truncated, nil
+	budget.charge(len(loaded))
+	// A truncated drain always spent the budget: the limit above was
+	// budget.remaining(), and the reader reports truncated only when it loaded
+	// more than that limit, so the charge has already overflowed.
+	return loaded, skipped, nil
 }
 
-// supplyChainImpactOSPackageAdvisoryEcosystems returns the distinct,
-// non-empty vendor-advisory-source strings (for example "debian", "alpine")
-// classified from every loaded vulnerability.affected_package fact, in sorted
-// order. These are the SAME values classifyAffectedPackageAdvisorySource
-// derives for firstOSPackageImpactPath's own matching
-// (match.go) — which is also exactly what the SQL
-// advisory-target reader's ecosystem column computes
-// (LOWER(COALESCE(vendor_advisory_source, distro)),
-// listOSPackageAdvisoryTargetsQuery). A raw affected_package "ecosystem"
-// field value (for example "deb", "npm" — a purl-type-shaped string) would
-// never match that column, so this derivation intentionally goes through the
-// same classifier the matcher uses rather than reading pkg.ecosystem
-// directly. Only affected_package is consulted: an os_package match always
-// requires a co-present affected_package (classifySupplyChainImpactPackage
-// only calls firstOSPackageImpactPath when index.affectedPackages[cveID] is
-// non-empty), so a CVE fact with no affected_package sibling could never
-// produce an os_package finding regardless of what ecosystem it implies.
-func supplyChainImpactOSPackageAdvisoryEcosystems(envelopes []facts.Envelope) []string {
-	seen := make(map[string]struct{})
+// supplyChainImpactOSPackageAdvisoryTargets derives the OS-package read from
+// every loaded vulnerability.affected_package fact: the distinct vendor
+// advisory sources (for example "debian", "alpine") and the distinct lookup
+// keys the matcher compares installed package ids against.
+//
+// The sources are the SAME values classifyAffectedPackageAdvisorySource derives
+// for firstOSPackageImpactPath's own matching (match.go), which is also what the
+// SQL reader's ecosystem column computes. The keys are affectedOSPackageLookupKeys
+// (os_package_identity.go), the exact strings osPackageMatchesAffectedPackage
+// compares to an installed package's id, so a read over these keys is complete
+// for the finding set. A raw affected_package "ecosystem" field value (for
+// example "deb", "npm") would never match that column, so the derivation goes
+// through the same classifier the matcher uses. Only affected packages with a
+// vendor source contribute: the matcher returns no OS match without one. Only
+// affected_package is consulted: an os_package match always requires a
+// co-present affected_package (classifySupplyChainImpactPackage only calls
+// firstOSPackageImpactPath when index.affectedPackages[cveID] is non-empty), so
+// a CVE fact with no affected_package sibling could never produce an
+// os_package finding regardless of what ecosystem it implies.
+func supplyChainImpactOSPackageAdvisoryTargets(envelopes []facts.Envelope) (ecosystems []string, packageIDs []string) {
+	sources := make(map[string]struct{})
+	keys := make(map[string]struct{})
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind {
 			continue
@@ -120,23 +121,30 @@ func supplyChainImpactOSPackageAdvisoryEcosystems(envelopes []facts.Envelope) []
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
 		if err != nil {
 			// A malformed affected_package fact is quarantined by the real
-			// index build later; this derivation simply cannot use it as an
-			// ecosystem hint.
+			// index build later; this derivation simply cannot use it.
 			continue
 		}
 		vendorSource := classifyAffectedPackageAdvisorySource(pkg)
 		if vendorSource == "" {
 			continue
 		}
-		seen[vendorSource] = struct{}{}
+		sources[vendorSource] = struct{}{}
+		for _, key := range affectedOSPackageLookupKeys(pkg) {
+			keys[key] = struct{}{}
+		}
 	}
-	if len(seen) == 0 {
+	return sortedKeys(sources), sortedKeys(keys)
+}
+
+// sortedKeys returns the map's keys in sorted order, nil for an empty map.
+func sortedKeys(set map[string]struct{}) []string {
+	if len(set) == 0 {
 		return nil
 	}
-	ecosystems := make([]string, 0, len(seen))
-	for ecosystem := range seen {
-		ecosystems = append(ecosystems, ecosystem)
+	out := make([]string, 0, len(set))
+	for key := range set {
+		out = append(out, key)
 	}
-	sort.Strings(ecosystems)
-	return ecosystems
+	sort.Strings(out)
+	return out
 }

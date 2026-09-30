@@ -13,35 +13,38 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
-// limitHonoringOSPackageLoader wraps the scope-partitioned fixture loader
-// with an OS-package advisory reader that behaves like the production
-// postgres reader: it returns at most limit targets (loaded plus skipped),
-// ordered, with no rotation. The stock fixture returns every configured
-// envelope regardless of limit, which is exactly how an unflagged cap hid
-// behind a green test.
+// limitHonoringOSPackageLoader wraps the scope-partitioned fixture loader with
+// an OS-package advisory reader that behaves like the production postgres
+// reader: it drains every available target, but stops once the envelopes it
+// holds exceed the limit it was given, keeps the crossing batch, and reports
+// truncated. The stock fixture returns every configured envelope regardless of
+// limit, which is exactly how an unflagged cap hid behind a green test.
 type limitHonoringOSPackageLoader struct {
 	*scanScopedSupplyChainImpactFactLoader
 	available []facts.Envelope
-	// skippedAvailable is how many additional matching targets the reader
-	// would skip for missing fields; they consume the limit like real rows.
+	// skippedAvailable is how many matching targets the reader would skip for
+	// missing fields.
 	skippedAvailable int
-	limits           []int
+	// crossingBatch is how many envelopes past the limit the reader returns
+	// when it stops on the limit (production: the rest of its page).
+	crossingBatch int
+	limits        []int
+	packageIDs    [][]string
 }
 
 func (l *limitHonoringOSPackageLoader) ListOSPackageAdvisoryFactEnvelopes(
 	_ context.Context,
 	_ []string,
+	packageIDs []string,
 	limit int,
-) ([]facts.Envelope, int, error) {
+) ([]facts.Envelope, int, bool, error) {
 	l.limits = append(l.limits, limit)
-	remaining := limit
-	skipped := min(l.skippedAvailable, remaining)
-	remaining -= skipped
-	loaded := l.available
-	if len(loaded) > remaining {
-		loaded = loaded[:remaining]
+	l.packageIDs = append(l.packageIDs, append([]string(nil), packageIDs...))
+	if len(l.available) <= limit {
+		return append([]facts.Envelope(nil), l.available...), l.skippedAvailable, false, nil
 	}
-	return append([]facts.Envelope(nil), loaded...), skipped, nil
+	stop := min(len(l.available), limit+max(l.crossingBatch, 1))
+	return append([]facts.Envelope(nil), l.available[:stop]...), l.skippedAvailable, true, nil
 }
 
 func osPackageEnvelopes(count int, scopeID, generationID string) []facts.Envelope {
@@ -142,51 +145,53 @@ func retractionIssued(calls []testutil.ExecCall) bool {
 	return false
 }
 
-// TestSupplyChainImpactOSPackageAdvisoryCapMarksPartialEvidence pins the #6831
-// review F1: the OS-package advisory load is bounded, and a load that hit the
-// bound is not the complete evidence set, so the pass must not retract.
-func TestSupplyChainImpactOSPackageAdvisoryCapMarksPartialEvidence(t *testing.T) {
+// TestSupplyChainImpactOSPackageTargetsOverCapConverge pins #7154: an
+// OS-package target set larger than one reader page is paged to completion, so
+// the pass is a complete view and retracts. Before #7154 the same load hit the
+// 500-target cap on every pass and the scope kept its stale findings forever.
+func TestSupplyChainImpactOSPackageTargetsOverCapConverge(t *testing.T) {
 	t.Parallel()
 
-	const capTargets = maxSupplyChainImpactOSPackageAdvisoryTargets
+	// 500 was the reader's old target cap; the counts straddle it and its
+	// multiples.
+	const capTargets = 500
 	cases := []struct {
-		name          string
-		available     int
-		skipped       int
-		wantPartial   bool
-		wantRetracted bool
+		name      string
+		available int
+		skipped   int
 	}{
-		{"more than the cap available", capTargets + 1, 0, true, false},
-		{"far more than the cap available", capTargets * 3, 0, true, false},
-		{"skipped rows push past the cap", capTargets - 5, 6, true, false},
-		{"exactly the cap available is complete", capTargets, 0, false, true},
-		{"under the cap is complete", capTargets - 1, 0, false, true},
+		{"one past the old cap", capTargets + 1, 0},
+		{"three times the old cap", capTargets * 3, 0},
+		{"skipped rows push past the old cap", capTargets - 5, 6},
+		{"exactly the old cap", capTargets, 0},
+		{"under the old cap", capTargets - 1, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			write, calls, loader, result := runOSPackageCapPass(t, tc.available, tc.skipped)
-			if write.PartialEvidence != tc.wantPartial {
-				t.Fatalf("PartialEvidence = %v, want %v (available=%d skipped=%d, limits asked=%v)",
-					write.PartialEvidence, tc.wantPartial, tc.available, tc.skipped, loader.limits)
+			write, calls, _, result := runOSPackageCapPass(t, tc.available, tc.skipped)
+			if write.PartialEvidence {
+				t.Fatalf("PartialEvidence = true (available=%d skipped=%d); an OS-package set that pages to completion is a complete view", tc.available, tc.skipped)
 			}
-			if got := retractionIssued(calls); got != tc.wantRetracted {
-				t.Fatalf("retraction issued = %v, want %v; a capped OS-package load must retract nothing", got, tc.wantRetracted)
+			if !retractionIssued(calls) {
+				t.Fatalf("retraction not issued (available=%d skipped=%d); a capped scope must converge", tc.available, tc.skipped)
 			}
-			if got := result.SubSignals["active_evidence_truncated"]; (got == 1) != tc.wantPartial {
-				t.Fatalf("SubSignals[active_evidence_truncated] = %v, want truncated=%v", got, tc.wantPartial)
+			if got := result.SubSignals["active_evidence_truncated"]; got != 0 {
+				t.Fatalf("SubSignals[active_evidence_truncated] = %v, want 0", got)
 			}
-			if got := result.SubSignals["os_package_advisory_facts"]; got > float64(capTargets) {
-				t.Fatalf("os_package_advisory_facts = %v, want at most the cap %d", got, capTargets)
+			if got, want := result.SubSignals["os_package_advisory_facts"], float64(tc.available); got != want {
+				t.Fatalf("os_package_advisory_facts = %v, want every available target %v", got, want)
 			}
 		})
 	}
 }
 
-// TestSupplyChainImpactPeerIdentityRepositoryCapReportsTruncation proves the
-// same class on the sibling bounded stage: seeding more repository ids than
-// the cap silently dropped the excess while reporting the load complete.
-func TestSupplyChainImpactPeerIdentityRepositoryCapReportsTruncation(t *testing.T) {
+// TestSupplyChainImpactPeerIdentityRepositoriesOverCapConverge pins #7154 on
+// the peer-identity stage: seeding more repository ids than one filter chunk
+// used to drop the excess. Every id must now reach the reader across chunks,
+// and the stage must report no truncation (its bool is the suppression tail
+// only).
+func TestSupplyChainImpactPeerIdentityRepositoriesOverCapConverge(t *testing.T) {
 	t.Parallel()
 
 	build := func(count int) []facts.Envelope {
@@ -202,24 +207,26 @@ func TestSupplyChainImpactPeerIdentityRepositoryCapReportsTruncation(t *testing.
 		}
 		return out
 	}
-	handler := SupplyChainImpactHandler{FactLoader: &stubSupplyChainImpactFactLoader{}}
-
-	// supplyChainImpactRepositoryFilterIDs emits each repository id plus its
-	// git-repository-scope: alias, so the cap of ids is reached at half as many
-	// repositories.
-	atCap := maxSupplyChainImpactResolvedDigestLoads / 2
-	_, truncated, err := handler.loadSupplyChainImpactPeerIdentityFacts(context.Background(), build(atCap+1))
-	if err != nil {
-		t.Fatalf("loadSupplyChainImpactPeerIdentityFacts() error = %v", err)
-	}
-	if !truncated {
-		t.Fatal("truncated = false with more repository ids than the cap; the excess was dropped silently")
-	}
-	_, truncated, err = handler.loadSupplyChainImpactPeerIdentityFacts(context.Background(), build(atCap))
-	if err != nil {
-		t.Fatalf("loadSupplyChainImpactPeerIdentityFacts() error = %v", err)
-	}
-	if truncated {
-		t.Fatal("truncated = true at exactly the cap; nothing was dropped")
+	for _, count := range []int{10, supplyChainImpactFilterChunkSize / 2, supplyChainImpactFilterChunkSize/2 + 1, supplyChainImpactFilterChunkSize * 3} {
+		loader := &stubSupplyChainImpactFactLoader{}
+		handler := SupplyChainImpactHandler{FactLoader: loader}
+		_, truncated, err := handler.loadSupplyChainImpactPeerIdentityFacts(context.Background(), build(count), nil)
+		if err != nil {
+			t.Fatalf("count=%d: loadSupplyChainImpactPeerIdentityFacts() error = %v", count, err)
+		}
+		if truncated {
+			t.Fatalf("count=%d: truncated = true; the excess must be paged, not dropped", count)
+		}
+		requested := map[string]bool{}
+		for _, filter := range loader.filters {
+			for _, id := range filter.RepositoryIDs {
+				requested[id] = true
+			}
+		}
+		for i := range count {
+			if id := fmt.Sprintf("repo-%04d", i); !requested[id] {
+				t.Fatalf("count=%d: repository id %q never reached the reader; the cap dropped it", count, id)
+			}
+		}
 	}
 }

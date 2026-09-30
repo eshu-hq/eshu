@@ -47,9 +47,10 @@ type repositoryAnchorSupplyChainImpactFactLoader struct {
 func (l *repositoryAnchorSupplyChainImpactFactLoader) ListOSPackageAdvisoryFactEnvelopes(
 	_ context.Context,
 	_ []string,
+	_ []string,
 	_ int,
-) ([]facts.Envelope, int, error) {
-	return nil, 0, nil
+) ([]facts.Envelope, int, bool, error) {
+	return nil, 0, false, nil
 }
 
 func (l *repositoryAnchorSupplyChainImpactFactLoader) ListFacts(

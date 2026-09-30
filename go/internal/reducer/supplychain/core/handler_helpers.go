@@ -26,9 +26,12 @@ func (h SupplyChainImpactHandler) evaluationNow() time.Time {
 }
 
 // loadActiveSupplyChainImpactFacts's bool return reports whether the
-// underlying loader truncated its own pagination for THIS round (#5466
-// round-7 review P1-B); the caller ORs it into the same truncation signal
-// the round cap below already produces.
+// underlying loader truncated the vulnerability.suppression tail of its own
+// pagination for THIS round (#5466 round-7 review P1-B). It never reports
+// truncated core evidence: the production reader loads every matching
+// non-suppression row before it counts the tail (see
+// maxSupplyChainImpactActiveEvidenceRowsPerCall), so callers treat it as the
+// suppression-tail signal and nothing more (#7154).
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter SupplyChainImpactFactFilter,
@@ -37,11 +40,11 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 	if !ok || filter.empty() {
 		return nil, false, nil
 	}
-	envelopes, truncated, err := loader.ListActiveSupplyChainImpactFacts(ctx, filter)
+	envelopes, suppressionTail, err := loader.ListActiveSupplyChainImpactFacts(ctx, filter)
 	if err != nil {
 		return nil, false, factload.ClassifyFactLoadError(err)
 	}
-	return envelopes, truncated, nil
+	return envelopes, suppressionTail, nil
 }
 
 const maxSupplyChainImpactActiveEvidenceLoads = 8
@@ -54,48 +57,44 @@ const maxSupplyChainImpactActiveEvidenceLoads = 8
 // asked for, and keeps the pre-load envelope set scanned once rather than twice
 // on a hot path. Follow-up rounds are still derived here from whatever the
 // previous round returned.
+//
+// The returned truncation names why the loop stopped short: the round cap
+// (rounds), a spent evidence budget (budget), or a bounded suppression tail
+// (suppressionTail) -- the causes stay apart because only the first two make
+// the finding set incomplete (#7154).
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 	initialFilter SupplyChainImpactFactFilter,
-) ([]facts.Envelope, bool, error) {
+	budget *supplyChainImpactEvidenceBudget,
+) ([]facts.Envelope, supplyChainImpactTruncation, error) {
 	requested := SupplyChainImpactFactFilter{}
 	next := initialFilter
-	truncated := false
+	var truncation supplyChainImpactTruncation
 	for loads := 0; !next.empty(); loads++ {
 		if loads >= maxSupplyChainImpactActiveEvidenceLoads {
-			return envelopes, true, nil
+			truncation.rounds = true
+			return envelopes, truncation, nil
 		}
-		active, roundTruncated, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
+		active, roundSuppressionTail, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
 		if err != nil {
-			return nil, false, err
+			return nil, supplyChainImpactTruncation{}, err
 		}
-		// #5466 round-7 review P1-B: a single round's own per-call row cap
-		// (maxSupplyChainImpactActiveEvidenceRowsPerCall,
-		// go/internal/storage/postgres/facts_active_supply_chain_impact.go)
-		// can truncate independently of the round cap above -- OR it in so
-		// the caller's evidence-summary log and finding-level marking see
-		// it either way.
-		truncated = truncated || roundTruncated
+		// A single round's own per-call suppression cap is independent of the
+		// round cap above (#5466 round-7 review P1-B).
+		truncation.suppressionTail = truncation.suppressionTail || roundSuppressionTail
 		requested = mergeSupplyChainImpactFactFilters(requested, next)
+		before := len(envelopes)
 		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, active...)
+		if !budget.charge(len(envelopes) - before) {
+			// Keep what this round loaded, load nothing more.
+			truncation.budget = true
+			return envelopes, truncation, nil
+		}
 		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
 	}
-	return envelopes, truncated, nil
+	return envelopes, truncation, nil
 }
-
-// maxSupplyChainImpactScannerAnalysisScopeLoads bounds how many distinct
-// os_package (ScopeID, GenerationID) pairs
-// loadSupplyChainImpactScannerAnalysisScopeFacts will query for a sibling
-// scanner_worker.analysis fact within one intent. In production, os_package
-// facts arrive from the active-evidence SQL stage carrying their own
-// scan-target ScopeID — a different scope than the intent's
-// vulnerability-intelligence scope (see classifySupplyChainImpactPackage in
-// index.go and supplychainmodel.ScopeGenerationKey for
-// the join this feeds). This cap keeps a pathological generation with an unbounded
-// number of distinct scan targets from turning the sibling load into
-// unbounded per-intent fan-out.
-const maxSupplyChainImpactScannerAnalysisScopeLoads = 256
 
 // supplyChainImpactScopeGenerationPair is one distinct (ScopeID, GenerationID)
 // pair collected from loaded os_package envelopes so
@@ -108,15 +107,16 @@ type supplyChainImpactScopeGenerationPair struct {
 
 // supplyChainImpactOSPackageScopeGenerationPairs returns the distinct,
 // non-empty (ScopeID, GenerationID) pairs carried by every loaded
-// vulnerability.os_package envelope, in stable first-seen order, bounded by
-// maxSupplyChainImpactScannerAnalysisScopeLoads. The second return reports
-// whether the bound truncated the result.
+// vulnerability.os_package envelope, in stable first-seen order. It does not
+// cap the result: a scope with many scan targets used to lose every pair past
+// 256 and report truncation, so it never retracted (#7154). The number of
+// envelopes those pairs can pull in is bounded by the per-intent evidence
+// budget instead (supplyChainImpactEvidenceBudget).
 func supplyChainImpactOSPackageScopeGenerationPairs(
 	envelopes []facts.Envelope,
-) ([]supplyChainImpactScopeGenerationPair, bool) {
+) []supplyChainImpactScopeGenerationPair {
 	seen := make(map[string]struct{})
 	var pairs []supplyChainImpactScopeGenerationPair
-	truncated := false
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.VulnerabilityOSPackageFactKind {
 			continue
@@ -130,14 +130,10 @@ func supplyChainImpactOSPackageScopeGenerationPairs(
 		if _, ok := seen[key]; ok {
 			continue
 		}
-		if len(pairs) >= maxSupplyChainImpactScannerAnalysisScopeLoads {
-			truncated = true
-			break
-		}
 		seen[key] = struct{}{}
 		pairs = append(pairs, supplyChainImpactScopeGenerationPair{scopeID: scopeID, generationID: generationID})
 	}
-	return pairs, truncated
+	return pairs
 }
 
 // loadSupplyChainImpactScannerAnalysisScopeFacts loads the sibling
@@ -150,13 +146,16 @@ func supplyChainImpactOSPackageScopeGenerationPairs(
 // stage classifySupplyChainImpactPackage's digest join
 // (supplychainmodel.ScopeGenerationKey) never has a scanner analysis to match and
 // SubjectDigest stays blank for every os_package finding.
+//
+// Every pair is queried; the loop stops early only when the evidence budget is
+// spent, and the caller reads that through budget.exhausted().
 func (h SupplyChainImpactHandler) loadSupplyChainImpactScannerAnalysisScopeFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]facts.Envelope, bool, error) {
-	pairs, truncated := supplyChainImpactOSPackageScopeGenerationPairs(envelopes)
+	budget *supplyChainImpactEvidenceBudget,
+) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
-	for _, pair := range pairs {
+	for _, pair := range supplyChainImpactOSPackageScopeGenerationPairs(envelopes) {
 		scoped, err := factload.LoadFactsForKinds(
 			ctx,
 			h.FactLoader,
@@ -165,25 +164,34 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactScannerAnalysisScopeFacts
 			[]string{facts.ScannerWorkerAnalysisFactKind},
 		)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
+		before := len(loaded)
 		loaded = appendUniqueSupplyChainImpactFacts(loaded, scoped...)
+		if !budget.charge(len(loaded) - before) {
+			break
+		}
 	}
-	return loaded, truncated, nil
+	return loaded, nil
 }
 
-// maxSupplyChainImpactResolvedDigestLoads bounds how many distinct image
-// digests loadSupplyChainImpactResolvedDigestEvidenceFacts seeds into its
-// single re-run of the active-evidence reader per intent. It mirrors the
-// scanner-analysis-scope cap byte-identically, not with a separate literal:
-// the resolved digest load runs on digests harvested from the scanner-analysis
-// stage immediately above (one per distinct scan target), so the two caps must
-// move together to keep the invariant "resolved-digest cap >= scanner-analysis
-// scope cap" (otherwise a bump to the scanner-analysis cap would silently
-// truncate valid digests at the next stage). A downstream test or init() check
-// can assert the invariant compiles; the simplest guard is to derive from the
-// same literal.
-const maxSupplyChainImpactResolvedDigestLoads = maxSupplyChainImpactScannerAnalysisScopeLoads
+// supplyChainImpactFilterChunkSize is how many values of one disjunctive
+// filter field (image digests, repository ids) a single active-evidence read
+// carries. A filter matches a row when ANY of its values does, so splitting the
+// values across reads and unioning the rows returns exactly what one read of
+// all of them would; the chunk size only bounds the size of one SQL parameter
+// array. It replaces the drop-past-256 cap those stages carried until #7154.
+const supplyChainImpactFilterChunkSize = 256
+
+// chunkSupplyChainImpactFilterValues splits values into consecutive chunks of
+// at most size, preserving order. It returns no chunks for no values.
+func chunkSupplyChainImpactFilterValues(values []string, size int) [][]string {
+	var chunks [][]string
+	for start := 0; start < len(values); start += size {
+		chunks = append(chunks, values[start:min(start+size, len(values))])
+	}
+	return chunks
+}
 
 // loadSupplyChainImpactResolvedDigestEvidenceFacts re-runs the active-evidence
 // reader (loadActiveSupplyChainImpactFacts) seeded with the image digests
@@ -209,30 +217,49 @@ const maxSupplyChainImpactResolvedDigestLoads = maxSupplyChainImpactScannerAnaly
 // stage, which still resolves whatever digests, package IDs, or CVE IDs were
 // already known at that point.
 //
-// This is a single, non-looping call: unlike
+// This is a single pass over the digests, not a loop: unlike
 // loadActiveSupplyChainImpactFactsUntilStable, a loaded
 // reducer_container_image_identity fact contributes no filter value
 // supplyChainImpactFilter derives back into SubjectDigests/PackageIDs/etc (its
 // own case only feeds RepositoryIDs/ImageRefs from fields already known), so a
-// second round would never discover anything new from it.
+// second round would never discover anything new from it. The digests are read
+// in chunks of supplyChainImpactFilterChunkSize; the first chunk carries the
+// rest of the filter (image refs), later chunks carry digests only so the same
+// refs are not read again (#7154).
+//
+// The bool return is the suppression-tail signal of the underlying reads.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFacts(
 	ctx context.Context,
 	scannerAnalysisEnvelopes []facts.Envelope,
+	budget *supplyChainImpactEvidenceBudget,
 ) ([]facts.Envelope, bool, error) {
 	filter := supplyChainImpactFilter(scannerAnalysisEnvelopes)
 	if len(filter.SubjectDigests) == 0 {
 		return nil, false, nil
 	}
-	truncated := false
-	if len(filter.SubjectDigests) > maxSupplyChainImpactResolvedDigestLoads {
-		filter.SubjectDigests = filter.SubjectDigests[:maxSupplyChainImpactResolvedDigestLoads]
-		truncated = true
+	var loaded []facts.Envelope
+	suppressionTail := false
+	for i, digests := range chunkSupplyChainImpactFilterValues(filter.SubjectDigests, supplyChainImpactFilterChunkSize) {
+		chunkFilter := SupplyChainImpactFactFilter{SubjectDigests: digests}
+		if i == 0 {
+			chunkFilter = filter
+			chunkFilter.SubjectDigests = digests
+		}
+		chunk, chunkTail, err := h.loadActiveSupplyChainImpactFacts(ctx, chunkFilter)
+		if err != nil {
+			return nil, false, err
+		}
+		suppressionTail = suppressionTail || chunkTail
+		before := len(loaded)
+		loaded = appendUniqueSupplyChainImpactFacts(loaded, chunk...)
+		if !budget.charge(len(loaded) - before) {
+			break
+		}
 	}
-	loaded, rowsTruncated, err := h.loadActiveSupplyChainImpactFacts(ctx, filter)
-	return loaded, truncated || rowsTruncated, err
+	return loaded, suppressionTail, nil
 }
 
-// loadSupplyChainImpactPeerIdentityFacts performs ONE additional bounded
+// loadSupplyChainImpactPeerIdentityFacts performs the additional
 // active-evidence load by RepositoryIDs extracted from
 // resolvedDigestEnvelopes, so the reconciliation loop in
 // classifySupplyChainImpactPackage has peer identities (same source
@@ -241,31 +268,44 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFac
 // digest — the reconciliation always finds no peer and is a silent no-op
 // (issue #5468). A container_image_identity fact's filter contribution
 // (supplyChainImpactFilter) feeds RepositoryIDs and ImageRefs — NOT
-// SubjectDigests — so this single pass cannot recurse, and the
-// maxSupplyChainImpactResolvedDigestLoads cap bounds the RepositoryID count
-// seeded into the filter.
+// SubjectDigests — so this pass cannot recurse. The repository ids are read in
+// chunks of supplyChainImpactFilterChunkSize rather than dropped past a cap
+// (#7154).
+//
+// The bool return is the suppression-tail signal of the underlying reads.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactPeerIdentityFacts(
 	ctx context.Context,
 	resolvedDigestEnvelopes []facts.Envelope,
+	budget *supplyChainImpactEvidenceBudget,
 ) ([]facts.Envelope, bool, error) {
 	filter := supplyChainImpactFilter(resolvedDigestEnvelopes)
 	if len(filter.RepositoryIDs) == 0 {
 		return nil, false, nil
 	}
-	// Dropping repository ids past the cap is a bounded view of the peer
-	// identities, so it reports truncation exactly like the resolved-digest
-	// stage does (#6831): an unreported drop let a capped pass retract.
-	capTruncated := false
-	if len(filter.RepositoryIDs) > maxSupplyChainImpactResolvedDigestLoads {
-		filter.RepositoryIDs = filter.RepositoryIDs[:maxSupplyChainImpactResolvedDigestLoads]
-		capTruncated = true
+	var loaded []facts.Envelope
+	suppressionTail := false
+	for i, repositoryIDs := range chunkSupplyChainImpactFilterValues(filter.RepositoryIDs, supplyChainImpactFilterChunkSize) {
+		// SubjectDigests stay cleared: they only name the scanner's digest, and
+		// the whole point of this stage is to load identities for the SAME
+		// repository with DIFFERENT digests.
+		chunkFilter := SupplyChainImpactFactFilter{RepositoryIDs: repositoryIDs}
+		if i == 0 {
+			chunkFilter = filter
+			chunkFilter.RepositoryIDs = repositoryIDs
+			chunkFilter.SubjectDigests = nil
+		}
+		chunk, chunkTail, err := h.loadActiveSupplyChainImpactFacts(ctx, chunkFilter)
+		if err != nil {
+			return nil, false, err
+		}
+		suppressionTail = suppressionTail || chunkTail
+		before := len(loaded)
+		loaded = appendUniqueSupplyChainImpactFacts(loaded, chunk...)
+		if !budget.charge(len(loaded) - before) {
+			break
+		}
 	}
-	// Clear SubjectDigests from the filter — they only name the scanner's
-	// digest, and the whole point of this stage is to load identities for
-	// the SAME repository with DIFFERENT digests.
-	filter.SubjectDigests = nil
-	loaded, rowsTruncated, err := h.loadActiveSupplyChainImpactFacts(ctx, filter)
-	return loaded, capTruncated || rowsTruncated, err
+	return loaded, suppressionTail, nil
 }
 
 func (h SupplyChainImpactHandler) emitCounters(
@@ -362,5 +402,43 @@ func (h SupplyChainImpactHandler) emitRetraction(
 			slog.String("intent_id", intent.IntentID),
 			slog.Int("findings_retracted", retracted),
 		)
+	}
+}
+
+// emitEvidenceTruncation records a pass whose bounded evidence load stopped
+// short for a cause that can hide a live finding (#7154): the
+// eshu_dp_supply_chain_impact_evidence_truncated_total counter per cause plus
+// one WARN line naming the scope and generation, so an operator can find the
+// scope that keeps its stale findings. Nothing is emitted for a complete pass
+// or for a suppression-tail-only truncation, which does not stop retraction.
+func (h SupplyChainImpactHandler) emitEvidenceTruncation(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	loaded supplyChainImpactLoadedEvidence,
+	findings int,
+) {
+	causes := loaded.truncation.causes()
+	if len(causes) == 0 {
+		return
+	}
+	for _, cause := range causes {
+		if h.Instruments != nil && h.Instruments.SupplyChainImpactEvidenceTruncated != nil {
+			h.Instruments.SupplyChainImpactEvidenceTruncated.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+				telemetry.AttrReason(cause),
+			))
+		}
+		if h.Logger != nil {
+			h.Logger.WarnContext(ctx, "supply chain impact evidence truncated; findings not retracted",
+				slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
+				slog.String("scope_id", intent.ScopeID),
+				slog.String("generation_id", intent.GenerationID),
+				slog.String("intent_id", intent.IntentID),
+				slog.String("cause", cause),
+				slog.Int("evidence_envelopes", len(loaded.envelopes)),
+				slog.Int("expansion_envelopes", loaded.expansionEnvelopes),
+				slog.Int("findings", findings),
+			)
+		}
 	}
 }

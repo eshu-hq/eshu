@@ -5,20 +5,41 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// ListOSPackageAdvisoryFactEnvelopes loads active installed OS package
-// advisory targets through ListOSPackageAdvisoryTargets — the SAME
-// advisory-matched reader and SQL matching logic the vulnerability-
-// intelligence coordinator planner uses (service_installed_advisory_targets.go)
-// — and reconstructs each target into a vulnerability.os_package
-// facts.Envelope, so a cross-scope reducer consumer can feed it through the
-// normal fact-decode seam exactly as if the fact had been loaded natively for
-// its own scope.
+// osPackageAdvisoryDrainPageSize is how many candidate rows one page of
+// ListOSPackageAdvisoryFactEnvelopes reads. It bounds one statement, not the
+// drain: the drain runs to its last page or to the caller's envelope limit.
+const osPackageAdvisoryDrainPageSize = 500
+
+// ListOSPackageAdvisoryFactEnvelopes loads the active installed OS package
+// advisory targets whose package id is one of packageIDs and whose advisory
+// ecosystem is one of ecosystems, and reconstructs each into a
+// vulnerability.os_package facts.Envelope, so a cross-scope reducer consumer
+// can feed it through the normal fact-decode seam exactly as if the fact had
+// been loaded natively for its own scope.
+//
+// The read is narrowed to packageIDs because the finding set of one impact
+// intent depends only on installed rows whose package id equals one of the
+// intent's affected-package lookup keys (#7154); an empty packageIDs or
+// ecosystems returns nothing. The whole drain runs inside ONE read-only
+// repeatable-read snapshot. An os_package fact id hashes its generation id, so
+// a scan scope whose generation flipped between two page statements would move
+// every still-installed package to a new position in the key space and the
+// cursor would skip some of them; the pass would then count as complete and
+// retract their findings. One snapshot reads one consistent generation set.
+//
+// The drain pages by fact id until a short page, or until the envelopes loaded
+// exceed limit. The page that crosses limit is kept, so the caller never loses
+// evidence it already paid for, and truncated reports that the drain stopped on
+// the limit. limit is the caller's remaining evidence budget: a non-positive
+// limit still reads one page and reports truncated when it returns anything.
 //
 // The returned int is the count of targets skipped because they are missing
 // one or more required fields (distro, distro_version, package_manager,
@@ -36,31 +57,125 @@ import (
 // target->envelope bridge lives here instead of in the reducer's own load
 // stage (go/internal/reducer/supplychain/core/os_package_advisory_load.go),
 // which declares its FactLoader-satisfying interface using only leaf types
-// (context.Context, []string, int, []facts.Envelope) that this method's
-// signature matches structurally.
+// that this method's signature matches structurally.
 func (s FactStore) ListOSPackageAdvisoryFactEnvelopes(
 	ctx context.Context,
 	ecosystems []string,
+	packageIDs []string,
 	limit int,
-) ([]facts.Envelope, int, error) {
-	targets, err := s.ListOSPackageAdvisoryTargets(ctx, workflow.OSPackageAdvisoryTargetFilter{
-		Ecosystems: ecosystems,
-		Limit:      limit,
+) ([]facts.Envelope, int, bool, error) {
+	if s.database == nil {
+		return nil, 0, false, fmt.Errorf("fact store database is required")
+	}
+	ecosystems = cleanStringFilterValues(ecosystems)
+	packageIDs = cleanStringFilterValues(packageIDs)
+	if len(ecosystems) == 0 || len(packageIDs) == 0 {
+		return nil, 0, false, nil
+	}
+
+	var (
+		envelopes []facts.Envelope
+		skipped   int
+		truncated bool
+	)
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		cursor := ""
+		for {
+			page, err := readOSPackageAdvisoryCandidatePage(ctx, queryer, packageIDs, ecosystems, cursor)
+			if err != nil {
+				return err
+			}
+			for _, candidate := range page.candidates {
+				if !candidate.active {
+					continue
+				}
+				envelope, ok := osPackageAdvisoryFactEnvelopeFromTarget(candidate.target)
+				if !ok {
+					skipped++
+					continue
+				}
+				envelopes = append(envelopes, envelope)
+			}
+			if len(page.candidates) < osPackageAdvisoryDrainPageSize {
+				return nil
+			}
+			if len(envelopes) > limit {
+				truncated = true
+				return nil
+			}
+			cursor = page.lastFactID
+		}
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
-	envelopes := make([]facts.Envelope, 0, len(targets))
-	skipped := 0
-	for _, target := range targets {
-		envelope, ok := osPackageAdvisoryFactEnvelopeFromTarget(target)
-		if !ok {
-			skipped++
-			continue
+	return envelopes, skipped, truncated, nil
+}
+
+type osPackageAdvisoryCandidate struct {
+	target workflow.OSPackageAdvisoryTarget
+	active bool
+}
+
+type osPackageAdvisoryCandidatePage struct {
+	candidates []osPackageAdvisoryCandidate
+	lastFactID string
+}
+
+// readOSPackageAdvisoryCandidatePage reads one page of candidate rows after
+// cursor. Every candidate row is returned, active or not, so the caller counts
+// a full page and advances the cursor past rows it then drops.
+func readOSPackageAdvisoryCandidatePage(
+	ctx context.Context,
+	queryer db.Queryer,
+	packageIDs []string,
+	ecosystems []string,
+	cursor string,
+) (osPackageAdvisoryCandidatePage, error) {
+	rows, err := queryer.QueryContext(
+		ctx,
+		listOSPackageAdvisoryTargetsForPackagesQuery(),
+		packageIDs, cursor, osPackageAdvisoryDrainPageSize, ecosystems,
+	)
+	if err != nil {
+		return osPackageAdvisoryCandidatePage{}, fmt.Errorf("list OS package advisory targets after %q: %w", cursor, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	page := osPackageAdvisoryCandidatePage{candidates: make([]osPackageAdvisoryCandidate, 0, osPackageAdvisoryDrainPageSize)}
+	for rows.Next() {
+		var candidate osPackageAdvisoryCandidate
+		target := &candidate.target
+		if err := rows.Scan(
+			&target.Ecosystem,
+			&target.Distro,
+			&target.DistroVersion,
+			&target.PackageName,
+			&target.InstalledVersion,
+			&target.PackageManager,
+			&target.Arch,
+			&target.VendorAdvisorySource,
+			&target.RepositoryClass,
+			&target.PURL,
+			&target.FactID,
+			&target.ScopeID,
+			&target.GenerationID,
+			&candidate.active,
+		); err != nil {
+			return osPackageAdvisoryCandidatePage{}, fmt.Errorf("list OS package advisory targets after %q: %w", cursor, err)
 		}
-		envelopes = append(envelopes, envelope)
+		page.lastFactID = target.FactID
+		normalizeOSPackageAdvisoryTarget(target)
+		page.candidates = append(page.candidates, candidate)
 	}
-	return envelopes, skipped, nil
+	if err := rows.Err(); err != nil {
+		return osPackageAdvisoryCandidatePage{}, fmt.Errorf("list OS package advisory targets after %q: %w", cursor, err)
+	}
+	if len(page.candidates) == osPackageAdvisoryDrainPageSize && page.lastFactID == cursor {
+		// A full page that does not advance would repeat forever.
+		return osPackageAdvisoryCandidatePage{}, fmt.Errorf("os package advisory drain did not advance past %q", cursor)
+	}
+	return page, nil
 }
 
 // osPackageAdvisoryFactEnvelopeFromTarget reconstructs a vulnerability.os_package
