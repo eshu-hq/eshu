@@ -177,8 +177,10 @@ Rig: the dedicated 16-CPU Linux host, the pinned `neo4j:2026-community` image (d
 `sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f`, 8 GiB heap and page cache),
 the production schema from `bootstrap-data-plane`, base statements from merge-base
 `6ec0073d0980e9a44af632b2ed3187cd3987f6f1` and new statements from head
-`c6b7dc2bb3600e9b0f8f7746bfa686d8f372e272`, both dumped from the real `FileImportCycleEdgeRowsCypher` (the
-unscoped statement built with `AllScopes: true`). Rule PD held: load1 2.39 at start, 2.94 at end, 3.02 the
+`c6b7dc2bb3600e9b0f8f7746bfa686d8f372e272` (a pre-rebase commit that the branch no longer contains; the
+statement text is identical at the rebased head, where the unscoped statement's `cypher_sha256` in
+`go/internal/queryplan/testdata/hot-cypher.yaml` is `d7c9e82091dd8d35f42604a0fc4a94f0f2550f75aacf1b10f3ccd26048e276ce`),
+both dumped from the real `FileImportCycleEdgeRowsCypher` (the unscoped statement built with `AllScopes: true`). Rule PD held: load1 2.39 at start, 2.94 at end, 3.02 the
 in-run maximum of the 1 s samples, against a limit of 8. Each statement text had a 15 s discarded warm-up. The
 control bound came from two A/A sets (72 pooled ratios, range 0.9473 to 1.0159, SD 0.0084) and is B = 0.0778;
 every shape had 9 valid rounds from 9 attempts. The A/B rounds ran in a rotating Latin-square order.
