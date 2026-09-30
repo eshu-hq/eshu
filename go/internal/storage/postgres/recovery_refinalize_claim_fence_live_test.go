@@ -164,6 +164,19 @@ func (c claimFenceConn) QueryContext(ctx context.Context, query string, args ...
 	return c.Conn.QueryContext(ctx, query, args...)
 }
 
+// Begin opens the transaction on the dedicated connection. RefinalizeScopeProjections
+// requires a db.Beginner; without this the second recovery in
+// TestConcurrentRefinalizesSerializeWithoutDeadlock failed at once with "database
+// must support Begin" instead of waiting on the fence from the backend whose pid
+// the test watches (#7479).
+func (c claimFenceConn) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := c.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return SQLTx{Tx: tx}, nil
+}
+
 type refinalizeRetirementPauseDB struct {
 	SQLDB
 	retired chan<- struct{}
