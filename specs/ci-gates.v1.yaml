@@ -3209,6 +3209,34 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: fips-md5-sql-sweep
+    name: Production SQL has no md5() calls (FIPS, #6753)
+    category: exactness
+    layer: contract
+    purpose: "Scans production Go SQL literals, migrations, and shipped schema SQL for md5() calls, which fail on FIPS-enabled PostgreSQL."
+    tier: pre-pr
+    blocking: true
+    # TestProductionSQLHasNoMD5Calls scans the non-test Go string literals
+    # under go/ plus the shipped .sql roots (migrations and
+    # schema/data-plane/postgres)
+    # (go/internal/storage/postgres/md5_sql_sweep_test.go). Testdata,
+    # fixtures, docs evidence, and script proof helpers may still use md5();
+    # only shipped SQL is in scope.
+    triggers:
+      - "go/**"
+      - "schema/data-plane/**"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/storage/postgres -run '^TestProductionSQLHasNoMD5Calls$' -count=1"
+      test_command: "cd go && go test ./internal/storage/postgres -run '^TestMD5SweepFlagsSeededViolation$' -count=1"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: hot-cypher-source-coverage
     name: Hot Cypher manifest covers every production query call
     category: exactness
