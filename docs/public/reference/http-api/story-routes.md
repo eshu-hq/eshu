@@ -205,7 +205,7 @@ and the win grows with the number of non-support facts sharing each scope. The
 `Kept` `OFFSET 0` and kind cross join from #6794 are unchanged for the
 source-only count, so a missing or invalid index degrades to the previous cost,
 not worse. Since #7138 the row read is a separate single-kind probe served by
-migration 151's partial expression index; migration 123 still serves the
+migration 152's partial expression index; migration 123 still serves the
 source-only count. Ingest cost is one btree entry for a support-kind fact only.
 
 Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.

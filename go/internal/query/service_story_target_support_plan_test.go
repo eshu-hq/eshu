@@ -69,7 +69,7 @@ func TestServiceStoryTargetSupportSQLProbesFactKindIndex(t *testing.T) {
 // the LATERAL, beside the bound array and the kind cross join, so the planner
 // can prove migration 123's partial index predicate. Removing the literals
 // silently falls back to the wide scope/generation index. The row read's index
-// (migration 151) is bound by TestServiceStoryTargetSupportLinkIndexMatchesQuery.
+// (migration 152) is bound by TestServiceStoryTargetSupportLinkIndexMatchesQuery.
 func TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex(t *testing.T) {
 	t.Parallel()
 

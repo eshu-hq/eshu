@@ -28,7 +28,7 @@ const (
 // target's).
 //
 // The source-only count must use migration 123's story_support_kinds_idx. The
-// row read must use migration 151's link-repo index, keyed on the
+// row read must use migration 152's link-repo index, keyed on the
 // payload->>'linked_repository_id' expression: on a corpus with external links
 // the heap filter it replaces dominates (#7138), and on a corpus without any the
 // planner would pick the empty external-link URL index instead, which proves

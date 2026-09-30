@@ -42,7 +42,7 @@ they seeded the read's own assumed keys.
   re-check, the ambiguity checker, and the kind-alias expansion
   (`service/story_target_support_refs.go`). The documentation read keeps its own
   matching, untouched.
-- **Migration 151:** partial expression index
+- **Migration 152:** partial expression index
   `fact_records_story_support_link_repo_idx` on
   `(scope_id, generation_id, (payload->>'linked_repository_id'))` where
   `fact_kind = 'work_item.external_link' AND is_tombstone = FALSE`. The statement
@@ -136,13 +136,13 @@ superseded generations and 5 tombstoned), 20,000 records, 30,000 transitions.
 | current (three-key containment) | A | 11.4 ms | 8,839 |
 | current | B | 73.9 ms | (all ~125k active support facts) |
 | new, no index | B | 13.2 ms | 5,670 |
-| new + migration 151 index | B, 50k links | 1.74 ms | 478 |
+| new + migration 152 index | B, 50k links | 1.74 ms | 478 |
 | new, no index / with index | 500k links | 206 ms / 17.4 ms | |
 
 The no-index new read sits inside the #7126 band (14.4 ms before, 11.3 ms after on
 600k facts). The heap filter dominates it (about 49.5k of 50k external-link rows
 discarded per probe), so it is linear in active links per scope; the index removes
-that and is why migration 151 ships. Index size 656 kB at 50k links, 3.9 MB at
+that and is why migration 152 ships. Index size 656 kB at 50k links, 3.9 MB at
 500k; insert WAL for 50k external-link rows rose about 7% (noisy, an upper bound),
 and 50k non-link rows rose 0%. Binding the single kind (13.2 ms) instead of the
 twelve-kind cross join (14.6 ms) removes about eleven no-op probes per scope, so
@@ -177,7 +177,7 @@ links on 1% of facts, half keyed to the target) plus the 50,000-link Jira scope,
 Postgres 18 on the shared laptop at load average 25 to 50, Neo4j 2026 community
 holding three repositories. Nine interleaved rounds after two warm-ups,
 alternating first mover; the "before" run is the same harness on commit
-`725fa19425` (no graph read, no migration 151), the "after" run on this branch.
+`725fa19425` (no graph read, no migration 152), the "after" run on this branch.
 
 | Scenario | Before (median) | After (median) | After evidence |
 | --- | ---: | ---: | --- |

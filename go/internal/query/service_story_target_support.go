@@ -21,7 +21,7 @@ const serviceStoryTargetSupportLimit = querycontract.ServiceStoryTargetSupportLi
 // merge-request link resolved to the canonical repository id). No other support
 // fact kind carries a target key today; record, transition and metadata rows and
 // the PagerDuty kinds stay source-only until #7463 and #7464 link them. The
-// migration 151 partial index and TestServiceStoryTargetSupportLinkIndexMatchesQuery
+// migration 152 partial index and TestServiceStoryTargetSupportLinkIndexMatchesQuery
 // bind these literals to the statement.
 const (
 	storySupportLinkFactKind      = "work_item.external_link"
@@ -160,7 +160,7 @@ func storySupportLinkRepositoryID(filter serviceStoryTargetSupportFilter) string
 // buildServiceStoryTargetSupportSQL renders the bounded row read: the active
 // work_item.external_link facts whose linked_repository_id is the target's
 // repository. The predicate is the plain payload->>'key' = $1 form on purpose.
-// Migration 151's partial expression index is keyed on exactly that expression,
+// Migration 152's partial expression index is keyed on exactly that expression,
 // and a NULLIF wrapper would make it unusable (measured in the #7138 shim: the
 // index turns a 13 ms heap filter at 50k links per scope into a 1.7 ms descent).
 // The kind, tombstone and key conditions are literal or bound inside the LATERAL
