@@ -366,6 +366,23 @@ distinct from `Neo4jReader`'s `query.graph_read.warning`, since a handler-level
 anchor-loop warning has no single Cypher statement to attribute to the reader's
 own per-read span.
 
+A read the backend rejects or fails outside the deadline and availability
+classes (outcome `error`, for example a Cypher syntax error) returns
+`ErrGraphQueryFailed`, whose text is the fixed `graph query failed`. The driver
+error is kept as the cause, reachable through `errors.As` for classification,
+but `Error()` never returns it: a handler that writes `err.Error()` into an
+HTTP 500 body, or wraps the error with `%w` and does so later, cannot leak the
+statement a driver error quotes (#7253). The operator detail moved to two
+places, both redacted with the same scanner as the statement head: the
+`neo4j.query` span status and exception event, and the
+`query.graph_read.error` log (ERROR, or WARN when the backend rejects the
+statement as malformed, `Neo.ClientError.Statement.*`) with `graph_read.error`
+(the first line of the driver text only),
+`graph_read.statement_fingerprint`, `graph_read.statement_head`, and
+`graph_query_name`. Only the query-failed class swaps its driver cause into the
+span; an unavailable or deadline read keeps its fixed public text, because its
+cause is a dial error that names the graph host.
+
 Session-close failures emit `query.graph_read.session_close_failed` with
 `pipeline_phase="query"` and `failure_class="session_close_error"`. Because
 cleanup has its own one-second bound, total request wall time may extend beyond

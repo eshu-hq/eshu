@@ -92,6 +92,27 @@ behind it are owned by
 route still exempt. Routes backed by Postgres or the content store rather than
 the graph are unaffected.
 
+Any other graph-read failure (a driver fault that is neither a deadline nor an
+availability problem) answers `500` whose detail ends in `graph query failed`;
+a handler may prefix it with its own step name, for example `query k8s
+resources: graph query failed`. The driver's own message quotes the statement,
+inline literals included, so it never reaches a response body. The redacted
+detail is in the `query.graph_read.error` log and on the `neo4j.query` span.
+The response carries no trace id and no statement fingerprint, so an operator
+matches a reported failure to its log record by the time of the failure, and
+reads the query name, statement fingerprint, and statement head from the record
+to name the offending shape.
+
+The two routes that run a caller-authored statement, `POST /api/v0/code/cypher`
+(`execute_cypher_query`) and `POST /api/v0/code/visualize`, treat a statement
+the graph rejects as malformed (`Neo.ClientError.Statement.*`) as the caller's
+fault: they answer `400 invalid_argument` with the first line of the graph's
+message, every numeric and string literal replaced by `<REDACTED>`, so the
+author can fix the query. The quoted copy of the statement that follows the
+message is not returned. Any other failure on those routes is the same `500` as
+above. Because the redaction reads the message as Cypher, the offending token
+and the numbers in a `line 1, column 24` position are replaced too.
+
 ## Shared Model Rules
 
 - `workload` is the canonical deployable compute model.

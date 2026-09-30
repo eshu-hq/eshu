@@ -54,6 +54,24 @@ graph-read outcomes. It carries `pipeline_phase="query"`, a bounded
 `failure_class`, and `duration_seconds`; it deliberately omits Cypher text,
 graph addresses, and raw driver errors.
 
+`query.graph_read.error` is a record for a graph read the backend failed
+outside the deadline and availability classes. It is ERROR level, except that a
+statement the backend rejects as malformed (`Neo.ClientError.Statement.*`) is
+WARN, so a client cannot raise an ERROR stream with a bad query. Authentication,
+authorization, and missing-database errors (`Neo.ClientError.Security.*`,
+`Neo.ClientError.Database.*`) are Eshu's own configuration faults and stay
+ERROR. The reader cannot tell who wrote a rejected statement, so a rejected
+Eshu-built statement is WARN too; the `outcome="error"` metric still counts it.
+The record fires once per failed read. It carries the same bounded fields as the
+warning plus `graph_read.error`: the first line of the driver text with every
+numeric and string literal replaced by `<REDACTED>`. The lines after it, which
+quote the statement, are dropped because the redactor reads text as Cypher and a
+double-quoted literal inside the quoted line would survive; the redacted
+statement is in `graph_read.statement_head`. The HTTP response for the same read
+carries only the fixed text `graph query failed`, except on the two
+caller-authored Cypher routes, which answer 400 with the redacted message for a
+rejected statement (#7253).
+
 See [Graph-read safety](graph-read-safety.md) for the shared deadline and
 operator triage contract.
 

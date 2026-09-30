@@ -65,6 +65,10 @@ var (
 	// ErrGraphUnavailable reports that the graph backend could not serve a
 	// read. It aliases the querycontract sentinel so errors.Is keeps matching.
 	ErrGraphUnavailable = querycontract.ErrGraphUnavailable
+	// ErrGraphQueryFailed reports a graph read that failed for a reason other
+	// than a deadline or availability. It aliases the querycontract sentinel
+	// so errors.Is keeps matching.
+	ErrGraphQueryFailed = querycontract.ErrGraphQueryFailed
 )
 
 type graphReadOutcome string
@@ -194,17 +198,6 @@ func (a neo4jReadSessionAdapter) Run(
 
 func (a neo4jReadSessionAdapter) Close(ctx context.Context) error {
 	return a.session.Close(ctx)
-}
-
-type graphReadError struct {
-	public error
-	cause  error
-}
-
-func (e *graphReadError) Error() string { return e.public.Error() }
-func (e *graphReadError) Unwrap() error { return e.cause }
-func (e *graphReadError) Is(target error) bool {
-	return target == e.public || errors.Is(e.cause, target)
 }
 
 func (r *Neo4jReader) runRead(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -422,7 +415,7 @@ func graphReadResult(
 	if isGraphUnavailableError(err) {
 		return graphReadOutcomeUnavailable, &graphReadError{public: ErrGraphUnavailable, cause: err}
 	}
-	return graphReadOutcomeError, err
+	return graphReadOutcomeError, &graphReadError{public: ErrGraphQueryFailed, cause: err}
 }
 
 func isGraphReadDeadlineError(ctx context.Context, err error) bool {
@@ -473,6 +466,10 @@ func (r *Neo4jReader) recordGraphReadTelemetry(
 		)
 	}
 
+	if outcome == graphReadOutcomeError {
+		r.logGraphReadError(ctx, err, duration, statementFingerprint, cypher, queryName)
+		return
+	}
 	if outcome != graphReadOutcomeSlow && outcome != graphReadOutcomeDeadline && outcome != graphReadOutcomeUnavailable {
 		return
 	}

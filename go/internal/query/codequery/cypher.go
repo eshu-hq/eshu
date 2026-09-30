@@ -92,6 +92,10 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 		if WriteGraphReadError(w, r, err, readOnlyCypherCapability) {
 			return
 		}
+		if message, rejected := querycontract.GraphStatementRejection(err); rejected {
+			writeCypherQueryError(w, r, readOnlyCypherCapability, http.StatusBadRequest, ErrorCodeInvalidArgument, "the graph rejected the Cypher statement: "+message)
+			return
+		}
 		writeCypherQueryError(w, r, readOnlyCypherCapability, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}
@@ -412,6 +416,10 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 	rows, err := h.Neo4j.Run(ctx, cypher, nil)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, visualizationGraphQueryCapability) {
+			return
+		}
+		if message, rejected := querycontract.GraphStatementRejection(err); rejected {
+			writeCypherQueryError(w, r, visualizationGraphQueryCapability, http.StatusBadRequest, ErrorCodeInvalidArgument, "the graph rejected the Cypher statement: "+message)
 			return
 		}
 		writeCypherQueryError(w, r, visualizationGraphQueryCapability, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())

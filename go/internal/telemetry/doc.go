@@ -155,6 +155,11 @@
 // booleans and null kept, comments dropped, whitespace collapsed; see
 // internal/query/graph/statement), so together they identify the statement
 // shape without recording a bound parameter value or an inline literal.
+// LogKeyGraphReadError (the query.graph_read.error log) is the one field that
+// carries driver text, for a read the backend failed outside the deadline and
+// availability classes: its first line passes through the same literal
+// redaction and the lines that quote the statement are dropped, because the
+// client-facing error is the fixed "graph query failed" (#7253).
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in

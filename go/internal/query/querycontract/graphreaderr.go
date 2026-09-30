@@ -18,6 +18,13 @@ var (
 	ErrGraphReadDeadline = errors.New("graph query exceeded its deadline")
 	// ErrGraphUnavailable reports that the graph backend could not serve a read.
 	ErrGraphUnavailable = errors.New("graph temporarily unavailable; retry after graph health is restored")
+	// ErrGraphQueryFailed reports that the graph backend rejected or failed a
+	// read for a reason that is neither a deadline nor an availability
+	// problem. Its text is the only thing a caller may show a client: the
+	// driver's own message quotes the statement, inline literals included
+	// (#7253). The driver cause stays reachable through errors.As and
+	// Unwrap for classification and operator logs.
+	ErrGraphQueryFailed = errors.New("graph query failed")
 )
 
 // ClassifyBoundedGraphReadError maps a graph-read error onto
@@ -105,4 +112,27 @@ func mapGraphReadHTTPError(err error) (graphReadHTTPError, bool) {
 	default:
 		return graphReadHTTPError{}, false
 	}
+}
+
+// statementRejecter is implemented by a graph-read error that wraps the backend
+// rejecting the statement itself (a Cypher syntax or semantic error).
+type statementRejecter interface {
+	StatementRejection() (string, bool)
+}
+
+// GraphStatementRejection reports whether err is the graph backend rejecting
+// the submitted statement as malformed, and returns the first line of the
+// backend's message with every numeric and string literal redacted (the lines
+// that quote the statement are dropped). It is for the routes that run a
+// caller-authored statement (read-only Cypher, graph-query visualization),
+// which answer 400 with this message so the author can fix the query instead of
+// a bare 500 (#7253). A route that runs a statement Eshu built must not use it:
+// a rejected server-built statement is a server fault. Any other error,
+// including nil, reports false.
+func GraphStatementRejection(err error) (string, bool) {
+	var rejecter statementRejecter
+	if err == nil || !errors.As(err, &rejecter) {
+		return "", false
+	}
+	return rejecter.StatementRejection()
 }

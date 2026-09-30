@@ -9,12 +9,16 @@ package query
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/query/graph/statement"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -61,12 +65,112 @@ func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]
 	return r.runRead(ctx, cypher, params)
 }
 
+// graphReadError pairs the bounded public error a caller may show a client
+// with the driver cause an operator needs. Error() returns only the public
+// text, so a handler that writes err.Error() into a response body (or wraps
+// it with %w and does so later) cannot leak the statement a driver error
+// quotes (#7253). Unwrap and Is keep the cause reachable for errors.As and
+// errors.Is classification.
+type graphReadError struct {
+	public error
+	cause  error
+}
+
+func (e *graphReadError) Error() string { return e.public.Error() }
+func (e *graphReadError) Unwrap() error { return e.cause }
+func (e *graphReadError) Is(target error) bool {
+	return target == e.public || errors.Is(e.cause, target)
+}
+
 // redactedSpanError wraps err so span RecordError/SetStatus never carry raw
 // driver text: statement errors quote the offending statement, and ad-hoc
 // routes send it with inline literals (#7065). It redacts exactly like the
-// statement head and fingerprint (#7035).
+// statement head and fingerprint (#7035). A graphReadError's public text is
+// deliberately generic, so the redacted driver cause is what reaches the span
+// -- the operator detail the response no longer carries (#7253).
 func redactedSpanError(err error) error {
-	return errors.New(statement.Redact(err.Error()))
+	var readErr *graphReadError
+	// Only the query-failed class swaps in its cause. An unavailable or
+	// deadline error keeps its fixed public text: its cause is a dial error
+	// that names the graph host.
+	if errors.As(err, &readErr) && readErr.public == ErrGraphQueryFailed && readErr.cause != nil {
+		err = readErr.cause
+	}
+	return errors.New(redactDriverText(err.Error()))
+}
+
+// redactDriverText redacts the first line of a driver error only. A Neo4j
+// syntax error follows its message line with the offending statement in double
+// quotes, and the redactor reads its input as Cypher, so a double-quoted literal
+// inside that quoted line would flip the string boundaries and survive (review
+// R2 of #7253). The statement itself is already recorded, redacted, as the
+// graph_read.statement_head log field, and the message line carries the
+// diagnosis.
+func redactDriverText(text string) string {
+	first, _, _ := strings.Cut(text, "\n")
+	return statement.Redact(first)
+}
+
+// StatementRejection reports whether the cause is the backend rejecting the
+// statement as malformed (Neo.ClientError.Statement.*) and returns its message
+// with literals redacted. querycontract.GraphStatementRejection reaches it
+// through errors.As.
+func (e *graphReadError) StatementRejection() (string, bool) {
+	var driverErr *neo4jdriver.Neo4jError
+	if e.public != ErrGraphQueryFailed || !errors.As(e.cause, &driverErr) ||
+		!strings.HasPrefix(driverErr.Code, "Neo.ClientError.Statement.") {
+		return "", false
+	}
+	return redactDriverText(driverErr.Msg), true
+}
+
+// isRejectedStatement reports whether the backend rejected the submitted
+// statement as malformed (Neo.ClientError.Statement.*), so the operator log
+// stays at WARN instead of raising an ERROR stream a client can trigger with a
+// bad statement. It is deliberately narrower than Neo.ClientError.*, which also
+// carries authentication, authorization and missing-database errors: those are
+// Eshu's own configuration faults and must stay at ERROR. The reader cannot tell
+// who wrote the statement, so a rejected Eshu-built statement is WARN too; the
+// outcome="error" metric still counts it.
+func isRejectedStatement(err error) bool {
+	var driverErr *neo4jdriver.Neo4jError
+	return errors.As(err, &driverErr) && strings.HasPrefix(driverErr.Code, "Neo.ClientError.Statement.")
+}
+
+// logGraphReadError emits the operator-facing record for a graph read the
+// backend rejected or failed outside the deadline and availability classes. It
+// carries the redacted driver detail that the client-facing error omits, plus
+// the statement fingerprint and head that name the offending shape, so a 500
+// with a bounded body stays diagnosable at 3 AM (#7253).
+func (r *Neo4jReader) logGraphReadError(
+	ctx context.Context,
+	err error,
+	duration time.Duration,
+	statementFingerprint string,
+	cypher string,
+	queryName string,
+) {
+	logger := r.policy.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	level := slog.LevelError
+	if isRejectedStatement(err) {
+		level = slog.LevelWarn
+	}
+	logger.Log(
+		ctx,
+		level,
+		"bounded graph read failed",
+		telemetry.EventAttr("query.graph_read.error"),
+		telemetry.PhaseAttr(telemetry.PhaseQuery),
+		telemetry.FailureClassAttr(string(graphReadOutcomeError)),
+		slog.Float64("duration_seconds", duration.Seconds()),
+		slog.String(telemetry.LogKeyGraphReadStatementFingerprint, statementFingerprint),
+		slog.String(telemetry.LogKeyGraphReadStatementHead, graphStatementHead(cypher)),
+		slog.String(telemetry.LogKeyGraphReadQueryName, queryName),
+		slog.String(telemetry.LogKeyGraphReadError, redactedSpanError(err).Error()),
+	)
 }
 
 // RunSingle executes a Cypher query expecting at most one result row.

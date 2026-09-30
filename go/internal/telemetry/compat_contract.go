@@ -72,6 +72,7 @@ const (
 	LogKeyGraphReadStatementHead          = contract.LogKeyGraphReadStatementHead
 	SpanAttrGraphReadQueryName            = contract.SpanAttrGraphReadQueryName
 	LogKeyGraphReadQueryName              = contract.LogKeyGraphReadQueryName
+	LogKeyGraphReadError                  = contract.LogKeyGraphReadError
 )
 
 // Kubernetes correlation query span (from contract/kubernetes.go).
