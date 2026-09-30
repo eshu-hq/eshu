@@ -43,7 +43,6 @@ func cycleEdgeFrom(t *testing.T, resp map[string]any, sourceFile string) map[str
 func TestCycleFlagsFoldDoesNotDependOnRowOrder(t *testing.T) {
 	t.Parallel()
 
-	strong := func(flags edgeFlags) edgeFlags { return flags }
 	tests := []struct {
 		name      string
 		strong    edgeFlags // the row the fold must keep, on line 9
@@ -51,9 +50,9 @@ func TestCycleFlagsFoldDoesNotDependOnRowOrder(t *testing.T) {
 		wantState string
 		wantLabel string
 	}{
-		{name: "runtime over type-only", strong: strong(runtimeFlags), weak: typeOnlyFlags, wantState: "runtime", wantLabel: "runtime"},
-		{name: "unknown over inferred", strong: strong(unknownFlags), weak: inferredFlags, wantState: "unknown", wantLabel: "flags_unknown"},
-		{name: "inferred over deferred", strong: strong(inferredFlags), weak: deferredFlags, wantState: "inferred", wantLabel: "ambiguous"},
+		{name: "runtime over type-only", strong: runtimeFlags, weak: typeOnlyFlags, wantState: "runtime", wantLabel: "runtime"},
+		{name: "unknown over inferred", strong: unknownFlags, weak: inferredFlags, wantState: "unknown", wantLabel: "flags_unknown"},
+		{name: "inferred over deferred", strong: inferredFlags, weak: deferredFlags, wantState: "inferred", wantLabel: "ambiguous"},
 	}
 	for _, tt := range tests {
 		tt := tt

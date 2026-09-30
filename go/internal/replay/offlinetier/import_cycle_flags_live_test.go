@@ -13,9 +13,9 @@ package offlinetier_test
 //
 // The edges carry exactly the properties the projector writes (#7345): the three
 // flags as explicit booleans on every edge, plus one legacy edge written without
-// them. It does not go through the canonical writer so that it can also run
-// before the writer change lands; once it has, a writer-driven case should join
-// it.
+// them. It seeds edges directly instead of going through the canonical writer;
+// TestCanonicalImportEdgesGraphTruth covers the writer half, and the two are
+// not joined into one writer-to-reader case.
 //
 // Skills active: golang-engineering, cypher-query-rigor, eshu-correlation-truth.
 
