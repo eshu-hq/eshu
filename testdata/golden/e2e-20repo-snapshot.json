@@ -5697,6 +5697,39 @@
           "entity_id": "content-entity:e_1dc76e780ac6"
         }
       },
+      "get_entity_context?assert=graph-anchor": {
+        "description": "Graph-anchor proof for entity context: the Dart mutualPing Function (content-entity:e_59c56c38911d) is written with id == uid, so the uid-constrained anchor and the Neo4j label-set anchor must resolve it from the graph (never the content fallback) and return its outgoing CALLS edge to mutualPong. If canonical writers regress to uid != id, or the anchors stop matching, this shape fails while the content-fallback workflow shape still passes -- that divergence is the signal. #7232.",
+        "required_response_fields": [
+          "relationships",
+          "id",
+          "labels",
+          "result_limits"
+        ],
+        "minimum_results": 1,
+        "results_field": "relationships",
+        "result_item_required_fields": [
+          "type",
+          "target_name",
+          "target_id"
+        ],
+        "required_json_values": {
+          "id": "content-entity:e_59c56c38911d",
+          "name": "mutualPing",
+          "result_limits.truncated": false
+        },
+        "required_json_object_matches": {
+          "relationships[]": [
+            {
+              "type": "CALLS",
+              "target_name": "mutualPong",
+              "target_id": "content-entity:e_8cacf7638b04"
+            }
+          ]
+        },
+        "arguments": {
+          "entity_id": "content-entity:e_59c56c38911d"
+        }
+      },
       "get_workload_context": {
         "description": "MCP tool coverage shape for get_workload_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
@@ -7476,6 +7509,36 @@
               "type": "DEPLOYS_FROM",
               "target_name": "acme/platform",
               "reason": "github_actions_reusable_workflow_ref"
+            }
+          ]
+        }
+      },
+      "GET /api/v0/entities/content-entity:e_59c56c38911d/context?assert=graph-anchor": {
+        "description": "HTTP twin of the get_entity_context?assert=graph-anchor MCP shape: the Dart mutualPing Function must resolve through the graph anchors (id == uid) and return its outgoing CALLS edge to mutualPong. #7232.",
+        "required_response_fields": [
+          "relationships",
+          "id",
+          "labels",
+          "result_limits"
+        ],
+        "minimum_results": 1,
+        "results_field": "relationships",
+        "result_item_required_fields": [
+          "type",
+          "target_name",
+          "target_id"
+        ],
+        "required_json_values": {
+          "id": "content-entity:e_59c56c38911d",
+          "name": "mutualPing",
+          "result_limits.truncated": false
+        },
+        "required_json_object_matches": {
+          "relationships[]": [
+            {
+              "type": "CALLS",
+              "target_name": "mutualPong",
+              "target_id": "content-entity:e_8cacf7638b04"
             }
           ]
         }
