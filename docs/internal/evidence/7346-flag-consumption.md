@@ -132,21 +132,46 @@ at 25,000 edges, an increase of roughly 18% to 34% across the four shapes (unsco
 4,522 edges 123.8 to 145.7 ms is the low end). That laptop was under heavy contention
 from other work, so these are smoke figures, not accepted timing.
 
-The criterion for the remote run was fixed by an arbiter before it ran, so it is not chosen after the
-data. The added work is three property reads per returned row, so the deterministic gate (G1) is that
-the remote `PROFILE` gives exactly `hits_new - hits_base = 3 x rows` with equal row counts, no
-`Eager` operator, and an operator set that differs from the base only by the one `CacheProperties`
-operator, with the access path identical. The wall-time gate (G2) is, for each of the four shapes, that
-both the ratio of medians and the mean of the same-round ratios stay at or below that shape's
-DB-hit ratio (1.3451 scoped and 1.5872 unscoped at 4,522 edges; 1.3529 scoped and 1.6250 unscoped at
-25,000 edges) plus the control bound derived from two A/A-only sets on the same rig, with at least
-nine valid rounds per shape and a derived bound of at most 0.15. A breach of G2 with G1 holding is
-an unexplained wall cost to diagnose, not a disclosure item.
+The route's checked-in latency contract is the capability matrix's p95 for `symbol_graph.import_dependencies`:
+1,500 ms per call in the supported production profile and 1,000 ms in `local_authoritative` and
+`local_full_stack` (`specs/capability-matrix.v1.yaml`), the same 1.5-second interactive SLO that the #5561
+evidence proved per call. The fetch is one component of that call; the Go walk is bounded at 250,000 steps
+with a 250 ms design ceiling (part 1), and row shaping is measured, not assumed.
 
-No absolute wall-time bound is asserted. The repository has none for this route: the nearest rows in
-the local performance envelope (the complexity query and the transitive-caller query) belong to other
-routes and are context only, and the only hard bound is the route timeout in `codequery`. The remote run
-has not happened yet; the result goes in this note before the PR opens.
+The criterion for the remote run was fixed by an arbiter before it ran, so it is not chosen after the data.
+The remote rig (a dedicated 16-CPU Linux host, the pinned Neo4j with the production schema) models the
+deployed profile, so the 1,500 ms production figure gates.
+
+- **G1, deterministic.** The remote `PROFILE` gives exactly `hits_new - hits_base = 3 x rows` (three property
+  reads per returned row), equal row counts, no `Eager` operator, an operator set that differs from the
+  base only by the one `CacheProperties` operator, and an identical access path.
+- **G2, relative wall time.** For each of the four shapes, both the ratio of medians and the mean of the
+  same-round ratios stay at or below that shape's DB-hit ratio (1.3451 scoped and 1.5872 unscoped at 4,522
+  edges; 1.3529 scoped and 1.6250 unscoped at 25,000 edges) plus the control bound derived from two A/A-only sets
+  on the same rig. Validity: rule PD holds, at least nine valid rounds per shape, and a derived bound of at
+  most 0.15; otherwise the run is void, not a code result.
+- **G3, absolute, fetch only.** At both 25,000-edge shapes the maximum valid round of the new statement is at
+  most 1,250 ms, which is the 1,500 ms production p95 minus the walk's 250 ms ceiling; with 9 to 18 valid rounds
+  the nearest-rank p95 is the maximum, so the gate is stated as the maximum. The base statement is judged
+  against the same bar so a breach is attributed: base and new both over is a pre-existing breach to record and
+  file, with no claim that the SLO holds; base under and new over means this change crosses the SLO, and the work
+  stops for profiling. The 4,522 shapes are reported against the same bar and not gated. Median and the cold
+  first execution are reported beside it.
+- **G4, per call.** The in-process time of the handler's import-dependency read (fetch, cycle build and walk),
+  cold and warm, at the 25,000-edge graph for `file_import_cycles` scoped and unscoped, is at most 1,500 ms. It is
+  measured through a test-local reader that has none of the production read policy (deadlines, retries,
+  telemetry), so it is the query and walk cost, not the full server path.
+
+The 1,000 ms local-profile rows are reported as findings only (whether the 25,000-edge fetch maximum fits
+750 ms and the per-call time fits 1,000 ms), because the rig does not model those profiles. A breach of G2, G3 or
+G4 with G1 holding is an unexplained cost to diagnose, not a disclosure item. The handler wraps no timeout of its
+own; the fetch runs through the import-dependency rows path into the Neo4j reader, whose per-read deadline is
+`querycontract.DefaultGraphReadTimeout` (10 s), with slow-read logging above 1 s. The remote-validation artifact
+cited for the production capability row (`prod-import-dependencies`) is a compose end-to-end run whose form is
+checked and which binds no statement; it is not refreshed here, and this note does not claim it re-validates the
+changed statement.
+
+Wall time: NOT_CHECKED until that run has happened; its result goes in this note before the PR opens.
 
 ## Benchmark Evidence:
 
