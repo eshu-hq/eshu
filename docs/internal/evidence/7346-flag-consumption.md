@@ -113,8 +113,8 @@ scoped-grant and the unscoped shape.
 
 Every shape returns identical rows apart from the three added columns, has no
 `Eager` operator, and adds exactly three DB hits per returned row, which is the
-bound the design review set (three times the row count). That is about a 35%
-increase in DB hits for this statement and it is inherent: the flags are extra
+bound the design review set (three times the row count). That is a 35% to
+63% increase in DB hits for this statement, depending on the shape, and it is inherent: the flags are extra
 properties that must be read.
 
 The operator tree is **not** byte-identical, and the design review's pass
@@ -217,9 +217,10 @@ without the production deadlines, retries or telemetry.
 Two earlier remote attempts at this head were void under the pre-registered validity rule (derived control
 bound 0.2079 and 0.2077 against the 0.15 cap) and are not used for any claim. The passing run is the third.
 After the second void attempt (its A/A ratios ranged 0.8652 to 1.0176 with a pooled SD of 0.0243, consistent with
-cold executions) the harness gained a 15 s discarded warm-up per statement text; the two void attempts had a
-single discarded execution. The criterion, the evaluator's gates and the validity rule did not change, and the
-void attempts' A/B figures, which back no claim, pointed the same way (ratio of medians 1.035 to 1.037).
+cold executions) the harness gained a 15 s discarded warm-up per statement text; the second void attempt's
+harness had a single discarded execution. The criterion, the evaluator's gates and the validity rule did not
+change, and the second void attempt's A/B figures, which back no claim, pointed the same way (ratio of medians
+1.035 to 1.037).
 The other tenants on the host were not quiet: the per-second container CPU samples show foreign containers
 using up to about 2.9 cores in bursts (host busy cores mean 3.0, maximum 5.9 of 16), and the run met rule PD and
 the validity rule; it is stated here rather than hidden. The Neo4j query log could not be made
