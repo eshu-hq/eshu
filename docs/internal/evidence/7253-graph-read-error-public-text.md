@@ -123,8 +123,10 @@ Observability Evidence (#7253): a 500 with the bounded body stays diagnosable.
 `query.graph_read.error` (ERROR, `pipeline_phase="query"`,
 `failure_class="error"`) carries the redacted driver text in `graph_read.error`
 and the `graph_read.statement_fingerprint`/`graph_read.statement_head` that
-name the statement, so an operator matches a client's `graph query failed` to a
-log line by fingerprint. The `neo4j.query` span keeps the redacted exception
+name the statement. The response carries none of these, so an operator matches
+a client's `graph query failed` to its log record by the time of the failure,
+then names the offending shape from the fingerprint, head, and query name. The
+`neo4j.query` span keeps the redacted exception
 event and the `eshu.graph_read.outcome=error` attribute
 (`TestNeo4jReaderSpanErrorRedactsEchoedStatementLiterals`, unchanged).
 `graph_read.error` is registered in the frozen log-key list

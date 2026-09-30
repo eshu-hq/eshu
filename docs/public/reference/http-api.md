@@ -97,9 +97,11 @@ availability problem) answers `500` whose detail ends in `graph query failed`;
 a handler may prefix it with its own step name, for example `query k8s
 resources: graph query failed`. The driver's own message quotes the statement,
 inline literals included, so it never reaches a response body. The redacted
-detail is in the `query.graph_read.error` log and on the `neo4j.query` span; a
-client correlates a failure with them by the request's trace id, since the
-statement fingerprint is an operator-side field the response does not carry.
+detail is in the `query.graph_read.error` log and on the `neo4j.query` span.
+The response carries no trace id and no statement fingerprint, so an operator
+matches a reported failure to its log record by the time of the failure, and
+reads the query name, statement fingerprint, and statement head from the record
+to name the offending shape.
 
 The two routes that run a caller-authored statement, `POST /api/v0/code/cypher`
 (`execute_cypher_query`) and `POST /api/v0/code/visualize`, treat a statement
