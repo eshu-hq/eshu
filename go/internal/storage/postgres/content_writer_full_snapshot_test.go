@@ -235,3 +235,33 @@ func TestContentWriterFullSnapshotKeepsRetainedPaths(t *testing.T) {
 		}
 	}
 }
+
+// TestContentWriterFullSnapshotDoesNotCountTombstonedPathsAsStale pins the
+// review nit: a path the snapshot explicitly tombstones is deleted by the
+// tombstone loop, so it must not also be classified stale, which would delete it
+// twice and blur stale_file_count.
+func TestContentWriterFullSnapshotDoesNotCountTombstonedPathsAsStale(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeExecQueryer{contentFilePathRows: storedPathRows("keep.go", "tomb.go", "gone.go")}
+	writer := NewContentWriter(withTransactions(fake))
+
+	_, err := writer.Write(context.Background(), content.Materialization{
+		RepoID: "repo-1", ScopeID: "scope-1", GenerationID: "gen-d", FullSnapshot: true,
+		Records: []content.Record{
+			{Path: "keep.go", Body: "package p\n"},
+			{Path: "tomb.go", Deleted: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	deletes := deletedPathsByTable(fake)
+	want := []string{"repo-1|gone.go", "repo-1|tomb.go"}
+	for _, table := range []string{"content_entities", "content_files"} {
+		if !reflect.DeepEqual(deletes[table], want) {
+			t.Fatalf("%s deleted pairs = %v, want each path exactly once %v", table, deletes[table], want)
+		}
+	}
+}

@@ -311,21 +311,26 @@ const listContentFilePathsSQL = `SELECT relative_path FROM content_files WHERE r
 // with nothing stale (every first generation, and most reconciliation
 // snapshots) at one read and zero deletes.
 //
-// The read and the later deletes are separate statements. That is safe for the
-// reason the entity reap above is: no two Write calls for
-// one repository run at once (claimProjectorWorkQuery's scope_id guard), so
-// nothing can re-create a stale path between them, and a path in Records is
-// never in the stale set, so the deletes cannot remove a fresh row.
+// The read and the later deletes are separate statements. That is safe while
+// the entity reap's assumption holds: no two Write calls for one repository run
+// at once (claimProjectorWorkQuery's scope_id guard), so nothing re-creates a
+// stale path between them. A path in Records is never in the stale set, so the
+// deletes cannot remove a fresh row of this Write. The exception is a writer
+// whose lease expired but is still running, which the guard does not cover and
+// which can upsert after this read (see the known limits in
+// docs/internal/evidence/7447-content-full-snapshot-reap.md).
 func (w ContentWriter) staleContentFilePaths(ctx context.Context, mat content.Materialization) ([]string, error) {
 	if !mat.FullSnapshot {
 		return nil, nil
 	}
 
 	fresh := make(map[string]struct{}, len(mat.Records)+len(mat.RetainedPaths))
+	// Every record path is fresh, tombstones included: a path this snapshot
+	// deletes explicitly is deleted by the tombstone loop in Write, so counting
+	// it as stale too would delete it twice and inflate stale_file_count, which
+	// is meant to count true leftovers only.
 	for _, record := range mat.Records {
-		if !record.Deleted {
-			fresh[record.Path] = struct{}{}
-		}
+		fresh[record.Path] = struct{}{}
 	}
 	// A retained path is in the snapshot without a Record (its body read was
 	// skipped), so it keeps the content it already has.
