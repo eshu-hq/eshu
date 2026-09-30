@@ -4,7 +4,6 @@
 package postgres
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -30,14 +29,14 @@ import (
 // so the proof covers the actual SQL round-trip and the actual Handle
 // decision, not a re-implementation of either:
 //
-//  1. Enqueue a work item at time `past`, so created_at = past.
+//  1. Enqueue a work item at time `start`, so created_at = start.
 //  2. Claim and Ack it (status -> 'succeeded'), simulating a prior pass that
 //     already completed a long time ago.
 //  3. Advance the clock more than awsCloudRuntimeDriftStatePendingMaxWait past
-//     `past`, then ReopenSucceeded it (status -> 'pending',
+//     `start`, then ReopenSucceeded it (status -> 'pending',
 //     reopened_at -> the reopen time).
 //  4. Claim it again and confirm the returned Intent.CycleStartedAt reflects
-//     the REOPEN time, not the original `past` enqueue -- proving the SQL
+//     the REOPEN time, not the original `start` enqueue -- proving the SQL
 //     round-trip independent of the Handler.
 //  5. Feed that Intent through the real Handler with a state_snapshot scope
 //     seeded permanently 'pending'. Assert Handle DEFERS (a non-nil,
@@ -51,40 +50,27 @@ import (
 // writes orphaned_cloud_resource despite the state scope still being
 // pending, because EnqueuedAt alone is already past the bound at reopen time.
 func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t *testing.T) {
-	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
+	sqlDB, ctx := awsCloudRuntimeDriftIsolatedLiveDB(t)
 	suffix := fmt.Sprintf("5848-reopen-anchor-%d", time.Now().UnixNano())
 
-	// clock starts well in the past. The state_snapshot scope is seeded
-	// PENDING and never activated, so the readiness checker reports "pending"
-	// for the whole test -- the durably-stuck shape this bound must still
-	// converge against, on its OWN cycle's schedule.
-	past := time.Date(2026, time.June, 1, 9, 0, 0, 0, time.UTC)
-	clock := past
+	// The queue clock starts at the wall clock and moves FORWARD for the
+	// reopen. It must not start in a fixed past: Claim stamps claim_until from
+	// this clock, but Ack fences on the Postgres clock
+	// (claim_until > clock_timestamp()), so a claim stamped in the past is an
+	// already-expired lease and Ack rejects it (#7479). The state_snapshot scope
+	// is seeded PENDING and never activated, so the readiness checker reports
+	// "pending" for the whole test -- the durably-stuck shape this bound must
+	// still converge against, on its OWN cycle's schedule.
+	start := time.Now().UTC().Truncate(time.Second)
+	clock := start
 
 	stateScopeID := "state_snapshot:s3:" + suffix
 	statePendingGenerationID := "gen-state-pending-" + suffix
 	seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, stateScopeID, "terraform_state", "", clock)
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, statePendingGenerationID, stateScopeID, "pending", clock)
-	// HasPendingStateSnapshotEvidence is intentionally coarse (see
-	// AWSCloudRuntimeDriftReadinessChecker's doc comment): it reports "some
-	// state_snapshot scope, anywhere, is pending", not this test's specific
-	// scope. This test's whole point requires the seeded scope to stay
-	// pending through the assertions -- but leaving it pending after the
-	// test ends would permanently pollute this shared, long-lived container
-	// (eshu-pg-5848) for every OTHER test that reads the same coarse signal,
-	// e.g. TestPostgresAWSCloudRuntimeDriftReadinessCheckerLive's "no longer
-	// pending after activation" assertion. Activate it once this test's own
-	// assertions are done, mirroring the deterministic repro test's own
-	// Phase 3 cleanup.
-	t.Cleanup(func() {
-		if _, err := sqlDB.ExecContext(
-			context.Background(),
-			`UPDATE scope_generations SET status = 'active', activated_at = now() WHERE generation_id = $1`,
-			statePendingGenerationID,
-		); err != nil {
-			t.Logf("cleanup: activate state_snapshot generation %s: %v", statePendingGenerationID, err)
-		}
-	})
+	// The schema is this test's own, so the coarse "some state_snapshot scope
+	// is pending" readiness signal sees only this scope and the pending row
+	// leaves with the schema; no sibling test can observe it.
 
 	awsScopeID := "aws:" + suffix
 	awsGenerationID := "gen-aws-" + suffix
@@ -127,8 +113,8 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
 
-	// --- Step 2: advance well past the bound relative to `past`, then reopen. ---
-	clock = past.Add(2 * time.Hour)
+	// --- Step 2: advance well past the bound relative to `start`, then reopen. ---
+	clock = start.Add(2 * time.Hour)
 	workItemID := reducerWorkItemID(intent)
 	reopened, err := queue.ReopenSucceeded(ctx, workItemID)
 	if err != nil {

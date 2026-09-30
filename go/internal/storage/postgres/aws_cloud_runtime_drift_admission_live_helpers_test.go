@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -48,6 +50,64 @@ func awsCloudRuntimeDriftAdmissionLiveDB(t *testing.T) (*sql.DB, context.Context
 	err = ApplyBootstrap(schemaCtx, SQLDB{DB: sqlDB})
 	cancelSchema()
 	if err != nil {
+		t.Fatalf("apply bootstrap schema: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
+	return sqlDB, ctx
+}
+
+// awsCloudRuntimeDriftIsolatedLiveDB is awsCloudRuntimeDriftAdmissionLiveDB in
+// a schema of its own, dropped when the test ends. A proof that drives
+// ReducerQueue.Claim must use it: Claim takes the oldest claimable reducer row
+// in the database, so on the shared schema it can take a row that a sibling
+// test or an earlier run left behind, and the proof then acks and reopens the
+// wrong work item (#7479). Tables land in the isolated schema, which comes
+// first on the search_path; public stays on it so the pg_trgm extension the
+// bootstrap needs resolves there.
+func awsCloudRuntimeDriftIsolatedLiveDB(t *testing.T) (*sql.DB, context.Context) {
+	t.Helper()
+
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres aws_cloud_runtime_drift #5848 proofs")
+	}
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	admin.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = admin.Close() })
+
+	schemaCtx, cancelSchema := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancelSchema()
+	installGenerationRetentionTrigramExtension(schemaCtx, t, admin)
+	schema := fmt.Sprintf("aws_drift_live_%d", time.Now().UnixNano())
+	if _, err := admin.ExecContext(schemaCtx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
+		t.Fatalf("create isolated schema: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		if _, err := admin.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
+			t.Errorf("drop isolated schema: %v", err)
+		}
+	})
+
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("parse Postgres DSN: %v", err)
+	}
+	query := parsed.Query()
+	query.Set("search_path", schema+",public")
+	parsed.RawQuery = query.Encode()
+	sqlDB, err := sql.Open("pgx", parsed.String())
+	if err != nil {
+		t.Fatalf("open isolated schema: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := ApplyBootstrap(schemaCtx, SQLDB{DB: sqlDB}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 

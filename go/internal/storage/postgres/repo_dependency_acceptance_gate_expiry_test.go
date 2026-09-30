@@ -225,8 +225,10 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 				t.Fatalf("reclaimed fenced payload = (%v, %v, %v), want token %q repo %q", fresh.Payload, ok, err, fence, repoID)
 			}
 			handler := reducer.WorkloadMaterializationHandler{
-				FactLoader:     causalFenceFactLoader{repoID: repoID},
-				Materializer:   reducer.NewWorkloadMaterializer(nil),
+				FactLoader: causalFenceFactLoader{repoID: repoID},
+				// The #7285 stale-edge retract runs after the workload write
+				// and needs an executor; a nil one fails Handle (#7479).
+				Materializer:   reducer.NewWorkloadMaterializer(discardCypherExecutor{}),
 				PhasePublisher: phaseStore,
 			}
 			if _, err := handler.Handle(ctx, fresh); err != nil {
