@@ -63,6 +63,8 @@ func (e privateError) Error() string {
 
 func (e privateError) Unwrap() error { return e.cause }
 
+func (e privateError) GoString() string { return e.Error() }
+
 func privateFailure(site failureSite, cause error) error {
 	if cause == nil {
 		return nil

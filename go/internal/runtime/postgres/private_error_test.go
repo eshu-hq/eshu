@@ -27,22 +27,24 @@ func (e metadataCause) Error() string {
 
 func TestPrivateFailureFormatsAndUnwrapsTypedCause(t *testing.T) {
 	cause := metadataCause{user: "private_user", database: "private_db", host: "private_host"}
-	err := privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, cause))
-	if !errors.Is(err, ErrReaderUnavailable) {
+	joined := privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, cause))
+	if !errors.Is(joined, ErrReaderUnavailable) {
 		t.Fatal("reader classification lost")
 	}
-	var typed metadataCause
-	if !errors.As(err, &typed) || typed != cause {
-		t.Fatalf("private typed cause lost: %+v", typed)
-	}
-	for _, format := range []string{"%v", "%s", "%+v", "%#v"} {
-		got := fmt.Sprintf(format, err)
-		if strings.Contains(got, "private_") {
-			t.Errorf("format %s exposed backend metadata: %s", format, got)
+	for _, err := range []error{joined, privateFailure(failureReaderBorrow, cause)} {
+		var typed metadataCause
+		if !errors.As(err, &typed) || typed != cause {
+			t.Fatalf("private typed cause lost: %+v", typed)
 		}
-	}
-	if got := fmt.Errorf("route: %w", err).Error(); strings.Contains(got, "private_") {
-		t.Errorf("wrapped public error exposed backend metadata: %s", got)
+		for _, format := range []string{"%v", "%s", "%+v", "%#v"} {
+			got := fmt.Sprintf(format, err)
+			if strings.Contains(got, "private_") {
+				t.Errorf("format %s exposed backend metadata: %s", format, got)
+			}
+		}
+		if got := fmt.Errorf("route: %w", err).Error(); strings.Contains(got, "private_") {
+			t.Errorf("wrapped public error exposed backend metadata: %s", got)
+		}
 	}
 }
 
