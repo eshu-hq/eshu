@@ -44,13 +44,30 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 // that changed nothing. The handler normalizes rather than rejects
 // (normalizeTraceDeploymentChainMaxDepth clamps into [0, 1000]), so no value
 // selected here can turn into a 400.
+//
+// #7174: the MCP default for evidence_detail is "handles" (identity rows plus
+// section_detail and truth.omissions) so an at-cap trace fits the dispatch
+// response budget; the HTTP default stays "full". A caller that names
+// sections is drilling down, so evidence_detail defaults to "full" there. An
+// explicit evidence_detail always wins, and sections travel verbatim so the
+// handler, not this adapter, rejects an unknown or mistyped value.
 func traceDeploymentChainRequest(args routecontract.Arguments) routecontract.Request {
-	return routecontract.Request{Method: "POST", Path: "/api/v0/impact/trace-deployment-chain", Body: map[string]any{
+	body := map[string]any{
 		"service_name":                 args.String("service_name"),
 		"direct_only":                  args.BoolOr("direct_only", true),
 		"max_depth":                    args.IntOr("max_depth", 0),
 		"include_related_module_usage": args.BoolOr("include_related_module_usage", false),
-	}}
+	}
+	evidenceDetail := "handles"
+	if sections, named := args["sections"]; named && sections != nil {
+		body["sections"] = sections
+		evidenceDetail = "full"
+	}
+	if explicit := args.String("evidence_detail"); explicit != "" {
+		evidenceDetail = explicit
+	}
+	body["evidence_detail"] = evidenceDetail
+	return routecontract.Request{Method: "POST", Path: "/api/v0/impact/trace-deployment-chain", Body: body}
 }
 
 // deploymentConfigInfluenceRequest maps investigate_deployment_config to

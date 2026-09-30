@@ -76,6 +76,19 @@ func deploymentTools() []toolcontract.ToolDefinition {
 						"description": "Whether to include related Terraform module usage",
 						"default":     false,
 					},
+					// #7174: no "default" is advertised on purpose. The MCP
+					// default depends on sections (handles when absent, full
+					// when named), which one JSON-Schema default cannot say.
+					"evidence_detail": map[string]any{
+						"type":        "string",
+						"enum":        []string{"full", "handles"},
+						"description": "How family rows are shaped. On MCP it defaults to handles when sections is absent (identity-key rows, derived families omitted, every omission listed in data.section_detail and truth.omissions) and to full when sections is named; on the HTTP route it defaults to full. Counts and overviews always reflect the full lists.",
+					},
+					"sections": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string", "enum": TraceDeploymentSectionNames()},
+						"description": "Families to return. Absent means the evidence_detail default set. To drill into a family reported in data.section_detail, pass its drilldown_arguments: sections [<family>] with evidence_detail full. Identity, image_refs, deployment_fact_summary, *_limits, drilldowns, evidence_detail, and section_detail are always returned.",
+					},
 				},
 				"required": []string{"service_name"},
 			},
@@ -371,5 +384,20 @@ func compareEnvironmentTools() []toolcontract.ToolDefinition {
 				"required": []string{"workload_id", "left", "right"},
 			},
 		},
+	}
+}
+
+// TraceDeploymentSectionNames returns the trace_deployment_chain sections
+// enum. It must equal deployment.SectionNames() in
+// go/internal/query/impact/deployment; it is a literal so this package stays
+// free of query dependencies, and go/internal/mcp tests assert the two (and
+// the OpenAPI fragment) are equal.
+func TraceDeploymentSectionNames() []string {
+	return []string{
+		"instances", "topology_edges", "provisioned_platforms", "deployment_sources", "cloud_resources",
+		"uncorrelated_cloud_resources", "k8s_resources", "k8s_relationships", "image_registry_truth",
+		"deployment_facts", "controller_driven_paths", "delivery_paths", "deployment_evidence",
+		"artifact_lineage", "hostnames", "entrypoints", "network_paths", "api_surface", "dependents",
+		"consumer_repositories", "provisioning_source_chains", "story", "overviews",
 	}
 }
