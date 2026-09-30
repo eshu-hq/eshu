@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -163,5 +164,44 @@ func TestOpenAPIDocumentsBoundedGraphReadFailuresOnEveryGuardedRoute(t *testing.
 				}
 			}
 		})
+	}
+}
+
+// TestOpenAPIStructuralInventoryResultsNamesEveryClipMarker keeps the inventory
+// "results" description in step with the read-time clips it documents (#7234).
+// The description lists the per-row markers a caller sees, so a clip that adds
+// markers to those rows must appear in the sentence, not only in the sibling
+// response fields.
+func TestOpenAPIStructuralInventoryResultsNamesEveryClipMarker(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+	node := any(spec)
+	for _, key := range []string{
+		"paths", "/api/v0/code/structure/inventory", "post", "responses", "200",
+		"content", "application/json", "schema", "properties", "results",
+	} {
+		object, ok := node.(map[string]any)
+		if !ok {
+			t.Fatalf("structure/inventory schema walk: %T before %q, want object", node, key)
+		}
+		next, ok := object[key]
+		if !ok {
+			t.Fatalf("structure/inventory 200 schema has no %q", key)
+		}
+		node = next
+	}
+	results, _ := node.(map[string]any)
+	description, _ := results["description"].(string)
+	for _, marker := range []string{
+		"source_cache_clipped", "source_cache_clip_bytes", "source_cache_total_bytes",
+		"docstring_clipped", "docstring_clip_bytes", "docstring_total_bytes",
+	} {
+		if !strings.Contains(description, marker) {
+			t.Errorf("structure/inventory results description does not name %s: %q", marker, description)
+		}
 	}
 }

@@ -103,7 +103,7 @@ const Symbols = `
                     "language": {"type": "string"},
                     "inventory_kind": {"type": "string"},
                     "entity_kind": {"type": "string"},
-                    "results": {"type": "array", "description": "Inventory rows. Entity rows carry source_cache clipped at read time to 4096 bytes: a clipped row adds source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes, and source_handle locates the full body for get_entity_content or get_file_lines.", "items": {"type": "object", "additionalProperties": true}},
+                    "results": {"type": "array", "description": "Inventory rows. Entity rows carry source_cache clipped at read time to 4096 bytes: a clipped row adds source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes, and source_handle locates the full body for get_entity_content or get_file_lines. The docstring, and every echo derived from it, is clipped the same way to 512 bytes: a clipped row adds docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "additionalProperties": true}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
