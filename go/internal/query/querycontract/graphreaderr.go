@@ -121,8 +121,9 @@ type statementRejecter interface {
 }
 
 // GraphStatementRejection reports whether err is the graph backend rejecting
-// the submitted statement as malformed, and returns the backend's message with
-// every numeric and string literal redacted. It is for the routes that run a
+// the submitted statement as malformed, and returns the first line of the
+// backend's message with every numeric and string literal redacted (the lines
+// that quote the statement are dropped). It is for the routes that run a
 // caller-authored statement (read-only Cypher, graph-query visualization),
 // which answer 400 with this message so the author can fix the query instead of
 // a bare 500 (#7253). A route that runs a statement Eshu built must not use it:
