@@ -44,14 +44,14 @@ func TestGetServiceStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
 	}
 	data := serviceStoryEnvelopeData(t, w.Body.Bytes())
 	targetSupport := querycontract.MapValue(querycontract.MapValue(data, "support_overview"), "target_support")
-	if got, want := querycontract.IntVal(targetSupport, "evidence_count"), 2; got != want {
+	if got, want := querycontract.IntVal(targetSupport, "evidence_count"), 1; got != want {
 		t.Fatalf("target_support.evidence_count = %d, want %d: %#v", got, want, targetSupport)
 	}
 	if got, want := querycontract.IntVal(targetSupport, "work_item_count"), 1; got != want {
 		t.Fatalf("target_support.work_item_count = %d, want %d", got, want)
 	}
-	if got, want := querycontract.IntVal(targetSupport, "incident_routing_count"), 1; got != want {
-		t.Fatalf("target_support.incident_routing_count = %d, want %d", got, want)
+	if got, want := querycontract.IntVal(targetSupport, "incident_routing_count"), 0; got != want {
+		t.Fatalf("target_support.incident_routing_count = %d, want %d until #7463 links PagerDuty rows", got, want)
 	}
 	if got := querycontract.MapSliceValue(targetSupport, "missing_evidence"); len(got) != 0 {
 		t.Fatalf("target_support.missing_evidence = %#v, want empty for proven support evidence", got)
@@ -125,113 +125,8 @@ func TestGetRepositoryStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
 	}
 	data := serviceStoryEnvelopeData(t, w.Body.Bytes())
 	targetSupport := querycontract.MapValue(querycontract.MapValue(data, "support_overview"), "target_support")
-	if got, want := querycontract.IntVal(targetSupport, "evidence_count"), 2; got != want {
+	if got, want := querycontract.IntVal(targetSupport, "evidence_count"), 1; got != want {
 		t.Fatalf("target_support.evidence_count = %d, want %d: %#v", got, want, targetSupport)
-	}
-}
-
-func TestBuildStoryTargetSupportKeepsAmbiguousCandidateRefsSeparate(t *testing.T) {
-	t.Parallel()
-
-	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
-		Repository: "repo-payments-api",
-		TargetKind: "service",
-		TargetID:   "workload:payments-api",
-		ServiceID:  "workload:payments-api",
-		Limit:      serviceStoryTargetSupportLimit,
-	}, []map[string]any{{
-		"fact_id":   "jira-ambiguous",
-		"fact_kind": "work_item.external_link",
-		"payload": map[string]any{
-			"candidate_refs": []any{
-				map[string]any{"kind": "service", "id": "workload:payments-api"},
-				map[string]any{"kind": "service", "id": "workload:payments-worker"},
-			},
-		},
-	}}, false)
-
-	if gotCount := querycontract.IntVal(got, "evidence_count"); gotCount != 0 {
-		t.Fatalf("evidence_count = %d, want 0 for ambiguous support fact", gotCount)
-	}
-	if gotCount := querycontract.IntVal(got, "ambiguous_count"); gotCount != 1 {
-		t.Fatalf("ambiguous_count = %d, want 1", gotCount)
-	}
-	missing := querycontract.MapSliceValue(got, "missing_evidence")
-	if gotReason := querycontract.StringVal(missing[0], "reason"); gotReason != "support_correlation_ambiguous" {
-		t.Fatalf("missing_evidence[0].reason = %q, want support_correlation_ambiguous", gotReason)
-	}
-}
-
-func TestBuildStoryTargetSupportMatchesExplicitSupportTargetAliases(t *testing.T) {
-	t.Parallel()
-
-	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
-		Repository: "repo-payments-api",
-		TargetKind: "service",
-		TargetID:   "workload:payments-api",
-		ServiceID:  "workload:payments-api",
-		Limit:      serviceStoryTargetSupportLimit,
-	}, []map[string]any{{
-		"fact_id":   "jira-workload-ref",
-		"fact_kind": "work_item.record",
-		"payload": map[string]any{
-			"candidate_refs": []any{map[string]any{
-				"kind": "workload",
-				"id":   "workload:payments-api",
-			}},
-			"work_item_key": "PAY-123",
-		},
-	}, {
-		"fact_id":   "pd-workload-ref",
-		"fact_kind": "incident_routing.observed_pagerduty_service",
-		"payload": map[string]any{
-			"linked_entities": []any{map[string]any{
-				"entity_type": "workload",
-				"entity_id":   "workload:payments-api",
-			}},
-			"service_id": "PAGERDUTY_SERVICE_ID",
-		},
-	}}, false)
-
-	if gotCount, want := querycontract.IntVal(got, "evidence_count"), 2; gotCount != want {
-		t.Fatalf("evidence_count = %d, want %d: %#v", gotCount, want, got)
-	}
-	if gotCount, want := querycontract.IntVal(got, "work_item_count"), 1; gotCount != want {
-		t.Fatalf("work_item_count = %d, want %d", gotCount, want)
-	}
-	if gotCount, want := querycontract.IntVal(got, "incident_routing_count"), 1; gotCount != want {
-		t.Fatalf("incident_routing_count = %d, want %d", gotCount, want)
-	}
-	if gotMissing := querycontract.MapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
-		t.Fatalf("missing_evidence = %#v, want empty", gotMissing)
-	}
-}
-
-func TestBuildStoryTargetSupportMatchesExplicitRepositoryAlias(t *testing.T) {
-	t.Parallel()
-
-	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
-		Repository: "repo-payments-api",
-		TargetKind: "repository",
-		TargetID:   "repo-payments-api",
-		Limit:      serviceStoryTargetSupportLimit,
-	}, []map[string]any{{
-		"fact_id":   "jira-repo-ref",
-		"fact_kind": "work_item.external_link",
-		"payload": map[string]any{
-			"evidence_refs": []any{map[string]any{
-				"kind": "repo",
-				"id":   "repo-payments-api",
-			}},
-			"work_item_key": "PAY-456",
-		},
-	}}, false)
-
-	if gotCount, want := querycontract.IntVal(got, "evidence_count"), 1; gotCount != want {
-		t.Fatalf("evidence_count = %d, want %d: %#v", gotCount, want, got)
-	}
-	if gotMissing := querycontract.MapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
-		t.Fatalf("missing_evidence = %#v, want empty", gotMissing)
 	}
 }
 
@@ -239,11 +134,13 @@ func TestBuildStoryTargetSupportDoesNotMatchGenericServiceName(t *testing.T) {
 	t.Parallel()
 
 	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
-		Repository: "repo-payments-api",
-		TargetKind: "service",
-		TargetID:   "workload:payments-api",
-		ServiceID:  "workload:payments-api",
-		Limit:      serviceStoryTargetSupportLimit,
+		Repository:              "repo-payments-api",
+		TargetKind:              "service",
+		TargetID:                "workload:payments-api",
+		ServiceID:               "workload:payments-api",
+		Limit:                   serviceStoryTargetSupportLimit,
+		RepositoryWorkloadCount: 1,
+		RepositoryDefinesTarget: true,
 	}, []map[string]any{{
 		"fact_id":   "jira-generic",
 		"fact_kind": "work_item.record",
@@ -267,32 +164,30 @@ func TestBuildStoryTargetSupportDoesNotMatchGenericServiceName(t *testing.T) {
 func TestBuildStoryTargetSupportPayloadKeepsSensitiveFieldsOut(t *testing.T) {
 	t.Parallel()
 
+	fact := writerLinkFact("jira-123", "repo-payments-api")
+	payload := fact["payload"].(map[string]any)
+	payload["summary"] = "raw issue summary must not surface"
+	payload["assignee"] = "user@example.test"
+	payload["raw_url"] = "https://jira.example.test/browse/PAY-123"
+	payload["candidate_refs"] = []any{map[string]any{"kind": "service", "id": "workload:payments-api"}}
 	got := buildStoryTargetSupport(serviceStoryTargetSupportFilter{
 		Repository: "repo-payments-api",
-		TargetKind: "service",
-		TargetID:   "workload:payments-api",
-		ServiceID:  "workload:payments-api",
+		TargetKind: "repository",
+		TargetID:   "repo-payments-api",
 		Limit:      serviceStoryTargetSupportLimit,
-	}, []map[string]any{{
-		"fact_id":   "jira-123",
-		"fact_kind": "work_item.record",
-		"payload": map[string]any{
-			"candidate_refs":  []any{map[string]any{"kind": "service", "id": "workload:payments-api"}},
-			"work_item_key":   "PAY-123",
-			"url_fingerprint": "urlfp-1",
-			"summary":         "raw issue summary must not surface",
-			"assignee":        "user@example.test",
-			"raw_url":         "https://jira.example.test/browse/PAY-123",
-		},
-	}}, false)
+	}, []map[string]any{fact}, false)
 
-	payload := querycontract.MapValue(querycontract.MapSliceValue(got, "evidence")[0], "payload")
-	if got, want := querycontract.StringVal(payload, "work_item_key"), "PAY-123"; got != want {
+	evidence := querycontract.MapSliceValue(got, "evidence")
+	if len(evidence) != 1 {
+		t.Fatalf("len(evidence) = %d, want 1: %#v", len(evidence), got)
+	}
+	shown := querycontract.MapValue(evidence[0], "payload")
+	if got, want := querycontract.StringVal(shown, "work_item_key"), "OPS-1"; got != want {
 		t.Fatalf("payload.work_item_key = %q, want %q", got, want)
 	}
 	for _, blocked := range []string{"summary", "assignee", "raw_url", "candidate_refs"} {
-		if _, ok := payload[blocked]; ok {
-			t.Fatalf("payload includes blocked field %q: %#v", blocked, payload)
+		if _, ok := shown[blocked]; ok {
+			t.Fatalf("payload includes blocked field %q: %#v", blocked, shown)
 		}
 	}
 }
@@ -301,41 +196,39 @@ func TestBuildServiceStoryTargetSupportSQLIsTargetScopedAndBounded(t *testing.T)
 	t.Parallel()
 
 	query, args := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{
-		Repository: "repo-payments-api",
-		TargetKind: "service",
-		TargetID:   "workload:payments-api",
-		ServiceID:  "workload:payments-api",
-		Limit:      serviceStoryTargetSupportLimit,
+		Repository:              "repo-payments-api",
+		TargetKind:              "service",
+		TargetID:                "workload:payments-api",
+		ServiceID:               "workload:payments-api",
+		Limit:                   serviceStoryTargetSupportLimit,
+		RepositoryWorkloadCount: 1,
+		RepositoryDefinesTarget: true,
 	})
 
 	assertSupportSQLContainsAll(
 		t, query,
 		"FROM fact_records AS fact",
-		"SELECT DISTINCT unnest($1::text[]) AS fact_kind",
-		"fact.fact_kind = kind.fact_kind",
+		"fact.fact_kind = 'work_item.external_link'",
 		"fact.is_tombstone = FALSE",
 		"fact.generation_id = scope.active_generation_id",
 		"generation.status = 'active'",
-		"fact.payload @>",
+		"fact.payload->>'linked_repository_id' = $1",
 		"ORDER BY fact.observed_at DESC, fact.fact_id DESC",
-		"LIMIT $",
+		"LIMIT $2",
 	)
-	if len(args) < 3 {
-		t.Fatalf("args len = %d, want fact kinds, target predicates, and limit", len(args))
+	if len(args) != 2 {
+		t.Fatalf("args len = %d, want the repository id and the limit", len(args))
+	}
+	if args[0] != "repo-payments-api" {
+		t.Fatalf("args[0] = %#v, want the service target's repository, not its workload id", args[0])
 	}
 	if strings.Contains(query, "service_name") || strings.Contains(query, "mention_text") ||
 		strings.Contains(strings.ToLower(query), " like ") || strings.Contains(strings.ToLower(query), "lower(") {
 		t.Fatalf("support SQL must not use name-only predicates:\n%s", query)
 	}
-	joinedArgs := documentationArgsString(args)
-	for _, fragment := range []string{"workload:payments-api", `"kind":"workload"`} {
-		if !strings.Contains(joinedArgs, fragment) {
-			t.Fatalf("support SQL args missing explicit ref alias %q: %#v", fragment, args)
-		}
-	}
 }
 
-func TestBuildRepositoryStoryTargetSupportSQLIncludesRepositoryAlias(t *testing.T) {
+func TestBuildRepositoryStoryTargetSupportSQLBindsTheRepositoryID(t *testing.T) {
 	t.Parallel()
 
 	_, args := buildServiceStoryTargetSupportSQL(serviceStoryTargetSupportFilter{
@@ -345,11 +238,8 @@ func TestBuildRepositoryStoryTargetSupportSQLIncludesRepositoryAlias(t *testing.
 		Limit:      serviceStoryTargetSupportLimit,
 	})
 
-	joinedArgs := documentationArgsString(args)
-	for _, fragment := range []string{"repo-payments-api", `"kind":"repository"`, `"kind":"repo"`} {
-		if !strings.Contains(joinedArgs, fragment) {
-			t.Fatalf("support SQL args missing explicit repository ref alias %q: %#v", fragment, args)
-		}
+	if len(args) != 2 || args[0] != "repo-payments-api" || args[1] != serviceStoryTargetSupportLimit+1 {
+		t.Fatalf("args = %#v, want [repo-payments-api, %d]", args, serviceStoryTargetSupportLimit+1)
 	}
 }
 
@@ -367,12 +257,11 @@ func targetLinkedSupportReadModel() serviceStoryTargetSupportReadModel {
 	return serviceStoryTargetSupportReadModel{
 		Support: map[string]any{
 			"evidence": []map[string]any{
-				{"fact_id": "jira-123", "fact_kind": "work_item.record"},
-				{"fact_id": "pd-service", "fact_kind": "incident_routing.observed_pagerduty_service"},
+				{"fact_id": "jira-link-1", "fact_kind": "work_item.external_link", "link_basis": "repository_sole_workload"},
 			},
-			"evidence_count":         2,
+			"evidence_count":         1,
 			"work_item_count":        1,
-			"incident_routing_count": 1,
+			"incident_routing_count": 0,
 			"missing_evidence":       []map[string]any{},
 		},
 	}

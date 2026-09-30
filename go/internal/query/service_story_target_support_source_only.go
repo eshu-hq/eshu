@@ -50,6 +50,16 @@ func (cr *ContentReader) serviceStoryTargetSupportSourceOnlySummary(
 	return summary, nil
 }
 
+// serviceStoryTargetSupportUnlinkedPredicate is "this active support fact has no
+// durable link to any target". Only a work_item.external_link that carries a
+// linked_repository_id is linked (to some repository); every other support kind
+// has no target key yet, so it is source-only. The predicate is two-valued: the
+// kind comparison is never NULL and NULLIF(...) IS NOT NULL is never NULL, so
+// NOT of it cannot drop a row to UNKNOWN. A row linked to a different
+// repository is neither evidence for this target nor source-only.
+const serviceStoryTargetSupportUnlinkedPredicate = "NOT (fact.fact_kind = '" + storySupportLinkFactKind +
+	"' AND NULLIF(fact.payload->>'" + storySupportLinkPayloadKey + "', '') IS NOT NULL)"
+
 func buildServiceStoryTargetSupportSourceOnlySQL(factKinds []string) (string, []any) {
 	if len(factKinds) == 0 {
 		return "", nil
@@ -61,7 +71,7 @@ SELECT
     COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'incident_routing.%') AS incident_routing_source_only_count
 ` + serviceStoryTargetSupportActiveFactsFrom("fact.fact_kind", []string{
 		"fact.is_tombstone = FALSE",
-		documentationNoStructuredRefsPredicate("fact.payload"),
+		serviceStoryTargetSupportUnlinkedPredicate,
 	}) + `
 `, []any{array.Of(factKinds)}
 }
@@ -90,6 +100,6 @@ func buildStoryTargetSupportWithSourceOnlySummary(
 func serviceStorySupportSourceOnlyMissingEvidence() []map[string]any {
 	return []map[string]any{{
 		"reason": "support_source_only_not_target_linked",
-		"detail": "Jira or PagerDuty support facts exist, but none carry structured refs for the selected target scope",
+		"detail": "Jira or PagerDuty support facts exist, but no fact carries a durable link to the selected target",
 	}}
 }

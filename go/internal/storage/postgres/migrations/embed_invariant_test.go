@@ -49,7 +49,8 @@ import (
 // 148_scope_generations_delta_baseline_commit_sha.sql; #7389 adds
 // 149_scope_generations_projection_write_started_at.sql and
 // 150_scope_generations_fillfactor.sql; #7254 adds
-// 151_code_fingerprint_band_entity_idx.sql.
+// 151_code_fingerprint_band_entity_idx.sql; #7138 adds
+// 152_fact_records_story_support_link_repo_idx.sql.
 const goldenBootstrapDefinitionsDigest = "17e4954c03f5ef3b61b4c4b040127f8093cf24dafe56105493f9ab992be460ee"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

@@ -117,6 +117,18 @@ type ServiceStoryTargetSupportStore interface {
 	ServiceStoryTargetSupportEvidence(context.Context, ServiceStoryTargetSupportFilter) (ServiceStoryTargetSupportReadModel, error)
 }
 
+// FirstMissingEvidenceReason returns the reason of the first missing_evidence
+// entry of a target-support block, or "" when the block is nil, complete, or
+// carries no reason. The story stage events log it so an operator can see why a
+// story shows no support without reading the response.
+func FirstMissingEvidenceReason(support map[string]any) string {
+	missing := MapSliceValue(support, "missing_evidence")
+	if len(missing) == 0 {
+		return ""
+	}
+	return StringVal(missing[0], "reason")
+}
+
 // LoadRepositoryStoryTargetSupport returns target-support evidence for one
 // repository when the content store can answer the narrow query directly.
 // It lives here for the same reason as the port above; root keeps an

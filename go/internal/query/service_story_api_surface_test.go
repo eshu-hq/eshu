@@ -59,6 +59,10 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 							"workload_name": serviceName,
 						},
 					}, nil
+				case strings.Contains(cypher, "-[:DEFINES]->(w:Workload)"):
+					// The #7138 target-support gate reads the repository's defined
+					// workloads; this fixture has none, so support stays unattached.
+					return nil, nil
 				case strings.Contains(cypher, "INSTANCE_OF"),
 					strings.Contains(cypher, "WorkloadInstance"),
 					strings.Contains(cypher, "DEPENDS_ON|USES_MODULE|DEPLOYS_FROM"),

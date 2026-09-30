@@ -76,11 +76,13 @@ func TestContentReaderServiceStoryTargetSupportReportsSourceOnlySupportFacts(t *
 	reader := NewContentReader(db)
 
 	got, err := reader.ServiceStoryTargetSupportEvidence(t.Context(), serviceStoryTargetSupportFilter{
-		Repository: "repo-payments-api",
-		TargetKind: "service",
-		TargetID:   "workload:payments-api",
-		ServiceID:  "workload:payments-api",
-		Limit:      serviceStoryTargetSupportLimit,
+		Repository:              "repo-payments-api",
+		TargetKind:              "service",
+		TargetID:                "workload:payments-api",
+		ServiceID:               "workload:payments-api",
+		Limit:                   serviceStoryTargetSupportLimit,
+		RepositoryWorkloadCount: 1,
+		RepositoryDefinesTarget: true,
 	})
 	if err != nil {
 		t.Fatalf("ServiceStoryTargetSupportEvidence() error = %v, want nil", err)
@@ -99,6 +101,46 @@ func TestContentReaderServiceStoryTargetSupportReportsSourceOnlySupportFacts(t *
 	}
 }
 
+// TestContentReaderServiceTargetSupportFailsClosedWithoutAGraphVerdict proves a
+// service target the graph did not show its repository defining issues no row
+// read at all: the only statement is the source-only aggregate, and the story
+// reports the source-only reason instead of attaching or hiding the links (#7138).
+func TestContentReaderServiceTargetSupportFailsClosedWithoutAGraphVerdict(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{
+				"support_source_only_count",
+				"work_item_source_only_count",
+				"incident_routing_source_only_count",
+			},
+			rows: [][]driver.Value{{int64(3), int64(2), int64(1)}},
+		},
+	})
+	reader := NewContentReader(db)
+
+	got, err := reader.ServiceStoryTargetSupportEvidence(t.Context(), serviceStoryTargetSupportFilter{
+		Repository: "repo-payments-api",
+		TargetKind: "service",
+		TargetID:   "workload:payments-api",
+		ServiceID:  "workload:payments-api",
+		Limit:      serviceStoryTargetSupportLimit,
+	})
+	if err != nil {
+		t.Fatalf("ServiceStoryTargetSupportEvidence() error = %v, want nil", err)
+	}
+	if gotCount := querycontract.IntVal(got.Support, "evidence_count"); gotCount != 0 {
+		t.Fatalf("evidence_count = %d, want 0 (fail closed)", gotCount)
+	}
+	if gotReason := querycontract.StringVal(querycontract.MapSliceValue(got.Support, "missing_evidence")[0], "reason"); gotReason != "support_source_only_not_target_linked" {
+		t.Fatalf("missing_evidence[0].reason = %q, want support_source_only_not_target_linked", gotReason)
+	}
+	if gotCount := querycontract.IntVal(querycontract.MapValue(got.Support, "coverage"), "repository_workload_count"); gotCount != 0 {
+		t.Fatalf("coverage.repository_workload_count = %d, want 0", gotCount)
+	}
+}
+
 func TestBuildServiceStoryTargetSupportSourceOnlySQLStaysAggregateOnly(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +154,7 @@ func TestBuildServiceStoryTargetSupportSourceOnlySQLStaysAggregateOnly(t *testin
 		"SELECT DISTINCT unnest($1::text[]) AS fact_kind",
 		"fact.fact_kind = kind.fact_kind",
 		"generation.status = 'active'",
-		"COALESCE(jsonb_typeof(fact.payload->'candidate_refs') = 'array' AND fact.payload->'candidate_refs' <> '[]'::jsonb, FALSE)",
+		serviceStoryTargetSupportUnlinkedPredicate,
 	)
 	for _, forbidden := range []string{"fact.payload AS", "source_record_id", "ORDER BY", "LIMIT"} {
 		if strings.Contains(query, forbidden) {
@@ -121,5 +163,8 @@ func TestBuildServiceStoryTargetSupportSourceOnlySQLStaysAggregateOnly(t *testin
 	}
 	if len(args) != 1 {
 		t.Fatalf("args len = %d, want fact kind array only", len(args))
+	}
+	if strings.Contains(query, "candidate_refs") {
+		t.Fatalf("source-only support SQL still tests the documentation ref keys:\n%s", query)
 	}
 }
