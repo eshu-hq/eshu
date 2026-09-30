@@ -427,7 +427,7 @@ const Routes = `
       "post": {
         "tags": ["code"],
         "summary": "Get complexity metrics",
-        "description": "Returns relationship-based complexity metrics for an entity or a bounded list of the most complex functions. A repo_id sent with entity_id anchors that lookup to the named repository, so an entity id held by another repository returns 404; omit repo_id to look the entity up wherever it lives. A function_name sent alongside entity_id is not a fallback for that 404: the name answers a stale entity id only when the id lookup was bound to no repository, meaning no repo_id and an unscoped token. A repo_id sent without entity_id or function_name restricts the ranked list to that repository; omit it for a corpus-wide ranking, which also includes functions the graph attributes to no repository. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "description": "Returns relationship-based complexity metrics for an entity or a bounded list of the most complex functions. A repo_id sent with entity_id anchors that lookup to the named repository, so an entity id held by another repository returns 404; omit repo_id to look the entity up wherever it lives. A function_name sent alongside entity_id is not a fallback for that 404: the name answers a stale entity id only when the id lookup was bound to no repository, meaning no repo_id and an unscoped token. A repo_id sent without entity_id or function_name restricts the ranked list to that repository; omit it for a corpus-wide ranking, which also includes functions the graph attributes to no repository. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400. In list mode each returned row's docstring is clipped at read time; a single-entity lookup (entity_id or function_name) returns one row whose docstring is not clipped.",
         "operationId": "getComplexity",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -470,7 +470,7 @@ const Routes = `
                     "outgoing_count": {"type": "integer"},
                     "incoming_count": {"type": "integer"},
                     "total_relationships": {"type": "integer"},
-                    "results": {"type": "array", "description": "Most-complex-function rows (list mode). Each row's docstring is clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes. A single-entity lookup returns one row whose docstring is not clipped.", "items": {"type": "object", "additionalProperties": true}},
+                    "results": {"type": "array", "description": "Most-complex-function rows (list mode). Each row's docstring is clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "additionalProperties": true}},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "docstring_clip_bytes": {"type": "integer", "description": "List mode only, always present there: the read-time docstring ceiling in bytes (512) applied to every row of results."},

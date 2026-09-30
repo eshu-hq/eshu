@@ -45,6 +45,10 @@ func TestClipDeadCodeInvestigationDocstringsCoversEveryBucket(t *testing.T) {
 		if row[querycontract.DocstringClippedKey] != true {
 			t.Fatalf("%s row docstring_clipped = %v, want true", name, row[querycontract.DocstringClippedKey])
 		}
+		metadata, _ := row["metadata"].(map[string]any)
+		if doc, _ := metadata["docstring"].(string); len(doc) > querycontract.DocstringClipBytes {
+			t.Fatalf("%s row metadata.docstring is %d bytes, want at most %d", name, len(doc), querycontract.DocstringClipBytes)
+		}
 		if summary, _ := row["semantic_summary"].(string); strings.Contains(summary, strings.Repeat("d", querycontract.DocstringClipBytes+1)) {
 			t.Fatalf("%s row semantic_summary still echoes more than the clipped docstring", name)
 		}

@@ -53,6 +53,8 @@ recent shipped work grouped by feature area.
   249,562 bytes (25 active rows, 95.2% of the 262,144-byte budget), and
   `find_most_complex_functions` 68,876 bytes (10 rows). `calculate_cyclomatic_complexity`
   with an entity id returns one row, measured 166,420 bytes, and is unchanged.
+  `find_cross_repo_dead_code` builds rows the same way and is not clipped yet;
+  its size was not measured.
   The change is additive: rows that fit are unchanged.
 
 ### Compact-by-default catalog and playbook/workflow list responses

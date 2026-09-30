@@ -135,13 +135,24 @@ Not clipped, with the reason:
   copies) and at 32 KiB 165,282 B via the resource-only fallback. Overflow is
   expected only past roughly 50 KiB per docstring, which is an extrapolation
   from those points, not a measurement.
+- `find_cross_repo_dead_code` is not clipped and was not measured. It builds
+  its rows through the same `buildDeadCodeResults`, which calls
+  `AttachSemanticSummary`, and returns them in `candidate_buckets` (active and
+  suppressed), so a long docstring is echoed five times per row there too. Its
+  overflow at a 16 KiB docstring is unmeasured; treat the dead-code family as
+  covered for `find_dead_code` and `investigate_dead_code` only.
 - `inspect_call_graph_metrics` and `investigate_import_dependencies` were
-  dropped from this change on the arbiter's ruling; neither was measured here.
+  neither measured nor changed in this work; measuring them is left for a
+  separate change.
 
 Residual headroom: `investigate_dead_code` with 25 active rows sits at 95.2% of
 the budget as two copies. That is thin. A row whose other metadata is large for
-a reason other than the docstring can push it over, and it then fails closed
-with `mcp_response_over_budget` as before. Other tools that echo a docstring
+a reason other than the docstring can push it over. Note that the 25 active +
+25 suppressed reply (222,078 B) is smaller than the 25-row one because it went
+through the dispatcher's resource-only fallback, which drops the structured
+copy: a client that reads only `structuredContent` gets none on a page that
+size. When even the single copy does not fit, the reply fails closed with
+`mcp_response_over_budget` as before. Other tools that echo a docstring
 and were not measured here: `trace_call_chain` (relationship identity rows),
 the shared `codequery` response helper, and the search enrichment path.
 
