@@ -383,8 +383,12 @@ shipped:
 No-Regression Evidence: local shim measurements above on the 1,002,001-row
 fixture. The heartbeat supersede adds +23 to +53 us per heartbeat per running
 item (waived bar, re-affirmed). The marker costs one statement per attempt
-(median 0.032 ms, 7 buffers, HOT with fillfactor 90), and the probe one read
-per git sync per scope (p99 0.587 ms on the hot scope). No worker count,
+(median 0.032 ms, 7 buffers, HOT with fillfactor 90 on the pre-ship COALESCE
+shim; the shipped GREATEST constant measured a marker mean of 73.5 us in
+pair 1 and 98.7 us in pair 2 on the remote runs, with a table-wide
+`scope_generations` HOT ratio of 0.3129 on head against 0.0 on base in pair
+1), and the probe one read per git sync per scope (p99 0.587 ms on the hot
+scope). No worker count,
 batch size, lease duration or claim statement changed.
 
 The bounded remote runs on the built binary are done and recorded in
