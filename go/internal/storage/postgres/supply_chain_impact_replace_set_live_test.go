@@ -6,7 +6,6 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
-	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -159,10 +158,7 @@ func TestSupplyChainImpactWriterPartialEvidenceSkipsRetractionLive(t *testing.T)
 
 func openReplaceSetLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
-	dsn := os.Getenv("ESHU_POSTGRES_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #6831 replace-set proof")
-	}
+	dsn := supplyChainImpactLiveDSN(t, "#6831 replace-set proof")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	t.Cleanup(cancel)
 	db := openAdvisorySuppressionIsolatedDB(t, ctx, dsn)
