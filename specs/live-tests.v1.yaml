@@ -586,7 +586,7 @@ tests:
   - file: go/internal/query/service_story_target_support_defines_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: isolated Neo4j #7138 proof that the story target-support DEFINES gate keeps the target inside its three-row bound; env-gated (ESHU_INFRA_SCOPE_NEO4J_LIVE, ESHU_NEO4J_URI) on a disposable backend, run on demand when the gate read changes
+    reason: "isolated Neo4j #7138 proof that the story target-support DEFINES gate keeps the target inside its three-row bound; env-gated (ESHU_INFRA_SCOPE_NEO4J_LIVE, ESHU_NEO4J_URI) on a disposable backend, run on demand when the gate read changes"
   - file: go/internal/query/infra_graph_summary_hot_entities_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
@@ -758,11 +758,11 @@ tests:
   - file: go/internal/query/service_story_target_support_writer_matrix_live_test.go
     tag: ~
     class: scheduled
-    reason: env-gated (ESHU_POSTGRES_DSN) #7138 correlation matrix on payloads built by the production Jira and PagerDuty writers; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7138 correlation matrix on payloads built by the production Jira and PagerDuty writers; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
   - file: go/internal/query/service_story_target_support_writer_shape_live_test.go
     tag: ~
     class: scheduled
-    reason: env-gated (ESHU_POSTGRES_DSN) #7138 regression that a Jira pull-request link built by the production writer reaches its repository's story; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7138 regression that a Jira pull-request link built by the production writer reaches its repository's story; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
   - file: go/internal/query/status_index_scoped_nornicdb_live_test.go
     tag: ~
     class: scheduled
