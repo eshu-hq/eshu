@@ -74,11 +74,34 @@ func runSingleAck(
 	intents []Intent,
 ) singleAckRun {
 	t.Helper()
+	return runSingleAckFrom(ctx, t, sink, workers, &stubReducerWorkSource{intents: intents})
+}
+
+// ctxAwareWorkSource behaves like the production queue's Claim: it hands a
+// cancelled context to the database, which errors, instead of ignoring it the
+// way stubReducerWorkSource does.
+type ctxAwareWorkSource struct{ inner *stubReducerWorkSource }
+
+func (s ctxAwareWorkSource) Claim(ctx context.Context) (Intent, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return Intent{}, false, err
+	}
+	return s.inner.Claim(ctx)
+}
+
+func runSingleAckFrom(
+	ctx context.Context,
+	t *testing.T,
+	sink WorkSink,
+	workers int,
+	source WorkSource,
+) singleAckRun {
+	t.Helper()
 	instruments, reader := batchTelemetry(t)
 	var logs bytes.Buffer
 	svc := Service{
 		PollInterval: time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: intents},
+		WorkSource:   source,
 		Executor: &stubReducerExecutor{result: Result{
 			Domain: DomainRepoDependency,
 			Status: ResultStatusSucceeded,
@@ -270,5 +293,30 @@ func TestServiceSingleAckNonTransientErrorAtCancellationStillFailsRun(t *testing
 	}
 	if run.counts["ack_failed"] != 1 || len(run.counts) != 1 {
 		t.Fatalf("reducer execution statuses = %v, want only ack_failed:1", run.counts)
+	}
+}
+
+// TestServiceSingleAckShutdownDuringBackoffStopsSequentialRunCleanly proves the
+// clean stop with a work source that respects the context, as the production
+// queue does. With the stub source the run exits through Wait, which hid that
+// runSequential otherwise loops back into Claim on the cancelled context and
+// returns a claim error.
+func TestServiceSingleAckShutdownDuringBackoffStopsSequentialRunCleanly(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(timeoutCtx(t))
+	sink := &transientSingleAckSink{
+		err:       &pgconn.PgError{Code: "40P01"},
+		failFirst: 1 << 30,
+		onAck:     cancel,
+	}
+	source := ctxAwareWorkSource{inner: &stubReducerWorkSource{intents: makeTestIntents(1)}}
+
+	run := runSingleAckFrom(ctx, t, sink, 1, source)
+	if run.err != nil {
+		t.Fatalf("Run() error = %v, want nil: shutdown during an ack retry must stop the sequential run cleanly", run.err)
+	}
+	if run.counts["ack_outcome_unknown"] != 1 || len(run.counts) != 1 {
+		t.Fatalf("reducer execution statuses = %v, want only ack_outcome_unknown:1", run.counts)
 	}
 }

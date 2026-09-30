@@ -187,14 +187,14 @@ func (s Service) runBatchConcurrent(
 					continue
 				}
 				if ctx.Err() != nil {
-					s.recordBatchAckOutcome(ctx, ackItem, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, ackItem, ackStatusOutcomeUnknown, ctx.Err())
 					return
 				}
 
 				select {
 				case ackCh <- ackItem:
 				case <-ctx.Done():
-					s.recordBatchAckOutcome(ctx, ackItem, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, ackItem, ackStatusOutcomeUnknown, ctx.Err())
 					return
 				}
 			}
@@ -216,7 +216,7 @@ func (s Service) runBatchConcurrent(
 			}
 			if ctx.Err() != nil {
 				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				pending = pending[:0]
 				return
@@ -276,10 +276,10 @@ func (s Service) runBatchConcurrent(
 				flushTimer.Reset(100 * time.Millisecond)
 			case <-ctx.Done():
 				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				for item := range ackCh {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				return
 			}
@@ -332,7 +332,7 @@ func (s Service) ackReducerWork(
 		// Shutdown interrupted the retry backoff: the ack did not commit and
 		// the claim expires for reclaim, which is a stopping process rather
 		// than a failed run, matching the batch path.
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_outcome_unknown", workerID, err)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
 		return nil
 	}
 

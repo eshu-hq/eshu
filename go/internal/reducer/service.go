@@ -247,6 +247,13 @@ func (s Service) runSequential(ctx context.Context) error {
 		if err := s.executeWithTelemetry(ctx, intent, 0); err != nil {
 			return err
 		}
+		// Shutdown that arrived while this intent was being handled (for
+		// example during an ack retry backoff) ends the run here. Looping back
+		// into Claim would hand the cancelled context to the database and end
+		// the run with a claim error instead.
+		if ctx.Err() != nil {
+			return nil
+		}
 	}
 }
 

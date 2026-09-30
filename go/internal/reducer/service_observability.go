@@ -113,8 +113,8 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 			s.Logger.WarnContext(ctx, "reducer claim lost its lease during handler execution", logAttrs...)
 		case "ack_claim_rejected":
 			// The ACK path emits a separate warning with the stale-claim context.
-		case "ack_outcome_unknown":
-			logAttrs = append(logAttrs, telemetry.FailureClassAttr("ack_outcome_unknown"), log.Err(execErr))
+		case ackStatusOutcomeUnknown:
+			logAttrs = append(logAttrs, telemetry.FailureClassAttr(ackStatusOutcomeUnknown), log.Err(execErr))
 			s.Logger.WarnContext(ctx, "reducer batch ack outcome unknown", logAttrs...)
 		case ackStatusAbandonedToLeaseExpiry:
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr(ackStatusAbandonedToLeaseExpiry), log.Err(execErr))
@@ -137,6 +137,11 @@ const (
 	// failure_class for an ack whose transient failures outlasted the retry
 	// budget. The claim stays leased and is reclaimed at lease expiry.
 	ackStatusAbandonedToLeaseExpiry = "ack_abandoned_to_lease_expiry"
+	// ackStatusOutcomeUnknown is the execution status for an ack whose outcome
+	// is not known: shutdown cut it short, or a batch ack may have committed
+	// only some items. One constant keeps a typo from splitting the status
+	// cardinality across the recorder, the log switch and the ack paths.
+	ackStatusOutcomeUnknown = "ack_outcome_unknown"
 )
 
 // errAckAbandonedToLeaseExpiry marks an ack, batch or single-item, whose
@@ -251,7 +256,7 @@ func ackFailureStatus(err error) string {
 	if errors.Is(err, errAckAbandonedToLeaseExpiry) {
 		return ackStatusAbandonedToLeaseExpiry
 	}
-	return "ack_outcome_unknown"
+	return ackStatusOutcomeUnknown
 }
 
 func (s Service) logAckTransient(ctx context.Context, message, failureClass string, batchSize, attempt int, err error) {

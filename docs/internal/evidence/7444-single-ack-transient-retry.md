@@ -40,6 +40,15 @@ count to 1, and no committed live gate exercises it.
   run with an `ack reducer work` error (new behavior, single-item path only; the
   batch path already stopped cleanly on shutdown); every other error still
   returns `ack reducer work: ...` with `ack_failed`.
+- `runSequential` (`Workers <= 1`) returns nil after a fully handled iteration once
+  the context is cancelled. Without it the loop went straight back into `Claim`,
+  which hands the cancelled context to the database, so a shutdown during an ack
+  retry ended the run with `claim reducer work: context canceled` instead of a
+  clean stop. The test stub's `Claim` ignores the context and hid this; a review
+  found it, and `TestServiceSingleAckShutdownDuringBackoffStopsSequentialRunCleanly`
+  uses a context-respecting source and fails on the previous head with that claim
+  error. `ackStatusOutcomeUnknown` is now one constant shared by the recorder, the
+  log switch and the ack paths.
 - The batch flush records `ackFailureStatus(err)`, so batch abandonment also gets
   the new status while shutdown and non-transient failures keep
   `ack_outcome_unknown`.
