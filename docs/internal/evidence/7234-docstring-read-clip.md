@@ -63,8 +63,9 @@ roughly 6.5 KB per row at 20 rows: 4,096 of source and about 1.5 KB of other row
 content leave under 1 KB for all docstring echoes, which is below what a
 docstring clip that keeps its summary line can offer. The 512-byte ceiling
 targets the single-copy regime with margin (157-160 KB against 262 KB), not
-the two-copy one; an earlier draft of this table used a 512-byte source fixture
-and reported 164,043 and 170,483 B, which understated a real page.
+the two-copy one. A fixture with a 512-byte `source_cache` understates a real
+page, because the source body then contributes far less than the 4,096-byte
+clip; this table uses 12 KiB bodies.
 
 ## Not covered
 

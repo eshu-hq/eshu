@@ -31,7 +31,7 @@ recent shipped work grouped by feature area.
   `semantic_summary`, `semantic_profile`, the language blocks, `story`), so a
   repository with long docstrings pushed a default page over the MCP response
   budget even after the `source_cache` clip (#7171). The docstring is cut before
-  the echoes are derived, so no copy exceeds 512 bytes. A clipped row carries
+  the echoes are derived, so every echo is derived from the 512-byte string. A clipped row carries
   `docstring_clipped`, `docstring_clip_bytes`, and `docstring_total_bytes`; every
   response carries `docstring_clip_bytes` and `docstring_clipped_rows`. The
   change is additive: rows that fit are unchanged. `get_entity_content` returns
