@@ -37,7 +37,10 @@ type serviceStoryTargetSupportStore interface {
 // as ambiguous rather than as "does not define the target". It anchors on the
 // Repository.id unique index and expands the typed DEFINES edge, with no
 // aggregate (profiled on Neo4j in
-// docs/internal/evidence/7138-story-target-support-writer-keys.md).
+// docs/internal/evidence/7138-story-target-support-writer-keys.md). NornicDB
+// is not known to honour ORDER BY CASE; there a repository defining the target
+// among more workloads than the bound may read as "does not define the target"
+// instead of ambiguous, which still fails closed.
 var repositoryDefinesWorkloadsCypher = `MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
 RETURN w.id AS id
 ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id

@@ -206,7 +206,9 @@ and the win grows with the number of non-support facts sharing each scope. The
 source-only count, so a missing or invalid index degrades to the previous cost,
 not worse. Since #7138 the row read is a separate single-kind probe served by
 migration 152's partial expression index; migration 123 still serves the
-source-only count. Ingest cost is one btree entry for a support-kind fact only.
+source-only count. Ingest cost: migration 123 adds one btree entry per
+non-tombstoned support-kind fact, and migration 152 adds one more for each
+non-tombstoned `work_item.external_link` fact; other kinds pay neither.
 
 Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
 

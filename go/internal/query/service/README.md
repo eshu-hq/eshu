@@ -56,7 +56,9 @@ pins go through `testutil` or `querycontract`.
 (#7138). A service story's repository-linked Jira support belongs to the
 service only through the graph's `Repository-[:DEFINES]->Workload` edge, so the
 loader runs one bounded read per story (`repositoryDefinesWorkloadsCypher`,
-anchored on `Repository.id`, `ORDER BY id LIMIT 3`, no aggregate) and hands the
+anchored on `Repository.id`, target sorted first with
+`ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id LIMIT 3`, no
+aggregate) and hands the
 verdict to the content store as `RepositoryWorkloadCount` and
 `RepositoryDefinesTarget` on the filter. One defined workload equal to the
 target links; several including the target make the rows ambiguous; every other
