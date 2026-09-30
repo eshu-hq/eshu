@@ -244,11 +244,29 @@ GIT_AUTHOR_NAME="Golden Gate" \
 	golden_corpus_git -C "${stage_case_red_repo}" commit -m "seeded" >/dev/null 2>&1 ||
 	fail "seeded RED fixture commit failed"
 printf 'dirty\n' >>"${stage_case_red_repo}/seeded.txt"
-if ( golden_corpus_assert_working_tree_clean "${stage_case_red_repo}" "seeded-RED" ); then
+# Capture the output and require the dirty-tree message: a bare nonzero exit
+# would also satisfy this check if the status call itself errored, so the
+# message proves dirt detection fired, not the status-failure branch.
+if red_out="$(golden_corpus_assert_working_tree_clean "${stage_case_red_repo}" "seeded-RED" 2>&1)"; then
 	rm -rf "${stage_case_red_repo}"
 	fail "seeded RED fixture with a dirty working tree passed the working-tree assertion"
 fi
 rm -rf "${stage_case_red_repo}"
+[[ "${red_out}" == *"must include its complete working tree"* ]] ||
+	fail "dirty-tree seed fired the wrong branch, got: ${red_out}"
+
+# Companion seed for the other branch: a status that fails to run (here a
+# non-repository directory) must be treated as not-clean, and must fire the
+# status-failure message rather than the dirty-tree one.
+rm -rf "${stage_case_red_repo}"
+stage_case_red_status_dir="$(mktemp -d -t golden-corpus-stage-red-status.XXXXXX)"
+if red_status_out="$(golden_corpus_assert_working_tree_clean "${stage_case_red_status_dir}" "seeded-RED-status" 2>&1)"; then
+	rm -rf "${stage_case_red_status_dir}"
+	fail "working-tree assertion passed on a non-repository, so a status failure looks clean"
+fi
+rm -rf "${stage_case_red_status_dir}"
+[[ "${red_status_out}" == *"staged git status failed"* ]] ||
+	fail "status-failure seed fired the wrong branch, got: ${red_status_out}"
 
 stage_case_deployable_repo="${stage_case_corpus}/deployable-config"
 stage_case_deployable_head="$(git -C "${stage_case_deployable_repo}" rev-parse HEAD)"
