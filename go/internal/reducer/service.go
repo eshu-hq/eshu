@@ -162,8 +162,8 @@ type Service struct {
 	Workers        int // concurrent worker count; 0 or 1 means sequential
 	BatchClaimSize int // items per ClaimBatch call; 0 uses default (Workers * 4, max 64)
 
-	// ackRetryBase is the first backoff between transient AckBatch retries;
-	// zero uses defaultAckRetryBase. Tests shrink it.
+	// ackRetryBase is the first backoff between transient ack retries, batch or
+	// single-item; zero uses defaultAckRetryBase. Tests shrink it.
 	ackRetryBase time.Duration
 }
 

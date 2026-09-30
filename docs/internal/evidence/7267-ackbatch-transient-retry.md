@@ -97,10 +97,14 @@ failed at the executor-wait step (`claims never reached the executor`) after
 - Only the batch ack path retries. The single-item `WorkSink.Ack` path used when
   `Workers <= 1` still treats a 40P01 as fatal, and only SQLSTATE 40P01 and
   40001 are classified transient (not 55P03, 57014 or connection errors).
+  Superseded by #7444, which routes the single-item path through the same retry
+  (see `7444-single-ack-transient-retry.md`).
 - The retry and abandonment signals are WARN logs with
   `failure_class=ack_transient_retry` and `ack_abandoned_to_lease_expiry`;
   abandoned items share `eshu_dp_reducer_executions_total{status="ack_outcome_unknown"}`
-  with shutdown cancellation. There is no dedicated counter.
+  with shutdown cancellation. There is no dedicated counter. Superseded by
+  #7444: abandoned acks now record
+  `eshu_dp_reducer_executions_total{status="ack_abandoned_to_lease_expiry"}`.
 - Worst case one batch holds the single ack goroutine for about 750 ms of
   backoff (50, 100, 200, 400 ms) plus five statement times while `ackCh`
   (twice the batch size) fills and workers wait. The lease is one minute with
