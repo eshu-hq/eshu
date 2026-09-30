@@ -28,7 +28,10 @@ ALTER TABLE fact_work_items
         BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS
         container_image_identity_v3_authorized_status
-        TEXT NOT NULL DEFAULT ''
+        TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS
+        provenance_edge_identity_upgrade_required
+        BOOLEAN NOT NULL DEFAULT FALSE
 `
 
 func TestReducerClaimCapabilityColumnsSchemaTracksClaimSQL(t *testing.T) {
@@ -40,6 +43,9 @@ func TestReducerClaimCapabilityColumnsSchemaTracksClaimSQL(t *testing.T) {
 		"container_image_identity_v2_authorized_status",
 		"container_image_identity_v3_required",
 		"container_image_identity_v3_authorized_status",
+		// migration 096: Ack clears this flag in the same statement that
+		// marks the work succeeded (#7479).
+		"provenance_edge_identity_upgrade_required",
 	} {
 		if !strings.Contains(reducerClaimCapabilityColumnsSchemaSQL, column) {
 			t.Errorf("minimal Claim/ClaimBatch schema missing production column %q", column)

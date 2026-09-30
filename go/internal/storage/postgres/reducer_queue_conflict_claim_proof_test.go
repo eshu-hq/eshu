@@ -225,7 +225,11 @@ func TestReducerClaimFencedSiblingBecomesClaimableAfterAck(t *testing.T) {
 	ctx := context.Background()
 	db := openReducerFairnessDB(t, ctx, dsn)
 
-	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
+	// Anchored at the wall clock, not a fixed date: Claim stamps claim_until
+	// from the queue clock (claimAt), but Ack fences on the Postgres clock
+	// (claim_until > clock_timestamp()), so a claim stamped in the past is an
+	// already-expired lease that Ack rejects (#7479).
+	now := time.Now().UTC().Truncate(time.Second)
 	seedReducerFairnessScope(t, ctx, db, "scope-converge", now)
 
 	const sharedKey = "scope-converge"
