@@ -2412,6 +2412,10 @@ tests:
     tag: ~
     class: scheduled
     reason: "untagged #7154 capped-scope convergence proof gated by ESHU_POSTGRES_TEST_DSN Skip; it applies the bootstrap schema and runs the real handler over 1203 OS-package targets, and the PR lane supplies no Postgres DSN, so it runs in the scheduled lane (measured about 11 s of test time on a local postgres:18, most of it the full bootstrap schema; #7141 tracks moving these into a blocking lane)"
+  - file: go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged #7142 fencing proofs gated by ESHU_POSTGRES_TEST_DSN Skip (a stale pass resuming after reclaim, an empty fresher pass, legacy rows, the upsert guard, the sequence issuer); the PR lane supplies no Postgres DSN, so it runs in the scheduled lane (measured about 1 s of test time for all five on a local postgres:18; #7141 tracks moving these into a blocking lane)"
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
     class: scheduled

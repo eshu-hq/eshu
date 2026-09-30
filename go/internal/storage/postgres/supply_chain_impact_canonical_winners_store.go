@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -301,3 +302,57 @@ func (t supplyChainImpactTx) ExecContext(
 
 func (t supplyChainImpactTx) Commit() error   { return t.tx.Commit() }
 func (t supplyChainImpactTx) Rollback() error { return t.tx.Rollback() }
+
+// supplyChainImpactFencingTokenSequence is the Postgres sequence backing
+// PostgresSupplyChainImpactFencingTokenIssuer (migration
+// 154_supply_chain_impact_write_admission.sql).
+// #nosec G101 -- sequence name, not a credential
+const supplyChainImpactFencingTokenSequence = "supply_chain_impact_fencing_token_seq"
+
+// supplyChainImpactNextFencingTokenQuery issues the next value from the shared
+// sequence. A plain SELECT nextval(...): the sequence is the ordering primitive
+// itself, so there is nothing to upsert or conflict-guard, and Postgres already
+// guarantees nextval() never returns one value to two concurrent callers.
+const supplyChainImpactNextFencingTokenQuery = `SELECT nextval('` + supplyChainImpactFencingTokenSequence + `')`
+
+// PostgresSupplyChainImpactFencingTokenIssuer implements
+// supplychain/core.SupplyChainImpactFencingTokenIssuer (#7142) over a plain
+// query connection. No transaction is needed: a sequence's nextval() is not
+// transactional, and Postgres does not roll back sequence advances when a
+// caller aborts, so a pass that later defers or fails leaves a harmless gap in
+// an ordering-only value.
+type PostgresSupplyChainImpactFencingTokenIssuer struct {
+	DB db.Queryer
+}
+
+// NextSupplyChainImpactFencingToken returns the next value in issuance order.
+// SupplyChainImpactHandler.Handle must call it at evidence-read time, before
+// the evidence load, not at write-commit time (see
+// SupplyChainImpactFencingTokenIssuer).
+func (i PostgresSupplyChainImpactFencingTokenIssuer) NextSupplyChainImpactFencingToken(
+	ctx context.Context,
+) (int64, error) {
+	if i.DB == nil {
+		return 0, errors.New("supply chain impact fencing token database is required")
+	}
+	rows, err := i.DB.QueryContext(ctx, supplyChainImpactNextFencingTokenQuery)
+	if err != nil {
+		return 0, fmt.Errorf("supply chain impact next fencing token: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, fmt.Errorf("supply chain impact next fencing token: %w", err)
+		}
+		return 0, errors.New("supply chain impact next fencing token: missing row")
+	}
+	var token int64
+	if err := rows.Scan(&token); err != nil {
+		return 0, fmt.Errorf("supply chain impact next fencing token: scan: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("supply chain impact next fencing token: %w", err)
+	}
+	return token, nil
+}

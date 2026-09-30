@@ -216,6 +216,14 @@ type SupplyChainSecurityHandlers struct {
 	// explicit package, SBOM, image, and repository evidence paths.
 	SupplyChainImpactWriter supplychaincore.SupplyChainImpactWriter
 
+	// SupplyChainImpactFencingTokenIssuer supplies the database-issued fencing
+	// token each impact pass is stamped with (#7142). Required alongside the
+	// writer: a nil issuer makes SupplyChainImpactHandler.Handle hard-error and
+	// the writer reject a zero token, so the registry must not register
+	// supply_chain_impact with a writer wired but no issuer (no legacy-0
+	// fallback: a defaulted token would make the stale-pass fence inert).
+	SupplyChainImpactFencingTokenIssuer supplychaincore.SupplyChainImpactFencingTokenIssuer
+
 	// SecurityAlertReconciliationWriter persists provider alert comparison
 	// state without promoting provider alerts into impact truth.
 	SecurityAlertReconciliationWriter securityalert.SecurityAlertReconciliationWriter

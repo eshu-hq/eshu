@@ -317,6 +317,7 @@ remain available for exact scope/generation diagnosis.
 | `eshu_dp_supply_chain_impact_findings_total` | counter | Supply-chain impact findings by reducer domain and outcome. |
 | `eshu_dp_supply_chain_impact_findings_retracted_total` | counter | Superseded supply-chain impact finding rows a reducer pass tombstoned because its complete finding set for the (scope, generation) no longer derives them, by reducer domain. |
 | `eshu_dp_supply_chain_impact_evidence_truncated_total` | counter | Supply-chain impact evidence truncations, one increment per pass per reason, for a cause that can hide a live finding so the pass retracted nothing, by reducer domain and reason (`active_expansion_rounds` or `evidence_budget`). A scope that increments it on every pass keeps its stale findings; the WARN log line carries the scope and generation. |
+| `eshu_dp_supply_chain_impact_write_superseded_total` | counter | Supply-chain impact passes rejected at write admission because a fresher pass (a higher fencing token) was already admitted for the same scope and generation, by reducer domain. The pass fails retryable and non-counting and the queue re-runs it with a fresher token; a scope that stays superseded means two workers keep overtaking each other. |
 
 Package names, image digests, run IDs, commit SHAs, environment names, and
 artifact identifiers stay in logs, traces, or durable facts.

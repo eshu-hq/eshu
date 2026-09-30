@@ -243,7 +243,7 @@ func TestSupplyChainImpactHandlerResolvesRepositoryFromContainerImageIdentityDig
 		return nil
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-repo-anchor",
@@ -348,7 +348,7 @@ func TestSupplyChainImpactHandlerRetainsOSPackageFindingWithUnresolvedDigest(t *
 		return nil
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-repo-anchor-unresolved",
@@ -459,7 +459,7 @@ func TestSupplyChainImpactHandlerPreservesConsumptionRepositoryOverImageIdentity
 		return nil
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-repo-anchor-precedence",

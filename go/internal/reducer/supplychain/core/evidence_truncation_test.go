@@ -62,11 +62,12 @@ func runTruncationPass(t *testing.T, loader *stubSupplyChainImpactFactLoader, bu
 	logs := &bytes.Buffer{}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:     loader,
-		Writer:         writer,
-		Instruments:    inst,
-		Logger:         slog.New(slog.NewJSONHandler(logs, nil)),
-		EvidenceBudget: budget,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		Instruments:        inst,
+		Logger:             slog.New(slog.NewJSONHandler(logs, nil)),
+		EvidenceBudget:     budget,
 	}
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-7154",

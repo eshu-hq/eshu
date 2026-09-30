@@ -77,6 +77,18 @@ the intent's affected-package lookup keys and drained in one snapshot
 digest and repository-id filters read in chunks of 256. Operators see a stuck scope through
 `eshu_dp_supply_chain_impact_evidence_truncated_total{domain,reason}` and one
 WARN log line naming the scope and generation.
+
+Each pass is also fenced (#7142). `Handle` issues a database-issued token from a
+Postgres sequence before the evidence load (`SupplyChainImpactFencingTokenIssuer`);
+the writer takes the advisory lock, then runs a compare-and-set on
+`supply_chain_impact_write_admission` (a pass whose token is older than one
+already admitted is rejected whole with the retryable, non-counting
+`supply_chain_impact_write_superseded` error), then upserts rows stamped with the
+token, then retracts with `fencing_token <= token` and stamps the tombstones with
+it. A missing issuer or a zero token fails closed. Rolling back to a reducer that predates the token freezes the
+rows the new reducer stamped; the evidence note has the reset SQL to run first.
+Evidence:
+`docs/internal/evidence/7142-supply-chain-impact-fencing-token.md`.
 - Types: `SupplyChainImpactFinding`, `SupplyChainImpactFactFilter`,
   `SupplyChainImpactWrite`, `SupplyChainImpactWriteResult`,
   `SupplyChainSuppressionDecision`, `SupplyChainSuppressionState`,

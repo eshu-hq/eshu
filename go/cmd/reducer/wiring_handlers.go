@@ -217,6 +217,10 @@ func buildReducerSupplyChainSecurityHandlers(
 			DB: database,
 		},
 		SupplyChainImpactWriter: supplyChainImpactWriterFor(database),
+		// #7142: the fencing-token issuer is required alongside the writer; the
+		// additive-domain registry leaves supply_chain_impact unregistered when it
+		// is nil. nextval() needs only a query connection, no transaction.
+		SupplyChainImpactFencingTokenIssuer: postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: database},
 		SecurityAlertReconciliationWriter: securityalert.PostgresSecurityAlertReconciliationWriter{
 			DB: database,
 		},

@@ -240,7 +240,7 @@ func TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository(t *testing.
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-pypi-reachability",
@@ -320,7 +320,7 @@ func TestSupplyChainImpactHandlerKeepsPyPIReachabilityMissingWithoutRepositorySc
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-pypi-missing-repo-scope",

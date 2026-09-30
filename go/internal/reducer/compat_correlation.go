@@ -432,6 +432,12 @@ type PostgresSupplyChainImpactWriter = supplychaincore.PostgresSupplyChainImpact
 // [supplychaincore.SupplyChainImpactWriter].
 type SupplyChainImpactWriter = supplychaincore.SupplyChainImpactWriter
 
+// SupplyChainImpactFencingTokenIssuer: see [supplychaincore.SupplyChainImpactFencingTokenIssuer].
+type SupplyChainImpactFencingTokenIssuer = supplychaincore.SupplyChainImpactFencingTokenIssuer
+
+// SupplyChainImpactWriteSupersededFailureClass: see [supplychaincore.SupplyChainImpactWriteSupersededFailureClass].
+const SupplyChainImpactWriteSupersededFailureClass = supplychaincore.SupplyChainImpactWriteSupersededFailureClass
+
 // SupplyChainImpactTx is the transaction one impact write runs in. See
 // [supplychaincore.SupplyChainImpactTx].
 type SupplyChainImpactTx = supplychaincore.SupplyChainImpactTx

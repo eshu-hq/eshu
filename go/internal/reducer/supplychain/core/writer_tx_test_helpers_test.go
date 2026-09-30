@@ -29,7 +29,16 @@ type fakeImpactTxState struct {
 	rollbacks int
 	// failOn fails the first statement whose query equals it.
 	failOn string
+	// rowsAffected overrides the RowsAffected the fake reports for a query, so a
+	// test can make the fencing admission report a rejection (0 rows).
+	rowsAffected map[string]int64
 }
+
+// fakeImpactResult is a sql.Result reporting a fixed affected-row count.
+type fakeImpactResult int64
+
+func (fakeImpactResult) LastInsertId() (int64, error)   { return 0, nil }
+func (r fakeImpactResult) RowsAffected() (int64, error) { return int64(r), nil }
 
 func newFakeImpactBeginner(inserts *testutil.FakeExecer) fakeImpactBeginner {
 	return fakeImpactBeginner{inserts: inserts, state: &fakeImpactTxState{}}
@@ -47,6 +56,9 @@ func (t fakeImpactTx) ExecContext(ctx context.Context, query string, args ...any
 	t.state.all = append(t.state.all, testutil.ExecCall{Query: query, Args: args})
 	if t.state.failOn != "" && query == t.state.failOn {
 		return nil, errFakeImpactStatement
+	}
+	if n, ok := t.state.rowsAffected[query]; ok {
+		return fakeImpactResult(n), nil
 	}
 	if query == factwrite.BatchInsertVersionedQuery {
 		return t.inserts.ExecContext(ctx, query, args...)

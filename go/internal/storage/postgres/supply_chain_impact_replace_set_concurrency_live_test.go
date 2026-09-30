@@ -6,6 +6,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -91,28 +92,36 @@ func TestSupplyChainImpactWriterSerializesOverlappingPassesLive(t *testing.T) {
 }
 
 // TestSupplyChainImpactWriterConcurrentPassesConvergeLive races many passes
-// with different finding sets over one (scope, generation). Every pass must
-// succeed (no deadlock, no serialization failure) and the surviving active
-// set must be exactly one pass's complete set -- never a union or empty mix.
+// with different finding sets and different fencing tokens over one
+// (scope, generation). No pass may deadlock or fail with anything but the
+// retryable superseded error, and the surviving active set must be exactly the
+// freshest pass's complete set: admissions are ordered by token, so a pass that
+// commits after a fresher one is rejected whole, and whatever the commit order
+// the last admitted pass is the one with the highest token (#7142). Before the
+// fence the survivor was whichever pass happened to commit last.
 func TestSupplyChainImpactWriterConcurrentPassesConvergeLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
 	writer := replaceSetWriter(db)
 
 	const workers, rounds = 8, 6
-	candidates := make([]reducer.SupplyChainImpactWrite, workers)
+	findingSets := make([][]reducer.SupplyChainImpactFinding, workers)
 	expected := make([][]string, workers)
-	for i := range candidates {
-		findings := make([]reducer.SupplyChainImpactFinding, 0, i+1)
+	for i := range findingSets {
 		for j := 0; j <= i; j++ {
 			repositoryID := fmt.Sprintf("repository:r_6831_w%d_%d", i, j)
-			findings = append(findings, replaceSetFinding(repositoryID))
+			findingSets[i] = append(findingSets[i], replaceSetFinding(repositoryID))
 			expected[i] = append(expected[i], repositoryID)
 		}
 		slices.Sort(expected[i])
-		candidates[i] = replaceSetWrite(fmt.Sprintf("intent:6831:race-%d", i), findings...)
 	}
 
 	for round := 0; round < rounds; round++ {
+		// Fresh tokens each round, ordered by worker index: worker workers-1
+		// is the freshest pass of the round.
+		candidates := make([]reducer.SupplyChainImpactWrite, workers)
+		for i := range candidates {
+			candidates[i] = replaceSetWrite(fmt.Sprintf("intent:6831:race-%d-%d", round, i), findingSets[i]...)
+		}
 		var wg sync.WaitGroup
 		errs := make(chan error, workers)
 		for i := range candidates {
@@ -127,11 +136,14 @@ func TestSupplyChainImpactWriterConcurrentPassesConvergeLive(t *testing.T) {
 		wg.Wait()
 		close(errs)
 		for err := range errs {
-			t.Fatalf("round %d concurrent pass failed: %v", round, err)
+			var classified interface{ FailureClass() string }
+			if !errors.As(err, &classified) || classified.FailureClass() != reducer.SupplyChainImpactWriteSupersededFailureClass {
+				t.Fatalf("round %d concurrent pass failed with something other than a superseded rejection: %v", round, err)
+			}
 		}
 		active := replaceSetActiveRepositories(t, ctx, db)
-		if !slices.ContainsFunc(expected, func(set []string) bool { return slices.Equal(set, active) }) {
-			t.Fatalf("round %d active set %q is not any single pass's complete set", round, active)
+		if !slices.Equal(expected[workers-1], active) {
+			t.Fatalf("round %d active set %q, want exactly the freshest pass's set %q", round, active, expected[workers-1])
 		}
 	}
 }

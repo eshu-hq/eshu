@@ -46,9 +46,10 @@ func TestSupplyChainImpactCountsOnlyProducerOwnedCrossScopeFacts(t *testing.T) {
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  &fixedCrossScopeReadiness{ready: false},
 	}
 
 	_, err := handler.Handle(
@@ -91,9 +92,10 @@ func TestSupplyChainImpactCICDCorrelationAlsoDisarmsTheFloor(t *testing.T) {
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: readinessWithOnlyUnready(reducercontract.DomainCICDRunCorrelation),
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  readinessWithOnlyUnready(reducercontract.DomainCICDRunCorrelation),
 	}
 
 	if _, err := handler.Handle(
@@ -146,9 +148,10 @@ func TestSupplyChainImpactDoesNotDeferABatchWhereAnotherFindingResolved(t *testi
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: readinessWithOnlyUnready(reducercontract.DomainContainerImageIdentity),
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  readinessWithOnlyUnready(reducercontract.DomainContainerImageIdentity),
 	}
 
 	if _, err := handler.Handle(
@@ -298,9 +301,10 @@ func TestSupplyChainImpactCountsProducerFactsFromTheResolvedDigestStage(t *testi
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: readinessWithOnlyUnready(reducercontract.DomainContainerImageIdentity),
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  readinessWithOnlyUnready(reducercontract.DomainContainerImageIdentity),
 	}
 
 	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
@@ -348,9 +352,10 @@ func TestSupplyChainImpactIgnoresProducerFactsAlreadyInItsOwnScope(t *testing.T)
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  &fixedCrossScopeReadiness{ready: false},
 	}
 
 	_, err := handler.Handle(
@@ -404,7 +409,7 @@ func TestSupplyChainImpactProducerFactKindsCoverEveryDeclaredProducer(t *testing
 func TestSupplyChainImpactProducerLookupPlannedTracksTheFilterDimensions(t *testing.T) {
 	t.Parallel()
 
-	handler := SupplyChainImpactHandler{FactLoader: &stubSupplyChainImpactFactLoader{}}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: &stubSupplyChainImpactFactLoader{}}
 	cases := []struct {
 		name   string
 		filter SupplyChainImpactFactFilter
@@ -481,9 +486,10 @@ func TestSupplyChainImpactCountsProducerFactsFromALaterEvidenceRound(t *testing.
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: readinessWithOnlyUnready(reducercontract.DomainContainerImageIdentity),
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  readinessWithOnlyUnready(reducercontract.DomainContainerImageIdentity),
 	}
 
 	if _, err := handler.Handle(

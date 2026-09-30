@@ -120,7 +120,7 @@ func runOSPackageCapPass(
 	}
 	beginner := newFakeImpactBeginner(&testutil.FakeExecer{})
 	capture := &captureWriteWriter{inner: PostgresSupplyChainImpactWriter{DB: beginner}}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: capture}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: capture}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-cap-6831",
@@ -209,7 +209,7 @@ func TestSupplyChainImpactPeerIdentityRepositoriesOverCapConverge(t *testing.T) 
 	}
 	for _, count := range []int{10, supplyChainImpactFilterChunkSize / 2, supplyChainImpactFilterChunkSize/2 + 1, supplyChainImpactFilterChunkSize * 3} {
 		loader := &stubSupplyChainImpactFactLoader{}
-		handler := SupplyChainImpactHandler{FactLoader: loader}
+		handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader}
 		_, truncated, err := handler.loadSupplyChainImpactPeerIdentityFacts(context.Background(), build(count), nil)
 		if err != nil {
 			t.Fatalf("count=%d: loadSupplyChainImpactPeerIdentityFacts() error = %v", count, err)

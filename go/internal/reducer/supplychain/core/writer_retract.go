@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
@@ -36,12 +37,13 @@ func runSupplyChainImpactTx(
 	beginner SupplyChainImpactBeginner,
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
+	now time.Time,
 ) (int, error) {
 	tx, err := beginner.BeginSupplyChainImpactTx(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("begin supply chain impact transaction: %w", err)
 	}
-	retracted, err := commitSupplyChainImpactRows(ctx, tx, write, rows)
+	retracted, err := commitSupplyChainImpactRows(ctx, tx, write, rows, now)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 			return 0, fmt.Errorf("%w; rollback: %v", err, rbErr)
@@ -61,6 +63,7 @@ func commitSupplyChainImpactRows(
 	tx SupplyChainImpactTx,
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
+	now time.Time,
 ) (int, error) {
 	// Lock first, before any row lock this transaction takes, so the only
 	// wait two passes of one (scope, generation) can form is on this lock:
@@ -71,6 +74,23 @@ func commitSupplyChainImpactRows(
 		supplyChainImpactConflictDomainKey(write.ScopeID, write.GenerationID),
 	); err != nil {
 		return 0, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+	}
+	// Admission second, still before any row is touched: a pass whose fencing
+	// token is older than one already admitted for this (scope, generation) is
+	// rejected whole. Without it a stale pass that commits after a fresher one
+	// still inserts fact ids the fresher pass did not derive, leaving a union
+	// no pass derived (#7142). A partial-evidence pass is admitted like any
+	// other: it upserts, and only the retraction below is skipped.
+	admitted, err := tryAdmitSupplyChainImpactWrite(ctx, tx, write.ScopeID, write.GenerationID, write.FencingToken, now)
+	if err != nil {
+		return 0, err
+	}
+	if !admitted {
+		return 0, supplyChainImpactWriteSupersededError{
+			scopeID:      write.ScopeID,
+			generationID: write.GenerationID,
+			fencingToken: write.FencingToken,
+		}
 	}
 	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per finding.
@@ -84,7 +104,7 @@ func commitSupplyChainImpactRows(
 	for _, row := range rows {
 		keep = append(keep, row.FactID)
 	}
-	return retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, 0)
+	return retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken)
 }
 
 // lockSupplyChainImpactConflictDomainQuery serializes the write transactions
@@ -127,10 +147,15 @@ func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 //
 // fencing_token <= $5 applies the insert's conflict guard to the retraction:
 // a row a fresher writer stamped with a higher token is never retracted by a
-// pass carrying a lower one.
+// pass carrying a lower one. The tombstone is stamped with the retiring pass's
+// token (#7142), so a tombstone records which pass retired the row and the
+// upsert guard (existing <= EXCLUDED) refuses a stale pass's revive of it.
+// Legacy rows written before the token existed carry 0 and are retracted by any
+// pass (0 <= $5).
 const retractSupersededSupplyChainImpactFindingsQuery = `
 UPDATE fact_records
-SET is_tombstone = TRUE
+SET is_tombstone = TRUE,
+    fencing_token = $5
 WHERE fact_kind = $1
   AND scope_id = $2
   AND generation_id = $3

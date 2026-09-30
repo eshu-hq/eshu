@@ -43,6 +43,9 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	if w.DB == nil {
 		return SupplyChainImpactWriteResult{}, fmt.Errorf("supply chain impact database is required")
 	}
+	if write.FencingToken == 0 {
+		return SupplyChainImpactWriteResult{}, errSupplyChainImpactMissingFencingToken
+	}
 	now := factwrite.Now(w.Now)
 	rows := make([]factwrite.VersionedRow, 0, len(write.Findings))
 	for _, finding := range write.Findings {
@@ -67,12 +70,13 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
+			FencingToken:     write.FencingToken,
 			ObservedAt:       now,
 			IngestedAt:       now,
 			Payload:          string(payloadJSON),
 		})
 	}
-	retracted, err := runSupplyChainImpactTx(ctx, w.DB, write, rows)
+	retracted, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, now)
 	if err != nil {
 		return SupplyChainImpactWriteResult{}, err
 	}

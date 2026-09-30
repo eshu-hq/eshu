@@ -28,6 +28,7 @@ func TestPostgresSupplyChainImpactWriterPersistsBatchedFacts(t *testing.T) {
 	writer := PostgresSupplyChainImpactWriter{DB: newFakeImpactBeginner(db)}
 
 	write := SupplyChainImpactWrite{
+		FencingToken: 1,
 		IntentID:     "intent-impact-batch",
 		ScopeID:      "vuln-intel://osv/npm/example",
 		GenerationID: "generation-impact-batch",
@@ -124,6 +125,7 @@ func TestWriteSupplyChainImpactFindingsBoundedExecCount(t *testing.T) {
 	writer := PostgresSupplyChainImpactWriter{DB: newFakeImpactBeginner(db)}
 
 	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), SupplyChainImpactWrite{
+		FencingToken: 1,
 		IntentID:     "intent-impact-batch",
 		ScopeID:      "vuln-intel://osv/npm/example",
 		GenerationID: "generation-batch",

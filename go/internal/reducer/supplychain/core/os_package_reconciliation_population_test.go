@@ -108,7 +108,7 @@ func TestSupplyChainImpactNarrowedReadReconcilesAgainstMatchedScansAndSameOCIPee
 			identities:                            identities, universe: universe, narrow: narrow,
 		}
 		writer := &recordingSupplyChainImpactWriter{}
-		if _, err := (SupplyChainImpactHandler{FactLoader: loader, Writer: writer}).Handle(context.Background(), intent); err != nil {
+		if _, err := (SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}).Handle(context.Background(), intent); err != nil {
 			t.Fatalf("Handle(narrow=%v) error = %v", narrow, err)
 		}
 		return writer.write

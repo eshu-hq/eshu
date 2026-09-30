@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -440,5 +441,39 @@ func (h SupplyChainImpactHandler) emitEvidenceTruncation(
 				slog.Int("findings", findings),
 			)
 		}
+	}
+}
+
+// emitWriteSuperseded records a pass the writer rejected because a fresher pass
+// was already admitted for the same (scope, generation) (#7142): the
+// eshu_dp_supply_chain_impact_write_superseded_total counter plus one WARN line
+// naming the scope, generation and token. The pass returns the retryable
+// superseded error and the queue re-runs it with a fresher token, so a steady
+// rate under continuous ingest is normal churn; a scope that stays superseded
+// points at two workers repeatedly overtaking each other. Any other error is
+// ignored here.
+func (h SupplyChainImpactHandler) emitWriteSuperseded(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	fencingToken int64,
+	err error,
+) {
+	var superseded supplyChainImpactWriteSupersededError
+	if !errors.As(err, &superseded) {
+		return
+	}
+	if h.Instruments != nil && h.Instruments.SupplyChainImpactWriteSuperseded != nil {
+		h.Instruments.SupplyChainImpactWriteSuperseded.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+		))
+	}
+	if h.Logger != nil {
+		h.Logger.WarnContext(ctx, "supply chain impact write superseded",
+			slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
+			slog.String("scope_id", intent.ScopeID),
+			slog.String("generation_id", intent.GenerationID),
+			slog.String("intent_id", intent.IntentID),
+			slog.Int64("fencing_token", fencingToken),
+		)
 	}
 }

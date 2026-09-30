@@ -185,7 +185,7 @@ func TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID
 		return nil
 	}
 	impactWriter := &recordingSupplyChainImpactWriter{}
-	impactHandler := SupplyChainImpactHandler{FactLoader: impactLoader, Writer: impactWriter}
+	impactHandler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: impactLoader, Writer: impactWriter}
 
 	result, err := impactHandler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-5810ci-e2e-impact",

@@ -262,6 +262,7 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 	}
 
 	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), SupplyChainImpactWrite{
+		FencingToken: 1,
 		IntentID:     "intent-impact",
 		ScopeID:      "vuln-intel://osv/npm/example",
 		GenerationID: "generation-impact",

@@ -226,8 +226,9 @@ func TestSupplyChainImpactCappedScopeConvergesLive(t *testing.T) {
 
 	capture := &capturingImpactWriter{inner: replaceSetWriter(db)}
 	handler := reducer.SupplyChainImpactHandler{
-		FactLoader: postgres.NewFactStore(postgres.SQLDB{DB: db}),
-		Writer:     capture,
+		FencingTokenIssuer: postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: postgres.SQLDB{DB: db}},
+		FactLoader:         postgres.NewFactStore(postgres.SQLDB{DB: db}),
+		Writer:             capture,
 	}
 	result, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent:7154:capped",
