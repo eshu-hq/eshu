@@ -5,10 +5,11 @@
 -- intent's affected packages, keyed by package id. The installed package id is
 -- the purl with surrounding whitespace trimmed, cut at its first '@'
 -- (core.packageIDFromPURL). Without an index the read scanned every active
--- installed package of the ecosystem for every intent: 60,164 buffers per page
--- at 50,000 rows. With this index and the materialized candidates query in
--- go/internal/storage/postgres/installed_advisory_targets.go it reads 271
--- buffers for 2 keys and 2,746 for 100 keys.
+-- installed package of the ecosystem for every intent, about 60,000 buffers per
+-- page at 50,000 rows. With this index and the materialized candidates query in
+-- go/internal/storage/postgres/installed_advisory_targets.go a page reads a few
+-- thousand buffers at most; the measured figures are in
+-- docs/internal/evidence/7154-capped-scope-convergence.md.
 --
 -- The expression text must stay identical to osPackagePURLPrefixExpression in
 -- that file (TestOSPackagePURLPrefixExpressionMatchesMigration pins it): an

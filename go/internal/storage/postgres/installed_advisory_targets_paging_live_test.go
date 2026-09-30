@@ -187,7 +187,7 @@ VALUES ('os-package:forms:no-purl', $1, $2, 'vulnerability.os_package', 'x', 'sy
 // TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive proves the narrowed query
 // is driven by fact_records_os_package_purl_prefix_idx at 50,000 rows rather
 // than scanning every installed package, and reads few buffers for a small key
-// set (60,164 per page for the ecosystem-only read it replaces).
+// set (about 60,000 per page for the ecosystem-only read it replaces).
 func TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive(t *testing.T) {
 	ctx, db := openCappedScopeLiveDB(t)
 	seedCappedScanScope(t, ctx, db, 50_000)

@@ -52,7 +52,7 @@ import (
 // 151_code_fingerprint_band_entity_idx.sql; #7138 adds
 // 152_fact_records_story_support_link_repo_idx.sql; #7154 adds
 // 153_fact_records_os_package_purl_prefix_idx.sql.
-const goldenBootstrapDefinitionsDigest = "cea88a85a73d80a37d1aecb3f1d6568e8b7780b8b21a4d49b506fca0a2c26e0d"
+const goldenBootstrapDefinitionsDigest = "55576eba608dc4515b41f300698a9af54d2cbe6218965b81434ba8924c22e3d3"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

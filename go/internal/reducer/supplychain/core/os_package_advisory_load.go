@@ -79,18 +79,16 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactOSPackageAdvisoryFacts(
 	if len(ecosystems) == 0 || len(packageIDs) == 0 {
 		return nil, 0, nil
 	}
-	loaded, skipped, truncated, err := loader.ListOSPackageAdvisoryFactEnvelopes(
+	loaded, skipped, _, err := loader.ListOSPackageAdvisoryFactEnvelopes(
 		ctx, ecosystems, packageIDs, budget.remaining(),
 	)
 	if err != nil {
 		return nil, 0, factload.ClassifyFactLoadError(err)
 	}
-	withinBudget := budget.charge(len(loaded))
-	if truncated && withinBudget {
-		// The reader stopped on the limit it was given, so the budget is spent
-		// whatever the count says; never report a truncated drain as complete.
-		budget.exhaust()
-	}
+	budget.charge(len(loaded))
+	// A truncated drain always spent the budget: the limit above was
+	// budget.remaining(), and the reader reports truncated only when it loaded
+	// more than that limit, so the charge has already overflowed.
 	return loaded, skipped, nil
 }
 

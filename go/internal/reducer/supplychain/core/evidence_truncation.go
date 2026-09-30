@@ -112,14 +112,6 @@ func (b *supplyChainImpactEvidenceBudget) remaining() int {
 	return max(b.limit-b.used, 0)
 }
 
-// exhaust marks the budget spent, for a reader that stopped on the limit it was
-// given.
-func (b *supplyChainImpactEvidenceBudget) exhaust() {
-	if b != nil && b.used <= b.limit {
-		b.used = b.limit + 1
-	}
-}
-
 // exhausted reports whether the pass has spent its budget.
 func (b *supplyChainImpactEvidenceBudget) exhausted() bool {
 	return b != nil && b.used > b.limit
