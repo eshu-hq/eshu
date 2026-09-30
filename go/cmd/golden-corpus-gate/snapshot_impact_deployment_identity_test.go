@@ -25,7 +25,9 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	if !slices.Contains(mcpShape.RequiredResponseFields, "deployment_source_limits") {
 		t.Fatal("MCP trace_deployment_chain required fields missing deployment_source_limits")
 	}
-	for _, field := range []string{"topology_edges", "provisioned_platforms", "runtime_topology_limits", "cloud_resource_limits", "k8s_resource_limits"} {
+	// #7174: the MCP default is evidence_detail handles, which omits the
+	// derived topology_edges; the HTTP shape below still pins it in full.
+	for _, field := range []string{"provisioned_platforms", "runtime_topology_limits", "cloud_resource_limits", "k8s_resource_limits", "evidence_detail", "section_detail"} {
 		if !slices.Contains(mcpShape.RequiredResponseFields, field) {
 			t.Fatalf("MCP trace_deployment_chain required fields missing %s", field)
 		}
