@@ -129,7 +129,7 @@ func TestEshuSearchDocumentHandlerProjectsAndWrites(t *testing.T) {
 		},
 	}}}
 	writer := &capturingSearchDocWriter{result: EshuSearchDocumentWriteResult{CanonicalWrites: 2, Retired: 1}}
-	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer}
+	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer, GenerationCheck: alwaysCurrentGeneration}
 
 	result, err := handler.Handle(context.Background(), searchDocIntent())
 	if err != nil {
@@ -185,7 +185,7 @@ func TestEshuSearchDocumentHandlerStreamsBoundedPages(t *testing.T) {
 		}},
 	}}
 	writer := &capturingSearchDocWriter{result: EshuSearchDocumentWriteResult{CanonicalWrites: 3, Retired: 4}}
-	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer}
+	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer, GenerationCheck: alwaysCurrentGeneration}
 
 	result, err := handler.Handle(context.Background(), searchDocIntent())
 	if err != nil {
@@ -219,7 +219,7 @@ func TestEshuSearchDocumentHandlerStreamsBoundedPages(t *testing.T) {
 func TestEshuSearchDocumentHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := EshuSearchDocumentHandler{Loader: &fakePagedSearchDocLoader{}, Writer: &capturingSearchDocWriter{}}
+	handler := EshuSearchDocumentHandler{Loader: &fakePagedSearchDocLoader{}, Writer: &capturingSearchDocWriter{}, GenerationCheck: alwaysCurrentGeneration}
 	intent := searchDocIntent()
 	intent.Domain = reducercontract.DomainWorkloadIdentity
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
@@ -230,7 +230,7 @@ func TestEshuSearchDocumentHandlerRejectsWrongDomain(t *testing.T) {
 func TestEshuSearchDocumentHandlerPropagatesLoaderError(t *testing.T) {
 	t.Parallel()
 
-	handler := EshuSearchDocumentHandler{Loader: &fakePagedSearchDocLoader{err: errors.New("load boom")}, Writer: &capturingSearchDocWriter{}}
+	handler := EshuSearchDocumentHandler{Loader: &fakePagedSearchDocLoader{err: errors.New("load boom")}, Writer: &capturingSearchDocWriter{}, GenerationCheck: alwaysCurrentGeneration}
 	if _, err := handler.Handle(context.Background(), searchDocIntent()); err == nil {
 		t.Fatal("expected loader error to propagate")
 	}
@@ -242,7 +242,7 @@ func TestEshuSearchDocumentHandlerPropagatesWriterError(t *testing.T) {
 	loader := &fakePagedSearchDocLoader{pages: []SearchDocumentProjectionInput{{
 		ContentFiles: []searchdocs.ContentFile{{RepoID: "repo-1", RelativePath: "main.go", Content: "package main"}},
 	}}}
-	handler := EshuSearchDocumentHandler{Loader: loader, Writer: &capturingSearchDocWriter{insertErr: errors.New("write boom")}}
+	handler := EshuSearchDocumentHandler{Loader: loader, Writer: &capturingSearchDocWriter{insertErr: errors.New("write boom")}, GenerationCheck: alwaysCurrentGeneration}
 	if _, err := handler.Handle(context.Background(), searchDocIntent()); err == nil {
 		t.Fatal("expected writer error to propagate")
 	}
@@ -252,8 +252,9 @@ func TestEshuSearchDocumentHandlerPropagatesFinalizeError(t *testing.T) {
 	t.Parallel()
 
 	handler := EshuSearchDocumentHandler{
-		Loader: &fakePagedSearchDocLoader{},
-		Writer: &capturingSearchDocWriter{finalizeErr: errors.New("finalize boom")},
+		Loader:          &fakePagedSearchDocLoader{},
+		Writer:          &capturingSearchDocWriter{finalizeErr: errors.New("finalize boom")},
+		GenerationCheck: alwaysCurrentGeneration,
 	}
 	if _, err := handler.Handle(context.Background(), searchDocIntent()); err == nil {
 		t.Fatal("expected finalize error to propagate")

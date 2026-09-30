@@ -261,7 +261,7 @@ func TestHandlerCancelsSessionOnStreamError(t *testing.T) {
 	loader.errAfterPages = 1 // fail after delivering the first page
 
 	writer := &capturingSearchDocWriter{}
-	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer}
+	handler := EshuSearchDocumentHandler{Loader: loader, Writer: writer, GenerationCheck: alwaysCurrentGeneration}
 
 	_, err := handler.Handle(context.Background(), searchDocIntent())
 	if err == nil {

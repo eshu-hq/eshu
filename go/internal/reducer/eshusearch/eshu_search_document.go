@@ -42,10 +42,15 @@ type SearchDocumentWriter interface {
 // document set for the scope and generation. Search documents are derived
 // retrieval evidence; this handler never writes the canonical graph.
 type EshuSearchDocumentHandler struct {
-	Loader      SearchDocumentSourceLoader
-	Writer      SearchDocumentWriter
-	Instruments *telemetry.Instruments
-	Logger      *slog.Logger
+	Loader SearchDocumentSourceLoader
+	Writer SearchDocumentWriter
+	// GenerationCheck reports whether the intent's generation is still the
+	// scope's active generation. It is required: the handler re-checks it
+	// before every page and once before Finalize so a superseded generation
+	// stops writing (issue #7458).
+	GenerationCheck reducercontract.GenerationFreshnessCheck
+	Instruments     *telemetry.Instruments
+	Logger          *slog.Logger
 }
 
 // Handle curates and persists the search documents for one intent.

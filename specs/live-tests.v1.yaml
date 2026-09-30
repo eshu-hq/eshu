@@ -1611,6 +1611,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/eshu_search_document_supersede_live_test.go
+    tag: ~
+    class: scheduled
+    reason: env-gated (ESHU_POSTGRES_TEST_DSN) forced-interleave proof for #7458; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it
   - file: go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go
     tag: ~
     class: scheduled
