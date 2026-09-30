@@ -106,8 +106,10 @@ marker visible after replay, zero business SQL on a paused reader, a pinned
 repeatable-read snapshot, and an aggregate six-connection cap across two
 reader hosts; this is
 concurrency and exactness proof for the new package. It has no existing
-production-path latency baseline in these primitive tests; finished API/MCP comparisons are recorded separately. Per-query fence cost, p95, 100-engineer saturation, and deployed benefit
-remain to be measured before application promotion.
+production-path latency baseline in these primitive tests. The final
+[API/MCP status comparison](../../../../docs/internal/evidence/7009-postgres-read-routing.md)
+measures snapshot cost; end-to-end checkpoint cost, 100-engineer saturation
+and deployed benefit remain NOT_CHECKED.
 
 Observability Evidence: The production-path test observer saw writer checkpoint,
 reader borrow, identity, replay, and business query stages with closed role and
