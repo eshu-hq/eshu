@@ -81,4 +81,35 @@ describe("resolveEntity", () => {
       truncated: true,
     });
   });
+  it("reads only the canonical entities field, not the removed matches alias", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        data: {
+          count: 1,
+          limit: 10,
+          matches: [{ entity_id: "workload:legacy", labels: ["Workload"], name: "legacy" }],
+          truncated: false,
+        },
+        error: null,
+        truth: {
+          basis: "hybrid_graph_and_content",
+          capability: "code_search.fuzzy_symbol",
+          freshness: { state: "fresh" },
+          level: "derived",
+          profile: "local_authoritative",
+        },
+      }),
+    );
+
+    const result = await resolveEntity({
+      client: new EshuApiClient({ baseUrl: "/eshu-api/", fetcher }),
+      name: "legacy",
+      type: "workload",
+    });
+
+    // #7173: the API no longer emits `matches`, so a response that carries only
+    // that field is treated as having no candidates rather than read as a
+    // fallback that could mask a producer regression.
+    expect(result.candidates).toEqual([]);
+  });
 });

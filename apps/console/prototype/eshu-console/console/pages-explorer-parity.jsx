@@ -66,7 +66,7 @@
     try {
       const env = await client.post("/api/v0/entities/resolve", { name: query, limit: 1 });
       const data = apiData(env);
-      const rows = Array.isArray(data.entities) ? data.entities : (Array.isArray(data.matches) ? data.matches : []);
+      const rows = Array.isArray(data.entities) ? data.entities : [];
       const top = rows[0] || {};
       const labels = Array.isArray(top.labels) ? top.labels : [];
       const kind = top.type || labels[0] || "";

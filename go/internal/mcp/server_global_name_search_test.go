@@ -36,7 +36,7 @@ func TestHTTPTransportGlobalNameToolsForwardExactContracts(t *testing.T) {
 			t.Fatalf("resolve_entity forwarded body = %#v", body)
 		}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
-			"entities": []any{}, "matches": []any{}, "count": 0, "limit": 10, "truncated": false,
+			"entities": []any{}, "count": 0, "limit": 10, "truncated": false,
 		}, query.BuildTruthEnvelope(query.ProfileLocalAuthoritative, "code_search.exact_symbol", query.TruthBasisContentIndex, "exact typed proof"))
 	})
 	server := NewServer(mux, slog.New(slog.NewTextHandler(io.Discard, nil)))

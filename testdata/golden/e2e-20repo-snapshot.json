@@ -5626,7 +5626,6 @@
           "count",
           "entities",
           "limit",
-          "matches",
           "truncated"
         ],
         "minimum_results": 2,

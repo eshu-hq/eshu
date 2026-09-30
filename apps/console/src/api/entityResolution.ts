@@ -30,7 +30,6 @@ interface ResolveEntityResponse {
   readonly count?: unknown;
   readonly entities?: unknown;
   readonly limit?: unknown;
-  readonly matches?: unknown;
   readonly truncated?: unknown;
 }
 
@@ -46,11 +45,7 @@ export async function resolveEntity({
   const response = signal
     ? await client.postJson<ResolveEntityResponse>("/api/v0/entities/resolve", body, { signal })
     : await client.postJson<ResolveEntityResponse>("/api/v0/entities/resolve", body);
-  const rawCandidates = Array.isArray(response.entities)
-    ? response.entities
-    : Array.isArray(response.matches)
-      ? response.matches
-      : [];
+  const rawCandidates = Array.isArray(response.entities) ? response.entities : [];
 
   return {
     candidates: rawCandidates.map(normalizeCandidate),
