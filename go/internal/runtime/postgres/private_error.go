@@ -28,6 +28,7 @@ type privateError struct {
 	cause error
 }
 
+// Error exposes only the fixed failure stage, excluding driver metadata.
 func (e privateError) Error() string {
 	switch e.site {
 	case failureWriterIdentity:
@@ -61,8 +62,10 @@ func (e privateError) Error() string {
 	}
 }
 
+// Unwrap preserves the driver cause for internal errors.Is and errors.As checks.
 func (e privateError) Unwrap() error { return e.cause }
 
+// GoString keeps Go-syntax formatting from exposing the private cause fields.
 func (e privateError) GoString() string { return e.Error() }
 
 func privateFailure(site failureSite, cause error) error {
