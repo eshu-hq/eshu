@@ -36,7 +36,11 @@ func TestGraphAnchorEntityContextShapes(t *testing.T) {
 	if err := json.Unmarshal(raw, &snap); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"id":"content-entity:e_59c56c38911d","entity_id":"content-entity:e_59c56c38911d","name":"mutualPing","labels":["Function"],"relationships":[{"type":"CALLS","target_name":"mutualPong","target_id":"content-entity:e_8cacf7638b04"}],"result_limits":{"limit":25,"ordering":"deterministic","relationship_count":1,"truncated":false,"drilldown_basis":"target_id","drilldown_tool":"get_relationship_evidence","context_path":"/api/v0/entities/content-entity:e_59c56c38911d/context"}}`)
+	// Mirrors the live graph-path response: the handler's graph branch sets
+	// id (tied to the requested entity by the backend-anchor-mismatch guard)
+	// but no entity_id, which only the content-fallback branch adds and the
+	// OpenAPI schema does not declare.
+	body := []byte(`{"id":"content-entity:e_59c56c38911d","name":"mutualPing","labels":["Function"],"relationships":[{"type":"CALLS","target_name":"mutualPong","target_id":"content-entity:e_8cacf7638b04"}],"result_limits":{"limit":25,"ordering":"deterministic","relationship_count":1,"truncated":false,"drilldown_basis":"target_id","drilldown_tool":"get_relationship_evidence","context_path":"/api/v0/entities/content-entity:e_59c56c38911d/context"}}`)
 	mcp, ok := snap.QueryShapes.MCP["get_entity_context?assert=graph-anchor"]
 	if !ok {
 		t.Fatal("MCP graph-anchor shape missing")
@@ -52,7 +56,7 @@ func TestGraphAnchorEntityContextShapes(t *testing.T) {
 		t.Fatalf("HTTP shape finding: %+v", f)
 	}
 	// RED: the absent-entity signal (zero relationships) must fail the anchor shapes.
-	empty := []byte(`{"id":"content-entity:e_59c56c38911d","entity_id":"content-entity:e_59c56c38911d","name":"mutualPing","labels":["Function"],"relationships":[],"result_limits":{"limit":25,"ordering":"deterministic","relationship_count":0,"truncated":false}}`)
+	empty := []byte(`{"id":"content-entity:e_59c56c38911d","name":"mutualPing","labels":["Function"],"relationships":[],"result_limits":{"limit":25,"ordering":"deterministic","relationship_count":0,"truncated":false}}`)
 	if f := goldengate.EvaluateQueryShape("get_entity_context?assert=graph-anchor", mcp, empty); f.OK {
 		t.Fatal("MCP anchor shape passed on zero relationships; assertion cannot fail")
 	} else {

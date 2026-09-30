@@ -5702,7 +5702,6 @@
         "required_response_fields": [
           "relationships",
           "id",
-          "entity_id",
           "labels",
           "result_limits"
         ],
@@ -5715,7 +5714,6 @@
         ],
         "required_json_values": {
           "id": "content-entity:e_59c56c38911d",
-          "entity_id": "content-entity:e_59c56c38911d",
           "name": "mutualPing",
           "result_limits.truncated": false
         },
@@ -7520,7 +7518,6 @@
         "required_response_fields": [
           "relationships",
           "id",
-          "entity_id",
           "labels",
           "result_limits"
         ],
@@ -7533,7 +7530,6 @@
         ],
         "required_json_values": {
           "id": "content-entity:e_59c56c38911d",
-          "entity_id": "content-entity:e_59c56c38911d",
           "name": "mutualPing",
           "result_limits.truncated": false
         },
