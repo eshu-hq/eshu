@@ -31,7 +31,9 @@ When an API or MCP process wires the reader access observer, use
 reader borrow, identity, replay, and business-query duration. Its only labels
 are `role` (`writer` or `reader`), `stage` (the five named stages), and `outcome`
 (`ok`, `error`, `deadline`, or `canceled`). Unexpected values collapse to
-`unknown`; no endpoint, SQL, user, or credential is a label.
+`unknown`; no endpoint, SQL, user, or credential is a label. The duration
+histogram uses explicit seconds boundaries from 5 ms to 10 s, plus zero;
+use stage spans for comparisons finer than the histogram buckets.
 
 The reader access pool callback exposes
 `eshu_dp_postgres_reader_pool_connections` (`role` and `state`: `max_open`,

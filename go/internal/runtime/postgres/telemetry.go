@@ -32,6 +32,7 @@ func NewObserver(meter metric.Meter, tracer trace.Tracer) (Observer, error) {
 	duration, err := meter.Float64Histogram("eshu_dp_postgres_reader_stage_duration_seconds",
 		metric.WithUnit("s"),
 		metric.WithDescription("Duration of a PostgreSQL reader access stage"),
+		metric.WithExplicitBucketBoundaries(0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PostgreSQL reader stage duration: %w", err)

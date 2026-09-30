@@ -117,7 +117,11 @@ The immutable private final performance receipt has SHA-256
 `b5cf9e195dbcccb6ef7a8f06cb0ea4315b7fd9e65a8aa2ddd38473f9c35610ad`.
 It binds command exits, production/overlay/log hashes, stage counts and the
 measurement boundary to source commit
-`13cd97969d1c3064c2c7d4b281002ca6dd9bd9a3`.
+`13cd97969d1c3064c2c7d4b281002ca6dd9bd9a3`. A subsequent telemetry correction
+sets explicit seconds histogram boundaries. Its SDK export and repository-guard
+regressions failed before the correction and pass afterward. Metric aggregation
+configuration changed; business routing, SQL, checkpoint and snapshot logic,
+and the original timing boundaries did not.
 
 ## Limits and deployment acceptance
 

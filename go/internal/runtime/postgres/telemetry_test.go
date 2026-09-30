@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
@@ -46,6 +47,13 @@ func TestNewObserverEmitsClosedStageMetricAndSpan(t *testing.T) {
 			t.Fatalf("unexpected reader stage point: %+v", point)
 		}
 		if attrs["role"] == want["role"] && attrs["stage"] == want["stage"] && attrs["outcome"] == want["outcome"] {
+			wantBounds := []float64{0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+			if !slices.Equal(point.Bounds, wantBounds) {
+				t.Fatalf("reader stage seconds buckets = %v, want %v", point.Bounds, wantBounds)
+			}
+			if len(point.BucketCounts) != len(wantBounds)+1 || point.BucketCounts[6] != 1 {
+				t.Fatalf("250ms reader stage bucket counts = %v", point.BucketCounts)
+			}
 			if point.Sum != 0.25 {
 				t.Fatalf("reader replay duration = %f, want 0.25", point.Sum)
 			}
