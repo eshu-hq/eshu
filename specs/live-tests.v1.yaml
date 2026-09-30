@@ -1614,11 +1614,11 @@ tests:
   - file: go/internal/storage/postgres/eshu_search_document_supersede_cost_live_test.go
     tag: ~
     class: scheduled
-    reason: opt-in (ESHU_7458_COST_PROOF=1) cost proof for #7458 that needs a Postgres preloading pg_stat_statements and measures wall time, so it stays out of every default lane
+    reason: opt-in (ESHU_7458_COST_PROOF=1) cost proof for #7458, run on demand when the fence's cost is re-measured, that needs a Postgres preloading pg_stat_statements and measures wall time, so it stays out of every default lane
   - file: go/internal/storage/postgres/eshu_search_document_supersede_live_test.go
     tag: ~
     class: scheduled
-    reason: env-gated (ESHU_POSTGRES_TEST_DSN) forced-interleave proof for #7458; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it
+    reason: env-gated (ESHU_POSTGRES_TEST_DSN, or ESHU_POSTGRES_DSN as a fallback) forced-interleave proof for #7458, run on demand when the search-document fence changes; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it
   - file: go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go
     tag: ~
     class: scheduled

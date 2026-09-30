@@ -19,7 +19,7 @@ Accuracy was never at risk: every search-document row is keyed by
 freshness: the active generation's search item shares the scope conflict key and
 waits behind the stale one.
 
-Root-Cause Evidence: on `725fa19425` (origin/main) the live interleave
+Root-Cause Evidence: on the RED commit (the new tests on top of `725fa19425`, then origin/main, before the fix) the live interleave
 `TestEshuSearchDocumentHandlerAbandonsSupersededGenerationLive` (PostgreSQL
 18.6, real loader, writer, projection-state store and
 `NewGenerationFreshnessCheck`; the projector's own activation statements commit
@@ -59,9 +59,11 @@ same commit for the same reason (`InsertPage calls = 3, want exactly 1`,
   `scope_generations`, identical to a superseded generation that finished before
   the newer one activated. The projection-state row stays `building`;
   `MarkFailed` would no-op against a non-active generation.
-- A check error (including `GenerationNotYetActiveError`, which cannot occur
-  mid-stream because G was active at claim) fails closed through the existing
-  stream-error path: `Cancel`, then the item fails and retries.
+- A check error fails closed through the existing stream-error path: `Cancel`,
+  then the item fails. The queue retries `GenerationNotYetActiveError` without
+  counting an attempt (it can occur when the item started while the scope had no
+  active generation yet); any other lookup error, such as a Postgres error, is
+  not retryable, so the item dead-letters on that failure.
 - `cmd/reducer` wires `postgres.NewGenerationFreshnessCheck` through
   `SearchDocumentHandlers.EshuSearchDocumentGenerationCheck`.
   `TestSearchDocumentHandlersWireGenerationCheck` fails when it is unset, and
@@ -86,15 +88,20 @@ same commit for the same reason (`InsertPage calls = 3, want exactly 1`,
   only enqueues the active generation with no ready projection state, so nothing
   re-drives G; replaying an already-superseded G fails the first-page check with
   zero rows written (`TestEshuSearchDocumentHandlerChecksBeforeFirstPage`); a
-  check error retries through the existing path (`Cancel` then retry, and the
-  next `BeginBuilding` bumps the revision and fence); the live test finishes H
+  check error takes the existing failure path (`Cancel`, then a retry for
+  `GenerationNotYetActiveError`, where the next `BeginBuilding` bumps the
+  revision and fence, or a dead letter for any other lookup error); the live test finishes H
   after G's abandon and asserts the active reader returns exactly H's documents
   and the pending lister returns nothing for the scope.
 
 ## Proof 3a: the check is three primary-key probes
 
-Measured by the coordinator before implementation
-(`scratchpad/7458-shim/shim7458.sql`): `generationFreshnessSQL` on 100,000
+Measured before implementation with a throwaway script (two tables with the
+production primary keys, `ingestion_scopes(scope_id)` and
+`scope_generations(generation_id)`, seeded with 100,000 scopes of 10
+generations each, then `PREPARE`/`EXECUTE` of the statement under
+`plan_cache_mode = force_custom_plan` and `force_generic_plan`):
+`generationFreshnessSQL` on 100,000
 scopes and 1,000,000 `scope_generations` rows is 3 primary-key index scans, 12
 shared buffers, 0.033 ms execution with a custom plan and 0.102 ms with a
 generic plan, about 0.10 to 0.15 ms per psql round trip, host load average about
@@ -218,9 +225,18 @@ supersede is INFO, not ERROR.
 
 ## Verification
 
-Commands and results are recorded in the handoff for this branch; the local
-proofs are the unit suite in `go/internal/reducer/eshusearch`, the wiring tests
+The local proofs are the unit suite in `go/internal/reducer/eshusearch`, the wiring tests
 in `go/cmd/reducer` and `go/internal/reducer`, the live interleave
 (`ESHU_POSTGRES_TEST_DSN=... go test ./internal/storage/postgres -run
 TestEshuSearchDocumentHandlerAbandonsSupersededGenerationLive`), and the cost
 harness above.
+
+GREEN at the branch head, live interleave (PostgreSQL 18.6):
+
+```text
+G after supersede: result=superseded pages_streamed=2 page_docs=[256 256] facts=256 index_docs=256 stats=0 state="building" evidence="eshu search document projection abandoned: generation superseded phase=page pages_written=1 documents_written=256"
+--- PASS: TestEshuSearchDocumentHandlerAbandonsSupersededGenerationLive
+```
+
+H then finishes `ready` with 600 documents, the active-generation reader returns
+exactly H's documents, and the pending lister returns nothing for the scope.

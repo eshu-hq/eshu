@@ -379,7 +379,11 @@ func measureSupersedeScopeKeyWait(ctx context.Context, t *testing.T, sqlDB *sql.
 					return
 				}
 				refused++
-				time.Sleep(20 * time.Millisecond)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(20 * time.Millisecond):
+				}
 			}
 		}()
 		return nil

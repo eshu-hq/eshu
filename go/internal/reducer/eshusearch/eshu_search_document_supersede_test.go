@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -327,6 +328,53 @@ func TestEshuSearchDocumentHandlerFailsClosedOnFinalizeCheckError(t *testing.T) 
 	}
 	if writer.finalizeCalls != 0 {
 		t.Fatalf("Finalize calls = %d, want 0", writer.finalizeCalls)
+	}
+	if writer.cancelCalls != 1 {
+		t.Fatalf("Cancel calls = %d, want 1 (existing stream-error path)", writer.cancelCalls)
+	}
+}
+
+// wrappingSearchDocLoader wraps every error its page callback returns, as a
+// production loader may, so the handler must find the supersede sentinel with
+// errors.Is rather than by identity.
+type wrappingSearchDocLoader struct {
+	inner *fakePagedSearchDocLoader
+}
+
+func (w wrappingSearchDocLoader) StreamSearchDocumentSources(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	page func(SearchDocumentProjectionInput) error,
+) error {
+	if err := w.inner.StreamSearchDocumentSources(ctx, scopeID, generationID, page); err != nil {
+		return fmt.Errorf("stream search document sources: %w", err)
+	}
+	return nil
+}
+
+// TestEshuSearchDocumentHandlerDetectsWrappedSupersede proves the supersede is
+// still an abandon, not a failure, when the loader wraps the callback error.
+func TestEshuSearchDocumentHandlerDetectsWrappedSupersede(t *testing.T) {
+	t.Parallel()
+
+	writer := &capturingSearchDocWriter{}
+	checks := 0
+	handler := EshuSearchDocumentHandler{
+		Loader:          wrappingSearchDocLoader{inner: &fakePagedSearchDocLoader{pages: threeEntityPages()}},
+		Writer:          writer,
+		GenerationCheck: supersedeAfterInserts(writer, 1, &checks),
+	}
+
+	result, err := handler.Handle(context.Background(), searchDocIntent())
+	if err != nil {
+		t.Fatalf("Handle error = %v, want nil (a wrapped supersede is still an acked result)", err)
+	}
+	if result.Status != reducercontract.ResultStatusSuperseded {
+		t.Fatalf("Status = %q, want %q", result.Status, reducercontract.ResultStatusSuperseded)
+	}
+	if writer.cancelCalls != 0 || writer.finalizeCalls != 0 {
+		t.Fatalf("cancel=%d finalize=%d, want 0/0", writer.cancelCalls, writer.finalizeCalls)
 	}
 }
 

@@ -112,7 +112,9 @@ empty-keep-set retire whose `DELETE` statements are the cost being removed, and
 the rows written so far are keyed by `(scope_id, generation_id)`, invisible to
 every reader that joins the active generation, and pruned by retention. The
 projection-state row stays `building`. A check error is not a supersede: it takes
-the stream-error path (`Cancel`, then the item fails and retries). `GenerationCheck`
+the stream-error path: `Cancel`, then the item fails. The queue retries a
+`GenerationNotYetActiveError` without counting an attempt; any other lookup error
+is not retryable, so the item dead-letters on that failure. `GenerationCheck`
 is required; a nil check is a `Handle` construction error, like a nil loader.
 
 **`ResultStatusSucceeded` and friends come from `reducercontract`, not a local
