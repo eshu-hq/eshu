@@ -164,8 +164,16 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 		// The stop reason says a walk was cut short; the steps examined say how
 		// close an unstopped walk came to its budget, which is what an operator
 		// needs to see a near miss before it becomes a stop.
+		flags := enumeration.EdgeFlags
 		trace.SpanFromContext(ctx).SetAttributes(
 			attribute.Int("eshu.import_dependencies.cycle_steps_examined", enumeration.StepsExamined),
+			// How much of the answer rests on edges that predate the import flags,
+			// and how many edges the flags removed before the walk.
+			attribute.Int("eshu.import_dependencies.cycle_edges_considered", flags.Considered),
+			attribute.Int("eshu.import_dependencies.cycle_flags_unknown", flags.Unknown),
+			attribute.Int("eshu.import_dependencies.cycle_inferred_edge_count", flags.Inferred),
+			attribute.Int("eshu.import_dependencies.cycle_type_only_excluded", flags.TypeOnlyExcluded),
+			attribute.Int("eshu.import_dependencies.cycle_deferred_excluded", flags.DeferredExcluded),
 		)
 	}
 	return codemodel.ImportDependencyResponseWithCycleEnumeration(req, rows, enumeration), nil

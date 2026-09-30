@@ -128,7 +128,7 @@ const Symbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate import and module dependencies",
-        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) over all stored IMPORTS edges with no type-only or deferred exclusion; enumeration stops at 1000 cycles or a fixed step budget and reports truncated:true with the stop reason; page on has_more and next_offset. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
+        "description": "Returns bounded graph-backed import dependencies, package imports, bounded simple Python file-import cycles, and cross-module calls. Cycles enumerate rotation-deduplicated simple cycles up to max_cycle_length (default 5) after excluding type-only and deferred IMPORTS edges, labelling each cycle runtime, ambiguous (an inferred edge), or flags_unknown (an edge written before the import flags existed); enumeration stops at 1000 cycles or a fixed step budget and reports truncated:true with the stop reason; page on has_more and next_offset. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with 400.",
         "operationId": "investigateImportDependencies",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -188,6 +188,7 @@ const Symbols = `
                           "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
                           "cycle_length": {"type": "integer", "description": "Number of import edges in the cycle (2 through max_cycle_length)."},
                           "cycle_path": {"type": "array", "items": {"type": "string"}},
+                          "cycle_label": {"type": "string", "enum": ["runtime", "ambiguous", "flags_unknown"], "description": "runtime: every edge is a proven load-time import. ambiguous: at least one edge is inferred (a guessed target). flags_unknown: no edge is inferred and at least one has no flag properties because it was written before the import flags existed; the cycle may include an import that never runs."},
                           "cycle_edges": {
                             "type": "array",
                             "items": {
@@ -198,7 +199,8 @@ const Symbols = `
                                 "target_file": {"type": "string"},
                                 "source_module": {"type": "string"},
                                 "target_module": {"type": "string"},
-                                "line_number": {"type": "integer"}
+                                "line_number": {"type": "integer"},
+                                "flag_state": {"type": "string", "enum": ["runtime", "inferred", "unknown"], "description": "runtime: the projector wrote all three import flags and none is set. inferred: the parser synthesized the import's source. unknown: a flag property is missing or is not a boolean, which is how an edge written before the flags existed reads. Type-only and deferred edges are excluded before the walk and never appear here."}
                               }
                             }
                           },
@@ -215,7 +217,7 @@ const Symbols = `
                     "has_more": {"type": "boolean", "description": "True only while another page of this enumeration exists. It is false on the last page even when truncated is true."},
                     "next_offset": {"type": "integer", "nullable": true, "description": "The offset to request next, or null when has_more is false."},
                     "source_backend": {"type": "string"},
-                    "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and completeness. For file_import_cycles it carries cycle_max_length, cycle_enumeration_cap, cycle_enumeration_truncated, cycle_enumeration_stop_reason (none, cycle_cap, or step_budget), and cycle_enumeration_step_budget."}
+                    "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and completeness. For file_import_cycles it carries cycle_max_length, cycle_enumeration_cap, cycle_enumeration_truncated, cycle_enumeration_stop_reason (none, cycle_cap, or step_budget), and cycle_enumeration_step_budget. It also carries cycle_edge_flags, an object with edges_considered, type_only_excluded, deferred_excluded, inferred, and flags_unknown: the deduplicated edges counted by class before anchor filtering and paging, so a client can tell how much of a result rests on inferred edges or on edges written before the flags existed."}
                   }
                 }
               }

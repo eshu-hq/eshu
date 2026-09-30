@@ -181,8 +181,10 @@ constants (issue #7344).
   verbatim, are not inferred.
 
 The parser adds the flags to its payload, and the projector carries them onto
-IMPORTS edges (#7345). The `file_import_cycles` query consumes them in #7346, so
-no query output changes here. The fixture gate is
+IMPORTS edges (#7345). The `file_import_cycles` query excludes `type_only` and
+`deferred` edges before the walk and labels each cycle `runtime`, `ambiguous` or
+`flags_unknown`; see [HTTP API: code](../reference/http-api/code.md). The fixture
+gate is
 `TestDefaultEngineParsePathPythonImportFlags`.
 
 ## Related Docs

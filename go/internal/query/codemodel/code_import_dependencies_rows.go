@@ -39,6 +39,7 @@ type importCycleEdge struct {
 	language     string
 	targetModule string
 	lineNumber   int
+	state        importCycleEdgeState
 }
 
 type importDependencyScopeKey struct {
@@ -74,8 +75,9 @@ func BuildFileImportCycleRows(
 		return nil, CycleEnumeration{}, err
 	}
 
-	directedEdges := deduplicateImportCycleEdges(req, edgeRows)
+	directedEdges, edgeFlags := partitionImportCycleEdges(deduplicateImportCycleEdges(req, edgeRows))
 	cycles, enumeration := enumerateImportCycles(directedEdges, req.effectiveMaxCycleLength())
+	enumeration.EdgeFlags = edgeFlags
 
 	cycleRows := make([]map[string]any, 0, len(cycles))
 	seenCycles := make(map[string]struct{})
@@ -244,9 +246,22 @@ func deduplicateImportCycleEdges(
 			edge.targetModule,
 		}, "\x00")
 		current, exists := deduplicated[key]
-		if !exists || earlierPositiveLine(edge.lineNumber, current.lineNumber) {
-			deduplicated[key] = edge
+		if exists {
+			// Rows sharing an edge key fold their flag states, so the kept edge
+			// is as strong as its strongest proof. Its line comes from a row in
+			// that surviving state: a weaker duplicate on an earlier line must
+			// not put a type-only import's line beside a runtime state.
+			folded := foldImportCycleEdgeState(current.state, edge.state)
+			switch {
+			case edge.state == folded && current.state != folded:
+				current = edge
+			case edge.state == folded && earlierPositiveLine(edge.lineNumber, current.lineNumber):
+				current = edge
+			}
+			deduplicated[key] = current
+			continue
 		}
+		deduplicated[key] = edge
 	}
 
 	edges := make([]importCycleEdge, 0, len(deduplicated))
@@ -272,6 +287,7 @@ func importCycleEdgeFromRow(
 		language:     strings.ToLower(strings.TrimSpace(querycontract.StringVal(row, "language"))),
 		targetModule: strings.TrimSpace(querycontract.StringVal(row, "target_module")),
 		lineNumber:   querycontract.IntVal(row, "line_number"),
+		state:        importCycleEdgeStateFromRow(row),
 	}
 	if edge.repoID == "" || edge.sourceFile == "" || edge.sourceModule == "" || edge.targetModule == "" {
 		return importCycleEdge{}, false

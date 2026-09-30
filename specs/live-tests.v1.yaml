@@ -981,6 +981,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/replay/offlinetier/import_cycle_flags_live_test.go
+    tag: ~
+    class: scheduled
+    reason: deterministic #7346 graph-truth proof for the flag-consuming file_import_cycles reader; seeds IMPORTS edges with the projector's flag properties plus one legacy edge with none and reads them through the production imports.CycleRows and response shaper; a never-written flag property must come back as unknown (flags_unknown), never runtime, and type-only, deferred and ./x cases must close no cycle; env-gated by ESHU_REPLAY_TIER_LIVE; local NornicDB v1.3.3 run took 2.93s and the pinned Neo4j run 1.62s at the head rebased onto the merged carriage change — promote to blocking with timing evidence
   - file: go/internal/replay/offlinetier/delta_tier_edge_retract_live_test.go
     tag: ~
     class: scheduled

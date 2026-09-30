@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	importDependencyQueryplanVariantFamilySHA256       = "b3180b961166b233f5e3e0155623e8335c86a44c7d8d23c67b007f6503c5b4fd"
+	importDependencyQueryplanVariantFamilySHA256       = "9fe2297daf2337b3ccf63520e5a1f31de47aca809fa36d98ece1365173754462"
 	importDependencyQueryplanExpectedReachableRequests = 488
 	importDependencyQueryplanExpectedVariantCount      = 280
 )

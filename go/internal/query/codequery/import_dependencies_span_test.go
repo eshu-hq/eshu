@@ -81,4 +81,24 @@ func TestImportDependencyInvestigationSpanCarriesTheCycleWalkSignals(t *testing.
 	if steps.AsInt64() <= 0 {
 		t.Errorf("cycle_steps_examined = %d, want a positive count for a two-file cycle", steps.AsInt64())
 	}
+
+	// The fixture edges carry no flag columns, so the reader classifies both as
+	// unknown. An operator reading the trace must see how much of an answer rests
+	// on edges that predate the import flags, and how many the flags removed.
+	for attrKey, want := range map[attribute.Key]int64{
+		"eshu.import_dependencies.cycle_flags_unknown":       2,
+		"eshu.import_dependencies.cycle_type_only_excluded":  0,
+		"eshu.import_dependencies.cycle_deferred_excluded":   0,
+		"eshu.import_dependencies.cycle_edges_considered":    2,
+		"eshu.import_dependencies.cycle_inferred_edge_count": 0,
+	} {
+		got, ok := attrs[attrKey]
+		if !ok {
+			t.Errorf("attribute %s missing from the handler span", attrKey)
+			continue
+		}
+		if got.AsInt64() != want {
+			t.Errorf("%s = %d, want %d", attrKey, got.AsInt64(), want)
+		}
+	}
 }

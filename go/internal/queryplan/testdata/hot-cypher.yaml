@@ -451,7 +451,7 @@ entries:
     source:
       file: go/internal/query/codemodel/code_import_dependencies_queries.go
       symbol: FileImportCycleEdgeRowsCypher
-      source_sha256: 9a4cf269231a9297ae8669823b385a995a52f306cde4455c96545da79af08f49
+      source_sha256: 24c032e74289ccdbbf602edeeb035d4401dc56acac176a35ad1b4a5e580f3219
       line_hint: 164
     required_anchors:
       - label: Repository
@@ -473,7 +473,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "03d641efabac1a59818e790354ed551d528db1cc3b6ee8755ec608a3d2917569"
+    cypher_sha256: "d7c9e82091dd8d35f42604a0fc4a94f0f2550f75aacf1b10f3ccd26048e276ce"
   - id: QP-READINESS-HOSTED
     domain: readiness
     backend: nornicdb
