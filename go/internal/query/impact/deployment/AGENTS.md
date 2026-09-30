@@ -14,6 +14,13 @@
   map; counts attach in place. Derive only what shared `querycontract`
   helpers yield identically to the service-story builder; evidence lists
   attach only when absent; `deployment_truth_tier` stays caller-owned.
+- `traceSections` in `sections.go` is the single table behind `SectionNames`,
+  handle keys, `section_detail`, and `truth.omissions`. Adding a family means
+  adding a row there and to the OpenAPI and MCP enums in the same change
+  (`TestTraceDeploymentChainSectionEnumsAgree` in `go/internal/mcp` fails
+  otherwise). Handle keys must be real keys of the producer's row, and the
+  cut must stay after the full lists are counted. Never emit `[]` for an
+  omitted family; delete the key.
 - Keep one home per symbol: no helper copies across `impact`, `deployment`,
   `querycontract`, and `testutil`.
 - `RepositoryAccessFilter` values must be derived from the request's

@@ -60,7 +60,7 @@ const components = `  "components": {
           "schema": {"type": "string", "enum": ["investigation_evidence_packet.v2"]},
           "packet_id": {"type": "string"},
           "identity": {"type": "object"},
-          "truth": {"type": "object", "nullable": true},
+          "truth": {"type": "object", "nullable": true, "description": "Truth envelope: level, capability, profile, basis, backend, freshness, reason, and omissions. omissions (absent when the response carries every section in full) lists {section, detail, total} for each section a route withheld (detail omitted) or reduced to identity handles (detail handles), such as trace-deployment-chain under evidence_detail handles or an explicit sections list."},
           "freshness": {"type": "object"},
           "answer": {"type": "object"},
           "source_facts": {"type": "array", "items": {"type": "object"}},

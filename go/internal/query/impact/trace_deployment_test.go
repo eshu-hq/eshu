@@ -5,6 +5,7 @@ package impact
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -152,5 +153,141 @@ func TestNormalizeTraceDeploymentChainMaxDepth(t *testing.T) {
 				t.Fatalf("normalizeTraceDeploymentChainMaxDepth(%d) = %d, want %d", tc.maxDepth, got, tc.want)
 			}
 		})
+	}
+}
+
+// minimalTraceHandler serves one resolvable workload with no evidence, enough
+// to drive TraceDeploymentChain to a 200.
+func minimalTraceHandler() *Handler {
+	workload := map[string]any{
+		"id": "workload:orders-api", "instances": []any{}, "kind": "service",
+		"name": "orders-api", "repo_id": "repo-orders", "repo_name": "orders-api",
+	}
+	return &Handler{
+		Neo4j: graph.FakeWorkloadGraphReader{
+			RunSingleByMatch: map[string]map[string]any{
+				"w.name = $service_name": workload,
+				"w.id = $workload_id":    workload,
+			},
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "w.name = $service_name") {
+					return []map[string]any{workload}, nil
+				}
+				if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
+					return []map[string]any{{"repo_id": "repo-orders", "repo_name": "orders-api"}}, nil
+				}
+				return nil, nil
+			},
+		},
+		Content: &content.FakePortContentStore{},
+	}
+}
+
+func serveTrace(t *testing.T, handler *Handler, body string) (int, map[string]any) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-deployment-chain", strings.NewReader(body))
+	req.Header.Set("Accept", "application/eshu.envelope+json")
+	recorder := httptest.NewRecorder()
+	handler.TraceDeploymentChain(recorder, req)
+	var envelope map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode body %q: %v", recorder.Body.String(), err)
+	}
+	return recorder.Code, envelope
+}
+
+// TestTraceDeploymentChainRejectsUnknownSectionSelection proves an unknown
+// sections or evidence_detail value is a 400 invalid_argument naming the
+// allowed values (#7174), never a silently ignored selection.
+func TestTraceDeploymentChainRejectsUnknownSectionSelection(t *testing.T) {
+	t.Parallel()
+
+	for body, wantInMessage := range map[string]string{
+		`{"service_name":"orders-api","sections":["instances","bogus"]}`: "delivery_paths",
+		`{"service_name":"orders-api","evidence_detail":"summary"}`:      "handles",
+	} {
+		code, envelope := serveTrace(t, minimalTraceHandler(), body)
+		errEnv, _ := envelope["error"].(map[string]any)
+		message, _ := errEnv["message"].(string)
+		if code != http.StatusBadRequest || errEnv["code"] != "invalid_argument" || !strings.Contains(message, wantInMessage) {
+			t.Fatalf("body %s: status %d error %v, want 400 invalid_argument naming %q", body, code, errEnv, wantInMessage)
+		}
+	}
+}
+
+// TestTraceDeploymentChainHTTPDefaultStaysFull proves an HTTP body without the
+// #7174 fields keeps the full response: evidence_detail "full", every
+// section_detail entry "full", and no truth.omissions key. The handles case
+// proves the omission reaches the truth envelope.
+func TestTraceDeploymentChainHTTPDefaultStaysFull(t *testing.T) {
+	t.Parallel()
+
+	code, envelope := serveTrace(t, minimalTraceHandler(), `{"service_name":"orders-api"}`)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, body = %v", code, envelope)
+	}
+	data, _ := envelope["data"].(map[string]any)
+	truth, _ := envelope["truth"].(map[string]any)
+	if data["evidence_detail"] != "full" {
+		t.Fatalf("evidence_detail = %v, want full", data["evidence_detail"])
+	}
+	sectionDetail, _ := data["section_detail"].(map[string]any)
+	if len(sectionDetail) == 0 {
+		t.Fatal("section_detail missing from the full response")
+	}
+	for family, entry := range sectionDetail {
+		if detail, _ := entry.(map[string]any); detail["detail"] != "full" {
+			t.Fatalf("section_detail[%s] = %v, want full", family, entry)
+		}
+	}
+	if _, ok := truth["omissions"]; ok {
+		t.Fatalf("truth.omissions present on the full HTTP default: %v", truth["omissions"])
+	}
+	if _, ok := data["delivery_paths"]; !ok {
+		t.Fatal("full HTTP default dropped delivery_paths")
+	}
+
+	code, envelope = serveTrace(t, minimalTraceHandler(), `{"service_name":"orders-api","evidence_detail":"handles"}`)
+	if code != http.StatusOK {
+		t.Fatalf("handles status = %d, body = %v", code, envelope)
+	}
+	data, _ = envelope["data"].(map[string]any)
+	truth, _ = envelope["truth"].(map[string]any)
+	if _, ok := data["delivery_paths"]; ok {
+		t.Fatal("handles request emitted delivery_paths")
+	}
+	omissions, _ := truth["omissions"].([]any)
+	found := false
+	for _, raw := range omissions {
+		if omission, _ := raw.(map[string]any); omission["section"] == "delivery_paths" && omission["detail"] == "omitted" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("truth.omissions = %v, want delivery_paths omitted", truth["omissions"])
+	}
+}
+
+// TestTraceDeploymentChainDrilldownCarriesTheRequestArguments proves, through
+// the handler, that a drilldown names the arguments that decide which rows
+// exist. The handler normalizes max_depth, so a 5000 in the body is replayed as
+// the clamped value the response was built with (#7174 review F1).
+func TestTraceDeploymentChainDrilldownCarriesTheRequestArguments(t *testing.T) {
+	t.Parallel()
+
+	code, envelope := serveTrace(t, minimalTraceHandler(),
+		`{"service_name":"orders-api","evidence_detail":"handles","direct_only":false,"max_depth":5000,"include_related_module_usage":true}`)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, body = %v", code, envelope)
+	}
+	data, _ := envelope["data"].(map[string]any)
+	sectionDetail, _ := data["section_detail"].(map[string]any)
+	entry, _ := sectionDetail["delivery_paths"].(map[string]any)
+	args, _ := entry["drilldown_arguments"].(map[string]any)
+	if args["direct_only"] != false || args["include_related_module_usage"] != true || args["max_depth"] != float64(traceDeploymentChainMaxDepthLimit) {
+		t.Fatalf("drilldown_arguments = %v, want direct_only=false include_related_module_usage=true max_depth=%d", args, traceDeploymentChainMaxDepthLimit)
+	}
+	if args["service_name"] != "orders-api" || args["evidence_detail"] != "full" {
+		t.Fatalf("drilldown_arguments = %v, want service_name and evidence_detail full", args)
 	}
 }

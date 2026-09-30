@@ -19,6 +19,10 @@ type traceDeploymentChainRequest struct {
 	DirectOnly                bool   `json:"direct_only"`
 	MaxDepth                  int    `json:"max_depth"`
 	IncludeRelatedModuleUsage bool   `json:"include_related_module_usage"`
+	// EvidenceDetail and Sections are the #7174 response-shape selection
+	// (see deployment.SectionSelection). Absent means today's full response.
+	EvidenceDetail string   `json:"evidence_detail"`
+	Sections       []string `json:"sections"`
 }
 
 // traceDeploymentChainMaxDepthLimit bounds traceDeploymentChainRequest.MaxDepth
@@ -110,7 +114,22 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
+	selection := deployment.SectionSelection{EvidenceDetail: req.EvidenceDetail, Sections: req.Sections}
+	if err := selection.Validate(); err != nil {
+		querycontract.WriteErrorEnvelope(w, r, http.StatusBadRequest, &querycontract.ErrorEnvelope{
+			Code: querycontract.ErrorCodeInvalidArgument, Message: err.Error(), Capability: "platform_impact.deployment_chain",
+		})
+		return
+	}
 	req.MaxDepth = normalizeTraceDeploymentChainMaxDepth(req.MaxDepth)
+	// The arguments that decide which rows exist travel with every drilldown,
+	// so replaying it (the MCP adapter defaults direct_only to true) builds the
+	// families this call built (#7174 review F1).
+	selection.Replay = map[string]any{
+		"direct_only":                  req.DirectOnly,
+		"max_depth":                    req.MaxDepth,
+		"include_related_module_usage": req.IncludeRelatedModuleUsage,
+	}
 
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, req.ServiceName, traceOptions)
@@ -332,5 +351,9 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 
 	response := deployment.BuildDeploymentTraceResponse(req.ServiceName, ctx, h.traceContext().BuildServiceDeploymentOverview(ctx))
 	evidence.AttachEvidenceBoundaries(response, "trace_deployment_chain")
-	querycontract.WriteSuccess(w, r, http.StatusOK, response, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", querycontract.TruthBasisHybrid, "resolved from deployment topology and service evidence"))
+	// #7174: shape after every family, count, and boundary is built, so the
+	// cut changes only what ships; truth.omissions stays absent in full mode.
+	truth := querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", querycontract.TruthBasisHybrid, "resolved from deployment topology and service evidence")
+	truth.Omissions = deployment.ApplySectionSelection(response, selection)
+	querycontract.WriteSuccess(w, r, http.StatusOK, response, truth)
 }

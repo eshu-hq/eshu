@@ -29,6 +29,8 @@ var populatedRouteCases = []struct {
 			"direct_only":                  false,
 			"max_depth":                    float64(3),
 			"include_related_module_usage": true,
+			"evidence_detail":              "handles",
+			"sections":                     []any{"instances", "delivery_paths"},
 			"unused_decoy":                 "ignored",
 		},
 		wantBody: map[string]any{
@@ -36,6 +38,8 @@ var populatedRouteCases = []struct {
 			"direct_only":                  false,
 			"max_depth":                    3,
 			"include_related_module_usage": true,
+			"evidence_detail":              "handles",
+			"sections":                     []any{"instances", "delivery_paths"},
 		},
 	},
 	{
@@ -194,6 +198,7 @@ var defaultBodies = map[string]map[string]any{
 		"direct_only":                  true,
 		"max_depth":                    0,
 		"include_related_module_usage": false,
+		"evidence_detail":              "handles",
 	},
 	"investigate_deployment_config": {
 		"service_name": "", "workload_id": "", "environment": "", "limit": 25,
@@ -392,3 +397,41 @@ func TestRouteAppliesImpactDefaultsForAbsentArguments(t *testing.T) {
 // direct_only falls back to true, and a wrong-typed string reads as empty
 // rather than as a formatted Go value. Out-of-range numbers are forwarded
 // as-is; the handler, not the selector, owns each route's bound.
+
+// TestRouteTraceDeploymentChainEvidenceDetailDefault pins the #7174 MCP
+// default: handle rows when the caller names no sections, full rows when the
+// caller named sections (a drill-down), and an explicit evidence_detail
+// always wins. The HTTP default stays "full" in the handler.
+func TestRouteTraceDeploymentChainEvidenceDetailDefault(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args routecontract.Arguments
+		want string
+	}{
+		{name: "no sections", args: routecontract.Arguments{"service_name": "checkout"}, want: "handles"},
+		// An empty list names nothing: the handler reads it as the mode's
+		// default set, so the adapter must not turn it into "full" (which
+		// would ship every family, about 1.1 MB counted at the caps).
+		{name: "empty sections list", args: routecontract.Arguments{"service_name": "checkout", "sections": []any{}}, want: "handles"},
+		{name: "null sections", args: routecontract.Arguments{"service_name": "checkout", "sections": nil}, want: "handles"},
+		{name: "sections named", args: routecontract.Arguments{"service_name": "checkout", "sections": []any{"k8s_resources"}}, want: "full"},
+		{name: "explicit full", args: routecontract.Arguments{"service_name": "checkout", "evidence_detail": "full"}, want: "full"},
+		{name: "explicit handles with sections", args: routecontract.Arguments{"service_name": "checkout", "evidence_detail": "handles", "sections": []any{"instances"}}, want: "handles"},
+	}
+	for _, tt := range cases {
+		request, _ := Route("trace_deployment_chain", tt.args)
+		body, _ := request.Body.(map[string]any)
+		if body["evidence_detail"] != tt.want {
+			t.Errorf("%s: evidence_detail = %#v, want %q", tt.name, body["evidence_detail"], tt.want)
+		}
+		named := false
+		if list, ok := tt.args["sections"].([]any); ok && len(list) > 0 {
+			named = true
+		}
+		if named != (body["sections"] != nil) {
+			t.Errorf("%s: sections forwarded = %#v, want forwarded only when it names at least one family", tt.name, body["sections"])
+		}
+	}
+}

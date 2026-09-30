@@ -13,6 +13,76 @@ For repository, workload, and service narratives, use
 | Deployment chain | `POST /api/v0/impact/trace-deployment-chain` |
 | Configuration influence | `POST /api/v0/impact/deployment-config-influence` |
 
+## Section selection and evidence detail
+
+The deployment chain route above accepts two optional request fields that
+bound the response size without changing any per-family cap:
+
+- `sections` names which families to emit. The selectable names are
+  `instances`, `topology_edges`, `provisioned_platforms`,
+  `deployment_sources`, `cloud_resources`, `uncorrelated_cloud_resources`,
+  `k8s_resources`, `k8s_relationships`, `image_registry_truth`,
+  `deployment_facts`, `controller_driven_paths`, `delivery_paths`,
+  `deployment_evidence`, `artifact_lineage`, `hostnames`, `entrypoints`,
+  `network_paths`, `api_surface`, `dependents`, `consumer_repositories`,
+  `provisioning_source_chains`, `story`, and `overviews` (`story_sections`
+  plus the deployment, controller, gitops, runtime, provenance,
+  documentation, and support overviews).
+- `evidence_detail` is `full` or `handles`. It sets how emitted rows are
+  shaped.
+
+When both are absent, the route returns today's full response. On HTTP,
+`evidence_detail` defaults to `full`. The MCP `trace_deployment_chain` tool
+defaults to `handles` when `sections` is absent and to `full` when `sections`
+is named.
+
+Under `handles` with no `sections`, primary families ship as handle rows: the
+same key names as the full row, limited to the row's identity keys
+(for example `instances[]` keeps `instance_id`, `environment`,
+`platform_name`, and `platform_kind`). `deployment_evidence` keeps its counts
+and family lists, projects `artifacts[]` to `id`, `relationship_type`, and
+`resolved_id`, and drops `evidence_index`. `api_surface` keeps its counts and
+drops `endpoints`. The families derived from primary rows are omitted:
+`delivery_paths`, `deployment_facts`, `controller_driven_paths`,
+`k8s_relationships`, `topology_edges`, `artifact_lineage`, `network_paths`,
+and `entrypoints`. Counts, the story, the overviews, and
+`deployment_fact_summary` are computed from the full lists before any cut.
+
+Identity keys, `image_refs`, `deployment_fact_summary`, every `*_limits` and
+`*_truncated` key, `drilldowns`, `evidence_boundaries`, `evidence_detail`, and
+`section_detail` are always returned. An unselected family's key is absent,
+never an empty list, because an empty list would claim no rows exist.
+
+Every response reports what it withheld in two places that share one
+vocabulary:
+
+- `data.section_detail` has one entry per selectable family:
+  `detail` (`full`, `handles`, or `omitted`), `returned` (rows emitted), and
+  `total` (rows the route held before the cut; `*_limits` still report query
+  caps). A family not returned in full also carries `drilldown_tool`
+  (`trace_deployment_chain`) and `drilldown_arguments`
+  (`service_name`, `sections: [<family>]`, `evidence_detail: full`, and the
+  `direct_only`, `max_depth`, and `include_related_module_usage` the response
+  was built with, so replaying it builds the same families; the MCP tool
+  defaults `direct_only` to true, which would otherwise skip the consumer and
+  provisioning families). Under `handles`, the values that
+  `deployment_evidence` builds from repository content when the graph holds no
+  evidence are dropped and counted in
+  `section_detail.deployment_evidence.total`: the lists `shared_config_paths`,
+  `delivery_paths`, `delivery_family_paths`, and `delivery_workflows`; the
+  sentence lists `topology_story` and `delivery_family_story`; and
+  `deployment_artifacts`, a map of lists (`controller_artifacts`,
+  `workflow_artifacts`, `deployment_artifacts`, `config_paths`) whose rows are
+  counted across the lists; and `relationship_overview`, counted by its
+  `relationship_count` because its partition lists repeat the same rows. Each
+  has no row cap of its own.
+  An empty `sections` list names nothing and is read as the mode's default set.
+- `truth.omissions` lists `{section, detail, total}` for the same non-full
+  families. It is absent when every family ships in full.
+
+An unknown `sections` or `evidence_detail` value returns
+`400 invalid_argument` naming the allowed values.
+
 ## Deployment trace relationships
 
 The deployment trace route keeps deployment-source

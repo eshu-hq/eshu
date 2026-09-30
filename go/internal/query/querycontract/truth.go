@@ -77,6 +77,21 @@ type TruthEnvelope struct {
 	Backend    GraphBackend   `json:"backend,omitempty"`
 	Freshness  TruthFreshness `json:"freshness"`
 	Reason     string         `json:"reason,omitempty"`
+	// Omissions lists the response sections a route withheld or reduced to
+	// handle rows under the caller's selection, so a partial answer never
+	// reads as a complete one. Empty (and absent on the wire) when the
+	// response carries every section in full.
+	Omissions []TruthOmission `json:"omissions,omitempty"`
+}
+
+// TruthOmission names one response section the route did not return in full.
+// Detail is "handles" when the section's rows were projected to their
+// identity keys and "omitted" when the section key is absent; Total is the
+// row count the route held for that section before the cut.
+type TruthOmission struct {
+	Section string `json:"section"`
+	Detail  string `json:"detail"`
+	Total   int    `json:"total"`
 }
 
 // ErrorProfiles names the active and minimum required profiles.

@@ -43,10 +43,24 @@ func TestEcosystemTraceDeploymentChainSchema(t *testing.T) {
 	tool := requireToolDefinition(t, "trace_deployment_chain")
 	schema, _ := tool.InputSchema.(map[string]any)
 	properties, _ := schema["properties"].(map[string]any)
-	for _, field := range []string{"service_name", "direct_only", "max_depth", "include_related_module_usage"} {
+	for _, field := range []string{"service_name", "direct_only", "max_depth", "include_related_module_usage", "evidence_detail", "sections"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("trace_deployment_chain schema missing %q", field)
 		}
+	}
+	// #7174: evidence_detail is a closed enum with no advertised default,
+	// because the MCP default depends on whether sections is named.
+	evidenceDetail, _ := properties["evidence_detail"].(map[string]any)
+	if enum, _ := evidenceDetail["enum"].([]string); strings.Join(enum, ",") != "full,handles" {
+		t.Fatalf("evidence_detail enum = %#v, want [full handles]", evidenceDetail["enum"])
+	}
+	if _, present := evidenceDetail["default"]; present {
+		t.Fatalf("evidence_detail advertises default %#v; the MCP default depends on sections", evidenceDetail["default"])
+	}
+	sections, _ := properties["sections"].(map[string]any)
+	items, _ := sections["items"].(map[string]any)
+	if sections["type"] != "array" || items["type"] != "string" || len(items["enum"].([]string)) == 0 {
+		t.Fatalf("sections schema = %#v, want an array of enum strings", sections)
 	}
 }
 

@@ -40,7 +40,7 @@ const Routes = `
                   "service_name": {"type": "string", "description": "Service or workload name to trace"},
                   "direct_only": {"type": "boolean", "default": true},
                   "max_depth": {"type": "integer", "minimum": 0, "maximum": 1000, "description": "Scales the indirect-evidence search limit (max_depth x 10, capped at 100); it is not a literal traversal-hop count, and every value at or above 10 resolves to the same capped limit. Accepted range 0-1000; out-of-range values are clamped rather than rejected. Omitting this field does not apply a default of 8 -- it resolves to the handler's own operator-safe default search limit of 25."},
-                  "include_related_module_usage": {"type": "boolean", "default": false}
+                  "include_related_module_usage": {"type": "boolean", "default": false},` + traceDeploymentSelectionRequestProperties + `
                 }
               }
             }
@@ -65,6 +65,7 @@ const Routes = `
                     "repo_id": {"type": "string"},
                     "repo_name": {"type": "string"},
                     "story": {"type": "string"},
+` + traceDeploymentSelectionResponseProperties + `
                     "instances": {
                       "type": "array",
                       "items": {

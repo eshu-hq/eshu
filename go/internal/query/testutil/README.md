@@ -86,6 +86,11 @@ See `doc.go` for the godoc contract.
   `LanguageGrantUngrantedEntity`, and `LanguageQueryGrantEntities` — the
   #6642 language-query merge-key and grant fixtures both package query's and
   package `language`'s tests share, so neither drifts from the other.
+- `TraceAtCapScenario`, `TraceAtCapWorkloadContext`, and
+  `TraceAtCapOverview` — the #7174 every-family-at-cap
+  trace_deployment_chain workload context, shared by the deployment
+  package's size tests and the MCP dispatch-budget test. Row widths are
+  hand-built from producer code, not recorded.
 - `MockLanguageQueryGraphReader` — minimal `querycontract.GraphQuery` double
   answering `Run`/`RunSingle` from `Rows`; package query forwards it as
   `mockLanguageQueryGraphReader`.

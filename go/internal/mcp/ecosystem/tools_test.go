@@ -48,10 +48,10 @@ func TestToolsPreserveEcosystemRegistrationContract(t *testing.T) {
 	}
 
 	encoded := marshalEcosystemDefinitions(t, tools)
-	if got, want := len(encoded), 21138; got != want {
+	if got, want := len(encoded), 22378; got != want {
 		t.Fatalf("serialized ecosystem definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "4b9287b9e3bab66f502af282ec3bce330ead51f9eacfaf88b6ad4b3538bade02"
+	const wantDefinitionsHash = "4f37b9536b0171e92a9ddaa332a6ed39242817ac576dc260e52821eda7fd9319"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("ecosystem definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

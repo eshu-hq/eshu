@@ -123,6 +123,7 @@ func TestImpactDispatchKeepsEveryBodyKey(t *testing.T) {
 			"direct_only":                  false,
 			"max_depth":                    3,
 			"include_related_module_usage": true,
+			"evidence_detail":              "handles",
 		},
 		"investigate_deployment_config": {
 			"service_name": "billing", "workload_id": "workload:billing",

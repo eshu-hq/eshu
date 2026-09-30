@@ -53,6 +53,7 @@ bounded machine-readable diagnostics.
 | `backend` | Optional graph backend identity, currently `neo4j` or `nornicdb`. |
 | `freshness` | Object with `state`, optional `observed_at`, optional `detail`, optional `cause`, and optional `next_check`. |
 | `reason` | Human-readable explanation for logs, CLI output, and debugging. |
+| `omissions` | Optional, additive. Absent when the response carries every section in full. Otherwise a list of `{section, detail, total}`: `section` names a part of the payload the route withheld (`detail: "omitted"`, the key is absent from `data`) or reduced to identity handles (`detail: "handles"`), and `total` is the row count the route held before the cut. Today only `trace_deployment_chain` sets it, when `evidence_detail` is `handles` (the MCP default when no `sections` are named) or `sections` selects a subset; `data.section_detail` carries the same families with a drilldown that returns each in full. A client MUST NOT read an absent key as "none exist" when the family appears here. |
 
 `authoritative` is not a canonical wire field. Clients infer authority from
 `level == "exact"` plus capability semantics.

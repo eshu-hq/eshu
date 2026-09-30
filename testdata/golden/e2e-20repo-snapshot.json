@@ -3652,27 +3652,24 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471). The MCP default is evidence_detail handles (#7174): primary families ship as identity handle rows and the derived families (delivery_paths, deployment_facts, controller_driven_paths, k8s_relationships, topology_edges, artifact_lineage, network_paths, entrypoints) are omitted and reported in section_detail and truth.omissions, so those keys are not required here; the HTTP entries keep the full shape.",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",
           "cloud_resource_limits",
-          "controller_driven_paths",
           "controller_overview",
-          "delivery_paths",
           "deployment_evidence",
           "deployment_fact_summary",
-          "deployment_facts",
           "deployment_overview",
           "deployment_sources",
           "deployment_source_limits",
           "documentation_overview",
           "drilldowns",
           "evidence_boundaries",
+          "evidence_detail",
           "gitops_overview",
           "image_refs",
           "instances",
-          "k8s_relationships",
           "k8s_resource_limits",
           "k8s_resources",
           "kind",
@@ -3683,18 +3680,21 @@
           "repo_name",
           "runtime_overview",
           "runtime_topology_limits",
+          "section_detail",
           "service_name",
           "story",
           "story_sections",
           "subject",
           "support_overview",
-          "topology_edges",
           "workload_id"
         ],
         "minimum_results": 0,
         "required_json_values": {
           "deployment_fact_summary.overall_confidence_reason": "no_deployment_evidence",
-          "evidence_boundaries[].domain": "ci_cd_run_correlation"
+          "evidence_boundaries[].domain": "ci_cd_run_correlation",
+          "evidence_detail": "handles",
+          "section_detail.delivery_paths.detail": "omitted",
+          "section_detail.instances.detail": "handles"
         },
         "required_absent_when_present": [
           {

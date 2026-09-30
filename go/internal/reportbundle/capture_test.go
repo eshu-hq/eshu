@@ -4,6 +4,7 @@
 package reportbundle
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestCapture_TruthEnvelopeVerbatimAndExcerptDropped(t *testing.T) {
 		t.Fatalf("Capture() error = %v, want nil", err)
 	}
 
-	if bundle.Response.Truth == nil || *bundle.Response.Truth != *truth {
+	if bundle.Response.Truth == nil || !reflect.DeepEqual(*bundle.Response.Truth, *truth) {
 		t.Fatalf("Response.Truth = %+v, want verbatim %+v", bundle.Response.Truth, truth)
 	}
 

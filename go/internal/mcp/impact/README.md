@@ -64,6 +64,11 @@ path.
   the resolved search limit to 80 for callers who changed nothing. The
   handler clamps `max_depth` into [0, 1000] rather than rejecting, so no
   selected value can turn into a 400.
+- `trace_deployment_chain` forwards `evidence_detail` `handles` when the
+  caller names no `sections` and `full` when it does; an explicit
+  `evidence_detail` wins, and `sections` travels verbatim so the handler
+  rejects unknown values (#7174). The HTTP default stays `full`; the MCP
+  default keeps an at-cap trace inside the dispatch response budget.
 - Numeric coercion follows `routecontract.Arguments.IntOr`: `int`, `int64`,
   and `float64` are honoured, a `float64` truncates toward zero, and every
   other type — including a stringified `"25"` — falls back to the default.
