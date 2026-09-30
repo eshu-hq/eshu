@@ -30,6 +30,7 @@ func TestServiceRunDoesNotFailWorkWhenShutdownCancelsLoad(t *testing.T) {
 		Runner:             &stubProjectionRunner{},
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
@@ -58,6 +59,7 @@ func TestServiceRunDoesNotFailWorkWhenShutdownCancelsProjection(t *testing.T) {
 		Runner:             &stubProjectionRunner{waitForContextCancellation: true},
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
@@ -86,6 +88,7 @@ func TestServiceRunLogsShutdownCancellation(t *testing.T) {
 		Runner:             &stubProjectionRunner{},
 		WorkSink:           &stubProjectorWorkSink{},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
 	}
@@ -130,6 +133,7 @@ func TestServiceRunAcksSuccessfulProjectionAfterShutdownCancel(t *testing.T) {
 		},
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
@@ -168,6 +172,7 @@ func TestServiceRunAcksSuccessfulProjectionWhenShutdownCancelsDuringAck(t *testi
 		},
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 

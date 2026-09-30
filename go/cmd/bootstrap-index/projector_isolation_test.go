@@ -69,7 +69,7 @@ func TestDrainProjectorWorkItemRoutesFailureToFailPath(t *testing.T) {
 		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 		&fakeFactStore{},
 		&failingProjectionRunner{failAfter: 0, err: errors.New("canonical phase-group write (structural_edges): neo4j execute group timed out after 30s")},
-		sink, passBootstrapBaselineFence{},
+		sink, passBootstrapBaselineFence{}, passBootstrapBaselineFence{},
 		nil, // no heartbeater
 		time.Millisecond,
 		0, // workerID
@@ -110,7 +110,7 @@ func TestDrainProjectorWorkItemAckErrorIsFatal(t *testing.T) {
 		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
 		&fakeFactStore{},
 		&fakeProjectionRunner{}, // Project succeeds
-		sink, passBootstrapBaselineFence{},
+		sink, passBootstrapBaselineFence{}, passBootstrapBaselineFence{},
 		nil,
 		time.Millisecond,
 		0,

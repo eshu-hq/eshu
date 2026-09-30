@@ -25,3 +25,17 @@ func TestBuildProjectorServiceWiresDeltaBaselineFence(t *testing.T) {
 		t.Fatalf("DeltaBaselineFence type = %T, want postgres.ProjectorQueue", service.DeltaBaselineFence)
 	}
 }
+
+// TestBuildProjectorServiceWiresWriteMarker fails when the binary builds its projector Service
+// without the #7389 projection write-start marker.
+func TestBuildProjectorServiceWiresWriteMarker(t *testing.T) {
+	t.Parallel()
+	service, err := buildProjectorService(postgres.SQLDB{}, &noopCanonicalWriter{},
+		func(string) string { return "" }, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("buildProjectorService() = %v", err)
+	}
+	if _, ok := service.WriteMarker.(postgres.ProjectorQueue); !ok {
+		t.Fatalf("WriteMarker type = %T, want postgres.ProjectorQueue", service.WriteMarker)
+	}
+}

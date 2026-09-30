@@ -45,18 +45,12 @@ func syncExistingRepository(
 	}
 	baselineSHA, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
 	if err != nil {
-		if logger != nil {
-			logger.WarnContext(
-				ctx, "git_delta_baseline_lookup_failed",
-				log.RepoPath(repoPath),
-				log.Err(err),
-			)
-		}
+		logBaselineLookupFailed(ctx, logger, repoPath, err)
 		// Classify the fallback here as a lookup error so a Postgres outage is
 		// not miscounted as a fleet of legitimate first syncs, then suppress
 		// updateRepository's own emission (nil onFallback) to avoid a double
 		// count. The empty baseline still drives a safe full snapshot.
-		baseline.recordFallback(ctx, "baseline_lookup_error")
+		baseline.recordFallback(ctx, deltaFallbackBaselineLookupError)
 		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil)
 	}
 	onFallback := func(reason string) { baseline.recordFallback(ctx, reason) }
@@ -73,77 +67,27 @@ func syncExistingRepository(
 // without stacking one on top of a full generation still in flight (epic #2340,
 // #7288). A nil resolver disables both lookups and every git update degrades to
 // a safe full snapshot.
+//
+// UncoveredProjectionWriters reports the scope's generations that wrote the
+// graph, never activated, and are not covered by a later activated full
+// generation (#7389); a non-empty result is the graph_dirty reconcile reason.
 type DeltaBaselineResolver interface {
 	LastProjectedCommitSHA(ctx context.Context, scopeID string) (string, error)
 	FullReconcileState(ctx context.Context, scopeID string) (scope.FullReconcileState, error)
+	UncoveredProjectionWriters(ctx context.Context, scopeID string) ([]scope.UncoveredProjectionWriter, error)
 }
 
-// reconcilePolicy bounds the periodic full-snapshot reconciliation sweep. A
-// scope is due for reconciliation when it has gone Interval without a projected
-// full observation and no recent full attempt is still in flight or backing off
-// (see decide); MaxPerCycle caps how many scopes a single selection cycle may
-// force to full so a fleet does not stampede into simultaneous full snapshots.
-// A zero Interval disables reconciliation entirely.
-type reconcilePolicy struct {
-	Interval    time.Duration
-	MaxPerCycle int
-}
-
-// Reconcile decision reasons. They are a closed set used as the bounded reason
-// label on the reconciliation counters and in the git_reconcile_forced log.
+// Delta-baseline fallback reasons: the closed skip_reason label set of
+// eshu_dp_collector_delta_baseline_fallback_total.
 const (
-	reconcileReasonFresh                 = "fresh"
-	reconcileReasonInFlight              = "reconcile_in_flight"
-	reconcileReasonInFlightExpired       = "in_flight_expired"
-	reconcileReasonRetryBackoff          = "reconcile_retry_backoff"
-	reconcileReasonRetryAfterUnprojected = "retry_after_unprojected"
-	reconcileReasonNeverReconciled       = "never_reconciled"
-	reconcileReasonIntervalElapsed       = "interval_elapsed"
+	// deltaFallbackNoProjectedBaseline: the scope has no active generation.
+	deltaFallbackNoProjectedBaseline = "no_projected_baseline"
+	// deltaFallbackBaselineUnreachable: the active commit is not in the
+	// local history (shallow-clone prune or divergence).
+	deltaFallbackBaselineUnreachable = "baseline_unreachable"
+	// deltaFallbackBaselineLookupError: the baseline lookup failed.
+	deltaFallbackBaselineLookupError = "baseline_lookup_error"
 )
-
-// decide reports whether a scope in state s is due for a forced full
-// reconciliation snapshot at now, and the bounded reason. It is pure: no clock
-// read and no I/O.
-//
-// The obligation is measured on the last projected (activated) full
-// generation; the throttle on the latest full attempt of any status:
-//   - a projected full younger than Interval keeps the scope fresh;
-//   - a pending full younger than Interval is still in flight, so forcing
-//     another full of the same commit would only supersede it; at Interval it
-//     stops suppressing and one new full is forced;
-//   - a failed, or superseded-before-activation, full holds the sweep off for
-//     Interval/4 (retry backoff), then one new full is forced.
-//
-// A negative age (clock skew) compares as less than every bound and
-// suppresses. No single generation suppresses the sweep for longer than
-// Interval: the worst case per scope is one forced full per Interval while
-// fulls stay pending, and four per Interval while they keep failing.
-func (p reconcilePolicy) decide(now time.Time, s scope.FullReconcileState) (bool, string) {
-	if s.HasProjectedFull && now.Sub(s.LastProjectedFullAt) < p.Interval {
-		return false, reconcileReasonFresh
-	}
-	if s.HasLatestFull && !s.LatestFullProjected {
-		age := now.Sub(s.LatestFullAt)
-		if s.LatestFullStatus == scope.GenerationStatusPending {
-			if age < p.Interval {
-				return false, reconcileReasonInFlight
-			}
-			return true, reconcileReasonInFlightExpired
-		}
-		if age < p.Interval/4 {
-			return false, reconcileReasonRetryBackoff
-		}
-		return true, reconcileReasonRetryAfterUnprojected
-	}
-	if !s.HasProjectedFull {
-		return true, reconcileReasonNeverReconciled
-	}
-	return true, reconcileReasonIntervalElapsed
-}
-
-func (p reconcilePolicy) enabled() bool {
-	return p.Interval > 0
-}
 
 // reconcilePolicyFromConfig lifts the reconciliation knobs off RepoSyncConfig
 // into the policy the git sync consumes.
@@ -191,16 +135,16 @@ type reconcileDecision struct {
 	Reason  string
 	ScopeID string
 	State   scope.FullReconcileState
+	// Writers are the uncovered projection writers behind a graph_dirty
+	// decision (#7389), carried to the git_delta_baseline_graph_dirty log.
+	Writers []scope.UncoveredProjectionWriter
 }
 
 // reconcileDue decides whether the managed checkout at repoPath should be
 // forced to a full reconciliation snapshot this cycle: reconciliation must be
-// enabled, a resolver must be present, and decide must find the scope due. A
-// lookup error returns not-due (no reconciliation) — the baseline path already
-// degrades safely on resolver errors, so a transient outage should not also
-// trigger a fleet of forced full snapshots. An in-flight or retry-backoff
-// suppression increments the bounded suppression counter.
-func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfig, repoPath string) reconcileDecision {
+// enabled, a resolver must be present, and the scope must be due (see
+// decideForScope). The caller only asks while the per-cycle budget lasts.
+func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfig, repoPath string, logger *slog.Logger) reconcileDecision {
 	if !b.Reconcile.enabled() || b.Resolver == nil {
 		return reconcileDecision{}
 	}
@@ -208,15 +152,64 @@ func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfi
 	if scopeID == "" {
 		return reconcileDecision{}
 	}
+	return b.decideForScope(ctx, scopeID, logger)
+}
+
+// decideForScope reads the scope's full-generation state and decides. When the
+// sweep obligation is not due and no throttle holds it, it probes for #7389
+// uncovered projection writers: any writer forces a graph_dirty reconcile,
+// subject only to the throttle. A lookup error returns not-due: a transient
+// outage must not trigger a fleet of forced fulls, and the scope is decided
+// again next cycle. An in-flight or retry-backoff suppression increments the
+// bounded suppression counter.
+func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, logger *slog.Logger) reconcileDecision {
 	state, err := b.Resolver.FullReconcileState(ctx, scopeID)
 	if err != nil {
 		return reconcileDecision{ScopeID: scopeID}
 	}
-	due, reason := b.Reconcile.decide(b.now(), state)
-	if reason == reconcileReasonInFlight || reason == reconcileReasonRetryBackoff {
-		b.recordReconcileSuppressed(ctx, reason)
+	now := b.now()
+	decision := reconcileDecision{ScopeID: scopeID, State: state}
+	decision.Due, decision.Reason = b.Reconcile.decide(now, state)
+	if !decision.Due && decision.Reason == reconcileReasonFresh {
+		writers, err := b.Resolver.UncoveredProjectionWriters(ctx, scopeID)
+		switch {
+		case err != nil:
+			logGraphDirtyLookupFailed(ctx, logger, scopeID, err)
+		case len(writers) > 0:
+			decision.Writers = writers
+			decision.Due, decision.Reason = b.Reconcile.decideGraphDirty(now, state)
+			logGraphDirty(ctx, logger, scopeID, writers, decision.Reason)
+		}
 	}
-	return reconcileDecision{Due: due, Reason: reason, ScopeID: scopeID, State: state}
+	if decision.Reason == reconcileReasonInFlight || decision.Reason == reconcileReasonRetryBackoff {
+		b.recordReconcileSuppressed(ctx, decision.Reason)
+	}
+	return decision
+}
+
+// ReconcileSweepDecision reports whether the git collector's reconciliation
+// sweep, including the #7389 graph_dirty reason, would force a full snapshot
+// for scopeID at now with the given interval, and the bounded reason. It runs
+// the same decision the sync loop runs, without a per-cycle budget, so an
+// end-to-end proof can derive a generation's reconcile flag from production.
+func ReconcileSweepDecision(
+	ctx context.Context,
+	resolver DeltaBaselineResolver,
+	interval time.Duration,
+	now time.Time,
+	scopeID string,
+	logger *slog.Logger,
+) (bool, string) {
+	if resolver == nil || interval <= 0 {
+		return false, ""
+	}
+	baseline := gitDeltaBaseline{
+		Resolver:  resolver,
+		Reconcile: reconcilePolicy{Interval: interval},
+		Now:       func() time.Time { return now },
+	}
+	decision := baseline.decideForScope(ctx, scopeID, logger)
+	return decision.Due, decision.Reason
 }
 
 // resolveScopeBaseline returns the last projected commit SHA for the managed
@@ -239,10 +232,54 @@ func (b gitDeltaBaseline) resolveScopeBaseline(
 	return b.Resolver.LastProjectedCommitSHA(ctx, scopeID)
 }
 
+// logBaselineLookupFailed logs a failed baseline lookup.
+func logBaselineLookupFailed(ctx context.Context, logger *slog.Logger, repoPath string, err error) {
+	if logger == nil {
+		return
+	}
+	logger.WarnContext(ctx, "git_delta_baseline_lookup_failed", log.RepoPath(repoPath), log.Err(err))
+}
+
+// logGraphDirtyLookupFailed logs a failed #7389 uncovered-writer lookup; the
+// scope keeps its normal path and is decided again next cycle.
+func logGraphDirtyLookupFailed(ctx context.Context, logger *slog.Logger, scopeID string, err error) {
+	if logger == nil {
+		return
+	}
+	logger.WarnContext(ctx, "git_delta_baseline_graph_dirty_lookup_failed", log.ScopeID(scopeID), log.Err(err))
+}
+
+// logGraphDirty logs the git_delta_baseline_graph_dirty WARN: the generations
+// that wrote the graph without activating, and the reconcile decision they
+// produced (graph_dirty, or the throttle reason that holds it off).
+// Generation ids and timestamps ride only on the log, never a metric label.
+func logGraphDirty(ctx context.Context, logger *slog.Logger, scopeID string, writers []scope.UncoveredProjectionWriter, reason string) {
+	if logger == nil {
+		return
+	}
+	ids := make([]string, 0, len(writers))
+	statuses := make([]string, 0, len(writers))
+	classes := make([]string, 0, len(writers))
+	started := make([]string, 0, len(writers))
+	for _, writer := range writers {
+		ids = append(ids, writer.GenerationID)
+		statuses = append(statuses, string(writer.Status))
+		classes = append(classes, writer.FailureClass)
+		started = append(started, writer.ProjectionWriteStartedAt.Format(time.RFC3339Nano))
+	}
+	logger.WarnContext(ctx, "git_delta_baseline_graph_dirty",
+		log.ScopeID(scopeID),
+		slog.Any("generation_ids", ids),
+		slog.Any("generation_statuses", statuses),
+		slog.Any("failure_classes", classes),
+		slog.Any("projection_write_started_at", started),
+		slog.String("reason", reason),
+	)
+}
+
 // recordFallback emits the bounded delta-baseline fallback counter so operators
 // can watch the rate at which git syncs skip the delta path and re-observe a
-// full snapshot. reason is a closed enum (no_projected_baseline,
-// baseline_unreachable). The metric is best-effort: a nil Instruments is a
+// full snapshot. reason is one of the deltaFallback* constants. The metric is best-effort: a nil Instruments is a
 // no-op so the sync still runs in instrument-free contexts and tests.
 func (b gitDeltaBaseline) recordFallback(ctx context.Context, reason string) {
 	if b.Instruments == nil || b.Instruments.DeltaBaselineFallbacks == nil {

@@ -30,6 +30,12 @@ func (passBootstrapBaselineFence) RefuseDeltaBaseline(context.Context, projector
 	return errors.New("pass fence never refuses")
 }
 
+// MarkProjectionWriteStarted makes the pass fence double as a #7389 write
+// marker that always marks.
+func (passBootstrapBaselineFence) MarkProjectionWriteStarted(context.Context, projector.ScopeGenerationWork) error {
+	return nil
+}
+
 // scriptedBootstrapBaselineFence refuses every delta, or fails its read.
 type scriptedBootstrapBaselineFence struct {
 	mu       sync.Mutex
@@ -95,7 +101,7 @@ func TestDrainProjectorPreflightRefusalProjectsNothing(t *testing.T) {
 		runner := &countingBootstrapRunner{}
 		sink := &countingBootstrapSink{}
 		err := drainProjector(context.Background(), &concurrentWorkSource{items: bootstrapDeltaItems(3)},
-			&fakeFactStore{}, runner, sink, fence, nil, 0, workers, nil, nil, nil)
+			&fakeFactStore{}, runner, sink, fence, passBootstrapBaselineFence{}, nil, 0, workers, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("workers=%d drainProjector() = %v, want nil", workers, err)
 		}
@@ -114,7 +120,7 @@ func TestDrainProjectorPreflightReadErrorFailsClosed(t *testing.T) {
 	sink := &countingBootstrapSink{}
 	err := drainProjector(context.Background(), &concurrentWorkSource{items: bootstrapDeltaItems(1)},
 		&fakeFactStore{}, runner, sink, &scriptedBootstrapBaselineFence{readErr: errors.New("connection reset")},
-		nil, 0, 1, nil, nil, nil)
+		passBootstrapBaselineFence{}, nil, 0, 1, nil, nil, nil)
 	if err == nil {
 		t.Fatal("drainProjector() = nil, want the incomplete-drain error")
 	}
@@ -128,7 +134,7 @@ func TestDrainProjectorRequiresDeltaBaselineFence(t *testing.T) {
 	t.Parallel()
 	source := &concurrentWorkSource{items: bootstrapDeltaItems(1)}
 	err := drainProjector(context.Background(), source, &fakeFactStore{}, &fakeProjectionRunner{},
-		&concurrentWorkSink{}, nil, nil, 0, 1, nil, nil, nil)
+		&concurrentWorkSink{}, nil, passBootstrapBaselineFence{}, nil, 0, 1, nil, nil, nil)
 	if err == nil {
 		t.Fatal("drainProjector(nil fence) = nil, want error")
 	}

@@ -182,6 +182,8 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 	switch {
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(tx.state, args)), nil
+	case query == markProjectionWriteStartedQuery:
+		return newProofRows(proofMarkProjectionWriteStartedRows(tx.state, args)), nil
 	case strings.Contains(query, "WITH latest_generations AS"):
 		return newProofRows(proofLatestRelationshipFactRows(tx.state)), nil
 	case strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'"):

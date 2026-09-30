@@ -111,6 +111,7 @@ func (r *lockedRun) execute() error {
 				runner:        &fakeProjectionRunner{},
 				workSink:      &fakeWorkSink{},
 				baselineFence: passBootstrapBaselineFence{},
+				writeMarker:   passBootstrapBaselineFence{},
 			}, nil
 		},
 	)

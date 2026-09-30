@@ -52,6 +52,7 @@ func drainProjector(
 	runner projector.ProjectionRunner,
 	workSink projector.ProjectorWorkSink,
 	baselineFence projector.DeltaBaselineFence,
+	writeMarker projector.ProjectionWriteMarker,
 	heartbeater projector.ProjectorWorkHeartbeater,
 	heartbeatInterval time.Duration,
 	workers int,
@@ -62,8 +63,11 @@ func drainProjector(
 	if baselineFence == nil { // #7319: never project unfenced.
 		return errors.New("bootstrap projector: delta baseline fence is required")
 	}
+	if writeMarker == nil { // #7389: never write the graph unrecorded.
+		return errors.New("bootstrap projector: projection write marker is required")
+	}
 	if workers <= 1 {
-		return drainProjectorSequential(ctx, workSource, factStore, runner, workSink, baselineFence, heartbeater, heartbeatInterval, tracer, instruments, logger)
+		return drainProjectorSequential(ctx, workSource, factStore, runner, workSink, baselineFence, writeMarker, heartbeater, heartbeatInterval, tracer, instruments, logger)
 	}
 
 	overallStart := time.Now()
@@ -89,7 +93,7 @@ func drainProjector(
 				}
 
 				if err := drainProjectorWorkItem(
-					ctx, workSource, factStore, runner, workSink, baselineFence,
+					ctx, workSource, factStore, runner, workSink, baselineFence, writeMarker,
 					heartbeater, heartbeatInterval,
 					workerID, &completed, tracer, instruments, logger,
 				); err != nil {
@@ -193,6 +197,7 @@ func drainProjectorWorkItem(
 	runner projector.ProjectionRunner,
 	workSink projector.ProjectorWorkSink,
 	baselineFence projector.DeltaBaselineFence,
+	writeMarker projector.ProjectionWriteMarker,
 	heartbeater projector.ProjectorWorkHeartbeater,
 	heartbeatInterval time.Duration,
 	workerID int,
@@ -258,6 +263,11 @@ func drainProjectorWorkItem(
 		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, loadErr, span, logger, func() {
 			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)
 		})
+	}
+	if handled, err := markBootstrapProjectionWriteStarted(
+		itemCtx, heartbeatCtx, writeMarker, workSink, work, workerID, itemStart, stopHeartbeat, span, instruments, logger,
+	); handled {
+		return err
 	}
 
 	// Project
@@ -348,8 +358,10 @@ func startBootstrapProjectorHeartbeat(
 						return
 					}
 					heartbeatErr = fmt.Errorf("heartbeat bootstrap projector work: %w", err)
-					// The drain logs an expected claim loss at WARN; it must not page.
-					if logger != nil && !errors.Is(err, failure.ErrWorkClaimLost) {
+					// The drain logs an expected claim loss at WARN and a routine
+					// supersede at INFO (#7389); neither may page.
+					if logger != nil && !errors.Is(err, failure.ErrWorkClaimLost) &&
+						!errors.Is(err, failure.ErrWorkSuperseded) {
 						scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
 						logAttrs := make([]any, 0, len(scopeAttrs)+5)
 						for _, attr := range scopeAttrs {

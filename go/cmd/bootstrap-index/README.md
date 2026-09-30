@@ -468,11 +468,11 @@ exposing repository paths or raw parameters.
   marker before opening its projection writer. A missing marker triggers one
   strict graph schema apply and marker write; an incompatible marker stops
   startup before graph writes.
-- **Projector lease heartbeat.** Long canonical graph writes can outlast the
-  default projector lease. `startBootstrapProjectorHeartbeat` renews the lease
-  at `leaseDuration/3`, capped at 1 minute. A heartbeat can also return
-  `projector.ErrWorkSuperseded` when a newer same-scope generation exists; this
-  is an expected stale-work cancellation, not a bootstrap failure.
+- **Projector lease heartbeat.** `startBootstrapProjectorHeartbeat` renews the
+  lease at `leaseDuration/3`, capped at 1 minute. `ErrWorkSuperseded` (a newer
+  generation) is expected, not a failure, and never logs at ERROR; the
+  required `writeMarker` runs after LoadFacts, before any write, and once
+  it is set the heartbeat no longer supersedes that generation (#7389).
 - **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
   by default. The toggle is conformance-only; on NornicDB both states commit per
   dependency phase, because whole-materialization atomic canonical writes silently

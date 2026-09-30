@@ -133,7 +133,7 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 			var completed atomic.Int64
 			err := drainProjectorWorkItem(ctx,
 				&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
-				&fakeFactStore{}, runnerOrDefault(tt.runner), tt.sink, passBootstrapBaselineFence{}, tt.heartbeater,
+				&fakeFactStore{}, runnerOrDefault(tt.runner), tt.sink, passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, tt.heartbeater,
 				time.Millisecond, 0, &completed, tracer, nil, logger)
 			if err != nil {
 				t.Fatalf("drainProjectorWorkItem() error = %v, want nil", err)

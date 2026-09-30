@@ -13,13 +13,142 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// ProjectorQueue implements the delta-baseline fence (#7319) for every
-// projection loop that claims from it.
-var _ projector.DeltaBaselineFence = ProjectorQueue{}
+// ProjectorQueue implements the delta-baseline fence (#7319) and the
+// projection write-start marker (#7389) for every projection loop that claims
+// from it.
+var (
+	_ projector.DeltaBaselineFence    = ProjectorQueue{}
+	_ projector.ProjectionWriteMarker = ProjectorQueue{}
+)
+
+// projectorWriteMarkerGenerationRetiredClass is the failure class the marker
+// reports when the claimed generation is no longer pending or active and no
+// other writer recorded a class on the work row. It is logged, never written.
+const projectorWriteMarkerGenerationRetiredClass = "projector_write_marker_generation_retired"
+
+// MarkProjectionWriteStarted records that this attempt is about to write the
+// canonical graph and content store for its generation (#7389), keeping the
+// latest write start.
+// It runs markProjectionWriteStartedQuery in its own transaction under Ack's
+// lock_timeout. After it commits, the heartbeat supersede no longer retires
+// the generation for a newer one, so the attempt runs to Ack; a generation
+// that wrote and still never activated is found by UncoveredProjectionWriters.
+//
+// It returns nil when the marker is set. A lock timeout returns an error
+// wrapping failure.ErrWorkWriteMarkerDeferred: nothing changed and the caller
+// re-runs it. When no row is marked, writeMarkerRefusal decides: an error
+// wrapping failure.ErrWorkSuperseded when the generation is retired
+// (superseded, completed, or gone) or the work row was superseded, and
+// ErrProjectorClaimRejected when this attempt lost its claim.
+func (q ProjectorQueue) MarkProjectionWriteStarted(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+) (err error) {
+	if err := q.validate(); err != nil {
+		return err
+	}
+	defer func() {
+		if isPostgresLockNotAvailable(err) {
+			err = fmt.Errorf("%w: %w", failure.ErrWorkWriteMarkerDeferred, err)
+		}
+	}()
+	beginner, ok := q.database.(db.Beginner)
+	if !ok {
+		return errors.New("projector queue database must support Begin for the write marker")
+	}
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("mark projection write started: begin: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", q.ackLockTimeoutSetting()); err != nil {
+		return fmt.Errorf("mark projection write started: set lock timeout: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, markProjectionWriteStartedQuery,
+		work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount, q.now())
+	if err != nil {
+		return fmt.Errorf("mark projection write started: %w", err)
+	}
+	marked := rows.Next()
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("mark projection write started: %w", err)
+	}
+	_ = rows.Close()
+	if !marked {
+		// Release the connection before the classification read, which runs on
+		// the pool and would otherwise wait on a one-connection pool.
+		committed = true
+		_ = tx.Rollback()
+		return q.classifyWriteMarkerRefusal(ctx, work)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("mark projection write started: commit: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// classifyWriteMarkerRefusal reads why the marker matched no row. It runs on
+// the pool after the marker's transaction rolled back and takes no lock.
+// Only logging depends on the split: either way nothing was written.
+func (q ProjectorQueue) classifyWriteMarkerRefusal(ctx context.Context, work projector.ScopeGenerationWork) error {
+	var generationStatus, workStatus, workClass sql.NullString
+	rows, err := q.database.QueryContext(ctx, classifyWriteMarkerRefusalQuery,
+		work.Scope.ScopeID, work.Generation.GenerationID)
+	if err != nil {
+		return fmt.Errorf("mark projection write started: classify refusal: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		if err := rows.Scan(&generationStatus, &workStatus, &workClass); err != nil {
+			return fmt.Errorf("mark projection write started: classify refusal: scan: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("mark projection write started: classify refusal: %w", err)
+	}
+	return writeMarkerRefusal(work.Generation.GenerationID, generationStatus, workStatus, workClass)
+}
+
+// writeMarkerRetiredGenerationStatuses are the generation statuses the marker
+// treats as retired: the generation can never be written or activated again.
+// A missing row is retired too. failed is not: a dead-lettered generation can
+// be replayed and then activate through Ack (status <> 'superseded').
+var writeMarkerRetiredGenerationStatuses = map[string]bool{
+	string(scope.GenerationStatusSuperseded): true,
+	string(scope.GenerationStatusCompleted):  true,
+}
+
+// writeMarkerRefusal classifies a marker that matched no row. A superseded
+// work row, or a retired generation (superseded, completed, or missing), is
+// ErrWorkSuperseded, carrying the work row's failure class when it has one and
+// projectorWriteMarkerGenerationRetiredClass otherwise. Any other state
+// (pending, active or failed generation whose work row this attempt no longer
+// owns, or one that changed after the marker's read) is a lost claim: the
+// current owner, or the next claim, re-runs the marker.
+func writeMarkerRefusal(generationID string, generationStatus, workStatus, workClass sql.NullString) error {
+	retired := !generationStatus.Valid || writeMarkerRetiredGenerationStatuses[generationStatus.String]
+	if workStatus.String == "superseded" || retired {
+		class := strings.TrimSpace(workClass.String)
+		if class == "" {
+			class = projectorWriteMarkerGenerationRetiredClass
+		}
+		return fmt.Errorf("mark projection write started: generation %s: %w",
+			generationID, projectorWorkSupersededError{failureClass: class})
+	}
+	return fmt.Errorf("mark projection write started: %w", ErrProjectorClaimRejected)
+}
 
 // ReadDeltaBaseline reads the claimed generation and the scope's active
 // generation without a lock. It is the preflight read; Ack issues the same
@@ -260,4 +389,60 @@ WITH refused_work AS (
 )
 SELECT (SELECT count(*) FROM refused_work),
        (SELECT count(*) FROM refused_generation)
+`
+
+// markProjectionWriteStartedQuery is the #7389 write-start marker. It locks
+// only the claimed generation row and sets projection_write_started_at to the
+// latest write start: it never moves backwards, and a replayed generation
+// that writes again after a later full generation records the new write, so
+// UncoveredProjectionWriters still sees it. Markers come from q.now() on the
+// writing host, so comparing them across generations assumes the clock skew
+// between projector hosts is smaller than one projection (not measured); do
+// not switch to clock_timestamp(), which would make the value depend on lock
+// waits instead of the attempt. A failed generation is markable because a
+// dead-lettered generation can be replayed and then activate. The EXISTS is
+// the lease fence: it reads the work row without locking it, so the marker
+// never joins the work-row order. Because status sits on the locked row,
+// EvalPlanQual rechecks it against a heartbeat or Ack supersede that committed
+// while the marker waited, and the marker then matches no row.
+//
+// A pre-migration active generation with a NULL marker has one residual: a
+// supersede that commits between the marker's snapshot and its row lock still
+// passes the snapshot-read EXISTS. The worker then rewrites the active
+// generation's own tree and its Ack returns ErrProjectorClaimRejected. That
+// wastes the attempt but leaves the graph at the active generation.
+//
+// $1 scope, $2 generation, $3 lease owner, $4 attempt, $5 now.
+const markProjectionWriteStartedQuery = `
+UPDATE scope_generations
+SET projection_write_started_at = GREATEST(COALESCE(projection_write_started_at, $5), $5)
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND status IN ('pending', 'active', 'failed')
+  AND EXISTS (
+      SELECT 1
+      FROM fact_work_items AS work
+      WHERE work.stage = 'projector'
+        AND work.scope_id = $1
+        AND work.generation_id = $2
+        AND work.lease_owner = $3
+        AND work.attempt_count = $4
+        AND work.status IN ('claimed', 'running')
+  )
+RETURNING generation_id
+`
+
+// classifyWriteMarkerRefusalQuery explains a marker that matched no row: the
+// generation status and the projector work row's status and failure class.
+const classifyWriteMarkerRefusalQuery = `
+SELECT generation.status,
+       work.status,
+       work.failure_class
+FROM scope_generations AS generation
+LEFT JOIN fact_work_items AS work
+  ON work.stage = 'projector'
+ AND work.scope_id = generation.scope_id
+ AND work.generation_id = generation.generation_id
+WHERE generation.scope_id = $1
+  AND generation.generation_id = $2
 `

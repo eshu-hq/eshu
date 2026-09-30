@@ -195,6 +195,11 @@ func (r staticBaselineResolver) FullReconcileState(_ context.Context, _ string) 
 	}, nil
 }
 
+// UncoveredProjectionWriters reports a clean graph (#7389).
+func (r staticBaselineResolver) UncoveredProjectionWriters(context.Context, string) ([]scope.UncoveredProjectionWriter, error) {
+	return nil, nil
+}
+
 // TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved proves N1:
 // syncGitRepositoriesWithLogger refreshes pinned ref worktrees EVERY cycle,
 // even when the default branch did not move (the epic #5393 motivating

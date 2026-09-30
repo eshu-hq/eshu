@@ -262,6 +262,7 @@ func TestServiceRunRecordsAckWaitWithServiceInstruments(t *testing.T) {
 		Runner:             &stubProjectionRunner{},
 		WorkSink:           &alwaysDeferSink{},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Heartbeater:        &stubProjectorWorkHeartbeater{},
 		HeartbeatInterval:  time.Hour,
 		Instruments:        instruments,

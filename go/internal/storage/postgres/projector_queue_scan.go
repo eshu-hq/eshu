@@ -340,3 +340,154 @@ func (q ProjectorQueue) supersedeRunningWork(
 	return fmt.Errorf("heartbeat projector work: generation %s: %w",
 		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: class})
 }
+
+// supersedeRunningProjectorWorkQuery runs on every heartbeat. It never waits:
+// ingestion holds the scope row while it streams facts, and a waiting heartbeat
+// would let the lease lapse, so every lock is SKIP LOCKED and a held row defers
+// supersession to a later heartbeat. NO KEY UPDATE does not conflict with
+// foreign-key KEY SHARE locks from unrelated child inserts.
+//
+// Two triggers stop the running work. A newer pending or active generation
+// replaces a pending or active one only while it has not started writing the
+// graph (projection_write_started_at IS NULL, #7389): the heartbeat never
+// abandons a started projection write to a newer generation, so the attempt
+// runs to Ack and a stale delta is refused at the #7319 preflight. Every other
+// retirement of a started write (claim-path or Ack obsolete supersede, dead
+// letter, Ack refusal) is healed by a forced full snapshot, the collector's
+// graph_dirty reconciliation. And the work's own generation is already
+// superseded (#7130), marker or not: a newer Ack retired it, typically while
+// this worker's lease had expired. The statement returns one row, carrying the
+// generation status the work was stopped under, when it superseded the work.
+//
+// The gate lives in locked_generation, on the locked row: EvalPlanQual
+// rechecks only the rows a statement locks or updates, and reads every other
+// row from the snapshot, so a gate on an unlocked joined row missed a marker
+// committed after the snapshot and let both win (341 of 1,000 races). An
+// uncommitted marker holds the row, and SKIP LOCKED makes this a no-op. The
+// full predicate keeps the steady-state heartbeat off the generation row.
+//
+// Lock order: scope row, own work row (full lease fence), own generation row,
+// each FOR NO KEY UPDATE SKIP LOCKED, then the UPDATEs of the rows it holds.
+// The heartbeat takes no lock it can wait on, so it cannot join a wait cycle.
+// Every blocking path takes the scope row first; the delta-baseline refusal
+// and Ack share work-then-generation. Generation-before-work deadlocked
+// (40P01) with the refusal, which takes no scope row, and a heartbeat error
+// stops the worker pool (TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal).
+// The lease renew that follows, heartbeatProjectorWorkQuery, is a single-row
+// blocking UPDATE that holds nothing else.
+const supersedeRunningProjectorWorkQuery = `
+WITH locked_scope AS MATERIALIZED (
+    SELECT scope_id
+    FROM ingestion_scopes
+    WHERE scope_id = $2
+    FOR NO KEY UPDATE SKIP LOCKED
+),
+locked_work AS MATERIALIZED (
+    SELECT work.work_item_id, work.scope_id, work.generation_id
+    FROM locked_scope AS scope
+    JOIN fact_work_items AS work ON work.scope_id = scope.scope_id
+    WHERE work.stage = 'projector'
+      AND work.generation_id = $3
+      AND work.lease_owner = $4
+      AND work.attempt_count = $5
+      AND work.status IN ('claimed', 'running')
+    FOR NO KEY UPDATE OF work SKIP LOCKED
+),
+locked_generation AS MATERIALIZED (
+    SELECT generation.generation_id
+    FROM locked_work AS owned
+    JOIN scope_generations AS generation ON generation.scope_id = owned.scope_id
+    WHERE generation.generation_id = $3
+      AND (
+          generation.status = 'superseded'
+          OR (
+              generation.status IN ('pending', 'active')
+              AND generation.projection_write_started_at IS NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM scope_generations AS newer
+                  WHERE newer.scope_id = generation.scope_id
+                    AND newer.generation_id <> generation.generation_id
+                    AND newer.status IN ('pending', 'active')
+                    AND (
+                        newer.ingested_at > generation.ingested_at
+                        OR (
+                            newer.ingested_at = generation.ingested_at
+                            AND newer.generation_id > generation.generation_id
+                        )
+                    )
+              )
+          )
+      )
+    FOR NO KEY UPDATE OF generation SKIP LOCKED
+),
+superseded_work AS (
+UPDATE fact_work_items AS work
+SET status = 'superseded',
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    next_attempt_at = NULL,
+    updated_at = $1,
+    failure_class = CASE
+        WHEN current_generation.status = 'superseded' THEN '` + projectorHeartbeatGenerationSupersededClass + `'
+        ELSE 'projector_superseded_by_newer_generation'
+    END,
+    failure_message = CASE
+        WHEN current_generation.status = 'superseded' THEN 'running projector work stopped: generation already superseded'
+        ELSE 'running projector work superseded by newer same-scope generation'
+    END,
+    failure_details = jsonb_build_object(
+        'scope_id', work.scope_id,
+        'work_item_id', work.work_item_id,
+        'generation_id', work.generation_id,
+        'generation_status', current_generation.status
+    ) || ` + priorFailureWorkSQL + `
+FROM locked_work AS owned,
+     locked_generation AS locked_generation,
+     scope_generations AS current_generation
+WHERE work.work_item_id = owned.work_item_id
+  AND work.stage = 'projector'
+  AND current_generation.generation_id = locked_generation.generation_id
+  AND work.scope_id = owned.scope_id
+  AND work.generation_id = $3
+  AND work.lease_owner = $4
+  AND work.attempt_count = $5
+  AND work.status IN ('claimed', 'running')
+  AND current_generation.scope_id = work.scope_id
+  AND current_generation.generation_id = work.generation_id
+  AND (
+      current_generation.status = 'superseded'
+      OR (
+          current_generation.status IN ('pending', 'active')
+          AND current_generation.projection_write_started_at IS NULL
+          AND EXISTS (
+              SELECT 1
+              FROM scope_generations AS newer
+              WHERE newer.scope_id = current_generation.scope_id
+                AND newer.generation_id <> current_generation.generation_id
+                AND newer.status IN ('pending', 'active')
+                AND (
+                    newer.ingested_at > current_generation.ingested_at
+                    OR (
+                        newer.ingested_at = current_generation.ingested_at
+                        AND newer.generation_id > current_generation.generation_id
+                    )
+                )
+          )
+      )
+  )
+  RETURNING work.generation_id, current_generation.status AS generation_status
+)
+UPDATE scope_generations AS generation
+-- An active generation remains published until successor Ack changes the scope
+-- pointer in the same transaction, and a superseded one is terminal. Still
+-- update this row so the statement returns the superseded work to Heartbeat
+-- for every generation status; only a pending generation changes.
+SET status = CASE WHEN generation.status = 'pending' THEN 'superseded' ELSE generation.status END,
+    superseded_at = CASE WHEN generation.status = 'pending' THEN $1 ELSE generation.superseded_at END
+FROM superseded_work
+WHERE generation.generation_id = superseded_work.generation_id
+  AND generation.status IN ('pending', 'active', 'superseded')
+RETURNING superseded_work.generation_status
+`

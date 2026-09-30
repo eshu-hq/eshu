@@ -24,6 +24,9 @@
 // FullReconcileState is the value the git reconciliation sweep decides on: the
 // newest activated full generation and the newest full generation of any
 // status for one scope, filled by the Postgres ingestion store.
+// UncoveredProjectionWriter is a generation that started writing the graph,
+// never activated, and is not covered by a later activated full generation
+// (#7389); the git collector forces a full snapshot while one exists.
 // AllCollectorKinds enumerates every collector kind in a stable order and is the
 // single source of truth for tooling that must cover the full collector fleet
 // (readiness reports, promotion proofs, fleet hygiene); adding a collector means

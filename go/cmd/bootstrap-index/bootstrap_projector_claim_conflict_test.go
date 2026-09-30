@@ -75,7 +75,7 @@ func TestDrainProjectorWorkItemSurvivesClaimConflict(t *testing.T) {
 
 	err := drainProjectorWorkItem(
 		context.Background(), source, &fakeFactStore{}, &fakeProjectionRunner{}, sink,
-		passBootstrapBaselineFence{}, nil, 0, 0, &completed, nil, nil, nil,
+		passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, nil, 0, 0, &completed, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("drainProjectorWorkItem() error = %v, want nil: a claim conflict must not end the worker", err)
@@ -101,7 +101,7 @@ func TestDrainProjectorSurvivesClaimConflictAcrossWorkers(t *testing.T) {
 
 			err := drainProjector(
 				context.Background(), source, &fakeFactStore{}, &fakeProjectionRunner{}, sink,
-				passBootstrapBaselineFence{}, nil, 0, workers, nil, nil, nil,
+				passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, nil, 0, workers, nil, nil, nil,
 			)
 			if err != nil {
 				t.Fatalf("drainProjector() error = %v, want nil", err)
@@ -120,7 +120,7 @@ func TestDrainProjectorStillStopsOnNonConflictClaimError(t *testing.T) {
 	for _, workers := range []int{1, 2} {
 		err := drainProjector(
 			context.Background(), errorClaimSource{err: wantErr}, &fakeFactStore{}, &fakeProjectionRunner{},
-			&concurrentWorkSink{}, passBootstrapBaselineFence{}, nil, 0, workers, nil, nil, nil,
+			&concurrentWorkSink{}, passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, nil, 0, workers, nil, nil, nil,
 		)
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("workers=%d drainProjector() error = %v, want %v", workers, err, wantErr)
@@ -144,7 +144,7 @@ func TestDrainProjectorWorkItemClaimConflictWaitStopsOnContextCancel(t *testing.
 	go func() {
 		done <- drainProjectorWorkItem(
 			ctx, source, &fakeFactStore{}, &fakeProjectionRunner{}, &concurrentWorkSink{},
-			passBootstrapBaselineFence{}, nil, 0, 0, &completed, nil, nil, nil,
+			passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, nil, 0, 0, &completed, nil, nil, nil,
 		)
 	}()
 	for source.claimCalls() == 0 {
@@ -176,7 +176,7 @@ func TestDrainProjectorWorkItemLogsClaimConflict(t *testing.T) {
 
 	if err := drainProjectorWorkItem(
 		context.Background(), source, &fakeFactStore{}, &fakeProjectionRunner{}, &concurrentWorkSink{},
-		passBootstrapBaselineFence{}, nil, 0, 3, &completed, nil, nil, logger,
+		passBootstrapBaselineFence{}, passBootstrapBaselineFence{}, nil, 0, 3, &completed, nil, nil, logger,
 	); err != nil {
 		t.Fatalf("drainProjectorWorkItem() error = %v, want nil", err)
 	}

@@ -109,6 +109,7 @@ func TestRunBeginsSecretLinesDeferralBeforeWritesAndFinalizesAfterThePipeline(t 
 				runner:        &fakeProjectionRunner{},
 				workSink:      &fakeWorkSink{},
 				baselineFence: passBootstrapBaselineFence{},
+				writeMarker:   passBootstrapBaselineFence{},
 			}, nil
 		},
 	)

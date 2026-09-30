@@ -345,4 +345,8 @@ var orderedBootstrapDefinitionNames = []string{
 	"fact_records_file_key_idx",
 	// Migration 148 (#7319) records the commit a delta generation diffed from.
 	"scope_generations_delta_baseline_commit_sha",
+	// Migrations 149-150 (#7389) add the projector write-start marker and give
+	// scope_generations the free space that keeps the marker update HOT.
+	"scope_generations_projection_write_started_at",
+	"scope_generations_fillfactor",
 }

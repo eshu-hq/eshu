@@ -1,0 +1,176 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package projector
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
+)
+
+// The projection write-through contract (#7389): a claimed generation records
+// that it is about to write the canonical graph and content store before its
+// first write, after LoadFacts. Once the marker is set the heartbeat supersede
+// no longer retires the generation for a newer pending one, so the attempt
+// runs to Ack; a newer delta that was diffed from the same active commit is
+// then refused by the #7319 preflight instead of activating over this
+// generation's overlay. A generation that wrote and still never activated (a
+// dead letter, an expired lease that was replaced, or an Ack refusal) keeps
+// its marker, and the git collector forces its next sync to a full snapshot.
+
+// errWriteMarkerMissing is returned when a projection loop runs without its
+// write marker. Wiring rejects this at startup; the check here keeps a nil
+// marker from ever meaning "write without recording it".
+var errWriteMarkerMissing = errors.New("projector write marker is required")
+
+// DefaultWriteMarkerMaxAttempts bounds how many times MarkProjectionWriteStarted
+// re-runs a marker whose lock wait timed out. With the Postgres queue's 2 s
+// lock timeout it gives a busy generation row about five minutes, the same
+// budget AckWhenScopeFree gives a busy scope row.
+const DefaultWriteMarkerMaxAttempts = 150
+
+// ProjectionWriteMarker records that a claimed generation is about to write
+// the graph. The Postgres projector queue implements it. Every projection loop
+// takes it as an explicitly wired, required dependency, never discovered by a
+// type assertion, so a wrapper cannot silently drop it.
+type ProjectionWriteMarker interface {
+	// MarkProjectionWriteStarted sets the generation's write-start marker to
+	// the latest write start, fenced on this attempt's claim. It returns an
+	// error wrapping failure.ErrWorkWriteMarkerDeferred when its lock wait
+	// timed out (nothing changed), failure.ErrWorkSuperseded when the
+	// generation is retired, and failure.ErrWorkClaimLost when this attempt
+	// lost its claim.
+	MarkProjectionWriteStarted(context.Context, ScopeGenerationWork) error
+}
+
+// writeMarkerRetryableError makes a marker that could not decide fail closed:
+// the work does not project, and the queue retries it.
+type writeMarkerRetryableError struct{ err error }
+
+// Error reports the underlying failure.
+func (e writeMarkerRetryableError) Error() string { return e.err.Error() }
+
+// Unwrap exposes the underlying failure.
+func (e writeMarkerRetryableError) Unwrap() error { return e.err }
+
+// Retryable marks the failure retryable for failure.IsRetryable.
+func (writeMarkerRetryableError) Retryable() bool { return true }
+
+// MarkProjectionWriteStarted runs marker before a claimed generation's first
+// graph or content write (#7389). It re-runs the marker while it reports
+// failure.ErrWorkWriteMarkerDeferred, up to DefaultWriteMarkerMaxAttempts, and
+// relies on the caller's heartbeat to keep the lease meanwhile. onDeferred,
+// when set, is called with the retry number after each deferral.
+//
+// It returns nil when projection may write. failure.ErrWorkSuperseded and
+// failure.ErrWorkClaimLost pass through unchanged: the caller drops the work
+// without writing. A canceled ctx returns the context error. Any other
+// failure, including exhausted retries, returns a retryable error: the caller
+// must not project and routes it to the queue's Fail path.
+func MarkProjectionWriteStarted(
+	ctx context.Context,
+	marker ProjectionWriteMarker,
+	work ScopeGenerationWork,
+	onDeferred func(retry int),
+) error {
+	if marker == nil {
+		return errWriteMarkerMissing
+	}
+	for attempt := 1; ; attempt++ {
+		err := marker.MarkProjectionWriteStarted(ctx, work)
+		switch {
+		case err == nil:
+			return nil
+		case errors.Is(err, failure.ErrWorkSuperseded), errors.Is(err, failure.ErrWorkClaimLost):
+			return err
+		case ctx.Err() != nil:
+			return fmt.Errorf("mark projection write started: %w", errors.Join(ctx.Err(), err))
+		case !errors.Is(err, failure.ErrWorkWriteMarkerDeferred):
+			return writeMarkerRetryableError{fmt.Errorf("mark projection write started: %w", err)}
+		case attempt >= DefaultWriteMarkerMaxAttempts:
+			return writeMarkerRetryableError{fmt.Errorf("mark projection write started after %d attempts: %w", attempt, err)}
+		}
+		if onDeferred != nil {
+			onDeferred(attempt)
+		}
+	}
+}
+
+// markProjectionWriteStarted runs MarkProjectionWriteStarted for processWork
+// after LoadFacts and before Runner.Project, and reports whether it handled
+// the work item. projectCtx is the heartbeat context; stopHeartbeat is checked
+// first, so a supersede or claim loss the heartbeat saw wins. Superseded work
+// and a lost claim are dropped with fact_count 0, since nothing was projected;
+// a shutdown is recorded as canceled; any other failure is routed to Fail.
+func (s Service) markProjectionWriteStarted(
+	workCtx context.Context,
+	projectCtx context.Context,
+	work ScopeGenerationWork,
+	stopHeartbeat projectorHeartbeatStop,
+	start time.Time,
+	workerID int,
+) (bool, error) {
+	err := MarkProjectionWriteStarted(projectCtx, s.WriteMarker, work,
+		WriteMarkerDeferredLogger(workCtx, s.Logger, work, workerID))
+	if err == nil {
+		return false, nil
+	}
+	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
+		if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) ||
+			s.recordClaimLostWork(workCtx, work, start, 0, heartbeatErr, "heartbeat", workerID) {
+			return true, nil
+		}
+		err = errors.Join(err, heartbeatErr)
+	}
+	switch {
+	case s.recordSupersededWork(workCtx, work, start, 0, err, workerID):
+		return true, nil
+	case s.recordClaimLostWork(workCtx, work, start, 0, err, "write_marker", workerID):
+		return true, nil
+	case projectorShutdownCanceled(workCtx, err):
+		s.recordProjectionShutdownCanceled(workCtx, work, start, 0, err, workerID)
+		return true, nil
+	default:
+		return true, s.failWork(workCtx, work, start, 0, err, workerID)
+	}
+}
+
+// writeMarkerDeferredLogEvery spaces repeated deferral logs; with the Postgres
+// queue's 2 s lock timeout this is roughly one line per minute of waiting.
+const writeMarkerDeferredLogEvery = 30
+
+// WriteMarkerDeferredLogger returns an onDeferred callback for
+// MarkProjectionWriteStarted that logs WARN on the first marker deferral and
+// every writeMarkerDeferredLogEvery retries after, with the scope, generation,
+// attempt and retry count, so a generation row held for a long time is
+// visible without a line per lock timeout. A nil logger returns nil.
+func WriteMarkerDeferredLogger(ctx context.Context, logger *slog.Logger, work ScopeGenerationWork, workerID int) func(int) {
+	if logger == nil {
+		return nil
+	}
+	return func(retry int) {
+		if retry != 1 && retry%writeMarkerDeferredLogEvery != 0 {
+			return
+		}
+		scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
+		attrs := make([]any, 0, len(scopeAttrs)+5)
+		for _, attr := range scopeAttrs {
+			attrs = append(attrs, attr)
+		}
+		attrs = append(attrs,
+			log.Queue("projector"),
+			slog.Int("marker_retry", retry),
+			slog.Int("attempt_count", work.AttemptCount),
+			log.WorkerID(fmt.Sprintf("%d", workerID)),
+			telemetry.PhaseAttr(telemetry.PhaseProjection),
+		)
+		logger.WarnContext(context.WithoutCancel(ctx), "projector write marker waiting for busy generation row", attrs...)
+	}
+}

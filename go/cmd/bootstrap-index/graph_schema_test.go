@@ -79,6 +79,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 				runner:        &fakeProjectionRunner{},
 				workSink:      &fakeWorkSink{},
 				baselineFence: passBootstrapBaselineFence{},
+				writeMarker:   passBootstrapBaselineFence{},
 			}, nil
 		},
 	)

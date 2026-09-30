@@ -149,6 +149,7 @@ func TestRunPipelinedEmitsBootstrapPhaseTimings(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err != nil {
@@ -211,6 +212,7 @@ func TestRunPipelinedRecordsPhaseDurationOnError(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	err = runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil)
@@ -277,6 +279,7 @@ func TestRunPipelinedProjectionPhaseExcludesBackfillWait(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err != nil {
@@ -331,6 +334,7 @@ func TestRunPipelinedRecordsDeploymentReopenPhaseOnError(t *testing.T) {
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	if err := runPipelined(context.Background(), cd, pd, 2, nil, instruments, nil); err == nil {
@@ -398,6 +402,7 @@ func TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion(t *testi
 		runner:        &fakeProjectionRunner{},
 		workSink:      sink,
 		baselineFence: passBootstrapBaselineFence{},
+		writeMarker:   passBootstrapBaselineFence{},
 	}
 
 	done := make(chan error, 1)

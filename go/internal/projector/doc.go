@@ -18,7 +18,14 @@
 // PreflightDeltaBaseline before it loads facts, and Ack re-checks it (#7319):
 // a delta generation activates only while the scope's active commit equals
 // the commit the delta was diffed from; a refused delta is marked superseded
-// with its own failure class. Workers drop the item when a
+// with its own failure class. After LoadFacts and before its first graph or
+// content write, every loop runs MarkProjectionWriteStarted through its
+// required ProjectionWriteMarker (#7389): the heartbeat never abandons a
+// started projection write to a newer generation, so a writer runs to Ack and
+// a stale delta is refused at preflight instead of activating over its
+// overlay. Every other retirement of a started write is healed by a forced
+// full snapshot (the git collector's graph_dirty reconcile reason). A routine
+// heartbeat supersede is not logged as a heartbeat failure. Workers drop the item when a
 // Heartbeat, Ack, or Fail returns ErrWorkClaimLost because another attempt
 // owns the item. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.

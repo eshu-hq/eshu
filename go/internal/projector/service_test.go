@@ -69,6 +69,7 @@ func TestServiceRunClaimsLoadsProjectsAndAcknowledges(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
@@ -127,6 +128,7 @@ func TestServiceRunTreatsRetriedFirstGenerationAsCleanupRequired(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           &stubProjectorWorkSink{},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
@@ -178,6 +180,7 @@ func TestServiceRunLogsFactLoadAndProjectionStages(t *testing.T) {
 		}},
 		WorkSink:           &stubProjectorWorkSink{},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 		Logger:             slog.New(slog.NewJSONHandler(&logs, nil)),
 	}
@@ -228,6 +231,7 @@ func TestServiceRunMarksFailureWhenProjectionFails(t *testing.T) {
 		Runner:             &stubProjectionRunner{runErr: wantErr},
 		WorkSink:           &stubProjectorWorkSink{},
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 	}
 
@@ -286,6 +290,7 @@ func TestServiceRunHeartbeatsLongRunningProjection(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Heartbeater:        heartbeater,
 		HeartbeatInterval:  5 * time.Millisecond,
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
@@ -344,6 +349,7 @@ func TestServiceRunStopsWhenHeartbeatLosesLease(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Heartbeater:        heartbeater,
 		HeartbeatInterval:  5 * time.Millisecond,
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
@@ -402,6 +408,7 @@ func TestServiceRunAcksWithLiveContextAfterHeartbeatStops(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Heartbeater:        heartbeater,
 		HeartbeatInterval:  5 * time.Millisecond,
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
@@ -667,6 +674,7 @@ func TestServiceRunWithTelemetry(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 		Tracer:             tracer,
 		Instruments:        instruments,
@@ -809,6 +817,7 @@ func TestServiceRunConcurrentMultipleItems(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 		Workers:            3,
 	}
@@ -950,6 +959,7 @@ func TestServiceRunConcurrentErrorCancelsWorkers(t *testing.T) {
 		Runner:             runner,
 		WorkSink:           sink,
 		DeltaBaselineFence: &fakeDeltaBaselineFence{},
+		WriteMarker:        &fakeWriteMarker{},
 		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
 		Workers:            3,
 	}
@@ -1071,6 +1081,7 @@ func TestLargeGenSemaphoreLimitsConcurrency(t *testing.T) {
 		Runner:                runner,
 		WorkSink:              &stubProjectorWorkSink{},
 		DeltaBaselineFence:    &fakeDeltaBaselineFence{},
+		WriteMarker:           &fakeWriteMarker{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		Workers:               3,
 		FactCounter:           counter,
@@ -1142,6 +1153,7 @@ func TestSmallGenBypassesSemaphore(t *testing.T) {
 		Runner:                runner,
 		WorkSink:              &stubProjectorWorkSink{},
 		DeltaBaselineFence:    &fakeDeltaBaselineFence{},
+		WriteMarker:           &fakeWriteMarker{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		Workers:               3,
 		FactCounter:           counter,
@@ -1198,6 +1210,7 @@ func TestLargeGenSemaphoreSkipsOnCountError(t *testing.T) {
 		Runner:                &stubProjectionRunner{result: runtime.Result{ScopeID: "scope-123", GenerationID: "generation-456"}},
 		WorkSink:              &stubProjectorWorkSink{},
 		DeltaBaselineFence:    &fakeDeltaBaselineFence{},
+		WriteMarker:           &fakeWriteMarker{},
 		Wait:                  func(context.Context, time.Duration) error { return context.Canceled },
 		FactCounter:           counter,
 		LargeGenThreshold:     1,

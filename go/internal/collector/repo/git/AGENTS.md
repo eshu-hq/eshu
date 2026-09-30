@@ -43,6 +43,16 @@ A delta generation must carry the commit it was diffed from
 #7319); the projector refuses a delta whose baseline is not the active commit,
 and `validateGenerationInput` rejects a delta without one.
 
+`UncoveredProjectionWriters` (#7389) is a reconcile reason, not a fallback:
+`decideForScope` probes it only when the sweep is not due and not throttled,
+inside the per-cycle budget, and `decideGraphDirty` shares `throttle` with
+`decide` (never the fresh check). A graph_dirty scope must go through the
+forced-reconcile path so `Reconcile` reaches the fact builder and
+`GenerationFreshnessHint` blanks the hint; a plain full snapshot is dropped as
+unchanged by the ingestion store. The `deltaFallback*` constants are the closed
+`skip_reason` set and the `reconcileReason*` constants the closed reconcile
+`reason` set; add a value there and in the telemetry docs together.
+
 The generation estimate is assembled from per-family pre-count functions. If you
 change what an emitter sends, change its pre-count in the same edit.
 

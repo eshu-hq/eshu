@@ -28,3 +28,10 @@ var ErrWorkAckDeferred = errors.New("projector work ack deferred: scope busy")
 // retry. The statement rolled back, so no work item changed; the worker waits
 // one poll interval and claims again instead of stopping its siblings.
 var ErrWorkClaimConflict = errors.New("projector work claim conflict")
+
+// ErrWorkWriteMarkerDeferred reports that the projection write-start marker
+// (#7389) could not lock its own generation row within its lock timeout,
+// usually because an ingestion commit for a newer generation of the scope is
+// retiring it. The marker changed nothing and the attempt has not written the
+// graph, so the caller re-runs the marker while its heartbeat keeps the lease.
+var ErrWorkWriteMarkerDeferred = errors.New("projector work write marker deferred: generation row busy")

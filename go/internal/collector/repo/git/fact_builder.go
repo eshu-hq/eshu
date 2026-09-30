@@ -47,6 +47,18 @@ func buildStreamingGeneration(
 	return buildStreamingGenerationWithContext(context.Background(), repoPath, repo, sourceRunID, observedAt, snapshot, isDependency, ref)
 }
 
+// GenerationFreshnessHint returns the freshness hint a git generation
+// carries: empty for a reconciliation snapshot (the sweep, or the #7389
+// graph_dirty reason), so the ingestion store's unchanged-generation skip never
+// elides it and the full re-projects even when the content hash is unchanged;
+// the snapshot's content hint otherwise.
+func GenerationFreshnessHint(snapshotHint string, reconcile bool) string {
+	if reconcile {
+		return ""
+	}
+	return snapshotHint
+}
+
 func buildStreamingGenerationWithContext(
 	ctx context.Context,
 	repoPath string,
@@ -61,13 +73,7 @@ func buildStreamingGenerationWithContext(
 		ctx = context.Background()
 	}
 	scopeValue := buildScope(repo, ref)
-	// A reconciliation snapshot carries an empty freshness hint so the
-	// commit-time skip never elides it: the sweep must re-project the full
-	// observation to retract drift even when the content hash is unchanged.
-	freshnessHint := snapshotFreshnessHint(snapshot)
-	if snapshot.Reconcile {
-		freshnessHint = ""
-	}
+	freshnessHint := GenerationFreshnessHint(snapshotFreshnessHint(snapshot), snapshot.Reconcile)
 	generation := buildGeneration(
 		scopeValue.ScopeID,
 		sourceRunID,

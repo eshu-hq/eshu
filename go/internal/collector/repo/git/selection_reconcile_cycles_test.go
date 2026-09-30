@@ -31,6 +31,8 @@ type reconcileWorldGeneration struct {
 // projector lifecycle between selection cycles.
 type reconcileWorld struct {
 	generations []reconcileWorldGeneration
+	// writers answers UncoveredProjectionWriters (#7389).
+	writers []scope.UncoveredProjectionWriter
 }
 
 func (w *reconcileWorld) LastProjectedCommitSHA(_ context.Context, _ string) (string, error) {
@@ -67,6 +69,11 @@ func (w *reconcileWorld) FullReconcileState(_ context.Context, _ string) (scope.
 		}
 	}
 	return state, nil
+}
+
+// UncoveredProjectionWriters reports the world's #7389 uncovered writers.
+func (w *reconcileWorld) UncoveredProjectionWriters(context.Context, string) ([]scope.UncoveredProjectionWriter, error) {
+	return w.writers, nil
 }
 
 // lastFull returns the index of the newest full generation.
