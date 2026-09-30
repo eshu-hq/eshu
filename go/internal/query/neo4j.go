@@ -9,12 +9,15 @@ package query
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/query/graph/statement"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -61,12 +64,66 @@ func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]
 	return r.runRead(ctx, cypher, params)
 }
 
+// graphReadError pairs the bounded public error a caller may show a client
+// with the driver cause an operator needs. Error() returns only the public
+// text, so a handler that writes err.Error() into a response body (or wraps
+// it with %w and does so later) cannot leak the statement a driver error
+// quotes (#7253). Unwrap and Is keep the cause reachable for errors.As and
+// errors.Is classification.
+type graphReadError struct {
+	public error
+	cause  error
+}
+
+func (e *graphReadError) Error() string { return e.public.Error() }
+func (e *graphReadError) Unwrap() error { return e.cause }
+func (e *graphReadError) Is(target error) bool {
+	return target == e.public || errors.Is(e.cause, target)
+}
+
 // redactedSpanError wraps err so span RecordError/SetStatus never carry raw
 // driver text: statement errors quote the offending statement, and ad-hoc
 // routes send it with inline literals (#7065). It redacts exactly like the
-// statement head and fingerprint (#7035).
+// statement head and fingerprint (#7035). A graphReadError's public text is
+// deliberately generic, so the redacted driver cause is what reaches the span
+// -- the operator detail the response no longer carries (#7253).
 func redactedSpanError(err error) error {
+	var readErr *graphReadError
+	if errors.As(err, &readErr) && readErr.cause != nil {
+		err = readErr.cause
+	}
 	return errors.New(statement.Redact(err.Error()))
+}
+
+// logGraphReadError emits the operator-facing record for a graph read the
+// backend rejected or failed outside the deadline and availability classes. It
+// carries the redacted driver detail that the client-facing error omits, plus
+// the statement fingerprint and head that name the offending shape, so a 500
+// with a bounded body stays diagnosable at 3 AM (#7253).
+func (r *Neo4jReader) logGraphReadError(
+	ctx context.Context,
+	err error,
+	duration time.Duration,
+	statementFingerprint string,
+	cypher string,
+	queryName string,
+) {
+	logger := r.policy.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.ErrorContext(
+		ctx,
+		"bounded graph read failed",
+		telemetry.EventAttr("query.graph_read.error"),
+		telemetry.PhaseAttr(telemetry.PhaseQuery),
+		telemetry.FailureClassAttr(string(graphReadOutcomeError)),
+		slog.Float64("duration_seconds", duration.Seconds()),
+		slog.String(telemetry.LogKeyGraphReadStatementFingerprint, statementFingerprint),
+		slog.String(telemetry.LogKeyGraphReadStatementHead, graphStatementHead(cypher)),
+		slog.String(telemetry.LogKeyGraphReadQueryName, queryName),
+		slog.String(telemetry.LogKeyGraphReadError, redactedSpanError(err).Error()),
+	)
 }
 
 // RunSingle executes a Cypher query expecting at most one result row.

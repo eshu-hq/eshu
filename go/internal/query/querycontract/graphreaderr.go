@@ -18,6 +18,13 @@ var (
 	ErrGraphReadDeadline = errors.New("graph query exceeded its deadline")
 	// ErrGraphUnavailable reports that the graph backend could not serve a read.
 	ErrGraphUnavailable = errors.New("graph temporarily unavailable; retry after graph health is restored")
+	// ErrGraphQueryFailed reports that the graph backend rejected or failed a
+	// read for a reason that is neither a deadline nor an availability
+	// problem. Its text is the only thing a caller may show a client: the
+	// driver's own message quotes the statement, inline literals included
+	// (#7253). The driver cause stays reachable through errors.As and
+	// Unwrap for classification and operator logs.
+	ErrGraphQueryFailed = errors.New("graph query failed")
 )
 
 // ClassifyBoundedGraphReadError maps a graph-read error onto
