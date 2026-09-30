@@ -224,8 +224,9 @@ func TestGoldenSnapshotPinsDuplicateGlobalEntityResolution(t *testing.T) {
 	if shape.MinimumResults != 2 {
 		t.Fatalf("resolve_entity minimum_results = %d, want 2", shape.MinimumResults)
 	}
-	// entities/matches are aliased rows (eshu-hq/eshu#5566); results_field pins
-	// the asserted one explicitly instead of relying on field order.
+	// results_field pins the asserted rows explicitly instead of relying on
+	// field order. The `matches` alias of `entities` (eshu-hq/eshu#5566) was
+	// removed in #7173, so the second row is pinned on entities[] too.
 	if shape.ResultsField != "entities" {
 		t.Fatalf("resolve_entity results_field = %q, want %q", shape.ResultsField, "entities")
 	}
@@ -234,11 +235,17 @@ func TestGoldenSnapshotPinsDuplicateGlobalEntityResolution(t *testing.T) {
 		"limit":         float64(10),
 		"truncated":     false,
 		"entities[].id": "content-entity:e_85e904a13eae",
-		"matches[].id":  "content-entity:e_85bff2c7884a",
 	} {
 		if got := shape.RequiredJSONValues[key]; got != want {
 			t.Fatalf("resolve_entity required_json_values[%q] = %#v, want %#v", key, got, want)
 		}
+	}
+	if _, present := shape.RequiredJSONValues["matches[].id"]; present {
+		t.Fatal("resolve_entity still pins the removed matches alias (#7173)")
+	}
+	secondRow := shape.RequiredJSONObjectMatches["entities[]"]
+	if len(secondRow) != 1 || secondRow[0]["id"] != "content-entity:e_85bff2c7884a" {
+		t.Fatalf("resolve_entity required_json_object_matches[entities[]] = %#v, want the second row id pinned", secondRow)
 	}
 	for _, field := range []string{"id", "entity_id", "name", "labels", "repo_id", "file_path"} {
 		if !containsString(shape.ResultItemRequiredFields, field) {

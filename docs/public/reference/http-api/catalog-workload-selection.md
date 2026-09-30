@@ -78,6 +78,8 @@ then hydrated through a separate bounded repository-ID lookup. Workload
 resolution does not fall back to similarly named content entities.
 
 The response returns `entities`, `count`, normalized `limit`, and `truncated`.
+The `matches` alias, a byte-identical copy of `entities`, was removed (#7173);
+read `entities`.
 Callers must not auto-select one visible row when `truncated` is true, because
 another matching workload may exist beyond the bounded page.
 

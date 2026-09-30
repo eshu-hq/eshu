@@ -13,18 +13,18 @@ describe("resolveEntity", () => {
             {
               entity_id: "workload:catalog-api",
               labels: ["Workload"],
-              name: "catalog-api"
+              name: "catalog-api",
             },
             {
               file_path: "services/catalog-api/main.tf",
               id: "repo:terraform-stack-node10",
               labels: ["Repository"],
               name: "terraform-stack-node10",
-              repo_id: "repository:terraform-stack-node10"
-            }
+              repo_id: "repository:terraform-stack-node10",
+            },
           ],
           limit: 1,
-          truncated: true
+          truncated: true,
         },
         error: null,
         truth: {
@@ -32,16 +32,16 @@ describe("resolveEntity", () => {
           capability: "code_search.fuzzy_symbol",
           freshness: { state: "fresh" },
           level: "derived",
-          profile: "local_authoritative"
-        }
-      })
+          profile: "local_authoritative",
+        },
+      }),
     );
 
     const result = await resolveEntity({
       client: new EshuApiClient({ baseUrl: "/eshu-api/", fetcher }),
       limit: 1,
       name: "catalog-api",
-      type: "repository"
+      type: "repository",
     });
 
     expect(fetcher).toHaveBeenCalledWith(
@@ -50,10 +50,10 @@ describe("resolveEntity", () => {
         body: JSON.stringify({
           limit: 1,
           name: "catalog-api",
-          type: "repository"
+          type: "repository",
         }),
-        method: "POST"
-      })
+        method: "POST",
+      }),
     );
     expect(result).toEqual({
       candidates: [
@@ -64,7 +64,7 @@ describe("resolveEntity", () => {
           name: "catalog-api",
           repoId: "",
           repoName: "",
-          type: "Workload"
+          type: "Workload",
         },
         {
           filePath: "services/catalog-api/main.tf",
@@ -73,12 +73,43 @@ describe("resolveEntity", () => {
           name: "terraform-stack-node10",
           repoId: "repository:terraform-stack-node10",
           repoName: "",
-          type: "Repository"
-        }
+          type: "Repository",
+        },
       ],
       count: 2,
       limit: 1,
-      truncated: true
+      truncated: true,
     });
+  });
+  it("reads only the canonical entities field, not the removed matches alias", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        data: {
+          count: 1,
+          limit: 10,
+          matches: [{ entity_id: "workload:legacy", labels: ["Workload"], name: "legacy" }],
+          truncated: false,
+        },
+        error: null,
+        truth: {
+          basis: "hybrid_graph_and_content",
+          capability: "code_search.fuzzy_symbol",
+          freshness: { state: "fresh" },
+          level: "derived",
+          profile: "local_authoritative",
+        },
+      }),
+    );
+
+    const result = await resolveEntity({
+      client: new EshuApiClient({ baseUrl: "/eshu-api/", fetcher }),
+      name: "legacy",
+      type: "workload",
+    });
+
+    // #7173: the API no longer emits `matches`, so a response that carries only
+    // that field is treated as having no candidates rather than read as a
+    // fallback that could mask a producer regression.
+    expect(result.candidates).toEqual([]);
   });
 });

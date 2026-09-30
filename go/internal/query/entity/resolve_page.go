@@ -26,7 +26,6 @@ func NormalizeResolveEntityLimit(limit int) int {
 func resolvedEntityResponse(entities []map[string]any, limit int, truncated bool) map[string]any {
 	return map[string]any{
 		"entities":  entities,
-		"matches":   entities,
 		"count":     len(entities),
 		"limit":     limit,
 		"truncated": truncated,

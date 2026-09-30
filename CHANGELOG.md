@@ -19,8 +19,11 @@ recent shipped work grouped by feature area.
   routes) returned the same rows twice, once as `results` and once as the
   compatibility alias `matches`. That doubled every response and pushed three
   MCP tools over the response budget (#7129). The alias is gone from HTTP and
-  MCP alike; `results` is unchanged. `resolve_entity` still returns `matches`
-  until the console moves off it (#7173).
+  MCP alike; `results` is unchanged. `resolve_entity` (`POST
+  /api/v0/entities/resolve`) dropped its `matches` alias the same way
+  ([#7173](https://github.com/eshu-hq/eshu/issues/7173)) once the console read
+  `entities` only: read `entities`, which is unchanged. A full 100-row resolve
+  response measured 68,468 bytes with the alias and 34,256 without.
 
 ### Compact-by-default catalog and playbook/workflow list responses
 

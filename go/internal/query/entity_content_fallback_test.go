@@ -121,12 +121,9 @@ func TestResolveEntityFallsBackToAnyRepoContentMatchesAndAliases(t *testing.T) {
 	if !ok || len(entities) != 1 {
 		t.Fatalf("entities = %#v, want one cross-repo content-backed entity", resp["entities"])
 	}
-	matches, ok := resp["matches"].([]any)
-	if !ok || len(matches) != 1 {
-		t.Fatalf("matches = %#v, want alias for one entity", resp["matches"])
-	}
-	if !reflect.DeepEqual(matches, entities) {
-		t.Fatalf("matches = %#v, want alias of entities %#v", matches, entities)
+	// #7173: the byte-identical `matches` alias is gone; `entities` is canonical.
+	if _, present := resp["matches"]; present {
+		t.Fatalf("resolve response carries the removed matches alias: %#v", resp["matches"])
 	}
 	entity, ok := entities[0].(map[string]any)
 	if !ok {

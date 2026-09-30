@@ -44,7 +44,6 @@ func TestDispatchToolResolveEntityAllowsScopedEntityResolveRoute(t *testing.T) {
 		}
 		query.WriteSuccess(w, r, http.StatusOK, map[string]any{
 			"entities":  []any{},
-			"matches":   []any{},
 			"count":     0,
 			"limit":     5,
 			"truncated": false,
