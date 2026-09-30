@@ -348,8 +348,9 @@ func TestRefinalizeFailedScopeReportsSkippedScopesByReason(t *testing.T) {
 }
 
 // TestRefinalizeFailedScopeAllScopesReportsSkippedScopes proves the all-scopes
-// path fills the same report. The shared test database may hold other scopes, so
-// the counts are lower bounds here; the named-scope test above pins them exactly.
+// path fills the same report. Its counts stay lower bounds, so the assertion
+// does not depend on how many scopes the fixture helpers seed; the named-scope
+// test above pins them exactly.
 func TestRefinalizeFailedScopeAllScopesReportsSkippedScopes(t *testing.T) {
 	database, ctx := refinalizeFailedScopeLiveDB(t)
 	suffix := testSuffix(t)

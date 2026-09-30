@@ -192,6 +192,20 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 			}
 
 			queue := NewReducerQueue(SQLDB{DB: database}, "fence-proof-"+suffix, time.Minute)
+			// The stale ACK sets visible_at from the Postgres clock, but Claim
+			// compares visible_at with the queue clock. The host clock can run
+			// milliseconds behind Postgres (#6828), so the fenced row would
+			// look not-yet-visible to the immediate reclaim. Read the queue
+			// clock from the same database (#7479).
+			queue.Now = func() time.Time {
+				var now time.Time
+				if err := database.QueryRowContext(ctx, "SELECT clock_timestamp()").Scan(&now); err != nil {
+					// The runner goroutine calls this too, so fail without Fatal.
+					t.Errorf("read Postgres clock: %v", err)
+					return time.Now().UTC()
+				}
+				return now.UTC()
+			}
 			queue.ClaimDomain = reducer.DomainWorkloadMaterialization
 			if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{{ScopeID: scopeID, GenerationID: generationID, Domain: reducer.DomainWorkloadMaterialization, EntityKey: entityKey, Reason: "pre-fence pass", SourceSystem: "reducer"}}); err != nil {
 				t.Fatalf("enqueue stale workload pass: %v", err)
