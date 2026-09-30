@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
 package main
 
 // Contract test for #7232: the graph-anchor entity-context shapes committed to
