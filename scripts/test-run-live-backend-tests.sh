@@ -56,6 +56,13 @@ printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_
 tag_err="$(python3 "${targets}" "${seed_dir}/ledger.yaml" "${repo_root}" 2>&1)" && fail "wrong-tag ci row accepted"
 [[ "${tag_err}" == *"unexpected tag"* ]] || fail "wrong-tag rejection names no tag: ${tag_err}"
 
+# ── RED: unquoted '#' in a reason fails extraction, not silent truncation ──
+# (a YAML `#` after whitespace opens a comment: the row regex sees the full
+# line while a real parser truncates it, so the extractor must fail loud)
+printf 'version: 1\nrows:\n  - file: go/cmd/golden-corpus-gate/graph_row_tokens_live_test.go\n    tag: live_nornicdb_answer_truth\n    class: ci\n    reason: seeded RED for the truncation guard #7425\n' >"${seed_dir}/ledger-truncated.yaml"
+trunc_err="$(python3 "${targets}" "${seed_dir}/ledger-truncated.yaml" "${repo_root}" 2>&1)" && fail "truncated-reason ci row accepted"
+[[ "${trunc_err}" == *"unquoted '#'"* ]] || fail "truncation rejection names no cause: ${trunc_err}"
+
 # ── RED: extractor crash dies naming extraction, not "no targets" ─────────
 # (mapfile succeeds even when the process substitution fails, so the runner
 # must capture the extractor failure explicitly)

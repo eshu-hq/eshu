@@ -139,7 +139,7 @@ tests:
   - file: go/cmd/reducer/runs_on_concurrent_writers_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged #6671 barrier proof gated by env Skip (ESHU_NEO4J_URI); on neo4j:2026-community 300 barrier plus 300 sequential trials take ~86s for TestRunsOnConcurrentWritersOneEdgePerPairLive and ~47s for TestRunsOnConcurrentWritersCrossRepoTupleWinsLive, both green — promote to ci with timing evidence at the 60-trial default
+    reason: "untagged #6671 barrier proof gated by env Skip (ESHU_NEO4J_URI); on neo4j:2026-community 300 barrier plus 300 sequential trials take ~86s for TestRunsOnConcurrentWritersOneEdgePerPairLive and ~47s for TestRunsOnConcurrentWritersCrossRepoTupleWinsLive, both green — promote to ci with timing evidence at the 60-trial default"
     backends: neo4j
   - file: go/cmd/reducer/runs_on_pair_isolation_nornicdb_live_test.go
     tag: ~
@@ -196,11 +196,11 @@ tests:
   - file: go/internal/query/admin/operator_note_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7388 an operator note keeps the failure it replaces under prior_failure for dead-letter and skip; about 2 s on Postgres 18 — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7388 an operator note keeps the failure it replaces under prior_failure for dead-letter and skip; about 2 s on Postgres 18 — promote to blocking with timing evidence"
   - file: go/internal/query/admin/prior_failure_listing_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7385 the admin work-item listing exposes prior_failure and operator_note from failure_details and returns neither for free text or NULL; about 10 s on Postgres 18 — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7385 the admin work-item listing exposes prior_failure and operator_note from failure_details and returns neither for free text or NULL; about 10 s on Postgres 18 — promote to blocking with timing evidence"
   - file: go/internal/query/admin/replay_superseded_live_test.go
     tag: ~
     class: scheduled
@@ -359,7 +359,7 @@ tests:
   - file: go/internal/query/codequery/relationship_story_grant_neo4j_live_test.go
     tag: live_neo4j_relationship_story
     class: scheduled
-    reason: live grant-leak proof for the Neo4j-compat story builder (moved off NornicDB in #7057, where its CALL () subquery is unsupported); local run on neo4j:2026-community, seeded fixture — promote to blocking with repeated timing evidence
+    reason: "live grant-leak proof for the Neo4j-compat story builder (moved off NornicDB in #7057, where its CALL () subquery is unsupported); local run on neo4j:2026-community, seeded fixture — promote to blocking with repeated timing evidence"
     backends: neo4j
   - file: go/internal/query/codequery/relationship_story_inheritance_interior_live_test.go
     tag: live_nornicdb_relationship_story
@@ -521,7 +521,7 @@ tests:
   - file: go/internal/query/impact_anchor_candidates_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 scoped shared-name anchor resolves the granted candidate over 20 asserted runs; passed on neo4j:2026-community — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 scoped shared-name anchor resolves the granted candidate over 20 asserted runs; passed on neo4j:2026-community — promote to blocking with timing evidence"
     backends: neo4j
   - file: go/internal/query/impact_anchor_resolve_live_test.go
     tag: ~
@@ -542,12 +542,12 @@ tests:
   - file: go/internal/query/impact_ownership_budget_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 impact ownership statement cost, cap and deadline; passed on neo4j:2026-community — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 impact ownership statement cost, cap and deadline; passed on neo4j:2026-community — promote to blocking with timing evidence"
     backends: neo4j
   - file: go/internal/query/impact_ownership_hub_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 hub fan-in never admits a hub whose granted owner the row cap cut; passed on neo4j:2026-community — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 hub fan-in never admits a hub whose granted owner the row cap cut; passed on neo4j:2026-community — promote to blocking with timing evidence"
     backends: neo4j
   - file: go/internal/query/impact_resource_investigation_live_test.go
     tag: ~
@@ -556,7 +556,7 @@ tests:
   - file: go/internal/query/impact_scoped_grant_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 two-tenant scoped impact grant with shared-key negative controls; passed on neo4j:2026-community — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_OCI_PROVE_LIVE); #5167 two-tenant scoped impact grant with shared-key negative controls; passed on neo4j:2026-community — promote to blocking with timing evidence"
     backends: neo4j
   - file: go/internal/query/impact_trace_deployment_flux_bindings_live_test.go
     tag: ~
@@ -569,7 +569,7 @@ tests:
   - file: go/internal/query/impact/trace_deployment_oci_bound_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic seeded answer-truth proof for the #6590 OCI registry-truth row-limit bound (below-bound byte-equal control, irreducible-overflow withholding, ambiguous-pair resolution, NodeIndexSeek plan retention); runs in the live-backend CI job
+    reason: "deterministic seeded answer-truth proof for the #6590 OCI registry-truth row-limit bound (below-bound byte-equal control, irreducible-overflow withholding, ambiguous-pair resolution, NodeIndexSeek plan retention); runs in the live-backend CI job"
     backends: neo4j
   - file: go/internal/query/impact/deployment/scoped_selector_bound_live_test.go
     tag: live_nornicdb_answer_truth
@@ -590,7 +590,7 @@ tests:
   - file: go/internal/query/infra_graph_summary_hot_entities_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: isolated Neo4j #7251 degree-page parity fixture is env-gated and requires a disposable backend; promote to blocking after runner compatibility and repeated timing proof
+    reason: "isolated Neo4j #7251 degree-page parity fixture is env-gated and requires a disposable backend; promote to blocking after runner compatibility and repeated timing proof"
     backends: neo4j
   - file: go/internal/query/infra_resource_aggregates_live_test.go
     tag: ~
@@ -599,28 +599,28 @@ tests:
   - file: go/internal/query/infra_scope_neo4j_equivalence_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: live Neo4j #7215 dialect equivalence and no-leak proof; about 2 min on an emulated Neo4j — promote to blocking with timing evidence
+    reason: "live Neo4j #7215 dialect equivalence and no-leak proof; about 2 min on an emulated Neo4j — promote to blocking with timing evidence"
   - file: go/internal/query/infra_scope_neo4j_argocd_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: live Neo4j #7215 category=argocd dialect equivalence and no-leak proof; about 17 s on an emulated Neo4j — promote to blocking with timing evidence
+    reason: "live Neo4j #7215 category=argocd dialect equivalence and no-leak proof; about 17 s on an emulated Neo4j — promote to blocking with timing evidence"
   - file: go/internal/query/infra_scope_neo4j_id_collision_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: live Neo4j #7220 proof that a non-Repository node whose id equals a granted repository or scope id is not returned by scoped infra search or relationships in either dialect; about 10 s on native arm64 Neo4j — promote to blocking with timing evidence
+    reason: "live Neo4j #7220 proof that a non-Repository node whose id equals a granted repository or scope id is not returned by scoped infra search or relationships in either dialect; about 10 s on native arm64 Neo4j — promote to blocking with timing evidence"
     backends: neo4j
   - file: go/internal/query/infra_scope_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: harness and fixture for the live Neo4j #7215 dialect proof; no test of its own
+    reason: "harness and fixture for the live Neo4j #7215 dialect proof; no test of its own"
   - file: go/internal/query/infra_scope_neo4j_timing_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: operator-run #7215 cold/warm measurement on the proof graph; env-gated twice and not a correctness gate
+    reason: "operator-run #7215 cold/warm measurement on the proof graph; env-gated twice and not a correctness gate"
   - file: go/internal/query/infra_scope_neo4j_aggregate_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: live Neo4j #7231 scoped count/inventory equivalence, no-leak and cold under-10 s budget proof; timing recorded in docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md — promote to blocking with timing evidence
+    reason: "live Neo4j #7231 scoped count/inventory equivalence, no-leak and cold under-10 s budget proof; timing recorded in docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md — promote to blocking with timing evidence"
   - file: go/internal/query/infra_scope_grant_live_test.go
     tag: live_infra_scope_shape
     class: scheduled
@@ -656,7 +656,7 @@ tests:
   - file: go/internal/query/language/ownership_neo4j_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-tagged Directory/File ownership regression on disposable Neo4j 2026; local cold runs took 2.10-4.04s for #6703; the legacy shared CI tag selects this Neo4j-only row
+    reason: "deterministic nonce-tagged Directory/File ownership regression on disposable Neo4j 2026; local cold runs took 2.10-4.04s for #6703; the legacy shared CI tag selects this Neo4j-only row"
     backends: neo4j
   - file: go/internal/query/language_query_grant_nornicdb_live_backend_test.go
     tag: live_nornicdb_language_imports_grant
@@ -867,7 +867,7 @@ tests:
   - file: go/internal/reducer/code/value/cloud_sink_red_case_live_test.go
     tag: live_nornicdb_answer_truth
     class: scheduled
-    reason: stale RED case for the B-7 sl-value-flow-cloud-sink row; the pre-6761 shape returns the correct row on the fix-500 pin (#6690 not reproduced on a fresh DB 2026-09-23) — re-target under #6787 before promoting to blocking
+    reason: "stale RED case for the B-7 sl-value-flow-cloud-sink row; the pre-6761 shape returns the correct row on the fix-500 pin (#6690 not reproduced on a fresh DB 2026-09-23) — re-target under #6787 before promoting to blocking"
   - file: go/internal/reducer/containerimage/container_image_identity_cte_theory_live_test.go
     tag: perf5854_theory
     class: scheduled
@@ -923,7 +923,7 @@ tests:
   - file: go/internal/reducer/deployable_unit_retract_scope_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7306 retract-scope proof through the real DeployableUnitCorrelationHandler and EdgeWriter; a matching and a foreign-keyed deployable_unit_correlation intent in both orders and racing (10 trials) must leave only the admitted CORRELATES_DEPLOYABLE_UNIT edge, a foreign-keyed intent must change nothing, and a matching intent must retract a disappeared edge; local neo4j:2026-community runs took 1.11s warm and 19.2s with a cold schema apply on a shared host; runs on both backends in the live-backend CI job
+    reason: "deterministic nonce-scoped #7306 retract-scope proof through the real DeployableUnitCorrelationHandler and EdgeWriter; a matching and a foreign-keyed deployable_unit_correlation intent in both orders and racing (10 trials) must leave only the admitted CORRELATES_DEPLOYABLE_UNIT edge, a foreign-keyed intent must change nothing, and a matching intent must retract a disappeared edge; local neo4j:2026-community runs took 1.11s warm and 19.2s with a cold schema apply on a shared host; runs on both backends in the live-backend CI job"
   - file: go/internal/reducer/freshness/links/lock_timeout_live_test.go
     tag: ~
     class: scheduled
@@ -947,28 +947,28 @@ tests:
   - file: go/internal/reducer/repository_edge_retract_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7285 B1 stale DEFINES/EXPOSES_ENDPOINT retract proof through the real WorkloadMaterializationHandler; local neo4j:2026-community runs took 0.64s-1.13s per test (1.8s-2.2s package) on a shared host; runs on both backends in the live-backend CI job
+    reason: "deterministic nonce-scoped #7285 B1 stale DEFINES/EXPOSES_ENDPOINT retract proof through the real WorkloadMaterializationHandler; local neo4j:2026-community runs took 0.64s-1.13s per test (1.8s-2.2s package) on a shared host; runs on both backends in the live-backend CI job"
   - file: go/internal/reducer/repository_edge_scope_keep_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7285 retract-scope proof (arbiter option B) through the real CorrelatedWorkloadProjectionInputLoader; a matching and a foreign-keyed workload_materialization intent in both orders and racing (10 trials) must leave one final DEFINES and EXPOSES_ENDPOINT set, and a foreign-keyed intent must still retract a disappeared workload; local neo4j:2026-community runs took 1.18s for the test (15.7s for the #7285 live package set) on a shared host; runs on both backends in the live-backend CI job
+    reason: "deterministic nonce-scoped #7285 retract-scope proof (arbiter option B) through the real CorrelatedWorkloadProjectionInputLoader; a matching and a foreign-keyed workload_materialization intent in both orders and racing (10 trials) must leave one final DEFINES and EXPOSES_ENDPOINT set, and a foreign-keyed intent must still retract a disappeared workload; local neo4j:2026-community runs took 1.18s for the test (15.7s for the #7285 live package set) on a shared host; runs on both backends in the live-backend CI job"
   - file: go/internal/reducer/repository_path_conflict_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges) under the atomic-group and phase-group executors, that a steady-state retry records nothing, and (#7446, helpers in repository_stub_live_test.go) that the stub the edge writers then re-create under the retired id is counted and the harness cleanup removes it (#7445); it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host
+    reason: "deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges) under the atomic-group and phase-group executors, that a steady-state retry records nothing, and (#7446, helpers in repository_stub_live_test.go) that the stub the edge writers then re-create under the retired id is counted and the harness cleanup removes it (#7445); it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host"
     backends: neo4j
   - file: go/internal/reducer/repository_retry_concurrency_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: nonce-scoped #7285 concurrency matrix rows 2, 3, 5 and 6 (phase-boundary interleaving, zombie attempt, 50-session first-creation MERGE, cross-scope retract race); every interleaving has one required end state, so the assertions are deterministic; local neo4j:2026-community runs took 8.9s-26.4s for the file on a shared host at load average 54-86 (the 50-session MERGE race pays driver deadlock-retry backoff); runs on both backends in the live-backend CI job
+    reason: "nonce-scoped #7285 concurrency matrix rows 2, 3, 5 and 6 (phase-boundary interleaving, zombie attempt, 50-session first-creation MERGE, cross-scope retract race); every interleaving has one required end state, so the assertions are deterministic; local neo4j:2026-community runs took 8.9s-26.4s for the file on a shared host at load average 54-86 (the 50-session MERGE race pays driver deadlock-retry backoff); runs on both backends in the live-backend CI job"
   - file: go/internal/reducer/repository_retry_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7285 projector-retry proof (every reducer edge family survives a same-generation re-projection under the atomic-group and phase-group executors; property map equals a fresh projection); local neo4j:2026-community runs took 2.5s warm and 26.9s with a cold schema apply on a loaded shared host; runs on both backends in the live-backend CI job
+    reason: "deterministic nonce-scoped #7285 projector-retry proof (every reducer edge family survives a same-generation re-projection under the atomic-group and phase-group executors; property map equals a fresh projection); local neo4j:2026-community runs took 2.5s warm and 26.9s with a cold schema apply on a loaded shared host; runs on both backends in the live-backend CI job"
   - file: go/internal/reducer/repository_stub_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7446 proof that the path-less Repository stub the repo_dependency and submodule_pin writers MERGE-create under a retired id is counted (eshu_dp_canonical_repository_stubs_created_total{writer=repo_dependency} = 1, the canonical repository stub created INFO log, 0 for a write to a live target), never puts two Repository nodes at one path, is what QueryRepoDependencies returns, and is reaped by the Repository orphan sweep once both owners retract by evidence_source; it reads Bolt summary NodesCreated counters and is pinned to Neo4j, the supported graph backend, so the counter has no NornicDB live proof; local neo4j:2026-community runs took 0.35s-0.42s for the lifecycle test on a shared host
+    reason: "deterministic nonce-scoped #7446 proof that the path-less Repository stub the repo_dependency and submodule_pin writers MERGE-create under a retired id is counted (eshu_dp_canonical_repository_stubs_created_total{writer=repo_dependency} = 1, the canonical repository stub created INFO log, 0 for a write to a live target), never puts two Repository nodes at one path, is what QueryRepoDependencies returns, and is reaped by the Repository orphan sweep once both owners retract by evidence_source; it reads Bolt summary NodesCreated counters and is pinned to Neo4j, the supported graph backend, so the counter has no NornicDB live proof; local neo4j:2026-community runs took 0.35s-0.42s for the lifecycle test on a shared host"
     backends: neo4j
   - file: go/internal/reducer/workload_instance_retraction_live_test.go
     tag: ~
@@ -1001,7 +1001,7 @@ tests:
   - file: go/internal/replay/offlinetier/import_cycle_flags_live_test.go
     tag: ~
     class: scheduled
-    reason: deterministic #7346 graph-truth proof for the flag-consuming file_import_cycles reader; seeds IMPORTS edges with the projector's flag properties plus one legacy edge with none and reads them through the production imports.CycleRows and response shaper; a never-written flag property must come back as unknown (flags_unknown), never runtime, and type-only, deferred and ./x cases must close no cycle; env-gated by ESHU_REPLAY_TIER_LIVE; local NornicDB v1.3.3 run took 2.93s and the pinned Neo4j run 1.62s at the head rebased onto the merged carriage change — promote to blocking with timing evidence
+    reason: "deterministic #7346 graph-truth proof for the flag-consuming file_import_cycles reader; seeds IMPORTS edges with the projector's flag properties plus one legacy edge with none and reads them through the production imports.CycleRows and response shaper; a never-written flag property must come back as unknown (flags_unknown), never runtime, and type-only, deferred and ./x cases must close no cycle; env-gated by ESHU_REPLAY_TIER_LIVE; local NornicDB v1.3.3 run took 2.93s and the pinned Neo4j run 1.62s at the head rebased onto the merged carriage change — promote to blocking with timing evidence"
   - file: go/internal/replay/offlinetier/delta_tier_edge_retract_live_test.go
     tag: ~
     class: scheduled
@@ -1157,12 +1157,12 @@ tests:
   - file: go/internal/storage/cypher/canonical_moved_block_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; proves the Neo4j schema bootstrap drops the #7095 narrow uniqueness constraints and a moved block of each of the five retired labels keeps one node; local runs on neo4j:2026-community took 10.7s cold (first schema apply) and 2.6s warm — promote to blocking with repeated timing evidence
+    reason: "untagged live proof gated by env Skip; proves the Neo4j schema bootstrap drops the #7095 narrow uniqueness constraints and a moved block of each of the five retired labels keeps one node; local runs on neo4j:2026-community took 10.7s cold (first schema apply) and 2.6s warm — promote to blocking with repeated timing evidence"
     backends: neo4j
   - file: go/internal/storage/cypher/canonical_moved_block_nornicdb_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; proves the NornicDB schema bootstrap drops the #7097 single-property path uniqueness constraints and a moved block of each of the five labels keeps one node; local runs on the pinned fix-500 NornicDB image took 9.5s on a fresh store and 2.0s warm — promote to blocking with repeated timing evidence
+    reason: "untagged live proof gated by env Skip; proves the NornicDB schema bootstrap drops the #7097 single-property path uniqueness constraints and a moved block of each of the five labels keeps one node; local runs on the pinned fix-500 NornicDB image took 9.5s on a fresh store and 2.0s warm — promote to blocking with repeated timing evidence"
     backends: nornicdb
   - file: go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go
     tag: ~
@@ -1639,11 +1639,11 @@ tests:
   - file: go/internal/storage/postgres/eshu_search_document_supersede_cost_live_test.go
     tag: ~
     class: scheduled
-    reason: opt-in (ESHU_7458_COST_PROOF=1) cost proof for #7458, run on demand when the fence's cost is re-measured, that needs a Postgres preloading pg_stat_statements and measures wall time, so it stays out of every default lane
+    reason: "opt-in (ESHU_7458_COST_PROOF=1) cost proof for #7458, run on demand when the fence's cost is re-measured, that needs a Postgres preloading pg_stat_statements and measures wall time, so it stays out of every default lane"
   - file: go/internal/storage/postgres/eshu_search_document_supersede_live_test.go
     tag: ~
     class: scheduled
-    reason: env-gated (ESHU_POSTGRES_TEST_DSN, or ESHU_POSTGRES_DSN as a fallback) forced-interleave proof for #7458, run on demand when the search-document fence changes; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it
+    reason: "env-gated (ESHU_POSTGRES_TEST_DSN, or ESHU_POSTGRES_DSN as a fallback) forced-interleave proof for #7458, run on demand when the search-document fence changes; seeds and drops its own schema, streams 600 files through the real loader, needs a live Postgres so it stays scheduled until a hermetic lane hosts it"
   - file: go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go
     tag: ~
     class: scheduled
@@ -1887,11 +1887,11 @@ tests:
   - file: go/internal/storage/postgres/generation_retention_probe_scale_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (bootstraps an isolated schema and seeds about 820k facts; 62s laptop-local without -race) — too heavy for the reducer-contention-gate 300s budget; run on demand for #7279 scale and scope-lock contention evidence
+    reason: "untagged live proof gated by env Skip (bootstraps an isolated schema and seeds about 820k facts; 62s laptop-local without -race) — too heavy for the reducer-contention-gate 300s budget; run on demand for #7279 scale and scope-lock contention evidence"
   - file: go/internal/storage/postgres/generation_retention_probe_seed_live_test.go
     tag: ~
     class: scheduled
-    reason: helpers only (the #7279 probe corpus seed); holds no test, the tests that call it are classified in their own rows
+    reason: "helpers only (the #7279 probe corpus seed); holds no test, the tests that call it are classified in their own rows"
   - file: go/internal/storage/postgres/generation_retention_selection_fixture_live_test.go
     tag: ~
     class: scheduled
@@ -1943,11 +1943,11 @@ tests:
   - file: go/internal/storage/postgres/issue7033_scoped_rollout_legacy_live_test.go
     tag: issue7033_rollout
     class: scheduled
-    reason: tagged helper-only legacy-receipt validator compiled into the explicitly authorized #7033 rollout proof; no standalone test is eligible for automated live-backend execution
+    reason: "tagged helper-only legacy-receipt validator compiled into the explicitly authorized #7033 rollout proof; no standalone test is eligible for automated live-backend execution"
   - file: go/internal/storage/postgres/issue7033_scoped_rollout_live_test.go
     tag: issue7033_rollout
     class: scheduled
-    reason: explicitly authorized #7033 schema-mutation proof requires a fully identified rollout target and must never run in automated live-backend execution
+    reason: "explicitly authorized #7033 schema-mutation proof requires a fully identified rollout target and must never run in automated live-backend execution"
   - file: go/internal/storage/postgres/identity_provider_config_live_test.go
     tag: ~
     class: scheduled
@@ -2251,7 +2251,7 @@ tests:
   - file: go/internal/storage/postgres/reducer_queue_reenqueue_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN); #7285 re-projection re-enqueue contract, about 1s on a disposable schema
+    reason: "untagged live proof gated by env Skip (ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN); #7285 re-projection re-enqueue contract, about 1s on a disposable schema"
   - file: go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go
     tag: ~
     class: scheduled
@@ -2323,19 +2323,19 @@ tests:
   - file: go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go
     tag: ~
     class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #7258)
+    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #7258)"
   - file: go/internal/storage/postgres/service_changed_since_scope_live_test.go
     tag: ~
     class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)
+    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)"
   - file: go/internal/storage/postgres/service_materialization_scope_replay_live_test.go
     tag: ~
     class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)
+    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)"
   - file: go/internal/storage/postgres/service_materialization_scope_writer_live_test.go
     tag: ~
     class: scheduled
-    reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)
+    reason: "runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF, #6475)"
   - file: go/internal/storage/postgres/shared_intents_generation_pending_index_live_test.go
     tag: ~
     class: scheduled
@@ -2371,51 +2371,51 @@ tests:
   - file: go/internal/storage/postgres/supersede_prior_failure_cost_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/failure_text_bound_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7407 Fail-time failure_details bound and the #7320 fold copying the stored string byte for byte; about 2 s on Postgres 18 — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7407 Fail-time failure_details bound and the #7320 fold copying the stored string byte for byte; about 2 s on Postgres 18 — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_reclaim_cost_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN plus ESHU_7320_COST_PROOF=1, pg_stat_statements preloaded); #7388 WAL and page cost of the reclaim fold per reclaimed row, before derived from the shipped constant; the derivation self-check runs without a database — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN plus ESHU_7320_COST_PROOF=1, pg_stat_statements preloaded); #7388 WAL and page cost of the reclaim fold per reclaimed row, before derived from the shipped constant; the derivation self-check runs without a database — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/projector_queue_reclaim_evidence_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7388 both projector_stale_scope_reclaim UPDATEs keep the prior failure, no nesting, and the reclaim-then-supersede chain; about 8 s on Postgres 18 — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN); #7388 both projector_stale_scope_reclaim UPDATEs keep the prior failure, no nesting, and the reclaim-then-supersede chain; about 8 s on Postgres 18 — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_memory_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure executor memory and temp-file proof, unmeasured cost — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure executor memory and temp-file proof, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_helpers_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN; the cost proof also needs ESHU_7320_COST_PROOF=1); #7320 supersede prior-failure fold, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supersede_prior_failure_wal_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1, plus a server preloading pg_stat_statements); #7320 supersede prior-failure per-row WAL, buffer and TOAST cost, unmeasured cost — promote to blocking with timing evidence
+    reason: "untagged live proof gated by env Skip (ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN and ESHU_7320_COST_PROOF=1, plus a server preloading pg_stat_statements); #7320 supersede prior-failure per-row WAL, buffer and TOAST cost, unmeasured cost — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged #6831 replace-set proof gated by ESHU_POSTGRES_TEST_DSN Skip; the CI live-backend lane supplies no Postgres DSN, so it runs in the scheduled lane (measured ~4 s of test time for all six tests on a local postgres:18)
+    reason: "untagged #6831 replace-set proof gated by ESHU_POSTGRES_TEST_DSN Skip; the CI live-backend lane supplies no Postgres DSN, so it runs in the scheduled lane (measured ~4 s of test time for all six tests on a local postgres:18)"
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_helpers_live_test.go
     tag: ~
     class: scheduled
-    reason: helper-only file for the #6831 replace-set live proofs; rides with supply_chain_impact_replace_set_live_test.go in the scheduled lane
+    reason: "helper-only file for the #6831 replace-set live proofs; rides with supply_chain_impact_replace_set_live_test.go in the scheduled lane"
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged #6831 replace-set proof gated by ESHU_POSTGRES_TEST_DSN Skip; the CI live-backend lane supplies no Postgres DSN, so it runs in the scheduled lane (measured ~4 s of test time for all six tests on a local postgres:18)
+    reason: "untagged #6831 replace-set proof gated by ESHU_POSTGRES_TEST_DSN Skip; the CI live-backend lane supplies no Postgres DSN, so it runs in the scheduled lane (measured ~4 s of test time for all six tests on a local postgres:18)"
   - file: go/internal/storage/postgres/supply_chain_suppression_migration_live_test.go
     tag: ~
     class: scheduled
