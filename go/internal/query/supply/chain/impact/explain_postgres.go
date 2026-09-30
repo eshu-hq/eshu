@@ -62,7 +62,7 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	ctx context.Context,
 	filter ExplanationFilter,
 ) (ExplanationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return ExplanationRow{}, fmt.Errorf("supply chain impact finding database is required")
 	}
 	filter = TrimExplanationFilter(filter)
@@ -110,7 +110,7 @@ func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(
 	query string,
 	args []any,
 ) ([]FindingRow, error) {
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		query,
 		args...,
@@ -148,7 +148,7 @@ func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFacts(
 	if len(factIDs) == 0 {
 		return nil, nil
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		explainSupplyChainImpactEvidenceFactsQuery,
 		array.Of(factIDs),

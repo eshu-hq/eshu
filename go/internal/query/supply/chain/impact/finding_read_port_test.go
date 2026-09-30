@@ -34,6 +34,39 @@ func (*rejectingImpactReader) BeginReadOnlySnapshot(context.Context) (db.ReadTra
 	return nil, errors.New("snapshot not needed")
 }
 
+type findingThenRejectingImpactReader struct {
+	queries int
+	err     error
+}
+
+func (r *findingThenRejectingImpactReader) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	r.queries++
+	if r.queries == 1 {
+		return &oneImpactFindingRows{}, nil
+	}
+	return nil, r.err
+}
+
+type oneImpactFindingRows struct{ read bool }
+
+func (r *oneImpactFindingRows) Next() bool {
+	if r.read {
+		return false
+	}
+	r.read = true
+	return true
+}
+
+func (*oneImpactFindingRows) Scan(dest ...any) error {
+	*dest[0].(*string) = "fact:abc"
+	*dest[1].(*string) = "source"
+	*dest[2].(*[]byte) = []byte(`{"finding_id":"finding:abc","evidence_fact_ids":["fact:evidence"]}`)
+	return nil
+}
+
+func (*oneImpactFindingRows) Err() error   { return nil }
+func (*oneImpactFindingRows) Close() error { return nil }
+
 func TestImpactFindingsGuardedReadPort(t *testing.T) {
 	want := errors.New("reader is stale")
 	guard := &rejectingImpactReader{err: want}
@@ -51,5 +84,60 @@ func TestImpactAggregatesGuardedReadPort(t *testing.T) {
 	_, err := store.CountSupplyChainImpactFindings(t.Context(), AggregateFilter{CVEID: "CVE-2026-1234"})
 	if !errors.Is(err, want) || guard.queries != 1 {
 		t.Fatalf("error %v, guarded queries %d; want stale reader and one row", err, guard.queries)
+	}
+}
+
+func TestImpactRuntimeContextGuardedReadPort(t *testing.T) {
+	want := errors.New("reader is stale")
+	guard := &rejectingImpactReader{err: want}
+	store := NewPostgresFindingStoreWithReadStore(guard, false)
+	_, err := store.ListSupplyChainImpactRuntimeContext(t.Context(), []string{"repository:r_217415d9"}, nil, nil)
+	if !errors.Is(err, want) || guard.queries != 1 {
+		t.Fatalf("error %v, guarded queries %d; want stale reader and one query", err, guard.queries)
+	}
+}
+
+func TestImpactRuntimeEnvironmentGuardedReadPort(t *testing.T) {
+	want := errors.New("reader is stale")
+	guard := &rejectingImpactReader{err: want}
+	store := NewPostgresFindingStoreWithReadStore(guard, false)
+	_, err := store.ListSupplyChainImpactRuntimeEnvironmentEvidence(
+		t.Context(),
+		[]RuntimeEnvironmentCandidate{{SubjectDigest: "sha256:abc", Environment: "production"}},
+		nil,
+		nil,
+	)
+	if !errors.Is(err, want) || guard.queries != 1 {
+		t.Fatalf("error %v, guarded queries %d; want stale reader and one query", err, guard.queries)
+	}
+}
+
+func TestImpactExplanationGuardedReadPort(t *testing.T) {
+	want := errors.New("reader is stale")
+	guard := &rejectingImpactReader{err: want}
+	store := NewPostgresFindingStoreWithReadStore(guard, false)
+	_, err := store.ExplainSupplyChainImpact(t.Context(), ExplanationFilter{FindingID: "finding:abc"})
+	if !errors.Is(err, want) || guard.queries != 1 {
+		t.Fatalf("error %v, guarded queries %d; want stale reader and one query", err, guard.queries)
+	}
+}
+
+func TestImpactExplanationEvidenceGuardedReadPort(t *testing.T) {
+	want := errors.New("reader is stale")
+	guard := &rejectingImpactReader{err: want}
+	store := NewPostgresFindingStoreWithReadStore(guard, false)
+	_, err := store.loadSupplyChainImpactEvidenceFacts(t.Context(), []string{"fact:abc"})
+	if !errors.Is(err, want) || guard.queries != 1 {
+		t.Fatalf("error %v, guarded queries %d; want stale reader and one query", err, guard.queries)
+	}
+}
+
+func TestImpactExplanationHydratesEvidenceThroughGuardedReadPort(t *testing.T) {
+	want := errors.New("reader became stale during evidence hydration")
+	guard := &findingThenRejectingImpactReader{err: want}
+	store := NewPostgresFindingStoreWithReadStore(guard, false)
+	_, err := store.ExplainSupplyChainImpact(t.Context(), ExplanationFilter{FindingID: "finding:abc"})
+	if !errors.Is(err, want) || guard.queries != 2 {
+		t.Fatalf("error %v, guarded queries %d; want evidence reader error after finding query", err, guard.queries)
 	}
 }

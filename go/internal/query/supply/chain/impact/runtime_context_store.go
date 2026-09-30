@@ -125,13 +125,13 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	if len(repositoryIDs) == 0 {
 		return out, nil
 	}
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		// Fail loud like the sibling list read (ListSupplyChainImpactFindings):
-		// a nil-DB store returning honest-empty contexts on every finding would
+		// an unconfigured store returning honest-empty contexts on every finding would
 		// be indistinguishable from "nothing runs this" to a caller.
 		return nil, fmt.Errorf("supply chain impact runtime context database is required")
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		SelectRuntimeContextQuery,
 		array.Of(RuntimeContextFactKinds),
