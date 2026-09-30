@@ -122,6 +122,14 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.MaxDepth = normalizeTraceDeploymentChainMaxDepth(req.MaxDepth)
+	// The arguments that decide which rows exist travel with every drilldown,
+	// so replaying it (the MCP adapter defaults direct_only to true) builds the
+	// families this call built (#7174 review F1).
+	selection.Replay = map[string]any{
+		"direct_only":                  req.DirectOnly,
+		"max_depth":                    req.MaxDepth,
+		"include_related_module_usage": req.IncludeRelatedModuleUsage,
+	}
 
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, req.ServiceName, traceOptions)

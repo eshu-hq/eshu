@@ -20,7 +20,7 @@ const traceDeploymentSelectionRequestProperties = `
 const traceDeploymentSelectionResponseProperties = `                    "evidence_detail": {"type": "string", "enum": ["full", "handles"], "description": "The evidence_detail the response was shaped with. Under handles, primary-family rows carry only their identity keys, so the per-row required lists below describe full rows."},
                     "section_detail": {
                       "type": "object",
-                      "description": "One entry per selectable family (the sections enum). detail is full, handles, or omitted; returned is the rows emitted and total the rows the route held before the cut (existing *_limits objects still report query caps). A family not returned in full names the trace_deployment_chain drilldown that returns it in full. The same non-full families appear in truth.omissions.",
+                      "description": "One entry per selectable family (the sections enum). detail is full, handles, or omitted; returned is the rows emitted and total the rows the route held before the cut (existing *_limits objects still report query caps). A family not returned in full names the trace_deployment_chain drilldown that returns it in full, with the direct_only, max_depth, and include_related_module_usage the response was built with, so replaying it builds the same families. The same non-full families appear in truth.omissions as {section, detail, total}.",
                       "additionalProperties": {
                         "type": "object",
                         "required": ["detail", "returned", "total"],
@@ -34,7 +34,10 @@ const traceDeploymentSelectionResponseProperties = `                    "evidenc
                             "properties": {
                               "service_name": {"type": "string"},
                               "sections": {"type": "array", "items": {"type": "string"}},
-                              "evidence_detail": {"type": "string", "enum": ["full"]}
+                              "evidence_detail": {"type": "string", "enum": ["full"]},
+                              "direct_only": {"type": "boolean"},
+                              "max_depth": {"type": "integer"},
+                              "include_related_module_usage": {"type": "boolean"}
                             }
                           }
                         }

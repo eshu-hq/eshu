@@ -43,7 +43,9 @@ deployment families come back as identity rows and derived families such as
 `delivery_paths` and `deployment_facts` are omitted, so an at-cap trace fits
 the response budget. `data.section_detail` and `truth.omissions` name every
 cut. To read a family in full, call the tool again with the entry's
-`drilldown_arguments` (`sections: ["<family>"]`, `evidence_detail: "full"`).
+`drilldown_arguments` (`sections: ["<family>"]`, `evidence_detail: "full"`, plus
+the `direct_only`, `max_depth`, and `include_related_module_usage` of the
+original call, so the drilldown returns the rows the first call held).
 
 ## Pick The Right Tool Shape
 

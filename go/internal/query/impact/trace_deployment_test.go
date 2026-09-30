@@ -267,3 +267,27 @@ func TestTraceDeploymentChainHTTPDefaultStaysFull(t *testing.T) {
 		t.Fatalf("truth.omissions = %v, want delivery_paths omitted", truth["omissions"])
 	}
 }
+
+// TestTraceDeploymentChainDrilldownCarriesTheRequestArguments proves, through
+// the handler, that a drilldown names the arguments that decide which rows
+// exist. The handler normalizes max_depth, so a 5000 in the body is replayed as
+// the clamped value the response was built with (#7174 review F1).
+func TestTraceDeploymentChainDrilldownCarriesTheRequestArguments(t *testing.T) {
+	t.Parallel()
+
+	code, envelope := serveTrace(t, minimalTraceHandler(),
+		`{"service_name":"orders-api","evidence_detail":"handles","direct_only":false,"max_depth":5000,"include_related_module_usage":true}`)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, body = %v", code, envelope)
+	}
+	data, _ := envelope["data"].(map[string]any)
+	sectionDetail, _ := data["section_detail"].(map[string]any)
+	entry, _ := sectionDetail["delivery_paths"].(map[string]any)
+	args, _ := entry["drilldown_arguments"].(map[string]any)
+	if args["direct_only"] != false || args["include_related_module_usage"] != true || args["max_depth"] != float64(traceDeploymentChainMaxDepthLimit) {
+		t.Fatalf("drilldown_arguments = %v, want direct_only=false include_related_module_usage=true max_depth=%d", args, traceDeploymentChainMaxDepthLimit)
+	}
+	if args["service_name"] != "orders-api" || args["evidence_detail"] != "full" {
+		t.Fatalf("drilldown_arguments = %v, want service_name and evidence_detail full", args)
+	}
+}

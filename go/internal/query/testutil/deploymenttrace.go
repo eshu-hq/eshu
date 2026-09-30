@@ -36,6 +36,14 @@ type TraceAtCapScenario struct {
 	OverviewCopiesRows bool
 }
 
+func traceAtCapStrings(n int, format string) []string {
+	out := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		out = append(out, fmt.Sprintf(format, i))
+	}
+	return out
+}
+
 func traceAtCapRows(n int, build func(i int) map[string]any) []map[string]any {
 	rows := make([]map[string]any, 0, n)
 	for i := 0; i < n; i++ {
@@ -222,6 +230,24 @@ func traceAtCapDeploymentEvidence(n int) map[string]any {
 		"relationship_types": []string{"DEPLOYS_FROM"}, "environments": []string{"prod"},
 		"source_repo_ids": []string{"repository:r_gitops"}, "target_repo_ids": []string{"repository:r_payments"}, "artifact_limit": n,
 	}
+	// The content-derived lists service.buildServiceDeploymentEvidenceFromOverview
+	// adds when the graph holds no evidence (#7174 review F3). They come from
+	// repository files with no row cap of their own; the fixture holds 2n of
+	// each, a modest repository.
+	deploymentEvidence["shared_config_paths"] = traceAtCapStrings(2*n, "deploy/config/payments-api-%03d.yaml")
+	deploymentEvidence["delivery_paths"] = traceAtCapRows(2*n, func(i int) map[string]any {
+		return map[string]any{
+			"kind": "workflow", "path": fmt.Sprintf(".github/workflows/deploy-payments-api-%03d.yaml", i),
+			"workflow": fmt.Sprintf("deploy-payments-api-%03d", i), "source_repo": "payments", "environment": "prod",
+		}
+	})
+	deploymentEvidence["deployment_artifacts"] = traceAtCapRows(2*n, func(i int) map[string]any {
+		return map[string]any{
+			"artifact_type": "dockerfile", "path": fmt.Sprintf("build/payments-api-%03d/Dockerfile", i),
+			"repository": "payments", "image": fmt.Sprintf("registry.example.test/payments-api-%03d", i),
+		}
+	})
+	deploymentEvidence["topology_story"] = "payments-api ships from deployment-charts through ArgoCD to the prod cluster."
 	return deploymentEvidence
 }
 

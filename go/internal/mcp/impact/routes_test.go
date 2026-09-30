@@ -411,6 +411,11 @@ func TestRouteTraceDeploymentChainEvidenceDetailDefault(t *testing.T) {
 		want string
 	}{
 		{name: "no sections", args: routecontract.Arguments{"service_name": "checkout"}, want: "handles"},
+		// An empty list names nothing: the handler reads it as the mode's
+		// default set, so the adapter must not turn it into "full" (which
+		// would ship every family, about 1.1 MB counted at the caps).
+		{name: "empty sections list", args: routecontract.Arguments{"service_name": "checkout", "sections": []any{}}, want: "handles"},
+		{name: "null sections", args: routecontract.Arguments{"service_name": "checkout", "sections": nil}, want: "handles"},
 		{name: "sections named", args: routecontract.Arguments{"service_name": "checkout", "sections": []any{"k8s_resources"}}, want: "full"},
 		{name: "explicit full", args: routecontract.Arguments{"service_name": "checkout", "evidence_detail": "full"}, want: "full"},
 		{name: "explicit handles with sections", args: routecontract.Arguments{"service_name": "checkout", "evidence_detail": "handles", "sections": []any{"instances"}}, want: "handles"},
@@ -421,8 +426,12 @@ func TestRouteTraceDeploymentChainEvidenceDetailDefault(t *testing.T) {
 		if body["evidence_detail"] != tt.want {
 			t.Errorf("%s: evidence_detail = %#v, want %q", tt.name, body["evidence_detail"], tt.want)
 		}
-		if _, named := tt.args["sections"]; named != (body["sections"] != nil) {
-			t.Errorf("%s: sections forwarded = %#v, want forwarded only when named", tt.name, body["sections"])
+		named := false
+		if list, ok := tt.args["sections"].([]any); ok && len(list) > 0 {
+			named = true
+		}
+		if named != (body["sections"] != nil) {
+			t.Errorf("%s: sections forwarded = %#v, want forwarded only when it names at least one family", tt.name, body["sections"])
 		}
 	}
 }

@@ -330,3 +330,99 @@ func sortedCopy(values []string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// TestApplySectionSelectionDrilldownReplaysTheOriginalRequest pins review F1
+// of #7174. A drilldown that carries only service_name, sections and
+// evidence_detail is replayed by the MCP adapter with its own defaults
+// (direct_only=true, max_depth=0), so a family built only for the caller's
+// non-default arguments (consumer_repositories needs direct_only=false) comes
+// back absent and section_detail reports it as full with total 0. The
+// drilldown must carry the arguments that decide which rows exist.
+func TestApplySectionSelectionDrilldownReplaysTheOriginalRequest(t *testing.T) {
+	t.Parallel()
+
+	response := atCapDefaultResponse(t, testutil.TraceAtCapScenario{Name: "replay", PerFamily: 5, EnrichmentRows: 5, PlatformsPerInst: 1})
+	replay := map[string]any{"direct_only": false, "max_depth": 10, "include_related_module_usage": true}
+	ApplySectionSelection(response, SectionSelection{EvidenceDetail: EvidenceDetailHandles, Replay: replay})
+
+	entry := querycontract.MapValue(querycontract.MapValue(response, "section_detail"), "consumer_repositories")
+	args := querycontract.MapValue(entry, "drilldown_arguments")
+	if args["direct_only"] != false || args["max_depth"] != 10 || args["include_related_module_usage"] != true {
+		t.Fatalf("drilldown_arguments = %v, want the caller's direct_only=false max_depth=10 include_related_module_usage=true", args)
+	}
+	if args["evidence_detail"] != EvidenceDetailFull || args["service_name"] != "payments-api" {
+		t.Fatalf("drilldown_arguments = %v, want service_name and evidence_detail full kept", args)
+	}
+}
+
+// TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists pins
+// review F3: when there is no graph evidence, deployment_evidence carries lists
+// built from repository content (shared_config_paths, delivery_paths, and so
+// on) with no row cap. Handles mode drops those lists and section_detail counts
+// them, so the total and returned figures stay truthful and the size bound
+// does not depend on how many files the repository has.
+func TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists(t *testing.T) {
+	t.Parallel()
+
+	build := func() map[string]any {
+		return map[string]any{
+			"service_name": "payments-api",
+			"deployment_evidence": map[string]any{
+				"artifacts": []map[string]any{
+					{"id": "a1", "relationship_type": "DEPLOYS_FROM", "resolved_id": "r1", "name": "long"},
+					{"id": "a2", "relationship_type": "DEPLOYS_FROM", "resolved_id": "r2", "name": "long"},
+				},
+				"shared_config_paths": []any{"config/a.yaml", "config/b.yaml", "config/c.yaml"},
+				"delivery_paths":      []any{map[string]any{"path": "x"}, map[string]any{"path": "y"}, map[string]any{"path": "z"}, map[string]any{"path": "w"}},
+				"topology_story":      "one sentence",
+			},
+		}
+	}
+
+	handles := build()
+	ApplySectionSelection(handles, SectionSelection{EvidenceDetail: EvidenceDetailHandles})
+	evidence := querycontract.MapValue(handles, "deployment_evidence")
+	for _, key := range []string{"shared_config_paths", "delivery_paths"} {
+		if _, present := evidence[key]; present {
+			t.Errorf("handles mode kept the content-derived list %s", key)
+		}
+	}
+	if evidence["topology_story"] != "one sentence" {
+		t.Errorf("topology_story = %v, want the scalar story kept", evidence["topology_story"])
+	}
+	entry := querycontract.MapValue(querycontract.MapValue(handles, "section_detail"), "deployment_evidence")
+	if entry["detail"] != EvidenceDetailHandles || entry["total"] != 9 || entry["returned"] != 2 {
+		t.Errorf("section_detail.deployment_evidence = %v, want handles, total 9 (2 artifacts + 3 + 4), returned 2", entry)
+	}
+
+	full := build()
+	ApplySectionSelection(full, SectionSelection{EvidenceDetail: EvidenceDetailFull})
+	entry = querycontract.MapValue(querycontract.MapValue(full, "section_detail"), "deployment_evidence")
+	if entry["detail"] != EvidenceDetailFull || entry["total"] != 9 || entry["returned"] != 9 {
+		t.Errorf("full mode section_detail.deployment_evidence = %v, want full, total 9, returned 9", entry)
+	}
+}
+
+// TestApplySectionSelectionImageRegistryHandleKeepsTheAmbiguityQualifier pins
+// review F5: an ambiguous registry row has no digest, so a handle of
+// {image_ref, digest} would read as a plain unresolved image. match_strength
+// travels with it.
+func TestApplySectionSelectionImageRegistryHandleKeepsTheAmbiguityQualifier(t *testing.T) {
+	t.Parallel()
+
+	response := map[string]any{
+		"service_name": "payments-api",
+		"image_registry_truth": []map[string]any{
+			{"image_ref": "registry/app:1", "digest": "sha256:aa", "match_strength": "exact", "note": "long"},
+			{"image_ref": "registry/app:2", "ambiguous": true, "match_strength": "ambiguous", "digest_candidates": []any{"sha256:bb", "sha256:cc"}},
+		},
+	}
+	ApplySectionSelection(response, SectionSelection{EvidenceDetail: EvidenceDetailHandles})
+	rows := response["image_registry_truth"].([]map[string]any)
+	if rows[1]["match_strength"] != "ambiguous" || rows[0]["match_strength"] != "exact" {
+		t.Fatalf("image_registry_truth handles = %v, want match_strength kept on every row", rows)
+	}
+	if _, leaked := rows[1]["digest_candidates"]; leaked {
+		t.Fatalf("handle leaked the digest_candidates list: %v", rows[1])
+	}
+}

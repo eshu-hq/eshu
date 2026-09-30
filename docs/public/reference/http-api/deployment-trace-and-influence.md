@@ -61,7 +61,16 @@ vocabulary:
   `total` (rows the route held before the cut; `*_limits` still report query
   caps). A family not returned in full also carries `drilldown_tool`
   (`trace_deployment_chain`) and `drilldown_arguments`
-  (`service_name`, `sections: [<family>]`, `evidence_detail: full`).
+  (`service_name`, `sections: [<family>]`, `evidence_detail: full`, and the
+  `direct_only`, `max_depth`, and `include_related_module_usage` the response
+  was built with, so replaying it builds the same families; the MCP tool
+  defaults `direct_only` to true, which would otherwise skip the consumer and
+  provisioning families). Under `handles`, the lists that
+  `deployment_evidence` builds from repository content when the graph holds no
+  evidence (`shared_config_paths`, `delivery_paths`, `delivery_family_paths`,
+  `delivery_workflows`, `deployment_artifacts`, `delivery_family_story`) are
+  dropped and counted in `section_detail.deployment_evidence.total`.
+  An empty `sections` list names nothing and is read as the mode's default set.
 - `truth.omissions` lists `{section, detail, total}` for the same non-full
   families. It is absent when every family ships in full.
 

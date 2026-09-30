@@ -59,7 +59,7 @@ func traceDeploymentChainRequest(args routecontract.Arguments) routecontract.Req
 		"include_related_module_usage": args.BoolOr("include_related_module_usage", false),
 	}
 	evidenceDetail := "handles"
-	if sections, named := args["sections"]; named && sections != nil {
+	if sections := args["sections"]; namesSections(sections) {
 		body["sections"] = sections
 		evidenceDetail = "full"
 	}
@@ -68,6 +68,25 @@ func traceDeploymentChainRequest(args routecontract.Arguments) routecontract.Req
 	}
 	body["evidence_detail"] = evidenceDetail
 	return routecontract.Request{Method: "POST", Path: "/api/v0/impact/trace-deployment-chain", Body: body}
+}
+
+// namesSections reports whether a sections argument names at least one family.
+// nil and an empty list name nothing: the handler reads them as the mode's
+// default set, so the adapter must keep the "handles" default rather than turn
+// them into "full" and ship every family (#7174 review F2). Any other value,
+// including a wrong type, counts as named and is forwarded so the handler
+// rejects it with a 400.
+func namesSections(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return false
+	case []any:
+		return len(typed) > 0
+	case []string:
+		return len(typed) > 0
+	default:
+		return true
+	}
 }
 
 // deploymentConfigInfluenceRequest maps investigate_deployment_config to

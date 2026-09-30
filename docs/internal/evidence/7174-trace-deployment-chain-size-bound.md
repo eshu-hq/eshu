@@ -30,13 +30,20 @@ Source: `go test ./internal/query/impact/deployment -run TestResponseAtCapSize -
 
 | Measure | Bytes |
 | --- | --- |
-| `data` | 543,644 |
-| envelope | 543,747 |
-| escaped resource copy | 593,339 |
-| counted (two copies) | 1,137,086 (433.8% of 262,144) |
+| `data` | 597,909 |
+| envelope | 598,012 |
+| escaped resource copy | 653,814 |
+| counted (two copies) | 1,252,100 (477.6% of 262,144) |
 
-The heaviest keys in `data`: `delivery_paths` 102,216; `deployment_evidence`
-81,183; `instances` 57,301; `controller_overview` 41,241; `cloud_resources`
+The first cut of the fixture measured 543,644 B of data and 1,137,086 counted
+(433.8%). Review found the fixture left out the lists `deployment_evidence`
+builds from repository content when the graph holds no evidence
+(`shared_config_paths`, `delivery_paths`, `deployment_artifacts`, and the
+story lines; they have no row cap of their own), so the fixture now holds 100
+of each list and a story sentence. The figures above include them.
+
+The heaviest keys in `data`: `delivery_paths` 121,916; `deployment_evidence`
+115,748; `instances` 57,301; `controller_overview` 41,241; `cloud_resources`
 36,501; `deployment_facts` 36,410; `image_registry_truth` 29,401;
 `k8s_resources` 20,071; `provisioned_platforms` 17,651; `story` 14,082;
 `deployment_sources` 14,001; `topology_edges` 13,597.
@@ -45,8 +52,8 @@ The heaviest keys in `data`: `delivery_paths` 102,216; `deployment_evidence`
 
 | Source | Counted bytes |
 | --- | --- |
-| `TestApplySectionSelectionHandlesDefaultFitsBudget` (deployment package, two-copy estimate) | 198,336 (75.7%) |
-| `TestTraceDeploymentChainDefaultArgumentsFitBudget` (real `dispatchToolWithOptions` and `estimateResponseBytes`, summary text included) | 198,556 (75.7%) |
+| `TestApplySectionSelectionHandlesDefaultFitsBudget` (deployment package, two-copy estimate) | 198,538 (75.7%) |
+| `TestTraceDeploymentChainDefaultArgumentsFitBudget` (real `dispatchToolWithOptions` and `estimateResponseBytes`, summary text included) | 198,758 (75.8%) |
 
 Both tests assert a ceiling of 80% of the budget (209,715 bytes). The dispatch
 test also asserts `!ResourceOnly`, `!IsError`, and that `truth.omissions`
@@ -69,8 +76,8 @@ Source: `TestApplySectionSelectionLogsNonDefaultWorstCase`.
 
 | Scenario | Full counted | Handles counted |
 | --- | --- | --- |
-| enrichment 50, overview carries hostname/entrypoint/api copies | 1,229,352 | 252,848 (96.5%) |
-| 5 platforms per instance, enrichment 100 (`max_depth` >= 10) | 1,748,726 | 273,174 (104.2%) |
+| enrichment 50, overview carries hostname/entrypoint/api copies | 1,344,092 | 253,050 (96.5%) |
+| 5 platforms per instance, enrichment 100 (`max_depth` >= 10) | 1,863,466 | 273,376 (104.3%) |
 
 The second row goes over the two-copy budget. This figure is an estimate, not a
 measurement: the escaped resource copy is a little over half the counted
@@ -90,6 +97,35 @@ from the #7174 ruling. `provisioned_platforms` rows
 have no `platform_source_id` or `relationship_type`, so their handle is
 `{platform_id, platform_name, platform_kind}`. Deployment artifacts use `id`,
 because `repository.BuildGraphDeploymentEvidence` maps `artifact_id` to `id`.
+
+## Review fixes
+
+Review of the first cut found four defects, each now covered by a test that
+failed first:
+
+- The drilldown arguments carried only `service_name`, `sections`, and
+  `evidence_detail`. The MCP adapter defaults `direct_only` to true, so an
+  agent that called with `direct_only: false` and followed the drilldown got a
+  trace that never built `consumer_repositories`, and `section_detail`
+  reported that family as full with total 0. `drilldown_arguments` now carries
+  the request's `direct_only`, `max_depth` (as normalized), and
+  `include_related_module_usage`
+  (`TestApplySectionSelectionDrilldownReplaysTheOriginalRequest`,
+  `TestTraceDeploymentChainDrilldownCarriesTheRequestArguments`).
+- `sections: []` reached the handler as the mode's default set, but the MCP
+  adapter treated a present list as a drilldown and set `evidence_detail` to
+  `full`, which ships every family. The adapter now reads nil and an empty list
+  as naming nothing (`TestRouteTraceDeploymentChainEvidenceDetailDefault`).
+- The content-derived `deployment_evidence` lists were neither dropped under
+  handles nor counted, and the fixture left them out. Handles mode now drops
+  them and `section_detail.deployment_evidence.total` counts them
+  (`TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists`).
+- The `image_registry_truth` handle lost the ambiguity qualifier; it now keeps
+  `match_strength`.
+
+Not changed: a non-string `evidence_detail` on MCP falls back to the default
+instead of returning a 400, like every other typed argument read through
+`Arguments.String`.
 
 No-Regression Evidence (#7174): the change adds no graph or Postgres reads, and
 no per-family query cap changes. `deployment.ApplySectionSelection` runs once,

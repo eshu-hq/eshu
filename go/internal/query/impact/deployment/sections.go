@@ -6,6 +6,7 @@ package deployment
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -88,16 +89,14 @@ var traceSections = []traceSection{
 	listSection("uncorrelated_cloud_resources", "id", "name", "kind"),
 	listSection("k8s_resources", "entity_id", "entity_name", "kind"),
 	derivedSection("k8s_relationships"),
-	listSection("image_registry_truth", "image_ref", "digest"),
+	listSection("image_registry_truth", "image_ref", "digest", "match_strength"),
 	derivedSection("deployment_facts"),
 	derivedSection("controller_driven_paths"),
 	derivedSection("delivery_paths"),
 	{
 		name: "deployment_evidence", keys: []string{"deployment_evidence"},
 		project: projectDeploymentEvidence,
-		count: func(response map[string]any) int {
-			return len(querycontract.MapSliceValue(querycontract.MapValue(response, "deployment_evidence"), "artifacts"))
-		},
+		count:   countDeploymentEvidence,
 	},
 	derivedSection("artifact_lineage"),
 	listSection("hostnames", "hostname", "environment"),
@@ -165,6 +164,13 @@ type SectionSelection struct {
 	// default set: every family under "full", and every non-derived family
 	// under "handles".
 	Sections []string
+	// Replay holds the request arguments that decide which rows exist
+	// (direct_only, max_depth, include_related_module_usage). Every
+	// drilldown_arguments entry carries them, so replaying a drilldown builds
+	// the same families the original call did instead of the adapter's
+	// defaults (the MCP default direct_only=true would skip the consumer and
+	// provisioning families). A nil Replay adds nothing.
+	Replay map[string]any
 }
 
 // Validate returns an error wrapping ErrInvalidSectionSelection that names
@@ -229,11 +235,15 @@ func ApplySectionSelection(response map[string]any, sel SectionSelection) []quer
 		entry := map[string]any{"detail": state, "returned": section.count(response), "total": total}
 		if state != EvidenceDetailFull {
 			entry["drilldown_tool"] = sectionDrilldownTool
-			entry["drilldown_arguments"] = map[string]any{
+			arguments := map[string]any{
 				"service_name":    serviceName,
 				"sections":        []string{section.name},
 				"evidence_detail": EvidenceDetailFull,
 			}
+			for key, value := range sel.Replay {
+				arguments[key] = value
+			}
+			entry["drilldown_arguments"] = arguments
 			omissions = append(omissions, querycontract.TruthOmission{Section: section.name, Detail: state, Total: total})
 		}
 		sectionDetail[section.name] = entry
@@ -276,9 +286,50 @@ func projectRows(rows []map[string]any, keys []string) []map[string]any {
 	return projected
 }
 
+// contentDerivedEvidenceKeys are the deployment_evidence lists the service
+// enrichment builds from repository content when the graph holds no evidence
+// (service.buildServiceDeploymentEvidenceFromOverview). They come from up to
+// RepositorySemanticEntityLimit files with no row cap of their own, so handles
+// mode drops them and section_detail counts them.
+var contentDerivedEvidenceKeys = []string{
+	"deployment_artifacts",
+	"shared_config_paths",
+	"delivery_paths",
+	"delivery_family_paths",
+	"delivery_family_story",
+	"delivery_workflows",
+	"topology_story",
+}
+
+// countDeploymentEvidence counts the rows deployment_evidence would ship: the
+// graph artifacts plus every content-derived list still present. Scalars such
+// as a story sentence count as zero rows.
+func countDeploymentEvidence(response map[string]any) int {
+	evidence := querycontract.MapValue(response, "deployment_evidence")
+	count := len(querycontract.MapSliceValue(evidence, "artifacts"))
+	for _, key := range contentDerivedEvidenceKeys {
+		count += listLen(evidence[key])
+	}
+	return count
+}
+
+// listLen returns the length of a slice value and 0 for anything else.
+func listLen(value any) int {
+	if value == nil {
+		return 0
+	}
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Slice {
+		return 0
+	}
+	return rv.Len()
+}
+
 // projectDeploymentEvidence keeps deployment_evidence's counts and family
-// lists, projects artifacts to {id, relationship_type, resolved_id}, and
-// drops evidence_index (a regrouping of the same artifacts).
+// lists, projects artifacts to {id, relationship_type, resolved_id}, drops
+// evidence_index (a regrouping of the same artifacts), and drops the
+// content-derived lists (see contentDerivedEvidenceKeys), which section_detail
+// still counts. A scalar story is small and stays.
 func projectDeploymentEvidence(response map[string]any) {
 	evidence, ok := response["deployment_evidence"].(map[string]any)
 	if !ok {
@@ -286,6 +337,11 @@ func projectDeploymentEvidence(response map[string]any) {
 	}
 	shaped := copyMap(evidence)
 	delete(shaped, "evidence_index")
+	for _, key := range contentDerivedEvidenceKeys {
+		if listLen(shaped[key]) > 0 {
+			delete(shaped, key)
+		}
+	}
 	if artifacts := querycontract.MapSliceValue(evidence, "artifacts"); artifacts != nil {
 		shaped["artifacts"] = projectRows(artifacts, []string{"id", "relationship_type", "resolved_id"})
 	}
