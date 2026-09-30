@@ -15,8 +15,8 @@ For repository, workload, and service narratives, use
 
 ## Section selection and evidence detail
 
-`POST /api/v0/impact/trace-deployment-chain` accepts two optional request
-fields that bound the response size without changing any per-family cap:
+The deployment chain route above accepts two optional request fields that
+bound the response size without changing any per-family cap:
 
 - `sections` names which families to emit. The selectable names are
   `instances`, `topology_edges`, `provisioned_platforms`,
