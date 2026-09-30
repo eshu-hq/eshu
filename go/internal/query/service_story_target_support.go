@@ -218,8 +218,9 @@ const serviceStoryTargetSupportFactColumns = `fact.fact_id,
 // serviceStoryTargetSupportActiveFactsFrom returns the FROM/WHERE clause the
 // source-only aggregate uses (the row read has its own single-kind probe, see
 // buildServiceStoryTargetSupportSQL): facts of the $1::text[] kinds on each
-// scope's active generation, restricted by factPredicates (fact.* conditions ANDed inside the
-// per-probe subquery) and exposing factColumns as fact.* to the outer query.
+// scope's active generation, restricted by factPredicates (fact.* conditions
+// ANDed inside the per-probe subquery) and exposing factColumns as fact.* to
+// the outer query.
 // Each (active scope/generation, kind) pair is probed through a LATERAL
 // subquery so fact_records_scope_generation_idx
 // (scope_id, generation_id, fact_kind, ...) answers with the kind in the index
