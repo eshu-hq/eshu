@@ -47,7 +47,9 @@ func (h *ContentHandler) rerankEntityResults(ctx context.Context, req contentSea
 func entityContentSearchResponse(results []querycontract.EntityContent, req contentSearchRequest, truncated bool) map[string]any {
 	rows := querycontract.EntityContentSearchRows(results)
 	clippedRows := querycontract.ClipRowsSourceCache(rows)
+	clippedDocstrings := querycontract.ClipRowsDocstring(rows, nil)
 	response := contentSearchResponse(rows, req, truncated)
 	querycontract.AddSourceCacheClipMarkers(response, clippedRows)
+	querycontract.AddDocstringClipMarkers(response, clippedDocstrings)
 	return response
 }

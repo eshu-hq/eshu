@@ -67,6 +67,38 @@ func AttachSemanticSummary(result map[string]any) {
 	}
 }
 
+// derivedSemanticKeys lists the row fields AttachSemanticSummary owns: each is
+// rebuilt from result["metadata"] and nothing else.
+var derivedSemanticKeys = []string{
+	"semantic_summary",
+	"semantic_profile",
+	"python_semantics",
+	"javascript_semantics",
+	"typescript_semantics",
+	"story",
+}
+
+// ReattachSemanticSummary rebuilds the fields AttachSemanticSummary derives
+// from result["metadata"], after that metadata changed. It first drops those
+// fields so a value the new metadata no longer produces cannot linger. The
+// read-time docstring clip uses it (#7234) so semantic_summary,
+// semantic_profile, the language blocks, and story echo the clipped docstring
+// rather than the stored one.
+func ReattachSemanticSummary(result map[string]any) {
+	if result == nil {
+		return
+	}
+	// AttachSemanticSummary derives nothing from empty metadata, so dropping the
+	// derived fields first would only lose what another step put there.
+	if metadata, _ := result["metadata"].(map[string]any); len(metadata) == 0 {
+		return
+	}
+	for _, key := range derivedSemanticKeys {
+		delete(result, key)
+	}
+	AttachSemanticSummary(result)
+}
+
 // BuildEntitySemanticProfile promotes the highest-signal structured
 // semantics already present in parser metadata into a stable query-surface
 // bundle, so a handler-family subpackage can build the profile without

@@ -303,6 +303,9 @@ const components = `  "components": {
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Present only on a clipped row: the read-time source_cache ceiling in bytes (4096)."},
           "source_cache_total_bytes": {"type": "integer", "description": "Present only on a clipped row: the stored source_cache length in bytes before the clip."},
+          "docstring_clipped": {"type": "boolean", "description": "Present and true only when this row's docstring was clipped at read time to docstring_clip_bytes. Every copy the row echoes (metadata, semantic_summary, semantic_profile, the per-language semantics blocks, story) derives from the clipped value; get_entity_content returns the stored docstring whole."},
+          "docstring_clip_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the read-time docstring ceiling in bytes (512)."},
+          "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."},
           "source_handle": {"type": "object", "additionalProperties": true, "description": "Present on search_entity_content rows: {repo_id, file_path, start_line, end_line} locator for the full body via get_entity_content(entity_id) or get_file_lines."},
           "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on search_entity_content rows reordered by the bounded fused BM25+vector re-rank; absent when the lexical content-index order was served."},
           "metadata": {
@@ -325,7 +328,9 @@ const components = `  "components": {
           "truncated": {"type": "boolean"},
           "source_backend": {"type": "string"},
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
-          "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."}
+          "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},
+          "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
+          "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."}
         }
       },
       "CodeSearchResult": {
@@ -344,6 +349,9 @@ const components = `  "components": {
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Present only on a clipped row: the read-time source_cache ceiling in bytes (4096)."},
           "source_cache_total_bytes": {"type": "integer", "description": "Present only on a clipped row: the stored source_cache length in bytes before the clip."},
+          "docstring_clipped": {"type": "boolean", "description": "Present and true only when this row's docstring was clipped at read time to docstring_clip_bytes. Every copy the row echoes (metadata, semantic_summary, semantic_profile, the per-language semantics blocks, story) derives from the clipped value; get_entity_content returns the stored docstring whole."},
+          "docstring_clip_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the read-time docstring ceiling in bytes (512)."},
+          "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."},
           "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on find_code content-fallback rows reordered by fused BM25+vector retrieval; absent when the lexical content order was served."},
           "semantic_summary": {
             "type": "string",
@@ -379,7 +387,9 @@ const components = `  "components": {
           "limit": {"type": "integer", "minimum": 1, "maximum": 200},
           "truncated": {"type": "boolean", "description": "True when at least one additional matching row exists beyond this page."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
-          "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."}
+          "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},
+          "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
+          "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."}
         }
       },
       "SymbolSearchResult": {
@@ -403,6 +413,9 @@ const components = `  "components": {
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Present only on a clipped row: the read-time source_cache ceiling in bytes (4096)."},
           "source_cache_total_bytes": {"type": "integer", "description": "Present only on a clipped row: the stored source_cache length in bytes before the clip."},
+          "docstring_clipped": {"type": "boolean", "description": "Present and true only when this row's docstring was clipped at read time to docstring_clip_bytes. Every copy the row echoes (metadata, semantic_summary, semantic_profile, the per-language semantics blocks, story) derives from the clipped value; get_entity_content returns the stored docstring whole."},
+          "docstring_clip_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the read-time docstring ceiling in bytes (512)."},
+          "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."},
           "metadata": {"type": "object", "additionalProperties": true, "description": "Parser metadata for the entity. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."},
           "semantic_summary": {"type": "string"},
           "semantic_profile": {"type": "object", "additionalProperties": true}
@@ -425,6 +438,8 @@ const components = `  "components": {
           "ambiguity": {"type": "object", "additionalProperties": true},
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
           "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},
+          "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
+          "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."},
           "results": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/SymbolSearchResult"}

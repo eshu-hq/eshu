@@ -3,7 +3,10 @@
 
 package codemodel
 
-import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // CodeSearchProbeLimit bounds one code-search page with a limit+1 truncation probe.
 func CodeSearchProbeLimit(publicLimit int) int {
@@ -29,6 +32,7 @@ func CodeSearchPagePayload(
 	// Clip after the page is trimmed and after any hybrid re-rank, which reads
 	// the full stored body, so the count covers the rows actually returned.
 	clippedRows := querycontract.ClipRowsSourceCache(rows)
+	clippedDocstrings := querycontract.ClipRowsDocstring(rows, entitysemantics.ReattachSemanticSummary)
 	payload := map[string]any{
 		"source":         source,
 		"source_backend": sourceBackend,
@@ -40,5 +44,6 @@ func CodeSearchPagePayload(
 		"truncated":      truncated,
 	}
 	querycontract.AddSourceCacheClipMarkers(payload, clippedRows)
+	querycontract.AddDocstringClipMarkers(payload, clippedDocstrings)
 	return payload
 }
