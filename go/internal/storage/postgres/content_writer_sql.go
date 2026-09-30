@@ -183,6 +183,11 @@ ON CONFLICT DO NOTHING
 // are a pure function of the persisted sketch, so a re-fingerprinted entity
 // must shed its prior bands first or edited functions accumulate orphan
 // bands (false LSH candidates for #6837).
+//
+// The seek on (repo_id, entity_id) is code_fingerprint_band_entity_idx
+// (migration 151, #7254). The primary key holds entity_id only as its fourth
+// column, so without that index a generic plan read the whole repository
+// range and filtered it.
 const deleteFingerprintBandsForEntitiesSQL = `
 DELETE FROM code_fingerprint_band
 WHERE repo_id = $1
@@ -240,9 +245,12 @@ SELECT ce.entity_id FROM content_entities ce WHERE ce.repo_id = $1
 // a filter, so it runs as one hashed SubPlan over the id chunk probed once per
 // band row of the repository; without it the IN is pulled up into a join the
 // planner may nest-loop again. deleteFingerprintBandsForEntitiesSQL is not
-// reused here: its entity_id = ANY($2) matches the fourth primary-key column,
-// and a generic plan turns it into one repository-range index descent per
-// array element (18.9 s for one 500-id chunk in the #7230 shim).
+// reused here: before migration 151 (#7254) its entity_id = ANY($2) matched
+// only the fourth primary-key column, and a generic plan turned it into one
+// repository-range index descent per array element (18.9 s for one 500-id
+// chunk in the #7230 shim). code_fingerprint_band_entity_idx now serves that
+// statement; this hashed form is kept as shipped in #7230 and was not
+// re-decided.
 const deleteStaleFingerprintBandsSQL = `
 DELETE FROM code_fingerprint_band band
 WHERE band.repo_id = $1

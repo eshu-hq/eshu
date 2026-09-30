@@ -200,6 +200,7 @@ var migrationShippedChecksums = map[string]string{
 	"148_scope_generations_delta_baseline_commit_sha.sql":                    "6ade9953fb931e663a6214c087126503b800fb53be3a5e450dc384916cff692a",
 	"149_scope_generations_projection_write_started_at.sql":                  "f7b70eccddfda88d7a7cccd6f05bb7dc018385f7a3e4d6aba309ded2ef6faf2a",
 	"150_scope_generations_fillfactor.sql":                                   "1940e7704bafd315392b977b73c2234396769b709e328527e78fdef3290af176",
+	"151_code_fingerprint_band_entity_idx.sql":                               "c80c6e8d0babf06d3129aec92442a95ee2af292511acede674377b60774627e2",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

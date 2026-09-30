@@ -349,4 +349,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// scope_generations the free space that keeps the marker update HOT.
 	"scope_generations_projection_write_started_at",
 	"scope_generations_fillfactor",
+	// Migration 151 (#7254) gives code_fingerprint_band the (repo_id, entity_id)
+	// seek its delete statements filter on.
+	"code_fingerprint_band_entity_idx",
 }
