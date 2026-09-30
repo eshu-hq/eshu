@@ -89,7 +89,8 @@ ERROR postgres store call failed event_name=postgres.store.error failure_class=u
 - `TestWriterPoolErrorsCarryNoConnectionTarget` (`runtime/postgres`): RED while
   `openWriterPool` returned `stdlib.OpenDB` (the error carried the user, the
   database, and the address, and no record reached the logger), GREEN through
-  the wrapper; it also requires `errors.As(ConnectError)` and the record, detail
+  the wrapper; it also requires the exact text `postgres store unavailable` (red when the
+  public text changes), `errors.As(ConnectError)`, and the record, detail
   included, on the logger passed in. Returning the pool to `stdlib.OpenDB` turns
   it red again.
 - `boundederr` tests run a fake pgx-shaped driver through `database/sql`:

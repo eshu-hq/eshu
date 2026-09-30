@@ -36,6 +36,11 @@ func TestWriterPoolErrorsCarryNoConnectionTarget(t *testing.T) {
 	if err == nil {
 		t.Fatal("PingContext() error = nil, want a dial failure")
 	}
+	// The bound is a fixed text, not just an absence: an empty or different
+	// message would still pass the omission checks below.
+	if err.Error() != "postgres store unavailable" {
+		t.Errorf("writer pool error = %q, want the fixed text %q", err.Error(), "postgres store unavailable")
+	}
 	for _, leaked := range []string{"alice", "appdb", "127.0.0.1", "user=", "database=", "s3cret"} {
 		if strings.Contains(err.Error(), leaked) {
 			t.Errorf("writer pool error carries %q: %v", leaked, err)
