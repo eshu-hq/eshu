@@ -162,8 +162,8 @@ type Service struct {
 	Workers        int // concurrent worker count; 0 or 1 means sequential
 	BatchClaimSize int // items per ClaimBatch call; 0 uses default (Workers * 4, max 64)
 
-	// ackRetryBase is the first backoff between transient AckBatch retries;
-	// zero uses defaultAckRetryBase. Tests shrink it.
+	// ackRetryBase is the first backoff between transient ack retries, batch or
+	// single-item; zero uses defaultAckRetryBase. Tests shrink it.
 	ackRetryBase time.Duration
 }
 
@@ -246,6 +246,13 @@ func (s Service) runSequential(ctx context.Context) error {
 
 		if err := s.executeWithTelemetry(ctx, intent, 0); err != nil {
 			return err
+		}
+		// Shutdown that arrived while this intent was being handled (for
+		// example during an ack retry backoff) ends the run here. Looping back
+		// into Claim would hand the cancelled context to the database and end
+		// the run with a claim error instead.
+		if ctx.Err() != nil {
+			return nil
 		}
 	}
 }

@@ -19,7 +19,13 @@ correlation, supply-chain impact, capacity, and memory metrics.
 `eshu_dp_reducer_executions_total{status="succeeded"}` means the reducer ACK
 completed. `ack_claim_rejected` marks a rejected single-item ACK;
 `ack_outcome_unknown` marks a batch whose ACK may have committed only some
-items. Inspect durable queue state before treating either as completed work.
+items, or an ACK cut short by shutdown. `ack_abandoned_to_lease_expiry` marks
+an ACK, single-item or batch, that kept failing with a Postgres deadlock
+(40P01) or serialization failure (40001) through its five attempts: the claim
+stays leased and is reclaimed when the lease expires, and the run keeps
+draining. A steady rate of it points at lock contention on the queue rows, not
+at a stopping process. Inspect durable queue state before treating any of these
+as completed work.
 
 Compare queue wait with run duration before changing worker counts. High queue
 age with low run duration points to claim, routing, or conflict-domain pressure.

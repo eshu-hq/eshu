@@ -26,6 +26,12 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 - **Concurrent** (`Workers > 1`): N goroutines compete. When `WorkSource`
   implements `BatchWorkSource` and `WorkSink` implements `BatchWorkSink`,
   the batch path reduces Postgres round-trips.
+- **Ack retry**: a single-item `Ack` (sequential and per-item concurrent
+  paths) and `AckBatch` both retry a Postgres 40P01 or 40001 up to five
+  attempts with doubling backoff from 50 ms capped at 2 s
+  (`retryTransientAck` in `service_observability.go`). An exhausted budget is
+  recorded as `ack_abandoned_to_lease_expiry` and leaves the claim to expire
+  for reclaim without ending the run; any other ack error still ends it.
 - **Heartbeat**: `startHeartbeat` (`service.go:409`) spawns a goroutine
   that calls `Heartbeat` at `HeartbeatInterval`; the heartbeat is stopped
   before `Ack` or `Fail` to avoid lease extension after the transaction

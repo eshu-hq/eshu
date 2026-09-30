@@ -187,14 +187,14 @@ func (s Service) runBatchConcurrent(
 					continue
 				}
 				if ctx.Err() != nil {
-					s.recordBatchAckOutcome(ctx, ackItem, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, ackItem, ackStatusOutcomeUnknown, ctx.Err())
 					return
 				}
 
 				select {
 				case ackCh <- ackItem:
 				case <-ctx.Done():
-					s.recordBatchAckOutcome(ctx, ackItem, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, ackItem, ackStatusOutcomeUnknown, ctx.Err())
 					return
 				}
 			}
@@ -216,7 +216,7 @@ func (s Service) runBatchConcurrent(
 			}
 			if ctx.Err() != nil {
 				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				pending = pending[:0]
 				return
@@ -230,8 +230,9 @@ func (s Service) runBatchConcurrent(
 			}
 
 			if err := s.ackBatchRetryingTransient(ctx, batchSink, intents, results); err != nil {
+				status := ackFailureStatus(err)
 				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", err)
+					s.recordBatchAckOutcome(ctx, item, status, err)
 				}
 				if ctx.Err() == nil {
 					switch {
@@ -275,10 +276,10 @@ func (s Service) runBatchConcurrent(
 				flushTimer.Reset(100 * time.Millisecond)
 			case <-ctx.Done():
 				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				for item := range ackCh {
-					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				return
 			}
@@ -311,7 +312,7 @@ func (s Service) ackReducerWork(
 	status string,
 	workerID int,
 ) error {
-	err := s.WorkSink.Ack(ctx, intent, result)
+	err := s.ackSingleRetryingTransient(ctx, intent, result)
 	if err == nil {
 		s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
 		return nil
@@ -319,6 +320,19 @@ func (s Service) ackReducerWork(
 	if errors.Is(err, ErrExecutionClaimRejected) {
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_claim_rejected", workerID, err)
 		s.logReducerAckClaimRejected(ctx, &intent, 0, err)
+		return nil
+	}
+	if errors.Is(err, errAckAbandonedToLeaseExpiry) {
+		// The claim stays leased and is reclaimed at lease expiry, so the
+		// run keeps draining (#7444); the retrier already logged the attempt.
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, ackStatusAbandonedToLeaseExpiry, workerID, err)
+		return nil
+	}
+	if errors.Is(err, errAckRetryInterrupted) {
+		// Shutdown interrupted the retry backoff: the ack did not commit and
+		// the claim expires for reclaim, which is a stopping process rather
+		// than a failed run, matching the batch path.
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
 		return nil
 	}
 
