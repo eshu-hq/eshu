@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TODO(#4795 W2b / #4784 ADR): reducer_sbom_attestation_attachment is a
@@ -39,7 +40,8 @@ type sbomAttestationAttachmentQueryer interface {
 // PostgresSBOMAttestationAttachmentStore reads active SBOM and attestation
 // attachment facts from Postgres using bounded payload predicates.
 type PostgresSBOMAttestationAttachmentStore struct {
-	DB sbomAttestationAttachmentQueryer
+	DB     sbomAttestationAttachmentQueryer
+	reader db.Queryer
 }
 
 // NewPostgresSBOMAttestationAttachmentStore creates the Postgres-backed SBOM
@@ -50,13 +52,26 @@ func NewPostgresSBOMAttestationAttachmentStore(
 	return PostgresSBOMAttestationAttachmentStore{DB: db}
 }
 
+// NewPostgresSBOMAttestationAttachmentStoreWithReadStore reads through a
+// guarded query-only port.
+func NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader db.Queryer) PostgresSBOMAttestationAttachmentStore {
+	return PostgresSBOMAttestationAttachmentStore{reader: reader}
+}
+
+func (s PostgresSBOMAttestationAttachmentStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlRowsQueryer{inner: s.DB}
+}
+
 // ListSBOMAttestationAttachments returns one bounded page of active reducer
 // attachment facts.
 func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 	ctx context.Context,
 	filter SBOMAttestationAttachmentFilter,
 ) (SBOMAttestationAttachmentPage, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("sbom attestation attachment database is required")
 	}
 	if !filter.HasScope() {
@@ -66,7 +81,7 @@ func (s PostgresSBOMAttestationAttachmentStore) ListSBOMAttestationAttachments(
 		return SBOMAttestationAttachmentPage{}, fmt.Errorf("limit must be between 1 and %d", sbomAttestationAttachmentMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listSBOMAttestationAttachmentsQuery,
 		sbomAttestationAttachmentFactKind,
@@ -195,7 +210,7 @@ func (s PostgresSBOMAttestationAttachmentStore) sbomAttestationAttachmentMissing
 	if filter.RepositoryID == "" && filter.WorkloadID == "" && filter.ServiceID == "" {
 		return nil, nil
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		sbomAttestationAttachmentMissingEvidenceQuery,
 		filter.SubjectDigest,

@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -23,6 +24,12 @@ const (
 // package: a single parameterized SELECT with no whole-table scan.
 type secretsIAMReadQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+type sqlSecretsQueryer struct{ inner secretsIAMReadQueryer }
+
+func (q sqlSecretsQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(ctx, query, args...)
 }
 
 // --- Privilege posture observations -----------------------------------------
@@ -64,7 +71,8 @@ type IAMPrivilegePostureObservationRow struct {
 // PostgresIAMPrivilegePostureObservationStore reads active privilege
 // posture observation facts from Postgres using bounded payload predicates.
 type PostgresIAMPrivilegePostureObservationStore struct {
-	DB secretsIAMReadQueryer
+	DB     secretsIAMReadQueryer
+	reader db.Queryer
 }
 
 // NewPostgresIAMPrivilegePostureObservationStore creates the
@@ -75,13 +83,25 @@ func NewPostgresIAMPrivilegePostureObservationStore(
 	return PostgresIAMPrivilegePostureObservationStore{DB: db}
 }
 
+// NewPostgresIAMPrivilegePostureObservationStoreWithReadStore reads through a guarded query-only connection.
+func NewPostgresIAMPrivilegePostureObservationStoreWithReadStore(reader db.Queryer) PostgresIAMPrivilegePostureObservationStore {
+	return PostgresIAMPrivilegePostureObservationStore{reader: reader}
+}
+
+func (s PostgresIAMPrivilegePostureObservationStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlSecretsQueryer{inner: s.DB}
+}
+
 // ListSecretsIAMPrivilegePostureObservations returns one bounded page of active
 // reducer privilege posture observation facts.
 func (s PostgresIAMPrivilegePostureObservationStore) ListSecretsIAMPrivilegePostureObservations(
 	ctx context.Context,
 	filter IAMPrivilegePostureObservationFilter,
 ) ([]IAMPrivilegePostureObservationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("secrets/IAM privilege posture observation database is required")
 	}
 	if !filter.hasScope() {
@@ -91,7 +111,7 @@ func (s PostgresIAMPrivilegePostureObservationStore) ListSecretsIAMPrivilegePost
 		return nil, fmt.Errorf("limit must be between 1 and %d", secretsIAMTrustChainMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listSecretsIAMPrivilegePostureObservationsQuery,
 		secretsIAMPrivilegePostureObservationFactKind,
@@ -200,7 +220,8 @@ type IAMSecretAccessPathRow struct {
 // PostgresIAMSecretAccessPathStore reads active secret access path facts
 // from Postgres using bounded payload predicates.
 type PostgresIAMSecretAccessPathStore struct {
-	DB secretsIAMReadQueryer
+	DB     secretsIAMReadQueryer
+	reader db.Queryer
 }
 
 // NewPostgresIAMSecretAccessPathStore creates the Postgres-backed secret
@@ -211,13 +232,25 @@ func NewPostgresIAMSecretAccessPathStore(
 	return PostgresIAMSecretAccessPathStore{DB: db}
 }
 
+// NewPostgresIAMSecretAccessPathStoreWithReadStore reads through a guarded query-only connection.
+func NewPostgresIAMSecretAccessPathStoreWithReadStore(reader db.Queryer) PostgresIAMSecretAccessPathStore {
+	return PostgresIAMSecretAccessPathStore{reader: reader}
+}
+
+func (s PostgresIAMSecretAccessPathStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlSecretsQueryer{inner: s.DB}
+}
+
 // ListSecretsIAMSecretAccessPaths returns one bounded page of active reducer
 // secret access path facts.
 func (s PostgresIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths(
 	ctx context.Context,
 	filter IAMSecretAccessPathFilter,
 ) ([]IAMSecretAccessPathRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("secrets/IAM secret access path database is required")
 	}
 	if !filter.hasScope() {
@@ -227,7 +260,7 @@ func (s PostgresIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths(
 		return nil, fmt.Errorf("limit must be between 1 and %d", secretsIAMTrustChainMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listSecretsIAMSecretAccessPathsQuery,
 		secretsIAMSecretAccessPathFactKind,
@@ -336,7 +369,8 @@ type IAMPostureGapRow struct {
 // PostgresIAMPostureGapStore reads active posture gap facts from Postgres
 // using bounded payload predicates.
 type PostgresIAMPostureGapStore struct {
-	DB secretsIAMReadQueryer
+	DB     secretsIAMReadQueryer
+	reader db.Queryer
 }
 
 // NewPostgresIAMPostureGapStore creates the Postgres-backed posture gap
@@ -347,13 +381,25 @@ func NewPostgresIAMPostureGapStore(
 	return PostgresIAMPostureGapStore{DB: db}
 }
 
+// NewPostgresIAMPostureGapStoreWithReadStore reads through a guarded query-only connection.
+func NewPostgresIAMPostureGapStoreWithReadStore(reader db.Queryer) PostgresIAMPostureGapStore {
+	return PostgresIAMPostureGapStore{reader: reader}
+}
+
+func (s PostgresIAMPostureGapStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlSecretsQueryer{inner: s.DB}
+}
+
 // ListSecretsIAMPostureGaps returns one bounded page of active reducer posture
 // gap facts.
 func (s PostgresIAMPostureGapStore) ListSecretsIAMPostureGaps(
 	ctx context.Context,
 	filter IAMPostureGapFilter,
 ) ([]IAMPostureGapRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("secrets/IAM posture gap database is required")
 	}
 	if !filter.hasScope() {
@@ -363,7 +409,7 @@ func (s PostgresIAMPostureGapStore) ListSecretsIAMPostureGaps(
 		return nil, fmt.Errorf("limit must be between 1 and %d", secretsIAMTrustChainMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listSecretsIAMPostureGapsQuery,
 		secretsIAMPostureGapFactKind,

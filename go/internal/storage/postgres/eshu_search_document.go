@@ -58,11 +58,18 @@ type EshuSearchDocumentRow struct {
 // excluded.
 type EshuSearchDocumentStore struct {
 	database db.ExecQueryer
+	reader   db.Queryer
 }
 
 // NewEshuSearchDocumentStore builds a search-document reader over db.
 func NewEshuSearchDocumentStore(database db.ExecQueryer) EshuSearchDocumentStore {
 	return EshuSearchDocumentStore{database: database}
+}
+
+// NewEshuSearchDocumentReader builds a curated-document reader over a guarded
+// query-only connection.
+func NewEshuSearchDocumentReader(reader db.Queryer) EshuSearchDocumentStore {
+	return EshuSearchDocumentStore{reader: reader}
 }
 
 // ListActiveDocuments returns the curated documents for the scope's active
@@ -73,7 +80,7 @@ func (s EshuSearchDocumentStore) ListActiveDocuments(
 	ctx context.Context,
 	filter EshuSearchDocumentFilter,
 ) ([]EshuSearchDocumentRow, error) {
-	if s.database == nil {
+	if s.database == nil && s.reader == nil {
 		return nil, fmt.Errorf("eshu search document store database is required")
 	}
 	filter = normalizeEshuSearchDocumentFilter(filter)
@@ -82,7 +89,11 @@ func (s EshuSearchDocumentStore) ListActiveDocuments(
 	}
 
 	query, args := buildEshuSearchDocumentQuery(filter)
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	queryer := db.Queryer(s.database)
+	if s.reader != nil {
+		queryer = s.reader
+	}
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search documents: %w", err)
 	}

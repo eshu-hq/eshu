@@ -90,7 +90,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 			maxSupplyChainRuntimeEnvironmentCandidates,
 		)
 	}
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("supply chain runtime environment evidence database is required")
 	}
 	digests := make([]string, 0, len(candidates))
@@ -107,7 +107,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 	if len(digests) == 0 {
 		return out, nil
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery,
 		array.Of(digests),

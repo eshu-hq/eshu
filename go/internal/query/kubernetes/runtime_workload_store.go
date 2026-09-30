@@ -9,18 +9,28 @@ import (
 	"fmt"
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // PostgresRuntimeWorkloadStore owns current-inventory and
 // authorization reads for exact digest-bound Kubernetes runtime candidates.
 type PostgresRuntimeWorkloadStore struct {
-	db *sql.DB
+	db db.Queryer
 }
 
 // NewPostgresRuntimeWorkloadStore returns the production Kubernetes
 // runtime candidate gate.
 func NewPostgresRuntimeWorkloadStore(db *sql.DB) *PostgresRuntimeWorkloadStore {
-	return &PostgresRuntimeWorkloadStore{db: db}
+	if db == nil {
+		return &PostgresRuntimeWorkloadStore{}
+	}
+	return &PostgresRuntimeWorkloadStore{db: sqlCorrelationQueryer{inner: db}}
+}
+
+// NewPostgresRuntimeWorkloadStoreWithReadStore constructs the workload gate
+// over a guarded query-only connection.
+func NewPostgresRuntimeWorkloadStoreWithReadStore(reader db.Queryer) *PostgresRuntimeWorkloadStore {
+	return &PostgresRuntimeWorkloadStore{db: reader}
 }
 
 // CurrentAuthorizedKubernetesRuntimeWorkloads returns graph candidates whose

@@ -22,3 +22,5 @@ Moving or renaming a file or type here: update
 `internal/mcp/route_serves_data_registry_routes.go` and
 `internal/mcp/route_serves_data_registry.go` in the same change, then run
 `go test ./internal/mcp`.
+
+Guarded Postgres correlation and inventory reads must use the query-only reader supplied to the `WithReadStore` constructors.

@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CatalogCorrelationFactKind is the fact kind carrying durable
@@ -45,7 +46,8 @@ type serviceCatalogCorrelationQueryer interface {
 // PostgresServiceCatalogCorrelationStore reads active service-catalog
 // correlation facts from Postgres using bounded payload predicates.
 type PostgresServiceCatalogCorrelationStore struct {
-	DB serviceCatalogCorrelationQueryer
+	DB     serviceCatalogCorrelationQueryer
+	reader db.Queryer
 }
 
 // NewPostgresServiceCatalogCorrelationStore creates the Postgres-backed
@@ -56,13 +58,34 @@ func NewPostgresServiceCatalogCorrelationStore(
 	return PostgresServiceCatalogCorrelationStore{DB: db}
 }
 
+// NewPostgresServiceCatalogCorrelationStoreWithReadStore reads catalog facts
+// through a guarded query-only port.
+func NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader db.Queryer) PostgresServiceCatalogCorrelationStore {
+	return PostgresServiceCatalogCorrelationStore{reader: reader}
+}
+
+type legacyCatalogQueryer struct {
+	database serviceCatalogCorrelationQueryer
+}
+
+func (q legacyCatalogQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresServiceCatalogCorrelationStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyCatalogQueryer{database: s.DB}
+}
+
 // ListServiceCatalogCorrelations returns one bounded page of active reducer
 // service-catalog correlation facts.
 func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	ctx context.Context,
 	filter CatalogCorrelationFilter,
 ) ([]CatalogCorrelationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("service catalog correlation database is required")
 	}
 	if !filter.HasScope() {
@@ -72,7 +95,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 		return nil, fmt.Errorf("limit must be between 1 and %d", querycontract.ServiceCatalogCorrelationMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		ListServiceCatalogCorrelationsQuery,
 		serviceCatalogCorrelationFactKind,
@@ -121,7 +144,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 	repositoryID string,
 	limit int,
 ) ([]CatalogLocalDescriptorEvidenceRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("service catalog correlation database is required")
 	}
 	if repositoryID == "" {
@@ -131,7 +154,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 		return nil, fmt.Errorf("limit must be between 1 and %d", serviceCatalogLocalDescriptorEvidenceLimit+1)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		ListServiceCatalogLocalDescriptorEvidenceQuery,
 		serviceCatalogGitRepositoryScopeID(repositoryID),

@@ -4,6 +4,7 @@
 package kubernetes
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -60,5 +61,24 @@ func TestBuildKubernetesRuntimeWorkloadQueryAllScopesOmitsAuthorizationPredicate
 	}
 	if got, ok := args[4].(int); !ok || got != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
 		t.Fatalf("candidate limit = %#v, want %d", args[4], supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
+	}
+}
+
+func TestKubernetesRuntimeGuardedReadPort(t *testing.T) {
+	want := errors.New("reader stale")
+	reader := &rejectingKubernetesReader{err: want}
+	store := NewPostgresRuntimeWorkloadStoreWithReadStore(reader)
+	_, err := store.CurrentAuthorizedKubernetesRuntimeWorkloads(t.Context(), []supplychain.KubernetesRuntimeCandidate{{
+		WorkloadUID: "workload-1", Digest: "sha256:abc", EdgeScopeID: "edge-scope", EdgeGenerationID: "generation",
+	}}, true, nil, nil)
+	if !errors.Is(err, want) || reader.calls != 1 {
+		t.Fatalf("error %v, calls %d", err, reader.calls)
+	}
+}
+
+func TestKubernetesRuntimeNilLegacyDatabase(t *testing.T) {
+	store := NewPostgresRuntimeWorkloadStore(nil)
+	if _, err := store.CurrentAuthorizedKubernetesRuntimeWorkloads(t.Context(), []supplychain.KubernetesRuntimeCandidate{{WorkloadUID: "workload-1", Digest: "sha256:abc"}}, true, nil, nil); err == nil {
+		t.Fatal("expected missing database error")
 	}
 }

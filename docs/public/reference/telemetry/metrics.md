@@ -7,6 +7,7 @@ names.
 Current metric sources:
 
 - `go/internal/runtime/metrics.go` for `eshu_runtime_*` status metrics.
+- `go/internal/runtime/postgres/telemetry.go` for API/MCP reader access stage and pool metrics when reader access is wired.
 - `go/internal/telemetry/instruments.go` for most `eshu_dp_*` instruments.
 - `go/internal/collector/terraformstate/metrics.go` for Terraform-state
   discovery candidate metrics.
@@ -23,11 +24,34 @@ Current metric sources:
   exact repository, scope, generation, locator, package, resource, delivery, or
   work-item detail.
 
+## PostgreSQL Reader Access
+
+When an API or MCP process wires the reader access observer, use
+`eshu_dp_postgres_reader_stage_duration_seconds` to separate writer checkpoint,
+reader borrow, identity, replay, and business-query duration. Its only labels
+are `role` (`writer` or `reader`), `stage` (the five named stages), and `outcome`
+(`ok`, `error`, `deadline`, or `canceled`). Unexpected values collapse to
+`unknown`; no endpoint, SQL, user, or credential is a label. The duration
+histogram uses explicit seconds boundaries from 5 ms to 10 s, plus zero;
+use stage spans for comparisons finer than the histogram buckets.
+
+The reader access pool callback exposes
+`eshu_dp_postgres_reader_pool_connections` (`role` and `state`: `max_open`,
+`open`, `in_use`), `eshu_dp_postgres_reader_pool_waits_total` (`role`), and
+`eshu_dp_postgres_reader_pool_wait_duration_seconds` (`role`). The writer and
+reader points are the two process pools, including when a pool has multiple
+candidate hosts. A rising wait rate or in-use count near `max_open` suggests
+pool pressure. The current `Observer` callback has no request context, so its
+short stage spans are standalone diagnostics rather than children of the API/MCP
+request span. These signals do not establish deployed latency or replica
+capacity until API/MCP wiring and measurement are complete.
+
 ## Runtime Health And Backlog
 
 Use these first when asking whether a runtime is alive, ready, or stuck:
 
 - `eshu_runtime_info`
+- `eshu_runtime_status_snapshot_available` — unlabelled per-scrape gauge: `1` when the status snapshot succeeded, `0` when it failed or timed out. OTEL metrics remain available when this is `0`; status-derived gauge values are omitted.
 - `eshu_runtime_health_state`
 - `eshu_runtime_scope_active`
 - `eshu_runtime_scope_changed`

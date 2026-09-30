@@ -116,3 +116,5 @@ package-local tracer var (mirroring `packageregTracer` in
 
 - `go/internal/query/read-models.md`
 - `docs/public/reference/source-layout.md`
+
+All five Postgres-backed stores expose `WithReadStore` constructors for guarded query-only reads; legacy constructors remain available.

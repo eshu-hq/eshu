@@ -86,8 +86,17 @@ conversation thread.
 ## MCP-backed Runner
 
 `NewMCPRunner(handler, authHeader, logger)` returns the production `Runner`. It
-calls `mcp.RunReadOnlyTool` in-process: no network socket is opened. The caller's
-scoped token is threaded via `authHeader` and `ctx`.
+calls `mcp.RunReadOnlyTool` in-process: no network socket is opened.
+`ContextWithCallerRequestCredentials` captures an immutable, filtered credential
+snapshot from the accepted HTTP Ask request. Each inner call receives the same
+Authorization header, Eshu session cookie(s), and CSRF header through a fresh
+request adapter, then runs through the normal auth middleware again. Revocation,
+route grants, and unsafe-method CSRF are checked for each tool call. A marked
+request with no credentials never receives the runner's constructor token;
+an authenticated context without matching request credentials fails closed.
+The constructor token remains available only to an explicit legacy non-HTTP
+runner invocation without an HTTP request marker or authenticated context.
+Credentials and provider bodies are not included in runner diagnostics.
 
 When `RunReadOnlyTool` returns `isError=true`, the envelope is returned rather
 than converted to a Go error so the engine can wrap it in an `AnswerPacket` that

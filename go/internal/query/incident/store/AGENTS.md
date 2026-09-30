@@ -25,7 +25,7 @@ durable owning-repository authorizer).
   promotes that substrate to a shared home, this file adopts it and the
   forks go away.
 - This package imports `incident/model`, `incident/sql`, `querycontract`,
-  `supplychain` (image port only), and the factschema SDKs. It MUST NOT
+  `supplychain` (image port only), the narrow `storage/postgres/db` read port, and the factschema SDKs. It MUST NOT
   import the query root or `incident/`.
 - `queryplan` manifests: the incident family has no entries. Keep it zero.
 
@@ -36,3 +36,11 @@ durable owning-repository authorizer).
 named by topic (`review.go`), with the `_evidence` suffix marking the pure
 edge assembly beside each topic's reads. The root `incident_alias.go` keeps
 every old exported spelling for staying callers.
+
+## Reader access
+
+API/MCP business wiring uses `NewStoreWithReadStore` and
+`NewPostgresIncidentRepositoryAuthorizerWithReadStore` with `db.Queryer`.
+Every direct incident SQL read uses the selected reader; injected catalog,
+CI/CD, and image ports must use the same guarded read boundary. A guard error
+propagates; never retry it on the writer. Legacy constructors remain compatible.

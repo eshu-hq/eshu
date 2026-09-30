@@ -66,6 +66,9 @@ spec:
                   name: {{ .Values.apiAuth.secretName }}
                   key: {{ .Values.apiAuth.key }}
             {{- include "eshu.renderEnvMaps" (list .Values.env .Values.api.env) | nindent 12 }}
+            {{- with .Values.api.extraEnv }}
+            {{- include "eshu.renderReadExtraEnv" (dict "service" "api" "env" $.Values.env "serviceEnv" $.Values.api.env "extraEnv" .) | nindent 12 }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

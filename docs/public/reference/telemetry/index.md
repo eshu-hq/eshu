@@ -34,7 +34,7 @@ Use this route map instead of reading every telemetry page front to back.
 2. Use metrics to find the service, phase, and backlog that changed.
 3. Use logs to identify the affected scope, generation, work item, domain, or
    failure class.
-4. Use traces to explain the latency shape inside that exact operation.
+4. Use traces to explain the latency shape inside that exact operation; [PostgreSQL reader metrics](metrics.md#postgresql-reader-access) separate checkpoint, pool pressure, replay lag, and business SQL.
 5. Use `/admin/status` to confirm live queue, generation, and failure state
    before restarting services or forcing a broader re-index.
 
@@ -53,7 +53,7 @@ Do not treat a green pod as proof that the graph is complete.
 | --- | --- | --- |
 | `/healthz` | The process is alive. | Work is current. |
 | `/readyz` | The runtime has enough dependencies to serve. | Queues are empty. |
-| `/metrics` | Prometheus can scrape runtime and data-plane signals. | The graph is correct. |
+| `/metrics` | Prometheus can scrape runtime and data-plane signals; `eshu_runtime_status_snapshot_available=0` means the status snapshot failed for that scrape while OTEL metrics remain available. | The graph is correct. |
 | `/admin/status` | Runtime backlog, generation, failure, and domain status; `eshu_dp_status_snapshot_read_duration_seconds` (`read`, `outcome`) times each status read behind it ([Reducer And Storage Metrics](metrics-reducer-storage.md)). | The underlying source did not change after the last collection. |
 | Query/API result | Current read-path answer. | The whole pipeline is healthy. |
 

@@ -19,22 +19,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// newAdminIdentityReadHandler wires the tenant-scoped admin identity read
+// newAdminIdentityReadHandlerWithAuditReadStore wires the tenant-scoped admin identity read
 // endpoints over Postgres. The handler is nil-safe: a nil database yields a
-// handler whose store and audit reader are nil, so each route returns 503
+// handler whose identity store and audit reader are nil, so each route returns 503
 // rather than panicking. logger is the API's structured logger, threaded to the
 // audit reader's store so its unknown-enum warn (#6574) lands in the API log.
-func newAdminIdentityReadHandler(
-	database *sql.DB,
-	instruments *telemetry.Instruments,
-	governanceAudit query.GovernanceAuditSummaryReader,
-	logger *slog.Logger,
+func newAdminIdentityReadHandlerWithAuditReadStore(
+	database *sql.DB, reader db.Queryer, instruments *telemetry.Instruments,
+	governanceAudit query.GovernanceAuditSummaryReader, logger *slog.Logger,
 ) *query.AdminIdentityReadHandler {
 	handler := &query.AdminIdentityReadHandler{}
 	if store := newPostgresAdminIdentityReadAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
-	if reader := newAdminGovernanceAuditReader(database, instruments, governanceAudit, logger); reader != nil {
+	if reader := newAdminGovernanceAuditReaderWithReadStore(reader, instruments, governanceAudit, logger); reader != nil {
 		handler.Audit = reader
 	}
 	return handler
@@ -223,30 +221,19 @@ func (a *postgresAdminIdentityReadAdapter) ListAdminAPITokens(
 // the detailed List surface disables the events endpoint without failing
 // startup.
 type adminGovernanceAuditReader struct {
-	store   auditstore.GovernanceAuditStore
+	store   auditstore.GovernanceAuditReader
 	summary query.GovernanceAuditSummaryReader
 }
 
-func newAdminGovernanceAuditReader(
-	rawDB *sql.DB,
-	instruments *telemetry.Instruments,
-	summary query.GovernanceAuditSummaryReader,
-	logger *slog.Logger,
+func newAdminGovernanceAuditReaderWithReadStore(
+	reader db.Queryer, instruments *telemetry.Instruments,
+	summary query.GovernanceAuditSummaryReader, logger *slog.Logger,
 ) *adminGovernanceAuditReader {
-	if rawDB == nil {
+	if reader == nil {
 		return nil
 	}
-	governanceAuditDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
-	if instruments != nil {
-		governanceAuditDB = &pgstatus.InstrumentedDB{
-			Inner:       governanceAuditDB,
-			Tracer:      otel.Tracer(telemetry.DefaultSignalName),
-			Instruments: instruments,
-			StoreName:   "governance_audit",
-		}
-	}
 	return &adminGovernanceAuditReader{
-		store:   auditstore.NewGovernanceAuditStore(governanceAuditDB).WithLogger(logger),
+		store:   newGovernanceAuditReader(reader, instruments, logger),
 		summary: summary,
 	}
 }
@@ -287,4 +274,19 @@ func (a *adminGovernanceAuditReader) SummarizeAuditEventsForTenant(
 	tenantID string,
 ) (governanceaudit.Summary, error) {
 	return a.store.SummaryForTenant(ctx, tenantID)
+}
+
+// newGovernanceAuditReadStore keeps status and audit summaries on the reader.
+func newGovernanceAuditReadStore(reader db.Queryer, instruments *telemetry.Instruments, logger *slog.Logger) query.GovernanceAuditSummaryReader {
+	if reader == nil {
+		return nil
+	}
+	return newGovernanceAuditReader(reader, instruments, logger)
+}
+
+func newGovernanceAuditReader(reader db.Queryer, instruments *telemetry.Instruments, logger *slog.Logger) auditstore.GovernanceAuditReader {
+	if instruments != nil {
+		reader = &pgstatus.InstrumentedQueryer{Inner: reader, Tracer: otel.Tracer(telemetry.DefaultSignalName), Instruments: instruments, StoreName: "governance_audit"}
+	}
+	return auditstore.NewGovernanceAuditReader(reader).WithLogger(logger)
 }

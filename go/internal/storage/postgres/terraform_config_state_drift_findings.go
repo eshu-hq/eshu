@@ -83,13 +83,18 @@ type TerraformConfigStateDriftEvidenceRow struct {
 // TerraformConfigStateDriftFindingStore reads active Terraform config-vs-state
 // drift reducer facts.
 type TerraformConfigStateDriftFindingStore struct {
-	database db.ExecQueryer
+	database db.Queryer
 }
 
 // NewTerraformConfigStateDriftFindingStore constructs a Terraform
 // config-vs-state drift finding reader over the provided database adapter.
 func NewTerraformConfigStateDriftFindingStore(database db.ExecQueryer) TerraformConfigStateDriftFindingStore {
 	return TerraformConfigStateDriftFindingStore{database: database}
+}
+
+// NewTerraformConfigStateDriftFindingReader binds finding reads to a query-only port.
+func NewTerraformConfigStateDriftFindingReader(reader db.Queryer) TerraformConfigStateDriftFindingStore {
+	return TerraformConfigStateDriftFindingStore{database: reader}
 }
 
 // ListActiveFindings returns one page of active Terraform config-vs-state

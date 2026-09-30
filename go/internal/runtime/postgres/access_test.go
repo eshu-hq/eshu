@@ -1,0 +1,454 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"context"
+	"database/sql/driver"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"syscall"
+	"testing"
+	"time"
+)
+
+type observed struct {
+	mu   sync.Mutex
+	seen map[Stage]map[Outcome]int
+}
+
+func (o *observed) Observe(_ string, stage Stage, outcome Outcome, _ time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.seen[stage] == nil {
+		o.seen[stage] = map[Outcome]int{}
+	}
+	o.seen[stage][outcome]++
+}
+
+func (o *observed) has(stage Stage, outcome Outcome) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if outcome == "" {
+		return len(o.seen[stage]) > 0
+	}
+	return o.seen[stage][outcome] > 0
+}
+
+func testAccess(t *testing.T, reader string) *Access {
+	t.Helper()
+	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	if writer == "" {
+		t.Skip("owned disposable PostgreSQL fixture not configured")
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return writer
+		case "ESHU_POSTGRES_READ_DSN":
+			return reader
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ReplayTimeout = 500 * time.Millisecond
+	access, err := Open(context.Background(), cfg, &observed{seen: map[Stage]map[Outcome]int{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := access.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return access
+}
+
+func TestAccessSamePrimaryAndPrivateCheckpoint(t *testing.T) {
+	access := testAccess(t, "")
+	if _, err := access.Reader().QueryContext(context.Background(), "SELECT 1"); !errors.Is(err, ErrMissingCheckpoint) {
+		t.Fatalf("missing checkpoint error = %v", err)
+	}
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := access.Reader().QueryContext(ctx, "SELECT 42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows.Next() {
+		t.Fatal(rows.Err())
+	}
+	var value int
+	if err := rows.Scan(&value); err != nil {
+		t.Fatal(err)
+	}
+	if value != 42 {
+		t.Fatalf("value = %d", value)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := access.reader.Stats().InUse; got != 0 {
+		t.Fatalf("cursor leaked %d connections", got)
+	}
+	other := &Access{}
+	if _, err := (fencedQueryer{access: other}).QueryContext(ctx, "SELECT 1"); !errors.Is(err, ErrMissingCheckpoint) {
+		t.Fatalf("foreign checkpoint = %v", err)
+	}
+	if _, err := access.reader.ExecContext(ctx, "CREATE TABLE eshu_reader_forbidden(id integer)"); err == nil {
+		t.Fatal("same-primary reader accepted write")
+	}
+	access.reader.SetConnMaxLifetime(time.Nanosecond)
+	if _, err := access.reader.ExecContext(ctx, "CREATE TABLE eshu_reader_forbidden(id integer)"); err == nil {
+		t.Fatal("reconnected reader accepted write")
+	}
+}
+
+func TestAccessStreamingReaderFenceAndCursors(t *testing.T) {
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if reader == "" {
+		t.Skip("owned streaming reader fixture not configured")
+	}
+	access := testAccess(t, reader)
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := access.Reader().QueryContext(ctx, "SELECT 1 UNION ALL SELECT 2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var value int
+		if err := rows.Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if got := access.reader.Stats().InUse; got != 0 {
+		t.Fatalf("exhausted cursor leaked %d connections", got)
+	}
+	rows, err = access.Reader().QueryContext(ctx, "SELECT 'bad'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows.Next() {
+		t.Fatal(rows.Err())
+	}
+	var number int
+	if err := rows.Scan(&number); err == nil {
+		t.Fatal("expected scan error")
+	}
+	if got := access.reader.Stats().InUse; got != 0 {
+		t.Fatalf("scan-error cursor leaked %d connections", got)
+	}
+	for i := 0; i < 100; i++ {
+		req, cancel := context.WithCancel(ctx)
+		rows, err := access.Reader().QueryContext(req, "SELECT 1")
+		if err != nil {
+			cancel()
+			t.Fatal(err)
+		}
+		cancel()
+		_ = rows.Close()
+	}
+	if got := access.reader.Stats().InUse; got != 0 {
+		t.Fatalf("cancelled cursor leaked %d connections", got)
+	}
+	if _, err := access.reader.ExecContext(ctx, "CREATE TABLE eshu_reader_forbidden(id integer)"); err == nil {
+		t.Fatal("standby reader accepted write")
+	}
+}
+
+func TestAccessStreamingRoleAndReplayFailClosed(t *testing.T) {
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if reader == "" {
+		t.Skip("owned streaming reader fixture not configured")
+	}
+	access := testAccess(t, reader)
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := access.Writer().ExecContext(ctx, "INSERT INTO reader_theory.cross_scope_completion_upgrade_markers(marker_name, applied_at) VALUES($1,now())", fmt.Sprintf("core-%d", time.Now().UnixNano())); err != nil {
+		t.Fatal(err)
+	}
+	ctx, err = access.ContextWithCheckpoint(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := access.Reader().QueryContext(ctx, "SELECT 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = rows.Close()
+	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return writer
+		case "ESHU_POSTGRES_READ_DSN":
+			return writer + "&application_name=wrong-role"
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong, err := Open(context.Background(), cfg, nil)
+	if err == nil {
+		_ = wrong.Close()
+		t.Fatal("writer mislabeled reader was accepted")
+	}
+	if !strings.Contains(err.Error(), "PostgreSQL reader unavailable") || strings.Contains(err.Error(), "hot standby") {
+		t.Fatalf("wrong role error was not public-safe: %v", err)
+	}
+}
+
+func TestAccessReplayDeadlineBeforeBusinessSQL(t *testing.T) {
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if reader == "" {
+		t.Skip("owned streaming reader fixture not configured")
+	}
+	access := testAccess(t, reader)
+	if _, err := access.reader.Exec("SELECT pg_wal_replay_pause()"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = access.reader.Exec("SELECT pg_wal_replay_resume()") }()
+	marker := fmt.Sprintf("core-lag-%d", time.Now().UnixNano())
+	if _, err := access.Writer().Exec("INSERT INTO reader_theory.cross_scope_completion_upgrade_markers(marker_name, applied_at) VALUES($1,now())", marker); err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = access.Reader().QueryContext(ctx, "SELECT marker_name FROM reader_theory.cross_scope_completion_upgrade_markers WHERE marker_name=$1", marker)
+	if !errors.Is(err, ErrReaderStale) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("paused replay error = %v", err)
+	}
+	observer := access.observer.(*observed)
+	if !observer.has(StageReaderReplay, OutcomeDeadline) || observer.has(StageBusinessQuery, "") {
+		t.Fatal("replay deadline diagnostics missing or business SQL executed")
+	}
+	if _, err := access.reader.Exec("SELECT pg_wal_replay_resume()"); err != nil {
+		t.Fatal(err)
+	}
+	deadline, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	for {
+		rows, err := access.Reader().QueryContext(deadline, "SELECT marker_name FROM reader_theory.cross_scope_completion_upgrade_markers WHERE marker_name=$1", marker)
+		if err == nil {
+			if !rows.Next() {
+				t.Fatal(rows.Err())
+			}
+			var got string
+			if err := rows.Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			_ = rows.Close()
+			if got != marker {
+				t.Fatal(got)
+			}
+			break
+		}
+		if deadline.Err() != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestLoadConfigRedactsMalformedEndpoint(t *testing.T) {
+	for _, bad := range []string{"postgres://secret:password@%", "host=oops password=secret badarg"} {
+		_, err := LoadConfig(func(key string) string {
+			if key == "ESHU_POSTGRES_DSN" {
+				return bad
+			}
+			return ""
+		})
+		if err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "password") {
+			t.Fatalf("parse error = %v", err)
+		}
+	}
+}
+
+func TestOpenRejectsInconsistentSamePrimaryBeforeDial(t *testing.T) {
+	cfg := Config{
+		WriterDSN: "postgres://user:secret@writer/db", ReadDSN: "postgres://user:secret@reader/db", SamePrimary: true,
+		WriterMaxOpenConns: 15, ReadMaxOpenConns: 15, WriterMaxIdleConns: 5, ReadMaxIdleConns: 5, PingTimeout: time.Second, ReplayTimeout: time.Second,
+	}
+	_, err := Open(context.Background(), cfg, nil)
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("Open error = %v", err)
+	}
+}
+
+func TestAccessCheckpointRejectsFrozenIncarnation(t *testing.T) {
+	access := testAccess(t, "")
+	access.identity.incarnation = "0"
+	if _, err := access.ContextWithCheckpoint(context.Background()); !errors.Is(err, ErrWrongTopology) {
+		t.Fatalf("changed writer incarnation accepted: %v", err)
+	}
+}
+
+func TestAccessExpectedSystemIDAndCandidateFallback(t *testing.T) {
+	writerCandidates := os.Getenv("ESHU_READER_TEST_WRITER_CANDIDATES_DSN")
+	readerCandidates := os.Getenv("ESHU_READER_TEST_READ_CANDIDATES_DSN")
+	if writerCandidates == "" || readerCandidates == "" {
+		t.Skip("owned writer and reader candidate DSNs not configured")
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return writerCandidates
+		case "ESHU_POSTGRES_READ_DSN":
+			return readerCandidates
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedID := os.Getenv("ESHU_READER_TEST_EXPECTED_SYSTEM_ID")
+	if expectedID == "" {
+		t.Skip("independently supplied expected system ID required")
+	}
+	wrongID := "0"
+	if expectedID == wrongID {
+		wrongID = "1"
+	}
+	cfg.ExpectedSystemID = wrongID
+	if access, err := Open(context.Background(), cfg, nil); err == nil {
+		_ = access.Close()
+		t.Fatal("wrong expected system accepted")
+	}
+	cfg.ExpectedSystemID = expectedID
+	access, err := Open(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer access.Close()
+	if got := access.writer.Stats().MaxOpenConnections + access.reader.Stats().MaxOpenConnections; got != 30 {
+		t.Fatalf("candidate pools cap=%d", got)
+	}
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got int
+	if err := access.Reader().QueryRowContext(ctx, "SELECT 3").Scan(&got); err != nil || got != 3 {
+		t.Fatalf("candidate read=%d err=%v", got, err)
+	}
+}
+
+func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
+	container := strings.TrimSpace(os.Getenv("ESHU_READER_TEST_PRIMARY_CONTAINER"))
+	if os.Getenv("ESHU_READER_TEST_RESTART_PRIMARY") != "1" || container == "" {
+		t.Skip("owned primary restart requires explicit fixture flag and container target")
+	}
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if reader == "" {
+		t.Fatal("owned streaming reader fixture required")
+	}
+	old := testAccess(t, reader)
+	before := old.identity.incarnation
+	restartCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(restartCtx, "docker", "restart", container).CombinedOutput()
+	if err != nil {
+		t.Fatalf("owned primary restart: %v %s", err, output)
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+		case "ESHU_POSTGRES_READ_DSN":
+			return reader
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fresh *Access
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		fresh, err = Open(context.Background(), cfg, nil)
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("explicit rebootstrap after readiness: %v", err)
+	}
+	defer fresh.Close()
+	if fresh.identity.incarnation == before {
+		t.Fatalf("primary incarnation unchanged: %s", before)
+	}
+	// A broken old Access must fail after the fresh pool proves the server is
+	// ready; an immediate EOF after Docker restart is not an incarnation test.
+	confirmed := 0
+	for attempt := 0; attempt < 5 && confirmed < 2; attempt++ {
+		_, oldErr := old.ContextWithCheckpoint(context.Background())
+		if oldErr == nil {
+			t.Fatal("old Access accepted the restarted primary")
+		}
+		if errors.Is(oldErr, ErrWrongTopology) {
+			confirmed++
+			continue
+		}
+		if !errors.Is(oldErr, ErrWriterUnavailable) || !isDeadOldSocket(oldErr) {
+			t.Fatalf("old Access unexpected error after fresh readiness: %v", oldErr)
+		}
+		if attempt == 4 {
+			t.Fatalf("old Access never proved frozen-incarnation rejection: %v", oldErr)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if confirmed != 2 {
+		t.Fatalf("old Access topology rejection count=%d", confirmed)
+	}
+	ctx, err := fresh.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got int
+	if err := fresh.Reader().QueryRowContext(ctx, "SELECT 11").Scan(&got); err != nil || got != 11 {
+		t.Fatalf("rebootstrap read=%d err=%v", got, err)
+	}
+}
+
+func isDeadOldSocket(err error) bool {
+	return errors.Is(err, driver.ErrBadConn) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
+}
+
+func TestDeadOldSocketClassifier(t *testing.T) {
+	if !isDeadOldSocket(errors.Join(ErrWriterUnavailable, io.EOF)) {
+		t.Fatal("dead socket was not retryable")
+	}
+	if isDeadOldSocket(errors.Join(ErrWriterUnavailable, errors.New("metadata privilege denied"))) {
+		t.Fatal("non-socket writer failure was retryable")
+	}
+	if isDeadOldSocket(ErrWrongTopology) {
+		t.Fatal("topology mismatch was retryable")
+	}
+}

@@ -5,12 +5,12 @@ package query
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	secretlines "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -21,10 +21,6 @@ import (
 const hardcodedSecretSQLPattern = `(password|passwd|pwd|api[_-]?key|apikey|token|secret|client[_-]?secret|private[_-]?key|authorization)[[:space:]]*[:=][[:space:]]*['"]?[A-Za-z0-9_./+=:@!#$%^-]{6,}|AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----`
 
 type hardcodedSecretReadinessHookContextKey struct{}
-
-type hardcodedSecretQueryer interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}
 
 // The compile-time half of the #6060 interface-export tripwire for the
 // source-reporting form of the secrets investigation read; the plain form is
@@ -77,7 +73,7 @@ func (cr *ContentReader) InvestigateHardcodedSecretsWithSource(
 	defer span.End()
 
 	source := codequery.HardcodedSecretReadSideTable
-	ready, err := secretlines.Ready(ctx, cr.db)
+	ready, err := secretlines.ReadyWithRowQueryer(ctx, cr.db)
 	if err != nil {
 		span.RecordError(err)
 		return nil, source, fmt.Errorf("investigate hardcoded secrets: %w", err)
@@ -85,20 +81,17 @@ func (cr *ContentReader) InvestigateHardcodedSecretsWithSource(
 	if hook, _ := ctx.Value(hardcodedSecretReadinessHookContextKey{}).(func()); hook != nil {
 		hook()
 	}
-	queryer := hardcodedSecretQueryer(cr.db)
-	var snapshot *sql.Tx
+	queryer := db.Queryer(cr.db)
+	var snapshot db.ReadTransaction
 	if ready {
-		tx, err := cr.db.BeginTx(ctx, &sql.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
-			ReadOnly:  true,
-		})
+		tx, err := cr.db.BeginReadOnlySnapshot(ctx)
 		if err != nil {
 			span.RecordError(err)
 			return nil, source, fmt.Errorf("begin hardcoded secret read snapshot: %w", err)
 		}
 		defer func() { _ = tx.Rollback() }()
 
-		ready, err = secretlines.Ready(ctx, tx)
+		ready, err = secretlines.ReadyWithRowQueryer(ctx, tx)
 		if err != nil {
 			span.RecordError(err)
 			return nil, source, fmt.Errorf("investigate hardcoded secrets: %w", err)

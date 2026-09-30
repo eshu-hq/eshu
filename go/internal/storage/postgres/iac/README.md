@@ -25,7 +25,7 @@ reducer-side computation that turns content-file evidence into
 
 ## Exported surface
 
-- `IaCReachabilityStore` with `NewIaCReachabilityStore(database db.ExecQueryer)`.
+- `IaCReachabilityStore` with `NewIaCReachabilityStore(database db.ExecQueryer)` for mutations and `NewIaCReachabilityReader(reader db.Queryer)` for cleanup reads.
 - `Upsert`, `ListCleanupFindings`, `ListLatestCleanupFindings`,
   `CountLatestCleanupFindings`, `HasLatestRows`.
 - `IaCReachabilitySchemaSQL()` returns the DDL.

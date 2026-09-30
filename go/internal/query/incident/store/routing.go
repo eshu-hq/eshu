@@ -55,7 +55,7 @@ func (s PostgresIncidentContextStore) readIncidentDeclaredPagerDutyRouting(
 	if serviceName == "" {
 		return nil, nil
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		incidentsql.ListDeclaredPagerDutyRoutingQuery,
 		serviceName,

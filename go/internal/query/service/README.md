@@ -43,6 +43,10 @@ like every other moved family; the root matrix no longer repeats it.
 
 ## Exported surface
 
+`NewPostgresServiceCatalogCorrelationStoreWithReadStore` accepts a guarded,
+query-only reader for service catalog correlations. The existing `*sql.DB`
+constructor remains available for callers that have not been rewired.
+
 Exports exist only for staying callers: the root stayers that consume
 service reads (entity handlers, the service seam, the container-image
 explanation, compare, the deployment-trace wrappers), the `cmd` wiring

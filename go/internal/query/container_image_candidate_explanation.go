@@ -23,7 +23,7 @@ func (s PostgresContainerImageIdentityStore) ExplainContainerImageCandidate(
 	ctx context.Context,
 	imageRef string,
 ) (map[string]any, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("container image identity database is required")
 	}
 	parts, ok := service.StoryParseImageCandidate(imageRef)
@@ -35,7 +35,11 @@ func (s PostgresContainerImageIdentityStore) ExplainContainerImageCandidate(
 		return detail, nil
 	}
 
-	rows, err := s.DB.QueryContext(ctx, explainContainerImageCandidateQuery, parts.RepositoryID)
+	queryer := s.reader
+	if queryer == nil {
+		queryer = sqlRowsQueryer{inner: s.DB}
+	}
+	rows, err := queryer.QueryContext(ctx, explainContainerImageCandidateQuery, parts.RepositoryID)
 	if err != nil {
 		return nil, fmt.Errorf("explain container image candidate: %w", err)
 	}

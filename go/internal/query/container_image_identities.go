@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type containerImageIdentityQueryer interface {
@@ -19,7 +20,8 @@ type containerImageIdentityQueryer interface {
 // PostgresContainerImageIdentityStore reads active container image identity
 // facts from Postgres using bounded payload predicates.
 type PostgresContainerImageIdentityStore struct {
-	DB containerImageIdentityQueryer
+	DB     containerImageIdentityQueryer
+	reader db.Queryer
 }
 
 // NewPostgresContainerImageIdentityStore creates the Postgres-backed
@@ -28,13 +30,19 @@ func NewPostgresContainerImageIdentityStore(db containerImageIdentityQueryer) Po
 	return PostgresContainerImageIdentityStore{DB: db}
 }
 
+// NewPostgresContainerImageIdentityStoreWithReadStore reads through a guarded
+// query port that exposes no write method.
+func NewPostgresContainerImageIdentityStoreWithReadStore(reader db.Queryer) PostgresContainerImageIdentityStore {
+	return PostgresContainerImageIdentityStore{reader: reader}
+}
+
 // ListContainerImageIdentities returns one bounded page of active reducer
 // container image identity facts.
 func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 	ctx context.Context,
 	filter ContainerImageIdentityFilter,
 ) ([]ContainerImageIdentityRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("container image identity database is required")
 	}
 	if !filter.HasScope() {
@@ -44,7 +52,11 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", containerImageIdentityMaxLimit+1)
 	}
 
-	rows, err := s.DB.QueryContext(
+	queryer := s.reader
+	if queryer == nil {
+		queryer = sqlRowsQueryer{inner: s.DB}
+	}
+	rows, err := queryer.QueryContext(
 		ctx,
 		listContainerImageIdentitiesQuery,
 		filter.Digest,

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -13,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -27,7 +27,7 @@ const (
 
 type instrumentedSemanticSearchScopeResolver struct {
 	resolver query.PostgresSemanticSearchScopeResolver
-	database *pgstatus.InstrumentedDB
+	database *pgstatus.InstrumentedQueryer
 }
 
 func (r instrumentedSemanticSearchScopeResolver) ResolveSemanticSearchScope(
@@ -44,12 +44,11 @@ func (r instrumentedSemanticSearchScopeResolver) ResolveSemanticSearchRepository
 	return r.resolver.ResolveSemanticSearchRepositoryForScope(ctx, scopeID)
 }
 
-func newInstrumentedSemanticSearchScopeResolver(
-	database *sql.DB,
-	instruments *telemetry.Instruments,
+func newInstrumentedSemanticSearchScopeResolverWithReadStore(
+	reader db.Queryer, instruments *telemetry.Instruments,
 ) instrumentedSemanticSearchScopeResolver {
 	instrumentedDB := newInstrumentedPostgresStore(
-		pgstatus.SQLDB{DB: database},
+		reader,
 		"mcp-server",
 		semanticSearchScopeStoreName,
 		instruments,
@@ -61,8 +60,8 @@ func newInstrumentedSemanticSearchScopeResolver(
 }
 
 type instrumentedSemanticSearchVectorMetadataStore struct {
-	store    pgstatus.EshuSearchVectorMetadataStore
-	database *pgstatus.InstrumentedDB
+	store    pgstatus.EshuSearchVectorMetadataReader
+	database *pgstatus.InstrumentedQueryer
 }
 
 func (s instrumentedSemanticSearchVectorMetadataStore) ListActive(
@@ -73,13 +72,13 @@ func (s instrumentedSemanticSearchVectorMetadataStore) ListActive(
 }
 
 type instrumentedSemanticSearchVectorValueStore struct {
-	store    pgstatus.EshuSearchVectorValueStore
-	database *pgstatus.InstrumentedDB
+	store    pgstatus.EshuSearchVectorValueReader
+	database *pgstatus.InstrumentedQueryer
 }
 
 type instrumentedSemanticSearchSnapshotStore struct {
 	store    query.PostgresSemanticSearchSnapshotStore
-	database *pgstatus.InstrumentedDB
+	database *pgstatus.InstrumentedQueryer
 }
 
 func (s instrumentedSemanticSearchSnapshotStore) Load(
@@ -97,12 +96,12 @@ func (s instrumentedSemanticSearchVectorValueStore) ListActive(
 }
 
 func newInstrumentedPostgresStore(
-	inner db.ExecQueryer,
+	inner db.Queryer,
 	tracerName string,
 	storeName string,
 	instruments *telemetry.Instruments,
-) *pgstatus.InstrumentedDB {
-	return &pgstatus.InstrumentedDB{
+) *pgstatus.InstrumentedQueryer {
+	return &pgstatus.InstrumentedQueryer{
 		Inner:       inner,
 		Tracer:      otel.Tracer(tracerName),
 		Instruments: instruments,
@@ -137,29 +136,26 @@ func newContentHybridRanker(config searchembedruntime.Config) query.ContentResul
 	return query.NewContentHybridRanker(true)
 }
 
-func newSemanticSearchHybrid(
-	database *sql.DB,
-	config searchembedruntime.Config,
-	instruments *telemetry.Instruments,
+func newSemanticSearchHybridWithReadStore(
+	reader db.Queryer, config searchembedruntime.Config, instruments *telemetry.Instruments,
 ) query.SemanticSearchHybridStore {
 	if !config.Enabled {
 		return nil
 	}
-	sqlDB := pgstatus.SQLDB{DB: database}
 	metadataDB := newInstrumentedPostgresStore(
-		sqlDB,
+		reader,
 		"mcp-server",
 		semanticSearchVectorMetadataStoreName,
 		instruments,
 	)
 	valueDB := newInstrumentedPostgresStore(
-		sqlDB,
+		reader,
 		"mcp-server",
 		semanticSearchVectorValueStoreName,
 		instruments,
 	)
 	snapshotDB := newInstrumentedPostgresStore(
-		sqlDB,
+		reader,
 		"mcp-server",
 		semanticSearchSnapshotStoreName,
 		instruments,
@@ -171,13 +167,13 @@ func newSemanticSearchHybrid(
 	vectorConfig.VectorIndexVersion = config.VectorIndexVersion
 	vectorConfig.VectorRetrieval = config.VectorRetrieval
 	return query.NewCachedPersistedLocalSemanticSearchHybrid(
-		query.NewPostgresSemanticSearchIndexStore(database),
+		semanticsearch.NewPostgresSemanticSearchIndexStoreWithReadStore(reader),
 		instrumentedSemanticSearchVectorMetadataStore{
-			store:    pgstatus.NewEshuSearchVectorMetadataStore(metadataDB),
+			store:    pgstatus.NewEshuSearchVectorMetadataReader(metadataDB),
 			database: metadataDB,
 		},
 		instrumentedSemanticSearchVectorValueStore{
-			store:    pgstatus.NewEshuSearchVectorValueStore(valueDB),
+			store:    pgstatus.NewEshuSearchVectorValueReader(valueDB),
 			database: valueDB,
 		},
 		instrumentedSemanticSearchSnapshotStore{

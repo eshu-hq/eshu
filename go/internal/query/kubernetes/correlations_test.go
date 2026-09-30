@@ -8,11 +8,14 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 
@@ -348,5 +351,25 @@ func TestKubernetesCorrelationFilterRejectsNilDB(t *testing.T) {
 	}
 	if want := "database is required"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("ListKubernetesCorrelations() error = %q, want it to contain %q", err.Error(), want)
+	}
+}
+
+type rejectingKubernetesReader struct {
+	calls int
+	err   error
+}
+
+func (r *rejectingKubernetesReader) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	r.calls++
+	return nil, r.err
+}
+
+func TestKubernetesCorrelationGuardedReadPort(t *testing.T) {
+	want := errors.New("reader stale")
+	reader := &rejectingKubernetesReader{err: want}
+	store := NewPostgresCorrelationStoreWithReadStore(reader)
+	_, err := store.ListKubernetesCorrelations(t.Context(), CorrelationFilter{ScopeID: "scope", AllScopes: true, Limit: 1})
+	if !errors.Is(err, want) || reader.calls != 1 {
+		t.Fatalf("error %v, calls %d", err, reader.calls)
 	}
 }

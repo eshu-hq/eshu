@@ -19,3 +19,8 @@ concurrent claim cannot be reset by stale selection.
 Repository skip selects only pending, retrying, or failed rows, up to 100. It
 rechecks the selected status and eligibility on the locked target row so an
 in-flight worker claim or a concurrent status change is not overwritten.
+
+`NewReadStore(db.Queryer)` exposes only inspection methods. API/MCP pass the
+guarded reader to this constructor and retain `NewStore` on the writer for
+replay, backfill, skip, and dead-letter changes. Read failures never retry on
+the writer. Both stores share SQL and result decoders.

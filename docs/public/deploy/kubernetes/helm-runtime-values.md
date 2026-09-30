@@ -46,6 +46,36 @@ override a global value.
 | `resolutionEngine.env` | Single reducer Deployment when no lanes are configured. |
 | `resolutionEngine.lanes[].env` | One reducer lane Deployment. |
 
+`api.extraEnv` and `mcpServer.extraEnv` add Kubernetes `EnvVar` entries only to
+those serving pods. These fields accept standard EnvVar values and references;
+they do not enforce Secret-only credential storage. Use an operator-managed
+Secret for a reader DSN that contains credentials:
+
+```yaml
+api:
+  extraEnv:
+    - name: ESHU_POSTGRES_READ_DSN
+      valueFrom:
+        secretKeyRef:
+          name: eshu-reader-connection
+          key: dsn
+mcpServer:
+  extraEnv:
+    - name: ESHU_POSTGRES_READ_DSN
+      valueFrom:
+        secretKeyRef:
+          name: eshu-reader-connection
+          key: dsn
+```
+
+Keep the writer on `contentStore.secretName` and `contentStore.dsnKey`. With
+both `extraEnv` arrays empty, no reader variable is rendered and API/MCP use
+the writer connection for reads. The chart rejects duplicate reader entries,
+a reader entry that also appears in the service's effective `env` maps, and
+`secretKeyRef.optional: true` for this variable. The chart schema checks that
+`extraEnv` is an array of objects; Kubernetes validates each EnvVar's nested
+shape when you apply it.
+
 Do not set `ESHU_GENERATION_RETENTION_ENABLED=false` in global,
 `resolutionEngine.env`, or `resolutionEngine.lanes[].env`. The chart rejects
 that production render because generation retention must run beside reducer

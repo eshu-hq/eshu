@@ -11,12 +11,14 @@ import (
 
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // PostgresAggregateStore reads aggregate counts directly from reducer-owned
 // reconciliation facts.
 type PostgresAggregateStore struct {
-	DB AggregateQueryer
+	DB     AggregateQueryer
+	reader alertAggregateReadQueryer
 }
 
 // AggregateQueryer is the narrow *sql.DB surface PostgresAggregateStore
@@ -34,6 +36,34 @@ func NewPostgresAggregateStore(db AggregateQueryer) PostgresAggregateStore {
 	return PostgresAggregateStore{DB: db}
 }
 
+// NewPostgresAggregateStoreWithReadStore reads counts and inventory through a
+// guarded read-only port.
+func NewPostgresAggregateStoreWithReadStore(reader db.ReadStore) PostgresAggregateStore {
+	return PostgresAggregateStore{reader: reader}
+}
+
+type alertAggregateReadQueryer interface {
+	db.Queryer
+	db.RowQueryer
+}
+
+type legacyAlertsAggregateQueryer struct{ database AggregateQueryer }
+
+func (q legacyAlertsAggregateQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (q legacyAlertsAggregateQueryer) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
+	return q.database.QueryRowContext(ctx, query, args...)
+}
+
+func (s PostgresAggregateStore) queryer() alertAggregateReadQueryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyAlertsAggregateQueryer{database: s.DB}
+}
+
 // PostgresAggregateStore satisfies the hub's aggregate read port; drift
 // fails here rather than at a call site. Moved from root's
 // compat_supply_chain.go pin (#6642).
@@ -48,10 +78,10 @@ func (s PostgresAggregateStore) SecurityAlertProviderRepositoryScopes(
 	ctx context.Context,
 	repositoryName string,
 ) ([]string, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("security alert reconciliation aggregate database is required")
 	}
-	return providerRepositoryScopes(ctx, s.DB, repositoryName)
+	return providerRepositoryScopes(ctx, s.queryer(), repositoryName)
 }
 
 // CountSecurityAlertReconciliations returns the cheap-summary totals envelope
@@ -62,7 +92,7 @@ func (s PostgresAggregateStore) CountSecurityAlertReconciliations(
 	ctx context.Context,
 	filter supplychain.SecurityAlertReconciliationAggregateFilter,
 ) (supplychain.SecurityAlertReconciliationAggregateCount, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return supplychain.SecurityAlertReconciliationAggregateCount{}, fmt.Errorf("security alert reconciliation aggregate database is required")
 	}
 
@@ -77,7 +107,7 @@ func (s PostgresAggregateStore) CountSecurityAlertReconciliations(
 		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
-	row := s.DB.QueryRowContext(ctx, aggregateTotalQuery, args...)
+	row := s.queryer().QueryRowContext(ctx, aggregateTotalQuery, args...)
 	var total sql.NullInt64
 	if err := row.Scan(&total); err != nil {
 		return supplychain.SecurityAlertReconciliationAggregateCount{}, fmt.Errorf("count security alert reconciliations: %w", err)
@@ -112,7 +142,7 @@ func (s PostgresAggregateStore) fillBuckets(
 	dst map[string]int,
 ) error {
 	q := fmt.Sprintf(aggregateGroupQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
+	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("group security alert reconciliations: %w", err)
 	}
@@ -140,7 +170,7 @@ func (s PostgresAggregateStore) SecurityAlertReconciliationInventory(
 	limit int,
 	offset int,
 ) ([]supplychain.SecurityAlertReconciliationInventoryRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("security alert reconciliation aggregate database is required")
 	}
 	groupExpr, err := inventoryGroupExpression(dimension)
@@ -156,7 +186,7 @@ func (s PostgresAggregateStore) SecurityAlertReconciliationInventory(
 		offset = 0
 	}
 	q := fmt.Sprintf(inventoryQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		q,
 		array.Of(supplychain.SecurityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),

@@ -51,7 +51,7 @@ func TestCompositeMetricsHandlerCombinesOutput(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Errorf("composite handler status = %d, want %d", got, want)
 	}
-	if got, want := rec.Header().Get("Content-Type"), "text/plain; charset=utf-8"; got != want {
+	if got, want := rec.Header().Get("Content-Type"), "text/plain; version=0.0.4; charset=utf-8"; got != want {
 		t.Errorf("composite handler Content-Type = %q, want %q", got, want)
 	}
 }

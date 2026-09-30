@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -148,13 +149,20 @@ type kubernetesPodTemplateQueryer interface {
 // facts from Postgres, anchored on the ArgoCD tracking-id identity
 // annotation.
 type PostgresKubernetesPodTemplateStore struct {
-	DB kubernetesPodTemplateQueryer
+	DB     kubernetesPodTemplateQueryer
+	reader db.Queryer
 }
 
 // NewPostgresKubernetesPodTemplateStore creates the Postgres-backed
 // kubernetes_live.pod_template identity read model.
 func NewPostgresKubernetesPodTemplateStore(db kubernetesPodTemplateQueryer) PostgresKubernetesPodTemplateStore {
 	return PostgresKubernetesPodTemplateStore{DB: db}
+}
+
+// NewPostgresKubernetesPodTemplateStoreWithReadStore reads live pod-template
+// evidence through a guarded query-only connection.
+func NewPostgresKubernetesPodTemplateStoreWithReadStore(reader db.Queryer) PostgresKubernetesPodTemplateStore {
+	return PostgresKubernetesPodTemplateStore{reader: reader}
 }
 
 // HasLiveIdentityMatch reports whether an ACTIVE kubernetes_live.pod_template
@@ -169,7 +177,7 @@ func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	ctx context.Context,
 	filter KubernetesPodTemplateFilter,
 ) (bool, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return false, fmt.Errorf("kubernetes pod template database is required")
 	}
 	if !filter.HasScope() {
@@ -208,7 +216,7 @@ func (s PostgresKubernetesPodTemplateStore) hasLiveTrackingIDIdentityMatch(
 		query = hasLiveKubernetesPodTemplateIdentityScopedQuery
 		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
-	return queryLiveIdentityMatchExists(ctx, s.DB, query, args)
+	return queryLiveIdentityMatchExists(ctx, s.queryer(), query, args)
 }
 
 // queryLiveIdentityMatchExists issues query with args and reports whether at
@@ -217,11 +225,11 @@ func (s PostgresKubernetesPodTemplateStore) hasLiveTrackingIDIdentityMatch(
 // variants of HasLiveIdentityMatch (#5639).
 func queryLiveIdentityMatchExists(
 	ctx context.Context,
-	db kubernetesPodTemplateQueryer,
+	reader db.Queryer,
 	query string,
 	args []any,
 ) (bool, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return false, fmt.Errorf("has live kubernetes pod template identity match: %w", err)
 	}
@@ -366,7 +374,7 @@ func (s PostgresKubernetesPodTemplateStore) ListLiveIdentityMatches(
 	ctx context.Context,
 	filter KubernetesPodTemplateFilter,
 ) ([]LiveIdentityMatch, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("kubernetes pod template database is required")
 	}
 	if !filter.HasScope() {
@@ -404,7 +412,7 @@ func (s PostgresKubernetesPodTemplateStore) listLiveTrackingIDIdentityMatches(
 	}
 	args = append(args, querycontract.ServiceStoryItemLimit)
 
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list live kubernetes pod template identity matches: %w", err)
 	}
@@ -418,7 +426,7 @@ func (s PostgresKubernetesPodTemplateStore) listLiveTrackingIDIdentityMatches(
 // project, so the two anchor kinds never fork their row-decoding logic
 // (#5639: a single shared seam, matching resolveLiveIdentityAnchors and
 // liveIdentityAnchorFilter on the caller side).
-func scanLiveIdentityMatchRows(rows *sql.Rows) ([]LiveIdentityMatch, error) {
+func scanLiveIdentityMatchRows(rows db.Rows) ([]LiveIdentityMatch, error) {
 	var matches []LiveIdentityMatch
 	for rows.Next() {
 		var (

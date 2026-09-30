@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const cicdRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
@@ -22,7 +23,8 @@ type cicdRunCorrelationQueryer interface {
 // PostgresRunCorrelationStore reads active CI/CD run correlation facts
 // from Postgres using bounded payload predicates and a deterministic cursor.
 type PostgresRunCorrelationStore struct {
-	DB cicdRunCorrelationQueryer
+	DB     cicdRunCorrelationQueryer
+	reader db.Queryer
 }
 
 // NewPostgresRunCorrelationStore creates the Postgres-backed CI/CD run
@@ -31,13 +33,25 @@ func NewPostgresRunCorrelationStore(db cicdRunCorrelationQueryer) PostgresRunCor
 	return PostgresRunCorrelationStore{DB: db}
 }
 
+// NewPostgresRunCorrelationStoreWithReadStore reads CI/CD facts through a
+// guarded query-only port.
+func NewPostgresRunCorrelationStoreWithReadStore(reader db.Queryer) PostgresRunCorrelationStore {
+	return PostgresRunCorrelationStore{reader: reader}
+}
+
+type legacyCICDQueryer struct{ database cicdRunCorrelationQueryer }
+
+func (q legacyCICDQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
 // ListCICDRunCorrelations returns one bounded page of active reducer CI/CD run
 // correlation facts.
 func (s PostgresRunCorrelationStore) ListCICDRunCorrelations(
 	ctx context.Context,
 	filter querycontract.CICDRunCorrelationFilter,
 ) ([]querycontract.CICDRunCorrelationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("ci/cd run correlation database is required")
 	}
 	if !filter.HasScope() {
@@ -47,7 +61,11 @@ func (s PostgresRunCorrelationStore) ListCICDRunCorrelations(
 		return nil, fmt.Errorf("limit must be between 1 and %d", cicdRunCorrelationMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	queryer := s.reader
+	if queryer == nil {
+		queryer = legacyCICDQueryer{database: s.DB}
+	}
+	rows, err := queryer.QueryContext(
 		ctx,
 		listRunCorrelationsQuery,
 		cicdRunCorrelationFactKind,

@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/alerts"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // compat_supply_chain.go merges the three pre-#6642 root alias files
@@ -475,6 +476,11 @@ func NewPostgresSupplyChainImpactAggregateStore(db impact.AggregateQueryer) Post
 
 func NewPostgresSupplyChainImpactReadinessStore(db impact.ReadinessQueryer) PostgresSupplyChainImpactReadinessStore {
 	return impact.NewPostgresReadinessStore(db)
+}
+
+// NewPostgresSupplyChainImpactReadinessStoreWithReadStore uses a guarded snapshot.
+func NewPostgresSupplyChainImpactReadinessStoreWithReadStore(reader db.ReadStore) PostgresSupplyChainImpactReadinessStore {
+	return impact.NewPostgresReadinessStoreWithReadStore(reader)
 }
 
 func NewPostgresVulnerabilitySuppressionMutationStore(db *sql.DB) *PostgresVulnerabilitySuppressionMutationStore {

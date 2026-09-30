@@ -15,13 +15,21 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	adminstore "github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
+	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/iac"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/terraform/drift"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -91,31 +99,44 @@ func newRouterWithSemanticEmbedding(
 	readImpactFromWinners bool,
 	cookieSecureMode query.CookieSecureMode,
 ) (*query.APIRouter, error) {
+	return newRouterWithSemanticEmbeddingWithReadStore(db, pgstatus.NewSQLReadStore(db), neo4jReader, contentReader, statusReader, metricsSource, queryProfile, graphBackend, logger, instruments, semanticSearchEmbedding, componentHome, componentPolicy, governanceStatus, governanceAudit, readImpactFromWinners, cookieSecureMode)
+}
+
+// newRouterWithSemanticEmbeddingWithReadStore separates business reads from authoritative writes.
+func newRouterWithSemanticEmbeddingWithReadStore(
+	writer *sql.DB, reader db.ReadStore, neo4jReader query.GraphQuery, contentReader query.ContentStore,
+	statusReader status.Reader, metricsSource query.MetricsTimeSeriesSource, queryProfile query.QueryProfile,
+	graphBackend query.GraphBackend, logger *slog.Logger, instruments *telemetry.Instruments,
+	semanticSearchEmbedding searchembedruntime.Config, componentHome string, componentPolicy component.Policy,
+	governanceStatus query.GovernanceStatusConfig, governanceAudit query.GovernanceAuditSummaryReader,
+	readImpactFromWinners bool, cookieSecureMode query.CookieSecureMode,
+) (*query.APIRouter, error) {
 	if statusReader == nil {
-		statusReader = newStatusStore(newStatusQueryer(db, instruments), instruments)
+		statusReader = newStatusStore(reader, instruments)
 	}
-	if governanceAudit == nil && db != nil {
-		governanceAudit = newGovernanceAuditStore(db, instruments, logger)
+	if governanceAudit == nil && writer != nil {
+		governanceAudit = newGovernanceAuditStore(writer, instruments, logger)
 	}
+	auditRead := newGovernanceAuditReadStore(reader, instruments, logger)
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
-	if db != nil {
-		containerImageIdentities = query.NewPostgresContainerImageIdentityStore(db)
-		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
+	if reader != nil {
+		containerImageIdentities = query.NewPostgresContainerImageIdentityStoreWithReadStore(reader)
+		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader)
 	}
 	router := &query.APIRouter{
-		LocalIdentity:          newLocalIdentityHandler(db, instruments, governanceAudit, cookieSecureMode),
-		BrowserSessions:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
-		SessionList:            newBrowserSessionListHandler(db, instruments),
-		AdminIdentityReads:     newAdminIdentityReadHandler(db, instruments, governanceAudit, logger),
-		AdminIdentityMutations: newAdminIdentityMutationHandler(db, instruments, governanceAudit),
-		Profile:                newProfileHandler(db, instruments, governanceAudit),
+		LocalIdentity:          newLocalIdentityHandler(writer, instruments, governanceAudit, cookieSecureMode),
+		BrowserSessions:        newBrowserSessionHandler(writer, instruments, cookieSecureMode),
+		SessionList:            newBrowserSessionListHandler(writer, instruments),
+		AdminIdentityReads:     newAdminIdentityReadHandlerWithAuditReadStore(writer, reader, instruments, auditRead, logger),
+		AdminIdentityMutations: newAdminIdentityMutationHandler(writer, instruments, governanceAudit),
+		Profile:                newProfileHandler(writer, instruments, governanceAudit),
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,
 			Content:                    contentReader,
-			CICDRunCorrelations:        query.NewPostgresCICDRunCorrelationStore(db),
-			ServiceCatalogCorrelations: query.NewPostgresServiceCatalogCorrelationStore(db),
-			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(pgstatus.SQLQueryer{DB: db}, instruments),
+			CICDRunCorrelations:        cicd.NewPostgresRunCorrelationStoreWithReadStore(reader),
+			ServiceCatalogCorrelations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
+			Freshness:                  pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
 			Profile:                    queryProfile,
 			Logger:                     logger,
 		},
@@ -123,7 +144,7 @@ func newRouterWithSemanticEmbedding(
 			GraphBackend:             graphBackend,
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,
-			CICDRunCorrelations:      query.NewPostgresCICDRunCorrelationStore(db),
+			CICDRunCorrelations:      cicd.NewPostgresRunCorrelationStoreWithReadStore(reader),
 			ContainerImageIdentities: containerImageIdentities,
 			SBOMAttachments:          sbomAttachments,
 			Profile:                  queryProfile,
@@ -135,7 +156,7 @@ func newRouterWithSemanticEmbedding(
 			GraphBackend:         graphBackend,
 			Neo4j:                neo4jReader,
 			Content:              contentReader,
-			CodeFlow:             codemodel.NewPostgresCodeFlowStore(db),
+			CodeFlow:             codemodel.NewPostgresCodeFlowStoreWithReadStore(reader),
 			Profile:              queryProfile,
 			HybridRanker:         newCodeHybridRanker(semanticSearchEmbedding),
 			Logger:               logger,
@@ -155,8 +176,8 @@ func newRouterWithSemanticEmbedding(
 		Infra: &query.InfraHandler{
 			GraphBackend:   graphBackend,
 			Neo4j:          neo4jReader,
-			Aggregates:     query.NewInfraResourceAggregateStore(neo4jReader, db, instruments),
-			CloudResources: query.NewPostgresCloudResourceListStore(db),
+			Aggregates:     query.NewInfraResourceAggregateStoreWithReadStore(neo4jReader, reader, instruments),
+			CloudResources: query.NewPostgresCloudResourceListStoreWithReadStore(reader),
 			Profile:        queryProfile,
 			Instruments:    instruments,
 		},
@@ -169,18 +190,18 @@ func newRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		CloudRuntimeDrift: &query.CloudRuntimeDriftHandler{
-			Store:   query.NewPostgresMultiCloudRuntimeDriftStore(db),
+			Store:   query.NewPostgresMultiCloudRuntimeDriftStoreWithReadStore(reader),
 			Profile: queryProfile,
 		},
 		TerraformConfigStateDrift: &query.TerraformConfigStateDriftHandler{
-			Store:   query.NewPostgresTerraformConfigStateDriftFindingStore(db),
+			Store:   drift.NewPostgresFindingStoreWithReadStore(reader),
 			Profile: queryProfile,
 		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
-			Reachability: query.NewPostgresIaCReachabilityStore(db),
-			Management:   query.NewPostgresIaCManagementStore(db),
-			Inventory:    query.NewPostgresIaCInventoryStore(db),
+			Reachability: iac.NewPostgresIaCReachabilityStoreWithReadStore(reader),
+			Management:   iac.NewPostgresIaCManagementStoreWithReadStore(reader),
+			Inventory:    iac.NewPostgresIaCInventoryStoreWithReadStore(reader),
 			Graph:        neo4jReader,
 			Profile:      queryProfile,
 		},
@@ -190,18 +211,18 @@ func newRouterWithSemanticEmbedding(
 			Profile:                queryProfile,
 			Logger:                 logger,
 			Instruments:            instruments,
-			KubernetesPodTemplates: query.NewPostgresKubernetesPodTemplateStore(db),
+			KubernetesPodTemplates: deployment.NewPostgresKubernetesPodTemplateStoreWithReadStore(reader),
 		},
 		Evidence: &query.EvidenceHandler{
 			Content:            contentReader,
-			AdmissionDecisions: query.NewPostgresAdmissionDecisionReadStore(pgstatus.SQLDB{DB: db}),
+			AdmissionDecisions: query.NewPostgresAdmissionDecisionReadStoreWithReadStore(reader),
 			Profile:            queryProfile,
 			StatusReader:       statusReader,
 			Neo4j:              neo4jReader,
 		},
 		Documentation: &query.DocumentationHandler{
 			Content:    contentReader,
-			Aggregates: query.NewPostgresDocumentationFindingAggregateStore(db),
+			Aggregates: query.NewPostgresDocumentationFindingAggregateStoreWithReadStore(reader),
 			Profile:    queryProfile,
 		},
 		SemanticEvidence: &query.SemanticEvidenceHandler{
@@ -209,18 +230,18 @@ func newRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
-			Index:         query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid:   newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
-			ScopeResolver: newInstrumentedSemanticSearchScopeResolver(db, instruments),
+			Index:         semanticsearch.NewPostgresSemanticSearchIndexStoreWithReadStore(reader),
+			LocalHybrid:   newSemanticSearchHybridWithReadStore(reader, semanticSearchEmbedding, instruments),
+			ScopeResolver: newInstrumentedSemanticSearchScopeResolverWithReadStore(reader, instruments),
 			Profile:       queryProfile,
-			SearchVectorReady: query.NewPostgresSearchVectorReadyStore(db, query.SearchVectorBuildIdentity{
+			SearchVectorReady: semanticsearch.NewPostgresSearchVectorReadyStoreWithReadStore(reader, query.SearchVectorBuildIdentity{
 				ProviderProfileID:  semanticSearchEmbedding.ProviderProfileID,
 				SourceClass:        semanticSearchEmbedding.SourceClass,
 				EmbeddingModelID:   semanticSearchEmbedding.EmbeddingModelID,
 				VectorIndexVersion: semanticSearchEmbedding.VectorIndexVersion,
 			}),
 		},
-		PackageRegistry: newPackageRegistryHandler(db, neo4jReader, contentReader, queryProfile),
+		PackageRegistry: newPackageRegistryHandler(reader, neo4jReader, contentReader, queryProfile),
 		Dependencies: &query.DependenciesHandler{
 			Neo4j:       neo4jReader,
 			Profile:     queryProfile,
@@ -228,15 +249,15 @@ func newRouterWithSemanticEmbedding(
 		},
 		CodeownersOwnership: &query.CodeownersOwnershipHandler{
 			Neo4j:        neo4jReader,
-			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Correlations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 			Instruments:  instruments,
 		},
-		CICD:                  newCICDHandler(db, contentReader, queryProfile),
-		ServiceCatalog:        newServiceCatalogHandler(db, contentReader, queryProfile),
-		Kubernetes:            newKubernetesHandler(db, queryProfile),
-		SecretsIAM:            newSecretsIAMHandler(db, neo4jReader, queryProfile),
-		ObservabilityCoverage: newObservabilityCoverageHandler(db, contentReader, queryProfile),
+		CICD:                  newCICDHandler(reader, contentReader, queryProfile),
+		ServiceCatalog:        newServiceCatalogHandler(reader, contentReader, queryProfile),
+		Kubernetes:            newKubernetesHandler(reader, queryProfile),
+		SecretsIAM:            newSecretsIAMHandler(reader, neo4jReader, queryProfile),
+		ObservabilityCoverage: newObservabilityCoverageHandler(reader, contentReader, queryProfile),
 		Images: &query.ImageHandler{
 			Neo4j:   neo4jReader,
 			Profile: queryProfile,
@@ -245,19 +266,19 @@ func newRouterWithSemanticEmbedding(
 			Neo4j:   neo4jReader,
 			Profile: queryProfile,
 		},
-		SupplyChain:   newSupplyChainHandler(db, neo4jReader, contentReader, queryProfile, readImpactFromWinners, logger),
-		Incident:      newIncidentHandler(db, queryProfile),
-		WorkItems:     newWorkItemHandler(db, queryProfile),
+		SupplyChain:   newSupplyChainHandler(writer, reader, neo4jReader, contentReader, queryProfile, readImpactFromWinners, logger),
+		Incident:      newIncidentHandler(reader, queryProfile),
+		WorkItems:     newWorkItemHandler(reader, queryProfile),
 		Visualization: &query.VisualizationHandler{},
-		Freshness:     newFreshnessHandler(db, queryProfile),
+		Freshness:     newFreshnessHandler(reader, queryProfile),
 		Status: &query.StatusHandler{
 			Neo4j:           neo4jReader,
-			DB:              db,
+			DB:              writer,
 			StatusReader:    statusReader,
-			GovernanceAudit: governanceAudit,
+			GovernanceAudit: auditRead,
 			Profile:         queryProfile,
 			Governance:      governanceStatus,
-			LiveActivity:    pgstatus.NewInstrumentedLiveActivityStore(pgstatus.SQLQueryer{DB: db}, instruments),
+			LiveActivity:    pgstatus.NewInstrumentedLiveActivityStore(reader, instruments),
 		},
 		ComponentExtensions: &query.ComponentExtensionsHandler{
 			ComponentHome: componentHome,
@@ -280,20 +301,21 @@ func newRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		Admin: &query.AdminHandler{
-			Store:       query.NewPostgresAdminStore(db),
+			Store:       query.NewPostgresAdminStore(writer),
+			ReadStore:   adminstore.NewReadStore(reader),
 			Audit:       adminRecoveryAuditAppender(governanceAudit),
 			Instruments: instruments,
 		},
 	}
-	if db == nil {
+	if writer == nil {
 		return router, nil
 	}
 
-	recoveryHandler, err := recovery.NewHandler(pgstatus.NewRecoveryStore(pgstatus.SQLDB{DB: db}, pgstatus.WithRecoveryInstruments(instruments)))
+	recoveryHandler, err := recovery.NewHandler(pgstatus.NewRecoveryStore(pgstatus.SQLDB{DB: writer}, pgstatus.WithRecoveryInstruments(instruments)))
 	if err != nil {
 		return nil, fmt.Errorf("new recovery handler: %w", err)
 	}
-	reindexer, err := internalruntime.NewStatusRequestHandler(maintenancestore.NewStatusRequestStore(pgstatus.SQLDB{DB: db}))
+	reindexer, err := internalruntime.NewStatusRequestHandler(maintenancestore.NewStatusRequestStore(pgstatus.SQLDB{DB: writer}))
 	if err != nil {
 		return nil, fmt.Errorf("new status request handler: %w", err)
 	}

@@ -18,7 +18,7 @@ package until their own `search/document/` and `search/vector/` moves.
 
 ## Exported surface
 
-- `EshuSearchIndexStore` / `NewEshuSearchIndexStore(db.ExecQueryer)`
+- `EshuSearchIndexStore` / `NewEshuSearchIndexStore(db.ExecQueryer)` / `NewEshuSearchIndexReader(db.Queryer)`
 - `EshuSearchIndexSearch`, `EshuSearchIndexSearchResult`
 - `(EshuSearchIndexStore).Search(ctx, EshuSearchIndexSearch) (EshuSearchIndexSearchResult, error)`
 - `SortedSearchIndexTerms`, `BuildEshuSearchIndexQuery` -- exported only for

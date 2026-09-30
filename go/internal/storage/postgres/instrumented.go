@@ -88,64 +88,12 @@ func (database *InstrumentedDB) ExecContext(ctx context.Context, query string, a
 
 // QueryContext wraps the inner QueryContext with tracing and metrics.
 func (database *InstrumentedDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	start := time.Now()
-
-	// Create span if tracer is available
-	if database.Tracer != nil {
-		var span trace.Span
-		ctx, span = database.Tracer.Start(
-			ctx, "postgres.query",
-			trace.WithAttributes(
-				attribute.String("db.system", "postgresql"),
-				attribute.String("db.operation", "query"),
-				attribute.String("eshu.store", database.StoreName),
-			),
-		)
-		defer span.End()
-		// A caller that labeled the read (db.WithQuerySummary) names it on the
-		// span, so identical-looking status reads are attributable (#6794).
-		if summary := db.QuerySummaryFromContext(ctx); summary != "" {
-			span.SetAttributes(attribute.String("db.query.summary", summary))
-		}
-
-		// Execute the query
-		rows, err := database.Inner.QueryContext(ctx, query, args...)
-		// Record error in span if present
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
-
-		// Record duration metric if instruments are available
-		if database.Instruments != nil {
-			duration := time.Since(start).Seconds()
-			database.Instruments.PostgresQueryDuration.Record(
-				ctx, duration,
-				metric.WithAttributes(
-					attribute.String("operation", "read"),
-					attribute.String("store", database.StoreName),
-				),
-			)
-		}
-
-		return rows, err
-	}
-
-	// No tracer, just execute and optionally record metric
-	rows, err := database.Inner.QueryContext(ctx, query, args...)
-
-	if database.Instruments != nil {
-		duration := time.Since(start).Seconds()
-		database.Instruments.PostgresQueryDuration.Record(
-			ctx, duration,
-			metric.WithAttributes(
-				attribute.String("operation", "read"),
-				attribute.String("store", database.StoreName),
-			),
-		)
-	}
-
-	return rows, err
+	return (&InstrumentedQueryer{
+		Inner:       database.Inner,
+		Tracer:      database.Tracer,
+		Instruments: database.Instruments,
+		StoreName:   database.StoreName,
+	}).QueryContext(ctx, query, args...)
 }
 
 // CopySearchIndexTerms wraps the optional SQLDB COPY fast path with the same
@@ -210,4 +158,77 @@ func (database *InstrumentedDB) CopySearchIndexTerms(
 		)
 	}
 	return copied, err
+}
+
+// InstrumentedQueryer wraps only read queries with the Postgres query span and
+// duration metric. It does not expose an Exec method or a raw SQL handle.
+type InstrumentedQueryer struct {
+	Inner       db.Queryer
+	Tracer      trace.Tracer
+	Instruments *telemetry.Instruments
+	StoreName   string
+}
+
+var _ db.Queryer = (*InstrumentedQueryer)(nil)
+
+// QueryContext wraps the inner QueryContext with tracing and metrics.
+func (database *InstrumentedQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	start := time.Now()
+
+	// Create span if tracer is available
+	if database.Tracer != nil {
+		var span trace.Span
+		ctx, span = database.Tracer.Start(
+			ctx, "postgres.query",
+			trace.WithAttributes(
+				attribute.String("db.system", "postgresql"),
+				attribute.String("db.operation", "query"),
+				attribute.String("eshu.store", database.StoreName),
+			),
+		)
+		defer span.End()
+		// A caller that labeled the read (db.WithQuerySummary) names it on the
+		// span, so identical-looking status reads are attributable (#6794).
+		if summary := db.QuerySummaryFromContext(ctx); summary != "" {
+			span.SetAttributes(attribute.String("db.query.summary", summary))
+		}
+
+		// Execute the query
+		rows, err := database.Inner.QueryContext(ctx, query, args...)
+		// Record error in span if present
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+
+		// Record duration metric if instruments are available
+		if database.Instruments != nil {
+			duration := time.Since(start).Seconds()
+			database.Instruments.PostgresQueryDuration.Record(
+				ctx, duration,
+				metric.WithAttributes(
+					attribute.String("operation", "read"),
+					attribute.String("store", database.StoreName),
+				),
+			)
+		}
+
+		return rows, err
+	}
+
+	// No tracer, just execute and optionally record metric
+	rows, err := database.Inner.QueryContext(ctx, query, args...)
+
+	if database.Instruments != nil {
+		duration := time.Since(start).Seconds()
+		database.Instruments.PostgresQueryDuration.Record(
+			ctx, duration,
+			metric.WithAttributes(
+				attribute.String("operation", "read"),
+				attribute.String("store", database.StoreName),
+			),
+		)
+	}
+
+	return rows, err
 }

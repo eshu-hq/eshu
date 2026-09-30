@@ -5,12 +5,18 @@ package main
 
 import (
 	"database/sql"
+	"errors"
+	"net/http"
 
 	"go.opentelemetry.io/otel"
 
+	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
+	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 // newStatusStore constructs the API's read-only StatusStore and wires the
@@ -53,4 +59,21 @@ func newStatusQueryer(rawDB *sql.DB, instruments *telemetry.Instruments) db.Quer
 		Instruments: instruments,
 		StoreName:   statusSnapshotStoreName,
 	}
+}
+
+// mountRuntimeSurfaceWithPostgresAccess gives only trusted admin methods a
+// checkpoint source; readiness checks both pools and the fenced status schema.
+func mountRuntimeSurfaceWithPostgresAccess(apiHandler http.Handler,
+	serviceName string, reader status.Reader, prometheusHandler http.Handler, access *pgaccess.Access, driver neo4jdriver.DriverWithContext,
+) (http.Handler, error) {
+	if access == nil {
+		return nil, errors.New("postgres access is required for the runtime surface")
+	}
+	probes := internalruntime.ReadinessProbesForDependencies(nil, driver)
+	probes = append(probes, internalruntime.ReadinessProbe{Name: "postgres", Check: access.Ping})
+	return internalruntime.NewStatusAdminMux(serviceName,
+		pgaccess.NewTrustedStatusReader(reader, access), apiHandler,
+		internalruntime.WithPrometheusHandler(prometheusHandler),
+		internalruntime.WithReadinessProbes(probes...),
+	)
 }

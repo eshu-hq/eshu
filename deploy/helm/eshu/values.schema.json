@@ -1262,6 +1262,7 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
         "extraVolumes": { "type": "array", "items": { "type": "object" } },
         "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
@@ -1278,6 +1279,7 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
         "extraVolumes": { "type": "array", "items": { "type": "object" } },
         "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
         "connectionTuning": { "$ref": "#/definitions/connectionTuning" },

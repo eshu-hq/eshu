@@ -35,7 +35,7 @@ flowchart TB
     main["main()"]
     tel["telemetry.NewBootstrap\n+ NewProviders"]
     wire["wireAPI()"]
-    pg["sql.Open + PingContext\n(Postgres)"]
+    pg["postgres.Open\n(writer + guarded reader)"]
     neo4j["internalruntime.OpenNeo4jDriver\n(Neo4j / NornicDB)"]
     router["newMCPQueryRouter()\nwiring_router.go\nquery.APIRouter"]
     auth["query.AuthMiddleware\nprotects /api/v0/*"]
@@ -67,8 +67,7 @@ flowchart TB
 2. `wireAPI` validates query profile, graph backend, API key, optional semantic
    provider profile metadata, optional semantic extraction policy, and the
    semantic-search embedder selector before datastore connections.
-   It then opens Postgres via `sql.Open("pgx", pgDSN)`
-   and calls `PingContext`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
+   It opens and validates both PostgreSQL roles through `runtime/postgres.Open`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
    `ESHU_DISABLE_NEO4J` is not `true`, it also dials Neo4j via
    `internalruntime.OpenNeo4jDriver`.
 3. `newMCPQueryRouter` wires the MCP-backed `query` handlers
@@ -77,7 +76,10 @@ flowchart TB
    `PackageRegistryHandler`, `CICDHandler`, `CloudRuntimeDriftHandler`,
    `SupplyChainHandler`, `IncidentHandler`, `WorkItemHandler`,
    `FreshnessHandler`, `StatusHandler`, `ComponentExtensionsHandler`,
-   `CompareHandler`) into a `query.APIRouter` and mounts it.
+   `CompareHandler`) into a `query.APIRouter` and mounts it. Business Postgres
+   reads, semantic vector reads, freshness, status, governance audit summaries,
+   and bounded admin inspections use a guarded read store. Identity and auth
+   state remain on the writer; both roles may point to one Postgres instance.
    Component-extension routes read the configured component registry only when
    `ESHU_COMPONENT_HOME` is set; otherwise they return an unavailable envelope.
 4. The mounted handler is wrapped by `query.AuthMiddleware`. `wireAPI` also
@@ -99,11 +101,10 @@ flowchart TB
 7. `mcp.NewServer` is called with the authed query handler and
    `mcp.WithTransportAuth(authWiring.transportAuth)`, so `GET /sse` and
    `POST /mcp/message` (every JSON-RPC method) run through the same credential
-   middleware as `tools/call`'s internal dispatch. A headerless request is
-   refused only when a shared `ESHU_API_KEY` is set; a scoped-only/OIDC-only
-   deployment still passes headerless requests through until the companion
-   auth-headerless-bypass hardening (under #5161) lands (see the residual gap
-   in [Service Runtimes](../../../docs/public/deployment/service-runtimes.md)).
+   middleware as `tools/call`'s internal dispatch. A request without accepted
+   credentials is refused when a shared key, scoped-token file, or OIDC bearer
+   audience is configured. With none of these explicit credential sources,
+   the development read surface remains open.
 8. Transport selection reads `ESHU_MCP_TRANSPORT`:
    - `stdio` — `Server.Run` reads newline-delimited JSON-RPC from stdin;
      no HTTP listener starts.
@@ -125,6 +126,35 @@ satisfies `query.GraphQuery` and `query.ContentReader` satisfies
 `query.ContentStore` (`wiring.go:22-23`).
 
 ## Configuration
+
+### PostgreSQL read routing
+
+`ESHU_POSTGRES_DSN` is the writer endpoint; the legacy
+`ESHU_CONTENT_STORE_DSN` fallback remains supported. Optional
+`ESHU_POSTGRES_READ_DSN` supplies reader hosts. Omit it, or assign both settings
+exactly the same DSN, for one database with separate writer and read-only pools.
+Native pgx host lists share each pool's budget rather than allocating a pool
+per host. Writer candidates must resolve to one accepted primary; independent
+writable databases are outside this contract.
+
+`ESHU_POSTGRES_MAX_OPEN_CONNS` and `ESHU_POSTGRES_MAX_IDLE_CONNS` are totals
+across both pools (defaults 30 and 10). Optional
+`ESHU_POSTGRES_READ_MAX_OPEN_CONNS` and
+`ESHU_POSTGRES_READ_MAX_IDLE_CONNS` allocate the reader share; the writer gets
+the remainder. Optional `ESHU_POSTGRES_EXPECTED_SYSTEM_ID` pins the accepted
+physical PostgreSQL cluster. Both open allocations must be positive.
+
+Authorization and required committed writes precede a bounded writer WAL
+checkpoint. Every business SQL operation fences its actual reader connection
+against that checkpoint. Lag, unavailable readers, and topology mismatches
+return errors without switching business reads to the writer. Trusted runtime
+status, metrics, and readiness capture their own checkpoints; health remains
+independent of the database. Primary restart requires an explicit, verified
+runtime recovery rather than automatic acceptance of a new incarnation.
+
+See [PostgreSQL read routing](../../../docs/public/deployment/postgres-read-routing.md)
+for consistency, permissions, multiple hosts, and qualification limits.
+
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -172,10 +202,9 @@ or spans beyond the startup/connection events.
 - The query API mounted under `/api/` is protected by `query.AuthMiddleware`.
   As of #5168 the MCP transport endpoints (`GET /sse`, `POST /mcp/message`) run
   through the SAME credential middleware, via `mcp.WithTransportAuth`, and SSE
-  sessions are principal-bound. A headerless request is refused only when a
-  shared `ESHU_API_KEY` is set; a scoped-only/OIDC-only deployment still passes
-  headerless requests through until the companion auth-headerless-bypass
-  hardening (under #5161). Denials increment
+  sessions are principal-bound. Requests without accepted credentials are
+  refused when a shared key, scoped-token file, or OIDC bearer audience is
+  configured. Denials increment
   `eshu_dp_mcp_transport_auth_denied_total` (labeled by `mcp_method` and
   `reason`).
 - Authenticating is not the same as being admitted. `ESHU_GOVERNANCE_MODE`

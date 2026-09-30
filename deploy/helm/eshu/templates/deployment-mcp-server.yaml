@@ -77,6 +77,9 @@ spec:
                   name: {{ .Values.apiAuth.secretName }}
                   key: {{ .Values.apiAuth.key }}
             {{- include "eshu.renderEnvMaps" (list .Values.env .Values.mcpServer.env) | nindent 12 }}
+            {{- with .Values.mcpServer.extraEnv }}
+            {{- include "eshu.renderReadExtraEnv" (dict "service" "mcpServer" "env" $.Values.env "serviceEnv" $.Values.mcpServer.env "extraEnv" .) | nindent 12 }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080

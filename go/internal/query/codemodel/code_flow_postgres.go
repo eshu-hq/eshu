@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CodeFlowQueryer is the minimal database port the Postgres flow reader
@@ -69,12 +70,25 @@ func floatVal(row map[string]any, key string) float64 {
 // PostgresCodeFlowStore reads cumulative active code-flow evidence from
 // fact_records, preserving unchanged facts across delta generations.
 type PostgresCodeFlowStore struct {
-	db CodeFlowQueryer
+	db     CodeFlowQueryer
+	reader db.Queryer
 }
 
 // NewPostgresCodeFlowStore constructs the Postgres code-flow read store.
 func NewPostgresCodeFlowStore(db CodeFlowQueryer) PostgresCodeFlowStore {
 	return PostgresCodeFlowStore{db: db}
+}
+
+// NewPostgresCodeFlowStoreWithReadStore reads code-flow evidence through a
+// guarded query-only port, preserving the legacy SQL and row decoder.
+func NewPostgresCodeFlowStoreWithReadStore(reader db.Queryer) PostgresCodeFlowStore {
+	return PostgresCodeFlowStore{reader: reader}
+}
+
+type legacyCodeFlowQueryer struct{ database CodeFlowQueryer }
+
+func (q legacyCodeFlowQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
 }
 
 // ListActiveCodeFlowFactsSQL is the active-generation flow read. It is
@@ -158,7 +172,7 @@ LIMIT $7
 
 // ListCodeFlow loads bounded cumulative active code-flow rows.
 func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlowFilter) (CodeFlowReadModel, error) {
-	if s.db == nil {
+	if s.db == nil && s.reader == nil {
 		return CodeFlowReadModel{}, fmt.Errorf("code-flow store database is required")
 	}
 	kinds := CodeFlowFactKinds(filter.Kind)
@@ -169,7 +183,11 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 	if limit <= 0 {
 		limit = CodeFlowDefaultLimit + 1
 	}
-	rows, err := s.db.QueryContext(
+	reader := s.reader
+	if reader == nil {
+		reader = legacyCodeFlowQueryer{database: s.db}
+	}
+	rows, err := reader.QueryContext(
 		ctx,
 		ListActiveCodeFlowFactsSQL,
 		kinds,

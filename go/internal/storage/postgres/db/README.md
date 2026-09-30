@@ -6,7 +6,7 @@ depend on these interfaces instead of importing the postgres root package.
 
 ## Purpose
 
-`db` holds the seven interfaces every store uses -- `Rows`, `Queryer`,
+`db` holds the seven original interfaces every store uses -- `Rows`, `Queryer`,
 `Executor`, `ExecQueryer`, `Transaction`, `Beginner`, and
 `ReadOnlyRepeatableReadBeginner`. They moved here from the postgres root
 (`db.go`, `status.go`, `schema.go`) under #6693 so later domain moves cannot
@@ -31,6 +31,10 @@ no wrapper or adapter was needed and no wire contract changed.
 
 ## Exported surface
 
+The original write-capable contracts retain their method sets. The new guarded
+read contracts add row and snapshot operations without exposing `Exec`, a raw
+transaction, or a raw connection.
+
 - `Rows` -- row cursor (`Next`, `Scan`, `Err`, `Close`).
 - `Queryer` -- read-only adapter (`QueryContext`).
 - `Executor` -- write adapter (`ExecContext`).
@@ -39,14 +43,21 @@ no wrapper or adapter was needed and no wire contract changed.
 - `Beginner` -- opens a `Transaction` (`Begin`).
 - `ReadOnlyRepeatableReadBeginner` -- opens a read-only repeatable-read
   `Transaction` (`BeginReadOnlyRepeatableRead`).
+- `Row` -- scans one result; the owner of the row releases its connection.
+- `RowQueryer` -- reads one row with `QueryRowContext`.
+- `ReadTransaction` -- cursor and row reads, `Commit`, and `Rollback` only.
+  Its snapshot cursor rejects `*sql.RawBytes` before scanning; use `*[]byte`.
+  This restriction does not change ordinary `Rows` or legacy SQL adapters.
+- `ReadSnapshotBeginner` -- opens a guarded read-only repeatable-read snapshot.
+- `ReadStore` -- combines cursor, row, and snapshot reads.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
   check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for
   `errors.As` callers.
 - `WithQuerySummary` / `QuerySummaryFromContext` -- bounded read-name context
   plumbing for the `postgres.query` span's `db.query.summary` attribute.
 
-Every symbol keeps the exact name, method set, and semantics it had in the
-root package. There are no aliases left behind in root and no forwarding
+The seven original interfaces keep the exact names, method sets, and
+semantics they had in the root package. There are no aliases left behind in root and no forwarding
 wrappers here.
 
 The package also holds three shared statement-argument builders --
@@ -76,8 +87,9 @@ would recreate the cycle this package exists to prevent.
 None. Contracts carry no instrumentation; recording stays with the stores
 and the root bootstrap paths that already own it.
 
-No-Observability-Change: hoisting these interfaces adds no metric, span, log
-field, status field, worker, queue, lease, retry, or durable write. SQL
+No-Observability-Change: the original hoist of these interfaces added no
+metric, span, log field, status field, worker, queue, lease, retry, or durable
+write. SQL
 text, migration checksums, ledger keys, and lock behavior are untouched.
 
 No-Regression Evidence (#6693): baseline 72addebef vs hoist head, measured

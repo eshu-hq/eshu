@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -167,6 +168,15 @@ func NewPostgresIaCManagementStore(db *sql.DB) *PostgresIaCManagementStore {
 		StoreName: "iac_management",
 	}
 	return &PostgresIaCManagementStore{store: postgres.NewAWSCloudRuntimeDriftFindingStore(storeDB)}
+}
+
+// NewPostgresIaCManagementStoreWithReadStore reads runtime drift and
+// replatforming scope inventory through a guarded query-only connection.
+func NewPostgresIaCManagementStoreWithReadStore(reader db.Queryer) *PostgresIaCManagementStore {
+	instrumented := &postgres.InstrumentedQueryer{
+		Inner: reader, Tracer: otel.Tracer(telemetry.DefaultSignalName), StoreName: "iac_management",
+	}
+	return &PostgresIaCManagementStore{store: postgres.NewAWSCloudRuntimeDriftFindingReader(instrumented)}
 }
 
 // ListReplatformingSelectors maps the Postgres active AWS scope inventory onto

@@ -230,6 +230,7 @@ at `/metrics` exposes hand-rolled Prometheus-style gauges derived from the
 `statuspkg.Reader`. Metric names (all `eshu_runtime_` prefix):
 
 - `eshu_runtime_info` — binary identity labels (service name, namespace, version)
+- `eshu_runtime_status_snapshot_available` — unlabelled availability for each composite `/metrics` scrape (1 on success, 0 on failure or timeout); failed status values are omitted while OTEL metrics remain available
 - `eshu_runtime_scope_active`, `eshu_runtime_scope_changed`, `eshu_runtime_scope_unchanged`
 - `eshu_runtime_refresh_skipped_total`
 - `eshu_runtime_retry_policy_max_attempts`, `eshu_runtime_retry_policy_retry_delay_seconds`

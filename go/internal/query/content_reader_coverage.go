@@ -61,7 +61,7 @@ func (cr *ContentReader) RepositoryCoverage(ctx context.Context, repoID string) 
 		return RepositoryContentCoverage{}, fmt.Errorf("query file count: %w", err)
 	}
 
-	fileIndexedAt, err := repository.QueryMaxIndexedAt(ctx, cr.db, repository.CoverageContentFilesTable, repoID)
+	fileIndexedAt, err := repository.QueryMaxIndexedAtWithRowQueryer(ctx, cr.db, repository.CoverageContentFilesTable, repoID)
 	if err != nil {
 		span.RecordError(err)
 		return RepositoryContentCoverage{}, fmt.Errorf("query content file indexed_at: %w", err)

@@ -10,12 +10,14 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // PostgresSBOMAttestationAttachmentAggregateStore reads aggregate counts
 // directly from reducer-owned SBOM/attestation attachment facts.
 type PostgresSBOMAttestationAttachmentAggregateStore struct {
-	DB sbomAttestationAttachmentAggregateQueryer
+	DB     sbomAttestationAttachmentAggregateQueryer
+	reader aggregateReadQueryer
 }
 
 type sbomAttestationAttachmentAggregateQueryer interface {
@@ -29,6 +31,19 @@ func NewPostgresSBOMAttestationAttachmentAggregateStore(
 	db sbomAttestationAttachmentAggregateQueryer,
 ) PostgresSBOMAttestationAttachmentAggregateStore {
 	return PostgresSBOMAttestationAttachmentAggregateStore{DB: db}
+}
+
+// NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore routes aggregates through a
+// guarded query-only reader.
+func NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader db.ReadStore) PostgresSBOMAttestationAttachmentAggregateStore {
+	return PostgresSBOMAttestationAttachmentAggregateStore{reader: reader}
+}
+
+func (s PostgresSBOMAttestationAttachmentAggregateStore) queryer() aggregateReadQueryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlAggregateQueryer{inner: s.DB}
 }
 
 // sbomAttestationAttachmentAggregateRollupQuery computes the count handler's
@@ -113,7 +128,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 	ctx context.Context,
 	filter SBOMAttestationAttachmentAggregateFilter,
 ) (SBOMAttestationAttachmentAggregateCount, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return SBOMAttestationAttachmentAggregateCount{}, fmt.Errorf("sbom attestation attachment aggregate database is required")
 	}
 
@@ -129,7 +144,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) CountSBOMAttestationAtt
 		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
-	rows, err := s.DB.QueryContext(ctx, sbomAttestationAttachmentAggregateRollupQuery, args...)
+	rows, err := s.queryer().QueryContext(ctx, sbomAttestationAttachmentAggregateRollupQuery, args...)
 	if err != nil {
 		return SBOMAttestationAttachmentAggregateCount{}, fmt.Errorf("count sbom attestation attachments: %w", err)
 	}
@@ -201,6 +216,9 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) sbomAttestationAttachme
 	filter SBOMAttestationAttachmentAggregateFilter,
 ) ([]string, error) {
 	store := PostgresSBOMAttestationAttachmentStore{DB: s.DB}
+	if s.reader != nil {
+		store.reader = s.reader
+	}
 	return store.sbomAttestationAttachmentMissingEvidence(ctx, SBOMAttestationAttachmentFilter{
 		SubjectDigest:              filter.SubjectDigest,
 		RepositoryID:               filter.RepositoryID,
@@ -220,7 +238,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) SBOMAttestationAttachme
 	limit int,
 	offset int,
 ) ([]SBOMAttestationAttachmentInventoryRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("sbom attestation attachment aggregate database is required")
 	}
 	groupExpr, err := sbomAttestationAttachmentInventoryGroupExpression(dimension)
@@ -236,7 +254,7 @@ func (s PostgresSBOMAttestationAttachmentAggregateStore) SBOMAttestationAttachme
 		offset = 0
 	}
 	q := fmt.Sprintf(sbomAttestationAttachmentInventoryQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		q,
 		filter.SubjectDigest,

@@ -8,6 +8,8 @@
 
 ## Invariants
 
+- Service catalog correlation reads use the guarded query-only reader supplied
+  to `NewPostgresServiceCatalogCorrelationStoreWithReadStore`.
 - This package must not import the query root or graph drivers. Root
   (`handler.go`, `service_alias.go`) imports this package, so a root import
   here cycles, including from `_test.go` files in this package. Tests that

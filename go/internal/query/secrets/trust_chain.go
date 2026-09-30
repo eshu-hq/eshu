@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const secretsIAMIdentityTrustChainFactKind = "reducer_secrets_iam_identity_trust_chain"
@@ -67,7 +68,8 @@ type secretsIAMIdentityTrustChainQueryer interface {
 // facts from Postgres using bounded payload predicates against the shared
 // active-fact read model.
 type PostgresIAMIdentityTrustChainStore struct {
-	DB secretsIAMIdentityTrustChainQueryer
+	DB     secretsIAMIdentityTrustChainQueryer
+	reader db.Queryer
 }
 
 // NewPostgresIAMIdentityTrustChainStore creates the Postgres-backed
@@ -78,6 +80,18 @@ func NewPostgresIAMIdentityTrustChainStore(
 	return PostgresIAMIdentityTrustChainStore{DB: db}
 }
 
+// NewPostgresIAMIdentityTrustChainStoreWithReadStore reads through a guarded query-only connection.
+func NewPostgresIAMIdentityTrustChainStoreWithReadStore(reader db.Queryer) PostgresIAMIdentityTrustChainStore {
+	return PostgresIAMIdentityTrustChainStore{reader: reader}
+}
+
+func (s PostgresIAMIdentityTrustChainStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlSecretsQueryer{inner: s.DB}
+}
+
 // ListSecretsIAMIdentityTrustChains returns one bounded page of active reducer
 // identity trust-chain facts. It requires a concrete scope anchor and a bounded
 // limit, and orders by fact_id so after_chain_id pagination is deterministic.
@@ -85,7 +99,7 @@ func (s PostgresIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustChains(
 	ctx context.Context,
 	filter IAMIdentityTrustChainFilter,
 ) ([]IAMIdentityTrustChainRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("secrets/IAM identity trust-chain database is required")
 	}
 	if !filter.hasScope() {
@@ -95,7 +109,7 @@ func (s PostgresIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustChains(
 		return nil, fmt.Errorf("limit must be between 1 and %d", secretsIAMTrustChainMaxLimit)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listSecretsIAMIdentityTrustChainsQuery,
 		secretsIAMIdentityTrustChainFactKind,

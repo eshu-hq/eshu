@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const supplyChainImpactReadinessFreshnessWindow = 14 * 24 * time.Hour
@@ -34,6 +35,7 @@ type readinessTransactionStarter interface {
 // observed-at timestamps the API handler classifies into a readiness state.
 type PostgresReadinessStore struct {
 	DB              ReadinessQueryer
+	reader          db.ReadStore
 	FreshnessWindow time.Duration
 }
 
@@ -46,6 +48,20 @@ func NewPostgresReadinessStore(
 		DB:              db,
 		FreshnessWindow: supplyChainImpactReadinessFreshnessWindow,
 	}
+}
+
+// NewPostgresReadinessStoreWithReadStore reads one fenced, repeatable-read
+// snapshot through a query-only port.
+func NewPostgresReadinessStoreWithReadStore(reader db.ReadStore) PostgresReadinessStore {
+	return PostgresReadinessStore{reader: reader, FreshnessWindow: supplyChainImpactReadinessFreshnessWindow}
+}
+
+type readinessSQLQueryer struct {
+	database ReadinessQueryer
+}
+
+func (q readinessSQLQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
 }
 
 // ReadSupplyChainImpactReadiness returns one snapshot of evidence-family
@@ -61,29 +77,40 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	ctx context.Context,
 	query ReadinessQuery,
 ) (ReadinessSnapshot, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness database is required")
 	}
 	if !query.hasFactAnchor() {
 		return ReadinessSnapshot{}, nil
 	}
-	database := s.DB
-	var transaction *sql.Tx
-	starter, canStartTransaction := s.DB.(readinessTransactionStarter)
-	if query.needsTargetResolution() && !canStartTransaction {
-		return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness target resolution requires a repeatable-read transaction")
-	}
-	if canStartTransaction {
-		var err error
-		transaction, err = starter.BeginTx(ctx, &sql.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
-			ReadOnly:  true,
-		})
+	var database db.Queryer
+	var commit func() error
+	if s.reader != nil {
+		transaction, err := s.reader.BeginReadOnlySnapshot(ctx)
 		if err != nil {
 			return ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
 		}
 		defer func() { _ = transaction.Rollback() }()
 		database = transaction
+		commit = transaction.Commit
+	} else {
+		database = readinessSQLQueryer{database: s.DB}
+		starter, canStartTransaction := s.DB.(readinessTransactionStarter)
+		if query.needsTargetResolution() && !canStartTransaction {
+			return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness target resolution requires a repeatable-read transaction")
+		}
+		if canStartTransaction {
+			transaction, err := starter.BeginTx(ctx, &sql.TxOptions{
+				Isolation: sql.LevelRepeatableRead,
+				ReadOnly:  true,
+			})
+			if err != nil {
+				return ReadinessSnapshot{}, fmt.Errorf("begin supply chain impact readiness snapshot: %w", err)
+			}
+			defer func() { _ = transaction.Rollback() }()
+			database = readinessSQLQueryer{database: transaction}
+			commit = transaction.Commit
+		}
 	}
 
 	target := readinessTarget{}
@@ -108,8 +135,8 @@ func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	if err != nil {
 		return ReadinessSnapshot{}, err
 	}
-	if transaction != nil {
-		if err := transaction.Commit(); err != nil {
+	if commit != nil {
+		if err := commit(); err != nil {
 			return ReadinessSnapshot{}, fmt.Errorf("commit supply chain impact readiness snapshot: %w", err)
 		}
 	}
@@ -125,7 +152,7 @@ func (q ReadinessQuery) needsTargetResolution() bool {
 
 func (s PostgresReadinessStore) readSupplyChainImpactReadiness(
 	ctx context.Context,
-	database ReadinessQueryer,
+	database db.Queryer,
 	query ReadinessQuery,
 	target readinessTarget,
 ) (ReadinessSnapshot, error) {

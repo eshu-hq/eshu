@@ -84,3 +84,5 @@ because every alternative
 spelling collides the same way -- it carries the
 `//nolint:dirgate` package-line justification the `service_alias.go` and
 `admin_alias.go` precedents use for the identical shape.
+
+Guarded Postgres reads for all five stores must use their `WithReadStore` constructors and must not require an execution port.

@@ -4,7 +4,8 @@
 
 1. `go/internal/storage/postgres/db/doc.go` -- why this leaf exists and what
    deliberately stayed in root (adapters, bootstrap, advisory lock).
-2. `go/internal/storage/postgres/db/contracts.go` -- the seven interfaces.
+2. `go/internal/storage/postgres/db/contracts.go` -- the original seven interfaces.
+   Read `read.go` for the additive guarded read interfaces.
 3. `go/internal/storage/postgres/db/README.md` -- ownership boundary and
    exported surface.
 4. `go/internal/storage/postgres/README.md` -- root pipeline position and
@@ -15,7 +16,9 @@
 ## Invariants
 
 - This package holds interfaces only: `Rows`, `Queryer`, `Executor`,
-  `ExecQueryer`, `Transaction`, `Beginner`, `ReadOnlyRepeatableReadBeginner`.
+  `ExecQueryer`, `Transaction`, `Beginner`, `ReadOnlyRepeatableReadBeginner`,
+  plus the additive `Row`, `RowQueryer`, `ReadTransaction`,
+  `ReadSnapshotBeginner`, and `ReadStore`. The read transaction has no Exec.
   Every name, method set, and semantic matches what the postgres root
   declared before the hoist. The exceptions are the shared
   statement-argument builders `CleanIDs`, `IDPlaceholders`, and `IDArgs`
@@ -41,7 +44,8 @@
   constructors and fields already reference `db.*`; the move only changes
   the store's own package path, not its database surface.
 - When a new store needs a transaction, take `db.Beginner` and call `Begin`;
-  for snapshot reads take `db.ReadOnlyRepeatableReadBeginner`. Do not widen
+  for legacy snapshot reads take `db.ReadOnlyRepeatableReadBeginner`; guarded
+  reader access takes `db.ReadSnapshotBeginner`. Do not widen
   an existing constructor to `db.ExecQueryer` unless the store writes.
 - After touching this package, run `go build ./internal/storage/postgres/...`
   and `go test ./internal/storage/postgres/db/... -count=1` from `go/`, then

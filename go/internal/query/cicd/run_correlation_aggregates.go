@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // RunCorrelationAggregateStore reads cheap-summary aggregates over
@@ -87,7 +88,8 @@ type RunCorrelationInventoryRow struct {
 // PostgresRunCorrelationAggregateStore reads aggregate counts directly
 // from reducer-owned CI/CD run correlation facts.
 type PostgresRunCorrelationAggregateStore struct {
-	DB cicdRunCorrelationAggregateQueryer
+	DB     cicdRunCorrelationAggregateQueryer
+	reader cicdAggregateReadQueryer
 }
 
 type cicdRunCorrelationAggregateQueryer interface {
@@ -101,6 +103,36 @@ func NewPostgresRunCorrelationAggregateStore(
 	db cicdRunCorrelationAggregateQueryer,
 ) PostgresRunCorrelationAggregateStore {
 	return PostgresRunCorrelationAggregateStore{DB: db}
+}
+
+// NewPostgresRunCorrelationAggregateStoreWithReadStore routes CI/CD counts
+// and inventory through a guarded read-only port.
+func NewPostgresRunCorrelationAggregateStoreWithReadStore(reader db.ReadStore) PostgresRunCorrelationAggregateStore {
+	return PostgresRunCorrelationAggregateStore{reader: reader}
+}
+
+type cicdAggregateReadQueryer interface {
+	db.Queryer
+	db.RowQueryer
+}
+
+type legacyCICDAggregateQueryer struct {
+	database cicdRunCorrelationAggregateQueryer
+}
+
+func (q legacyCICDAggregateQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (q legacyCICDAggregateQueryer) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
+	return q.database.QueryRowContext(ctx, query, args...)
+}
+
+func (s PostgresRunCorrelationAggregateStore) queryer() cicdAggregateReadQueryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyCICDAggregateQueryer{database: s.DB}
 }
 
 const cicdRunCorrelationAggregateTotalQuery = `
@@ -194,7 +226,7 @@ func (s PostgresRunCorrelationAggregateStore) CountRunCorrelations(
 	ctx context.Context,
 	filter RunCorrelationAggregateFilter,
 ) (RunCorrelationAggregateCount, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return RunCorrelationAggregateCount{}, fmt.Errorf("ci/cd run correlation aggregate database is required")
 	}
 
@@ -211,7 +243,7 @@ func (s PostgresRunCorrelationAggregateStore) CountRunCorrelations(
 		array.Of(filter.AllowedScopeIDs),
 	}
 
-	row := s.DB.QueryRowContext(ctx, cicdRunCorrelationAggregateTotalQuery, args...)
+	row := s.queryer().QueryRowContext(ctx, cicdRunCorrelationAggregateTotalQuery, args...)
 	var total sql.NullInt64
 	if err := row.Scan(&total); err != nil {
 		return RunCorrelationAggregateCount{}, fmt.Errorf("count ci/cd run correlations: %w", err)
@@ -242,7 +274,7 @@ func (s PostgresRunCorrelationAggregateStore) fillBuckets(
 	dst map[string]int,
 ) error {
 	q := fmt.Sprintf(cicdRunCorrelationAggregateGroupQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
+	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("group ci/cd run correlations: %w", err)
 	}
@@ -268,7 +300,7 @@ func (s PostgresRunCorrelationAggregateStore) RunCorrelationInventory(
 	limit int,
 	offset int,
 ) ([]RunCorrelationInventoryRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("ci/cd run correlation aggregate database is required")
 	}
 	groupExpr, err := cicdRunCorrelationInventoryGroupExpression(dimension)
@@ -284,7 +316,7 @@ func (s PostgresRunCorrelationAggregateStore) RunCorrelationInventory(
 		offset = 0
 	}
 	q := fmt.Sprintf(cicdRunCorrelationInventoryQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		q,
 		filter.ScopeID,

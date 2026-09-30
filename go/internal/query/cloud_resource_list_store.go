@@ -8,6 +8,9 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CloudResourceListIdentity is the narrow owner-ledger identity used to choose
@@ -41,12 +44,18 @@ type CloudResourceListStore interface {
 // PostgresCloudResourceListStore implements CloudResourceListStore against the
 // graph_node_owner ledger and the active source-fact generation tables.
 type PostgresCloudResourceListStore struct {
-	db *sql.DB
+	db db.Queryer
 }
 
 // NewPostgresCloudResourceListStore returns the production Postgres page store.
-func NewPostgresCloudResourceListStore(db *sql.DB) *PostgresCloudResourceListStore {
-	return &PostgresCloudResourceListStore{db: db}
+func NewPostgresCloudResourceListStore(handle *sql.DB) *PostgresCloudResourceListStore {
+	return NewPostgresCloudResourceListStoreWithReadStore(postgres.NewSQLReadStore(handle))
+}
+
+// NewPostgresCloudResourceListStoreWithReadStore selects cloud resources through
+// a guarded read-only query port.
+func NewPostgresCloudResourceListStoreWithReadStore(reader db.Queryer) *PostgresCloudResourceListStore {
+	return &PostgresCloudResourceListStore{db: reader}
 }
 
 // CurrentAuthorizedCloudResourceUIDs returns the subset of candidateUIDs whose
@@ -359,4 +368,16 @@ FROM graph_node_owner AS owner
 WHERE ` + strings.Join(conditions, "\n  AND ") + `
 ORDER BY owner.winning_row->>'resource_type', owner.uid
 LIMIT ` + limit, args
+}
+
+// sqlRowsQueryer adapts legacy SQL row cursors without exposing a write method
+// to business stores. Guarded read stores already implement db.Queryer.
+type sqlRowsQueryer struct {
+	inner interface {
+		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	}
+}
+
+func (q sqlRowsQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(ctx, query, args...)
 }

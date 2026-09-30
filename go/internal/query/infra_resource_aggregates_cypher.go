@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -220,4 +221,15 @@ func NewInfraResourceAggregateStore(graph GraphQuery, db *sql.DB, instruments *t
 		return store
 	}
 	return store.WithReadModel(inventory.Reader{DB: postgres.SQLDB{DB: db}})
+}
+
+// NewInfraResourceAggregateStoreWithReadStore wires the aggregate reader
+// through a guarded query-only Postgres connection. A nil reader keeps the
+// existing graph-only behavior used by local-only callers.
+func NewInfraResourceAggregateStoreWithReadStore(graph GraphQuery, reader db.Queryer, instruments *telemetry.Instruments) GraphInfraResourceAggregateStore {
+	store := NewGraphInfraResourceAggregateStore(graph).WithInstruments(instruments)
+	if reader == nil {
+		return store
+	}
+	return store.WithReadModel(inventory.Reader{DB: reader})
 }

@@ -32,12 +32,20 @@ itself (`internal/storage/postgres`), and the MCP tool
 `internal/query/tracing`, `internal/storage/postgres`, `internal/telemetry`.
 `iac` does not import this package, so there is no cycle.
 
+`NewPostgresFindingStoreWithReadStore(db.Queryer)` uses the guarded reader
+for both finding pages and counts. It preserves the SQL-layer scope and grant
+checks and wraps the query with the same Postgres store name and query signal.
+The original `NewPostgresFindingStore(*sql.DB)` constructor remains available
+for legacy callers.
+
 ## Telemetry
 
 Span `telemetry.SpanQueryTerraformConfigStateDriftFindings` per request, with
 `http.route` and `eshu.capability` attributes, from the shared handler tracer.
-The Postgres store is wrapped in `postgres.InstrumentedDB` with store name
-`terraform_config_state_drift`. Unchanged by the #6642 move.
+The legacy Postgres store uses `postgres.InstrumentedDB`; the query-only
+reader uses `postgres.InstrumentedQueryer`. Both retain store name
+`terraform_config_state_drift` and the same query span. The #6642 move did
+not change this signal.
 
 ## Gotchas / invariants
 

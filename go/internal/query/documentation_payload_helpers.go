@@ -4,13 +4,14 @@
 package query
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-func scanJSONPayload(rows *sql.Rows) (map[string]any, error) {
+func scanJSONPayload(rows db.Rows) (map[string]any, error) {
 	var raw []byte
 	if err := rows.Scan(&raw); err != nil {
 		return nil, err

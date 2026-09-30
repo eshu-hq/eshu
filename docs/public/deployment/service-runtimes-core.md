@@ -37,7 +37,9 @@ workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
 
 ## Scale And Tune
 
-- Scale API and MCP for request traffic.
+- Scale API and MCP for request traffic. Configure separate writer and reader
+  endpoints using [PostgreSQL read routing](postgres-read-routing.md); both can
+  point to one instance for a small installation.
 - Scale Helm ingesters with `ingester.replicas` when repository discovery and
   parsing need more throughput. The chart maps shard count from replicas and
   shard index from the StatefulSet pod ordinal on Kubernetes `1.32` or newer,

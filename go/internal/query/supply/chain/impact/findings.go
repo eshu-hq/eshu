@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // WinnersReadEnv is the operator gate (#3389 Phase 2) that
@@ -275,7 +276,8 @@ type FindingQueryer interface {
 // PostgresFindingStore reads active impact finding facts from
 // Postgres using scoped payload predicates.
 type PostgresFindingStore struct {
-	DB FindingQueryer
+	DB     FindingQueryer
+	reader db.Queryer
 	// Now supplies the single UTC clock value used to evaluate suppression
 	// expiry for one list or explain call. It defaults to time.Now.
 	Now func() time.Time
@@ -307,6 +309,25 @@ func NewPostgresFindingStoreWithReadModel(
 	readFromWinners bool,
 ) PostgresFindingStore {
 	return PostgresFindingStore{DB: db, ReadFromWinners: readFromWinners}
+}
+
+// NewPostgresFindingStoreWithReadStore reads through a guarded query-only port
+// while preserving the selected winners read model.
+func NewPostgresFindingStoreWithReadStore(reader db.Queryer, readFromWinners bool) PostgresFindingStore {
+	return PostgresFindingStore{reader: reader, ReadFromWinners: readFromWinners}
+}
+
+type legacyFindingQueryer struct{ database FindingQueryer }
+
+func (q legacyFindingQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresFindingStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyFindingQueryer{database: s.DB}
 }
 
 // SuppressionReadAt returns the single UTC clock value one list or explain
@@ -357,10 +378,10 @@ func (s PostgresFindingStore) SupplyChainImpactWinnersWatermark(
 	if !s.ReadFromWinners {
 		return WinnersFreshness{}, nil
 	}
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return WinnersFreshness{ServingFromWinners: true}, fmt.Errorf("supply chain impact finding database is required")
 	}
-	rows, err := s.DB.QueryContext(ctx, SelectWinnersWatermarkQuery)
+	rows, err := s.queryer().QueryContext(ctx, SelectWinnersWatermarkQuery)
 	if err != nil {
 		return WinnersFreshness{ServingFromWinners: true}, fmt.Errorf("read supply chain impact winners watermark: %w", err)
 	}
@@ -385,7 +406,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	ctx context.Context,
 	filter FindingFilter,
 ) ([]FindingRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("supply chain impact finding database is required")
 	}
 	if !filter.HasScope() {
@@ -401,7 +422,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		len(filter.AllowedScopeIDs) == 0 {
 		query = ListFindingsFromWinnersQuery
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		query,
 		FindingFactKind,

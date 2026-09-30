@@ -336,12 +336,9 @@ type engineAsker struct {
 // Ask implements ask.Asker. It forwards the question to the engine using
 // the request context (carries deadline + cancellation).
 func (a *engineAsker) Ask(r *http.Request, question string) (ask.AskAnswer, error) {
-	// Thread the caller's Authorization header into the engine context so the
-	// in-process runner authorizes every inner tool call as the caller (scoped
-	// or shared) rather than always as the shared admin token. Combined with
-	// routing the runner through the scoped-auth-wrapped handler, this confines
-	// a scoped caller's Ask to scoped-safe routes.
-	ctx := engine.ContextWithCallerAuthHeader(r.Context(), r.Header.Get("Authorization"))
+	// Capture the accepted caller's bearer or browser-session credentials so
+	// each inner read is reauthenticated through the mounted API handler.
+	ctx := engine.ContextWithCallerRequestCredentials(r.Context(), r)
 	ans, err := a.eng.Ask(ctx, question)
 	if err != nil {
 		return ask.AskAnswer{}, err
@@ -354,11 +351,9 @@ func (a *engineAsker) Ask(r *http.Request, question string) (ask.AskAnswer, erro
 // engine adapter does not support streaming, it returns ask.ErrNoStreaming so
 // the SSE handler falls back to the synchronous Ask path.
 func (a *engineAsker) AskStream(r *http.Request, question string, emit func(ask.AskStreamEvent)) (ask.AskAnswer, error) {
-	// Thread the caller's Authorization header into the engine context so the
-	// streaming path enforces the caller's scope on every inner tool call,
-	// exactly as Ask does. Without this, a scoped streaming request would fall
-	// back to the baked-in shared token and leak cross-scope data.
-	ctx := engine.ContextWithCallerAuthHeader(r.Context(), r.Header.Get("Authorization"))
+	// Streaming uses the same immutable caller credentials and inner
+	// reauthentication as the synchronous Ask path.
+	ctx := engine.ContextWithCallerRequestCredentials(r.Context(), r)
 	ans, err := a.eng.AskStream(ctx, question, func(ev engine.StreamEvent) {
 		switch ev.Kind {
 		case engine.KindToken:

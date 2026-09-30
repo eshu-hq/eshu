@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,12 +13,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
@@ -58,6 +57,12 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("open differential capture: %w", err)
 	}
+	wired := false
+	defer func() {
+		if !wired {
+			_ = captureSession.Close()
+		}
+	}()
 	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load semantic provider profiles: %w", err)
@@ -93,7 +98,7 @@ func wireAPI(
 	// ESHU_POSTGRES_MAX_OPEN_CONNS/idle/lifetime is reported regardless of graph
 	// backend availability (validation-before-datastore invariant). It is applied
 	// after sql.Open below.
-	pgPoolCfg, err := internalruntime.LoadPostgresConfig(getenv)
+	pgPoolCfg, err := pgaccess.LoadConfig(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load postgres pool config: %w", err)
 	}
@@ -103,35 +108,35 @@ func wireAPI(
 		return nil, nil, nil, err
 	}
 
-	// Open Postgres using pgx driver
-	pgDSN := envOrDefault(getenv, "ESHU_POSTGRES_DSN",
-		envOrDefault(getenv, "ESHU_CONTENT_STORE_DSN", ""))
-	if pgDSN == "" {
-		if driver != nil {
-			_ = driver.Close(ctx)
+	defer func() {
+		if !wired && driver != nil {
+			_ = driver.Close(context.Background())
 		}
-		return nil, nil, nil, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
-	}
-
-	rawDB, err := sql.Open("pgx", pgDSN)
+	}()
+	observer, err := pgaccess.NewObserver(otel.Meter(telemetry.DefaultSignalName), otel.Tracer(telemetry.DefaultSignalName))
 	if err != nil {
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
-		return nil, nil, nil, fmt.Errorf("open postgres: %w", err)
+		return nil, nil, nil, fmt.Errorf("register postgres access telemetry: %w", err)
 	}
-	// Bound the pool to the shared per-process ceiling (validated above, before the
-	// graph dial). Without this the api pool is database/sql-default unbounded, which
-	// would let a read burst exceed the whole-stack connection budget (#4456). Only
-	// the pool sizes are applied; the DSN resolved above is kept.
-	internalruntime.ConfigurePostgresPool(rawDB, pgPoolCfg)
-	if err := rawDB.PingContext(ctx); err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
-		return nil, nil, nil, fmt.Errorf("ping postgres: %w", err)
+	postgresAccess, err := pgaccess.Open(ctx, pgPoolCfg, observer)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("open postgres access: %w", err)
 	}
+	defer func() {
+		if !wired {
+			_ = postgresAccess.Close()
+		}
+	}()
+	poolMetrics, err := pgaccess.RegisterPoolMetrics(otel.Meter(telemetry.DefaultSignalName), postgresAccess)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("register postgres pool telemetry: %w", err)
+	}
+	defer func() {
+		if !wired {
+			_ = poolMetrics.Unregister()
+		}
+	}()
+	rawDB := postgresAccess.Writer()
+	readStore := postgresAccess.Reader()
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
@@ -149,27 +154,21 @@ func wireAPI(
 	// operator status-serving StatusStore has Instruments wired.
 	instruments, err := telemetry.NewInstruments(otel.Meter(telemetry.DefaultSignalName))
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
 	graphReader, err := openGraphReader(ctx, rawDB, driver, neo4jDB, logger, instruments, captureSession)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	contentReader := query.NewContentReader(rawDB).WithInstruments(instruments)
+	contentReader := query.NewContentReaderWithReadStore(readStore).WithInstruments(instruments)
 	statusReader := status.WithSemanticProviderProfiles(
-		newStatusStore(newStatusQueryer(rawDB, instruments), instruments),
+		pgaccess.NewSnapshotStatusReader(readStore, func(reader db.Queryer) status.Reader {
+			return newStatusStore(reader, instruments)
+		}, otel.Tracer(telemetry.DefaultSignalName)),
 		semanticProviderProfiles...,
 	)
 	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
 	governanceAudit := newGovernanceAuditStore(rawDB, instruments, logger)
@@ -182,10 +181,6 @@ func wireAPI(
 	// on a token-only deployment.
 	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, rawDB, instruments, logger)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("construct oidc bearer resolver: %w", err)
 	}
 	// Headerless dev-open vs. enforced posture; see auth_enforcement.go.
@@ -207,10 +202,6 @@ func wireAPI(
 		}
 	}
 	if err := seedInitialAdmin(ctx, seedIdentityDB, getenv, instruments, logger, adminRecoveryAuditAppender(governanceAudit)); err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("seed initial admin: %w", err)
 	}
 
@@ -219,15 +210,12 @@ func wireAPI(
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
 	cookieSecureMode, err := query.ValidateCookieSecureMode(getenv(query.CookieSecureModeEnv))
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure cookie secure mode: %w", err)
 	}
 	browserSessionAdapter := newPostgresBrowserSessionAdapter(rawDB, instruments)
-	router, err := newRouterWithSemanticEmbedding(
+	router, err := newRouterWithSemanticEmbeddingWithReadStore(
 		rawDB,
+		readStore,
 		graphReader,
 		contentReader,
 		statusReader,
@@ -245,10 +233,6 @@ func wireAPI(
 		cookieSecureMode,
 	)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("new router: %w", err)
 	}
 	// Provider-config secret keyring (#4966, epic #4962). ErrKeyNotConfigured
@@ -261,10 +245,6 @@ func wireAPI(
 	// to open DB-backed provider secrets at token-exchange time.
 	providerSecretKeyring, err := secretcrypto.KeyringFromEnv(getenv)
 	if err != nil && !errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure provider secret keyring: %w", err)
 	}
 	if errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
@@ -306,20 +286,12 @@ func wireAPI(
 	// unconfigured) is not fatal; VerifyBootstrapCredential fails closed.
 	bootstrapMode, err := loadAuthBootstrapMode(getenv)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure setup wizard: %w", err)
 	}
 	router.Setup = newSetupHandler(rawDB, providerSecretKeyring, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
 
 	oidcLoginHandler, err := newOIDCLoginHandler(getenv, rawDB, instruments, providerSecretKeyring, logger)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure oidc login: %w", err)
 	}
 	if oidcLoginHandler != nil {
@@ -331,10 +303,6 @@ func wireAPI(
 	router.OIDCLogin = oidcLoginHandler
 	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, rawDB, instruments, logger)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure oidc session refresh: %w", err)
 	}
 	if oidcSessionRefreshWorker != nil {
@@ -348,10 +316,6 @@ func wireAPI(
 	}
 	samlHandler, err := newSAMLHandler(rawDB, instruments, getenv, browserSessionAdapter, cookieSecureMode, providerSecretKeyring)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure saml sso: %w", err)
 	}
 	router.SAML = samlHandler
@@ -367,10 +331,6 @@ func wireAPI(
 	}
 	githubLoginHandler, err := newGitHubLoginHandler(getenv, rawDB, instruments, providerSecretKeyring)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("configure github login: %w", err)
 	}
 	if githubLoginHandler != nil {
@@ -431,8 +391,8 @@ func wireAPI(
 	// (catalog-service-id resolver + incident evidence loader, both over Postgres).
 	(&serviceintelhttp.ReportHandler{
 		Entities:    router.Entities,
-		Incidents:   newIncidentEvidenceSource(rawDB, logger),
-		SupplyChain: newSupplyChainEvidenceSource(rawDB, logger),
+		Incidents:   newIncidentEvidenceSourceWithReadStore(readStore, logger),
+		SupplyChain: newSupplyChainEvidenceSourceWithReadStore(readStore, logger),
 	}).Mount(apiMux)
 
 	// Record per-endpoint duration/error metrics for every API route. The
@@ -440,18 +400,16 @@ func wireAPI(
 	// /metrics) is mounted separately and is intentionally not counted.
 	instrumentedAPI := query.RequestMetricsMiddleware(apiMux)
 
-	apiHandler := http.Handler(instrumentedAPI)
+	apiHandler := pgaccess.WithCheckpoint(instrumentedAPI, postgresAccess, func(r *http.Request) bool {
+		return pgaccess.RequiresCheckpoint(apiMux, r, router.Status.NarrationPosture != nil)
+	})
 	oidcRateLimiter := newOIDCRateLimiter(getenv, instruments)
 	if oidcRateLimiter != nil {
 		apiHandler = oidcRateLimiter.Middleware(apiHandler)
 	}
 
-	mux, err := mountRuntimeSurface(apiHandler, "eshu-api", statusReader, prometheusHandler, rawDB, driver)
+	mux, err := mountRuntimeSurfaceWithPostgresAccess(apiHandler, "eshu-api", statusReader, prometheusHandler, postgresAccess, driver)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
@@ -489,11 +447,13 @@ func wireAPI(
 		if err := captureSession.Close(); err != nil && logger != nil {
 			logger.Error("differential capture close failed", telemetry.EventAttr("runtime.shutdown.failed"), slog.String("error", err.Error()))
 		}
-		_ = rawDB.Close()
+		_ = poolMetrics.Unregister()
+		_ = postgresAccess.Close()
 		if driver != nil {
 			_ = driver.Close(context.Background())
 		}
 	}
 
+	wired = true
 	return final, cleanup, instruments, nil
 }

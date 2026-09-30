@@ -76,13 +76,19 @@ type MultiCloudRuntimeDriftEvidenceRow struct {
 // MultiCloudRuntimeDriftFindingStore reads active multi-cloud runtime drift
 // reducer facts for the unmanaged-resource and runtime-drift query surfaces.
 type MultiCloudRuntimeDriftFindingStore struct {
-	database db.ExecQueryer
+	database db.Queryer
 }
 
 // NewMultiCloudRuntimeDriftFindingStore constructs a multi-cloud runtime drift
 // finding reader over the provided database adapter.
 func NewMultiCloudRuntimeDriftFindingStore(database db.ExecQueryer) MultiCloudRuntimeDriftFindingStore {
 	return MultiCloudRuntimeDriftFindingStore{database: database}
+}
+
+// NewMultiCloudRuntimeDriftFindingReader constructs a query-only reader for
+// active runtime drift findings.
+func NewMultiCloudRuntimeDriftFindingReader(reader db.Queryer) MultiCloudRuntimeDriftFindingStore {
+	return MultiCloudRuntimeDriftFindingStore{database: reader}
 }
 
 // ListActiveFindings returns one page of active multi-cloud runtime drift

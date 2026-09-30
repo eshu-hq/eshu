@@ -50,13 +50,20 @@ type EvidenceRow struct {
 	CreatedAt    time.Time
 }
 
-// Store provides read and write access to admin-facing Postgres tables
-// (fact_work_items, projection_decisions, fact_replay_events, fact_backfill_requests).
-type Store interface {
+// ReadStore provides bounded inspection without admin mutation methods.
+type ReadStore interface {
 	ListWorkItems(ctx context.Context, f WorkItemFilter) ([]WorkItem, error)
 	ListDeadLetterWorkItems(ctx context.Context, f DeadLetterListFilter) ([]DeadLetterWorkItem, error)
 	ListReducerInputInvalidFacts(ctx context.Context, f InputInvalidFactListFilter) ([]InputInvalidFact, error)
 	ListChangedSincePoisonedLinks(ctx context.Context, f ChangedSincePoisonedLinkFilter) ([]ChangedSincePoisonedLink, error)
+	ListReplayEvents(ctx context.Context, f ReplayEventFilter) ([]ReplayEvent, error)
+	ListDecisions(ctx context.Context, f DecisionQueryFilter) ([]DecisionRow, error)
+	ListEvidence(ctx context.Context, decisionID string) ([]EvidenceRow, error)
+}
+
+// Store combines inspection with authoritative admin mutations and replay state.
+type Store interface {
+	ReadStore
 	DeadLetterWorkItems(ctx context.Context, f DeadLetterFilter) ([]WorkItem, error)
 	SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]WorkItem, error)
 	ReplayFailedWorkItems(ctx context.Context, f ReplayWorkItemFilter) ([]WorkItem, error)
@@ -65,9 +72,6 @@ type Store interface {
 	ClaimReplayIdempotency(ctx context.Context, key, fingerprint string, now time.Time) (ReplayIdempotencyClaim, error)
 	CompleteReplayIdempotency(ctx context.Context, key string, count int, workItemIDs []string, now time.Time) error
 	RequestBackfill(ctx context.Context, input BackfillInput) (*BackfillRequest, error)
-	ListReplayEvents(ctx context.Context, f ReplayEventFilter) ([]ReplayEvent, error)
-	ListDecisions(ctx context.Context, f DecisionQueryFilter) ([]DecisionRow, error)
-	ListEvidence(ctx context.Context, decisionID string) ([]EvidenceRow, error)
 }
 
 // WorkItem is an admin-friendly view of a fact_work_items row.
@@ -304,6 +308,8 @@ type Handler struct {
 	Recovery  RecoveryService
 	Reindexer ReindexRequester
 	Store     Store
+	// ReadStore serves inspections; nil preserves legacy single-store wiring.
+	ReadStore ReadStore
 	// Audit records governance audit events for mutating recovery actions.
 	// A nil appender disables audit recording (the action still proceeds).
 	Audit audit.Appender
@@ -314,6 +320,15 @@ type Handler struct {
 	// listInputInvalidFacts (issue #4630). Nil disables that telemetry; the
 	// route itself is unaffected.
 	Instruments *telemetry.Instruments
+}
+
+// readStore chooses the configured inspection port before any query runs.
+// A read error never triggers a fallback to the writer-backed Store.
+func (h *Handler) readStore() ReadStore {
+	if h.ReadStore != nil {
+		return h.ReadStore
+	}
+	return h.Store
 }
 
 // now returns the handler clock, defaulting to the wall clock.

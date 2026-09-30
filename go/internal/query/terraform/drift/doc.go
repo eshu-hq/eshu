@@ -10,8 +10,9 @@
 // to 100 and is capped at 500. A missing or malformed scope_id or outcome is a
 // 400. It reads active reducer_terraform_config_state_drift_finding facts
 // through a FindingStore; PostgresFindingStore, built by
-// NewPostgresFindingStore, adapts postgres.TerraformConfigStateDriftFindingStore
-// as the production implementation. A scope whose backend never resolves to a
+// NewPostgresFindingStore or NewPostgresFindingStoreWithReadStore, adapts
+// postgres.TerraformConfigStateDriftFindingStore as the production
+// implementation. A scope whose backend never resolves to a
 // config repo is reported as one "unresolved" finding, not an empty page.
 //
 // A scoped caller must hold a grant on the exact scope_id, or it gets an empty

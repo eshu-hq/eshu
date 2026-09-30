@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // resolveDurableIncidentRepositoriesQuery resolves the durable owning
@@ -72,13 +74,33 @@ ORDER BY repository_id ASC
 // read seam over the durable fact the incident-repository correlation reducer
 // writes, used to fail closed on scoped-token incident-context reads.
 type PostgresIncidentRepositoryAuthorizer struct {
-	DB incidentContextQueryer
+	DB     incidentContextQueryer
+	reader db.Queryer
 }
 
 // NewPostgresIncidentRepositoryAuthorizer creates the Postgres incident
 // repository authorizer over the shared fact store.
 func NewPostgresIncidentRepositoryAuthorizer(db incidentContextQueryer) PostgresIncidentRepositoryAuthorizer {
 	return PostgresIncidentRepositoryAuthorizer{DB: db}
+}
+
+// NewPostgresIncidentRepositoryAuthorizerWithReadStore resolves durable
+// owning repositories through the guarded business read port.
+func NewPostgresIncidentRepositoryAuthorizerWithReadStore(reader db.Queryer) PostgresIncidentRepositoryAuthorizer {
+	return PostgresIncidentRepositoryAuthorizer{reader: reader}
+}
+
+type legacyIncidentQueryer struct{ database incidentContextQueryer }
+
+func (q legacyIncidentQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresIncidentContextStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyIncidentQueryer{database: s.DB}
 }
 
 // ResolveDurableIncidentRepositories implements IncidentRepositoryAuthorizer. It
@@ -91,7 +113,7 @@ func (a PostgresIncidentRepositoryAuthorizer) ResolveDurableIncidentRepositories
 	providerIncidentID string,
 	scopeID string,
 ) ([]string, error) {
-	if a.DB == nil {
+	if a.DB == nil && a.reader == nil {
 		return nil, fmt.Errorf("incident repository authorizer database is required")
 	}
 	provider = strings.ToLower(strings.TrimSpace(provider))
@@ -101,7 +123,11 @@ func (a PostgresIncidentRepositoryAuthorizer) ResolveDurableIncidentRepositories
 		return nil, nil
 	}
 
-	rows, err := a.DB.QueryContext(
+	reader := a.reader
+	if reader == nil {
+		reader = legacyIncidentQueryer{database: a.DB}
+	}
+	rows, err := reader.QueryContext(
 		ctx,
 		resolveDurableIncidentRepositoriesQuery,
 		provider,

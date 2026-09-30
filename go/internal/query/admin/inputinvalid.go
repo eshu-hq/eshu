@@ -28,14 +28,14 @@ const (
 // AdminDeadLetterListHandler's read-only mount for cmd/mcp-server (which has
 // no full Handler exposing mutations).
 type InputInvalidFactListHandler struct {
-	Store       Store
+	Store       ReadStore
 	Instruments *telemetry.Instruments
 }
 
 // Mount registers the input-invalid-facts list read without exposing admin
 // mutations.
 func (h *InputInvalidFactListHandler) Mount(mux *http.ServeMux) {
-	admin := &Handler{Store: h.Store, Instruments: h.Instruments}
+	admin := &Handler{ReadStore: h.Store, Instruments: h.Instruments}
 	mux.HandleFunc("POST /api/v0/admin/input-invalid-facts/query", admin.listInputInvalidFacts)
 }
 
@@ -44,7 +44,7 @@ func (h *InputInvalidFactListHandler) Mount(mux *http.ServeMux) {
 // POST /api/v0/admin/input-invalid-facts/query
 func (h *Handler) listInputInvalidFacts(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	if h.Store == nil {
+	if h.readStore() == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
 		return
 	}
@@ -112,7 +112,7 @@ func (h *Handler) listInputInvalidFacts(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 
-	items, err := h.Store.ListReducerInputInvalidFacts(ctx, filter)
+	items, err := h.readStore().ListReducerInputInvalidFacts(ctx, filter)
 	h.recordInputInvalidFactsQuery(ctx, start, err)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,13 +13,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceauditasync"
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
+	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
@@ -59,6 +58,12 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("open differential capture: %w", err)
 	}
+	wired := false
+	defer func() {
+		if !wired {
+			_ = captureSession.Close()
+		}
+	}()
 	semanticProviderProfiles, err := semanticprofile.LoadStatusesFromEnv(getenv)
 	if err != nil {
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load semantic provider profiles: %w", err)
@@ -128,7 +133,7 @@ func wireAPI(
 	// ESHU_POSTGRES_MAX_OPEN_CONNS/idle/lifetime is reported regardless of graph
 	// backend availability (validation-before-datastore invariant). It is applied
 	// after sql.Open below.
-	pgPoolCfg, err := internalruntime.LoadPostgresConfig(getenv)
+	pgPoolCfg, err := pgaccess.LoadConfig(getenv)
 	if err != nil {
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("load postgres pool config: %w", err)
 	}
@@ -138,35 +143,35 @@ func wireAPI(
 		return nil, nil, nil, mcpAuthWiring{}, err
 	}
 
-	// Open Postgres using pgx driver
-	pgDSN := envOrDefault(getenv, "ESHU_POSTGRES_DSN",
-		envOrDefault(getenv, "ESHU_CONTENT_STORE_DSN", ""))
-	if pgDSN == "" {
-		if driver != nil {
-			_ = driver.Close(ctx)
+	defer func() {
+		if !wired && driver != nil {
+			_ = driver.Close(context.Background())
 		}
-		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
-	}
-
-	rawDB, err := sql.Open("pgx", pgDSN)
+	}()
+	observer, err := pgaccess.NewObserver(otel.Meter(telemetry.DefaultSignalName), otel.Tracer(telemetry.DefaultSignalName))
 	if err != nil {
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
-		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("open postgres: %w", err)
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("register postgres access telemetry: %w", err)
 	}
-	// Bound the pool to the shared per-process ceiling (validated above, before the
-	// graph dial). Without this the mcp-server pool is database/sql-default
-	// unbounded, which would let a read burst exceed the whole-stack connection
-	// budget (#4456). Only the pool sizes are applied; the DSN resolved above is kept.
-	internalruntime.ConfigurePostgresPool(rawDB, pgPoolCfg)
-	if err := rawDB.PingContext(ctx); err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
-		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("ping postgres: %w", err)
+	postgresAccess, err := pgaccess.Open(ctx, pgPoolCfg, observer)
+	if err != nil {
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("open postgres access: %w", err)
 	}
+	defer func() {
+		if !wired {
+			_ = postgresAccess.Close()
+		}
+	}()
+	poolMetrics, err := pgaccess.RegisterPoolMetrics(otel.Meter(telemetry.DefaultSignalName), postgresAccess)
+	if err != nil {
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("register postgres pool telemetry: %w", err)
+	}
+	defer func() {
+		if !wired {
+			_ = poolMetrics.Unregister()
+		}
+	}()
+	rawDB := postgresAccess.Writer()
+	readStore := postgresAccess.Reader()
 	if logger != nil {
 		logger.Info("postgres connected", telemetry.EventAttr("runtime.postgres.connected"))
 	}
@@ -178,10 +183,6 @@ func wireAPI(
 	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: rawDB}))
 	instruments, err := telemetry.NewInstruments(otel.Meter("mcp-server"))
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("register query instruments: %w", err)
 	}
 
@@ -189,10 +190,6 @@ func wireAPI(
 	// comment. Returns (nil, nil) when ESHU_AUTH_RESOURCE_URI is unset.
 	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, rawDB, instruments, logger)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("construct oidc bearer resolver: %w", err)
 	}
 	// authSourceConfigured is the single wiring-time predicate (see
@@ -238,19 +235,19 @@ func wireAPI(
 	// Capture the read seam when a session is open. Undriven readers stay
 	// undecorated so lightweight profiles keep their graph-free responses.
 	graphReader := captureSession.ReaderIfConfigured(neo4jReader)
-	contentReader := query.NewContentReader(rawDB).WithInstruments(instruments)
+	contentReader := query.NewContentReaderWithReadStore(readStore).WithInstruments(instruments)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted, then start the #6793 infra read
 	// model backfill in the background. Graph-disabled profiles skip both.
 	if driver != nil {
 		if err := query.RunStartupBackfills(ctx, rawDB, graphReader, logger, instruments); err != nil {
-			_ = rawDB.Close()
-			_ = driver.Close(ctx)
 			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
 		}
 	}
 	statusReader := status.WithSemanticProviderProfiles(
-		newStatusStore(pgstatus.SQLQueryer{DB: rawDB}, instruments),
+		pgaccess.NewSnapshotStatusReader(readStore, func(reader db.Queryer) status.Reader {
+			return newStatusStore(reader, instruments)
+		}, otel.Tracer(telemetry.DefaultSignalName)),
 		semanticProviderProfiles...,
 	)
 	governanceAudit := auditstore.NewGovernanceAuditStore(pgstatus.SQLDB{DB: rawDB})
@@ -273,11 +270,18 @@ func wireAPI(
 		},
 	)
 
+	defer func() {
+		if !wired {
+			_ = allowedReadAudit.Close()
+		}
+	}()
+
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
-	router := newMCPQueryRouterWithSemanticEmbedding(
+	router := newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 		rawDB,
+		readStore,
 		graphReader,
 		contentReader,
 		statusReader,
@@ -311,8 +315,8 @@ func wireAPI(
 	// sourced from durable incident-routing evidence over Postgres.
 	(&serviceintelhttp.ReportHandler{
 		Entities:    router.Entities,
-		Incidents:   newIncidentEvidenceSource(rawDB, logger),
-		SupplyChain: newSupplyChainEvidenceSource(rawDB, logger),
+		Incidents:   newIncidentEvidenceSourceWithReadStore(readStore, logger),
+		SupplyChain: newSupplyChainEvidenceSourceWithReadStore(readStore, logger),
 	}).Mount(mux)
 
 	// Mount POST /api/v0/ask and wire the governed narration posture. The engine
@@ -320,7 +324,8 @@ func wireAPI(
 	// engine's tool calls dispatch through this server's routes — the same
 	// pattern as cmd/api. Default-off when ESHU_ASK_ENABLED is unset or no
 	// agent_reasoning provider profile is configured.
-	mountAskAndNarration(getenv, mux, apiKey, router.Status, logger)
+	askInnerHandler := &deferredHandler{}
+	mountAskAndNarrationWithDispatch(getenv, mux, askInnerHandler, apiKey, router.Status, logger)
 
 	// Record per-endpoint duration/error metrics for every read route, then wrap
 	// with auth middleware (shared token + optional scoped-token registry;
@@ -334,14 +339,13 @@ func wireAPI(
 	authedHandler := buildTransportAuthMiddleware(
 		apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, nil,
 		query.ScopedRoutePolicyForGovernanceMode(governanceStatus),
-	)(instrumentedMux)
+	)(pgaccess.WithCheckpoint(instrumentedMux, postgresAccess, func(r *http.Request) bool {
+		return pgaccess.RequiresCheckpoint(mux, r, router.Status.NarrationPosture != nil)
+	}))
+	askInnerHandler.Set(authedHandler)
 
-	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, rawDB, driver)
+	adminMux, err := mountRuntimeSurfaceWithPostgresAccess("mcp-server", statusReader, prometheusHandler, postgresAccess, driver)
 	if err != nil {
-		_ = rawDB.Close()
-		if driver != nil {
-			_ = driver.Close(ctx)
-		}
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("mount runtime surface: %w", err)
 	}
 
@@ -365,7 +369,8 @@ func wireAPI(
 		// shutdown flush still needs a live connection, and Close() is
 		// bounded (default 5s) so a stuck sink cannot hang shutdown.
 		_ = allowedReadAudit.Close()
-		_ = rawDB.Close()
+		_ = poolMetrics.Unregister()
+		_ = postgresAccess.Close()
 		if driver != nil {
 			_ = driver.Close(context.Background())
 		}
@@ -387,6 +392,7 @@ func wireAPI(
 		credentialSourceConfigured: authSourceConfigured,
 	}
 
+	wired = true
 	return authedHandler, adminMux, cleanup, authWiring, nil
 }
 

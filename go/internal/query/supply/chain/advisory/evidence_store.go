@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // EvidenceQueryer is the Postgres connection contract the advisory
@@ -42,13 +43,26 @@ type EvidenceFactRow struct {
 // PostgresEvidenceStore reads active vulnerability source facts and
 // groups them into canonical advisory evidence rows.
 type PostgresEvidenceStore struct {
-	DB EvidenceQueryer
+	DB     EvidenceQueryer
+	reader db.Queryer
 }
 
 // NewPostgresEvidenceStore creates the Postgres-backed advisory
 // evidence read model.
 func NewPostgresEvidenceStore(db EvidenceQueryer) PostgresEvidenceStore {
 	return PostgresEvidenceStore{DB: db}
+}
+
+// NewPostgresEvidenceStoreWithReadStore reads advisory facts through a guarded
+// query-only port.
+func NewPostgresEvidenceStoreWithReadStore(reader db.Queryer) PostgresEvidenceStore {
+	return PostgresEvidenceStore{reader: reader}
+}
+
+type legacyEvidenceQueryer struct{ database EvidenceQueryer }
+
+func (q legacyEvidenceQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
 }
 
 // ListAdvisoryEvidence returns one bounded page of source-only advisory
@@ -58,7 +72,7 @@ func (s PostgresEvidenceStore) ListAdvisoryEvidence(
 	filter EvidenceFilter,
 ) ([]EvidenceRow, error) {
 	filter = NormalizeEvidenceFilter(filter)
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("advisory evidence database is required")
 	}
 	if !filter.HasScope() {
@@ -67,7 +81,11 @@ func (s PostgresEvidenceStore) ListAdvisoryEvidence(
 	if filter.Limit <= 0 || filter.Limit > EvidenceMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", EvidenceMaxLimit+1)
 	}
-	rows, err := s.DB.QueryContext(
+	queryer := s.reader
+	if queryer == nil {
+		queryer = legacyEvidenceQueryer{database: s.DB}
+	}
+	rows, err := queryer.QueryContext(
 		ctx,
 		ListEvidenceQuery,
 		array.Of(advisoryEvidenceFactKinds),

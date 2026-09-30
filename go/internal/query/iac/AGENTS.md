@@ -48,7 +48,7 @@
   `resources_scope_auth_fakes_test.go` (root) first.
 - **Port boundary** — handler structs hold `querycontract.GraphQuery`/
   `querycontract.ContentStore` interface fields, never a concrete Neo4j or SQL
-  driver type. `PostgresIaCInventoryStore`, `PostgresIaCManagementStore`, and
+  driver type. `PostgresIaCInventoryStore` and `NewPostgresIaCInventoryStoreWithReadStore`, `PostgresIaCManagementStore`, and
   `PostgresIaCReachabilityStore` are this package's only adapters that touch
   `storage/postgres` directly.
 

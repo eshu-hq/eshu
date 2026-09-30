@@ -310,3 +310,59 @@ func (tx SQLTx) Commit() error {
 func (tx SQLTx) Rollback() error {
 	return tx.Tx.Rollback()
 }
+
+// sqlReadStore keeps the concrete SQL handle private to the compatibility
+// adapter. Callers receive only the read methods in db.ReadStore.
+type sqlReadStore struct {
+	handle *sql.DB
+}
+
+var _ db.ReadStore = sqlReadStore{}
+
+// NewSQLReadStore adapts an existing SQL pool to the narrow read contract.
+// It provides compatibility for deployments using one pool for both roles.
+// See read-access.md for the connection contract.
+func NewSQLReadStore(handle *sql.DB) db.ReadStore {
+	if handle == nil {
+		return nil
+	}
+	return sqlReadStore{handle: handle}
+}
+
+func (store sqlReadStore) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return store.handle.QueryContext(ctx, query, args...)
+}
+
+func (store sqlReadStore) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
+	return store.handle.QueryRowContext(ctx, query, args...)
+}
+
+func (store sqlReadStore) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransaction, error) {
+	tx, err := store.handle.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	return sqlReadTransaction{handle: tx}, nil
+}
+
+type sqlReadTransaction struct {
+	handle *sql.Tx
+}
+
+var _ db.ReadTransaction = sqlReadTransaction{}
+
+func (tx sqlReadTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return tx.handle.QueryContext(ctx, query, args...)
+}
+
+func (tx sqlReadTransaction) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
+	return tx.handle.QueryRowContext(ctx, query, args...)
+}
+
+func (tx sqlReadTransaction) Commit() error {
+	return tx.handle.Commit()
+}
+
+func (tx sqlReadTransaction) Rollback() error {
+	return tx.handle.Rollback()
+}

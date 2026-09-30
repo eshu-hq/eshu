@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const kubernetesCorrelationFactKind = "reducer_kubernetes_correlation"
@@ -90,7 +91,8 @@ type CorrelationQueryer interface {
 // from Postgres using bounded payload predicates against the shared active-fact
 // read model.
 type PostgresCorrelationStore struct {
-	DB CorrelationQueryer
+	DB     CorrelationQueryer
+	reader db.Queryer
 }
 
 // NewPostgresCorrelationStore creates the Postgres-backed Kubernetes
@@ -101,6 +103,25 @@ func NewPostgresCorrelationStore(
 	return PostgresCorrelationStore{DB: db}
 }
 
+// NewPostgresCorrelationStoreWithReadStore routes correlation reads through a
+// guarded query-only connection.
+func NewPostgresCorrelationStoreWithReadStore(reader db.Queryer) PostgresCorrelationStore {
+	return PostgresCorrelationStore{reader: reader}
+}
+
+type sqlCorrelationQueryer struct{ inner CorrelationQueryer }
+
+func (q sqlCorrelationQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresCorrelationStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlCorrelationQueryer{inner: s.DB}
+}
+
 // ListKubernetesCorrelations returns one bounded page of active reducer
 // Kubernetes correlation facts. It requires a concrete scope anchor and a
 // bounded limit, and orders by fact_id so after_correlation_id pagination is
@@ -109,7 +130,7 @@ func (s PostgresCorrelationStore) ListKubernetesCorrelations(
 	ctx context.Context,
 	filter CorrelationFilter,
 ) ([]CorrelationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("kubernetes correlation database is required")
 	}
 	if !filter.hasScope() {
@@ -144,7 +165,7 @@ func (s PostgresCorrelationStore) ListKubernetesCorrelations(
 		query = listKubernetesCorrelationsScopedQuery
 		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list kubernetes correlations: %w", err)
 	}

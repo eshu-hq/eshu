@@ -40,3 +40,8 @@ admin routes keep `eshu_dp_api_request_duration_seconds` and
 `eshu_dp_api_request_errors_total`, and the telemetry-coverage row for this
 family now points at `handler.go` where the moved `DeadLetterFilter` model
 lives.
+
+`Handler.ReadStore` supplies query-only inspection separately from the
+writer-backed `Handler.Store`. A nil read port preserves legacy construction;
+a configured read port never falls back to the writer after an error. The
+three list-only MCP handlers accept `ReadStore` and expose no mutation routes.

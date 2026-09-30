@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -67,8 +68,17 @@ type RowQueryer interface {
 // 138 has not created the readiness table yet, it reports false without an
 // error so a new API or MCP binary uses the legacy scan until migration runs.
 func Ready(ctx context.Context, queryer RowQueryer) (bool, error) {
+	return readReady(queryer.QueryRowContext(ctx, readySQL).Scan)
+}
+
+// ReadyWithRowQueryer checks readiness through a guarded single-row reader.
+func ReadyWithRowQueryer(ctx context.Context, queryer db.RowQueryer) (bool, error) {
+	return readReady(queryer.QueryRowContext(ctx, readySQL).Scan)
+}
+
+func readReady(scan func(...any) error) (bool, error) {
 	var ready bool
-	if err := queryer.QueryRowContext(ctx, readySQL).Scan(&ready); err != nil {
+	if err := scan(&ready); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == undefinedTableSQLState {
 			return false, nil

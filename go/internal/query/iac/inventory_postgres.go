@@ -20,12 +20,18 @@ type inventoryQueryer interface {
 
 // PostgresIaCInventoryStore reads active-generation IaC identities and facets.
 type PostgresIaCInventoryStore struct {
-	db inventoryQueryer
+	db db.Queryer
 }
 
 // NewPostgresIaCInventoryStore constructs an active IaC inventory reader.
 func NewPostgresIaCInventoryStore(db inventoryQueryer) PostgresIaCInventoryStore {
-	return PostgresIaCInventoryStore{db: db}
+	return PostgresIaCInventoryStore{db: inventoryDBAdapter{query: db}}
+}
+
+// NewPostgresIaCInventoryStoreWithReadStore reads through a guarded query-only
+// port, including the read-model readiness probe.
+func NewPostgresIaCInventoryStoreWithReadStore(reader db.Queryer) PostgresIaCInventoryStore {
+	return PostgresIaCInventoryStore{db: reader}
 }
 
 // iacReadModelLabels is the closed label set the infra read model mirrors
@@ -70,7 +76,7 @@ func (s PostgresIaCInventoryStore) readModelServes(
 	if err := ctx.Err(); err != nil {
 		return false, fmt.Errorf("IaC inventory read model readiness: %w", err)
 	}
-	ready, err := inventory.ReadModelReady(ctx, inventoryDBAdapter{query: s.db})
+	ready, err := inventory.ReadModelReady(ctx, s.db)
 	if err != nil {
 		return false, fmt.Errorf("check IaC inventory read model readiness: %w", err)
 	}
@@ -270,7 +276,7 @@ func (s PostgresIaCInventoryStore) searchTable(
 	search InventorySearch,
 	label string,
 ) ([]InventoryCandidate, error) {
-	tableCandidates, err := inventory.SearchIaCEntities(ctx, inventoryDBAdapter{query: s.db}, inventory.IaCSearch{
+	tableCandidates, err := inventory.SearchIaCEntities(ctx, s.db, inventory.IaCSearch{
 		Label:      label,
 		Kind:       string(search.Kind),
 		Query:      search.Query,
@@ -346,7 +352,7 @@ func (s PostgresIaCInventoryStore) summarizeTable(
 	summary InventorySummary,
 	limit int,
 ) (InventorySummary, error) {
-	tableRows, err := inventory.SummarizeIaCEntities(ctx, inventoryDBAdapter{query: s.db}, iacReadModelLabels, limit)
+	tableRows, err := inventory.SummarizeIaCEntities(ctx, s.db, iacReadModelLabels, limit)
 	if err != nil {
 		return summary, err
 	}

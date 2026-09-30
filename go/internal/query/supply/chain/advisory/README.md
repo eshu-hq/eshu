@@ -70,6 +70,11 @@ standard library. The `mapVal`/`stringMapSliceVal` payload helpers and the
 trivial root helpers that cannot cross the package boundary; each carries
 a provenance comment naming its root source.
 
+`NewPostgresCatalogStoreWithReadStore(db.Queryer)` routes catalog reads
+through the guarded query-only connection. The original constructor remains
+available to legacy callers. The new constructor retains the same bounded
+catalog SQL, filter normalization, and page contract.
+
 ## Telemetry
 
 This package emits no metrics, spans, or logs of its own. The advisory

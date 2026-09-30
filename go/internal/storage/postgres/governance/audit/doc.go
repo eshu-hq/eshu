@@ -18,6 +18,10 @@
 // field per call (#6574) so an operator can tell a rolling upgrade apart from
 // a real problem without a line per row.
 //
+// GovernanceAuditReader exposes the same authorized reads over a query-only
+// capability, without schema, append, or retention mutation access. The existing
+// writer-backed GovernanceAuditStore delegates its reads to that implementation.
+//
 // GovernanceAuditQuery.TenantID scopes List and SummaryForTenant to one
 // tenant; global/NULL-tenant events are visible only to the shared operator
 // (no TenantID filter), never to a tenant-admin caller (#3717).

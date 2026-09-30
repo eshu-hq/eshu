@@ -23,7 +23,7 @@ Scope: the code-model query leaf, split out of root package `query`
 Allowed imports: stdlib, `querycontract`/`auth`/`tracing`, and
 the already-present internal leaves (`searchbench`, `searchdocs`,
 `searchembed`, `searchhybrid`, `searchretrieval`, `facts`,
-`codeprovenance`). NEVER import root package `query` (cycle).
+`codeprovenance`, and the narrow `storage/postgres/db` read port). NEVER import root package `query` (cycle).
 `gofmt -l` MUST be clean; keep the stdlib/eshu import grouping.
 
 ## Export discipline (export-minimal)
@@ -89,6 +89,8 @@ without moving its staying callers first.
   `NewCodeHybridRanker`, `CodeHybridRanker` (+`LocalEmbedder`),
   `CodeResultReranker`, `EntityIDFromDocument`,
   `CodeFlowFunctionFromPayload`, `CallGraphMetricIdentity`.
+- `NewPostgresCodeFlowStoreWithReadStore` accepts the guarded business read
+  port for API/MCP wiring; legacy `NewPostgresCodeFlowStore` remains compatible.
 - Leaf-owned constants/variables staying code binds through:
   `CallGraphMetricsMaxOffset`, `CodeFlowDefaultLimit`,
   `CodeFlowMaxLimit`, `CodeFlowKindFactKinds`,

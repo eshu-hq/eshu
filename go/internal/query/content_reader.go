@@ -11,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,15 +21,21 @@ import (
 
 // ContentReader reads file and entity content from the Postgres content store.
 type ContentReader struct {
-	db          *sql.DB
+	db          db.ReadStore
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
 }
 
 // NewContentReader constructs a Postgres-backed content store reader.
 func NewContentReader(db *sql.DB) *ContentReader {
+	return NewContentReaderWithReadStore(postgres.NewSQLReadStore(db))
+}
+
+// NewContentReaderWithReadStore constructs a content reader on a guarded read store.
+// See read-access.md for the content read contract.
+func NewContentReaderWithReadStore(readStore db.ReadStore) *ContentReader {
 	return &ContentReader{
-		db:     db,
+		db:     readStore,
 		tracer: otel.Tracer("eshu/go/internal/query"),
 	}
 }
@@ -53,7 +61,7 @@ func NewContentReader(db *sql.DB) *ContentReader {
 //
 // All 14 are bound to *ContentReader because it is the only production
 // implementer: cmd/api/wiring.go and cmd/mcp-server/wiring.go both wire
-// NewContentReader(db) as the sole content store passed to every handler's
+// a ContentReader as the sole content store passed to every handler's
 // Content field, and no other type in this package defines any of these 14
 // method sets (confirmed by symbol search across internal/query when this
 // block was added; see the #6060 PR description for the break/restore

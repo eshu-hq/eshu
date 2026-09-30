@@ -7,11 +7,14 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
@@ -349,5 +352,25 @@ func TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass(t *t
 	}
 	if got, want := store.lastFilter.ResourceClass, "dashboard"; got != want {
 		t.Fatalf("ResourceClass = %q, want %q", got, want)
+	}
+}
+
+type rejectingCoverageReader struct {
+	calls int
+	err   error
+}
+
+func (r *rejectingCoverageReader) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	r.calls++
+	return nil, r.err
+}
+
+func TestCoverageCorrelationGuardedReadPort(t *testing.T) {
+	want := errors.New("reader stale")
+	reader := &rejectingCoverageReader{err: want}
+	store := NewPostgresCorrelationStoreWithReadStore(reader)
+	_, err := store.ListObservabilityCoverageCorrelations(t.Context(), CorrelationFilter{ScopeID: "scope", AllScopes: true, Limit: 1})
+	if !errors.Is(err, want) || reader.calls != 1 {
+		t.Fatalf("error %v, calls %d", err, reader.calls)
 	}
 }
