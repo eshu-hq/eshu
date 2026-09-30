@@ -54,6 +54,18 @@ type ServiceStoryTargetSupportFilter struct {
 	TargetID   string
 	ServiceID  string
 	Limit      int
+	// RepositoryWorkloadCount is how many Workloads the canonical graph says
+	// Repository DEFINES, read once per story and bounded at
+	// ServiceStoryRepositoryWorkloadReadLimit. It is 0 when the graph is
+	// unavailable, the read failed, or the story context is identity-only.
+	// Repository targets ignore it.
+	RepositoryWorkloadCount int
+	// RepositoryDefinesTarget reports that TargetID is among the Workloads the
+	// graph says Repository DEFINES. A service target may receive
+	// repository-linked support only when this is true and
+	// RepositoryWorkloadCount is 1; a count of 2 or more with this true makes
+	// that support ambiguous (#7138).
+	RepositoryDefinesTarget bool
 }
 
 // ServiceStoryTargetSupportReadModel carries the support block a service story
@@ -90,6 +102,11 @@ func LoadRepositoryEntryPoints(ctx context.Context, content ContentStore, repoID
 // ServiceStoryTargetSupportLimit bounds target-support reads. Root keeps an
 // unexported alias so its service entries share the bound.
 const ServiceStoryTargetSupportLimit = 10
+
+// ServiceStoryRepositoryWorkloadReadLimit bounds the graph read that lists the
+// Workloads a repository DEFINES for the service-story target-support gate. It
+// only has to tell zero from one from two-or-more, so three rows are enough.
+const ServiceStoryRepositoryWorkloadReadLimit = 3
 
 // ServiceStoryTargetSupportStore is the narrow optional port a ContentStore
 // implements to answer target-support reads directly. It lives here

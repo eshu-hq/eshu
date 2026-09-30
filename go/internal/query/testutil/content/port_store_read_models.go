@@ -152,10 +152,14 @@ func (f FakePortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
 
 // ServiceStoryTargetSupportEvidence returns the fixture support block and
 // error exactly as installed, so a test can cover a partial answer that
-// carries both.
+// carries both. When TargetSupportFilter is set it also records the filter it
+// was called with.
 func (f FakePortContentStore) ServiceStoryTargetSupportEvidence(
-	context.Context,
-	querycontract.ServiceStoryTargetSupportFilter,
+	_ context.Context,
+	filter querycontract.ServiceStoryTargetSupportFilter,
 ) (querycontract.ServiceStoryTargetSupportReadModel, error) {
+	if f.TargetSupportFilter != nil {
+		*f.TargetSupportFilter = filter
+	}
 	return f.TargetSupportModel, f.TargetSupportErr
 }

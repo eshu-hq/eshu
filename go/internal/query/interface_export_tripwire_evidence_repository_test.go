@@ -225,7 +225,7 @@ func TestLoadServiceStoryTargetSupportUsesReadModelFastPath(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeServiceStoryTargetSupportTripwireStore{}
-	support, err := loadServiceStoryTargetSupport(context.Background(), fake, map[string]any{"id": "svc-a", "repo_id": "repo-a"})
+	support, err := loadServiceStoryTargetSupport(context.Background(), nil, fake, map[string]any{"id": "svc-a", "repo_id": "repo-a"})
 	if err != nil {
 		t.Fatalf("loadServiceStoryTargetSupport() error = %v, want nil", err)
 	}

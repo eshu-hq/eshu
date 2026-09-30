@@ -54,6 +54,7 @@ type fakePortContentStore struct {
 	documentationFreshnessFilter *documentationEvidencePacketFreshnessFilter
 	targetSupportModel           serviceStoryTargetSupportReadModel
 	targetSupportErr             error
+	targetSupportFilter          *serviceStoryTargetSupportFilter
 	entities                     []EntityContent
 	repoFiles                    []FileContent
 	repositoryRefs               []RepositoryRef
@@ -91,6 +92,7 @@ func (f fakePortContentStore) promoted() content.FakePortContentStore {
 		DocumentationFreshnessFilter: f.documentationFreshnessFilter,
 		TargetSupportModel:           f.targetSupportModel,
 		TargetSupportErr:             f.targetSupportErr,
+		TargetSupportFilter:          f.targetSupportFilter,
 		Entities:                     f.entities,
 		RepoFiles:                    f.repoFiles,
 		RepositoryRefs:               f.repositoryRefs,

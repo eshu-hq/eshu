@@ -35,6 +35,7 @@ type serviceStoryTargetSupportStore interface {
 // forwarder, and by loadServiceStoryTargetSupportForOperation below.
 func LoadServiceStoryTargetSupport(
 	ctx context.Context,
+	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
 	workloadContext map[string]any,
 ) (map[string]any, error) {
@@ -68,6 +69,7 @@ func LoadServiceStoryTargetSupport(
 
 func loadServiceStoryTargetSupportForOperation(
 	ctx context.Context,
+	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
 	workloadContext map[string]any,
 	operation string,
@@ -75,7 +77,7 @@ func loadServiceStoryTargetSupportForOperation(
 	if strings.TrimSpace(operation) != "service_story" {
 		return nil, nil
 	}
-	return LoadServiceStoryTargetSupport(ctx, content, workloadContext)
+	return LoadServiceStoryTargetSupport(ctx, graph, content, workloadContext)
 }
 
 func loadServiceStoryTargetDocumentationForOperation(

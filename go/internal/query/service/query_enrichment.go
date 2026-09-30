@@ -348,7 +348,7 @@ func EnrichServiceQueryContextWithOptions(
 		workloadContext["deployment_evidence"] = deploymentEvidence
 	}
 	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "support_target_evidence")
-	targetSupport, err := loadServiceStoryTargetSupportForOperation(ctx, content, workloadContext, operation)
+	targetSupport, err := loadServiceStoryTargetSupportForOperation(ctx, graph, content, workloadContext, operation)
 	timer.Done(
 		ctx,
 		slog.Bool("has_result", len(targetSupport) > 0),
