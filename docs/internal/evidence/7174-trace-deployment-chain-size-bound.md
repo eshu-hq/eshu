@@ -30,20 +30,24 @@ Source: `go test ./internal/query/impact/deployment -run TestResponseAtCapSize -
 
 | Measure | Bytes |
 | --- | --- |
-| `data` | 597,909 |
-| envelope | 598,012 |
-| escaped resource copy | 653,814 |
-| counted (two copies) | 1,252,100 (477.6% of 262,144) |
+| `data` | 645,434 |
+| envelope | 645,537 |
+| escaped resource copy | 706,153 |
+| counted (two copies) | 1,351,964 (515.7% of 262,144) |
 
 The first cut of the fixture measured 543,644 B of data and 1,137,086 counted
-(433.8%). Review found the fixture left out the lists `deployment_evidence`
-builds from repository content when the graph holds no evidence
-(`shared_config_paths`, `delivery_paths`, `deployment_artifacts`, and the
-story lines; they have no row cap of their own), so the fixture now holds 100
-of each list and a story sentence. The figures above include them.
+(433.8%). Review found the fixture left out the values `deployment_evidence`
+builds from repository content when the graph holds no evidence, and then that
+the second cut modeled two of them in shapes the producers never emit. They
+have no row cap of their own. The fixture now holds, in the producers' shapes,
+100 rows in each of `shared_config_paths` (strings) and `delivery_paths`; a
+`deployment_artifacts` map of four lists of 100 rows
+(`repositoryartifacts.MergeDeploymentArtifactMaps`); and the two story keys as
+lists of sentences (`repository/deployment_overview_story.go`). The figures
+above include them.
 
-The heaviest keys in `data`: `delivery_paths` 121,916; `deployment_evidence`
-115,748; `instances` 57,301; `controller_overview` 41,241; `cloud_resources`
+The heaviest keys in `data`: `deployment_evidence` 163,273; `delivery_paths`
+121,916; `instances` 57,301; `controller_overview` 41,241; `cloud_resources`
 36,501; `deployment_facts` 36,410; `image_registry_truth` 29,401;
 `k8s_resources` 20,071; `provisioned_platforms` 17,651; `story` 14,082;
 `deployment_sources` 14,001; `topology_edges` 13,597.
@@ -52,8 +56,8 @@ The heaviest keys in `data`: `delivery_paths` 121,916; `deployment_evidence`
 
 | Source | Counted bytes |
 | --- | --- |
-| `TestApplySectionSelectionHandlesDefaultFitsBudget` (deployment package, two-copy estimate) | 198,538 (75.7%) |
-| `TestTraceDeploymentChainDefaultArgumentsFitBudget` (real `dispatchToolWithOptions` and `estimateResponseBytes`, summary text included) | 198,758 (75.8%) |
+| `TestApplySectionSelectionHandlesDefaultFitsBudget` (deployment package, two-copy estimate) | 198,340 (75.7%) |
+| `TestTraceDeploymentChainDefaultArgumentsFitBudget` (real `dispatchToolWithOptions` and `estimateResponseBytes`, summary text included) | 198,560 (75.7%) |
 
 Both tests assert a ceiling of 80% of the budget (209,715 bytes). The dispatch
 test also asserts `!ResourceOnly`, `!IsError`, and that `truth.omissions`
@@ -76,8 +80,8 @@ Source: `TestApplySectionSelectionLogsNonDefaultWorstCase`.
 
 | Scenario | Full counted | Handles counted |
 | --- | --- | --- |
-| enrichment 50, overview carries hostname/entrypoint/api copies | 1,344,092 | 253,050 (96.5%) |
-| 5 platforms per instance, enrichment 100 (`max_depth` >= 10) | 1,863,466 | 273,376 (104.3%) |
+| enrichment 50, overview carries hostname/entrypoint/api copies | 1,443,956 | 252,852 (96.5%) |
+| 5 platforms per instance, enrichment 100 (`max_depth` >= 10) | 1,963,330 | 273,178 (104.2%) |
 
 The second row goes over the two-copy budget. This figure is an estimate, not a
 measurement: the escaped resource copy is a little over half the counted
@@ -116,10 +120,15 @@ failed first:
   adapter treated a present list as a drilldown and set `evidence_detail` to
   `full`, which ships every family. The adapter now reads nil and an empty list
   as naming nothing (`TestRouteTraceDeploymentChainEvidenceDetailDefault`).
-- The content-derived `deployment_evidence` lists were neither dropped under
+- The content-derived `deployment_evidence` values were neither dropped under
   handles nor counted, and the fixture left them out. Handles mode now drops
   them and `section_detail.deployment_evidence.total` counts them
-  (`TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists`).
+  (`TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists`). A
+  re-review then found the first fix handled only slices: `deployment_artifacts`
+  is a map of lists and the two story keys are lists of sentences, so the test
+  and fixture modeled shapes the producers never emit and the map shipped in
+  full. The row count now covers a slice and a map of slices, and the test
+  failed first (map kept, total 12 instead of 17).
 - The `image_registry_truth` handle lost the ambiguity qualifier; it now keeps
   `match_strength`.
 

@@ -374,7 +374,16 @@ func TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists(t *testi
 				},
 				"shared_config_paths": []any{"config/a.yaml", "config/b.yaml", "config/c.yaml"},
 				"delivery_paths":      []any{map[string]any{"path": "x"}, map[string]any{"path": "y"}, map[string]any{"path": "z"}, map[string]any{"path": "w"}},
-				"topology_story":      "one sentence",
+				// deployment_artifacts is a map of lists in production
+				// (repositoryartifacts.MergeDeploymentArtifactMaps), and the
+				// story keys are []string (repository/deployment_overview_story.go).
+				"deployment_artifacts": map[string]any{
+					"controller_artifacts": []any{map[string]any{"path": "c1"}, map[string]any{"path": "c2"}},
+					"workflow_artifacts":   []any{map[string]any{"path": "w1"}},
+					"config_paths":         []any{map[string]any{"path": "p1"}, map[string]any{"path": "p2"}},
+				},
+				"topology_story":        []string{"story one", "story two"},
+				"delivery_family_story": []string{"family one"},
 			},
 		}
 	}
@@ -382,24 +391,23 @@ func TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists(t *testi
 	handles := build()
 	ApplySectionSelection(handles, SectionSelection{EvidenceDetail: EvidenceDetailHandles})
 	evidence := querycontract.MapValue(handles, "deployment_evidence")
-	for _, key := range []string{"shared_config_paths", "delivery_paths"} {
+	for _, key := range []string{"shared_config_paths", "delivery_paths", "deployment_artifacts", "topology_story", "delivery_family_story"} {
 		if _, present := evidence[key]; present {
-			t.Errorf("handles mode kept the content-derived list %s", key)
+			t.Errorf("handles mode kept the content-derived value %s", key)
 		}
 	}
-	if evidence["topology_story"] != "one sentence" {
-		t.Errorf("topology_story = %v, want the scalar story kept", evidence["topology_story"])
-	}
 	entry := querycontract.MapValue(querycontract.MapValue(handles, "section_detail"), "deployment_evidence")
-	if entry["detail"] != EvidenceDetailHandles || entry["total"] != 9 || entry["returned"] != 2 {
-		t.Errorf("section_detail.deployment_evidence = %v, want handles, total 9 (2 artifacts + 3 + 4), returned 2", entry)
+	// 2 graph artifacts + 3 config paths + 4 delivery paths + 5 rows in the
+	// deployment_artifacts map + 2 topology sentences + 1 family sentence.
+	if entry["detail"] != EvidenceDetailHandles || entry["total"] != 17 || entry["returned"] != 2 {
+		t.Errorf("section_detail.deployment_evidence = %v, want handles, total 17, returned 2", entry)
 	}
 
 	full := build()
 	ApplySectionSelection(full, SectionSelection{EvidenceDetail: EvidenceDetailFull})
 	entry = querycontract.MapValue(querycontract.MapValue(full, "section_detail"), "deployment_evidence")
-	if entry["detail"] != EvidenceDetailFull || entry["total"] != 9 || entry["returned"] != 9 {
-		t.Errorf("full mode section_detail.deployment_evidence = %v, want full, total 9, returned 9", entry)
+	if entry["detail"] != EvidenceDetailFull || entry["total"] != 17 || entry["returned"] != 17 {
+		t.Errorf("full mode section_detail.deployment_evidence = %v, want full, total 17, returned 17", entry)
 	}
 }
 

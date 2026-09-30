@@ -241,13 +241,26 @@ func traceAtCapDeploymentEvidence(n int) map[string]any {
 			"workflow": fmt.Sprintf("deploy-payments-api-%03d", i), "source_repo": "payments", "environment": "prod",
 		}
 	})
-	deploymentEvidence["deployment_artifacts"] = traceAtCapRows(2*n, func(i int) map[string]any {
-		return map[string]any{
-			"artifact_type": "dockerfile", "path": fmt.Sprintf("build/payments-api-%03d/Dockerfile", i),
-			"repository": "payments", "image": fmt.Sprintf("registry.example.test/payments-api-%03d", i),
-		}
-	})
-	deploymentEvidence["topology_story"] = "payments-api ships from deployment-charts through ArgoCD to the prod cluster."
+	// deployment_artifacts is a map of lists, the shape
+	// repositoryartifacts.MergeDeploymentArtifactMaps produces.
+	artifactRows := func(kind string) []map[string]any {
+		return traceAtCapRows(2*n, func(i int) map[string]any {
+			return map[string]any{
+				"artifact_type": kind, "path": fmt.Sprintf("build/%s/payments-api-%03d/Dockerfile", kind, i),
+				"repository": "payments", "image": fmt.Sprintf("registry.example.test/payments-api-%03d", i),
+			}
+		})
+	}
+	deploymentEvidence["deployment_artifacts"] = map[string]any{
+		"controller_artifacts": artifactRows("controller"), "workflow_artifacts": artifactRows("workflow"),
+		"deployment_artifacts": artifactRows("deployment"), "config_paths": artifactRows("config"),
+	}
+	// The story keys are lists of sentences (repository/deployment_overview_story.go).
+	deploymentEvidence["topology_story"] = []string{
+		"payments-api ships from deployment-charts through ArgoCD to the prod cluster.",
+		"The prod overlay pins the image by digest.",
+	}
+	deploymentEvidence["delivery_family_story"] = []string{"GitHub Actions builds the image and ArgoCD syncs the chart."}
 	return deploymentEvidence
 }
 

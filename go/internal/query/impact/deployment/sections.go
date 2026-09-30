@@ -286,11 +286,13 @@ func projectRows(rows []map[string]any, keys []string) []map[string]any {
 	return projected
 }
 
-// contentDerivedEvidenceKeys are the deployment_evidence lists the service
+// contentDerivedEvidenceKeys are the deployment_evidence values the service
 // enrichment builds from repository content when the graph holds no evidence
-// (service.buildServiceDeploymentEvidenceFromOverview). They come from up to
-// RepositorySemanticEntityLimit files with no row cap of their own, so handles
-// mode drops them and section_detail counts them.
+// (service.buildServiceDeploymentEvidenceFromOverview): lists of rows,
+// deployment_artifacts (a map of lists), and the two story lists of sentences
+// ([]string). They come from up to RepositorySemanticEntityLimit files with no
+// row cap of their own, so handles mode drops them and section_detail counts
+// them.
 var contentDerivedEvidenceKeys = []string{
 	"deployment_artifacts",
 	"shared_config_paths",
@@ -302,34 +304,48 @@ var contentDerivedEvidenceKeys = []string{
 }
 
 // countDeploymentEvidence counts the rows deployment_evidence would ship: the
-// graph artifacts plus every content-derived list still present. Scalars such
-// as a story sentence count as zero rows.
+// graph artifacts plus the rows in every content-derived value still present.
+// A list counts its elements, and deployment_artifacts, a map of lists
+// (controller_artifacts, workflow_artifacts, deployment_artifacts,
+// config_paths), counts the elements of each list in it.
 func countDeploymentEvidence(response map[string]any) int {
 	evidence := querycontract.MapValue(response, "deployment_evidence")
 	count := len(querycontract.MapSliceValue(evidence, "artifacts"))
 	for _, key := range contentDerivedEvidenceKeys {
-		count += listLen(evidence[key])
+		count += rowCount(evidence[key])
 	}
 	return count
 }
 
-// listLen returns the length of a slice value and 0 for anything else.
-func listLen(value any) int {
-	if value == nil {
+// rowCount returns the number of rows in a content-derived value: the length
+// of a slice, the summed lengths of the slices held in a map[string]any, and 0
+// for anything else (a string, a number, nil).
+func rowCount(value any) int {
+	switch typed := value.(type) {
+	case nil:
+		return 0
+	case map[string]any:
+		total := 0
+		for _, inner := range typed {
+			if rv := reflect.ValueOf(inner); inner != nil && rv.Kind() == reflect.Slice {
+				total += rv.Len()
+			}
+		}
+		return total
+	default:
+		if rv := reflect.ValueOf(value); rv.Kind() == reflect.Slice {
+			return rv.Len()
+		}
 		return 0
 	}
-	rv := reflect.ValueOf(value)
-	if rv.Kind() != reflect.Slice {
-		return 0
-	}
-	return rv.Len()
 }
 
 // projectDeploymentEvidence keeps deployment_evidence's counts and family
 // lists, projects artifacts to {id, relationship_type, resolved_id}, drops
 // evidence_index (a regrouping of the same artifacts), and drops the
-// content-derived lists (see contentDerivedEvidenceKeys), which section_detail
-// still counts. A scalar story is small and stays.
+// content-derived values (see contentDerivedEvidenceKeys), which section_detail
+// still counts. A value that holds no rows (an empty list or map, a scalar)
+// stays.
 func projectDeploymentEvidence(response map[string]any) {
 	evidence, ok := response["deployment_evidence"].(map[string]any)
 	if !ok {
@@ -338,7 +354,7 @@ func projectDeploymentEvidence(response map[string]any) {
 	shaped := copyMap(evidence)
 	delete(shaped, "evidence_index")
 	for _, key := range contentDerivedEvidenceKeys {
-		if listLen(shaped[key]) > 0 {
+		if rowCount(shaped[key]) > 0 {
 			delete(shaped, key)
 		}
 	}
