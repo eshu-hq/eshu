@@ -49,15 +49,16 @@ of the 26-row ordered page. All measured ordered pages, including cap status,
 matched. This proves the query-shape theory on that corpus, not the endpoint
 target.
 
-A built API at source commit `917922a0831cf6991e3dbe1dc528b0d7683edb47`
+A built API at source commit `147971b860e0fd1e6df3e39697be715f52bd865e`
 then ran the same unscoped 16-term request on a dedicated Neo4j/PostgreSQL test
 instance with the same preserved corpus and storage state for both variants.
-After two warmups per variant, eight interleaved baseline/candidate HTTP pairs
-had medians of 0.780149 and 0.423014 seconds. Every timed request returned
-HTTP 200, the complete canonical JSON response matched in every pair, and the
-content-table fingerprint was unchanged. This is a built endpoint result on
-the dedicated instance; the deployed ops-qa endpoint remains unmeasured for
-this commit.
+Eight interleaved ABBA rounds (16 timed requests per variant) had baseline and
+candidate medians of 0.768627 and 0.415212 seconds. Every timed request
+returned HTTP 200, the complete canonical JSON response matched, and the
+content and queue fingerprint was unchanged. This is a built endpoint result
+on the dedicated instance, not a deployed ops-qa acceptance result. A later
+base-only rebase preserved the production patch according to `git range-diff`;
+the measured binary still identifies the pre-rebase source commit.
 
 Observability Evidence: The `postgres.query` span records the selected route,
 reservation wait and cancellation, connection count, probe row count, JSON
