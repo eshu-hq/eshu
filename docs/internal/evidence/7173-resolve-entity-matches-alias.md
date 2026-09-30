@@ -19,6 +19,8 @@ Every reader of the field, found by a repo-wide search for `"matches"`,
 | `go/internal/serviceintel/suggestions.go`, `go/internal/ask/catalog` | route metadata only | none |
 | OpenAPI (`paths/search/entities.go`) and the HTTP/MCP docs | never advertised `matches`; they document `entities`, `count`, `limit`, `truncated` | one sentence added recording the removal |
 | `testdata/golden/e2e-20repo-snapshot.json` `resolve_entity` `required_response_fields` | listed `matches` | entry removed in the same change |
+| the same shape's `required_json_values` | pinned `matches[].id` for the second row | pin removed; the second row is now pinned as a `required_json_object_matches` entry on `entities[]`, and `snapshot_test.go` mirrors it |
+| `CHANGELOG.md` | said `resolve_entity` still returned `matches` until the console moved (#7173) | entry rewritten to record the removal and the measured saving |
 | Go tests that pinned or stubbed the alias | `entity_content_fallback_test.go` (asserted the alias), two MCP stub fixtures | flipped to assert absence / stub trimmed |
 
 All four resolve producers (graph, canonical content handle, global content
@@ -43,9 +45,16 @@ missing, which the producer never allowed.
   `cmd/golden-corpus-gate/...`, `internal/goldengate/...`, `internal/demospec/...`,
   `cmd/api/...`, `cmd/mcp-server/...` pass; `scripts/test-verify-golden-corpus-gate.sh`
   passes; the console `entityResolution` tests pass.
+- `TestGoldenSnapshotResolveEntityShapeAcceptsTheAliasFreeResponse` runs the
+  committed `resolve_entity` shape through the gate's own `EvaluateQueryShape`
+  against a hand-written alias-free response, and shows a shape that still pins
+  `matches[].id` fails against it. This is the hermetic mirror of the live
+  assertion: the review of the first cut found a leftover `matches[].id` pin
+  that the snapshot-reading unit tests could not see because they agreed with
+  the stale snapshot.
 - The live golden-corpus run (Docker, `golden-corpus-gate-neo4j`) was not run
-  locally; it asserts the same `resolve_entity` field list this change edits,
-  and CI runs it.
+  locally. It asserts the `resolve_entity` field list and JSON values this
+  change edits; CI runs it, and it is the remaining unproven step.
 
 ## No-Regression Evidence
 

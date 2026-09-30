@@ -5642,8 +5642,14 @@
           "count": 2,
           "limit": 10,
           "truncated": false,
-          "entities[].id": "content-entity:e_85e904a13eae",
-          "matches[].id": "content-entity:e_85bff2c7884a"
+          "entities[].id": "content-entity:e_85e904a13eae"
+        },
+        "required_json_object_matches": {
+          "entities[]": [
+            {
+              "id": "content-entity:e_85bff2c7884a"
+            }
+          ]
         },
         "arguments": {
           "query": "main",
