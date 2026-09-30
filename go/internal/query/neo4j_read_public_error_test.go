@@ -6,6 +6,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,8 @@ import (
 	"testing"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const publicErrorLiteral = "s3cr3t-literal"
@@ -41,7 +44,7 @@ func failingPolicyTestReader(driverErr error, logs *bytes.Buffer) *Neo4jReader {
 		}}
 	})
 	if logs != nil {
-		reader.policy.logger = slog.New(slog.NewTextHandler(logs, nil))
+		reader.policy.logger = slog.New(slog.NewJSONHandler(logs, nil))
 	}
 	return reader
 }
@@ -81,16 +84,100 @@ func TestNeo4jReaderErrorTextIsStableAndRedacted(t *testing.T) {
 		t.Fatal("the driver cause must stay reachable through errors.As for classification")
 	}
 
-	logged := logs.String()
-	if !strings.Contains(logged, "query.graph_read.error") {
-		t.Fatalf("no operator log for the failed read; logs = %q", logged)
+	record := lastLogRecord(t, &logs)
+	if record["event_name"] != "query.graph_read.error" {
+		t.Fatalf("log event_name = %v, want query.graph_read.error; record = %v", record["event_name"], record)
 	}
-	if strings.Contains(logged, publicErrorLiteral) {
-		t.Fatalf("operator log exposed the statement literal: %q", logged)
+	detail, _ := record["graph_read.error"].(string)
+	if !strings.Contains(detail, "SyntaxError") || !strings.Contains(detail, "<REDACTED>") {
+		t.Fatalf("graph_read.error = %q, want the driver detail (code kept) with literals redacted", detail)
 	}
-	if !strings.Contains(logged, "<REDACTED>") {
-		t.Fatalf("operator log carries no redacted driver detail: %q", logged)
+	if strings.Contains(detail, publicErrorLiteral) {
+		t.Fatalf("graph_read.error exposed the statement literal: %q", detail)
 	}
+	if strings.Contains(fmt.Sprint(record), publicErrorLiteral) {
+		t.Fatalf("operator log record exposed the statement literal: %v", record)
+	}
+	// Neo4j classifies a statement error as a ClientError: the caller's fault,
+	// so a client-triggerable failure must not raise an ERROR stream.
+	if record["level"] != "WARN" {
+		t.Fatalf("ClientError log level = %v, want WARN", record["level"])
+	}
+}
+
+// TestNeo4jReaderLogsServerSideDriverFaultsAtError keeps ERROR for a fault the
+// backend does not classify as the caller's.
+func TestNeo4jReaderLogsServerSideDriverFaultsAtError(t *testing.T) {
+	var logs bytes.Buffer
+	reader := failingPolicyTestReader(&neo4jdriver.Neo4jError{Code: "Neo.DatabaseError.General.UnknownError", Msg: "boom '" + publicErrorLiteral + "'"}, &logs)
+
+	if _, err := reader.Run(context.Background(), "RETURN 1", nil); !errors.Is(err, ErrGraphQueryFailed) {
+		t.Fatalf("Run() error = %v, want ErrGraphQueryFailed", err)
+	}
+	record := lastLogRecord(t, &logs)
+	if record["level"] != "ERROR" {
+		t.Fatalf("DatabaseError log level = %v, want ERROR", record["level"])
+	}
+	if strings.Contains(fmt.Sprint(record), publicErrorLiteral) {
+		t.Fatalf("operator log record exposed the driver literal: %v", record)
+	}
+}
+
+// TestGraphStatementRejectionOnlyForBackendRejectedStatements pins the seam
+// the user-authored Cypher routes use to answer 400 instead of 500.
+func TestGraphStatementRejectionOnlyForBackendRejectedStatements(t *testing.T) {
+	syntax := failingPolicyTestReader(quotingDriverError(), nil)
+	_, err := syntax.Run(context.Background(), "MATCH (n:Secret {token: '"+publicErrorLiteral+"'}) RETURN n", nil)
+	message, ok := querycontract.GraphStatementRejection(err)
+	if !ok {
+		t.Fatalf("GraphStatementRejection(%v) = false, want true for Neo.ClientError.Statement.*", err)
+	}
+	if strings.Contains(message, publicErrorLiteral) || !strings.Contains(message, "<REDACTED>") {
+		t.Fatalf("rejection message = %q, want literals redacted", message)
+	}
+
+	for name, driverErr := range map[string]error{
+		"database fault":          &neo4jdriver.Neo4jError{Code: "Neo.DatabaseError.General.UnknownError", Msg: "boom"},
+		"client, not a statement": &neo4jdriver.Neo4jError{Code: "Neo.ClientError.Security.Unauthorized", Msg: "denied"},
+		"plain":                   errors.New("boom"),
+	} {
+		reader := failingPolicyTestReader(driverErr, nil)
+		_, err := reader.Run(context.Background(), "RETURN 1", nil)
+		if _, ok := querycontract.GraphStatementRejection(err); ok {
+			t.Fatalf("%s: GraphStatementRejection = true, want false", name)
+		}
+	}
+	if _, ok := querycontract.GraphStatementRejection(nil); ok {
+		t.Fatal("GraphStatementRejection(nil) = true, want false")
+	}
+}
+
+// TestNeo4jReaderSpanForUnavailableReadCarriesNoAddress pins that the #7253
+// span unwrap applies only to the query-failed class: a connectivity error's
+// dial text names the graph host, and the span must keep the fixed public text
+// it carried before this change.
+func TestNeo4jReaderSpanForUnavailableReadCarriesNoAddress(t *testing.T) {
+	const host = "neo4j-core.graph.prod.svc.cluster.local"
+	err := &graphReadError{
+		public: ErrGraphUnavailable,
+		cause:  errors.New("neo4j query: ConnectivityError: dial tcp " + host + ":7687: connect: connection refused"),
+	}
+	if got := redactedSpanError(err).Error(); strings.Contains(got, host) || got != ErrGraphUnavailable.Error() {
+		t.Fatalf("redactedSpanError(unavailable) = %q, want the fixed public text without the graph host", got)
+	}
+}
+
+func lastLogRecord(t *testing.T, logs *bytes.Buffer) map[string]any {
+	t.Helper()
+	lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	if len(lines) == 0 || lines[len(lines)-1] == "" {
+		t.Fatal("no operator log record was written for the failed read")
+	}
+	var record map[string]any
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &record); err != nil {
+		t.Fatalf("decode log record %q: %v", lines[len(lines)-1], err)
+	}
+	return record
 }
 
 // TestNeo4jReaderKeepsAvailabilityMappings pins that the new public error does

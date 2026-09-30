@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -89,10 +90,34 @@ func (e *graphReadError) Is(target error) bool {
 // -- the operator detail the response no longer carries (#7253).
 func redactedSpanError(err error) error {
 	var readErr *graphReadError
-	if errors.As(err, &readErr) && readErr.cause != nil {
+	// Only the query-failed class swaps in its cause. An unavailable or
+	// deadline error keeps its fixed public text: its cause is a dial error
+	// that names the graph host.
+	if errors.As(err, &readErr) && readErr.public == ErrGraphQueryFailed && readErr.cause != nil {
 		err = readErr.cause
 	}
 	return errors.New(statement.Redact(err.Error()))
+}
+
+// StatementRejection reports whether the cause is the backend rejecting the
+// statement as malformed (Neo.ClientError.Statement.*) and returns its message
+// with literals redacted. querycontract.GraphStatementRejection reaches it
+// through errors.As.
+func (e *graphReadError) StatementRejection() (string, bool) {
+	var driverErr *neo4jdriver.Neo4jError
+	if e.public != ErrGraphQueryFailed || !errors.As(e.cause, &driverErr) ||
+		!strings.HasPrefix(driverErr.Code, "Neo.ClientError.Statement.") {
+		return "", false
+	}
+	return statement.Redact(driverErr.Msg), true
+}
+
+// isBackendClientError reports whether the backend classified the failure as
+// the caller's (Neo.ClientError.*), so the operator log stays at WARN instead of
+// raising an ERROR stream a client can trigger with a malformed statement.
+func isBackendClientError(err error) bool {
+	var driverErr *neo4jdriver.Neo4jError
+	return errors.As(err, &driverErr) && strings.HasPrefix(driverErr.Code, "Neo.ClientError.")
 }
 
 // logGraphReadError emits the operator-facing record for a graph read the
@@ -112,8 +137,13 @@ func (r *Neo4jReader) logGraphReadError(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger.ErrorContext(
+	level := slog.LevelError
+	if isBackendClientError(err) {
+		level = slog.LevelWarn
+	}
+	logger.Log(
 		ctx,
+		level,
 		"bounded graph read failed",
 		telemetry.EventAttr("query.graph_read.error"),
 		telemetry.PhaseAttr(telemetry.PhaseQuery),

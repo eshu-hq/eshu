@@ -24,11 +24,34 @@ without touching a handler. The operator detail moved to the two places the
 issue names, both redacted with the scanner that already redacts the statement
 head and fingerprint (#7035):
 
-- the `neo4j.query` span status and exception event (`redactedSpanError` now
-  reads the cause, so the #7065 span contract is unchanged), and
-- a new `query.graph_read.error` ERROR log with `graph_read.error` (redacted
-  driver text), `graph_read.statement_fingerprint`, `graph_read.statement_head`,
-  and `graph_query_name`.
+- the `neo4j.query` span status and exception event. `redactedSpanError` reads
+  the cause only for the query-failed class, so the #7065 span contract holds
+  for that class and an unavailable or deadline span keeps its fixed public
+  text. The first cut unwrapped every class, which put the graph host from a
+  connectivity error's dial text on the 503 span; review caught it and
+  `TestNeo4jReaderSpanForUnavailableReadCarriesNoAddress` now pins it, and
+- a new `query.graph_read.error` log with `graph_read.error` (redacted driver
+  text), `graph_read.statement_fingerprint`, `graph_read.statement_head`, and
+  `graph_query_name`. It is ERROR level, except WARN for a failure the backend
+  classifies as the caller's (`Neo.ClientError.*`), so a client cannot raise an
+  ERROR stream with a malformed statement.
+
+### User-authored Cypher routes
+
+`POST /api/v0/code/cypher` and `POST /api/v0/code/visualize` run the caller's
+own statement. Bounding the error to `graph query failed` there removed the
+only feedback an author (or an MCP agent) had for a malformed query, and
+reported a caller error as a 500. Both routes now ask
+`querycontract.GraphStatementRejection`: a `Neo.ClientError.Statement.*` failure
+answers `400 invalid_argument` with the backend message run through the same
+literal redaction, and any other failure stays `500 graph query failed`. The
+seam is an interface the reader's error implements, so the routes do not import
+the reader. The trade-off is that the redaction reads the message as Cypher: it
+replaces the offending token in `Invalid input 'x'` and the numbers in a
+`line 1, column 24` position, and drops text after `//`. That is enough to name
+the clause the graph expected, and it keeps the same guarantee as the log and
+span. `TestCypherRoutesAnswer400ForARejectedCallerStatement` covers both routes;
+disabling the mapping turns it red.
 
 The existing 503 (`ErrGraphUnavailable`) and 504 (`ErrGraphReadDeadline`)
 classes are unchanged and still win over the new sentinel. The response for the
@@ -87,10 +110,18 @@ Method: a multi-line pattern scan of non-test Go under `go/internal` and
 `go/cmd` at the commit that carries this change, for a 5xx status
 (`StatusInternalServerError`, `StatusBadGateway`, `StatusServiceUnavailable`,
 `StatusGatewayTimeout`) whose message argument is `err.Error()` or an
-`fmt.Sprintf` that formats an `err` value. It counted 287 sites in 25
-packages, every one under `go/internal/query`; `go/cmd/api`,
-`go/cmd/mcp-server`, and `go/internal/mcp` write none (the MCP layer relays the
-API body). The "reads" column is a coarse import/identifier check on the
+`fmt.Sprintf` that formats an `err` value, and a second pattern for
+`http.Error`. The first counted 287 sites in 25 packages under
+`go/internal/query`; the second found 3 more (`internal/status/http.go` twice,
+`internal/runtime/metrics.go`), all fed by the Postgres status store. A second,
+independent heuristic run in review found 291 sites in 26 packages, so treat
+every count here as approximate. The scan's blind spot is a helper that takes
+an error-code argument between the status and the message, such as
+`writeSemanticSearchError(w, r, status, code, err.Error())`; that is how
+`internal/query/semanticsearch` (`semantic_search.go:307` and `:328`, Postgres
+scope-resolver and search-backend errors in 503 bodies) was missed by the
+table below and is listed here. `go/cmd/api`, `go/cmd/mcp-server`, and
+`go/internal/mcp` write none (the MCP layer relays the API body). The "reads" column is a coarse import/identifier check on the
 package's non-test files, not a per-site data-flow proof: a package marked
 `graph` may reach the error from a graph read at some sites and from a store at
 others.
@@ -113,6 +144,8 @@ others.
 | `internal/query/cicd` | 3 | store | `handler.go:130` |
 | `internal/query/freshness` | 3 | store | `generations.go:124` |
 | `internal/query/terraform/drift`, `codeowners` | 2 each | store (codeowners also graph) | `handler.go:286`, `ownership.go:152` |
+| `internal/query/semanticsearch` | 2+ | store (scope resolver), search backend | `semantic_search.go:307` |
+| `internal/status`, `internal/runtime` (`http.Error`) | 3 | store (status report) | `status/http.go:55`, `runtime/metrics.go:46` |
 | `metrics`, `dependency`, `observability/coverage`, `querycontract`, `incident`, `service`, `kubernetes`, `workitem` | 1 each | mixed | see the scan |
 
 What each class can put in a body:
@@ -144,6 +177,17 @@ separate, larger change than the graph-read leak this issue names. The follow-up
 before an issue is filed; it is recorded here as the disposition of every
 listed site rather than left implicit.
 
-An independent read-only scan of the same population was started to classify
-each site's error source with cited evidence; if it lands after this note it is
-attached to the PR instead of changing these counts.
+An independent read-only scan classified the error source for a sample of the
+sites and confirmed the classes above: Postgres store calls are the main
+remaining surface (for example `query/repository/freshness.go:55` from
+`storage/postgres/repository_freshness.go`, and the status handlers), one site
+relays an upstream Prometheus dial error (`query/metrics/handler.go:109`), and
+JSON decode errors reach `infra.go:227`. It found no production `fmt.Errorf`
+that embeds a SQL or Cypher statement. It did not classify every site (its
+cap left roughly a hundred unchecked), which is why the table reports
+packages and coarse sources, not a per-site proof.
+
+No follow-up issue is filed for the Postgres and internal class: the issue asks
+to fix or list each site, this note lists them, and filing a new tracked issue
+needs the owner's agreement, which this lane does not have. It is the natural
+next change.

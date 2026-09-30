@@ -50,6 +50,22 @@ recent shipped work grouped by feature area.
   `list_investigation_workflows` 27KB->1.1KB (live A/B against the deployed
   binary).
 
+### Graph read failures no longer echo the graph's statement text
+
+- **A failed graph read answers `graph query failed`, not the driver's message**
+  ([#7253](https://github.com/eshu-hq/eshu/issues/7253)). A Neo4j statement
+  error quotes the statement it rejected, inline literals included, and any
+  handler that fell through the deadline/unavailable mapping wrote that text
+  into an HTTP 500 body. `Neo4jReader` now returns an error whose text is the
+  fixed `graph query failed`; the redacted detail moved to the `neo4j.query`
+  span and a new `query.graph_read.error` log (`graph_read.error`, with the
+  statement fingerprint and head). The two routes that run a caller-authored
+  statement, `POST /api/v0/code/cypher` and `/api/v0/code/visualize`, answer
+  `400 invalid_argument` with the redacted graph message when the graph rejects
+  the statement as malformed, instead of a 500. Postgres and internal error text
+  in other 5xx bodies is listed in
+  `docs/internal/evidence/7253-graph-read-error-public-text.md`, not changed here.
+
 ### EC2 AMI node class resolves the instance->AMI relationship
 
 - **Materialize the AMI as a CloudResource node so the instance->AMI edge

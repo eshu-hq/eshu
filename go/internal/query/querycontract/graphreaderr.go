@@ -113,3 +113,25 @@ func mapGraphReadHTTPError(err error) (graphReadHTTPError, bool) {
 		return graphReadHTTPError{}, false
 	}
 }
+
+// statementRejecter is implemented by a graph-read error that wraps the backend
+// rejecting the statement itself (a Cypher syntax or semantic error).
+type statementRejecter interface {
+	StatementRejection() (string, bool)
+}
+
+// GraphStatementRejection reports whether err is the graph backend rejecting
+// the submitted statement as malformed, and returns the backend's message with
+// every numeric and string literal redacted. It is for the routes that run a
+// caller-authored statement (read-only Cypher, graph-query visualization),
+// which answer 400 with this message so the author can fix the query instead of
+// a bare 500 (#7253). A route that runs a statement Eshu built must not use it:
+// a rejected server-built statement is a server fault. Any other error,
+// including nil, reports false.
+func GraphStatementRejection(err error) (string, bool) {
+	var rejecter statementRejecter
+	if err == nil || !errors.As(err, &rejecter) {
+		return "", false
+	}
+	return rejecter.StatementRejection()
+}
