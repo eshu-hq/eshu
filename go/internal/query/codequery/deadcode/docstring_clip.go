@@ -22,3 +22,20 @@ func clipDeadCodeInvestigationDocstrings(scan *DeadCodeInvestigationScan) int {
 	}
 	return clipped
 }
+
+// clipCrossRepoDeadCodeDocstrings applies the same clip to the active and
+// suppressed rows of a cross-repo scan, which the reply buckets into dead,
+// live_by_consumer, unknown, and suppressed. It returns how many rows it
+// clipped. Call it after the scan has bounded both slices and before the rows
+// are cloned into buckets.
+func clipCrossRepoDeadCodeDocstrings(scan *CrossRepoDeadCodeScan) int {
+	clipped := querycontract.ClipRowsDocstring(scan.Active, entitysemantics.ReattachSemanticSummary)
+	return clipped + querycontract.ClipRowsDocstring(scan.Suppressed, entitysemantics.ReattachSemanticSummary)
+}
+
+// withDocstringClipMarkers adds the response-level docstring clip markers to
+// data and returns it, so a handler can wrap a response literal in place.
+func withDocstringClipMarkers(clipped int, data map[string]any) map[string]any {
+	querycontract.AddDocstringClipMarkers(data, clipped)
+	return data
+}

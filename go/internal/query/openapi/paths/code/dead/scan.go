@@ -57,7 +57,7 @@ const Scan = `
                     "candidate_scan_limit_per_label": {"type": "integer", "description": "Maximum share one candidate label may consume from the bounded scan's shared raw-row limit."},
                     "candidate_scan_pages": {"type": "integer", "description": "Number of raw candidate pages read before returning results."},
                     "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
-                    "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped, suppressed rows included; 0 when none."},
+                    "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."},
                     "candidate_scan_rows": {"type": "integer", "description": "Number of raw candidate rows inspected before policy exclusions."},
                     "results": {
                       "type": "array",

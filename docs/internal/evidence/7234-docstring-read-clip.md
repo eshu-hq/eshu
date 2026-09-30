@@ -115,9 +115,11 @@ from those runs; the budget is 262,144 bytes.
 | `investigate_dead_code` (25 active + 25 suppressed) | not measured | 222,078 B | 84.7% |
 | `find_most_complex_functions` (10) | `mcp_response_over_budget` | 68,876 B | 26% |
 | `calculate_cyclomatic_complexity` (one row) | 166,420 B, two copies | unchanged | 63.5% |
+| `find_cross_repo_dead_code` (default limit, suppressed bucket included) | `mcp_response_over_budget`, 9,198,502 B | 235,095 B (single-copy fallback) | 89.7% |
 
 Change: `find_dead_code`, `investigate_dead_code` (all three buckets,
-`clipDeadCodeInvestigationDocstrings`), and the list branch of
+`clipDeadCodeInvestigationDocstrings`), `find_cross_repo_dead_code` (active and
+suppressed rows, `clipCrossRepoDeadCodeDocstrings`), and the list branch of
 `find_most_complex_functions` call `querycontract.ClipRowsDocstring` with
 `entitysemantics.ReattachSemanticSummary` after the page trim, then
 `AddDocstringClipMarkers`. The fail-closed empty-grant complexity answer carries
@@ -135,12 +137,6 @@ Not clipped, with the reason:
   copies) and at 32 KiB 165,282 B via the resource-only fallback. Overflow is
   expected only past roughly 50 KiB per docstring, which is an extrapolation
   from those points, not a measurement.
-- `find_cross_repo_dead_code` is not clipped and was not measured. It builds
-  its rows through the same `buildDeadCodeResults`, which calls
-  `AttachSemanticSummary`, and returns them in `candidate_buckets` (active and
-  suppressed), so a long docstring is echoed five times per row there too. Its
-  overflow at a 16 KiB docstring is unmeasured; treat the dead-code family as
-  covered for `find_dead_code` and `investigate_dead_code` only.
 - `inspect_call_graph_metrics` and `investigate_import_dependencies` were
   neither measured nor changed in this work; measuring them is left for a
   separate change.
@@ -151,7 +147,9 @@ a reason other than the docstring can push it over. Note that the 25 active +
 25 suppressed reply (222,078 B) is smaller than the 25-row one because it went
 through the dispatcher's resource-only fallback, which drops the structured
 copy: a client that reads only `structuredContent` gets none on a page that
-size. When even the single copy does not fit, the reply fails closed with
+size. `find_cross_repo_dead_code` is in the same position: 235,095 B (89.7%) at
+its default limit, reachable only as the single resource copy. When even the
+single copy does not fit, the reply fails closed with
 `mcp_response_over_budget` as before. Other tools that echo a docstring
 and were not measured here: `trace_call_chain` (relationship identity rows),
 the shared `codequery` response helper, and the search enrichment path.

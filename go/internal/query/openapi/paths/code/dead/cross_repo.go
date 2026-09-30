@@ -66,8 +66,11 @@ const CrossRepo = `
                     "candidate_scan_limit_per_label": {"type": "integer", "description": "Maximum share one candidate label may consume from the classification's shared raw-row limit."},
                     "candidate_scan_pages": {"type": "integer"},
                     "candidate_scan_rows": {"type": "integer"},
+                    "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
+                    "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows, suppressed rows included, whose docstring was clipped; 0 when none."},
                     "candidate_buckets": {
                       "type": "object",
+                      "description": "Every row in every bucket has its docstring clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.",
                       "properties": {
                         "dead": {"type": "array", "items": {"type": "object"}},
                         "live_by_consumer": {"type": "array", "items": {"type": "object"}},

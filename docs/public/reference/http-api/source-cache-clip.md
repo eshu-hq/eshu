@@ -18,6 +18,7 @@ docstring but no stored source body:
 | --- | --- |
 | `POST /api/v0/code/dead-code` | `find_dead_code` |
 | `POST /api/v0/code/dead-code/investigate` | `investigate_dead_code` |
+| `POST /api/v0/code/dead-code/cross-repo` | `find_cross_repo_dead_code` |
 | `POST /api/v0/code/complexity` (list mode) | `find_most_complex_functions`, `calculate_cyclomatic_complexity` with no entity |
 
 ## Contract
@@ -48,7 +49,8 @@ docstring but no stored source body:
   whole.
 - On the dead-code and complexity routes the same clip and markers apply. The
   investigation route clips every bucket (`cleanup_ready`, `ambiguous`, and
-  `suppressed`), and `docstring_clipped_rows` counts all of them. The
+  `suppressed`) and the cross-repo route clips `dead`, `live_by_consumer`,
+  `unknown`, and `suppressed`; `docstring_clipped_rows` counts all of them. The
   complexity list carries the response markers even when the caller's grant
   leaves no visible row, so an empty answer has the same shape as a real one.
   A single-entity complexity lookup (`entity_id`, or a `function_name` that
