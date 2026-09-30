@@ -90,6 +90,15 @@ func TestGetRepositoryStoryDisclosesSemanticReadTruncation(t *testing.T) {
 			if got, want := int(store.fileLimit.Load()), limit+1; got != want {
 				t.Fatalf("ListRepoFiles limit = %d, want %d (cap plus one sentinel row)", got, want)
 			}
+			summary := testutil.MustMapField(t, body, "ci_cd_evidence")
+			static := testutil.MustMapField(t, summary, "static_workflow_artifacts")
+			if tc.fileCount >= limit {
+				if static["state"] != "unknown" || static["candidate_pool_status"] != "unknown_at_limit" {
+					t.Fatalf("capped story static evidence = %#v, want unknown at limit", static)
+				}
+			} else if static["state"] != "absent" || static["candidate_pool_status"] != nil {
+				t.Fatalf("uncapped story static evidence = %#v, want absent without coverage marker", static)
+			}
 			limitations, _ := body["limitations"].([]any)
 			metadata, _ := body["answer_metadata"].(map[string]any)
 			partial, _ := metadata["partial_reasons"].([]any)

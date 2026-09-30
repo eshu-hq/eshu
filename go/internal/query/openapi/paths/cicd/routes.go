@@ -72,10 +72,11 @@ const Routes = `
                         "static_workflow_artifacts": {
                           "type": "object",
                           "properties": {
-                            "state": {"type": "string", "enum": ["present", "absent", "not_checked", "unavailable"]},
-                            "count": {"type": "integer"},
+                            "state": {"type": "string", "enum": ["present", "absent", "unknown", "not_checked", "unavailable"], "description": "unknown means the bounded candidate file scan cannot establish workflow absence."},
+                            "count": {"type": "integer", "description": "Workflow files observed in the candidate page; not a proven repository total when candidate coverage is uncertain."},
+                            "candidate_pool_status": {"type": "string", "enum": ["unknown_at_limit"], "description": "The path-ordered file page reached its 5,000-file limit. Additional files may or may not exist. Omitted for an uncapped page."},
                             "paths": {"type": "array", "items": {"type": "string"}},
-                            "truncated": {"type": "boolean"},
+                            "truncated": {"type": "boolean", "description": "The displayed workflow paths were shortened to 20. Separate from candidate_pool_status."},
                             "image_ref_count": {"type": "integer"},
                             "unresolved_count": {"type": "integer"},
                             "ambiguous_count": {"type": "integer"},

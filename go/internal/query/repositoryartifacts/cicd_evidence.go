@@ -6,12 +6,13 @@ package repositoryartifacts
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/workflowimage"
 )
 
+// CicdRunCorrelationEvidenceSummary separates indexed workflows, provider runs,
+// and run-to-artifact evidence, preserving gaps in each evidence domain.
 type CicdRunCorrelationEvidenceSummary struct {
 	StaticWorkflowArtifacts CicdStaticWorkflowArtifactEvidence `json:"static_workflow_artifacts"`
 	LiveRunCorrelations     CicdLiveRunCorrelationEvidence     `json:"live_run_correlations"`
@@ -20,16 +21,19 @@ type CicdRunCorrelationEvidenceSummary struct {
 	Reason                  string                             `json:"reason,omitempty"`
 }
 
+// CicdStaticWorkflowArtifactEvidence describes workflows observed in a bounded
+// repository file page. A full page cannot establish repository-wide absence.
 type CicdStaticWorkflowArtifactEvidence struct {
-	State           string   `json:"state"`
-	Count           int      `json:"count"`
-	Paths           []string `json:"paths,omitempty"`
-	Truncated       bool     `json:"truncated,omitempty"`
-	ImageRefCount   int      `json:"image_ref_count,omitempty"`
-	UnresolvedCount int      `json:"unresolved_count,omitempty"`
-	AmbiguousCount  int      `json:"ambiguous_count,omitempty"`
-	EvidenceClass   string   `json:"evidence_class,omitempty"`
-	Reason          string   `json:"reason,omitempty"`
+	CandidatePoolStatus string   `json:"candidate_pool_status,omitempty"`
+	State               string   `json:"state"`
+	Count               int      `json:"count"`
+	Paths               []string `json:"paths,omitempty"`
+	Truncated           bool     `json:"truncated,omitempty"`
+	ImageRefCount       int      `json:"image_ref_count,omitempty"`
+	UnresolvedCount     int      `json:"unresolved_count,omitempty"`
+	AmbiguousCount      int      `json:"ambiguous_count,omitempty"`
+	EvidenceClass       string   `json:"evidence_class,omitempty"`
+	Reason              string   `json:"reason,omitempty"`
 }
 
 type CicdLiveRunCorrelationEvidence struct {
@@ -48,6 +52,8 @@ type CicdRunArtifactEvidence struct {
 	Reason              string `json:"reason,omitempty"`
 }
 
+// BuildCICDRunCorrelationEvidenceSummary joins independently observed static
+// and live evidence without treating an uncertain static scan as absence.
 func BuildCICDRunCorrelationEvidenceSummary(
 	static CicdStaticWorkflowArtifactEvidence,
 	rows []querycontract.CICDRunCorrelationResult,
@@ -93,6 +99,8 @@ func BuildCICDRunCorrelationEvidenceSummary(
 		}
 	case "absent":
 		summaryReason = "no_ci_cd_evidence_found"
+	case "unknown":
+		summaryReason = "static_workflow_coverage_unknown"
 	}
 	live.Reason = summaryReason
 	artifact := missingCICDRunArtifactEvidence(summaryReason)
@@ -112,6 +120,9 @@ func cicdSummaryMissingEvidence(
 	artifact CicdRunArtifactEvidence,
 ) []string {
 	var missing []string
+	if static.CandidatePoolStatus != "" {
+		missing = append(missing, "static_workflow_coverage_unknown")
+	}
 	switch live.State {
 	case "unavailable":
 		missing = append(missing, "live_ci_provider_evidence_unavailable")
@@ -123,7 +134,7 @@ func cicdSummaryMissingEvidence(
 			missing = append(missing, "ci_cd_evidence_missing")
 		case "unavailable":
 			missing = append(missing, "static_workflow_evidence_unavailable", "source_to_ci_run_evidence_missing")
-		case "not_checked":
+		case "unknown", "not_checked":
 			missing = append(missing, "ci_cd_run_correlation_missing")
 		}
 	}
@@ -191,106 +202,6 @@ func missingCICDRunArtifactEvidence(reason string) CicdRunArtifactEvidence {
 		State:  "missing",
 		Reason: reason,
 	}
-}
-
-func StaticWorkflowArtifactEvidence(
-	ctx context.Context,
-	content querycontract.ContentStore,
-	repositoryID string,
-) CicdStaticWorkflowArtifactEvidence {
-	if repositoryID == "" {
-		return CicdStaticWorkflowArtifactEvidence{
-			State:  "not_checked",
-			Reason: "repository_scope_required",
-		}
-	}
-	if content == nil {
-		return CicdStaticWorkflowArtifactEvidence{
-			State:  "unavailable",
-			Reason: "content_store_unavailable",
-		}
-	}
-
-	files, err := content.ListRepoFiles(ctx, repositoryID, querycontract.RepositorySemanticEntityLimit)
-	if err != nil {
-		return CicdStaticWorkflowArtifactEvidence{
-			State:  "unavailable",
-			Reason: "workflow_artifact_read_failed",
-		}
-	}
-	return StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files)
-}
-
-// StaticWorkflowArtifactEvidenceFromFiles builds the same static workflow
-// evidence as StaticWorkflowArtifactEvidence from a repository file list the
-// caller already read with ListRepoFiles(repositoryID,
-// querycontract.RepositorySemanticEntityLimit). The repository story passes the
-// list it listed for its semantic overview so the story pays for that read once
-// instead of once per consumer (#7126). The list is only read, never modified.
-func StaticWorkflowArtifactEvidenceFromFiles(
-	ctx context.Context,
-	content querycontract.ContentStore,
-	repositoryID string,
-	files []querycontract.FileContent,
-) CicdStaticWorkflowArtifactEvidence {
-	if repositoryID == "" {
-		return CicdStaticWorkflowArtifactEvidence{
-			State:  "not_checked",
-			Reason: "repository_scope_required",
-		}
-	}
-	if content == nil {
-		return CicdStaticWorkflowArtifactEvidence{
-			State:  "unavailable",
-			Reason: "content_store_unavailable",
-		}
-	}
-
-	count := 0
-	paths := make([]string, 0, len(files))
-	for _, file := range files {
-		if !IsGitHubActionsWorkflowFile(file) {
-			continue
-		}
-		count++
-		path := file.RelativePath
-		if path == "" {
-			continue
-		}
-		paths = append(paths, path)
-	}
-	if count == 0 {
-		return CicdStaticWorkflowArtifactEvidence{State: "absent"}
-	}
-	imageRefCount, unresolvedCount, ambiguousCount, imageEvidenceErr := staticWorkflowImageEvidenceCounts(ctx, content, repositoryID, files)
-
-	slices.Sort(paths)
-	truncated := len(paths) > cicdStaticWorkflowEvidencePathLimit
-	if truncated {
-		paths = paths[:cicdStaticWorkflowEvidencePathLimit]
-	}
-
-	out := CicdStaticWorkflowArtifactEvidence{
-		State:     "present",
-		Count:     count,
-		Paths:     paths,
-		Truncated: truncated,
-	}
-	out.ImageRefCount = imageRefCount
-	out.UnresolvedCount = unresolvedCount
-	out.AmbiguousCount = ambiguousCount
-	if imageEvidenceErr != nil {
-		out.Reason = "workflow_image_evidence_read_failed"
-	}
-	switch {
-	case imageRefCount > 0 && ambiguousCount == 0 && unresolvedCount == 0:
-		out.EvidenceClass = workflowimage.EvidenceClassImageRef
-	case ambiguousCount > 0:
-		out.EvidenceClass = workflowimage.EvidenceClassAmbiguous
-	case unresolvedCount > 0:
-		out.EvidenceClass = workflowimage.EvidenceClassUnresolved
-	}
-	return out
 }
 
 func staticWorkflowImageEvidenceCounts(
@@ -397,6 +308,9 @@ func cicdRunCorrelationEvidenceSummaryMap(summary CicdRunCorrelationEvidenceSumm
 		"live_run_correlations":     cicdLiveRunCorrelationEvidenceMap(summary.LiveRunCorrelations),
 		"run_artifact_evidence":     cicdRunArtifactEvidenceMap(summary.RunArtifactEvidence),
 	}
+	if summary.StaticWorkflowArtifacts.CandidatePoolStatus != "" {
+		out["missing_evidence"] = []string{"static_workflow_coverage_unknown"}
+	}
 	if summary.Reason != "" {
 		out["reason"] = summary.Reason
 	}
@@ -407,6 +321,9 @@ func cicdStaticWorkflowArtifactEvidenceMap(value CicdStaticWorkflowArtifactEvide
 	out := map[string]any{
 		"state": value.State,
 		"count": value.Count,
+	}
+	if value.CandidatePoolStatus != "" {
+		out["candidate_pool_status"] = value.CandidatePoolStatus
 	}
 	if len(value.Paths) > 0 {
 		out["paths"] = append([]string(nil), value.Paths...)
