@@ -86,7 +86,10 @@ relation, a constraint, or a bound value, and the HTTP response for the same
 failure carries only a fixed per-class string. A caller-canceled request logs
 nothing. A timeout logs at WARN, as does a data or integrity error a request can
 trigger (SQLSTATE class 22 or 23); everything else is ERROR. A client
-disconnect or a bad input therefore cannot raise an ERROR stream.
+disconnect or a bad input therefore cannot raise an ERROR stream. During a
+Postgres outage every business request logs one record, because its freshness
+checkpoint runs on the writer pool before any business read; the volume is the
+request rate and is not sampled.
 
 See [Graph-read safety](graph-read-safety.md) for the shared deadline and
 operator triage contract.

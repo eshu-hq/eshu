@@ -70,8 +70,15 @@ which is what `stdlib.OpenDB` does plus the wrapper). `Config.Logger` carries th
 process logger from `cmd/api` and `cmd/mcp-server`. No store and no handler
 changed, except the classifier above.
 
-After the change the same handler request answers a body whose detail ends in
-`postgres store unavailable`, and the operator record carries the detail:
+After the change a writer-pool call that cannot connect returns an error whose
+text is `postgres store unavailable`, and the operator record carries the detail
+(pool level, from `TestWriterPoolErrorsCarryNoConnectionTarget`). No test on this
+branch drives an HTTP handler over the writer pool: the content route used in
+"The leak" now reads through the guarded reader, so on this base its bodies end in
+the reader's text (`PostgreSQL reader query failed`), or
+`PostgreSQL writer checkpoint failed` when the writer is down, never in
+`postgres store ...`. The writer pool serves the identity, session, admin,
+recovery, supply-chain, audit, and sign-in handlers. The record:
 
 ```
 ERROR postgres store call failed event_name=postgres.store.error failure_class=unavailable postgres_store.operation=connect postgres_store.sqlstate="" postgres_store.statement_head="" postgres_store.error="failed to connect to `user=alice database=appdb`: 127.0.0.1:1 (127.0.0.1): dial error: ..."
@@ -121,6 +128,10 @@ ERROR postgres store call failed event_name=postgres.store.error failure_class=u
   their admin endpoints (`internal/status/http.go`, `internal/runtime` metrics).
   That pool also serves the bulk `CopyFrom` path, which asserts `*stdlib.Conn`
   and would not work through the wrapper; bounding it is a separate change.
+- Every business request first runs its freshness checkpoint on the writer pool,
+  so during a Postgres outage each business request, not only writer routes, logs
+  one `postgres.store.error` ERROR (operation `query` or `connect`). The volume is
+  the request rate and is not sampled.
 - The wiring that passes `Config.Logger` from `cmd/api` and `cmd/mcp-server` is
   two lines and is proven only at the pool, not by a wiring test: `Access.Open`
   needs a live primary to bootstrap. A nil logger falls back to `slog.Default`.

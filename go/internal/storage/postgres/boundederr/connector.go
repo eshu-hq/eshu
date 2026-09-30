@@ -28,7 +28,7 @@ type pgxConn interface {
 
 var _ pgxConn = (*stdlib.Conn)(nil)
 
-// Option configures Open and NewConnector.
+// Option configures NewConnector.
 type Option func(*observer)
 
 // WithLogger sets the logger for the operator record emitted once per bounded

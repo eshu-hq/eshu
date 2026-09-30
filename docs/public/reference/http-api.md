@@ -109,13 +109,16 @@ names the database user, the database, and the dialed address on a connection
 failure and a relation, column, constraint, or bound value on a server error. A
 business read through the guarded reader pool ends in a fixed text such as
 `PostgreSQL reader query failed` (#7482). A call through the writer pool
-(authorization, audit, mutation, sign-in) ends in one of four fixed texts:
+(authorization, audit, mutation, sign-in, and the admin, recovery, and supply-chain
+routes that use it) ends in one of four fixed texts:
 `postgres store unavailable` (a connection that could not be made or was lost),
 `postgres store timed out` (a statement or transaction ran out of time),
 `postgres store request canceled` (the caller went away), or
 `postgres store statement failed` (any other driver or server failure). A handler
 may prefix its own step name, for example
-`get file content: postgres store statement failed`. The writer pool's detail is
+`<step>: postgres store statement failed`. When the writer is down, a business read
+answers `PostgreSQL writer checkpoint failed`, because the request's freshness
+checkpoint runs on the writer first. The writer pool's detail is
 in the `postgres.store.error` log (`postgres_store.operation`,
 `postgres_store.sqlstate`, `postgres_store.statement_head`,
 `postgres_store.error`). The ingester, reducer, projector, collectors, and
