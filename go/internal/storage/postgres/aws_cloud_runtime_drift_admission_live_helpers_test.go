@@ -56,6 +56,15 @@ func awsCloudRuntimeDriftAdmissionLiveDB(t *testing.T) (*sql.DB, context.Context
 	return sqlDB, ctx
 }
 
+// awsCloudRuntimeDriftIsolatedLiveDB is awsCloudRuntimeDriftAdmissionLiveDB in
+// a schema of its own (openIsolatedBootstrapSchema). A proof that drives
+// ReducerQueue.Claim must use it: on the shared schema Claim can take a row
+// another test or an earlier run left behind (#7479).
+func awsCloudRuntimeDriftIsolatedLiveDB(t *testing.T) (*sql.DB, context.Context) {
+	t.Helper()
+	return openIsolatedLiveDB(t, "aws_drift_live", "set ESHU_POSTGRES_DSN to run the real-Postgres aws_cloud_runtime_drift #5848 proofs")
+}
+
 // seedAWSCloudRuntimeDriftScope inserts (or updates) one ingestion_scopes row.
 // activeGenerationID may be empty to leave the scope with no active generation
 // (the pre-activation shape the readiness defer targets).
