@@ -279,6 +279,11 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		SourceSystem: scopeValue.SourceSystem,
 	}
 	materializeContent := repoID != ""
+	contentMaterialization.FullSnapshot = materializeContent &&
+		contentFullSnapshot(scopeValue, generation, inputFacts)
+	if contentMaterialization.FullSnapshot {
+		contentMaterialization.RetainedPaths = snapshotFilePaths(inputFacts)
+	}
 
 	intents := make([]ReducerIntent, 0, len(inputFacts))
 	for i := range inputFacts {

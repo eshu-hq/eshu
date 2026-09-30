@@ -95,6 +95,22 @@ type Materialization struct {
 	Entities       []EntityRecord
 	RepositoryRefs []RepositoryRef
 
+	// FullSnapshot marks Records as the COMPLETE file set of RepoID at this
+	// generation, not a delta or a partial batch. The writer then removes every
+	// content row of RepoID whose path is not in Records, because a full
+	// snapshot carries no Deleted tombstones for paths an earlier generation
+	// wrote and a later one never activated (#7447 item 5). Only the projector
+	// sets it, and only for a repository-scoped, non-delta generation that
+	// carries the repository fact. The zero value never removes a row.
+	FullSnapshot bool
+
+	// RetainedPaths are paths that are in the snapshot but carry no Record, for
+	// example a file whose body could not be re-read when the collector emitted
+	// its content fact (the file fact, and so the graph File node, still exists).
+	// A FullSnapshot reap treats them as present, so one skipped read never
+	// deletes the content a file already has. Ignored unless FullSnapshot is set.
+	RetainedPaths []string
+
 	// FileEntityCapHits counts files where per-file entity materialization was
 	// skipped entirely because the projected entity count exceeded
 	// shape.MaxFileEntityCount. These are typically minified JS bundles or
@@ -124,6 +140,9 @@ func (m Materialization) Clone() Materialization {
 	}
 	if len(m.RepositoryRefs) > 0 {
 		cloned.RepositoryRefs = append([]RepositoryRef(nil), m.RepositoryRefs...)
+	}
+	if len(m.RetainedPaths) > 0 {
+		cloned.RetainedPaths = append([]string(nil), m.RetainedPaths...)
 	}
 
 	return cloned
