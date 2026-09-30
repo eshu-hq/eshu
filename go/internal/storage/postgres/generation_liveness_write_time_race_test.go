@@ -92,7 +92,12 @@ func TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLea
 	// DSN. Rollback after a successful Commit is a harmless no-op
 	// (sql.ErrTxDone), so this is safe to defer unconditionally.
 	defer func() { _ = heartbeatTx.Rollback() }()
-	renewedClaimUntil := time.Now().UTC().Add(10 * time.Minute)
+	// Postgres timestamptz stores microseconds: truncate the sub-microsecond
+	// tail or the read-back exact-equality check below can never match on a
+	// nanosecond-resolution clock (CI Linux; unseen on microsecond clocks).
+	// This mirrors the Truncate(time.Microsecond) convention the sibling
+	// live proofs use for every timestamp they round-trip through Postgres.
+	renewedClaimUntil := time.Now().UTC().Add(10 * time.Minute).Truncate(time.Microsecond)
 	if _, err := heartbeatTx.ExecContext(ctx, `
 		UPDATE fact_work_items
 		SET claim_until = $1

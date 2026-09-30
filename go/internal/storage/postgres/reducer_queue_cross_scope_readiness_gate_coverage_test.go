@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 	"testing"
 )
 
@@ -34,9 +36,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte("ESHU_POSTGRES_DSN:")) {
 		t.Fatalf("%s no longer passes a PostgreSQL DSN: the live proofs would skip in CI", workflowPath)
 	}
-	if !bytes.Contains(workflow, []byte("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN:")) ||
-		!bytes.Contains(workflow, []byte("ESHU_GENERATION_LIVENESS_PROOF_DSN:")) {
-		t.Fatalf("%s must pass both projector and generation-liveness proof DSNs", workflowPath)
+	if !bytes.Contains(workflow, []byte("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN:")) {
+		t.Fatalf("%s must pass the projector supersession proof DSN", workflowPath)
+	}
+	if !bytes.Contains(workflow, []byte("ESHU_GENERATION_LIVENESS_PROOF_DSN:")) {
+		t.Fatalf("%s must pass the generation-liveness proof DSN (a selected proof without it skips)", workflowPath)
 	}
 	if !bytes.Contains(workflow, []byte("ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN:")) {
 		t.Fatalf("%s must pass the reducer ack reclaim proof DSN (#6162)", workflowPath)
@@ -74,6 +78,16 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if err != nil {
 		t.Fatalf("compile the gate's -run filter %q: %v", runFilter, err)
 	}
+	// #7437: the DSN-substring checks above only prove the workflow sets the
+	// variable; they cannot catch a proof the -run filter never selects, which
+	// skips just as quietly. Every test that reads
+	// ESHU_GENERATION_LIVENESS_PROOF_DSN must be selected by the filter, so a
+	// new env-gated proof cannot silently sit out the gate.
+	for _, name := range generationLivenessGatedTests(t) {
+		if !selects.MatchString(name) {
+			t.Fatalf("the reducer contention gate's -run filter %q does not select env-gated %s (reads ESHU_GENERATION_LIVENESS_PROOF_DSN)", runFilter, name)
+		}
+	}
 	for _, name := range []string{
 		"TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository",
 		"TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget",
@@ -102,6 +116,16 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestPublishedGenerationRecommitIsIdempotentLive",
 		"TestFinalizedGenerationRecommitSkipsFactsLive",
 		"TestGenerationLivenessIntegration",
+		// #7437: the env-gated liveness proofs below read
+		// ESHU_GENERATION_LIVENESS_PROOF_DSN and skip without it; the
+		// discovery check above also requires each one, so this pinned
+		// list and the workflow filter stay in lockstep.
+		"TestGenerationLivenessProgressWindow",
+		"TestGenerationLivenessRefinalizeDuplicateProjectorRow",
+		"TestGenerationLivenessRepoDependencyOwnership",
+		"TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLease",
+		"TestProjectorStrandedRetryRecovery",
+		"TestProjectorStrandedRetryRecoveryLeaveLiveLease",
 		"TestSharedIntentGenerationPendingIndexLifecycleLive",
 		// #6794: the status blockage filter must match the pre-change join over
 		// every lease state and must hash the lease set, running no eligible or
@@ -201,4 +225,46 @@ func reducerContentionGateRunFilter(t *testing.T, workflow string) string {
 		t.Fatal("the reducer contention gate no longer runs a single-quoted -run filter; this guard cannot read it")
 	}
 	return matches[1]
+}
+
+// generationLivenessProofDSN gates the generation-liveness proofs: without it
+// they skip, so a selected-but-unset proof and an unselected proof both prove
+// nothing in CI.
+const generationLivenessProofDSN = "ESHU_GENERATION_LIVENESS_PROOF_DSN"
+
+// generationLivenessGatedTests discovers every Test function declared in a
+// _test.go file of this package that references generationLivenessProofDSN.
+// The enrollment guard itself mentions the variable, so its own file is
+// excluded: the guard stays hermetic and unselected.
+func generationLivenessGatedTests(t *testing.T) []string {
+	t.Helper()
+
+	const guardFile = "reducer_queue_cross_scope_readiness_gate_coverage_test.go"
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("list package test files: %v", err)
+	}
+	testFunc := regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]+)\(`)
+	var names []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || name == guardFile || !strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if !bytes.Contains(body, []byte(generationLivenessProofDSN)) {
+			continue
+		}
+		for _, m := range testFunc.FindAllSubmatch(body, -1) {
+			names = append(names, string(m[1]))
+		}
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		t.Fatalf("no test references %s: the discovery scan is broken", generationLivenessProofDSN)
+	}
+	return names
 }
