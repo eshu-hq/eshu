@@ -168,7 +168,7 @@ func TestDeadCodeHTTPBlankLanguageContentPageContract(t *testing.T) {
 		wantTwelve[i] = fmt.Sprintf("Function-%03d", i+1)
 	}
 	excluded := deadCodeHTTPRows("Function", 120, "internal/fixtures/example_test.go")
-	excluded = append(excluded, deadCodeHTTPRow("Function", "Function-001", "internal/fixtures/example_test.go"))
+	excluded = append(excluded, deadCodeHTTPRow("Function", "early-helper", "internal/early.go"))
 	budgetPages := make(map[deadCodePageKey][]map[string]any)
 	for _, label := range []string{"Function", "Class", "Struct", "Interface", "Trait"} {
 		budgetPages[deadCodePageKey{label, 0}] = deadCodeHTTPRows(label, 121, "internal/fixtures/example_test.go")
@@ -210,9 +210,9 @@ func TestDeadCodeHTTPBlankLanguageContentPageContract(t *testing.T) {
 			name: "later page after exclusions and duplicate", body: `{"repo_id":"repo-1","limit":12}`,
 			pages: map[deadCodePageKey][]map[string]any{
 				{"Function", 0}:   excluded,
-				{"Function", 121}: {deadCodeHTTPRow("Function", "Function-001", "internal/fixtures/example_test.go"), deadCodeHTTPRow("Function", "late-helper", "internal/late.go")},
+				{"Function", 121}: {deadCodeHTTPRow("Function", "early-helper", "internal/early.go"), deadCodeHTTPRow("Function", "late-helper", "internal/late.go")},
 			}, calls: append(append([]deadCodePageCall(nil), first...), deadCodePageCall{repoID: "repo-1", label: "Function", limit: 121, offset: 121}),
-			ids: []string{"late-helper"}, rows: 123,
+			ids: []string{"early-helper", "late-helper"}, rows: 123,
 		},
 		{
 			name: "exact display cap", body: `{"repo_id":"repo-1","limit":12}`,
