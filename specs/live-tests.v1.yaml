@@ -943,7 +943,7 @@ tests:
   - file: go/internal/reducer/repository_path_conflict_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges) under the atomic-group and phase-group executors, and that a steady-state retry records nothing; it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host
+    reason: deterministic nonce-scoped #7324 proof that the canonical writer's path-conflict Repository retirement reports what it deleted (the canonical repository retired WARN and eshu_dp_canonical_repository_retirements_total{outcome=dropped_relationships}, relationships_deleted equal to the retired node's full degree, 11 seeded incoming plus 9 projector edges) under the atomic-group and phase-group executors, that a steady-state retry records nothing, and (#7446, helpers in repository_stub_live_test.go) that the stub the edge writers then re-create under the retired id is counted and the harness cleanup removes it (#7445); it reads Bolt summary delete counters, which NornicDB is measured not to report reliably, so it is pinned to Neo4j, the supported graph backend; local neo4j:2026-community runs took 6.7s-8.7s for the test on a shared host
     backends: neo4j
   - file: go/internal/reducer/repository_retry_concurrency_live_test.go
     tag: live_nornicdb_answer_truth
@@ -953,6 +953,11 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic nonce-scoped #7285 projector-retry proof (every reducer edge family survives a same-generation re-projection under the atomic-group and phase-group executors; property map equals a fresh projection); local neo4j:2026-community runs took 2.5s warm and 26.9s with a cold schema apply on a loaded shared host; runs on both backends in the live-backend CI job
+  - file: go/internal/reducer/repository_stub_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic nonce-scoped #7446 proof that the path-less Repository stub the repo_dependency and submodule_pin writers MERGE-create under a retired id is counted (eshu_dp_canonical_repository_stubs_created_total{writer=repo_dependency} = 1, the canonical repository stub created INFO log, 0 for a write to a live target), never puts two Repository nodes at one path, is what QueryRepoDependencies returns, and is reaped by the Repository orphan sweep once both owners retract by evidence_source; it reads Bolt summary NodesCreated counters and is pinned to Neo4j, the supported graph backend, so the counter has no NornicDB live proof; local neo4j:2026-community runs took 0.35s-0.42s for the lifecycle test on a shared host
+    backends: neo4j
   - file: go/internal/reducer/workload_instance_retraction_live_test.go
     tag: ~
     class: scheduled

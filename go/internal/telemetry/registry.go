@@ -82,6 +82,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionProperty,
 	MetricDimensionLinkKind,
 	MetricDimensionPhase,
+	MetricDimensionWriter,
 }
 
 var spanNames = []string{

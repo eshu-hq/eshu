@@ -92,7 +92,7 @@ differential recorder. The last entry wins, because driver and
 happens only after the statement's transaction committed. First-generation and
 delta writes build no cleanup statement and install nothing.
 
-### Stub re-creation after retirement (observed, not asserted)
+### Stub re-creation after retirement (asserted since #7446)
 
 The arbiter listed stub re-creation as unverified. The live proof records what
 Neo4j actually does. After the retirement, running the real
@@ -103,8 +103,18 @@ id. That node has `path = null` and `evidence_source = resolver/cross-repo`
 `[PINS_SUBMODULE, DEPENDS_ON]`. It was observed identically under both executor
 shapes. Because the node has no path, the path-conflict retirement never
 matches it again, so it persists as a path-less orphan stub until a writer
-stops naming the retired id. This is a documented gap of contract A, not a
-behaviour the tests assert as correct.
+stops naming the retired id. This is a documented gap of contract A.
+
+The #7446 arbiter ruling keeps it: the writers keep MERGE-by-id (MATCH-only
+would reintroduce the ordering dependency and the O(in-degree) re-arm this
+note rejects, and on NornicDB a bare-MATCH UNWIND write silently drops). The
+stub is truthful while an owner asserts an edge into it and reapable after:
+owners retract by `evidence_source`, then the `Repository` orphan sweep
+deletes it. `eshu_dp_canonical_repository_stubs_created_total{writer}` and
+the `canonical repository stub created` log now count it, and the live test
+asserts the stub's shape, the count and the reap
+(`docs/internal/evidence/7446-repository-stub-counter.md`). A re-point or
+re-arm stays gated on production retirement counts.
 
 ## Lock order and transaction scope
 

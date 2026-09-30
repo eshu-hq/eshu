@@ -6,6 +6,7 @@ package telemetry
 import (
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -24,7 +25,8 @@ const (
 )
 
 // registerCanonicalRepositoryRetirements registers the path-conflict
-// Repository retirement counter (#7324) on inst.
+// Repository retirement counter (#7324) and the Repository stub-creation
+// counter (#7446) on inst.
 func registerCanonicalRepositoryRetirements(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.CanonicalRepositoryRetirements, err = meter.Int64Counter(
@@ -33,5 +35,27 @@ func registerCanonicalRepositoryRetirements(meter metric.Meter, inst *Instrument
 	); err != nil {
 		return fmt.Errorf("register CanonicalRepositoryRetirements counter: %w", err)
 	}
+	if inst.CanonicalRepositoryStubsCreated, err = meter.Int64Counter(
+		"eshu_dp_canonical_repository_stubs_created_total",
+		metric.WithDescription("Repository nodes a shared-edge writer MERGE-created by id because no node held that id, by writer (repo_dependency, submodule_pin) (#7446)"),
+	); err != nil {
+		return fmt.Errorf("register CanonicalRepositoryStubsCreated counter: %w", err)
+	}
 	return nil
+}
+
+// Closed writer values for eshu_dp_canonical_repository_stubs_created_total
+// (#7446): the shared-edge writers whose upsert MERGEs a Repository by id.
+const (
+	// RepositoryStubWriterRepoDependency is the repo_dependency domain's
+	// upserts (DEPENDS_ON and the typed repository relationships).
+	RepositoryStubWriterRepoDependency = "repo_dependency"
+	// RepositoryStubWriterSubmodulePin is the PINS_SUBMODULE edge upsert.
+	RepositoryStubWriterSubmodulePin = "submodule_pin"
+)
+
+// AttrWriter returns a writer attribute naming the closed shared-edge writer
+// that recorded a Repository stub creation.
+func AttrWriter(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionWriter, v)
 }
