@@ -190,8 +190,13 @@ every shape had 9 valid rounds from 9 attempts. The A/B rounds ran in a rotating
 | 25,000 scoped | 75,000 = 3 x 25,000 | 1.0348 / 1.0329 (1.4307) | 0.557 s / 0.542 s | pass, bar 1.25 s |
 | 25,000 unscoped | 75,000 = 3 x 25,000 | 1.0384 / 1.0368 (1.7028) | 0.560 s / 0.539 s | pass, bar 1.25 s |
 
-Wall time rose 3.5% to 4.3% at the median while DB hits rose 35% to 62% (the ratios above 1.35 that set the
-G2 limits): the extra property reads are cheap next to the index seek, expand and sort. In all four shapes the
+Wall time rose 3.5% to 4.3% at the median while DB hits on this rig rose 58.7% (23,101 to 36,667 at 4,522
+edges) and 62.5% (120,005 to 195,005 at 25,000 edges), identically for scoped and unscoped: this rig's planner
+applies the grant at the repository seek, so the grant adds no per-row cost. The extra property reads are cheap
+next to the index seek, expand and sort. The G2 limits use the pre-registered DB-hit ratios H from the laptop
+`PROFILE` (1.3451 and 1.3529 scoped, 1.5872 and 1.6250 unscoped), which for the scoped shapes are stricter than
+this rig's own ratio, so the gate was not loosened; the laptop scoped figures came from a different plan choice.
+In all four shapes the
 new plan differs from the base plan by exactly one added `CacheProperties`, with the same access path and no
 `Eager`. The cold first execution was 0.197 s and 0.170 s (4,522 scoped, unscoped) and 0.615 s and 0.599 s
 (25,000 scoped, unscoped) for the new statement.
@@ -211,9 +216,13 @@ without the production deadlines, retries or telemetry.
 
 Two earlier remote attempts at this head were void under the pre-registered validity rule (derived control
 bound 0.2079 and 0.2077 against the 0.15 cap) and are not used for any claim. The passing run is the third.
+After the second void attempt (its A/A ratios ranged 0.8652 to 1.0176 with a pooled SD of 0.0243, consistent with
+cold executions) the harness gained a 15 s discarded warm-up per statement text; the two void attempts had a
+single discarded execution. The criterion, the evaluator's gates and the validity rule did not change, and the
+void attempts' A/B figures, which back no claim, pointed the same way (ratio of medians 1.035 to 1.037).
 The other tenants on the host were not quiet: the per-second container CPU samples show foreign containers
-using up to about 2.9 cores in bursts (host busy cores mean 3.0, maximum 5.9 of 16), which stayed within rule PD
-and inside the derived control bound; it is stated here rather than hidden. The Neo4j query log could not be made
+using up to about 2.9 cores in bursts (host busy cores mean 3.0, maximum 5.9 of 16), and the run met rule PD and
+the validity rule; it is stated here rather than hidden. The Neo4j query log could not be made
 to record on the pinned image (only `db.logs.query.enabled` and `db.logs.query.threshold` are accepted and the
 log stayed empty), so per-statement server-side timing is not part of this evidence.
 
