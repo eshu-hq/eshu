@@ -128,11 +128,25 @@ reported as measured; the criterion was not relaxed to make it pass.
 
 Wall time: NOT_CHECKED on a valid test bed. The same runs on the shared laptop
 measured medians of 116 ms to 155 ms at 4,522 edges and 646 ms to 775 ms (scoped)
-at 25,000 edges, an increase of roughly 18% to 34% across the four shapes (unscoped 4,522 edges 123.8 to 145.7 ms is the low end). That laptop was under heavy
-contention from other work and the dedicated remote was unreachable, so these are
-smoke figures, not accepted timing, and no claim is made about the interactive
-1.5 s bound at the scan limit. The increase in DB hits says the wall-time cost
-is real and about proportional; the remote run must confirm the bound holds.
+at 25,000 edges, an increase of roughly 18% to 34% across the four shapes (unscoped
+4,522 edges 123.8 to 145.7 ms is the low end). That laptop was under heavy contention
+from other work, so these are smoke figures, not accepted timing.
+
+The criterion for the remote run was fixed by an arbiter before it ran, so it is not chosen after the
+data. The added work is three property reads per returned row, so the deterministic gate (G1) is that
+the remote `PROFILE` gives exactly `hits_new - hits_base = 3 x rows` with equal row counts, no
+`Eager` operator, and an operator set that differs from the base only by the one `CacheProperties`
+operator, with the access path identical. The wall-time gate (G2) is, for each of the four shapes, that
+both the ratio of medians and the mean of the same-round ratios stay at or below that shape's
+DB-hit ratio (1.3451 scoped and 1.5872 unscoped at 4,522 edges; 1.3529 scoped and 1.6250 unscoped at
+25,000 edges) plus the control bound derived from two A/A-only sets on the same rig, with at least
+nine valid rounds per shape and a derived bound of at most 0.15. A breach of G2 with G1 holding is
+an unexplained wall cost to diagnose, not a disclosure item.
+
+No absolute wall-time bound is asserted. The repository has none for this route: the nearest rows in
+the local performance envelope (the complexity query and the transitive-caller query) belong to other
+routes and are context only, and the only hard bound is the route timeout in `codequery`. The remote run
+has not happened yet; the result goes in this note before the PR opens.
 
 ## Benchmark Evidence:
 
@@ -193,7 +207,7 @@ steps at length 8, about 1.7% of the budget and a 60x margin. This is weak evide
 such: only one of the six proxies has a cyclic component at all, so on the other five the reader walks
 nothing. It shows the budget is not the binding constraint on these graphs; it does not show how
 `trident-automation` behaves. The resolved edges on the proxies are mostly standard-library names
-(`datetime`, `json`, `typing`, `io`) that collide with a same-named file elsewhere in the tree. That is a pre-existing accuracy risk the proxy data exposed, not one this change introduces: the reader turns `import json` into a hop to any repository file named `json.py`, which can report a false cycle and inflates the resolved-edge counts these proxies qualified on. The matcher is deliberately not widened or narrowed here. The
+(`datetime`, `json`, `typing`, `io`) that collide with a same-named file elsewhere in the tree. That is a pre-existing accuracy risk the proxy data exposed, not one this change introduces: the reader turns `import json` into a hop to any repository file named `json.py` that itself imports something (a file only becomes a hop target if it is the source of at least one edge in the fetch), which can report a false cycle and inflates the resolved-edge counts these proxies qualified on. The matcher is deliberately not widened or narrowed here. The
 replay of the exact corpus stays an open follow-up on #7346 (one read-only query and a CSV export, then a
 replay through the reader), and the merge does not wait for it. Wall time per step was not measured on
 this data.
