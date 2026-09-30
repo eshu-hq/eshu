@@ -52,8 +52,10 @@ speculative API. Do not export a new symbol without adding its caller
 to this list.
 
 - Store constructors `NewPostgresFindingStore` (plus
-  the `WithReadModel` variant), `NewPostgresAggregateStore`,
+  the `WithReadModel` and `WithReadStore` variants),
+  `NewPostgresAggregateStore` and its `WithReadStore` variant,
   `NewPostgresReadinessStore`,
+  `NewPostgresReadinessStoreWithReadStore`,
   `NewPostgresVulnerabilitySuppressionMutationStore` — `cmd/api` and
   `cmd/mcp-server` wiring via the root aliases, plus the staying root
   store tests. The queryer ports (`FindingQueryer`,

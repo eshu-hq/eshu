@@ -16,7 +16,9 @@ type RowQueryer interface {
 }
 
 // ReadTransaction shares one read-only repeatable-read snapshot until Commit,
-// Rollback, or cancellation. It has no write or raw transaction surface.
+// Rollback, or cancellation. Its snapshot cursor rejects *sql.RawBytes
+// destinations before scanning; use *[]byte for copied byte values. It has
+// no write or raw transaction surface.
 type ReadTransaction interface {
 	Queryer
 	RowQueryer

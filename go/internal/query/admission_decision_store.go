@@ -15,7 +15,12 @@ import (
 // PostgresAdmissionDecisionReadStore adapts the reducer admission decision
 // store to the query read surface.
 type PostgresAdmissionDecisionReadStore struct {
-	store *admissionstore.AdmissionDecisionStore
+	store admissionDecisionReader
+}
+
+type admissionDecisionReader interface {
+	ListDecisions(context.Context, admissionstore.AdmissionDecisionFilter) ([]admissionstore.AdmissionDecision, error)
+	ListEvidence(context.Context, string, int) ([]admissionstore.AdmissionDecisionEvidence, error)
 }
 
 // NewPostgresAdmissionDecisionReadStore creates a Postgres-backed admission
@@ -23,6 +28,14 @@ type PostgresAdmissionDecisionReadStore struct {
 func NewPostgresAdmissionDecisionReadStore(database db.ExecQueryer) PostgresAdmissionDecisionReadStore {
 	return PostgresAdmissionDecisionReadStore{
 		store: admissionstore.NewAdmissionDecisionStore(database),
+	}
+}
+
+// NewPostgresAdmissionDecisionReadStoreWithReadStore reads admission decisions
+// through a guarded query-only port.
+func NewPostgresAdmissionDecisionReadStoreWithReadStore(database db.Queryer) PostgresAdmissionDecisionReadStore {
+	return PostgresAdmissionDecisionReadStore{
+		store: admissionstore.NewAdmissionDecisionReader(database),
 	}
 }
 

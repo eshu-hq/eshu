@@ -15,6 +15,7 @@ import (
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type incidentContextQueryer interface {
@@ -46,6 +47,7 @@ type incidentContextFactRow struct {
 // evidence path.
 type PostgresIncidentContextStore struct {
 	DB      incidentContextQueryer
+	reader  db.Queryer
 	catalog querycontract.ServiceCatalogCorrelationStore
 	cicd    querycontract.CICDRunCorrelationStore
 	images  supplychain.ContainerImageIdentityStore
@@ -56,6 +58,12 @@ type PostgresIncidentContextStore struct {
 // and WithImages; see PostgresIncidentContextStore.
 func NewStore(db incidentContextQueryer) PostgresIncidentContextStore {
 	return PostgresIncidentContextStore{DB: db}
+}
+
+// NewStoreWithReadStore reads incident facts through a guarded query-only
+// port. Its injected catalog, CI/CD and image ports must also use readers.
+func NewStoreWithReadStore(reader db.Queryer) PostgresIncidentContextStore {
+	return PostgresIncidentContextStore{reader: reader}
 }
 
 // WithCatalog attaches the service-catalog correlation read behind the
@@ -85,7 +93,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	filter model.IncidentContextFilter,
 ) (model.IncidentContextSnapshot, error) {
 	filter = model.NormalizeFilter(filter)
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return model.IncidentContextSnapshot{}, fmt.Errorf("incident context database is required")
 	}
 	if filter.ProviderIncidentID == "" {
@@ -302,7 +310,7 @@ func (s PostgresIncidentContextStore) queryIncidentContextRows(
 	query string,
 	args ...any,
 ) ([]incidentContextFactRow, error) {
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

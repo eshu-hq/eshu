@@ -254,3 +254,6 @@ break silently; `internal/queryplan` is included because this move's file
 renames and receiver-type renames re-pin two query-plan manifests.
 `internal/mcp` is included because its route-serves-data registry names
 this package's files by path and its handler by struct name.
+
+The Postgres correlation store exposes `NewPostgresCorrelationStoreWithReadStore`
+for guarded query-only reads while preserving its legacy queryer constructor.

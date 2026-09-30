@@ -27,6 +27,10 @@ successful MCP/API read.
 - `GovernanceAuditStore` with `NewGovernanceAuditStore(database db.ExecQueryer)`,
   `WithLogger`, `EnsureSchema`, `Append`, `List`, `Summary`,
   `SummaryForTenant`, `DeleteExpired`.
+- `GovernanceAuditReader` with `NewGovernanceAuditReader(database db.Queryer)`,
+  `WithLogger`, `List`, `Summary`, and `SummaryForTenant`. API/MCP business
+  readback uses this query-only capability; authorization audit appends remain
+  on the writer-backed `GovernanceAuditStore`.
 - `GovernanceAuditQuery` — the bounded filter `List`/`SummaryForTenant` accept
   (`OperatorAuthorized`, event/actor/scope/decision filters, time bounds,
   `Limit`, `OrderDesc`, `TenantID`).

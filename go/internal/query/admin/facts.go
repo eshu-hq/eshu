@@ -15,7 +15,7 @@ import (
 // listWorkItems queries fact work items with optional filters.
 // POST /api/v0/admin/work-items/query
 func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
-	if h.Store == nil {
+	if h.readStore() == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
 		return
 	}
@@ -37,7 +37,7 @@ func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	items, err := h.Store.ListWorkItems(r.Context(), WorkItemFilter{
+	items, err := h.readStore().ListWorkItems(r.Context(), WorkItemFilter{
 		Statuses:     req.Statuses,
 		ScopeID:      strings.TrimSpace(req.ScopeID),
 		Stage:        strings.TrimSpace(req.Stage),
@@ -58,7 +58,7 @@ func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
 // listDecisions queries projection decisions for a repository/run pair.
 // POST /api/v0/admin/decisions/query
 func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
-	if h.Store == nil {
+	if h.readStore() == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
 		return
 	}
@@ -85,7 +85,7 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	decisions, err := h.Store.ListDecisions(r.Context(), DecisionQueryFilter{
+	decisions, err := h.readStore().ListDecisions(r.Context(), DecisionQueryFilter{
 		RepositoryID:    strings.TrimSpace(req.RepositoryID),
 		SourceRunID:     strings.TrimSpace(req.SourceRunID),
 		DecisionType:    req.DecisionType,
@@ -101,7 +101,7 @@ func (h *Handler) listDecisions(w http.ResponseWriter, r *http.Request) {
 	evidenceByDecision := map[string][]map[string]any{}
 	if req.IncludeEvidence {
 		for _, d := range decisions {
-			rows, evErr := h.Store.ListEvidence(r.Context(), d.DecisionID)
+			rows, evErr := h.readStore().ListEvidence(r.Context(), d.DecisionID)
 			if evErr != nil {
 				querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list evidence: %v", evErr))
 				return
@@ -271,7 +271,7 @@ func (h *Handler) backfill(w http.ResponseWriter, r *http.Request) {
 // listReplayEvents queries the durable replay-event audit log.
 // POST /api/v0/admin/replay-events/query
 func (h *Handler) listReplayEvents(w http.ResponseWriter, r *http.Request) {
-	if h.Store == nil {
+	if h.readStore() == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
 		return
 	}
@@ -292,7 +292,7 @@ func (h *Handler) listReplayEvents(w http.ResponseWriter, r *http.Request) {
 		limit = 100
 	}
 
-	events, err := h.Store.ListReplayEvents(r.Context(), ReplayEventFilter{
+	events, err := h.readStore().ListReplayEvents(r.Context(), ReplayEventFilter{
 		ScopeID:      strings.TrimSpace(req.ScopeID),
 		WorkItemID:   strings.TrimSpace(req.WorkItemID),
 		FailureClass: strings.TrimSpace(req.FailureClass),

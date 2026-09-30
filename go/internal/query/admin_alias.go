@@ -6,6 +6,8 @@ package query //nolint:dirgate // S1 root alias shim for #6060: type aliases and
 import (
 	"database/sql"
 
+	pgdb "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/identity"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/provider/config"
@@ -327,3 +329,11 @@ var ErrAdminProviderConfigRevisionChanged = config.ErrRevisionChanged
 // AdminProviderConfigMutationStore implementations for env-managed
 // providers. Its home is admin/provider/config/. See #6060.
 var ErrAdminProviderConfigManagedByEnvironment = config.ErrManagedByEnvironment
+
+// AdminReadStore inspects admin data without exposing queue or replay mutations.
+type AdminReadStore = admin.ReadStore
+
+// NewPostgresAdminReadStore constructs a query-only admin inspection adapter.
+func NewPostgresAdminReadStore(queryer pgdb.Queryer) AdminReadStore {
+	return store.NewReadStore(queryer)
+}

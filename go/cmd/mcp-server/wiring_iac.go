@@ -4,22 +4,22 @@
 package main
 
 import (
-	"database/sql"
-
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/iac"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-func newMCPQueryIaCHandler(
-	db *sql.DB,
+func newMCPQueryIaCHandlerWithReadStore(
+	reader db.Queryer,
 	contentReader query.ContentStore,
 	graph query.GraphQuery,
 	profile query.QueryProfile,
 ) *query.IaCHandler {
 	return &query.IaCHandler{
 		Content:      contentReader,
-		Reachability: query.NewPostgresIaCReachabilityStore(db),
-		Management:   query.NewPostgresIaCManagementStore(db),
-		Inventory:    query.NewPostgresIaCInventoryStore(db),
+		Reachability: iac.NewPostgresIaCReachabilityStoreWithReadStore(reader),
+		Management:   iac.NewPostgresIaCManagementStoreWithReadStore(reader),
+		Inventory:    iac.NewPostgresIaCInventoryStoreWithReadStore(reader),
 		Graph:        graph,
 		Profile:      profile,
 	}

@@ -45,6 +45,10 @@ repository capabilities (`platform_impact.context_overview`,
 and catalog stayers, so their rows stay in the root matrix; this package
 gates through `querycontract` like every other caller.
 
+The content coverage helper offers `QueryMaxIndexedAtWithRowQueryer` for a
+guarded single-row connection. It shares the same closed table allowlist and
+scan logic as the existing `QueryMaxIndexedAt(*sql.DB)` entry point.
+
 ## Exported surface
 
 The exported surface is described in [doc.go](doc.go). Exports exist only

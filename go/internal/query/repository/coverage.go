@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -182,17 +183,31 @@ func (h *Handler) queryRepositoryGraphCoverageStats(
 	}, nil
 }
 
-func QueryMaxIndexedAt(ctx context.Context, db *sql.DB, table string, repoID string) (time.Time, error) {
+// QueryMaxIndexedAt reads the newest indexed_at from an allowed content table.
+func QueryMaxIndexedAt(ctx context.Context, handle *sql.DB, table string, repoID string) (time.Time, error) {
+	return queryMaxIndexedAt(table, repoID, func(query string, dest any, args ...any) error {
+		return handle.QueryRowContext(ctx, query, args...).Scan(dest)
+	})
+}
+
+// QueryMaxIndexedAtWithRowQueryer reads coverage through a guarded row port.
+func QueryMaxIndexedAtWithRowQueryer(ctx context.Context, reader db.RowQueryer, table string, repoID string) (time.Time, error) {
+	return queryMaxIndexedAt(table, repoID, func(query string, dest any, args ...any) error {
+		return reader.QueryRowContext(ctx, query, args...).Scan(dest)
+	})
+}
+
+func queryMaxIndexedAt(table string, repoID string, scan func(string, any, ...any) error) (time.Time, error) {
 	safeTable, err := CoverageIndexedAtTable(table)
 	if err != nil {
 		return time.Time{}, err
 	}
 	var indexedAt sql.NullTime
-	err = db.QueryRowContext(ctx, fmt.Sprintf(`
+	err = scan(fmt.Sprintf(`
 		SELECT max(indexed_at) as indexed_at
 		FROM %s
 		WHERE repo_id = $1
-	`, safeTable), repoID).Scan(&indexedAt)
+	`, safeTable), &indexedAt, repoID)
 	if err != nil {
 		return time.Time{}, err
 	}

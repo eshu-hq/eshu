@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,15 +152,17 @@ func TestReadStoreStreamingSnapshotAndCancellation(t *testing.T) {
 }
 
 func TestReadStoreCandidatePoolAggregateCap(t *testing.T) {
-	if os.Getenv("ESHU_READER_TEST_READER_B_DSN") == "" {
-		t.Skip("owned reader B not configured")
+	writerDSN := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	readerCandidates := os.Getenv("ESHU_READER_TEST_READ_CANDIDATES_DSN")
+	if writerDSN == "" || readerCandidates == "" {
+		t.Skip("owned writer and reader candidate DSNs not configured")
 	}
 	cfg, err := LoadConfig(func(key string) string {
 		switch key {
 		case "ESHU_POSTGRES_DSN":
-			return "postgres://proof@127.0.0.1:35432/eshu?sslmode=disable"
+			return writerDSN
 		case "ESHU_POSTGRES_READ_DSN":
-			return "host=127.0.0.1,127.0.0.1 port=35433,35434 user=proof dbname=eshu sslmode=disable"
+			return readerCandidates
 		case "ESHU_POSTGRES_READ_MAX_OPEN_CONNS":
 			return "6"
 		case "ESHU_POSTGRES_READ_MAX_IDLE_CONNS":
@@ -270,5 +273,34 @@ func TestReadStoreImmediateCancelRace(t *testing.T) {
 	}
 	if got := access.reader.Stats().InUse; got != 0 {
 		t.Fatalf("immediate cancel leaked=%d", got)
+	}
+}
+
+type rowCloseProbe struct {
+	closeErr error
+	closes   int
+	nexts    int
+	scans    int
+}
+
+func (r *rowCloseProbe) Next() bool        { r.nexts++; return true }
+func (r *rowCloseProbe) Scan(...any) error { r.scans++; return nil }
+func (r *rowCloseProbe) Err() error        { return nil }
+func (r *rowCloseProbe) Close() error      { r.closes++; return r.closeErr }
+
+func TestFencedRowRawBytesPreservesCloseError(t *testing.T) {
+	closeErr := errors.New("injected cursor close failure")
+	rows := &rowCloseProbe{closeErr: closeErr}
+	first := "untouched"
+	raw := sql.RawBytes("still-untouched")
+	err := (&fencedRow{rows: rows}).Scan(&first, &raw)
+	if err == nil || !strings.Contains(err.Error(), "RawBytes") || !errors.Is(err, closeErr) {
+		t.Fatalf("RawBytes and Close error=%v", err)
+	}
+	if rows.closes != 1 || rows.nexts != 0 || rows.scans != 0 {
+		t.Fatalf("row cursor calls closes=%d nexts=%d scans=%d", rows.closes, rows.nexts, rows.scans)
+	}
+	if first != "untouched" || string(raw) != "still-untouched" {
+		t.Fatalf("partial scan writes: first=%q raw=%q", first, raw)
 	}
 }

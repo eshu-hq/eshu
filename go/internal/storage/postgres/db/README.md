@@ -46,6 +46,8 @@ transaction, or a raw connection.
 - `Row` -- scans one result; the owner of the row releases its connection.
 - `RowQueryer` -- reads one row with `QueryRowContext`.
 - `ReadTransaction` -- cursor and row reads, `Commit`, and `Rollback` only.
+  Its snapshot cursor rejects `*sql.RawBytes` before scanning; use `*[]byte`.
+  This restriction does not change ordinary `Rows` or legacy SQL adapters.
 - `ReadSnapshotBeginner` -- opens a guarded read-only repeatable-read snapshot.
 - `ReadStore` -- combines cursor, row, and snapshot reads.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability

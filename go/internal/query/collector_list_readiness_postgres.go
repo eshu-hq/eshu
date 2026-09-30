@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // collectorListReadinessQueryer is the bounded read seam the configured probe
@@ -39,7 +40,8 @@ SELECT EXISTS (
 // collector can be enabled yet have collected zero rows, and that case must read
 // as ready_zero_results, not not_configured.
 type PostgresCollectorListReadinessStore struct {
-	DB collectorListReadinessQueryer
+	DB     collectorListReadinessQueryer
+	reader db.Queryer
 }
 
 // NewPostgresCollectorListReadinessStore creates a Postgres-backed configured
@@ -50,16 +52,26 @@ func NewPostgresCollectorListReadinessStore(
 	return PostgresCollectorListReadinessStore{DB: db}
 }
 
+// NewPostgresCollectorListReadinessStoreWithReadStore probes through a guarded
+// query-only port.
+func NewPostgresCollectorListReadinessStoreWithReadStore(reader db.Queryer) PostgresCollectorListReadinessStore {
+	return PostgresCollectorListReadinessStore{reader: reader}
+}
+
 // CollectorConfigured reports whether an enabled, non-deactivated instance of
 // kind is registered.
 func (s PostgresCollectorListReadinessStore) CollectorConfigured(
 	ctx context.Context,
 	kind scope.CollectorKind,
 ) (bool, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return false, fmt.Errorf("collector list readiness database is required")
 	}
-	rows, err := s.DB.QueryContext(ctx, collectorConfiguredQuery, string(kind))
+	queryer := s.reader
+	if queryer == nil {
+		queryer = sqlRowsQueryer{inner: s.DB}
+	}
+	rows, err := queryer.QueryContext(ctx, collectorConfiguredQuery, string(kind))
 	if err != nil {
 		return false, fmt.Errorf("probe collector configured: %w", err)
 	}

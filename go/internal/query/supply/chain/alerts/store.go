@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // factKind is the reducer fact kind backing the reconciliation read model
@@ -60,7 +61,8 @@ LIMIT 2
 // PostgresStore reads active provider alert reconciliation facts from
 // Postgres.
 type PostgresStore struct {
-	DB Queryer
+	DB     Queryer
+	reader db.Queryer
 }
 
 // PostgresStore satisfies the hub's read port; drift fails here rather than
@@ -73,6 +75,24 @@ func NewPostgresStore(db Queryer) PostgresStore {
 	return PostgresStore{DB: db}
 }
 
+// NewPostgresStoreWithReadStore reads alerts through a guarded query-only port.
+func NewPostgresStoreWithReadStore(reader db.Queryer) PostgresStore {
+	return PostgresStore{reader: reader}
+}
+
+type legacyAlertsQueryer struct{ database Queryer }
+
+func (q legacyAlertsQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyAlertsQueryer{database: s.DB}
+}
+
 // ListSecurityAlertReconciliations returns one bounded page of active provider
 // alert reconciliation rows. The method name matches
 // supplychain.SecurityAlertReconciliationStore; it is a port contract, not
@@ -81,7 +101,7 @@ func (s PostgresStore) ListSecurityAlertReconciliations(
 	ctx context.Context,
 	filter supplychain.SecurityAlertReconciliationFilter,
 ) ([]supplychain.SecurityAlertReconciliationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("security alert reconciliation database is required")
 	}
 	if !filter.HasScope() {
@@ -91,7 +111,7 @@ func (s PostgresStore) ListSecurityAlertReconciliations(
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplychain.SecurityAlertReconciliationMaxLimit+1)
 	}
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listQuery,
 		factKind,
@@ -141,24 +161,24 @@ func (s PostgresStore) SecurityAlertProviderRepositoryScopes(
 	ctx context.Context,
 	repositoryName string,
 ) ([]string, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("security alert reconciliation database is required")
 	}
-	return providerRepositoryScopes(ctx, s.DB, repositoryName)
+	return providerRepositoryScopes(ctx, s.queryer(), repositoryName)
 }
 
 // providerRepositoryScopes shares the provider-owned repository-scope lookup
 // between PostgresStore and PostgresAggregateStore.
 func providerRepositoryScopes(
 	ctx context.Context,
-	db Queryer,
+	database db.Queryer,
 	repositoryName string,
 ) ([]string, error) {
 	repositoryName = strings.TrimSpace(repositoryName)
 	if repositoryName == "" {
 		return nil, nil
 	}
-	rows, err := db.QueryContext(
+	rows, err := database.QueryContext(
 		ctx,
 		providerRepositoryScopesQuery,
 		factKind,

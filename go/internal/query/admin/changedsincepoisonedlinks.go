@@ -75,14 +75,14 @@ type ChangedSincePoisonedLinkFilter struct {
 // InputInvalidFactListHandler's read-only mounts for cmd/mcp-server (which
 // has no full Handler exposing mutations).
 type ChangedSincePoisonedLinksHandler struct {
-	Store       Store
+	Store       ReadStore
 	Instruments *telemetry.Instruments
 }
 
 // Mount registers the changed-since poisoned-links list read without
 // exposing admin mutations.
 func (h *ChangedSincePoisonedLinksHandler) Mount(mux *http.ServeMux) {
-	admin := &Handler{Store: h.Store, Instruments: h.Instruments}
+	admin := &Handler{ReadStore: h.Store, Instruments: h.Instruments}
 	mux.HandleFunc("POST /api/v0/admin/changed-since/poisoned-links/query", admin.listChangedSincePoisonedLinks)
 }
 
@@ -91,7 +91,7 @@ func (h *ChangedSincePoisonedLinksHandler) Mount(mux *http.ServeMux) {
 // POST /api/v0/admin/changed-since/poisoned-links/query
 func (h *Handler) listChangedSincePoisonedLinks(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	if h.Store == nil {
+	if h.readStore() == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
 		return
 	}
@@ -156,7 +156,7 @@ func (h *Handler) listChangedSincePoisonedLinks(w http.ResponseWriter, r *http.R
 	)
 	defer span.End()
 
-	items, err := h.Store.ListChangedSincePoisonedLinks(ctx, filter)
+	items, err := h.readStore().ListChangedSincePoisonedLinks(ctx, filter)
 	h.recordChangedSincePoisonedLinksQuery(ctx, start, err)
 	if err != nil {
 		span.RecordError(err)

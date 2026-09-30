@@ -104,3 +104,5 @@ re-pins its manifests. `internal/mcp` is included because its route-serves-data 
 package's `handler.go`/`cypher.go` by path and `Handler` by struct name for
 the `GET /api/v0/package-registry/packages` route; a rename here must repoint
 that entry.
+
+Guarded Postgres correlation and inventory reads must use the query-only reader supplied to the `WithReadStore` constructors.

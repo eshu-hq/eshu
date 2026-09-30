@@ -42,7 +42,8 @@ flowchart LR
 - `AcquireBulkLoadLock`, `BulkLoadLock`, `LockOptions`, `Conner`,
   `BulkLoadLockClass`, `BulkLoadLockID` - the run-scoped exclusivity of one
   deferred bulk load (session advisory lock `(5318,1)`)
-- `Ready`, `RowQueryer` - the readers' gate
+- `Ready`, `RowQueryer` - the existing SQL readers' gate
+- `ReadyWithRowQueryer` - the same readiness check through a guarded read port
 - `StateNotBuilt`, `StateBuilding`, `StateReady`, `StateFailed` - the bounded
   states of `content_file_secret_lines_state`
 

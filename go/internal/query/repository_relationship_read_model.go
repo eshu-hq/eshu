@@ -5,12 +5,12 @@ package query //nolint:dirgate // B3 stayer for #6060: methods on the root Conte
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // RepositoryRelationshipReadModel is the Postgres read-model fast path for a
@@ -179,7 +179,7 @@ ORDER BY r.direction, r.relationship_type, source_name, target_name, r.resolved_
 
 // scanRepositoryRelationshipReadModelRow converts one SQL row into the same
 // relationship shape returned by graph-backed repository queries.
-func scanRepositoryRelationshipReadModelRow(rows *sql.Rows) (map[string]any, error) {
+func scanRepositoryRelationshipReadModelRow(rows db.Rows) (map[string]any, error) {
 	var (
 		direction        string
 		relationshipType string

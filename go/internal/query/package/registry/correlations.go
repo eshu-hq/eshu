@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // These three kinds are GOVERNED reducer-derived facts per the #4784 ADR
@@ -112,13 +113,33 @@ type CorrelationQueryer interface {
 // PostgresCorrelationStore reads reducer package correlation
 // facts from Postgres with package/repository scoped filters.
 type PostgresCorrelationStore struct {
-	DB CorrelationQueryer
+	DB     CorrelationQueryer
+	reader db.Queryer
 }
 
 // NewPostgresCorrelationStore creates the Postgres-backed
 // package correlation read model.
 func NewPostgresCorrelationStore(db CorrelationQueryer) PostgresCorrelationStore {
 	return PostgresCorrelationStore{DB: db}
+}
+
+// NewPostgresCorrelationStoreWithReadStore routes correlation reads through a
+// guarded query-only connection.
+func NewPostgresCorrelationStoreWithReadStore(reader db.Queryer) PostgresCorrelationStore {
+	return PostgresCorrelationStore{reader: reader}
+}
+
+type sqlCorrelationQueryer struct{ inner CorrelationQueryer }
+
+func (q sqlCorrelationQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresCorrelationStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlCorrelationQueryer{inner: s.DB}
 }
 
 // ListPackageRegistryCorrelations returns a bounded page of active reducer
@@ -134,7 +155,7 @@ func (s PostgresCorrelationStore) ListPackageRegistryCorrelations(
 	ctx context.Context,
 	filter CorrelationFilter,
 ) (CorrelationPage, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return CorrelationPage{}, fmt.Errorf("package registry correlation database is required")
 	}
 	if filter.PackageID == "" && filter.RepositoryID == "" && len(filter.PackageIDs) == 0 {
@@ -145,7 +166,7 @@ func (s PostgresCorrelationStore) ListPackageRegistryCorrelations(
 	}
 	fetchLimit := filter.Limit + 1
 
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		listPackageRegistryCorrelationsQuery,
 		packageRegistryCorrelationFactKinds(),

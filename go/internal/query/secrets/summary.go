@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -53,7 +54,8 @@ type IAMPostureSummaryStore interface {
 // PostgresIAMPostureSummaryStore computes the posture summary with
 // bounded, scope-anchored GROUP BY queries against the active-fact read model.
 type PostgresIAMPostureSummaryStore struct {
-	DB secretsIAMReadQueryer
+	DB     secretsIAMReadQueryer
+	reader db.Queryer
 }
 
 // NewPostgresIAMPostureSummaryStore creates the Postgres-backed posture
@@ -62,13 +64,25 @@ func NewPostgresIAMPostureSummaryStore(db secretsIAMReadQueryer) PostgresIAMPost
 	return PostgresIAMPostureSummaryStore{DB: db}
 }
 
+// NewPostgresIAMPostureSummaryStoreWithReadStore reads through a guarded query-only connection.
+func NewPostgresIAMPostureSummaryStoreWithReadStore(reader db.Queryer) PostgresIAMPostureSummaryStore {
+	return PostgresIAMPostureSummaryStore{reader: reader}
+}
+
+func (s PostgresIAMPostureSummaryStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlSecretsQueryer{inner: s.DB}
+}
+
 // SummarizeSecretsIAMPosture returns grouped counts for one reducer scope. A
 // scope anchor is required so the rollup never scans the whole fact store.
 func (s PostgresIAMPostureSummaryStore) SummarizeSecretsIAMPosture(
 	ctx context.Context,
 	scopeID string,
 ) (IAMPostureSummary, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return IAMPostureSummary{}, fmt.Errorf("secrets/IAM posture summary database is required")
 	}
 	if scopeID == "" {
@@ -115,7 +129,7 @@ func (s PostgresIAMPostureSummaryStore) bucketCounts(
 		return nil, fmt.Errorf("unsupported summary bucket field %q", bucketField)
 	}
 	query := fmt.Sprintf(secretsIAMPostureSummaryQueryTemplate, bucketField)
-	rows, err := s.DB.QueryContext(ctx, query, factKind, scopeID)
+	rows, err := s.queryer().QueryContext(ctx, query, factKind, scopeID)
 	if err != nil {
 		return nil, fmt.Errorf("summarize secrets/IAM posture: %w", err)
 	}

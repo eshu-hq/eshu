@@ -22,7 +22,7 @@ import (
 // go/internal/storage/postgres/freshness/links, #7127 ruling 8.10). Neither
 // state is a fact_work_items dead letter, so this is the only read surface
 // for them.
-func (s *postgresStore) ListChangedSincePoisonedLinks(
+func (s *postgresReadStore) ListChangedSincePoisonedLinks(
 	ctx context.Context,
 	f admin.ChangedSincePoisonedLinkFilter,
 ) ([]admin.ChangedSincePoisonedLink, error) {
@@ -83,7 +83,7 @@ WHERE (cursor.poisoned_activation_seq IS NOT NULL OR cursor.attempt_count > 0)
 
 func scanChangedSincePoisonedLinks(
 	ctx context.Context,
-	database db.ExecQueryer,
+	database db.Queryer,
 	query string,
 	args ...any,
 ) ([]admin.ChangedSincePoisonedLink, error) {

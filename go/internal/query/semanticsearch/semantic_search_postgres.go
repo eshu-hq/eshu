@@ -9,19 +9,26 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index"
 )
 
 // PostgresSemanticSearchIndexStore adapts the durable Postgres search index to
 // the query-layer semantic-search port.
 type PostgresSemanticSearchIndexStore struct {
-	db *sql.DB
+	db db.Queryer
 }
 
 // NewPostgresSemanticSearchIndexStore creates a Postgres-backed persisted
 // search-index reader for semantic search.
 func NewPostgresSemanticSearchIndexStore(db *sql.DB) PostgresSemanticSearchIndexStore {
-	return PostgresSemanticSearchIndexStore{db: db}
+	return PostgresSemanticSearchIndexStore{db: postgres.NewSQLReadStore(db)}
+}
+
+// NewPostgresSemanticSearchIndexStoreWithReadStore reads the persisted index
+// and active curated documents through one guarded query-only connection.
+func NewPostgresSemanticSearchIndexStoreWithReadStore(reader db.Queryer) PostgresSemanticSearchIndexStore {
+	return PostgresSemanticSearchIndexStore{db: reader}
 }
 
 // Search returns persisted-index candidates for one bounded repository corpus.
@@ -32,7 +39,7 @@ func (s PostgresSemanticSearchIndexStore) Search(
 	if s.db == nil {
 		return SemanticSearchIndexResult{}, fmt.Errorf("semantic search index database is required")
 	}
-	result, err := indexstore.NewEshuSearchIndexStore(postgres.SQLDB{DB: s.db}).Search(
+	result, err := indexstore.NewEshuSearchIndexReader(s.db).Search(
 		ctx,
 		indexstore.EshuSearchIndexSearch{
 			ScopeID:     query.ScopeID,
@@ -63,7 +70,7 @@ func (s PostgresSemanticSearchIndexStore) ListActiveDocuments(
 	if s.db == nil {
 		return nil, fmt.Errorf("semantic search document database is required")
 	}
-	rows, err := postgres.NewEshuSearchDocumentStore(postgres.SQLDB{DB: s.db}).ListActiveDocuments(
+	rows, err := postgres.NewEshuSearchDocumentReader(s.db).ListActiveDocuments(
 		ctx,
 		postgres.EshuSearchDocumentFilter{
 			ScopeID:     query.ScopeID,

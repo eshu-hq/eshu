@@ -128,11 +128,25 @@ type IaCReachabilityRow struct {
 // IaCReachabilityStore persists reducer-materialized IaC reachability rows.
 type IaCReachabilityStore struct {
 	database db.ExecQueryer
+	reader   db.Queryer
 }
 
 // NewIaCReachabilityStore creates a Postgres-backed IaC reachability store.
 func NewIaCReachabilityStore(database db.ExecQueryer) *IaCReachabilityStore {
 	return &IaCReachabilityStore{database: database}
+}
+
+// NewIaCReachabilityReader constructs a query-only reader for materialized
+// reachability and cleanup findings.
+func NewIaCReachabilityReader(reader db.Queryer) *IaCReachabilityStore {
+	return &IaCReachabilityStore{reader: reader}
+}
+
+func (s *IaCReachabilityStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return s.database
 }
 
 // IaCReachabilitySchemaSQL returns the DDL for IaC reachability rows.
@@ -174,7 +188,7 @@ func (s *IaCReachabilityStore) ListCleanupFindings(
 	offset int,
 ) ([]IaCReachabilityRow, error) {
 	limit, offset = normalizeIaCReachabilityPaging(limit, offset)
-	rows, err := s.database.QueryContext(ctx, listIaCCleanupFindingsSQL, scopeID, generationID, includeAmbiguous, limit, offset)
+	rows, err := s.queryer().QueryContext(ctx, listIaCCleanupFindingsSQL, scopeID, generationID, includeAmbiguous, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query IaC cleanup findings: %w", err)
 	}
@@ -206,7 +220,7 @@ func (s *IaCReachabilityStore) ListLatestCleanupFindings(
 	}
 	limit, offset = normalizeIaCReachabilityPaging(limit, offset)
 	query, args := buildListLatestIaCCleanupFindingsQuery(repoIDs, families, includeAmbiguous, limit, offset)
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query latest IaC cleanup findings: %w", err)
 	}
@@ -235,7 +249,7 @@ func (s *IaCReachabilityStore) CountLatestCleanupFindings(
 		return 0, nil
 	}
 	query, args := buildCountLatestIaCCleanupFindingsQuery(repoIDs, families, includeAmbiguous)
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("count latest IaC cleanup findings: %w", err)
 	}
@@ -261,7 +275,7 @@ func (s *IaCReachabilityStore) HasLatestRows(
 		return false, nil
 	}
 	query, args := buildHasLatestIaCReachabilityRowsQuery(repoIDs, families)
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return false, fmt.Errorf("query latest IaC reachability row existence: %w", err)
 	}

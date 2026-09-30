@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const observabilityCoverageCorrelationFactKind = "reducer_observability_coverage_correlation"
@@ -94,7 +95,8 @@ type CorrelationQueryer interface {
 // PostgresCorrelationStore reads active observability
 // coverage correlation facts from Postgres using bounded payload predicates.
 type PostgresCorrelationStore struct {
-	DB CorrelationQueryer
+	DB     CorrelationQueryer
+	reader db.Queryer
 }
 
 // NewPostgresCorrelationStore creates the Postgres-backed
@@ -105,13 +107,32 @@ func NewPostgresCorrelationStore(
 	return PostgresCorrelationStore{DB: db}
 }
 
+// NewPostgresCorrelationStoreWithReadStore routes correlation reads through a
+// guarded query-only connection.
+func NewPostgresCorrelationStoreWithReadStore(reader db.Queryer) PostgresCorrelationStore {
+	return PostgresCorrelationStore{reader: reader}
+}
+
+type sqlCorrelationQueryer struct{ inner CorrelationQueryer }
+
+func (q sqlCorrelationQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresCorrelationStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlCorrelationQueryer{inner: s.DB}
+}
+
 // ListObservabilityCoverageCorrelations returns one bounded page of active
 // reducer observability coverage correlation facts.
 func (s PostgresCorrelationStore) ListObservabilityCoverageCorrelations(
 	ctx context.Context,
 	filter CorrelationFilter,
 ) ([]CorrelationRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("observability coverage correlation database is required")
 	}
 	if !filter.hasScope() {
@@ -148,7 +169,7 @@ func (s PostgresCorrelationStore) ListObservabilityCoverageCorrelations(
 		query = listObservabilityCoverageCorrelationsScopedQuery
 		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list observability coverage correlations: %w", err)
 	}

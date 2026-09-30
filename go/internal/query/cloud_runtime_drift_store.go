@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -36,6 +37,20 @@ func NewPostgresMultiCloudRuntimeDriftStore(db *sql.DB) *PostgresMultiCloudRunti
 	}
 	return &PostgresMultiCloudRuntimeDriftStore{
 		store: postgres.NewMultiCloudRuntimeDriftFindingStore(storeDB),
+	}
+}
+
+// NewPostgresMultiCloudRuntimeDriftStoreWithReadStore creates the runtime
+// drift adapter over a guarded query-only connection. It keeps the same
+// Postgres query telemetry as the legacy constructor.
+func NewPostgresMultiCloudRuntimeDriftStoreWithReadStore(reader db.Queryer) *PostgresMultiCloudRuntimeDriftStore {
+	instrumented := &postgres.InstrumentedQueryer{
+		Inner:     reader,
+		Tracer:    otel.Tracer(telemetry.DefaultSignalName),
+		StoreName: "multi_cloud_runtime_drift",
+	}
+	return &PostgresMultiCloudRuntimeDriftStore{
+		store: postgres.NewMultiCloudRuntimeDriftFindingReader(instrumented),
 	}
 }
 

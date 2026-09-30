@@ -49,8 +49,10 @@ The store ports (`FindingStore`,
 `VulnerabilitySuppressionMutationStore`) and the Postgres
 implementations with their constructors
 (`NewPostgresFindingStore` with its
-`WithReadModel` variant, `NewPostgresAggregateStore`,
+`WithReadModel` and `WithReadStore` variants, `NewPostgresAggregateStore`
+with its `WithReadStore` variant,
 `NewPostgresReadinessStore`,
+`NewPostgresReadinessStoreWithReadStore` (guarded read-only snapshots),
 `NewPostgresVulnerabilitySuppressionMutationStore`) and queryer ports
 (`FindingQueryer`,
 `AggregateQueryer`,

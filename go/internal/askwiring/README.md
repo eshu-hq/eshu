@@ -10,6 +10,7 @@ default-off semantics and engine lifecycle are implemented once.
   when `ESHU_ASK_ENABLED=true` and a valid `agent_reasoning` provider profile
   is present; returns a default-off handler (nil Asker → 503 unavailable)
   otherwise.
+- `engineAsker` captures each accepted Ask request's Authorization, Eshu session cookie(s), and CSRF header for JSON and SSE. The runner replays those credentials on each nested read so the configured query middleware can reauthenticate the caller; the startup shared key is never substituted for a marked HTTP request.
 - `BuildNarrationPosture` — derives the governed narration-posture closure from
   `ESHU_ASK_ENABLED`, `ESHU_ASK_NARRATION_ENABLED`, and adapter readiness.
 - `ResolveEngineOptions` — derives the engine budget (`MaxIterations`,

@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const readinessAffectedPackageTargetQuery = `
@@ -91,7 +92,7 @@ type readinessTargetKey struct {
 	parserTrusted bool
 }
 
-func packageManifestConsumptionKeysReady(ctx context.Context, database ReadinessQueryer) (bool, error) {
+func packageManifestConsumptionKeysReady(ctx context.Context, database db.Queryer) (bool, error) {
 	rows, err := database.QueryContext(ctx, readinessPackageManifestConsumptionKeysReadyQuery, storagepostgres.PackageManifestConsumptionKeyBackfillMarker)
 	if err != nil {
 		return false, fmt.Errorf("check package manifest consumption key readiness: %w", err)
@@ -142,7 +143,7 @@ func readinessTargetOwnerArguments(target readinessTarget) ([]string, []string, 
 
 func resolveReadinessTarget(
 	ctx context.Context,
-	database ReadinessQueryer,
+	database db.Queryer,
 	query ReadinessQuery,
 ) (readinessTarget, error) {
 	sets := make([]map[string]readinessTargetPackage, 0, 4)
@@ -174,7 +175,7 @@ func resolveReadinessTarget(
 	return intersectReadinessTargetPackages(sets), nil
 }
 
-func resolveReadinessImageDigests(ctx context.Context, database ReadinessQueryer, query ReadinessQuery) ([]string, error) {
+func resolveReadinessImageDigests(ctx context.Context, database db.Queryer, query ReadinessQuery) ([]string, error) {
 	directDigest := strings.TrimSpace(query.SubjectDigest)
 	imageRef := strings.TrimSpace(query.ImageRef)
 	if imageRef == "" {
@@ -211,7 +212,7 @@ func resolveReadinessImageDigests(ctx context.Context, database ReadinessQueryer
 
 func resolveReadinessTargetPackages(
 	ctx context.Context,
-	database ReadinessQueryer,
+	database db.Queryer,
 	statement string, args ...any,
 ) (map[string]readinessTargetPackage, error) {
 	rows, err := database.QueryContext(ctx, statement, args...)

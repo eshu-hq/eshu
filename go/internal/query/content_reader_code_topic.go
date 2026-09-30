@@ -5,7 +5,6 @@ package query
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -197,7 +197,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	return results, nil
 }
 
-func scanCodeTopicEvidenceRows(rows *sql.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) {
+func scanCodeTopicEvidenceRows(rows db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) {
 	var results []codequery.CodeTopicEvidenceRow
 	poolTruncated := false
 	for rows.Next() {
@@ -325,8 +325,8 @@ func (cr *ContentReader) DivergenceGroupStats(ctx context.Context, repoID string
 // driftedFindingStore adapts the drifted findings store over this reader's
 // handle: the query package owns the read contract, postgres owns the SQL.
 func (cr *ContentReader) driftedFindingStore() postgres.PostgresCodeDriftedFindingStore {
-	storeDB := &postgres.InstrumentedDB{
-		Inner:     postgres.SQLDB{DB: cr.db},
+	storeDB := &postgres.InstrumentedQueryer{
+		Inner:     cr.db,
 		Tracer:    cr.tracer,
 		StoreName: "code_drifted_findings",
 	}

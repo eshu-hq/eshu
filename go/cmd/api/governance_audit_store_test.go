@@ -69,9 +69,9 @@ func TestNewRouterWiresGovernanceAuditStoreLogger(t *testing.T) {
 		t.Errorf("admin audit reader store Logger = %p, want the passed logger %p (the unknown-enum warn would land on stderr as text, not in the API JSON log)", reader.store.Logger, logger)
 	}
 
-	summary, ok := reader.summary.(auditstore.GovernanceAuditStore)
+	summary, ok := reader.summary.(auditstore.GovernanceAuditReader)
 	if !ok {
-		t.Fatalf("newRouter() governance audit summary = %T, want auditstore.GovernanceAuditStore", reader.summary)
+		t.Fatalf("newRouter() governance audit summary = %T, want auditstore.GovernanceAuditReader", reader.summary)
 	}
 	if summary.Logger != logger {
 		t.Errorf("governance audit summary store Logger = %p, want the passed logger %p", summary.Logger, logger)

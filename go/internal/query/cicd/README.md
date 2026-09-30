@@ -51,6 +51,10 @@ move.
 
 ## Gotchas / invariants
 
+- `NewPostgresRunCorrelationStoreWithReadStore` accepts a query-only reader
+  for list requests; `NewPostgresRunCorrelationAggregateStoreWithReadStore`
+  accepts a guarded read store for count and inventory requests. The legacy
+  constructors keep their `*sql.DB` callers working.
 - `collector_readiness.go` is a behavior-identical copy of the sibling
   families' attach step (the root copy is deleted — no package-query handler
   uses it anymore). Drift trips root's

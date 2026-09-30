@@ -29,8 +29,8 @@ not import the parent `postgres` package.
 
 ## Exported surface
 
-- `AdmissionDecisionStore` / `NewAdmissionDecisionStore` -- the store type and
-  constructor, backed by `db.ExecQueryer`.
+- `AdmissionDecisionStore` / `NewAdmissionDecisionStore` -- the write-capable store, backed by `db.ExecQueryer`.
+- `AdmissionDecisionReader` / `NewAdmissionDecisionReader` -- bounded decision and evidence reads through `db.Queryer` with no write method.
 - `EnsureSchema` -- applies `AdmissionDecisionSchemaSQL()` (the
   `admission_decisions` and `admission_decision_evidence` DDL).
 - `UpsertDecision` / `InsertEvidence` -- write one decision (validated against

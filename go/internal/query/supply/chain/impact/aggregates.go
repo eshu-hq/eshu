@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // AggregateStore reads cheap-summary aggregates over
@@ -105,7 +106,8 @@ type InventoryRow struct {
 // PostgresAggregateStore reads aggregate counts directly
 // from reducer-owned impact findings facts.
 type PostgresAggregateStore struct {
-	DB AggregateQueryer
+	DB     AggregateQueryer
+	reader aggregateReadQueryer
 	// Now supplies the single UTC clock value shared by every SQL statement
 	// in one aggregate call. It defaults to time.Now.
 	Now func() time.Time
@@ -126,18 +128,46 @@ func NewPostgresAggregateStore(
 	return PostgresAggregateStore{DB: db}
 }
 
+// NewPostgresAggregateStoreWithReadStore routes count and inventory queries
+// through a guarded read-only port.
+func NewPostgresAggregateStoreWithReadStore(reader db.ReadStore) PostgresAggregateStore {
+	return PostgresAggregateStore{reader: reader}
+}
+
+type aggregateReadQueryer interface {
+	db.Queryer
+	db.RowQueryer
+}
+
+type legacyAggregateQueryer struct{ database AggregateQueryer }
+
+func (q legacyAggregateQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
+}
+
+func (q legacyAggregateQueryer) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
+	return q.database.QueryRowContext(ctx, query, args...)
+}
+
+func (s PostgresAggregateStore) queryer() aggregateReadQueryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyAggregateQueryer{database: s.DB}
+}
+
 // CountSupplyChainImpactFindings returns the cheap-summary totals envelope
 // for the scoped supply-chain impact slice.
 func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	ctx context.Context,
 	filter AggregateFilter,
 ) (AggregateCount, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return AggregateCount{}, fmt.Errorf("supply chain impact aggregate database is required")
 	}
 
 	readAt := SuppressionReadAt(s.Now)
-	row := s.DB.QueryRowContext(
+	row := s.queryer().QueryRowContext(
 		ctx,
 		AggregateCountQuery,
 		filter.CVEID,
@@ -192,7 +222,7 @@ func (s PostgresAggregateStore) fillPriorityBuckets(
 	readAt time.Time,
 	count *AggregateCount,
 ) error {
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		AggregatePriorityCountQuery,
 		filter.CVEID,
@@ -237,7 +267,7 @@ func (s PostgresAggregateStore) fillSeverityBuckets(
 	readAt time.Time,
 	count *AggregateCount,
 ) error {
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		AggregateSeverityCountQuery,
 		filter.CVEID,
@@ -286,7 +316,7 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	limit int,
 	offset int,
 ) ([]InventoryRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("supply chain impact aggregate database is required")
 	}
 	groupExpr, err := supplyChainImpactInventoryGroupExpression(dimension)
@@ -304,7 +334,7 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	}
 	q := InventoryQuery(groupExpr)
 	readAt := SuppressionReadAt(s.Now)
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		q,
 		filter.CVEID,

@@ -28,12 +28,9 @@ import (
 // /api/v0/status/answer-narration and POST /api/v0/ask report consistent
 // availability on the MCP server — matching cmd/api semantics exactly.
 //
-// SHARED-TOKEN-ONLY: POST /api/v0/ask is not in the scoped-HTTP-route allow-
-// list (scopedHTTPRouteSupportsTenantFilter), so the MCP "ask" tool only works
-// for callers authenticated with a shared API key or in auth-disabled local
-// mode. Scoped-bearer-token callers receive 403. Scoped-token support for Ask
-// (including inner-call route gating to prevent cross-tenant data leakage) is
-// tracked in issue #3300 / PR #3310 and must not be added here.
+// Ask admits shared, scoped bearer, and browser-session callers according to
+// the query authorization policy. Every inner tool dispatch must authenticate
+// with the original caller's credentials and enforce its route and data bounds.
 func mountAskAndNarration(
 	getenv func(string) string,
 	mux *http.ServeMux,
@@ -41,10 +38,23 @@ func mountAskAndNarration(
 	statusHandler *query.StatusHandler,
 	logger *slog.Logger,
 ) {
+	mountAskAndNarrationWithDispatch(getenv, mux, mux, apiKey, statusHandler, logger)
+}
+
+// mountAskAndNarrationWithDispatch routes every inner Ask tool call through
+// the authenticated, checkpointed query dispatch installed after construction.
+func mountAskAndNarrationWithDispatch(
+	getenv func(string) string,
+	mux *http.ServeMux,
+	dispatch http.Handler,
+	apiKey string,
+	statusHandler *query.StatusHandler,
+	logger *slog.Logger,
+) {
 	// Build the handler first. AdapterReady() is true only when every
 	// construction step succeeded: profile found, provider.NewAdapter built,
 	// engine built. A nil Asker (any failure) keeps the handler default-off.
-	ask := askwiring.BuildAskHandler(getenv, mux, apiKey, logger)
+	ask := askwiring.BuildAskHandler(getenv, dispatch, apiKey, logger)
 
 	// Build the governed narration posture from real adapter readiness, not
 	// merely profile presence.

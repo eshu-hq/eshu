@@ -96,13 +96,19 @@ type AWSCloudRuntimeDriftEvidenceRow struct {
 
 // AWSCloudRuntimeDriftFindingStore reads active AWS runtime drift reducer facts.
 type AWSCloudRuntimeDriftFindingStore struct {
-	database db.ExecQueryer
+	database db.Queryer
 }
 
 // NewAWSCloudRuntimeDriftFindingStore constructs an AWS runtime drift finding
 // reader over the provided database adapter.
 func NewAWSCloudRuntimeDriftFindingStore(database db.ExecQueryer) AWSCloudRuntimeDriftFindingStore {
 	return AWSCloudRuntimeDriftFindingStore{database: database}
+}
+
+// NewAWSCloudRuntimeDriftFindingReader constructs a query-only reader for
+// active AWS drift findings and replatforming scope inventory.
+func NewAWSCloudRuntimeDriftFindingReader(reader db.Queryer) AWSCloudRuntimeDriftFindingStore {
+	return AWSCloudRuntimeDriftFindingStore{database: reader}
 }
 
 // ListActiveFindings returns one page of active AWS runtime drift findings for

@@ -60,9 +60,9 @@ func TestLoadConfigAcceptsNativeCandidateHostsWithinOneBudget(t *testing.T) {
 	cfg, err := LoadConfig(func(key string) string {
 		switch key {
 		case "ESHU_POSTGRES_DSN":
-			return "host=127.0.0.1,127.0.0.1 port=35432,35436 user=proof dbname=eshu sslmode=disable"
+			return "host=writer-a,writer-b port=5432,5432 user=proof dbname=eshu sslmode=disable"
 		case "ESHU_POSTGRES_READ_DSN":
-			return "host=127.0.0.1,127.0.0.1 port=35433,35434 user=proof dbname=eshu sslmode=disable"
+			return "host=reader-a,reader-b port=5432,5432 user=proof dbname=eshu sslmode=disable"
 		default:
 			return ""
 		}

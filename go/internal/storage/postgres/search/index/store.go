@@ -69,12 +69,18 @@ type EshuSearchIndexSearchResult struct {
 // EshuSearchIndexStore reads the persisted BM25 index for active curated search
 // documents.
 type EshuSearchIndexStore struct {
-	database db.ExecQueryer
+	database db.Queryer
 }
 
 // NewEshuSearchIndexStore builds a persisted search-index reader over db.
 func NewEshuSearchIndexStore(database db.ExecQueryer) EshuSearchIndexStore {
 	return EshuSearchIndexStore{database: database}
+}
+
+// NewEshuSearchIndexReader builds a persisted-index reader over a guarded
+// query-only connection.
+func NewEshuSearchIndexReader(reader db.Queryer) EshuSearchIndexStore {
+	return EshuSearchIndexStore{database: reader}
 }
 
 // Search ranks active search documents using persisted BM25 postings. It joins

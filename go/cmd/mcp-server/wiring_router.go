@@ -9,11 +9,27 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	adminstore "github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
+	"github.com/eshu-hq/eshu/go/internal/query/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
+	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
+	"github.com/eshu-hq/eshu/go/internal/query/observability/coverage"
+	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
+	"github.com/eshu-hq/eshu/go/internal/query/secrets"
+	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/alerts"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/terraform/drift"
+	"github.com/eshu-hq/eshu/go/internal/query/workitem"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -80,24 +96,36 @@ func newMCPQueryRouterWithSemanticEmbedding(
 	governanceAudit query.GovernanceAuditSummaryReader,
 	readImpactFromWinners bool,
 ) *query.APIRouter {
+	return newMCPQueryRouterWithSemanticEmbeddingWithReadStore(db, pgstatus.NewSQLReadStore(db), neo4jReader, contentReader, statusReader, queryProfile, graphBackend, logger, instruments, semanticSearchEmbedding, componentHome, componentPolicy, governanceStatus, governanceAudit, readImpactFromWinners)
+}
+
+// newMCPQueryRouterWithSemanticEmbeddingWithReadStore routes business reads to the guarded reader.
+func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
+	writer *sql.DB, reader db.ReadStore, neo4jReader query.GraphQuery, contentReader query.ContentStore,
+	statusReader status.Reader, queryProfile query.QueryProfile, graphBackend query.GraphBackend,
+	logger *slog.Logger, instruments *telemetry.Instruments, semanticSearchEmbedding searchembedruntime.Config,
+	componentHome string, componentPolicy component.Policy, governanceStatus query.GovernanceStatusConfig,
+	governanceAudit query.GovernanceAuditSummaryReader, readImpactFromWinners bool,
+) *query.APIRouter {
 	if statusReader == nil {
-		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
+		statusReader = newStatusStore(reader, instruments)
 	}
-	if governanceAudit == nil && db != nil {
-		governanceAudit = auditstore.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
+	auditRead := governanceAudit
+	if reader != nil {
+		auditRead = auditstore.NewGovernanceAuditReader(reader)
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
-	if db != nil {
-		containerImageIdentities = query.NewPostgresContainerImageIdentityStore(db)
-		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStore(db)
+	if reader != nil {
+		containerImageIdentities = query.NewPostgresContainerImageIdentityStoreWithReadStore(reader)
+		sbomAttachments = query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader)
 	}
 	return &query.APIRouter{
 		Repositories: &query.RepositoryHandler{
 			Neo4j:                      neo4jReader,
 			Content:                    contentReader,
-			CICDRunCorrelations:        query.NewPostgresCICDRunCorrelationStore(db),
-			ServiceCatalogCorrelations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			CICDRunCorrelations:        cicd.NewPostgresRunCorrelationStoreWithReadStore(reader),
+			ServiceCatalogCorrelations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			// Freshness backs get_repository_freshness (#5143). It must be
 			// wired here (mirroring cmd/api/wiring_router.go) or the
 			// advertised MCP tool 503s with "repository freshness reader
@@ -105,14 +133,14 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			// GET /api/v0/repositories/{id}/freshness works on cmd/api --
 			// the B-7 golden-corpus gate's MCP query-truth phase asserts
 			// this tool live against this binary.
-			Freshness: pgstatus.NewInstrumentedRepositoryFreshnessStore(pgstatus.SQLQueryer{DB: db}, instruments),
+			Freshness: pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
 			Profile:   queryProfile,
 		},
 		Entities: &query.EntityHandler{
 			GraphBackend:             graphBackend,
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,
-			CICDRunCorrelations:      query.NewPostgresCICDRunCorrelationStore(db),
+			CICDRunCorrelations:      cicd.NewPostgresRunCorrelationStoreWithReadStore(reader),
 			ContainerImageIdentities: containerImageIdentities,
 			SBOMAttachments:          sbomAttachments,
 			Profile:                  queryProfile,
@@ -124,7 +152,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			GraphBackend:         graphBackend,
 			Neo4j:                neo4jReader,
 			Content:              contentReader,
-			CodeFlow:             codemodel.NewPostgresCodeFlowStore(db),
+			CodeFlow:             codemodel.NewPostgresCodeFlowStoreWithReadStore(reader),
 			Profile:              queryProfile,
 			HybridRanker:         newCodeHybridRanker(semanticSearchEmbedding),
 			Logger:               logger,
@@ -144,30 +172,30 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		Infra: &query.InfraHandler{
 			GraphBackend:   graphBackend,
 			Neo4j:          neo4jReader,
-			Aggregates:     query.NewInfraResourceAggregateStore(neo4jReader, db, instruments),
-			CloudResources: query.NewPostgresCloudResourceListStore(db),
+			Aggregates:     query.NewInfraResourceAggregateStoreWithReadStore(neo4jReader, reader, instruments),
+			CloudResources: query.NewPostgresCloudResourceListStoreWithReadStore(reader),
 			Profile:        queryProfile,
 			Instruments:    instruments,
 		},
-		IaC: newMCPQueryIaCHandler(db, contentReader, neo4jReader, queryProfile),
+		IaC: newMCPQueryIaCHandlerWithReadStore(reader, contentReader, neo4jReader, queryProfile),
 		Impact: &query.ImpactHandler{
 			Neo4j:                  neo4jReader,
 			Content:                contentReader,
 			Profile:                queryProfile,
 			Logger:                 logger,
 			Instruments:            instruments,
-			KubernetesPodTemplates: query.NewPostgresKubernetesPodTemplateStore(db),
+			KubernetesPodTemplates: deployment.NewPostgresKubernetesPodTemplateStoreWithReadStore(reader),
 		},
 		Evidence: &query.EvidenceHandler{
 			Content:            contentReader,
-			AdmissionDecisions: query.NewPostgresAdmissionDecisionReadStore(pgstatus.SQLDB{DB: db}),
+			AdmissionDecisions: query.NewPostgresAdmissionDecisionReadStoreWithReadStore(reader),
 			Profile:            queryProfile,
 			StatusReader:       statusReader,
 			Neo4j:              neo4jReader,
 		},
 		Documentation: &query.DocumentationHandler{
 			Content:    contentReader,
-			Aggregates: query.NewPostgresDocumentationFindingAggregateStore(db),
+			Aggregates: query.NewPostgresDocumentationFindingAggregateStoreWithReadStore(reader),
 			Profile:    queryProfile,
 		},
 		SemanticEvidence: &query.SemanticEvidenceHandler{
@@ -175,11 +203,11 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		SemanticSearch: &query.SemanticSearchHandler{
-			Index:         query.NewPostgresSemanticSearchIndexStore(db),
-			LocalHybrid:   newSemanticSearchHybrid(db, semanticSearchEmbedding, instruments),
-			ScopeResolver: newInstrumentedSemanticSearchScopeResolver(db, instruments),
+			Index:         semanticsearch.NewPostgresSemanticSearchIndexStoreWithReadStore(reader),
+			LocalHybrid:   newSemanticSearchHybridWithReadStore(reader, semanticSearchEmbedding, instruments),
+			ScopeResolver: newInstrumentedSemanticSearchScopeResolverWithReadStore(reader, instruments),
 			Profile:       queryProfile,
-			SearchVectorReady: query.NewPostgresSearchVectorReadyStore(db, query.SearchVectorBuildIdentity{
+			SearchVectorReady: semanticsearch.NewPostgresSearchVectorReadyStoreWithReadStore(reader, query.SearchVectorBuildIdentity{
 				ProviderProfileID:  semanticSearchEmbedding.ProviderProfileID,
 				SourceClass:        semanticSearchEmbedding.SourceClass,
 				EmbeddingModelID:   semanticSearchEmbedding.EmbeddingModelID,
@@ -189,9 +217,9 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:              neo4jReader,
 			Content:            contentReader,
-			Correlations:       query.NewPostgresPackageRegistryCorrelationStore(db),
+			Correlations:       registry.NewPostgresCorrelationStoreWithReadStore(reader),
 			Aggregates:         query.NewGraphPackageRegistryAggregateStore(neo4jReader),
-			CollectorReadiness: query.NewPostgresCollectorListReadinessStore(db),
+			CollectorReadiness: query.NewPostgresCollectorListReadinessStoreWithReadStore(reader),
 			Profile:            queryProfile,
 		},
 		// CodeownersOwnership backs the list_codeowners_ownership MCP tool
@@ -200,74 +228,72 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		// nil handler on the standalone MCP server.
 		CodeownersOwnership: &query.CodeownersOwnershipHandler{
 			Neo4j:        neo4jReader,
-			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Correlations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 			Instruments:  instruments,
 		},
 		CICD: &query.CICDHandler{
 			Content:            contentReader,
-			Correlations:       query.NewPostgresCICDRunCorrelationStore(db),
-			Aggregates:         query.NewPostgresCICDRunCorrelationAggregateStore(db),
-			CollectorReadiness: query.NewPostgresCollectorListReadinessStore(db),
+			Correlations:       cicd.NewPostgresRunCorrelationStoreWithReadStore(reader),
+			Aggregates:         cicd.NewPostgresRunCorrelationAggregateStoreWithReadStore(reader),
+			CollectorReadiness: query.NewPostgresCollectorListReadinessStoreWithReadStore(reader),
 			Profile:            queryProfile,
 		},
 		ServiceCatalog: &query.ServiceCatalogHandler{
 			Content:      contentReader,
-			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Correlations: service.NewPostgresServiceCatalogCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 		},
 		Kubernetes: &query.KubernetesHandler{
-			Correlations: query.NewPostgresKubernetesCorrelationStore(db),
+			Correlations: kubernetes.NewPostgresCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 		},
 		SecretsIAM: &query.SecretsIAMHandler{
-			IdentityTrustChains:          query.NewPostgresSecretsIAMIdentityTrustChainStore(db),
-			PrivilegePostureObservations: query.NewPostgresSecretsIAMPrivilegePostureObservationStore(db),
-			SecretAccessPaths:            query.NewPostgresSecretsIAMSecretAccessPathStore(db),
-			PostureGaps:                  query.NewPostgresSecretsIAMPostureGapStore(db),
-			Summary:                      query.NewPostgresSecretsIAMPostureSummaryStore(db),
+			IdentityTrustChains:          secrets.NewPostgresIAMIdentityTrustChainStoreWithReadStore(reader),
+			PrivilegePostureObservations: secrets.NewPostgresIAMPrivilegePostureObservationStoreWithReadStore(reader),
+			SecretAccessPaths:            secrets.NewPostgresIAMSecretAccessPathStoreWithReadStore(reader),
+			PostureGaps:                  secrets.NewPostgresIAMPostureGapStoreWithReadStore(reader),
+			Summary:                      secrets.NewPostgresIAMPostureSummaryStoreWithReadStore(reader),
 			GrantPosture:                 query.NewGraphSecretsIAMGrantPostureStore(neo4jReader),
 			Profile:                      queryProfile,
 		},
 		ObservabilityCoverage: &query.ObservabilityCoverageHandler{
 			Content:      contentReader,
-			Correlations: query.NewPostgresObservabilityCoverageCorrelationStore(db),
+			Correlations: coverage.NewPostgresCorrelationStoreWithReadStore(reader),
 			Profile:      queryProfile,
 		},
 		CloudRuntimeDrift: &query.CloudRuntimeDriftHandler{
-			Store:   query.NewPostgresMultiCloudRuntimeDriftStore(db),
+			Store:   query.NewPostgresMultiCloudRuntimeDriftStoreWithReadStore(reader),
 			Profile: queryProfile,
 		},
 		TerraformConfigStateDrift: &query.TerraformConfigStateDriftHandler{
-			Store:   query.NewPostgresTerraformConfigStateDriftFindingStore(db),
+			Store:   drift.NewPostgresFindingStoreWithReadStore(reader),
 			Profile: queryProfile,
 		},
 		SupplyChain: &query.SupplyChainHandler{
-			Neo4j:                    neo4jReader,
-			Logger:                   logger,
-			Content:                  contentReader,
-			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
-			SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
-			AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),
-			AdvisoryCatalog:          query.NewPostgresAdvisoryCatalogStore(db),
-			ImpactFindings: query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(
-				db, readImpactFromWinners,
-			),
-			ImpactAggregates:            query.NewPostgresSupplyChainImpactAggregateStore(db),
-			ImpactExplanations:          query.NewPostgresSupplyChainImpactFindingStore(db),
-			ContainerImageIdentities:    query.NewPostgresContainerImageIdentityStore(db),
-			ContainerImageAggregates:    query.NewPostgresContainerImageIdentityAggregateStore(db),
-			SecurityAlerts:              query.NewPostgresSecurityAlertReconciliationStore(db),
-			SecurityAlertAggregates:     query.NewPostgresSecurityAlertReconciliationAggregateStore(db),
-			Readiness:                   query.NewPostgresSupplyChainImpactReadinessStore(db),
-			CloudResourceInventory:      query.NewPostgresCloudResourceListStore(db),
-			KubernetesWorkloadInventory: query.NewPostgresKubernetesRuntimeWorkloadStore(db),
-			CollectorReadiness:          query.NewPostgresCollectorListReadinessStore(db),
+			Neo4j:                       neo4jReader,
+			Logger:                      logger,
+			Content:                     contentReader,
+			SBOMAttachments:             query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader),
+			SBOMAttachmentAggregates:    query.NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader),
+			AdvisoryEvidence:            advisory.NewPostgresEvidenceStoreWithReadStore(reader),
+			AdvisoryCatalog:             advisory.NewPostgresCatalogStoreWithReadStore(reader),
+			ImpactFindings:              impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
+			ImpactAggregates:            impact.NewPostgresAggregateStoreWithReadStore(reader),
+			ImpactExplanations:          impact.NewPostgresFindingStoreWithReadStore(reader, false),
+			ContainerImageIdentities:    query.NewPostgresContainerImageIdentityStoreWithReadStore(reader),
+			ContainerImageAggregates:    query.NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader),
+			SecurityAlerts:              alerts.NewPostgresStoreWithReadStore(reader),
+			SecurityAlertAggregates:     alerts.NewPostgresAggregateStoreWithReadStore(reader),
+			Readiness:                   impact.NewPostgresReadinessStoreWithReadStore(reader),
+			CloudResourceInventory:      query.NewPostgresCloudResourceListStoreWithReadStore(reader),
+			KubernetesWorkloadInventory: kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
+			CollectorReadiness:          query.NewPostgresCollectorListReadinessStoreWithReadStore(reader),
 			PacketResponder:             query.NewSupplyChainImpactPacketResponder(),
 			Profile:                     queryProfile,
 		},
 		Incident: &query.IncidentHandler{
-			Context: query.NewPostgresIncidentContextStore(db),
+			Context: store.NewStoreWithReadStore(reader),
 			// Authorizer gates scoped-token reads of get_incident_context (#2144:
 			// "Authorize ... the get_incident_context MCP tool ... for scoped
 			// tokens"). It was wired only in cmd/api's newIncidentHandler
@@ -276,19 +302,19 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			// found by the #5148 dual-main reflective completeness test
 			// (TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot below), which
 			// flags any nil interface field inside a wired handler.
-			Authorizer: query.NewPostgresIncidentRepositoryAuthorizer(db),
+			Authorizer: store.NewPostgresIncidentRepositoryAuthorizerWithReadStore(reader),
 			Profile:    queryProfile,
 		},
 		WorkItems: &query.WorkItemHandler{
-			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
+			Evidence: workitem.NewPostgresEvidenceStoreWithReadStore(reader),
 			Profile:  queryProfile,
 		},
 		Visualization: &query.VisualizationHandler{},
 		Status: &query.StatusHandler{
 			Neo4j:           neo4jReader,
-			DB:              db,
+			DB:              writer,
 			StatusReader:    statusReader,
-			GovernanceAudit: governanceAudit,
+			GovernanceAudit: auditRead,
 			Profile:         queryProfile,
 			Governance:      governanceStatus,
 		},
@@ -298,9 +324,9 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Profile:       queryProfile,
 		},
 		Freshness: &query.FreshnessHandler{
-			Generations:         pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
-			ChangedSince:        pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
-			ServiceChangedSince: pgstatus.NewStatusStore(pgstatus.SQLQueryer{DB: db}),
+			Generations:         pgstatus.NewStatusStore(reader),
+			ChangedSince:        pgstatus.NewStatusStore(reader),
+			ServiceChangedSince: pgstatus.NewStatusStore(reader),
 			Profile:             queryProfile,
 		},
 		ExtractionReadiness:    &query.CollectorExtractionReadinessHandler{Profile: queryProfile},
@@ -315,14 +341,14 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Profile: queryProfile,
 		},
 		AdminDeadLetters: &query.AdminDeadLetterListHandler{
-			Store: query.NewPostgresAdminStore(db),
+			Store: adminstore.NewReadStore(reader),
 		},
 		AdminInputInvalidFacts: &query.AdminInputInvalidFactListHandler{
-			Store:       query.NewPostgresAdminStore(db),
+			Store:       adminstore.NewReadStore(reader),
 			Instruments: instruments,
 		},
 		AdminChangedSincePoisonedLinks: &query.AdminChangedSincePoisonedLinksHandler{
-			Store:       query.NewPostgresAdminStore(db),
+			Store:       adminstore.NewReadStore(reader),
 			Instruments: instruments,
 		},
 		// CloudInventory backs the list_cloud_resource_inventory MCP tool. It must

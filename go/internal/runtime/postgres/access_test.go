@@ -5,12 +5,16 @@ package postgres
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -304,17 +308,17 @@ func TestAccessCheckpointRejectsFrozenIncarnation(t *testing.T) {
 }
 
 func TestAccessExpectedSystemIDAndCandidateFallback(t *testing.T) {
-	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
-	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
-	if writer == "" || reader == "" {
-		t.Skip("owned physical fixture not configured")
+	writerCandidates := os.Getenv("ESHU_READER_TEST_WRITER_CANDIDATES_DSN")
+	readerCandidates := os.Getenv("ESHU_READER_TEST_READ_CANDIDATES_DSN")
+	if writerCandidates == "" || readerCandidates == "" {
+		t.Skip("owned writer and reader candidate DSNs not configured")
 	}
 	cfg, err := LoadConfig(func(key string) string {
 		switch key {
 		case "ESHU_POSTGRES_DSN":
-			return "host=127.0.0.1,127.0.0.1 port=35436,35432 user=proof dbname=eshu sslmode=disable connect_timeout=1"
+			return writerCandidates
 		case "ESHU_POSTGRES_READ_DSN":
-			return "host=127.0.0.1,127.0.0.1 port=35437,35433 user=proof dbname=eshu sslmode=disable connect_timeout=1"
+			return readerCandidates
 		default:
 			return ""
 		}
@@ -322,12 +326,20 @@ func TestAccessExpectedSystemIDAndCandidateFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.ExpectedSystemID = "1"
+	expectedID := os.Getenv("ESHU_READER_TEST_EXPECTED_SYSTEM_ID")
+	if expectedID == "" {
+		t.Skip("independently supplied expected system ID required")
+	}
+	wrongID := "0"
+	if expectedID == wrongID {
+		wrongID = "1"
+	}
+	cfg.ExpectedSystemID = wrongID
 	if access, err := Open(context.Background(), cfg, nil); err == nil {
 		_ = access.Close()
 		t.Fatal("wrong expected system accepted")
 	}
-	cfg.ExpectedSystemID = ""
+	cfg.ExpectedSystemID = expectedID
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -347,8 +359,9 @@ func TestAccessExpectedSystemIDAndCandidateFallback(t *testing.T) {
 }
 
 func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
-	if os.Getenv("ESHU_READER_TEST_RESTART_PRIMARY") != "1" {
-		t.Skip("owned primary restart requires explicit fixture flag")
+	container := strings.TrimSpace(os.Getenv("ESHU_READER_TEST_PRIMARY_CONTAINER"))
+	if os.Getenv("ESHU_READER_TEST_RESTART_PRIMARY") != "1" || container == "" {
+		t.Skip("owned primary restart requires explicit fixture flag and container target")
 	}
 	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
 	if reader == "" {
@@ -358,12 +371,9 @@ func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
 	before := old.identity.incarnation
 	restartCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(restartCtx, "docker", "restart", "eshu-7009-reader-theory-pg183-20260929-primary").CombinedOutput()
+	output, err := exec.CommandContext(restartCtx, "docker", "restart", container).CombinedOutput()
 	if err != nil {
 		t.Fatalf("owned primary restart: %v %s", err, output)
-	}
-	if _, err := old.ContextWithCheckpoint(context.Background()); !errors.Is(err, ErrWriterUnavailable) && !errors.Is(err, ErrWrongTopology) {
-		t.Fatalf("old access accepted restart: %v", err)
 	}
 	cfg, err := LoadConfig(func(key string) string {
 		switch key {
@@ -394,6 +404,29 @@ func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
 	if fresh.identity.incarnation == before {
 		t.Fatalf("primary incarnation unchanged: %s", before)
 	}
+	// A broken old Access must fail after the fresh pool proves the server is
+	// ready; an immediate EOF after Docker restart is not an incarnation test.
+	confirmed := 0
+	for attempt := 0; attempt < 5 && confirmed < 2; attempt++ {
+		_, oldErr := old.ContextWithCheckpoint(context.Background())
+		if oldErr == nil {
+			t.Fatal("old Access accepted the restarted primary")
+		}
+		if errors.Is(oldErr, ErrWrongTopology) {
+			confirmed++
+			continue
+		}
+		if !errors.Is(oldErr, ErrWriterUnavailable) || !isDeadOldSocket(oldErr) {
+			t.Fatalf("old Access unexpected error after fresh readiness: %v", oldErr)
+		}
+		if attempt == 4 {
+			t.Fatalf("old Access never proved frozen-incarnation rejection: %v", oldErr)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if confirmed != 2 {
+		t.Fatalf("old Access topology rejection count=%d", confirmed)
+	}
 	ctx, err := fresh.ContextWithCheckpoint(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -401,5 +434,21 @@ func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
 	var got int
 	if err := fresh.Reader().QueryRowContext(ctx, "SELECT 11").Scan(&got); err != nil || got != 11 {
 		t.Fatalf("rebootstrap read=%d err=%v", got, err)
+	}
+}
+
+func isDeadOldSocket(err error) bool {
+	return errors.Is(err, driver.ErrBadConn) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
+}
+
+func TestDeadOldSocketClassifier(t *testing.T) {
+	if !isDeadOldSocket(errors.Join(ErrWriterUnavailable, io.EOF)) {
+		t.Fatal("dead socket was not retryable")
+	}
+	if isDeadOldSocket(errors.Join(ErrWriterUnavailable, errors.New("metadata privilege denied"))) {
+		t.Fatal("non-socket writer failure was retryable")
+	}
+	if isDeadOldSocket(ErrWrongTopology) {
+		t.Fatal("topology mismatch was retryable")
 	}
 }

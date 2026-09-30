@@ -52,7 +52,7 @@ func TestSupplyChainImpactReadinessPackageConsumptionScopeLive(t *testing.T) {
 		t.Fatalf("load package manifest backfill marker: %v", err)
 	}
 	markerQueryer := &readinessMarkerArgumentQueryer{DB: db}
-	ready, err := packageManifestConsumptionKeysReady(ctx, markerQueryer)
+	ready, err := packageManifestConsumptionKeysReady(ctx, readinessSQLQueryer{database: markerQueryer})
 	if err != nil || !ready {
 		t.Fatalf("packageManifestConsumptionKeysReady() = %t, %v; want ready", ready, err)
 	}

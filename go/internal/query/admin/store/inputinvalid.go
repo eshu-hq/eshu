@@ -16,7 +16,7 @@ import (
 
 // ListReducerInputInvalidFacts implements admin.Store for the durable
 // reducer_input_invalid_facts read surface (issue #4630).
-func (s *postgresStore) ListReducerInputInvalidFacts(
+func (s *postgresReadStore) ListReducerInputInvalidFacts(
 	ctx context.Context,
 	f admin.InputInvalidFactListFilter,
 ) ([]admin.InputInvalidFact, error) {
@@ -83,7 +83,7 @@ WHERE quarantine.scope_id = $1
 
 func scanInputInvalidFacts(
 	ctx context.Context,
-	database db.ExecQueryer,
+	database db.Queryer,
 	query string,
 	args ...any,
 ) ([]admin.InputInvalidFact, error) {

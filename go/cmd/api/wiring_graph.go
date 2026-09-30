@@ -49,8 +49,6 @@ func openGraphReader(
 	// model backfill in the background. Graph-disabled profiles skip both.
 	if driver != nil {
 		if err := query.RunStartupBackfills(ctx, rawDB, graphReader, logger, instruments); err != nil {
-			_ = rawDB.Close()
-			_ = driver.Close(ctx)
 			return nil, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
 		}
 	}

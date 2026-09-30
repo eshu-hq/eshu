@@ -187,6 +187,7 @@ type EshuSearchVectorValueFilter struct {
 // active-generation vectors for one scope, model, and index version.
 type EshuSearchVectorValueStore struct {
 	database db.ExecQueryer
+	reader   db.Queryer
 }
 
 // EshuSearchVectorValuesSchemaSQL returns the Postgres DDL for vector payloads.
@@ -325,7 +326,11 @@ func (s EshuSearchVectorValueStore) ListActive(
 	ctx context.Context,
 	filter EshuSearchVectorValueFilter,
 ) ([]EshuSearchVectorValue, error) {
-	if s.database == nil {
+	reader := s.reader
+	if reader == nil {
+		reader = s.database
+	}
+	if reader == nil {
 		return nil, fmt.Errorf("eshu search vector value database is required")
 	}
 	filter = normalizeEshuSearchVectorValueFilter(filter)
@@ -342,7 +347,7 @@ func (s EshuSearchVectorValueStore) ListActive(
 	}
 	args = append(args, filter.Limit)
 
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	rows, err := reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search vector values: %w", err)
 	}

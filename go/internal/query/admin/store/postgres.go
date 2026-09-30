@@ -62,8 +62,7 @@ const (
 )
 
 func (s *postgresStore) ListWorkItems(ctx context.Context, f admin.WorkItemFilter) ([]admin.WorkItem, error) {
-	query, args := buildListWorkItemsQuery(f)
-	return scanWorkItems(ctx, s.database, query, args...)
+	return s.reader().ListWorkItems(ctx, f)
 }
 
 // DeadLetterWorkItems moves terminal failures to dead letter while preserving
@@ -195,113 +194,15 @@ INSERT INTO fact_backfill_requests (
 }
 
 func (s *postgresStore) ListReplayEvents(ctx context.Context, f admin.ReplayEventFilter) ([]admin.ReplayEvent, error) {
-	var builder strings.Builder
-	builder.WriteString(`
-SELECT replay_event_id, work_item_id, scope_id, generation_id, failure_class, operator_note, created_at
-FROM fact_replay_events
-WHERE 1=1
-`)
-	args := make([]any, 0, 4)
-	if value := strings.TrimSpace(f.ScopeID); value != "" {
-		args = append(args, value)
-		_, _ = fmt.Fprintf(&builder, " AND scope_id = $%d\n", len(args))
-	}
-	if value := strings.TrimSpace(f.WorkItemID); value != "" {
-		args = append(args, value)
-		_, _ = fmt.Fprintf(&builder, " AND work_item_id = $%d\n", len(args))
-	}
-	if value := strings.TrimSpace(f.FailureClass); value != "" {
-		args = append(args, value)
-		_, _ = fmt.Fprintf(&builder, " AND failure_class = $%d\n", len(args))
-	}
-	limit := f.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-	args = append(args, limit)
-	_, _ = fmt.Fprintf(&builder, " ORDER BY created_at DESC, replay_event_id DESC LIMIT $%d", len(args))
-
-	rows, err := s.database.QueryContext(ctx, builder.String(), args...)
-	if err != nil {
-		return nil, fmt.Errorf("list replay events: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var events []admin.ReplayEvent
-	for rows.Next() {
-		var event admin.ReplayEvent
-		var failureClass sql.NullString
-		var operatorNote sql.NullString
-		if err := rows.Scan(
-			&event.ReplayEventID,
-			&event.WorkItemID,
-			&event.ScopeID,
-			&event.GenerationID,
-			&failureClass,
-			&operatorNote,
-			&event.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan replay event: %w", err)
-		}
-		if failureClass.Valid {
-			event.FailureClass = &failureClass.String
-		}
-		if operatorNote.Valid {
-			event.OperatorNote = &operatorNote.String
-		}
-		events = append(events, event)
-	}
-
-	return events, rows.Err()
+	return s.reader().ListReplayEvents(ctx, f)
 }
 
 func (s *postgresStore) ListDecisions(ctx context.Context, f admin.DecisionQueryFilter) ([]admin.DecisionRow, error) {
-	rows, err := s.decisions.ListDecisions(ctx, decisionsstore.DecisionFilter{
-		RepositoryID: f.RepositoryID,
-		SourceRunID:  f.SourceRunID,
-		DecisionType: f.DecisionType,
-		Limit:        f.Limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list decisions: %w", err)
-	}
-
-	result := make([]admin.DecisionRow, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, admin.DecisionRow{
-			DecisionID:        row.DecisionID,
-			DecisionType:      row.DecisionType,
-			RepositoryID:      row.RepositoryID,
-			SourceRunID:       row.SourceRunID,
-			WorkItemID:        row.WorkItemID,
-			Subject:           row.Subject,
-			ConfidenceScore:   row.ConfidenceScore,
-			ConfidenceReason:  row.ConfidenceReason,
-			ProvenanceSummary: row.ProvenanceSummary,
-			CreatedAt:         row.CreatedAt,
-		})
-	}
-	return result, nil
+	return s.reader().ListDecisions(ctx, f)
 }
 
 func (s *postgresStore) ListEvidence(ctx context.Context, decisionID string) ([]admin.EvidenceRow, error) {
-	rows, err := s.decisions.ListEvidence(ctx, decisionID)
-	if err != nil {
-		return nil, fmt.Errorf("list evidence: %w", err)
-	}
-
-	result := make([]admin.EvidenceRow, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, admin.EvidenceRow{
-			EvidenceID:   row.EvidenceID,
-			DecisionID:   row.DecisionID,
-			FactID:       row.FactID,
-			EvidenceKind: row.EvidenceKind,
-			Detail:       row.Detail,
-			CreatedAt:    row.CreatedAt,
-		})
-	}
-	return result, nil
+	return s.reader().ListEvidence(ctx, decisionID)
 }
 
 func buildListWorkItemsQuery(f admin.WorkItemFilter) (string, []any) {
@@ -351,7 +252,7 @@ WHERE 1=1
 	return builder.String(), args
 }
 
-func scanWorkItems(ctx context.Context, database db.ExecQueryer, query string, args ...any) ([]admin.WorkItem, error) {
+func scanWorkItems(ctx context.Context, database db.Queryer, query string, args ...any) ([]admin.WorkItem, error) {
 	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query work items: %w", err)
@@ -415,4 +316,8 @@ func (s *postgresStore) time() time.Time {
 		return s.now().UTC()
 	}
 	return time.Now().UTC()
+}
+
+func (s *postgresStore) reader() *postgresReadStore {
+	return &postgresReadStore{database: s.database, decisions: decisionsstore.NewDecisionReader(s.database)}
 }

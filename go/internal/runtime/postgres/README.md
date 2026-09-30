@@ -1,7 +1,7 @@
 # API and MCP PostgreSQL reader access
 
 `Access` owns one writer pool and one private reader pool. The API and MCP
-processes will use `Writer()` for authentication, revocation, audit, mutation,
+processes use `Writer()` for authentication, revocation, audit, mutation,
 and startup writes. This ordinary pgx writer does not set the infra inventory
 `eshu.infra_inventory_writer` derivation marker; API/MCP writes do not all keep
 that read model in step. PostgreSQL business reads receive only `Reader()`'s `db.ReadStore`: cursor,
@@ -40,6 +40,9 @@ The borrowed connection is checked again immediately before each business
 query or row scan. A snapshot fences once before `BeginReadOnlySnapshot` and
 retains the same read-only repeatable-read connection until Commit, Rollback,
 or request cancellation. Cursor close does not release that transaction.
+Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
+callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
+adapter scan contracts remain unchanged.
 Read-only session mode does not replace database permissions; operators
 should give distinct readers a read-only database role where practical.
 
@@ -71,18 +74,29 @@ routes to its accepted primary. A scalar LSN and system identifier do not
 prove safe lineage after promotion, a timeline fork, Aurora failover, or
 split-brain behavior. Those modes require separate qualification before use.
 A lagged pooled reader is refused within the replay bound; it is not rerouted.
-The package is not wired into API/MCP yet and does not establish deployed
+API/MCP now use this package. Local qualification does not establish deployed
 latency, 100-user capacity, or replica memory requirements.
 
 ## Operator signals
 
 `Observer` receives the closed `role`, `stage`, and `outcome` categories with
 elapsed time for writer checkpoint, reader pool borrow, identity, replay, and
-business query. The API/MCP wiring must attach those to its telemetry provider.
+business query. API/MCP attach those to their telemetry provider through `NewObserver`.
 `Stats` exposes both pools' wait and in-use counters for readiness and pool
 pressure checks. No DSN, SQL text, or credential becomes a signal label.
 
 ## Local proof and limits
+
+The disposable live tests take `ESHU_READER_TEST_WRITER_DSN` and
+`ESHU_READER_TEST_READER_DSN`. Candidate tests additionally take complete
+`ESHU_READER_TEST_WRITER_CANDIDATES_DSN`,
+`ESHU_READER_TEST_READER_CANDIDATES_DSN`, and
+`ESHU_READER_TEST_READ_CANDIDATES_DSN` values. The foreign-first test requires
+`ESHU_READER_TEST_FOREIGN_WRITER_FIRST_DSN` and an independently supplied
+`ESHU_READER_TEST_EXPECTED_SYSTEM_ID`. The controlled restart test runs only
+with `ESHU_READER_TEST_RESTART_PRIMARY=1` and an explicit disposable
+`ESHU_READER_TEST_PRIMARY_CONTAINER` target. No fixture host, port, or
+container name is embedded in the tests.
 
 Performance Evidence: On the owned PostgreSQL 18.3 physical primary/standby
 fixture (primary and reader each 4 CPU/8 GiB, 89 MB test corpus), four
@@ -92,15 +106,35 @@ marker visible after replay, zero business SQL on a paused reader, a pinned
 repeatable-read snapshot, and an aggregate six-connection cap across two
 reader hosts; this is
 concurrency and exactness proof for the new package. It has no existing
-production-path latency baseline because no API/MCP caller uses the package
-yet. Per-query fence cost, p95, 100-engineer saturation, and deployed benefit
+production-path latency baseline in these primitive tests; finished API/MCP comparisons are recorded separately. Per-query fence cost, p95, 100-engineer saturation, and deployed benefit
 remain to be measured before application promotion.
 
 Observability Evidence: The production-path test observer saw writer checkpoint,
 reader borrow, identity, replay, and business query stages with closed role and
 outcome categories. A paused reader emitted replay `deadline` and no business
-query event. API/MCP still must wire `Observer` into OTEL; this package does not
-claim a deployed signal. The tests reported no reader connections left in use
+query event. The API/MCP wiring attaches `Observer` and pool metrics to OTEL; local emission
+proof does not claim a deployed signal. The tests reported no reader connections left in use
 after Close, exhaustion, scan error, cancellation, or failed identity. A
 controlled restart of the owned primary made the old Access reject checkpoints;
 a fresh Access rebootstrap accepted the new postmaster incarnation.
+
+## Request and admin boundaries
+
+`WithCheckpoint` sits inside application authentication and captures immediately
+before selected business dispatch. `RequiresCheckpoint` selects mounted routes,
+exempts proven pure/control handlers, and defaults newly mounted routes to a
+checkpoint. An exempt route still cannot execute guarded SQL without a
+checkpoint. Ask orchestration re-dispatches every inner tool call through the
+authenticated boundary; MCP transport-only operations do not borrow readers.
+
+The writer checkpoint has its own bounded acquisition/query deadline, using
+`ReplayTimeout`, while the returned context retains the original caller's
+deadline for business SQL. A pool wait cannot delay checkpoint acquisition
+indefinitely. A failed checkpoint does not dispatch the handler.
+
+`NewTrustedStatusReader` is reserved for the runtime admin surface. It captures
+inside each snapshot/readiness method with a five-second ceiling, so independent
+background readiness contexts receive their own checkpoint. Readiness probes
+both pools and checks the actual fenced status schema. `/healthz` is independent.
+The metrics compositor preserves valid independent telemetry when status cannot
+be read, exposing snapshot availability without invented database values.

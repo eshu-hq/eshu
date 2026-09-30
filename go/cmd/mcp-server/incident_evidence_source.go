@@ -7,20 +7,20 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// newIncidentEvidenceSource builds the durable incident evidence source for the
+// newIncidentEvidenceSourceWithReadStore builds the durable incident evidence source for the
 // service intelligence report's incidents_support section: a catalog-service-id
 // resolver plus an incident evidence loader, both over the shared Postgres query
 // surface. The logger surfaces ambiguous-catalog and load failures to operators.
-func newIncidentEvidenceSource(db *sql.DB, logger *slog.Logger) serviceintelhttp.IncidentEvidenceSource {
-	queryer := pgstatus.SQLQueryer{DB: db}
+func newIncidentEvidenceSourceWithReadStore(reader db.Queryer, logger *slog.Logger) serviceintelhttp.IncidentEvidenceSource {
 	return serviceintelhttp.NewDurableIncidentEvidenceSource(
-		pgstatus.NewServiceCatalogIDResolver(queryer),
-		pgstatus.NewServiceIncidentEvidenceLoader(queryer),
+		pgstatus.NewServiceCatalogIDResolver(reader),
+		pgstatus.NewServiceIncidentEvidenceLoader(reader),
 		logger,
 	)
 }
@@ -29,8 +29,12 @@ func newIncidentEvidenceSource(db *sql.DB, logger *slog.Logger) serviceintelhttp
 // for the service intelligence report's supply_chain section over the shared
 // Postgres aggregate read model. The logger surfaces load failures to operators.
 func newSupplyChainEvidenceSource(db *sql.DB, logger *slog.Logger) serviceintelhttp.SupplyChainEvidenceSource {
+	return newSupplyChainEvidenceSourceWithReadStore(pgstatus.NewSQLReadStore(db), logger)
+}
+
+func newSupplyChainEvidenceSourceWithReadStore(reader db.ReadStore, logger *slog.Logger) serviceintelhttp.SupplyChainEvidenceSource {
 	return serviceintelhttp.NewDurableSupplyChainEvidenceSource(
-		query.NewPostgresSupplyChainImpactAggregateStore(db),
+		impact.NewPostgresAggregateStoreWithReadStore(reader),
 		logger,
 	)
 }

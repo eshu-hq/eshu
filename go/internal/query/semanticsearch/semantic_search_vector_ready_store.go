@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // SearchVectorReadyQueryer is the narrow read-only surface required to probe
@@ -87,7 +89,7 @@ type SearchVectorBuildIdentity struct {
 // search_vector_ready watermark for freshness reporting on the semantic
 // search read path, scoped to one configured vector-identity tuple.
 type PostgresSearchVectorReadyStore struct {
-	db       SearchVectorReadyQueryer
+	db       db.Queryer
 	identity SearchVectorBuildIdentity
 }
 
@@ -96,7 +98,22 @@ type PostgresSearchVectorReadyStore struct {
 // semantic-search embedding configuration resolves to (provider profile,
 // source class, embedding model, vector index version).
 func NewPostgresSearchVectorReadyStore(db SearchVectorReadyQueryer, identity SearchVectorBuildIdentity) PostgresSearchVectorReadyStore {
-	return PostgresSearchVectorReadyStore{db: db, identity: identity}
+	if db == nil {
+		return PostgresSearchVectorReadyStore{identity: identity}
+	}
+	return PostgresSearchVectorReadyStore{db: legacyVectorReadyQueryer{database: db}, identity: identity}
+}
+
+// NewPostgresSearchVectorReadyStoreWithReadStore probes the vector watermark
+// through a guarded query-only port.
+func NewPostgresSearchVectorReadyStoreWithReadStore(reader db.Queryer, identity SearchVectorBuildIdentity) PostgresSearchVectorReadyStore {
+	return PostgresSearchVectorReadyStore{db: reader, identity: identity}
+}
+
+type legacyVectorReadyQueryer struct{ database SearchVectorReadyQueryer }
+
+func (q legacyVectorReadyQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
 }
 
 // SearchVectorReadyWatermark probes the search_vector_build_materialization

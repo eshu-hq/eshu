@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // DocumentationFindingAggregateStore reads cheap-summary aggregates over
@@ -96,7 +98,8 @@ type DocumentationFindingInventoryRow struct {
 // PostgresDocumentationFindingAggregateStore reads aggregate counts directly
 // from reducer-owned documentation findings facts.
 type PostgresDocumentationFindingAggregateStore struct {
-	DB documentationFindingAggregateQueryer
+	DB     documentationFindingAggregateQueryer
+	reader aggregateReadQueryer
 }
 
 type documentationFindingAggregateQueryer interface {
@@ -112,18 +115,31 @@ func NewPostgresDocumentationFindingAggregateStore(
 	return PostgresDocumentationFindingAggregateStore{DB: db}
 }
 
+// NewPostgresDocumentationFindingAggregateStoreWithReadStore routes aggregates through a
+// guarded query-only reader.
+func NewPostgresDocumentationFindingAggregateStoreWithReadStore(reader db.ReadStore) PostgresDocumentationFindingAggregateStore {
+	return PostgresDocumentationFindingAggregateStore{reader: reader}
+}
+
+func (s PostgresDocumentationFindingAggregateStore) queryer() aggregateReadQueryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlAggregateQueryer{inner: s.DB}
+}
+
 // CountDocumentationFindings returns the cheap-summary totals envelope for
 // the scoped findings slice.
 func (s PostgresDocumentationFindingAggregateStore) CountDocumentationFindings(
 	ctx context.Context,
 	filter DocumentationFindingAggregateFilter,
 ) (DocumentationFindingAggregateCount, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return DocumentationFindingAggregateCount{}, fmt.Errorf("documentation finding aggregate database is required")
 	}
 
 	q, args := buildDocumentationFindingAggregateTotalSQL(filter)
-	row := s.DB.QueryRowContext(ctx, q, args...)
+	row := s.queryer().QueryRowContext(ctx, q, args...)
 	var total sql.NullInt64
 	if err := row.Scan(&total); err != nil {
 		return DocumentationFindingAggregateCount{}, fmt.Errorf("count documentation findings: %w", err)
@@ -154,7 +170,7 @@ func (s PostgresDocumentationFindingAggregateStore) fillBuckets(
 	dst map[string]int,
 ) error {
 	q, args := buildDocumentationFindingAggregateGroupSQL(filter, groupExpr)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
+	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("group documentation findings: %w", err)
 	}
@@ -180,7 +196,7 @@ func (s PostgresDocumentationFindingAggregateStore) DocumentationFindingInventor
 	limit int,
 	offset int,
 ) ([]DocumentationFindingInventoryRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("documentation finding aggregate database is required")
 	}
 	groupExpr, err := documentationFindingInventoryGroupExpression(dimension)
@@ -196,7 +212,7 @@ func (s PostgresDocumentationFindingAggregateStore) DocumentationFindingInventor
 		offset = 0
 	}
 	q, args := buildDocumentationFindingInventorySQL(filter, groupExpr, limit, offset)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
+	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("inventory documentation findings: %w", err)
 	}

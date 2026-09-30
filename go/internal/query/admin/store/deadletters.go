@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
-func (s *postgresStore) ListDeadLetterWorkItems(
+func (s *postgresReadStore) ListDeadLetterWorkItems(
 	ctx context.Context,
 	f admin.DeadLetterListFilter,
 ) ([]admin.DeadLetterWorkItem, error) {
@@ -89,7 +89,7 @@ WHERE work.status = 'dead_letter'
 
 func scanDeadLetterWorkItems(
 	ctx context.Context,
-	database db.ExecQueryer,
+	database db.Queryer,
 	query string,
 	args ...any,
 ) ([]admin.DeadLetterWorkItem, error) {

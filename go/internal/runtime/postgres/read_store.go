@@ -33,8 +33,7 @@ func (r *fencedRow) Scan(dest ...any) error {
 	}
 	for _, value := range dest {
 		if _, raw := value.(*sql.RawBytes); raw {
-			_ = r.rows.Close()
-			return errors.New("sql: RawBytes isn't allowed on Row.Scan")
+			return errors.Join(errors.New("sql: RawBytes isn't allowed on Row.Scan"), r.rows.Close())
 		}
 	}
 	if !r.rows.Next() {
@@ -109,7 +108,10 @@ func (r *readTransaction) finish(commit bool) error {
 		r.err = errors.Join(r.err, r.conn.Close())
 	})
 	if !executed {
-		return sql.ErrTxDone
+		if r.err == nil {
+			return sql.ErrTxDone
+		}
+		return errors.Join(sql.ErrTxDone, r.err)
 	}
 	return r.err
 }
@@ -128,9 +130,14 @@ func (r *txRows) Next() bool {
 }
 
 func (r *txRows) Scan(dest ...any) error {
+	for _, value := range dest {
+		if _, raw := value.(*sql.RawBytes); raw {
+			return errors.Join(errors.New("sql: RawBytes is unsupported on read-only snapshot rows; use *[]byte"), r.Close())
+		}
+	}
 	err := r.rows.Scan(dest...)
 	if err != nil {
-		_ = r.rows.Close()
+		_ = r.Close()
 	}
 	return err
 }

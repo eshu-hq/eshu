@@ -69,3 +69,6 @@ metric or log changes.
 
 - [Remote validation](../../../../../docs/internal/remote-validation/prod-observability-coverage-correlations.md)
 - [Read models](../../read-models.md)
+
+The correlation store exposes `NewPostgresCorrelationStoreWithReadStore` for a
+guarded query-only reader; the legacy constructor remains available.

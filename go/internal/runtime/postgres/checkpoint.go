@@ -37,11 +37,13 @@ var (
 // checkpoint bound to this Access. The writer connection is released first.
 func (a *Access) ContextWithCheckpoint(ctx context.Context) (context.Context, error) {
 	started := time.Now()
+	checkpointCtx, cancel := context.WithTimeout(ctx, a.replayTimeout)
+	defer cancel()
 	var point checkpoint
 	var recovery bool
 	var readOnly string
 	var defaultReadOnly string
-	err := a.writer.QueryRowContext(ctx, `SELECT pg_current_wal_insert_lsn()::text, system_identifier::text, current_database(), pg_is_in_recovery(), current_setting('transaction_read_only'), current_setting('default_transaction_read_only'), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text FROM pg_control_system()`).Scan(&point.lsn, &point.systemID, &point.database, &recovery, &readOnly, &defaultReadOnly, &point.incarnation)
+	err := a.writer.QueryRowContext(checkpointCtx, `SELECT pg_current_wal_insert_lsn()::text, system_identifier::text, current_database(), pg_is_in_recovery(), current_setting('transaction_read_only'), current_setting('default_transaction_read_only'), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text FROM pg_control_system()`).Scan(&point.lsn, &point.systemID, &point.database, &recovery, &readOnly, &defaultReadOnly, &point.incarnation)
 	if err != nil {
 		a.observe("writer", StageWriterCheckpoint, started, err)
 		return nil, fmt.Errorf("writer checkpoint: %w", errors.Join(ErrWriterUnavailable, err))

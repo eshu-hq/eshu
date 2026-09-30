@@ -21,3 +21,5 @@ coupling, and the difference from `querycontract/kubernetes`.
 Moving or renaming a file or type here: update the `internal/mcp`
 route-serves-data registry files named in the README in the same change, then
 run `go test ./internal/mcp`.
+
+Guarded Postgres correlation and inventory reads must use the query-only reader supplied to the `WithReadStore` constructors.

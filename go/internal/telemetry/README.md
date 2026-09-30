@@ -9,14 +9,11 @@ package in the data plane imports this package and nothing imports it back.
 
 ## Ownership boundary
 
-This package is the single source of truth for all `eshu_dp_*` metric names, all
-span name constants (`SpanCollectorObserve`, `SpanProjectorRun`, etc.), and all
-log key constants (`LogKeyScopeID`, `LogKeyFailureClass`, etc.). New names are
-registered here before being used anywhere else. It does not own queue workers,
-graph writers, or HTTP handlers — it only defines the naming contract and the
-bootstrapping seams those packages call at startup. Pipeline stage,
-graph-backend, and failure-class labels stay here so runtime packages do not
-invent local observability vocabularies.
+`RuntimeStatusSnapshotAvailableMetric` names a per-response Prometheus gauge assembled by `internal/runtime`. It is intentionally not registered on the OTEL meter: concurrent scrapes can have different status outcomes.
+
+This package is the single source of truth for all `eshu_dp_*` metric names, span names, and log key constants. New names are registered here before being used anywhere else.
+It does not own queue workers, graph writers, or HTTP handlers — it only defines the naming contract and the bootstrapping seams those packages call at startup.
+Pipeline stage, graph-backend, and failure-class labels stay here so runtime packages do not invent local observability vocabularies.
 
 See `docs/public/reference/telemetry/index.md` for the project-wide rules that
 flow from this package.

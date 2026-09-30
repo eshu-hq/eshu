@@ -182,37 +182,12 @@ func (s *DecisionStore) InsertEvidence(ctx context.Context, rows []projector.Pro
 
 // ListDecisions returns persisted decisions for one repository/run pair.
 func (s *DecisionStore) ListDecisions(ctx context.Context, f DecisionFilter) ([]projector.ProjectionDecisionRow, error) {
-	limit := max(f.Limit, 1)
-
-	decisionType := ""
-	if f.DecisionType != nil {
-		decisionType = *f.DecisionType
-	}
-
-	sqlRows, err := s.database.QueryContext(
-		ctx, listDecisionsSQL,
-		f.RepositoryID,
-		f.SourceRunID,
-		decisionType,
-		limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = sqlRows.Close() }()
-
-	return scanDecisionRows(sqlRows)
+	return listDecisions(ctx, s.database, f)
 }
 
 // ListEvidence returns persisted evidence for one decision.
 func (s *DecisionStore) ListEvidence(ctx context.Context, decisionID string) ([]projector.ProjectionDecisionEvidenceRow, error) {
-	sqlRows, err := s.database.QueryContext(ctx, listEvidenceSQL, decisionID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = sqlRows.Close() }()
-
-	return scanEvidenceRows(sqlRows)
+	return listEvidence(ctx, s.database, decisionID)
 }
 
 func scanDecisionRows(rows db.Rows) ([]projector.ProjectionDecisionRow, error) {

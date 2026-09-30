@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery is the
@@ -164,7 +165,7 @@ func (s PostgresKubernetesPodTemplateStore) hasLiveDeclaredObjectIdentityMatch(
 		query = hasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery
 		args = append(args, array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs))
 	}
-	return queryLiveIdentityMatchExists(ctx, s.DB, query, args)
+	return queryLiveIdentityMatchExists(ctx, s.queryer(), query, args)
 }
 
 // listLiveDeclaredObjectIdentityMatches is the declared-object anchor half of
@@ -189,10 +190,25 @@ func (s PostgresKubernetesPodTemplateStore) listLiveDeclaredObjectIdentityMatche
 	}
 	args = append(args, querycontract.ServiceStoryItemLimit)
 
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	rows, err := s.queryer().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list live kubernetes pod template identity matches: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	return scanLiveIdentityMatchRows(rows)
+}
+
+// legacyKubernetesPodTemplateReader keeps database/sql constructor callers
+// compatible with the narrow cursor contract.
+type legacyKubernetesPodTemplateReader struct{ inner kubernetesPodTemplateQueryer }
+
+func (r legacyKubernetesPodTemplateReader) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return r.inner.QueryContext(ctx, query, args...)
+}
+
+func (s PostgresKubernetesPodTemplateStore) queryer() db.Queryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return legacyKubernetesPodTemplateReader{inner: s.DB}
 }

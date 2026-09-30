@@ -100,7 +100,7 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 		t.Fatalf("begin counted target resolution: %v", err)
 	}
 	counted := &countingReadinessQueryer{tx: tx}
-	target, err := resolveReadinessTarget(ctx, counted, ReadinessQuery{ImageRef: readinessMutableRef})
+	target, err := resolveReadinessTarget(ctx, readinessSQLQueryer{database: counted}, ReadinessQuery{ImageRef: readinessMutableRef})
 	if err != nil {
 		_ = tx.Rollback()
 		t.Fatalf("resolve mutable-ref target: %v", err)

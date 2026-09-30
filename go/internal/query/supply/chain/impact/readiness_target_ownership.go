@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const readinessTargetKeyOwnersQuery = `
@@ -64,7 +65,7 @@ SELECT COALESCE(BOOL_AND(
 FROM ownership
 `
 
-func validateReadinessTargetKeyOwners(ctx context.Context, database ReadinessQueryer, target readinessTarget) error {
+func validateReadinessTargetKeyOwners(ctx context.Context, database db.Queryer, target readinessTarget) error {
 	if len(target.Keys) == 0 {
 		return nil
 	}
@@ -121,7 +122,7 @@ WHERE fact.fact_kind = 'package_registry.package'
 
 func loadReadinessRegistryKeysForPackageIDs(
 	ctx context.Context,
-	database ReadinessQueryer,
+	database db.Queryer,
 	packageIDs []string,
 ) (map[string][]packageidentity.ConsumptionKey, error) {
 	keys := make(map[string][]packageidentity.ConsumptionKey, len(packageIDs))
@@ -154,7 +155,7 @@ func loadReadinessRegistryKeysForPackageIDs(
 
 func resolveReadinessPackageID(
 	ctx context.Context,
-	database ReadinessQueryer,
+	database db.Queryer,
 	packageID string,
 ) (readinessTargetPackage, error) {
 	packageID = strings.TrimSpace(packageID)

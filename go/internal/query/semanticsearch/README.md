@@ -174,3 +174,5 @@ value a test can swap in, never the name production records under.
 
 - [HTTP API Reference](../../../../docs/public/reference/http-api.md)
 - [Telemetry](../../../../docs/public/reference/telemetry/index.md)
+
+`NewPostgresSemanticSearchIndexStoreWithReadStore` uses one guarded query-only connection for persisted-index ranking and active curated documents. The legacy `*sql.DB` constructor remains.

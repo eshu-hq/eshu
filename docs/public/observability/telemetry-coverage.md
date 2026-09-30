@@ -1,11 +1,7 @@
 # Telemetry Coverage Contract
 
-This page enumerates every observable stage in the Eshu data plane and the metric, span, or log key it must emit. It is the single
-source of truth that the CI coverage script (X2) diffs against. A new pipeline stage added to the source tree without a corresponding
-entry here fails the coverage gate. The five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`,
-`No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`) at `docs/internal/agent-guide.md:120-146` remains
-the per-PR discipline; this doc makes that discipline machine-enforced. Metric names match `go/internal/telemetry/instruments.go`;
-dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator contract is `docs/public/reference/telemetry/index.md`. The schema migration `bootstrap.postgres.migration.lock_wait` and `lock_recovered` events remain the operator signals; `budget_left_ms` reports the remaining shared allowance after failed-attempt time and backoff, excludes successful migration time, and is not a strict server-side deadline because PostgreSQL applies `lock_timeout` per lock acquisition.
+This page enumerates every observable stage in the Eshu data plane and the metric, span, or log key it must emit. It is the single source of truth that the CI coverage script (X2) diffs against. A new pipeline stage added to the source tree without a corresponding entry here fails the coverage gate. The five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`,
+`No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`) at `docs/internal/agent-guide.md:120-146` remains the per-PR discipline; this doc makes that discipline machine-enforced. Metric names match `go/internal/telemetry/instruments.go`; dimensions, span names, and log keys match `go/internal/telemetry/contract.go` and the per-family files under `go/internal/telemetry/contract/` (plus its `observability/` and `thirdparty/` subpackages). The public operator contract is `docs/public/reference/telemetry/index.md`. The schema migration `bootstrap.postgres.migration.lock_wait` and `lock_recovered` events remain the operator signals; `budget_left_ms` reports the remaining shared allowance after failed-attempt time and backoff, excludes successful migration time, and is not a strict server-side deadline because PostgreSQL applies `lock_timeout` per lock acquisition.
 
 ## How To Read This Doc
 
@@ -802,6 +798,10 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 | go runtime memory limit | go/cmd/ingester/main.go:61 | `eshu_dp_gomemlimit_bytes` | queue runtime |
 | reducer graph-write-timeout retrying | go/internal/storage/postgres/queue_observer.go:168 | `eshu_dp_queue_depth`, `eshu_dp_graph_write_backpressure_engaged_total` | queue runtime |
 | workflow run terminal dead-letter block | go/internal/storage/postgres/workflow_run_reconciliation.go (recordTerminalDeadLetterBlocks) | `eshu_dp_workflow_run_terminal_dead_letter_blocks_total` | queue runtime |
+| composite runtime metrics scrape | go/internal/runtime/metrics_handler.go (compositeMetricsHandler.ServeHTTP) | `eshu_dp_status_snapshot_read_duration_seconds` (registered status-read duration) and `eshu_runtime_status_snapshot_available` (per-response Prometheus gauge; intentionally not an OTEL instrument because concurrent scrapes can have different outcomes) | status query |
+| PostgreSQL status snapshot transaction | go/internal/runtime/postgres/status_reader.go | `postgres.status_snapshot` span records closed `phase` and `outcome` attributes for bounded full and filtered reads, including terminal failures; status query timing remains `eshu_dp_status_snapshot_read_duration_seconds`. | status query |
+| API/MCP PostgreSQL reader access | go/internal/runtime/postgres/telemetry.go | `eshu_dp_postgres_reader_stage_duration_seconds` (`role`, `stage`, `outcome`); `eshu_dp_postgres_reader_pool_connections` (`role`, `state`); `eshu_dp_postgres_reader_pool_waits_total` (`role`); `eshu_dp_postgres_reader_pool_wait_duration_seconds` (`role`). API/MCP wiring emits these signals; deployed performance remains unmeasured. | query runtime |
+| PostgreSQL reader metric names | go/internal/runtime/postgres/telemetry_contract.go | `eshu_dp_postgres_reader_stage_duration_seconds`, `eshu_dp_postgres_reader_pool_connections`, `eshu_dp_postgres_reader_pool_waits_total`, `eshu_dp_postgres_reader_pool_wait_duration_seconds` (contract constants used by reader access). | query runtime |
 | status snapshot reads (#6794) | go/internal/storage/postgres/status_read_telemetry.go (StatusStore.read) | `eshu_dp_status_snapshot_read_duration_seconds` | status query |
 
 <!-- eshu:metric:section=api-lifecycle -->

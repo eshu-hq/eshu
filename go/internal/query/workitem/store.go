@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type workItemEvidenceQueryer interface {
@@ -23,7 +24,8 @@ type workItemEvidenceQueryer interface {
 // Package query keeps this type available as PostgresWorkItemEvidenceStore
 // through a type alias in work_item_alias.go (#6642).
 type PostgresEvidenceStore struct {
-	DB workItemEvidenceQueryer
+	DB     workItemEvidenceQueryer
+	reader db.Queryer
 }
 
 // NewPostgresEvidenceStore creates a Postgres-backed work-item evidence
@@ -32,6 +34,18 @@ type PostgresEvidenceStore struct {
 // (#6642).
 func NewPostgresEvidenceStore(db workItemEvidenceQueryer) PostgresEvidenceStore {
 	return PostgresEvidenceStore{DB: db}
+}
+
+// NewPostgresEvidenceStoreWithReadStore reads work-item facts through a guarded
+// query-only port.
+func NewPostgresEvidenceStoreWithReadStore(reader db.Queryer) PostgresEvidenceStore {
+	return PostgresEvidenceStore{reader: reader}
+}
+
+type legacyWorkItemQueryer struct{ database workItemEvidenceQueryer }
+
+func (q legacyWorkItemQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.database.QueryContext(ctx, query, args...)
 }
 
 // ListWorkItemEvidence returns one bounded page of active work-item source
@@ -45,7 +59,7 @@ func (s PostgresEvidenceStore) ListWorkItemEvidence(
 	filter EvidenceFilter,
 ) (EvidencePage, error) {
 	filter = normalizeWorkItemEvidenceFilter(filter)
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return EvidencePage{}, fmt.Errorf("work-item evidence database is required")
 	}
 	if !filter.hasScope() {
@@ -55,7 +69,11 @@ func (s PostgresEvidenceStore) ListWorkItemEvidence(
 		return EvidencePage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", evidenceMaxLimit+1)
 	}
 
-	rows, err := s.DB.QueryContext(
+	queryer := s.reader
+	if queryer == nil {
+		queryer = legacyWorkItemQueryer{database: s.DB}
+	}
+	rows, err := queryer.QueryContext(
 		ctx,
 		listWorkItemEvidenceQuery,
 		array.Of(EvidenceFactKinds),

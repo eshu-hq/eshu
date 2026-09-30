@@ -60,10 +60,10 @@ evidence).
 
 ## Exported symbols and why each is exported
 
-- `PostgresStore`, `NewPostgresStore` -- root's type alias and constructor
+- `PostgresStore`, `NewPostgresStore`, `NewPostgresStoreWithReadStore` -- root's type alias and constructor
   forwarder in `compat_supply_chain.go`, which `cmd/api` and
   `cmd/mcp-server` wiring call.
-- `PostgresAggregateStore`, `NewPostgresAggregateStore` -- same, for the
+- `PostgresAggregateStore`, `NewPostgresAggregateStore`, `NewPostgresAggregateStoreWithReadStore` -- same, for the
   aggregate store.
 - `Queryer`, `AggregateQueryer` -- the constructor parameter types; callers
   are the root forwarders above plus, transitively, `cmd/api`/

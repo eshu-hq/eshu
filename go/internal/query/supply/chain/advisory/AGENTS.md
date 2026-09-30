@@ -60,7 +60,8 @@ not export a new symbol without adding its caller to this list.
   the root alias forwarders, and `cmd/*` wiring name.
 - `FormatNullTime` — the staying root work-item evidence store.
 - `SetToSortedSlice` — the staying root work-item evidence state helper.
-- Store/filter/row types, store structs, and constructors — the staying
+- Store/filter/row types, store structs, and constructors (including
+  `NewPostgresCatalogStoreWithReadStore` for direct `cmd/*` reader wiring) — the staying
   root handlers (`SupplyChainHandler` fields), vulnerability-detail
   handler, tests, and `cmd/*` wiring via the root aliases.
 

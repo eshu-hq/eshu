@@ -213,6 +213,7 @@ type EshuSearchVectorStatus struct {
 // generation vector state without touching API/MCP runtime behavior.
 type EshuSearchVectorMetadataStore struct {
 	database db.ExecQueryer
+	reader   db.Queryer
 }
 
 // EshuSearchVectorMetadataSchemaSQL returns the Postgres DDL for vector
@@ -271,7 +272,11 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 	ctx context.Context,
 	filter EshuSearchVectorMetadataFilter,
 ) ([]EshuSearchVectorMetadata, error) {
-	if s.database == nil {
+	reader := s.reader
+	if reader == nil {
+		reader = s.database
+	}
+	if reader == nil {
 		return nil, fmt.Errorf("eshu search vector metadata database is required")
 	}
 	filter = normalizeEshuSearchVectorMetadataFilter(filter)
@@ -288,7 +293,7 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 	}
 	args = append(args, filter.Limit)
 
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	rows, err := reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search vector metadata: %w", err)
 	}
@@ -314,7 +319,11 @@ func (s EshuSearchVectorMetadataStore) Status(
 	ctx context.Context,
 	req EshuSearchVectorStatusRequest,
 ) (EshuSearchVectorStatus, error) {
-	if s.database == nil {
+	reader := s.reader
+	if reader == nil {
+		reader = s.database
+	}
+	if reader == nil {
 		return EshuSearchVectorStatus{}, fmt.Errorf("eshu search vector metadata database is required")
 	}
 	req = normalizeEshuSearchVectorStatusRequest(req)
@@ -322,7 +331,7 @@ func (s EshuSearchVectorMetadataStore) Status(
 		return EshuSearchVectorStatus{}, err
 	}
 
-	rows, err := s.database.QueryContext(
+	rows, err := reader.QueryContext(
 		ctx,
 		eshuSearchVectorStatusSQL,
 		req.ScopeID,
@@ -396,4 +405,36 @@ func scanEshuSearchVectorMetadata(rows db.Rows) (EshuSearchVectorMetadata, error
 		row.LastSuccessAt = &lastSuccess.Time
 	}
 	return row, nil
+}
+
+// EshuSearchVectorMetadataReader exposes active vector metadata and status reads
+// without granting the caller a SQL write method.
+type EshuSearchVectorMetadataReader struct{ store EshuSearchVectorMetadataStore }
+
+// NewEshuSearchVectorMetadataReader binds active metadata reads to a query-only connection.
+func NewEshuSearchVectorMetadataReader(reader db.Queryer) EshuSearchVectorMetadataReader {
+	return EshuSearchVectorMetadataReader{store: EshuSearchVectorMetadataStore{reader: reader}}
+}
+
+// ListActive returns active-generation metadata using the bounded store query.
+func (r EshuSearchVectorMetadataReader) ListActive(ctx context.Context, filter EshuSearchVectorMetadataFilter) ([]EshuSearchVectorMetadata, error) {
+	return r.store.ListActive(ctx, filter)
+}
+
+// Status returns active-generation vector build-state counts.
+func (r EshuSearchVectorMetadataReader) Status(ctx context.Context, req EshuSearchVectorStatusRequest) (EshuSearchVectorStatus, error) {
+	return r.store.Status(ctx, req)
+}
+
+// EshuSearchVectorValueReader exposes active vector values without a SQL write method.
+type EshuSearchVectorValueReader struct{ store EshuSearchVectorValueStore }
+
+// NewEshuSearchVectorValueReader binds active vector-value reads to a query-only connection.
+func NewEshuSearchVectorValueReader(reader db.Queryer) EshuSearchVectorValueReader {
+	return EshuSearchVectorValueReader{store: EshuSearchVectorValueStore{reader: reader}}
+}
+
+// ListActive returns active-generation values using the bounded store query.
+func (r EshuSearchVectorValueReader) ListActive(ctx context.Context, filter EshuSearchVectorValueFilter) ([]EshuSearchVectorValue, error) {
+	return r.store.ListActive(ctx, filter)
 }

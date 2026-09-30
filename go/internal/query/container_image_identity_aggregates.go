@@ -10,17 +10,36 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // PostgresContainerImageIdentityAggregateStore reads aggregate counts directly
 // from reducer-owned container image identity facts.
 type PostgresContainerImageIdentityAggregateStore struct {
-	DB containerImageIdentityAggregateQueryer
+	DB     containerImageIdentityAggregateQueryer
+	reader aggregateReadQueryer
 }
 
 type containerImageIdentityAggregateQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type aggregateReadQueryer interface {
+	db.Queryer
+	db.RowQueryer
+}
+
+type sqlAggregateQueryer struct {
+	inner containerImageIdentityAggregateQueryer
+}
+
+func (q sqlAggregateQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(ctx, query, args...)
+}
+
+func (q sqlAggregateQueryer) QueryRowContext(ctx context.Context, query string, args ...any) db.Row {
+	return q.inner.QueryRowContext(ctx, query, args...)
 }
 
 // NewPostgresContainerImageIdentityAggregateStore creates the Postgres-backed
@@ -31,13 +50,26 @@ func NewPostgresContainerImageIdentityAggregateStore(
 	return PostgresContainerImageIdentityAggregateStore{DB: db}
 }
 
+// NewPostgresContainerImageIdentityAggregateStoreWithReadStore routes aggregates through a
+// guarded query-only reader.
+func NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader db.ReadStore) PostgresContainerImageIdentityAggregateStore {
+	return PostgresContainerImageIdentityAggregateStore{reader: reader}
+}
+
+func (s PostgresContainerImageIdentityAggregateStore) queryer() aggregateReadQueryer {
+	if s.reader != nil {
+		return s.reader
+	}
+	return sqlAggregateQueryer{inner: s.DB}
+}
+
 // CountContainerImageIdentities returns the cheap-summary totals envelope for
 // the scoped identity slice.
 func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentities(
 	ctx context.Context,
 	filter ContainerImageIdentityAggregateFilter,
 ) (ContainerImageIdentityAggregateCount, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return ContainerImageIdentityAggregateCount{}, fmt.Errorf("container image identity aggregate database is required")
 	}
 
@@ -50,7 +82,7 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 		array.Of(filter.AllowedSourceRepositoryIDs),
 	}
 
-	row := s.DB.QueryRowContext(ctx, containerImageIdentityAggregateTotalQuery, args...)
+	row := s.queryer().QueryRowContext(ctx, containerImageIdentityAggregateTotalQuery, args...)
 	var total sql.NullInt64
 	if err := row.Scan(&total); err != nil {
 		return ContainerImageIdentityAggregateCount{}, fmt.Errorf("count container image identities: %w", err)
@@ -77,7 +109,7 @@ func (s PostgresContainerImageIdentityAggregateStore) fillBuckets(
 	dst map[string]int,
 ) error {
 	q := fmt.Sprintf(containerImageIdentityAggregateGroupQueryTemplate, groupExpr)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
+	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("group container image identities: %w", err)
 	}
@@ -103,7 +135,7 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 	limit int,
 	offset int,
 ) ([]ContainerImageIdentityInventoryRow, error) {
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return nil, fmt.Errorf("container image identity aggregate database is required")
 	}
 	groupExpr, err := containerImageIdentityInventoryGroupExpression(dimension)
@@ -122,7 +154,7 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 	if dimension != ContainerImageIdentityInventoryByRepository {
 		q = fmt.Sprintf(containerImageIdentityCanonicalInventoryQueryTemplate, groupExpr)
 	}
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		q,
 		filter.Digest,

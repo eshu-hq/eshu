@@ -6,7 +6,6 @@ package query //nolint:dirgate // B3 stayer for #6060: methods on the root Conte
 import (
 	"context"
 	"crypto/sha1" // #nosec G505 -- non-cryptographic stable evidence artifact ID digest, not a security primitive
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // repositoryDeploymentEvidenceReadModel is the shared read model, aliased so
@@ -125,7 +125,7 @@ ORDER BY r.direction, r.relationship_type, source_name, target_name, r.resolved_
 LIMIT $2
 `
 
-func scanRepositoryDeploymentEvidenceRows(rows *sql.Rows, repoID string) ([]map[string]any, error) {
+func scanRepositoryDeploymentEvidenceRows(rows db.Rows, repoID string) ([]map[string]any, error) {
 	var (
 		direction        string
 		resolvedID       string

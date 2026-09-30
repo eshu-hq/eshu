@@ -6,10 +6,13 @@ package secrets
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -237,5 +240,56 @@ func TestSecretsIAMPostureStoresRejectNilDBAndUnboundedScope(t *testing.T) {
 	); err == nil ||
 		!strings.Contains(err.Error(), "is required") {
 		t.Fatalf("posture gap unbounded-scope error = %v", err)
+	}
+}
+
+type rejectingSecretsReader struct {
+	calls int
+	err   error
+}
+
+func (r *rejectingSecretsReader) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	r.calls++
+	return nil, r.err
+}
+
+func TestSecretsIAMGuardedReadPorts(t *testing.T) {
+	want := errors.New("reader stale")
+	for _, tc := range []struct {
+		name string
+		call func(*rejectingSecretsReader) error
+	}{
+		{"trust", func(reader *rejectingSecretsReader) error {
+			store := NewPostgresIAMIdentityTrustChainStoreWithReadStore(reader)
+			_, err := store.ListSecretsIAMIdentityTrustChains(t.Context(), IAMIdentityTrustChainFilter{ScopeID: "scope", Limit: 1})
+			return err
+		}},
+		{"privilege", func(reader *rejectingSecretsReader) error {
+			store := NewPostgresIAMPrivilegePostureObservationStoreWithReadStore(reader)
+			_, err := store.ListSecretsIAMPrivilegePostureObservations(t.Context(), IAMPrivilegePostureObservationFilter{ScopeID: "scope", Limit: 1})
+			return err
+		}},
+		{"path", func(reader *rejectingSecretsReader) error {
+			store := NewPostgresIAMSecretAccessPathStoreWithReadStore(reader)
+			_, err := store.ListSecretsIAMSecretAccessPaths(t.Context(), IAMSecretAccessPathFilter{ScopeID: "scope", Limit: 1})
+			return err
+		}},
+		{"gap", func(reader *rejectingSecretsReader) error {
+			store := NewPostgresIAMPostureGapStoreWithReadStore(reader)
+			_, err := store.ListSecretsIAMPostureGaps(t.Context(), IAMPostureGapFilter{ScopeID: "scope", Limit: 1})
+			return err
+		}},
+		{"summary", func(reader *rejectingSecretsReader) error {
+			store := NewPostgresIAMPostureSummaryStoreWithReadStore(reader)
+			_, err := store.SummarizeSecretsIAMPosture(t.Context(), "scope")
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := &rejectingSecretsReader{err: want}
+			if err := tc.call(reader); !errors.Is(err, want) || reader.calls != 1 {
+				t.Fatalf("error %v, calls %d", err, reader.calls)
+			}
+		})
 	}
 }

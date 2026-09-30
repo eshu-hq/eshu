@@ -6,11 +6,14 @@ package registry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type recordingPackageRegistryCorrelationStore struct {
@@ -419,5 +422,25 @@ func TestDecodePackageRegistryCorrelationRowDropsMissingPackageID(t *testing.T) 
 	}
 	if ok {
 		t.Fatalf("decodePackageRegistryCorrelationRow: ok = true, want false for a fact missing package_id; got = %#v", got)
+	}
+}
+
+type rejectingRegistryReader struct {
+	calls int
+	err   error
+}
+
+func (r *rejectingRegistryReader) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	r.calls++
+	return nil, r.err
+}
+
+func TestCorrelationGuardedReadPort(t *testing.T) {
+	want := errors.New("reader stale")
+	reader := &rejectingRegistryReader{err: want}
+	store := NewPostgresCorrelationStoreWithReadStore(reader)
+	_, err := store.ListPackageRegistryCorrelations(t.Context(), CorrelationFilter{PackageID: "pkg:x", Limit: 1})
+	if !errors.Is(err, want) || reader.calls != 1 {
+		t.Fatalf("error %v, calls %d", err, reader.calls)
 	}
 }

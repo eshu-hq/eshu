@@ -68,6 +68,14 @@ the staying code family still uses.
   4,096 bytes and adds the response clip markers (#7171).
 - `doc.go`, `AGENTS.md` — package contract and per-symbol export list.
 
+## PostgreSQL read access
+
+`NewPostgresCodeFlowStoreWithReadStore(db.Queryer)` accepts the guarded API/MCP
+reader. Every code-flow SQL read uses that port; a freshness refusal propagates
+without a writer fallback. The legacy constructor retains its SQL queryer
+contract. SQL, argument normalization, ordering, decoding, limits, and existing
+handler telemetry remain unchanged.
+
 ## Verification
 
 ```bash

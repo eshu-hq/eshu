@@ -3,7 +3,7 @@
 ## Purpose
 
 `cmd/api` is the entry point for the `eshu-api` binary. It boots OTEL telemetry,
-opens a Postgres connection and an optional graph driver, wires all query handlers
+opens writer and guarded reader pools plus an optional graph driver, wires all query handlers
 through `internal/query`, mounts the shared runtime admin surface, wraps the
 combined mux with shared bearer-token, scoped-token, and dashboard
 browser-session authentication, and listens for HTTP traffic until `SIGINT` or
@@ -30,7 +30,7 @@ flowchart TB
   B --> C["wireAPI(ctx, os.Getenv, ...)"]
   C --> D["loadQueryProfile\nloadGraphBackend"]
   D --> E["openQueryGraph\n(optional Neo4j/NornicDB driver)"]
-  E --> F["sql.Open + PingContext\n(Postgres)"]
+  E --> F["postgres.Open\n(writer + guarded reader)"]
   F --> G["query.NewNeo4jReader\nquery.NewContentReader"]
   G --> H["newRouter\n(builds query.APIRouter)"]
   H --> I["apiMux := http.NewServeMux\nrouter.Mount(apiMux)"]
@@ -54,14 +54,18 @@ semantic-search embedder selector, opens the
 graph driver via `openQueryGraph` (skipped when
 `ESHU_QUERY_PROFILE=local_lightweight`), opens and pings Postgres, then calls
 `newRouter` to build the `query.APIRouter` with all handler structs wired to the
-concrete `query.Neo4jReader` and `query.ContentReader` adapters. The API and
-runtime admin surfaces share the same decorated status reader so semantic
-provider profile status stays redacted and policy-gated consistently. The
+concrete `query.Neo4jReader` and `query.ContentReader` adapters. Business
+Postgres queries, semantic index and vector reads, freshness, status, and
+bounded admin inspections use a guarded read store. Identity and auth state,
+recovery, and supply-chain suppression mutations use the writer. The read and
+write roles may point to the same Postgres instance. The API and runtime admin
+surfaces share the same decorated status reader so semantic provider profile
+status stays redacted and policy-gated consistently. The
 supply-chain handler also wires
-`AdvisoryEvidence` to `query.NewPostgresAdvisoryEvidenceStore` so source-only
+`AdvisoryEvidence` to the guarded advisory evidence reader so source-only
 advisory evidence is available through the API without requiring graph access.
 `EvidenceHandler.AdmissionDecisions` is wired to
-`query.NewPostgresAdmissionDecisionReadStore` so correlation admission outcomes
+the guarded admission-decision reader so correlation admission outcomes
 can be read back without graph traversal.
 `IncidentHandler` and `WorkItemHandler` wire Postgres-backed incident context
 and Jira/work-item source evidence reads so on-call and ticket-first surfaces
@@ -137,6 +141,35 @@ See `doc.go` for the full godoc contract.
   `NewLoggerWithWriter`
 
 ## Configuration
+
+### PostgreSQL read routing
+
+`ESHU_POSTGRES_DSN` is the writer endpoint; the legacy
+`ESHU_CONTENT_STORE_DSN` fallback remains supported. Optional
+`ESHU_POSTGRES_READ_DSN` supplies reader hosts. Omit it, or assign both settings
+exactly the same DSN, for one database with separate writer and read-only pools.
+Native pgx host lists share each pool's budget rather than allocating a pool
+per host. Writer candidates must resolve to one accepted primary; independent
+writable databases are outside this contract.
+
+`ESHU_POSTGRES_MAX_OPEN_CONNS` and `ESHU_POSTGRES_MAX_IDLE_CONNS` are totals
+across both pools (defaults 30 and 10). Optional
+`ESHU_POSTGRES_READ_MAX_OPEN_CONNS` and
+`ESHU_POSTGRES_READ_MAX_IDLE_CONNS` allocate the reader share; the writer gets
+the remainder. Optional `ESHU_POSTGRES_EXPECTED_SYSTEM_ID` pins the accepted
+physical PostgreSQL cluster. Both open allocations must be positive.
+
+Authorization and required committed writes precede a bounded writer WAL
+checkpoint. Every business SQL operation fences its actual reader connection
+against that checkpoint. Lag, unavailable readers, and topology mismatches
+return errors without switching business reads to the writer. Trusted runtime
+status, metrics, and readiness capture their own checkpoints; health remains
+independent of the database. Primary restart requires an explicit, verified
+runtime recovery rather than automatic acceptance of a new incarnation.
+
+See [PostgreSQL read routing](../../../docs/public/deployment/postgres-read-routing.md)
+for consistency, permissions, multiple hosts, and qualification limits.
+
 
 - `ESHU_API_ADDR` — listen address, default `:8080`
 - `ESHU_POSTGRES_DSN` (or legacy `ESHU_CONTENT_STORE_DSN`) — required

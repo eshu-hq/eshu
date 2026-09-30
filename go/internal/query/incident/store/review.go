@@ -66,7 +66,7 @@ func (s PostgresIncidentContextStore) readIncidentPullRequestsByCommit(
 	ctx context.Context,
 	commitSHA string,
 ) ([]incidentPullRequestEvidence, error) {
-	rows, err := s.DB.QueryContext(
+	rows, err := s.queryer().QueryContext(
 		ctx,
 		incidentsql.ListPullRequestsByCommitQuery,
 		commitSHA,

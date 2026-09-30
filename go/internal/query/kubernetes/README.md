@@ -86,3 +86,7 @@ metric or log changes.
 ## Related docs
 
 - [Remote validation](../../../../docs/internal/remote-validation/prod-kubernetes-correlations.md)
+
+The correlation and runtime-workload stores expose `WithReadStore` constructors
+that accept guarded query-only readers. The existing constructors preserve
+legacy SQL callers.

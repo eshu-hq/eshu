@@ -5,10 +5,10 @@ package query
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -118,7 +118,7 @@ func (cr *ContentReader) ListRepoEntitiesByTypes(ctx context.Context, repoID str
 // error is wrapped with errContext so callers keep a distinct message per
 // query site. Shared by ListRepoEntities, ListRepoEntitiesByType, and
 // ListRepoEntitiesByTypes, which scan an identical column shape.
-func scanEntityContentRows(rows *sql.Rows, span trace.Span, errContext string) ([]EntityContent, error) {
+func scanEntityContentRows(rows db.Rows, span trace.Span, errContext string) ([]EntityContent, error) {
 	var results []EntityContent
 	for rows.Next() {
 		var e EntityContent

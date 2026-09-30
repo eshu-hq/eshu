@@ -20,7 +20,8 @@ write methods outside this package's own tests.
 
 ## Exported surface
 
-- `DecisionStore` with `NewDecisionStore(database db.ExecQueryer)`.
+- `DecisionStore` with `NewDecisionStore(database db.ExecQueryer)` for writes and compatibility reads.
+- `DecisionReader` with `NewDecisionReader(database db.Queryer)` for bounded API and MCP reads without write capability.
 - `EnsureSchema`, `UpsertDecision`, `InsertEvidence`, `ListDecisions`,
   `ListEvidence`.
 - `DecisionFilter` bounds `ListDecisions` by repository, source run, an

@@ -31,7 +31,7 @@ envelope helpers (`querycontract`), or the classified decode-error type
   `startQueryHandlerSpan`), the same shape the other leaves keep in their
   `handler_tracing.go`.
 - `scope.go` -- the empty-grant bounded zero-evidence page writer.
-- `store.go` -- `PostgresEvidenceStore`, `NewPostgresEvidenceStore`, and the
+- `store.go` -- `PostgresEvidenceStore`, `NewPostgresEvidenceStore and NewPostgresEvidenceStoreWithReadStore`, and the
   Postgres row-scan/pagination loop.
 - `sql.go` -- `listWorkItemEvidenceQuery`, the scoped-token grant-bound SQL.
 - `page.go` -- `EvidencePage` and `buildWorkItemEvidencePage`, the #4733

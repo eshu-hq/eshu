@@ -22,19 +22,19 @@ const (
 
 // DeadLetterListHandler mounts only the bounded dead-letter read surface.
 type DeadLetterListHandler struct {
-	Store Store
+	Store ReadStore
 }
 
 // Mount registers the dead-letter list read without exposing admin mutations.
 func (h *DeadLetterListHandler) Mount(mux *http.ServeMux) {
-	admin := &Handler{Store: h.Store}
+	admin := &Handler{ReadStore: h.Store}
 	mux.HandleFunc("POST /api/v0/admin/dead-letters/query", admin.listDeadLetters)
 }
 
 // listDeadLetters returns a bounded, scoped page of durable dead-letter rows.
 // POST /api/v0/admin/dead-letters/query
 func (h *Handler) listDeadLetters(w http.ResponseWriter, r *http.Request) {
-	if h.Store == nil {
+	if h.readStore() == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
 		return
 	}
@@ -107,7 +107,7 @@ func (h *Handler) listDeadLetters(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 
-	items, err := h.Store.ListDeadLetterWorkItems(ctx, filter)
+	items, err := h.readStore().ListDeadLetterWorkItems(ctx, filter)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			querycontract.WriteError(w, http.StatusGatewayTimeout, "dead-letter query timed out")

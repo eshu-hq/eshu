@@ -16,7 +16,14 @@ the same primary when the DSNs are exactly equal. A new Access bootstrap is
 required after writer restart. Promotion, proxies, Aurora, and split-brain
 handling need separate proof. `ReadTransaction` owns its borrowed connection
 until Commit, Rollback, or cancellation; a cursor only closes its own rows.
+Snapshot cursor Scan must reject any `*sql.RawBytes` destination before touching
+other destinations, close through its public Close, and preserve Close errors.
 Use the owned disposable PostgreSQL fixture for physical replay tests; do not
 point write tests at ops-qa. Coordinate fixture use with other agents. Run the
 package tests with and without `-race`; classify a new `*_live_test.go` in the
 live-test ledger in the same change.
+
+Live candidate and restart tests require explicit owned fixture environment
+variables documented in README.md. Never hardcode a session host, port, or
+container target in committed tests. A restart test must first prove a fresh
+Access is ready, then require the old Access to reject the new incarnation.

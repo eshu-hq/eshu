@@ -27,6 +27,16 @@ root's `NewPostgresIncidentContextStore` forwarder builds the production
 concretes, and a nil port fails its read loudly instead of thinning the
 evidence path silently.
 
+## PostgreSQL read access
+
+`NewStoreWithReadStore(db.Queryer)` and
+`NewPostgresIncidentRepositoryAuthorizerWithReadStore(db.Queryer)` accept a
+guarded business reader. Anchor, timeline, routing, review, and durable owning
+repository reads use this port. Injected catalog, CI/CD, and image readers must
+also use guarded ports. Freshness errors propagate without querying the writer.
+Legacy constructors and all SQL, result shaping, tenant/repository scope gates,
+limits, and stage telemetry remain unchanged.
+
 ## Move evidence
 
 The family moved here verbatim from the query root (`incident_context_*`

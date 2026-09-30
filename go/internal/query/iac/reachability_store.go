@@ -8,6 +8,7 @@ import (
 	"database/sql"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iac"
 )
 
@@ -21,6 +22,12 @@ type PostgresIaCReachabilityStore struct {
 // IaC reachability table.
 func NewPostgresIaCReachabilityStore(db *sql.DB) *PostgresIaCReachabilityStore {
 	return &PostgresIaCReachabilityStore{store: iacstore.NewIaCReachabilityStore(postgres.SQLDB{DB: db})}
+}
+
+// NewPostgresIaCReachabilityStoreWithReadStore reads materialized reachability
+// through a guarded query-only connection.
+func NewPostgresIaCReachabilityStoreWithReadStore(reader db.Queryer) *PostgresIaCReachabilityStore {
+	return &PostgresIaCReachabilityStore{store: iacstore.NewIaCReachabilityReader(reader)}
 }
 
 // ListLatestCleanupFindings returns active-generation cleanup rows for the

@@ -5,9 +5,10 @@ package query
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // RelationshipEvidenceByResolvedID hydrates a compact graph evidence pointer
@@ -104,7 +105,7 @@ WHERE r.resolved_id = $1
 LIMIT 1
 `
 
-func scanRelationshipEvidenceByResolvedID(rows *sql.Rows) (map[string]any, error) {
+func scanRelationshipEvidenceByResolvedID(rows db.Rows) (map[string]any, error) {
 	var (
 		resolvedID       string
 		generationID     string

@@ -321,45 +321,13 @@ func (s *AdmissionDecisionStore) InsertEvidence(ctx context.Context, rows []Admi
 // ListDecisions returns persisted admission decisions for one bounded domain,
 // scope, and generation.
 func (s *AdmissionDecisionStore) ListDecisions(ctx context.Context, f AdmissionDecisionFilter) ([]AdmissionDecision, error) {
-	if err := validateAdmissionDecisionFilter(f); err != nil {
-		return nil, err
-	}
-	state := ""
-	if f.State != nil {
-		state = string(*f.State)
-	}
-	rows, err := s.database.QueryContext(
-		ctx, listAdmissionDecisionsSQL,
-		f.Domain,
-		f.ScopeID,
-		f.GenerationID,
-		state,
-		f.AnchorKind,
-		f.AnchorID,
-		admissionDecisionLimit(f.Limit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("query admission decisions: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	return scanAdmissionDecisionRows(rows)
+	return listAdmissionDecisions(ctx, s.database, f)
 }
 
 // ListEvidence returns a bounded page of persisted evidence rows for one
 // admission decision.
-func (s *AdmissionDecisionStore) ListEvidence(
-	ctx context.Context,
-	decisionID string,
-	limit int,
-) ([]AdmissionDecisionEvidence, error) {
-	rows, err := s.database.QueryContext(ctx, listAdmissionDecisionEvidenceSQL, decisionID, admissionDecisionLimit(limit))
-	if err != nil {
-		return nil, fmt.Errorf("query admission decision evidence: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	return scanAdmissionDecisionEvidenceRows(rows)
+func (s *AdmissionDecisionStore) ListEvidence(ctx context.Context, decisionID string, limit int) ([]AdmissionDecisionEvidence, error) {
+	return listAdmissionDecisionEvidence(ctx, s.database, decisionID, limit)
 }
 
 func scanAdmissionDecisionRows(rows db.Rows) ([]AdmissionDecision, error) {

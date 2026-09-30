@@ -179,3 +179,5 @@ seam root's `handler_tracing.go` used before the move (see
 `http.route`/`eshu.capability` attributes are unchanged. The nine capability
 IDs and the two capability-string mirrors carry the identical string values
 root registered before the move.
+
+Inventory, reachability, and AWS management readers expose `WithReadStore` constructors that accept guarded query-only connections. The existing constructors retain legacy SQL callers.

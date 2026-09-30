@@ -8,7 +8,7 @@ This leaf owns the source-only work-item evidence read route (#6642):
 `evidence.go` (`EvidenceStore`, `EvidenceFilter`, `EvidenceRow`, decode
 dispatch), `handler.go` (`Handler`, `Mount`, dispatch), `handler_tracing.go`
 (the span seam), `scope.go` (the empty-grant page writer), `store.go`
-(`PostgresEvidenceStore`), `sql.go` (`listWorkItemEvidenceQuery`), `page.go`
+(`PostgresEvidenceStore` and `NewPostgresEvidenceStoreWithReadStore`), `sql.go` (`listWorkItemEvidenceQuery`), `page.go`
 (`EvidencePage`, pagination), `read_kinds.go` (`EvidenceFactKinds`),
 `state.go` (evidence-state classification), `factschema_decode.go` (the nine
 `work_item.*` typed decode wrappers), and `capability.go`

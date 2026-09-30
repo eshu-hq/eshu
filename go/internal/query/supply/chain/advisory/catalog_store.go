@@ -10,20 +10,27 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // PostgresCatalogStore reads a bounded, browsable page of canonical
 // vulnerability advisories from active vulnerability source facts. It reuses the
-// advisory evidence queryer seam so the catalog and detail read models share one
-// Postgres connection contract.
+// legacy advisory evidence queryer seam. The read-store constructor uses a
+// query-only connection instead.
 type PostgresCatalogStore struct {
-	DB EvidenceQueryer
+	DB     EvidenceQueryer
+	reader db.Queryer
 }
 
 // NewPostgresCatalogStore creates the Postgres-backed catalog read
 // model.
 func NewPostgresCatalogStore(db EvidenceQueryer) PostgresCatalogStore {
 	return PostgresCatalogStore{DB: db}
+}
+
+// NewPostgresCatalogStoreWithReadStore routes catalog queries through a guarded query-only port.
+func NewPostgresCatalogStoreWithReadStore(reader db.Queryer) PostgresCatalogStore {
+	return PostgresCatalogStore{reader: reader}
 }
 
 // ListAdvisoryCatalog returns one bounded page of catalog rows ordered by
@@ -34,13 +41,17 @@ func (s PostgresCatalogStore) ListAdvisoryCatalog(
 	filter CatalogFilter,
 ) (CatalogPage, error) {
 	filter = NormalizeCatalogFilter(filter)
-	if s.DB == nil {
+	if s.DB == nil && s.reader == nil {
 		return CatalogPage{}, fmt.Errorf("advisory catalog database is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > CatalogMaxLimit+1 {
 		return CatalogPage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", CatalogMaxLimit+1)
 	}
-	rows, err := s.DB.QueryContext(
+	queryer := s.reader
+	if queryer == nil {
+		queryer = legacyEvidenceQueryer{database: s.DB}
+	}
+	rows, err := queryer.QueryContext(
 		ctx,
 		ListCatalogQuery,
 		filter.Severity,

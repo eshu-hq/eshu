@@ -5,10 +5,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestMultiCloudRuntimeDriftFindingStoreListsActiveScopedFindings(t *testing.T) {
@@ -157,5 +160,25 @@ func TestMultiCloudRuntimeDriftFindingStoreRequiresDatabase(t *testing.T) {
 		MultiCloudRuntimeDriftFindingFilter{ScopeID: "gcp:proj:z"},
 	); err == nil {
 		t.Fatal("ListActiveFindings() error = nil, want missing database error")
+	}
+}
+
+type rejectingMultiCloudDriftReader struct {
+	calls int
+	err   error
+}
+
+func (r *rejectingMultiCloudDriftReader) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	r.calls++
+	return nil, r.err
+}
+
+func TestMultiCloudRuntimeDriftFindingReaderGuard(t *testing.T) {
+	want := errors.New("reader is stale")
+	reader := &rejectingMultiCloudDriftReader{err: want}
+	store := NewMultiCloudRuntimeDriftFindingReader(reader)
+	_, err := store.ListActiveFindings(t.Context(), MultiCloudRuntimeDriftFindingFilter{ScopeID: "scope", Limit: 1})
+	if !errors.Is(err, want) || reader.calls != 1 {
+		t.Fatalf("error %v, calls %d", err, reader.calls)
 	}
 }
