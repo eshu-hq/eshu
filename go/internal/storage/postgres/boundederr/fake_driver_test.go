@@ -26,6 +26,10 @@ type script struct {
 	// badConnOnce makes the first connection's ExecContext answer
 	// driver.ErrBadConn, so database/sql must retry on a fresh connection.
 	badConnOnce bool
+	// prepareStmt makes PrepareContext succeed with a fake statement whose
+	// methods fail with the stmt*Err values below.
+	prepareStmt                             bool
+	stmtExecErr, stmtQueryErr, stmtCloseErr error
 }
 
 type fakeConnector struct {
@@ -54,6 +58,9 @@ func (c *fakeConn) Prepare(string) (driver.Stmt, error) { return nil, errors.New
 func (c *fakeConn) PrepareContext(context.Context, string) (driver.Stmt, error) {
 	if c.script.prepareErr != nil {
 		return nil, c.script.prepareErr
+	}
+	if c.script.prepareStmt {
+		return &fakeStmt{script: c.script}, nil
 	}
 	return nil, errors.New("prepare unused")
 }
@@ -132,4 +139,32 @@ func openFake(t *testing.T, s *script) (*sql.DB, *fakeConnector, *bytes.Buffer) 
 	db := sql.OpenDB(NewConnector(fake, WithLogger(logger)))
 	t.Cleanup(func() { _ = db.Close() })
 	return db, fake, &logs
+}
+
+// fakeStmt is a prepared statement whose every execution method fails with the
+// error the script names, so each statement seam can be driven to failure.
+type fakeStmt struct{ script *script }
+
+var (
+	_ driver.Stmt             = (*fakeStmt)(nil)
+	_ driver.StmtExecContext  = (*fakeStmt)(nil)
+	_ driver.StmtQueryContext = (*fakeStmt)(nil)
+)
+
+func (s *fakeStmt) Close() error  { return s.script.stmtCloseErr }
+func (s *fakeStmt) NumInput() int { return -1 }
+func (s *fakeStmt) Exec([]driver.Value) (driver.Result, error) {
+	return nil, s.script.stmtExecErr
+}
+
+func (s *fakeStmt) Query([]driver.Value) (driver.Rows, error) {
+	return nil, s.script.stmtQueryErr
+}
+
+func (s *fakeStmt) ExecContext(context.Context, []driver.NamedValue) (driver.Result, error) {
+	return nil, s.script.stmtExecErr
+}
+
+func (s *fakeStmt) QueryContext(context.Context, []driver.NamedValue) (driver.Rows, error) {
+	return nil, s.script.stmtQueryErr
 }

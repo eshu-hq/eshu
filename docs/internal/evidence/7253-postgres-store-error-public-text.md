@@ -100,12 +100,17 @@ ERROR postgres store call failed event_name=postgres.store.error failure_class=u
   and a real refused dial is bounded with its `ConnectError` cause reachable.
   A table test drives `Ping`, `Prepare`, `ResetSession`, `CheckNamedValue`,
   `Close`, `BeginTx`, and `Rollback` to failure and requires a bounded error plus
-  exactly one record with the right `postgres_store.operation`.
+  exactly one record with the right `postgres_store.operation`; a second table
+  test does the same for a prepared statement's `Close`, `Exec`, `Query`,
+  `ExecContext`, and `QueryContext` (the fake can now return a statement), and
+  requires the statement text on the record.
 - Seeded mutations, each restored: `bound` returns the error unchanged (six
   `boundederr` tests go red); the sentinel check uses `errors.Is` (one red); the
   `io.EOF` passthrough removed (two red); classify by error text (one red);
   `Ping` or `Close` unbounded or `ResetSession` labelled with the wrong
-  operation (the seam test goes red); the writer pool returned to
+  operation (the seam test goes red); a statement's `ExecContext` unbounded, its
+  `QueryContext` or `Close` labelled with the wrong operation (the statement
+  test goes red); the writer pool returned to
   `stdlib.OpenDB` (its test goes red).
 - Review found two logging defects, both fixed test-first. A mid-result-set
   failure logged twice, because `database/sql` closes the result set after a
