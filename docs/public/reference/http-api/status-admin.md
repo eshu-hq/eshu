@@ -438,7 +438,7 @@ The read is bounded by `limit` (default 50, max 500) and ordered by
 `is_active`, `trigger_kind`, `freshness_hint`, the observed/ingested/activated/
 superseded timestamps, the per-generation `queue_status` rollup
 (`total`, `outstanding`, `in_flight`, `retrying`, `succeeded`, `failed`,
-`dead_letter`), and `latest_failure` (`failure_class`, `failure_message`) when a
+`dead_letter`), and `latest_failure` (`failure_class`, `failure_message`; also `prior_failure` with `status`, `failure_class`, `failure_message`, `updated_at` when the newest failure row kept the failure it had before a supersede, a stale-scope reclaim or an operator note rewrote it, never its details text) when a
 work item for that generation recorded a failure.
 
 A named `scope_id`, `repository`, or `generation_id` selector that matches
@@ -616,7 +616,7 @@ console or API defect.
 - `POST /api/v0/admin/replay-events/query`
 
 The recovery handler owns replay, dead-letter, skip, backfill, and decisions;
-mount it only where durable queue mutation is allowed. Skip dead-letters at most
+mount it only where durable queue mutation is allowed. Each item returned by `POST /api/v0/admin/work-items/query` and by the dead-letter and skip responses can carry `operator_note` and `prior_failure` (`status`, `failure_class`, `failure_message`, `updated_at`), read from the `operator_note` and `prior_failure` keys of the row's `failure_details` when it is a JSON object, and omitted otherwise (a replay clears `failure_details`, so replay responses never carry them); this route has no OpenAPI response schema. Skip dead-letters at most
 100 pending, retrying, or failed repository rows; other statuses stay, and `count` is changed rows.
 
 ### Safe Replay Workflow

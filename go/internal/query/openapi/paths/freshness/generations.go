@@ -70,7 +70,17 @@ const Generations = `
                               "failure_class": {"type": "string"},
                               "failure_message": {"type": "string"},
                               "work_item_status": {"type": "string"},
-                              "observed_at": {"type": "string"}
+                              "observed_at": {"type": "string"},
+                              "prior_failure": {
+                                "type": "object",
+                                "description": "The failure the newest failure row kept before a supersede, a stale-scope reclaim or an operator note rewrote its failure evidence. Absent when the row kept none. Its details text is not exposed.",
+                                "properties": {
+                                  "status": {"type": "string"},
+                                  "failure_class": {"type": "string"},
+                                  "failure_message": {"type": "string"},
+                                  "updated_at": {"type": "string"}
+                                }
+                              }
                             },
                             "required": ["failure_class"]
                           }

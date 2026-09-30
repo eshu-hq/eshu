@@ -24,6 +24,7 @@ type (
 	GenerationLifecyclePage      = generation.LifecyclePage
 	GenerationQueueStatus        = generation.QueueStatus
 	GenerationLatestFailure      = generation.LatestFailure
+	GenerationPriorFailure       = generation.PriorFailure
 )
 
 // Generation lifecycle page bounds. See the [generation] constants.

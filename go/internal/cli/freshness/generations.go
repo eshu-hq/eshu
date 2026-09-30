@@ -132,6 +132,13 @@ func renderGenerationRow(w io.Writer, row map[string]any) error {
 		if err := writef(w, " failure=%s", stringValue(failure, "failure_class")); err != nil {
 			return err
 		}
+		if prior := mapValue(failure, "prior_failure"); prior != nil {
+			if class := stringValue(prior, "failure_class"); class != "" {
+				if err := writef(w, " prior_failure=%s", class); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return writef(w, "\n")
 }

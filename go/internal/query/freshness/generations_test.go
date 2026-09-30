@@ -294,3 +294,40 @@ func TestFreshnessGenerationLifecycleTruncatedReported(t *testing.T) {
 		t.Fatalf("truncated = false, want true")
 	}
 }
+
+// TestFreshnessGenerationLifecycleExposesPriorFailure pins #7385: a superseded
+// generation's latest_failure carries the prior failure the supersede kept, with
+// status, class, message and updated_at, and no details text.
+func TestFreshnessGenerationLifecycleExposesPriorFailure(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingGenerationLifecycleReader{page: status.GenerationLifecyclePage{
+		Records: []status.GenerationLifecycleRecord{{
+			ScopeID: "git-repository-scope:acme/app", GenerationID: "gen-old", Status: "superseded",
+			LatestFailure: &status.GenerationLatestFailure{
+				FailureClass: "projector_superseded_by_newer_generation",
+				PriorFailure: &status.GenerationPriorFailure{
+					Status: "dead_letter", FailureClass: "graph_write_timeout",
+					FailureMessage: "neo4j execute group timed out", UpdatedAt: "2026-06-09T09:00:00Z",
+				},
+			},
+		}},
+		Limit: 50,
+	}}
+	mux := newFreshnessMux(reader)
+
+	w := doFreshnessRequest(t, mux, "/api/v0/freshness/generations?scope_id=git-repository-scope:acme/app")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	data := decodeFreshnessEnvelope(t, w).Data.(map[string]any)
+	failure := data["generations"].([]any)[0].(map[string]any)["latest_failure"].(map[string]any)
+	prior, ok := failure["prior_failure"].(map[string]any)
+	if !ok || prior["failure_class"] != "graph_write_timeout" || prior["status"] != "dead_letter" ||
+		prior["updated_at"] != "2026-06-09T09:00:00Z" {
+		t.Fatalf("latest_failure.prior_failure = %+v, want the kept failure; failure = %+v", prior, failure)
+	}
+	if _, leaked := prior["failure_details"]; leaked {
+		t.Fatalf("prior_failure carries failure_details on the wire: %+v", prior)
+	}
+}

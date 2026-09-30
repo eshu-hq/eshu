@@ -52,7 +52,7 @@ func TestReplayFailedWorkItems_RecordsPriorFailureClassInEvent(t *testing.T) {
 	database := &replayClassQueryer{
 		rows: &replayClassRows{values: []any{
 			"wi-1", "scope-1", "gen-1", "reducer", "domain-1", "pending", 3,
-			nil, nil, nil, now, now, nil, "projection_bug",
+			nil, nil, nil, now, now, nil, nil, "projection_bug",
 		}},
 	}
 	store := &postgresStore{database: database, now: func() time.Time { return now }}

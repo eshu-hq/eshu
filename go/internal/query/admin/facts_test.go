@@ -43,6 +43,44 @@ func TestAdminHandler_WorkItemsQuery(t *testing.T) {
 	}
 }
 
+// TestAdminHandler_WorkItemsQueryRendersPriorFailureAndOperatorNote pins #7385:
+// an item that kept a prior failure and an operator note renders both keys, and
+// an item without them renders neither. The prior failure's details are not a key.
+func TestAdminHandler_WorkItemsQueryRendersPriorFailureAndOperatorNote(t *testing.T) {
+	note := "triaged by hand"
+	store := &stubAdminStore{workItems: []WorkItem{
+		{
+			WorkItemID: "wi-kept", ScopeID: "scope-1", Stage: "projector", Status: "dead_letter",
+			OperatorNote: &note,
+			PriorFailure: &PriorFailure{Status: "failed", FailureClass: "graph_write_timeout", FailureMessage: "timed out", UpdatedAt: "2026-06-09T09:00:00Z"},
+		},
+		{WorkItemID: "wi-plain", ScopeID: "scope-1", Stage: "projector", Status: "failed"},
+	}}
+	mux := newAdminMux(&Handler{Store: store})
+
+	w := postJSON(mux, "/api/v0/admin/work-items/query", map[string]any{"limit": 50})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	items := decodeBody(t, w)["items"].([]any)
+	kept, plain := items[0].(map[string]any), items[1].(map[string]any)
+	prior, ok := kept["prior_failure"].(map[string]any)
+	if !ok || prior["failure_class"] != "graph_write_timeout" || prior["status"] != "failed" || prior["updated_at"] != "2026-06-09T09:00:00Z" {
+		t.Fatalf("prior_failure = %v, want the kept failure", kept["prior_failure"])
+	}
+	if _, leaked := prior["failure_details"]; leaked {
+		t.Fatalf("prior_failure carries details text: %v", prior)
+	}
+	if kept["operator_note"] != note {
+		t.Fatalf("operator_note = %v, want %q", kept["operator_note"], note)
+	}
+	for _, key := range []string{"prior_failure", "operator_note"} {
+		if _, present := plain[key]; present {
+			t.Fatalf("item without the field renders %q: %v", key, plain)
+		}
+	}
+}
+
 func TestAdminHandler_WorkItemsQuery_NoStore(t *testing.T) {
 	h := &Handler{}
 	mux := newAdminMux(h)

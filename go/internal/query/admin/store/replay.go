@@ -71,6 +71,7 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 		var failureMessage sql.NullString
 		var visibleAt sql.NullTime
 		var replayedClass sql.NullString
+		var failureDetails sql.NullString
 		if err := rows.Scan(
 			&item.WorkItemID,
 			&item.ScopeID,
@@ -85,10 +86,12 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 			&item.CreatedAt,
 			&item.UpdatedAt,
 			&visibleAt,
+			&failureDetails,
 			&replayedClass,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan replayed work item: %w", err)
 		}
+		applyWorkItemDetails(&item, failureDetails)
 		if leaseOwner.Valid {
 			item.LeaseOwner = &leaseOwner.String
 		}

@@ -124,6 +124,22 @@ type LatestFailure struct {
 	FailureMessage string `json:"failure_message,omitempty"`
 	WorkItemStatus string `json:"work_item_status,omitempty"`
 	ObservedAt     string `json:"observed_at,omitempty"`
+	// PriorFailure is the failure a work item carried before a supersede, a
+	// stale-scope reclaim or an operator note rewrote its failure evidence
+	// (#7320, #7388, #7385). It is nil when the
+	// failure row's details carry none. The prior failure's own details text is
+	// not exposed.
+	PriorFailure *PriorFailure `json:"prior_failure,omitempty"`
+}
+
+// PriorFailure is the failure evidence a supersede, a stale-scope reclaim or an
+// operator note kept: the row's status, failure class and message before the
+// rewrite, and when that row was last updated. Its details text stays in the row.
+type PriorFailure struct {
+	Status         string `json:"status,omitempty"`
+	FailureClass   string `json:"failure_class,omitempty"`
+	FailureMessage string `json:"failure_message,omitempty"`
+	UpdatedAt      string `json:"updated_at,omitempty"`
 }
 
 // LifecyclePage is one bounded, ordered drilldown page. Truncated is

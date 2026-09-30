@@ -67,7 +67,8 @@ SELECT
     COALESCE(failure.failure_class, '') AS failure_class,
     COALESCE(failure.failure_message, '') AS failure_message,
     COALESCE(failure.status, '') AS failure_work_item_status,
-    failure.updated_at AS failure_observed_at
+    failure.updated_at AS failure_observed_at,
+    COALESCE(failure.failure_details, '') AS failure_details
 FROM scope_generations AS generation
 JOIN ingestion_scopes AS scope
     ON scope.scope_id = generation.scope_id
@@ -88,6 +89,7 @@ LEFT JOIN LATERAL (
     SELECT
         work.failure_class,
         work.failure_message,
+        work.failure_details,
         work.status,
         work.updated_at
     FROM fact_work_items AS work
