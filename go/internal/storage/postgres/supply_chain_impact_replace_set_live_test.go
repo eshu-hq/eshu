@@ -97,7 +97,7 @@ func TestSupplyChainImpactWriterRetractionIsIdempotentLive(t *testing.T) {
 			t.Fatalf("write attempt %d: %v", attempt, err)
 		}
 		if result.FactsRetracted != 0 {
-			t.Fatalf("attempt %d FactsRetracted = %d, want 0 (redelivery of the same pass)", attempt, result.FactsRetracted)
+			t.Fatalf("attempt %d FactsRetracted = %d, want 0 (the identical write value re-executed, same token)", attempt, result.FactsRetracted)
 		}
 	}
 	if active := replaceSetActiveRepositories(t, ctx, db); len(active) != 1 {

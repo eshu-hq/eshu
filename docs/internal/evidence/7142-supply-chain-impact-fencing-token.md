@@ -111,7 +111,11 @@ and the sequence can stay: old code ignores them, and a later roll-forward keeps
 issuing higher tokens than any watermark. `container_image_identity` and
 `aws_cloud_runtime_drift` have the same property and document no rollback either.
 The admission table gains one small row per `(scope, generation)` and is not
-pruned by generation retention; `aws_cloud_runtime_drift` has the same property.
+pruned by generation retention; `aws_cloud_runtime_drift` has the same property. The migration's re-apply seed does one `MAX(fencing_token)` over the table on every reducer
+start; measured on local Postgres 18 at 1,000,000 rows (121 MB), it runs in 21-24 ms
+(a parallel sequential scan of the whole table, about 15,000 pages; the cost grows
+linearly with the table, about 53 ms with parallelism off), so the startup cost stays
+small at any realistic age.
 
 ## Lock order and transaction scope
 

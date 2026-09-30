@@ -155,9 +155,9 @@ func TestSupplyChainImpactWriterPartialEvidenceStillAdmits(t *testing.T) {
 	}
 }
 
-// TestSupplyChainImpactWriterAdmissionAdmitsEqualToken pins the `<=`: a retry
-// of the same pass carries the same token and must be admitted. The query text
-// is the contract here; the live test exercises the same replay on Postgres.
+// TestSupplyChainImpactWriterAdmissionAdmitsEqualToken pins the `<=`: a
+// re-execution of the same write value carries the same token and must be
+// admitted. The query text is the contract here; the live test exercises the same replay on Postgres.
 func TestSupplyChainImpactWriterAdmissionAdmitsEqualToken(t *testing.T) {
 	t.Parallel()
 
