@@ -54,6 +54,13 @@ graph-read outcomes. It carries `pipeline_phase="query"`, a bounded
 `failure_class`, and `duration_seconds`; it deliberately omits Cypher text,
 graph addresses, and raw driver errors.
 
+`query.graph_read.error` is an ERROR-level record for a graph read the backend
+failed outside the deadline and availability classes (for example a rejected
+statement). It carries the same bounded fields as the warning plus
+`graph_read.error`: the driver text with every numeric and string literal
+replaced by `<REDACTED>`. The HTTP response for the same read carries only the
+fixed text `graph query failed` (#7253).
+
 See [Graph-read safety](graph-read-safety.md) for the shared deadline and
 operator triage contract.
 

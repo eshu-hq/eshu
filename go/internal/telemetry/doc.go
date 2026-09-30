@@ -147,6 +147,9 @@
 // distinguishes a graph-policy deadline from an earlier caller deadline
 // without recording raw (unredacted) query text, graph addresses, or raw
 // driver errors. SpanAttrGraphReadStatementFingerprint (span, every read) and
+// LogKeyGraphReadError (the query.graph_read.error log) carries the driver text
+// of an outcome-error read after the same literal redaction, because the
+// client-facing error is the fixed "graph query failed" (#7253).
 // LogKeyGraphReadStatementFingerprint/LogKeyGraphReadStatementHead (the
 // query.graph_read.warning log, slow/deadline/unavailable outcomes) name the
 // exact Cypher statement shape behind a read: the fingerprint is a sha256 hash

@@ -92,6 +92,13 @@ behind it are owned by
 route still exempt. Routes backed by Postgres or the content store rather than
 the graph are unaffected.
 
+Any other graph-read failure (a rejected or malformed statement, a driver
+fault that is neither a deadline nor an availability problem) answers `500`
+with the fixed detail `graph query failed`. The driver's own message quotes the
+statement, inline literals included, so it never reaches a response body; the
+redacted detail is in the `query.graph_read.error` log and on the `neo4j.query`
+span, correlated by `graph_read.statement_fingerprint`.
+
 ## Shared Model Rules
 
 - `workload` is the canonical deployable compute model.
