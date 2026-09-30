@@ -1,7 +1,7 @@
 # #7385 Expose A Superseded Work Item's prior_failure
 
 #7320 keeps a superseded work item's old failure under
-`failure_details.prior_failure`. #7388 (PR #7454) extends that to a stale-scope reclaim
+`failure_details.prior_failure`. #7388 (merged, `d2e9e601f`) extends that to a stale-scope reclaim
 and an operator note, and #7407 (merged, `eea68a679`) caps newly stored details text at 4,096 bytes. Nothing read the kept
 failure back. This change exposes it, additively, by reading the keys wherever a
 writer put them.
@@ -17,8 +17,7 @@ writer put them.
   normalised to RFC3339 UTC like `observed_at`. The prior failure's own
   `failure_details` text is not decoded and is not on the wire.
 - `POST /api/v0/admin/work-items/query` (and the replay, dead-letter and skip
-  responses; `operator_note` is populated only once a writer stores that key, which
-  is #7388): the list query and the shared RETURNING lists select
+  responses; `operator_note` is populated by the #7388 operator-note writers, merged): the list query and the shared RETURNING lists select
   `failure_details`; `WorkItem.PriorFailure` and the previously unused
   `WorkItem.OperatorNote` are filled from it and rendered. This route has no
   OpenAPI response schema, so it is documented in `status-admin.md`.
