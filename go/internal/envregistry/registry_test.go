@@ -16,6 +16,29 @@ func TestDefaultRegistryBuilds(t *testing.T) {
 	}
 }
 
+func TestDefaultRegistryIncludesPostgresReaderSettings(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		typeOf VarType
+	}{
+		{"ESHU_POSTGRES_EXPECTED_SYSTEM_ID", VarString},
+		{"ESHU_POSTGRES_READ_DSN", VarDSN},
+		{"ESHU_POSTGRES_READ_MAX_IDLE_CONNS", VarInt},
+		{"ESHU_POSTGRES_READ_MAX_OPEN_CONNS", VarInt},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			entry, ok := Default().Lookup(tc.name)
+			if !ok {
+				t.Fatalf("%s missing from default registry", tc.name)
+			}
+			if entry.Type != tc.typeOf || entry.Subsystem != "postgres" || entry.Default != "" {
+				t.Fatalf("%s metadata = (%q, %q, %q), want (%q, postgres, empty dynamic default)", tc.name, entry.Type, entry.Subsystem, entry.Default, tc.typeOf)
+			}
+		})
+	}
+}
+
 func TestDefaultRegistryIncludesScopedTokenRegistryFile(t *testing.T) {
 	t.Parallel()
 	r := Default()

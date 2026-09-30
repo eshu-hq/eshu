@@ -346,9 +346,13 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` | duration | `10m` | Idle timeout before a connection is closed. |
 | `ESHU_POSTGRES_CONN_MAX_LIFETIME` | duration | `30m` | Connection lifetime before recycling. |
 | `ESHU_POSTGRES_DSN` | dsn | — | Postgres connection string. DSN precedence is ESHU_FACT_STORE_DSN, then ESHU_CONTENT_STORE_DSN, then ESHU_POSTGRES_DSN. Aliases: `ESHU_FACT_STORE_DSN`, `ESHU_CONTENT_STORE_DSN`. |
+| `ESHU_POSTGRES_EXPECTED_SYSTEM_ID` | string | — | Optional independently supplied physical PostgreSQL cluster system ID for API/MCP writer and reader topology validation; omitted checks configured endpoint agreement only. |
 | `ESHU_POSTGRES_MAX_IDLE_CONNS` | int | `10` | Maximum idle Postgres connections (capped at max open). |
 | `ESHU_POSTGRES_MAX_OPEN_CONNS` | int | `30` | Maximum open Postgres connections. |
 | `ESHU_POSTGRES_PING_TIMEOUT` | duration | `10s` | Timeout for the startup/readiness connectivity ping. |
+| `ESHU_POSTGRES_READ_DSN` | dsn | — | Optional API/MCP read-only PostgreSQL endpoint; omitted uses the writer DSN with a separate read-only session pool. |
+| `ESHU_POSTGRES_READ_MAX_IDLE_CONNS` | int | — | Optional API/MCP reader idle allocation from ESHU_POSTGRES_MAX_IDLE_CONNS; omitted defaults near half while respecting both pool limits. |
+| `ESHU_POSTGRES_READ_MAX_OPEN_CONNS` | int | — | Optional API/MCP reader open allocation from ESHU_POSTGRES_MAX_OPEN_CONNS; omitted defaults to half and the writer gets the remainder. |
 | `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` | duration | `3m` | How long a schema bootstrap (db-migrate, bootstrap-index) waits for another bootstrapper that owns the Postgres schema advisory lock before failing; unset keeps the default, a set value must be positive (#6956). |
 | `ESHU_SCHEMA_LOCK_RETRY_BUDGET` | duration | `3m` | Retry allowance shared across one schema-bootstrap run after lock_timeout (SQLSTATE 55P03): failed-attempt time and actual backoff consume it; successful migration execution time does not. It stops further retries once spent and is not a strict server-side wait cap because PostgreSQL applies lock_timeout per lock acquisition; unset keeps the default, a set value must be positive (#6956). |
 
