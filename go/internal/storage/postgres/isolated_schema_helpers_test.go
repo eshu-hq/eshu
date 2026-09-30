@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 )
@@ -67,4 +68,19 @@ func openIsolatedBootstrapSchema(t *testing.T, dsn, prefix string) *sql.DB {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 	return database
+}
+
+// openIsolatedLiveDB is openIsolatedBootstrapSchema for the DSN in
+// ESHU_POSTGRES_DSN, skipping with skipMessage when it is unset, plus the
+// 90-second proof deadline the live helpers share.
+func openIsolatedLiveDB(t *testing.T, prefix, skipMessage string) (*sql.DB, context.Context) {
+	t.Helper()
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip(skipMessage)
+	}
+	database := openIsolatedBootstrapSchema(t, dsn, prefix)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
+	return database, ctx
 }

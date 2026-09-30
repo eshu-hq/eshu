@@ -62,15 +62,7 @@ func awsCloudRuntimeDriftAdmissionLiveDB(t *testing.T) (*sql.DB, context.Context
 // another test or an earlier run left behind (#7479).
 func awsCloudRuntimeDriftIsolatedLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
-
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres aws_cloud_runtime_drift #5848 proofs")
-	}
-	sqlDB := openIsolatedBootstrapSchema(t, dsn, "aws_drift_live")
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	t.Cleanup(cancel)
-	return sqlDB, ctx
+	return openIsolatedLiveDB(t, "aws_drift_live", "set ESHU_POSTGRES_DSN to run the real-Postgres aws_cloud_runtime_drift #5848 proofs")
 }
 
 // seedAWSCloudRuntimeDriftScope inserts (or updates) one ingestion_scopes row.

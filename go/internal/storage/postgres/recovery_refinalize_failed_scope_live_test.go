@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"os"
 	"testing"
 	"time"
 
@@ -33,14 +32,7 @@ import (
 // its own, so on the shared schema other proofs' rows crowd it out (#7479).
 func refinalizeFailedScopeLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the #7116 refinalize failed-scope proofs")
-	}
-	database := openIsolatedBootstrapSchema(t, dsn, "refinalize_failed_scope")
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	t.Cleanup(cancel)
-	return database, ctx
+	return openIsolatedLiveDB(t, "refinalize_failed_scope", "set ESHU_POSTGRES_DSN to run the #7116 refinalize failed-scope proofs")
 }
 
 // refinalizeFailedScope seeds the shape observed on ops-qa: a failed scope with
