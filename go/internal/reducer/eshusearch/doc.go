@@ -12,7 +12,11 @@
 // [SearchDocumentSourceLoader] through [ProjectSearchDocuments], inserts each
 // curated page, and finalizes once over the union keep-set so a page failure
 // mid-stream can be cancelled without leaving the scope half-written (issue
-// #3440, #3450). [PostgresEshuSearchDocumentWriter] is the production
+// #3440, #3450). Before every page and once before Finalize the handler runs its
+// required GenerationCheck; a superseded generation returns
+// [reducercontract.ResultStatusSuperseded] without Cancel or Finalize, because
+// its rows are generation-keyed, invisible to active-generation readers, and
+// pruned by retention (issue #7458). [PostgresEshuSearchDocumentWriter] is the production
 // [SearchDocumentWriter]: it persists fact_records rows plus the BM25 search
 // index terms those rows join on, and records the
 // eshu_dp_search_index_mutations_total / eshu_dp_search_index_errors_total /

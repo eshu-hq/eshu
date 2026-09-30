@@ -47,10 +47,11 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	if handlers.EshuSearchDocumentSourceLoader != nil && handlers.EshuSearchDocumentWriter != nil {
 		searchDocument := eshuSearchDocumentDomainDefinition()
 		searchDocument.Handler = eshusearch.EshuSearchDocumentHandler{
-			Loader:      handlers.EshuSearchDocumentSourceLoader,
-			Writer:      handlers.EshuSearchDocumentWriter,
-			Instruments: handlers.Instruments,
-			Logger:      handlers.EshuSearchDocumentLogger,
+			Loader:          handlers.EshuSearchDocumentSourceLoader,
+			Writer:          handlers.EshuSearchDocumentWriter,
+			GenerationCheck: handlers.EshuSearchDocumentGenerationCheck,
+			Instruments:     handlers.Instruments,
+			Logger:          handlers.EshuSearchDocumentLogger,
 		}
 		definitions = append(definitions, searchDocument)
 	}

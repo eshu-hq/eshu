@@ -5,6 +5,7 @@ package eshusearch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -42,10 +43,15 @@ type SearchDocumentWriter interface {
 // document set for the scope and generation. Search documents are derived
 // retrieval evidence; this handler never writes the canonical graph.
 type EshuSearchDocumentHandler struct {
-	Loader      SearchDocumentSourceLoader
-	Writer      SearchDocumentWriter
-	Instruments *telemetry.Instruments
-	Logger      *slog.Logger
+	Loader SearchDocumentSourceLoader
+	Writer SearchDocumentWriter
+	// GenerationCheck reports whether the intent's generation is still the
+	// scope's active generation. It is required: the handler re-checks it
+	// before every page and once before Finalize so a superseded generation
+	// stops writing (issue #7458).
+	GenerationCheck reducercontract.GenerationFreshnessCheck
+	Instruments     *telemetry.Instruments
+	Logger          *slog.Logger
 }
 
 // Handle curates and persists the search documents for one intent.
@@ -55,6 +61,9 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent reducercon
 	}
 	if h.Loader == nil || h.Writer == nil {
 		return reducercontract.Result{}, fmt.Errorf("eshu search document handler requires a loader and writer")
+	}
+	if h.GenerationCheck == nil {
+		return reducercontract.Result{}, fmt.Errorf("eshu search document handler requires a generation check")
 	}
 
 	started := time.Now()
@@ -76,16 +85,36 @@ func (h EshuSearchDocumentHandler) Handle(ctx context.Context, intent reducercon
 	// If the stream errors after one or more pages have been inserted, Cancel
 	// removes the partial writes so the scope is not left in a half-written
 	// queryable state (issue #3450 review P1).
+	//
+	// Before each page, and once more before Finalize, the handler asks the
+	// generation check whether this generation is still the scope's active one.
+	// A superseded generation is abandoned, not cancelled (issue #7458): see
+	// abandonSuperseded for why the partial rows are left in place.
 	summary := newSearchDocumentCurationSummary()
+	var progress searchDocumentWriteProgress
 	streamErr := h.Loader.StreamSearchDocumentSources(ctx, intent.ScopeID, intent.GenerationID,
 		func(input SearchDocumentProjectionInput) error {
+			if err := h.requireCurrentGeneration(ctx, intent); err != nil {
+				return err
+			}
 			projection := ProjectSearchDocuments(input)
 			summary.merge(projection.Summary)
 			if err := session.InsertPage(ctx, projection.Documents); err != nil {
 				return fmt.Errorf("write eshu search documents: %w", err)
 			}
+			progress.pages++
+			progress.documents += len(projection.Documents)
 			return nil
 		})
+	if errors.Is(streamErr, errGenerationSuperseded) {
+		return h.abandonSuperseded(ctx, intent, searchDocumentPhasePage, progress, started), nil
+	}
+	if streamErr == nil {
+		streamErr = h.requireCurrentGeneration(ctx, intent)
+		if errors.Is(streamErr, errGenerationSuperseded) {
+			return h.abandonSuperseded(ctx, intent, searchDocumentPhaseFinalize, progress, started), nil
+		}
+	}
 	if streamErr != nil {
 		// Best-effort cancel: clean up any partially-inserted pages so the scope
 		// is not queryable in a half-written state. The cancel error is logged

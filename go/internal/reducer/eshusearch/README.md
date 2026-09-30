@@ -83,7 +83,10 @@ and `eshu_dp_search_index_write_duration_seconds` are recorded by
 (`eshu_search_document_index_writer.go`). The handler
 (`eshu_search_document.go`) also records `CanonicalWrites` /
 `CanonicalWriteDuration` on the shared reducer instruments, tagged with
-`DomainEshuSearchDocument`. `eshu_search_document_write_timings.go` holds an
+`DomainEshuSearchDocument`. `eshu_search_document_supersede.go` counts an
+abandoned superseded generation on
+`eshu_dp_search_document_generation_superseded_total{phase}` and logs it at
+INFO. `eshu_search_document_write_timings.go` holds an
 in-process timing accumulator with no metric of its own — see the
 `No-Observability-Change` row for it in
 `docs/public/observability/telemetry-coverage.md`. That file's rows for these
@@ -99,6 +102,21 @@ one page (issue #3440), but the authoritative retire only happens once, in
 triggers `Cancel` to remove the partial pages already inserted so the scope is
 never left queryable in a half-written state (issue #3450).
 
+**A superseded generation is abandoned, not cancelled (issue #7458).** The
+reducer checks generation freshness once, before `Handle`, so a newer generation
+can activate while this one streams. `Handle` therefore runs
+`GenerationCheck` before every page and once before `Finalize`. On a supersede
+it returns `ResultStatusSuperseded` (acked succeeded, counted as
+`status=superseded`) and skips both `Cancel` and `Finalize`: `Cancel` is the
+empty-keep-set retire whose `DELETE` statements are the cost being removed, and
+the rows written so far are keyed by `(scope_id, generation_id)`, invisible to
+every reader that joins the active generation, and pruned by retention. The
+projection-state row stays `building`. A check error is not a supersede: it takes
+the stream-error path: `Cancel`, then the item fails. The queue retries a
+`GenerationNotYetActiveError` without counting an attempt; any other lookup error
+is not retryable, so the item dead-letters on that failure. `GenerationCheck`
+is required; a nil check is a `Handle` construction error, like a nil loader.
+
 **`ResultStatusSucceeded` and friends come from `reducercontract`, not a local
 alias.** Unlike some reducer subpackages, this one does not define its own
 `Intent`/`Result` type — it imports `internal/reducer/contract` directly. Don't
@@ -110,7 +128,11 @@ must stay in sync if the domain ever needs new adapter gating**: the registry
 definition (`registry_additive_domains.go`), the handler assembly
 (`defaults_additive_domains_correlation.go`, gated on both
 `EshuSearchDocumentSourceLoader` and `EshuSearchDocumentWriter` being non-nil),
-and the adapter field declaration (`defaults_handlers.go`).
+and the adapter field declaration (`defaults_handlers.go`). The handler's
+`GenerationCheck` comes from `EshuSearchDocumentGenerationCheck` there and is
+wired in `cmd/reducer/wiring_handlers.go`; it is deliberately not part of the
+registration gate, so an unwired binary fails loudly on the first intent
+instead of silently dropping the domain.
 
 ## Related docs
 
