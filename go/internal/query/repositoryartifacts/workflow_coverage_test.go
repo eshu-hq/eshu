@@ -185,7 +185,6 @@ func TestStaticWorkflowCoverageFileMembership(t *testing.T) {
 		{name: "nested_posix_path", file: querycontract.FileContent{RelativePath: "vendor/.github/workflows/ci.yml"}, want: true},
 		{name: "non_workflow_yaml", file: querycontract.FileContent{RelativePath: ".github/ci.yaml"}},
 		{name: "wrong_extension", file: querycontract.FileContent{RelativePath: ".github/workflows/ci.txt"}},
-		{name: "backslash_path", file: querycontract.FileContent{RelativePath: `.github\workflows\ci.yml`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

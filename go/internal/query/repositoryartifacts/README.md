@@ -31,7 +31,13 @@ listing entry points (`StaticWorkflowArtifactEvidence`,
 `LoadRepositoryScopedCICDEvidence`) and `...FromFiles` entry points that take
 the file list the caller already read. The repository story uses the latter so
 one `ListRepoFiles` read serves the semantic overview and every later stage
-(#7126); the two forms return identical evidence for the same files.
+(#7126); the two forms return identical evidence for the same files. A full 5,000-file
+page carries `candidate_pool_status=unknown_at_limit`: no observed workflows
+means `state=unknown`, while positive evidence keeps its observed count. The
+20-path display cap and 50-file image hydration cap remain separate. Stories
+preserve the candidate marker and add `static_workflow_coverage_unknown` to
+`missing_evidence` only for a capped scan; this does not backfill the typed
+API's other historical missing-evidence entries into uncapped stories.
 
 ## Dependencies
 
