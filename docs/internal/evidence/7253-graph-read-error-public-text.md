@@ -71,6 +71,15 @@ Neo4j's documented syntax-error form and was reproduced with a hand-written
 message, not captured from a server. `TestCypherRoutesAnswer400ForARejectedCallerStatement` covers both routes;
 disabling the mapping turns it red.
 
+The hot-Cypher source-coverage manifest
+(`go/internal/queryplan/testdata/query-source-coverage.yaml`) pins a source
+digest for each of these two handlers under the `operator_query` /
+`validated_query_endpoint` classification. This change edits how each handler
+maps a failed `Run` to a response, so the `hot-cypher-source-coverage` gate
+failed on the stale digests and both were repinned. The statement, its bounds,
+its validation, and the `Run` call are untouched, so the classification stands;
+the digests moved because the function bodies did.
+
 The existing 503 (`ErrGraphUnavailable`) and 504 (`ErrGraphReadDeadline`)
 classes are unchanged and still win over the new sentinel. The response for the
 new class stays the plain 500 the handlers already wrote, with a stable detail;

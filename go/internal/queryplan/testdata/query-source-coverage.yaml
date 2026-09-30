@@ -80,13 +80,13 @@ source_coverage:
         non_hot:
           class: operator_query
           policy: validated_query_endpoint
-          source_sha256: 1db8c4b6a5c272f3d13e7740e4d5b53ed52cf912e944533695eb9023892786bc
+          source_sha256: 6a2277b93ee6a316fd91552fce8b05c3802218be3137e76486af42547c981375
       - symbol: "(*CodeHandler).handleVisualizeQuery"
         count: 1
         non_hot:
           class: operator_query
           policy: validated_query_endpoint
-          source_sha256: 7356bf3025bf172609d93e06e5654dab037e0c08eae07f44fe2c0b34cbbc7fee
+          source_sha256: a0ad8905558b4e07d1e8d1b9c46589eea98af4371ced7b980e6b061f0c445402
   - file: codequery/analyzer.go
     calls:
       - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
