@@ -304,7 +304,9 @@ store may share it) to `DocstringClipBytes` (512), marks the row with `docstring
 docstring (`entitysemantics.ReattachSemanticSummary`) echo the clipped value;
 `AddDocstringClipMarkers` writes `docstring_clip_bytes` and
 `docstring_clipped_rows` on the response. Callers clip after the page is trimmed to its limit and after any hybrid
-re-rank, which reads the full body. `EntityContentSearchRow` shapes the
+re-rank, which reads the full body. The dead-code scan and investigation (all three
+buckets) and the complexity list clip the same way; the single-entity complexity
+lookup returns one row and does not. `EntityContentSearchRow` shapes the
 `search_entity_content` row map and adds `source_handle`.
 
 `ClassifyBoundedGraphReadError` (`graphreaderr.go`) decides a graph-read timeout

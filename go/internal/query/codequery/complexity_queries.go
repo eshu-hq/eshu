@@ -324,13 +324,17 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		WriteSuccess(w, r, http.StatusOK, map[string]any{
+		// Clip after the page trim so the count matches the rows returned (#7234).
+		clippedDocstrings := querycontract.ClipRowsDocstring(results, entitysemantics.ReattachSemanticSummary)
+		data := map[string]any{
 			"repo_id":    req.RepoID,
 			"results":    results,
 			"limit":      limit,
 			"truncated":  truncated,
 			"result_key": "entity_id",
-		}, BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
+		}
+		querycontract.AddDocstringClipMarkers(data, clippedDocstrings)
+		WriteSuccess(w, r, http.StatusOK, data, BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
 		return
 	}
 
@@ -419,11 +423,15 @@ func writeEmptyComplexityAnswer(
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	data := map[string]any{
 		"repo_id":    repoID,
 		"results":    []map[string]any{},
 		"limit":      codemodel.NormalizeComplexityListLimit(limit),
 		"truncated":  false,
 		"result_key": "entity_id",
-	}, BuildTruthEnvelope(profile, "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
+	}
+	// The same markers a real empty answer carries, so a caller with no grants
+	// cannot tell an empty grant from an empty index by their absence.
+	querycontract.AddDocstringClipMarkers(data, 0)
+	WriteSuccess(w, r, http.StatusOK, data, BuildTruthEnvelope(profile, "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
 }
