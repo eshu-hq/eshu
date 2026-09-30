@@ -42,6 +42,15 @@ error after some pages were already inserted must call `session.Cancel` before
 returning, or the scope is left queryable with a partial write (issue #3450 —
 this was a review P1, not a stylistic choice).
 
+**A superseded generation is abandoned, never cancelled (issue #7458).**
+`Handle` runs `GenerationCheck` before every page and before `Finalize`; on
+supersede it returns `ResultStatusSuperseded` without `Cancel` or `Finalize`.
+`Cancel` is the retire `DELETE` the fence removes, and the partial rows are
+invisible (generation-keyed, active-generation readers) and pruned by retention.
+Do not add a `Cancel` or `MarkFailed` to that path. A check error is not a
+supersede and must keep failing closed through the stream-error path. A nil
+`GenerationCheck` is a construction error, not a disabled fence.
+
 ## Changing `DomainEshuSearchDocument` gating
 
 `defaults_additive_domains_correlation.go` in the root only registers this

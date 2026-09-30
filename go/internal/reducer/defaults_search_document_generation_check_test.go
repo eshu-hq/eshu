@@ -32,6 +32,7 @@ func (generationCheckWriter) BeginEshuSearchDocumentWrite(
 type generationCheckSession struct{}
 
 func (generationCheckSession) InsertPage(context.Context, []searchdocs.Document) error { return nil }
+
 func (generationCheckSession) Finalize(context.Context) (eshusearch.EshuSearchDocumentWriteResult, error) {
 	return eshusearch.EshuSearchDocumentWriteResult{}, nil
 }

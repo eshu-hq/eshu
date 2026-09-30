@@ -1611,6 +1611,10 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/eshu_search_document_supersede_cost_live_test.go
+    tag: ~
+    class: scheduled
+    reason: opt-in (ESHU_7458_COST_PROOF=1) cost proof for #7458 that needs a Postgres preloading pg_stat_statements and measures wall time, so it stays out of every default lane
   - file: go/internal/storage/postgres/eshu_search_document_supersede_live_test.go
     tag: ~
     class: scheduled
