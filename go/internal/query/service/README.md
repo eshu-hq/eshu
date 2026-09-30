@@ -50,6 +50,21 @@ aliases, the `serviceintelhttp` composer, and the staying root tests that
 pin family behavior. Unexported helpers stay unexported; cross-package test
 pins go through `testutil` or `querycontract`.
 
+## Target-support gate
+
+`story_target_support_reads.go` loads the story's `target_support` block
+(#7138). A service story's repository-linked Jira support belongs to the
+service only through the graph's `Repository-[:DEFINES]->Workload` edge, so the
+loader runs one bounded read per story (`repositoryDefinesWorkloadsCypher`,
+anchored on `Repository.id`, `ORDER BY id LIMIT 3`, no aggregate) and hands the
+verdict to the content store as `RepositoryWorkloadCount` and
+`RepositoryDefinesTarget` on the filter. One defined workload equal to the
+target links; several including the target make the rows ambiguous; every other
+case fails closed, including no graph, a failed read (reported on the stage
+event, never failing the story), and an identity-only context. The Postgres row
+read and the ambiguity rule live in the query root's
+`service_story_target_support.go` because they are `*ContentReader` methods.
+
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,

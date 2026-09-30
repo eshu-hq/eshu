@@ -21,4 +21,10 @@
 // their receiver type. Those callers use this package's exported
 // homes; thin aliases and forwarders in the root service_alias.go keep
 // every other caller compiling unchanged.
+//
+// LoadServiceStoryTargetSupport gates a service story's repository-linked
+// support on the graph: it reads which Workloads the service's repository
+// DEFINES once per story and passes the verdict to the content store, so a
+// repository that defines several workloads reports its links as ambiguous
+// instead of attaching them to one service (#7138).
 package service

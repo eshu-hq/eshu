@@ -23,6 +23,12 @@
   `querycontract.RegisterCapabilities` in this package's `init`. Do not
   re-add it to the root matrix: duplicate initialization is a contract
   failure, and two copies drift silently.
+- `story_target_support_reads.go` issues exactly one graph read per story
+  (`repositoryDefinesWorkloadsCypher`), never one per workload, and rests
+  target-support attribution on the `DEFINES` edge, not on `Workload.repo_id`.
+  A graph failure fails the gate closed and is reported on the stage event; it
+  must not fail the story. Do not add a name, title or summary match to the
+  support read.
 - Keep the root `service_alias.go` aliases and forwarders until every
   external caller has a separately reviewed migration path.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,
