@@ -22,6 +22,24 @@ recent shipped work grouped by feature area.
   MCP alike; `results` is unchanged. `resolve_entity` still returns `matches`
   until the console moves off it (#7173).
 
+### Symbol, inventory, and content search rows clip long docstrings
+
+- **A row's `docstring` is clipped to 512 bytes at read time**
+  ([#7234](https://github.com/eshu-hq/eshu/issues/7234)). `find_symbol`,
+  `inspect_code_inventory`, `find_code`, and `search_entity_content` (and their
+  HTTP routes) echoed a docstring five or six times per row (`metadata`,
+  `semantic_summary`, `semantic_profile`, the language blocks, `story`), so a
+  repository with long docstrings pushed a default page over the MCP response
+  budget even after the `source_cache` clip (#7171). The docstring is cut before
+  the echoes are derived, so no copy exceeds 512 bytes. A clipped row carries
+  `docstring_clipped`, `docstring_clip_bytes`, and `docstring_total_bytes`; every
+  response carries `docstring_clip_bytes` and `docstring_clipped_rows`. The
+  change is additive: rows that fit are unchanged. `get_entity_content` returns
+  the stored docstring whole. In the test fixture a default `find_symbol` page
+  over 16 KiB docstrings went from `mcp_response_over_budget` (3.5 MB) to
+  157 KB, delivered as the single resource copy the dispatcher keeps when two
+  full copies would exceed the budget.
+
 ### Compact-by-default catalog and playbook/workflow list responses
 
 - **`get_capability_catalog`, `list_query_playbooks`, and

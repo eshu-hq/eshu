@@ -30,24 +30,41 @@ Why 512 bytes and a clip rather than dropping the echoes: dropping
 `semantic_profile.docstring` or the language-block copies removes fields a
 client may read, which is not additive. A clip keeps every field and bounds it.
 The number is chosen against the budget: 20 rows x (4,096 source_cache + about
-1.5 KB other row content + six 512-byte echoes) is about 170 KB, under the
-262,144-byte dispatch budget with one wire copy.
+1.5 KB other row content + six 512-byte echoes) is about 175 KB in the worst
+case, under the 262,144-byte dispatch budget as one wire copy (see the note
+under the table on the single-copy regime).
 
 ## Before / after (default-args reply, MCP dispatch)
 
-Fixture: 40 entities per store, each with a 16,413-byte docstring
-(`TestDocstringToolsDefaultResponseStaysWithinBudget`), reply measured by
-`estimateResponseBytes`.
+Fixture: 40 entities per store, each with a 16,413-byte docstring and a 12 KiB
+`source_cache` (clipped to 4,096 by #7171), reply measured by
+`estimateResponseBytes` (`TestDocstringToolsDefaultResponseStaysWithinBudget`).
+The "before" column is the same test file run on `origin/main` (725fa1942).
 
 | Tool (default rows) | Before | After |
 | --- | --- | --- |
-| `find_symbol` (20) | `mcp_response_over_budget`, 3,341,129 B | 164,043 B |
-| `inspect_code_inventory` (20) | `mcp_response_over_budget`, 3,347,569 B | 170,483 B |
-| `search_entity_content` (10) | 174,021 B (no markers) | 31,045 B |
+| `find_symbol` (20) | `mcp_response_over_budget`, 3,488,291 B | 156,995 B |
+| `inspect_code_inventory` (20) | `mcp_response_over_budget`, 3,494,731 B | 160,399 B |
+| `search_entity_content` (10) | 210,842 B (fits, no docstring markers) | 104,627 B |
 
 Before the fix the first two tools fail closed at default arguments for a
 repository with long docstrings; after it they return a page whose size no
 longer depends on docstring length.
+
+**Which copy the "after" figure counts.** The MCP result carries the envelope
+twice, a `structuredContent` copy and an escaped `resource.text` copy. Two full
+copies of a 157 KB reply are about 314 KB, over the 262,144-byte budget, so
+`applyResponseBudget` drops the structured copy and keeps the single resource
+copy when that fits; the figures above are that single copy. The reply is a
+success, not `mcp_response_over_budget`, and the resource copy holds the whole
+envelope, but a client that reads only `structuredContent` gets none on a page
+this size. A page that fits both copies needs the rows to total about 131 KB, or
+roughly 6.5 KB per row at 20 rows: 4,096 of source and about 1.5 KB of other row
+content leave under 1 KB for all docstring echoes, which is below what a
+docstring clip that keeps its summary line can offer. The 512-byte ceiling
+targets the single-copy regime with margin (157-160 KB against 262 KB), not
+the two-copy one; an earlier draft of this table used a 512-byte source fixture
+and reported 164,043 and 170,483 B, which understated a real page.
 
 ## Not covered
 

@@ -59,7 +59,9 @@ The MCP defaults are `find_symbol` 20 rows, `inspect_code_inventory` 20 rows,
 and `search_entity_content` 10 rows. At these defaults a reply stays under the
 256 KiB dispatch budget by construction: each row is a clipped `source_cache`
 (4,096 bytes), at most six 512-byte docstring copies, and about 1.5 KB of other
-row content, so a 20-row page is about 170 KB. A reply can still fail closed
+row content, so a 20-row page is about 160-175 KB. That fits the budget as the
+single resource copy the dispatcher keeps when two full copies would exceed
+it; it is not a promise that both wire copies fit. A reply can still fail closed
 with `mcp_response_over_budget` if some other metadata field is very large; its
 guidance names `get_entity_content`. Only `docstring` is bounded in `metadata`
 today; other fields are returned whole. The HTTP handler defaults are

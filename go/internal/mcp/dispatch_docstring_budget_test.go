@@ -39,7 +39,7 @@ func newDocstringBudgetStore() *sourceCacheBudgetStore {
 			StartLine:    10,
 			EndLine:      40,
 			Language:     "typescript",
-			SourceCache:  strings.Repeat("a", 512),
+			SourceCache:  strings.Repeat("a", sourceCacheBudgetTypicalLen),
 			Metadata:     map[string]any{"docstring": body},
 		})
 	}

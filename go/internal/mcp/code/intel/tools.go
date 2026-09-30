@@ -31,7 +31,7 @@ func Tools() []toolcontract.ToolDefinition {
 func findCodeTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_code",
-		Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names.",
+		Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names. A row docstring, and every echo of it in the row, is clipped to 512 bytes (docstring_clipped, docstring_total_bytes; the response reports docstring_clip_bytes and docstring_clipped_rows); use get_entity_content with the row's entity_id for the full docstring.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
