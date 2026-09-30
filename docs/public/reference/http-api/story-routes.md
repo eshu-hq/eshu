@@ -210,8 +210,10 @@ source-only count. Ingest cost is one btree entry for a support-kind fact only.
 
 Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
 
-No-Observability-Change: statement text and index only; the
-`list_service_story_target_support` span, stage events, and metrics are unchanged.
+Observability: the #7126 change was statement text and index only. Since #7138
+the stage events also carry the link verdict (see the paragraph above and the
+list below); the `list_service_story_target_support` span and metrics are
+unchanged.
 
 No-Regression Evidence:
 
@@ -222,14 +224,21 @@ cd go && go test ./internal/mcp -run 'TestDispatchTool(ServiceStoryPreservesTarg
 
 Observability Evidence: service story records support readback in
 `service_query.stage_completed` with stage `support_target_evidence`,
-`has_result`, `target_support_evidence_count`, and `error`. Repository story
-emits `repository_query.stage_completed` for `target_support` with
-`has_result`, `evidence_count`, and `error`. The Postgres read model uses the
+`has_result`, `target_support_evidence_count`, `target_support_ambiguous_count`,
+`target_support_missing_reason`, `repository_workload_count`,
+`repository_defines_target`, `repository_defines_error` (when the graph read
+failed), and `error`. Repository story emits `repository_query.stage_completed`
+for `target_support` with `has_result`, `evidence_count`,
+`target_support_ambiguous_count`, `target_support_missing_reason`, and
+`error`. The service story also runs one bounded graph read per story, the
+repository's `DEFINES` workloads with the target sorted first, `LIMIT 3`.
+The Postgres read model uses the
 existing `postgres.query` span family with operation
 `list_service_story_target_support` against active `fact_records`; the
 source-only fallback is an aggregate count over the same active support fact
 kinds and does not return row payloads. No collector, reducer queue, graph
-write, metric instrument, runtime flag, or deployment setting changes.
+write, metric instrument, runtime flag, or deployment setting changes; #7138
+adds the one graph read above and migration 152's index.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence

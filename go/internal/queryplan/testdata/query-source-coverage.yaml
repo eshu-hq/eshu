@@ -717,7 +717,7 @@ source_coverage:
       - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot: {class: keyed_support, source_sha256: 775aec42406be8f0c44ecc88625950d801d21a42b80790373dc568b1f3b83556, key_bound: single_key, max_results: 1}}
   - file: service/story_target_support_reads.go
     calls:
-      - {symbol: "readRepositoryDefinesGate", count: 1, non_hot: {class: keyed_support, source_sha256: 126465a4352d3c6537848e2fbdfa126379e193a9a15b4cd15be3aa8ffeac75bb, key_bound: single_key, max_results: 3}}
+      - {symbol: "readRepositoryDefinesGate", count: 1, non_hot: {class: keyed_support, source_sha256: 9c8b1cb7b1486b4cd8f6889bcc74c43eb54b45fbb31b6de0d055c0c9b635d8e0, key_bound: single_key, max_results: 3}}
   - file: entity/service_workload_resolution.go
     calls:
       - symbol: "(*Handler).hydrateServiceWorkloadCandidateRepoNames"

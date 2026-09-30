@@ -32,12 +32,15 @@ type serviceStoryTargetSupportStore interface {
 
 // repositoryDefinesWorkloadsCypher lists the Workloads a repository DEFINES,
 // bounded at three rows: the gate only has to tell zero from one from
-// two-or-more. It anchors on the Repository.id unique index and expands the
-// typed DEFINES edge, with no aggregate (profiled on Neo4j in
+// two-or-more. The target workload sorts first, so a repository that defines
+// the target among more workloads than the bound still returns it and reads
+// as ambiguous rather than as "does not define the target". It anchors on the
+// Repository.id unique index and expands the typed DEFINES edge, with no
+// aggregate (profiled on Neo4j in
 // docs/internal/evidence/7138-story-target-support-writer-keys.md).
 var repositoryDefinesWorkloadsCypher = `MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
 RETURN w.id AS id
-ORDER BY id
+ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id
 LIMIT ` + strconv.Itoa(querycontract.ServiceStoryRepositoryWorkloadReadLimit)
 
 // TargetSupportLoad is the outcome of one service-story target-support load: the
@@ -131,7 +134,7 @@ func readRepositoryDefinesGate(
 		strings.TrimSpace(querycontract.SafeStr(workloadContext, "materialization_status")) == "identity_only" {
 		return TargetSupportLoad{}
 	}
-	rows, err := graph.Run(ctx, repositoryDefinesWorkloadsCypher, map[string]any{"repo_id": repoID})
+	rows, err := graph.Run(ctx, repositoryDefinesWorkloadsCypher, map[string]any{"repo_id": repoID, "workload_id": serviceID})
 	if err != nil {
 		return TargetSupportLoad{RepositoryDefinesErr: err}
 	}

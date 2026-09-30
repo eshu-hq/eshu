@@ -28,7 +28,9 @@ they seeded the read's own assumed keys.
 - **Service target:** the same links reached through the service's repository,
   only when the graph shows the repository defining exactly that workload. One
   bounded read per story, `MATCH (r:Repository {id:$repo_id})-[:DEFINES]->(w:Workload)
-  RETURN w.id AS id ORDER BY id LIMIT 3`, decides in Go: one id equal to the target
+  RETURN w.id AS id ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id LIMIT 3`
+  (the target sorts first, so a repository defining the target among more than
+  three workloads still reads as ambiguous), decides in Go: one id equal to the target
   links (`link_basis: repository_sole_workload`); two or more including the target
   are ambiguous (`support_correlation_ambiguous`, `evidence_count` 0); everything
   else, including no graph, a failed read, and an identity-only context, fails
@@ -231,3 +233,26 @@ the DEFINES read runs through the existing bounded graph reader and its
   label: the over-admission the correlation-truth rules refuse.
 - Name equality between the service and the repository as the gate: over-admits a
   monorepo's same-named workload.
+
+## Service gate: the target stays inside the three-row bound
+
+Review found that `ORDER BY id LIMIT 3` returned the three alphabetically first
+workloads, so a repository defining four or more workloads with the target
+sorting after them read as "does not define the target" instead of ambiguous.
+Nothing was over-admitted (the verdict still failed closed), but the story
+reported the wrong reason. The read now sorts the target first:
+`ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id LIMIT 3`.
+
+`TestServiceStoryTargetSupportDefinesGateNeo4jLive` (build tag
+`live_infra_scope_neo4j`) drives the production loader against a real Neo4j
+(`neo4j:2026-community`) with a sole workload, two workloads, four with the
+target sorting last, four without the target, and none. It passes on the fix;
+with the read reverted to `ORDER BY id` it fails only the four-with-target-last
+case: `gate (count, defines) = (3, false), want (3, true)`.
+
+PROFILE on the fixed statement, a repository defining 60 workloads with the
+target sorting last, `repository_id` unique constraint applied:
+`NodeUniqueIndexSeek UNIQUE r:Repository(id)` (2 db hits), typed
+`Expand(All) (r)-[:DEFINES]->(w)`, `Filter w:Workload`, `Projection`, `Top ...
+LIMIT 3`; 184 total db hits (185 for the earlier `ORDER BY id` form), and the
+target is the first row.

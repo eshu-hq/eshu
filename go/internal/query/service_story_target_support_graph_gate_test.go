@@ -91,7 +91,14 @@ func TestServiceStoryTargetSupportGateReadsRepositoryDefines(t *testing.T) {
 			if got := defines.params["repo_id"]; got != "repo-payments-api" {
 				t.Fatalf("DEFINES read repo_id = %#v, want repo-payments-api", got)
 			}
-			for _, want := range []string{"MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)", "ORDER BY id", "LIMIT 3"} {
+			if got := defines.params["workload_id"]; got != "workload:payments-api" {
+				t.Fatalf("DEFINES read workload_id = %#v, want the target so it sorts first inside the limit", got)
+			}
+			for _, want := range []string{
+				"MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)",
+				"ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id",
+				"LIMIT 3",
+			} {
 				if !strings.Contains(defines.cypher, want) {
 					t.Fatalf("DEFINES read missing %q:\n%s", want, defines.cypher)
 				}
