@@ -232,6 +232,17 @@ func TestLiveRepositoryPathConflictRetirementReportsDroppedIncomingEdges(t *test
 			live.observeStubRecreation(ctx, t, oldID)
 		})
 	}
+
+	// #7445: the shared cleanup must remove the path-less stub the writers
+	// re-created under the retired id; it carries no path and no uid, so
+	// only its id ties it to this test's prefix.
+	live.cleanup(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if got := live.count(ctx, t, `MATCH (r:Repository) WHERE r.id STARTS WITH 'repository:' + $prefix RETURN count(r) AS count`,
+		map[string]any{"prefix": live.prefix}); got != 0 {
+		t.Fatalf("prefix-scoped Repository nodes after cleanup = %d, want 0", got)
+	}
 }
 
 // observeStubRecreation records, without asserting it correct (#7324 arbiter
