@@ -73,7 +73,9 @@ vocabulary:
   sentence lists `topology_story` and `delivery_family_story`; and
   `deployment_artifacts`, a map of lists (`controller_artifacts`,
   `workflow_artifacts`, `deployment_artifacts`, `config_paths`) whose rows are
-  counted across the lists. Each has no row cap of its own.
+  counted across the lists; and `relationship_overview`, counted by its
+  `relationship_count` because its partition lists repeat the same rows. Each
+  has no row cap of its own.
   An empty `sections` list names nothing and is read as the mode's default set.
 - `truth.omissions` lists `{section, detail, total}` for the same non-full
   families. It is absent when every family ships in full.

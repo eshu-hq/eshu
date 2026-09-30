@@ -260,6 +260,19 @@ func traceAtCapDeploymentEvidence(n int) map[string]any {
 		"payments-api ships from deployment-charts through ArgoCD to the prod cluster.",
 		"The prod overlay pins the image by digest.",
 	}
+	// relationship_overview (repository.BuildRepositoryRelationshipOverview):
+	// every outgoing repository edge, repeated in its partition lists.
+	relationships := traceAtCapRows(2*n, func(i int) map[string]any {
+		return map[string]any{
+			"type": "DEPLOYS_FROM", "source_name": "payments", "target_name": fmt.Sprintf("deployment-charts-%03d", i),
+			"evidence_type": "argocd_application_source", "resolved_id": fmt.Sprintf("resolved:%040x", i),
+		}
+	})
+	deploymentEvidence["relationship_overview"] = map[string]any{
+		"relationship_count": len(relationships), "relationships": relationships, "controller_driven": relationships,
+		"relationship_types": []string{"DEPLOYS_FROM"}, "evidence_types": []string{"argocd_application_source"},
+		"story": "payments deploys from 100 repositories.",
+	}
 	deploymentEvidence["delivery_family_story"] = []string{"GitHub Actions builds the image and ArgoCD syncs the chart."}
 	return deploymentEvidence
 }

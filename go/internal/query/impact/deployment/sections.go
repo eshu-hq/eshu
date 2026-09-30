@@ -301,6 +301,31 @@ var contentDerivedEvidenceKeys = []string{
 	"delivery_family_story",
 	"delivery_workflows",
 	"topology_story",
+	// relationship_overview is handled apart from this list's row counting:
+	// its partition lists repeat the rows in relationships, so it counts
+	// relationship_count once (see relationshipOverviewRows).
+	relationshipOverviewKey,
+}
+
+// relationshipOverviewKey is the deployment_evidence key holding
+// repository.BuildRepositoryRelationshipOverview output, built from every
+// outgoing repository edge with no row cap.
+const relationshipOverviewKey = "relationship_overview"
+
+// relationshipOverviewRows returns the relationship count of a
+// relationship_overview value: relationship_count when present, otherwise the
+// length of relationships. controller_driven, workflow_driven, iac_driven, and
+// other_relationships partition those same rows, so summing every list would
+// count each relationship twice.
+func relationshipOverviewRows(value any) int {
+	overview, ok := value.(map[string]any)
+	if !ok {
+		return 0
+	}
+	if count, ok := overview["relationship_count"].(int); ok && count > 0 {
+		return count
+	}
+	return rowCount(overview["relationships"])
 }
 
 // countDeploymentEvidence counts the rows deployment_evidence would ship: the
@@ -312,6 +337,10 @@ func countDeploymentEvidence(response map[string]any) int {
 	evidence := querycontract.MapValue(response, "deployment_evidence")
 	count := len(querycontract.MapSliceValue(evidence, "artifacts"))
 	for _, key := range contentDerivedEvidenceKeys {
+		if key == relationshipOverviewKey {
+			count += relationshipOverviewRows(evidence[key])
+			continue
+		}
 		count += rowCount(evidence[key])
 	}
 	return count
@@ -354,7 +383,11 @@ func projectDeploymentEvidence(response map[string]any) {
 	shaped := copyMap(evidence)
 	delete(shaped, "evidence_index")
 	for _, key := range contentDerivedEvidenceKeys {
-		if rowCount(shaped[key]) > 0 {
+		rows := rowCount(shaped[key])
+		if key == relationshipOverviewKey {
+			rows = relationshipOverviewRows(shaped[key])
+		}
+		if rows > 0 {
 			delete(shaped, key)
 		}
 	}

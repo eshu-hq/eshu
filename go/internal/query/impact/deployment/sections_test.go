@@ -384,6 +384,23 @@ func TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists(t *testi
 				},
 				"topology_story":        []string{"story one", "story two"},
 				"delivery_family_story": []string{"family one"},
+				// relationship_overview repeats each relationship in a partition
+				// list (repository.BuildRepositoryRelationshipOverview), so its
+				// row count is relationship_count, not the sum of its lists.
+				"relationship_overview": map[string]any{
+					"relationship_count": 5,
+					"relationships": []any{
+						map[string]any{"type": "DEPLOYS_FROM"},
+						map[string]any{"type": "DEPLOYS_FROM"},
+						map[string]any{"type": "USES_MODULE"},
+						map[string]any{"type": "USES_MODULE"},
+						map[string]any{"type": "DEPENDS_ON"},
+					},
+					"controller_driven":   []any{map[string]any{"type": "DEPLOYS_FROM"}, map[string]any{"type": "DEPLOYS_FROM"}},
+					"other_relationships": []any{map[string]any{"type": "USES_MODULE"}, map[string]any{"type": "USES_MODULE"}, map[string]any{"type": "DEPENDS_ON"}},
+					"relationship_types":  []string{"DEPENDS_ON", "DEPLOYS_FROM", "USES_MODULE"},
+					"story":               "orders depends on 5 repositories.",
+				},
 			},
 		}
 	}
@@ -391,23 +408,24 @@ func TestApplySectionSelectionCountsAndDropsContentDerivedEvidenceLists(t *testi
 	handles := build()
 	ApplySectionSelection(handles, SectionSelection{EvidenceDetail: EvidenceDetailHandles})
 	evidence := querycontract.MapValue(handles, "deployment_evidence")
-	for _, key := range []string{"shared_config_paths", "delivery_paths", "deployment_artifacts", "topology_story", "delivery_family_story"} {
+	for _, key := range []string{"shared_config_paths", "delivery_paths", "deployment_artifacts", "topology_story", "delivery_family_story", "relationship_overview"} {
 		if _, present := evidence[key]; present {
 			t.Errorf("handles mode kept the content-derived value %s", key)
 		}
 	}
 	entry := querycontract.MapValue(querycontract.MapValue(handles, "section_detail"), "deployment_evidence")
 	// 2 graph artifacts + 3 config paths + 4 delivery paths + 5 rows in the
-	// deployment_artifacts map + 2 topology sentences + 1 family sentence.
-	if entry["detail"] != EvidenceDetailHandles || entry["total"] != 17 || entry["returned"] != 2 {
-		t.Errorf("section_detail.deployment_evidence = %v, want handles, total 17, returned 2", entry)
+	// deployment_artifacts map + 2 topology sentences + 1 family sentence + 5
+	// relationships (counted once, not once per partition list).
+	if entry["detail"] != EvidenceDetailHandles || entry["total"] != 22 || entry["returned"] != 2 {
+		t.Errorf("section_detail.deployment_evidence = %v, want handles, total 22, returned 2", entry)
 	}
 
 	full := build()
 	ApplySectionSelection(full, SectionSelection{EvidenceDetail: EvidenceDetailFull})
 	entry = querycontract.MapValue(querycontract.MapValue(full, "section_detail"), "deployment_evidence")
-	if entry["detail"] != EvidenceDetailFull || entry["total"] != 17 || entry["returned"] != 17 {
-		t.Errorf("full mode section_detail.deployment_evidence = %v, want full, total 17, returned 17", entry)
+	if entry["detail"] != EvidenceDetailFull || entry["total"] != 22 || entry["returned"] != 22 {
+		t.Errorf("full mode section_detail.deployment_evidence = %v, want full, total 22, returned 22", entry)
 	}
 }
 

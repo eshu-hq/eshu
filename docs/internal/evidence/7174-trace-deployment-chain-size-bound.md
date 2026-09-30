@@ -30,10 +30,10 @@ Source: `go test ./internal/query/impact/deployment -run TestResponseAtCapSize -
 
 | Measure | Bytes |
 | --- | --- |
-| `data` | 645,434 |
-| envelope | 645,537 |
-| escaped resource copy | 706,153 |
-| counted (two copies) | 1,351,964 (515.7% of 262,144) |
+| `data` | 685,060 |
+| envelope | 685,163 |
+| escaped resource copy | 749,799 |
+| counted (two copies) | 1,435,236 (547.5% of 262,144) |
 
 The first cut of the fixture measured 543,644 B of data and 1,137,086 counted
 (433.8%). Review found the fixture left out the values `deployment_evidence`
@@ -43,10 +43,12 @@ have no row cap of their own. The fixture now holds, in the producers' shapes,
 100 rows in each of `shared_config_paths` (strings) and `delivery_paths`; a
 `deployment_artifacts` map of four lists of 100 rows
 (`repositoryartifacts.MergeDeploymentArtifactMaps`); and the two story keys as
-lists of sentences (`repository/deployment_overview_story.go`). The figures
-above include them.
+lists of sentences (`repository/deployment_overview_story.go`); and a
+`relationship_overview` of 100 relationships repeated in its partition list
+(`repository.BuildRepositoryRelationshipOverview`, built from every outgoing
+repository edge with no LIMIT). The figures above include them.
 
-The heaviest keys in `data`: `deployment_evidence` 163,273; `delivery_paths`
+The heaviest keys in `data`: `deployment_evidence` 202,899; `delivery_paths`
 121,916; `instances` 57,301; `controller_overview` 41,241; `cloud_resources`
 36,501; `deployment_facts` 36,410; `image_registry_truth` 29,401;
 `k8s_resources` 20,071; `provisioned_platforms` 17,651; `story` 14,082;
@@ -80,8 +82,8 @@ Source: `TestApplySectionSelectionLogsNonDefaultWorstCase`.
 
 | Scenario | Full counted | Handles counted |
 | --- | --- | --- |
-| enrichment 50, overview carries hostname/entrypoint/api copies | 1,443,956 | 252,852 (96.5%) |
-| 5 platforms per instance, enrichment 100 (`max_depth` >= 10) | 1,963,330 | 273,178 (104.2%) |
+| enrichment 50, overview carries hostname/entrypoint/api copies | 1,527,228 | 252,852 (96.5%) |
+| 5 platforms per instance, enrichment 100 (`max_depth` >= 10) | 2,046,602 | 273,178 (104.2%) |
 
 The second row goes over the two-copy budget. This figure is an estimate, not a
 measurement: the escaped resource copy is a little over half the counted
@@ -128,7 +130,12 @@ failed first:
   is a map of lists and the two story keys are lists of sentences, so the test
   and fixture modeled shapes the producers never emit and the map shipped in
   full. The row count now covers a slice and a map of slices, and the test
-  failed first (map kept, total 12 instead of 17).
+  failed first (map kept, total 12 instead of 17). A second re-review found
+  one more uncovered value: `relationship_overview`, built from every outgoing
+  repository edge with no LIMIT, whose partition lists repeat the same rows. It
+  is now dropped under handles and counted once, by `relationship_count`
+  (falling back to `len(relationships)`), not by summing its lists; the test
+  failed first (value kept, total 17 instead of 22).
 - The `image_registry_truth` handle lost the ambiguity qualifier; it now keeps
   `match_strength`.
 
