@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "name": "capped_empty",
+      "total_files": 5001,
+      "workflow_ordinal": 5001,
+      "static_workflow_artifacts": {
+        "state": "unknown",
+        "count": 0,
+        "candidate_pool_status": "unknown_at_limit",
+        "reason": "repository_file_scan_limit_reached"
+      },
+      "summary_reason": "static_workflow_coverage_unknown"
+    },
+    {
+      "name": "capped_present",
+      "total_files": 5000,
+      "workflow_ordinal": 5000,
+      "static_workflow_artifacts": {
+        "state": "present",
+        "count": 1,
+        "paths": [
+          "src/file-05000.go"
+        ],
+        "candidate_pool_status": "unknown_at_limit"
+      },
+      "summary_reason": "static_workflow_only_live_run_correlation_missing"
+    },
+    {
+      "name": "uncapped_empty",
+      "total_files": 4999,
+      "workflow_ordinal": 0,
+      "static_workflow_artifacts": {
+        "state": "absent",
+        "count": 0
+      },
+      "summary_reason": "no_ci_cd_evidence_found"
+    }
+  ]
+}
