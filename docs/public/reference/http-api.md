@@ -104,11 +104,12 @@ statement fingerprint is an operator-side field the response does not carry.
 The two routes that run a caller-authored statement, `POST /api/v0/code/cypher`
 (`execute_cypher_query`) and `POST /api/v0/code/visualize`, treat a statement
 the graph rejects as malformed (`Neo.ClientError.Statement.*`) as the caller's
-fault: they answer `400 invalid_argument` with the graph's message, every
-numeric and string literal replaced by `<REDACTED>`, so the author can fix the
-query. Any other failure on those routes is the same `500` as above. Because
-the redaction reads the message as Cypher, the offending token and the numbers
-in a `line 1, column 24` position are replaced too.
+fault: they answer `400 invalid_argument` with the first line of the graph's
+message, every numeric and string literal replaced by `<REDACTED>`, so the
+author can fix the query. The quoted copy of the statement that follows the
+message is not returned. Any other failure on those routes is the same `500` as
+above. Because the redaction reads the message as Cypher, the offending token
+and the numbers in a `line 1, column 24` position are replaced too.
 
 ## Shared Model Rules
 

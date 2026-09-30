@@ -32,9 +32,24 @@ head and fingerprint (#7035):
   `TestNeo4jReaderSpanForUnavailableReadCarriesNoAddress` now pins it, and
 - a new `query.graph_read.error` log with `graph_read.error` (redacted driver
   text), `graph_read.statement_fingerprint`, `graph_read.statement_head`, and
-  `graph_query_name`. It is ERROR level, except WARN for a failure the backend
-  classifies as the caller's (`Neo.ClientError.*`), so a client cannot raise an
-  ERROR stream with a malformed statement.
+  `graph_query_name`. It is ERROR level, except WARN for a statement the
+  backend rejects as malformed (`Neo.ClientError.Statement.*`), so a client
+  cannot raise an ERROR stream with a bad statement. The first cut used the
+  whole `Neo.ClientError.*` class, which also holds authentication,
+  authorization, and missing-database errors: a rotated graph credential would
+  have produced 500s with only WARN logs. Review caught it;
+  `TestNeo4jReaderLogsServerSideClientClassFaultsAtError` pins the ERROR level
+  for those codes. A rejected Eshu-built statement is WARN too, because the
+  reader cannot tell who wrote the statement; the `outcome="error"` metric still
+  counts it.
+- The driver text is redacted from its first line only
+  (`redactDriverText`). A Neo4j syntax error quotes the offending statement in
+  double quotes after the message, and the redactor reads its input as Cypher,
+  so a double-quoted literal inside that quoted line flipped the string
+  boundaries and survived, in the log field, the span, and the 400 message.
+  `TestDriverDetailIsRedactedFromTheFirstLineOnly` reproduces it with an inner
+  `"alice-secret"`. The statement is not lost: `graph_read.statement_head`
+  already records it redacted.
 
 ### User-authored Cypher routes
 
@@ -43,14 +58,17 @@ own statement. Bounding the error to `graph query failed` there removed the
 only feedback an author (or an MCP agent) had for a malformed query, and
 reported a caller error as a 500. Both routes now ask
 `querycontract.GraphStatementRejection`: a `Neo.ClientError.Statement.*` failure
-answers `400 invalid_argument` with the backend message run through the same
-literal redaction, and any other failure stays `500 graph query failed`. The
+answers `400 invalid_argument` with the first line of the backend message run
+through the literal redaction, and any other failure stays `500 graph query
+failed`. The
 seam is an interface the reader's error implements, so the routes do not import
 the reader. The trade-off is that the redaction reads the message as Cypher: it
 replaces the offending token in `Invalid input 'x'` and the numbers in a
 `line 1, column 24` position, and drops text after `//`. That is enough to name
 the clause the graph expected, and it keeps the same guarantee as the log and
-span. `TestCypherRoutesAnswer400ForARejectedCallerStatement` covers both routes;
+span. Not verified against a live Neo4j: the quoted-statement message shape is
+Neo4j's documented syntax-error form and was reproduced with a hand-written
+message, not captured from a server. `TestCypherRoutesAnswer400ForARejectedCallerStatement` covers both routes;
 disabling the mapping turns it red.
 
 The existing 503 (`ErrGraphUnavailable`) and 504 (`ErrGraphReadDeadline`)

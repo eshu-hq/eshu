@@ -375,8 +375,9 @@ HTTP 500 body, or wraps the error with `%w` and does so later, cannot leak the
 statement a driver error quotes (#7253). The operator detail moved to two
 places, both redacted with the same scanner as the statement head: the
 `neo4j.query` span status and exception event, and the
-`query.graph_read.error` log (ERROR, or WARN when the backend classifies the
-failure as the caller's, `Neo.ClientError.*`) with `graph_read.error`,
+`query.graph_read.error` log (ERROR, or WARN when the backend rejects the
+statement as malformed, `Neo.ClientError.Statement.*`) with `graph_read.error`
+(the first line of the driver text only),
 `graph_read.statement_fingerprint`, `graph_read.statement_head`, and
 `graph_query_name`. Only the query-failed class swaps its driver cause into the
 span; an unavailable or deadline read keeps its fixed public text, because its

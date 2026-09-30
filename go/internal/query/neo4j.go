@@ -96,7 +96,19 @@ func redactedSpanError(err error) error {
 	if errors.As(err, &readErr) && readErr.public == ErrGraphQueryFailed && readErr.cause != nil {
 		err = readErr.cause
 	}
-	return errors.New(statement.Redact(err.Error()))
+	return errors.New(redactDriverText(err.Error()))
+}
+
+// redactDriverText redacts the first line of a driver error only. A Neo4j
+// syntax error follows its message line with the offending statement in double
+// quotes, and the redactor reads its input as Cypher, so a double-quoted literal
+// inside that quoted line would flip the string boundaries and survive (review
+// R2 of #7253). The statement itself is already recorded, redacted, as the
+// graph_read.statement_head log field, and the message line carries the
+// diagnosis.
+func redactDriverText(text string) string {
+	first, _, _ := strings.Cut(text, "\n")
+	return statement.Redact(first)
 }
 
 // StatementRejection reports whether the cause is the backend rejecting the
@@ -109,15 +121,20 @@ func (e *graphReadError) StatementRejection() (string, bool) {
 		!strings.HasPrefix(driverErr.Code, "Neo.ClientError.Statement.") {
 		return "", false
 	}
-	return statement.Redact(driverErr.Msg), true
+	return redactDriverText(driverErr.Msg), true
 }
 
-// isBackendClientError reports whether the backend classified the failure as
-// the caller's (Neo.ClientError.*), so the operator log stays at WARN instead of
-// raising an ERROR stream a client can trigger with a malformed statement.
-func isBackendClientError(err error) bool {
+// isRejectedStatement reports whether the backend rejected the submitted
+// statement as malformed (Neo.ClientError.Statement.*), so the operator log
+// stays at WARN instead of raising an ERROR stream a client can trigger with a
+// bad statement. It is deliberately narrower than Neo.ClientError.*, which also
+// carries authentication, authorization and missing-database errors: those are
+// Eshu's own configuration faults and must stay at ERROR. The reader cannot tell
+// who wrote the statement, so a rejected Eshu-built statement is WARN too; the
+// outcome="error" metric still counts it.
+func isRejectedStatement(err error) bool {
 	var driverErr *neo4jdriver.Neo4jError
-	return errors.As(err, &driverErr) && strings.HasPrefix(driverErr.Code, "Neo.ClientError.")
+	return errors.As(err, &driverErr) && strings.HasPrefix(driverErr.Code, "Neo.ClientError.Statement.")
 }
 
 // logGraphReadError emits the operator-facing record for a graph read the
@@ -138,7 +155,7 @@ func (r *Neo4jReader) logGraphReadError(
 		logger = slog.Default()
 	}
 	level := slog.LevelError
-	if isBackendClientError(err) {
+	if isRejectedStatement(err) {
 		level = slog.LevelWarn
 	}
 	logger.Log(

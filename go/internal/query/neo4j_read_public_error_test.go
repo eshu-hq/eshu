@@ -123,6 +123,57 @@ func TestNeo4jReaderLogsServerSideDriverFaultsAtError(t *testing.T) {
 	}
 }
 
+// TestNeo4jReaderLogsServerSideClientClassFaultsAtError pins review R1: only a
+// rejected statement is the caller's fault. Neo.ClientError also covers
+// authentication, authorization and missing-database errors, which are Eshu's
+// own configuration faults; a rotated credential must not turn every graph read
+// into a 500 with only WARN logs.
+func TestNeo4jReaderLogsServerSideClientClassFaultsAtError(t *testing.T) {
+	for _, code := range []string{
+		"Neo.ClientError.Security.Unauthorized",
+		"Neo.ClientError.Security.Forbidden",
+		"Neo.ClientError.Database.DatabaseNotFound",
+	} {
+		var logs bytes.Buffer
+		reader := failingPolicyTestReader(&neo4jdriver.Neo4jError{Code: code, Msg: "denied"}, &logs)
+		if _, err := reader.Run(context.Background(), "RETURN 1", nil); !errors.Is(err, ErrGraphQueryFailed) {
+			t.Fatalf("%s: Run() error = %v, want ErrGraphQueryFailed", code, err)
+		}
+		if level := lastLogRecord(t, &logs)["level"]; level != "ERROR" {
+			t.Fatalf("%s log level = %v, want ERROR", code, level)
+		}
+	}
+}
+
+// TestDriverDetailIsRedactedFromTheFirstLineOnly pins review R2. A Neo4j syntax
+// error quotes the offending statement line in double quotes on the lines after
+// the message. The redactor reads text as Cypher, so a double-quoted literal
+// inside that quoted line flips the string boundaries and survives. The detail
+// therefore stops at the first newline: the statement is already in the log's
+// statement head, and the message line carries the diagnosis.
+func TestDriverDetailIsRedactedFromTheFirstLineOnly(t *testing.T) {
+	const secret = "alice-secret"
+	driverErr := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Statement.SyntaxError",
+		Msg: "Invalid input 'RETRN': expected a clause (line 1, column 26 (offset: 25))\n" +
+			"\"MATCH (n {name: \"" + secret + "\"}) RETRN n\"\n" + "                          ^",
+	}
+	var logs bytes.Buffer
+	reader := failingPolicyTestReader(driverErr, &logs)
+	_, err := reader.Run(context.Background(), "MATCH (n {name: \""+secret+"\"}) RETRN n", nil)
+
+	message, ok := querycontract.GraphStatementRejection(err)
+	if !ok || strings.Contains(message, secret) || !strings.Contains(message, "expected a clause") {
+		t.Fatalf("rejection = (%q, %v), want the message line kept and the quoted statement dropped", message, ok)
+	}
+	if detail, _ := lastLogRecord(t, &logs)["graph_read.error"].(string); strings.Contains(detail, secret) || !strings.Contains(detail, "SyntaxError") {
+		t.Fatalf("graph_read.error = %q, want the code kept and the quoted statement dropped", detail)
+	}
+	if got := redactedSpanError(err).Error(); strings.Contains(got, secret) {
+		t.Fatalf("span error = %q, want the quoted statement dropped", got)
+	}
+}
+
 // TestGraphStatementRejectionOnlyForBackendRejectedStatements pins the seam
 // the user-authored Cypher routes use to answer 400 instead of 500.
 func TestGraphStatementRejectionOnlyForBackendRejectedStatements(t *testing.T) {

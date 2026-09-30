@@ -46,8 +46,9 @@ const (
 	// for a slow/deadline/unavailable read (issue #7006 review F2).
 	LogKeyGraphReadQueryName = "graph_query_name"
 	// LogKeyGraphReadError is the query.graph_read.error structured log field
-	// carrying the driver's error text with every numeric and string literal
-	// replaced by <REDACTED> (the same redaction as the statement head), for a
+	// carrying the first line of the driver's error text with every numeric and
+	// string literal replaced by <REDACTED> (the same scanner as the statement
+	// head; the quoted statement lines after the message are dropped), for a
 	// read the backend failed outside the deadline and availability classes
 	// (#7253). The client-facing error never carries this text.
 	LogKeyGraphReadError = "graph_read.error"
