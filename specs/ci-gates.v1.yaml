@@ -1636,7 +1636,7 @@ gates:
       - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
     local:
       command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate)$' -count=1"
-      test_command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof)$' -count=1"
+      test_command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision)$' -count=1"
     ci:
       workflow: reducer-contention-gate.yml
       job: "reducer contention gate"

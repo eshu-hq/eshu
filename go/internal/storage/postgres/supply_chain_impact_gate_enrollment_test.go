@@ -170,9 +170,13 @@ func proofsMissingFromFilter(t *testing.T, filter string, proofs []string) []str
 	return missing
 }
 
-// directDSNRead matches a test reading the proof DSN from the environment
-// itself, bypassing the helper that applies the required-proof switch.
-var directDSNRead = regexp.MustCompile(`os\.(?:Getenv|LookupEnv)\("ESHU_POSTGRES_TEST_DSN"\)`)
+// directEnvRead matches a proof file reading the environment itself, with any
+// argument: a literal key, or a constant or variable that holds it. A proof file
+// must reach the DSN only through supplyChainImpactLiveDSN, so the required-proof
+// switch applies; matching every os.Getenv or os.LookupEnv call also rejects a
+// const-indirected read of ESHU_POSTGRES_TEST_DSN, which a key-specific match
+// would miss.
+var directDSNRead = regexp.MustCompile(`os\.(?:Getenv|LookupEnv)\(`)
 
 // liveProofFiles returns the sorted test files that declare supply-chain impact
 // live proofs, and the ones among them that also read the proof DSN directly. A
@@ -220,15 +224,16 @@ func TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles(t *testing.T) {
 		"direct_test.go":                       []byte("func TestSupplyChainImpactDirectLive(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n}\n"),
 		"wrapped_test.go":                      []byte("func open(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n}\nfunc TestWrappedLive(t int) {\n\topen(t)\n}\n"),
 		"mixed_test.go":                        []byte("func TestMixedLive(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n\t_ = os.Getenv(\"ESHU_POSTGRES_TEST_DSN\")\n}\n"),
+		"const_test.go":                        []byte("const dsnEnv = \"ESHU_POSTGRES_TEST_DSN\"\n\nfunc TestConstLive(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n\t_ = os.Getenv(dsnEnv)\n}\n"),
 		"unrelated_test.go":                    []byte("func TestOtherLive(t int) {\n\t_ = os.Getenv(\"ESHU_POSTGRES_TEST_DSN\")\n}\n"),
 	}
 	files, mixed := liveProofFiles(sources)
-	want := []string{"direct_test.go", "mixed_test.go", "wrapped_test.go"}
-	if len(files) != len(want) || files[0] != want[0] || files[1] != want[1] || files[2] != want[2] {
+	want := []string{"const_test.go", "direct_test.go", "mixed_test.go", "wrapped_test.go"}
+	if len(files) != len(want) || files[0] != want[0] || files[1] != want[1] || files[2] != want[2] || files[3] != want[3] {
 		t.Fatalf("proof files = %v, want %v (the helper file and an unrelated direct-DSN file are out of scope)", files, want)
 	}
-	if len(mixed) != 1 || mixed[0] != "mixed_test.go" {
-		t.Fatalf("mixed-mechanism files = %v, want [mixed_test.go]", mixed)
+	if len(mixed) != 2 || mixed[0] != "const_test.go" || mixed[1] != "mixed_test.go" {
+		t.Fatalf("mixed-mechanism files = %v, want [const_test.go mixed_test.go] (a const-indirected read must be caught too)", mixed)
 	}
 }
 
