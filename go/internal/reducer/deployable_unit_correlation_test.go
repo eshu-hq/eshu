@@ -521,6 +521,96 @@ func TestDeployableUnitCorrelationHandleLogsSelectionOutcome(t *testing.T) {
 		}
 	})
 
+	t.Run("foreign-key zero path", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		handler := DeployableUnitCorrelationHandler{
+			Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
+			PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+			FactLoader: &stubDeployableUnitFactLoader{
+				envelopes: deployableUnitCorrelationEnvelopes(
+					"repo-docs",
+					"documentation",
+					[]map[string]any{
+						{
+							"repo_id":       "repo-docs",
+							"language":      "dockerfile",
+							"relative_path": "Dockerfile",
+							"parsed_file_data": map[string]any{
+								"dockerfile_stages": []any{
+									map[string]any{"name": "runtime"},
+								},
+							},
+						},
+					},
+				),
+			},
+		}
+		if _, err := handler.Handle(context.Background(), deployableUnitIntent("repo:foreign-repo")); err != nil {
+			t.Fatalf("Handle() error = %v, want nil", err)
+		}
+		for _, want := range []string{
+			`"msg":"deployable unit correlation completed"`,
+			`"scope_candidate_count":1`,
+			`"selected_candidate_count":0`,
+			`"selection_reason":"foreign_key_expected"`,
+			`"edge_row_count":0`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("foreign-key zero-path completion log missing %s:\n%s", want, logs.String())
+			}
+		}
+	})
+
+	t.Run("mismatch zero path", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		envelopes := deployableUnitCorrelationEnvelopes(
+			"repo-docs",
+			"documentation",
+			[]map[string]any{
+				{
+					"repo_id":       "repo-docs",
+					"language":      "dockerfile",
+					"relative_path": "Dockerfile",
+					"parsed_file_data": map[string]any{
+						"dockerfile_stages": []any{
+							map[string]any{"name": "runtime"},
+						},
+					},
+				},
+			},
+		)
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   "fact-repo-repo-other",
+			FactKind: "repository",
+			Payload: map[string]any{
+				"graph_id": "repo-other",
+				"name":     "other",
+			},
+			ObservedAt: time.Now().UTC(),
+		})
+		handler := DeployableUnitCorrelationHandler{
+			Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
+			PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+			FactLoader:     &stubDeployableUnitFactLoader{envelopes: envelopes},
+		}
+		if _, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-other")); err != nil {
+			t.Fatalf("Handle() error = %v, want nil", err)
+		}
+		for _, want := range []string{
+			`"msg":"deployable unit correlation completed"`,
+			`"scope_candidate_count":1`,
+			`"selected_candidate_count":0`,
+			`"selection_reason":"no_key_match"`,
+			`"edge_row_count":0`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("mismatch zero-path completion log missing %s:\n%s", want, logs.String())
+			}
+		}
+	})
+
 	t.Run("success path", func(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer

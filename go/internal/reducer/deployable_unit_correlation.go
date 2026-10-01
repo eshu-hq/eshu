@@ -150,6 +150,11 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		// Refine the raw filter reason before logging so a foreign-key zero
+		// reads as foreign_key_expected, mirroring the workload-materialization
+		// path (#7384 Q4): the filter itself reports no_key_match and only a
+		// caller holding the scope repository set can tell the two apart.
+		selection.Reason = refineCandidateSelectionReason(selection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(envelopes))
 		logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, 0)
 		return Result{
 			IntentID:        intent.IntentID,
@@ -179,6 +184,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, err
 	}
 
+	// Same refinement as the zero path above: a no-op for key_match, kept
+	// at both log call sites so the two cannot drift apart.
+	selection.Reason = refineCandidateSelectionReason(selection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(envelopes))
 	logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, len(edgeRows))
 	return Result{
 		IntentID:        intent.IntentID,
