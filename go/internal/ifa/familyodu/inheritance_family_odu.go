@@ -5,7 +5,6 @@ package familyodu
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -294,7 +293,7 @@ var inheritanceFamilyNilParserKeys = []string{
 func inheritanceFamilyFollowupFact() facts.Envelope {
 	return inheritanceFamilyFact("shared_followup", "shared_followup:"+InheritanceFamilyRepoID+":inheritance_materialization", map[string]any{
 		"reducer_domain": "inheritance_materialization",
-		"entity_key":     "inheritance:" + strings.TrimPrefix(inheritanceFamilyLocalPath, "/"),
+		"entity_key":     "inheritance:" + InheritanceFamilyRepoID,
 		"reason":         "repository snapshot emitted inheritance materialization follow-up",
 		"repo_id":        InheritanceFamilyRepoID,
 	})

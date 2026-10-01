@@ -250,7 +250,7 @@
           "source_confidence": "observed",
           "payload": {
             "reducer_domain": "shell_exec_materialization",
-            "entity_key": "shell:repo-shell-exec",
+            "entity_key": "shell:repository:r_9f3ce6a1",
             "reason": "repository snapshot emitted shell execution materialization follow-up",
             "repo_id": "repository:r_9f3ce6a1"
           }

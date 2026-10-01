@@ -150,6 +150,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, 0)
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainDeployableUnitCorrelation,
@@ -178,6 +179,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, err
 	}
 
+	logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, len(edgeRows))
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeployableUnitCorrelation,

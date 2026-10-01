@@ -3,7 +3,13 @@
 
 package reducer
 
-import "strings"
+import (
+	"context"
+	"log/slog"
+	"strings"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
+)
 
 // CandidateSelectionReason is the closed taxonomy for a zero-or-more
 // selection outcome (#7384). A bare selected count misleads because
@@ -104,4 +110,35 @@ func refineCandidateSelectionReason(
 		}
 	}
 	return SelectionForeignKeyExpected
+}
+
+// logDeployableUnitCorrelationCompleted emits the single structured
+// completion log for one deployable-unit correlation pass, carrying the
+// candidate selection counts and reason (Q4) so an operator can distinguish
+// a foreign-key zero from a mismatch without reading keys — mirroring
+// logWorkloadMaterializationCompleted on the workload-materialization path.
+// A nil logger falls back to slog.Default, kept for test wiring only.
+func logDeployableUnitCorrelationCompleted(
+	ctx context.Context,
+	logger *slog.Logger,
+	intent Intent,
+	selection CandidateSelectionReport,
+	edgeRowCount int,
+) {
+	lg := logger
+	if lg == nil {
+		lg = slog.Default()
+	}
+	lg.InfoContext(
+		ctx, "deployable unit correlation completed",
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(DomainDeployableUnitCorrelation)),
+		slog.String("intent_id", intent.IntentID),
+		slog.Any("entity_keys", intent.EntityKeys),
+		slog.Int("scope_candidate_count", selection.Admitted),
+		slog.Int("selected_candidate_count", selection.Selected),
+		slog.String("selection_reason", string(selection.Reason)),
+		slog.Int("edge_row_count", edgeRowCount),
+	)
 }

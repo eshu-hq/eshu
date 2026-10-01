@@ -341,6 +341,9 @@ func TestInheritanceFamilyOduCarriesTheFollowupFact(t *testing.T) {
 		if got := anyToStringValue(env.Payload["repo_id"]); got != ifa.InheritanceFamilyRepoID {
 			t.Fatalf("shared_followup repo_id = %q, want %q", got, ifa.InheritanceFamilyRepoID)
 		}
+		if got, want := anyToStringValue(env.Payload["entity_key"]), "inheritance:"+ifa.InheritanceFamilyRepoID; got != want {
+			t.Fatalf("shared_followup entity_key = %q, want %q", got, want)
+		}
 		return
 	}
 	t.Fatal("inheritance Odù carries no shared_followup fact; the live gate could not enqueue this domain's reducer work item")
