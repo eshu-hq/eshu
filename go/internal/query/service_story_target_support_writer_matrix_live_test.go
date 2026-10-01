@@ -68,7 +68,7 @@ func TestServiceStoryTargetSupportWriterShapedMatrixLive(t *testing.T) {
 			t.Fatalf("work_item_count = %d, want 2", got)
 		}
 		if got := IntVal(support, "incident_routing_count"); got != 0 {
-			t.Fatalf("incident_routing_count = %d, want 0 until #7463 links PagerDuty rows", got)
+			t.Fatalf("incident_routing_count = %d, want 0: the PagerDuty service has no reducer correlation (#7463 links correlated services)", got)
 		}
 		if got := IntVal(support, "ambiguous_count"); got != 0 {
 			t.Fatalf("ambiguous_count = %d, want 0", got)

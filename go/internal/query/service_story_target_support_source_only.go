@@ -6,9 +6,102 @@ package query //nolint:dirgate // B4 EntityHandler/ContentReader seam stayer for
 import (
 	"context"
 	"fmt"
+	"sort"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/support"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
+
+// serviceStoryTargetSupportStatement is one bounded row read of the target
+// support section: the Jira link statement and the PagerDuty routing statement
+// are planned and measured separately, so each keeps its own index proof.
+type serviceStoryTargetSupportStatement struct {
+	query string
+	args  []any
+}
+
+// buildServiceStoryTargetSupportStatements returns the row reads that can find
+// evidence for filter: the work_item.external_link read and, through the
+// reducer's incident-repository correlation, the PagerDuty routing read. Both
+// are keyed on the same repository id and bounded to limit+1 rows, so both stay
+// closed for a service target whose graph gate did not pass (no statement at all).
+func buildServiceStoryTargetSupportStatements(
+	filter serviceStoryTargetSupportFilter,
+) []serviceStoryTargetSupportStatement {
+	var statements []serviceStoryTargetSupportStatement
+	if query, args := buildServiceStoryTargetSupportSQL(filter); query != "" {
+		statements = append(statements, serviceStoryTargetSupportStatement{query: query, args: args})
+	}
+	routingQuery, routingArgs := support.IncidentRoutingSQL(
+		storySupportLinkRepositoryID(filter),
+		serviceStoryTargetSupportRowLimit(filter.Limit),
+	)
+	if routingQuery != "" {
+		statements = append(statements, serviceStoryTargetSupportStatement{query: routingQuery, args: routingArgs})
+	}
+	return statements
+}
+
+// queryServiceStoryTargetSupportFacts runs each statement and returns the rows
+// newest first. Each statement returns at most limit+1 rows in that order, so
+// the merged list holds the newest limit+1 overall and the caller still sees
+// whether the section was truncated.
+func (cr *ContentReader) queryServiceStoryTargetSupportFacts(
+	ctx context.Context,
+	statements []serviceStoryTargetSupportStatement,
+	limit int,
+) ([]map[string]any, error) {
+	facts := make([]map[string]any, 0, limit)
+	for _, statement := range statements {
+		rows, err := cr.db.QueryContext(ctx, statement.query, statement.args...)
+		if err != nil {
+			return nil, fmt.Errorf("query service story target support: %w", err)
+		}
+		scanned, err := scanServiceStoryTargetSupportRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		facts = append(facts, scanned...)
+	}
+	if len(statements) > 1 {
+		sortServiceStoryTargetSupportFacts(facts)
+	}
+	return facts, nil
+}
+
+func scanServiceStoryTargetSupportRows(rows db.Rows) ([]map[string]any, error) {
+	defer func() { _ = rows.Close() }()
+	var facts []map[string]any
+	for rows.Next() {
+		payload, err := scanJSONPayload(rows)
+		if err != nil {
+			return nil, fmt.Errorf("query service story target support: %w", err)
+		}
+		facts = append(facts, payload)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("query service story target support: %w", err)
+	}
+	return facts, nil
+}
+
+// sortServiceStoryTargetSupportFacts orders rows newest first, then by fact id
+// descending, the order each statement returns them in. observed_at is parsed
+// rather than compared as text because the JSON timestamp drops trailing zeros.
+func sortServiceStoryTargetSupportFacts(facts []map[string]any) {
+	observed := func(fact map[string]any) time.Time {
+		parsed, _ := time.Parse(time.RFC3339Nano, StringVal(fact, "observed_at"))
+		return parsed
+	}
+	sort.SliceStable(facts, func(i, j int) bool {
+		if left, right := observed(facts[i]), observed(facts[j]); !left.Equal(right) {
+			return left.After(right)
+		}
+		return StringVal(facts[i], "fact_id") > StringVal(facts[j], "fact_id")
+	})
+}
 
 type serviceStoryTargetSupportSourceOnlySummary struct {
 	TotalCount           int
@@ -51,20 +144,25 @@ func (cr *ContentReader) serviceStoryTargetSupportSourceOnlySummary(
 }
 
 // serviceStoryTargetSupportUnlinkedPredicate is "this active support fact has no
-// durable link to any target". Only a work_item.external_link that carries a
-// linked_repository_id is linked (to some repository); every other support kind
-// has no target key yet, so it is source-only. The predicate is two-valued: the
-// kind comparison is never NULL and NULLIF(...) IS NOT NULL is never NULL, so
-// NOT of it cannot drop a row to UNKNOWN. A row linked to a different
-// repository is neither evidence for this target nor source-only.
-const serviceStoryTargetSupportUnlinkedPredicate = "NOT (fact.fact_kind = '" + storySupportLinkFactKind +
-	"' AND NULLIF(fact.payload->>'" + storySupportLinkPayloadKey + "', '') IS NOT NULL)"
+// durable link to any target". A work_item.external_link that carries a
+// linked_repository_id is linked (to some repository), and so is a PagerDuty
+// applied or observed service whose provider service id the reducer correlated
+// to some repository (support.LinkedIncidentRoutingPredicate); every other
+// support kind has no target key yet, so it is source-only. The predicate is
+// two-valued: the kind comparison is never NULL, NULLIF(...) IS NOT NULL is never
+// NULL, and the routing half coalesces its key, so NOT of it cannot drop a row to
+// UNKNOWN. A row linked to a different repository is neither evidence for this
+// target nor source-only. It reads the admissible_correlations expression the
+// statement defines with support.AdmissibleCorrelationsSQL.
+var serviceStoryTargetSupportUnlinkedPredicate = "NOT (\n  (fact.fact_kind = '" + storySupportLinkFactKind +
+	"' AND NULLIF(fact.payload->>'" + storySupportLinkPayloadKey + "', '') IS NOT NULL)\n  OR " +
+	support.LinkedIncidentRoutingPredicate() + "\n)"
 
 func buildServiceStoryTargetSupportSourceOnlySQL(factKinds []string) (string, []any) {
 	if len(factKinds) == 0 {
 		return "", nil
 	}
-	return `
+	return support.AdmissibleCorrelationsSQL() + `
 SELECT
     COUNT(*) AS support_source_only_count,
     COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'work_item.%') AS work_item_source_only_count,

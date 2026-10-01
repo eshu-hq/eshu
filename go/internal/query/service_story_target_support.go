@@ -9,20 +9,24 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/support"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const serviceStoryTargetSupportLimit = querycontract.ServiceStoryTargetSupportLimit
 
-// The row read links a support fact to a target through the one durable key a
-// support writer emits: work_item.external_link payload->>'linked_repository_id'
-// (collector/jira, a confidently typed GitHub pull-request or GitLab
-// merge-request link resolved to the canonical repository id). No other support
-// fact kind carries a target key today; record, transition and metadata rows and
-// the PagerDuty kinds stay source-only until #7463 and #7464 link them. The
-// migration 152 partial index and TestServiceStoryTargetSupportLinkIndexMatchesQuery
-// bind these literals to the statement.
+// The row read links a support fact to a target through the durable keys the
+// support writers emit. A work_item.external_link carries
+// payload->>'linked_repository_id' (collector/jira, a confidently typed GitHub
+// pull-request or GitLab merge-request link resolved to the canonical repository
+// id). A PagerDuty applied-service or observed-service fact carries no
+// repository, so it links through the reducer's incident-repository correlation
+// of its provider service id (query/support, #7463). Record, transition and
+// metadata rows and the coverage warning stay source-only until #7464 and for
+// good, respectively. The migration 152 partial index and
+// TestServiceStoryTargetSupportLinkIndexMatchesQuery bind the link literals to
+// the statement.
 const (
 	storySupportLinkFactKind      = "work_item.external_link"
 	storySupportLinkPayloadKey    = "linked_repository_id"
@@ -30,8 +34,11 @@ const (
 
 	// Per-row link basis values stamped on evidence and ambiguous rows.
 	storySupportBasisLinkedRepository = "linked_repository"
-	storySupportBasisSoleWorkload     = "repository_sole_workload"
-	storySupportBasisSharedRepository = "repository_multiple_workloads"
+	// storySupportBasisCorrelatedRepository marks a PagerDuty routing row that
+	// attaches to a repository target through the reducer's correlation.
+	storySupportBasisCorrelatedRepository = "incident_repository_correlation"
+	storySupportBasisSoleWorkload         = "repository_sole_workload"
+	storySupportBasisSharedRepository     = "repository_multiple_workloads"
 )
 
 type serviceStoryTargetSupportStore interface {
@@ -84,34 +91,19 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	)
 	hasSelector := querycontract.DocumentationTargetScopeHasSelector(scope)
 	limit := serviceStoryTargetSupportRowLimit(filter.Limit)
-	facts := make([]map[string]any, 0, limit)
-	// An empty statement means no target-linked row can exist: the target has no
-	// repository id, or a service target whose repository the graph did not show
-	// defining exactly-or-among the target. The read then takes the zero-row
-	// path below instead of asking Postgres for rows it would discard (#7138).
-	query, args := buildServiceStoryTargetSupportSQL(filter)
-	if query == "" && !hasSelector {
+	// An empty statement list means no target-linked row can exist: the target
+	// has no repository id, or a service target whose repository the graph did
+	// not show defining exactly-or-among the target. The read then takes the
+	// zero-row path below instead of asking Postgres for rows it would discard
+	// (#7138).
+	statements := buildServiceStoryTargetSupportStatements(filter)
+	if len(statements) == 0 && !hasSelector {
 		return serviceStoryTargetSupportReadModel{}, nil
 	}
-	if query != "" {
-		rows, err := cr.db.QueryContext(ctx, query, args...)
-		if err != nil {
-			span.RecordError(err)
-			return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
-		}
-		defer func() { _ = rows.Close() }()
-		for rows.Next() {
-			payload, err := scanJSONPayload(rows)
-			if err != nil {
-				span.RecordError(err)
-				return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
-			}
-			facts = append(facts, payload)
-		}
-		if err := rows.Err(); err != nil {
-			span.RecordError(err)
-			return serviceStoryTargetSupportReadModel{}, fmt.Errorf("query service story target support: %w", err)
-		}
+	facts, err := cr.queryServiceStoryTargetSupportFacts(ctx, statements, limit)
+	if err != nil {
+		span.RecordError(err)
+		return serviceStoryTargetSupportReadModel{}, err
 	}
 	truncated := len(facts) > limit
 	if truncated {
@@ -119,7 +111,6 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	}
 	var sourceOnlySummary serviceStoryTargetSupportSourceOnlySummary
 	if len(facts) == 0 && hasSelector {
-		var err error
 		sourceOnlySummary, err = cr.serviceStoryTargetSupportSourceOnlySummary(ctx, factKinds)
 		if err != nil {
 			span.RecordError(err)
@@ -298,7 +289,7 @@ func buildStoryTargetSupport(
 		}
 		switch {
 		case basis != "":
-			evidence = append(evidence, serviceStorySupportEvidenceRow(fact, basis))
+			evidence = append(evidence, serviceStorySupportEvidenceRow(fact, storySupportRowBasis(fact, basis)))
 		case ambiguousBasis != "":
 			ambiguous = append(ambiguous, serviceStorySupportEvidenceRow(fact, ambiguousBasis))
 		}
@@ -349,9 +340,25 @@ func storySupportLinkBases(filter serviceStoryTargetSupportFilter) (evidence, am
 	return "", ""
 }
 
-// storySupportFactLinkedToRepository reports whether fact is a support link
-// kind whose durable linked_repository_id is exactly repoID.
+// storySupportRowBasis names how one row attaches when it attaches directly to a
+// repository target: a PagerDuty routing row does so through the reducer's
+// correlation, not through a link the fact carries. A service target's bases
+// (sole workload, shared repository) are the same for every row.
+func storySupportRowBasis(fact map[string]any, basis string) string {
+	if basis == storySupportBasisLinkedRepository && support.IsRoutingFact(StringVal(fact, "fact_kind")) {
+		return storySupportBasisCorrelatedRepository
+	}
+	return basis
+}
+
+// storySupportFactLinkedToRepository reports whether fact is a support row that
+// attaches to repoID: a Jira link whose durable linked_repository_id is exactly
+// repoID, or a PagerDuty routing fact whose correlation names repoID and the
+// fact's own provider service id.
 func storySupportFactLinkedToRepository(fact map[string]any, repoID string) bool {
+	if support.IsRoutingFact(StringVal(fact, "fact_kind")) {
+		return support.RoutingFactCorrelatedTo(fact, repoID)
+	}
 	if StringVal(fact, "fact_kind") != storySupportLinkFactKind {
 		return false
 	}

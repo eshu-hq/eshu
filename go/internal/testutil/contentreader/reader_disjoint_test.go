@@ -74,6 +74,17 @@ func defaultRowsCases() []defaultRowsCase {
 			want:  []string{"payload"},
 		},
 		{
+			name: "support incident routing read",
+			query: "WITH correlated AS MATERIALIZED (SELECT cand.provider_service_id FROM (SELECT corr.scope_id " +
+				"FROM fact_records AS corr WHERE corr.fact_kind = 'reducer_incident_repository_correlation' OFFSET 0) AS cand) " +
+				"SELECT jsonb_build_object('source_record_id', probe.source_record_id) AS payload FROM correlated " +
+				"CROSS JOIN LATERAL (SELECT fact.source_record_id FROM fact_records AS fact " +
+				"WHERE fact.fact_kind = 'incident_routing.applied_pagerduty_resource' " +
+				"AND fact.payload->>'provider_object_id' = correlated.provider_service_id OFFSET 0) AS probe",
+			group: factGroup,
+			want:  []string{"payload"},
+		},
+		{
 			name: "support source-only rollup",
 			query: "SELECT COUNT(*) AS support_source_only_count, COUNT(*) AS work_item_source_only_count, " +
 				"COUNT(*) AS incident_routing_source_only_count FROM fact_records",
