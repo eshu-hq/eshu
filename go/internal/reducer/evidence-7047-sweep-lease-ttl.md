@@ -41,8 +41,12 @@ No cycle, claim, release, or batching logic changed.
 ## Observability Evidence (#7047):
 
 - Both cycle-completed and cycle-failed logs now carry `lease_ttl_seconds`
-  (the effective TTL guarding that cycle) next to the existing
-  `lease_acquired` flag, so an operator can see which TTL guarded any
-  cycle — including the failed cycles where lease expiry is suspected.
-  Failure classes unchanged (`graph_orphan_sweep_error`,
+  (the configured TTL for that cycle). On the completed log it sits next
+  to the existing `lease_acquired` flag, so an operator can see which TTL
+  guarded a finished cycle. On a failed cycle the field is the TTL that
+  would have guarded the cycle, not proof one did: `recordFailure` also
+  runs when the lease claim itself errors (`claim ... lease`), before any
+  lease is held, and the failure log carries no `lease_acquired` flag —
+  so pair a failure log with its error message before inferring anything
+  about expiry. Failure classes unchanged (`graph_orphan_sweep_error`,
   `code_value_flow_stale_cleanup_error`).
