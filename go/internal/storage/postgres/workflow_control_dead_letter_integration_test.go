@@ -50,26 +50,21 @@ INSERT INTO fact_work_items (
 	}
 }
 
-// openDeadLetterBridgeIntegrationStore opens a WorkflowControlStore over an
-// isolated schema holding the reducer/ingestion tables (fact_work_items,
-// ingestion_scopes, scope_generations, graph_projection_phase_state) that these
-// #4459 tests read across store boundaries.
+// openDeadLetterBridgeIntegrationStore opens the isolated workflow-control
+// harness. It also holds the reducer/ingestion tables (fact_work_items,
+// ingestion_scopes, scope_generations, graph_projection_phase_state) these
+// #4459 tests read across store boundaries, because the harness applies the full
+// bootstrap in the schema it opens.
 //
 // The tests need those tables empty, and they used to get that by running
 // TRUNCATE ... CASCADE on the shared schema. That also deleted migration 116's
 // eshu:global scope and phase rows, which the migration ledger never re-seeds,
 // so every later live proof that expects the standing global anchor failed on
-// the second run against one database (#7489). A schema of its own starts empty
+// the second run against one database (#7489). The isolated schema starts empty
 // without touching shared state.
 func openDeadLetterBridgeIntegrationStore(t *testing.T) (*sql.DB, *WorkflowControlStore) {
 	t.Helper()
-	db, ctx := openIsolatedLiveDB(t, "deadletter_bridge",
-		"ESHU_POSTGRES_DSN is not set; skipping Postgres integration test")
-	store := NewWorkflowControlStore(SQLDB{DB: db})
-	if err := store.EnsureSchema(ctx); err != nil {
-		t.Fatalf("EnsureSchema() error = %v, want nil", err)
-	}
-	return db, store
+	return openWorkflowControlIntegrationStore(t)
 }
 
 func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsTerminalDeadLetterBlocksConvergence(t *testing.T) {
