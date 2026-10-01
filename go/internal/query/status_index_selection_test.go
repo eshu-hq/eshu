@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -105,5 +106,42 @@ func TestGetPipelineStatusRequestsFullSelection(t *testing.T) {
 	}
 	if !reader.lastSelection.IncludeRegistryCollectors {
 		t.Fatalf("pipeline status excluded registry collectors; want included")
+	}
+}
+
+func TestGetSemanticExtractionStatusRequestsSemanticOnlySelection(t *testing.T) {
+	t.Parallel()
+
+	reader := &selectionRecordingReader{
+		snapshot: statuspkg.RawSnapshot{
+			AsOf: time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC),
+			SemanticExtraction: statuspkg.SemanticExtractionStatus{
+				State:              statuspkg.SemanticExtractionAvailable,
+				ProviderConfigured: true,
+			},
+		},
+	}
+	handler := &StatusHandler{StatusReader: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/status/semantic-extraction", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if reader.filteredCallCount != 1 || reader.lastSelection != statuspkg.SemanticOnlySnapshotSelection() {
+		t.Fatalf("selection = %+v, calls = %d; want semantic-only filtered read", reader.lastSelection, reader.filteredCallCount)
+	}
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if got := envelope.Data.(map[string]any)["state"]; got != statuspkg.SemanticExtractionAvailable {
+		t.Fatalf("state = %v, want available", got)
+	}
+	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessFresh {
+		t.Fatalf("truth = %+v, want current", envelope.Truth)
 	}
 }

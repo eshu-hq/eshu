@@ -898,16 +898,16 @@ Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `ContentReader` are the only concrete types that touch drivers, and they are
 wired in `cmd/api/wiring.go`, not here.
 
-Semantic extraction status is a runtime status projection, not a graph or
-content read model. `GET /api/v0/status/semantic-extraction` reports no-provider
-mode as `unavailable` with code hints and documentation observations disabled.
+Semantic extraction status is a runtime projection.
+`GET /api/v0/status/semantic-extraction` reports no-provider mode as
+`unavailable` with code hints and documentation observations disabled.
 When semantic provider profiles are configured, the route includes redacted
 `provider_profiles[]` rows with profile id, provider kind, model metadata,
 embedding dimensions, credential source kind, source classes, source-policy
 state, and profile health/configuration state. It does not expose credential
 handles or raw keys. Governed `search_documents` profiles may feed the semantic
 search vector read/build lane, while canonical graph truth and documentation
-fact routes remain unaffected.
+fact routes remain unaffected. Its fenced reader selects only semantic SQL; semantic and freshness failures still fail the route.
 
 Answer narration status is a runtime status projection, not a narration
 generator. `GET /api/v0/status/answer-narration` reports the optional governed

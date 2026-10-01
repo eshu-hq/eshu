@@ -114,3 +114,50 @@ func TestSnapshotStatusReaderRealStoreQueryScanDecodeErrorsRollback(t *testing.T
 		})
 	}
 }
+
+func TestSnapshotStatusReaderSemanticOnlyKeepsGuardedTransaction(t *testing.T) {
+	t.Parallel()
+	tx := &emptyStatusTx{snapshotTxStub: &snapshotTxStub{}}
+	store := snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) { return tx, nil }}
+	reader := NewSnapshotStatusReader(store, func(q db.Queryer) status.Reader {
+		return pgstore.NewStatusStore(q)
+	}, nil)
+	asOf := time.Now()
+	raw, err := reader.ReadStatusSnapshotFiltered(t.Context(), asOf, status.SemanticOnlySnapshotSelection())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !raw.AsOf.Equal(asOf) || tx.queries != 1 || tx.commits != 1 || tx.rollbacks != 0 {
+		t.Fatalf("asOf=%v queries=%d commit=%d rollback=%d", raw.AsOf, tx.queries, tx.commits, tx.rollbacks)
+	}
+}
+
+func TestSnapshotStatusReaderSemanticOnlyErrorRollsBack(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("semantic SQL failed")
+	tx := &emptyStatusTx{snapshotTxStub: &snapshotTxStub{}, faultAt: 1, faultErr: failure}
+	reader := NewSnapshotStatusReader(
+		snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) { return tx, nil }},
+		func(q db.Queryer) status.Reader { return pgstore.NewStatusStore(q) }, nil,
+	)
+	raw, err := reader.ReadStatusSnapshotFiltered(t.Context(), time.Now(), status.SemanticOnlySnapshotSelection())
+	if !errors.Is(err, failure) || !raw.AsOf.IsZero() || tx.queries != 1 || tx.commits != 0 || tx.rollbacks != 1 {
+		t.Fatalf("raw=%+v err=%v queries=%d commit=%d rollback=%d", raw, err, tx.queries, tx.commits, tx.rollbacks)
+	}
+}
+
+func TestSnapshotStatusReaderRejectsUnknownSelectionBeforeBegin(t *testing.T) {
+	t.Parallel()
+	began := false
+	reader := NewSnapshotStatusReader(
+		snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) {
+			began = true
+			return nil, nil
+		}},
+		func(q db.Queryer) status.Reader { return pgstore.NewStatusStore(q) }, nil,
+	)
+	_, err := reader.ReadStatusSnapshotFiltered(t.Context(), time.Now(), status.SnapshotSelection{Mode: "unknown"})
+	if err == nil || began {
+		t.Fatalf("err=%v began=%v; want rejected before transaction", err, began)
+	}
+}

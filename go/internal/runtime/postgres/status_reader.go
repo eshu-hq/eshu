@@ -50,6 +50,9 @@ func (r snapshotStatusReader) ReadStatusSnapshotFiltered(ctx context.Context, as
 }
 
 func (r snapshotStatusReader) read(ctx context.Context, asOf time.Time, selection status.SnapshotSelection) (raw status.RawSnapshot, err error) {
+	if err := selection.Validate(); err != nil {
+		return status.RawSnapshot{}, err
+	}
 	if r.store == nil || r.factory == nil {
 		return status.RawSnapshot{}, errors.New("snapshot status reader is not configured")
 	}

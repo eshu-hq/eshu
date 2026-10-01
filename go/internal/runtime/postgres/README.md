@@ -43,6 +43,9 @@ or request cancellation. Cursor close does not release that transaction.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
 adapter scan contracts remain unchanged.
+The semantic extraction status route requests only its semantic status section
+inside this same fenced, read-only repeatable-read transaction. Selection does
+not bypass replay checks, deadlines, transaction cleanup, or reader telemetry.
 Read-only session mode does not replace database permissions; operators
 should give distinct readers a read-only database role where practical.
 

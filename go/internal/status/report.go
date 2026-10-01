@@ -65,12 +65,49 @@ type RawSnapshot struct {
 // it never renders so it avoids full-table aggregates that dominate read time at
 // repository scale.
 type SnapshotSelection struct {
+	// Mode selects the standard status read by default or the explicit
+	// semantic-only read. A semantic-only selection cannot request other
+	// optional sections.
+	Mode SnapshotMode
 	// IncludeCollectorFactEvidence requests RawSnapshot.CollectorFactEvidence,
 	// which aggregates the active fact_records table.
 	IncludeCollectorFactEvidence bool
 	// IncludeRegistryCollectors requests RawSnapshot.RegistryCollectors, which
 	// reads registry collector status from fact_records.
 	IncludeRegistryCollectors bool
+}
+
+// SnapshotMode identifies the status read shape. The zero value preserves
+// the standard snapshot path and its optional-section flags.
+type SnapshotMode string
+
+const (
+	// SnapshotModeStandard is the existing status read with optional sections
+	// controlled by SnapshotSelection's flags.
+	SnapshotModeStandard SnapshotMode = ""
+	// SnapshotModeSemanticOnly reads only semantic-extraction observability.
+	SnapshotModeSemanticOnly SnapshotMode = "semantic_only"
+)
+
+// SemanticOnlySnapshotSelection opts a reader into the semantic-only status
+// read. Its result is only suitable for semantic extraction projection.
+func SemanticOnlySnapshotSelection() SnapshotSelection {
+	return SnapshotSelection{Mode: SnapshotModeSemanticOnly}
+}
+
+// Validate rejects unsupported modes and contradictory section requests.
+func (s SnapshotSelection) Validate() error {
+	switch s.Mode {
+	case SnapshotModeStandard:
+		return nil
+	case SnapshotModeSemanticOnly:
+		if s.IncludeCollectorFactEvidence || s.IncludeRegistryCollectors {
+			return fmt.Errorf("semantic-only status cannot include other sections")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported status snapshot mode %q", s.Mode)
+	}
 }
 
 // FullSnapshotSelection returns the selection that includes every optional

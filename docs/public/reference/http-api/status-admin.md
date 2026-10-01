@@ -84,9 +84,9 @@ public query API status.
   `get_collector_readiness` returns the same shape.
 - `GET /api/v0/status/governance` returns redacted hosted governance mode,
   policy state, readiness, aggregate counts, and reason-code readbacks.
-- `GET /api/v0/status/semantic-extraction` returns the semantic extraction
-  capability status with an Eshu truth envelope when requested by MCP or API
-  clients.
+- `GET /api/v0/status/semantic-extraction` returns semantic capability status
+  and an Eshu truth envelope for API/MCP clients. Its fenced read selects only
+  semantic queue, budget, and audit; semantic and freshness failures remain errors.
 - `GET /api/v0/status/answer-narration` returns optional governed answer
   narration status with deterministic answer packets still reported as the
   canonical fallback.

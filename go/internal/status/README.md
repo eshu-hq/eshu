@@ -57,6 +57,13 @@ See `doc.go` for the godoc contract. Key types and functions:
   `ReadStatusSnapshot` is equivalent to `ReadStatusSnapshotFiltered` with
   `FullSnapshotSelection()`, so surfaces that never render those sections (e.g.
   the index status endpoint) skip the full-table aggregates at repository scale
+- `SemanticOnlySnapshotSelection()` — explicit opt-in for the semantic
+  extraction status route. It reads only semantic queue, budget, and audit
+  aggregates through the existing SQL and decoder; it cannot be combined with
+  optional collector or registry sections. The partial raw snapshot is
+  projected only to `SemanticExtractionStatus`, never to a full health report.
+  The zero-value mode retains the standard read and its optional-section flags;
+  unknown or contradictory modes fail before storage work.
 - `ReadinessChecker` — separate bounded migration-receipt and core-schema check
   used by `/readyz`; status reports and metrics still load the full snapshot and backlog state
 
