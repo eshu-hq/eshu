@@ -45,10 +45,17 @@ func coverageManifestFixture() queryplan.BuilderManifest {
 			},
 		},
 		ReadExemptions: []queryplan.ReadExemption{
-			{Statement: "MATCH (a:Admin) RETURN a", Reason: "admin-only read, covered by live test TestAdminList"},
+			{Callsite: coverageAdminCallsite, Anchor: "MATCH (a:Admin) RETURN a", Reason: "admin-only read, covered by live test TestAdminList"},
 		},
 	}
 }
+
+// coverageAdminCallsite is the exempted builder identity in the fixture;
+// coverageOtherCallsite issues the unexempted seeded violation.
+const (
+	coverageAdminCallsite = "internal/query/admin/list.go:(*Handler).ListAdmins"
+	coverageOtherCallsite = "internal/query/repo/list.go:(*Handler).ListRepos"
+)
 
 func coverageRecordsFixture() map[string][]DifferentialRecord {
 	return map[string][]DifferentialRecord{
@@ -60,12 +67,14 @@ func coverageRecordsFixture() map[string][]DifferentialRecord {
 			},
 			{
 				Backend:     "nornicdb",
+				Callsite:    coverageOtherCallsite,
 				Fingerprint: DifferentialFingerprint{Statement: "MATCH (r:Repository) RETURN r", Parameters: `{}`},
 				RowCount:    0,
 				Digest:      "empty-digest",
 			},
 			{
 				Backend:     "nornicdb",
+				Callsite:    coverageAdminCallsite,
 				Fingerprint: DifferentialFingerprint{Statement: "MATCH (a:Admin) RETURN a", Parameters: `{}`},
 				RowCount:    0,
 				Digest:      "empty-digest",
@@ -90,9 +99,9 @@ func TestComputeStatementCoverageFailsSeededViolations(t *testing.T) {
 	failures := report.Failures()
 	assertFailure(t, failures, "nornicdb", CoverageNeverExecuted, "writer.go:buildLabel")
 	assertFailure(t, failures, "neo4j", CoverageNeverExecuted, "writer.go:buildLabel")
-	assertFailure(t, failures, "nornicdb", CoverageAlwaysEmptyRead, "MATCH (r:Repository) RETURN r")
+	assertFailure(t, failures, "nornicdb", CoverageAlwaysEmptyRead, coverageOtherCallsite+" :: MATCH (r:Repository) RETURN r")
 	assertNoFailureFor(t, failures, "writer.go:buildForwarded")
-	assertNoFailureFor(t, failures, "MATCH (a:Admin) RETURN a")
+	assertNoFailureFor(t, failures, coverageAdminCallsite)
 	if len(failures) != 3 {
 		t.Fatalf("Failures() = %v, want exactly the 3 seeded violations", failures)
 	}
@@ -110,6 +119,7 @@ func TestComputeStatementCoveragePassesCoveredManifest(t *testing.T) {
 		},
 		DifferentialRecord{
 			Backend:     "nornicdb",
+			Callsite:    coverageOtherCallsite,
 			Fingerprint: DifferentialFingerprint{Statement: "MATCH (r:Repository) RETURN r", Parameters: `{}`},
 			RowCount:    3,
 			Digest:      "rows-digest",
@@ -123,6 +133,7 @@ func TestComputeStatementCoveragePassesCoveredManifest(t *testing.T) {
 		},
 		DifferentialRecord{
 			Backend:     "neo4j",
+			Callsite:    coverageOtherCallsite,
 			Fingerprint: DifferentialFingerprint{Statement: "MATCH (r:Repository) RETURN r", Parameters: `{}`},
 			RowCount:    2,
 			Digest:      "rows-digest",

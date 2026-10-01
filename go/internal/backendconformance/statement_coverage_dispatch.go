@@ -3,7 +3,11 @@
 
 package backendconformance
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/eshu-hq/eshu/go/internal/queryplan"
+)
 
 // singleLabelAnchor matches a read whose leading pattern is one variable
 // bound to exactly one label and nothing else: `MATCH (n:Label) `. That is
@@ -118,17 +122,21 @@ func labelDispatchFamilies(records []DifferentialRecord) map[string]string {
 	return families
 }
 
-// readFamilyExempt reports whether an always-empty read family is excused:
-// by an exemption naming its key (for a dispatch family, the unlabeled read
-// it replaced), or by exemptions naming every one of its member texts.
-func readFamilyExempt(key string, members []string, exemptions map[string]string) bool {
-	if _, ok := exemptions[key]; ok {
-		return true
-	}
-	for _, member := range members {
-		if _, ok := exemptions[member]; !ok {
-			return false
+// readFamilyExempt reports whether an always-empty read is excused for
+// one callsite: an exemption names the callsite and its anchor covers
+// the read key (the family key for a dispatch family, else the member
+// text) or the member text itself, so member-specific anchors still
+// work. Identity plus anchor is the whole key: the same text from
+// another callsite, or a rewritten statement the anchor no longer
+// covers, stays a failure.
+func readFamilyExempt(key, member, callsite string, exemptions []queryplan.ReadExemption) bool {
+	for _, exemption := range exemptions {
+		if exemption.Callsite != callsite {
+			continue
+		}
+		if exemptionAnchorMatches(exemption.Anchor, key) || exemptionAnchorMatches(exemption.Anchor, member) {
+			return true
 		}
 	}
-	return len(members) > 0
+	return false
 }

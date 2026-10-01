@@ -235,7 +235,19 @@ Unmatched executions are advisory (`unattributed`); writes that never carried
 Bolt counters are advisory (`write-without-counters`), since a MERGE that
 matched-existing legitimately reports zeros. An exemption excuses execution
 proof, never drift: templates, fragments, and the source digest still pin the
-symbol, and the manifest validator rejects any drift in them.
+symbol, and the manifest validator rejects any drift in them. A read
+exemption names the builder identity (go-relative `path:symbol` of the
+direct `Run`/`RunSingle` caller, recorded by the capture wrapper) plus a
+stable anchor fragment the recorded text must contain — never the full
+statement text, so projection edits that keep the anchor leave the
+exemption working. The identity is canonical: the leading symbol segment
+is parenthesized (`(Reader).Enumerate`, `(*Store).Lookup`), because the Go
+runtime renders value-receiver methods bare while pointer receivers keep
+their parens — capture and manifest load apply the same rule, so authors
+may write either form. An exemption whose callsite produces no
+anchor-matching recording on any backend fails as `stale-exemption`,
+naming the callsite plus the anchor (one callsite may hold several
+exemptions, so the anchor tells the operator which one rotted).
 
 A same-parameter sibling read is judged as one read. When a handler issues
 one single-label `MATCH (v:Label)` per candidate label with byte-identical
@@ -247,7 +259,8 @@ identical after stripping the leading single-label anchor and folding a uid
 index-seek conjunct `v.uid = $p AND v.id = $p` to the `v.id = $p` predicate
 it implies (#7089), and that the recordings show executed with
 byte-identical parameters, form one family keyed by the unlabeled text: the family is always-empty only if no member
-ever returned rows, and a read exemption on the unlabeled text covers it.
+ever returned rows, and a read exemption naming the probing callsite with
+the unlabeled text as its anchor covers it.
 Members that never returned rows while their family did are advisory
 (`dispatch-miss`, named for the motivating dispatch case). The rule groups
 per-label fan-outs too, so a fan-out member broken on every execution stays

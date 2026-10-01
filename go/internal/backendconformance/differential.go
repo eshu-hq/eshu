@@ -200,6 +200,12 @@ type DifferentialRecord struct {
 	Failed      bool
 	Error       string
 	Counters    sourcecypher.WriteCounters
+	// Callsite is the builder identity that produced the statement: the
+	// go-relative path:symbol of the direct Run/RunSingle caller,
+	// recorded by the capture wrapper (#7233). Recordings predating
+	// attribution (and hand-built records) carry "": they group
+	// normally but never match an identity-keyed exemption.
+	Callsite string
 }
 
 // DifferentialRecorder collects records in execution order. It is safe for

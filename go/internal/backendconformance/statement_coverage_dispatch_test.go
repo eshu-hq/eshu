@@ -26,6 +26,10 @@ const (
 	dispatchOtherParams = `{"entity_id":"id-2"}`
 )
 
+// dispatchCallsite is the synthetic builder identity every dispatch-test
+// record carries: one logical probe builder issuing every member text.
+const dispatchCallsite = "internal/query/probe/dispatch.go:(*Prober).ProbeByID"
+
 func dispatchRead(statement, params string, rows int) DifferentialRecord {
 	digest := "empty-digest"
 	if rows > 0 {
@@ -33,6 +37,7 @@ func dispatchRead(statement, params string, rows int) DifferentialRecord {
 	}
 	return DifferentialRecord{
 		Backend:     "neo4j",
+		Callsite:    dispatchCallsite,
 		Fingerprint: DifferentialFingerprint{Statement: statement, Parameters: params},
 		RowCount:    rows,
 		Digest:      digest,
@@ -69,8 +74,9 @@ func TestStatementCoverageAllMissDispatchFamilyUsesTheUnlabeledExemption(t *test
 		dispatchRead(dispatchUnlabeled, dispatchParams, 0),
 	}}
 	manifest := dispatchManifest(queryplan.ReadExemption{
-		Statement: dispatchUnlabeled,
-		Reason:    "probe-by-id over an absent entity",
+		Callsite: dispatchCallsite,
+		Anchor:   dispatchUnlabeled,
+		Reason:   "probe-by-id over an absent entity",
 	})
 	failures := ComputeStatementCoverage(manifest, records).Failures()
 	if len(failures) != 0 {
@@ -87,7 +93,7 @@ func TestStatementCoverageAllMissDispatchFamilyFailsOnceWithoutExemption(t *test
 		dispatchRead(dispatchLabelB, dispatchParams, 0),
 	}}
 	failures := ComputeStatementCoverage(dispatchManifest(), records).Failures()
-	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchUnlabeled)
+	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchCallsite+" :: "+dispatchUnlabeled)
 	if len(failures) != 1 {
 		t.Fatalf("Failures() = %v, want exactly one family failure", failures)
 	}
@@ -103,7 +109,7 @@ func TestStatementCoverageSiblingLabelsWithoutSharedParametersStayIndependent(t 
 		dispatchRead(dispatchLabelB, dispatchOtherParams, 1),
 	}}
 	failures := ComputeStatementCoverage(dispatchManifest(), records).Failures()
-	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchLabelA)
+	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchCallsite+" :: "+dispatchLabelA)
 	if len(failures) != 1 {
 		t.Fatalf("Failures() = %v, want only the independent Alpha read", failures)
 	}
@@ -192,7 +198,7 @@ func TestStatementCoveragePerLabelFanoutAllMissFailsOnceWithoutExemption(t *test
 		dispatchRead(fanoutImageDesc, fanoutParams, 0),
 	}}
 	failures := ComputeStatementCoverage(dispatchManifest(), records).Failures()
-	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, fanoutUnlabeled)
+	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchCallsite+" :: "+fanoutUnlabeled)
 	if len(failures) != 1 {
 		t.Fatalf("Failures() = %v, want exactly one fan-out family failure", failures)
 	}
@@ -225,8 +231,9 @@ func TestStatementCoverageUIDSeekConjunctJoinsTheIDAnchorFamily(t *testing.T) {
 		dispatchRead(dispatchUnlabeled, dispatchParams, 0),
 	}}
 	manifest := dispatchManifest(queryplan.ReadExemption{
-		Statement: uidSeekIDFamily,
-		Reason:    "probe-by-id over an absent entity",
+		Callsite: dispatchCallsite,
+		Anchor:   uidSeekIDFamily,
+		Reason:   "probe-by-id over an absent entity",
 	})
 	failures := ComputeStatementCoverage(manifest, records).Failures()
 	if len(failures) != 0 {
@@ -243,7 +250,7 @@ func TestStatementCoverageUIDSeekFamilyFailsOnceUnderTheIDKey(t *testing.T) {
 		dispatchRead(uidSeekIDOnly, dispatchParams, 0),
 	}}
 	failures := ComputeStatementCoverage(dispatchManifest(), records).Failures()
-	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, uidSeekIDFamily)
+	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchCallsite+" :: "+uidSeekIDFamily)
 	if len(failures) != 1 {
 		t.Fatalf("Failures() = %v, want exactly one family failure", failures)
 	}
@@ -261,12 +268,14 @@ func TestStatementCoverageUIDSeekDifferentParameterStaysItsOwnRead(t *testing.T)
 		dispatchRead(mismatchA, uidSeekBothParam, 0),
 		dispatchRead(mismatchB, uidSeekBothParam, 0),
 	}}
-	manifest := dispatchManifest(queryplan.ReadExemption{Statement: foldedWrongly, Reason: "wrong fold"})
+	manifest := dispatchManifest(queryplan.ReadExemption{Callsite: dispatchCallsite, Anchor: foldedWrongly, Reason: "wrong fold"})
+	wantStale := dispatchCallsite + " :: " + foldedWrongly
 	failures := ComputeStatementCoverage(manifest, records).Failures()
 	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead,
-		"MATCH (n) WHERE n.uid = $entity_id AND n.id = $other RETURN n.id AS id")
-	if len(failures) != 1 {
-		t.Fatalf("Failures() = %v, want only the unfolded mismatched-parameter read", failures)
+		dispatchCallsite+" :: MATCH (n) WHERE n.uid = $entity_id AND n.id = $other RETURN n.id AS id")
+	assertFailure(t, failures, "", CoverageStaleExemption, wantStale)
+	if len(failures) != 2 {
+		t.Fatalf("Failures() = %v, want the unfolded read plus the stale anchor", failures)
 	}
 }
 
@@ -281,14 +290,16 @@ func TestStatementCoverageUIDSeekDifferentVariableStaysItsOwnRead(t *testing.T) 
 		dispatchRead(mismatchB, dispatchParams, 0),
 	}}
 	manifest := dispatchManifest(queryplan.ReadExemption{
-		Statement: "MATCH (n) WHERE n.id = $entity_id RETURN n.id AS id",
-		Reason:    "wrong fold",
+		Callsite: dispatchCallsite,
+		Anchor:   "MATCH (n) WHERE n.id = $entity_id RETURN n.id AS id",
+		Reason:   "wrong fold",
 	})
 	failures := ComputeStatementCoverage(manifest, records).Failures()
 	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead,
-		"MATCH (n) WHERE m.uid = $entity_id AND n.id = $entity_id RETURN n.id AS id")
-	if len(failures) != 1 {
-		t.Fatalf("Failures() = %v, want only the unfolded cross-variable read", failures)
+		dispatchCallsite+" :: MATCH (n) WHERE m.uid = $entity_id AND n.id = $entity_id RETURN n.id AS id")
+	assertFailure(t, failures, "", CoverageStaleExemption, dispatchCallsite+" :: MATCH (n) WHERE n.id = $entity_id RETURN n.id AS id")
+	if len(failures) != 2 {
+		t.Fatalf("Failures() = %v, want the unfolded read plus the stale anchor", failures)
 	}
 }
 
@@ -296,32 +307,41 @@ func TestStatementCoverageUIDSeekDifferentVariableStaysItsOwnRead(t *testing.T) 
 // guard: a uid-only predicate and an OR form do not imply the id predicate,
 // so neither folds into the id-only family.
 func TestStatementCoverageUIDOnlyAndOrFormsStayTheirOwnRead(t *testing.T) {
-	cases := map[string][2]string{
+	cases := map[string]struct {
+		texts       [2]string
+		unfoldedKey string
+	}{
 		"uid-only": {
-			"MATCH (n:Alpha) WHERE n.uid = $entity_id RETURN n.id AS id",
-			"MATCH (n:Beta) WHERE n.uid = $entity_id RETURN n.id AS id",
+			texts: [2]string{
+				"MATCH (n:Alpha) WHERE n.uid = $entity_id RETURN n.id AS id",
+				"MATCH (n:Beta) WHERE n.uid = $entity_id RETURN n.id AS id",
+			},
+			unfoldedKey: "MATCH (n) WHERE n.uid = $entity_id RETURN n.id AS id",
 		},
 		"or-form": {
-			"MATCH (n:Alpha) WHERE n.uid = $entity_id OR n.id = $entity_id RETURN n.id AS id",
-			"MATCH (n:Beta) WHERE n.uid = $entity_id OR n.id = $entity_id RETURN n.id AS id",
+			texts: [2]string{
+				"MATCH (n:Alpha) WHERE n.uid = $entity_id OR n.id = $entity_id RETURN n.id AS id",
+				"MATCH (n:Beta) WHERE n.uid = $entity_id OR n.id = $entity_id RETURN n.id AS id",
+			},
+			unfoldedKey: "MATCH (n) WHERE n.uid = $entity_id OR n.id = $entity_id RETURN n.id AS id",
 		},
 	}
-	for name, texts := range cases {
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			records := map[string][]DifferentialRecord{"neo4j": {
-				dispatchRead(texts[0], dispatchParams, 0),
-				dispatchRead(texts[1], dispatchParams, 0),
+				dispatchRead(tc.texts[0], dispatchParams, 0),
+				dispatchRead(tc.texts[1], dispatchParams, 0),
 			}}
 			manifest := dispatchManifest(queryplan.ReadExemption{
-				Statement: uidSeekIDFamily,
-				Reason:    "id-only family only",
+				Callsite: dispatchCallsite,
+				Anchor:   uidSeekIDFamily,
+				Reason:   "id-only family only",
 			})
 			failures := ComputeStatementCoverage(manifest, records).Failures()
-			if len(failures) != 1 {
-				t.Fatalf("Failures() = %v, want one unfolded always-empty read", failures)
-			}
-			if failures[0].Kind != CoverageAlwaysEmptyRead {
-				t.Fatalf("failure kind = %v, want %v", failures[0].Kind, CoverageAlwaysEmptyRead)
+			assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, dispatchCallsite+" :: "+tc.unfoldedKey)
+			assertFailure(t, failures, "", CoverageStaleExemption, dispatchCallsite+" :: "+uidSeekIDFamily)
+			if len(failures) != 2 {
+				t.Fatalf("Failures() = %v, want the unfolded read plus the stale anchor", failures)
 			}
 		})
 	}

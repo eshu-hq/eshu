@@ -102,6 +102,7 @@ func printCoverageReport(report backendconformance.StatementCoverageReport, stdo
 		printCoverageList(stdout, "write-without-counters", coverage.WritesWithoutCounters, maxReportedCoverageLines)
 		printCoverageList(stdout, "unattributed", coverage.Unattributed, maxReportedCoverageLines)
 	}
+	printCoverageList(stdout, "stale-exemption", report.StaleExemptions, 0)
 }
 
 // printCoverageList prints every item when limit is 0 (failures are
