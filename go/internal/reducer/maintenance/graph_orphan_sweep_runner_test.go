@@ -200,3 +200,17 @@ func (s *fakeGraphOrphanSweeper) callCount() int {
 	defer s.mu.Unlock()
 	return s.calls
 }
+
+// TestGraphOrphanSweepDefaultLeaseTTLCoversWriteBudget pins #7047: the
+// effective lease TTL with no configured value must exceed the graph write
+// budget plus a safety margin, so a write running to its full budget cannot
+// reach the end of the lease with no margin. The 300s budget is ops-qa's
+// ESHU_CANONICAL_WRITE_TIMEOUT; the 30s margin mirrors
+// repoDependencyProjectionLeaseSafetyMargin.
+func TestGraphOrphanSweepDefaultLeaseTTLCoversWriteBudget(t *testing.T) {
+	const writeBudget = 300 * time.Second
+	const safetyMargin = 30 * time.Second
+	if got := (GraphOrphanSweepRunnerConfig{}).leaseTTL(); got <= writeBudget+safetyMargin {
+		t.Fatalf("default lease TTL = %v, want more than %v", got, writeBudget+safetyMargin)
+	}
+}

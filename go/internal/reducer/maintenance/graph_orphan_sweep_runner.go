@@ -14,9 +14,17 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
+// defaultGraphOrphanSweepLeaseTTL is 10 minutes so one sweep cycle's lease
+// outlasts the graph write budget with margin: ops-qa's
+// ESHU_CANONICAL_WRITE_TIMEOUT is 300s, and a 5m lease reached the end of the
+// lease with no margin when a write ran to its full budget, admitting a
+// second holder mid-cycle (#7047). 10m keeps crash failover delay small
+// against the hourly poll. If a cycle ever outgrows a fixed TTL, the renewal
+// heartbeat precedent is ProcessPartitionOnce's TTL/2 same-owner re-claim
+// (#4449), not a longer TTL.
 const (
 	defaultGraphOrphanSweepPollInterval = time.Hour
-	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
+	defaultGraphOrphanSweepLeaseTTL     = 10 * time.Minute
 )
 
 // PartitionLeaseManager manages partition leases for the graph orphan sweep.
@@ -209,6 +217,7 @@ func (r *GraphOrphanSweepRunner) recordResult(ctx context.Context, result GraphO
 		ctx,
 		"graph orphan sweep cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
+		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
 		slog.Int64("orphan_count_total", graphOrphanSweepTotal(result.Counts)),
 		slog.Int64("marked_total", graphOrphanSweepTotal(result.Marked)),
 		slog.Int64("deleted_total", graphOrphanSweepTotal(result.Deleted)),

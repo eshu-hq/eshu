@@ -23,7 +23,9 @@ const (
 	defaultCodeValueFlowStaleCleanupPollInterval     = time.Hour
 	defaultCodeValueFlowStaleCleanupScopeBatchLimit  = 100
 	defaultCodeValueFlowStaleCleanupDeleteBatchLimit = 500
-	defaultCodeValueFlowStaleCleanupLeaseTTL         = 5 * time.Minute
+	// 10m so the lease outlasts the 300s graph write budget with margin
+	// (#7047); mirrors cleanup.defaultLeaseTTL.
+	defaultCodeValueFlowStaleCleanupLeaseTTL = 10 * time.Minute
 )
 
 type codeValueFlowStaleCleanupConfig struct {

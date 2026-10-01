@@ -17,9 +17,16 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
+// defaultLeaseTTL is 10 minutes so one cleanup cycle's lease outlasts the
+// graph write budget with margin: ops-qa's ESHU_CANONICAL_WRITE_TIMEOUT is
+// 300s, and a 5m lease reached the end of the lease with no margin when a
+// write ran to its full budget, admitting a second holder mid-cycle (#7047).
+// 10m keeps crash failover delay small against the hourly poll. If a cycle
+// ever outgrows a fixed TTL, the renewal heartbeat precedent is
+// ProcessPartitionOnce's TTL/2 same-owner re-claim (#4449), not a longer TTL.
 const (
 	defaultPollInterval     = time.Hour
-	defaultLeaseTTL         = 5 * time.Minute
+	defaultLeaseTTL         = 10 * time.Minute
 	defaultScopeBatchLimit  = 100
 	defaultDeleteBatchLimit = 500
 )
@@ -348,6 +355,7 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		ctx,
 		"code value-flow stale cleanup cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
+		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
 		slog.Int("scopes_scanned", result.ScopesScanned),
 		slog.Int("scopes_skipped", result.ScopesSkipped),
 		slog.Int("taint_sweeps", result.TaintSweeps),
