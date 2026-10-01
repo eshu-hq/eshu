@@ -41,7 +41,10 @@ No cycle, claim, release, or batching logic changed.
 ## Observability Evidence (#7047):
 
 - Both cycle-completed and cycle-failed logs now carry `lease_ttl_seconds`
-  (the configured TTL for that cycle). On the completed log it sits next
+  (the configured TTL for that cycle, emitted via the shared
+  `telemetry.LogKeyLeaseTTLSeconds` constant registered in
+  `telemetry.LogKeys()` and pinned by structured-log capture tests on both
+  runners). On the completed log it sits next
   to the existing `lease_acquired` flag, so an operator can see which TTL
   guarded a finished cycle. On a failed cycle the field is the TTL that
   would have guarded the cycle, not proof one did: `recordFailure` also

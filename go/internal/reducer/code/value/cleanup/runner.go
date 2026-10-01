@@ -355,7 +355,7 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		ctx,
 		"code value-flow stale cleanup cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
-		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		slog.Int("scopes_scanned", result.ScopesScanned),
 		slog.Int("scopes_skipped", result.ScopesSkipped),
 		slog.Int("taint_sweeps", result.TaintSweeps),
@@ -374,7 +374,7 @@ func (r *Runner) recordFailure(ctx context.Context, err error) {
 		ctx,
 		"code value-flow stale cleanup cycle failed",
 		log.Err(err),
-		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		telemetry.FailureClassAttr("code_value_flow_stale_cleanup_error"),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

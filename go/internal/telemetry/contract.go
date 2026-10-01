@@ -787,6 +787,13 @@ const (
 	// same value. The closed-enum values live in
 	// terraformstate.CompositeCaptureSkipReason*.
 	LogKeyDriftCompositeReason = "reason"
+	// LogKeyLeaseTTLSeconds is the configured partition-lease TTL, in
+	// seconds, guarding a reducer sweep or cleanup cycle. Emitted on both
+	// the cycle-completed and cycle-failed logs; on a failed cycle it is
+	// the TTL that would have guarded the cycle (the claim itself may have
+	// errored before any lease was held), so operators pair it with the
+	// error before inferring anything about expiry (#7047).
+	LogKeyLeaseTTLSeconds = "lease_ttl_seconds"
 )
 
 // Bootstrap captures the minimum OpenTelemetry-first runtime settings needed

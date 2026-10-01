@@ -4,13 +4,17 @@
 package cleanup
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T) {
@@ -181,6 +185,7 @@ type fakeCodeValueFlowCurrentGenerationReader struct {
 	pages         [][]CurrentGeneration
 	afterScopeIDs []string
 	limits        []int
+	err           error
 }
 
 func (r *fakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGenerations(
@@ -190,6 +195,9 @@ func (r *fakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGener
 ) ([]CurrentGeneration, error) {
 	r.afterScopeIDs = append(r.afterScopeIDs, afterScopeID)
 	r.limits = append(r.limits, limit)
+	if r.err != nil {
+		return nil, r.err
+	}
 	if len(r.pages) > 0 {
 		page := r.pages[0]
 		r.pages = r.pages[1:]
@@ -467,6 +475,70 @@ func equalCodeValueFlowStringSlices(left, right []string) bool {
 }
 
 // TestStaleCleanupDefaultLeaseTTLCoversWriteBudget pins #7047: the effective
+// TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds pins the #7047 P2:
+// both the cycle-completed and the cycle-failed logs must carry the shared
+// lease_ttl_seconds key, so deleting or renaming either emission regresses
+// loudly instead of silently.
+func TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	newRunner := func(reader *fakeCodeValueFlowCurrentGenerationReader) *Runner {
+		return &Runner{
+			CurrentGenerations: reader,
+			TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+			InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+			LeaseManager:       &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}},
+			Config: RunnerConfig{
+				LeaseOwner:       "value-flow-ttl-owner",
+				LeaseTTL:         2 * time.Minute,
+				ScopeBatchLimit:  25,
+				DeleteBatchLimit: 50,
+			},
+			Logger: logger,
+		}
+	}
+
+	successRunner := newRunner(&fakeCodeValueFlowCurrentGenerationReader{rows: []CurrentGeneration{}})
+	if _, err := successRunner.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	failureRunner := newRunner(&fakeCodeValueFlowCurrentGenerationReader{err: errors.New("generations boom")})
+	failureRunner.Wait = func(context.Context, time.Duration) error {
+		cancel()
+		return context.Canceled
+	}
+	if err := failureRunner.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	ttlByMessage := map[string]float64{}
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		msg, _ := record["msg"].(string)
+		ttl, ok := record[telemetry.LogKeyLeaseTTLSeconds].(float64)
+		if !ok {
+			t.Fatalf("log %q missing %q: %v", msg, telemetry.LogKeyLeaseTTLSeconds, record)
+		}
+		ttlByMessage[msg] = ttl
+	}
+	for _, msg := range []string{"code value-flow stale cleanup cycle completed", "code value-flow stale cleanup cycle failed"} {
+		got, ok := ttlByMessage[msg]
+		if !ok {
+			t.Fatalf("no log record with msg %q", msg)
+		}
+		if got != 120 {
+			t.Fatalf("log %q %s = %v, want 120", msg, telemetry.LogKeyLeaseTTLSeconds, got)
+		}
+	}
+}
+
 // lease TTL with no configured value must exceed the graph write budget plus
 // a safety margin, so a write running to its full budget cannot reach the end
 // of the lease with no margin. The 300s budget is ops-qa's

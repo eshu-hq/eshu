@@ -217,7 +217,7 @@ func (r *GraphOrphanSweepRunner) recordResult(ctx context.Context, result GraphO
 		ctx,
 		"graph orphan sweep cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
-		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		slog.Int64("orphan_count_total", graphOrphanSweepTotal(result.Counts)),
 		slog.Int64("marked_total", graphOrphanSweepTotal(result.Marked)),
 		slog.Int64("deleted_total", graphOrphanSweepTotal(result.Deleted)),
@@ -237,7 +237,7 @@ func (r *GraphOrphanSweepRunner) recordFailure(ctx context.Context, err error) {
 			ctx,
 			"graph orphan sweep cycle failed",
 			log.Err(err),
-			slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
+			slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 			telemetry.FailureClassAttr("graph_orphan_sweep_error"),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

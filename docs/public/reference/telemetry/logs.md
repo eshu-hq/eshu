@@ -102,6 +102,7 @@ operator triage contract.
 | --- | --- |
 | `scope_id`, `scope_kind`, `source_system`, `generation_id`, `collector_kind` | Locate source scope and collection generation. |
 | `domain`, `partition_key`, `failure_class`, `refresh_skipped`, `pipeline_phase` | Triage reducer, projection, shared-work, retry, and skip behavior. |
+| `lease_ttl_seconds` | Reducer sweep/cleanup cycle logs: the configured partition-lease TTL in seconds. On a cycle-failed log it is the TTL that would have guarded the cycle — the claim itself may have errored before any lease was held — so pair it with the error before inferring anything about expiry (#7047). |
 | `request_id` plus emitted `trace_id` and `span_id` | Correlate request logs with traces. |
 | `acceptance.*` | Debug shared-acceptance decisions. |
 | `resource.fingerprint`, `resource.identity_kind`, `resource.type` | Correlate cloud or infrastructure resources without exposing raw ARNs, Terraform addresses, or secret-shaped names. |

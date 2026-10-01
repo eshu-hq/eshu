@@ -56,11 +56,14 @@ internal/storage/postgres' generation reader both still name them that way.
 ## Telemetry
 
 `Logger` (when wired) emits two structured logs, "code value-flow stale
-cleanup cycle completed" (with `lease_acquired`, `scopes_scanned`,
-`scopes_skipped`, `taint_sweeps`, `interproc_sweeps`, `cursor_exhausted`,
-`duration_seconds`) and "code value-flow stale cleanup cycle failed" (with
-the error and `code_value_flow_stale_cleanup_error` failure class). Both
-carry `telemetry.PhaseReduction`.
+cleanup cycle completed" (with `lease_acquired`, `lease_ttl_seconds`
+(`telemetry.LogKeyLeaseTTLSeconds`), `scopes_scanned`, `scopes_skipped`,
+`taint_sweeps`, `interproc_sweeps`, `cursor_exhausted`, `duration_seconds`)
+and "code value-flow stale cleanup cycle failed" (with the error,
+`lease_ttl_seconds` — the configured TTL, not proof a lease was held — and
+`code_value_flow_stale_cleanup_error` failure class). Both carry
+`telemetry.PhaseReduction`. `lease_ttl_seconds` is registered in
+`telemetry.LogKeys()`; see `docs/public/reference/telemetry/logs.md`.
 
 ## Gotchas / invariants
 
