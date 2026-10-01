@@ -55,3 +55,19 @@ No cycle, claim, release, or batching logic changed.
   so pair a failure log with its error message before inferring anything
   about expiry. Failure classes unchanged (`graph_orphan_sweep_error`,
   `code_value_flow_stale_cleanup_error`).
+
+## Shutdown-Proof Release (review P2, #6747 shape A):
+
+- `Service.Run` cancels the shared context before `wg.Wait()`
+  (`service.go:208-209`), so a shutdown landing mid-cycle ran the deferred
+  `ReleasePartitionLease` on an already-canceled context; Postgres rejected
+  the release and the row stayed held for the full (now doubled) TTL. Both
+  runners now release through
+  `context.WithTimeout(context.WithoutCancel(ctx), 10s)` per the proven
+  `repo_dependency_projection_quarantine.go` precedent.
+- Cancellation-path tests
+  (`TestGraphOrphanSweepRunnerReleasesLeaseAfterCancel`,
+  `TestCodeValueFlowStaleCleanupRunnerReleasesLeaseAfterCancel`) cancel the
+  cycle context mid-sweep/mid-list and assert the release still fires on a
+  live, deadline-bounded context: RED before (`release context error =
+  context canceled`), GREEN after. Both runner packages fully green.
