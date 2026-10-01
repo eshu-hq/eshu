@@ -90,7 +90,9 @@ service runtimes the seed runs once, on an empty admission table, and is not a
 recurring repair (`eshu local` applies the definitions untracked on every start, so
 there it runs each start as a forward-only repair). It is
 idempotent and forward-only, so an operator can run it by hand after restoring or
-resetting the sequence (never reset the sequence on its own: a token that comes
+resetting the sequence, with every reducer replica stopped and restarted afterwards:
+it is a read then a `setval`, so a `nextval` between the two is rewound and can be
+reissued, which would let two passes hold one token (never reset the sequence on its own: a token that comes
 back equal to an admitted watermark is admitted as an identical re-execution even
 when it belongs to a different pass). It seeds from the admission table only: every pre-existing finding row carries `0`,
 every later non-zero token comes from this sequence, and an admitted watermark

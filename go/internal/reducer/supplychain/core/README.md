@@ -87,7 +87,7 @@ already admitted is rejected whole with the retryable, non-counting
 token, then retracts with `fencing_token <= token` and stamps the tombstones with
 it. A missing issuer or a zero token fails closed. A scope that stays superseded
 means two workers keep overtaking each other or the sequence lags the admitted
-watermark after a restore or manual reset; the evidence note has the repair. Rolling back to a reducer that predates the token freezes the
+watermark after a restore or manual reset; the repair is to stop every reducer replica, run the migration 154 seed by hand and restart them (the seed is not live-safe), as the evidence note describes. Rolling back to a reducer that predates the token freezes the
 rows the new reducer stamped; the evidence note has the reset SQL to run first.
 Evidence:
 `docs/internal/evidence/7142-supply-chain-impact-fencing-token.md`.

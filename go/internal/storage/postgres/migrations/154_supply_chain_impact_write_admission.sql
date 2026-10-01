@@ -48,16 +48,23 @@ CREATE SEQUENCE IF NOT EXISTS supply_chain_impact_fencing_token_seq;
 -- every row token of its (scope_id, generation_id), so the table bounds
 -- fact_records and no scan of fact_records (or index on it) is needed. The
 -- advance is a read then a setval, so it is not live-safe while other writers
--- draw values.
+-- draw values: a nextval between the read and the setval is rewound and can be
+-- reissued, so two passes could hold the same token. Run it by hand only with
+-- every reducer replica stopped, and restart them afterwards. The guard also
+-- advances when the sequence equals the watermark but has not been called, since
+-- the next nextval would hand out the admitted token again.
 DO $$
 DECLARE
     watermark_floor BIGINT;
     current_last_value BIGINT;
+    current_is_called BOOLEAN;
 BEGIN
     SELECT COALESCE(MAX(fencing_token), 0) INTO watermark_floor
     FROM supply_chain_impact_write_admission;
-    SELECT last_value INTO current_last_value FROM supply_chain_impact_fencing_token_seq;
-    IF watermark_floor > current_last_value THEN
+    SELECT last_value, is_called INTO current_last_value, current_is_called
+    FROM supply_chain_impact_fencing_token_seq;
+    IF watermark_floor > current_last_value
+        OR (watermark_floor > 0 AND watermark_floor = current_last_value AND NOT current_is_called) THEN
         PERFORM setval('supply_chain_impact_fencing_token_seq', watermark_floor + 1, false);
     END IF;
 END $$;

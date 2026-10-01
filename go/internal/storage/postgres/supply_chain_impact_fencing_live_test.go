@@ -409,3 +409,61 @@ VALUES ('scope:seed', 'gen:seed', $1, $2)`, watermark, replaceSetLiveNow); err !
 		t.Fatalf("token after re-run = %d then %d; a re-run must not regress or skip the sequence", next, afterNext)
 	}
 }
+
+// TestSupplyChainImpactSeedAdvancesAnUncalledSequenceEqualToTheWatermarkLive
+// pins the seed's is_called guard. After a restore the sequence can sit exactly
+// on an admitted watermark with is_called false, so its next value is that same
+// token, and the second pass to hold it would be admitted as an identical
+// re-execution. The seed must advance past it, and must leave a called sequence
+// at the same value alone (the next value is already above the watermark).
+func TestSupplyChainImpactSeedAdvancesAnUncalledSequenceEqualToTheWatermarkLive(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	issuer := postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: postgres.SQLDB{DB: db}}
+
+	var migration string
+	for _, definition := range postgres.BootstrapDefinitions() {
+		if definition.Name == "supply_chain_impact_write_admission" {
+			migration = definition.SQL
+		}
+	}
+	if migration == "" {
+		t.Fatal("bootstrap has no supply_chain_impact_write_admission definition")
+	}
+	const watermark = 500
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO supply_chain_impact_write_admission (scope_id, generation_id, fencing_token, updated_at)
+VALUES ('scope:seed-equal', 'gen:seed-equal', $1, $2)`, watermark, replaceSetLiveNow); err != nil {
+		t.Fatalf("seed watermark: %v", err)
+	}
+
+	// Equal and uncalled: the next nextval would reissue the watermark.
+	if _, err := db.ExecContext(ctx, `SELECT setval('supply_chain_impact_fencing_token_seq', $1, false)`, watermark); err != nil {
+		t.Fatalf("set the sequence uncalled at the watermark: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, migration); err != nil {
+		t.Fatalf("run the seed: %v", err)
+	}
+	next, err := issuer.NextSupplyChainImpactFencingToken(ctx)
+	if err != nil {
+		t.Fatalf("issue after the seed: %v", err)
+	}
+	if next <= watermark {
+		t.Fatalf("next token = %d after seeding an uncalled sequence at the watermark %d; it must be above it", next, watermark)
+	}
+
+	// Equal and called: the next value is already above the watermark, so the
+	// seed must not move the sequence.
+	if _, err := db.ExecContext(ctx, `SELECT setval('supply_chain_impact_fencing_token_seq', $1, true)`, watermark); err != nil {
+		t.Fatalf("set the sequence called at the watermark: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, migration); err != nil {
+		t.Fatalf("run the seed again: %v", err)
+	}
+	next, err = issuer.NextSupplyChainImpactFencingToken(ctx)
+	if err != nil {
+		t.Fatalf("issue after the second seed: %v", err)
+	}
+	if next != watermark+1 {
+		t.Fatalf("next token = %d for a called sequence at the watermark %d, want %d (the seed must leave it alone)", next, watermark, watermark+1)
+	}
+}
