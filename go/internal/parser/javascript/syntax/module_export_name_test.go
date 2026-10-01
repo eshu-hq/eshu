@@ -78,6 +78,7 @@ func TestUnquoteModuleSpecifierName(t *testing.T) {
 		{input: `'type'`, want: "type", wantOK: true},
 		{input: "", want: "", wantOK: true},
 		{input: `' padded '`, want: " padded ", wantOK: false},
+		{input: `'a\0b'`, want: "a\x00b", wantOK: false},
 		{input: `'\ud800'`, want: `\ud800`, wantOK: false},
 		{input: `'\1'`, want: `\1`, wantOK: false},
 	}
@@ -165,6 +166,10 @@ func TestReExportSpecifierNamesUnquotesTextFallbackNames(t *testing.T) {
 		{raw: ` 'a b c' d e `},
 		{raw: ` a as b as c `},
 		{raw: ` ...rest `},
+		{raw: ` ...'a' as b `},
+		{raw: ` '...' as dots `, wantOriginal: "...", wantExported: "dots"},
+		{raw: ` a as '...' `, wantOriginal: "a", wantExported: "..."},
+		{raw: ` 'a\0b' as c `},
 	}
 	for _, tt := range tests {
 		original, exported := reExportSpecifierNames(tt.raw)

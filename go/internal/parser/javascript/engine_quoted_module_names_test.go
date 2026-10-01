@@ -140,6 +140,8 @@ import { c as '\ud800' } from './lone-surrogate-alias';
 import { kept as keptLocal } from './kept';
 export { '\ud800' as d } from './lone-surrogate-export';
 export { e as '\ud800' } from './lone-surrogate-export-alias';
+export { 'a\0b' as nul } from './nul-export';
+import { 'c\0d' as nulLocal } from './nul-import';
 `)
 
 	items, ok := got["imports"].([]map[string]any)
@@ -154,7 +156,7 @@ export { e as '\ud800' } from './lone-surrogate-export-alias';
 		}
 		switch source {
 		case "./padded-alias", "./lone-surrogate", "./lone-surrogate-alias",
-			"./lone-surrogate-export", "./lone-surrogate-export-alias":
+			"./lone-surrogate-export", "./lone-surrogate-export-alias", "./nul-export", "./nul-import":
 			t.Fatalf("unrecordable specifier was recorded: %#v", item)
 		}
 	}

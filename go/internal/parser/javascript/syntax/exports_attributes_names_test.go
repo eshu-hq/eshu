@@ -69,7 +69,7 @@ func TestReExportAttributeEntriesSkipNamesTheReducerWouldTrim(t *testing.T) {
 
 // TestReExportAttributeEntriesSkipAnEmptyOriginalName: an empty original name
 // would be read by the reducer as "same as the exported name" and resolve
-// export { ” as c } to the module's c, so the specifier is skipped (#7461).
+// export { <empty string> as c } to the module's c, so the specifier is skipped (#7461).
 func TestReExportAttributeEntriesSkipAnEmptyOriginalName(t *testing.T) {
 	t.Parallel()
 

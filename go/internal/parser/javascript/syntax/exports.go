@@ -293,10 +293,17 @@ func exportSpecifierTextIsTypeOnly(raw string) bool {
 // strings for any other shape.
 func reExportSpecifierNames(raw string) (string, string) {
 	part := strings.TrimSpace(strings.TrimPrefix(exportSpecifierWithoutLineComments(raw), "type "))
-	if part == "" || strings.Contains(part, "...") {
+	if part == "" {
 		return "", ""
 	}
 	tokens := tokensOutsideQuotes(part)
+	for _, token := range tokens {
+		// A rest element (`...rest`) is not a specifier; a quoted name may hold
+		// dots (`'...'`), so only an unquoted token is checked.
+		if token[0] != '\'' && token[0] != '"' && strings.Contains(token, "...") {
+			return "", ""
+		}
+	}
 	switch {
 	case len(tokens) == 1:
 		name, ok := unquoteModuleSpecifierName(tokens[0])
