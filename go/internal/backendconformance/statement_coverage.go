@@ -22,12 +22,19 @@ const (
 	// no matching recording on the backend.
 	CoverageNeverExecuted = "never-executed"
 	// CoverageAlwaysEmptyRead fails a recorded read whose successful
-	// executions all returned zero rows, unless exempted.
+	// executions all returned zero rows, unless an identity-keyed
+	// exemption excuses it.
 	CoverageAlwaysEmptyRead = "always-empty-read"
+	// CoverageStaleExemption fails a read exemption whose callsite has
+	// no recordings on any backend: renamed, moved, or deleted code must
+	// take its exemption with it instead of rotting silently.
+	CoverageStaleExemption = "stale-exemption"
 )
 
 // StatementCoverageFailure is one gate failure: a backend, a rule kind,
-// and the manifest key (file:symbol) or statement text that failed it.
+// and the manifest key (file:symbol), the callsite-qualified read text,
+// or the stale exemption callsite that failed it. An empty Backend marks
+// a manifest-wide finding (stale exemption), not one backend's verdict.
 type StatementCoverageFailure struct {
 	Backend string
 	Kind    string
@@ -35,7 +42,8 @@ type StatementCoverageFailure struct {
 }
 
 // BackendStatementCoverage is one backend's coverage detail. Executed and
-// NeverExecuted hold manifest keys; AlwaysEmptyReads and Unattributed hold
+// NeverExecuted hold manifest keys; AlwaysEmptyReads holds
+// callsite-qualified read keys ("callsite :: text"); Unattributed holds
 // statement texts. WritesWithoutCounters names executed builders whose
 // executions never carried Bolt counters: advisory only, since a MERGE
 // that matched-existing legitimately reports zeros — but a backend that
@@ -57,25 +65,33 @@ type BackendStatementCoverage struct {
 	WritesWithoutCounters []string
 }
 
-// StatementCoverageReport is the per-backend coverage detail. Failures
-// carries the gate verdict; everything else is the report the issue
-// requires (executed, never-executed, and always-empty per backend).
+// StatementCoverageReport is the per-backend coverage detail plus the
+// manifest-wide stale exemptions. Failures carries the gate verdict;
+// everything else is the report the issue requires (executed,
+// never-executed, and always-empty per backend).
 type StatementCoverageReport struct {
 	ByBackend map[string]BackendStatementCoverage
+	// StaleExemptions names unused exemptions (callsite plus anchor, one
+	// per exemption) with no anchor-matching recordings on any backend,
+	// sorted for deterministic output.
+	StaleExemptions []string
 }
 
 // Failures returns the gate verdict, sorted for deterministic output:
 // unexempted never-executed builders and unexempted always-empty reads,
-// per backend.
+// per backend, plus manifest-wide stale exemptions.
 func (r StatementCoverageReport) Failures() []StatementCoverageFailure {
 	out := make([]StatementCoverageFailure, 0)
 	for backend, coverage := range r.ByBackend {
 		for _, key := range coverage.NeverExecuted {
 			out = append(out, StatementCoverageFailure{Backend: backend, Kind: CoverageNeverExecuted, ID: key})
 		}
-		for _, text := range coverage.AlwaysEmptyReads {
-			out = append(out, StatementCoverageFailure{Backend: backend, Kind: CoverageAlwaysEmptyRead, ID: text})
+		for _, id := range coverage.AlwaysEmptyReads {
+			out = append(out, StatementCoverageFailure{Backend: backend, Kind: CoverageAlwaysEmptyRead, ID: id})
 		}
+	}
+	for _, callsite := range r.StaleExemptions {
+		out = append(out, StatementCoverageFailure{Backend: "", Kind: CoverageStaleExemption, ID: callsite})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Backend != out[j].Backend {
@@ -97,10 +113,7 @@ func (r StatementCoverageReport) Failures() []StatementCoverageFailure {
 // failures-kind signal, not a coverage gap.
 func ComputeStatementCoverage(manifest queryplan.BuilderManifest, recordsByBackend map[string][]DifferentialRecord) StatementCoverageReport {
 	report := StatementCoverageReport{ByBackend: make(map[string]BackendStatementCoverage, len(recordsByBackend))}
-	exemptions := make(map[string]string, len(manifest.ReadExemptions))
-	for _, exemption := range manifest.ReadExemptions {
-		exemptions[normalizeCoverageText(exemption.Statement)] = exemption.Reason
-	}
+	exemptions := normalizeExemptions(manifest.ReadExemptions)
 	for backend, records := range recordsByBackend {
 		coverage := BackendStatementCoverage{Backend: backend}
 		matched := make([]bool, len(records))
@@ -134,7 +147,77 @@ func ComputeStatementCoverage(manifest queryplan.BuilderManifest, recordsByBacke
 		sort.Strings(coverage.WritesWithoutCounters)
 		report.ByBackend[backend] = coverage
 	}
+	report.StaleExemptions = staleExemptions(exemptions, recordsByBackend)
 	return report
+}
+
+// normalizeExemptions whitespace-normalizes exemption anchors the same
+// way recording texts are normalized, so manifest formatting never
+// affects matching.
+func normalizeExemptions(exemptions []queryplan.ReadExemption) []queryplan.ReadExemption {
+	out := make([]queryplan.ReadExemption, len(exemptions))
+	for i, exemption := range exemptions {
+		exemption.Anchor = normalizeCoverageText(exemption.Anchor)
+		out[i] = exemption
+	}
+	return out
+}
+
+// staleExemptions names unused exemptions, one per exemption, sorted
+// for deterministic output: either the builder ran nowhere (renamed,
+// moved, or deleted without taking its exemption along) or its anchor
+// matches no text it produced (a projection edit drifted past the
+// anchor). Both rot silently under text keys; both fail here. The ID
+// carries the anchor because one callsite may hold several exemptions
+// (a callsite-scoped ID would collapse them and hide which one rotted).
+func staleExemptions(exemptions []queryplan.ReadExemption, recordsByBackend map[string][]DifferentialRecord) []string {
+	seen := make(map[string]struct{})
+	var stale []string
+	for _, exemption := range exemptions {
+		if !exemptionUsed(exemption, recordsByBackend) {
+			id := exemption.Callsite + " :: " + exemption.Anchor
+			if _, dup := seen[id]; dup {
+				continue
+			}
+			seen[id] = struct{}{}
+			stale = append(stale, id)
+		}
+	}
+	sort.Strings(stale)
+	return stale
+}
+
+// exemptionUsed reports whether any backend recorded the exempted
+// callsite producing a read the anchor covers: the family key when the
+// text belongs to a dispatch family, else the text itself. Usage (not
+// excuse) is the staleness bar, so an exemption idling while its read
+// returns rows still counts as live.
+func exemptionUsed(exemption queryplan.ReadExemption, recordsByBackend map[string][]DifferentialRecord) bool {
+	for _, records := range recordsByBackend {
+		families := labelDispatchFamilies(records)
+		for _, record := range records {
+			if record.Digest == "" || record.Callsite != exemption.Callsite {
+				continue
+			}
+			text := normalizeCoverageText(record.Fingerprint.Statement)
+			key := text
+			if family, ok := families[text]; ok {
+				key = family
+			}
+			if exemptionAnchorMatches(exemption.Anchor, key) || exemptionAnchorMatches(exemption.Anchor, text) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// exemptionAnchorMatches reports whether an exemption anchor covers a
+// read key: ordered containment with the shared anchor-length floor,
+// the same rule builder fragments use. Short or absent anchors match
+// nothing and fail closed (the manifest validator floors length).
+func exemptionAnchorMatches(anchor, readKey string) bool {
+	return variantMatches(queryplan.StatementVariant{Fragments: []string{anchor}}, readKey)
 }
 
 // matchBuilder counts a builder's executions on the backend and how many
@@ -200,17 +283,20 @@ func variantMatches(variant queryplan.StatementVariant, text string) bool {
 // text, or for a proven same-parameter sibling member
 // (labelDispatchFamilies: a label dispatch or a per-label fan-out) its
 // family's unlabeled text, so one logical read split across per-label
-// statements is judged once. A read whose executions all returned zero
-// rows is always-empty (failing unless exempted); a text with only failed
-// executions is failed-only (reported, never failing: transients must not
-// red the gate, and slice-3's failures kind owns persistent failure). A
-// family member that never returned rows while its family did is a
-// dispatch miss (reported, never failing: a non-owning label misses by
-// construction). Writes (no digest) never qualify.
-func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alwaysEmpty, failedOnly, dispatchMisses []string) {
+// statements is judged once. Row stats stay per (text, callsite): a
+// callsite whose executions of the read all returned zero rows is
+// always-empty for that callsite (failing unless an exemption names the
+// callsite with an anchor the read key contains); a text with only
+// failed executions is failed-only (reported, never failing: transients
+// must not red the gate, and slice-3's failures kind owns persistent
+// failure). A family member that never returned rows while its family
+// did is a dispatch miss (reported, never failing: a non-owning label
+// misses by construction). Writes (no digest) never qualify.
+func emptyReads(records []DifferentialRecord, exemptions []queryplan.ReadExemption) (alwaysEmpty, failedOnly, dispatchMisses []string) {
 	type readStats struct {
-		succeeded bool
-		maxRows   int
+		succeeded  bool
+		maxRows    int
+		byCallsite map[string]int
 	}
 	stats := make(map[string]*readStats)
 	for _, record := range records {
@@ -220,7 +306,7 @@ func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alw
 		text := normalizeCoverageText(record.Fingerprint.Statement)
 		entry, ok := stats[text]
 		if !ok {
-			entry = &readStats{}
+			entry = &readStats{byCallsite: make(map[string]int)}
 			stats[text] = entry
 		}
 		if record.Failed {
@@ -229,6 +315,9 @@ func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alw
 		entry.succeeded = true
 		if record.RowCount > entry.maxRows {
 			entry.maxRows = record.RowCount
+		}
+		if rows, ok := entry.byCallsite[record.Callsite]; !ok || record.RowCount > rows {
+			entry.byCallsite[record.Callsite] = record.RowCount
 		}
 	}
 	families := labelDispatchFamilies(records)
@@ -250,14 +339,53 @@ func emptyReads(records []DifferentialRecord, exemptions map[string]string) (alw
 			maxRows = max(maxRows, stats[member].maxRows)
 		}
 		if maxRows == 0 {
-			if !readFamilyExempt(read, members, exemptions) {
-				alwaysEmpty = append(alwaysEmpty, read)
+			// One failure per callsite: several members can share the
+			// read key, but the verdict names the callsite, so a second
+			// member must not duplicate it.
+			failed := make(map[string]struct{})
+			for _, member := range members {
+				for callsite, rows := range stats[member].byCallsite {
+					if rows > 0 {
+						continue
+					}
+					if _, done := failed[callsite]; done {
+						continue
+					}
+					if !readFamilyExempt(read, member, callsite, exemptions) {
+						failed[callsite] = struct{}{}
+						alwaysEmpty = append(alwaysEmpty, callsite+" :: "+read)
+					}
+				}
 			}
 			continue
 		}
+		// One failure per callsite per read: several members can excuse
+		// or accuse the same callsite, but the verdict names the
+		// callsite once.
+		failedCallsites := make(map[string]struct{})
 		for _, member := range members {
 			if stats[member].maxRows == 0 {
 				dispatchMisses = append(dispatchMisses, member)
+				continue
+			}
+			// Per-(text, callsite) verdict (#7233 P1): this text returned
+			// rows for some callsite, so a callsite whose executions of
+			// this exact text all returned zero rows is always-empty for
+			// the read — the family row-maximum must not silently accept
+			// it, which would also strand an exemption naming it as
+			// unflaggable dead weight. Texts with rows from no callsite
+			// stay advisory dispatch misses above, never failures.
+			for callsite, rows := range stats[member].byCallsite {
+				if rows > 0 {
+					continue
+				}
+				if _, done := failedCallsites[callsite]; done {
+					continue
+				}
+				if !readFamilyExempt(read, member, callsite, exemptions) {
+					failedCallsites[callsite] = struct{}{}
+					alwaysEmpty = append(alwaysEmpty, callsite+" :: "+read)
+				}
 			}
 		}
 	}

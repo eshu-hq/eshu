@@ -235,7 +235,41 @@ Unmatched executions are advisory (`unattributed`); writes that never carried
 Bolt counters are advisory (`write-without-counters`), since a MERGE that
 matched-existing legitimately reports zeros. An exemption excuses execution
 proof, never drift: templates, fragments, and the source digest still pin the
-symbol, and the manifest validator rejects any drift in them.
+symbol, and the manifest validator rejects any drift in them. A read
+exemption names the builder identity (go-relative `path:symbol` of the
+direct `Run`/`RunSingle` caller, recorded by the capture wrapper) plus a
+stable anchor fragment the recorded text must contain — never the full
+statement text, so projection edits that keep the anchor leave the
+exemption working. The identity is canonical: the leading symbol segment
+is parenthesized (`(Reader).Enumerate`, `(*Store).Lookup`), because the Go
+runtime renders value-receiver methods bare while pointer receivers keep
+their parens — capture and manifest load apply the same rule, so authors
+may write either form. An exemption whose callsite produces no
+anchor-matching recording on any backend fails as `stale-exemption`,
+naming the callsite plus the anchor (one callsite may hold several
+exemptions, so the anchor tells the operator which one rotted).
+
+No-Regression Evidence (#7233): attribution costs nothing on the served
+path and milliseconds per capture leg. With capture disabled
+`WrapGraphQuery` returns the inner query unwrapped, so served reads pay
+no attribution work: `BenchmarkDisabledPassthroughWrapped` 2.1 ns/op vs
+`BenchmarkDisabledPassthroughBare` 0.5 ns/op on Apple M4 Pro (the delta
+is one interface dispatch plus the capture-enabled check).
+Under capture (CI differential legs only) `BenchmarkRecordCallsite`
+measures ~0.77 us per recorded read on the same Apple M4 Pro for the
+`runtime.Callers` walk plus receiver canonicalization; the local B-7
+neo4j capture held 3,134 records, i.e. ~2.4 ms of attribution per leg
+against the 150-minute differential budget. The offline statement-coverage phase over those
+captures completes in 2.2 s wall (including `go run` startup) with a
+PASS verdict. The identity path is new in this change, so there is no
+old-identity baseline to compare against; the production comparison is
+structural (passthrough unchanged) and the leg comparison is budgetary
+(milliseconds).
+
+No-Observability-Change: no new metrics, spans, or log keys; the
+callsite travels only inside capture records, and the gate's signal set
+is unchanged (stale-exemption IDs now carry the anchor, which is
+failure-string content, not a new signal).
 
 A same-parameter sibling read is judged as one read. When a handler issues
 one single-label `MATCH (v:Label)` per candidate label with byte-identical
@@ -247,13 +281,19 @@ identical after stripping the leading single-label anchor and folding a uid
 index-seek conjunct `v.uid = $p AND v.id = $p` to the `v.id = $p` predicate
 it implies (#7089), and that the recordings show executed with
 byte-identical parameters, form one family keyed by the unlabeled text: the family is always-empty only if no member
-ever returned rows, and a read exemption on the unlabeled text covers it.
+ever returned rows, and a read exemption naming the probing callsite with
+the unlabeled text as its anchor covers it.
 Members that never returned rows while their family did are advisory
 (`dispatch-miss`, named for the motivating dispatch case). The rule groups
 per-label fan-outs too, so a fan-out member broken on every execution stays
 green while a sibling returns rows and shows up only as an advisory miss.
 Reads that share a text modulo label but never shared parameters stay
 independent.
+
+The verdict is per (text, callsite): a callsite whose executions of a
+row-bearing text all returned zero rows still fails as `callsite ::
+text` unless an exemption names that callsite — the family row-maximum
+never excuses one callsite miss.
 
 Run it over local captures (single pair is enough; CI merges both Neo4j
 pairing dirs by backend):

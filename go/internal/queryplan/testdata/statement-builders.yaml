@@ -217,114 +217,105 @@ builders:
           source_sha256: 859f49c5e59199350d80aaeae51ac46c535520583b5b30ece45921d83b9884a7
           exempt: NornicDB-only path -- PhaseGroupExecutor is wired only when graphBackend == GraphBackendNornicDB, so no Neo4j gated run executes it; drain and probe texts derive from the caller's statement at runtime
 read_exemptions:
-  - statement: |-
-      MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier) WHERE a.id IN $repo_ids RETURN a.id AS repo_id, tier.name AS tier, tier.risk_level AS risk
+  - callsite: internal/query/impact/blast_radius.go:(*Handler).enrichBlastRadiusTiers
+    anchor: "MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier) WHERE a.id IN $repo_ids"
     reason: B-7 captures contain zero Tier node writes, so the tier lookup returns nothing on either backend
-  - statement: |-
-      MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id}) WITH artifact, r MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact) RETURN 'incoming' AS direction, artifact.id AS artifact_id, artifact.name AS name, artifact.domain AS domain, artifact.path AS path, artifact.evidence_kind AS evidence_kind, artifact.artifact_family AS artifact_family, artifact.extractor AS extractor, artifact.relationship_type AS relationship_type, artifact.resolved_id AS resolved_id, artifact.generation_id AS generation_id, artifact.confidence AS confidence, artifact.environment AS environment, artifact.runtime_platform_kind AS runtime_platform_kind, artifact.matched_alias AS matched_alias, artifact.matched_value AS matched_value, artifact.evidence_source AS evidence_source, artifact.start_line AS start_line, artifact.end_line AS end_line, artifact.commit_sha AS commit_sha, artifact.ref_value AS ref_value, artifact.ref_pinned AS ref_pinned, source.id AS source_repo_id, source.name AS source_repo_name, source.remote_url AS source_repo_remote_url, source.scope_id AS source_repo_scope_id, r.id AS target_repo_id, r.name AS target_repo_name, r.remote_url AS target_repo_remote_url, r.scope_id AS target_repo_scope_id ORDER BY path, artifact_id LIMIT $limit
-    reason: B-7 artifact creates never touch the bound repos (r_d5318f0f, r_ea78e8bb); 11 executions per backend, all empty
-  - statement: |-
-      MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal) WHERE rel.scope_id = $scope_id RETURN CASE WHEN rel.grant_outcome IS NULL OR rel.grant_outcome = '' THEN 'unknown' ELSE rel.grant_outcome END AS bucket, count(*) AS bucket_count ORDER BY bucket ASC
-    reason: zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends
-  - statement: |-
-      MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal) WHERE rel.scope_id = $scope_id RETURN CASE WHEN rel.resolution_mode IS NULL OR rel.resolution_mode = '' THEN 'unknown' ELSE rel.resolution_mode END AS bucket, count(*) AS bucket_count ORDER BY bucket ASC
-    reason: zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends
-  - statement: |-
-      MATCH (e) WHERE e.id = $entity_id OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository) OPTIONAL MATCH (e)-[rel]->(target) RETURN e.id as id, labels(e) as labels, e.name as name, f.relative_path as file_path, coalesce(e.language, f.language) as language, e.start_line as start_line, e.end_line as end_line, e.docstring as docstring, e.class_context as class_context, e.method_kind as method_kind, e.constructor_kind as constructor_kind, e.annotation_kind as annotation_kind, e.context as context, e.type_annotation_count as type_annotation_count, e.type_annotation_kinds as type_annotation_kinds, e.type_parameters as type_parameters, e.dead_code_root_kinds as dead_code_root_kinds, e.type_alias_kind as type_alias_kind, e.framework as framework, e.module_kind as module_kind, e.jsx_fragment_shorthand as jsx_fragment_shorthand, e.component_type_assertion as component_type_assertion, e.component_wrapper_kind as component_wrapper_kind, e.protocol as protocol, e.implemented_for as implemented_for, e.attribute_kind as attribute_kind, e.value as value, e.declaration_merge_group as declaration_merge_group, e.declaration_merge_count as declaration_merge_count, e.declaration_merge_kinds as declaration_merge_kinds, e.kind as kind, e.target_kind as target_kind, e.type as type, e.decorators as decorators, e.async as async, e.semantic_kind as semantic_kind, e.metaclass as metaclass, e.source as source, e.terraform_source as terraform_source, e.config_path as config_path, e.includes as includes, e.inputs as inputs, e.locals as locals, e.deployment_name as deployment_name, e.repo_name as entity_repo_name, e.create_deploy as create_deploy, e.cluster_name as cluster_name, e.zone_id as zone_id, e.deploy_entry_point as deploy_entry_point, e.qualified_name as qualified_name, e.sql_entity_type as sql_entity_type, e.schema as schema, e.data_type as data_type, e.table_name as table_name, e.column_name as column_name, e.routine_kind as routine_kind, e.function_language as function_language ,r.id as repo_id, r.name as repo_name, collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
+  - callsite: internal/query/secrets/grant_posture.go:GraphIAMGrantPostureStore.groupedGrantCounts
+    anchor: "MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal) WHERE rel.scope_id = $scope_id"
+    reason: zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends
+  - callsite: internal/query/entity/context_handler.go:(*Handler).GetEntityContext
+    anchor: "MATCH (e) WHERE e.id = $entity_id"
     reason: last-resort entity-context anchor read; the kept content-fallback workflow shape still binds the absent id content-entity:e_1dc76e780ac6, so every anchor-loop pass over it reaches this read and returns 0 rows on Neo4j (CI differential run 36783507969 proved the always-empty verdict when this exemption was dropped). The new graph-anchor probe covers the label-constrained CALL anchor, not this miss-path read. #7232; rekey-by-builder-identity follow-up is #7233.
-  - statement: |-
-      MATCH (instance:WorkloadInstance)-[rel:USES]->(resource:TerraformResource) WHERE (coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id) AND ($environment = '' OR coalesce(instance.environment, resource.environment, '') = '' OR instance.environment = $environment) RETURN DISTINCT instance.id AS instance_id, coalesce(instance.environment, resource.environment, '') AS environment, instance.workload_id AS workload_id_raw, instance.name AS instance_name, type(rel) AS relationship_type, coalesce(rel.reason, rel.evidence_type, '') AS relationship_reason, rel.confidence AS confidence ORDER BY instance_id LIMIT $limit
+  - callsite: internal/query/impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationWorkloads
+    anchor: "MATCH (instance:WorkloadInstance)-[rel:USES]->(resource:TerraformResource)"
     reason: bound resource node is created but no USES edge to it exists in B-7 captures
-  - statement: |-
-      MATCH (n:CloudResource) WHERE (coalesce(n.name, '') CONTAINS $query OR coalesce(n.id, '') CONTAINS $query OR coalesce(n.kind, '') CONTAINS $query OR coalesce(n.resource_type, n.data_type, '') = $resource_type_query OR coalesce(n.resource_type, n.data_type, '') CONTAINS $resource_type_query OR coalesce(n.arn, '') CONTAINS $query OR coalesce(n.resource_id, '') CONTAINS $query OR coalesce(n.service_kind, '') CONTAINS $query OR coalesce(n.account_id, '') CONTAINS $query OR coalesce(n.region, '') CONTAINS $query OR coalesce(n.source, '') CONTAINS $query OR coalesce(n.config_path, '') CONTAINS $query) RETURN coalesce(n.id, '') AS id, coalesce(n.name, '') AS name, coalesce(n.kind, '') AS kind, coalesce(n.provider, '') AS provider, coalesce(n.source_system, '') AS source_system, coalesce(n.environment, '') AS environment, coalesce(n.source, n.source_system, '') AS source, coalesce(n.config_path, '') AS config_path, coalesce(n.resource_type, n.data_type, '') AS resource_type, coalesce(n.resource_service, n.service_kind, '') AS resource_service, coalesce(n.resource_category, '') AS resource_category, coalesce(n.resource_id, '') AS resource_id, coalesce(n.arn, '') AS arn, coalesce(n.account_id, '') AS account_id, coalesce(n.region, '') AS region, coalesce(n.service_kind, '') AS service_kind, coalesce(n.service_anchor_status, '') AS service_anchor_status, coalesce(n.service_anchor_reason, '') AS service_anchor_reason ORDER BY n.name, n.id LIMIT $limit
+  - callsite: internal/query/impact/deployment/cloud_resource_candidates.go:LoadUncorrelatedCloudResourceCandidatesBounded
+    anchor: "WHERE (coalesce(n.name, '') CONTAINS $query OR coalesce(n.id, '') CONTAINS $query"
     reason: probe names (api-svc, deployable-config) match no CloudResource node name in B-7 writes
-  - statement: |-
-      MATCH (n:Repository {id: $from}) WHERE ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment) AND ($repo_id = '' OR coalesce(n.repo_id, n.id, '') = $repo_id) RETURN coalesce(n.id, n.uid, n.resource_id, n.path, n.name) AS id, coalesce(n.name, n.address, n.qualified_name, n.path, n.id, n.uid) AS name, labels(n) AS labels, coalesce(n.repo_id, n.id, '') AS repo_id, coalesce(n.environment, '') AS environment, "Repository" AS anchor_label, "id" AS anchor_property, coalesce(n.id, n.id, n.uid, n.path, n.name) AS anchor_value, 0 AS rank ORDER BY rank, name, id LIMIT 11
+  - callsite: internal/query/impact/entity_map_resolver.go:(*Handler).resolveEntityMapStart
+    anchor: "MATCH (n:Repository {id: $from}) WHERE"
     reason: binds a slug (deployable-config) as a node id; no Repository has that literal id
-  - statement: |-
-      MATCH (n:Repository) WHERE n.evidence_source IS NOT NULL AND n.evidence_source <> 'projector/canonical' AND n.id > $cursor RETURN n.id AS key, n.eshu_orphan_observed_at_unix AS observed_at ORDER BY n.id LIMIT $limit
+  - callsite: internal/storage/cypher/orphan_sweep_queries.go:(*OrphanSweepStore).readCandidateOrphanNodes
+    anchor: "WHERE n.evidence_source IS NOT NULL AND n.evidence_source <> 'projector/canonical' AND n.id > $cursor"
     reason: janitor sweep; empty is the healthy state (no non-canonical Repository nodes) on both backends across 7 executions each
-  - statement: |-
-      MATCH (n) WHERE n.id = $entity_id OPTIONAL MATCH (n)-[r]->(target) OPTIONAL MATCH (source)-[r2]->(n) RETURN n.id as id, n.name as name, labels(n) as labels, collect(DISTINCT { direction: 'outgoing', type: type(r), target_name: target.name, target_id: target.id, target_labels: labels(target) }) as outgoing, collect(DISTINCT { direction: 'incoming', type: type(r2), source_name: source.name, source_id: source.id, source_labels: labels(source) }) as incoming
+  - callsite: internal/query/infra_relationship_filter.go:(*InfraHandler).getRelationships
+    anchor: "MATCH (n) WHERE n.id = $entity_id"
     reason: bound entity id aws:s3 bucket never written in B-7 captures; probe-by-id over an absent entity
-  - statement: |-
-      MATCH (n:Workload {id: $target}) RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 0 as rank ORDER BY rank, name, id LIMIT 11
-    reason: no Workload node carries the bound id (repository:r_3eddcea1) in B-7 captures
-  - statement: |-
-      MATCH (n:Workload {id: $target}) RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, 1 as rank ORDER BY rank, name, id LIMIT 11
-    reason: bound id workload:repository:r_3eddcea1 never written anywhere in B-7 captures
-  - statement: |-
-      MATCH path = (handler:Function)-[:CALLS*1..2]->(callee) WHERE coalesce(handler.id, handler.uid) = $handler_id AND coalesce(callee.id, callee.uid) <> coalesce(handler.id, handler.uid) RETURN length(path) as depth, nodes(path) as chain ORDER BY depth, coalesce(callee.id, callee.uid) LIMIT $limit
+  - callsite: internal/query/impact/change_surface_investigation.go:(*Handler).resolveChangeSurfaceTarget
+    anchor: "MATCH (n:Workload {id: $target})"
+    reason: no Workload node carries the bound id (repository:r_3eddcea1) in B-7 captures bound id workload:repository:r_3eddcea1 never written anywhere in B-7 captures
+  - callsite: internal/query/codequery/routes/graph.go:DirectionRows
+    anchor: "]->(callee) WHERE coalesce(handler.id, handler.uid) = $handler_id"
     reason: bound handler uid content-entity:e_7d39105f8ee2 never written in B-7 captures
-  - statement: |-
-      MATCH path = (handler:Function)<-[:CALLS*1..2]-(caller) WHERE coalesce(handler.id, handler.uid) = $handler_id AND coalesce(caller.id, caller.uid) <> coalesce(handler.id, handler.uid) RETURN length(path) as depth, nodes(path) as chain ORDER BY depth, coalesce(caller.id, caller.uid) LIMIT $limit
+  - callsite: internal/query/codequery/routes/graph.go:DirectionRows
+    anchor: "]-(caller) WHERE coalesce(handler.id, handler.uid) = $handler_id"
     reason: bound handler uid content-entity:e_7d39105f8ee2 never written in B-7 captures
-  - statement: |-
-      MATCH path = (resource:TerraformResource)-[rels*1..4]->(repo:Repository) WHERE coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id RETURN DISTINCT repo.id AS repo_id, repo.name AS repo_name, length(path) AS depth, relationships(path) AS rels ORDER BY depth, repo_name, repo_id LIMIT $limit
+  - callsite: internal/query/impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationRepoPaths
+    anchor: "]->(repo:Repository) WHERE coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id"
     reason: bound resource has no outgoing edges in B-7 captures, so no path reaches a Repository
-  - statement: |-
-      MATCH (r:Repository {id: $repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(target:Repository) RETURN 'outgoing' AS direction, type(rel) AS type, r.name AS source_name, r.id AS source_id, target.name AS target_name, target.id AS target_id, rel.evidence_type AS evidence_type, rel.resolved_id AS resolved_id, rel.generation_id AS generation_id, rel.confidence AS confidence, rel.evidence_count AS evidence_count, rel.evidence_kinds AS evidence_kinds, rel.resolution_source AS resolution_source, rel.rationale AS rationale ORDER BY target_name
+  - callsite: internal/query/repository/context_helpers.go:queryRepoRelationshipOverviewDirection
+    anchor: "MATCH (r:Repository {id: $repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)"
     reason: r_98a4c8a8 is only ever a CORRELATES target in B-7 writes, never a source
-  - statement: |-
-      MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(consumer:Repository) RETURN consumer.name AS consumer_name, consumer.id AS consumer_id ORDER BY consumer_name
+  - callsite: internal/query/repository/context_helpers.go:queryRepoConsumers
+    anchor: "MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(consumer:Repository)"
     reason: B-7 writes no dependency edge pointing into r_ea78e8bb; the repo is only ever a dependency source
-  - statement: |-
-      MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(source:Repository) RETURN 'incoming' AS direction, type(rel) AS type, source.name AS source_name, source.id AS source_id, r.name AS target_name, r.id AS target_id, rel.evidence_type AS evidence_type, rel.resolved_id AS resolved_id, rel.generation_id AS generation_id, rel.confidence AS confidence, rel.evidence_count AS evidence_count, rel.evidence_kinds AS evidence_kinds, rel.resolution_source AS resolution_source, rel.rationale AS rationale ORDER BY type, source_name
+  - callsite: internal/query/repository/context_helpers.go:queryRepoRelationshipOverviewDirection
+    anchor: "MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)"
     reason: B-7 writes no dependency edge pointing into r_ea78e8bb; the repo is only ever a dependency source
-  - statement: |-
-      MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra) WITH f, infra WHERE infra:K8sResource OR infra:TerraformResource OR infra:TerraformModule OR infra:TerraformDataSource OR infra:TerraformBackend OR infra:TerraformImport OR infra:TerraformMovedBlock OR infra:TerraformRemovedBlock OR infra:TerraformCheck OR infra:TerraformLockProvider OR infra:TerragruntConfig OR infra:TerragruntDependency OR infra:ArgoCDApplication OR infra:ArgoCDApplicationSet OR infra:HelmChart OR infra:HelmValues OR infra:KustomizeOverlay OR infra:CrossplaneXRD OR infra:CrossplaneComposition OR infra:CloudFormationResource RETURN labels(infra)[0] AS type, infra.name AS name, infra.kind AS kind, infra.source AS source, infra.terraform_source AS terraform_source, infra.config_path AS config_path, infra.provider AS provider, coalesce(infra.resource_type, infra.data_type, '') AS resource_type, infra.resource_service AS resource_service, infra.resource_category AS resource_category, f.relative_path AS file_path ORDER BY type, name LIMIT $limit
+  - callsite: internal/query/repository/infrastructure.go:QueryRepoInfrastructureFromGraph
+    anchor: "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)"
     reason: K8s/Terraform writes cover nine other repos but never the bound repos (r_1f68383d, r_ea78e8bb)
-  - statement: |-
-      MATCH (r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(target:Repository) RETURN 'outgoing' AS direction, artifact.id AS artifact_id, artifact.name AS name, artifact.domain AS domain, artifact.path AS path, artifact.evidence_kind AS evidence_kind, artifact.artifact_family AS artifact_family, artifact.extractor AS extractor, artifact.relationship_type AS relationship_type, artifact.resolved_id AS resolved_id, artifact.generation_id AS generation_id, artifact.confidence AS confidence, artifact.environment AS environment, artifact.runtime_platform_kind AS runtime_platform_kind, artifact.matched_alias AS matched_alias, artifact.matched_value AS matched_value, artifact.evidence_source AS evidence_source, artifact.start_line AS start_line, artifact.end_line AS end_line, artifact.commit_sha AS commit_sha, artifact.ref_value AS ref_value, artifact.ref_pinned AS ref_pinned, r.id AS source_repo_id, r.name AS source_repo_name, r.remote_url AS source_repo_remote_url, r.scope_id AS source_repo_scope_id, target.id AS target_repo_id, target.name AS target_repo_name, target.remote_url AS target_repo_remote_url, target.scope_id AS target_repo_scope_id ORDER BY path, artifact_id LIMIT $limit
+  - callsite: internal/query/repository/deployment_evidence.go:queryRepoDeploymentEvidenceDirection
+    anchor: "MATCH (r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)"
     reason: B-7 artifact creates never touch the bound repos (r_d5318f0f, r_ea78e8bb); 11 executions per backend, all empty
-  - statement: |-
-      MATCH (s:CloudResource)-[r]->() WHERE r.evidence_source IN $evidence_sources RETURN s.uid AS source_uid, r.scope_id AS scope_id, r.generation_id AS generation_id, r.evidence_source AS evidence_source
+  - callsite: internal/reducer/projected_source_edge_backfill.go:(ProjectedSourceEdgeBackfillReader).EnumerateProjectedSourceEdges
+    anchor: "MATCH (s:CloudResource)-[r]->() WHERE r.evidence_source IN $evidence_sources"
     reason: scan runs at line 2 of the reducer leg, before any aws/gcp rels are written (first write at line 720); azure/observability/security-group sources have no B-7 writers at all
-  - statement: |-
-      MATCH (source:Workload)-[rel:DEPENDS_ON]->(target:Workload) WHERE source.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source RETURN DISTINCT source.repo_id AS repo_id
+  - callsite: cmd/reducer/workload_dependency_lookup.go:neo4jWorkloadDependencyLookup.ListWorkloadDependencyEdges
+    anchor: "MATCH (source:Workload)-[rel:DEPENDS_ON]->(target:Workload) WHERE source.repo_id IN $repo_ids"
     reason: B-7 corpus writes DEPENDS_ON only between Repository nodes; no Workload-to-Workload DEPENDS_ON exists (59/58 executions, all empty)
-  - statement: |-
-      MATCH (src) WHERE coalesce(src.id, src.uid) = $source_entity_id MATCH path = (src)-[:CALLS*0..4]->(reached) MATCH (reached)-[sinkRel]->(sinkNode) WHERE type(sinkRel) IN $sink_rels RETURN nodes(path) AS chain, type(sinkRel) AS sink_rel, sinkNode AS sink_node, labels(sinkNode) AS sink_labels, length(path) AS depth LIMIT $limit
+  - callsite: internal/query/impact/exposure_path.go:(*Handler).exposurePathCandidates
+    anchor: "MATCH path = (src)-[:CALLS*"
     reason: anchor Function exists but four of the seven bound sink rel types are never written and no CALLS path reaches a sink in B-7 captures
-  - statement: |-
-      MATCH (s:SecurityGroupRule)-[r]->() WHERE r.evidence_source IN $evidence_sources RETURN s.uid AS source_uid, r.scope_id AS scope_id, r.generation_id AS generation_id, r.evidence_source AS evidence_source
+  - callsite: internal/reducer/projected_source_edge_backfill.go:(ProjectedSourceEdgeBackfillReader).EnumerateProjectedSourceEdges
+    anchor: "MATCH (s:SecurityGroupRule)-[r]->() WHERE r.evidence_source IN $evidence_sources"
     reason: scan runs before any matching rels are written in the reducer leg; azure/observability/security-group sources have no B-7 writers at all
-  - statement: |-
-      MATCH (start:Repository {id: $from_id})<-[rel:DEFINES]-(entity) WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment) AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id) RETURN entity.id AS id, entity.uid AS uid, entity.resource_id AS resource_id, entity.path AS path, entity.name AS name, entity.address AS address, entity.qualified_name AS qualified_name, entity.repo_id AS repo_id, entity.environment AS environment, labels(entity) AS entity_labels, type(rel) AS relationship_type ORDER BY name, id LIMIT $limit
+  - callsite: internal/query/impact/entity_map_traversal.go:(*Handler).entityMapNeighborhoodRows
+    anchor: "MATCH (start:Repository {id: $from_id})<-[rel:DEFINES]-(entity)"
     reason: zero incoming-to-Repository DEFINES writes in B-7 captures; every DEFINES edge points outward
-  - statement: |-
-      MATCH (s:WorkloadInstance)-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL RETURN type(r) AS verb, r.source_tool AS source_tool, count(r) AS count ORDER BY verb, source_tool
+  - callsite: internal/query/relationships_catalog.go:(*InfraHandler).relationshipSourceToolBreakdown
+    anchor: "MATCH (s:WorkloadInstance)-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL"
     reason: every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction
-  - statement: |-
-      MATCH ()-[r:READS_CONFIG_FROM]->() WHERE r.source_tool IS NOT NULL RETURN r.source_tool AS source_tool, count(r) AS cnt ORDER BY cnt DESC LIMIT $limit
+  - callsite: internal/storage/cypher/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
+    anchor: "MATCH ()-[r:READS_CONFIG_FROM]->() WHERE r.source_tool IS NOT NULL"
     reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; B-7 captures contain zero READS_CONFIG_FROM writes (no write statement names the verb and no execution reports a READS_CONFIG_FROM relationship created)
-  - statement: |-
-      MATCH ()-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL RETURN r.source_tool AS source_tool, count(r) AS cnt ORDER BY cnt DESC LIMIT $limit
+  - callsite: internal/storage/cypher/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
+    anchor: "MATCH ()-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL"
     reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction (same cause as the WorkloadInstance RUNS_ON read above)
-  - statement: |-
-      MATCH (s:Workload)-[r:DEPENDS_ON]->(t) RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id, coalesce(s.name, s.path, s.id, s.uid) AS source_name, coalesce(t.id, t.uid, t.name, t.path) AS target_id, coalesce(t.name, t.path, t.id, t.uid) AS target_name, r.rationale AS evidence, r.source_tool AS source_tool ORDER BY s.id, coalesce(t.id, t.uid) LIMIT $limit
+  - callsite: internal/query/relationships_catalog.go:(*InfraHandler).relationshipEdges
+    anchor: "MATCH (s:Workload)-[r:DEPENDS_ON]->(t)"
     reason: B-7 corpus writes DEPENDS_ON only between Repository nodes; no Workload DEPENDS_ON edges exist at all
-  - statement: |-
-      MATCH (tag:ContainerImageTagObservation) WHERE tag.image_ref IN $image_refs RETURN tag.image_ref AS image_ref, tag.tag AS tag, tag.resolved_digest AS digest, tag.repository_id AS repository_id ORDER BY image_ref, digest, repository_id, tag LIMIT $row_limit
+  - callsite: internal/query/impact/trace_deployment_oci.go:fetchOCIImageTagRows
+    anchor: "WHERE tag.image_ref IN $image_refs"
     reason: tag observations are written only for supply-chain-demo:1.0.0; the probe refs match no TagObservation node. Statement text updated for #6590's LIMIT $row_limit bound (ORDER BY gained digest, repository_id, tag as tie-breaks for the bounded-read continuation; the row cause is unchanged -- the probe refs still match nothing)
-  - statement: |-
-      MATCH (w:Workload) WHERE w.id = $service_name OPTIONAL MATCH (dr:Repository)-[:DEFINES]->(w) RETURN w.id as id, w.name as name, w.repo_id as repo_id, collect(DISTINCT dr.id) as defining ORDER BY w.id LIMIT 1
+  - callsite: internal/query/impact/deployment/workload_selection.go:ResolveWorkloadSelector
+    anchor: "WHERE w.id = $service_name"
     reason: no Workload node carries the bound service ids in B-7 writes
-  - statement: |-
-      UNWIND $principal_uids AS principal_uid MATCH (p:CloudResource {uid: principal_uid}) MATCH (i:WorkloadInstance)-[:USES]->(p) MATCH (i)-[:INSTANCE_OF]->(w:Workload) MATCH (r:Repository)-[:DEFINES]->(w) MATCH (fn:Function)-[:RUNS_IN]->(w) MATCH (fn)-[:INVOKES_CLOUD_ACTION]->(:CloudAction) RETURN r.id AS repo_id
+  - callsite: internal/reducer/code/value/affected/gate.go:countRepos
+    anchor: "UNWIND $principal_uids AS principal_uid"
     reason: bound principal uids never written (zero cloud-action writes with those uids); the first hop matches nothing
-  - statement: |-
-      UNWIND $repo_ids AS repo_id MATCH (target:ShellCommand {repo_id: repo_id}) WHERE target.evidence_source = $evidence_source RETURN DISTINCT target.uid AS key
+  - callsite: internal/storage/cypher/edge/writer/shell_exec.go:(*EdgeWriter).readShellCommandKeys
+    anchor: "MATCH (target:ShellCommand {repo_id: repo_id}) WHERE target.evidence_source = $evidence_source"
     reason: zero ShellCommand creates in B-7 captures; the node-prop predicate matches nothing
-  - statement: |-
-      UNWIND $source_repo_ids AS source_id MATCH (repo:Repository {id: source_id})-[sourceRel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact) WHERE artifact.relationship_type = 'DEPLOYS_FROM' AND artifact.evidence_kind = 'FLUX_GIT_REPOSITORY_SOURCE' AND sourceRel.relationship_type = 'DEPLOYS_FROM' AND coalesce(artifact.flux_git_repository_name, '') <> '' AND coalesce(artifact.flux_git_repository_namespace, '') <> '' RETURN repo.id AS source_id, artifact.id AS artifact_id, artifact.flux_git_repository_namespace AS flux_git_repository_namespace, artifact.flux_git_repository_name AS flux_git_repository_name LIMIT $source_limit
+  - callsite: internal/query/impact/deployment/flux_bindings.go:FetchFluxDeploymentSourceTargetBindings
+    anchor: "MATCH (repo:Repository {id: source_id})-[sourceRel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)"
     reason: zero FLUX_GIT_REPOSITORY_SOURCE artifact writes in B-7 captures
-  - statement: |-
-      MATCH (member:Function) WHERE member.repo_id = $repo_id MATCH (member)-[:HANDLES_ROUTE]->(ep:Endpoint) RETURN ep.path as endpoint_path, coalesce(member.id, member.uid) as member_id, member.name as member_name
+  - callsite: internal/query/codequery/wrapper_bypass_read.go:(*CodeHandler).runWrapperGraphRows
+    anchor: "WHERE member.repo_id = $repo_id MATCH (member)-[:HANDLES_ROUTE]->(ep:Endpoint)"
     reason: outlier router-cohort read bound to repository:r_3eddcea1; 4 executions per backend, all empty on both backends; the captures' sole r_3eddcea1 Function (content-entity:e_58b8ce80af37) carries no HANDLES_ROUTE edge — all 20 HANDLES_ROUTE writes reference other repos' functions; #6929 dropped the coalesce() wrapper on the repo-scope predicate (it defeated the function_repo_id index), so this pinned statement text tracks the bare-equality form
-  - statement: |-
-      MATCH (member:Function) WHERE member.repo_id = $repo_id MATCH (member)<-[:CONTAINS]-(impl)-[:IMPLEMENTS]->(iface) RETURN coalesce(iface.id, iface.uid) as iface_id, iface.name as iface_name, coalesce(member.id, member.uid) as member_id, member.name as member_name
+  - callsite: internal/query/codequery/wrapper_bypass_read.go:(*CodeHandler).runWrapperGraphRows
+    anchor: "WHERE member.repo_id = $repo_id MATCH (member)<-[:CONTAINS]-(impl)-[:IMPLEMENTS]->(iface)"
     reason: outlier interface-cohort read bound to repository:r_3eddcea1; 4 executions per backend, all empty on both backends; the captures contain zero IMPLEMENTS edge writes; #6929 dropped the coalesce() wrapper on the repo-scope predicate (it defeated the function_repo_id index), so this pinned statement text tracks the bare-equality form
-  - statement: |-
-      MATCH (r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)<-[:HAS_DEPLOYMENT_EVIDENCE]-(source:Repository) RETURN 'incoming' AS direction, artifact.id AS artifact_id, artifact.name AS name, artifact.domain AS domain, artifact.path AS path, artifact.evidence_kind AS evidence_kind, artifact.artifact_family AS artifact_family, artifact.extractor AS extractor, artifact.relationship_type AS relationship_type, artifact.resolved_id AS resolved_id, artifact.generation_id AS generation_id, artifact.confidence AS confidence, artifact.environment AS environment, artifact.runtime_platform_kind AS runtime_platform_kind, artifact.matched_alias AS matched_alias, artifact.matched_value AS matched_value, artifact.evidence_source AS evidence_source, artifact.start_line AS start_line, artifact.end_line AS end_line, artifact.commit_sha AS commit_sha, artifact.ref_value AS ref_value, artifact.ref_pinned AS ref_pinned, source.id AS source_repo_id, source.name AS source_repo_name, source.remote_url AS source_repo_remote_url, source.scope_id AS source_repo_scope_id, r.id AS target_repo_id, r.name AS target_repo_name, r.remote_url AS target_repo_remote_url, r.scope_id AS target_repo_scope_id ORDER BY path, artifact_id LIMIT $limit
+  - callsite: internal/query/repository/deployment_evidence.go:queryRepoDeploymentEvidenceDirection
+    anchor: "MATCH (r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)"
     reason: incoming-evidence read; 22 executions per backend (4 bound to r_ea78e8bb), all empty on both backends; zero EvidenceArtifact creates touch r_ea78e8bb (the sibling outgoing variant is already exempt for the same repo)
