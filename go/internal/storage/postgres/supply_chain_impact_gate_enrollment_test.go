@@ -170,6 +170,68 @@ func proofsMissingFromFilter(t *testing.T, filter string, proofs []string) []str
 	return missing
 }
 
+// directDSNRead matches a test reading the proof DSN from the environment
+// itself, bypassing the helper that applies the required-proof switch.
+var directDSNRead = regexp.MustCompile(`os\.(?:Getenv|LookupEnv)\("ESHU_POSTGRES_TEST_DSN"\)`)
+
+// liveProofFiles returns the sorted test files that declare supply-chain impact
+// live proofs, and the ones among them that also read the proof DSN directly. A
+// file is a proof file when it calls an opener helper (see liveDSNOpeners) or
+// calls supplyChainImpactLiveDSN itself, including from a Test function. The
+// helper file that defines the mechanism is not a proof file.
+func liveProofFiles(sources map[string][]byte) (files, mixed []string) {
+	const helperFile = "supply_chain_impact_live_dsn_test.go"
+	callees := []string{"supplyChainImpactLiveDSN"}
+	for opener := range liveDSNOpeners(sources) {
+		callees = append(callees, opener)
+	}
+	for file, body := range sources {
+		if file == helperFile {
+			continue
+		}
+		calls := false
+		for _, callee := range callees {
+			if bytes.Contains(body, []byte(callee+"(")) {
+				calls = true
+			}
+		}
+		if !calls {
+			continue
+		}
+		files = append(files, file)
+		if directDSNRead.Match(body) {
+			mixed = append(mixed, file)
+		}
+	}
+	sort.Strings(files)
+	sort.Strings(mixed)
+	return files, mixed
+}
+
+// TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles is the seeded pair for
+// proof-file discovery: a Test function that calls the DSN helper directly makes
+// its file a proof file, and a proof file that also reads the DSN itself is
+// flagged; a file that never touches the helpers is out of scope.
+func TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles(t *testing.T) {
+	t.Parallel()
+
+	sources := map[string][]byte{
+		"supply_chain_impact_live_dsn_test.go": []byte("func supplyChainImpactLiveDSN(t int) {}\nfunc TestSupplyChainImpactLiveDecision(t int) {}\n"),
+		"direct_test.go":                       []byte("func TestSupplyChainImpactDirectLive(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n}\n"),
+		"wrapped_test.go":                      []byte("func open(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n}\nfunc TestWrappedLive(t int) {\n\topen(t)\n}\n"),
+		"mixed_test.go":                        []byte("func TestMixedLive(t int) {\n\tsupplyChainImpactLiveDSN(t, \"x\")\n\t_ = os.Getenv(\"ESHU_POSTGRES_TEST_DSN\")\n}\n"),
+		"unrelated_test.go":                    []byte("func TestOtherLive(t int) {\n\t_ = os.Getenv(\"ESHU_POSTGRES_TEST_DSN\")\n}\n"),
+	}
+	files, mixed := liveProofFiles(sources)
+	want := []string{"direct_test.go", "mixed_test.go", "wrapped_test.go"}
+	if len(files) != len(want) || files[0] != want[0] || files[1] != want[1] || files[2] != want[2] {
+		t.Fatalf("proof files = %v, want %v (the helper file and an unrelated direct-DSN file are out of scope)", files, want)
+	}
+	if len(mixed) != 1 || mixed[0] != "mixed_test.go" {
+		t.Fatalf("mixed-mechanism files = %v, want [mixed_test.go]", mixed)
+	}
+}
+
 // liveDSNOpeners derives, from the package's own test sources, every helper a
 // supply-chain impact live proof opens its database through: the functions that
 // call supplyChainImpactLiveDSN, and, transitively, the functions that call one
@@ -259,7 +321,6 @@ func supplyChainImpactLiveProofs(t *testing.T) []string {
 	if err != nil {
 		t.Fatalf("list package test files: %v", err)
 	}
-	testFunc := regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]+)\(`)
 	sources := map[string][]byte{}
 	for _, entry := range entries {
 		file := entry.Name()
@@ -272,31 +333,23 @@ func supplyChainImpactLiveProofs(t *testing.T) []string {
 		}
 		sources[file] = body
 	}
-	openers := liveDSNOpeners(sources)
-	if len(openers) == 0 {
-		t.Fatal("no helper wraps supplyChainImpactLiveDSN: the opener discovery is broken")
+	files, mixed := liveProofFiles(sources)
+	if len(mixed) > 0 {
+		t.Fatalf("%v open a supply-chain impact proof database through the helpers and also read ESHU_POSTGRES_TEST_DSN directly: route every DSN read through supplyChainImpactLiveDSN so the required-proof switch applies", mixed)
 	}
+	if len(files) == 0 {
+		t.Fatal("no test file calls a supply-chain impact DSN opener: the discovery scan is broken")
+	}
+	testFunc := regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]+)\(`)
 	var names []string
-	for file, body := range sources {
-		opens := false
-		for opener := range openers {
-			if bytes.Contains(body, []byte(opener+"(")) {
-				opens = true
-			}
-		}
-		if !opens {
-			continue
-		}
-		for _, m := range testFunc.FindAllSubmatch(body, -1) {
+	for _, file := range files {
+		for _, m := range testFunc.FindAllSubmatch(sources[file], -1) {
 			name := string(m[1])
 			if !strings.HasSuffix(name, "Live") {
 				t.Fatalf("%s declares %s: a live proof must end in Live so the gate's filter selects it", file, name)
 			}
 			names = append(names, name)
 		}
-	}
-	if len(names) == 0 {
-		t.Fatal("no test file calls a supply-chain impact DSN opener: the discovery scan is broken")
 	}
 	sort.Strings(names)
 	return names
