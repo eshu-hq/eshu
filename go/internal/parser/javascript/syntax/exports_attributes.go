@@ -210,10 +210,13 @@ func exportAttributeSpecifiers(errNode *tree_sitter.Node, source []byte) []ReExp
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		if nameNode == nil {
+		OriginalName := ModuleExportName(nameNode, source)
+		if OriginalName == "" {
+			// A specifier needs an original name: the reducer reads a missing
+			// original as "the same as the exported name", which would resolve
+			// export { '' as c } to the module's c (#7461).
 			return
 		}
-		OriginalName := ModuleExportName(nameNode, source)
 		ExportedName := OriginalName
 		if aliasNode != nil {
 			ExportedName = ModuleExportName(aliasNode, source)

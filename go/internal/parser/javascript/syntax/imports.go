@@ -217,11 +217,12 @@ func importEntriesFromClause(
 			}
 			nameNode := specifier.ChildByFieldName("name")
 			aliasNode := specifier.ChildByFieldName("alias")
-			if !representableModuleName(ModuleExportName(nameNode, source)) {
+			importedName := ModuleExportName(nameNode, source)
+			if !representableModuleName(importedName) {
 				continue
 			}
 			item := map[string]any{
-				"name":        ModuleExportName(nameNode, source),
+				"name":        importedName,
 				"source":      moduleSource,
 				"alias":       ModuleExportName(aliasNode, source),
 				"line_number": shared.NodeLine(&specifier),

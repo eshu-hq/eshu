@@ -66,3 +66,26 @@ func TestReExportAttributeEntriesSkipNamesTheReducerWouldTrim(t *testing.T) {
 		t.Fatalf("ReExportAttributeEntries dropped the plain sibling specifier: %#v", got)
 	}
 }
+
+// TestReExportAttributeEntriesSkipAnEmptyOriginalName: an empty original name
+// would be read by the reducer as "same as the exported name" and resolve
+// export { ” as c } to the module's c, so the specifier is skipped (#7461).
+func TestReExportAttributeEntriesSkipAnEmptyOriginalName(t *testing.T) {
+	t.Parallel()
+
+	root, source, closeFn := parseRootForTest(t, "export { '' as c, kept } from './x.json' with { type: 'json' };\n")
+	defer closeFn()
+	got := ReExportAttributeEntries(firstNodeOfKind(t, root, "ERROR"), source, "javascript")
+	kept := false
+	for _, item := range got {
+		if item["name"] == "c" {
+			t.Fatalf("recorded the empty-original specifier: %#v", item)
+		}
+		if item["name"] == "kept" {
+			kept = true
+		}
+	}
+	if !kept {
+		t.Fatalf("dropped the plain sibling specifier: %#v", got)
+	}
+}

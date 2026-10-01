@@ -32,7 +32,16 @@ export { plain as bare } from './plain';
 export { e as '\u0066rom2' } from './escaped';
 export { '\u0067one' as g } from './escaped-original';
 export { 'a' as 'b c' } from './attributes' with { type: 'json' };
+export { '' as emptyOriginal } from './empty';
 `)
+
+			// An empty original name would be read by the reducer as the exported
+			// name, resolving to the wrong symbol, so it is not recorded.
+			for _, item := range got["imports"].([]map[string]any) {
+				if item["name"] == "emptyOriginal" {
+					t.Fatalf("empty-original re-export was recorded: %#v", item)
+				}
+			}
 
 			from := findNamedBucketItem(t, got, "imports", "from")
 			assertStringFieldValue(t, from, "source", "./quoted")

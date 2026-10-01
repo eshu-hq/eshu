@@ -37,6 +37,7 @@ func TestStringLiteralValue(t *testing.T) {
 		{name: "low surrogate then low surrogate falls back to body", literal: `'\ude00\udc00'`, want: `\ude00\udc00`},
 		{name: "high surrogate then non-low falls back to body", literal: `'\ud83d\u0041'`, want: `\ud83d\u0041`},
 		{name: "high surrogate then literal falls back to body", literal: `'\ud83dx'`, want: `\ud83dx`},
+		{name: "high surrogate then two characters and low-surrogate digits falls back to body", literal: `'\ud83dxxdc00'`, want: `\ud83dxxdc00`},
 		{name: "hex escape", literal: `'\x41'`, want: "A"},
 		{name: "nul escape", literal: `'a\0b'`, want: "a\x00b"},
 		{name: "newline escape", literal: `'a\nb'`, want: "a\nb"},
@@ -149,6 +150,12 @@ func TestBraceClauseSpecifiersReadsOutsideQuotes(t *testing.T) {
 		{`export { "q{r" } from "m"`, []string{` "q{r" `}, true},
 		{`export { 'it\'s, ok' as d } from "m"`, []string{` 'it\'s, ok' as d `}, true},
 		{`export { } from "m"`, []string{" "}, true},
+		{"export { a // it's\n, b } from \"m\"", []string{" a // it's\n", " b "}, true},
+		{"export { a /* it's, } */, b } from \"m\"", []string{" a /* it's, } */", " b "}, true},
+		{"export { a // unterminated line comment }", nil, false},
+		{`export { a /* unterminated block comment } from "m"`, nil, false},
+		{`export { 'a // b', c } from "m"`, []string{" 'a // b'", " c "}, true},
+		{`export { a / b } from "m"`, []string{" a / b "}, true},
 		{`export { 'unterminated } from "m"`, nil, false},
 		{`export * from "m"`, nil, false},
 	}
@@ -193,11 +200,14 @@ func TestReExportSpecifiersDecidesAliasByPresence(t *testing.T) {
 		t.Fatalf("ReExportSpecifiers(value as '') = %#v, want value exported as the empty name", got)
 	}
 
-	root, source, closeFn = parseRootForTest(t, "export { '' as local } from \"./b\";\n")
+	// An empty original name is skipped: the reducer reads a missing original as
+	// "the same as the exported name", so recording it would resolve
+	// export { '' as local } to the module's local.
+	root, source, closeFn = parseRootForTest(t, "export { '' as local, kept } from \"./b\";\n")
 	got = ReExportSpecifiers(firstExportStatement(t, root), source)
 	closeFn()
-	if len(got) != 1 || got[0].OriginalName != "" || got[0].ExportedName != "local" {
-		t.Fatalf("ReExportSpecifiers('' as local) = %#v, want the empty name exported as local", got)
+	if len(got) != 1 || got[0].OriginalName != "kept" {
+		t.Fatalf("ReExportSpecifiers('' as local, kept) = %#v, want only kept", got)
 	}
 
 	// A name with surrounding whitespace cannot reach the reducer unchanged (it
@@ -227,6 +237,26 @@ func TestRepresentableModuleName(t *testing.T) {
 	} {
 		if got := representableModuleName(name); got != want {
 			t.Fatalf("representableModuleName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// TestReExportSpecifiersFromTextReadsPastCommentsWithQuotes: an apostrophe in a
+// comment inside the clause must not open a string and swallow the rest of it
+// (#7461).
+func TestReExportSpecifiersFromTextReadsPastCommentsWithQuotes(t *testing.T) {
+	t.Parallel()
+
+	for _, body := range []string{
+		"export { , a // don't\n } from \"./m\";\n",
+		"export { , a /* it's */ } from \"./m\";\n",
+		"export { , a, b // fine\n } from \"./m\";\n",
+	} {
+		root, source, closeFn := parseRootForTest(t, body)
+		got := reExportSpecifiersFromText(firstExportStatement(t, root), source)
+		closeFn()
+		if len(got) == 0 || got[0].OriginalName != "a" {
+			t.Fatalf("reExportSpecifiersFromText(%q) = %#v, want a first", body, got)
 		}
 	}
 }

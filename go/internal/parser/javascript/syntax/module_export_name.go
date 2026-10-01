@@ -209,7 +209,8 @@ func parseHexRune(body string, start int, count int) (rune, bool) {
 
 // braceClauseSpecifiers returns the comma-separated specifiers between the first
 // `{` of an export statement's text and its matching `}`, reading outside quoted
-// strings so a name holding a comma, a brace, or the word `as` stays whole. It
+// strings and comments so a name holding a comma, a brace, or the word `as` stays
+// whole and an apostrophe in a comment does not open a string. It
 // reports false when no balanced brace clause exists.
 func braceClauseSpecifiers(text string) ([]string, bool) {
 	start := strings.IndexByte(text, '{')
@@ -222,6 +223,9 @@ func braceClauseSpecifiers(text string) ([]string, bool) {
 		switch text[i] {
 		case '\'', '"':
 			i = skipQuoted(text, i)
+		case '/':
+			// A quote inside a comment is not a string: skip comments whole.
+			i = skipComment(text, i)
 		case ',':
 			parts = append(parts, text[partStart:i])
 			partStart = i + 1
@@ -271,4 +275,27 @@ func skipQuoted(text string, open int) int {
 		}
 	}
 	return len(text)
+}
+
+// skipComment returns the index just past the comment that opens at text[open]
+// (`//` to the end of the line, `/*` to its closing `*/`), or open+1 when the
+// slash does not start a comment. An unterminated block comment runs to the end
+// of text.
+func skipComment(text string, open int) int {
+	if open+1 >= len(text) {
+		return open + 1
+	}
+	switch text[open+1] {
+	case '/':
+		if end := strings.IndexByte(text[open:], '\n'); end >= 0 {
+			return open + end + 1
+		}
+		return len(text)
+	case '*':
+		if end := strings.Index(text[open+2:], "*/"); end >= 0 {
+			return open + 2 + end + 2
+		}
+		return len(text)
+	}
+	return open + 1
 }

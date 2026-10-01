@@ -167,8 +167,9 @@ Not claimed today:
   public-surface walk
   ([#7461](https://github.com/eshu-hq/eshu/issues/7461)). A name
   with leading or trailing whitespace is skipped, because the reducer trims names
-  and it would resolve as a different symbol; an empty name is kept but never
-  resolves, since the reducer skips empty names.
+  and it would resolve as a different symbol. A specifier with an empty original
+  name is skipped for the same reason, and an empty exported name is kept but
+  never resolves, since the reducer skips empty names.
 - As defence in depth, an import, `require`, or re-export row whose module
   specifier is longer than 1024 bytes is dropped before it reaches the graph
   and logged as `javascript-family import source exceeds bound`
