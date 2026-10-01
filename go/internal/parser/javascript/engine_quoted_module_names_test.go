@@ -29,6 +29,9 @@ export { "x y" as "z w" } from './spaced';
 export { 'same' as singleAlias } from './single';
 export { "same" as doubleAlias } from './double';
 export { plain as bare } from './plain';
+export { e as '\u0066rom2' } from './escaped';
+export { '\u0067one' as g } from './escaped-original';
+export { 'a' as 'b c' } from './attributes' with { type: 'json' };
 `)
 
 			from := findNamedBucketItem(t, got, "imports", "from")
@@ -47,6 +50,18 @@ export { plain as bare } from './plain';
 
 			bare := findNamedBucketItem(t, got, "imports", "bare")
 			assertStringFieldValue(t, bare, "original_name", "plain")
+
+			// An escaped spelling names the same symbol as the plain one.
+			escapedExport := findNamedBucketItem(t, got, "imports", "from2")
+			assertStringFieldValue(t, escapedExport, "source", "./escaped")
+			assertStringFieldValue(t, escapedExport, "original_name", "e")
+			escapedOriginal := findNamedBucketItem(t, got, "imports", "g")
+			assertStringFieldValue(t, escapedOriginal, "original_name", "gone")
+
+			// The attribute re-export recovery reads names through the same path.
+			attributes := findNamedBucketItem(t, got, "imports", "b c")
+			assertStringFieldValue(t, attributes, "source", "./attributes")
+			assertStringFieldValue(t, attributes, "original_name", "a")
 		})
 	}
 }
@@ -63,7 +78,8 @@ func TestDefaultEngineParsePathImportStringLiteralNamesAreUnquoted(t *testing.T)
 import { "x y" as z } from './n';
 import { 'same' as singleLocal } from './single';
 import { "same" as doubleLocal } from './double';
-import { 'ab' as escaped } from './escaped';
+import { 'a\u0062' as escaped } from './escaped';
+import { '\u0066rom' as fromLocal } from './from';
 import { plain as bare } from './plain';
 `)
 
@@ -81,9 +97,67 @@ import { plain as bare } from './plain';
 			escaped := findNamedBucketItem(t, got, "imports", "ab")
 			assertStringFieldValue(t, escaped, "alias", "escaped")
 
+			fromLocal := findNamedBucketItem(t, got, "imports", "from")
+			assertStringFieldValue(t, fromLocal, "source", "./from")
+			assertStringFieldValue(t, fromLocal, "alias", "fromLocal")
+
 			bare := findNamedBucketItem(t, got, "imports", "plain")
 			assertStringFieldValue(t, bare, "alias", "bare")
 		})
+	}
+}
+
+// A name spelled with a UTF-16 surrogate-pair escape is the same symbol as the
+// name spelled directly: both read as the one code point.
+func TestDefaultEngineParsePathSurrogatePairEscapeNamesMatchLiteralSpelling(t *testing.T) {
+	t.Parallel()
+
+	got := parseQuotedModuleNamesFixture(t, "emoji.ts", `export { x as '\ud83d\ude00' } from './escaped';
+export { y as '😀' } from './literal';
+`)
+
+	items, ok := got["imports"].([]map[string]any)
+	if !ok {
+		t.Fatalf("imports = %T, want []map[string]any", got["imports"])
+	}
+	sources := make([]string, 0, 2)
+	for _, item := range items {
+		if item["name"] == "😀" {
+			source, _ := item["source"].(string)
+			sources = append(sources, source)
+		}
+	}
+	if want := []string{"./escaped", "./literal"}; !reflect.DeepEqual(sources, want) {
+		t.Fatalf("sources naming 😀 = %v, want %v (escape and literal spelling must agree)", sources, want)
+	}
+}
+
+func TestDefaultEngineParsePathEmbeddedShellQuotedImportNames(t *testing.T) {
+	t.Parallel()
+
+	got := parseQuotedModuleNamesFixture(t, "runner.js", `import { 'execSync' as single } from "node:child_process";
+import { "spawn" as double } from "child_process";
+
+function build() {
+  single("make");
+}
+
+function deploy() {
+  double("kubectl");
+}
+`)
+	commands, ok := got["embedded_shell_commands"].([]map[string]any)
+	if !ok {
+		t.Fatalf("embedded_shell_commands = %T, want []map[string]any", got["embedded_shell_commands"])
+	}
+	apis := make([]string, 0, len(commands))
+	for _, command := range commands {
+		api, _ := command["api"].(string)
+		apis = append(apis, api)
+	}
+	want := []string{"child_process.execSync", "child_process.spawn"}
+	if !reflect.DeepEqual(apis, want) {
+		t.Fatalf("embedded shell apis = %#v, want %#v", apis, want)
 	}
 }
 
@@ -122,33 +196,4 @@ func importNamedBySource(t *testing.T, payload map[string]any, name string, sour
 	}
 	t.Fatalf("imports has no row name=%q source=%q in %#v", name, source, items)
 	return nil
-}
-
-func TestDefaultEngineParsePathEmbeddedShellQuotedImportNames(t *testing.T) {
-	t.Parallel()
-
-	got := parseQuotedModuleNamesFixture(t, "runner.js", `import { 'execSync' as single } from "node:child_process";
-import { "spawn" as double } from "child_process";
-
-function build() {
-  single("make");
-}
-
-function deploy() {
-  double("kubectl");
-}
-`)
-	commands, ok := got["embedded_shell_commands"].([]map[string]any)
-	if !ok {
-		t.Fatalf("embedded_shell_commands = %T, want []map[string]any", got["embedded_shell_commands"])
-	}
-	apis := make([]string, 0, len(commands))
-	for _, command := range commands {
-		api, _ := command["api"].(string)
-		apis = append(apis, api)
-	}
-	want := []string{"child_process.execSync", "child_process.spawn"}
-	if !reflect.DeepEqual(apis, want) {
-		t.Fatalf("embedded shell apis = %#v, want %#v", apis, want)
-	}
 }

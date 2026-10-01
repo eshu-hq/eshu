@@ -6,6 +6,7 @@ package syntax
 import (
 	"strconv"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -27,6 +28,17 @@ func ModuleExportName(node *tree_sitter.Node, source []byte) string {
 		return text
 	}
 	return stringLiteralValue(text)
+}
+
+// unquoteModuleExportName trims text and, when it is spelled as a quoted string
+// literal, returns the literal's value. The brace-text fallback reads names from
+// raw text, so this is its counterpart of ModuleExportName.
+func unquoteModuleExportName(text string) string {
+	text = strings.TrimSpace(text)
+	if text != "" && (text[0] == '"' || text[0] == '\'') {
+		return stringLiteralValue(text)
+	}
+	return text
 }
 
 // stringLiteralValue decodes a quoted JavaScript string literal into its value.
@@ -52,9 +64,11 @@ func stringLiteralValue(literal string) string {
 }
 
 // decodeStringEscapes resolves the ECMAScript escape sequences in the body of a
-// string literal: single-character escapes, \xHH, \uHHHH, \u{H...}, \0 and line
-// continuations. It reports false for a sequence it cannot decode (a legacy
-// octal escape or a truncated hex escape).
+// string literal: single-character escapes, \xHH, \uHHHH (a surrogate pair is
+// spelled as two of them), \u{H...}, \0 and line continuations. It reports
+// false for a sequence it cannot decode: a legacy octal escape, a truncated hex
+// escape, or an unpaired surrogate half, none of which names a well-formed
+// module export name.
 func decodeStringEscapes(body string) (string, bool) {
 	var out strings.Builder
 	out.Grow(len(body))
@@ -105,15 +119,26 @@ func decodeStringEscapes(body string) (string, bool) {
 			if !ok {
 				return "", false
 			}
-			out.WriteRune(value)
 			i += width
+			if utf16.IsSurrogate(value) {
+				low, lowWidth, ok := pairedLowSurrogate(body, i, value)
+				if !ok {
+					return "", false
+				}
+				value = utf16.DecodeRune(value, low)
+				i += lowWidth
+			}
+			out.WriteRune(value)
 		default:
 			if next >= '1' && next <= '9' {
 				return "", false
 			}
-			// \\, \', \" and every other escaped character stand for themselves.
-			_, size := utf8.DecodeRuneInString(body[i-1:])
-			out.WriteString(body[i-1 : i-1+size])
+			// An escaped character stands for itself, except that a backslash
+			// before U+2028 or U+2029 is a line continuation like backslash-newline.
+			r, size := utf8.DecodeRuneInString(body[i-1:])
+			if r != '\u2028' && r != '\u2029' {
+				out.WriteString(body[i-1 : i-1+size])
+			}
 			i += size - 1
 		}
 	}
@@ -141,6 +166,21 @@ func parseUnicodeEscape(body string, start int) (rune, int, bool) {
 	return rune(value), 4, true
 }
 
+// pairedLowSurrogate reads the second half of a UTF-16 surrogate pair spelled as
+// a four-digit escape at body[start:], after the caller decoded high. It
+// reports false when high is not a high surrogate or no low-surrogate escape
+// follows.
+func pairedLowSurrogate(body string, start int, high rune) (rune, int, bool) {
+	if high >= 0xDC00 || !strings.HasPrefix(body[start:], `\u`) {
+		return 0, 0, false
+	}
+	value, ok := parseHexDigits(body, start+2, 4)
+	if !ok || value < 0xDC00 || value > 0xDFFF {
+		return 0, 0, false
+	}
+	return rune(value), 6, true
+}
+
 func parseHexDigits(body string, start int, count int) (uint64, bool) {
 	if start+count > len(body) {
 		return 0, false
@@ -150,15 +190,4 @@ func parseHexDigits(body string, start int, count int) (uint64, bool) {
 		return 0, false
 	}
 	return value, true
-}
-
-// unquoteModuleExportName trims text and, when it is spelled as a quoted string
-// literal, returns the literal's value. The brace-text fallback reads names from
-// raw text, so this is its counterpart of ModuleExportName.
-func unquoteModuleExportName(text string) string {
-	text = strings.TrimSpace(text)
-	if text != "" && (text[0] == '"' || text[0] == '\'') {
-		return stringLiteralValue(text)
-	}
-	return text
 }
