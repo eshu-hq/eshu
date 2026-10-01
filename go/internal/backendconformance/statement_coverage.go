@@ -359,9 +359,33 @@ func emptyReads(records []DifferentialRecord, exemptions []queryplan.ReadExempti
 			}
 			continue
 		}
+		// One failure per callsite per read: several members can excuse
+		// or accuse the same callsite, but the verdict names the
+		// callsite once.
+		failedCallsites := make(map[string]struct{})
 		for _, member := range members {
 			if stats[member].maxRows == 0 {
 				dispatchMisses = append(dispatchMisses, member)
+				continue
+			}
+			// Per-(text, callsite) verdict (#7233 P1): this text returned
+			// rows for some callsite, so a callsite whose executions of
+			// this exact text all returned zero rows is always-empty for
+			// the read — the family row-maximum must not silently accept
+			// it, which would also strand an exemption naming it as
+			// unflaggable dead weight. Texts with rows from no callsite
+			// stay advisory dispatch misses above, never failures.
+			for callsite, rows := range stats[member].byCallsite {
+				if rows > 0 {
+					continue
+				}
+				if _, done := failedCallsites[callsite]; done {
+					continue
+				}
+				if !readFamilyExempt(read, member, callsite, exemptions) {
+					failedCallsites[callsite] = struct{}{}
+					alwaysEmpty = append(alwaysEmpty, callsite+" :: "+read)
+				}
 			}
 		}
 	}

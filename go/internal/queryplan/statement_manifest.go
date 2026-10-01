@@ -188,10 +188,13 @@ func ValidateBuilderManifest(manifest BuilderManifest, discovered []StatementBui
 // canonical form: the leading dot-separated segment parenthesized. The
 // Go runtime renders a value-receiver method bare (Type.Method) but a
 // pointer-receiver method parenthesized ((*Type).Method), so the same
-// builder would record two different identities across a receiver change;
-// the canonical form ((Type).Method, (*Type).Method) is stable across
-// both. Capture and manifest load apply it identically, so authors may
-// write either form. Plain functions (no dot) pass through unchanged;
+// builder would record two different identities across receiver
+// spellings; the canonical form ((Type).Method, (*Type).Method) is
+// stable across both spellings. Capture and manifest load apply it
+// identically, so authors may write either form. A value-to-pointer
+// receiver change still changes identity — the star is preserved, and
+// the manifest receiver guard pins it — failing loudly as stale rather
+// than silently. Plain functions (no dot) pass through unchanged;
 // closures parenthesize the function name ((Foo).Method.func1), which is
 // stable but cosmetic — the identity still locates the builder. Dots
 // inside generic brackets do not split the receiver.

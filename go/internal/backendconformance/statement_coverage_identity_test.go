@@ -105,6 +105,42 @@ func TestIdentityExemptionStaleWithoutRecordings(t *testing.T) {
 	}
 }
 
+// TestIdentityExemptionPerCallsiteVerdict (#7233 P1): the verdict is per
+// (text, callsite), so the same text returning rows for callsite A while
+// callsite B executes it with zero rows everywhere must fail as
+// B :: <read> — the family row-maximum must never silently accept B's
+// miss (which would also strand an exemption naming B as unflaggable
+// dead weight).
+func TestIdentityExemptionPerCallsiteVerdict(t *testing.T) {
+	records := map[string][]DifferentialRecord{"neo4j": {
+		identityRead(identityCallsite, identityText, 2),
+		identityRead(identityOther, identityText, 0),
+	}}
+	failures := ComputeStatementCoverage(identityManifest(), records).Failures()
+	assertFailure(t, failures, "neo4j", CoverageAlwaysEmptyRead, identityOther+" :: "+identityText)
+	if len(failures) != 1 {
+		t.Fatalf("Failures() = %v, want only B's per-callsite always-empty read", failures)
+	}
+}
+
+// TestIdentityExemptionExcusesZeroCallsiteOnRowBearingText (#7233 P1):
+// the companion to the per-callsite verdict — an exemption naming the
+// zero-rows callsite with the text's anchor excuses its miss (and stays
+// a live, load-bearing exemption rather than dead weight), while the
+// rows-returning callsite needs none.
+func TestIdentityExemptionExcusesZeroCallsiteOnRowBearingText(t *testing.T) {
+	manifest := queryplan.BuilderManifest{Version: 1, ReadExemptions: []queryplan.ReadExemption{
+		{Callsite: identityOther, Anchor: identityAnchor, Reason: "B's miss path"},
+	}}
+	records := map[string][]DifferentialRecord{"neo4j": {
+		identityRead(identityCallsite, identityText, 2),
+		identityRead(identityOther, identityText, 0),
+	}}
+	if failures := ComputeStatementCoverage(manifest, records).Failures(); len(failures) != 0 {
+		t.Fatalf("Failures() = %v, want none: B's exemption excuses its miss", failures)
+	}
+}
+
 // TestIdentityExemptionStaleNamesAnchorPerExemption (#7233): one callsite
 // may hold several exemptions, so a callsite-scoped stale ID would
 // collapse them (and duplicate when every one is unused). Stale IDs carry
