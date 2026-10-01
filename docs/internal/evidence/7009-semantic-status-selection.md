@@ -43,5 +43,35 @@ continues to time semantic SQL under `read="semantic_extraction"`.
 `postgres.status_snapshot{phase,outcome}` and reader-stage telemetry continue
 to show transaction and checkpoint failures. No metric label, span name, or
 failure classification changes. Operators can distinguish semantic SQL cost
-from checkpoint/replay cost and verify that unused status sections disappear
-from this route's read series after deployment.
+from checkpoint/replay cost in traces correlated with this route. Read-series
+metrics also include other routes and background full reports; they cannot
+prove that this particular route stopped reading an unrelated section.
+
+## Finished-path observations
+
+A bounded read-only same-snapshot comparison through the changed handler
+returned HTTP 200 for semantic-only selection in 0.766944583 seconds, followed
+by HTTP 500 for full selection after 19.748284666 seconds. The full failure was
+`context deadline exceeded`. This is non-comparable: it proves one successful
+semantic read, not response parity, a speedup, deployed p95, or checkpoint
+reliability. An earlier full-first 500/500 observation discarded error bodies
+and cannot establish independent candidate failure. Both owned forwards closed.
+The corrected single narrow-first pair succeeded under a read-only
+repeatable-read snapshot on the standby, with a five-second statement timeout.
+Semantic selection took 0.067136375 seconds; full selection took 3.328458292
+seconds. Both responses were HTTP 200 with identical complete ordered data and
+truth and the response hash above. Total diagnostic time was 3.897268916
+seconds. Explicit rollback succeeded, database close was checked, and the
+owned port-forward was closed and its listener absence verified. This measures
+storage selection through the new handler; it does not measure an old-versus-new
+complete runtime handler, checkpoint acquisition, transport, deployed p95, or
+100-user capacity. It does not establish worst-case semantic backlog latency.
+
+Local old/new production-loader differentials matched for five fixture cases.
+Fourteen fixture envelopes matched between binaries using the original and
+changed production handler, including errors; the negative parity seed still
+failed as intended. Snapshot cancellation and cancellation-after-commit tests
+now cover full, filtered, and semantic-only modes. Targeted snapshot tests pass
+under the race detector. Bypassing production selection validation made the
+invalid-mode storage and runtime tests fail; the actual guard passed both.
+Independent final review, attestation, and promotion gates remain required.
