@@ -53,7 +53,7 @@ func TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate(t *testing.T) 
 	if !helperFailsOnRequired(helper) {
 		t.Fatalf("the live DSN helper no longer calls t.Fatalf for a supplyChainImpactLiveFail outcome (and t.Skip for a skip); an unset DSN would skip in CI again")
 	}
-	if !helperReadsRequiredEnv(helper) || !bytes.Contains(helper, []byte("supplyChainImpactLiveDecision(dsn, os.Getenv(")) {
+	if !helperReadsRequiredEnv(helper) {
 		t.Fatalf("the live DSN helper no longer routes %s through supplyChainImpactLiveDecision (which TestSupplyChainImpactLiveDecision pins); the skip-is-failure switch is dead", supplyChainImpactProofRequiredEnv)
 	}
 
@@ -81,26 +81,32 @@ func TestProofsMissingFromFilterRejectsAnUnselectedProof(t *testing.T) {
 	if len(partial) != 1 || partial[0] != "TestSupplyChainImpactCappedScopeConvergesLive" {
 		t.Fatalf("RED: a filter missing the capped-scope proof reported %v, want only that proof", partial)
 	}
-	// The skip-is-failure switch must be read in code: a helper that only
-	// mentions the variable in a comment leaves the switch dead.
-	if !helperReadsRequiredEnv([]byte(`if os.Getenv("ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF") == "1" {`)) {
-		t.Fatal("GREEN: the real switch read was not recognized")
+	// The switch must be the value handed to the decision: a comment that names
+	// it, or a helper that reads it into a discarded value and passes another key
+	// to the decision, leaves the switch dead.
+	if !helperReadsRequiredEnv([]byte(`switch supplyChainImpactLiveDecision(dsn, os.Getenv("ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF")) {`)) {
+		t.Fatal("GREEN: the real switch binding was not recognized")
 	}
-	if helperReadsRequiredEnv([]byte("// ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF is \"1\" in CI\nif os.Getenv(\"X\") == \"1\" {")) {
+	if helperReadsRequiredEnv([]byte("// ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF is \"1\" in CI\nswitch supplyChainImpactLiveDecision(dsn, os.Getenv(\"X\")) {")) {
 		t.Fatal("RED: a comment mentioning the switch satisfied the check")
+	}
+	if helperReadsRequiredEnv([]byte("_ = os.Getenv(\"ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF\")\nswitch supplyChainImpactLiveDecision(dsn, os.Getenv(\"OTHER\")) {")) {
+		t.Fatal("RED: a helper that reads the switch into a discarded value and passes another key to the decision was accepted")
 	}
 	if green := proofsMissingFromFilter(t, "^(TestSupplyChainImpact[A-Za-z]*Live)", proofs); len(green) != 0 {
 		t.Fatalf("GREEN: a filter selecting every proof reported %v, want none", green)
 	}
 }
 
-// requiredEnvRead matches the helper reading the switch from the environment.
-// Matching the call, not the name, keeps a comment that mentions the variable
-// from satisfying the check.
-var requiredEnvRead = regexp.MustCompile(`os\.Getenv\("` + supplyChainImpactProofRequiredEnv + `"\)`)
+// requiredEnvRead matches the one call that binds the required-proof switch to the
+// decision: supplyChainImpactLiveDecision(dsn, os.Getenv("<the switch>")).
+// Matching the whole call, not the key alone, rejects a helper that reads the
+// switch into a discarded value while passing some other key to the decision, and
+// a comment that merely mentions the switch.
+var requiredEnvRead = regexp.MustCompile(`supplyChainImpactLiveDecision\(dsn, os\.Getenv\("` + supplyChainImpactProofRequiredEnv + `"\)\)`)
 
-// helperReadsRequiredEnv reports whether the helper source reads the
-// skip-is-failure switch in code.
+// helperReadsRequiredEnv reports whether the helper passes the required-proof
+// switch to the decision.
 func helperReadsRequiredEnv(source []byte) bool {
 	return requiredEnvRead.Match(source)
 }
@@ -170,7 +176,7 @@ func proofsMissingFromFilter(t *testing.T, filter string, proofs []string) []str
 	return missing
 }
 
-// directEnvRead matches a proof file reading the environment itself, with any
+// directDSNRead matches a proof file reading the environment itself, with any
 // argument: a literal key, or a constant or variable that holds it. A proof file
 // must reach the DSN only through supplyChainImpactLiveDSN, so the required-proof
 // switch applies; matching every os.Getenv or os.LookupEnv call also rejects a
