@@ -125,7 +125,8 @@ func TestSupplyChainImpactRegistrationCarriesTheReadinessSeam(t *testing.T) {
 	definitions := appendSupplyChainCorrelationAdditiveDomains(nil, DefaultHandlers{
 		FactLoader: &stubSupplyChainImpactFactLoader{},
 		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
-			SupplyChainImpactWriter: &recordingSupplyChainImpactWriter{},
+			SupplyChainImpactWriter:             &recordingSupplyChainImpactWriter{},
+			SupplyChainImpactFencingTokenIssuer: fixedSupplyChainImpactFencingTokenIssuer{token: 1},
 		},
 		CrossScopeHandlers: CrossScopeHandlers{
 			CrossScopeProducerReadiness: readiness,

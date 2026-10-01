@@ -38,10 +38,11 @@ func TestSupplyChainImpactHandlerReportsRetractedFindings(t *testing.T) {
 	}
 	writer := &recordingSupplyChainImpactWriter{retracted: 3}
 	handler := SupplyChainImpactHandler{
-		FactLoader:  loader,
-		Writer:      writer,
-		Instruments: inst,
-		Now:         func() time.Time { return time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC) },
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		Instruments:        inst,
+		Now:                func() time.Time { return time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC) },
 	}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{

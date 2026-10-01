@@ -60,7 +60,7 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-impact",
@@ -148,7 +148,7 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceFromOCIReferrer(t *testing
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-impact-oci",
@@ -214,7 +214,7 @@ func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-impact",
@@ -275,7 +275,7 @@ func TestSupplyChainImpactHandlerLoadsRepositoryPackageConsumptionFollowUp(t *te
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-impact",
@@ -332,7 +332,7 @@ func TestSupplyChainImpactHandlerStopsActiveEvidenceExpansionConservatively(t *t
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-impact",
@@ -414,7 +414,7 @@ func TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability(t *te
 				},
 			}
 			writer := &recordingSupplyChainImpactWriter{}
-			handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+			handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 			_, err := handler.Handle(context.Background(), reducercontract.Intent{
 				IntentID:     "intent-impact",

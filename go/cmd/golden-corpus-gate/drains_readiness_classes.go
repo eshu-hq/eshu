@@ -44,6 +44,9 @@ const (
 		"pre-maintenance cells assert absent"
 	toleratedRuntimeDrift = "returned by aws_cloud_runtime_drift, which writes only AWS runtime-drift findings, " +
 		"a family no pre-maintenance cell asserts absent (#5848)"
+	toleratedSupplyChainImpactFence = "returned by supply_chain_impact when its write admission rejects a pass " +
+		"older than one already admitted for the same scope and generation; the retry re-reads with a fresher " +
+		"token, and the family writes only supply-chain impact findings, which no pre-maintenance cell asserts absent (#7142)"
 	toleratedOwnScopeNodes = "returned by a cloud-family handler waiting on the canonical-nodes phase " +
 		"of its own scope and generation; no pre-maintenance cell corpus enqueues it and it writes " +
 		"no family those cells assert absent (#5046, #7284)"
@@ -74,6 +77,8 @@ var preMaintenanceToleratedFailureClasses = map[string]string{
 	"gcp_relationship_nodes_not_ready":         toleratedCloudFamilyGate,
 	"ec2_instance_identity_nodes_not_ready":    toleratedCloudFamilyGate,
 	"cross_scope_producer_not_ready":           toleratedCrossScopeFloor,
+	// #7142: a stale supply_chain_impact pass rejected at write admission.
+	"supply_chain_impact_write_superseded": toleratedSupplyChainImpactFence,
 	// #5717: an ec2_instance_uses_ami edge waiting on the EC2 instance node phase.
 	"aws_relationship_ec2_instance_nodes_not_ready": toleratedCloudFamilyGate,
 	// #6184: fail-closed cross-repo and deployable-unit deferrals.

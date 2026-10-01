@@ -35,7 +35,7 @@ func TestSupplyChainImpactHandlerSubDurationsAndSignals(t *testing.T) {
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-impact",
@@ -123,7 +123,7 @@ func TestSupplyChainImpactHandlerTimesSecurityAlertScoping(t *testing.T) {
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
-	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+	handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader, Writer: writer}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-alert-impact",

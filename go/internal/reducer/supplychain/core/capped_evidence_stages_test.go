@@ -20,7 +20,7 @@ func TestSupplyChainImpactScannerScopePairsOverCapConverge(t *testing.T) {
 
 	for _, count := range []int{10, supplyChainImpactFilterChunkSize, supplyChainImpactFilterChunkSize + 1, supplyChainImpactFilterChunkSize * 3} {
 		loader := &scanScopedSupplyChainImpactFactLoader{}
-		handler := SupplyChainImpactHandler{FactLoader: loader}
+		handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader}
 		envelopes := make([]facts.Envelope, 0, count)
 		for i := range count {
 			envelopes = append(envelopes, facts.Envelope{
@@ -48,7 +48,7 @@ func TestSupplyChainImpactResolvedDigestsOverCapConverge(t *testing.T) {
 
 	for _, count := range []int{10, supplyChainImpactFilterChunkSize, supplyChainImpactFilterChunkSize + 1, supplyChainImpactFilterChunkSize * 3} {
 		loader := &stubSupplyChainImpactFactLoader{}
-		handler := SupplyChainImpactHandler{FactLoader: loader}
+		handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader}
 		analyses := make([]facts.Envelope, 0, count)
 		for i := range count {
 			analyses = append(analyses, facts.Envelope{

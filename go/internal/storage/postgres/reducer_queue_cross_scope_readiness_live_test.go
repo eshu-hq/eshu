@@ -174,9 +174,10 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 
 	writer := &countingSupplyChainImpactWriter{}
 	handler := reducer.SupplyChainImpactHandler{
-		FactLoader:        crossScopeReadinessProofLoader{},
-		Writer:            writer,
-		ProducerReadiness: completionstore.CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
+		FactLoader:         crossScopeReadinessProofLoader{},
+		Writer:             writer,
+		FencingTokenIssuer: crossScopeReadinessTokenIssuer{},
+		ProducerReadiness:  completionstore.CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
 	}
 	// The queue clock is injected so each cycle's retry delay elapses without
 	// sleeping. created_at stays where it was seeded, so the handler's own
@@ -317,9 +318,10 @@ func TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound(t *t
 
 	writer := &countingSupplyChainImpactWriter{}
 	handler := reducer.SupplyChainImpactHandler{
-		FactLoader:        crossScopeReadinessProofLoader{},
-		Writer:            writer,
-		ProducerReadiness: completionstore.CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
+		FactLoader:         crossScopeReadinessProofLoader{},
+		Writer:             writer,
+		FencingTokenIssuer: crossScopeReadinessTokenIssuer{},
+		ProducerReadiness:  completionstore.CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
 	}
 	queue := ReducerQueue{
 		database:      SQLDB{DB: db},
@@ -464,4 +466,12 @@ WHERE stage = 'reducer' AND domain = $1`,
 		t.Fatalf("read supply_chain_impact work item: %v", err)
 	}
 	return status, failureClass.String, attemptCount
+}
+
+// crossScopeReadinessTokenIssuer issues a constant token: these proofs count
+// deferrals and never reach a real fenced write.
+type crossScopeReadinessTokenIssuer struct{}
+
+func (crossScopeReadinessTokenIssuer) NextSupplyChainImpactFencingToken(context.Context) (int64, error) {
+	return 1, nil
 }

@@ -40,9 +40,10 @@ func TestSupplyChainImpactHandlerEvaluatesSuppressionAndPersistsDecision(t *test
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader: loader,
-		Writer:     writer,
-		Now:        func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		Now:                func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
 	}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
@@ -101,9 +102,10 @@ func TestSupplyChainImpactHandlerKeepsExpiredSuppressionVisible(t *testing.T) {
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader: loader,
-		Writer:     writer,
-		Now:        func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		Now:                func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
 	}
 
 	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
@@ -168,9 +170,10 @@ func TestSupplyChainImpactHandlerFailsOpenWhenSuppressionCandidatesAreTruncated(
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader: loader,
-		Writer:     writer,
-		Now:        func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		Now:                func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
 	}
 
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{

@@ -99,7 +99,8 @@ func TestSupplyChainImpactOSPackageStageSkipsTheReadWithoutLookupKeys(t *testing
 	loader := &limitHonoringOSPackageLoader{scanScopedSupplyChainImpactFactLoader: base, available: osPackageEnvelopes(50, "s", "g")}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader: loader, Writer: writer,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader, Writer: writer,
 	}
 	if _, err := handler.Handle(context.Background(), osPackageIntent()); err != nil {
 		t.Fatalf("Handle() error = %v", err)
@@ -187,7 +188,8 @@ func TestSupplyChainImpactNarrowedOSPackageReadDerivesTheSameFindingsAsAFullDrai
 	) SupplyChainImpactWrite {
 		writer := &recordingSupplyChainImpactWriter{}
 		handler := SupplyChainImpactHandler{
-			FactLoader: loader, Writer: writer,
+			FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+			FactLoader:         loader, Writer: writer,
 		}
 		if _, err := handler.Handle(context.Background(), intent); err != nil {
 			t.Fatalf("Handle() error = %v", err)
@@ -248,7 +250,8 @@ func TestSupplyChainImpactOSPackageBudgetSpentMakesThePassPartial(t *testing.T) 
 	beginner := newFakeImpactBeginner(&testutil.FakeExecer{})
 	capture := &captureWriteWriter{inner: PostgresSupplyChainImpactWriter{DB: beginner}}
 	handler := SupplyChainImpactHandler{
-		FactLoader: loader, Writer: capture,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader, Writer: capture,
 		EvidenceBudget: 3,
 	}
 	result, err := handler.Handle(context.Background(), intent)
@@ -287,7 +290,7 @@ func TestSupplyChainImpactChunkedStagesStopWhenTheBudgetIsSpent(t *testing.T) {
 				return []facts.Envelope{{FactID: "identity-" + f.SubjectDigests[0], FactKind: reducercontract.ContainerImageIdentityFactKind}}
 			},
 		}
-		handler := SupplyChainImpactHandler{FactLoader: loader}
+		handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader}
 		analyses := make([]facts.Envelope, 0, supplyChainImpactFilterChunkSize*3)
 		for i := range supplyChainImpactFilterChunkSize * 3 {
 			analyses = append(analyses, facts.Envelope{
@@ -314,7 +317,7 @@ func TestSupplyChainImpactChunkedStagesStopWhenTheBudgetIsSpent(t *testing.T) {
 				return []facts.Envelope{{FactID: "peer-" + f.RepositoryIDs[0], FactKind: reducercontract.ContainerImageIdentityFactKind}}
 			},
 		}
-		handler := SupplyChainImpactHandler{FactLoader: loader}
+		handler := SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader}
 		identities := make([]facts.Envelope, 0, supplyChainImpactFilterChunkSize*3)
 		for i := range supplyChainImpactFilterChunkSize * 3 {
 			identities = append(identities, facts.Envelope{
@@ -345,7 +348,7 @@ func TestSupplyChainImpactChunkedStagesStopWhenTheBudgetIsSpent(t *testing.T) {
 		}
 		loader := &scanScopedSupplyChainImpactFactLoader{factsByScope: factsByScope}
 		budget := newSupplyChainImpactEvidenceBudget(3)
-		if _, err := (SupplyChainImpactHandler{FactLoader: loader}).loadSupplyChainImpactScannerAnalysisScopeFacts(context.Background(), envelopes, budget); err != nil {
+		if _, err := (SupplyChainImpactHandler{FencingTokenIssuer: newTestImpactFencingTokenIssuer(), FactLoader: loader}).loadSupplyChainImpactScannerAnalysisScopeFacts(context.Background(), envelopes, budget); err != nil {
 			t.Fatalf("error = %v", err)
 		}
 		if !budget.exhausted() {

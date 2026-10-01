@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -72,8 +73,11 @@ func TestSupplyChainImpactWriterRetractsSupersededFindingsLive(t *testing.T) {
 	}
 
 	// Re-emitting a retracted finding revives it: the upsert resets
-	// is_tombstone, and the absent anchored row is retracted in turn.
-	if _, err := writer.WriteSupplyChainImpactFindings(ctx, first); err != nil {
+	// is_tombstone, and the absent anchored row is retracted in turn. The
+	// re-emit is a fresh pass (a fresher token), not a replay of `first`: a
+	// replay of an older pass is rejected by the fencing admission (#7142).
+	reemit := replaceSetWrite("intent:6831:reemit", repoLess, other)
+	if _, err := writer.WriteSupplyChainImpactFindings(ctx, reemit); err != nil {
 		t.Fatalf("re-emit write: %v", err)
 	}
 	active = replaceSetActiveRepositories(t, ctx, db)
@@ -93,7 +97,7 @@ func TestSupplyChainImpactWriterRetractionIsIdempotentLive(t *testing.T) {
 			t.Fatalf("write attempt %d: %v", attempt, err)
 		}
 		if result.FactsRetracted != 0 {
-			t.Fatalf("attempt %d FactsRetracted = %d, want 0 (redelivery of the same pass)", attempt, result.FactsRetracted)
+			t.Fatalf("attempt %d FactsRetracted = %d, want 0 (the identical write value re-executed, same token)", attempt, result.FactsRetracted)
 		}
 	}
 	if active := replaceSetActiveRepositories(t, ctx, db); len(active) != 1 {
@@ -106,9 +110,10 @@ func TestSupplyChainImpactWriterRetractionHonorsBoundaryLive(t *testing.T) {
 	writer := replaceSetWriter(db)
 
 	// A row carrying a higher fencing token than this writer's pass was
-	// written by a fresher writer and must never be retracted by this one.
+	// written by a fresher writer and must never be retracted by this one. The
+	// pass takes its token from replaceSetNextToken, so plant one far above it.
 	replaceSetPlantRow(t, ctx, db, "fenced", replaceSetLiveScope, replaceSetLiveGeneration,
-		facts.ReducerSupplyChainImpactFindingFactKind, 7)
+		facts.ReducerSupplyChainImpactFindingFactKind, replaceSetNextToken()+1_000_000)
 	// Rows outside the (scope, generation, fact_kind) conflict domain are
 	// never this pass's to retract.
 	replaceSetPlantRow(t, ctx, db, "other-kind", replaceSetLiveScope, replaceSetLiveGeneration,
@@ -177,8 +182,17 @@ func replaceSetFinding(repositoryID string) reducer.SupplyChainImpactFinding {
 	}
 }
 
+// replaceSetTokens hands out strictly increasing fencing tokens (#7142), like
+// the production sequence, so passes built one after another are fresher than
+// the ones before them and the historical "last pass wins" expectations hold.
+var replaceSetTokens atomic.Int64
+
+// replaceSetNextToken returns the next test fencing token.
+func replaceSetNextToken() int64 { return replaceSetTokens.Add(1) }
+
 func replaceSetWrite(intentID string, findings ...reducer.SupplyChainImpactFinding) reducer.SupplyChainImpactWrite {
 	return reducer.SupplyChainImpactWrite{
+		FencingToken: replaceSetNextToken(),
 		IntentID:     intentID,
 		ScopeID:      replaceSetLiveScope,
 		GenerationID: replaceSetLiveGeneration,

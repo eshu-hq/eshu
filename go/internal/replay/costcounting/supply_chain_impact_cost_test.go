@@ -36,7 +36,8 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // chunked bulk insert (issue #5317), so two findings fit in one 1000-row
 // chunk and cost one insert round-trip. #6831 wraps that insert in a
 // transaction with a conflict-domain lock before it and a superseded-finding
-// retraction after it, so one pass costs exactly three statements.
+// retraction after it (and #7142 adds a fencing-token admission step), so one pass costs
+// exactly four statements: lock, admission, insert, retraction.
 func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
 	row := func(id string) reducer.SupplyChainImpactFinding {
 		return reducer.SupplyChainImpactFinding{
@@ -66,8 +67,8 @@ func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
 // WriteSupplyChainImpactFindings now calls the shared
 // reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
 // instead of one ExecContext per finding, so two findings fit one chunk and
-// this scenario asserts exactly three write observations (lock, insert,
-// retraction; #6831). The companion N+1
+// this scenario asserts exactly four write observations (lock, admission,
+// insert, retraction; #6831, #7142). The companion N+1
 // negative control below (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget)
 // proves the budget still catches a per-finding regression.
 func TestCostBudget_SupplyChainImpact(t *testing.T) {
@@ -87,6 +88,7 @@ func TestCostBudget_SupplyChainImpact(t *testing.T) {
 		GenerationID: "generation-supply-chain-impact-cost",
 		SourceSystem: "github_dependabot",
 		Cause:        "reducer/supply_chain_impact",
+		FencingToken: 1,
 		Findings:     supplyChainImpactFixtureFindings(),
 	})
 	if err != nil {
@@ -162,13 +164,14 @@ func TestCostBudget_SupplyChainImpact_N1_ExceedsBudget(t *testing.T) {
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
-	for _, finding := range findings {
+	for i, finding := range findings {
 		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), reducer.SupplyChainImpactWrite{
 			IntentID:     supplyChainImpactCostIntentID,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-supply-chain-impact-cost",
 			SourceSystem: "github_dependabot",
 			Cause:        "reducer/supply_chain_impact",
+			FencingToken: int64(i + 1),
 			Findings:     []reducer.SupplyChainImpactFinding{finding},
 		}); err != nil {
 			t.Fatalf("N+1 WriteSupplyChainImpactFindings() error = %v", err)

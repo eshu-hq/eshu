@@ -71,6 +71,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// are the regression.
 	reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass,
 	reducer.AWSCloudRuntimeDriftStatePendingFailureClass,
+	// #7142: a supply_chain_impact write rejected at admission because a
+	// fresher pass already admitted for the same (scope, generation). Enrolled
+	// for the same reason as the AWS class above: a declared-but-unregistered
+	// class counts toward maxAttempts like an ordinary failure and would
+	// dead-letter an intent that merely lost a normal race, freezing stale
+	// truth. TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPast
+	// AttemptBudget is the regression.
+	reducer.SupplyChainImpactWriteSupersededFailureClass,
 	// #6887: the cloud-resource retract's admission-drain fence. The live-check
 	// refuses to prove death while another scope's active-generation
 	// cloud_inventory_admission item is nonterminal; under continuous

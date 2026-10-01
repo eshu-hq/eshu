@@ -82,6 +82,11 @@ type SupplyChainImpactWrite struct {
 	// tail does not set it, so a scope larger than one page still converges
 	// (#7154).
 	PartialEvidence bool
+	// FencingToken is the database-issued ordering value this pass was stamped
+	// with at evidence-read time (#7142). The writer admits the write only when
+	// no fresher pass was admitted for the (scope, generation), stamps every
+	// upserted and retracted row with it, and rejects a zero token.
+	FencingToken int64
 }
 
 // SupplyChainImpactWriteResult summarizes durable impact publication.
@@ -134,6 +139,10 @@ type SupplyChainImpactHandler struct {
 	// (maxSupplyChainImpactEvidenceEnvelopesPerIntent) when positive.
 	// Optional: zero keeps the default.
 	EvidenceBudget int
+	// FencingTokenIssuer supplies the per-pass fencing token (#7142). Required:
+	// Handle fails closed without it, because a pass with no ordering value
+	// cannot be fenced against a fresher pass.
+	FencingTokenIssuer SupplyChainImpactFencingTokenIssuer
 	// Logger records a cross-scope readiness deferral as its own structured
 	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
 	// class freezes attempt_count, so the queue row alone cannot tell an
@@ -153,6 +162,19 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	}
 	if h.Writer == nil {
 		return reducercontract.Result{}, fmt.Errorf("supply chain impact writer is required")
+	}
+	if h.FencingTokenIssuer == nil {
+		return reducercontract.Result{}, fmt.Errorf("supply chain impact fencing token issuer is required")
+	}
+
+	// Issued BEFORE the evidence load, never at write-commit time: the token
+	// orders passes by when they began reading evidence, so a pass that read its
+	// evidence and then stalled cannot publish over a later one (#7142, see
+	// SupplyChainImpactFencingTokenIssuer for what it does not order). A pass the
+	// readiness floor defers below burns a value, a harmless sequence gap.
+	fencingToken, err := h.FencingTokenIssuer.NextSupplyChainImpactFencingToken(ctx)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("issue supply chain impact fencing token: %w", err)
 	}
 
 	loaded, timing, err := h.loadSupplyChainImpactEvidence(ctx, intent)
@@ -222,8 +244,10 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		// not qualify: suppression is not part of a finding's identity, so
 		// such a pass still converges (#7154).
 		PartialEvidence: loaded.truncation.partial(),
+		FencingToken:    fencingToken,
 	})
 	if err != nil {
+		h.emitWriteSuperseded(ctx, intent, fencingToken, err)
 		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
 	timing.writeFindingsDuration = time.Since(phaseStarted)

@@ -717,6 +717,14 @@ type Instruments struct {
 	// this on every pass keeps its stale findings; the WARN log line carries
 	// the scope and generation.
 	SupplyChainImpactEvidenceTruncated metric.Int64Counter
+	// SupplyChainImpactWriteSuperseded counts supply-chain impact passes the
+	// writer rejected because a fresher pass (a higher fencing token) was
+	// already admitted for the same (scope, generation) (#7142). The pass
+	// returns a retryable, non-counting error and the queue re-runs it with a
+	// fresher token. Label: domain (supply_chain_impact). A steady rate under
+	// continuous ingest is normal churn; a scope that stays superseded means two
+	// workers keep overtaking each other, or the sequence lags the admitted watermark after a restore or manual reset. The WARN log line carries the scope.
+	SupplyChainImpactWriteSuperseded metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -3423,6 +3431,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactEvidenceTruncated counter: %w", err)
+	}
+
+	inst.SupplyChainImpactWriteSuperseded, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_write_superseded_total",
+		metric.WithDescription("Total supply-chain impact passes rejected at write admission because a fresher pass was already admitted for the same scope and generation, by reducer domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactWriteSuperseded counter: %w", err)
 	}
 
 	inst.SupplyChainSuppressionDecisions, err = meter.Int64Counter(

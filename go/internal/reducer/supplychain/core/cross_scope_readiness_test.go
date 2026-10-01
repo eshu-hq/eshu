@@ -119,10 +119,11 @@ func TestSupplyChainImpactDefersWhenProducerScopesHaveNotActivated(t *testing.T)
 	writer := &recordingSupplyChainImpactWriter{}
 	logs := &bytes.Buffer{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
-		Logger:            slog.New(slog.NewTextHandler(logs, nil)),
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  &fixedCrossScopeReadiness{ready: false},
+		Logger:             slog.New(slog.NewTextHandler(logs, nil)),
 	}
 
 	_, err := handler.Handle(
@@ -189,9 +190,10 @@ func TestSupplyChainImpactDefersDespiteProducerActivatingDuringTheLoad(t *testin
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: readiness,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  readiness,
 	}
 
 	_, err := handler.Handle(
@@ -237,9 +239,10 @@ func TestSupplyChainImpactDoesNotDeferWhenThereIsNothingToLookUp(t *testing.T) {
 	writer := &recordingSupplyChainImpactWriter{}
 	readiness := &fixedCrossScopeReadiness{ready: false}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: readiness,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  readiness,
 	}
 
 	if _, err := handler.Handle(
@@ -267,6 +270,7 @@ func TestSupplyChainImpactDoesNotDeferWithoutTheCrossScopeLoaderSeam(t *testing.
 	writer := &recordingSupplyChainImpactWriter{}
 	readiness := &fixedCrossScopeReadiness{ready: false}
 	handler := SupplyChainImpactHandler{
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
 		FactLoader: &scopeOnlySupplyChainImpactFactLoader{
 			scopeFacts: supplyChainImpactArmedScopeFacts(),
 		},
@@ -296,8 +300,9 @@ func TestSupplyChainImpactWithoutAReadinessSeamDoesNotDefer(t *testing.T) {
 
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader: &stubSupplyChainImpactFactLoader{scopeFacts: supplyChainImpactArmedScopeFacts()},
-		Writer:     writer,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         &stubSupplyChainImpactFactLoader{scopeFacts: supplyChainImpactArmedScopeFacts()},
+		Writer:             writer,
 	}
 
 	if _, err := handler.Handle(
@@ -330,8 +335,9 @@ func TestSupplyChainImpactStillWritesWhenTheProducerHasCommitted(t *testing.T) {
 	}
 	writer := &recordingSupplyChainImpactWriter{}
 	handler := SupplyChainImpactHandler{
-		FactLoader: loader,
-		Writer:     writer,
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
 		ProducerReadiness: &fixedCrossScopeReadiness{readyByProducer: map[reducercontract.Domain]bool{
 			reducercontract.DomainContainerImageIdentity: false,
 			reducercontract.DomainCICDRunCorrelation:     true,
@@ -376,10 +382,11 @@ func TestSupplyChainImpactDefersWhenOnlyOneProducerResolved(t *testing.T) {
 	writer := &recordingSupplyChainImpactWriter{}
 	logs := &bytes.Buffer{}
 	handler := SupplyChainImpactHandler{
-		FactLoader:        loader,
-		Writer:            writer,
-		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
-		Logger:            slog.New(slog.NewTextHandler(logs, nil)),
+		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
+		FactLoader:         loader,
+		Writer:             writer,
+		ProducerReadiness:  &fixedCrossScopeReadiness{ready: false},
+		Logger:             slog.New(slog.NewTextHandler(logs, nil)),
 	}
 
 	_, err := handler.Handle(

@@ -46,12 +46,19 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 		}
 		definitions = append(definitions, attachments)
 	}
-	if handlers.FactLoader != nil && handlers.SupplyChainImpactWriter != nil {
+	// #7142: registration requires the fencing-token issuer as well as the
+	// writer. A writer with no issuer would either fail every pass or, worse,
+	// be papered over with a token-less write that leaves the stale-pass fence
+	// inert, so the domain stays unregistered instead (the same gate
+	// aws_cloud_runtime_drift applies).
+	if handlers.FactLoader != nil && handlers.SupplyChainImpactWriter != nil &&
+		handlers.SupplyChainImpactFencingTokenIssuer != nil {
 		impact := supplyChainImpactDomainDefinition()
 		impact.Handler = supplychaincore.SupplyChainImpactHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.SupplyChainImpactWriter,
-			Instruments: handlers.Instruments,
+			FactLoader:         handlers.FactLoader,
+			Writer:             handlers.SupplyChainImpactWriter,
+			FencingTokenIssuer: handlers.SupplyChainImpactFencingTokenIssuer,
+			Instruments:        handlers.Instruments,
 			// #5709: supply_chain_impact is the second registered cross-scope
 			// consumer. Being in crossscope.dependencyCatalog does not gate a
 			// handler -- these two lines are what do, and

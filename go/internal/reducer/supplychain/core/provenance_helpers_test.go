@@ -182,6 +182,7 @@ func TestPostgresSupplyChainImpactWriterSerializesProvenancePayload(t *testing.T
 	}
 
 	_, err := writer.WriteSupplyChainImpactFindings(context.Background(), SupplyChainImpactWrite{
+		FencingToken: 1,
 		IntentID:     "intent-provenance",
 		ScopeID:      "vuln-intel://osv/npm/parse-server",
 		GenerationID: "generation-provenance",

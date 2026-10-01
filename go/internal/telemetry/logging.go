@@ -225,3 +225,10 @@ func FailureClassAttr(class string) slog.Attr {
 func AcceptanceStaleCountAttr(count int) slog.Attr {
 	return slog.Int(LogKeyAcceptanceStaleCount, count)
 }
+
+// LogKeyFencingToken is the database-issued fencing token a supply-chain impact
+// pass drew before its evidence load (#7142). It is an integer ordering value
+// that carries no repository, package or customer data; operators compare it with
+// the highest token in supply_chain_impact_write_admission to diagnose a
+// persistently superseded scope.
+const LogKeyFencingToken = "fencing_token"
