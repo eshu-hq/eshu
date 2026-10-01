@@ -100,12 +100,21 @@ is at least every row token of its pair, so no scan of `fact_records` and no
 `fact_records` index is needed (unlike `aws_cloud_runtime_drift`, migration
 089/090, whose old tokens were wall-clock values).
 
-Rolling deploy: an old reducer binds `0`. Its upsert guard `T <= 0` rejects every
-row a new pass stamped with a token, and its retraction `fencing_token <= 0`
-skips them, so it cannot retract or overwrite new truth. It can only add rows at
-`0` or revive `0` tombstones, which the next new pass retracts (`0 <= T`).
+Rolling deploy: an old reducer binds `0` and never touches the admission table.
+Its upsert guard `T <= 0` rejects every row a new pass stamped with a token that
+has the same fact id, and its retraction `fencing_token <= 0` skips tokened rows,
+so it cannot overwrite or retract a tokened row. It can still add rows at `0`
+under fact ids no tokened row holds, or revive `0` tombstones. Those rows are
+retracted by the next new pass for the same `(scope, generation)` (`0 <= T`), but
+nothing guarantees a next pass: an old-binary pass that commits after the last
+new-binary pass for a quiescent pair leaves its stale findings in place until
+some later intent re-runs the pair. The deploy is therefore not safe to describe
+as a rolling one where that window matters. Drain the old reducers (no old-binary
+pass in flight) before the new binary starts writing, or accept that a quiescent
+pair can keep an old pass's stale rows until its next intent. The admission table
+cannot fence an old binary, because the old binary never reads it.
 
-Rollback: rolling forward is safe, but a full rollback to a reducer that predates
+Rollback: rolling forward is safe once no old-binary pass can commit after a new one (see above), but a full rollback to a reducer that predates
 this change freezes the impact findings the new reducer touched. The old reducer
 binds `0`, so for every row and tombstone the new reducer stamped with a token
 its upserts are refused silently (`existing <= 0` is false, no error, the pass
