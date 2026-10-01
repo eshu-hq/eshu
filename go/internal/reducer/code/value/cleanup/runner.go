@@ -37,6 +37,12 @@ const (
 	leasePartitionCount = 1
 )
 
+// codeValueFlowLeaseReleaseTimeout bounds the lease release that runs after
+// the cycle's own context has been canceled: long enough for one Postgres
+// round trip on a loaded host, short enough that shutdown cannot hang on a
+// dead backend. It mirrors repoDependencyLeaseReleaseTimeout.
+const codeValueFlowLeaseReleaseTimeout = 10 * time.Second
+
 // ErrCurrentGenerationsRequired reports missing active generation lookup
 // wiring for value-flow stale cleanup.
 var ErrCurrentGenerationsRequired = errors.New("code value-flow current generation reader is required")
@@ -203,9 +209,19 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		if !claimed {
 			return Result{LeaseAcquired: false}, nil
 		}
+		// Release through a context that survives the cycle's own
+		// cancellation: Service.Run cancels the shared context before
+		// waiting for side runners, so releasing through ctx hands
+		// Postgres an already-dead request and strands the lease for its
+		// full TTL (#6747 shape A).
 		defer func() {
+			releaseCtx, releaseCancel := context.WithTimeout(
+				context.WithoutCancel(ctx),
+				codeValueFlowLeaseReleaseTimeout,
+			)
+			defer releaseCancel()
 			_ = r.LeaseManager.ReleasePartitionLease(
-				ctx,
+				releaseCtx,
 				leaseDomain,
 				leasePartitionID,
 				leasePartitionCount,

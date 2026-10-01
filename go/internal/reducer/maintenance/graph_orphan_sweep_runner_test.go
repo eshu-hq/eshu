@@ -147,6 +147,12 @@ type fakeGraphOrphanLeaseManager struct {
 	releaseCalls int
 	claimOwner   string
 	claimTTL     time.Duration
+	// releaseCtxErr and releaseCtxHasDeadline capture the state of the
+	// context the runner handed to ReleasePartitionLease: a release that
+	// runs on the cycle's own (possibly canceled) context strands the
+	// lease for its full TTL (#6747 shape A).
+	releaseCtxErr         error
+	releaseCtxHasDeadline bool
 }
 
 func (l *fakeGraphOrphanLeaseManager) ClaimPartitionLease(
@@ -168,12 +174,14 @@ func (l *fakeGraphOrphanLeaseManager) ClaimPartitionLease(
 }
 
 func (l *fakeGraphOrphanLeaseManager) ReleasePartitionLease(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
 	_, _ int,
 	_ string,
 ) error {
 	l.releaseCalls++
+	l.releaseCtxErr = ctx.Err()
+	_, l.releaseCtxHasDeadline = ctx.Deadline()
 	return nil
 }
 
@@ -282,4 +290,50 @@ func TestGraphOrphanSweepDefaultLeaseTTLCoversWriteBudget(t *testing.T) {
 	if got := (GraphOrphanSweepRunnerConfig{}).leaseTTL(); got <= writeBudget+safetyMargin {
 		t.Fatalf("default lease TTL = %v, want more than %v", got, writeBudget+safetyMargin)
 	}
+}
+
+// TestGraphOrphanSweepRunnerReleasesLeaseAfterCancel pins the #7047 P2:
+// when shutdown cancels the cycle context mid-sweep, the deferred lease
+// release must still run on a live, bounded context. Releasing through the
+// canceled cycle context hands Postgres an already-dead request, the release
+// fails, and the row stays held for the full TTL under an owner that no
+// longer exists (#6747 shape A).
+func TestGraphOrphanSweepRunnerReleasesLeaseAfterCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	leaseManager := &fakeGraphOrphanLeaseManager{claimResults: []bool{true}}
+	runner := &GraphOrphanSweepRunner{
+		Sweeper:      &cancelingGraphOrphanSweeper{cancel: cancel},
+		LeaseManager: leaseManager,
+		Config: GraphOrphanSweepRunnerConfig{
+			LeaseOwner: "sweep-owner-cancel",
+			LeaseTTL:   time.Minute,
+		},
+	}
+	if _, err := runner.RunOnce(ctx); err == nil {
+		t.Fatal("RunOnce() error = nil, want cancellation error")
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	if err := leaseManager.releaseCtxErr; err != nil {
+		t.Fatalf("release context error = %v, want live release context", err)
+	}
+	if !leaseManager.releaseCtxHasDeadline {
+		t.Fatal("release context has no deadline, want bounded release")
+	}
+}
+
+// cancelingGraphOrphanSweeper simulates shutdown landing mid-sweep: it
+// cancels the cycle context, then reports the cancellation as the cycle
+// error so RunOnce unwinds through its deferred lease release.
+type cancelingGraphOrphanSweeper struct {
+	cancel context.CancelFunc
+}
+
+func (s *cancelingGraphOrphanSweeper) SweepOrphanNodes(
+	ctx context.Context,
+	_ GraphOrphanSweepPolicy,
+) (GraphOrphanSweepResult, error) {
+	s.cancel()
+	return GraphOrphanSweepResult{}, ctx.Err()
 }

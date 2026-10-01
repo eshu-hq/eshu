@@ -48,6 +48,12 @@ const (
 	graphOrphanSweepLeasePartitionCount = 1
 )
 
+// graphOrphanSweepLeaseReleaseTimeout bounds the lease release that runs
+// after the cycle's own context has been canceled: long enough for one
+// Postgres round trip on a loaded host, short enough that shutdown cannot
+// hang on a dead backend. It mirrors repoDependencyLeaseReleaseTimeout.
+const graphOrphanSweepLeaseReleaseTimeout = 10 * time.Second
+
 // ErrGraphOrphanSweeperRequired reports missing graph orphan sweep wiring.
 var ErrGraphOrphanSweeperRequired = errors.New("graph orphan sweeper is required")
 
@@ -166,9 +172,19 @@ func (r *GraphOrphanSweepRunner) RunOnce(ctx context.Context) (GraphOrphanSweepR
 		if !claimed {
 			return GraphOrphanSweepResult{LeaseAcquired: false}, nil
 		}
+		// Release through a context that survives the cycle's own
+		// cancellation: Service.Run cancels the shared context before
+		// waiting for side runners, so releasing through ctx hands
+		// Postgres an already-dead request and strands the lease for its
+		// full TTL (#6747 shape A).
 		defer func() {
+			releaseCtx, releaseCancel := context.WithTimeout(
+				context.WithoutCancel(ctx),
+				graphOrphanSweepLeaseReleaseTimeout,
+			)
+			defer releaseCancel()
 			_ = r.LeaseManager.ReleasePartitionLease(
-				ctx,
+				releaseCtx,
 				graphOrphanSweepLeaseDomain,
 				graphOrphanSweepLeasePartitionID,
 				graphOrphanSweepLeasePartitionCount,

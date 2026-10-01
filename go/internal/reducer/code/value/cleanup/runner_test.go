@@ -186,6 +186,9 @@ type fakeCodeValueFlowCurrentGenerationReader struct {
 	afterScopeIDs []string
 	limits        []int
 	err           error
+	// cancelOnList, when non-nil, simulates shutdown landing mid-cycle: the
+	// list call cancels the cycle context before returning its page.
+	cancelOnList context.CancelFunc
 }
 
 func (r *fakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGenerations(
@@ -195,6 +198,9 @@ func (r *fakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGener
 ) ([]CurrentGeneration, error) {
 	r.afterScopeIDs = append(r.afterScopeIDs, afterScopeID)
 	r.limits = append(r.limits, limit)
+	if r.cancelOnList != nil {
+		r.cancelOnList()
+	}
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -293,6 +299,12 @@ func (w *recordingCodeValueFlowInterprocSweeper) RetractCodeInterprocEvidenceSou
 type fakeCodeValueFlowLeaseManager struct {
 	claimResults []bool
 	releaseCalls int
+	// releaseCtxErr and releaseCtxHasDeadline capture the state of the
+	// context the runner handed to ReleasePartitionLease: a release that
+	// runs on the cycle's own (possibly canceled) context strands the
+	// lease for its full TTL (#6747 shape A).
+	releaseCtxErr         error
+	releaseCtxHasDeadline bool
 }
 
 func (l *fakeCodeValueFlowLeaseManager) ClaimPartitionLease(
@@ -311,12 +323,14 @@ func (l *fakeCodeValueFlowLeaseManager) ClaimPartitionLease(
 }
 
 func (l *fakeCodeValueFlowLeaseManager) ReleasePartitionLease(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
 	_, _ int,
 	_ string,
 ) error {
 	l.releaseCalls++
+	l.releaseCtxErr = ctx.Err()
+	_, l.releaseCtxHasDeadline = ctx.Deadline()
 	return nil
 }
 
@@ -549,5 +563,40 @@ func TestStaleCleanupDefaultLeaseTTLCoversWriteBudget(t *testing.T) {
 	const safetyMargin = 30 * time.Second
 	if got := (RunnerConfig{}).leaseTTL(); got <= writeBudget+safetyMargin {
 		t.Fatalf("default lease TTL = %v, want more than %v", got, writeBudget+safetyMargin)
+	}
+}
+
+// TestCodeValueFlowStaleCleanupRunnerReleasesLeaseAfterCancel pins the #7047
+// P2: when shutdown cancels the cycle context mid-cycle, the deferred lease
+// release must still run on a live, bounded context. Releasing through the
+// canceled cycle context hands Postgres an already-dead request, the release
+// fails, and the row stays held for the full TTL under an owner that no
+// longer exists (#6747 shape A).
+func TestCodeValueFlowStaleCleanupRunnerReleasesLeaseAfterCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	leaseManager := &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}}
+	runner := &Runner{
+		CurrentGenerations: &fakeCodeValueFlowCurrentGenerationReader{cancelOnList: cancel},
+		TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+		InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+		LeaseManager:       leaseManager,
+		Config: RunnerConfig{
+			LeaseOwner:       "value-flow-owner-cancel",
+			LeaseTTL:         time.Minute,
+			ScopeBatchLimit:  25,
+			DeleteBatchLimit: 50,
+		},
+	}
+	if _, err := runner.RunOnce(ctx); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil for an empty page", err)
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	if err := leaseManager.releaseCtxErr; err != nil {
+		t.Fatalf("release context error = %v, want live release context", err)
+	}
+	if !leaseManager.releaseCtxHasDeadline {
+		t.Fatal("release context has no deadline, want bounded release")
 	}
 }
