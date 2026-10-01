@@ -101,6 +101,14 @@ func TestGlobalEntityNameAPIDifferentialAndPerformanceLive(t *testing.T) {
 
 func seedGlobalEntityNameProofCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
+	// Bootstrap migrations seed their own scopes (e.g. migration 115's
+	// eshu:global singleton) before this seed runs: derive the expected
+	// catalog size from that baseline plus this seed's own rows, so the
+	// next seeded scope does not break the count again (#7208).
+	var bootstrapScopes int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM ingestion_scopes").Scan(&bootstrapScopes); err != nil {
+		t.Fatalf("count bootstrap repository catalog: %v", err)
+	}
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
   scope_id, scope_kind, source_system, source_key, collector_kind,
@@ -142,12 +150,16 @@ ANALYZE ingestion_scopes;
 `); err != nil {
 		t.Fatalf("seed global entity-name proof corpus: %v", err)
 	}
+	// This seed's own rows: the 2 named scopes and the 100000
+	// catalog-proof scopes inserted above. The bootstrap baseline absorbs
+	// any migration-seeded rows, so only this seed's size is pinned here.
+	const seededScopes = 2 + 100000
 	var catalogCount int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM ingestion_scopes").Scan(&catalogCount); err != nil {
 		t.Fatalf("count large repository catalog: %v", err)
 	}
-	if catalogCount != 100002 {
-		t.Fatalf("repository catalog count = %d, want 100002", catalogCount)
+	if want := bootstrapScopes + seededScopes; catalogCount != want {
+		t.Fatalf("repository catalog count = %d, want bootstrap %d + seed %d", catalogCount, bootstrapScopes, seededScopes)
 	}
 }
 
