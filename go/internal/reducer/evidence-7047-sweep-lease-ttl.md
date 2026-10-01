@@ -46,7 +46,9 @@ No cycle, claim, release, or batching logic changed.
   `telemetry.LogKeys()` and pinned by structured-log capture tests on both
   runners). On the completed log it sits next
   to the existing `lease_acquired` flag, so an operator can see which TTL
-  guarded a finished cycle. On a failed cycle the field is the TTL that
+  was claimed at the start of a finished cycle (no renewal: compare with
+  `duration_seconds` before inferring ownership lasted through
+  completion). On a failed cycle the field is the TTL that
   would have guarded the cycle, not proof one did: `recordFailure` also
   runs when the lease claim itself errors (`claim ... lease`), before any
   lease is held, and the failure log carries no `lease_acquired` flag —

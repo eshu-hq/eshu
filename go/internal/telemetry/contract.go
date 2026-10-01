@@ -790,7 +790,10 @@ const (
 	// LogKeyLeaseTTLSeconds is a runner's configured partition-lease TTL,
 	// in seconds. It is always the emitter's local configured value, never
 	// another holder's remaining lease time. Sweep/cleanup cycle logs emit
-	// it on completion (the TTL guarding that cycle) and on failure (the
+	// it on completion (the TTL claimed at cycle start — there is no
+	// renewal, so a slow cycle's `duration_seconds` can exceed it even on
+	// success; compare the two fields before inferring ownership lasted
+	// through completion) and on failure (the
 	// TTL that would have guarded the cycle — the claim itself may have
 	// errored before any lease was held — so operators pair a failure log
 	// with its error before inferring anything about expiry, #7047). The
