@@ -85,6 +85,28 @@ helm upgrade eshu ./deploy/helm/eshu \
 Watch the rollout with `kubectl get pods` and `kubectl rollout status` for the
 API, MCP, ingester, and resolution-engine workloads.
 
+### Supply-chain impact fencing token
+
+The release that adds the supply-chain impact fencing token (#7142, Postgres
+migration 154) is a non-rolling reducer upgrade for the same reason as the
+relationship identity cutover. An old reducer never reads the new admission
+table, so a pass it commits after the last new pass for an idle scope and
+generation can leave stale impact findings that nothing retracts until a later
+intent re-runs that pair. A plain `helm upgrade` overlaps old and new reducers
+(the resolution-engine Deployment uses the default rolling update), so use the
+same stop-and-wait procedure: scale every resolution-engine Deployment to zero,
+wait for the old pods to go, and proceed only when the lease query in the
+relationship identity cutover section above returns zero. Then run the normal
+`helm upgrade`. Migration 154 only adds a table and a sequence, so there is no
+rebuild step.
+
+If a rollout already overlapped, the stale rows are `reducer_supply_chain_impact_finding`
+rows at `fencing_token = 0` that no current pass derives. They are retracted when a
+complete supply-chain impact pass next runs for that scope and generation, so
+re-run the scope's supply_chain_impact intents (admin replay) or wait until the
+scope's next generation becomes active; an ingest that produces no new
+generation does nothing.
+
 ### Infra read model rollout
 
 The release that adds the Postgres infra read model (#6793) is a normal
@@ -145,6 +167,21 @@ coordinated restoration of both Postgres and graph backups taken before
 migration 096. Deploy the pre-096 application and backend only after both
 stores are restored, then resume reducers. Do not disable or drop the migration
 triggers against upgraded state.
+
+Migration 154 (the supply-chain impact fencing token) leaves the schema
+readable by an older reducer, but rolling back to a reducer that predates it freezes the
+impact findings the new reducer stamped: the old reducer binds token `0`, so it
+cannot upsert over, revive or retract rows that carry a token. Before starting
+the older reducers, stop every resolution-engine replica and reset the tokens:
+
+```sql
+UPDATE fact_records SET fencing_token = 0
+WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND fencing_token > 0;
+```
+
+On a large install run it in batches by `scope_id`. The admission table and the
+sequence can stay: the old code ignores them, and a later roll-forward keeps
+issuing tokens above every watermark.
 
 For revisions that do not cross a forward-only migration boundary, use the
 normal Helm rollback flow:
