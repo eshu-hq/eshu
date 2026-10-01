@@ -201,6 +201,9 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 			// non-empty value, decides that an alias was written.
 			ExportedName = ModuleExportName(aliasNode, source)
 		}
+		if !representableModuleName(OriginalName) || !representableModuleName(ExportedName) {
+			return
+		}
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
 			OriginalName: OriginalName,
@@ -242,7 +245,8 @@ func reExportSpecifiersFromText(
 	specifiers := make([]ReExportSpecifier, 0, len(parts))
 	for _, part := range parts {
 		OriginalName, ExportedName := reExportSpecifierNames(part)
-		if OriginalName == "" || ExportedName == "" {
+		if OriginalName == "" || ExportedName == "" ||
+			!representableModuleName(OriginalName) || !representableModuleName(ExportedName) {
 			continue
 		}
 		specifiers = append(specifiers, ReExportSpecifier{

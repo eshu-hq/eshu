@@ -81,7 +81,16 @@ import { "same" as doubleLocal } from './double';
 import { 'a\u0062' as escaped } from './escaped';
 import { '\u0066rom' as fromLocal } from './from';
 import { plain as bare } from './plain';
+import { ' x ' as spaced } from './whitespace';
 `)
+
+			// A name with surrounding whitespace would be trimmed to "x" by the
+			// reducer and resolve as a different symbol, so it is skipped.
+			for _, item := range got["imports"].([]map[string]any) {
+				if item["alias"] == "spaced" {
+					t.Fatalf("whitespace-bearing import name was recorded: %#v", item)
+				}
+			}
 
 			bc := findNamedBucketItem(t, got, "imports", "b c")
 			assertStringFieldValue(t, bc, "source", "./m")

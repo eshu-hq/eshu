@@ -218,6 +218,9 @@ func exportAttributeSpecifiers(errNode *tree_sitter.Node, source []byte) []ReExp
 		if aliasNode != nil {
 			ExportedName = ModuleExportName(aliasNode, source)
 		}
+		if !representableModuleName(OriginalName) || !representableModuleName(ExportedName) {
+			return
+		}
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
 			OriginalName: OriginalName,

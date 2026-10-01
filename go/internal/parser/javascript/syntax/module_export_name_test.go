@@ -200,10 +200,33 @@ func TestReExportSpecifiersDecidesAliasByPresence(t *testing.T) {
 		t.Fatalf("ReExportSpecifiers('' as local) = %#v, want the empty name exported as local", got)
 	}
 
-	root, source, closeFn = parseRootForTest(t, "export { ' x ' } from \"./c\";\n")
-	got = ReExportSpecifiers(firstExportStatement(t, root), source)
-	closeFn()
-	if len(got) != 1 || got[0].OriginalName != " x " || got[0].ExportedName != " x " {
-		t.Fatalf("ReExportSpecifiers(' x ') = %#v, want the name kept exactly, spaces included", got)
+	// A name with surrounding whitespace cannot reach the reducer unchanged (it
+	// trims names), so the specifier is skipped rather than resolved as "x".
+	for _, body := range []string{
+		"export { ' x ' } from \"./c\";\n",
+		"export { y as ' x ' } from \"./c\";\n",
+		"export { ' x ' as y } from \"./c\";\n",
+		"export { ' x ', kept } from \"./c\";\n",
+	} {
+		root, source, closeFn = parseRootForTest(t, body)
+		got = ReExportSpecifiers(firstExportStatement(t, root), source)
+		closeFn()
+		for _, specifier := range got {
+			if specifier.OriginalName != "kept" {
+				t.Fatalf("ReExportSpecifiers(%q) kept %#v, want the whitespace-bearing specifier skipped", body, specifier)
+			}
+		}
+	}
+}
+
+func TestRepresentableModuleName(t *testing.T) {
+	t.Parallel()
+
+	for name, want := range map[string]bool{
+		"x": true, "a b": true, "": true, " x": false, "x ": false, " x ": false, "\tx": false, "x\n": false,
+	} {
+		if got := representableModuleName(name); got != want {
+			t.Fatalf("representableModuleName(%q) = %v, want %v", name, got, want)
+		}
 	}
 }

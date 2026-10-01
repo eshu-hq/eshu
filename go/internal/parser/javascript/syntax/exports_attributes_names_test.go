@@ -41,3 +41,28 @@ func TestReExportAttributeEntriesReadStringLiteralNamesByValue(t *testing.T) {
 		})
 	}
 }
+
+// TestReExportAttributeEntriesSkipNamesTheReducerWouldTrim: the reducer trims
+// names, so a recovered specifier whose name has surrounding whitespace is
+// skipped rather than recorded and resolved as a different symbol (#7461).
+func TestReExportAttributeEntriesSkipNamesTheReducerWouldTrim(t *testing.T) {
+	t.Parallel()
+
+	root, source, closeFn := parseRootForTest(t, "export { ' x ' as y, kept } from './x.json' with { type: 'json' };\n")
+	defer closeFn()
+	got := ReExportAttributeEntries(firstNodeOfKind(t, root, "ERROR"), source, "javascript")
+	kept := false
+	for _, item := range got {
+		original, _ := item["original_name"].(string)
+		name, _ := item["name"].(string)
+		if original == " x " || name == " x " || name == "y" {
+			t.Fatalf("recovered the whitespace-bearing specifier: %#v", item)
+		}
+		if name == "kept" {
+			kept = true
+		}
+	}
+	if !kept {
+		t.Fatalf("ReExportAttributeEntries dropped the plain sibling specifier: %#v", got)
+	}
+}

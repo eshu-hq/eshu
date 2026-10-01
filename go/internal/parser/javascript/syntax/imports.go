@@ -217,6 +217,9 @@ func importEntriesFromClause(
 			}
 			nameNode := specifier.ChildByFieldName("name")
 			aliasNode := specifier.ChildByFieldName("alias")
+			if !representableModuleName(ModuleExportName(nameNode, source)) {
+				continue
+			}
 			item := map[string]any{
 				"name":        ModuleExportName(nameNode, source),
 				"source":      moduleSource,

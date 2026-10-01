@@ -31,6 +31,16 @@ func ModuleExportName(node *tree_sitter.Node, source []byte) string {
 	return stringLiteralValue(text)
 }
 
+// representableModuleName reports whether a decoded module export name can be
+// handed to the reducer unchanged. The reducer's import and re-export
+// resolution trims every name, so a name with leading or trailing whitespace
+// (valid ECMAScript, vanishingly rare) would resolve as the trimmed symbol, a
+// different one. The parser skips such a specifier instead, the same miss the
+// quoted spelling caused before #7461 and not a wrong edge.
+func representableModuleName(name string) bool {
+	return name == strings.TrimSpace(name)
+}
+
 // unquoteModuleExportName trims text and, when it is spelled as a quoted string
 // literal, returns the literal's value. The brace-text fallback reads names from
 // raw text, so this is its counterpart of ModuleExportName.

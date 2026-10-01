@@ -165,10 +165,10 @@ Not claimed today:
   ECMAScript escapes decoded, so `'x'` and `"x"` name the same symbol and a quoted
   barrel re-export still roots its original declaration in the dead-code
   public-surface walk
-  ([#7461](https://github.com/eshu-hq/eshu/issues/7461)). The parser keeps the
-  value exactly, including an empty name or surrounding spaces; the reducer's
-  call-resolution step trims names and skips empty ones, so such a name does not
-  resolve.
+  ([#7461](https://github.com/eshu-hq/eshu/issues/7461)). A name
+  with leading or trailing whitespace is skipped, because the reducer trims names
+  and it would resolve as a different symbol; an empty name is kept but never
+  resolves, since the reducer skips empty names.
 - As defence in depth, an import, `require`, or re-export row whose module
   specifier is longer than 1024 bytes is dropped before it reaches the graph
   and logged as `javascript-family import source exceeds bound`
