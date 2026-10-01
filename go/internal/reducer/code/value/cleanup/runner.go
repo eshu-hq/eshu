@@ -17,9 +17,16 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
+// defaultLeaseTTL is 10 minutes so one cleanup cycle's lease outlasts the
+// graph write budget with margin: ops-qa's ESHU_CANONICAL_WRITE_TIMEOUT is
+// 300s, and a 5m lease reached the end of the lease with no margin when a
+// write ran to its full budget, admitting a second holder mid-cycle (#7047).
+// 10m keeps crash failover delay small against the hourly poll. If a cycle
+// ever outgrows a fixed TTL, the renewal heartbeat precedent is
+// ProcessPartitionOnce's TTL/2 same-owner re-claim (#4449), not a longer TTL.
 const (
 	defaultPollInterval     = time.Hour
-	defaultLeaseTTL         = 5 * time.Minute
+	defaultLeaseTTL         = 10 * time.Minute
 	defaultScopeBatchLimit  = 100
 	defaultDeleteBatchLimit = 500
 )
@@ -29,6 +36,12 @@ const (
 	leasePartitionID    = 0
 	leasePartitionCount = 1
 )
+
+// codeValueFlowLeaseReleaseTimeout bounds the lease release that runs after
+// the cycle's own context has been canceled: long enough for one Postgres
+// round trip on a loaded host, short enough that shutdown cannot hang on a
+// dead backend. It mirrors repoDependencyLeaseReleaseTimeout.
+const codeValueFlowLeaseReleaseTimeout = 10 * time.Second
 
 // ErrCurrentGenerationsRequired reports missing active generation lookup
 // wiring for value-flow stale cleanup.
@@ -196,14 +209,35 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		if !claimed {
 			return Result{LeaseAcquired: false}, nil
 		}
+		// Release through a context that survives the cycle's own
+		// cancellation: Service.Run cancels the shared context before
+		// waiting for side runners, so releasing through ctx hands
+		// Postgres an already-dead request and strands the lease for its
+		// full TTL (#6747 shape A).
 		defer func() {
-			_ = r.LeaseManager.ReleasePartitionLease(
-				ctx,
+			releaseCtx, releaseCancel := context.WithTimeout(
+				context.WithoutCancel(ctx),
+				codeValueFlowLeaseReleaseTimeout,
+			)
+			defer releaseCancel()
+			if err := r.LeaseManager.ReleasePartitionLease(
+				releaseCtx,
 				leaseDomain,
 				leasePartitionID,
 				leasePartitionCount,
 				r.Config.LeaseOwner,
-			)
+			); err != nil && r.Logger != nil {
+				r.Logger.WarnContext(
+					releaseCtx,
+					"code value-flow stale cleanup partition lease release failed; the lease expires on its TTL",
+					slog.Int("partition_id", leasePartitionID),
+					slog.Int("partition_count", leasePartitionCount),
+					slog.String("lease_owner", r.Config.LeaseOwner),
+					slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
+					log.Err(err),
+					telemetry.PhaseAttr(telemetry.PhaseReduction),
+				)
+			}
 		}()
 	}
 
@@ -348,6 +382,7 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		ctx,
 		"code value-flow stale cleanup cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		slog.Int("scopes_scanned", result.ScopesScanned),
 		slog.Int("scopes_skipped", result.ScopesSkipped),
 		slog.Int("taint_sweeps", result.TaintSweeps),
@@ -366,6 +401,7 @@ func (r *Runner) recordFailure(ctx context.Context, err error) {
 		ctx,
 		"code value-flow stale cleanup cycle failed",
 		log.Err(err),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		telemetry.FailureClassAttr("code_value_flow_stale_cleanup_error"),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

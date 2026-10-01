@@ -4,11 +4,16 @@
 package maintenance
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestGraphOrphanSweepRunnerDrainsUntilNoDeletedNodes(t *testing.T) {
@@ -142,6 +147,15 @@ type fakeGraphOrphanLeaseManager struct {
 	releaseCalls int
 	claimOwner   string
 	claimTTL     time.Duration
+	// releaseCtxErr and releaseCtxHasDeadline capture the state of the
+	// context the runner handed to ReleasePartitionLease: a release that
+	// runs on the cycle's own (possibly canceled) context strands the
+	// lease for its full TTL (#6747 shape A).
+	releaseCtxErr         error
+	releaseCtxHasDeadline bool
+	// releaseErr, when non-nil, simulates the store rejecting the release
+	// (e.g. Postgres unreachable during shutdown).
+	releaseErr error
 }
 
 func (l *fakeGraphOrphanLeaseManager) ClaimPartitionLease(
@@ -163,13 +177,15 @@ func (l *fakeGraphOrphanLeaseManager) ClaimPartitionLease(
 }
 
 func (l *fakeGraphOrphanLeaseManager) ReleasePartitionLease(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
 	_, _ int,
 	_ string,
 ) error {
 	l.releaseCalls++
-	return nil
+	l.releaseCtxErr = ctx.Err()
+	_, l.releaseCtxHasDeadline = ctx.Deadline()
+	return l.releaseErr
 }
 
 func (s *fakeGraphOrphanSweeper) SweepOrphanNodes(
@@ -199,4 +215,173 @@ func (s *fakeGraphOrphanSweeper) callCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calls
+}
+
+// TestGraphOrphanSweepRunnerEmitsLeaseTTLSeconds pins the #7047 P2: both the
+// cycle-completed and the cycle-failed logs must carry the shared
+// lease_ttl_seconds key, so deleting or renaming either emission regresses
+// loudly instead of silently.
+func TestGraphOrphanSweepRunnerEmitsLeaseTTLSeconds(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	successRunner := &GraphOrphanSweepRunner{
+		Sweeper:      &fakeGraphOrphanSweeper{results: []GraphOrphanSweepResult{{Deleted: map[string]int64{}}}},
+		LeaseManager: &fakeGraphOrphanLeaseManager{claimResults: []bool{true}},
+		Config: GraphOrphanSweepRunnerConfig{
+			LeaseOwner: "sweep-ttl-owner",
+			LeaseTTL:   2 * time.Minute,
+		},
+		Logger: logger,
+	}
+	if _, err := successRunner.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	failureRunner := &GraphOrphanSweepRunner{
+		Sweeper:      &fakeGraphOrphanSweeper{errs: []error{errors.New("sweep boom")}},
+		LeaseManager: &fakeGraphOrphanLeaseManager{claimResults: []bool{true}},
+		Config: GraphOrphanSweepRunnerConfig{
+			LeaseOwner: "sweep-ttl-owner",
+			LeaseTTL:   2 * time.Minute,
+		},
+		Logger: logger,
+		Wait: func(context.Context, time.Duration) error {
+			cancel()
+			return context.Canceled
+		},
+	}
+	if err := failureRunner.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	ttlByMessage := map[string]float64{}
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		msg, _ := record["msg"].(string)
+		ttl, ok := record[telemetry.LogKeyLeaseTTLSeconds].(float64)
+		if !ok {
+			t.Fatalf("log %q missing %q: %v", msg, telemetry.LogKeyLeaseTTLSeconds, record)
+		}
+		ttlByMessage[msg] = ttl
+	}
+	for _, msg := range []string{"graph orphan sweep cycle completed", "graph orphan sweep cycle failed"} {
+		got, ok := ttlByMessage[msg]
+		if !ok {
+			t.Fatalf("no log record with msg %q", msg)
+		}
+		if got != 120 {
+			t.Fatalf("log %q %s = %v, want 120", msg, telemetry.LogKeyLeaseTTLSeconds, got)
+		}
+	}
+}
+
+// TestGraphOrphanSweepDefaultLeaseTTLCoversWriteBudget pins #7047: the
+// effective lease TTL with no configured value must exceed the graph write
+// budget plus a safety margin, so a write running to its full budget cannot
+// reach the end of the lease with no margin. The 300s budget is ops-qa's
+// ESHU_CANONICAL_WRITE_TIMEOUT; the 30s margin mirrors
+// repoDependencyProjectionLeaseSafetyMargin.
+func TestGraphOrphanSweepDefaultLeaseTTLCoversWriteBudget(t *testing.T) {
+	const writeBudget = 300 * time.Second
+	const safetyMargin = 30 * time.Second
+	if got := (GraphOrphanSweepRunnerConfig{}).leaseTTL(); got <= writeBudget+safetyMargin {
+		t.Fatalf("default lease TTL = %v, want more than %v", got, writeBudget+safetyMargin)
+	}
+}
+
+// TestGraphOrphanSweepRunnerReleasesLeaseAfterCancel pins the #7047 P2:
+// when shutdown cancels the cycle context mid-sweep, the deferred lease
+// release must still run on a live, bounded context. Releasing through the
+// canceled cycle context hands Postgres an already-dead request, the release
+// fails, and the row stays held for the full TTL under an owner that no
+// longer exists (#6747 shape A).
+func TestGraphOrphanSweepRunnerReleasesLeaseAfterCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	leaseManager := &fakeGraphOrphanLeaseManager{claimResults: []bool{true}}
+	runner := &GraphOrphanSweepRunner{
+		Sweeper:      &cancelingGraphOrphanSweeper{cancel: cancel},
+		LeaseManager: leaseManager,
+		Config: GraphOrphanSweepRunnerConfig{
+			LeaseOwner: "sweep-owner-cancel",
+			LeaseTTL:   time.Minute,
+		},
+	}
+	if _, err := runner.RunOnce(ctx); err == nil {
+		t.Fatal("RunOnce() error = nil, want cancellation error")
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	if err := leaseManager.releaseCtxErr; err != nil {
+		t.Fatalf("release context error = %v, want live release context", err)
+	}
+	if !leaseManager.releaseCtxHasDeadline {
+		t.Fatal("release context has no deadline, want bounded release")
+	}
+}
+
+// TestGraphOrphanSweepRunnerLogsReleaseFailure pins review F2: a failed
+// bounded release must emit an operator-visible warning carrying the TTL.
+// Otherwise the lease strands silently for its full TTL with no signal.
+func TestGraphOrphanSweepRunnerLogsReleaseFailure(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	leaseManager := &fakeGraphOrphanLeaseManager{
+		claimResults: []bool{true},
+		releaseErr:   errors.New("postgres unreachable"),
+	}
+	runner := &GraphOrphanSweepRunner{
+		Sweeper:      &fakeGraphOrphanSweeper{results: []GraphOrphanSweepResult{{Deleted: map[string]int64{}}}},
+		LeaseManager: leaseManager,
+		Config: GraphOrphanSweepRunnerConfig{
+			LeaseOwner: "sweep-owner-warn",
+			LeaseTTL:   2 * time.Minute,
+		},
+		Logger: logger,
+	}
+	if _, err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil (a release failure must not fail the cycle)", err)
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	foundWarn := false
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		if record["level"] != "WARN" {
+			continue
+		}
+		ttl, ok := record[telemetry.LogKeyLeaseTTLSeconds].(float64)
+		if !ok || ttl != 120 {
+			t.Fatalf("warn record %s = %v, want 120", telemetry.LogKeyLeaseTTLSeconds, record[telemetry.LogKeyLeaseTTLSeconds])
+		}
+		foundWarn = true
+	}
+	if !foundWarn {
+		t.Fatal("no WARN log record for the failed lease release")
+	}
+}
+
+// cancelingGraphOrphanSweeper simulates shutdown landing mid-sweep: it
+// cancels the cycle context, then reports the cancellation as the cycle
+// error so RunOnce unwinds through its deferred lease release.
+type cancelingGraphOrphanSweeper struct {
+	cancel context.CancelFunc
+}
+
+func (s *cancelingGraphOrphanSweeper) SweepOrphanNodes(
+	ctx context.Context,
+	_ GraphOrphanSweepPolicy,
+) (GraphOrphanSweepResult, error) {
+	s.cancel()
+	return GraphOrphanSweepResult{}, ctx.Err()
 }

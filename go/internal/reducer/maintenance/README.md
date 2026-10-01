@@ -68,12 +68,21 @@ two thin wrapper closures instead.
 | `eshu_dp_repo_dependency_gate_decisions_total` | `decision` (`bypassed`/`deferred_error`/`deferred_inactive`/`active`) |
 
 `GraphOrphanSweepRunner` and `CollectorEvidenceSummaryMaintainer` register no
-metrics of their own -- both record only structured completion/failure logs
+metrics of their own -- both record structured completion/failure logs
 (`phase=reduction`, `failure_class=graph_orphan_sweep_error` on failure for
-the sweep). The reducer registers `eshu_dp_graph_orphan_nodes` and
-`eshu_dp_active_generations` as observable gauges independently of these
-runners (see `docs/public/observability/telemetry-coverage.md`), so neither
-row moved here.
+the sweep), and the sweep runner additionally emits a lease-release WARN
+when its deferred bounded release fails. Both sweep logs also carry
+`lease_ttl_seconds`
+(`telemetry.LogKeyLeaseTTLSeconds`, registered in `telemetry.LogKeys()`):
+the configured lease TTL on completion, and the TTL that would have guarded
+the cycle on failure (pair with the error — the claim itself may have
+errored before any lease was held); the release-failure WARN carries the
+configured TTL after which the unreleased lease expires server-side.
+The reducer registers
+`eshu_dp_graph_orphan_nodes` and `eshu_dp_active_generations` as observable
+gauges independently of these runners (see
+`docs/public/observability/telemetry-coverage.md`), so neither row moved
+here.
 
 No-Regression Evidence: #6061 relocates this family's production logic
 without changing it. Every hunk in the moved production files is one of

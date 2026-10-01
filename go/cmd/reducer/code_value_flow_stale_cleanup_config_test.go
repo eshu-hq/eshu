@@ -18,7 +18,7 @@ func TestLoadCodeValueFlowStaleCleanupConfigDefaults(t *testing.T) {
 	require.True(t, cfg.Enabled)
 	require.Equal(t, time.Hour, cfg.Runner.PollInterval)
 	require.True(t, strings.HasPrefix(cfg.Runner.LeaseOwner, "code-value-flow-stale-cleanup-runner:"), cfg.Runner.LeaseOwner)
-	require.Equal(t, 5*time.Minute, cfg.Runner.LeaseTTL)
+	require.Equal(t, 10*time.Minute, cfg.Runner.LeaseTTL)
 	require.Equal(t, 100, cfg.Runner.ScopeBatchLimit)
 	require.Equal(t, 500, cfg.Runner.DeleteBatchLimit)
 }

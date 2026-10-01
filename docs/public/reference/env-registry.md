@@ -379,7 +379,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | int | `500` | Maximum stale value-flow evidence nodes or edges deleted per active scope and family in one reducer cleanup pass. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED` | bool | `true` | Enable the reducer side runner that removes stale CodeTaintEvidence nodes and TAINT_FLOWS_TO edges from older active-scope generations. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_OWNER` | string | — | Lease owner for the single value-flow stale cleanup worker; defaults to a unique process token. |
-| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | duration | `5m` | TTL for the value-flow stale cleanup partition lease. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | duration | `10m` | TTL for the value-flow stale cleanup partition lease. Keep above the graph write budget (ops-qa ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL` | duration | `1h` | Delay between value-flow stale cleanup passes. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | int | `100` | Active repository scopes scanned per value-flow stale cleanup pass. |
 | `ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW` | duration | `10m` | Quiet period a blocking shared-intent projection_domain queue must show before the generation-liveness sweep re-drives a wedged active generation; generations whose domain queue completed work inside it are counted draining and skipped. Raised to the liveness poll interval when set lower. |
@@ -389,7 +389,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` | int | `10000` | Maximum graph orphan nodes counted per label for telemetry in one sweep pass. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED` | bool | `true` | Enable the reducer side runner that marks and sweeps stale generation-owned graph orphans. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER` | string | — | Lease owner for the single graph orphan sweep worker; defaults to a unique process token. |
-| `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | duration | `5m` | TTL for the graph orphan sweep partition lease. |
+| `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | duration | `10m` | TTL for the graph orphan sweep partition lease. Keep above the graph write budget (ops-qa ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
 | `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL` | duration | `1h` | Delay between graph orphan sweep passes. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_TTL` | duration | `168h` | Minimum age before a marked graph orphan can be deleted. |
 | `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` | bool | `true` | Run the infra read model reconcile loop, which re-derives repositories whose infra_resource_entities rows drifted from content_entities, and repairs rolling-upgrade fence marks. With it false, nothing repairs rolling-upgrade fence marks: one write from an older binary or manual SQL keeps unscoped infra aggregate reads on the graph until the loop runs again (see eshu_dp_infra_inventory_dirty_repos and the infra_inventory admin status field). |

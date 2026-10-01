@@ -18,7 +18,7 @@ func TestLoadGraphOrphanSweepConfigDefaults(t *testing.T) {
 	require.True(t, cfg.Enabled)
 	require.Equal(t, time.Hour, cfg.Runner.PollInterval)
 	require.True(t, strings.HasPrefix(cfg.Runner.LeaseOwner, "graph-orphan-sweep-runner:"), cfg.Runner.LeaseOwner)
-	require.Equal(t, 5*time.Minute, cfg.Runner.LeaseTTL)
+	require.Equal(t, 10*time.Minute, cfg.Runner.LeaseTTL)
 	require.Equal(t, 7*24*time.Hour, cfg.Runner.Policy.OrphanTTL)
 	require.Equal(t, 100, cfg.Runner.Policy.BatchLimit)
 	require.Equal(t, 10_000, cfg.Runner.Policy.CountLimit)

@@ -4,13 +4,17 @@
 package cleanup
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T) {
@@ -181,6 +185,10 @@ type fakeCodeValueFlowCurrentGenerationReader struct {
 	pages         [][]CurrentGeneration
 	afterScopeIDs []string
 	limits        []int
+	err           error
+	// cancelOnList, when non-nil, simulates shutdown landing mid-cycle: the
+	// list call cancels the cycle context before returning its page.
+	cancelOnList context.CancelFunc
 }
 
 func (r *fakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGenerations(
@@ -190,6 +198,12 @@ func (r *fakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGener
 ) ([]CurrentGeneration, error) {
 	r.afterScopeIDs = append(r.afterScopeIDs, afterScopeID)
 	r.limits = append(r.limits, limit)
+	if r.cancelOnList != nil {
+		r.cancelOnList()
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
 	if len(r.pages) > 0 {
 		page := r.pages[0]
 		r.pages = r.pages[1:]
@@ -285,6 +299,15 @@ func (w *recordingCodeValueFlowInterprocSweeper) RetractCodeInterprocEvidenceSou
 type fakeCodeValueFlowLeaseManager struct {
 	claimResults []bool
 	releaseCalls int
+	// releaseCtxErr and releaseCtxHasDeadline capture the state of the
+	// context the runner handed to ReleasePartitionLease: a release that
+	// runs on the cycle's own (possibly canceled) context strands the
+	// lease for its full TTL (#6747 shape A).
+	releaseCtxErr         error
+	releaseCtxHasDeadline bool
+	// releaseErr, when non-nil, simulates the store rejecting the release
+	// (e.g. Postgres unreachable during shutdown).
+	releaseErr error
 }
 
 func (l *fakeCodeValueFlowLeaseManager) ClaimPartitionLease(
@@ -303,13 +326,15 @@ func (l *fakeCodeValueFlowLeaseManager) ClaimPartitionLease(
 }
 
 func (l *fakeCodeValueFlowLeaseManager) ReleasePartitionLease(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
 	_, _ int,
 	_ string,
 ) error {
 	l.releaseCalls++
-	return nil
+	l.releaseCtxErr = ctx.Err()
+	_, l.releaseCtxHasDeadline = ctx.Deadline()
+	return l.releaseErr
 }
 
 // fakeCodeInterprocProjectedEdgeLedger is a local copy, scoped to this
@@ -464,4 +489,166 @@ func equalCodeValueFlowStringSlices(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+// TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds pins the #7047 P2:
+// both the cycle-completed and the cycle-failed logs must carry the shared
+// lease_ttl_seconds key, so deleting or renaming either emission regresses
+// loudly instead of silently.
+func TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	newRunner := func(reader *fakeCodeValueFlowCurrentGenerationReader) *Runner {
+		return &Runner{
+			CurrentGenerations: reader,
+			TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+			InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+			LeaseManager:       &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}},
+			Config: RunnerConfig{
+				LeaseOwner:       "value-flow-ttl-owner",
+				LeaseTTL:         2 * time.Minute,
+				ScopeBatchLimit:  25,
+				DeleteBatchLimit: 50,
+			},
+			Logger: logger,
+		}
+	}
+
+	successRunner := newRunner(&fakeCodeValueFlowCurrentGenerationReader{rows: []CurrentGeneration{}})
+	if _, err := successRunner.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	failureRunner := newRunner(&fakeCodeValueFlowCurrentGenerationReader{err: errors.New("generations boom")})
+	failureRunner.Wait = func(context.Context, time.Duration) error {
+		cancel()
+		return context.Canceled
+	}
+	if err := failureRunner.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	ttlByMessage := map[string]float64{}
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		msg, _ := record["msg"].(string)
+		ttl, ok := record[telemetry.LogKeyLeaseTTLSeconds].(float64)
+		if !ok {
+			t.Fatalf("log %q missing %q: %v", msg, telemetry.LogKeyLeaseTTLSeconds, record)
+		}
+		ttlByMessage[msg] = ttl
+	}
+	for _, msg := range []string{"code value-flow stale cleanup cycle completed", "code value-flow stale cleanup cycle failed"} {
+		got, ok := ttlByMessage[msg]
+		if !ok {
+			t.Fatalf("no log record with msg %q", msg)
+		}
+		if got != 120 {
+			t.Fatalf("log %q %s = %v, want 120", msg, telemetry.LogKeyLeaseTTLSeconds, got)
+		}
+	}
+}
+
+// TestStaleCleanupDefaultLeaseTTLCoversWriteBudget pins #7047: the effective
+// lease TTL with no configured value must exceed the graph write budget plus
+// a safety margin, so a write running to its full budget cannot reach the end
+// of the lease with no margin. The 300s budget is ops-qa's
+// ESHU_CANONICAL_WRITE_TIMEOUT; the 30s margin mirrors
+// repoDependencyProjectionLeaseSafetyMargin.
+func TestStaleCleanupDefaultLeaseTTLCoversWriteBudget(t *testing.T) {
+	const writeBudget = 300 * time.Second
+	const safetyMargin = 30 * time.Second
+	if got := (RunnerConfig{}).leaseTTL(); got <= writeBudget+safetyMargin {
+		t.Fatalf("default lease TTL = %v, want more than %v", got, writeBudget+safetyMargin)
+	}
+}
+
+// TestCodeValueFlowStaleCleanupRunnerReleasesLeaseAfterCancel pins the #7047
+// P2: when shutdown cancels the cycle context mid-cycle, the deferred lease
+// release must still run on a live, bounded context. Releasing through the
+// canceled cycle context hands Postgres an already-dead request, the release
+// fails, and the row stays held for the full TTL under an owner that no
+// longer exists (#6747 shape A).
+func TestCodeValueFlowStaleCleanupRunnerReleasesLeaseAfterCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	leaseManager := &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}}
+	runner := &Runner{
+		CurrentGenerations: &fakeCodeValueFlowCurrentGenerationReader{cancelOnList: cancel},
+		TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+		InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+		LeaseManager:       leaseManager,
+		Config: RunnerConfig{
+			LeaseOwner:       "value-flow-owner-cancel",
+			LeaseTTL:         time.Minute,
+			ScopeBatchLimit:  25,
+			DeleteBatchLimit: 50,
+		},
+	}
+	if _, err := runner.RunOnce(ctx); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil for an empty page", err)
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	if err := leaseManager.releaseCtxErr; err != nil {
+		t.Fatalf("release context error = %v, want live release context", err)
+	}
+	if !leaseManager.releaseCtxHasDeadline {
+		t.Fatal("release context has no deadline, want bounded release")
+	}
+}
+
+// TestCodeValueFlowStaleCleanupRunnerLogsReleaseFailure pins review F2: a
+// failed bounded release must emit an operator-visible warning carrying the
+// TTL. Otherwise the lease strands silently for its full TTL with no signal.
+func TestCodeValueFlowStaleCleanupRunnerLogsReleaseFailure(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	leaseManager := &fakeCodeValueFlowLeaseManager{
+		claimResults: []bool{true},
+		releaseErr:   errors.New("postgres unreachable"),
+	}
+	runner := &Runner{
+		CurrentGenerations: &fakeCodeValueFlowCurrentGenerationReader{},
+		TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+		InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+		LeaseManager:       leaseManager,
+		Config: RunnerConfig{
+			LeaseOwner:       "value-flow-owner-warn",
+			LeaseTTL:         2 * time.Minute,
+			ScopeBatchLimit:  25,
+			DeleteBatchLimit: 50,
+		},
+		Logger: logger,
+	}
+	if _, err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil (a release failure must not fail the cycle)", err)
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	foundWarn := false
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		if record["level"] != "WARN" {
+			continue
+		}
+		ttl, ok := record[telemetry.LogKeyLeaseTTLSeconds].(float64)
+		if !ok || ttl != 120 {
+			t.Fatalf("warn record %s = %v, want 120", telemetry.LogKeyLeaseTTLSeconds, record[telemetry.LogKeyLeaseTTLSeconds])
+		}
+		foundWarn = true
+	}
+	if !foundWarn {
+		t.Fatal("no WARN log record for the failed lease release")
+	}
 }

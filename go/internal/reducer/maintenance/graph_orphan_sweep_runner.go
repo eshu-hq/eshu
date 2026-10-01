@@ -14,9 +14,17 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
+// defaultGraphOrphanSweepLeaseTTL is 10 minutes so one sweep cycle's lease
+// outlasts the graph write budget with margin: ops-qa's
+// ESHU_CANONICAL_WRITE_TIMEOUT is 300s, and a 5m lease reached the end of the
+// lease with no margin when a write ran to its full budget, admitting a
+// second holder mid-cycle (#7047). 10m keeps crash failover delay small
+// against the hourly poll. If a cycle ever outgrows a fixed TTL, the renewal
+// heartbeat precedent is ProcessPartitionOnce's TTL/2 same-owner re-claim
+// (#4449), not a longer TTL.
 const (
 	defaultGraphOrphanSweepPollInterval = time.Hour
-	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
+	defaultGraphOrphanSweepLeaseTTL     = 10 * time.Minute
 )
 
 // PartitionLeaseManager manages partition leases for the graph orphan sweep.
@@ -39,6 +47,12 @@ const (
 	graphOrphanSweepLeasePartitionID    = 0
 	graphOrphanSweepLeasePartitionCount = 1
 )
+
+// graphOrphanSweepLeaseReleaseTimeout bounds the lease release that runs
+// after the cycle's own context has been canceled: long enough for one
+// Postgres round trip on a loaded host, short enough that shutdown cannot
+// hang on a dead backend. It mirrors repoDependencyLeaseReleaseTimeout.
+const graphOrphanSweepLeaseReleaseTimeout = 10 * time.Second
 
 // ErrGraphOrphanSweeperRequired reports missing graph orphan sweep wiring.
 var ErrGraphOrphanSweeperRequired = errors.New("graph orphan sweeper is required")
@@ -158,14 +172,35 @@ func (r *GraphOrphanSweepRunner) RunOnce(ctx context.Context) (GraphOrphanSweepR
 		if !claimed {
 			return GraphOrphanSweepResult{LeaseAcquired: false}, nil
 		}
+		// Release through a context that survives the cycle's own
+		// cancellation: Service.Run cancels the shared context before
+		// waiting for side runners, so releasing through ctx hands
+		// Postgres an already-dead request and strands the lease for its
+		// full TTL (#6747 shape A).
 		defer func() {
-			_ = r.LeaseManager.ReleasePartitionLease(
-				ctx,
+			releaseCtx, releaseCancel := context.WithTimeout(
+				context.WithoutCancel(ctx),
+				graphOrphanSweepLeaseReleaseTimeout,
+			)
+			defer releaseCancel()
+			if err := r.LeaseManager.ReleasePartitionLease(
+				releaseCtx,
 				graphOrphanSweepLeaseDomain,
 				graphOrphanSweepLeasePartitionID,
 				graphOrphanSweepLeasePartitionCount,
 				r.Config.leaseOwner(),
-			)
+			); err != nil && r.Logger != nil {
+				r.Logger.WarnContext(
+					releaseCtx,
+					"graph orphan sweep partition lease release failed; the lease expires on its TTL",
+					slog.Int("partition_id", graphOrphanSweepLeasePartitionID),
+					slog.Int("partition_count", graphOrphanSweepLeasePartitionCount),
+					slog.String("lease_owner", r.Config.leaseOwner()),
+					slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
+					log.Err(err),
+					telemetry.PhaseAttr(telemetry.PhaseReduction),
+				)
+			}
 		}()
 	}
 	result, err := r.Sweeper.SweepOrphanNodes(ctx, r.Config.Policy)
@@ -209,6 +244,7 @@ func (r *GraphOrphanSweepRunner) recordResult(ctx context.Context, result GraphO
 		ctx,
 		"graph orphan sweep cycle completed",
 		slog.Bool("lease_acquired", result.LeaseAcquired),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		slog.Int64("orphan_count_total", graphOrphanSweepTotal(result.Counts)),
 		slog.Int64("marked_total", graphOrphanSweepTotal(result.Marked)),
 		slog.Int64("deleted_total", graphOrphanSweepTotal(result.Deleted)),
@@ -228,6 +264,7 @@ func (r *GraphOrphanSweepRunner) recordFailure(ctx context.Context, err error) {
 			ctx,
 			"graph orphan sweep cycle failed",
 			log.Err(err),
+			slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 			telemetry.FailureClassAttr("graph_orphan_sweep_error"),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

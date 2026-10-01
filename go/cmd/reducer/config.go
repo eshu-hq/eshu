@@ -87,7 +87,9 @@ const (
 	defaultGraphOrphanSweepTTL          = 7 * 24 * time.Hour
 	defaultGraphOrphanSweepBatchLimit   = 100
 	defaultGraphOrphanSweepCountLimit   = 10_000
-	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
+	// 10m so the lease outlasts the 300s graph write budget with margin
+	// (#7047); mirrors maintenance.defaultGraphOrphanSweepLeaseTTL.
+	defaultGraphOrphanSweepLeaseTTL = 10 * time.Minute
 )
 
 type generationRetentionConfig struct {

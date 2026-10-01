@@ -80,7 +80,7 @@ func (r *RepoDependencyProjectionRunner) releasePartitionLease(ctx context.Conte
 			slog.Int("partition_id", r.Config.partitionID()),
 			slog.Int("partition_count", r.Config.partitionCount()),
 			slog.String("lease_owner", r.Config.leaseOwner()),
-			slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
+			slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 			log.Err(err),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

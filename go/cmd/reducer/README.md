@@ -323,7 +323,7 @@ Pool Split By Class (#4448)" for the full design note and evidence.
 | `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED` | `true` | Run the bounded zero-relationship graph cleanup loop beside reducer work |
 | `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL` | `1h` | Delay between empty or failed graph orphan sweep cycles |
 | `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER` | unique per process | Owner token for the single graph orphan sweep lease |
-| `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | `5m` | TTL for the single graph orphan sweep lease |
+| `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | `10m` | TTL for the single graph orphan sweep lease (keep above the graph write budget plus margin, #7047) |
 | `ESHU_GRAPH_ORPHAN_SWEEP_TTL` | `168h` | Minimum time a zero-relationship node marker must age before deletion |
 | `ESHU_GRAPH_ORPHAN_SWEEP_BATCH_LIMIT` | `100` | Maximum nodes marked or deleted per label in one sweep cycle |
 | `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT` | `10000` | Maximum nodes counted per label for the observable orphan gauge |
@@ -335,7 +335,7 @@ Pool Split By Class (#4448)" for the full design note and evidence.
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED` | `true` | Run the bounded reducer-owned cleanup loop that removes stale `CodeTaintEvidence` nodes and `TAINT_FLOWS_TO` edges from generations older than each active repository scope |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL` | `1h` | Delay between empty or failed value-flow cleanup cycles |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_OWNER` | unique per process | Owner token for the single value-flow stale cleanup lease |
-| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | `5m` | TTL for the single value-flow stale cleanup lease |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | `10m` | TTL for the single value-flow stale cleanup lease (keep above the graph write budget plus margin, #7047) |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | `100` | Active repository scopes scanned per cleanup cycle |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | `500` | Maximum stale evidence nodes or edges deleted per scope and evidence family in one Cypher statement |
 
