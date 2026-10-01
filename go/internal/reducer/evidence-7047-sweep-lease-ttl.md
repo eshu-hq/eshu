@@ -17,7 +17,9 @@ Default TTLs 5m to 10m in four places: `maintenance`
 `cmd/reducer` loader defaults that mirror them. Registry defaults and the
 reducer README updated to match. Explicitly configured TTLs still pass
 through verbatim (overrides tests unchanged); only the unset default moved.
-No cycle, claim, release, or batching logic changed.
+No claim, work, or batching logic changed; the release path now uses a
+bounded cancellation-independent context plus a release-failure warning
+(see Shutdown-Proof Release below).
 
 ## No-Regression Evidence (#7047):
 
