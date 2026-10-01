@@ -15,7 +15,8 @@ through `reducer_incident_repository_correlation`: `outcome IN ('exact',
 'derived')`, `provenance_only = false`, provider `pagerduty`, a non-blank
 `provider_service_id`, on an active generation, with `repository_id` equal to the
 target. A correlation with a blank `repository_id`, or one stored with surrounding
-whitespace, is not admissible for the source-only count either: no repository's
+whitespace of any kind `strings.TrimSpace` trims (the check uses the same set), is
+not admissible for the source-only count either: no repository's
 story can ever read it (story targets are trimmed before the exact match), so
 counting its service as linked would hide it from both sides. This mirrors `storage/postgres/service_incident_evidence_loader.go`.
 
@@ -47,18 +48,25 @@ the #7138 corpus (200 repository scopes, three generations each, plus one Jira
 scope of 50,000 links per generation) and a PagerDuty corpus (40 scopes of 2,000
 applied resources or observed services over three generations, 20,000
 correlation facts over 5,000 repositories, and `repo-x` correlated to two
-provider services). `EXPLAIN (ANALYZE, BUFFERS)` through a prepared statement,
-`plan_cache_mode` forced custom and generic.
+provider services), plus, for the retention run, 21 more superseded generations
+of every PagerDuty scope that each carry the 20,000 correlations again (24
+retained generations, the default retention policy). `EXPLAIN (ANALYZE,
+BUFFERS)` through a prepared statement, `plan_cache_mode` forced custom and
+generic.
 
 | Statement and shape | Custom | Generic | Buffers |
 |---|---|---|---|
 | Routing read, plain join to the active scope and generation (rejected) | 43 ms | 39 ms | 61,163 hit |
-| Routing read, repository-first with fenced LATERAL probes (shipped), `repo-x` | 3.22 ms | 1.01 ms | 2,070 hit |
+| Routing read, repository-first with fenced LATERAL probes (shipped), `repo-x`, shim | 3.22 ms | 1.01 ms | 2,070 hit |
+| Same, on the committed plan proof's corpus, 24 retained generations | 0.37 ms | 0.24 ms | 85 hit |
 | Same, a repository with no correlation | 0.11 ms | 0.10 ms | 3 hit |
 | Source-only count before this change | 41 to 71 ms | | about 96,000 |
 | Source-only with a per-row `EXISTS` on the correlation set (rejected) | 1,580 ms | 1,461 ms | 381,975 hit |
 | Source-only with `IN (SELECT ...)`, candidates not materialized (rejected) | 1,346 ms | 1,676 ms | 381,375 hit |
-| Source-only with `IN (SELECT ...)`, candidates `MATERIALIZED` (shipped) | 81 to 85 ms | | 165,605 hit |
+| Source-only with `IN (SELECT ...)`, candidates `MATERIALIZED`, read by kind across every generation (superseded by the next row), 3 generations | 81 to 85 ms | | 165,605 hit |
+| Same shape, 24 retained generations (plan proof) | | | 931,766 hit |
+| Source-only with `IN (SELECT ...)`, candidates `MATERIALIZED` and read per active generation (shipped), 24 retained generations (plan proof) | 89 to 226 ms | 76 to 100 ms | 115,042 hit |
+| Previous vs shipped shape, 24 retained generations, interleaved on a second database at load 14 to 20 | 940 to 1,190 ms vs 203 to 208 ms | | about 965,000 vs 100,000 |
 
 Why the plain join lost: Postgres drove from the 242 active scope generations and
 read every observed service of each through the generic kinds index (40,006 rows
@@ -71,9 +79,23 @@ discarded 4.1 million rows in a join filter; materializing the candidates once
 removed it. The routing read returned the expected 8 rows (the applied and
 observed facts of the two correlated services, two of each).
 
+Retention changed the source-only shape. The first shipped shape read every
+non-tombstoned correlation fact of the kind and joined to the active generation
+afterwards, so its cost grew with the retained generations: 931,766 shared
+buffers at 24 retained generations against 165,605 at three, a reviewer's
+finding the original three-generation proof could not show. The shipped shape
+walks the active scope generations and probes each by `(scope_id, generation_id,
+fact_kind)` through `fact_records_scope_generation_idx`, so only active-generation
+correlations are read and the cost no longer depends on retention. Both shapes
+returned the same count (59,763) on the second database. The figure for the
+routing read on this corpus is 85 buffers; the 2,070 above is from the earlier
+shim, which I could not reproduce on the committed proof's corpus, so treat it
+as a shim figure.
+
 The source-only count costs about 14 to 40 ms more at 17,145 admissible
-correlations. It runs only when the story found no evidence. The added cost is
-set by the number of admissible correlations; it was measured at that one count.
+active correlations. It runs only when the story found no evidence. The added
+cost is set by the number of active admissible correlations; it was measured at
+that one count.
 
 Worst case, measured by the reviewer on a smaller database (340,000 rows,
 generic plan): a repository correlated to 300 provider services, with 20
@@ -81,11 +103,11 @@ retained correlation generations, 50 retained observed generations and five by
 20 retained applied generations, took 29.7 ms and 30,161 buffers, against 235
 buffers for a two-service repository on the same database. The routing read
 scales with correlated services times retained generations, because each fenced
-probe fetches every generation of a service before the active-generation join,
-and the source-only correlation set scans every non-tombstoned admissible
-correlation fact of every generation. Both stay within a story read's budget at
-the measured shapes; they would need an active-generation-first probe or an
-index that carries the generation if retention grows well past 50 generations.
+probe fetches every generation of a service before the active-generation join.
+It stays within a story read's budget at the measured shapes; it would need an
+active-generation-first probe or an index that carries the generation if
+retention grows well past 50 generations. The source-only correlation set no
+longer scales with retention (see above).
 
 No new migration: the three probes use the partial indexes migration 003
 already carries (`fact_records_incident_repository_correlation_service_idx`,
@@ -103,7 +125,7 @@ seeds the corpus above and asserts, in custom and generic plans, that the
 routing read uses the three indexes with the key as an index condition, stays
 under 10,000 shared buffers, probes only the correlation index for an
 uncorrelated repository, and that the source-only count still uses migration
-123's index under 250,000 buffers.
+123's index under 200,000 buffers with 24 retained generations of correlations.
 
 Correlation truth: `TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive`
 (set `ESHU_POSTGRES_DSN`) seeds every fact from a production writer, the
@@ -130,8 +152,8 @@ cd go && ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=postgres://.../postgres ESHU
 ```
 
 Observability Evidence: the Postgres read keeps the existing `postgres.query`
-span, operation `list_service_story_target_support`, now covering up to two
-bounded statements. The repository story `target_support` stage event and the
+span, operation `list_service_story_target_support`, now covering up to three
+bounded statements on one read-only snapshot. The repository story `target_support` stage event and the
 service story `support_target_evidence` stage event gain
 `target_support_incident_routing_count`, so an operator can see whether a story
 carries routing evidence without reading the payload. No collector, reducer

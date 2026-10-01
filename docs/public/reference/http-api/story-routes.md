@@ -196,9 +196,9 @@ failed.
 
 Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
 statement served by the existing migration 003 indexes (no new migration), and
-the source-only count carries the correlation set. At about one million facts the
-routing read measures 3.2 ms custom and 1.0 ms generic, 0.1 ms for a repository
-with no correlation, and the source-only count 81 to 85 ms against 41 to 71 ms.
+the source-only count carries the correlation set, read per active generation. At
+about one million facts and 24 retained generations the routing read measures
+0.4 ms custom and 0.2 ms generic, and the source-only count 75 to 230 ms.
 The measurements, rejected shapes and proof commands are in
 `docs/internal/evidence/7463-story-target-support-incident-routing.md`.
 

@@ -104,14 +104,14 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 		// Unlinked, active and not tombstoned: the ambiguous (pc), hostile
 		// ambiguous provenance-only (ph), exact provenance-only (pi), unresolved
 		// (pj), superseded-correlation (pe), uncorrelated (pf), other-provider (pg)
-		// repository-less exact (pk) and whitespace-repository exact (pl, pm) observed
+		// repository-less exact (pk) and whitespace-repository exact (pl, pm, pn) observed
 		// services, the team-class applied resource, and the coverage
 		// warning. pa, pb and pd2 are linked to some repository and R's Jira link is
 		// linked, so none of those is source-only.
 		for key, want := range map[string]int{
-			"source_only_count":                  12,
+			"source_only_count":                  13,
 			"work_item_source_only_count":        0,
-			"incident_routing_source_only_count": 12,
+			"incident_routing_source_only_count": 13,
 		} {
 			if got := IntVal(coverage, key); got != want {
 				t.Fatalf("coverage.%s = %d, want %d; coverage = %#v", key, got, want, coverage)
@@ -247,6 +247,7 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 	observed("f-obs-pk", "PK", "g-pd", at, false)
 	observed("f-obs-pl", "PL", "g-pd", at, false)
 	observed("f-obs-pm", "PM", "g-pd", at, false)
+	observed("f-obs-pn", "PN", "g-pd", at, false)
 	observed("f-obs-pa-tomb", "PA", "g-pd", at, true)
 	observed("f-obs-pa-old", "PA", "g-pd-old", at, false)
 
@@ -290,6 +291,9 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 		// can ever read these, and they must stay source-only too.
 		{Provider: "pagerduty", ProviderServiceID: "PL", RepositoryID: "  ", Outcome: incident.IncidentRepositoryCorrelationExact},
 		{Provider: "pagerduty", ProviderServiceID: "PM", RepositoryID: " " + repoID + " ", Outcome: incident.IncidentRepositoryCorrelationExact},
+		// A no-break space (U+00A0, bytes C2 A0) is whitespace to strings.TrimSpace,
+		// which trims the story target, but not to an ASCII-only btrim.
+		{Provider: "pagerduty", ProviderServiceID: "PN", RepositoryID: "\xc2\xa0" + repoID + "\xc2\xa0", Outcome: incident.IncidentRepositoryCorrelationExact},
 	})
 	writeCorrelations(ctx, t, db, "g-tf-old", at, []incident.IncidentRepositoryCorrelationDecision{
 		{Provider: "pagerduty", ProviderServiceID: "PE", RepositoryID: repoID, Outcome: incident.IncidentRepositoryCorrelationExact},

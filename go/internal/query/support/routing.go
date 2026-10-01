@@ -42,12 +42,20 @@ func ObservedServiceKey(alias string) string {
 	return "COALESCE(NULLIF(" + alias + ".payload->>'provider_object_id', ''), " + alias + ".payload->>'service_id', '')"
 }
 
+// repositoryIDTrimSet is the btrim character set of the repository-id check in
+// admissibleCorrelationFilter. It spells unicode.IsSpace, the set
+// strings.TrimSpace trims off a story target, so an id with any surrounding
+// whitespace that no trimmed target can equal never counts as a link. It is the
+// same set migration 153 and storage/postgres use to trim a purl.
+const repositoryIDTrimSet = `E' \t\n\u000b\f\r\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000'`
+
 // admissibleCorrelationFilter keeps the reducer correlation facts the read may
 // join through: an exact or derived decision that is not provenance-only, made
 // for PagerDuty, naming a repository and carrying a provider service id. A
 // repository-less decision cannot link any repository's story, and neither can one
-// whose stored repository id has surrounding whitespace (the writer persists the
-// id unchanged, while story targets are trimmed before the exact match), so
+// whose stored repository id has surrounding whitespace of any kind
+// strings.TrimSpace trims (the writer persists the id unchanged, while story
+// targets are trimmed before the exact match), so
 // neither may count a service as linked in the source-only count. It mirrors
 // storage/postgres/service_incident_evidence_loader.go, and a correlation from
 // another provider that reuses an id never links a PagerDuty fact.
@@ -55,7 +63,7 @@ func admissibleCorrelationFilter(alias string) string {
 	return `    AND ` + alias + `.payload->>'provenance_only' = 'false'
     AND ` + alias + `.payload->>'outcome' IN ('exact', 'derived')
     AND NULLIF(` + alias + `.payload->>'repository_id', '') IS NOT NULL
-    AND ` + alias + `.payload->>'repository_id' = btrim(` + alias + `.payload->>'repository_id', E' \t\r\n\f\v')
+    AND ` + alias + `.payload->>'repository_id' = btrim(` + alias + `.payload->>'repository_id', ` + repositoryIDTrimSet + `)
     AND COALESCE(NULLIF(` + alias + `.payload->>'provider', ''), '` + pagerDutyProvider + `') = '` + pagerDutyProvider + `'`
 }
 
@@ -180,18 +188,23 @@ const routedFactColumns = `fact.fact_id,
 // filter (1.3 to 1.7 s at one million facts, against 41 to 85 ms materialized).
 func AdmissibleCorrelationsSQL() string {
 	return `WITH correlation_candidates AS MATERIALIZED (
-  SELECT corr.scope_id, corr.generation_id, corr.payload->>'provider_service_id' AS provider_service_id
-  FROM fact_records AS corr
-  WHERE corr.fact_kind = '` + IncidentCorrelationKind + `'
-    AND corr.is_tombstone = FALSE
+  SELECT corr.payload->>'provider_service_id' AS provider_service_id
+  FROM ingestion_scopes AS cscope
+  JOIN scope_generations AS cgen
+    ON cgen.scope_id = cscope.scope_id AND cgen.generation_id = cscope.active_generation_id AND cgen.status = 'active'
+  CROSS JOIN LATERAL (
+    SELECT corr.payload
+    FROM fact_records AS corr
+    WHERE corr.scope_id = cscope.scope_id
+      AND corr.generation_id = cscope.active_generation_id
+      AND corr.fact_kind = '` + IncidentCorrelationKind + `'
+      AND corr.is_tombstone = FALSE
 ` + admissibleCorrelationFilter("corr") + `
+    OFFSET 0
+  ) AS corr
 ), ` + AdmissibleCorrelationsCTE + ` AS MATERIALIZED (
   SELECT DISTINCT cand.provider_service_id
   FROM correlation_candidates AS cand
-  JOIN ingestion_scopes AS cscope
-    ON cscope.scope_id = cand.scope_id AND cscope.active_generation_id = cand.generation_id
-  JOIN scope_generations AS cgen
-    ON cgen.scope_id = cand.scope_id AND cgen.generation_id = cand.generation_id AND cgen.status = 'active'
   WHERE NULLIF(cand.provider_service_id, '') IS NOT NULL
 )`
 }

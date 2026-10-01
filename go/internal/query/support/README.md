@@ -43,8 +43,10 @@ package.
   million facts (30 to 64 ms); the shipped shape reads about 2,000 (1 to 3 ms).
   Keep each `OFFSET 0` and the LATERAL probes; see
   `docs/internal/evidence/7463-story-target-support-incident-routing.md`.
-- The source-only correlation set is `MATERIALIZED`, and the predicate is an
-  uncorrelated `IN (SELECT ...)`. A per-row `EXISTS`, or candidates folded into
+- The source-only correlation set is `MATERIALIZED`, is read per active
+  scope generation through `fact_records_scope_generation_idx` (never every
+  retained generation of the kind: 932,000 buffers at 24 retained generations
+  against 115,000), and the predicate is an uncorrelated `IN (SELECT ...)`. A per-row `EXISTS`, or candidates folded into
   the join, measured 1.3 to 1.7 s against 85 ms.
 - The predicate is two-valued because it sits under `NOT`; keep the
   `COALESCE(key, '')` on the applied key.

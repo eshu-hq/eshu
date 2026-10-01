@@ -5,8 +5,10 @@ package support
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 func TestIncidentRoutingSQLIsClosedForABlankRepository(t *testing.T) {
@@ -92,11 +94,20 @@ func TestAdmissibleCorrelationsSQLComputesTheCandidatesOnce(t *testing.T) {
 		"cgen.status = 'active'",
 		"NULLIF(cand.provider_service_id, '') IS NOT NULL",
 		"NULLIF(corr.payload->>'repository_id', '') IS NOT NULL",
-		"corr.payload->>'repository_id' = btrim(corr.payload->>'repository_id', E' \\t\\r\\n\\f\\v')",
+		"corr.payload->>'repository_id' = btrim(corr.payload->>'repository_id', " + repositoryIDTrimSet + ")",
+		// The candidates are read from each active generation by its own scope,
+		// generation and kind, never from every retained generation of the kind.
+		"FROM ingestion_scopes AS cscope",
+		"corr.scope_id = cscope.scope_id",
+		"corr.generation_id = cscope.active_generation_id",
+		"OFFSET 0",
 	} {
 		if !strings.Contains(query, want) {
 			t.Errorf("AdmissibleCorrelationsSQL missing %q:\n%s", want, query)
 		}
+	}
+	if strings.Contains(query, "SELECT corr.scope_id, corr.generation_id") {
+		t.Errorf("AdmissibleCorrelationsSQL materializes the correlations of every retained generation before its active-generation join:\n%s", query)
 	}
 	if strings.Contains(query, "repository_id = ") || strings.Contains(query, "repository_id IN") {
 		t.Errorf("AdmissibleCorrelationsSQL is the set of every correlated service and must not filter on one repository:\n%s", query)
@@ -199,6 +210,57 @@ func TestIsRoutingFactNamesOnlyTheTwoLinkableKinds(t *testing.T) {
 	} {
 		if got := IsRoutingFact(kind); got != want {
 			t.Errorf("IsRoutingFact(%q) = %v, want %v", kind, got, want)
+		}
+	}
+}
+
+// TestRepositoryIDTrimSetMatchesGoTrimSpace pins the btrim set of the
+// repository-id check to unicode.IsSpace, the set strings.TrimSpace trims off a
+// story target. A narrower set lets a correlation whose id has surrounding
+// whitespace Go trims, such as a no-break space, count a service as linked while
+// no story can ever read it.
+func TestRepositoryIDTrimSetMatchesGoTrimSpace(t *testing.T) {
+	t.Parallel()
+
+	literal := strings.TrimSuffix(strings.TrimPrefix(repositoryIDTrimSet, "E'"), "'")
+	if literal == repositoryIDTrimSet {
+		t.Fatalf("repositoryIDTrimSet = %q, want an E'...' literal", repositoryIDTrimSet)
+	}
+	got := map[rune]bool{}
+	for i := 0; i < len(literal); {
+		if literal[i] != '\\' {
+			r := []rune(literal[i:])[0]
+			got[r] = true
+			i += len(string(r))
+			continue
+		}
+		switch literal[i+1] {
+		case 't':
+			got['\t'] = true
+			i += 2
+		case 'n':
+			got['\n'] = true
+			i += 2
+		case 'f':
+			got['\f'] = true
+			i += 2
+		case 'r':
+			got['\r'] = true
+			i += 2
+		case 'u':
+			code, err := strconv.ParseUint(literal[i+2:i+6], 16, 32)
+			if err != nil {
+				t.Fatalf("bad unicode escape at %d of %q: %v", i, literal, err)
+			}
+			got[rune(code)] = true
+			i += 6
+		default:
+			t.Fatalf("unhandled escape %q at %d of %q", literal[i:i+2], i, literal)
+		}
+	}
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if unicode.IsSpace(r) != got[r] {
+			t.Errorf("U+%04X: unicode.IsSpace = %v, repositoryIDTrimSet has it = %v", r, unicode.IsSpace(r), got[r])
 		}
 	}
 }

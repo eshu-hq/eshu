@@ -27,9 +27,12 @@ const (
 	// regression to it without being a timing assertion.
 	incidentRoutingBufferBound = 10_000
 	// sourceOnlyBufferBound is the ceiling for the source-only count with the
-	// routing half. The materialized shape measures about 166,000 hits (81 to
-	// 85 ms); the per-scope rescan measured about 382,000 (1.3 to 1.7 s).
-	sourceOnlyBufferBound = 250_000
+	// routing half, at the 24 retained generations the default retention policy
+	// keeps. Reading the correlations per active generation measures about
+	// 115,000 hits; reading every generation of the kind and joining to the active
+	// one afterwards measured about 932,000, and the per-scope rescan about 382,000
+	// at three generations (1.3 to 1.7 s).
+	sourceOnlyBufferBound = 200_000
 )
 
 // TestServiceStoryIncidentRoutingUsesLookupIndexesLive is the #7463 plan proof,
@@ -115,7 +118,7 @@ func TestServiceStoryIncidentRoutingUsesLookupIndexesLive(t *testing.T) {
 			t.Fatalf("source-only/%s: plan did not use %s: indexes=%v", mode, storySupportKindsIndexName, plan.indexNames())
 		}
 		if plan.sharedHit+plan.sharedRead > sourceOnlyBufferBound {
-			t.Fatalf("source-only/%s: %d shared buffers, want under %d; the correlation set is being rescanned per scope", mode, plan.sharedHit+plan.sharedRead, sourceOnlyBufferBound)
+			t.Fatalf("source-only/%s: %d shared buffers, want under %d; the correlation set is being rescanned per scope or read across every retained generation", mode, plan.sharedHit+plan.sharedRead, sourceOnlyBufferBound)
 		}
 		t.Logf("STORY_SUPPORT_PLAN source-only %s ms=%.2f buffers=hit:%d/read:%d", mode, plan.executionMS, plan.sharedHit, plan.sharedRead)
 	}
@@ -188,6 +191,25 @@ VALUES
   '{"provider":"pagerduty","provider_service_id":"PTARGET1","repository_id":"repo-x","outcome":"derived","provenance_only":"false"}'::jsonb),
  ('corr:x3', 'scope:pd:1', 'gen:pd:1:3', 'reducer_incident_repository_correlation', 'corr:x3', 'reducer', 'reducer', 'corr:x3', clock_timestamp(), clock_timestamp(),
   '{"provider":"pagerduty","provider_service_id":"PTARGET2","repository_id":"repo-x","outcome":"ambiguous","provenance_only":"true"}'::jsonb)`,
+		// The default retention policy keeps 24 generations of a scope, and the
+		// reducer decides every correlation again for each of them. Retain 21 more
+		// superseded generations of every PagerDuty scope, each carrying all 20,000
+		// correlation facts again, so the source-only count meets the correlation
+		// history a deployment really holds (docs/internal/design/2248).
+		`
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+SELECT 'gen:pd:' || s || ':r' || k, 'scope:pd:' || s, 'proof', clock_timestamp(), clock_timestamp(), 'superseded', clock_timestamp()
+FROM generate_series(1, 40) AS s, generate_series(1, 21) AS k`, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, collector_kind,
+                          source_system, source_fact_key, observed_at, ingested_at, payload)
+SELECT 'corr:' || n || ':r' || k, 'scope:pd:' || (1 + n % 20), 'gen:pd:' || (1 + n % 20) || ':r' || k,
+       'reducer_incident_repository_correlation',
+       'corr:' || n || ':r' || k, 'reducer', 'reducer', 'corr:' || n || ':r' || k, clock_timestamp(), clock_timestamp(),
+       jsonb_build_object('provider', 'pagerduty', 'provider_service_id', 'PSVC' || n,
+                          'repository_id', 'repo-' || (n % 5000),
+                          'outcome', CASE WHEN n % 7 = 0 THEN 'ambiguous' WHEN n % 2 = 0 THEN 'exact' ELSE 'derived' END,
+                          'provenance_only', (n % 7 = 0)::text)
+FROM generate_series(1, 20000) AS n, generate_series(1, 21) AS k`,
 		`ANALYZE fact_records`,
 	}
 	for _, s := range stmts {
