@@ -249,6 +249,28 @@ anchor-matching recording on any backend fails as `stale-exemption`,
 naming the callsite plus the anchor (one callsite may hold several
 exemptions, so the anchor tells the operator which one rotted).
 
+No-Regression Evidence (#7233): attribution costs nothing on the served
+path and milliseconds per capture leg. With capture disabled
+`WrapGraphQuery` returns the inner query unwrapped, so served reads pay
+no attribution work: `BenchmarkDisabledPassthroughWrapped` 2.1 ns/op vs
+`BenchmarkDisabledPassthroughBare` 0.5 ns/op on Apple M4 Pro (the delta
+is one interface dispatch plus the capture-enabled check).
+Under capture (CI differential legs only) `BenchmarkRecordCallsite`
+measures ~0.77 us per recorded read for the `runtime.Callers` walk plus
+receiver canonicalization; the local B-7 neo4j capture held 3,134
+records, i.e. ~2.4 ms of attribution per leg against the 150-minute
+differential budget. The offline statement-coverage phase over those
+captures completes in 2.2 s wall (including `go run` startup) with a
+PASS verdict. The identity path is new in this change, so there is no
+old-identity baseline to compare against; the production comparison is
+structural (passthrough unchanged) and the leg comparison is budgetary
+(milliseconds).
+
+No-Observability-Change: no new metrics, spans, or log keys; the
+callsite travels only inside capture records, and the gate's signal set
+is unchanged (stale-exemption IDs now carry the anchor, which is
+failure-string content, not a new signal).
+
 A same-parameter sibling read is judged as one read. When a handler issues
 one single-label `MATCH (v:Label)` per candidate label with byte-identical
 parameters, either a first-hit-wins dispatch (label disjunctions return

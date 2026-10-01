@@ -227,6 +227,41 @@ func TestCallsiteIdentityCanonicalizesValueReceiver(t *testing.T) {
 	}
 }
 
+// BenchmarkDisabledPassthroughWrapped and BenchmarkDisabledPassthroughBare
+// are the production no-regression proof for capture attribution (#7233):
+// with capture disabled WrapGraphQuery returns the inner query unwrapped,
+// so a served read must pay no attribution work. The wrapped-vs-bare delta
+// must stay at noise level; recordCallsite (below) never runs here.
+func BenchmarkDisabledPassthroughWrapped(b *testing.B) {
+	inner := stubDifferentialGraphQuery{rows: []map[string]any{{"n": 1}}}
+	wrapped := WrapGraphQuery(inner, NewDifferentialRecorder(), "neo4j")
+	ctx := context.Background()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = wrapped.Run(ctx, "MATCH (n) RETURN n", nil)
+	}
+}
+
+func BenchmarkDisabledPassthroughBare(b *testing.B) {
+	inner := stubDifferentialGraphQuery{rows: []map[string]any{{"n": 1}}}
+	ctx := context.Background()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = inner.Run(ctx, "MATCH (n) RETURN n", nil)
+	}
+}
+
+// BenchmarkRecordCallsite bounds the per-read attribution cost added under
+// capture (#7233): one runtime.Callers walk plus receiver canonicalization.
+// Capture runs only on CI differential legs, so this is a leg-budget check
+// (microseconds per read against thousands of reads per leg), not a
+// production latency claim — production never calls this function.
+func BenchmarkRecordCallsite(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = recordCallsite()
+	}
+}
+
 // (f) capture smoke: WrapGraphQuery records the direct caller's builder
 // identity (first non-infra frame wins): through a helper it names the
 // helper, called directly it names the test function itself.
