@@ -95,8 +95,22 @@ func TestReadSnapshotSetSharesOneSnapshot(t *testing.T) {
 	if got := access.reader.Stats().InUse; got != 0 {
 		t.Fatalf("canceled active set leaked %d readers", got)
 	}
-	if err := set.Close(); err != nil {
-		t.Fatalf("close after request cancellation: %v", err)
+	// database/sql may race the cancellation callback's Rollback. The first
+	// closer can report context cancellation or ErrTxDone even though every
+	// physical reader was released; unrelated terminal errors still fail.
+	closeErr := set.Close()
+	for i, reader := range set.(*readSnapshotSet).readers {
+		if reader.err == nil {
+			continue
+		}
+		var terminal privateError
+		if !errors.As(reader.err, &terminal) ||
+			(!errors.Is(terminal.cause, context.Canceled) && !errors.Is(terminal.cause, sql.ErrTxDone)) {
+			t.Fatalf("reader %d canceled terminal cause: %v", i, reader.err)
+		}
+	}
+	if again := set.Close(); again != closeErr {
+		t.Fatalf("repeated close error = %v, want %v", again, closeErr)
 	}
 }
 
