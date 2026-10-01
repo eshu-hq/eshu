@@ -53,7 +53,7 @@ func (s snapshotReaderStub) CheckStatusReadiness(ctx context.Context) error {
 }
 
 func TestSnapshotStatusReaderCommitsBeforeReturningFullAndFiltered(t *testing.T) {
-	for _, selection := range []status.SnapshotSelection{status.FullSnapshotSelection(), {}} {
+	for _, selection := range []status.SnapshotSelection{status.FullSnapshotSelection(), {}, status.SemanticOnlySnapshotSelection()} {
 		tx := &snapshotTxStub{}
 		begins, factories := 0, 0
 		store := snapshotBeginStub{begin: func(ctx context.Context) (db.ReadTransaction, error) {
@@ -121,19 +121,30 @@ func TestSnapshotStatusReaderPreservesReadAndTerminalFaults(t *testing.T) {
 }
 
 func TestSnapshotStatusReaderCancelCannotReturnSuccess(t *testing.T) {
-	tx := &snapshotTxStub{}
-	parent, cancel := context.WithCancel(context.Background())
-	reader := NewSnapshotStatusReader(snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) { return tx, nil }},
-		func(db.Queryer) status.Reader {
-			return snapshotReaderStub{read: func(context.Context, status.SnapshotSelection) (status.RawSnapshot, error) {
-				cancel()
-				return status.RawSnapshot{AsOf: time.Now()}, nil
-			}}
-		},
-		noop.NewTracerProvider().Tracer("test"))
-	raw, err := reader.ReadStatusSnapshot(parent, time.Now())
-	if !errors.Is(err, context.Canceled) || !raw.AsOf.IsZero() || tx.commits != 0 || tx.rollbacks != 1 {
-		t.Fatalf("raw=%v err=%v commit=%d rollback=%d", raw.AsOf, err, tx.commits, tx.rollbacks)
+	for _, tc := range []struct {
+		name      string
+		selection status.SnapshotSelection
+	}{
+		{"full", status.FullSnapshotSelection()},
+		{"filtered", status.SnapshotSelection{}},
+		{"semantic", status.SemanticOnlySnapshotSelection()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tx := &snapshotTxStub{}
+			parent, cancel := context.WithCancel(context.Background())
+			reader := NewSnapshotStatusReader(snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) { return tx, nil }},
+				func(db.Queryer) status.Reader {
+					return snapshotReaderStub{read: func(context.Context, status.SnapshotSelection) (status.RawSnapshot, error) {
+						cancel()
+						return status.RawSnapshot{AsOf: time.Now()}, nil
+					}}
+				},
+				noop.NewTracerProvider().Tracer("test"))
+			raw, err := reader.ReadStatusSnapshotFiltered(parent, time.Now(), tc.selection)
+			if !errors.Is(err, context.Canceled) || !raw.AsOf.IsZero() || tx.commits != 0 || tx.rollbacks != 1 {
+				t.Fatalf("raw=%v err=%v commit=%d rollback=%d", raw.AsOf, err, tx.commits, tx.rollbacks)
+			}
+		})
 	}
 }
 
@@ -149,17 +160,28 @@ func (s cancelOnCommitSnapshotTx) Commit() error {
 }
 
 func TestSnapshotStatusReaderCancelAfterCommitCannotReturnSuccess(t *testing.T) {
-	parent, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	tx := cancelOnCommitSnapshotTx{snapshotTxStub: &snapshotTxStub{}, cancel: cancel}
-	reader := NewSnapshotStatusReader(snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) { return tx, nil }},
-		func(db.Queryer) status.Reader {
-			return snapshotReaderStub{read: func(context.Context, status.SnapshotSelection) (status.RawSnapshot, error) {
-				return status.RawSnapshot{AsOf: time.Now()}, nil
-			}}
-		}, nil)
-	raw, err := reader.ReadStatusSnapshot(parent, time.Now())
-	if !errors.Is(err, context.Canceled) || !raw.AsOf.IsZero() || tx.commits != 1 || tx.rollbacks != 0 {
-		t.Fatalf("raw=%v err=%v commit=%d rollback=%d", raw.AsOf, err, tx.commits, tx.rollbacks)
+	for _, tc := range []struct {
+		name      string
+		selection status.SnapshotSelection
+	}{
+		{"full", status.FullSnapshotSelection()},
+		{"filtered", status.SnapshotSelection{}},
+		{"semantic", status.SemanticOnlySnapshotSelection()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			tx := cancelOnCommitSnapshotTx{snapshotTxStub: &snapshotTxStub{}, cancel: cancel}
+			reader := NewSnapshotStatusReader(snapshotBeginStub{begin: func(context.Context) (db.ReadTransaction, error) { return tx, nil }},
+				func(db.Queryer) status.Reader {
+					return snapshotReaderStub{read: func(context.Context, status.SnapshotSelection) (status.RawSnapshot, error) {
+						return status.RawSnapshot{AsOf: time.Now()}, nil
+					}}
+				}, nil)
+			raw, err := reader.ReadStatusSnapshotFiltered(parent, time.Now(), tc.selection)
+			if !errors.Is(err, context.Canceled) || !raw.AsOf.IsZero() || tx.commits != 1 || tx.rollbacks != 0 {
+				t.Fatalf("raw=%v err=%v commit=%d rollback=%d", raw.AsOf, err, tx.commits, tx.rollbacks)
+			}
+		})
 	}
 }

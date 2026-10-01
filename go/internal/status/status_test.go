@@ -87,6 +87,7 @@ func TestLoadReportPropagatesReaderErrors(t *testing.T) {
 }
 
 type fakeReader struct {
+	selection    status.SnapshotSelection
 	snapshot     status.RawSnapshot
 	err          error
 	readinessErr error
@@ -109,8 +110,9 @@ func (r *fakeReader) ReadStatusSnapshot(_ context.Context, asOf time.Time) (stat
 func (r *fakeReader) ReadStatusSnapshotFiltered(
 	ctx context.Context,
 	asOf time.Time,
-	_ status.SnapshotSelection,
+	selection status.SnapshotSelection,
 ) (status.RawSnapshot, error) {
+	r.selection = selection
 	return r.ReadStatusSnapshot(ctx, asOf)
 }
 

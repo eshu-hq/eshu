@@ -84,8 +84,19 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	asOf time.Time,
 	selection statuspkg.SnapshotSelection,
 ) (statuspkg.RawSnapshot, error) {
+	if err := selection.Validate(); err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	if s.queryer == nil {
 		return statuspkg.RawSnapshot{}, fmt.Errorf("queryer is required")
+	}
+	if selection.Mode == statuspkg.SnapshotModeSemanticOnly {
+		q, done := s.read(ctx, statusReadSemanticExtraction)
+		semanticExtraction, err := semanticstore.ReadSemanticExtractionObservability(ctx, q)
+		if err = done(err); err != nil {
+			return statuspkg.RawSnapshot{}, err
+		}
+		return statuspkg.RawSnapshot{AsOf: asOf.UTC(), SemanticExtraction: semanticExtraction}, nil
 	}
 	// Each read is labeled and timed; done records its outcome from the
 	// reader's own error, so scan and decode failures count (#6794).

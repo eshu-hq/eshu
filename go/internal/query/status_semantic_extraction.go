@@ -21,17 +21,15 @@ func (h *StatusHandler) profile() QueryProfile {
 }
 
 func (h *StatusHandler) getSemanticExtractionStatus(w http.ResponseWriter, r *http.Request) {
-	report := status.BuildReport(status.RawSnapshot{}, status.DefaultOptions())
+	semanticStatus := status.SemanticExtractionStatus{}
 	if h != nil && h.StatusReader != nil {
-		loaded, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+		loaded, err := status.LoadSemanticExtractionStatus(r.Context(), h.StatusReader, time.Now())
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 			return
 		}
-		report = loaded
+		semanticStatus = loaded
 	}
-
-	semanticStatus := report.SemanticExtraction
 	WriteSuccess(
 		w,
 		r,

@@ -92,6 +92,19 @@ func LoadReport(ctx context.Context, reader Reader, asOf time.Time, opts Options
 	return BuildReport(raw, opts), nil
 }
 
+// LoadSemanticExtractionStatus reads only the semantic section. It never
+// projects a partial RawSnapshot as a full operator health report.
+func LoadSemanticExtractionStatus(ctx context.Context, reader Reader, asOf time.Time) (SemanticExtractionStatus, error) {
+	if reader == nil {
+		return SemanticExtractionStatus{}, fmt.Errorf("status reader is required")
+	}
+	raw, err := reader.ReadStatusSnapshotFiltered(ctx, asOf.UTC(), SemanticOnlySnapshotSelection())
+	if err != nil {
+		return SemanticExtractionStatus{}, fmt.Errorf("read status snapshot: %w", err)
+	}
+	return semantic.NormalizeExtractionStatus(raw.SemanticExtraction), nil
+}
+
 // BuildReport projects one raw substrate snapshot into an operator-facing
 // report.
 func BuildReport(raw RawSnapshot, opts Options) Report {
