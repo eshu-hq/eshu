@@ -92,6 +92,7 @@ func TestAdmissibleCorrelationsSQLComputesTheCandidatesOnce(t *testing.T) {
 		"cgen.status = 'active'",
 		"NULLIF(cand.provider_service_id, '') IS NOT NULL",
 		"NULLIF(corr.payload->>'repository_id', '') IS NOT NULL",
+		"corr.payload->>'repository_id' = btrim(corr.payload->>'repository_id', E' \\t\\r\\n\\f\\v')",
 	} {
 		if !strings.Contains(query, want) {
 			t.Errorf("AdmissibleCorrelationsSQL missing %q:\n%s", want, query)

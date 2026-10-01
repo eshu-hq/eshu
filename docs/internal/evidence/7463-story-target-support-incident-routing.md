@@ -14,9 +14,10 @@ A PagerDuty applied service (`incident_routing.applied_pagerduty_resource`,
 through `reducer_incident_repository_correlation`: `outcome IN ('exact',
 'derived')`, `provenance_only = false`, provider `pagerduty`, a non-blank
 `provider_service_id`, on an active generation, with `repository_id` equal to the
-target. A correlation with a blank `repository_id` is not admissible for the
-source-only count either: no repository's story can ever read it, so counting its
-service as linked would hide it from both sides. This mirrors `storage/postgres/service_incident_evidence_loader.go`.
+target. A correlation with a blank `repository_id`, or one stored with surrounding
+whitespace, is not admissible for the source-only count either: no repository's
+story can ever read it (story targets are trimmed before the exact match), so
+counting its service as linked would hide it from both sides. This mirrors `storage/postgres/service_incident_evidence_loader.go`.
 
 Not linked, and so source-only: `incident_routing.coverage_warning` (no anchor),
 an applied resource of any class but `service`, and a service whose id has no

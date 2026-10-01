@@ -104,13 +104,14 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 		// Unlinked, active and not tombstoned: the ambiguous (pc), hostile
 		// ambiguous provenance-only (ph), exact provenance-only (pi), unresolved
 		// (pj), superseded-correlation (pe), uncorrelated (pf), other-provider (pg)
-		// and repository-less exact (pk) observed services, the team-class applied resource, and the coverage
+		// repository-less exact (pk) and whitespace-repository exact (pl, pm) observed
+		// services, the team-class applied resource, and the coverage
 		// warning. pa, pb and pd2 are linked to some repository and R's Jira link is
 		// linked, so none of those is source-only.
 		for key, want := range map[string]int{
-			"source_only_count":                  10,
+			"source_only_count":                  12,
 			"work_item_source_only_count":        0,
-			"incident_routing_source_only_count": 10,
+			"incident_routing_source_only_count": 12,
 		} {
 			if got := IntVal(coverage, key); got != want {
 				t.Fatalf("coverage.%s = %d, want %d; coverage = %#v", key, got, want, coverage)
@@ -244,6 +245,8 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 	observed("f-obs-pf", "PF", "g-pd", at, false)
 	observed("f-obs-pg", "PG", "g-pd", at, false)
 	observed("f-obs-pk", "PK", "g-pd", at, false)
+	observed("f-obs-pl", "PL", "g-pd", at, false)
+	observed("f-obs-pm", "PM", "g-pd", at, false)
 	observed("f-obs-pa-tomb", "PA", "g-pd", at, true)
 	observed("f-obs-pa-old", "PA", "g-pd-old", at, false)
 
@@ -282,6 +285,11 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 		// it as given, no repository read can return it, and it must not hide the
 		// service from the source-only count either.
 		{Provider: "pagerduty", ProviderServiceID: "PK", Outcome: incident.IncidentRepositoryCorrelationExact},
+		// A repository id the writer stored with surrounding whitespace, or only
+		// whitespace: story targets are trimmed before the exact match, so no story
+		// can ever read these, and they must stay source-only too.
+		{Provider: "pagerduty", ProviderServiceID: "PL", RepositoryID: "  ", Outcome: incident.IncidentRepositoryCorrelationExact},
+		{Provider: "pagerduty", ProviderServiceID: "PM", RepositoryID: " " + repoID + " ", Outcome: incident.IncidentRepositoryCorrelationExact},
 	})
 	writeCorrelations(ctx, t, db, "g-tf-old", at, []incident.IncidentRepositoryCorrelationDecision{
 		{Provider: "pagerduty", ProviderServiceID: "PE", RepositoryID: repoID, Outcome: incident.IncidentRepositoryCorrelationExact},
