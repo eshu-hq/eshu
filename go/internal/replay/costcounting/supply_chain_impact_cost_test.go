@@ -36,7 +36,8 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // chunked bulk insert (issue #5317), so two findings fit in one 1000-row
 // chunk and cost one insert round-trip. #6831 wraps that insert in a
 // transaction with a conflict-domain lock before it and a superseded-finding
-// retraction after it, so one pass costs exactly three statements.
+// retraction after it (and #7142 adds a fencing-token admission step), so one pass costs
+// exactly four statements: lock, admission, insert, retraction.
 func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {
 	row := func(id string) reducer.SupplyChainImpactFinding {
 		return reducer.SupplyChainImpactFinding{
