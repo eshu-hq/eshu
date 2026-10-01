@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"os"
 	"testing"
 	"time"
 
@@ -39,33 +38,19 @@ import (
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres -run RefinalizeRebuildReset -count=1
 
-// refinalizeRebuildResetLiveDB opens the DSN-gated database and applies the
-// bootstrap schema, skipping when no DSN is configured. Schema setup and the
-// proof get separate deadlines so one-time DDL cannot spend the proof's budget.
+// refinalizeRebuildResetLiveDB opens the DSN-gated database on a schema of its
+// own with the bootstrap applied, skipping when no DSN is configured. Schema
+// setup and the proof get separate deadlines so one-time DDL cannot spend the
+// proof's budget.
+//
+// The proofs claim, ack, replay and reopen work, and each of those acts on every
+// matching row in the schema. On the shared schema they picked up rows earlier
+// tests and earlier runs left behind, so whether a proof passed depended on how
+// much history the database held (#7489).
 func refinalizeRebuildResetLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
-
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the #4594 refinalize rebuild-reset proofs")
-	}
-
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	schemaCtx, cancelSchema := context.WithTimeout(context.Background(), 5*time.Minute)
-	err = ApplyBootstrap(schemaCtx, SQLDB{DB: db})
-	cancelSchema()
-	if err != nil {
-		t.Fatalf("apply bootstrap schema: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	t.Cleanup(cancel)
-	return db, ctx
+	return openIsolatedLiveDB(t, "refinalize_reset",
+		"set ESHU_POSTGRES_DSN to run the #4594 refinalize rebuild-reset proofs")
 }
 
 // refinalizeResetScope seeds one scope plus two generations: the active one a

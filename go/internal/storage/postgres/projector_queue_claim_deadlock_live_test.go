@@ -168,7 +168,11 @@ func openClaimDeadlockProofDB(t *testing.T, dsn string, conns int) *sql.DB {
 		_, _ = admin.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = admin.Close()
 	})
-	pool, err := sql.Open("pgx", withDSNParam(dsn, "search_path="+schemaName))
+	// public stays on the path so the pg_trgm operator classes the content-entity
+	// index bootstrap names still resolve once any other bootstrap has installed
+	// the extension there. The proof schema comes first, so every unqualified
+	// table still resolves to this schema's own copy (#7489).
+	pool, err := sql.Open("pgx", withDSNParam(dsn, "search_path="+schemaName+",public"))
 	if err != nil {
 		t.Fatalf("open proof pool: %v", err)
 	}

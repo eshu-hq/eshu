@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"os"
 	"testing"
 	"time"
 
@@ -18,45 +17,25 @@ import (
 
 const workflowControlIntegrationDSNEnv = "ESHU_POSTGRES_DSN"
 
+// openWorkflowControlIntegrationStore opens a WorkflowControlStore over a schema
+// of its own, with the full bootstrap applied, and skips when no DSN is set.
+//
+// These proofs create runs, work items and scope generations under fixed ids and
+// read reducer rows back. On the shared schema a rerun hit the previous run's
+// generation ("generation already published or terminal") and only passed
+// because the dead-letter bridge tests, which sort earlier, emptied the shared
+// reducer tables first, which also wiped the eshu:global anchor migrations 115
+// and 116 seed (#7489). A schema per proof has no stale fixture rows and leaves
+// the shared schema alone.
 func openWorkflowControlIntegrationStore(t *testing.T) (*sql.DB, *WorkflowControlStore) {
 	t.Helper()
 
-	dsn := os.Getenv(workflowControlIntegrationDSNEnv)
-	if dsn == "" {
-		t.Skipf("%s is not set; skipping Postgres integration test", workflowControlIntegrationDSNEnv)
-	}
-
-	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v, want nil", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
-	db.SetConnMaxIdleTime(0)
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		t.Fatalf("PingContext() error = %v, want nil", err)
-	}
-
+	db, ctx := openIsolatedLiveDB(t, "workflow_control",
+		workflowControlIntegrationDSNEnv+" is not set; skipping Postgres integration test")
 	store := NewWorkflowControlStore(SQLDB{DB: db})
 	if err := store.EnsureSchema(ctx); err != nil {
-		_ = db.Close()
 		t.Fatalf("EnsureSchema() error = %v, want nil", err)
 	}
-	if _, err := db.ExecContext(ctx, `
-TRUNCATE workflow_claims, workflow_work_items, workflow_runs, collector_instances, workflow_run_completeness
-RESTART IDENTITY CASCADE
-`); err != nil {
-		_ = db.Close()
-		t.Fatalf("TRUNCATE workflow control tables error = %v, want nil", err)
-	}
-
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-
 	return db, store
 }
 
