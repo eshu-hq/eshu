@@ -44,10 +44,11 @@ func buildServiceStoryTargetSupportStatements(
 	return statements
 }
 
-// queryServiceStoryTargetSupportFacts runs each statement and returns the rows
-// newest first. Each statement returns at most limit+1 rows in that order, so
-// the merged list holds the newest limit+1 overall and the caller still sees
-// whether the section was truncated.
+// queryServiceStoryTargetSupportFacts runs each statement and returns their rows
+// merged newest first. Each statement returns at most limit+1 rows in that order,
+// so the newest limit+1 overall are always among the merged rows; the merged list
+// itself can hold up to one such bound per statement, and the caller truncates it
+// to limit and reads a longer list as "the section was truncated".
 func (cr *ContentReader) queryServiceStoryTargetSupportFacts(
 	ctx context.Context,
 	statements []serviceStoryTargetSupportStatement,

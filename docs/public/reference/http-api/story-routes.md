@@ -143,9 +143,9 @@ provider service id: an `exact` or `derived`, non-provenance-only PagerDuty
 decision on an active generation whose `repository_id` is the target (#7463).
 
 - **Repository story:** the active, non-tombstoned `work_item.external_link`
-  facts whose `linked_repository_id` equals the repository id are the evidence.
-  Each Jira row carries `link_basis: "linked_repository"`; each PagerDuty row
-  carries `"incident_repository_correlation"`.
+  facts whose `linked_repository_id` equals the repository id, plus the correlated
+  PagerDuty service facts above, are the evidence. A Jira row carries `link_basis:
+  "linked_repository"`; a PagerDuty row `"incident_repository_correlation"`.
 - **Service story:** the same links are reached through the service's
   repository, but only when the graph shows that repository defining exactly the
   selected workload (one bounded `Repository-[:DEFINES]->Workload` read per

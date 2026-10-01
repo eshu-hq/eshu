@@ -17,7 +17,9 @@ the repository gate, and the evidence shaping, in
   already read.
 - A PagerDuty fact attaches to a repository only through an admissible
   correlation: `exact` or `derived`, `provenance_only = false`, provider
-  `pagerduty`, a non-blank `provider_service_id`, on an active generation. Never
+  `pagerduty`, a non-blank `provider_service_id` and a non-blank `repository_id`,
+  on an active generation (a repository-less correlation links nothing and must
+  not hide its service from the source-only count). Never
   match on a name, title, summary or any text, and never trim an id before
   comparing it: the SQL joins on exact equality and the Go re-check agrees.
 - Keep the probes fenced (`OFFSET 0`) and the key expressions identical to
