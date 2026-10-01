@@ -305,6 +305,9 @@ type fakeCodeValueFlowLeaseManager struct {
 	// lease for its full TTL (#6747 shape A).
 	releaseCtxErr         error
 	releaseCtxHasDeadline bool
+	// releaseErr, when non-nil, simulates the store rejecting the release
+	// (e.g. Postgres unreachable during shutdown).
+	releaseErr error
 }
 
 func (l *fakeCodeValueFlowLeaseManager) ClaimPartitionLease(
@@ -331,7 +334,7 @@ func (l *fakeCodeValueFlowLeaseManager) ReleasePartitionLease(
 	l.releaseCalls++
 	l.releaseCtxErr = ctx.Err()
 	_, l.releaseCtxHasDeadline = ctx.Deadline()
-	return nil
+	return l.releaseErr
 }
 
 // fakeCodeInterprocProjectedEdgeLedger is a local copy, scoped to this
@@ -598,5 +601,54 @@ func TestCodeValueFlowStaleCleanupRunnerReleasesLeaseAfterCancel(t *testing.T) {
 	}
 	if !leaseManager.releaseCtxHasDeadline {
 		t.Fatal("release context has no deadline, want bounded release")
+	}
+}
+
+// TestCodeValueFlowStaleCleanupRunnerLogsReleaseFailure pins review F2: a
+// failed bounded release must emit an operator-visible warning carrying the
+// TTL. Otherwise the lease strands silently for its full TTL with no signal.
+func TestCodeValueFlowStaleCleanupRunnerLogsReleaseFailure(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	leaseManager := &fakeCodeValueFlowLeaseManager{
+		claimResults: []bool{true},
+		releaseErr:   errors.New("postgres unreachable"),
+	}
+	runner := &Runner{
+		CurrentGenerations: &fakeCodeValueFlowCurrentGenerationReader{},
+		TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+		InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+		LeaseManager:       leaseManager,
+		Config: RunnerConfig{
+			LeaseOwner:       "value-flow-owner-warn",
+			LeaseTTL:         2 * time.Minute,
+			ScopeBatchLimit:  25,
+			DeleteBatchLimit: 50,
+		},
+		Logger: logger,
+	}
+	if _, err := runner.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil (a release failure must not fail the cycle)", err)
+	}
+	if leaseManager.releaseCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", leaseManager.releaseCalls)
+	}
+	foundWarn := false
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		if record["level"] != "WARN" {
+			continue
+		}
+		ttl, ok := record[telemetry.LogKeyLeaseTTLSeconds].(float64)
+		if !ok || ttl != 120 {
+			t.Fatalf("warn record %s = %v, want 120", telemetry.LogKeyLeaseTTLSeconds, record[telemetry.LogKeyLeaseTTLSeconds])
+		}
+		foundWarn = true
+	}
+	if !foundWarn {
+		t.Fatal("no WARN log record for the failed lease release")
 	}
 }

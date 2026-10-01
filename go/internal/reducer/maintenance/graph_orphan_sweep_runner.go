@@ -183,13 +183,24 @@ func (r *GraphOrphanSweepRunner) RunOnce(ctx context.Context) (GraphOrphanSweepR
 				graphOrphanSweepLeaseReleaseTimeout,
 			)
 			defer releaseCancel()
-			_ = r.LeaseManager.ReleasePartitionLease(
+			if err := r.LeaseManager.ReleasePartitionLease(
 				releaseCtx,
 				graphOrphanSweepLeaseDomain,
 				graphOrphanSweepLeasePartitionID,
 				graphOrphanSweepLeasePartitionCount,
 				r.Config.leaseOwner(),
-			)
+			); err != nil && r.Logger != nil {
+				r.Logger.WarnContext(
+					releaseCtx,
+					"graph orphan sweep partition lease release failed; the lease expires on its TTL",
+					slog.Int("partition_id", graphOrphanSweepLeasePartitionID),
+					slog.Int("partition_count", graphOrphanSweepLeasePartitionCount),
+					slog.String("lease_owner", r.Config.leaseOwner()),
+					slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
+					log.Err(err),
+					telemetry.PhaseAttr(telemetry.PhaseReduction),
+				)
+			}
 		}()
 	}
 	result, err := r.Sweeper.SweepOrphanNodes(ctx, r.Config.Policy)

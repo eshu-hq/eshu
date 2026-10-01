@@ -220,13 +220,24 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 				codeValueFlowLeaseReleaseTimeout,
 			)
 			defer releaseCancel()
-			_ = r.LeaseManager.ReleasePartitionLease(
+			if err := r.LeaseManager.ReleasePartitionLease(
 				releaseCtx,
 				leaseDomain,
 				leasePartitionID,
 				leasePartitionCount,
 				r.Config.LeaseOwner,
-			)
+			); err != nil && r.Logger != nil {
+				r.Logger.WarnContext(
+					releaseCtx,
+					"code value-flow stale cleanup partition lease release failed; the lease expires on its TTL",
+					slog.Int("partition_id", leasePartitionID),
+					slog.Int("partition_count", leasePartitionCount),
+					slog.String("lease_owner", r.Config.LeaseOwner),
+					slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
+					log.Err(err),
+					telemetry.PhaseAttr(telemetry.PhaseReduction),
+				)
+			}
 		}()
 	}
 
