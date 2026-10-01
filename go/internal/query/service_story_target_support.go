@@ -16,17 +16,14 @@ import (
 
 const serviceStoryTargetSupportLimit = querycontract.ServiceStoryTargetSupportLimit
 
-// The row read links a support fact to a target through the durable keys the
-// support writers emit. A work_item.external_link carries
-// payload->>'linked_repository_id' (collector/jira, a confidently typed GitHub
-// pull-request or GitLab merge-request link resolved to the canonical repository
-// id). A PagerDuty applied-service or observed-service fact carries no
-// repository, so it links through the reducer's incident-repository correlation
-// of its provider service id (query/support, #7463). Record, transition and
-// metadata rows and the coverage warning stay source-only until #7464 and for
-// good, respectively. The migration 152 partial index and
-// TestServiceStoryTargetSupportLinkIndexMatchesQuery bind the link literals to
-// the statement.
+// The row read links a support fact to a target through durable keys the support
+// writers emit: payload->>'linked_repository_id' on a work_item.external_link
+// (collector/jira, resolved to the canonical repository id); the reducer's
+// incident-repository correlation for a PagerDuty service (query/support,
+// #7463); and, for a Jira record or transition, the same issue's link (#7464).
+// Metadata rows and the coverage warning stay source-only. The migration 152
+// index and TestServiceStoryTargetSupportLinkIndexMatchesQuery bind the link
+// literals to the statement.
 const (
 	storySupportLinkFactKind      = "work_item.external_link"
 	storySupportLinkPayloadKey    = "linked_repository_id"
@@ -37,8 +34,11 @@ const (
 	// storySupportBasisCorrelatedRepository marks a PagerDuty routing row that
 	// attaches to a repository target through the reducer's correlation.
 	storySupportBasisCorrelatedRepository = "incident_repository_correlation"
-	storySupportBasisSoleWorkload         = "repository_sole_workload"
-	storySupportBasisSharedRepository     = "repository_multiple_workloads"
+	// storySupportBasisIssueLinkedRepository marks a Jira record or transition
+	// that attaches through the same issue's link to the repository (#7464).
+	storySupportBasisIssueLinkedRepository = "issue_linked_repository"
+	storySupportBasisSoleWorkload          = "repository_sole_workload"
+	storySupportBasisSharedRepository      = "repository_multiple_workloads"
 )
 
 type serviceStoryTargetSupportStore interface {
@@ -56,15 +56,10 @@ type (
 	serviceStoryTargetSupportReadModel = querycontract.ServiceStoryTargetSupportReadModel
 )
 
-// ServiceStoryTargetSupportEvidence reads support-evidence rows for
-// filter.TargetKind/filter.TargetID (service or repository) from
-// fact_records via Postgres, grouped into the read model's Support map. It
-// is the read-model path serviceStoryTargetSupportStore exposes to
-// loadServiceStoryTargetSupport and loadRepositoryStoryTargetSupport. This
-// is the #6060 audit's worst fallback case: without a satisfying store,
-// those callers return (nil, nil) with no fallback of any kind, so the
-// target_support/support_overview response section silently vanishes
-// rather than erroring or degrading.
+// ServiceStoryTargetSupportEvidence reads the support-evidence rows of the
+// filter's service or repository target from fact_records into the read model's
+// Support map. Without a satisfying store its callers return (nil, nil) with no
+// fallback, so the section vanishes silently (the #6060 audit's worst case).
 func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	ctx context.Context,
 	filter serviceStoryTargetSupportFilter,
@@ -91,11 +86,8 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	)
 	hasSelector := querycontract.DocumentationTargetScopeHasSelector(scope)
 	limit := serviceStoryTargetSupportRowLimit(filter.Limit)
-	// An empty statement list means no target-linked row can exist: the target
-	// has no repository id, or a service target whose repository the graph did
-	// not show defining exactly-or-among the target. The read then takes the
-	// zero-row path below instead of asking Postgres for rows it would discard
-	// (#7138).
+	// No statements: no target-linked row can exist (no repository id, or a
+	// service whose repository the graph did not show defining it, #7138).
 	statements := buildServiceStoryTargetSupportStatements(filter)
 	if len(statements) == 0 && !hasSelector {
 		return serviceStoryTargetSupportReadModel{}, nil
@@ -118,10 +110,9 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 //
 // A repository target matches its own id. A service target matches the id of
 // the repository that hosts it, but only when the graph showed that repository
-// defining the target: the service then owns the repository's links outright
-// (one defined workload) or shares them (several, reported ambiguous). Any
-// other service case, including a graph that was unavailable, is fail closed.
-// A target kind the story does not serve has no link key at all.
+// defining the target (one workload owns its links, several share them as
+// ambiguous). Any other service case, including an unavailable graph, is fail
+// closed, and a target kind the story does not serve has no link key at all.
 func storySupportLinkRepositoryID(filter serviceStoryTargetSupportFilter) string {
 	switch strings.TrimSpace(filter.TargetKind) {
 	case "repository":
@@ -140,13 +131,12 @@ func storySupportLinkRepositoryID(filter serviceStoryTargetSupportFilter) string
 
 // buildServiceStoryTargetSupportSQL renders the bounded row read: the active
 // work_item.external_link facts whose linked_repository_id is the target's
-// repository. The predicate is the plain payload->>'key' = $1 form on purpose.
-// Migration 152's partial expression index is keyed on exactly that expression,
-// and a NULLIF wrapper would make it unusable (measured in the #7138 shim: the
-// index turns a 13 ms heap filter at 50k links per scope into a 1.7 ms descent).
-// The kind, tombstone and key conditions are literal or bound inside the LATERAL
-// so Postgres proves the index predicate in custom and generic plans alike. No
-// name, title, summary or LIKE predicate is ever added.
+// repository. The predicate is the plain payload->>'key' = $1 form on purpose:
+// migration 152's partial expression index is keyed on exactly that expression,
+// and a NULLIF wrapper would make it unusable (13 ms heap filter against a 1.7 ms
+// descent at 50k links, #7138). The kind, tombstone and key conditions are
+// literal or bound inside the LATERAL so the index predicate is provable in
+// custom and generic plans. No name, title, summary or LIKE predicate is added.
 func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (string, []any) {
 	repoID := storySupportLinkRepositoryID(filter)
 	if repoID == "" {
@@ -232,11 +222,10 @@ WHERE generation.status = 'active'`
 
 // serviceStoryTargetSupportKindLiterals renders the support fact kinds as a SQL
 // literal list for the LATERAL probe. It is redundant with the bound `$1` kind
-// array, which still drives the per-kind probes, but a literal list is what the
-// planner can prove implies migration 123's partial index predicate in a custom
-// or generic plan; `fact_kind = kind.fact_kind` alone is not provable. The kinds
-// are compile-time constants, never caller input. A caller that binds a subset
-// of kinds still counts only that subset, since both conditions must hold.
+// array, which still drives the per-kind probes, but only a literal list lets the
+// planner prove migration 123's partial index predicate in a custom or generic
+// plan. The kinds are compile-time constants, never caller input, and a caller
+// that binds a subset of kinds still counts only that subset.
 func serviceStoryTargetSupportKindLiterals() string {
 	kinds := serviceStoryTargetSupportFactKinds()
 	quoted := make([]string, len(kinds))
@@ -335,19 +324,29 @@ func storySupportLinkBases(filter serviceStoryTargetSupportFilter) (evidence, am
 // correlation, not through a link the fact carries. A service target's bases
 // (sole workload, shared repository) are the same for every row.
 func storySupportRowBasis(fact map[string]any, basis string) string {
-	if basis == storySupportBasisLinkedRepository && support.IsRoutingFact(StringVal(fact, "fact_kind")) {
+	if basis != storySupportBasisLinkedRepository {
+		return basis
+	}
+	switch kind := StringVal(fact, "fact_kind"); {
+	case support.IsRoutingFact(kind):
 		return storySupportBasisCorrelatedRepository
+	case support.IsJiraIssueFact(kind):
+		return storySupportBasisIssueLinkedRepository
 	}
 	return basis
 }
 
 // storySupportFactLinkedToRepository reports whether fact is a support row that
 // attaches to repoID: a Jira link whose durable linked_repository_id is exactly
-// repoID, or a PagerDuty routing fact whose correlation names repoID and the
-// fact's own provider service id.
+// repoID, a Jira record or transition the SQL joined through that issue's link,
+// or a PagerDuty routing fact whose correlation names repoID and the fact's own
+// provider service id.
 func storySupportFactLinkedToRepository(fact map[string]any, repoID string) bool {
 	if support.IsRoutingFact(StringVal(fact, "fact_kind")) {
 		return support.RoutingFactCorrelatedTo(fact, repoID)
+	}
+	if support.IsJiraIssueFact(StringVal(fact, "fact_kind")) {
+		return support.JiraFactLinked(fact)
 	}
 	if StringVal(fact, "fact_kind") != storySupportLinkFactKind {
 		return false
@@ -367,6 +366,9 @@ func serviceStorySupportEvidenceRow(fact map[string]any, linkBasis string) map[s
 	}
 	if sourceRecordID := StringVal(fact, "source_record_id"); sourceRecordID != "" {
 		row["source_record_id"] = sourceRecordID
+	}
+	if witness := StringVal(fact, "linked_via_fact_id"); witness != "" {
+		row["linked_via_fact_id"] = witness
 	}
 	if payload := serviceStorySupportEvidencePayload(mapValue(fact, "payload")); len(payload) > 0 {
 		row["payload"] = payload
@@ -470,8 +472,7 @@ func serviceStorySupportMissingEvidence(
 	}}
 }
 
-// storySupportWorkloadCountPhrase words the workload count the DEFINES read
-// found. The read is bounded, so a count at the bound means "at least".
+// storySupportWorkloadCountPhrase words the bounded DEFINES count ("at least" at the bound).
 func storySupportWorkloadCountPhrase(count int) string {
 	if count >= querycontract.ServiceStoryRepositoryWorkloadReadLimit {
 		return fmt.Sprintf("at least %d workloads", count)

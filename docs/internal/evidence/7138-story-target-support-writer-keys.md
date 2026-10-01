@@ -38,7 +38,10 @@ they seeded the read's own assumed keys.
   `entity_keys` are `workload:<repo name>`, one per repository snapshot, so it
   degenerates to name equality and over-admits a monorepo's same-named workload.
 - **Source-only:** an active support fact with no durable link, that is, anything
-  except a `work_item.external_link` carrying a non-empty `linked_repository_id`.
+  except a `work_item.external_link` carrying a non-empty `linked_repository_id`
+  (since #7463 also a PagerDuty service with an admissible correlation, and since
+  #7464 a record or transition whose issue has such a link in the same scope and
+  generation).
   A link to another repository is neither evidence nor source-only.
 - **Removed from the support read:** the three-key SQL containment, the Go
   re-check, the ambiguity checker, and the kind-alias expansion
@@ -51,9 +54,8 @@ they seeded the read's own assumed keys.
   uses the plain `fact.payload->>'linked_repository_id' = $1` form; a `NULLIF(...)`
   wrapper cannot use this expression.
 - **Not in this change:** `incident_routing.*` linking (#7463), `work_item.record`
-  and `transition` linking through the same-issue join (#7464), and attaching
-  support to identity-only service shells. Until #7463 lands
-  `incident_routing_count` is always 0.
+  and `transition` linking through the same-issue join (#7464, which landed
+  after), and attaching support to identity-only service shells.
 
 ## Correlation truth matrix
 

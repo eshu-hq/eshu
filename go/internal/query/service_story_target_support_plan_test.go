@@ -78,12 +78,13 @@ func TestServiceStoryTargetSupportSQLInlinesKindLiteralsForIndex(t *testing.T) {
 	if !strings.Contains(sourceOnlySQL, want) {
 		t.Fatalf("source-only support SQL missing literal kind list %q:\n%s", want, sourceOnlySQL)
 	}
-	// The correlation candidates carry a LATERAL of their own ahead of the support
-	// probe; the kind list belongs to the one that follows the kind cross join.
-	_, lateral, found := strings.Cut(sourceOnlySQL, "AS kind\nCROSS JOIN LATERAL (")
-	if !found {
+	// The kind probe is the statement's last LATERAL; the WITH clause holds the
+	// correlation and linked-issue sets, which probe other kinds.
+	lastLateral := strings.LastIndex(sourceOnlySQL, "CROSS JOIN LATERAL (")
+	if lastLateral < 0 {
 		t.Fatalf("source-only support SQL lost its LATERAL probe:\n%s", sourceOnlySQL)
 	}
+	lateral := sourceOnlySQL[lastLateral:]
 	if strings.Index(lateral, want) > strings.Index(lateral, "OFFSET 0") {
 		t.Fatalf("source-only support SQL must carry the literal kind list inside the LATERAL, before OFFSET 0:\n%s", sourceOnlySQL)
 	}

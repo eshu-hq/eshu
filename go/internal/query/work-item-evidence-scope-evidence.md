@@ -36,6 +36,17 @@ Scoped enforcement (issue #2142):
 - **Multi-repo.** A work item linked to multiple repositories is visible for the
   granted subset only, because `= ANY($9)` matches whenever any granted id is in
   the grant array.
+- **The story read derives a same-issue link (#7464).** The service and
+  repository story `target_support` section attaches a `work_item.record` or
+  `work_item.transition` to a repository through the `work_item.external_link` of
+  the same issue (same scope and active generation, a non-blank
+  `provider_work_item_id`, a link whose `linked_repository_id` is the target). That
+  does not change this route's predicate or its fail-closed bullet: the story is
+  already authorized for its target repository before the support read runs, the
+  derived rows expose only the allowlisted payload keys, and a record carries no
+  repository id, so a token granted repository A learns nothing about repository B
+  from an issue linked to both. Records and transitions stay invisible to scoped
+  tokens on this route.
 - **No raw provider identifiers** appear in metric labels; the route reuses the
   existing `query.work_item_evidence` span and result counters.
 

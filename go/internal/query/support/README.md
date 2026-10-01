@@ -2,10 +2,12 @@
 
 ## Purpose
 
-Query text and pure helpers that link PagerDuty incident-routing facts to a
-repository for the service and repository story `target_support` section
-(#7463). A PagerDuty service fact carries no repository, so the link goes through
-the reducer's incident-repository correlation for its provider service id.
+Query text and pure helpers that link PagerDuty incident-routing facts (#7463)
+and Jira records and transitions (#7464) to a repository for the service and
+repository story `target_support` section. A PagerDuty service fact carries no
+repository, so the link goes through the reducer's incident-repository
+correlation for its provider service id. A Jira record or transition carries
+none either, so it goes through the `work_item.external_link` of the same issue.
 
 ## Ownership boundary
 
@@ -13,9 +15,12 @@ Owns the routing statement (`IncidentRoutingSQL`), the correlation set and
 predicate the source-only count reads (`AdmissibleCorrelationsSQL`,
 `LinkedIncidentRoutingPredicate`), the service-id key expressions
 (`AppliedServiceKey`, `ObservedServiceKey`), the fact-kind constants, and the Go
-re-check `RoutingFactCorrelatedTo`. Does not own statement execution, the
-repository gate for a service target, the Jira link read, or the evidence shaping
-(`link_basis`, counts, ambiguity); those stay in the query root's
+re-check `RoutingFactCorrelatedTo`, and the Jira issue-link statement
+(`JiraIssueLinkSQL`), its linked-issue set and predicate (`LinkedIssuesSQL`,
+`LinkedIssuePredicate`), and the re-check `JiraFactLinked`. Does not own
+statement execution, the repository gate for a service target, the
+`work_item.external_link` read itself, or the evidence shaping (`link_basis`,
+counts, ambiguity); those stay in the query root's
 `service_story_target_support*.go` files, which call into this package.
 
 ## Layout
@@ -24,6 +29,10 @@ repository gate for a service target, the Jira link read, or the evidence shapin
   and the Go re-check.
 - `routing_test.go` -- the SQL shape, the two-valued predicate, and the Go
   re-check matrix.
+- `jira_issue_link.go` -- the Jira kinds, the issue key, the issue-link
+  statement, the linked-issue set and predicate, and the Go re-check.
+- `jira_issue_link_test.go` -- the statement shape, the fences and the gate, the
+  two-valued predicate, and the re-check matrix.
 
 ## Telemetry
 
@@ -51,10 +60,19 @@ package.
 - The predicate is two-valued because it sits under `NOT`; keep the
   `COALESCE(key, '')` on the applied key.
 - The index literals are bound to migration 003 by
-  `TestServiceStoryIncidentRoutingIndexesMatchQuery` in the query root. Change
-  the statement and the index definition together, in a new migration.
+  `TestServiceStoryIncidentRoutingIndexesMatchQuery` in the query root, and the
+  issue-link literals to migration 155 by
+  `TestServiceStoryTargetSupportIssueIndexMatchesQuery`. Change the statement and
+  the index definition together, in a new migration.
+- The issue-link read probes each linked issue's records through migration 155
+  (kind and issue id are index columns) and reads transitions only while the
+  records left the bound unfilled; without the index the second hop read 344,516
+  buffers at 50,000 links, and with the kind left out of the key 525,609 buffers
+  at 100 transitions per issue. The join key is the issue id and never
+  `work_item_key`.
 
 ## Related docs
 
 - [Story routes](../../../../docs/public/reference/http-api/story-routes.md)
 - [Evidence note](../../../../docs/internal/evidence/7463-story-target-support-incident-routing.md)
+- [Jira issue-link evidence note](../../../../docs/internal/evidence/7464-story-target-support-jira-issue-link.md)

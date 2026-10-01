@@ -355,4 +355,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"fact_records_story_support_link_repo_idx",
 	"fact_records_os_package_purl_prefix_idx",
 	"supply_chain_impact_write_admission",
+	// Migration 155 (#7464) keys the issue-id probe of a linked Jira issue's
+	// records and transitions.
+	"fact_records_story_support_issue_idx",
 }

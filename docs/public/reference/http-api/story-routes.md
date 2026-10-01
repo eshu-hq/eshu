@@ -124,15 +124,15 @@ envelope and error reporting. No reducer queue, graph write, collector,
 worker, metric label, runtime knob, or deployment setting changes.
 
 Service and repository story `support_overview` may include `target_support`
-when a Jira work-item link or a PagerDuty service fact carries a durable link to
-the selected repository, or to the selected service through its repository. The nested
+when a Jira work-item link, a Jira record or transition of a linked issue, or a
+PagerDuty service fact carries a durable link to the selected repository, or to the selected service through its repository. The nested
 object contains bounded `evidence`, `evidence_count`, `work_item_count`,
 `incident_routing_count`, `ambiguous_evidence`, `ambiguous_count`, `coverage`,
 `missing_evidence`, `limit`, and `source`. Global collector rows are not target
 truth by themselves: title text, service names, summaries, and generic mentions
 never attach support evidence.
 
-Two durable links reach a target. A `work_item.external_link` fact carries
+Three durable links reach a target. A `work_item.external_link` fact carries
 `linked_repository_id`, which the Jira collector sets only for a confidently typed
 GitHub pull-request or GitLab merge-request link; it is the canonical repository
 id the git ingester stores, matched by plain equality. A PagerDuty applied
@@ -140,12 +140,21 @@ service (`incident_routing.applied_pagerduty_resource`, class `service`) or
 observed service (`incident_routing.observed_pagerduty_service`) fact carries no
 repository, so it links through `reducer_incident_repository_correlation` for its
 provider service id: an `exact` or `derived`, non-provenance-only PagerDuty
-decision on an active generation whose `repository_id` is the target (#7463).
+decision on an active generation whose `repository_id` is the target (#7463). A
+`work_item.record` or `work_item.transition` carries no repository either, so it
+links through the `work_item.external_link` of the same Jira issue: same
+`scope_id` and active generation, a non-blank `provider_work_item_id` on both
+sides, and a link whose `linked_repository_id` is the target (#7464). The key is
+the issue id, never `work_item_key`; an issue linked to two repositories counts
+in both stories.
 
 - **Repository story:** the active, non-tombstoned `work_item.external_link`
   facts whose `linked_repository_id` equals the repository id, plus the correlated
-  PagerDuty service facts above, are the evidence. A Jira row carries `link_basis:
-  "linked_repository"`; a PagerDuty row `"incident_repository_correlation"`.
+  PagerDuty service facts above, are the evidence. A Jira link carries `link_basis:
+  "linked_repository"`; a Jira record or transition `"issue_linked_repository"` and
+  `linked_via_fact_id` (the lowest-id link that qualified); a PagerDuty row
+  `"incident_repository_correlation"`. Links and routing rank first, then records,
+  then transitions, each newest first, so transitions never crowd out their link.
 - **Service story:** the same links are reached through the service's
   repository, but only when the graph shows that repository defining exactly the
   selected workload (one bounded `Repository-[:DEFINES]->Workload` read per
@@ -160,11 +169,10 @@ decision on an active generation whose `repository_id` is the target (#7463).
   failed graph read, an identity-only service context, a repository that defines
   no workload, or one that defines only a different workload all fail closed:
   no evidence and no ambiguity, and the story reports the zero-row reasons below.
-- **Not linked:** `work_item.record`, `work_item.transition`, the
-  `work_item.*_metadata` and `metadata_warning` kinds, `incident_routing.coverage_warning`
-  (no anchor), and an applied PagerDuty resource of any class but `service` carry
-  no target key, so they never appear as evidence and count as source-only. #7464
-  links records and transitions through their Jira issue's external link.
+- **Not linked:** the `work_item.*_metadata` and `metadata_warning` kinds,
+  `incident_routing.coverage_warning` (no anchor), an applied PagerDuty resource of
+  any class but `service`, and a record or transition whose issue has no live link
+  in its own scope and generation carry no target key: never evidence, always source-only.
 
 If no target support facts are present, the story reports
 `support_target_facts_absent`. If active Jira or PagerDuty source facts exist but
@@ -174,17 +182,15 @@ none carries a durable link to any target, the story keeps `evidence_count`,
 `coverage.source_only_count`, `coverage.work_item_source_only_count`, and
 `coverage.incident_routing_source_only_count`. A support fact is source-only
 unless it is a `work_item.external_link` carrying a non-empty
-`linked_repository_id` or a PagerDuty service fact whose provider service id has
-an admissible correlation to some repository; a row linked to a different
+`linked_repository_id`, a record or transition whose issue has such a link in the
+same scope and active generation, or a PagerDuty service fact whose provider
+service id has an admissible correlation to some repository; a row linked to a different
 repository is neither evidence for this target nor source-only.
 
 The support source-only count is a two-valued predicate, like the documentation
-count above (the #6807 correction). The documentation count still uses the
-structured-refs helper whose text migration 122's partial index predicate
-repeats; the support count now tests the durable link instead (#7138). Before
-#7138 the row read admitted a fact only when its `candidate_refs`,
-`evidence_refs`, or `linked_entities` named the target, keys no support writer
-emits, so `target_support` was empty on real data.
+count above (#6807). It tests the durable link (#7138); before that the row read
+needed `candidate_refs`, `evidence_refs`, or `linked_entities` keys no support
+writer emits, so `target_support` was empty on real data.
 
 The service story's `support_target_evidence` stage event and the repository
 story's `target_support` stage event log `target_support_incident_routing_count`,
@@ -194,6 +200,14 @@ support; the service event also logs `repository_workload_count`,
 `repository_defines_target`, and `repository_defines_error` when the graph read
 failed.
 
+Performance Evidence: since #7464 the Jira record and transition read is a third
+bounded statement served by migration 152 and the new migration 155 index over
+the issue id: 9.7 ms and 6,959 buffers at 50,000 links against 952 ms and 344,516
+without it, and about 45 ms against 1.04 s with 100 transitions on each of 5,000
+linked issues. The source-only count now subtracts linked issues (26 to 48-51 ms
+on the plan-proof corpus), a cost only a story that found no evidence pays. See
+`docs/internal/evidence/7464-story-target-support-jira-issue-link.md`.
+
 Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
 statement served by the existing migration 003 indexes (no new migration), and
 the source-only count carries the correlation set, read per active generation. At
@@ -202,32 +216,19 @@ about one million facts and 24 retained generations the routing read measures
 The measurements, rejected shapes and proof commands are in
 `docs/internal/evidence/7463-story-target-support-incident-routing.md`.
 
-Performance Evidence: migration 123 adds a partial index over the twelve
-`work_item.*` and `incident_routing.*` support kinds (non-tombstoned), and both
-support statements now carry those kinds as a literal `IN` list inside the
-existing per-(scope, kind) LATERAL so the planner proves the index predicate in
-custom and generic plans (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`
-asserts the index in all four plan/statement combinations). On a disposable
-postgres:18.6 fixture of 600,000 `fact_records` rows (200 scopes, three
-generations each, support kinds about 1% of rows), nine interleaved runs with
-alternating first mover: row read 14.40 ms median / 11,675 buffers to 11.31 ms /
-9,263; source-only count 8.49 ms / 11,675 to 6.85 ms / 9,263. That is a modest
-gain at this scale (about 21%); the fixture bounds the per-scope probe overhead,
-and the win grows with the number of non-support facts sharing each scope. The
-`Kept` `OFFSET 0` and kind cross join from #6794 are unchanged for the
-source-only count, so a missing or invalid index degrades to the previous cost,
-not worse. Since #7138 the row read is a separate single-kind probe served by
-migration 152's partial expression index; migration 123 still serves the
-source-only count. Ingest cost: migration 123 adds one btree entry per
-non-tombstoned support-kind fact, and migration 152 adds one more for each
-non-tombstoned `work_item.external_link` fact; other kinds pay neither.
+Performance Evidence: migration 123 adds a partial index over the twelve support
+kinds (non-tombstoned), and the source-only statement carries those kinds as a
+literal `IN` list inside its per-(scope, kind) LATERAL so the planner proves the
+index predicate in custom and generic plans
+(`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`); the #7126
+measurements are in the evidence note below. The row reads are single-kind probes
+served by migration 152 (links) and migration 155 (record and transition issue
+ids). Ingest cost: migration 123 adds one btree entry per non-tombstoned
+support-kind fact, migration 152 one more per non-tombstoned
+`work_item.external_link`, migration 155 one per non-tombstoned `work_item.record`
+or `work_item.transition`; other kinds pay none of them.
 
 Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
-
-Observability: the #7126 change was statement text and index only. Since #7138
-the stage events also carry the link verdict (see the paragraph above and the
-list below); the `list_service_story_target_support` span and metrics are
-unchanged.
 
 No-Regression Evidence:
 
@@ -245,9 +246,8 @@ failed), and `error`. Repository story emits `repository_query.stage_completed`
 for `target_support` with `has_result`, `evidence_count`,
 `target_support_ambiguous_count`, `target_support_missing_reason`, and
 `error`. The service story also runs one bounded graph read per story, the
-repository's `DEFINES` workloads with the target sorted first, `LIMIT 3`.
-The Postgres read model uses the
-existing `postgres.query` span family with operation
+repository's `DEFINES` workloads with the target sorted first, `LIMIT 3`. The
+Postgres read model uses the existing `postgres.query` span family with operation
 `list_service_story_target_support` against active `fact_records`; the
 source-only fallback is an aggregate count over the same active support fact
 kinds and does not return row payloads. No collector, reducer queue, graph
