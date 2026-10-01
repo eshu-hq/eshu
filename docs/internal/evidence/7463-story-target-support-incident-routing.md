@@ -57,9 +57,10 @@ generic.
 | Statement and shape | Custom | Generic | Buffers |
 |---|---|---|---|
 | Routing read, plain join to the active scope and generation (rejected) | 43 ms | 39 ms | 61,163 hit |
-| Routing read, repository-first with fenced LATERAL probes (shipped), `repo-x`, shim | 3.22 ms | 1.01 ms | 2,070 hit |
-| Same, on the committed plan proof's corpus, 24 retained generations | 0.37 ms | 0.24 ms | 85 hit |
-| Same, a repository with no correlation | 0.11 ms | 0.10 ms | 3 hit |
+| Routing read, repository-first with fenced LATERAL probes (shipped), `repo-x`, 3 generations | 3.22 ms | 1.01 ms | 2,070 hit |
+| Same, plan proof with the 24-generation seed | 0.37 ms | 0.24 ms | 85 hit |
+| Same, a repository with no correlation, 3 generations | 0.11 ms | 0.10 ms | 3 hit |
+| Same, plan proof with the 24-generation seed | 0.06 to 0.07 ms | 0.06 ms | 36 to 48 hit |
 | Source-only count before this change | 41 to 71 ms | | about 96,000 |
 | Source-only with a per-row `EXISTS` on the correlation set (rejected) | 1,580 ms | 1,461 ms | 381,975 hit |
 | Source-only with `IN (SELECT ...)`, candidates not materialized (rejected) | 1,346 ms | 1,676 ms | 381,375 hit |
@@ -88,9 +89,11 @@ walks the active scope generations and probes each by `(scope_id, generation_id,
 fact_kind)` through `fact_records_scope_generation_idx`, so only active-generation
 correlations are read and the cost no longer depends on retention. Both shapes
 returned the same count (59,763) on the second database. The figure for the
-routing read on this corpus is 85 buffers; the 2,070 above is from the earlier
-shim, which I could not reproduce on the committed proof's corpus, so treat it
-as a shim figure.
+routing read on the 24-generation seed is 85 buffers and the repository with no
+correlation 36 to 48; on the earlier three-generation seed the committed proof
+printed 2,063 to 2,073 and 3. I have not explained why the extra retained
+generations lower the routing figures; both are far under the 10,000 bound the
+proof asserts, and neither is a claim about the routing read's cost at scale.
 
 The source-only count costs about 14 to 40 ms more at 17,145 admissible
 active correlations. It runs only when the story found no evidence. The added
