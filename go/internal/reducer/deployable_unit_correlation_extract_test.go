@@ -22,7 +22,7 @@ import (
 func TestExtractDeployableUnitCorrelationRowsReproducesHandleAdmittedEdge(t *testing.T) {
 	t.Parallel()
 
-	intent := deployableUnitIntent("edge-api")
+	intent := deployableUnitIntent("repo:repo-edge-api")
 	envelopes := deployableUnitCorrelationEnvelopes(
 		"repo-edge-api",
 		"edge-api",
@@ -54,7 +54,7 @@ func TestExtractDeployableUnitCorrelationRowsReproducesHandleAdmittedEdge(t *tes
 	}
 
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
-	rows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
+	rows, evaluation, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
 	if err != nil {
 		t.Fatalf("ExtractDeployableUnitCorrelationRows() error = %v, want nil", err)
 	}
@@ -82,7 +82,7 @@ func TestExtractDeployableUnitCorrelationRowsReproducesHandleAdmittedEdge(t *tes
 		"resolution_source":   "reducer/deployable-unit-correlation",
 		"generation_id":       "generation-1",
 		"source_system":       "git",
-		"acceptance_unit_id":  "edge-api",
+		"acceptance_unit_id":  "repo-edge-api",
 		"scope_id":            "repository:test-scope",
 	} {
 		if got := row.Payload[key]; got != want {
@@ -109,7 +109,7 @@ func TestExtractDeployableUnitCorrelationRowsEmptyCandidatesYieldsNoResults(t *t
 	envelopes := deployableUnitCorrelationEnvelopes("repo-docs", "documentation", nil)
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	rows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, nil, nil)
+	rows, evaluation, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, nil, nil)
 	if err != nil {
 		t.Fatalf("ExtractDeployableUnitCorrelationRows() error = %v, want nil", err)
 	}
@@ -131,7 +131,7 @@ func TestExtractDeployableUnitCorrelationRowsRequiresEntityKeys(t *testing.T) {
 	envelopes := deployableUnitCorrelationEnvelopes("repo-edge-api", "edge-api", nil)
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	_, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, nil, nil)
+	_, _, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, nil, nil)
 	if err == nil {
 		t.Fatal("ExtractDeployableUnitCorrelationRows() error = nil, want non-nil")
 	}
@@ -148,7 +148,7 @@ func TestExtractDeployableUnitCorrelationRowsRequiresEntityKeys(t *testing.T) {
 func TestExtractDeployableUnitCorrelationRowsUsesInjectedClock(t *testing.T) {
 	t.Parallel()
 
-	intent := deployableUnitIntent("edge-api")
+	intent := deployableUnitIntent("repo:repo-edge-api")
 	envelopes := deployableUnitCorrelationEnvelopes(
 		"repo-edge-api",
 		"edge-api",
@@ -181,7 +181,7 @@ func TestExtractDeployableUnitCorrelationRowsUsesInjectedClock(t *testing.T) {
 	fixed := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	rows, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return fixed })
+	rows, _, _, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return fixed })
 	if err != nil {
 		t.Fatalf("ExtractDeployableUnitCorrelationRows() error = %v, want nil", err)
 	}

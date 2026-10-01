@@ -194,21 +194,22 @@ func ExtractDeployableUnitCorrelationRows(
 	candidates []WorkloadCandidate,
 	resolved []relationships.ResolvedRelationship,
 	now func() time.Time,
-) ([]SharedProjectionIntentRow, engine.Evaluation, error) {
+) ([]SharedProjectionIntentRow, engine.Evaluation, CandidateSelectionReport, error) {
 	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
 	if err != nil {
-		return nil, engine.Evaluation{}, err
+		return nil, engine.Evaluation{}, CandidateSelectionReport{}, err
 	}
 	candidates = applyResolvedDeploymentSources(candidates, resolved)
-	candidates = filterDeployableUnitCandidates(candidates, entityKeys)
+	filtered, selection := filterDeployableUnitCandidates(candidates, entityKeys)
+	candidates = filtered
 	if len(candidates) == 0 {
-		return nil, engine.Evaluation{}, nil
+		return nil, engine.Evaluation{}, selection, nil
 	}
 	evaluation, err := evaluateDeployableUnitCandidates(intent, candidates)
 	if err != nil {
-		return nil, engine.Evaluation{}, err
+		return nil, engine.Evaluation{}, selection, err
 	}
-	return deployableUnitCorrelationRows(intent, evaluation, now), evaluation, nil
+	return deployableUnitCorrelationRows(intent, evaluation, now), evaluation, selection, nil
 }
 
 func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
@@ -317,7 +318,7 @@ func deployableUnitRetractRowsFromFacts(
 		if repoID == "" {
 			continue
 		}
-		if !deployableUnitIntentMatchesRepository(entityKeys, repoID, anyToString(envelope.Payload["name"])) {
+		if !deployableUnitIntentMatchesRepository(entityKeys, repoID) {
 			continue
 		}
 		rows = append(rows, SharedProjectionIntentRow{
@@ -340,18 +341,20 @@ func deployableUnitRetractRowsFromFacts(
 	return rows
 }
 
-func deployableUnitIntentMatchesRepository(entityKeys map[string]struct{}, repoID, repoName string) bool {
-	for _, identity := range []string{repoID, repoName} {
-		identity = strings.ToLower(strings.TrimSpace(identity))
-		if identity == "" {
-			continue
-		}
-		if _, ok := entityKeys[identity]; ok {
-			return true
-		}
-		if _, ok := entityKeys[normalizedEntityKey(identity)]; ok {
-			return true
-		}
+// deployableUnitIntentMatchesRepository reports whether the intent's entity
+// keys select the repository by ID (#7384). Names are not compared: they are
+// not unique across a run and can end in a colon the alias normalizer cannot
+// match.
+func deployableUnitIntentMatchesRepository(entityKeys map[string]struct{}, repoID string) bool {
+	identity := strings.ToLower(strings.TrimSpace(repoID))
+	if identity == "" {
+		return false
+	}
+	if _, ok := entityKeys[identity]; ok {
+		return true
+	}
+	if _, ok := entityKeys[normalizedEntityKey(identity)]; ok {
+		return true
 	}
 	return false
 }

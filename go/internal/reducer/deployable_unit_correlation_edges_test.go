@@ -128,7 +128,7 @@ func TestDeployableUnitCorrelationHandleWritesAdmittedResolvedDeploymentEdge(t *
 		EdgeWriter:     writer,
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -164,7 +164,7 @@ func TestDeployableUnitCorrelationHandleWritesAdmittedResolvedDeploymentEdge(t *
 		"resolution_source":   "reducer/deployable-unit-correlation",
 		"generation_id":       "generation-1",
 		"source_system":       "git",
-		"acceptance_unit_id":  "edge-api",
+		"acceptance_unit_id":  "repo-edge-api",
 		"scope_id":            "repository:test-scope",
 	} {
 		if got := row.Payload[key]; got != want {
@@ -226,7 +226,7 @@ func TestDeployableUnitCorrelationHandleRetainsCrossScopeEdgeOnMaintenanceReopen
 		EdgeWriter:     writer,
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -288,7 +288,7 @@ func TestDeployableUnitCorrelationHandleRetractsWithoutWritingDroppedCandidate(t
 		EdgeWriter:     writer,
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}

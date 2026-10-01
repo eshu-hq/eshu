@@ -78,6 +78,11 @@ type WorkloadProjectionInputs struct {
 	ScopeCandidates []WorkloadCandidate
 	// DeploymentEnvironments overlays environments by repository id.
 	DeploymentEnvironments map[string][]string
+	// Selection splits the admitted-vs-selected outcome with its reason, so
+	// a zero selection is distinguishable from a mismatch (#7384). The
+	// correlated loader reports SelectionNoKeys when the intent carries no
+	// entity keys; loaders that do not filter leave the zero value.
+	Selection CandidateSelectionReport
 }
 
 // ScopeWorkloadProjectionInputLoader is a WorkloadProjectionInputLoader that
@@ -250,7 +255,9 @@ func (h WorkloadMaterializationHandler) Handle(
 		}
 		timing.phasePublishDuration = time.Since(phaseStarted)
 		timing.totalDuration = time.Since(totalStarted)
-		logWorkloadMaterializationCompleted(ctx, intent, candidates, nil, MaterializeResult{}, timing, 0, 0, 0)
+		zeroSelection := inputs.Selection
+		zeroSelection.Reason = refineCandidateSelectionReason(zeroSelection, intent.EntityKeys, repoIDs)
+		logWorkloadMaterializationCompleted(ctx, intent, candidates, zeroSelection, nil, MaterializeResult{}, timing, 0, 0, 0)
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainWorkloadMaterialization,
@@ -452,10 +459,13 @@ func (h WorkloadMaterializationHandler) Handle(
 	}
 	timing.phasePublishDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
+	successSelection := inputs.Selection
+	successSelection.Reason = refineCandidateSelectionReason(successSelection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(repositoryFacts))
 	logWorkloadMaterializationCompleted(
 		ctx,
 		intent,
 		candidates,
+		successSelection,
 		projection,
 		materializeResult,
 		timing,

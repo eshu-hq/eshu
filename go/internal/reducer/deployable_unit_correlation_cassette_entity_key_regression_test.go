@@ -146,7 +146,7 @@ func TestDeployableUnitCorrelationCommittedCassetteEntityKeySurvivesFilter(t *te
 		t.Fatalf("deployableUnitCorrelationEntityKeys: %v", err)
 	}
 
-	filtered := filterDeployableUnitCandidates(candidates, entityKeys)
+	filtered, _ := filterDeployableUnitCandidates(candidates, entityKeys)
 	if len(filtered) != 1 {
 		t.Fatalf(
 			"filterDeployableUnitCandidates(candidates, entityKeys-from-committed-cassette-entity_key=%q) = %d candidates, want exactly 1 (repo-ifa-deployable-unit-app) -- "+

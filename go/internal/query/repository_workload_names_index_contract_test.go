@@ -29,19 +29,22 @@ func TestRepositoryWorkloadNamesUsesScopeIndexPredicate(t *testing.T) {
 	}
 
 	querySQL := strings.Join(strings.Fields(repositoryWorkloadNamesSQL), " ")
-	if want := "WHERE scope_id = $1 AND fact_kind = 'reducer_workload_identity' AND NOT is_tombstone ORDER BY entity_key"; !strings.Contains(querySQL, want) {
+	if want := "WHERE wid.scope_id = $1 AND wid.fact_kind = 'reducer_workload_identity' AND NOT wid.is_tombstone"; !strings.Contains(querySQL, want) {
 		t.Fatalf("workload-name query cannot use scope index predicate: %s", querySQL)
 	}
 
 	const scopeID = "scope-private-value"
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
-		columns: []string{"entity_key"},
-		rows:    [][]driver.Value{{"workload:api"}},
+		columns: []string{"name"},
+		rows:    [][]driver.Value{{"api"}},
 		queryContainsInOrder: []string{
 			"FROM fact_records",
-			"WHERE scope_id = $1",
-			"AND fact_kind = 'reducer_workload_identity'",
-			"AND NOT is_tombstone",
+			"JOIN fact_records",
+			"repo.fact_kind = 'repository'",
+			"AND NOT repo.is_tombstone",
+			"WHERE wid.scope_id = $1",
+			"AND wid.fact_kind = 'reducer_workload_identity'",
+			"AND NOT wid.is_tombstone",
 		},
 		wantArgs: []driver.Value{scopeID},
 	}})

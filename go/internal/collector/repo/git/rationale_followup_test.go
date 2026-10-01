@@ -132,7 +132,7 @@ func TestRationaleProductionMarkerMatchesReplayCatalog(t *testing.T) {
 		t.Fatal("rationale cassette lacks rationale_materialization followup")
 	}
 	production := rationaleMaterializationFactEnvelope(
-		"/repo-rationale", "repo-rationale", "repository:r_f781caa5", "scope-ifa-rationale-family", "gen-ifa-rationale-family-1",
+		"/repo-rationale", "repository:r_f781caa5", "scope-ifa-rationale-family", "gen-ifa-rationale-family-1",
 		time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
 	)
 	clearDerivedEnvelopeFields := func(envelope facts.Envelope) facts.Envelope {
@@ -171,7 +171,7 @@ func assertSingleRationaleFollowup(t *testing.T, envelopes []facts.Envelope, rep
 		if got, want := envelope.Payload["repo_id"], repoID; got != want {
 			t.Errorf("rationale followup repo_id = %#v, want %#v", got, want)
 		}
-		if got, want := envelope.Payload["entity_key"], "rationale:"+repoName; got != want {
+		if got, want := envelope.Payload["entity_key"], "rationale:"+repoID; got != want {
 			t.Errorf("rationale followup entity_key = %#v, want %#v", got, want)
 		}
 		if got, want := envelope.Payload["reason"], "repository generation requested rationale materialization reconciliation"; got != want {
@@ -213,7 +213,7 @@ func BenchmarkRationaleMaterializationFactEnvelope(b *testing.B) {
 	b.ReportAllocs()
 	for range b.N {
 		rationaleFollowupBenchmarkSink = rationaleMaterializationFactEnvelope(
-			"/repo-rationale", "repo-rationale", "repo-ifa-rationale", "scope-ifa-rationale", "gen-1", time.Unix(0, 0).UTC(),
+			"/repo-rationale", "repo-ifa-rationale", "scope-ifa-rationale", "gen-1", time.Unix(0, 0).UTC(),
 		)
 	}
 }

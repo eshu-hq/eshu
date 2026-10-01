@@ -98,8 +98,11 @@ var scopeKeepKeyCases = []struct {
 	keys  []string
 	match bool
 }{
-	{name: "matching workload key", keys: []string{"workload:" + scopeKeepRepoName}, match: true},
+	{name: "matching workload key", keys: []string{"workload:" + scopeKeepRepoID}, match: true},
 	{name: "matching repo key", keys: []string{"repo:" + scopeKeepRepoID}, match: true},
+	// The legacy workload:<name> key no longer selects: selection compares
+	// repository ids only, so a name-keyed key matches nothing (#7384).
+	{name: "legacy workload name key selects nothing", keys: []string{"workload:" + scopeKeepRepoName}, match: false},
 	{name: "foreign repo key", keys: []string{"repo:" + scopeKeepForeignRepo}, match: false},
 	{name: "scope-id fallback key", keys: []string{"repo:" + scopeKeepScopeID}, match: false},
 	{name: "no keys", keys: nil, match: true},
@@ -309,7 +312,7 @@ func TestWorkloadMaterializationDeferralAndFailedWriteIssueNoRetract(t *testing.
 			Materializer:         NewWorkloadMaterializer(executor),
 			RepositoryEdgeReader: reader,
 		}
-		_, err := handler.Handle(context.Background(), scopeKeepIntent([]string{"workload:" + scopeKeepRepoName}))
+		_, err := handler.Handle(context.Background(), scopeKeepIntent([]string{"workload:" + scopeKeepRepoID}))
 		var classified interface{ FailureClass() string }
 		if !errors.As(err, &classified) || classified.FailureClass() != WorkloadMaterializationResolutionNotReadyFailureClass {
 			t.Fatalf("Handle() error = %v, want the resolution-not-ready deferral", err)
@@ -323,7 +326,7 @@ func TestWorkloadMaterializationDeferralAndFailedWriteIssueNoRetract(t *testing.
 		executor := &failingDefinesUpsertExecutor{}
 		reader := scopeKeepCurrentEdges()
 		handler := scopeKeepHandler(scopeKeepFacts(true), executor, reader)
-		_, err := handler.Handle(context.Background(), scopeKeepIntent([]string{"workload:" + scopeKeepRepoName}))
+		_, err := handler.Handle(context.Background(), scopeKeepIntent([]string{"workload:" + scopeKeepRepoID}))
 		if err == nil || !strings.Contains(err.Error(), "graph write failed") {
 			t.Fatalf("Handle() error = %v, want the failed DEFINES write", err)
 		}

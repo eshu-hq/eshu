@@ -153,15 +153,15 @@ func TestDeployableUnitCorrelationHandleReturnsNoCandidates(t *testing.T) {
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("documentation"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-docs"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
 	if got.Status != ResultStatusSucceeded {
 		t.Fatalf("Handle().Status = %q, want %q", got.Status, ResultStatusSucceeded)
 	}
-	if got.EvidenceSummary != "no deployable unit candidates found" {
-		t.Fatalf("Handle().EvidenceSummary = %q, want no-candidates summary", got.EvidenceSummary)
+	if got.EvidenceSummary != "no deployable unit candidates found (no_admitted_candidates)" {
+		t.Fatalf("Handle().EvidenceSummary = %q, want no-candidates summary with reason", got.EvidenceSummary)
 	}
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
@@ -198,7 +198,7 @@ func TestDeployableUnitCorrelationHandleRejectsDockerfileOnlyCandidate(t *testin
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -253,7 +253,7 @@ func TestDeployableUnitCorrelationHandleAdmitsResolvedDeploymentEvidence(t *test
 		PhasePublisher: &recordingGraphProjectionPhasePublisher{},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -305,7 +305,7 @@ func TestDeployableUnitCorrelationHandlePublishesPhaseForAdmittedCandidate(t *te
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("service-jenkins"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-service-jenkins"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -318,7 +318,9 @@ func TestDeployableUnitCorrelationHandlePublishesPhaseForAdmittedCandidate(t *te
 	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseDeployableUnitCorrelation; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.AcceptanceUnitID, "service-jenkins"; got != want {
+	// Acceptance-unit ids track the selecting entity key, which is id-based
+	// (#7384): the readiness key carries the full key, not the repo name.
+	if got, want := publisher.calls[0][0].Key.AcceptanceUnitID, "repo:repo-service-jenkins"; got != want {
 		t.Fatalf("acceptance unit id = %q, want %q", got, want)
 	}
 }
@@ -363,7 +365,7 @@ func TestDeployableUnitCorrelationHandleFiltersByEntityKeys(t *testing.T) {
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -414,7 +416,7 @@ func TestDeployableUnitCorrelationHandleAcceptsWorkloadPrefixedEntityKey(t *test
 		ResolvedLoader: resolvedLoader,
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("workload:edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("workload:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -430,7 +432,7 @@ func TestDeployableUnitCorrelationHandleFactLoaderError(t *testing.T) {
 		FactLoader: &stubDeployableUnitFactLoader{err: fmt.Errorf("facts unavailable")},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
 	}

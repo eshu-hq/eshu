@@ -56,7 +56,7 @@ func TestDeployableUnitCorrelationHandleDefersWhenOwnResolutionInactive(t *testi
 		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{}),
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
 	}
@@ -84,7 +84,7 @@ func TestDeployableUnitCorrelationHandleProceedsWhenOwnResolutionActive(t *testi
 		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil when own generation is active", err)
 	}
@@ -103,7 +103,7 @@ func TestDeployableUnitCorrelationHandleGateOpenWithoutLookup(t *testing.T) {
 		ResolvedLoader: &stubDeployableUnitResolvedLoader{},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil with the gate unwired", err)
 	}
@@ -136,7 +136,7 @@ func TestDeployableUnitCorrelationHandleDefersWhileCanonicalReposRebuild(t *test
 		CanonicalQuiescence:    staticReducerGraphDrain{uncommittedCanonical: true},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want canonical-nodes-not-ready deferral")
 	}
@@ -191,7 +191,7 @@ func TestDeployableUnitCorrelationHandleWritesAfterCanonicalReposQuiesce(t *test
 		CanonicalQuiescence:    staticReducerGraphDrain{},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil after canonical repository quiescence", err)
 	}
@@ -213,7 +213,7 @@ func TestDeployableUnitCorrelationHandleFailsClosedOnCanonicalQuiescenceError(t 
 		CanonicalQuiescence:    staticReducerGraphDrain{err: errors.New("quiescence unavailable")},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil || !strings.Contains(err.Error(), "check canonical repository quiescence") {
 		t.Fatalf("Handle() error = %v, want canonical repository quiescence failure", err)
 	}
@@ -334,7 +334,7 @@ func TestDeployableUnitCorrelationHandleDefersWhileCorpusResolutionIncomplete(t 
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral while a foreign generation is inactive")
 	}
@@ -365,7 +365,7 @@ func TestDeployableUnitCorrelationHandleProceedsWhenCorpusResolutionComplete(t *
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil when own and corpus resolution are complete", err)
 	}
@@ -391,7 +391,7 @@ func TestDeployableUnitCorrelationHandleSurfacesFenceLookupError(t *testing.T) {
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral on fence lookup failure")
 	}
@@ -425,7 +425,7 @@ func TestDeployableUnitCorrelationHandleNamesHoldingScopes(t *testing.T) {
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
 	}
@@ -449,7 +449,7 @@ func TestDeployableUnitCorrelationHandleOmitsHoldersWithoutLookup(t *testing.T) 
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
 	}
@@ -480,7 +480,7 @@ func TestDeployableUnitCorrelationHandleOmitsHoldersOnLookupError(t *testing.T) 
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
 	}
@@ -516,7 +516,7 @@ func TestDeployableUnitCorrelationHandleDefersWhenCorpusFenceFlipsAfterRead(t *t
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want resolution-not-ready deferral when the corpus fence flips after the foreign read")
 	}

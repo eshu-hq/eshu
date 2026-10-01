@@ -60,7 +60,7 @@ func TestDeployableUnitCorrelationHandleSplitsMultipleDockerfilesConservatively(
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("monolith"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-monolith"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -107,7 +107,7 @@ func TestDeployableUnitCorrelationHandleAdmitsJenkinsBackedServiceCandidate(t *t
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("service-jenkins"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-service-jenkins"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -165,7 +165,7 @@ func TestDeployableUnitCorrelationHandleRejectsSecondaryDockerfileWithoutIndepen
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("multi-dockerfile-repo"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-multi"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}

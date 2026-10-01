@@ -99,7 +99,7 @@ func handleDeployableUnitWithLogger(
 		EdgeWriter:     &failingDeployableUnitEdgeWriter{writeErr: writeErr},
 		Logger:         logger,
 	}
-	intent := deployableUnitIntent("edge-api")
+	intent := deployableUnitIntent("repo:repo-edge-api")
 	intent.CycleStartedAt = cycleStartedAt
 	intent.EnqueuedAt = enqueuedAt
 

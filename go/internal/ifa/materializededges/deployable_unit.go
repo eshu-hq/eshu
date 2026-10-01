@@ -112,7 +112,9 @@ func resolveDeployableUnitMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 	// here rather than inside the seam does not weaken this guard's claim to
 	// run the same code path production runs.
 	candidates, _ := reducer.ExtractWorkloadCandidates(odu.Facts)
-	rows, evaluation, err := reducer.ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return deployableUnitGuardClock })
+	// The selection report is production's zero-vs-mismatch signal; the
+	// guard only checks vacuity, so it is discarded here.
+	rows, evaluation, _, err := reducer.ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return deployableUnitGuardClock })
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractDeployableUnitCorrelationRows: %v", odu.Name, err)
 	}

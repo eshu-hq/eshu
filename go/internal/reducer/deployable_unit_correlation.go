@@ -129,7 +129,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// time.Now().UTC(), never h.AdmissionDecisionNow (a distinct clock for a
 	// distinct field, admission_decision_mapping_test.go's fixed-clock cases
 	// must stay unaffected by this row's CreatedAt).
-	edgeRows, evaluation, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
+	edgeRows, evaluation, selection, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
 	if err != nil {
 		return Result{}, err
 	}
@@ -154,7 +154,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 			IntentID:        intent.IntentID,
 			Domain:          DomainDeployableUnitCorrelation,
 			Status:          ResultStatusSucceeded,
-			EvidenceSummary: "no deployable unit candidates found",
+			EvidenceSummary: "no deployable unit candidates found (" + string(selection.Reason) + ")",
 		}, nil
 	}
 
@@ -209,24 +209,8 @@ func deployableUnitCorrelationEntityKeys(intent Intent) (map[string]struct{}, er
 	return normalized, nil
 }
 
-func filterDeployableUnitCandidates(
-	candidates []WorkloadCandidate,
-	entityKeys map[string]struct{},
-) []WorkloadCandidate {
-	filtered := make([]WorkloadCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		for _, key := range candidateIdentityKeys(candidate) {
-			if _, ok := entityKeys[strings.ToLower(strings.TrimSpace(key))]; ok {
-				filtered = append(filtered, candidate)
-				break
-			}
-		}
-	}
-	return filtered
-}
-
 func candidateIdentityKeys(candidate WorkloadCandidate) []string {
-	keys := make([]string, 0, 4)
+	keys := make([]string, 0, 2)
 	appendCandidateIdentityKey := func(value string) {
 		value = strings.ToLower(strings.TrimSpace(value))
 		if value == "" {
@@ -241,9 +225,7 @@ func candidateIdentityKeys(candidate WorkloadCandidate) []string {
 	}
 
 	appendCandidateIdentityKey(candidate.RepoID)
-	appendCandidateIdentityKey(candidate.RepoName)
 	appendCandidateIdentityKey(normalizedEntityKey(candidate.RepoID))
-	appendCandidateIdentityKey(normalizedEntityKey(candidate.RepoName))
 
 	return keys
 }

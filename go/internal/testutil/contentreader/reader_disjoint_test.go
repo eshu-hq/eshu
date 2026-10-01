@@ -38,10 +38,12 @@ type defaultRowsCase struct {
 func defaultRowsCases() []defaultRowsCase {
 	return []defaultRowsCase{
 		{
-			name:  "workload identity facts",
-			query: "SELECT entity_key FROM fact_records WHERE fact_kind = 'reducer_workload_identity'",
+			name: "workload identity facts",
+			query: "SELECT DISTINCT repo.payload->>'name' FROM fact_records AS wid " +
+				"JOIN fact_records AS repo ON repo.scope_id = $1 " +
+				"WHERE fact_kind = 'reducer_workload_identity'",
 			group: factGroup,
-			want:  []string{"entity_key"},
+			want:  []string{"name"},
 		},
 		{
 			name:  "platform materialization facts",
