@@ -137,3 +137,22 @@ service story `support_target_evidence` stage event gain
 carries routing evidence without reading the payload. No collector, reducer
 queue, graph write, metric instrument, runtime flag or deployment setting
 changes.
+
+## Read consistency
+
+The link read, the routing read and the source-only summary each filter on the
+active generation, so they run on one read-only repeatable-read snapshot
+(`db.ReadStore.BeginReadOnlySnapshot`, the seam `ContentReader` already uses for
+the hardcoded-secret read): a generation activated between them cannot put rows of
+two generations, or a summary of a third, in one section. Main made two separate
+autocommit reads (rows, then the summary when empty); this change would have made
+it three. Cost: one `BEGIN` and one `COMMIT`/`ROLLBACK` round trip per story read
+that reaches Postgres, none for a closed gate (no statement, no snapshot).
+`TestServiceStoryTargetSupportReadsOnOneSnapshot` fails if any read bypasses the
+snapshot, and `TestServiceStoryTargetSupportSurfacesASnapshotBeginError` and
+`TestServiceStoryTargetSupportClosedGateOpensNoSnapshot` pin the error and the
+closed-gate behaviour.
+
+Observability Evidence: no operator signal changes; a failed snapshot begin
+returns `begin service story target support snapshot: ...` on the existing
+`postgres.query` span.

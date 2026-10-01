@@ -100,22 +100,12 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 	if len(statements) == 0 && !hasSelector {
 		return serviceStoryTargetSupportReadModel{}, nil
 	}
-	facts, err := cr.queryServiceStoryTargetSupportFacts(ctx, statements, limit)
+	facts, truncated, sourceOnlySummary, err := cr.readServiceStoryTargetSupport(
+		ctx, statements, factKinds, limit, hasSelector,
+	)
 	if err != nil {
 		span.RecordError(err)
 		return serviceStoryTargetSupportReadModel{}, err
-	}
-	truncated := len(facts) > limit
-	if truncated {
-		facts = facts[:limit]
-	}
-	var sourceOnlySummary serviceStoryTargetSupportSourceOnlySummary
-	if len(facts) == 0 && hasSelector {
-		sourceOnlySummary, err = cr.serviceStoryTargetSupportSourceOnlySummary(ctx, factKinds)
-		if err != nil {
-			span.RecordError(err)
-			return serviceStoryTargetSupportReadModel{}, err
-		}
 	}
 	return serviceStoryTargetSupportReadModel{
 		Support: buildStoryTargetSupportWithSourceOnlySummary(filter, facts, truncated, sourceOnlySummary),

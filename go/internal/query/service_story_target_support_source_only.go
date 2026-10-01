@@ -44,19 +44,56 @@ func buildServiceStoryTargetSupportStatements(
 	return statements
 }
 
-// queryServiceStoryTargetSupportFacts runs each statement and returns their rows
-// merged newest first. Each statement returns at most limit+1 rows in that order,
+// readServiceStoryTargetSupport runs the row reads and, when they found no row and
+// wantSummary is set, the source-only summary, all on one read-only
+// repeatable-read snapshot. The statements each filter on the active generation,
+// so without a shared snapshot a generation activated between them could put rows
+// of two generations, or a summary of a third, in one section. It returns the
+// rows truncated to limit and whether more existed.
+func (cr *ContentReader) readServiceStoryTargetSupport(
+	ctx context.Context,
+	statements []serviceStoryTargetSupportStatement,
+	factKinds []string,
+	limit int,
+	wantSummary bool,
+) ([]map[string]any, bool, serviceStoryTargetSupportSourceOnlySummary, error) {
+	var summary serviceStoryTargetSupportSourceOnlySummary
+	snapshot, err := cr.db.BeginReadOnlySnapshot(ctx)
+	if err != nil {
+		return nil, false, summary, fmt.Errorf("begin service story target support snapshot: %w", err)
+	}
+	defer func() { _ = snapshot.Rollback() }()
+
+	facts, err := queryServiceStoryTargetSupportFacts(ctx, snapshot, statements, limit)
+	if err != nil {
+		return nil, false, summary, err
+	}
+	truncated := len(facts) > limit
+	if truncated {
+		facts = facts[:limit]
+	}
+	if len(facts) == 0 && wantSummary {
+		if summary, err = serviceStoryTargetSupportSourceOnlySummaryOn(ctx, snapshot, factKinds); err != nil {
+			return nil, false, summary, err
+		}
+	}
+	return facts, truncated, summary, nil
+}
+
+// queryServiceStoryTargetSupportFacts runs each statement on queryer and returns
+// their rows merged newest first. Each statement returns at most limit+1 rows in that order,
 // so the newest limit+1 overall are always among the merged rows; the merged list
 // itself can hold up to one such bound per statement, and the caller truncates it
 // to limit and reads a longer list as "the section was truncated".
-func (cr *ContentReader) queryServiceStoryTargetSupportFacts(
+func queryServiceStoryTargetSupportFacts(
 	ctx context.Context,
+	queryer db.Queryer,
 	statements []serviceStoryTargetSupportStatement,
 	limit int,
 ) ([]map[string]any, error) {
 	facts := make([]map[string]any, 0, limit)
 	for _, statement := range statements {
-		rows, err := cr.db.QueryContext(ctx, statement.query, statement.args...)
+		rows, err := queryer.QueryContext(ctx, statement.query, statement.args...)
 		if err != nil {
 			return nil, fmt.Errorf("query service story target support: %w", err)
 		}
@@ -114,15 +151,16 @@ func (s serviceStoryTargetSupportSourceOnlySummary) hasEvidence() bool {
 	return s.TotalCount > 0 || s.WorkItemCount > 0 || s.IncidentRoutingCount > 0
 }
 
-func (cr *ContentReader) serviceStoryTargetSupportSourceOnlySummary(
+func serviceStoryTargetSupportSourceOnlySummaryOn(
 	ctx context.Context,
+	queryer db.Queryer,
 	factKinds []string,
 ) (serviceStoryTargetSupportSourceOnlySummary, error) {
 	query, args := buildServiceStoryTargetSupportSourceOnlySQL(factKinds)
 	if query == "" {
 		return serviceStoryTargetSupportSourceOnlySummary{}, nil
 	}
-	rows, err := cr.db.QueryContext(ctx, query, args...)
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return serviceStoryTargetSupportSourceOnlySummary{}, fmt.Errorf("query source-only service story target support: %w", err)
 	}
