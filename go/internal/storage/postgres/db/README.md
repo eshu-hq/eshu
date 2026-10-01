@@ -49,6 +49,9 @@ transaction, or a raw connection.
   Its snapshot cursor rejects `*sql.RawBytes` before scanning; use `*[]byte`.
   This restriction does not change ordinary `Rows` or legacy SQL adapters.
 - `ReadSnapshotBeginner` -- opens a guarded read-only repeatable-read snapshot.
+- `ReadSnapshotSet` / `ReadSnapshotSetBeginner` -- open query-only readers
+  sharing one exported read-only repeatable-read snapshot; the requested count
+  includes the exporter and is bounded by the reader pool's connection cap.
 - `ReadStore` -- combines cursor, row, and snapshot reads.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
   check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for

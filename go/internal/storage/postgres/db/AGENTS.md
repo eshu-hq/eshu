@@ -18,7 +18,10 @@
 - This package holds interfaces only: `Rows`, `Queryer`, `Executor`,
   `ExecQueryer`, `Transaction`, `Beginner`, `ReadOnlyRepeatableReadBeginner`,
   plus the additive `Row`, `RowQueryer`, `ReadTransaction`,
-  `ReadSnapshotBeginner`, and `ReadStore`. The read transaction has no Exec.
+  `ReadSnapshotBeginner`, and `ReadStore`. `ReadSnapshotSet` and
+  `ReadSnapshotSetBeginner` are optional query-only contracts; they do not
+  widen `ReadStore` or expose transaction control. The read transaction has no
+  Exec.
   Every name, method set, and semantic matches what the postgres root
   declared before the hoist. The exceptions are the shared
   statement-argument builders `CleanIDs`, `IDPlaceholders`, and `IDArgs`

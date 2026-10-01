@@ -76,9 +76,10 @@ A later run compared baseline source
 `sha256:58c1d7154cee12fdca879fc2735910ed059e88e21f1461d1fbfd2268d5e53db0`
 and `sha256:ec923eb1c98bd48d5ffa6d3819c40dc8f839b938fde31a837608c52f77fbbe7f`.
 The request and preserved Neo4j/PostgreSQL corpus matched the earlier run.
-The production patch is unchanged by the subsequent base-only rebase, as
-verified with `git range-diff`; these image and timing claims remain bound to
-the pre-rebase source SHAs, not the rebased branch SHA.
+An earlier base-only rebase preserved the query patch, but the subsequent
+guarded-reader integration changed its production connection path. These
+image and timing claims remain bound to the pre-integration source SHAs, not
+the current candidate branch.
 
 After warmup and bounded baseline-control samples, eight interleaved ABBA
 rounds yielded 16 timed requests per variant. The baseline median/p95 was
@@ -102,10 +103,12 @@ and an out-of-bound control sample were rejected rather than counted.
 
 ## Deployed ops-qa acceptance
 
-NOT_CHECKED for the candidate on the deployed topology. The last recorded
-ops-qa baseline median for this 16-term endpoint was 1.632480 s; no matched
-candidate measurement exists there. The live PostgreSQL pod exceeded the
-previously agreed memory gate during attempted canary preflight. Do not claim
-the deployed `<1 s` budget or open the #7033 PR on this record alone. Add a
-matched interleaved endpoint measurement, full-response parity, storage
-fingerprint, resource pressure, and exact cleanup result before publication.
+NOT_CHECKED for the guarded-reader candidate on the deployed topology. The
+last recorded ops-qa baseline median for this 16-term endpoint was 1.632480 s;
+no matched guarded-reader measurement exists there. The primary exceeded the
+previously agreed memory gate during an earlier canary preflight; a separate
+read replica is now available, but it does not make the old timing comparable.
+Do not claim the deployed `<1 s` budget or open the #7033 PR on this record
+alone. Add a matched interleaved endpoint measurement, full-response parity,
+storage fingerprint, resource pressure, and exact canary and role cleanup
+result before publication.

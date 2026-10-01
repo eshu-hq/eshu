@@ -11,7 +11,9 @@ source of truth.
 
 `query.ContentReader` chooses this path, supplies repository and language
 filters, owns the outer span, and scans the final response. This package owns
-the partition SQL, snapshot lifetime, worker cancellation, and final assembly.
+the partition SQL, worker cancellation, and final assembly. The guarded
+PostgreSQL reader owns connection reservation, session fencing, and snapshot
+export/import/cleanup.
 It does not decide caller grants or change the response contract.
 
 ## Exported surface
@@ -20,15 +22,16 @@ It does not decide caller grants or change the response contract.
 - `FileBranch`, `ProbeSQL`, and `AssemblySQL` build the existing candidate rules
   and PostgreSQL final grouping.
 - `ProbeRow` preserves SQL NULLs across the JSON transfer.
-- `RunPartitions` joins all workers after an error; `Investigate` owns their
-  read-only transactions.
+- `RunPartitions` joins all workers after an error; `Investigate` closes the
+  guarded snapshot set after final assembly.
 
 See `doc.go` for the package contract.
 
 ## Dependencies
 
 - `internal/query/codequery` supplies request and evidence-row types.
-- `database/sql` pins each worker to one PostgreSQL transaction.
+- `internal/storage/postgres/db` supplies a query-only snapshot-set contract;
+  no raw SQL pool or transaction escapes into this package.
 
 ## Telemetry
 
@@ -56,9 +59,10 @@ Eight interleaved ABBA rounds (16 timed requests per variant) had baseline and
 candidate medians of 0.768627 and 0.415212 seconds. Every timed request
 returned HTTP 200, the complete canonical JSON response matched, and the
 content and queue fingerprint was unchanged. This is a built endpoint result
-on the dedicated instance, not a deployed ops-qa acceptance result. A later
-base-only rebase preserved the production patch according to `git range-diff`;
-the measured binary still identifies the pre-rebase source commit.
+on the dedicated instance, not a deployed ops-qa acceptance result. Those
+measurements remain bound to the pre-rebase source commit. The later
+guarded-reader integration changed the production connection path and needs
+its own built endpoint proof before claiming the deployed budget.
 
 Observability Evidence: The `postgres.query` span records the selected route,
 reservation wait and cancellation, connection count, probe row count, JSON
@@ -68,15 +72,13 @@ on the same span.
 
 ## Gotchas / invariants
 
-- Import an exported snapshot before a worker's first SELECT. Keep the exporter
-  transaction open until final assembly completes.
+- The guarded reader imports the exported snapshot before each worker's first
+  SELECT. Keep its exporter open until final assembly completes.
 - Compute the candidate cap from the full request before partitioning terms.
-- Reserve four connections under a per-pool acquisition gate before starting
-  any transaction. On cancellation, release each partial reservation. This
-  prevents competing requests from filling the pool with exporters and waiting
-  for their own workers. The gate is released after all four connections are
-  reserved, so a pool of eight can run two requests concurrently. Smaller
-  pools use the single-statement path.
+- The guarded reader reserves four connections under a per-pool acquisition
+  gate before starting transactions and releases partial reservations on
+  cancellation. A pool of eight can run two requests concurrently. Smaller
+  pools, or a store without snapshot-set support, use the single statement.
 - Preserve the SQL `ORDER BY` and `string_agg(DISTINCT ...)` rules. Go string
   sorting is not a replacement for database collation.
 

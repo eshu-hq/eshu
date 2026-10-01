@@ -7,5 +7,6 @@
 // Callers supply repository and language predicates before the per-term LIMIT.
 // The package preserves nullable probe columns in JSON and delegates text
 // grouping, distinct-term scoring, cap detection, and page ordering to SQL.
-// Any probe or assembly error cancels sibling reads and rolls back all sessions.
+// Any probe or assembly error cancels sibling reads and closes the guarded
+// snapshot set after workers have joined.
 package codetopicparallel

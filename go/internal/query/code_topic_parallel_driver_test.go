@@ -214,7 +214,7 @@ func openCodeTopicParallelDB(t *testing.T, recorder *codeTopicParallelRecorder) 
 
 func TestInvestigateCodeTopicParallelUsesSnapshotAndNullableSQLAssembly(t *testing.T) {
 	recorder := &codeTopicParallelRecorder{}
-	reader := NewContentReader(openCodeTopicParallelDB(t, recorder))
+	reader := newCodeTopicParallelTestReader(openCodeTopicParallelDB(t, recorder))
 	terms := []string{"same", "other", "same", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	result, err := reader.InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 1, Offset: 1})
 	if err != nil {
@@ -259,7 +259,7 @@ func TestInvestigateCodeTopicParallelUsesSnapshotAndNullableSQLAssembly(t *testi
 
 func TestInvestigateCodeTopicParallelEmptyProbeSendsJSONArray(t *testing.T) {
 	recorder := &codeTopicParallelRecorder{emptyProbes: true}
-	reader := NewContentReader(openCodeTopicParallelDB(t, recorder))
+	reader := newCodeTopicParallelTestReader(openCodeTopicParallelDB(t, recorder))
 	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	_, err := reader.InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 	if err != nil {
@@ -274,7 +274,7 @@ func TestInvestigateCodeTopicParallelEmptyProbeSendsJSONArray(t *testing.T) {
 
 func TestInvestigateCodeTopicParallelRollsBackAfterProbeError(t *testing.T) {
 	recorder := &codeTopicParallelRecorder{probeFailure: errors.New("injected probe failure")}
-	reader := NewContentReader(openCodeTopicParallelDB(t, recorder))
+	reader := newCodeTopicParallelTestReader(openCodeTopicParallelDB(t, recorder))
 	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	_, err := reader.InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 	if err == nil || !strings.Contains(err.Error(), "injected probe failure") {
@@ -294,7 +294,7 @@ func TestInvestigateCodeTopicParallelSaturatedPoolMakesProgress(t *testing.T) {
 	start := make(chan struct{})
 	results := make(chan error, 4)
 	for range 4 {
-		reader := NewContentReader(db)
+		reader := newCodeTopicParallelTestReader(db)
 		go func() {
 			<-start
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -323,7 +323,7 @@ func TestInvestigateCodeTopicParallelTwoRequestsUseEightConnections(t *testing.T
 	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	results := make(chan error, 2)
 	for range 2 {
-		reader := NewContentReader(db)
+		reader := newCodeTopicParallelTestReader(db)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -354,7 +354,7 @@ func TestInvestigateCodeTopicParallelCanceledReservationReleasesConnections(t *t
 	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	_, err = NewContentReader(db).InvestigateCodeTopic(ctx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+	_, err = newCodeTopicParallelTestReader(db).InvestigateCodeTopic(ctx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("reservation error = %v, want deadline", err)
 	}
@@ -364,7 +364,7 @@ func TestInvestigateCodeTopicParallelCanceledReservationReleasesConnections(t *t
 	if err := ordinary.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewContentReader(db).InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26}); err != nil {
+	if _, err := newCodeTopicParallelTestReader(db).InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26}); err != nil {
 		t.Fatalf("request after canceled reservation: %v", err)
 	}
 }
@@ -382,7 +382,7 @@ func TestInvestigateCodeTopicParallelCanceledGateWaitDoesNotBlock(t *testing.T) 
 	firstCtx, firstCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer firstCancel()
 	go func() {
-		_, err := NewContentReader(db).InvestigateCodeTopic(firstCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+		_, err := newCodeTopicParallelTestReader(db).InvestigateCodeTopic(firstCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 		firstResult <- err
 	}()
 	deadline := time.After(time.Second)
@@ -395,7 +395,7 @@ func TestInvestigateCodeTopicParallelCanceledGateWaitDoesNotBlock(t *testing.T) 
 	}
 	secondCtx, secondCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer secondCancel()
-	_, err = NewContentReader(db).InvestigateCodeTopic(secondCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+	_, err = newCodeTopicParallelTestReader(db).InvestigateCodeTopic(secondCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("second reservation error = %v, want deadline", err)
 	}
@@ -422,7 +422,7 @@ func TestInvestigateCodeTopicParallelReservationDoesNotBlockOtherPool(t *testing
 	blockedCtx, blockedCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer blockedCancel()
 	go func() {
-		_, err := NewContentReader(blockedDB).InvestigateCodeTopic(blockedCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+		_, err := newCodeTopicParallelTestReader(blockedDB).InvestigateCodeTopic(blockedCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 		blockedResult <- err
 	}()
 	deadline := time.After(time.Second)
@@ -436,7 +436,7 @@ func TestInvestigateCodeTopicParallelReservationDoesNotBlockOtherPool(t *testing
 	otherDB := openCodeTopicParallelDB(t, &codeTopicParallelRecorder{})
 	otherCtx, otherCancel := context.WithTimeout(context.Background(), time.Second)
 	defer otherCancel()
-	if _, err := NewContentReader(otherDB).InvestigateCodeTopic(otherCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26}); err != nil {
+	if _, err := newCodeTopicParallelTestReader(otherDB).InvestigateCodeTopic(otherCtx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26}); err != nil {
 		t.Fatalf("independent pool request: %v", err)
 	}
 	if err := ordinary.Close(); err != nil {

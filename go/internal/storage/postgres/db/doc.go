@@ -5,7 +5,8 @@
 // layer: the row cursor (Rows), the read and write adapter surfaces (Queryer,
 // Executor, ExecQueryer), and the transaction surface (Transaction, Beginner,
 // ReadOnlyRepeatableReadBeginner), and the additive guarded read surfaces
-// (Row, RowQueryer, ReadTransaction, ReadSnapshotBeginner, ReadStore).
+// (Row, RowQueryer, ReadTransaction, ReadSnapshotBeginner, ReadSnapshotSet,
+// ReadSnapshotSetBeginner, ReadStore).
 //
 // ReadTransaction has no Exec or raw transaction method. A guarded runtime
 // implementation owns the connection and snapshot lifecycle behind this leaf.

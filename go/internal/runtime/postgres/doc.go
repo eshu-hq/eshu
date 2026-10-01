@@ -12,8 +12,10 @@
 // insertion point. Each cursor or row read checks freshness on its own
 // borrowed reader connection. BeginReadOnlySnapshot checks freshness before
 // starting a read-only repeatable-read transaction that retains that same
-// connection until Commit, Rollback, or cancellation. No failed fence falls
-// back to the writer or executes business SQL.
+// connection until Commit, Rollback, or cancellation. The optional guarded
+// snapshot-set surface reserves and fences every connection before beginning
+// transactions, exports one snapshot, and imports it into all other members.
+// No failed fence falls back to the writer or executes business SQL.
 //
 // This package does not qualify promotion, timeline forks, split brain,
 // Aurora, proxy routing, or automatic writer restart acceptance. Recreate

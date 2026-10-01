@@ -16,6 +16,10 @@ the same primary when the DSNs are exactly equal. A new Access bootstrap is
 required after writer restart. Promotion, proxies, Aurora, and split-brain
 handling need separate proof. `ReadTransaction` owns its borrowed connection
 until Commit, Rollback, or cancellation; a cursor only closes its own rows.
+Snapshot sets reserve all requested reader connections behind a per-Access
+context-cancelable gate, fence every connection before any transaction, and
+retain the exporter through assembly. Failure and cancellation release every
+reserved connection and transaction.
 Snapshot cursor Scan must reject any `*sql.RawBytes` destination before touching
 other destinations, close through its public Close, and preserve Close errors.
 Use the owned disposable PostgreSQL fixture for physical replay tests; do not

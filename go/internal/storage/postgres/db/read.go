@@ -31,6 +31,21 @@ type ReadSnapshotBeginner interface {
 	BeginReadOnlySnapshot(context.Context) (ReadTransaction, error)
 }
 
+// ReadSnapshotSet holds multiple query-only readers on one exported snapshot.
+// Reader indexes are stable for the lifetime of the set; Close releases every
+// transaction and connection owned by it.
+type ReadSnapshotSet interface {
+	Reader(index int) (Queryer, error)
+	Close() error
+}
+
+// ReadSnapshotSetBeginner opens a group whose members share one read-only
+// repeatable-read snapshot. Count includes the exporting reader.
+type ReadSnapshotSetBeginner interface {
+	MaxReadConnections() int
+	BeginReadOnlySnapshotSet(context.Context, int) (ReadSnapshotSet, error)
+}
+
 // ReadStore combines guarded cursor, row, and snapshot reads.
 type ReadStore interface {
 	Queryer

@@ -22,6 +22,22 @@ func TestInvestigateCodeTopicParallelFallsBackWhenPoolIsSmall(t *testing.T) {
 	}})
 	db.SetMaxOpenConns(3)
 	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
+	rows, err := newCodeTopicParallelTestReader(db).InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("serial fallback rows=%#v err=%v", rows, err)
+	}
+	if len(recorder.queries) != 1 || !strings.Contains(recorder.queries[0], "WITH terms(term) AS") {
+		t.Fatalf("serial fallback queries=%#v", recorder.queries)
+	}
+}
+
+func TestInvestigateCodeTopicParallelFallsBackWithoutSnapshotSet(t *testing.T) {
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{"source_kind", "repo_id", "relative_path", "entity_id", "entity_name", "entity_type", "language", "start_line", "end_line", "matched_terms", "score", "pool_truncated"},
+		rows:    [][]driver.Value{{"file", "repo", "a.go", "", "", "", "go", int64(1), int64(2), "same", int64(1), false}},
+	}})
+	db.SetMaxOpenConns(4)
+	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	rows, err := NewContentReader(db).InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("serial fallback rows=%#v err=%v", rows, err)

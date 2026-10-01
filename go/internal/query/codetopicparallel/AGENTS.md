@@ -4,12 +4,13 @@ Keep this package downstream of `internal/query`: it may import `codequery`,
 but must not import the parent query package. The parent supplies grant and
 language filters before any bounded probe runs.
 
-Preserve the shared-snapshot sequence: reserve all four connections under the
-per-pool gate, then begin the read-only repeatable-read exporter, export its
-snapshot, import that snapshot in each worker before the worker's first read,
-join every worker, then run PostgreSQL final assembly while the exporter is
-still open. Roll back every transaction and close every connection on all
-exits, including canceled partial reservations.
+Preserve the shared-snapshot sequence through the guarded reader contract:
+it reserves and fences four connections, opens one read-only repeatable-read
+exporter, imports its snapshot before each worker's first read, and owns all
+transaction and connection cleanup. This package joins every worker, runs
+PostgreSQL final assembly while the exporter remains open, then closes the
+snapshot set on every exit. Never bypass the guarded read store with a raw
+SQL pool.
 
 The final SQL owns collation, distinct-term scoring, pool-cap status, and
 LIMIT/OFFSET. Keep nullable columns typed in the JSON transfer. A change to

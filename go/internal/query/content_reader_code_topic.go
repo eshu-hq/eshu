@@ -78,11 +78,15 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		),
 	)
 	defer span.End()
-	maxOpenConns := cr.db.Stats().MaxOpenConnections
-	if codetopicparallel.Eligible(len(req.Terms), maxOpenConns) {
+	parallelStore, supportsSnapshotSet := cr.db.(db.ReadSnapshotSetBeginner)
+	maxOpenConns := 0
+	if supportsSnapshotSet {
+		maxOpenConns = parallelStore.MaxReadConnections()
+	}
+	if supportsSnapshotSet && codetopicparallel.Eligible(len(req.Terms), maxOpenConns) {
 		span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))
 		filters, args, _ := codeTopicFilters(req)
-		results, err := codetopicparallel.Investigate(ctx, cr.db, span, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
+		results, err := codetopicparallel.Investigate(ctx, parallelStore, span, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
 		if err != nil {
 			span.RecordError(err)
 			return nil, contentSubstringIndexReadError(err)
@@ -90,8 +94,12 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		return results, nil
 	}
 	span.SetAttributes(attribute.String("code_topic.execution_mode", "single_statement"))
-	if len(req.Terms) == 16 && maxOpenConns > 0 && maxOpenConns < codetopicparallel.Partitions {
-		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
+	if len(req.Terms) == 16 {
+		if !supportsSnapshotSet {
+			span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "snapshot_set_unavailable"))
+		} else if maxOpenConns > 0 && maxOpenConns < codetopicparallel.Partitions {
+			span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
+		}
 	}
 
 	filters, args, nextArg := codeTopicFilters(req)

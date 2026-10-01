@@ -7,13 +7,162 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-var _ db.ReadStore = fencedQueryer{}
+var (
+	_ db.ReadStore               = fencedQueryer{}
+	_ db.ReadSnapshotSetBeginner = fencedQueryer{}
+)
+
+// MaxReadConnections reports the private reader pool's configured limit.
+func (q fencedQueryer) MaxReadConnections() int {
+	if q.access == nil || q.access.reader == nil {
+		return 0
+	}
+	return q.access.reader.Stats().MaxOpenConnections
+}
+
+// BeginReadOnlySnapshotSet opens count read-only repeatable-read transactions
+// on one exported snapshot. All connections are fenced before any transaction
+// begins, and the exporter remains open until the returned set is closed.
+func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) (db.ReadSnapshotSet, error) {
+	a := q.access
+	if count < 1 || count > q.MaxReadConnections() {
+		return nil, privateFailure(failureSnapshotBegin, errors.New("invalid snapshot reader count"))
+	}
+	if a == nil || a.snapshotSetGate == nil {
+		return nil, privateFailure(failureSnapshotBegin, errors.New("snapshot set gate unavailable"))
+	}
+	select {
+	case <-a.snapshotSetGate:
+	case <-ctx.Done():
+		return nil, privateFailure(failureSnapshotBegin, ctx.Err())
+	}
+	defer func() { a.snapshotSetGate <- struct{}{} }()
+
+	connections := make([]*sql.Conn, 0, count)
+	transactions := make([]*readTransaction, 0, count)
+	ready := false
+	defer func() {
+		if ready {
+			return
+		}
+		for i := len(transactions) - 1; i >= 0; i-- {
+			_ = transactions[i].Rollback()
+		}
+		for i := len(transactions); i < len(connections); i++ {
+			_ = connections[i].Close()
+		}
+	}()
+
+	// Keep the gate through the complete reservation so concurrent sets cannot
+	// each hold a partial pool reservation while waiting for the other.
+	for range count {
+		conn, err := a.borrowFresh(ctx)
+		if err != nil {
+			return nil, privateFailure(failureSnapshotBegin, err)
+		}
+		connections = append(connections, conn)
+	}
+	exporter, err := beginReadTransaction(ctx, connections[0], a)
+	if err != nil {
+		return nil, privateFailure(failureSnapshotBegin, err)
+	}
+	transactions = append(transactions, exporter)
+	var snapshotID string
+	if err := exporter.QueryRowContext(ctx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
+		return nil, privateFailure(failureSnapshotBegin, err)
+	}
+	snapshotLiteral, err := snapshotSQLLiteral(snapshotID)
+	if err != nil {
+		return nil, privateFailure(failureSnapshotBegin, err)
+	}
+	for i := 1; i < len(connections); i++ {
+		worker, err := beginReadTransaction(ctx, connections[i], a)
+		if err != nil {
+			return nil, privateFailure(failureSnapshotBegin, err)
+		}
+		transactions = append(transactions, worker)
+		started := time.Now()
+		_, err = worker.tx.ExecContext(ctx, "SET TRANSACTION SNAPSHOT "+snapshotLiteral)
+		a.observe("reader", StageBusinessQuery, started, err)
+		if err != nil {
+			return nil, privateFailure(failureSnapshotBegin, err)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, privateFailure(failureSnapshotBegin, err)
+	}
+	set := &readSnapshotSet{readers: transactions}
+	ready = true
+	return set, nil
+}
+
+func beginReadTransaction(ctx context.Context, conn *sql.Conn, access *Access) (*readTransaction, error) {
+	started := time.Now()
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	access.observe("reader", StageBusinessQuery, started, err)
+	if err != nil {
+		return nil, err
+	}
+	return newReadTransaction(ctx, tx, conn, access), nil
+}
+
+func newReadTransaction(ctx context.Context, tx *sql.Tx, conn *sql.Conn, access *Access) *readTransaction {
+	owned := &readTransaction{tx: tx, conn: conn, access: access}
+	owned.stop = context.AfterFunc(ctx, func() { _ = owned.finish(false) })
+	return owned
+}
+
+func snapshotSQLLiteral(snapshotID string) (string, error) {
+	if snapshotID == "" || strings.IndexByte(snapshotID, 0) >= 0 {
+		return "", errors.New("invalid exported snapshot identifier")
+	}
+	return "'" + strings.ReplaceAll(snapshotID, "'", "''") + "'", nil
+}
+
+type readSnapshotSet struct {
+	mu      sync.Mutex
+	once    sync.Once
+	readers []*readTransaction
+	closed  bool
+	err     error
+}
+
+var _ db.ReadSnapshotSet = (*readSnapshotSet)(nil)
+
+func (s *readSnapshotSet) Reader(index int) (db.Queryer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, sql.ErrTxDone
+	}
+	if index < 0 || index >= len(s.readers) {
+		return nil, fmt.Errorf("snapshot reader index %d out of range", index)
+	}
+	return s.readers[index], nil
+}
+
+func (s *readSnapshotSet) Close() error {
+	s.once.Do(func() {
+		s.mu.Lock()
+		s.closed = true
+		readers := append([]*readTransaction(nil), s.readers...)
+		s.mu.Unlock()
+		// Roll back importers before the exporter so its snapshot remains valid
+		// throughout caller assembly and all importer cleanup.
+		for i := len(readers) - 1; i >= 0; i-- {
+			s.err = errors.Join(s.err, readers[i].finishSnapshotSet())
+		}
+	})
+	return s.err
+}
 
 // QueryRowContext runs one guarded read and defers its errors to Scan.
 func (q fencedQueryer) QueryRowContext(ctx context.Context, statement string, args ...any) db.Row {
@@ -64,9 +213,7 @@ func (q fencedQueryer) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransa
 		_ = conn.Close()
 		return nil, privateFailure(failureSnapshotBegin, err)
 	}
-	owned := &readTransaction{tx: tx, conn: conn, access: q.access}
-	owned.stop = context.AfterFunc(ctx, func() { _ = owned.finish(false) })
-	return owned, nil
+	return newReadTransaction(ctx, tx, conn, q.access), nil
 }
 
 type readTransaction struct {
@@ -112,6 +259,15 @@ func (r *readTransaction) finish(commit bool) error {
 		}
 		return privateFailure(failureSnapshotTerminal, errors.Join(sql.ErrTxDone, r.err))
 	}
+	return r.err
+}
+
+func (r *readTransaction) finishSnapshotSet() error {
+	r.stop()
+	r.once.Do(func() {
+		r.err = r.tx.Rollback()
+		r.err = privateFailure(failureSnapshotTerminal, errors.Join(r.err, r.conn.Close()))
+	})
 	return r.err
 }
 

@@ -5,7 +5,6 @@ package codetopicparallel
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -181,7 +181,7 @@ func RunPartitions(ctx context.Context, count int, run func(context.Context, int
 	return results, nil
 }
 
-func scanCodeTopicProbeRows(rows *sql.Rows) ([]ProbeRow, error) {
+func scanCodeTopicProbeRows(rows db.Rows) ([]ProbeRow, error) {
 	var results []ProbeRow
 	for rows.Next() {
 		var row ProbeRow
@@ -198,9 +198,9 @@ func scanCodeTopicProbeRows(rows *sql.Rows) ([]ProbeRow, error) {
 	return results, nil
 }
 
-func readCodeTopicProbe(ctx context.Context, tx *sql.Tx, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any) ([]ProbeRow, error) {
+func readCodeTopicProbe(ctx context.Context, reader db.Queryer, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any) ([]ProbeRow, error) {
 	query, args := ProbeSQL(req, cap, filters, baseArgs)
-	rows, err := tx.QueryContext(ctx, query, args...)
+	rows, err := reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("code topic probe: %w", err)
 	}
@@ -210,9 +210,9 @@ func readCodeTopicProbe(ctx context.Context, tx *sql.Tx, req codequery.CodeTopic
 
 // Investigate reads four per-term partitions on one exported snapshot, then
 // asks PostgreSQL to assemble the ordered page with the original SQL rules.
-func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(*sql.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) ([]codequery.CodeTopicEvidenceRow, error) {
+func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span trace.Span, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) (result []codequery.CodeTopicEvidenceRow, err error) {
 	reservationStarted := time.Now()
-	conns, err := reserveConnections(ctx, db, Partitions)
+	set, err := store.BeginReadOnlySnapshotSet(ctx, Partitions)
 	span.SetAttributes(
 		attribute.Int("code_topic.requested_connections", Partitions),
 		attribute.Int64("code_topic.connection_reservation_wait_ms", time.Since(reservationStarted).Milliseconds()),
@@ -221,26 +221,17 @@ func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery
 		span.SetAttributes(attribute.Bool("code_topic.connection_reservation_canceled", errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)))
 		return nil, err
 	}
-	span.SetAttributes(attribute.Int("code_topic.reserved_connections", len(conns)))
-	defer closeConnections(conns)
-	probeStarted := time.Now()
-	options := &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}
-	exporter, err := conns[0].BeginTx(ctx, options)
-	if err != nil {
-		return nil, fmt.Errorf("begin code topic snapshot: %w", err)
-	}
-	defer func() { _ = exporter.Rollback() }()
-	var snapshot string
-	if err := exporter.QueryRowContext(ctx, "SELECT pg_export_snapshot()").Scan(&snapshot); err != nil {
-		return nil, fmt.Errorf("export code topic snapshot: %w", err)
-	}
-	for _, ch := range snapshot {
-		if (ch < '0' || ch > '9') && (ch < 'A' || ch > 'F') && ch != '-' {
-			return nil, fmt.Errorf("invalid exported snapshot identifier")
+	span.SetAttributes(attribute.Int("code_topic.reserved_connections", Partitions))
+	defer func() {
+		if closeErr := set.Close(); closeErr != nil {
+			result = nil
+			err = errors.Join(err, fmt.Errorf("close code topic snapshot: %w", closeErr))
 		}
-	}
-	if snapshot == "" {
-		return nil, fmt.Errorf("empty exported snapshot identifier")
+	}()
+	probeStarted := time.Now()
+	exporter, err := set.Reader(0)
+	if err != nil {
+		return nil, fmt.Errorf("read code topic exporter: %w", err)
 	}
 	probes, err := RunPartitions(ctx, Partitions, func(workerCtx context.Context, index int) ([]ProbeRow, error) {
 		group := req
@@ -248,19 +239,11 @@ func Investigate(ctx context.Context, db *sql.DB, span trace.Span, req codequery
 		for termIndex := index; termIndex < len(req.Terms); termIndex += Partitions {
 			group.Terms = append(group.Terms, req.Terms[termIndex])
 		}
-		if index == 0 {
-			return readCodeTopicProbe(workerCtx, exporter, group, cap, filters, baseArgs)
+		reader, readErr := set.Reader(index)
+		if readErr != nil {
+			return nil, fmt.Errorf("read code topic worker %d: %w", index, readErr)
 		}
-		tx, beginErr := conns[index].BeginTx(workerCtx, options)
-		if beginErr != nil {
-			return nil, fmt.Errorf("begin code topic worker %d: %w", index, beginErr)
-		}
-		defer func() { _ = tx.Rollback() }()
-		// #nosec G201 -- snapshot is a validated server-generated identifier.
-		if _, setErr := tx.ExecContext(workerCtx, "SET TRANSACTION SNAPSHOT '"+snapshot+"'"); setErr != nil {
-			return nil, fmt.Errorf("import code topic snapshot worker %d: %w", index, setErr)
-		}
-		return readCodeTopicProbe(workerCtx, tx, group, cap, filters, baseArgs)
+		return readCodeTopicProbe(workerCtx, reader, group, cap, filters, baseArgs)
 	})
 	if err != nil {
 		return nil, err
