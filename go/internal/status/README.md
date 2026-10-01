@@ -63,7 +63,7 @@ See `doc.go` for the godoc contract. Key types and functions:
   optional collector or registry sections. The partial raw snapshot is
   projected only to `SemanticExtractionStatus`, never to a full health report.
   The zero-value mode retains the standard read and its optional-section flags;
-  unknown or contradictory modes fail before storage work.
+  unknown or contradictory modes fail before status SQL or snapshot BEGIN.
 - `ReadinessChecker` — separate bounded migration-receipt and core-schema check
   used by `/readyz`; status reports and metrics still load the full snapshot and backlog state
 

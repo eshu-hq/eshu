@@ -6,8 +6,9 @@
 budget, and audit SQL through `StatusStore.ReadStatusSnapshotFiltered`. The
 selection returns only `SemanticExtractionStatus`; it never projects a partial
 raw snapshot into a full health report. The default mode retains the standard
-status sections and its existing optional-section flags. Unsupported or
-contradictory selections fail before a transaction or SQL. The route retains
+status sections and its existing optional-section flags. The status store and
+snapshot wrapper reject unsupported or contradictory selections before status
+queries or snapshot BEGIN. The route retains
 redacted static provider profiles and the existing response envelope and truth.
 It also retains the guarded reader checkpoint, read-only repeatable-read
 transaction, deadline, rollback, and status telemetry. An unrelated status
