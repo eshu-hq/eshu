@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 func TestCompositeMetricsStatusFailureKeepsTelemetryParseable(t *testing.T) {
@@ -26,7 +27,7 @@ func TestCompositeMetricsStatusFailureKeepsTelemetryParseable(t *testing.T) {
 	})
 	response := httptest.NewRecorder()
 	NewCompositeMetricsHandler(status, prometheus).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(strings.NewReader(response.Body.String()))
 	if err != nil {
 		t.Fatalf("status failure corrupted independent telemetry: %v; body %q", err, response.Body.String())
@@ -215,7 +216,7 @@ func TestCompositeMetricsConcurrentOutcomes(t *testing.T) {
 
 func parseCompositeMetrics(t *testing.T, body string) map[string]*dto.MetricFamily {
 	t.Helper()
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("parse metrics: %v; body %q", err, body)
