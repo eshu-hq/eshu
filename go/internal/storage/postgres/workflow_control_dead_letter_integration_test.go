@@ -50,27 +50,24 @@ INSERT INTO fact_work_items (
 	}
 }
 
-// openDeadLetterBridgeIntegrationStore opens the shared WorkflowControlStore
-// integration harness and additionally provisions the reducer/ingestion
-// schema (fact_work_items, ingestion_scopes, scope_generations,
-// graph_projection_phase_state) that these #4459 tests read across store
-// boundaries. ApplyBootstrap is idempotent (CREATE TABLE/INDEX IF NOT
-// EXISTS), so this is safe to call even when an external bootstrap already
-// ran. Kept local to this file rather than added to the shared
-// openWorkflowControlIntegrationStore helper so
-// workflow_control_integration_test.go stays untouched by this fix.
+// openDeadLetterBridgeIntegrationStore opens a WorkflowControlStore over an
+// isolated schema holding the reducer/ingestion tables (fact_work_items,
+// ingestion_scopes, scope_generations, graph_projection_phase_state) that these
+// #4459 tests read across store boundaries.
+//
+// The tests need those tables empty, and they used to get that by running
+// TRUNCATE ... CASCADE on the shared schema. That also deleted migration 116's
+// eshu:global scope and phase rows, which the migration ledger never re-seeds,
+// so every later live proof that expects the standing global anchor failed on
+// the second run against one database (#7489). A schema of its own starts empty
+// without touching shared state.
 func openDeadLetterBridgeIntegrationStore(t *testing.T) (*sql.DB, *WorkflowControlStore) {
 	t.Helper()
-	db, store := openWorkflowControlIntegrationStore(t)
-	ctx := context.Background()
-	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
-		t.Fatalf("ApplyBootstrap() error = %v, want nil", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-TRUNCATE fact_work_items, scope_generations, projector_scope_claim_fences, ingestion_scopes, graph_projection_phase_state
-RESTART IDENTITY CASCADE
-`); err != nil {
-		t.Fatalf("TRUNCATE reducer/ingestion tables error = %v, want nil", err)
+	db, ctx := openIsolatedLiveDB(t, "deadletter_bridge",
+		"ESHU_POSTGRES_DSN is not set; skipping Postgres integration test")
+	store := NewWorkflowControlStore(SQLDB{DB: db})
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema() error = %v, want nil", err)
 	}
 	return db, store
 }
