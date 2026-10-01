@@ -123,6 +123,11 @@ storage contract. The signals above are the same before and after the move.
   resweep (`RebuildAllCollectorEvidence`), not incremental per-scope dirty
   tracking, so it cannot miss a change class; the durable freshness guard caps
   cluster-wide resweeps at ~one per cadence regardless of replica count.
+- `GenerationRetentionRunner` retries a pass that pruned nothing but reported
+  skipped candidates soon (1m doubling per consecutive skipped-only pass,
+  capped at the poll interval) instead of sleeping the full interval (#7398).
+  Lock-held candidates stay invisible by design (the candidate SELECT uses
+  SKIP LOCKED), so a lock-starved pass keeps the full sleep.
 - Test helpers (`acceptedGenerationFixed`, `reducerCounterValue`, `hasAttrs`)
   are duplicated from the reducer root by design; do not export a root test
   helper to reach it. The `Service.startSideRunners` wiring proof for each
