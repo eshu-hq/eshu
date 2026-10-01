@@ -3,7 +3,10 @@
 
 package syntax
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestStringLiteralValue(t *testing.T) {
 	t.Parallel()
@@ -23,6 +26,10 @@ func TestStringLiteralValue(t *testing.T) {
 		{name: "unicode escape uppercase hex", literal: `'\u00E9'`, want: "é"},
 		{name: "braced unicode escape", literal: `'\u{66}rom'`, want: "from"},
 		{name: "braced astral code point", literal: `'\u{1F600}'`, want: "😀"},
+		{name: "braced surrogate pair", literal: `'\u{D83D}\u{DE00}'`, want: "😀"},
+		{name: "braced high then four-digit low", literal: `'\u{d83d}\ude00'`, want: "😀"},
+		{name: "four-digit high then braced low", literal: `'\ud83d\u{de00}'`, want: "😀"},
+		{name: "braced high then non-low falls back to body", literal: `'\u{D83D}\u{41}'`, want: `\u{D83D}\u{41}`},
 		{name: "surrogate pair escapes", literal: `'\ud83d\ude00'`, want: "😀"},
 		{name: "surrogate pair uppercase", literal: `'\uD83D\uDE00'`, want: "😀"},
 		{name: "lone high surrogate falls back to body", literal: `'\ud83d'`, want: `\ud83d`},
@@ -92,6 +99,15 @@ func TestReExportSpecifierNamesUnquotesTextFallbackNames(t *testing.T) {
 		{raw: ` '\u0066rom' as b `, wantOriginal: "from", wantExported: "b"},
 		{raw: ` 'x y' as 'z w' `, wantOriginal: "x y", wantExported: "z w"},
 		{raw: ` plain as bare `, wantOriginal: "plain", wantExported: "bare"},
+		{raw: ` 'a b' `, wantOriginal: "a b", wantExported: "a b"},
+		{raw: ` 'a as b' `, wantOriginal: "a as b", wantExported: "a as b"},
+		{raw: ` 'a b' as c `, wantOriginal: "a b", wantExported: "c"},
+		{raw: ` a as 'b c' `, wantOriginal: "a", wantExported: "b c"},
+		{raw: ` 'a as b' as c `, wantOriginal: "a as b", wantExported: "c"},
+		{raw: ` "it's" as c `, wantOriginal: "it's", wantExported: "c"},
+		{raw: ` 'a b c' d e `},
+		{raw: ` a as b as c `},
+		{raw: ` ...rest `},
 	}
 	for _, tt := range tests {
 		original, exported := reExportSpecifierNames(tt.raw)
@@ -115,5 +131,79 @@ func TestReExportSpecifiersFromTextUnquotesNames(t *testing.T) {
 		got[0].OriginalName != "a" || got[0].ExportedName != "b c" ||
 		got[1].OriginalName != "d" || got[1].ExportedName != "e" {
 		t.Fatalf("reExportSpecifiersFromText() = %#v, want a as b c and d as e", got)
+	}
+}
+
+// TestBraceClauseSpecifiersReadsOutsideQuotes pins the quote-aware split: a name
+// holding a comma, a brace or the word as must not end its specifier early.
+func TestBraceClauseSpecifiersReadsOutsideQuotes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		text string
+		want []string
+		ok   bool
+	}{
+		{`export { a, b as c } from "m"`, []string{" a", " b as c "}, true},
+		{`export { 'a, b' as c, 'x}' } from "m"`, []string{" 'a, b' as c", " 'x}' "}, true},
+		{`export { "q{r" } from "m"`, []string{` "q{r" `}, true},
+		{`export { 'it\'s, ok' as d } from "m"`, []string{` 'it\'s, ok' as d `}, true},
+		{`export { } from "m"`, []string{" "}, true},
+		{`export { 'unterminated } from "m"`, nil, false},
+		{`export * from "m"`, nil, false},
+	}
+	for _, tt := range tests {
+		got, ok := braceClauseSpecifiers(tt.text)
+		if ok != tt.ok || !reflect.DeepEqual(got, tt.want) {
+			t.Fatalf("braceClauseSpecifiers(%q) = (%q, %v), want (%q, %v)", tt.text, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+// TestReExportSpecifiersFromTextKeepsQuotedNamesWhole drives the fallback through
+// a parsed statement: the names that used to be dropped or split (a space, the
+// word as, a comma) reach ReExportSpecifier whole (#7461).
+func TestReExportSpecifiersFromTextKeepsQuotedNamesWhole(t *testing.T) {
+	t.Parallel()
+
+	root, source, closeFn := parseRootForTest(t, "export { 'a b', 'c as d' as e, 'f, g' as h } from \"./m\";\n")
+	defer closeFn()
+	got := reExportSpecifiersFromText(firstExportStatement(t, root), source)
+	want := [][2]string{{"a b", "a b"}, {"c as d", "e"}, {"f, g", "h"}}
+	if len(got) != len(want) {
+		t.Fatalf("reExportSpecifiersFromText() = %#v, want %d specifiers", got, len(want))
+	}
+	for i, pair := range want {
+		if got[i].OriginalName != pair[0] || got[i].ExportedName != pair[1] {
+			t.Fatalf("specifier %d = %q as %q, want %q as %q", i, got[i].OriginalName, got[i].ExportedName, pair[0], pair[1])
+		}
+	}
+}
+
+// TestReExportSpecifiersDecidesAliasByPresence: an alias written as an empty
+// string is still an alias, and an empty original name is still a name. Both are
+// valid ECMAScript, and neither may be read as "no alias" (#7461).
+func TestReExportSpecifiersDecidesAliasByPresence(t *testing.T) {
+	t.Parallel()
+
+	root, source, closeFn := parseRootForTest(t, "export { value as '' } from \"./a\";\n")
+	got := ReExportSpecifiers(firstExportStatement(t, root), source)
+	closeFn()
+	if len(got) != 1 || got[0].OriginalName != "value" || got[0].ExportedName != "" {
+		t.Fatalf("ReExportSpecifiers(value as '') = %#v, want value exported as the empty name", got)
+	}
+
+	root, source, closeFn = parseRootForTest(t, "export { '' as local } from \"./b\";\n")
+	got = ReExportSpecifiers(firstExportStatement(t, root), source)
+	closeFn()
+	if len(got) != 1 || got[0].OriginalName != "" || got[0].ExportedName != "local" {
+		t.Fatalf("ReExportSpecifiers('' as local) = %#v, want the empty name exported as local", got)
+	}
+
+	root, source, closeFn = parseRootForTest(t, "export { ' x ' } from \"./c\";\n")
+	got = ReExportSpecifiers(firstExportStatement(t, root), source)
+	closeFn()
+	if len(got) != 1 || got[0].OriginalName != " x " || got[0].ExportedName != " x " {
+		t.Fatalf("ReExportSpecifiers(' x ') = %#v, want the name kept exactly, spaces included", got)
 	}
 }

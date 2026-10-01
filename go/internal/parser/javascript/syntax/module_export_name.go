@@ -4,6 +4,7 @@
 package syntax
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"unicode/utf16"
@@ -108,11 +109,11 @@ func decodeStringEscapes(body string) (string, bool) {
 				i++
 			}
 		case 'x':
-			value, ok := parseHexDigits(body, i, 2)
+			value, ok := parseHexRune(body, i, 2)
 			if !ok {
 				return "", false
 			}
-			out.WriteRune(rune(value))
+			out.WriteRune(value)
 			i += 2
 		case 'u':
 			value, width, ok := parseUnicodeEscape(body, i)
@@ -159,35 +160,105 @@ func parseUnicodeEscape(body string, start int) (rune, int, bool) {
 		}
 		return rune(value), end + 1, true
 	}
-	value, ok := parseHexDigits(body, start, 4)
+	value, ok := parseHexRune(body, start, 4)
 	if !ok {
 		return 0, 0, false
 	}
-	return rune(value), 4, true
+	return value, 4, true
 }
 
-// pairedLowSurrogate reads the second half of a UTF-16 surrogate pair spelled as
-// a four-digit escape at body[start:], after the caller decoded high. It
-// reports false when high is not a high surrogate or no low-surrogate escape
-// follows.
+// pairedLowSurrogate reads the second half of a UTF-16 surrogate pair at
+// body[start:], after the caller decoded high: a backslash-u escape in either
+// spelling (four digits or braced) whose value is a low surrogate. It reports
+// false when high is not a high surrogate or no low-surrogate escape follows, and
+// returns the bytes the second escape took.
 func pairedLowSurrogate(body string, start int, high rune) (rune, int, bool) {
 	if high >= 0xDC00 || !strings.HasPrefix(body[start:], `\u`) {
 		return 0, 0, false
 	}
-	value, ok := parseHexDigits(body, start+2, 4)
+	value, width, ok := parseUnicodeEscape(body, start+2)
 	if !ok || value < 0xDC00 || value > 0xDFFF {
 		return 0, 0, false
 	}
-	return rune(value), 6, true
+	return value, 2 + width, true
 }
 
-func parseHexDigits(body string, start int, count int) (uint64, bool) {
+// parseHexRune reads count hex digits at body[start:] as a rune. The explicit
+// bound keeps the uint64 to int32 conversion provably in range (gosec G115); a
+// sequence above it is no code point and no code unit either.
+func parseHexRune(body string, start int, count int) (rune, bool) {
 	if start+count > len(body) {
 		return 0, false
 	}
 	value, err := strconv.ParseUint(body[start:start+count], 16, 32)
-	if err != nil {
+	if err != nil || value > math.MaxInt32 {
 		return 0, false
 	}
-	return value, true
+	return rune(value), true
+}
+
+// braceClauseSpecifiers returns the comma-separated specifiers between the first
+// `{` of an export statement's text and its matching `}`, reading outside quoted
+// strings so a name holding a comma, a brace, or the word `as` stays whole. It
+// reports false when no balanced brace clause exists.
+func braceClauseSpecifiers(text string) ([]string, bool) {
+	start := strings.IndexByte(text, '{')
+	if start < 0 {
+		return nil, false
+	}
+	var parts []string
+	partStart := start + 1
+	for i := start + 1; i < len(text); {
+		switch text[i] {
+		case '\'', '"':
+			i = skipQuoted(text, i)
+		case ',':
+			parts = append(parts, text[partStart:i])
+			partStart = i + 1
+			i++
+		case '}':
+			return append(parts, text[partStart:i]), true
+		default:
+			i++
+		}
+	}
+	return nil, false
+}
+
+// tokensOutsideQuotes splits text on whitespace, keeping each quoted string
+// (quotes included) inside one token.
+func tokensOutsideQuotes(text string) []string {
+	var tokens []string
+	for i := 0; i < len(text); {
+		if text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r' {
+			i++
+			continue
+		}
+		start := i
+		for i < len(text) && text[i] != ' ' && text[i] != '\t' && text[i] != '\n' && text[i] != '\r' {
+			if text[i] == '\'' || text[i] == '"' {
+				i = skipQuoted(text, i)
+				continue
+			}
+			i++
+		}
+		tokens = append(tokens, text[start:i])
+	}
+	return tokens
+}
+
+// skipQuoted returns the index just past the quoted string that opens at
+// text[open], honouring backslash escapes. An unterminated string runs to the
+// end of text.
+func skipQuoted(text string, open int) int {
+	quote := text[open]
+	for i := open + 1; i < len(text); i++ {
+		switch text[i] {
+		case '\\':
+			i++
+		case quote:
+			return i + 1
+		}
+	}
+	return len(text)
 }

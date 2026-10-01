@@ -210,13 +210,13 @@ func exportAttributeSpecifiers(errNode *tree_sitter.Node, source []byte) []ReExp
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		OriginalName := ModuleExportName(nameNode, source)
-		ExportedName := ModuleExportName(aliasNode, source)
-		if ExportedName == "" {
-			ExportedName = OriginalName
-		}
-		if ExportedName == "" || OriginalName == "" {
+		if nameNode == nil {
 			return
+		}
+		OriginalName := ModuleExportName(nameNode, source)
+		ExportedName := OriginalName
+		if aliasNode != nil {
+			ExportedName = ModuleExportName(aliasNode, source)
 		}
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,

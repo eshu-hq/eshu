@@ -191,13 +191,15 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		OriginalName := ModuleExportName(nameNode, source)
-		ExportedName := ModuleExportName(aliasNode, source)
-		if ExportedName == "" {
-			ExportedName = OriginalName
-		}
-		if ExportedName == "" || OriginalName == "" {
+		if nameNode == nil {
 			return
+		}
+		OriginalName := ModuleExportName(nameNode, source)
+		ExportedName := OriginalName
+		if aliasNode != nil {
+			// A string-literal alias may be empty ('as ""'); presence, not a
+			// non-empty value, decides that an alias was written.
+			ExportedName = ModuleExportName(aliasNode, source)
 		}
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
@@ -232,13 +234,11 @@ func reExportSpecifiersFromText(
 	source []byte,
 ) []ReExportSpecifier {
 	text := strings.TrimSpace(shared.NodeText(node, source))
-	start := strings.Index(text, "{")
-	end := strings.Index(text, "}")
-	if start < 0 || end <= start {
+	parts, ok := braceClauseSpecifiers(text)
+	if !ok {
 		return nil
 	}
 
-	parts := strings.Split(text[start+1:end], ",")
 	specifiers := make([]ReExportSpecifier, 0, len(parts))
 	for _, part := range parts {
 		OriginalName, ExportedName := reExportSpecifierNames(part)
@@ -281,33 +281,25 @@ func exportSpecifierTextIsTypeOnly(raw string) bool {
 	return len(fields) != 3 || fields[1] != "as"
 }
 
+// reExportSpecifierNames reads the original and exported name of one specifier
+// the brace-text fallback split out: `name`, or `name as alias`, where either
+// name may be a quoted string (`'a b' as "c"`). It tokenizes outside quotes, so
+// a name holding spaces or the word `as` stays one token. It returns two empty
+// strings for any other shape.
 func reExportSpecifierNames(raw string) (string, string) {
 	part := strings.TrimSpace(strings.TrimPrefix(exportSpecifierWithoutLineComments(raw), "type "))
 	if part == "" || strings.Contains(part, "...") {
 		return "", ""
 	}
-
-	fields := strings.Fields(part)
-	switch len(fields) {
-	case 1:
-		name := unquoteModuleExportName(fields[0])
+	tokens := tokensOutsideQuotes(part)
+	switch {
+	case len(tokens) == 1:
+		name := unquoteModuleExportName(tokens[0])
 		return name, name
-	case 3:
-		if fields[1] == "as" {
-			return unquoteModuleExportName(fields[0]), unquoteModuleExportName(fields[2])
-		}
+	case len(tokens) == 3 && tokens[1] == "as":
+		return unquoteModuleExportName(tokens[0]), unquoteModuleExportName(tokens[2])
 	}
-
-	left, right, ok := strings.Cut(part, " as ")
-	if !ok {
-		return "", ""
-	}
-	left = unquoteModuleExportName(left)
-	right = unquoteModuleExportName(right)
-	if left == "" || right == "" {
-		return "", ""
-	}
-	return left, right
+	return "", ""
 }
 
 func exportSpecifierWithoutLineComments(raw string) string {
