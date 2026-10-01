@@ -256,10 +256,10 @@ no attribution work: `BenchmarkDisabledPassthroughWrapped` 2.1 ns/op vs
 `BenchmarkDisabledPassthroughBare` 0.5 ns/op on Apple M4 Pro (the delta
 is one interface dispatch plus the capture-enabled check).
 Under capture (CI differential legs only) `BenchmarkRecordCallsite`
-measures ~0.77 us per recorded read for the `runtime.Callers` walk plus
-receiver canonicalization; the local B-7 neo4j capture held 3,134
-records, i.e. ~2.4 ms of attribution per leg against the 150-minute
-differential budget. The offline statement-coverage phase over those
+measures ~0.77 us per recorded read on the same Apple M4 Pro for the
+`runtime.Callers` walk plus receiver canonicalization; the local B-7
+neo4j capture held 3,134 records, i.e. ~2.4 ms of attribution per leg
+against the 150-minute differential budget. The offline statement-coverage phase over those
 captures completes in 2.2 s wall (including `go run` startup) with a
 PASS verdict. The identity path is new in this change, so there is no
 old-identity baseline to compare against; the production comparison is
