@@ -290,6 +290,11 @@ green while a sibling returns rows and shows up only as an advisory miss.
 Reads that share a text modulo label but never shared parameters stay
 independent.
 
+The verdict is per (text, callsite): a callsite whose executions of a
+row-bearing text all returned zero rows still fails as `callsite ::
+text` unless an exemption names that callsite — the family row-maximum
+never excuses one callsite miss.
+
 Run it over local captures (single pair is enough; CI merges both Neo4j
 pairing dirs by backend):
 
