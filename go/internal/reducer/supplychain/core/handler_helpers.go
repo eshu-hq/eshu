@@ -450,7 +450,8 @@ func (h SupplyChainImpactHandler) emitEvidenceTruncation(
 // naming the scope, generation and token. The pass returns the retryable
 // superseded error and the queue re-runs it with a fresher token, so a steady
 // rate under continuous ingest is normal churn; a scope that stays superseded
-// points at two workers repeatedly overtaking each other. Any other error is
+// points at two workers repeatedly overtaking each other, or at a sequence that
+// lags the admitted watermark (a restore or manual reset). Any other error is
 // ignored here.
 func (h SupplyChainImpactHandler) emitWriteSuperseded(
 	ctx context.Context,

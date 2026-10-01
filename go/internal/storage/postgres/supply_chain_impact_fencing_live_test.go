@@ -327,8 +327,11 @@ func TestSupplyChainImpactUpsertGuardRefusesAStaleReviveLive(t *testing.T) {
 
 // TestSupplyChainImpactFencingTokenIssuerIssuesStrictlyIncreasingValuesLive
 // proves the sequence-backed issuer never repeats or reorders a value under
-// concurrent callers, and that re-applying migration 154 never regresses the
-// sequence below an admitted watermark.
+// concurrent callers, and that running migration 154's seed statement by hand
+// (the repair an operator uses after resetting the sequence; the bootstrap
+// ledger runs the file once in the service runtimes, and eshu local runs it on
+// every start) never regresses the sequence below an admitted
+// watermark.
 func TestSupplyChainImpactFencingTokenIssuerIssuesStrictlyIncreasingValuesLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
 	issuer := postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: postgres.SQLDB{DB: db}}
@@ -369,8 +372,8 @@ func TestSupplyChainImpactFencingTokenIssuerIssuesStrictlyIncreasingValuesLive(t
 		t.Fatalf("first token = %d; a sequence never issues 0", tokens[0])
 	}
 
-	// An admitted watermark above the sequence must survive a re-apply of the
-	// migration: the seed advances the sequence past it and never regresses it.
+	// An admitted watermark above the sequence must survive running the seed by
+	// hand: the seed advances the sequence past it and never regresses it.
 	const watermark = 1_000_000
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO supply_chain_impact_write_admission (scope_id, generation_id, fencing_token, updated_at)
@@ -386,23 +389,23 @@ VALUES ('scope:seed', 'gen:seed', $1, $2)`, watermark, replaceSetLiveNow); err !
 	if migration == "" {
 		t.Fatal("bootstrap has no supply_chain_impact_write_admission definition")
 	}
-	for range 2 { // idempotent: the file re-applies on every reducer start
+	for range 2 { // idempotent: an operator may run the seed more than once
 		if _, err := db.ExecContext(ctx, migration); err != nil {
-			t.Fatalf("re-apply migration: %v", err)
+			t.Fatalf("re-run the seed: %v", err)
 		}
 	}
 	next, err := issuer.NextSupplyChainImpactFencingToken(ctx)
 	if err != nil {
-		t.Fatalf("issue after re-apply: %v", err)
+		t.Fatalf("issue after re-run: %v", err)
 	}
 	if next <= watermark {
 		t.Fatalf("next token = %d, want above the admitted watermark %d", next, watermark)
 	}
 	afterNext, err := issuer.NextSupplyChainImpactFencingToken(ctx)
 	if err != nil {
-		t.Fatalf("issue token after re-apply: %v", err)
+		t.Fatalf("issue token after re-run: %v", err)
 	}
 	if afterNext != next+1 {
-		t.Fatalf("token after re-apply = %d then %d; a re-apply must not regress or skip the sequence", next, afterNext)
+		t.Fatalf("token after re-run = %d then %d; a re-run must not regress or skip the sequence", next, afterNext)
 	}
 }

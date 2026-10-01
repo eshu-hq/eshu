@@ -723,7 +723,7 @@ type Instruments struct {
 	// returns a retryable, non-counting error and the queue re-runs it with a
 	// fresher token. Label: domain (supply_chain_impact). A steady rate under
 	// continuous ingest is normal churn; a scope that stays superseded means two
-	// workers keep overtaking each other. The WARN log line carries the scope.
+	// workers keep overtaking each other, or the sequence lags the admitted watermark after a restore or manual reset. The WARN log line carries the scope.
 	SupplyChainImpactWriteSuperseded metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain

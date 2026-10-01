@@ -6,7 +6,7 @@
 -- (scope_id, generation_id) records the highest fencing token any pass has been
 -- admitted to write with. A pass whose own token is older is rejected before it
 -- upserts or retracts anything -- see
--- go/internal/reducer/supplychain/core/writer_admission.go.
+-- go/internal/reducer/supplychain/core/writer_retract.go.
 --
 -- The watermark is a table rather than MAX(fencing_token) over fact_records
 -- because a fresher pass that derived an EMPTY finding set leaves no row to take
@@ -32,18 +32,23 @@ CREATE TABLE IF NOT EXISTS supply_chain_impact_write_admission (
 -- passes whose loads interleave, which converge on the next intent for the pair.
 CREATE SEQUENCE IF NOT EXISTS supply_chain_impact_fencing_token_seq;
 
--- Seed the sequence above the highest token already admitted, so re-applying
--- this file on a live database can only advance the sequence, never regress it
--- below a value already issued to an in-flight or committed writer. Seeded from
--- the admission table only: every finding row written before this migration
--- carries fencing_token 0, every later non-zero token comes from this sequence,
--- and an admitted watermark is at least every row token of its
--- (scope_id, generation_id), so the table bounds fact_records and no scan of
--- fact_records (or index on it) is needed. This file re-applies on every
--- reducer start, so it must stay idempotent. The advance is a read then a
--- setval, so it is a repair for a sequence that lags the admitted watermark (a
--- restore or a reset of the sequence), not a live-safe operation while other
--- writers draw values.
+-- Seed the sequence above the highest token already admitted. The bootstrap
+-- ledger records this file after its first apply and skips it from then on
+-- (schema_bootstrap_lock.go), so in the service runtimes this block runs once,
+-- when the admission table is empty, and is not a recurring repair; only
+-- "eshu local" (localsupervisor applyLocalBootstrap) applies the definitions
+-- untracked on every start, so there it runs each start as a forward-only
+-- repair. It stays idempotent and forward-only so an operator can run it by
+-- hand after restoring or resetting the sequence:
+-- a token that comes back equal to an admitted watermark is admitted as an
+-- identical re-execution even when it belongs to a different pass, so never
+-- reset this sequence on its own. Seeded from the admission table only: every
+-- finding row written before this migration carries fencing_token 0, every later
+-- non-zero token comes from this sequence, and an admitted watermark is at least
+-- every row token of its (scope_id, generation_id), so the table bounds
+-- fact_records and no scan of fact_records (or index on it) is needed. The
+-- advance is a read then a setval, so it is not live-safe while other writers
+-- draw values.
 DO $$
 DECLARE
     watermark_floor BIGINT;

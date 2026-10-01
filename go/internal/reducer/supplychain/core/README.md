@@ -85,7 +85,9 @@ the writer takes the advisory lock, then runs a compare-and-set on
 already admitted is rejected whole with the retryable, non-counting
 `supply_chain_impact_write_superseded` error), then upserts rows stamped with the
 token, then retracts with `fencing_token <= token` and stamps the tombstones with
-it. A missing issuer or a zero token fails closed. Rolling back to a reducer that predates the token freezes the
+it. A missing issuer or a zero token fails closed. A scope that stays superseded
+means two workers keep overtaking each other or the sequence lags the admitted
+watermark after a restore or manual reset; the evidence note has the repair. Rolling back to a reducer that predates the token freezes the
 rows the new reducer stamped; the evidence note has the reset SQL to run first.
 Evidence:
 `docs/internal/evidence/7142-supply-chain-impact-fencing-token.md`.

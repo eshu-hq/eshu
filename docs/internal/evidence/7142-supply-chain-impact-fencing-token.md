@@ -84,9 +84,15 @@ Design ruled by the arbiter (token source, admission, migration shape).
 
 `154_supply_chain_impact_write_admission.sql` creates the table, the sequence,
 and a guarded seed that advances the sequence to `MAX(fencing_token) + 1` of the
-admission table when that exceeds the sequence's `last_value`. The file
-re-applies on every reducer start, so it can only move the sequence forward. It
-seeds from the admission table only: every pre-existing finding row carries `0`,
+admission table when that exceeds the sequence's `last_value`. The bootstrap
+ledger records the file after its first apply and skips it afterwards, so in the
+service runtimes the seed runs once, on an empty admission table, and is not a
+recurring repair (`eshu local` applies the definitions untracked on every start, so
+there it runs each start as a forward-only repair). It is
+idempotent and forward-only, so an operator can run it by hand after restoring or
+resetting the sequence (never reset the sequence on its own: a token that comes
+back equal to an admitted watermark is admitted as an identical re-execution even
+when it belongs to a different pass). It seeds from the admission table only: every pre-existing finding row carries `0`,
 every later non-zero token comes from this sequence, and an admitted watermark
 is at least every row token of its pair, so no scan of `fact_records` and no
 `fact_records` index is needed (unlike `aws_cloud_runtime_drift`, migration
@@ -111,11 +117,11 @@ and the sequence can stay: old code ignores them, and a later roll-forward keeps
 issuing higher tokens than any watermark. `container_image_identity` and
 `aws_cloud_runtime_drift` have the same property and document no rollback either.
 The admission table gains one small row per `(scope, generation)` and is not
-pruned by generation retention; `aws_cloud_runtime_drift` has the same property. The migration's re-apply seed does one `MAX(fencing_token)` over the table on every reducer
-start; measured on local Postgres 18 at 1,000,000 rows (121 MB), it runs in 21-24 ms
-(a parallel sequential scan of the whole table, about 15,000 pages; the cost grows
-linearly with the table, about 53 ms with parallelism off), so the startup cost stays
-small at any realistic age.
+pruned by generation retention; `aws_cloud_runtime_drift` has the same property. The migration's seed does one `MAX(fencing_token)` over the table, once at first apply
+(on every start under `eshu local`, and whenever an operator runs it by hand); measured on local Postgres 18 at
+1,000,000 rows (121 MB), it runs in 21-24 ms (a parallel sequential scan of the whole
+table, about 15,000 pages; the cost grows linearly with the table, about 53 ms with
+parallelism off), so it stays small at any realistic age.
 
 ## Lock order and transaction scope
 
@@ -183,7 +189,7 @@ Test Evidence:
   `...RetractsLegacyZeroRowsAndStampsTokenLive`,
   `...UpsertGuardRefusesAStaleReviveLive`, and
   `...FencingTokenIssuerIssuesStrictlyIncreasingValuesLive` (200 concurrent
-  values distinct and increasing per caller, a re-applied migration never
+  values distinct and increasing per caller; the seed statement, run by hand, never
   regresses the sequence below an admitted watermark). The existing #6831 live
   proofs were adapted: passes carry increasing tokens, and the concurrency proof
   now asserts the survivor is the freshest pass's set (before: whichever pass
