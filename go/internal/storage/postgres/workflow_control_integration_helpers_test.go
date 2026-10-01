@@ -24,8 +24,9 @@ const workflowControlIntegrationDSNEnv = "ESHU_POSTGRES_DSN"
 // read reducer rows back. On the shared schema a rerun hit the previous run's
 // generation ("generation already published or terminal") and only passed
 // because the dead-letter bridge tests, which sort earlier, emptied the shared
-// reducer tables first, wiping migration 116's eshu:global seed as a side
-// effect (#7489). A schema per proof starts empty without touching shared state.
+// reducer tables first, which also wiped the eshu:global anchor migrations 115
+// and 116 seed (#7489). A schema per proof has no stale fixture rows and leaves
+// the shared schema alone.
 func openWorkflowControlIntegrationStore(t *testing.T) (*sql.DB, *WorkflowControlStore) {
 	t.Helper()
 

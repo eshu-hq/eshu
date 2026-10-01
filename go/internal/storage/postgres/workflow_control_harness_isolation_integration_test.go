@@ -15,10 +15,11 @@ import (
 
 // TestWorkflowControlHarnessLeavesSharedSchemaUntouched is the #7489 regression.
 // The workflow-control and dead-letter integration harnesses used to empty the
-// shared reducer tables with TRUNCATE ... CASCADE, which also deleted migration
-// 116's eshu:global scope and phase rows. The migration ledger marks 116
-// applied, so nothing re-seeds them and every later proof that expects the
-// standing global anchor failed on the second run against one database.
+// shared reducer tables with TRUNCATE ... CASCADE, which also deleted the
+// eshu:global scope, generation and work item migration 115 seeds and the phase
+// row migration 116 adds. The migration ledger marks both applied, so nothing
+// re-seeds them and every later proof that expects the standing global anchor
+// failed on the second run against one database.
 //
 // The harness must run on a schema of its own: opening it, writing through it
 // and closing it leave the shared schema's scope and phase-state rows exactly as
@@ -42,7 +43,7 @@ func TestWorkflowControlHarnessLeavesSharedSchemaUntouched(t *testing.T) {
 	}
 	before := sharedReducerRowCounts(ctx, t, shared)
 	if before.globalScope == 0 {
-		t.Fatalf("shared schema has no eshu:global scope row to protect; an earlier run already wiped migration 116's seed, so recreate the database")
+		t.Fatalf("shared schema has no eshu:global scope row to protect; an earlier run already wiped the seed migrations 115 and 116 add, so recreate the database")
 	}
 
 	db, _ := openDeadLetterBridgeIntegrationStore(t)
@@ -84,10 +85,10 @@ func TestWorkflowControlHarnessLeavesSharedSchemaUntouched(t *testing.T) {
 }
 
 // sharedReducerCounts holds the rows of the shared schema this regression
-// guards: the standing eshu:global scope and its phase rows, which migration 116
-// seeds, and the probe work item the harness writes. Only these are counted so a
-// parallel test that writes other scopes into the shared schema cannot make the
-// check fail.
+// guards: the standing eshu:global scope (migration 115), its phase rows
+// (migration 116), and the probe work item the harness writes. Only these are
+// counted so a parallel test that writes other scopes into the shared schema
+// cannot make the check fail.
 type sharedReducerCounts struct {
 	globalScope int
 	phaseRows   int

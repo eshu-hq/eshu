@@ -56,12 +56,14 @@ INSERT INTO fact_work_items (
 // #4459 tests read across store boundaries, because the harness applies the full
 // bootstrap in the schema it opens.
 //
-// The tests need those tables empty, and they used to get that by running
-// TRUNCATE ... CASCADE on the shared schema. That also deleted migration 116's
-// eshu:global scope and phase rows, which the migration ledger never re-seeds,
-// so every later live proof that expects the standing global anchor failed on
-// the second run against one database (#7489). The isolated schema starts empty
-// without touching shared state.
+// The tests need no stale fixture rows, and they used to get that by running
+// TRUNCATE ... CASCADE on the shared schema. That also deleted the eshu:global
+// scope, generation and work item migration 115 seeds and the phase row
+// migration 116 adds, which the migration ledger never re-seeds, so every later
+// live proof that expects the standing global anchor failed on the second run
+// against one database (#7489). A schema of its own has no stale fixture rows
+// (the bootstrap still seeds its own copy of the anchor) and leaves the shared
+// schema alone.
 func openDeadLetterBridgeIntegrationStore(t *testing.T) (*sql.DB, *WorkflowControlStore) {
 	t.Helper()
 	return openWorkflowControlIntegrationStore(t)
