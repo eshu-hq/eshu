@@ -192,8 +192,8 @@ func repoDependencyFamilyOdu() familyodu.CatalogOdu {
 			"env/ifa-repo-dependency/prefix.tf", "terraform_hcl",
 			`app_repo = "`+repoDependencyFamilyNearMissAlias+`"`+"\n",
 		),
-		repoDependencyFamilyFollowupFact("workload_materialization", "workload:"+repoDependencyFamilySourceName),
-		repoDependencyFamilyFollowupFact("deployment_mapping", "deployment:"+repoDependencyFamilySourceName),
+		repoDependencyFamilyFollowupFact("workload_materialization", "workload:"+repoDependencyFamilySourceRepoID),
+		repoDependencyFamilyFollowupFact("deployment_mapping", "deployment:"+repoDependencyFamilySourceRepoID),
 	}
 	return familyodu.CatalogOdu{
 		Odu: familyodu.Odu{Name: familyodu.RepoDependencyFamilyOduName, Facts: factsForOdu},

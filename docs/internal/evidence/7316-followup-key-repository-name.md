@@ -161,6 +161,18 @@ Arbiter resolutions (all Q for lane-N):
   already keys by repo id), fixture key tables rekeyed in lockstep, and the
   four contract gates green (`fact-kind-registry`,
   `contract-source-of-truth`, `factschema-diff`, `payload-usage-manifest`).
+  Follow-up (review F1): the compiled Ifa catalogs hand-build the same
+  follow-up keys independently of the cassettes, and three family Odus
+  (symbol-runtime, repo-dependency, workload-dependency) still emitted
+  name-keyed `workload:`/`deployment:` entity keys that the offline guards
+  consume directly. All three builders now emit `<prefix>:<repo.ID>` from
+  their repo-ID constants (the workload-dependency builder's now-dead
+  `repoName` parameter removed at all 9 call sites), their cassettes rekeyed
+  to match, and the four `*CassetteMatchesCompiledCatalog` lockstep tests
+  pin compiled == cassette. The materialized `WorkloadID` slug
+  (`workload:symbolruntime`) is intentionally untouched: the matcher compares
+  keys against repository `graph_id`/`repo_id` only, never against
+  `WorkloadID`.
 
 Exemption in place of a shim: there is no compatibility dual-match. An old
 name-keyed work item matches no candidate, issues no graph statement (the

@@ -412,7 +412,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "workload_materialization",
-            "entity_key": "workload:repo-dependency-family-source",
+            "entity_key": "workload:repo-ifa-repo-dependency-source",
             "reason": "repository snapshot emitted workload_materialization follow-up",
             "repo_id": "repo-ifa-repo-dependency-source"
           }
@@ -426,7 +426,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "deployment_mapping",
-            "entity_key": "deployment:repo-dependency-family-source",
+            "entity_key": "deployment:repo-ifa-repo-dependency-source",
             "reason": "repository snapshot emitted deployment_mapping follow-up",
             "repo_id": "repo-ifa-repo-dependency-source"
           }

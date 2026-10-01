@@ -118,28 +118,28 @@ func workloadDependencyFamilyOdu() familyodu.CatalogOdu {
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName)),
 		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilySourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyTargetName),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName)),
-		workloadDependencyFamilyFollowupFact(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
-		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilySourceRepoID, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilySourceRepoID),
 
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName)),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName)),
-		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
-		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyTargetRepoID, workloadDependencyFamilyTargetName),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyTargetRepoID, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyTargetRepoID),
 
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName)),
 		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilyMultiSourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyMultiTargetName),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName)),
-		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
-		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyMultiSourceRepoID, workloadDependencyFamilyMultiSourceName),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyMultiSourceRepoID, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyMultiSourceRepoID),
 
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName)),
 		workloadDependencyFamilyK8sDeploymentFact(workloadDependencyFamilyK8sDeployment(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName)),
-		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
-		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyMultiTargetRepoID, workloadDependencyFamilyMultiTargetName),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyMultiTargetRepoID, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyWorkloadFollowupFact(workloadDependencyFamilyMultiTargetRepoID),
 
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanSourceRepoID, workloadDependencyFamilyOrphanSourceName)),
 		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilyOrphanSourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyOrphanTargetName),
-		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyOrphanSourceRepoID, workloadDependencyFamilyOrphanSourceName, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
+		workloadDependencyFamilyFollowupFact(workloadDependencyFamilyOrphanSourceRepoID, "deployment_mapping", "repository snapshot emitted deployment mapping follow-up"),
 
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanTargetRepoID, workloadDependencyFamilyOrphanTargetName)),
 	}
@@ -236,18 +236,18 @@ func workloadDependencyFamilyK8sDeploymentFact(file codegraphv1.File) facts.Enve
 	return workloadDependencyFamilyFact(file.RepoID, factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload)
 }
 
-func workloadDependencyFamilyWorkloadFollowupFact(repoID, repoName string) facts.Envelope {
-	return workloadDependencyFamilyFollowupFact(repoID, repoName, "workload_materialization", "repository snapshot emitted workload materialization follow-up")
+func workloadDependencyFamilyWorkloadFollowupFact(repoID string) facts.Envelope {
+	return workloadDependencyFamilyFollowupFact(repoID, "workload_materialization", "repository snapshot emitted workload materialization follow-up")
 }
 
-func workloadDependencyFamilyFollowupFact(repoID, repoName, domain, reason string) facts.Envelope {
+func workloadDependencyFamilyFollowupFact(repoID, domain, reason string) facts.Envelope {
 	return workloadDependencyFamilyFact(
 		repoID,
 		"shared_followup",
 		"shared_followup:"+repoID+":"+domain,
 		map[string]any{
 			"reducer_domain": domain,
-			"entity_key":     "workload:" + repoName,
+			"entity_key":     "workload:" + repoID,
 			"reason":         reason,
 			"repo_id":        repoID,
 		},

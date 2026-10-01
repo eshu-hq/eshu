@@ -81,7 +81,7 @@
           "source_confidence": "observed",
           "is_tombstone": false,
           "payload": {
-            "entity_key": "workload:workload-dependency-source",
+            "entity_key": "workload:repo-ifa-workload-dependency-source",
             "reason": "repository snapshot emitted deployment mapping follow-up",
             "reducer_domain": "deployment_mapping",
             "repo_id": "repo-ifa-workload-dependency-source"
@@ -96,7 +96,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "workload_materialization",
-            "entity_key": "workload:workload-dependency-source",
+            "entity_key": "workload:repo-ifa-workload-dependency-source",
             "reason": "repository snapshot emitted workload materialization follow-up",
             "repo_id": "repo-ifa-workload-dependency-source"
           }
@@ -168,7 +168,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "deployment_mapping",
-            "entity_key": "workload:workload-dependency-target",
+            "entity_key": "workload:repo-ifa-workload-dependency-target",
             "reason": "repository snapshot emitted deployment mapping follow-up",
             "repo_id": "repo-ifa-workload-dependency-target"
           }
@@ -182,7 +182,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "workload_materialization",
-            "entity_key": "workload:workload-dependency-target",
+            "entity_key": "workload:repo-ifa-workload-dependency-target",
             "reason": "repository snapshot emitted workload materialization follow-up",
             "repo_id": "repo-ifa-workload-dependency-target"
           }
@@ -269,7 +269,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "deployment_mapping",
-            "entity_key": "workload:workload-dependency-multi-source",
+            "entity_key": "workload:repo-ifa-workload-dependency-multi-source",
             "reason": "repository snapshot emitted deployment mapping follow-up",
             "repo_id": "repo-ifa-workload-dependency-multi-source"
           }
@@ -283,7 +283,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "workload_materialization",
-            "entity_key": "workload:workload-dependency-multi-source",
+            "entity_key": "workload:repo-ifa-workload-dependency-multi-source",
             "reason": "repository snapshot emitted workload materialization follow-up",
             "repo_id": "repo-ifa-workload-dependency-multi-source"
           }
@@ -355,7 +355,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "deployment_mapping",
-            "entity_key": "workload:workload-dependency-multi-target",
+            "entity_key": "workload:repo-ifa-workload-dependency-multi-target",
             "reason": "repository snapshot emitted deployment mapping follow-up",
             "repo_id": "repo-ifa-workload-dependency-multi-target"
           }
@@ -369,7 +369,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "workload_materialization",
-            "entity_key": "workload:workload-dependency-multi-target",
+            "entity_key": "workload:repo-ifa-workload-dependency-multi-target",
             "reason": "repository snapshot emitted workload materialization follow-up",
             "repo_id": "repo-ifa-workload-dependency-multi-target"
           }
@@ -435,7 +435,7 @@
           "is_tombstone": false,
           "payload": {
             "reducer_domain": "deployment_mapping",
-            "entity_key": "workload:workload-dependency-orphan-source",
+            "entity_key": "workload:repo-ifa-workload-dependency-orphan-source",
             "reason": "repository snapshot emitted deployment mapping follow-up",
             "repo_id": "repo-ifa-workload-dependency-orphan-source"
           }
