@@ -374,6 +374,7 @@ func (r *Runner) recordFailure(ctx context.Context, err error) {
 		ctx,
 		"code value-flow stale cleanup cycle failed",
 		log.Err(err),
+		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
 		telemetry.FailureClassAttr("code_value_flow_stale_cleanup_error"),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

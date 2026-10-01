@@ -237,6 +237,7 @@ func (r *GraphOrphanSweepRunner) recordFailure(ctx context.Context, err error) {
 			ctx,
 			"graph orphan sweep cycle failed",
 			log.Err(err),
+			slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
 			telemetry.FailureClassAttr("graph_orphan_sweep_error"),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
