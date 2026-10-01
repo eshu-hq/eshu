@@ -36,3 +36,22 @@ func TestTSQuotedFrameworkRequestImportIsSource(t *testing.T) {
 		})
 	}
 }
+
+// TestTSQuotedFrameworkRequestImportWithStringAliasIsNotSource: a string-literal
+// import alias is not valid ECMAScript (the grammar takes an identifier), so the
+// import registers no framework type and a parameter typed with the bare name is
+// not a source (#7461).
+func TestTSQuotedFrameworkRequestImportWithStringAliasIsNotSource(t *testing.T) {
+	t.Parallel()
+
+	node, source, fn := parseFirstFunction(t, "import type { 'Request' as '' } from 'express';\n"+
+		"function handler(req: Request) {\n"+
+		"\tconst q = req.body;\n"+
+		"\tdb.query(q);\n"+
+		"}")
+	facts := TaintFacts(node, source, fn)
+	res := taint.Analyze(fn, facts, taint.DefaultLimits())
+	if got := taintedCount(res, "sql"); got != 0 {
+		t.Fatalf("want 0 TAINTED sql findings for a string import alias, got %d: %+v", got, res.Findings)
+	}
+}

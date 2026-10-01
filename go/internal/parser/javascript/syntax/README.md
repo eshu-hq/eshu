@@ -62,7 +62,11 @@ does not import its sibling `project` either — the two are independent.
   string-literal specifier name (`export { a as 'from' } from "m"`,
   `import { 'b c' as d } from "m"`) yields the string's decoded value, so `'x'`
   and `"x"` name the same symbol (#7461). Every specifier-name read in this
-  package, and in the `javascript` and `jsdataflow` consumers, goes through it
+  package, and in the `javascript` and `jsdataflow` consumers, goes through it. The
+  readers that record a name the reducer resolves use `moduleSpecifierName`, which
+  also reports whether the name may be recorded: a string whose escape cannot be
+  decoded, or a name the reducer would trim into a different symbol, skips the
+  specifier. An import's local alias is always an identifier in the grammar
 - `ReExportAttributeEntries` — re-export rows for `with`/`assert` attribute
   exports, recovered from the grammars' error shapes with a synthesized
   `full_import_name` (never node text), see #7059

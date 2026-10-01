@@ -217,14 +217,17 @@ func importEntriesFromClause(
 			}
 			nameNode := specifier.ChildByFieldName("name")
 			aliasNode := specifier.ChildByFieldName("alias")
-			importedName := ModuleExportName(nameNode, source)
-			if !representableModuleName(importedName) {
+			importedName, ok := moduleSpecifierName(nameNode, source)
+			if !ok {
 				continue
 			}
+			// The grammar allows only an identifier as the local alias of an import
+			// specifier, so the alias needs no decoding or representability check.
+			alias := ModuleExportName(aliasNode, source)
 			item := map[string]any{
 				"name":        importedName,
 				"source":      moduleSource,
-				"alias":       ModuleExportName(aliasNode, source),
+				"alias":       alias,
 				"line_number": shared.NodeLine(&specifier),
 				"lang":        lang,
 			}

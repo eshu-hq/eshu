@@ -41,37 +41,67 @@ func representableModuleName(name string) bool {
 	return name == strings.TrimSpace(name)
 }
 
-// unquoteModuleExportName trims text and, when it is spelled as a quoted string
-// literal, returns the literal's value. The brace-text fallback reads names from
-// raw text, so this is its counterpart of ModuleExportName.
-func unquoteModuleExportName(text string) string {
+// moduleSpecifierName is ModuleExportName for the readers that record a name the
+// reducer will resolve: it also reports whether the name may be recorded. It
+// reports false for a string literal that cannot be decoded and for a name the
+// reducer would trim into a different symbol, and the specifier is then skipped.
+func moduleSpecifierName(node *tree_sitter.Node, source []byte) (string, bool) {
+	if node == nil {
+		return "", true
+	}
+	text := strings.TrimSpace(shared.NodeText(node, source))
+	if node.Kind() != "string" {
+		return text, representableModuleName(text)
+	}
+	value, decodable := decodeStringLiteral(text)
+	return value, decodable && representableModuleName(value)
+}
+
+// unquoteModuleSpecifierName is moduleSpecifierName for the brace-text fallback,
+// which reads names from raw text: it trims text, decodes it when it is spelled
+// as a quoted string literal, and reports whether the name may be recorded.
+func unquoteModuleSpecifierName(text string) (string, bool) {
 	text = strings.TrimSpace(text)
 	if text != "" && (text[0] == '"' || text[0] == '\'') {
-		return stringLiteralValue(text)
+		value, decodable := decodeStringLiteral(text)
+		return value, decodable && representableModuleName(value)
 	}
-	return text
+	return text, representableModuleName(text)
 }
 
 // stringLiteralValue decodes a quoted JavaScript string literal into its value.
 // A literal that is not a well-formed single- or double-quoted string, or that
 // holds an escape this decoder does not understand, falls back to the text
-// between its quotes so the name is still unquoted rather than dropped.
+// between its quotes so the name is still unquoted rather than dropped. Callers
+// that must not confuse such a name with a different, validly spelled one use
+// decodeStringLiteral and its validity flag instead.
 func stringLiteralValue(literal string) string {
+	value, _ := decodeStringLiteral(literal)
+	return value
+}
+
+// decodeStringLiteral is stringLiteralValue plus a validity flag. It reports
+// false when a quoted literal holds an escape that cannot be decoded (a lone
+// surrogate half, a legacy octal escape, a truncated hex escape): the returned
+// text is then the raw body, which is also the decoded value of a different,
+// valid literal, so a caller that resolves names must skip the specifier rather
+// than use it.
+func decodeStringLiteral(literal string) (string, bool) {
 	if len(literal) < 2 {
-		return literal
+		return literal, true
 	}
 	quote := literal[0]
 	if (quote != '"' && quote != '\'') || literal[len(literal)-1] != quote {
-		return literal
+		return literal, true
 	}
 	body := literal[1 : len(literal)-1]
 	if !strings.Contains(body, `\`) {
-		return body
+		return body, true
 	}
 	if decoded, ok := decodeStringEscapes(body); ok {
-		return decoded
+		return decoded, true
 	}
-	return body
+	return body, false
 }
 
 // decodeStringEscapes resolves the ECMAScript escape sequences in the body of a

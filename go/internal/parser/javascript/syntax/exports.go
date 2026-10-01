@@ -191,21 +191,20 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		OriginalName := ModuleExportName(nameNode, source)
-		if OriginalName == "" {
-			// A specifier needs an original name: the reducer reads a missing
-			// original as "the same as the exported name", which would resolve
-			// export { '' as c } to the module's c (#7461).
+		OriginalName, ok := moduleSpecifierName(nameNode, source)
+		if !ok || OriginalName == "" {
+			// A specifier needs a recordable original name: the reducer reads a
+			// missing original as "the same as the exported name", which would
+			// resolve export { '' as c } to the module's c (#7461).
 			return
 		}
 		ExportedName := OriginalName
 		if aliasNode != nil {
 			// A string-literal alias may be empty ('as ""'); presence, not a
 			// non-empty value, decides that an alias was written.
-			ExportedName = ModuleExportName(aliasNode, source)
-		}
-		if !representableModuleName(OriginalName) || !representableModuleName(ExportedName) {
-			return
+			if ExportedName, ok = moduleSpecifierName(aliasNode, source); !ok {
+				return
+			}
 		}
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
@@ -248,8 +247,7 @@ func reExportSpecifiersFromText(
 	specifiers := make([]ReExportSpecifier, 0, len(parts))
 	for _, part := range parts {
 		OriginalName, ExportedName := reExportSpecifierNames(part)
-		if OriginalName == "" || ExportedName == "" ||
-			!representableModuleName(OriginalName) || !representableModuleName(ExportedName) {
+		if OriginalName == "" || ExportedName == "" {
 			continue
 		}
 		specifiers = append(specifiers, ReExportSpecifier{
@@ -301,43 +299,45 @@ func reExportSpecifierNames(raw string) (string, string) {
 	tokens := tokensOutsideQuotes(part)
 	switch {
 	case len(tokens) == 1:
-		name := unquoteModuleExportName(tokens[0])
+		name, ok := unquoteModuleSpecifierName(tokens[0])
+		if !ok {
+			return "", ""
+		}
 		return name, name
 	case len(tokens) == 3 && tokens[1] == "as":
-		return unquoteModuleExportName(tokens[0]), unquoteModuleExportName(tokens[2])
+		original, originalOK := unquoteModuleSpecifierName(tokens[0])
+		exported, exportedOK := unquoteModuleSpecifierName(tokens[2])
+		if !originalOK || !exportedOK {
+			return "", ""
+		}
+		return original, exported
 	}
 	return "", ""
 }
 
+// exportSpecifierWithoutLineComments returns raw with its comments removed and
+// its line breaks turned into spaces, trimmed. It reads outside quoted strings, so
+// a comment marker inside a quoted name (`'a//b'`, `'a/*x*/b'`) stays part of the
+// name instead of truncating or rewriting it.
 func exportSpecifierWithoutLineComments(raw string) string {
-	segments := make([]string, 0, 1)
-	for _, line := range strings.Split(exportSpecifierWithoutBlockComments(raw), "\n") {
-		beforeComment, _, _ := strings.Cut(line, "//")
-		if trimmed := strings.TrimSpace(beforeComment); trimmed != "" {
-			segments = append(segments, trimmed)
-		}
-	}
-	return strings.TrimSpace(strings.Join(segments, " "))
-}
-
-func exportSpecifierWithoutBlockComments(raw string) string {
 	var cleaned strings.Builder
 	cleaned.Grow(len(raw))
 	for i := 0; i < len(raw); {
-		if i+1 < len(raw) && raw[i] == '/' && raw[i+1] == '*' {
+		switch c := raw[i]; {
+		case c == '\'' || c == '"':
+			end := skipQuoted(raw, i)
+			cleaned.WriteString(raw[i:end])
+			i = end
+		case c == '/' && i+1 < len(raw) && (raw[i+1] == '/' || raw[i+1] == '*'):
 			cleaned.WriteByte(' ')
-			i += 2
-			for i+1 < len(raw) && (raw[i] != '*' || raw[i+1] != '/') {
-				i++
-			}
-			if i+1 >= len(raw) {
-				break
-			}
-			i += 2
-			continue
+			i = skipComment(raw, i)
+		case c == '\n' || c == '\r':
+			cleaned.WriteByte(' ')
+			i++
+		default:
+			cleaned.WriteByte(c)
+			i++
 		}
-		cleaned.WriteByte(raw[i])
-		i++
 	}
-	return cleaned.String()
+	return strings.TrimSpace(cleaned.String())
 }

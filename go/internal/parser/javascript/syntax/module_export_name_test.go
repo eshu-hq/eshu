@@ -64,19 +64,75 @@ func TestStringLiteralValue(t *testing.T) {
 	}
 }
 
-func TestUnquoteModuleExportName(t *testing.T) {
+func TestUnquoteModuleSpecifierName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input  string
+		want   string
+		wantOK bool
+	}{
+		{input: "  plain  ", want: "plain", wantOK: true},
+		{input: ` 'b c' `, want: "b c", wantOK: true},
+		{input: ` "b c" `, want: "b c", wantOK: true},
+		{input: `'type'`, want: "type", wantOK: true},
+		{input: "", want: "", wantOK: true},
+		{input: `' padded '`, want: " padded ", wantOK: false},
+		{input: `'\ud800'`, want: `\ud800`, wantOK: false},
+		{input: `'\1'`, want: `\1`, wantOK: false},
+	}
+	for _, tt := range tests {
+		got, ok := unquoteModuleSpecifierName(tt.input)
+		if got != tt.want || ok != tt.wantOK {
+			t.Fatalf("unquoteModuleSpecifierName(%q) = (%q, %v), want (%q, %v)", tt.input, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
+// TestDecodeStringLiteralReportsUndecodableEscapes pins the validity flag: a
+// literal whose escape cannot be decoded yields its raw body, which is also the
+// value of a different, valid literal (`'\ud800'` against `'\\ud800'`), so the
+// caller must be told to skip the specifier instead of resolving that name.
+func TestDecodeStringLiteralReportsUndecodableEscapes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		literal string
+		want    string
+		wantOK  bool
+	}{
+		{literal: `'plain'`, want: "plain", wantOK: true},
+		{literal: `'\u0066'`, want: "f", wantOK: true},
+		{literal: `'\ud800'`, want: `\ud800`, wantOK: false},
+		{literal: `'\\ud800'`, want: `\ud800`, wantOK: true},
+		{literal: `'\1'`, want: `\1`, wantOK: false},
+		{literal: `'\u12'`, want: `\u12`, wantOK: false},
+		{literal: `plain`, want: "plain", wantOK: true},
+	}
+	for _, tt := range tests {
+		got, ok := decodeStringLiteral(tt.literal)
+		if got != tt.want || ok != tt.wantOK {
+			t.Fatalf("decodeStringLiteral(%q) = (%q, %v), want (%q, %v)", tt.literal, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
+// TestExportSpecifierWithoutLineCommentsKeepsQuotedMarkers pins the quote-aware
+// comment strip: a comment marker inside a quoted name is part of the name.
+func TestExportSpecifierWithoutLineCommentsKeepsQuotedMarkers(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]string{
-		"  plain  ": "plain",
-		` 'b c' `:   "b c",
-		` "b c" `:   "b c",
-		`'type'`:    "type",
-		"":          "",
+		"a // note\n as b":               `a   as b`,
+		"a /* note */ as b":              `a   as b`,
+		`'a//b' as c`:                    `'a//b' as c`,
+		`'a/*x*/b' as c`:                 `'a/*x*/b' as c`,
+		`"it's // not" as c // trailing`: `"it's // not" as c`,
+		"a\nas\r\nb":                     `a as  b`,
 	}
 	for input, want := range tests {
-		if got := unquoteModuleExportName(input); got != want {
-			t.Fatalf("unquoteModuleExportName(%q) = %q, want %q", input, got, want)
+		if got := exportSpecifierWithoutLineComments(input); got != want {
+			t.Fatalf("exportSpecifierWithoutLineComments(%q) = %q, want %q", input, got, want)
 		}
 	}
 }

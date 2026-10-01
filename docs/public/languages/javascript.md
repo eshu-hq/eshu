@@ -167,7 +167,9 @@ Not claimed today:
   public-surface walk
   ([#7461](https://github.com/eshu-hq/eshu/issues/7461)). A name
   with leading or trailing whitespace is skipped, because the reducer trims names
-  and it would resolve as a different symbol. A specifier with an empty original
+  and it would resolve as a different symbol, and so is a name whose escape cannot
+  be decoded (a lone surrogate half, a legacy octal escape), whose raw text would
+  collide with a different, validly spelled name. A specifier with an empty original
   name is skipped for the same reason, and an empty exported name is kept but
   never resolves, since the reducer skips empty names.
 - As defence in depth, an import, `require`, or re-export row whose module

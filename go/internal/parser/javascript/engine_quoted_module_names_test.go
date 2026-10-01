@@ -125,6 +125,42 @@ import { ' x ' as spaced } from './whitespace';
 	}
 }
 
+// A specifier whose name cannot be recorded faithfully is skipped rather than
+// recorded under a different symbol: a name or export alias with an undecodable
+// escape. A string-literal import alias (`as ' padded '`) is not valid ECMAScript:
+// the grammar takes only an identifier there, so error recovery records no row for
+// it, which this test pins as well. A name or alias with an undecodable escape (its raw body is also the value of a different,
+// valid literal), and an undecodable re-export name.
+func TestDefaultEngineParsePathSkipsUnrecordableModuleNames(t *testing.T) {
+	t.Parallel()
+
+	got := parseQuotedModuleNamesFixture(t, "unrecordable.ts", `import { a as ' padded ' } from './padded-alias';
+import { '\ud800' as b } from './lone-surrogate';
+import { c as '\ud800' } from './lone-surrogate-alias';
+import { kept as keptLocal } from './kept';
+export { '\ud800' as d } from './lone-surrogate-export';
+export { e as '\ud800' } from './lone-surrogate-export-alias';
+`)
+
+	items, ok := got["imports"].([]map[string]any)
+	if !ok {
+		t.Fatalf("imports = %T, want []map[string]any", got["imports"])
+	}
+	for _, item := range items {
+		source, _ := item["source"].(string)
+		if item["name"] == source {
+			// The module's own import row stays; only specifier rows are skipped.
+			continue
+		}
+		switch source {
+		case "./padded-alias", "./lone-surrogate", "./lone-surrogate-alias",
+			"./lone-surrogate-export", "./lone-surrogate-export-alias":
+			t.Fatalf("unrecordable specifier was recorded: %#v", item)
+		}
+	}
+	assertStringFieldValue(t, importNamedBySource(t, got, "kept", "./kept"), "alias", "keptLocal")
+}
+
 // A name spelled with a UTF-16 surrogate-pair escape is the same symbol as the
 // name spelled directly: both read as the one code point.
 func TestDefaultEngineParsePathSurrogatePairEscapeNamesMatchLiteralSpelling(t *testing.T) {
@@ -176,6 +212,23 @@ function deploy() {
 	want := []string{"child_process.execSync", "child_process.spawn"}
 	if !reflect.DeepEqual(apis, want) {
 		t.Fatalf("embedded shell apis = %#v, want %#v", apis, want)
+	}
+}
+
+// A string-literal import alias is not valid ECMAScript (the grammar takes an
+// identifier), so the embedded-shell reader never sees an empty alias: the import
+// below binds no execSync local and records no shell command.
+func TestDefaultEngineParsePathEmbeddedShellStringImportAliasRecordsNothing(t *testing.T) {
+	t.Parallel()
+
+	got := parseQuotedModuleNamesFixture(t, "string_alias.js", `import { 'execSync' as '' } from "node:child_process";
+
+function build() {
+  execSync("make");
+}
+`)
+	if commands, _ := got["embedded_shell_commands"].([]map[string]any); len(commands) != 0 {
+		t.Fatalf("embedded shell commands = %#v, want none for a string import alias", commands)
 	}
 }
 
