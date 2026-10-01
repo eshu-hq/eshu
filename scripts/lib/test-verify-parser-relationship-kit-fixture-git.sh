@@ -72,9 +72,26 @@ with_timeout() {
 # per command inside a subshell (so the parent environment is untouched),
 # plus the hang watchdog. LABEL names the operation for timeout output.
 fixture_git() {
-  local label
+  local label timeout_secs
   label="$1"
   shift
+  # A non-numeric override would fail confusingly deep inside the
+  # watchdog (sleep errors, then the command is TERM/KILLed with a
+  # misleading timeout diagnostic), so validate here and fail fast
+  # naming the bad value.
+  timeout_secs="${FIXTURE_GIT_TIMEOUT_SECS-60}"
+  case "${timeout_secs}" in
+    ''|*[!0-9]*)
+      printf 'fixture_git %s: refusing non-numeric FIXTURE_GIT_TIMEOUT_SECS=%s\n' \
+        "${label}" "${FIXTURE_GIT_TIMEOUT_SECS-(unset)}" >&2
+      return 1
+      ;;
+  esac
+  if [ "${timeout_secs}" -le 0 ]; then
+    printf 'fixture_git %s: refusing non-positive FIXTURE_GIT_TIMEOUT_SECS=%s\n' \
+      "${label}" "${timeout_secs}" >&2
+    return 1
+  fi
   (
     export GIT_CONFIG_GLOBAL=/dev/null
     export GIT_CONFIG_SYSTEM=/dev/null
@@ -84,7 +101,7 @@ fixture_git() {
       GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
       GIT_DEFAULT_HASH GIT_TEMPLATE_DIR GIT_ATTR_SOURCE \
       GIT_NAMESPACE GIT_CEILING_DIRECTORIES
-    with_timeout "${FIXTURE_GIT_TIMEOUT_SECS:-60}" "$label" \
+    with_timeout "${timeout_secs}" "$label" \
       git -c core.attributesFile=/dev/null "$@"
   )
 }

@@ -83,12 +83,14 @@ selftest_fixture_git_isolation() {
   fi
   # The wrapper must bypass every operator-config vector, including the
   # GIT_CONFIG_COUNT pairs that /dev/null files cannot stop.
+  # Probe setup uses the unpoisoned wrapper: a raw init would let
+  # operator init.templateDir plant hooks misreported as wrapper failure.
   repo="${tmp_root}/isolation-probe"
   mkdir -p "${repo}"
   printf 'probe\n' >"${repo}/file.txt"
-  git -C "${repo}" init -q
-  git -C "${repo}" config user.email "test@example.invalid"
-  git -C "${repo}" config user.name "Eshu Test"
+  fixture_git "isolation probe init" -C "${repo}" init -q
+  fixture_git "isolation probe config" -C "${repo}" config user.email "test@example.invalid"
+  fixture_git "isolation probe config" -C "${repo}" config user.name "Eshu Test"
   GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" \
     GIT_CONFIG_COUNT=1 \
     GIT_CONFIG_KEY_0=core.hooksPath \
