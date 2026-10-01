@@ -207,6 +207,7 @@ func TestServiceStoryTargetSupportStageEventExplainsAnEmptyOrAmbiguousBlock(t *t
 		`"repository_workload_count":2`,
 		`"repository_defines_target":true`,
 		`"target_support_ambiguous_count":2`,
+		`"target_support_incident_routing_count":0`,
 		`"target_support_missing_reason":"support_correlation_ambiguous"`,
 	} {
 		if !strings.Contains(completed, want) {
@@ -271,6 +272,7 @@ func TestRepositoryStoryTargetSupportStageEventExplainsAnEmptyBlock(t *testing.T
 	}
 	for _, want := range []string{
 		`"target_support_ambiguous_count":0`,
+		`"target_support_incident_routing_count":0`,
 		`"target_support_missing_reason":"support_source_only_not_target_linked"`,
 	} {
 		if !strings.Contains(completed, want) {
