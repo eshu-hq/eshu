@@ -33,8 +33,7 @@ documented_selector_path_case() {
   fixture="$(init_repo "${name}")"
   mkdir -p "$(dirname "${fixture}/${path}")"
   printf '\n`%s`\n' "${command}" >>"${fixture}/${path}"
-  git -C "${fixture}" add .
-  git -C "${fixture}" commit -q -m "${name}"
+  fixture_add_commit "${fixture}" "${name}"
   case "${expected}" in
     fail) expect_fail "${fixture}" ;;
     pass) expect_pass "${fixture}" ;;
@@ -272,8 +271,7 @@ documented_selector_path_case rust-readme-current-child pass \
 stale_cargo_selector_repo="$(init_repo stale-cargo-selector)"
 printf '\n`go test ./internal/parser -run '\''TestDefaultEngineParsePathCargo'\'' -count=1`\n' \
   >>"${stale_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${stale_cargo_selector_repo}" add .
-git -C "${stale_cargo_selector_repo}" commit -q -m 'stale Cargo test selector'
+fixture_add_commit "${stale_cargo_selector_repo}" 'stale Cargo test selector'
 expect_fail "${stale_cargo_selector_repo}"
 
 # Markdown commonly wraps the selector onto the following line. This shape
@@ -282,8 +280,7 @@ wrapped_stale_cargo_selector_repo="$(init_repo wrapped-stale-cargo-selector)"
 printf '%s\n' '' '`go test ./internal/parser -run' \
   '  '\''TestDefaultEngineParsePathCargo'\'' -count=1`' \
   >>"${wrapped_stale_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${wrapped_stale_cargo_selector_repo}" add .
-git -C "${wrapped_stale_cargo_selector_repo}" commit -q -m 'wrapped stale Cargo test selector'
+fixture_add_commit "${wrapped_stale_cargo_selector_repo}" 'wrapped stale Cargo test selector'
 expect_fail "${wrapped_stale_cargo_selector_repo}"
 
 # Go accepts build flags before package arguments. This valid spelling still
@@ -291,16 +288,14 @@ expect_fail "${wrapped_stale_cargo_selector_repo}"
 flags_first_stale_cargo_selector_repo="$(init_repo flags-first-stale-cargo-selector)"
 printf '\n`go test -run '\''TestDefaultEngineParsePathCargo'\'' ./internal/parser -count=1`\n' \
   >>"${flags_first_stale_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${flags_first_stale_cargo_selector_repo}" add .
-git -C "${flags_first_stale_cargo_selector_repo}" commit -q -m 'flags-first stale Cargo test selector'
+fixture_add_commit "${flags_first_stale_cargo_selector_repo}" 'flags-first stale Cargo test selector'
 expect_fail "${flags_first_stale_cargo_selector_repo}"
 
 wrapped_flags_first_stale_cargo_selector_repo="$(init_repo wrapped-flags-first-stale-cargo-selector)"
 printf '%s\n' '' '`go test -run '\''TestDefaultEngineParsePathCargo'\'' \' \
   '  ./internal/parser -count=1`' \
   >>"${wrapped_flags_first_stale_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${wrapped_flags_first_stale_cargo_selector_repo}" add .
-git -C "${wrapped_flags_first_stale_cargo_selector_repo}" commit -q -m 'wrapped flags-first stale Cargo test selector'
+fixture_add_commit "${wrapped_flags_first_stale_cargo_selector_repo}" 'wrapped flags-first stale Cargo test selector'
 expect_fail "${wrapped_flags_first_stale_cargo_selector_repo}"
 
 # Single-dash flags accept the equals spelling too. Exercise both selectors and
@@ -341,31 +336,27 @@ documented_selector_case double-run-coverage-package-equals fail \
 cargo_selector_repo="$(init_repo cargo-selector)"
 printf '\n`go test ./internal/parser/rust -run '\''TestDefaultEngineParsePathCargo'\'' -count=1`\n' \
   >>"${cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${cargo_selector_repo}" add .
-git -C "${cargo_selector_repo}" commit -q -m 'current Cargo test selector'
+fixture_add_commit "${cargo_selector_repo}" 'current Cargo test selector'
 expect_pass "${cargo_selector_repo}"
 
 wrapped_cargo_selector_repo="$(init_repo wrapped-cargo-selector)"
 printf '%s\n' '' '`go test ./internal/parser/rust -run' \
   '  '\''TestDefaultEngineParsePathCargo'\'' -count=1`' \
   >>"${wrapped_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${wrapped_cargo_selector_repo}" add .
-git -C "${wrapped_cargo_selector_repo}" commit -q -m 'wrapped current Cargo test selector'
+fixture_add_commit "${wrapped_cargo_selector_repo}" 'wrapped current Cargo test selector'
 expect_pass "${wrapped_cargo_selector_repo}"
 
 flags_first_cargo_selector_repo="$(init_repo flags-first-cargo-selector)"
 printf '\n`go test -run '\''TestDefaultEngineParsePathCargo'\'' ./internal/parser/rust -count=1`\n' \
   >>"${flags_first_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${flags_first_cargo_selector_repo}" add .
-git -C "${flags_first_cargo_selector_repo}" commit -q -m 'flags-first current Cargo test selector'
+fixture_add_commit "${flags_first_cargo_selector_repo}" 'flags-first current Cargo test selector'
 expect_pass "${flags_first_cargo_selector_repo}"
 
 wrapped_flags_first_cargo_selector_repo="$(init_repo wrapped-flags-first-cargo-selector)"
 printf '%s\n' '' '`go test -run '\''TestDefaultEngineParsePathCargo'\'' \' \
   '  ./internal/parser/rust -count=1`' \
   >>"${wrapped_flags_first_cargo_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${wrapped_flags_first_cargo_selector_repo}" add .
-git -C "${wrapped_flags_first_cargo_selector_repo}" commit -q -m 'wrapped flags-first current Cargo test selector'
+fixture_add_commit "${wrapped_flags_first_cargo_selector_repo}" 'wrapped flags-first current Cargo test selector'
 expect_pass "${wrapped_flags_first_cargo_selector_repo}"
 
 documented_selector_case single-run-default-child-flags-equals pass \
@@ -401,8 +392,7 @@ printf '%s\n' '' \
   '`go test -run '\''TestDefaultEngineParsePathCargo'\'' ./internal/parser/rust -count=1`' \
   '`go test ./internal/parser -count=1`' \
   >>"${split_command_context_repo}/docs/public/contributing-language-support.md"
-git -C "${split_command_context_repo}" add .
-git -C "${split_command_context_repo}" commit -q -m 'separate non-stale Cargo commands'
+fixture_add_commit "${split_command_context_repo}" 'separate non-stale Cargo commands'
 expect_pass "${split_command_context_repo}"
 
 fenced_split_command_repo="$(init_repo fenced-split-command)"
@@ -410,8 +400,7 @@ printf '%s\n' '' '```bash' \
   'go test -run '\''TestDefaultEngineParsePathCargo'\'' ./internal/parser/rust -count=1' \
   'go test ./internal/parser -count=1' '```' \
   >>"${fenced_split_command_repo}/docs/public/contributing-language-support.md"
-git -C "${fenced_split_command_repo}" add .
-git -C "${fenced_split_command_repo}" commit -q -m 'separate fenced non-stale Cargo commands'
+fixture_add_commit "${fenced_split_command_repo}" 'separate fenced non-stale Cargo commands'
 expect_pass "${fenced_split_command_repo}"
 
 double_run_split_command_repo="$(init_repo double-run-split-command)"
@@ -419,8 +408,7 @@ printf '%s\n' '' \
   '`go test --run TestDefaultEngineParsePathCargo ./internal/parser/rust -count=1`' \
   '`go test ./internal/parser -count=1`' \
   >>"${double_run_split_command_repo}/docs/public/contributing-language-support.md"
-git -C "${double_run_split_command_repo}" add .
-git -C "${double_run_split_command_repo}" commit -q -m 'separate double-run Cargo commands'
+fixture_add_commit "${double_run_split_command_repo}" 'separate double-run Cargo commands'
 expect_pass "${double_run_split_command_repo}"
 
 double_run_fenced_split_repo="$(init_repo double-run-fenced-split)"
@@ -428,8 +416,7 @@ printf '%s\n' '' '```bash' \
   'go test --run=TestCargoDependencyCoverageMatrixMarksCargoFilesCovered ./internal/parser/rust -count=1' \
   'go test ./internal/parser -count=1' '```' \
   >>"${double_run_fenced_split_repo}/docs/public/contributing-language-support.md"
-git -C "${double_run_fenced_split_repo}" add .
-git -C "${double_run_fenced_split_repo}" commit -q -m 'separate double-run fenced commands'
+fixture_add_commit "${double_run_fenced_split_repo}" 'separate double-run fenced commands'
 expect_pass "${double_run_fenced_split_repo}"
 
 # Force the helper's rg process to fail. A scan error must not become the same
@@ -461,31 +448,27 @@ rg -qF 'documented Rust command scan failed (rg exit 2)' "${fake_rg_error}" || {
 stale_cargo_coverage_selector_repo="$(init_repo stale-cargo-coverage-selector)"
 printf '\n`go test ./internal/parser -run '\''TestCargoDependencyCoverageMatrixMarksCargoFilesCovered'\'' -count=1`\n' \
   >>"${stale_cargo_coverage_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${stale_cargo_coverage_selector_repo}" add .
-git -C "${stale_cargo_coverage_selector_repo}" commit -q -m 'stale Cargo coverage selector'
+fixture_add_commit "${stale_cargo_coverage_selector_repo}" 'stale Cargo coverage selector'
 expect_fail "${stale_cargo_coverage_selector_repo}"
 
 wrapped_stale_cargo_coverage_selector_repo="$(init_repo wrapped-stale-cargo-coverage-selector)"
 printf '%s\n' '' '`go test ./internal/parser -run' \
   '  '\''TestCargoDependencyCoverageMatrixMarksCargoFilesCovered'\'' -count=1`' \
   >>"${wrapped_stale_cargo_coverage_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${wrapped_stale_cargo_coverage_selector_repo}" add .
-git -C "${wrapped_stale_cargo_coverage_selector_repo}" commit -q -m 'wrapped stale Cargo coverage selector'
+fixture_add_commit "${wrapped_stale_cargo_coverage_selector_repo}" 'wrapped stale Cargo coverage selector'
 expect_fail "${wrapped_stale_cargo_coverage_selector_repo}"
 
 cargo_coverage_selector_repo="$(init_repo cargo-coverage-selector)"
 printf '\n`go test ./internal/parser/rust -run '\''TestCargoDependencyCoverageMatrixMarksCargoFilesCovered'\'' -count=1`\n' \
   >>"${cargo_coverage_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${cargo_coverage_selector_repo}" add .
-git -C "${cargo_coverage_selector_repo}" commit -q -m 'current Cargo coverage selector'
+fixture_add_commit "${cargo_coverage_selector_repo}" 'current Cargo coverage selector'
 expect_pass "${cargo_coverage_selector_repo}"
 
 wrapped_cargo_coverage_selector_repo="$(init_repo wrapped-cargo-coverage-selector)"
 printf '%s\n' '' '`go test ./internal/parser/rust -run' \
   '  '\''TestCargoDependencyCoverageMatrixMarksCargoFilesCovered'\'' -count=1`' \
   >>"${wrapped_cargo_coverage_selector_repo}/docs/public/contributing-language-support.md"
-git -C "${wrapped_cargo_coverage_selector_repo}" add .
-git -C "${wrapped_cargo_coverage_selector_repo}" commit -q -m 'wrapped current Cargo coverage selector'
+fixture_add_commit "${wrapped_cargo_coverage_selector_repo}" 'wrapped current Cargo coverage selector'
 expect_pass "${wrapped_cargo_coverage_selector_repo}"
 
 # shellcheck source=scripts/lib/test-verify-parser-relationship-kit-rust-selector-derived-cases.sh

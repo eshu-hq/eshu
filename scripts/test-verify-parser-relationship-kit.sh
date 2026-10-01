@@ -7,6 +7,127 @@ verifier="${repo_root}/scripts/verify-parser-relationship-kit.sh"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 
+# shellcheck source=scripts/lib/test-verify-parser-relationship-kit-fixture-git.sh
+. "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-fixture-git.sh"
+
+# Self-tests for the fixture-git safety layer (#7229): they run before any
+# fixture so a broken helper fails in seconds, not after minutes of setup.
+# Failures use the file's convention (message to stderr, exit 1).
+selftest_with_timeout_bounds_hang() {
+  local rc start elapsed
+  rc=0
+  with_timeout 30 "true probe" true || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'with_timeout failed a trivial command with rc=%s\n' "$rc" >&2
+    exit 1
+  fi
+  start=$SECONDS
+  with_timeout 3 "sleep probe" sleep 30 || rc=$?
+  elapsed=$((SECONDS - start))
+  if [ "$rc" -ne 124 ]; then
+    printf 'with_timeout rc=%s, want 124 after killing the hang\n' "$rc" >&2
+    exit 1
+  fi
+  if [ "$elapsed" -ge 10 ]; then
+    printf 'with_timeout took %ss to kill the hang, want under 10s\n' "$elapsed" >&2
+    exit 1
+  fi
+  rc=0
+  with_timeout 2 "term-ignoring hang" bash -c 'trap "" TERM; sleep 30' || rc=$?
+  if [ "$rc" -ne 124 ]; then
+    printf 'with_timeout KILL-escalation rc=%s, want 124\n' "$rc" >&2
+    exit 1
+  fi
+}
+
+selftest_with_timeout_no_pipe_stall() {
+  local repo probe_out start elapsed
+  repo="${tmp_root}/pipe-stall-probe"
+  mkdir -p "${repo}"
+  fixture_git "probe init" -C "${repo}" init -q
+  # Regression: the watchdog's background sleep must not inherit a
+  # command substitution's capture pipe, or every $(init_repo) stalls
+  # until the orphaned sleep exits.
+  start=$SECONDS
+  probe_out="$(fixture_git "rev-parse probe" -C "${repo}" rev-parse --show-toplevel)"
+  elapsed=$((SECONDS - start))
+  if [ ! -d "${probe_out}/.git" ]; then
+    printf 'fixture_git in $() returned %s, want the repo root\n' "${probe_out}" >&2
+    exit 1
+  fi
+  if [ "$elapsed" -ge 20 ]; then
+    printf 'fixture_git in $() took %ss, want under 20s (watcher sleep held the pipe)\n' "$elapsed" >&2
+    exit 1
+  fi
+}
+
+selftest_fixture_git_isolation() {
+  local poison_dir repo
+  poison_dir="${tmp_root}/poison-config"
+  mkdir -p "${poison_dir}/hooks"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"${poison_dir}/hooks/pre-commit"
+  chmod +x "${poison_dir}/hooks/pre-commit"
+  printf '[core]\n\thooksPath = %s/hooks\n' "${poison_dir}" >"${poison_dir}/poison.gitconfig"
+  # Sensitivity: the poison is live — the same commit through raw git must
+  # fail in the planted hook, proving this test is not vacuous.
+  repo="${tmp_root}/poison-sensitivity"
+  mkdir -p "${repo}"
+  printf 'probe\n' >"${repo}/file.txt"
+  GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" git -C "${repo}" init -q
+  GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" git -C "${repo}" config user.email "test@example.invalid"
+  GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" git -C "${repo}" config user.name "Eshu Test"
+  if GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" git -C "${repo}" add . 2>/dev/null &&
+    GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" git -C "${repo}" commit -q -m probe 2>/dev/null; then
+    printf 'poison sensitivity probe unexpectedly passed through the hook\n' >&2
+    exit 1
+  fi
+  # The wrapper must bypass every operator-config vector, including the
+  # GIT_CONFIG_COUNT pairs that /dev/null files cannot stop.
+  repo="${tmp_root}/isolation-probe"
+  mkdir -p "${repo}"
+  printf 'probe\n' >"${repo}/file.txt"
+  git -C "${repo}" init -q
+  git -C "${repo}" config user.email "test@example.invalid"
+  git -C "${repo}" config user.name "Eshu Test"
+  GIT_CONFIG_GLOBAL="${poison_dir}/poison.gitconfig" \
+    GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0=core.hooksPath \
+    GIT_CONFIG_VALUE_0="${poison_dir}/hooks" \
+    fixture_add_commit "${repo}" probe || {
+    printf 'fixture_add_commit did not isolate the poisoned operator config\n' >&2
+    exit 1
+  }
+  # GIT_TEMPLATE_DIR acts at init time (commit never consults templates),
+  # so this arm inits through the wrapper: a template carrying a failing
+  # pre-commit hook must plant nothing in the wrapper-built repo.
+  mkdir -p "${poison_dir}/template/hooks"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"${poison_dir}/template/hooks/pre-commit"
+  chmod +x "${poison_dir}/template/hooks/pre-commit"
+  repo="${tmp_root}/template-sensitivity"
+  mkdir -p "${repo}"
+  printf 'probe\n' >"${repo}/file.txt"
+  GIT_TEMPLATE_DIR="${poison_dir}/template" git -C "${repo}" init -q
+  if GIT_TEMPLATE_DIR="${poison_dir}/template" git -C "${repo}" add . 2>/dev/null &&
+    GIT_TEMPLATE_DIR="${poison_dir}/template" git -C "${repo}" -c user.email=t@e.invalid -c user.name=t commit -q -m probe 2>/dev/null; then
+    printf 'template sensitivity probe unexpectedly passed\n' >&2
+    exit 1
+  fi
+  repo="${tmp_root}/template-isolation-probe"
+  mkdir -p "${repo}"
+  printf 'probe\n' >"${repo}/file.txt"
+  GIT_TEMPLATE_DIR="${poison_dir}/template" fixture_git "template probe init" -C "${repo}" init -q
+  GIT_TEMPLATE_DIR="${poison_dir}/template" fixture_git "template probe config" -C "${repo}" config user.email "test@example.invalid"
+  GIT_TEMPLATE_DIR="${poison_dir}/template" fixture_git "template probe config" -C "${repo}" config user.name "Eshu Test"
+  GIT_TEMPLATE_DIR="${poison_dir}/template" fixture_add_commit "${repo}" probe || {
+    printf 'fixture_git did not isolate GIT_TEMPLATE_DIR\n' >&2
+    exit 1
+  }
+}
+
+selftest_with_timeout_bounds_hang
+selftest_with_timeout_no_pipe_stall
+selftest_fixture_git_isolation
+
 write_required_docs() {
   local dir="$1"
   mkdir -p \
@@ -139,12 +260,11 @@ init_repo() {
   local name="$1"
   local dir="${tmp_root}/${name}"
   mkdir -p "${dir}"
-  git -C "${dir}" init -q
-  git -C "${dir}" config user.email "test@example.invalid"
-  git -C "${dir}" config user.name "Eshu Test"
+  fixture_git "init ${name}" -C "${dir}" init -q
+  fixture_git "config ${name}" -C "${dir}" config user.email "test@example.invalid"
+  fixture_git "config ${name}" -C "${dir}" config user.name "Eshu Test"
   write_required_docs "${dir}"
-  git -C "${dir}" add .
-  git -C "${dir}" commit -q -m initial
+  fixture_add_commit "${dir}" initial
   printf '%s\n' "${dir}"
 }
 
@@ -175,67 +295,57 @@ expect_fail() {
 
 plain_repo="$(init_repo plain)"
 printf '# docs only\n' >"${plain_repo}/README.md"
-git -C "${plain_repo}" add .
-git -C "${plain_repo}" commit -q -m 'docs only'
+fixture_add_commit "${plain_repo}" 'docs only'
 expect_pass "${plain_repo}"
 
 parser_missing_docs_repo="$(init_repo parser-missing-docs)"
 printf 'package parser\nfunc parseNewLanguage() {}\n' >"${parser_missing_docs_repo}/go/internal/parser/new_language.go"
 printf 'package parser\nfunc TestNewLanguage(t interface{}) {}\n' >"${parser_missing_docs_repo}/go/internal/parser/new_language_test.go"
-git -C "${parser_missing_docs_repo}" add .
-git -C "${parser_missing_docs_repo}" commit -q -m 'parser without docs'
+fixture_add_commit "${parser_missing_docs_repo}" 'parser without docs'
 expect_fail "${parser_missing_docs_repo}"
 
 parser_missing_tests_repo="$(init_repo parser-missing-tests)"
 printf 'package parser\nfunc parseNewLanguage() {}\n' >"${parser_missing_tests_repo}/go/internal/parser/new_language.go"
 printf '\nDocumented new parser behavior.\n' >>"${parser_missing_tests_repo}/docs/public/languages/python.md"
-git -C "${parser_missing_tests_repo}" add .
-git -C "${parser_missing_tests_repo}" commit -q -m 'parser without tests'
+fixture_add_commit "${parser_missing_tests_repo}" 'parser without tests'
 expect_fail "${parser_missing_tests_repo}"
 
 parser_complete_repo="$(init_repo parser-complete)"
 printf 'package parser\nfunc parseNewLanguage() {}\n' >"${parser_complete_repo}/go/internal/parser/new_language.go"
 printf 'package parser\nfunc TestNewLanguage(t interface{}) {}\n' >"${parser_complete_repo}/go/internal/parser/new_language_test.go"
 printf '\nDocumented new parser behavior.\n' >>"${parser_complete_repo}/docs/public/languages/python.md"
-git -C "${parser_complete_repo}" add .
-git -C "${parser_complete_repo}" commit -q -m 'parser with docs and tests'
+fixture_add_commit "${parser_complete_repo}" 'parser with docs and tests'
 expect_pass "${parser_complete_repo}"
 
 relationship_missing_docs_repo="$(init_repo relationship-missing-docs)"
 printf 'package relationships\nfunc discoverNewEvidence() {}\n' >"${relationship_missing_docs_repo}/go/internal/relationships/new_evidence.go"
 printf 'package relationships\nfunc TestDiscoverNewEvidence(t interface{}) {}\n' >"${relationship_missing_docs_repo}/go/internal/relationships/new_evidence_test.go"
-git -C "${relationship_missing_docs_repo}" add .
-git -C "${relationship_missing_docs_repo}" commit -q -m 'relationship without docs'
+fixture_add_commit "${relationship_missing_docs_repo}" 'relationship without docs'
 expect_fail "${relationship_missing_docs_repo}"
 
 relationship_complete_repo="$(init_repo relationship-complete)"
 printf 'package relationships\nfunc discoverNewEvidence() {}\n' >"${relationship_complete_repo}/go/internal/relationships/new_evidence.go"
 printf 'package relationships\nfunc TestDiscoverNewEvidence(t interface{}) {}\n' >"${relationship_complete_repo}/go/internal/relationships/new_evidence_test.go"
 printf '\nDocumented new relationship evidence family.\n' >>"${relationship_complete_repo}/docs/public/reference/relationship-mapping.md"
-git -C "${relationship_complete_repo}" add .
-git -C "${relationship_complete_repo}" commit -q -m 'relationship with docs and tests'
+fixture_add_commit "${relationship_complete_repo}" 'relationship with docs and tests'
 expect_pass "${relationship_complete_repo}"
 
 relationship_comment_only_repo="$(init_repo relationship-comment-only)"
 printf 'package relationships\n\n// Evidence points at the original reducer path.\nfunc Evidence() {}\n' \
   >"${relationship_comment_only_repo}/go/internal/relationships/gcp_evidence.go"
-git -C "${relationship_comment_only_repo}" add .
-git -C "${relationship_comment_only_repo}" commit -q -m 'relationship source baseline'
+fixture_add_commit "${relationship_comment_only_repo}" 'relationship source baseline'
 printf 'package relationships\n\n// Evidence points at the current reducer path.\nfunc Evidence() {}\n' \
   >"${relationship_comment_only_repo}/go/internal/relationships/gcp_evidence.go"
-git -C "${relationship_comment_only_repo}" add .
-git -C "${relationship_comment_only_repo}" commit -q -m 'relationship comment-only correction'
+fixture_add_commit "${relationship_comment_only_repo}" 'relationship comment-only correction'
 expect_pass "${relationship_comment_only_repo}"
 
 relationship_code_only_repo="$(init_repo relationship-code-only)"
 printf 'package relationships\n\nfunc Evidence() {}\n' \
   >"${relationship_code_only_repo}/go/internal/relationships/gcp_evidence.go"
-git -C "${relationship_code_only_repo}" add .
-git -C "${relationship_code_only_repo}" commit -q -m 'relationship source baseline'
+fixture_add_commit "${relationship_code_only_repo}" 'relationship source baseline'
 printf 'package relationships\n\nfunc Evidence() { println("changed") }\n' \
   >"${relationship_code_only_repo}/go/internal/relationships/gcp_evidence.go"
-git -C "${relationship_code_only_repo}" add .
-git -C "${relationship_code_only_repo}" commit -q -m 'relationship code change without proof'
+fixture_add_commit "${relationship_code_only_repo}" 'relationship code change without proof'
 expect_fail "${relationship_code_only_repo}"
 
 # shellcheck source=scripts/lib/parser_documented_test_commands.sh
@@ -250,8 +360,7 @@ query_missing_dsl_repo="$(init_repo query-missing-dsl)"
 mkdir -p "${query_missing_dsl_repo}/go/internal/query/language"
 printf 'package language\nfunc languageQueryEntityType() {}\n' >"${query_missing_dsl_repo}/go/internal/query/language/handler.go"
 printf '\nDocumented new query behavior.\n' >>"${query_missing_dsl_repo}/docs/public/languages/python.md"
-git -C "${query_missing_dsl_repo}" add .
-git -C "${query_missing_dsl_repo}" commit -q -m 'language query without dsl docs'
+fixture_add_commit "${query_missing_dsl_repo}" 'language query without dsl docs'
 expect_fail "${query_missing_dsl_repo}"
 
 # A *_language_inventory.go change (the repositories/by-language +
@@ -262,8 +371,7 @@ expect_fail "${query_missing_dsl_repo}"
 # narrowed to skip the by-language inventory handlers.
 language_inventory_repo="$(init_repo language-inventory)"
 printf 'package query\nfunc listRepositoriesByLanguage() {}\n' >"${language_inventory_repo}/go/internal/query/repository_language_inventory.go"
-git -C "${language_inventory_repo}" add .
-git -C "${language_inventory_repo}" commit -q -m 'by-language inventory handler without dsl docs'
+fixture_add_commit "${language_inventory_repo}" 'by-language inventory handler without dsl docs'
 expect_pass "${language_inventory_repo}"
 
 # content_reader_language.go is the same class as the inventory handlers:
@@ -275,8 +383,7 @@ expect_pass "${language_inventory_repo}"
 # than proven absent.
 content_reader_language_repo="$(init_repo content-reader-language)"
 printf 'package query\nfunc listRepoFilesByLanguage() {}\n' >"${content_reader_language_repo}/go/internal/query/content_reader_language.go"
-git -C "${content_reader_language_repo}" add .
-git -C "${content_reader_language_repo}" commit -q -m 'repository-tree files-by-language read without dsl docs'
+fixture_add_commit "${content_reader_language_repo}" 'repository-tree files-by-language read without dsl docs'
 expect_pass "${content_reader_language_repo}"
 
 # shellcheck source=scripts/lib/test-verify-parser-relationship-kit-dsl-comment-only-cases.sh
@@ -291,8 +398,7 @@ cat >"${unsupported_claim_repo}/docs/public/languages/support-maturity.md" <<'MD
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | JSON Config | `DefaultEngine (json)` | - | - | unsupported | JSON metadata only | supported | - | supported |
 MD
-git -C "${unsupported_claim_repo}" add .
-git -C "${unsupported_claim_repo}" commit -q -m 'unsupported query claim'
+fixture_add_commit "${unsupported_claim_repo}" 'unsupported query claim'
 expect_fail "${unsupported_claim_repo}"
 
 missing_language_proof_repo="$(init_repo missing-language-proof)"
@@ -303,8 +409,7 @@ cat >"${missing_language_proof_repo}/docs/public/languages/python.md" <<'MD'
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Functions | `functions` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/python_language_test.go::TestPythonFunctions` | - | - |
 MD
-git -C "${missing_language_proof_repo}" add .
-git -C "${missing_language_proof_repo}" commit -q -m 'missing language proof'
+fixture_add_commit "${missing_language_proof_repo}" 'missing language proof'
 expect_fail "${missing_language_proof_repo}"
 
 parser_backing_missing_repo="$(init_repo parser-backing-missing)"
@@ -315,8 +420,7 @@ rm -f "${parser_backing_missing_repo}/specs/parser-backing-ledger.v1.yaml"
 # body is fully static (was a quoted heredoc, no shell expansion), so the
 # file is byte-identical to the original heredoc body.
 cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-missing-ledger.md" >"${parser_backing_missing_repo}/docs/public/languages/support-maturity.md"
-git -C "${parser_backing_missing_repo}" add .
-git -C "${parser_backing_missing_repo}" commit -q -m 'missing parser backing ledger'
+fixture_add_commit "${parser_backing_missing_repo}" 'missing parser backing ledger'
 expect_fail "${parser_backing_missing_repo}"
 
 parser_backing_incomplete_repo="$(init_repo parser-backing-incomplete)"
@@ -340,8 +444,7 @@ YAML
 # body is fully static (was a quoted heredoc, no shell expansion), so the
 # file is byte-identical to the original heredoc body.
 cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-incomplete-ledger.md" >"${parser_backing_incomplete_repo}/docs/public/languages/support-maturity.md"
-git -C "${parser_backing_incomplete_repo}" add .
-git -C "${parser_backing_incomplete_repo}" commit -q -m 'incomplete parser backing ledger'
+fixture_add_commit "${parser_backing_incomplete_repo}" 'incomplete parser backing ledger'
 expect_fail "${parser_backing_incomplete_repo}"
 
 parser_backing_bad_path_repo="$(init_repo parser-backing-bad-path)"
@@ -351,28 +454,24 @@ parser_backing_bad_path_repo="$(init_repo parser-backing-bad-path)"
 # body is fully static (was a quoted heredoc, no shell expansion), so the
 # file is byte-identical to the original heredoc body.
 cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-parser-backing-ledger-bad-path.yaml" >"${parser_backing_bad_path_repo}/specs/parser-backing-ledger.v1.yaml"
-git -C "${parser_backing_bad_path_repo}" add .
-git -C "${parser_backing_bad_path_repo}" commit -q -m 'stale parser backing ledger path'
+fixture_add_commit "${parser_backing_bad_path_repo}" 'stale parser backing ledger path'
 expect_fail "${parser_backing_bad_path_repo}"
 
 language_ledger_missing_repo="$(init_repo language-ledger-missing)"
 rm -f "${language_ledger_missing_repo}/specs/language-feature-parity-ledger.v1.yaml"
-git -C "${language_ledger_missing_repo}" add .
-git -C "${language_ledger_missing_repo}" commit -q -m 'missing language feature ledger'
+fixture_add_commit "${language_ledger_missing_repo}" 'missing language feature ledger'
 expect_fail "${language_ledger_missing_repo}"
 
 language_ledger_missing_feature_repo="$(init_repo language-ledger-missing-feature)"
 printf '| Classes | `classes` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/python_language_test.go::TestPythonClasses` | Compose-backed fixture verification | - |\n' \
   >>"${language_ledger_missing_feature_repo}/docs/public/languages/python.md"
-git -C "${language_ledger_missing_feature_repo}" add .
-git -C "${language_ledger_missing_feature_repo}" commit -q -m 'language docs claim missing ledger feature'
+fixture_add_commit "${language_ledger_missing_feature_repo}" 'language docs claim missing ledger feature'
 expect_fail "${language_ledger_missing_feature_repo}"
 
 language_ledger_bad_path_repo="$(init_repo language-ledger-bad-path)"
 perl -0pi -e 's#go/internal/parser/python_language.go#go/internal/parser/does_not_exist.go#' \
   "${language_ledger_bad_path_repo}/specs/language-feature-parity-ledger.v1.yaml"
-git -C "${language_ledger_bad_path_repo}" add .
-git -C "${language_ledger_bad_path_repo}" commit -q -m 'language ledger stale path'
+fixture_add_commit "${language_ledger_bad_path_repo}" 'language ledger stale path'
 expect_fail "${language_ledger_bad_path_repo}"
 
 parser_backing_complete_repo="$(init_repo parser-backing-complete)"
@@ -389,8 +488,7 @@ cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-parser-backing
 # body is fully static (was a quoted heredoc, no shell expansion), so the
 # file is byte-identical to the original heredoc body.
 cat "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-support-maturity-complete.md" >"${parser_backing_complete_repo}/docs/public/languages/support-maturity.md"
-git -C "${parser_backing_complete_repo}" add .
-git -C "${parser_backing_complete_repo}" commit -q -m 'complete parser backing ledger'
+fixture_add_commit "${parser_backing_complete_repo}" 'complete parser backing ledger'
 expect_pass "${parser_backing_complete_repo}"
 
 # shellcheck source=scripts/lib/test-verify-parser-relationship-kit-base-resolution-regressions.sh
