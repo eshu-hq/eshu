@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/support"
 )
 
 const writerLinkedRepoID = "repository:r_1a2b3c4d"
@@ -108,9 +109,14 @@ func TestBuildServiceStoryTargetSupportSourceOnlySQLUsesLinkPredicate(t *testing
 	t.Parallel()
 
 	query, _ := buildServiceStoryTargetSupportSourceOnlySQL(serviceStoryTargetSupportFactKinds())
+	// Linked is a Jira link with a repository, or a PagerDuty service fact whose
+	// provider service id the reducer correlated (#7463); the statement is
+	// source-only for everything else.
 	assertSupportSQLContainsAll(
 		t, query,
-		"NOT (fact.fact_kind = 'work_item.external_link' AND NULLIF(fact.payload->>'linked_repository_id', '') IS NOT NULL)",
+		"NOT (\n  (fact.fact_kind = 'work_item.external_link' AND NULLIF(fact.payload->>'linked_repository_id', '') IS NOT NULL)\n  OR ",
+		support.LinkedIncidentRoutingPredicate(),
+		support.AdmissibleCorrelationsSQL(),
 	)
 	for _, forbidden := range []string{"candidate_refs", "evidence_refs", "linked_entities", "jsonb_array_length"} {
 		if strings.Contains(query, forbidden) {

@@ -124,23 +124,28 @@ envelope and error reporting. No reducer queue, graph write, collector,
 worker, metric label, runtime knob, or deployment setting changes.
 
 Service and repository story `support_overview` may include `target_support`
-when a Jira work-item source fact carries a durable link to the selected
-repository, or to the selected service through its repository. The nested
+when a Jira work-item link or a PagerDuty service fact carries a durable link to
+the selected repository, or to the selected service through its repository. The nested
 object contains bounded `evidence`, `evidence_count`, `work_item_count`,
 `incident_routing_count`, `ambiguous_evidence`, `ambiguous_count`, `coverage`,
 `missing_evidence`, `limit`, and `source`. Global collector rows are not target
 truth by themselves: title text, service names, summaries, and generic mentions
 never attach support evidence.
 
-The one durable link a support writer emits today is `linked_repository_id` on a
-`work_item.external_link` fact. The Jira collector sets it only for a
-confidently typed GitHub pull-request or GitLab merge-request link, and it is the
-same canonical repository id the git ingester stores for that repository, so the
-read matches it with plain equality.
+Two durable links reach a target. A `work_item.external_link` fact carries
+`linked_repository_id`, which the Jira collector sets only for a confidently typed
+GitHub pull-request or GitLab merge-request link; it is the canonical repository
+id the git ingester stores, matched by plain equality. A PagerDuty applied
+service (`incident_routing.applied_pagerduty_resource`, class `service`) or
+observed service (`incident_routing.observed_pagerduty_service`) fact carries no
+repository, so it links through `reducer_incident_repository_correlation` for its
+provider service id: an `exact` or `derived`, non-provenance-only PagerDuty
+decision on an active generation whose `repository_id` is the target (#7463).
 
 - **Repository story:** the active, non-tombstoned `work_item.external_link`
-  facts whose `linked_repository_id` equals the repository id are the evidence.
-  Each evidence row carries `link_basis: "linked_repository"`.
+  facts whose `linked_repository_id` equals the repository id, plus the correlated
+  PagerDuty service facts above, are the evidence. A Jira row carries `link_basis:
+  "linked_repository"`; a PagerDuty row `"incident_repository_correlation"`.
 - **Service story:** the same links are reached through the service's
   repository, but only when the graph shows that repository defining exactly the
   selected workload (one bounded `Repository-[:DEFINES]->Workload` read per
@@ -155,14 +160,11 @@ read matches it with plain equality.
   failed graph read, an identity-only service context, a repository that defines
   no workload, or one that defines only a different workload all fail closed:
   no evidence and no ambiguity, and the story reports the zero-row reasons below.
-- **Not linked yet:** `work_item.record`, `work_item.transition`, the
-  `work_item.*_metadata` and `metadata_warning` kinds, and every
-  `incident_routing.*` kind carry no target key today, so they never appear as
-  evidence and count as source-only. `incident_routing_count` is therefore
-  always 0 until #7463 links PagerDuty rows to repositories through the incident
-  correlation, and #7464 links records and transitions through their Jira issue's
-  external link. `incident_routing.coverage_warning` has no anchor and stays
-  source-only.
+- **Not linked:** `work_item.record`, `work_item.transition`, the
+  `work_item.*_metadata` and `metadata_warning` kinds, `incident_routing.coverage_warning`
+  (no anchor), and an applied PagerDuty resource of any class but `service` carry
+  no target key, so they never appear as evidence and count as source-only. #7464
+  links records and transitions through their Jira issue's external link.
 
 If no target support facts are present, the story reports
 `support_target_facts_absent`. If active Jira or PagerDuty source facts exist but
@@ -172,8 +174,9 @@ none carries a durable link to any target, the story keeps `evidence_count`,
 `coverage.source_only_count`, `coverage.work_item_source_only_count`, and
 `coverage.incident_routing_source_only_count`. A support fact is source-only
 unless it is a `work_item.external_link` carrying a non-empty
-`linked_repository_id`; a link to a different repository is neither evidence for
-this target nor source-only.
+`linked_repository_id` or a PagerDuty service fact whose provider service id has
+an admissible correlation to some repository; a row linked to a different
+repository is neither evidence for this target nor source-only.
 
 The support source-only count is a two-valued predicate, like the documentation
 count above (the #6807 correction). The documentation count still uses the
@@ -184,11 +187,20 @@ repeats; the support count now tests the durable link instead (#7138). Before
 emits, so `target_support` was empty on real data.
 
 The service story's `support_target_evidence` stage event and the repository
-story's `target_support` stage event log `target_support_ambiguous_count` and
+story's `target_support` stage event log `target_support_incident_routing_count`,
+`target_support_ambiguous_count` and
 `target_support_missing_reason`, so an operator can see why a story shows no
 support; the service event also logs `repository_workload_count`,
 `repository_defines_target`, and `repository_defines_error` when the graph read
 failed.
+
+Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
+statement served by the existing migration 003 indexes (no new migration), and
+the source-only count carries the correlation set, read per active generation. At
+about one million facts and 24 retained generations the routing read measures
+0.4 ms custom and 0.2 ms generic, and the source-only count 75 to 230 ms.
+The measurements, rejected shapes and proof commands are in
+`docs/internal/evidence/7463-story-target-support-incident-routing.md`.
 
 Performance Evidence: migration 123 adds a partial index over the twelve
 `work_item.*` and `incident_routing.*` support kinds (non-tombstoned), and both

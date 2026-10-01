@@ -763,6 +763,14 @@ tests:
     tag: ~
     class: scheduled
     reason: "env-gated (ESHU_POSTGRES_DSN) #7138 regression that a Jira pull-request link built by the production writer reaches its repository's story; seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
+  - file: go/internal/query/service_story_target_support_pagerduty_matrix_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_POSTGRES_DSN) #7463 correlation matrix with every fact built by a production writer (PagerDuty collector, Terraform-state parser, reducer incident-repository correlation writer); seeds and drops its own schema on a disposable Postgres, run on demand when the story target-support read changes"
+  - file: go/internal/query/service_story_target_support_incident_routing_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "env-gated (ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN plus the disposable opt-in) #7463 plan proof at about one million facts: the PagerDuty routing read uses the migration 003 lookup indexes and stays under a buffer bound, and the source-only count keeps its index; creates and drops its own database, run on demand when the story target-support statements change"
   - file: go/internal/query/status_index_scoped_nornicdb_live_test.go
     tag: ~
     class: scheduled

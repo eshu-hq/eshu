@@ -438,6 +438,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		slog.Bool("has_result", len(targetSupport) > 0),
 		slog.Int("evidence_count", querycontract.IntVal(targetSupport, "evidence_count")),
+		slog.Int("target_support_incident_routing_count", querycontract.IntVal(targetSupport, "incident_routing_count")),
 		slog.Int("target_support_ambiguous_count", querycontract.IntVal(targetSupport, "ambiguous_count")),
 		slog.String("target_support_missing_reason", querycontract.FirstMissingEvidenceReason(targetSupport)),
 		slog.Bool("error", err != nil),

@@ -115,6 +115,16 @@ func contentReaderFactDefaultRows(query string, results []ReaderQueryResult) dri
 		!contentReaderHeadHasColumns(results, []string{"payload"}) {
 		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
 	}
+	// The PagerDuty routing read of the same section (#7463) probes the reducer's
+	// incident-repository correlation and the two routing kinds by provider
+	// service id.
+	if strings.Contains(query, "FROM fact_records AS corr") &&
+		strings.Contains(query, "reducer_incident_repository_correlation") &&
+		strings.Contains(query, "correlated.provider_service_id") &&
+		strings.Contains(query, "source_record_id") &&
+		!contentReaderHeadHasColumns(results, []string{"payload"}) {
+		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
+	}
 	supportOnlyColumns := []string{
 		"support_source_only_count",
 		"work_item_source_only_count",
