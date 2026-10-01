@@ -124,7 +124,7 @@ func assertScopeKeepOrders(t *testing.T, live *repoRetryLive) {
 	foreign := "repo:" + live.repoID("scope-keep-foreign")
 	legs := map[string]func(repo string) error{
 		"matching then foreign": func(repo string) error {
-			if err := live.handleScopeIntent(ctx, repo, "gen-1", true, "workload:"+repo); err != nil {
+			if err := live.handleScopeIntent(ctx, repo, "gen-1", true, "workload:"+live.repoID(repo)); err != nil {
 				return err
 			}
 			return live.handleScopeIntent(ctx, repo, "gen-1", true, foreign)
@@ -133,14 +133,14 @@ func assertScopeKeepOrders(t *testing.T, live *repoRetryLive) {
 			if err := live.handleScopeIntent(ctx, repo, "gen-1", true, foreign); err != nil {
 				return err
 			}
-			return live.handleScopeIntent(ctx, repo, "gen-1", true, "workload:"+repo)
+			return live.handleScopeIntent(ctx, repo, "gen-1", true, "workload:"+live.repoID(repo))
 		},
 	}
 	for trial := 0; trial < 10; trial++ {
 		legs[fmt.Sprintf("race %02d", trial)] = func(repo string) error {
 			var wg sync.WaitGroup
 			errs := make([]error, 2)
-			for i, keys := range []string{"workload:" + repo, foreign} {
+			for i, keys := range []string{"workload:" + live.repoID(repo), foreign} {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()

@@ -191,6 +191,20 @@ and `TestRefineCandidateSelectionReasonForeignKey` pin Q4;
 `TestRepositoryWorkloadNamesResolveIdKeysToRepositoryName` pins Q2
 (id key resolves to the payload name; tombstoned repo yields empty).
 
+CI consequence (PR #7508): intent entity keys flow verbatim into
+workload/deployment identity (`workloadIdentityWriteFromIntent` copies
+`intent.EntityKeys`), so the id rekey re-keys `reducer_workload_identity`
+facts downstream: supply-chain `runtime_context.workload_ids[]` /
+`deployment_ids[]` are now `workload:repository:r_<hex>` /
+`deployment:repository:r_<hex>` on both backends (graph truth still fully
+passes). The B-7 impact query shapes in `e2e-20repo-snapshot.json` are
+rekeyed to match (HTTP findings key, list/explain outputs, count/inventory/
+explain inputs; every other name-form shape still passes live from the
+graph-node keyspace and is untouched), as are the matching keys in the two
+live retract-scope tests (`repo:`/`workload:` + full repo ID; foreign keys
+were already full IDs). Graph Workload nodes stay name-form via
+`workloadid.NewWorkloadID` pending #5385; that split is out of scope here.
+
 #7384 Gates
 
 - Observability Evidence: the deployable-unit and workload-materialization
