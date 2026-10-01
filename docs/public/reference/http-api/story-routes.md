@@ -100,14 +100,6 @@ no refs); other rows evaluate `fact_kind IN (...)` and skip the index.
 
 Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
 
-Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
-statement served by the existing migration 003 indexes (no new migration), and
-the source-only count carries the correlation set. At about one million facts the
-routing read measures 3.2 ms custom and 1.0 ms generic, 0.1 ms for a repository
-with no correlation, and the source-only count 81 to 85 ms against 41 to 71 ms.
-The measurements, rejected shapes and proof commands are in
-`docs/internal/evidence/7463-story-target-support-incident-routing.md`.
-
 No-Observability-Change: the read keeps its `count_documentation_source_only_facts`
 span; only the statement text and its index change. No metric, log key, queue,
 worker, or runtime knob changes.
@@ -201,6 +193,14 @@ story's `target_support` stage event log `target_support_incident_routing_count`
 support; the service event also logs `repository_workload_count`,
 `repository_defines_target`, and `repository_defines_error` when the graph read
 failed.
+
+Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
+statement served by the existing migration 003 indexes (no new migration), and
+the source-only count carries the correlation set. At about one million facts the
+routing read measures 3.2 ms custom and 1.0 ms generic, 0.1 ms for a repository
+with no correlation, and the source-only count 81 to 85 ms against 41 to 71 ms.
+The measurements, rejected shapes and proof commands are in
+`docs/internal/evidence/7463-story-target-support-incident-routing.md`.
 
 Performance Evidence: migration 123 adds a partial index over the twelve
 `work_item.*` and `incident_routing.*` support kinds (non-tombstoned), and both

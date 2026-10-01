@@ -197,7 +197,8 @@ func AdmissibleCorrelationsSQL() string {
 // durable link to some target", so a fact linked to another repository is
 // neither this target's evidence nor source-only.
 //
-// The predicate is two-valued. The key is wrapped in COALESCE(..., ”), and the
+// The predicate is two-valued. The class and the keys are wrapped in
+// COALESCE(..., an empty string), and the
 // set holds no NULL because AdmissibleCorrelationsSQL drops blank ids, so IN
 // returns true or false and never UNKNOWN; a bare payload->>'provider_object_id'
 // IN (...) would be UNKNOWN for a fact without the key and, under NOT, drop that
@@ -206,7 +207,7 @@ func AdmissibleCorrelationsSQL() string {
 // the coverage warning are never linked.
 func LinkedIncidentRoutingPredicate() string {
 	return `(fact.fact_kind = '` + AppliedPagerDutyResourceKind + `'
-      AND fact.payload->>'resource_class' = '` + appliedServiceClass + `'
+      AND COALESCE(fact.payload->>'resource_class', '') = '` + appliedServiceClass + `'
       AND COALESCE(` + AppliedServiceKey("fact") + `, '') IN (SELECT c.provider_service_id FROM ` + AdmissibleCorrelationsCTE + ` AS c))
   OR (fact.fact_kind = '` + ObservedPagerDutyServiceKind + `'
       AND ` + ObservedServiceKey("fact") + ` IN (SELECT c.provider_service_id FROM ` + AdmissibleCorrelationsCTE + ` AS c))`

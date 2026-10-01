@@ -39,8 +39,9 @@ type pagerDutyMatrixFixture struct {
 // correlated derived, attach as incident-routing evidence next to R's Jira link.
 // Not evidence for R: a team-class applied resource that shares the id, an
 // ambiguous correlation (real, with no repository, and a hostile one that names
-// R but is provenance-only), a correlation from another provider that reuses the
-// id, a correlation on a superseded generation, a service with no correlation,
+// R but is provenance-only), an exact but provenance-only correlation and an
+// unresolved one that is not provenance-only (each rejected by one filter
+// alone), a correlation from another provider that reuses the id, a correlation on a superseded generation, a service with no correlation,
 // a tombstoned service, a service on a superseded generation, and the coverage
 // warning. A service correlated to R2 attaches to R2 only and, being linked to
 // some repository, is not source-only for R3.
@@ -59,7 +60,7 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 		support := readStorySupport(ctx, t, reader, serviceStoryTargetSupportFilter{
 			Repository: fixture.repoID, TargetKind: "repository", TargetID: fixture.repoID, Limit: 20,
 		})
-		want := "f-link-r,f-obs-pa,f-app-pa,f-obs-pb"
+		want := "f-obs-pa,f-link-r,f-app-pa,f-obs-pb"
 		if got := strings.Join(supportEvidenceFactIDs(support), ","); got != want {
 			t.Fatalf("evidence fact ids = %q, want %q (newest first); support = %#v", got, want, support)
 		}
@@ -101,14 +102,15 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 		}
 		coverage := mapValue(support, "coverage")
 		// Unlinked, active and not tombstoned: the ambiguous (pc), hostile
-		// provenance-only (ph), superseded-correlation (pe), uncorrelated (pf) and
-		// other-provider (pg) observed services, the team-class applied resource,
-		// and the coverage warning. pa, pb and pd2 are linked to some repository
-		// and R's Jira link is linked, so none of those is source-only.
+		// ambiguous provenance-only (ph), exact provenance-only (pi), unresolved
+		// (pj), superseded-correlation (pe), uncorrelated (pf) and other-provider
+		// (pg) observed services, the team-class applied resource, and the coverage
+		// warning. pa, pb and pd2 are linked to some repository and R's Jira link is
+		// linked, so none of those is source-only.
 		for key, want := range map[string]int{
-			"source_only_count":                  7,
+			"source_only_count":                  9,
 			"work_item_source_only_count":        0,
-			"incident_routing_source_only_count": 7,
+			"incident_routing_source_only_count": 9,
 		} {
 			if got := IntVal(coverage, key); got != want {
 				t.Fatalf("coverage.%s = %d, want %d; coverage = %#v", key, got, want, coverage)
@@ -154,6 +156,7 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 
 	for name, filter := range map[string]serviceStoryTargetSupportFilter{
 		"service target, graph unavailable":            serviceFilter(0, false),
+		"service target, repository defines none":      serviceFilter(0, true),
 		"service target, target not among the defined": serviceFilter(1, false),
 	} {
 		t.Run(name+" fails closed", func(t *testing.T) {
@@ -168,8 +171,11 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 		support := readStorySupport(ctx, t, reader, serviceStoryTargetSupportFilter{
 			Repository: fixture.repoID, TargetKind: "repository", TargetID: fixture.repoID, Limit: 2,
 		})
-		if got := strings.Join(supportEvidenceFactIDs(support), ","); got != "f-link-r,f-obs-pa" {
-			t.Fatalf("evidence fact ids = %q, want the two newest f-link-r,f-obs-pa", got)
+		// The Jira row is older than f-obs-pa, so the two newest overall are not
+		// the Jira statement's rows followed by the routing statement's: this fails
+		// if the two statements' rows are concatenated instead of merged newest first.
+		if got := strings.Join(supportEvidenceFactIDs(support), ","); got != "f-obs-pa,f-link-r" {
+			t.Fatalf("evidence fact ids = %q, want the two newest f-obs-pa,f-link-r", got)
 		}
 		if truncated, _ := mapValue(support, "coverage")["truncated"].(bool); !truncated {
 			t.Fatalf("coverage.truncated = false, want true with limit 2 and four linked rows")
@@ -214,7 +220,7 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 	if repoID == "" || repo2 == "" || repo3 == "" || repoID == repo2 || repoID == repo3 {
 		t.Fatalf("writer ids not distinct canonical repository ids: %q %q %q", repoID, repo2, repo3)
 	}
-	seedMatrixFact(ctx, t, db, "f-link-r", "s-jira", "g-jira", linkR, at.Add(-30*time.Minute), false)
+	seedMatrixFact(ctx, t, db, "f-link-r", "s-jira", "g-jira", linkR, at.Add(-90*time.Minute), false)
 
 	// PagerDuty observed services, built by the collector writer.
 	observed := func(factID, serviceID, generation string, observedAt time.Time, tombstone bool) {
@@ -231,6 +237,8 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 	observed("f-obs-pb", "PB", "g-pd", at.Add(-3*time.Hour), false)
 	observed("f-obs-pc", "PC", "g-pd", at, false)
 	observed("f-obs-ph", "PH", "g-pd", at, false)
+	observed("f-obs-pi", "PI", "g-pd", at, false)
+	observed("f-obs-pj", "PJ", "g-pd", at, false)
 	observed("f-obs-pd2", "PD2", "g-pd", at, false)
 	observed("f-obs-pe", "PE", "g-pd", at, false)
 	observed("f-obs-pf", "PF", "g-pd", at, false)
@@ -255,6 +263,17 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 		{
 			Provider: "pagerduty", ProviderServiceID: "PH", RepositoryID: repoID,
 			Outcome: incident.IncidentRepositoryCorrelationAmbiguous, ProvenanceOnly: true,
+		},
+		// Exact but provenance-only, naming R: only the provenance filter rejects it.
+		{
+			Provider: "pagerduty", ProviderServiceID: "PI", RepositoryID: repoID,
+			Outcome: incident.IncidentRepositoryCorrelationExact, ProvenanceOnly: true,
+		},
+		// Not provenance-only but not an edge-bearing outcome, naming R: only the
+		// outcome filter rejects it.
+		{
+			Provider: "pagerduty", ProviderServiceID: "PJ", RepositoryID: repoID,
+			Outcome: incident.IncidentRepositoryCorrelationUnresolved,
 		},
 		{Provider: "pagerduty", ProviderServiceID: "PD2", RepositoryID: repo2, Outcome: incident.IncidentRepositoryCorrelationExact},
 		{Provider: "opsgenie", ProviderServiceID: "PG", RepositoryID: repoID, Outcome: incident.IncidentRepositoryCorrelationExact},

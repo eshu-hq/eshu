@@ -57,6 +57,7 @@ func TestIncidentRoutingSQLKeepsItsProbesFenced(t *testing.T) {
 		{"corr.fact_kind = '" + IncidentCorrelationKind + "'", 1},
 		{"fact.payload->>'resource_class' = 'service'", 1},
 		{"fact.payload->>'provider_object_id' = correlated.provider_service_id", 1},
+		{"NULLIF(cand.provider_service_id, '') IS NOT NULL", 1},
 		{"corr.payload->>'provenance_only' = 'false'", 1},
 		{"corr.payload->>'outcome' IN ('exact', 'derived')", 1},
 		{"= 'pagerduty'", 1},
@@ -120,7 +121,7 @@ func TestLinkedIncidentRoutingPredicateIsTwoValued(t *testing.T) {
 	if !strings.Contains(predicate, "COALESCE(fact.payload->>'provider_object_id', '') IN") {
 		t.Fatalf("predicate does not coalesce the applied key, so a fact without it would be UNKNOWN under NOT:\n%s", predicate)
 	}
-	if !strings.Contains(predicate, "fact.payload->>'resource_class' = 'service'") {
+	if !strings.Contains(predicate, "COALESCE(fact.payload->>'resource_class', '') = 'service'") {
 		t.Fatalf("predicate links an applied resource of any class, want service only:\n%s", predicate)
 	}
 }

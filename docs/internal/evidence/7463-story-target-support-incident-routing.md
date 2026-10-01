@@ -72,6 +72,18 @@ The source-only count costs about 14 to 40 ms more at 17,145 admissible
 correlations. It runs only when the story found no evidence. The added cost is
 set by the number of admissible correlations; it was measured at that one count.
 
+Worst case, measured by the reviewer on a smaller database (340,000 rows,
+generic plan): a repository correlated to 300 provider services, with 20
+retained correlation generations, 50 retained observed generations and five by
+20 retained applied generations, took 29.7 ms and 30,161 buffers, against 235
+buffers for a two-service repository on the same database. The routing read
+scales with correlated services times retained generations, because each fenced
+probe fetches every generation of a service before the active-generation join,
+and the source-only correlation set scans every non-tombstoned admissible
+correlation fact of every generation. Both stay within a story read's budget at
+the measured shapes; they would need an active-generation-first probe or an
+index that carries the generation if retention grows well past 50 generations.
+
 No new migration: the three probes use the partial indexes migration 003
 already carries (`fact_records_incident_repository_correlation_service_idx`,
 `fact_records_incident_routing_applied_service_idx`,
