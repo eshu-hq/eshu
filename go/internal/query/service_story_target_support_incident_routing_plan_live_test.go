@@ -101,6 +101,9 @@ func TestServiceStoryIncidentRoutingUsesLookupIndexesLive(t *testing.T) {
 	for rows.Next() {
 		count++
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("routing read: %v", err)
+	}
 	if count != 8 {
 		t.Fatalf("routing read returned %d rows, want 8 (applied and observed facts of the two correlated services, two of each)", count)
 	}
