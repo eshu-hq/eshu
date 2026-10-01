@@ -218,9 +218,9 @@ func importEntriesFromClause(
 			nameNode := specifier.ChildByFieldName("name")
 			aliasNode := specifier.ChildByFieldName("alias")
 			item := map[string]any{
-				"name":        shared.NodeText(nameNode, source),
+				"name":        ModuleExportName(nameNode, source),
 				"source":      moduleSource,
-				"alias":       shared.NodeText(aliasNode, source),
+				"alias":       ModuleExportName(aliasNode, source),
 				"line_number": shared.NodeLine(&specifier),
 				"lang":        lang,
 			}

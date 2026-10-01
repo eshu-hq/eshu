@@ -58,6 +58,11 @@ does not import its sibling `project` either — the two are independent.
   re-export and stays unflagged, see #7344; `ReExportSource` reads only the grammar's string-literal `source` field, and
   the specifier text fallback never reads a declaration export's body; there is
   no text scan for `from`, see #7056)
+- `ModuleExportName` — the name an import or export specifier spells. A
+  string-literal specifier name (`export { a as 'from' } from "m"`,
+  `import { 'b c' as d } from "m"`) yields the string's decoded value, so `'x'`
+  and `"x"` name the same symbol (#7461). Every specifier-name read in this
+  package, and in the `javascript` and `jsdataflow` consumers, goes through it
 - `ReExportAttributeEntries` — re-export rows for `with`/`assert` attribute
   exports, recovered from the grammars' error shapes with a synthesized
   `full_import_name` (never node text), see #7059

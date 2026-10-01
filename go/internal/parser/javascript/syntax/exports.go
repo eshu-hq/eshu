@@ -191,8 +191,8 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		OriginalName := strings.TrimSpace(shared.NodeText(nameNode, source))
-		ExportedName := strings.TrimSpace(shared.NodeText(aliasNode, source))
+		OriginalName := ModuleExportName(nameNode, source)
+		ExportedName := ModuleExportName(aliasNode, source)
 		if ExportedName == "" {
 			ExportedName = OriginalName
 		}
@@ -290,10 +290,11 @@ func reExportSpecifierNames(raw string) (string, string) {
 	fields := strings.Fields(part)
 	switch len(fields) {
 	case 1:
-		return fields[0], fields[0]
+		name := unquoteModuleExportName(fields[0])
+		return name, name
 	case 3:
 		if fields[1] == "as" {
-			return fields[0], fields[2]
+			return unquoteModuleExportName(fields[0]), unquoteModuleExportName(fields[2])
 		}
 	}
 
@@ -301,8 +302,8 @@ func reExportSpecifierNames(raw string) (string, string) {
 	if !ok {
 		return "", ""
 	}
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
+	left = unquoteModuleExportName(left)
+	right = unquoteModuleExportName(right)
 	if left == "" || right == "" {
 		return "", ""
 	}

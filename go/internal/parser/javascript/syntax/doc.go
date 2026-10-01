@@ -24,7 +24,8 @@
 //
 // It also owns the binding shapes the grammar settles on its own: import,
 // require and re-export entry rows (ImportEntries, RequireImportEntries,
-// ReExportEntries, ReExportAttributeEntries and their helpers) and
+// ReExportEntries, ReExportAttributeEntries and their helpers; specifier names
+// are read through ModuleExportName, which unquotes a string-literal name) and
 // `new`-expression receiver typing
 // (CollectNewExpressionVariableType, FunctionReturnTypes,
 // CallInferredObjectType). Those moved here for issue #6771 so the

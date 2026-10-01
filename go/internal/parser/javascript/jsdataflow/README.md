@@ -45,7 +45,9 @@ See `doc.go` for the godoc contract. The surface is:
 
 - `internal/parser/cfg` (the dataflow engine), `internal/parser/taint`,
   `internal/parser/summary`, `internal/parser/valueflow`, `internal/parser/interproc`
-  (the value-flow engines), `internal/parser/shared` (node helpers), and
+  (the value-flow engines), `internal/parser/shared` (node helpers),
+  `internal/parser/javascript/syntax` (`ModuleExportName`, so a quoted import
+  specifier name reads as its value, #7461), and
   `github.com/tree-sitter/go-tree-sitter`.
 
 ## Telemetry

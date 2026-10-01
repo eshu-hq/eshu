@@ -6,6 +6,7 @@ package jsdataflow
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -98,8 +99,8 @@ func (e jsFrameworkRequestEvidence) addImportClause(node *tree_sitter.Node, sour
 	}
 	switch node.Kind() {
 	case "import_specifier":
-		imported := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
-		alias := strings.TrimSpace(nodeText(node.ChildByFieldName("alias"), source))
+		imported := syntax.ModuleExportName(node.ChildByFieldName("name"), source)
+		alias := syntax.ModuleExportName(node.ChildByFieldName("alias"), source)
 		if alias == "" {
 			alias = imported
 		}

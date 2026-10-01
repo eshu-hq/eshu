@@ -210,8 +210,8 @@ func exportAttributeSpecifiers(errNode *tree_sitter.Node, source []byte) []ReExp
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		OriginalName := strings.TrimSpace(shared.NodeText(nameNode, source))
-		ExportedName := strings.TrimSpace(shared.NodeText(aliasNode, source))
+		OriginalName := ModuleExportName(nameNode, source)
+		ExportedName := ModuleExportName(aliasNode, source)
 		if ExportedName == "" {
 			ExportedName = OriginalName
 		}
