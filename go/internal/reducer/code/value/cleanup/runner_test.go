@@ -474,7 +474,6 @@ func equalCodeValueFlowStringSlices(left, right []string) bool {
 	return true
 }
 
-// TestStaleCleanupDefaultLeaseTTLCoversWriteBudget pins #7047: the effective
 // TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds pins the #7047 P2:
 // both the cycle-completed and the cycle-failed logs must carry the shared
 // lease_ttl_seconds key, so deleting or renaming either emission regresses
@@ -539,6 +538,7 @@ func TestCodeValueFlowStaleCleanupRunnerEmitsLeaseTTLSeconds(t *testing.T) {
 	}
 }
 
+// TestStaleCleanupDefaultLeaseTTLCoversWriteBudget pins #7047: the effective
 // lease TTL with no configured value must exceed the graph write budget plus
 // a safety margin, so a write running to its full budget cannot reach the end
 // of the lease with no margin. The 300s budget is ops-qa's
