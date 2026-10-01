@@ -27,3 +27,10 @@ Live candidate and restart tests require explicit owned fixture environment
 variables documented in README.md. Never hardcode a session host, port, or
 container target in committed tests. A restart test must first prove a fresh
 Access is ready, then require the old Access to reject the new incarnation.
+
+The writer pool is built by `openWriterPool` (`writer_pool.go`) through
+`boundederr.NewConnector`, so its driver errors carry a fixed text and the detail
+goes to `Config.Logger` as `postgres.store.error` (#7253). Keep it that way: the
+writer pool serves handlers that write `err.Error()` into 5xx bodies. Do not
+assert `*stdlib.Conn` on a writer-pool connection; the wrapped connection is not
+one. The reader pool's errors stay `privateError`.

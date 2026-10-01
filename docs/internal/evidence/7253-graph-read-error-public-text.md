@@ -120,7 +120,8 @@ prove. The full `internal/query`, `internal/telemetry`, `internal/mcp`,
 ## Observability Evidence
 
 Observability Evidence (#7253): a 500 with the bounded body stays diagnosable.
-`query.graph_read.error` (ERROR, `pipeline_phase="query"`,
+`query.graph_read.error` (ERROR, or WARN for a statement the backend rejects as
+malformed, `pipeline_phase="query"`,
 `failure_class="error"`) carries the redacted driver text in `graph_read.error`
 and the `graph_read.statement_fingerprint`/`graph_read.statement_head` that
 name the statement. The response carries none of these, so an operator matches
@@ -185,7 +186,8 @@ What each class can put in a body:
   (`infra.go` fallback) and the sites that never map through
   `WriteGraphReadError`, for example the k8s-resource read in
   `impact/trace_deployment.go`, which writes `query k8s resources: %v`.
-- **Postgres store reads: listed, not fixed here.** pgx v5.9.2 formats a
+- **Postgres store reads: listed here, fixed for the API and MCP server writer pool in
+  `docs/internal/evidence/7253-postgres-store-error-public-text.md`.** pgx v5.9.2 formats a
   connection failure as ``failed to connect to `user=<user> database=<db>`:
   <dial error>`` (`pgconn/errors.go`, `ConnectError.Error`), and the dial error
   normally carries the target address. A server error formats as

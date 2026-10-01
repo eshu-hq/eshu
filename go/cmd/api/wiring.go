@@ -102,6 +102,8 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load postgres pool config: %w", err)
 	}
+	// The writer pool logs its bounded driver errors on the process logger (#7253).
+	pgPoolCfg.Logger = logger
 
 	driver, neo4jDB, err := openQueryGraph(ctx, getenv, queryProfile, logger)
 	if err != nil {

@@ -46,6 +46,15 @@ adapter scan contracts remain unchanged.
 Read-only session mode does not replace database permissions; operators
 should give distinct readers a read-only database role where practical.
 
+## Writer pool errors
+
+`openWriterPool` builds the writer pool from `boundederr.NewConnector`
+(#7253). Every driver error from that pool has one of four fixed texts
+(`postgres store unavailable`, `timed out`, `request canceled`,
+`statement failed`), the driver error stays behind `Unwrap`, and the detail is
+logged once as `postgres.store.error` on `Config.Logger` (`slog.Default` when
+nil). The reader pool keeps its own fixed `privateError` texts.
+
 ## Freshness and failure
 
 Startup validates a writable primary and its system/database identity, closes

@@ -101,7 +101,32 @@ recent shipped work grouped by feature area.
   `400 invalid_argument` with the redacted graph message when the graph rejects
   the statement as malformed, instead of a 500. Postgres and internal error text
   in other 5xx bodies is listed in
-  `docs/internal/evidence/7253-graph-read-error-public-text.md`, not changed here.
+  `docs/internal/evidence/7253-graph-read-error-public-text.md`; the writer-pool
+  half is fixed in the next entry.
+
+### Postgres writer-pool failures no longer echo the connection target or server message
+
+- **A failed call on the API and MCP server writer pool answers a fixed text, not
+  the driver's** ([#7253](https://github.com/eshu-hq/eshu/issues/7253)). pgx
+  formats a connection failure as ``failed to connect to `user=<user>
+  database=<db>`: <host:port>: ...`` and a server error with the relation,
+  column, or constraint it rejected, and handlers wrote that text into 5xx
+  bodies. The business-read (guarded reader) pool already returned fixed texts
+  (#7482); the writer pool, which serves authorization, audit, mutation, and
+  sign-in, did not. It is now built through `boundederr.NewConnector`, which
+  wraps the `database/sql` driver: the error text is one of `postgres store
+  unavailable`, `postgres store timed out`, `postgres store request canceled`,
+  or `postgres store statement failed`, and `errors.Is` and `errors.As` still
+  reach the pgx error (`PgError`, `ConnectError`, context deadlines,
+  `driver.ErrBadConn`). The detail moved to a new `postgres.store.error` log
+  (`postgres_store.operation`, `.sqlstate`, `.statement_head`, `.error`) on the
+  process logger. The ingester, reducer, projector, collectors, and
+  `admin-status` pools are not bounded by this change.
+- **A missing `content_file_references` table falls back to the content scan
+  again.** The guarded reader's fixed error text hid the table name from
+  `contentReferenceIndexUnavailable`, so the cross-repo reference search failed
+  instead of falling back; it now reads the SQLSTATE (`42P01`) through the
+  error's cause.
 
 ### EC2 AMI node class resolves the instance->AMI relationship
 

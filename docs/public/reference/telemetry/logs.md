@@ -72,6 +72,25 @@ carries only the fixed text `graph query failed`, except on the two
 caller-authored Cypher routes, which answer 400 with the redacted message for a
 rejected statement (#7253).
 
+`postgres.store.error` is a record for a Postgres driver failure on the API or
+MCP server writer pool (#7253). It fires once per failure (a close that repeats an earlier error adds no second
+record), at the `database/sql` driver seam, so it covers every store that takes the writer pool. It
+carries `failure_class` (`unavailable`, `timeout`, `canceled`, `failed`),
+`postgres_store.operation` (`connect`, `prepare`, `query`, `exec`, `rows`,
+`begin`, `commit`, `rollback`, `ping`, `reset_session`, `close`),
+`postgres_store.sqlstate` (empty unless the server answered), a bounded
+`postgres_store.statement_head` (the store's SQL with `$N` placeholders, never a
+value), and `postgres_store.error`, the driver's own text truncated to 1,024
+bytes. That text is operator-only: it can name the connection target, a
+relation, a constraint, or a bound value, and the HTTP response for the same
+failure carries only a fixed per-class string. A caller-canceled request logs
+nothing. A timeout logs at WARN, as does a data or integrity error a request can
+trigger (SQLSTATE class 22 or 23); everything else is ERROR. A client
+disconnect or a bad input therefore cannot raise an ERROR stream. During a
+Postgres outage every business request logs one record, because its freshness
+checkpoint runs on the writer pool before any business read; the volume is the
+request rate and is not sampled.
+
 See [Graph-read safety](graph-read-safety.md) for the shared deadline and
 operator triage contract.
 

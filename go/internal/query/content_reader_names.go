@@ -5,9 +5,11 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -122,9 +124,19 @@ func (cr *ContentReader) SearchFileReferenceAnyRepo(
 	return results, true, nil
 }
 
+// contentReferenceIndexUnavailable reports whether err means the
+// content_file_references index table is absent (schema lag), so the caller
+// falls back to the content scan. The API pool bounds every driver error to a
+// fixed text (#7253), so the check reads the server's SQLSTATE through the
+// cause, not the message: a PgError is undefined_table (42P01) naming the
+// relation. An error that carries no PgError keeps the message check.
 func contentReferenceIndexUnavailable(err error) bool {
 	if err == nil {
 		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42P01" && strings.Contains(strings.ToLower(pgErr.Message), "content_file_references")
 	}
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "content_file_references") &&

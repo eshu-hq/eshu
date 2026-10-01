@@ -85,7 +85,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	}
 	// The bootstrap connection is closed before either pool is exposed.
 	writerCfg.ValidateConnect = writerValidator(identity)
-	writer := stdlib.OpenDB(*writerCfg)
+	writer := openWriterPool(writerCfg, cfg.Logger)
 	writer.SetMaxOpenConns(cfg.WriterMaxOpenConns)
 	writer.SetMaxIdleConns(cfg.WriterMaxIdleConns)
 	writer.SetConnMaxLifetime(cfg.ConnMaxLifetime)
