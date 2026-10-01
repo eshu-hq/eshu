@@ -156,9 +156,11 @@ emitting two `command not found` diagnostics. One additional local run failed
 the contaminated staging-identity comparison. These results are not full
 pipeline proof and the intermittent mirror failure is not dismissed.
 
-The blocking Neo4j B-7 gate starts Postgres and remains NOT_CHECKED while
-Postgres work is deferred. Repository rules require that selected blocking
-gate before push. Offline replay does not waive it. Publication, deployed
-row/value proof, cold/warm p95, owner deployment, and #7250 closure remain
-pending. The arbiter approved the response-only correction and scoped story
-wire addition; it explicitly retained this publication gate.
+The blocking Neo4j B-7 gate was initially deferred with Postgres work. A
+separately authorized finite full-corpus run passed on 2026-10-01; see
+[the full correctness record](7250-neo4j-b7-correctness.md) for exact source,
+assertion coverage, resource evidence and three noncomparable timing warnings.
+Offline replay did not waive this gate. The full corpus is uncapped and does
+not replace the boundary regressions above. Final publication review/gates,
+deployed row/value proof, cold/warm p95, owner deployment, and #7250 closure
+remain pending. This correctness change still does not fix latency.
