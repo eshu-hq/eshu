@@ -243,6 +243,7 @@ var logKeys = []string{
 	LogKeyPostgresStoreStatementHead,
 	LogKeyPostgresStoreError,
 	LogKeyLeaseTTLSeconds,
+	LogKeyFencingToken,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

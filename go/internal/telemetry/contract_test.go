@@ -339,6 +339,7 @@ func TestLogKeys(t *testing.T) {
 		"postgres_store.statement_head",
 		"postgres_store.error",
 		"lease_ttl_seconds",
+		"fencing_token",
 		"semantic_extraction.status",
 		"semantic_extraction.source_class",
 		"semantic_extraction.provider_kind",

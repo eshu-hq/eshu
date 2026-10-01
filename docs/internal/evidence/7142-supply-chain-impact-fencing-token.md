@@ -148,7 +148,7 @@ concurrently. A rejected pass rolls back before any row write.
 | Stale partial-evidence pass | rejected; a fresher partial pass is admitted and raises the watermark |
 | Legacy rows at token 0 | updated or retracted by any pass (`0 <= T`); the tombstone carries `T` |
 | Old reducer during a rolling deploy | cannot retract or overwrite fenced rows |
-| Zombie whose item was reclaimed and acked | rejected; its `Fail()` updates 0 rows (lease fence) |
+| Zombie whose item was reclaimed and acked | rejected; its `Fail()` updates 0 rows (lease fence) and returns the lost-claim error, which both service paths now treat as a dropped item, not a reason to stop the reducer (`TestServiceRunTreatsAFailRejectedByALostClaimAsBenign`, `...RunBatch...`) |
 | Two distinct intents for one pair | one sequence, comparable tokens; the loser retries with a fresh token |
 | Loads interleave (A takes its token, stalls before reading; B begins later, reads older evidence, commits after A) | ordered by issuance, not by what each read: B can retract A's fresher finding, as before the fence; converges on the next intent for the pair |
 | Different pairs | fully concurrent (distinct advisory keys, disjoint rows) |

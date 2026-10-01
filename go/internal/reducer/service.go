@@ -407,8 +407,17 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 			return nil
 		}
 		status = "failed"
+		failErr := s.WorkSink.Fail(ctx, intent, err)
+		if failErr != nil && errors.Is(failErr, ErrExecutionClaimRejected) {
+			// The lease fence rejects Fail for a claim another worker already
+			// reclaimed. That is a lost claim, the same outcome as a lost
+			// heartbeat: record it once, drop the item and keep draining
+			// instead of stopping the run on an ordinary lease race (#7142).
+			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
+			return nil
+		}
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
-		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
+		if failErr != nil {
 			return errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
 		return nil

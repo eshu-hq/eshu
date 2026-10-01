@@ -474,7 +474,7 @@ func (h SupplyChainImpactHandler) emitWriteSuperseded(
 			slog.String("scope_id", intent.ScopeID),
 			slog.String("generation_id", intent.GenerationID),
 			slog.String("intent_id", intent.IntentID),
-			slog.Int64("fencing_token", fencingToken),
+			slog.Int64(telemetry.LogKeyFencingToken, fencingToken),
 		)
 	}
 }

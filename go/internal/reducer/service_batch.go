@@ -415,8 +415,16 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
 			return batchAckItem{}, false, nil
 		}
+		failErr := s.WorkSink.Fail(ctx, intent, err)
+		if failErr != nil && errors.Is(failErr, ErrExecutionClaimRejected) {
+			// A Fail rejected by the lease fence is a lost claim, not a broken
+			// sink: record it once, drop the item and keep the batch draining
+			// (#7142).
+			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
+			return batchAckItem{}, false, nil
+		}
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "failed", workerID, err)
-		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
+		if failErr != nil {
 			return batchAckItem{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
 		return batchAckItem{}, false, nil
