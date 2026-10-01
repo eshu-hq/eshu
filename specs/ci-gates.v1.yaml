@@ -1628,7 +1628,6 @@ gates:
     triggers:
       - "go/internal/reducer/supplychain/**"
       - "go/internal/storage/postgres/**"
-      - "specs/live-tests.v1.yaml"
       - ".github/workflows/reducer-contention-gate.yml"
       - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
       - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
