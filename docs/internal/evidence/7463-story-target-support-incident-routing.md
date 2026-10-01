@@ -153,6 +153,7 @@ snapshot, and `TestServiceStoryTargetSupportSurfacesASnapshotBeginError` and
 `TestServiceStoryTargetSupportClosedGateOpensNoSnapshot` pin the error and the
 closed-gate behaviour.
 
-Observability Evidence: no operator signal changes; a failed snapshot begin
-returns `begin service story target support snapshot: ...` on the existing
+Observability Evidence: the snapshot adds no operator signal beyond the stage
+event field described above; a failed snapshot begin returns
+`begin service story target support snapshot: ...` on the existing
 `postgres.query` span.
