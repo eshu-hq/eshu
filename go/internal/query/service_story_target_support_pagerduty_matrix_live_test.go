@@ -103,14 +103,14 @@ func TestServiceStoryTargetSupportPagerDutyRoutingMatrixLive(t *testing.T) {
 		coverage := mapValue(support, "coverage")
 		// Unlinked, active and not tombstoned: the ambiguous (pc), hostile
 		// ambiguous provenance-only (ph), exact provenance-only (pi), unresolved
-		// (pj), superseded-correlation (pe), uncorrelated (pf) and other-provider
-		// (pg) observed services, the team-class applied resource, and the coverage
+		// (pj), superseded-correlation (pe), uncorrelated (pf), other-provider (pg)
+		// and repository-less exact (pk) observed services, the team-class applied resource, and the coverage
 		// warning. pa, pb and pd2 are linked to some repository and R's Jira link is
 		// linked, so none of those is source-only.
 		for key, want := range map[string]int{
-			"source_only_count":                  9,
+			"source_only_count":                  10,
 			"work_item_source_only_count":        0,
-			"incident_routing_source_only_count": 9,
+			"incident_routing_source_only_count": 10,
 		} {
 			if got := IntVal(coverage, key); got != want {
 				t.Fatalf("coverage.%s = %d, want %d; coverage = %#v", key, got, want, coverage)
@@ -243,6 +243,7 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 	observed("f-obs-pe", "PE", "g-pd", at, false)
 	observed("f-obs-pf", "PF", "g-pd", at, false)
 	observed("f-obs-pg", "PG", "g-pd", at, false)
+	observed("f-obs-pk", "PK", "g-pd", at, false)
 	observed("f-obs-pa-tomb", "PA", "g-pd", at, true)
 	observed("f-obs-pa-old", "PA", "g-pd-old", at, false)
 
@@ -277,6 +278,10 @@ func seedPagerDutyRoutingMatrix(ctx context.Context, t *testing.T, db *sql.DB) p
 		},
 		{Provider: "pagerduty", ProviderServiceID: "PD2", RepositoryID: repo2, Outcome: incident.IncidentRepositoryCorrelationExact},
 		{Provider: "opsgenie", ProviderServiceID: "PG", RepositoryID: repoID, Outcome: incident.IncidentRepositoryCorrelationExact},
+		// Exact and not provenance-only but with no repository: the writer persists
+		// it as given, no repository read can return it, and it must not hide the
+		// service from the source-only count either.
+		{Provider: "pagerduty", ProviderServiceID: "PK", Outcome: incident.IncidentRepositoryCorrelationExact},
 	})
 	writeCorrelations(ctx, t, db, "g-tf-old", at, []incident.IncidentRepositoryCorrelationDecision{
 		{Provider: "pagerduty", ProviderServiceID: "PE", RepositoryID: repoID, Outcome: incident.IncidentRepositoryCorrelationExact},

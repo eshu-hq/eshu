@@ -14,7 +14,9 @@ A PagerDuty applied service (`incident_routing.applied_pagerduty_resource`,
 through `reducer_incident_repository_correlation`: `outcome IN ('exact',
 'derived')`, `provenance_only = false`, provider `pagerduty`, a non-blank
 `provider_service_id`, on an active generation, with `repository_id` equal to the
-target. This mirrors `storage/postgres/service_incident_evidence_loader.go`.
+target. A correlation with a blank `repository_id` is not admissible for the
+source-only count either: no repository's story can ever read it, so counting its
+service as linked would hide it from both sides. This mirrors `storage/postgres/service_incident_evidence_loader.go`.
 
 Not linked, and so source-only: `incident_routing.coverage_warning` (no anchor),
 an applied resource of any class but `service`, and a service whose id has no
@@ -111,8 +113,9 @@ positive case (exact and derived correlation, observed and applied), and the
 negative and ambiguous cases: a team-class applied resource sharing the id, a
 realistic ambiguous correlation with no repository, a hostile ambiguous
 provenance-only one that names the repository, an exact provenance-only
-correlation and an unresolved non-provenance-only one (each rejected by one
-filter alone), another provider reusing the id, a correlation on a superseded
+correlation, an unresolved non-provenance-only one and an exact
+non-provenance-only one with no repository (each rejected by one filter alone;
+the last one stays source-only), another provider reusing the id, a correlation on a superseded
 generation, an uncorrelated service, a tombstoned service, a service on a
 superseded generation, the coverage warning, a service linked to a second
 repository, the service-target gate (one workload, several, none, graph

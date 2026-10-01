@@ -91,12 +91,13 @@ func TestAdmissibleCorrelationsSQLComputesTheCandidatesOnce(t *testing.T) {
 		"corr.payload->>'outcome' IN ('exact', 'derived')",
 		"cgen.status = 'active'",
 		"NULLIF(cand.provider_service_id, '') IS NOT NULL",
+		"NULLIF(corr.payload->>'repository_id', '') IS NOT NULL",
 	} {
 		if !strings.Contains(query, want) {
 			t.Errorf("AdmissibleCorrelationsSQL missing %q:\n%s", want, query)
 		}
 	}
-	if strings.Contains(query, "repository_id") {
+	if strings.Contains(query, "repository_id = ") || strings.Contains(query, "repository_id IN") {
 		t.Errorf("AdmissibleCorrelationsSQL is the set of every correlated service and must not filter on one repository:\n%s", query)
 	}
 }

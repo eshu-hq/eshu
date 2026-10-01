@@ -44,12 +44,15 @@ func ObservedServiceKey(alias string) string {
 
 // admissibleCorrelationFilter keeps the reducer correlation facts the read may
 // join through: an exact or derived decision that is not provenance-only, made
-// for PagerDuty, and carrying a provider service id. It mirrors
+// for PagerDuty, naming a repository and carrying a provider service id. A
+// repository-less decision cannot link any repository's story, so it must not
+// count a service as linked in the source-only count either. It mirrors
 // storage/postgres/service_incident_evidence_loader.go, and a correlation from
 // another provider that reuses an id never links a PagerDuty fact.
 func admissibleCorrelationFilter(alias string) string {
 	return `    AND ` + alias + `.payload->>'provenance_only' = 'false'
     AND ` + alias + `.payload->>'outcome' IN ('exact', 'derived')
+    AND NULLIF(` + alias + `.payload->>'repository_id', '') IS NOT NULL
     AND COALESCE(NULLIF(` + alias + `.payload->>'provider', ''), '` + pagerDutyProvider + `') = '` + pagerDutyProvider + `'`
 }
 
