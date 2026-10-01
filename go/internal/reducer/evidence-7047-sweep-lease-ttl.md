@@ -40,7 +40,9 @@ No cycle, claim, release, or batching logic changed.
 
 ## Observability Evidence (#7047):
 
-- Both cycle-completed logs now carry `lease_ttl_seconds` (the effective TTL
-  guarding that cycle) next to the existing `lease_acquired` flag, so an
-  operator can see which TTL guarded any cycle. Failure classes unchanged
-  (`graph_orphan_sweep_error`, `code_value_flow_stale_cleanup_error`).
+- Both cycle-completed and cycle-failed logs now carry `lease_ttl_seconds`
+  (the effective TTL guarding that cycle) next to the existing
+  `lease_acquired` flag, so an operator can see which TTL guarded any
+  cycle — including the failed cycles where lease expiry is suspected.
+  Failure classes unchanged (`graph_orphan_sweep_error`,
+  `code_value_flow_stale_cleanup_error`).

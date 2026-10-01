@@ -133,7 +133,7 @@ held time for large repositories.
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_ENABLED` | `true` | reducer value-flow cleanup | Enables bounded stale cleanup for reducer-owned value-flow graph evidence. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_POLL_INTERVAL` | `1h` | reducer value-flow cleanup | Idle poll interval after an exhausted or failed cleanup pass. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_OWNER` | unique per process | reducer value-flow cleanup | Lease owner for the single cleanup worker. |
-| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | `5m` | reducer value-flow cleanup | TTL for the cleanup lease. |
+| `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_LEASE_TTL` | `10m` | reducer value-flow cleanup | TTL for the cleanup lease. Keep above the graph write budget plus margin (#7047). |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_SCOPE_BATCH_LIMIT` | `100` | reducer value-flow cleanup | Active repository scopes scanned per pass. |
 | `ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT` | `500` | reducer value-flow cleanup | Stale evidence nodes or edges deleted per scope and family in one Cypher statement. |
 
