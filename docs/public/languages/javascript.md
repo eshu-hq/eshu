@@ -160,6 +160,20 @@ Not claimed today:
   exports (`export class`, `export const`, `export default`, ...) never produce
   one, whatever text their bodies, comments, or strings contain
   ([#7056](https://github.com/eshu-hq/eshu/issues/7056)).
+- A string-literal module export name (`export { a as 'from' } from "m"`,
+  `import { 'b c' as d } from "m"`) is recorded as the literal's value with
+  ECMAScript escapes decoded, so `'x'` and `"x"` name the same symbol and a quoted
+  barrel re-export still roots its original declaration in the dead-code
+  public-surface walk
+  ([#7461](https://github.com/eshu-hq/eshu/issues/7461)). A name
+  with leading or trailing whitespace is skipped, because the reducer trims names
+  and it would resolve as a different symbol, as is a name holding a NUL (stored
+  payloads drop it), and so is a name whose escape cannot
+  be decoded (a lone surrogate half, a legacy octal escape), whose raw text would
+  collide with a different, validly spelled name. A specifier with an empty original
+  name is skipped for the same reason, and an empty exported name is kept but
+  never resolves, since the reducer skips empty names (the brace-text fallback,
+  taken only when the grammar yields no export specifier, drops it).
 - As defence in depth, an import, `require`, or re-export row whose module
   specifier is longer than 1024 bytes is dropped before it reaches the graph
   and logged as `javascript-family import source exceeds bound`

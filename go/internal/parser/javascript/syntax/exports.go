@@ -191,13 +191,20 @@ func ReExportSpecifiers(node *tree_sitter.Node, source []byte) []ReExportSpecifi
 		}
 		nameNode := candidate.ChildByFieldName("name")
 		aliasNode := candidate.ChildByFieldName("alias")
-		OriginalName := strings.TrimSpace(shared.NodeText(nameNode, source))
-		ExportedName := strings.TrimSpace(shared.NodeText(aliasNode, source))
-		if ExportedName == "" {
-			ExportedName = OriginalName
-		}
-		if ExportedName == "" || OriginalName == "" {
+		OriginalName, ok := moduleSpecifierName(nameNode, source)
+		if !ok || OriginalName == "" {
+			// A specifier needs a recordable original name: the reducer reads a
+			// missing original as "the same as the exported name", which would
+			// resolve export { '' as c } to the module's c (#7461).
 			return
+		}
+		ExportedName := OriginalName
+		if aliasNode != nil {
+			// A string-literal alias may be empty ('as ""'); presence, not a
+			// non-empty value, decides that an alias was written.
+			if ExportedName, ok = moduleSpecifierName(aliasNode, source); !ok {
+				return
+			}
 		}
 		specifiers = append(specifiers, ReExportSpecifier{
 			ExportedName: ExportedName,
@@ -232,13 +239,11 @@ func reExportSpecifiersFromText(
 	source []byte,
 ) []ReExportSpecifier {
 	text := strings.TrimSpace(shared.NodeText(node, source))
-	start := strings.Index(text, "{")
-	end := strings.Index(text, "}")
-	if start < 0 || end <= start {
+	parts, ok := braceClauseSpecifiers(text)
+	if !ok {
 		return nil
 	}
 
-	parts := strings.Split(text[start+1:end], ",")
 	specifiers := make([]ReExportSpecifier, 0, len(parts))
 	for _, part := range parts {
 		OriginalName, ExportedName := reExportSpecifierNames(part)
@@ -281,63 +286,65 @@ func exportSpecifierTextIsTypeOnly(raw string) bool {
 	return len(fields) != 3 || fields[1] != "as"
 }
 
+// reExportSpecifierNames reads the original and exported name of one specifier
+// the brace-text fallback split out: `name`, or `name as alias`, where either
+// name may be a quoted string (`'a b' as "c"`). It tokenizes outside quotes, so
+// a name holding spaces or the word `as` stays one token. It returns two empty
+// strings for any other shape.
 func reExportSpecifierNames(raw string) (string, string) {
 	part := strings.TrimSpace(strings.TrimPrefix(exportSpecifierWithoutLineComments(raw), "type "))
-	if part == "" || strings.Contains(part, "...") {
+	if part == "" {
 		return "", ""
 	}
-
-	fields := strings.Fields(part)
-	switch len(fields) {
-	case 1:
-		return fields[0], fields[0]
-	case 3:
-		if fields[1] == "as" {
-			return fields[0], fields[2]
+	tokens := tokensOutsideQuotes(part)
+	for _, token := range tokens {
+		// A rest element (`...rest`) is not a specifier; a quoted name may hold
+		// dots (`'...'`), so only an unquoted token is checked.
+		if token[0] != '\'' && token[0] != '"' && strings.Contains(token, "...") {
+			return "", ""
 		}
 	}
-
-	left, right, ok := strings.Cut(part, " as ")
-	if !ok {
-		return "", ""
+	switch {
+	case len(tokens) == 1:
+		name, ok := unquoteModuleSpecifierName(tokens[0])
+		if !ok {
+			return "", ""
+		}
+		return name, name
+	case len(tokens) == 3 && tokens[1] == "as":
+		original, originalOK := unquoteModuleSpecifierName(tokens[0])
+		exported, exportedOK := unquoteModuleSpecifierName(tokens[2])
+		if !originalOK || !exportedOK {
+			return "", ""
+		}
+		return original, exported
 	}
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if left == "" || right == "" {
-		return "", ""
-	}
-	return left, right
+	return "", ""
 }
 
+// exportSpecifierWithoutLineComments returns raw with its comments removed and
+// its line breaks turned into spaces, trimmed. It reads outside quoted strings, so
+// a comment marker inside a quoted name (`'a//b'`, `'a/*x*/b'`) stays part of the
+// name instead of truncating or rewriting it.
 func exportSpecifierWithoutLineComments(raw string) string {
-	segments := make([]string, 0, 1)
-	for _, line := range strings.Split(exportSpecifierWithoutBlockComments(raw), "\n") {
-		beforeComment, _, _ := strings.Cut(line, "//")
-		if trimmed := strings.TrimSpace(beforeComment); trimmed != "" {
-			segments = append(segments, trimmed)
-		}
-	}
-	return strings.TrimSpace(strings.Join(segments, " "))
-}
-
-func exportSpecifierWithoutBlockComments(raw string) string {
 	var cleaned strings.Builder
 	cleaned.Grow(len(raw))
 	for i := 0; i < len(raw); {
-		if i+1 < len(raw) && raw[i] == '/' && raw[i+1] == '*' {
+		switch c := raw[i]; {
+		case c == '\'' || c == '"':
+			end := skipQuoted(raw, i)
+			cleaned.WriteString(raw[i:end])
+			i = end
+		case c == '/' && i+1 < len(raw) && (raw[i+1] == '/' || raw[i+1] == '*'):
 			cleaned.WriteByte(' ')
-			i += 2
-			for i+1 < len(raw) && (raw[i] != '*' || raw[i+1] != '/') {
-				i++
-			}
-			if i+1 >= len(raw) {
-				break
-			}
-			i += 2
-			continue
+			i = skipComment(raw, i)
+		case c == '\n' || c == '\r':
+			cleaned.WriteByte(' ')
+			i++
+		default:
+			cleaned.WriteByte(c)
+			i++
 		}
-		cleaned.WriteByte(raw[i])
-		i++
 	}
-	return cleaned.String()
+	return strings.TrimSpace(cleaned.String())
 }

@@ -44,10 +44,10 @@
   but it was created to relieve that cap in the parent. If a change would add
   several files here, ask whether they are one nested responsibility
   (`syntax/<thing>/`) rather than more flat files.
-- **Changing an exported signature.** The parent package is the only consumer
-  today. Grep it, change both sides in one commit, and rerun the parent's
-  tests — the parent's suite is where nearly all the behavioural coverage of
-  this package lives.
+- **Changing an exported signature.** The consumers are the parent package,
+  `javascript/deadcode` and `javascript/jsdataflow`. Grep all three, change both
+  sides in one commit, and rerun their tests — the parent's suite is where
+  nearly all the behavioural coverage of this package lives.
 
 ## Failure modes and how to debug
 

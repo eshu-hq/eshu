@@ -237,10 +237,10 @@ func jsCollectShellImportStatement(node *tree_sitter.Node, source []byte, import
 			}
 			cursor.Close()
 		case "import_specifier":
-			imported := strings.TrimSpace(nodeText(child.ChildByFieldName("name"), source))
+			imported := syntax.ModuleExportName(child.ChildByFieldName("name"), source)
 			local := imported
 			if aliasNode := child.ChildByFieldName("alias"); aliasNode != nil {
-				if aliasText := strings.TrimSpace(nodeText(aliasNode, source)); aliasText != "" {
+				if aliasText := syntax.ModuleExportName(aliasNode, source); aliasText != "" {
 					local = aliasText
 				}
 			}
