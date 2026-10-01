@@ -150,9 +150,9 @@ ANALYZE ingestion_scopes;
 `); err != nil {
 		t.Fatalf("seed global entity-name proof corpus: %v", err)
 	}
-	// This seed's own rows: 2 named scopes above plus the 100000
-	// catalog-proof scopes below. The bootstrap baseline absorbs any
-	// migration-seeded rows, so only this seed's size is pinned here.
+	// This seed's own rows: the 2 named scopes and the 100000
+	// catalog-proof scopes inserted above. The bootstrap baseline absorbs
+	// any migration-seeded rows, so only this seed's size is pinned here.
 	const seededScopes = 2 + 100000
 	var catalogCount int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM ingestion_scopes").Scan(&catalogCount); err != nil {
