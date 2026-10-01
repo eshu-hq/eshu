@@ -143,7 +143,9 @@ func TestProjectorScopeClaimFenceMigrationBackfills(t *testing.T) {
 		_, _ = admin.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = admin.Close()
 	})
-	database, err := sql.Open("pgx", withDSNParam(dsn, "search_path="+schemaName))
+	// public stays on the path so the pg_trgm operator classes the bootstrap
+	// names resolve when another bootstrap already installed the extension (#7489).
+	database, err := sql.Open("pgx", withDSNParam(dsn, "search_path="+schemaName+",public"))
 	if err != nil {
 		t.Fatalf("open schema pool: %v", err)
 	}

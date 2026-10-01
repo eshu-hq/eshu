@@ -83,8 +83,12 @@ func TestWorkflowControlHarnessLeavesSharedSchemaUntouched(t *testing.T) {
 	}
 }
 
+// sharedReducerCounts holds the rows of the shared schema this regression
+// guards: the standing eshu:global scope and its phase rows, which migration 116
+// seeds, and the probe work item the harness writes. Only these are counted so a
+// parallel test that writes other scopes into the shared schema cannot make the
+// check fail.
 type sharedReducerCounts struct {
-	scopes      int
 	globalScope int
 	phaseRows   int
 	workItems   int
@@ -95,11 +99,10 @@ func sharedReducerRowCounts(ctx context.Context, t *testing.T, shared *sql.DB) s
 	var counts sharedReducerCounts
 	if err := shared.QueryRowContext(ctx, `
 SELECT
-    (SELECT count(*) FROM ingestion_scopes),
     (SELECT count(*) FROM ingestion_scopes WHERE scope_id = 'eshu:global'),
-    (SELECT count(*) FROM graph_projection_phase_state),
+    (SELECT count(*) FROM graph_projection_phase_state WHERE scope_id = 'eshu:global'),
     (SELECT count(*) FROM fact_work_items WHERE work_item_id = 'harness-isolation-probe')
-`).Scan(&counts.scopes, &counts.globalScope, &counts.phaseRows, &counts.workItems); err != nil {
+`).Scan(&counts.globalScope, &counts.phaseRows, &counts.workItems); err != nil {
 		t.Fatalf("count shared reducer rows: %v", err)
 	}
 	return counts
