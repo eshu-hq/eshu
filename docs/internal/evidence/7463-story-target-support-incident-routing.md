@@ -109,12 +109,15 @@ resources, and the reducer's `PostgresIncidentRepositoryCorrelationWriter` for
 the correlations, and reads through the shipped `ContentReader`. It covers the
 positive case (exact and derived correlation, observed and applied), and the
 negative and ambiguous cases: a team-class applied resource sharing the id, a
-realistic ambiguous correlation with no repository, a hostile provenance-only
-one that names the repository, another provider reusing the id, a correlation
-on a superseded generation, an uncorrelated service, a tombstoned service, a
-service on a superseded generation, the coverage warning, a service linked to a
-second repository, the service-target gate (one workload, several, none, graph
-unavailable) and the row bound.
+realistic ambiguous correlation with no repository, a hostile ambiguous
+provenance-only one that names the repository, an exact provenance-only
+correlation and an unresolved non-provenance-only one (each rejected by one
+filter alone), another provider reusing the id, a correlation on a superseded
+generation, an uncorrelated service, a tombstoned service, a service on a
+superseded generation, the coverage warning, a service linked to a second
+repository, the service-target gate (one workload, several, none, graph
+unavailable, target not among the defined) and the row bound, with the Jira link
+seeded older than the first PagerDuty row so the newest-first merge is exercised.
 
 ```bash
 cd go && go test ./internal/query/support ./internal/query -run 'Support|Routing|StoryTargetSupport' -count=1

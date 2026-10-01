@@ -198,11 +198,10 @@ func AdmissibleCorrelationsSQL() string {
 // neither this target's evidence nor source-only.
 //
 // The predicate is two-valued. The class and the keys are wrapped in
-// COALESCE(..., an empty string), and the
-// set holds no NULL because AdmissibleCorrelationsSQL drops blank ids, so IN
-// returns true or false and never UNKNOWN; a bare payload->>'provider_object_id'
-// IN (...) would be UNKNOWN for a fact without the key and, under NOT, drop that
-// fact from the count. The set is uncorrelated, so Postgres evaluates it as a
+// COALESCE(..., an empty string), and the set holds no NULL because
+// AdmissibleCorrelationsSQL drops blank ids, so IN returns true or false and
+// never UNKNOWN; a bare payload->>'provider_object_id' IN (...) would be UNKNOWN
+// for a fact without the key and, under NOT, drop that fact from the count. The set is uncorrelated, so Postgres evaluates it as a
 // hashed subplan once. An applied resource of any class other than "service" and
 // the coverage warning are never linked.
 func LinkedIncidentRoutingPredicate() string {

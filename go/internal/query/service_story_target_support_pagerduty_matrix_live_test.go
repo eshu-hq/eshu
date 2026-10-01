@@ -41,9 +41,9 @@ type pagerDutyMatrixFixture struct {
 // ambiguous correlation (real, with no repository, and a hostile one that names
 // R but is provenance-only), an exact but provenance-only correlation and an
 // unresolved one that is not provenance-only (each rejected by one filter
-// alone), a correlation from another provider that reuses the id, a correlation on a superseded generation, a service with no correlation,
-// a tombstoned service, a service on a superseded generation, and the coverage
-// warning. A service correlated to R2 attaches to R2 only and, being linked to
+// alone), a correlation from another provider that reuses the id, a correlation
+// on a superseded generation, a service with no correlation, a tombstoned
+// service, a service on a superseded generation, and the coverage warning. A service correlated to R2 attaches to R2 only and, being linked to
 // some repository, is not source-only for R3.
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
