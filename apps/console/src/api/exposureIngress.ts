@@ -68,7 +68,13 @@ export interface ExposureIngress {
   // publicEntrypointsPartial is true when the total is unknown and the response
   // reports the list was cut, so publicEntrypoints is a lower bound.
   readonly publicEntrypointsPartial: boolean;
+  // totalHops is the proven-hop sum over the listed chains. The server caps
+  // network_paths at 50 rows, and an unlisted path contributes an unknown hop
+  // count (2-3 depending on its origin), so no pre-cut hop total exists:
+  // totalHopsPartial is true when the response says the path list was cut,
+  // and then totalHops is a lower bound.
   readonly totalHops: number;
+  readonly totalHopsPartial: boolean;
   readonly truth: EshuTruth | null;
   readonly provenance: "live" | "empty" | "unavailable";
   readonly state:
@@ -131,6 +137,8 @@ const entrypointCutReasons: ReadonlySet<string> = new Set([
   "entrypoints_truncated",
   "hostnames_truncated",
 ]);
+
+const networkPathCutReason = "network_paths_truncated";
 
 interface PublicEntrypointCount {
   readonly count: number;
@@ -285,6 +293,7 @@ function ingressFromWire(
   const posture = postureFromWire(wire.ingress_posture);
   const publicCount = countPublicEntrypoints(wire, entrypoints);
   const totalHops = chains.reduce((sum, chain) => sum + chain.hops.length, 0);
+  const totalHopsPartial = (wire.partial_reasons ?? []).includes(networkPathCutReason);
   return {
     service: wire.name ?? fallbackName,
     chains,
@@ -292,6 +301,7 @@ function ingressFromWire(
     publicEntrypoints: publicCount.count,
     publicEntrypointsPartial: publicCount.partial,
     totalHops,
+    totalHopsPartial,
     truth,
     provenance: chains.length > 0 ? "live" : "empty",
     state: chains.length > 0 ? "live" : "no_ingress",
@@ -383,6 +393,7 @@ function emptyIngress(
     publicEntrypoints: 0,
     publicEntrypointsPartial: false,
     totalHops: 0,
+    totalHopsPartial: false,
     truth: null,
     provenance: "unavailable",
     state,

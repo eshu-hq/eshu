@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { NoExposureChainNotice } from "./ExposureIngressView";
 import { ExposurePathPage } from "./ExposurePathPage";
 import {
   cappedPublicContext,
@@ -10,6 +11,7 @@ import {
   serviceOptions,
 } from "./ExposurePathPageTestFixtures";
 import type { EshuApiClient } from "../api/client";
+import { loadExposureIngress } from "../api/exposureIngress";
 
 describe("ExposurePathPage ingress presentation", () => {
   it("auto-loads the ingress chain and posture tiles for a deep-linked service", async () => {
@@ -148,6 +150,58 @@ describe("ExposurePathPage ingress presentation", () => {
     await screen.findByText("Ingress chain");
     const tile = screen.getByText("Public entrypoints").closest(".stat-tile");
     expect(tile).toHaveTextContent("50+");
+    expect(tile).toHaveTextContent("partial");
+  });
+
+  it("marks the live hops tile when the shown chain comes from a capped list (#7189)", async () => {
+    const client = {
+      get: async () => ({ data: cappedPublicContext(671, 50), error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Ingress chain");
+    // The chain's own hop count (internet + entrypoint + runtime) is exact,
+    // but the chain was selected from a capped list, so the tile carries the
+    // partial marker -- this is the user-visible change for the capped case.
+    const tile = screen.getByText("Hops to service").closest(".stat-tile");
+    expect(tile).toHaveTextContent("3");
+    expect(tile).toHaveTextContent("on the selected chain (partial: server capped the path list)");
+  });
+
+  it("leaves the live hops tile unmarked when the path list is not capped (#7189)", async () => {
+    const client = {
+      get: async () => ({ data: publicContext(), error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Ingress chain");
+    const tile = screen.getByText("Hops to service").closest(".stat-tile");
+    expect(tile).toHaveTextContent("on the selected chain");
+    expect(tile).not.toHaveTextContent("partial");
+  });
+
+  it("renders the summed hops tile as a partial lower bound when paths are capped (#7189)", async () => {
+    // The ingress comes from the real loader on a capped-at-50 response with
+    // 671 paths, so the tile input is the production shape, not fabrications.
+    const stub = {
+      get: async () => ({ data: cappedPublicContext(671, 50), error: null, truth: null }),
+    } as unknown as EshuApiClient;
+    const ingress = await loadExposureIngress(stub, "checkout");
+    expect(ingress.totalHopsPartial).toBe(true);
+
+    render(<NoExposureChainNotice ingress={ingress} />);
+    const tile = screen.getByText("Hops to service").closest(".stat-tile");
+    expect(tile).toHaveTextContent("150+");
     expect(tile).toHaveTextContent("partial");
   });
 });
