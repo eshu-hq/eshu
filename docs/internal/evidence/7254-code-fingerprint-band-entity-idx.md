@@ -337,7 +337,7 @@ so this run supports neither a specific cost nor a saving. Two readings cut
 the other way and are not hidden by that: the WITH mean per repo (0.493 s) is
 above every earlier run's (0.356 to 0.461 s), and both arms' bootstrap walls
 (1,594 and 1,683 s) are above the earlier 1,194 to 1,315 s, which ran on other
-commits on a quieter host. The reap's -24.8% is within its own spread and is not
+commits, with host load not recorded. The reap's -24.8% is within its own spread and is not
 a clean saving either. Neo4j and read-path effects were not examined. It does show that the
 index does not make the reference-corpus bootstrap fail, stall, or leave the
 queue unclean.
