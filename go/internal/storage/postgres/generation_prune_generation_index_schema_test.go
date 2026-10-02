@@ -25,9 +25,6 @@ func TestGenerationPruneGenerationIndexMigration(t *testing.T) {
 		table = "graph_projection_phase_state"
 	)
 	migration := MigrationSQL(name)
-	if migration == "" {
-		t.Fatalf("generation prune generation index migration %q missing", name)
-	}
 	normalized := strings.Join(strings.Fields(migration), " ")
 	for _, fragment := range []string{
 		"CREATE INDEX CONCURRENTLY IF NOT EXISTS " + name,

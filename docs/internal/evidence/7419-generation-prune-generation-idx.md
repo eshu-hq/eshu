@@ -25,6 +25,14 @@ candidate set to each table (`candidate LEFT JOIN table ... GROUP BY`), which
 the planner runs as one hash join over one scan per batch. This change does
 not claim to speed it up.
 
+This table is the outlier among the foreign-key children of
+`scope_generations`. On ops-qa the large children (`fact_records`,
+`fact_work_items`, `eshu_search_index_documents`, `code_reachability_rows`,
+`admission_decisions`) already seek through their `(scope_id, generation_id,
+...)` indexes (PostgreSQL 18 skip scans or bitmap scans in the generic cascade
+plan); only this table and the 1.5 MB `code_reachability_repository_watermarks`
+plan a full scan.
+
 Two sibling tables were considered and not indexed:
 `graph_projection_phase_repair_queue` and `fact_replay_events` (see
 "Tables not indexed").
@@ -60,9 +68,11 @@ Plans on the replica (`EXPLAIN (ANALYZE, BUFFERS)`):
   removed by filter, 3,687 buffer hits, 14.7 to 15.3 ms.
 - The cascade shape, `DELETE FROM ONLY ... WHERE generation_id = $1`, plans as
   a `Seq Scan` (generic plan cost 4,832). The primary key cannot serve it:
-  `pg_stats` `n_distinct` is 813 for `scope_id` and about -0.12 and -0.11
-  (near unique) for `acceptance_unit_id` and `source_run_id`, so even a
-  PostgreSQL 18 skip scan has nothing to skip.
+  `pg_stats` `n_distinct` is 813 for `scope_id` and -0.12 and -0.11 (a
+  negative value is a fraction of the row count, so about 12% distinct each)
+  for `acceptance_unit_id` and `source_run_id`. Together the three leading
+  columns have 73,106 distinct values in 91,829 rows (about 80%), so a
+  PostgreSQL 18 skip scan has almost nothing to skip.
 - The real retention count join at 1, 50 and 500 candidates is a
   `Hash Right Join` over a single `Seq Scan` of this table (31 to 45 ms in
   total with the candidate selection).
@@ -75,9 +85,10 @@ established by the plan above and the fixture below.
 `postgres:18.6` in a throwaway container, real child DDL from migrations
 012 with stub parents and the foreign keys, 800 scopes, 22,309 generations, and
 91,503 `graph_projection_phase_state` rows over 10,167 generations (9 rows each),
-`VACUUM ANALYZE` after seeding. The fixture table is 33 MB; ops-qa's is 139 MB
-because of update bloat, so ops-qa's per-generation scan cost is higher than
-the fixture's.
+`VACUUM ANALYZE` after seeding. A full scan reads only the heap, and the
+fixture heap is smaller than ops-qa's 29 MB (3,687 pages), so ops-qa's
+per-generation scan cost is higher than the fixture's: 14.7 ms measured there
+against 5.2 ms here.
 
 ### Prune cascade
 
@@ -121,13 +132,17 @@ Fresh insert:
 
 Conflict update +8.1 ms per 2,000 rows (+19.7%, about 4.1 microseconds per
 row); insert +4.9 ms (+9.5%, about 2.5 microseconds per row). Every run of the
-with arm is above every run of the without arm. Each written row also adds one
-WAL record of about 64 bytes. The index is about 0.7 MB at this size.
+with arm is above every run of the without arm. Each written row also adds WAL. Measured as the
+`pg_current_wal_insert_lsn()` difference over a 2,000-row conflict update in
+one transaction, the batch writes 540.5 bytes per row without the index and
+670.9 with it (3 runs each, identical within 0.1), so about 131 extra bytes per
+row (an independent reviewer's repro measured about 140). A fresh index on the
+91,503 fixture rows is 1,608 kB.
 
 Production translation at ops-qa's 326,000 to 454,000 written rows per day,
-97% conflict updates: 1.3 to 1.8 s of extra write CPU per day, and 21 to 29 MB
+97% conflict updates: 1.3 to 1.8 s of extra write CPU per day, and 43 to 64 MB
 of extra WAL per day (the primary wrote about 3,200 GB of WAL in the same 56
-hours, so this is about 0.002%). At the production writer's batch of 250 rows
+hours, about 1.4 TB per day, so this is about 0.004%). At the production writer's batch of 250 rows
 the extra cost is about 1 ms per batch (extrapolated from the 2,000-row run, not
 measured at 250).
 
@@ -183,7 +198,7 @@ changes, so no reader gets a different result and the cascade deletes exactly
 the same rows, only reaching them by a seek. The cost is on the write side:
 +4.1 microseconds per conflict-updated row and +2.5 per inserted row on the
 PostgreSQL 18.6 fixture (+19.7% and +9.5% at 2,000 rows), 1.3 to 1.8 s of CPU
-and 21 to 29 MB of WAL per day at ops-qa's write rate. No lease, claim, queue,
+and 43 to 64 MB of WAL per day at ops-qa's write rate. No lease, claim, queue,
 or transaction path changes.
 
 ## Observability Evidence

@@ -11,9 +11,9 @@
 -- and each firing scans the whole table. On a read-only census of ops-qa
 -- (PostgreSQL 18.3, 91,558 rows, 10,167 generations) the generation_id probe
 -- is a 3,687-buffer seq scan at ~15 ms, and the primary key cannot skip-scan
--- it because its leading columns are near-unique. On a PostgreSQL 18.6
--- fixture at that shape, deleting 500 generations took ~2,613 ms before this
--- index and ~15 ms after. See
+-- it because its three leading columns are about 80% distinct together. On a
+-- PostgreSQL 18.6 fixture at that shape, deleting 500 generations took
+-- ~2,611 ms before this index and ~15 ms after. See
 -- docs/internal/evidence/7419-generation-prune-generation-idx.md.
 --
 -- Plain (generation_id): the cascade and the retention row-count join are
