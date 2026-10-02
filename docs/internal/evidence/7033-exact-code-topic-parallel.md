@@ -101,14 +101,47 @@ restored healthy. Temporary API containers and volumes were removed; the
 preserved database volumes were retained. Earlier attempts with a path error
 and an out-of-bound control sample were rejected rather than counted.
 
+## Deployed ops-qa endpoint-only diagnostic, 2026-10-02
+
+Performance Evidence: an isolated two-container Pod compared baseline
+`f5400edbe56e67cfa31b9f7b8a5e033da5a25372` with candidate
+`f932f95056163bc42aa3a895f88451776b051783` on the same pinned ops-qa
+PostgreSQL read replica and Neo4j backend. Each API container had a 1 CPU /
+2 GiB limit. The request was the canonical 16-term topic phrase above with
+limit 25 and offset 0. Both APIs returned HTTP 200 and the same complete
+response digest on all eight timed requests. The user-local run artifact is
+`7033-ab-20261002t010135z-2be77501-measure2`.
+
+Only two of eight planned ABBA rounds completed. The four baseline times were
+`1.188434, 1.255622, 1.165841, 1.171272` seconds (descriptive median
+`1.179853 s`); the four candidate times were `0.745463, 0.811079,
+0.725290, 0.740511` seconds (descriptive median `0.742987 s`). The primary
+PostgreSQL CPU then exceeded the run's 70% admission gate, so the harness
+stopped before round three. These incomplete medians are diagnostic, not a
+before/after acceptance comparison or a `<1 s` result.
+
+Both `/readyz` calls returned the known missing-migration-153 HTTP 503, so
+rollout readiness was not established. Replica replay advanced across every
+timed call. The sampled content-table statistics fingerprint changed after
+round one, then stayed equal, but those estimated statistics and the capped
+response digest do not prove an immutable corpus or index state. The Pod was
+deleted with its UID precondition and verified absent; the temporary Secret
+and SELECT/EXECUTE-only role were removed and verified absent on PostgreSQL
+primary and replica. No Service selected the Pod, and no schema DDL ran.
+
+Observability Evidence: the candidate sets `code_topic.execution_mode` and
+parallel-read connection/fallback span attributes in code; this aborted run
+did not capture a trace export or a completed resource series. No deployed
+operator-signal claim follows from these samples.
+
 ## Deployed ops-qa acceptance
 
-NOT_CHECKED for the guarded-reader candidate on the deployed topology. The
-last recorded ops-qa baseline median for this 16-term endpoint was 1.632480 s;
-no matched guarded-reader measurement exists there. The primary exceeded the
-previously agreed memory gate during an earlier canary preflight; a separate
-read replica is now available, but it does not make the old timing comparable.
-Do not claim the deployed `<1 s` budget or open the #7033 PR on this record
-alone. Add a matched interleaved endpoint measurement, full-response parity,
-storage fingerprint, resource pressure, and exact canary and role cleanup
-result before publication.
+NOT_CHECKED for the final rebased guarded-reader candidate on the deployed
+topology. The patch was rebased onto `42d2ff84ebf56d75cf323e39d7aa4081da23ab00`
+without changing its stable patch ID, but the binaries above predate that
+base. Ops-qa's migration ledger still ended at 152 on 2026-10-02 while the
+rebased source includes 154. A new exact-source run needs fully ready APIs,
+a quiet completed interleaved comparison, full-response parity, content- and
+index-specific storage proof, resource and operator-signal evidence, and
+verified teardown. Do not claim the deployed `<1 s` budget or open the #7033
+PR on this record alone.
