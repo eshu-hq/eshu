@@ -1,0 +1,23 @@
+docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md
+  s_9b6bb30511490e::t_5c7d5930c60a68 215-274,330-341
+go/internal/storage/postgres/code_drifted_evidence_sql.go
+  s_9b6bb30511490e::t_331898377c296b 10-17
+go/internal/storage/postgres/content_writer_sql.go
+  s_9b6bb30511490e::t_48b0efc1bcd774 170-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3c554c49cbb83a5ef2fa77773d9290d1064e79a8",
+  "prompts": {},
+  "sessions": {
+    "s_9b6bb30511490e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35219556-b5fe-469b-bf15-60d798ac1788",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
