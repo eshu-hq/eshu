@@ -169,3 +169,32 @@ func (cr *ContentReader) RepositoryContextCoverage(ctx context.Context, repoID s
 	}
 	return coverage, nil
 }
+
+// RepositoryFilesLastIndexedAt returns the newest content_files.indexed_at for
+// one repository, or the zero time when it has no indexed files. It is one
+// single-statement read of content_files rows (the (repo_id, relative_path)
+// primary key bounds the scan to the repository) and never touches
+// content_entities, so the dead-code investigation can report a freshness
+// timestamp without the entity aggregate full RepositoryCoverage runs (#7525).
+func (cr *ContentReader) RepositoryFilesLastIndexedAt(ctx context.Context, repoID string) (time.Time, error) {
+	if cr == nil || cr.db == nil {
+		return time.Time{}, nil
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "repository_files_last_indexed_at"),
+			attribute.String("db.sql.table", "content_files"),
+		),
+	)
+	defer span.End()
+
+	indexedAt, err := repository.QueryMaxIndexedAtWithRowQueryer(ctx, cr.db, repository.CoverageContentFilesTable, repoID)
+	if err != nil {
+		span.RecordError(err)
+		return time.Time{}, fmt.Errorf("query content file indexed_at: %w", err)
+	}
+	return indexedAt, nil
+}

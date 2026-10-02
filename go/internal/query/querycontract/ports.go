@@ -3,7 +3,10 @@
 
 package querycontract
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // GraphQuery is the read-only graph traversal surface used by query handlers.
 // Implementations must permit concurrent Run calls. Neo4jReader satisfies that
@@ -156,4 +159,13 @@ type ContentStore interface {
 // populated. ContentStore remains the full coverage port for other routes.
 type RepositoryContextCoverageReadModelStore interface {
 	RepositoryContextCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
+}
+
+// RepositoryFilesIndexedAtReadModelStore is an optional narrow read of the
+// newest content_files.indexed_at for one repository. It returns the zero time
+// when the repository has no indexed files. The dead-code investigation pairs
+// it with RepositoryContextCoverageReadModelStore so its coverage block never
+// pays the content_entities aggregate that full RepositoryCoverage runs (#7525).
+type RepositoryFilesIndexedAtReadModelStore interface {
+	RepositoryFilesLastIndexedAt(ctx context.Context, repoID string) (time.Time, error)
 }

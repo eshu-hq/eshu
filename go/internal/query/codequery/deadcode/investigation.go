@@ -403,19 +403,18 @@ func (a *Analyzer) deadCodeInvestigationCoverage(
 	if strings.TrimSpace(req.RepoID) == "" || a == nil || a.deps.Content == nil {
 		return coverage, nil
 	}
-	contentCoverage, err := a.deps.Content.RepositoryCoverage(ctx, req.RepoID)
+	contentCoverage, filesIndexedAt, err := a.deadCodeInvestigationContentCoverage(ctx, req.RepoID)
 	if err != nil {
-		return nil, fmt.Errorf("query repository content coverage: %w", err)
+		return nil, err
 	}
 	coverage["content_coverage_available"] = contentCoverage.Available
 	if !contentCoverage.Available {
 		return coverage, nil
 	}
 	coverage["file_count"] = contentCoverage.FileCount
-	coverage["entity_count"] = contentCoverage.EntityCount
 	coverage["languages"] = taxonomy.CoverageLanguageMaps(contentCoverage.Languages)
-	if latest := latestDeadCodeCoverageTimestamp(contentCoverage); !latest.IsZero() {
-		coverage["content_last_indexed_at"] = latest.Format(time.RFC3339Nano)
+	if !filesIndexedAt.IsZero() {
+		coverage["content_last_indexed_at"] = filesIndexedAt.Format(time.RFC3339Nano)
 		coverage["freshness_state"] = "content_index_available"
 	}
 	return coverage, nil
@@ -426,13 +425,6 @@ func deadCodeInvestigationScopeType(repoID string) string {
 		return "whole_index"
 	}
 	return "repository"
-}
-
-func latestDeadCodeCoverageTimestamp(coverage RepositoryContentCoverage) time.Time {
-	if coverage.FileIndexedAt.After(coverage.EntityIndexedAt) {
-		return coverage.FileIndexedAt
-	}
-	return coverage.EntityIndexedAt
 }
 
 func deadCodeInvestigationAllReturned(scan DeadCodeInvestigationScan) []map[string]any {
