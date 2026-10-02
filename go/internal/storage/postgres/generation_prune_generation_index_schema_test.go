@@ -6,6 +6,8 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 )
 
 // TestGenerationPruneGenerationIndexMigrations pins the #7419 indexes: the
@@ -52,6 +54,9 @@ func TestGenerationPruneGenerationIndexMigrations(t *testing.T) {
 			}
 			if terminators := strings.Count(statement, ";"); terminators != 1 {
 				t.Fatalf("concurrent index migration %q has %d SQL statements, want one", tc.migration, terminators)
+			}
+			if !coordination.IsSoleConcurrentIndexStatement(migration) {
+				t.Fatalf("generation prune migration %q is not one isolated concurrent-index statement", tc.migration)
 			}
 		})
 	}

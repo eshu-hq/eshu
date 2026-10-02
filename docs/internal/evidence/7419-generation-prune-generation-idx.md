@@ -73,6 +73,40 @@ this scale (heap + FK checks dominate); the standing cost is ~2.2 MB of
 indexes at this fixture scale. Not measured: sustained writer throughput on a
 larger corpus; these tables are small and grow with generations, not facts.
 
+## Conflict-update write cost (arbiter condition B, 2026-10-02)
+
+Both phase tables upsert with `ON CONFLICT (…primary key…) DO UPDATE` touching
+the indexed `updated_at`, so conflict updates are non-HOT and maintain every
+index. Measured with the production writer shapes (8-column state upsert, 11-column
+repair-queue upsert) over 2,000 existing rows per table, each batch inside
+`BEGIN ... ROLLBACK`, `\timing`, every run reported.
+
+Unpaired runs first showed WITH slower with times climbing run-over-run in both
+arms — a dead-tuple confound: each rolled-back batch leaves ~4k dead tuples per
+table, and the later arm inherits the earlier arm's dead rows. Post-VACUUM first
+runs of both arms agreed, confirming the climb was dead-row drag, not index cost.
+Definitive comparison is vacuum-paired (VACUUM ANALYZE before every run), 3 rounds
+per arm, WITHOUT arm first:
+
+| Round | State WITHOUT | State WITH | Repair WITHOUT | Repair WITH |
+| --- | --- | --- | --- | --- |
+| 1 | 34.844 ms | 37.281 ms | 36.448 ms | 39.708 ms |
+| 2 | 33.258 ms | 38.115 ms | 36.082 ms | 41.052 ms |
+| 3 | 34.414 ms | 38.664 ms | 34.954 ms | 39.968 ms |
+
+Medians: state 34.4 → 38.1 ms (+3.7 ms, +10.8%); repair 36.1 → 40.0 ms (+3.9 ms,
++10.8%). Within-arm spread is ~1.5 ms; all six WITH runs sit above all six WITHOUT
+runs, so the gap exceeds run-to-run spread. Cost is ~2 µs per conflict-updated row
+for the extra index entry. For scale context (not a re-decision): the prune-probe
+saving is ~20 ms per pruned generation at fixture scale and grows with table size,
+while the write cost is constant per row. Per the arbiter's condition B this stops
+the enqueue: WITH slower beyond spread, numbers returned, no enqueue.
+
+Unpaired runs for the record — WITHOUT state 38.006 / 37.091 / 36.680 ms, repair
+42.672 / 40.104 / 38.597 ms; WITH state 41.527 / 47.113 / 48.758 ms, repair 44.129 /
+50.805 / 53.708 ms; post-VACUUM WITH state 37.368 / 44.946 / 47.035 ms, repair 40.999 /
+47.072 / 48.018 ms (climb within each unvacuumed series is the dead-tuple artifact above).
+
 ## Migration build strategy
 
 A concurrent build takes `ShareUpdateExclusiveLock`, which does not block
