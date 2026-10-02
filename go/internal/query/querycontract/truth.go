@@ -132,6 +132,13 @@ type ErrorEnvelope struct {
 	CorrelationID string         `json:"correlation_id,omitempty"`
 	Profiles      *ErrorProfiles `json:"profiles,omitempty"`
 	Details       map[string]any `json:"details,omitempty"`
+
+	// retryable marks an envelope the shared graph-read mapping produced for a
+	// transient availability verdict. WriteErrorEnvelope sets Retry-After only
+	// for a marked 503, so a permanent 503 backend_unavailable (an unconfigured
+	// graph backend) never tells a client to retry (#7523). It is unexported, so
+	// it is never serialized and only GraphReadErrorEnvelope can set it.
+	retryable bool
 }
 
 // ResponseEnvelope is the negotiated query response wire contract.

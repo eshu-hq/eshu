@@ -125,7 +125,15 @@ The response carries `Retry-After: 2` (a fixed number of seconds, sized to the
 `error.details.retry_after_seconds`, because the MCP transport forwards the
 envelope rather than HTTP headers. The body never carries the Go error text.
 The request-level checkpoint failure answers the same `503` and `Retry-After`.
-Clients should retry after the hinted delay. A reader failure that is neither
+Clients should retry after the hinted delay. `Retry-After` is set only on these
+transient verdicts and on the graph-unavailable `503` above; any other `503`
+`backend_unavailable`, such as route-to-caller tracing on a deployment with no
+graph backend configured, is a configuration state and carries no hint. The
+replay and acquisition budget is derived from the request's own context, so a
+request whose own deadline expires during a reader borrow, identity check, or
+replay now answers this retryable `503` (with `outcome="deadline"` on the
+reader stage histogram) where it previously answered `500` (or `504` on a route
+that classified the error with the bounded-read classifier). A reader failure that is neither
 condition stays a `500` with a fixed message and no `Retry-After`: a rejected
 statement, a reader connection that fails to authenticate or connect (refused
 connection, TLS error), a role denied `pg_control_system()` or another identity

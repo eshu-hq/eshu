@@ -35,7 +35,7 @@ func readerFenceErrors() map[string]error {
 }
 
 // TestWriteGraphReadErrorMapsReaderFenceFailuresToRetryable503 pins #7523: a
-// reader that is stale or whose pool wait timed out is a retryable 503 with a
+// reader that is stale or whose connection acquisition timed out is a retryable 503 with a
 // Retry-After header and a stable envelope, never a 500 carrying Go error text.
 func TestWriteGraphReadErrorMapsReaderFenceFailuresToRetryable503(t *testing.T) {
 	t.Parallel()
@@ -149,7 +149,7 @@ func TestClassifyBoundedGraphReadErrorKeepsReaderVerdict(t *testing.T) {
 }
 
 // nonTransientReaderErrors are reader failures that carry
-// db.ErrReaderUnavailable but are not a pool-wait timeout: runtime/postgres
+// db.ErrReaderUnavailable but are not a timeout: runtime/postgres
 // joins that sentinel onto every connection, identity-query, and replay-query
 // failure, including permanent ones. They must stay unclaimed (a 500), never a
 // "retry shortly" 503 (#7523 review).
@@ -169,8 +169,9 @@ func nonTransientReaderErrors() map[string]error {
 }
 
 // TestWriteGraphReadErrorLeavesNonTransientReaderFailuresUnclaimed pins the
-// narrowed contract: only a pool-wait timeout (ErrReaderUnavailable joined with
-// context.DeadlineExceeded) or a stale replay is retryable. A permanent reader
+// narrowed contract: only a timeout inside the replay window
+// (ErrReaderUnavailable joined with context.DeadlineExceeded: pool wait, dial,
+// or identity check) or a stale replay is retryable. A permanent reader
 // failure must fall through to the caller's own 500.
 func TestWriteGraphReadErrorLeavesNonTransientReaderFailuresUnclaimed(t *testing.T) {
 	t.Parallel()

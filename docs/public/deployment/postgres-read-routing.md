@@ -93,7 +93,15 @@ clients receive HTTP `503` with error code `backend_unavailable`, a fixed messag
 and `Retry-After: 2` (also `error.details.retry_after_seconds` in the envelope);
 the Go error text and driver detail never reach the response. The writer
 checkpoint failure answers the same `503` and `Retry-After`. Retry after the
-hinted delay. A burst of these `503` responses points at replica lag, for
+hinted delay. `Retry-After` is set only on these transient verdicts; a permanent
+`503` such as a route that needs an unconfigured graph backend carries none. The
+reader fence context inherits the request's own deadline, so a parent or handler
+budget that expires during a borrow, identity check, or replay now answers this
+retryable `503` where it previously answered `500` (or `504` on a route that
+classified the error with the bounded-read classifier). That is defensible (the request
+did not fail on a bounded graph read, and a retry may land inside a fresh
+budget); operators will see the `503` with `outcome="deadline"` on the
+`reader_borrow`, `reader_identity`, or `reader_replay` stage. A burst of these `503` responses points at replica lag, for
 example long snapshot reads on a replica with `hot_standby_feedback=off` and a
 short `max_standby_streaming_delay` causing recovery conflicts; check replay lag
 on the replica before widening any Eshu timeout. To tell the two causes apart,

@@ -7,10 +7,10 @@ import "errors"
 
 // Reader-fence sentinels. The guarded PostgreSQL reader (runtime/postgres)
 // returns these when it cannot serve a fenced read, and the query layer maps a
-// stale replica (ErrReaderStale) or a pool-wait timeout (ErrReaderUnavailable
-// with context.DeadlineExceeded) to a retryable HTTP 503 without importing the
-// runtime package. They live
-// in this dependency leaf so both sides share one error identity: the runtime
+// stale replica (ErrReaderStale) or a connection-acquisition or identity-check
+// timeout inside the replay window (ErrReaderUnavailable with
+// context.DeadlineExceeded) to a retryable HTTP 503 without importing the
+// runtime package. They live in this dependency leaf so both sides share one error identity: the runtime
 // package re-exports the same values, so errors.Is matches in either direction.
 var (
 	// ErrReaderStale reports that a reader replica did not replay to the writer
@@ -22,10 +22,13 @@ var (
 	// not a promise of transience: runtime/postgres joins it onto every reader
 	// connection, identity-query, and replay-query failure, including permanent
 	// ones (authentication, TLS, connection refused, permission denied) and a
-	// client cancellation. Only the pool-wait timeout, which also satisfies
-	// errors.Is(err, context.DeadlineExceeded), is transient; the query layer
+	// client cancellation. Only a timeout inside the replay window is transient:
+	// the pool wait, the connection dial, or the identity check, each of which
+	// also satisfies errors.Is(err, context.DeadlineExceeded). The query layer
 	// maps ErrReaderUnavailable to a retryable 503 only together with that
-	// deadline, and treats every other ErrReaderUnavailable as a plain failure.
+	// deadline, and treats every other ErrReaderUnavailable (authentication or
+	// TLS failure, connection refused, permission denied, a client disconnect)
+	// as a plain failure.
 	ErrReaderUnavailable = errors.New("PostgreSQL reader unavailable")
 )
 

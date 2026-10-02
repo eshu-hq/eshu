@@ -61,10 +61,10 @@ const componentsResponses = `    "responses": {
         }
       },
       "ServiceUnavailable": {
-        "description": "Service unavailable. A graph backend outage, or a PostgreSQL read replica that has not replayed to the writer checkpoint or whose reader pool wait timed out, answers with the stable backend_unavailable error code, a fixed message, and a Retry-After hint; those conditions are transient and the request is safe to retry. Any other PostgreSQL reader failure (for example a permission or connection error) is not transient and answers 500.",
+        "description": "Service unavailable. A graph backend outage, or a PostgreSQL read replica that has not replayed to the writer checkpoint, or whose connection acquisition (pool wait or dial) or identity check timed out inside the replay window, answers with the stable backend_unavailable error code, a fixed message, and a Retry-After hint; those graph-read availability verdicts are transient and the request is safe to retry. Any other 503 backend_unavailable, such as a route that needs a graph backend the deployment did not configure, is a configuration state and carries no Retry-After. A PostgreSQL reader failure that is not a timeout (authentication or TLS failure, connection refused, permission denied, a client disconnect) answers 500.",
         "headers": {
           "Retry-After": {
-            "description": "Seconds to wait before retrying a backend_unavailable response.",
+            "description": "Seconds to wait before retrying. Present only on the transient graph-read availability 503 verdicts (graph unavailable, stale or timed-out PostgreSQL reader) and the checkpoint 503; absent from a permanent 503 backend_unavailable.",
             "schema": {"type": "integer", "minimum": 1}
           }
         },

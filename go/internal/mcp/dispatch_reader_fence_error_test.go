@@ -108,8 +108,8 @@ func TestDispatchToolSurfacesReaderFenceFailuresAsRetryableEnvelope(t *testing.T
 }
 
 // TestDispatchToolKeepsNonTransientReaderFailuresOutOfRetryableEnvelope: a
-// reader failure that carries db.ErrReaderUnavailable without a pool-wait
-// deadline (permission denied, connection refused, client cancel) is not
+// reader failure that carries db.ErrReaderUnavailable without a
+// replay-window deadline (permission denied, connection refused, client cancel) is not
 // retryable, so MCP must not advertise backend_unavailable or a retry hint, and
 // must not show the driver text (#7523 review).
 func TestDispatchToolKeepsNonTransientReaderFailuresOutOfRetryableEnvelope(t *testing.T) {

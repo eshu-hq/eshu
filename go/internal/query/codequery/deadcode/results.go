@@ -104,8 +104,9 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeStoreError answers a failed scan or store read of a dead-code route. A
-// guarded PostgreSQL reader that was stale or whose pool wait timed out (not any
-// other reader failure), and the shared graph-read sentinels, get their
+// guarded PostgreSQL reader that was stale or whose connection acquisition (pool
+// wait or dial) or identity check timed out inside the replay window (not a
+// non-timeout reader failure), and the shared graph-read sentinels, get their
 // retryable 503/504 contract through WriteGraphReadError (#7523); anything else,
 // including a permanent reader failure, is a 500. Every store read in these
 // handlers must come through here so none writes err.Error() into a 500 directly.

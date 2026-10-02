@@ -40,10 +40,12 @@ var (
 )
 
 // BackendUnavailableRetryAfterSeconds is the Retry-After value, in seconds,
-// sent with every retryable 503 backend_unavailable response. It is a fixed
-// hint sized to the reader replay window (2 s by default), so a retry lands
-// after the replica has had one full catch-up window; the server reads no clock
-// to derive it.
+// sent with the transient 503 backend_unavailable graph-read verdicts (graph
+// unavailable, stale or timed-out PostgreSQL reader) and the WithCheckpoint 503;
+// a permanent 503 such as an unconfigured graph backend carries no hint. It is
+// a fixed hint sized to the reader replay window (2 s by default), so a retry
+// lands after the replica has had one full catch-up window; the server reads
+// no clock to derive it.
 const BackendUnavailableRetryAfterSeconds = db.ReaderRetryAfterSeconds
 
 // ClassifyBoundedGraphReadError maps a graph-read error onto
@@ -66,8 +68,8 @@ const BackendUnavailableRetryAfterSeconds = db.ReaderRetryAfterSeconds
 // sentinel (ErrGraphReadDeadline or ErrGraphUnavailable) is the reader's own
 // verdict and is also returned unchanged, so a handler's failure_class log and
 // its 503/504 response always agree. The same holds for a PostgreSQL reader
-// verdict (db.ErrReaderStale, or db.ErrReaderUnavailable with a pool-wait
-// deadline): those wrap context.DeadlineExceeded but are retryable 503s, never
+// verdict (db.ErrReaderStale, or db.ErrReaderUnavailable with a connection
+// acquisition or identity-check deadline): those wrap context.DeadlineExceeded but are retryable 503s, never
 // the 504 budget. A non-deadline db.ErrReaderUnavailable is not a fence verdict
 // and is classified like any other error.
 //
@@ -87,7 +89,8 @@ func ClassifyBoundedGraphReadError(ctx context.Context, err error) error {
 // isReaderFenceError reports whether err carries a transient PostgreSQL reader
 // verdict that is safe to tell a client to retry: a replica that missed the
 // writer checkpoint (db.ErrReaderStale, always a replay-window deadline), or a
-// reader pool wait that timed out (db.ErrReaderUnavailable joined with
+// reader connection acquisition (pool wait or dial) or identity check that
+// timed out inside the replay window (db.ErrReaderUnavailable joined with
 // context.DeadlineExceeded).
 //
 // db.ErrReaderUnavailable alone is NOT enough. runtime/postgres joins that
@@ -113,8 +116,12 @@ type graphReadHTTPError struct {
 }
 
 // WriteGraphReadError writes the stable HTTP contract for a bounded graph-read
-// availability error, and for a PostgreSQL reader that was stale or whose pool
-// wait timed out (a retryable 503 backend_unavailable with Retry-After, #7523).
+// availability error, and for a PostgreSQL reader that was stale or whose
+// connection acquisition (pool wait or dial) or identity check timed out (a
+// retryable 503 backend_unavailable with Retry-After, #7523).
+// Every 503 it writes is a transient verdict and carries Retry-After; the
+// header is set only for envelopes this mapping produced, never by the generic
+// WriteErrorEnvelope for an arbitrary 503.
 // A reader failure that is not a timeout is not claimed and stays the caller's 500.
 // It returns false without touching the response when err
 // is not one of the shared graph-read errors, leaving the caller's own mapping
@@ -142,6 +149,7 @@ func GraphReadErrorEnvelope(err error, capability string) (int, *ErrorEnvelope, 
 		Message:    mapped.message,
 		Capability: capability,
 		Details:    mapped.details,
+		retryable:  mapped.status == http.StatusServiceUnavailable,
 	}, true
 }
 

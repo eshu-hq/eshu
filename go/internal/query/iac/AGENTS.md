@@ -101,9 +101,10 @@
 
 `handleDeadIaC` routes every reader and content failure through
 `writeDeadIaCReadError` (and the selector failure through
-`querycontract.WriteGraphReadError`) so a stale or pool-wait-timed-out guarded
-PostgreSQL reader (any other reader failure stays a 500) answers a retryable 503 `backend_unavailable` with
-`Retry-After`. The other handlers in this package still write store errors as
+`querycontract.WriteGraphReadError`) so a stale guarded PostgreSQL reader, or one
+whose connection acquisition (pool wait or dial) or identity check timed out
+inside the replay window (a reader failure that is not a timeout stays a 500),
+answers a retryable 503 `backend_unavailable` with `Retry-After`. The other handlers in this package still write store errors as
 500 and have not been moved to the helper.
 
 ## What NOT to change without an ADR

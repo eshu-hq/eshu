@@ -32,8 +32,8 @@
 // ErrReaderStale, ErrReaderUnavailable, and ReaderRetryAfterSeconds are the
 // shared guarded-reader failure identities and retry hint: runtime/postgres
 // returns the errors and the query layer maps a stale replica, or an
-// unavailable reader that also hit a deadline (the pool-wait timeout), to a
-// retryable 503 without importing each other (#7523).
+// unavailable reader that also hit a deadline (a pool-wait, dial, or
+// identity-check timeout inside the replay window), to a retryable 503 without importing each other (#7523).
 //
 // The concrete adapters (SQLDB, SQLTx, SQLQueryer), the schema bootstrap and
 // migration ledger, and the advisory-lock machinery stay in the root package

@@ -1,8 +1,9 @@
 # Reader fence failures answer a retryable 503 (#7523)
 
 Refs #7249. A PostgreSQL reader that has not replayed to the writer checkpoint
-within the replay timeout (`ErrReaderStale`), or whose pool wait timed out
-(`ErrReaderUnavailable` through `privateFailure`), reached API and MCP clients as
+within the replay timeout (`ErrReaderStale`), or whose connection acquisition or
+identity check timed out inside the replay window (`ErrReaderUnavailable` joined
+with `context.DeadlineExceeded`, through `privateFailure`), reached API and MCP clients as
 HTTP 500 with the Go error text. The checkpoint middleware already answered 503
 for a failed checkpoint step, so the same transient condition had two contracts.
 
@@ -33,12 +34,27 @@ way.
   timeout to 503 `backend_unavailable` with a fixed message and
   `details.retry_after_seconds`. A timeout is `ErrReaderStale` (always a replay
   deadline), or `ErrReaderUnavailable` that also satisfies
-  `errors.Is(err, context.DeadlineExceeded)` (the pool-wait or identity-check
-  timeout). The check runs before the deadline sentinel because both wrap
+  `errors.Is(err, context.DeadlineExceeded)`: the pool wait, the connection dial
+  (pgx v5 returns an error wrapping the context error when the dial hits the
+  replay-window deadline), or the identity check (`runtime/postgres/reader.go`).
+  The check runs before the deadline sentinel because both wrap
   `context.DeadlineExceeded`; `ClassifyBoundedGraphReadError` uses the same
   `isReaderFenceError` predicate, so the classifier and the mapper agree and
-  leave these untouched. `WriteErrorEnvelope` and `WithCheckpoint` set
-  `Retry-After: 2`, a fixed constant with no clock read.
+  leave these untouched. `Retry-After: 2` (a fixed constant, no clock read) is
+  set only for the transient verdicts: `GraphReadErrorEnvelope` marks the
+  envelope it returns for a 503 verdict (graph unavailable, stale or timed-out
+  reader) with an unexported flag and `WriteErrorEnvelope` honors only a marked
+  envelope, so every seam that writes a `GraphReadErrorEnvelope` result keeps
+  the header; `WithCheckpoint` sets it for its own 503. The generic
+  `WriteErrorEnvelope` no longer sets it for an arbitrary 503
+  `backend_unavailable`. The pre-existing graph-unavailable 503 is transient and
+  keeps the header.
+- Review fix (blocking P2): an earlier revision of this change set `Retry-After`
+  in `WriteErrorEnvelope` on every 503 `backend_unavailable`, which also reached
+  `codequery/route_handlers.go` answering "route-to-caller tracing requires a
+  configured graph backend" when `h.Neo4j == nil`, a permanent configuration
+  state. The header moved to the marked graph-read envelopes. Other 503 writers
+  were decided per site (below).
 - A bare `ErrReaderUnavailable` is NOT retryable. `runtime/postgres/reader.go`
   joins that sentinel onto every `reader.Conn` failure (authentication, TLS,
   connection refused, client `context.Canceled`), every non-topology identity
@@ -54,9 +70,18 @@ way.
 - Residual: a driver timeout that is not a `context` error (an OS-level dial
   timeout surfaced as `os.ErrDeadlineExceeded` without a wrapped context error)
   would not satisfy `context.DeadlineExceeded` and so answers 500. The pool wait,
-  the identity check, and the replay wait are all bounded by the replay-window
-  context, so the measured pool-wait path does carry the context deadline
-  (`TestReaderBorrowPoolWaitTimeoutIsRetryableDeadline`).
+  the dial, the identity check, and the replay wait are all bounded by the
+  replay-window context, so the measured pool-wait path does carry the context
+  deadline (`TestReaderBorrowPoolWaitTimeoutIsRetryableDeadline`).
+- Residual: `fenceCtx` in `runtime/postgres/reader.go` is
+  `context.WithTimeout(ctx, replayTimeout)`, so it inherits the request's own
+  deadline. When a parent or handler budget expires during borrow, identity, or
+  replay, the response is now the retryable 503 where it previously answered 500
+  on the dead-code and `iac/dead` routes (they never classified reader errors with
+  `ClassifyBoundedGraphReadError`), or 504 on a route that did. This is
+  defensible: the read did not fail on a bounded graph read, and a retry may land
+  inside a fresh budget. Operators see it as a 503 with `outcome="deadline"` on
+  `reader_borrow`, `reader_identity`, or `reader_replay`.
 
 ## Proof
 
@@ -75,6 +100,43 @@ Failing regression first, then green:
   `find_dead_iac` tool results are `isError` with code `backend_unavailable`.
 - An unrelated store error still answers 500 with no `Retry-After` (no
   over-mapping).
+- Review fix (blocking P2, `Retry-After` scope): the regressions were written
+  first and failed against cab9c190a with `Retry-After = "2"` on a 503 that is
+  not a graph-read verdict:
+  `go test ./internal/query/querycontract/ ./internal/query/codequery/ -run 'NoRetryAfter|KeepsRetryAfter|StaysWithoutRetryAfter'`
+  exit 1 (`TestWriteErrorEnvelopeBackendUnavailableCarriesNoRetryAfter` on a
+  generic `WriteErrorEnvelope` 503, and
+  `TestRouteToCallerWithoutGraphBackendCarriesNoRetryAfter` through the real
+  `CodeHandler.Mount` mux with `Neo4j == nil`). After the change the same command
+  exits 0. `TestRouteToCallerGraphUnavailableKeepsRetryAfter` and
+  `TestGraphUnavailableVerdictKeepsRetryAfterThroughWriteGraphReadError` keep
+  the transient graph-unavailable 503 retryable, and the existing
+  `TestGraphReadErrorEnvelopeSeamCarriesRetryHint` and the `WithCheckpoint` test
+  keep the seam and checkpoint headers.
+
+### Other 503 `backend_unavailable` writers (decided per site)
+
+Re-derived with `rg -n 'WriteErrorEnvelope\(' go --glob '!*_test.go'` and
+`rg -n 'StatusServiceUnavailable' go --glob '!*_test.go'`:
+
+- Graph-read verdicts through `WriteGraphReadError` and
+  `GraphReadErrorEnvelope` (including the service-story seam, which
+  `serviceintelhttp` and `entity.GetServiceStory` write through the generic
+  writer): transient, keep the header via the marker.
+- `codequery/route_handlers.go` (`h.Neo4j == nil`): permanent configuration,
+  no header (this fix).
+- `WriteContractError` sites (secrets, observability coverage): never set the
+  header; unaffected.
+- `WriteError` and `http.Error` 503 sites (store not configured, status reader
+  not configured, setup store, login, ask-not-ready): never set the header;
+  unchanged.
+- `entity/service_story_seam.go` `ErrContentSubstringIndexesNotReady` 503: not a
+  graph-read verdict, so it carries no header, as before this change. Whether an
+  index build is worth a retry hint is a separate contract question and is not
+  decided here.
+- `semanticsearch` `writeSemanticSearchError` 503: own writer, unchanged.
+- `runtime/postgres` `WithCheckpoint`: transient (a failed checkpoint step),
+  sets the header directly.
 - Review fix (blocking P2): the non-transient cases were added first and failed
   against the prior commit with 503 where 500 was required
   (`TestWriteGraphReadErrorLeavesNonTransientReaderFailuresUnclaimed`,
@@ -102,7 +164,7 @@ Observability Evidence: no new metric. Fence outcomes are already observable in
 `eshu_dp_postgres_reader_stage_duration_seconds` with `role="reader"`:
 `stage="reader_replay"`, `outcome="deadline"` is a replica that missed the
 checkpoint (`ErrReaderStale`); `stage="reader_borrow"`, `outcome="deadline"` is a
-pool-wait timeout (a `reader_identity` `deadline` is the same 503);
+pool-wait or dial timeout (a `reader_identity` `deadline` is the same 503);
 `reader_replay` `outcome="ok"` with a duration near the replay
 window is a request that waited and succeeded. The same stages with
 `outcome="error"` or `"canceled"` answer 500, not 503, and `outcome="error"` is

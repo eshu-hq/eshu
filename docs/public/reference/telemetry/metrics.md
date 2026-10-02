@@ -50,9 +50,10 @@ The same histogram is the signal for reader fence outcomes (#7523); no separate
 counter exists. With `role="reader"`, `stage="reader_replay"` and
 `outcome="deadline"` counts replicas that missed the writer checkpoint within
 the replay window (the API answers `503 backend_unavailable` with `Retry-After`),
-`stage="reader_borrow"` and `outcome="deadline"` counts reader-pool wait
-timeouts (the same `503`; a `reader_identity` `deadline`, the identity check
-timing out inside the replay window, answers it too), and `stage="reader_replay"` with `outcome="ok"` and a
+`stage="reader_borrow"` and `outcome="deadline"` counts connection-acquisition
+timeouts, a pool wait or a dial under the replay-window deadline (the same
+`503`; a `reader_identity` `deadline`, the identity check timing out inside the
+replay window, answers it too), and `stage="reader_replay"` with `outcome="ok"` and a
 duration near the replay window counts reads that waited for replay and then
 succeeded. Only the `deadline` outcomes map to the `503`. The same stages with
 `outcome="error"` (authentication or TLS failure, connection refused, a role

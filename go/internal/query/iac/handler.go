@@ -236,10 +236,10 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 	}, querycontract.BuildTruthEnvelope(h.profile(), DeadCapability, querycontract.TruthBasisContentIndex, "derived from bounded IaC content references"))
 }
 
-// writeDeadIaCReadError answers a failed dead-IaC store read. A guarded
-// PostgreSQL reader that was stale or whose pool wait timed out is a retryable
-// 503 with Retry-After and a fixed message (#7523); any other failure, including
-// a non-timeout reader failure, stays a 500.
+// writeDeadIaCReadError answers a failed dead-IaC store read. A stale reader, or
+// one whose connection acquisition (pool wait or dial) or identity check timed
+// out inside the replay window, is a retryable 503 with Retry-After (#7523); any
+// other failure, including a non-timeout reader failure, stays a 500.
 func writeDeadIaCReadError(w http.ResponseWriter, r *http.Request, err error) {
 	if querycontract.WriteGraphReadError(w, r, err, DeadCapability) {
 		return

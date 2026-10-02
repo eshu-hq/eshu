@@ -65,7 +65,7 @@ func (e readerFencePrivateText) Unwrap() error { return e.cause }
 
 // TestDeadCodeRoutesMapReaderFenceFailuresToRetryable503 is the #7523
 // regression: a PostgreSQL reader that missed the writer checkpoint, or whose
-// pool wait timed out, must reach the client of every dead-code route as a
+// connection acquisition or identity check timed out, must reach the client of every dead-code route as a
 // retryable 503 backend_unavailable with Retry-After and no Go error text,
 // whichever of the route's Postgres reads hit it.
 func TestDeadCodeRoutesMapReaderFenceFailuresToRetryable503(t *testing.T) {
@@ -154,7 +154,7 @@ func TestDeadCodeRoutesStillReturn500ForUnknownStoreErrors(t *testing.T) {
 }
 
 // TestDeadCodeRoutesKeep500ForNonTransientReaderFailures: a reader failure that
-// carries db.ErrReaderUnavailable but is not a pool-wait timeout (permission
+// carries db.ErrReaderUnavailable but is not a timeout (permission
 // denied, connection refused, client cancel) is a permanent or client-side
 // condition, so it stays a 500 with no Retry-After and none of the driver text.
 func TestDeadCodeRoutesKeep500ForNonTransientReaderFailures(t *testing.T) {

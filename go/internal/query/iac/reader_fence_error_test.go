@@ -166,7 +166,7 @@ func TestHandleDeadIaCStillReturns500ForUnknownStoreErrors(t *testing.T) {
 }
 
 // TestHandleDeadIaCKeeps500ForNonTransientReaderFailures: db.ErrReaderUnavailable
-// without a pool-wait deadline (permission denied, connection refused, client
+// without a replay-window deadline (permission denied, connection refused, client
 // cancel) is not retryable, so the route answers 500 with no Retry-After and no
 // driver text (#7523 review).
 func TestHandleDeadIaCKeeps500ForNonTransientReaderFailures(t *testing.T) {
