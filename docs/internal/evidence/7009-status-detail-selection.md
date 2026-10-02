@@ -35,3 +35,15 @@ bounded read labels remain. A detail read that omits Terraform evidence emits
 no `terraform_state` phase sample; full and index status retain that sample
 and propagate its errors. The `status_snapshot` span and database query
 summary labels remain available for operator attribution.
+
+## Local binary route check
+
+On a disposable primary with a separate read-only session pool against that
+same primary, the baseline and candidate API/MCP binaries each completed 42
+repository-detail calls over 800 scopes, 21,600 generations, and 192,001 work
+rows. All 84 decoded payloads matched after excluding version and elapsed-age
+fields that change with request time. This checks the built route and MCP
+selector on that local profile; it does not establish physical standby,
+deployed, cold-read, concurrent-user, or 100-user performance. Local warm p95
+was recorded for both binaries, but quiet-host comparability was not checked,
+so no endpoint speedup is claimed.

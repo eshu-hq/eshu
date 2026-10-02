@@ -18,9 +18,11 @@ import (
 // selectionRecordingReader captures the selection requested through the filtered
 // reader contract so handler tests can assert which sections a route loads.
 type selectionRecordingReader struct {
-	snapshot          statuspkg.RawSnapshot
-	lastSelection     statuspkg.SnapshotSelection
-	filteredCallCount int
+	snapshot              statuspkg.RawSnapshot
+	omitTerraformOnSkip   bool
+	returnedTerraformRows int
+	lastSelection         statuspkg.SnapshotSelection
+	filteredCallCount     int
 }
 
 func (r *selectionRecordingReader) ReadStatusSnapshot(
@@ -37,7 +39,13 @@ func (r *selectionRecordingReader) ReadStatusSnapshotFiltered(
 ) (statuspkg.RawSnapshot, error) {
 	r.lastSelection = selection
 	r.filteredCallCount++
-	return r.snapshot, nil
+	raw := r.snapshot
+	if r.omitTerraformOnSkip && selection.SkipTerraformStateEvidence {
+		raw.TerraformStateLastSerials = nil
+		raw.TerraformStateRecentWarnings = nil
+	}
+	r.returnedTerraformRows = len(raw.TerraformStateLastSerials) + len(raw.TerraformStateRecentWarnings)
+	return raw, nil
 }
 
 func TestGetIndexStatusRequestsFilteredSelection(t *testing.T) {
