@@ -58,7 +58,7 @@ No index, migration, or schema change.
 
 ### Why the lateral stays page-bound
 
-A lateral is planned from the average fan-in per entity, not the busy entity's, so "another index plus a sort" is always a candidate. The ranking stays ordered because the walk is index-only and every alternative needs the heap. The planner prices an Index Only Scan by the share of the table's pages marked all-visible, so this holds while autovacuum keeps them so: 54,033 of 55,185 pages (97.9%) on the QA replica, read from `pg_class.relallvisible`, and the live guards run on a vacuumed fixture. A page range a fresh snapshot rewrite has not yet had vacuumed needs heap reads, which can tip the plan toward "another index plus a sort"; that state was not measured and is NOT_CHECKED.
+A lateral is planned from the average fan-in per entity, not the busy entity's, so "another index plus a sort" is always a candidate. The result order comes from the statement's `ORDER BY` under any plan. What the plan decides is whether the ranking is served as an ordered walk of the rank index, because that walk is index-only and every alternative needs the heap. The planner prices an Index Only Scan by the share of the table's pages marked all-visible, so the ordered walk is chosen while autovacuum keeps them so: 54,033 of 55,185 pages (97.9%) on the QA replica, read from `pg_class.relallvisible`, and the live guards run on a vacuumed fixture. A page range a fresh snapshot rewrite has not yet had vacuumed needs heap reads, which can tip the plan toward "another index plus a sort"; that state was not measured and is NOT_CHECKED.
 
 The ranking walk is bounded per entity by the cap times (1 + retained generations), because the liveness test discards superseded entries after reading them. An entity that crosses the cap is read in full to its boundary, which is why the measured 26,250 entries on the 250-ID busy-entity page exceed 1,001 times 25.
 
@@ -118,7 +118,7 @@ The wide arm compares rows and positions against the frozen retired statement, b
 
 ### QA replica, unscoped page, read-only
 
-The rewrite's numbers below were taken after other probes had already read the same pages, so no cold first run of the rewrite was observed. The previous statement's first run above was cold.
+The rewrite's numbers below were taken after other probes had already read the same pages, so no cold first run of the rewrite was observed. The previous statement's first run above was cold. These ad-hoc `EXPLAIN (ANALYZE, BUFFERS)` runs used a custom plan; the next section measures both statements under a forced generic plan on the replica's statistics.
 
 | Page | Shape | Run 1 | Run 2 | Shared buffers |
 | --- | --- | ---: | ---: | ---: |
@@ -129,6 +129,19 @@ The rewrite's numbers below were taken after other probes had already read the s
 
 The lateral used the rank Index Only Scan on both pages. For the PR's grant note only: the same 250-ID page with a 3-repository grant took 496.2 ms (5,565 buffers) on the previous statement, which grant-bound reads keep. The lateral with the grant bound took 111.8 ms (706 hit, 294 read), planned as index 101 plus a sort.
 
+#### Plan mode on the replica
+
+The production driver caches prepared statements, so after about five executions per connection PostgreSQL may serve a generic plan. Both statements were prepared and run as `EXPLAIN (ANALYZE, BUFFERS)` under `plan_cache_mode` forced to custom and to generic, `jit = off`, on the 250-ID Function page of the 12,403-file repository (0 rows returned), twice each. The lateral text is the production statement; the previous statement was prepared with 250 placeholders.
+
+| Shape | Plan mode | Run 1 | Run 2 | Shared buffers |
+| --- | --- | ---: | ---: | ---: |
+| previous | custom | 606.9 ms | 581.4 ms | 6,730 / 6,722 |
+| previous | generic | 613.0 ms | 585.0 ms | 6,722 / 6,722 |
+| lateral | custom | 7.84 ms | 2.81 ms | 1,005 / 1,000 |
+| lateral | generic | 3.37 ms | 2.79 ms | 1,000 / 1,000 |
+
+On the replica's statistics a generic plan is the same plan as the custom one for both shapes: the previous statement stays scope-driven (819 primary-key probes) and the lateral stays on the rank Index Only Scan. The local fixture shows a different generic-plan outcome, with the lateral slower in wall time than the previous statement (23.5 ms against 11.6 ms, table above); the replica does not reproduce that, and it is a limit of this change rather than something the replica numbers rule out. The cold first run of the lateral under a generic plan was not observed.
+
 Row and position differential, lateral against the previous statement, `EXCEPT ALL` in both directions with the row position included:
 
 - zero differences on all 7 pages;
@@ -136,6 +149,6 @@ Row and position differential, lateral against the previous statement, `EXCEPT A
 
 This differential is weak evidence. Every entity on the QA replica has at most one active consumer row, so the replica cannot exercise a busy fan-in. The local fixture's differentials above carry that case.
 
-Performance Evidence: Query shape: the unscoped cross-repo consumer-evidence page as a per-entity LATERAL Index Only Scan of `code_reachability_entity_confidence_rank_idx`, with per-row liveness subqueries and a five-column primary-key-plus-depth fetch; grant-bound reads unchanged. Backend: PostgreSQL 18.3 on the QA replica and 18.6 in a local container. Input cardinality: 101 and 250 producer IDs on the replica; 250 IDs with a 1,500-consumer busy entity on the local fixture. Index state: unchanged, no new index, migration 103's rank index present. Before and after on the replica, 250 IDs: 1,305.1 ms first and 588.3 ms warm with 6.7k buffers, against 4.28 and 2.75 ms with 1.0k buffers. On 101 IDs: 254.5 and 253.0 ms against 1.09 and 1.11 ms. Every figure is a PostgreSQL statement time under the cache state described, not an HTTP or MCP endpoint p95.
+Performance Evidence: Query shape: the unscoped cross-repo consumer-evidence page as a per-entity LATERAL Index Only Scan of `code_reachability_entity_confidence_rank_idx`, with per-row liveness subqueries and a five-column primary-key-plus-depth fetch; grant-bound reads unchanged. Backend: PostgreSQL 18.3 on the QA replica and 18.6 in a local container. Input cardinality: 101 and 250 producer IDs on the replica; 250 IDs with a 1,500-consumer busy entity on the local fixture. Index state: unchanged, no new index, migration 103's rank index present. Before and after on the replica, 250 IDs: 1,305.1 ms first and 588.3 ms warm with 6.7k buffers, against 4.28 and 2.75 ms with 1.0k buffers. On 101 IDs: 254.5 and 253.0 ms against 1.09 and 1.11 ms. Plan mode on the replica, 250 IDs, forced custom and forced generic: 606.9 and 581.4 ms custom and 613.0 and 585.0 ms generic for the previous statement, against 7.84 and 2.81 ms custom and 3.37 and 2.79 ms generic for the lateral; on the local fixture the lateral's generic plan is slower in wall time than the previous statement's (23.5 ms against 11.6 ms). Every figure is a PostgreSQL statement time under the cache state and plan mode described, not an HTTP or MCP endpoint p95.
 
 No-Observability-Change: The existing `postgres.query` span with `db.operation=cross_repo_dead_code_consumer_evidence` still records errors and duration for this statement. The change alters only SQL text and argument shape. It adds no worker, queue stage, metric, or status field.

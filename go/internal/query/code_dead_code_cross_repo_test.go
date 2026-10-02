@@ -62,6 +62,8 @@ func TestContentReaderCrossRepoDeadCodeEvidenceUsesBoundedEntityLookup(t *testin
 		"WHERE row.entity_id = page.id",
 		"row.repository_id <> $1",
 		"SELECT scope.active_generation_id",
+		"SELECT generation.status",
+		"WHERE generation.generation_id = row.generation_id) = 'active'",
 		"ORDER BY row.confidence DESC",
 		"ORDER BY page.id ASC, hit.confidence DESC",
 		"LIMIT",
