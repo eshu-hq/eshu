@@ -96,8 +96,10 @@ out="$(env ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=0 bash "${runner}" 
 # leave the live job green with four hard-coded test names.
 ledger="${repo_root}/specs/live-tests.v1.yaml"
 checker="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
-python3 "${checker}" verify-ledger "${ledger}" "${repo_root}" >/dev/null ||
+selection="$(python3 "${checker}" verify-ledger "${ledger}" "${repo_root}")" ||
   fail "clean postgres_ci ledger mapping rejected"
+[[ "${selection}" == *"4 tests selected"* && "${selection}" != *"PASS"* ]] ||
+  fail "ledger selection claimed a test pass before Go ran: ${selection}"
 sed 's/class: postgres_ci/class: scheduled/g' "${ledger}" >"${seed_dir}/ledger-missing.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-missing.yaml" "${repo_root}" 2>&1)" &&
   fail "missing postgres_ci ledger row passed"

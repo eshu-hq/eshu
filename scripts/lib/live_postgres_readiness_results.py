@@ -56,7 +56,7 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
                 file=sys.stderr,
             )
             return 1
-    print("postgres_ci ledger selection: 2 files, 4 tests PASS")
+    print("postgres_ci ledger selection: 2 files, 4 tests selected")
     return 0
 
 
