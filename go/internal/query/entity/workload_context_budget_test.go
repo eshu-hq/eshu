@@ -155,3 +155,21 @@ func TestGetWorkloadContextCapsEvidenceRowsOnPopulatedService(t *testing.T) {
 		t.Fatal("result_limits.truncated = false next to a cut artifact list, want true")
 	}
 }
+
+// TestGetWorkloadContextHandlesReportsRowsReadAsOmissionTotal drives the graph
+// fallback shape (100 artifact rows read, 50 shipped) through the real handler
+// in handles mode: the truth omission must carry 100, never the 50 that ship.
+func TestGetWorkloadContextHandlesReportsRowsReadAsOmissionTotal(t *testing.T) {
+	t.Parallel()
+
+	_, envelope, _ := getContextEnvelope(t, populatedContextHandler(), "/api/v0/workloads/workload-1/context?evidence_detail=handles", "workload_id", "workload-1")
+
+	data, _ := envelope["data"].(map[string]any)
+	if got := len(querycontract.MapSliceValue(querycontract.MapValue(data, "deployment_evidence"), "artifacts")); got != querycontract.ContextStoryItemLimit {
+		t.Fatalf("artifacts shipped = %d, want %d", got, querycontract.ContextStoryItemLimit)
+	}
+	sections := omissionSections(t, envelope)
+	if got, want := sections["deployment_evidence.artifacts"], float64(2*budgetArtifactsPerDirection); got != want {
+		t.Fatalf("artifacts omission total = %v, want %v (rows read)", got, want)
+	}
+}

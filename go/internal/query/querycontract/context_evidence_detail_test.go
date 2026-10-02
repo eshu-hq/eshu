@@ -74,6 +74,25 @@ func TestApplyContextEvidenceDetailHandlesProjectsRowsToIdentityKeys(t *testing.
 	}
 }
 
+// TestApplyContextEvidenceDetailReportsRowsReadNotRowsShipped proves the
+// artifact omission total is the row count the read held, not the number of
+// rows left after the 50-row cap. On the graph fallback 100 rows are read and 50
+// ship; reporting 50 would read as a complete answer.
+func TestApplyContextEvidenceDetailReportsRowsReadNotRowsShipped(t *testing.T) {
+	t.Parallel()
+
+	ctx := evidenceDetailContext()
+	ctx["result_limits"] = map[string]any{"artifact_count": 100}
+
+	omissions := ApplyContextEvidenceDetail(ctx, ContextEvidenceDetailHandles)
+
+	for _, omission := range omissions {
+		if omission.Section == "deployment_evidence.artifacts" && omission.Total != 100 {
+			t.Fatalf("artifacts omission total = %d, want 100 (rows read, 2 shipped)", omission.Total)
+		}
+	}
+}
+
 // TestApplyContextEvidenceDetailFullChangesNothing proves full mode (the HTTP
 // default) keeps every row and reports no omission.
 func TestApplyContextEvidenceDetailFullChangesNothing(t *testing.T) {

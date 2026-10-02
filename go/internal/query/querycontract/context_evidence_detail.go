@@ -79,7 +79,7 @@ func ApplyContextEvidenceDetail(ctx map[string]any, detail string) []TruthOmissi
 		return nil
 	}
 	ctx["evidence_detail_drilldown"] = map[string]any{
-		"full_rows":     "repeat the call with evidence_detail full",
+		"full_rows":     "repeat the call with evidence_detail full; rows past the 50 shipped are listed by resolved_id only under full",
 		"artifact_tool": "get_relationship_evidence",
 		"artifact_key":  "resolved_id",
 	}

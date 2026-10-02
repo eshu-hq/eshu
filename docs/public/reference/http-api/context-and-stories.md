@@ -103,9 +103,11 @@ at its own bound (`api_surface.detail_truncated`,
 disclose. `api_surface.endpoint_count` is the endpoint total.
 `deployment_evidence.artifact_count` and `result_limits.artifact_count` count
 the artifact rows read, so they are a floor when the read itself stopped at its
-bound. No route returns the cut rows of the other lists. Cut artifact rows stay
-reachable: `deployment_evidence.evidence_index.*.resolved_ids` names every
-artifact row read, and `get_relationship_evidence` returns one by `resolved_id`.
+bound. No route returns the cut rows of the other lists. Under `full`, cut
+artifact rows stay reachable: `deployment_evidence.evidence_index.*.resolved_ids`
+names every artifact row read, and `get_relationship_evidence` returns one by
+`resolved_id`. Under `handles` the index is dropped, so reaching an artifact row
+beyond the 50 shipped takes a `full` call.
 `deployment_overview.api_surface` keeps its counts but not the endpoint rows
 (`endpoints_shipped_at` points at the top-level list); the story routes keep
 their own bounded overview copy.

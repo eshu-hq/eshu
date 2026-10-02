@@ -76,6 +76,7 @@ the shared API request duration and error metrics (`request.go` in
   `investigate_service` can forward it as the `service_id` query parameter
   without also forwarding a non-workload-qualified value (for example a
   `service:` catalog id).
+- `get_service_context` forwards `evidence_detail` on the context route and defaults it to `handles` (#7129); an explicit value wins, an unknown value is forwarded for the handler to reject with a 400, and `get_service_story` is never given the parameter.
 - `get_service_context` requires `workload_id`; a `service_name` argument is
   rejected before dispatch to avoid a ServeMux redirect on a mismatched
   selector shape, matching the pre-extraction root switch.
