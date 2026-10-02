@@ -226,6 +226,22 @@ describe("loadExposureIngress public entrypoint count under the server cap (#716
     expect(ingress.publicEntrypointsPartial).toBe(false);
   });
 
+  it("marks the hops tile partial when network_paths are capped at 50 with more paths (#7189)", async () => {
+    const ingress = await loadExposureIngress(clientFor(cappedPublicContext(671, 50)), "checkout");
+    expect(ingress.chains).toHaveLength(50);
+    // 50 listed chains x (internet origin + entrypoint + runtime); the 621
+    // unlisted paths contribute an unknown hop count, so the sum is a lower
+    // bound, never the total.
+    expect(ingress.totalHops).toBe(150);
+    expect(ingress.totalHopsPartial).toBe(true);
+  });
+
+  it("leaves the hops tile exact when the path list is not capped", async () => {
+    const ingress = await loadExposureIngress(clientFor(cappedPublicContext(3, 3)), "checkout");
+    expect(ingress.totalHops).toBe(9);
+    expect(ingress.totalHopsPartial).toBe(false);
+  });
+
   it("ignores a result_limits without hostname_count (an older limits block)", async () => {
     const data = cappedPublicContext(3, 3);
     data.result_limits = { limit: 50, instance_count: 1, truncated: false };

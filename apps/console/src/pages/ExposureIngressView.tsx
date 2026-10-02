@@ -213,7 +213,11 @@ export function NoExposureChainNotice({
           value={publicEntrypointValue(ingress)}
           sub={publicEntrypointSub(ingress)}
         />
-        <StatTile label="Hops to service" value={ingress.totalHops} sub="proven ingress hops" />
+        <StatTile
+          label="Hops to service"
+          value={totalHopsValue(ingress)}
+          sub={totalHopsSub(ingress)}
+        />
         <PostureTile
           label="WAF coverage"
           state={ingress.posture.wafCoverage}
@@ -258,6 +262,19 @@ function publicEntrypointSub(ingress: ExposureIngress): string {
   return ingress.publicEntrypointsPartial
     ? "observed public hostnames (partial: server capped the list)"
     : "observed public hostnames";
+}
+
+// totalHopsValue renders the hops total. A partial total is a lower bound
+// (the server cut the path list and an unlisted path holds 2-3 hops), so it
+// reads "150+".
+function totalHopsValue(ingress: ExposureIngress): string | number {
+  return ingress.totalHopsPartial ? `${ingress.totalHops}+` : ingress.totalHops;
+}
+
+function totalHopsSub(ingress: ExposureIngress): string {
+  return ingress.totalHopsPartial
+    ? "proven ingress hops (partial: server capped the path list)"
+    : "proven ingress hops";
 }
 
 function wafSub(ingress: ExposureIngress): string {

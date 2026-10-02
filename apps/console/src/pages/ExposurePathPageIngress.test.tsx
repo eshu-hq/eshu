@@ -150,4 +150,25 @@ describe("ExposurePathPage ingress presentation", () => {
     expect(tile).toHaveTextContent("50+");
     expect(tile).toHaveTextContent("partial");
   });
+
+  it("keeps the selected-chain hops tile exact when the path list is capped (#7189)", async () => {
+    const client = {
+      get: async () => ({ data: cappedPublicContext(671, 50), error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/exposure?service=workload%3Acheckout"]}>
+        <ExposurePathPage client={client} services={serviceOptions()} />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Ingress chain");
+    // The live view's tile counts the selected chain's own hops (internet +
+    // entrypoint + runtime), which the cap does not cut, so it stays exact
+    // while the summed totalHops in the view-model carries the partial flag.
+    const tile = screen.getByText("Hops to service").closest(".stat-tile");
+    expect(tile).toHaveTextContent("3");
+    expect(tile).toHaveTextContent("on the selected chain");
+    expect(tile).not.toHaveTextContent("partial");
+  });
 });
