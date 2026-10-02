@@ -53,8 +53,12 @@ Row detail. `evidence_detail` (`full` or `handles`) is a new query parameter on
 console and existing callers see the same rows. `handles` projects artifact rows
 to `id`, `relationship_type` and `resolved_id` (the keys the trace tool uses),
 endpoint rows to `id`, `path` and `methods`, drops `evidence_index` (a regrouping
-of the same artifacts), keeps every count, and lists each reduced family in
-`truth.omissions`. The MCP `get_workload_context` and `get_service_context`
+of the same artifacts) and the content-derived evidence values that have no row
+cap of their own (`deployment_artifacts`, `delivery_family_paths`,
+`delivery_family_story`, `topology_story`, `relationship_overview` and the
+capped `delivery_paths`, `delivery_workflows`, `shared_config_paths`), the rule
+`trace_deployment_chain` already applies, keeps every count, and lists each
+reduced family with its total in `truth.omissions`. The MCP `get_workload_context` and `get_service_context`
 tools default to `handles`; an explicit value wins and an unknown one is a 400.
 This is the summary-plus-handle direction of the issue, on the same pattern as
 #7174 for `trace_deployment_chain`. The arbiter ruled that a smaller page (25)
@@ -74,15 +78,21 @@ No-Regression Evidence:
     workload route and 290,352 on the service route, both over budget;
   - the same shape with `handles`: 114,314 and 114,312, 43.6% of the budget.
   The row caps alone do not fit this fixture, which is why `handles` is the MCP
-  default. The fixture does not populate the content-derived families that stay
-  uncapped (`deployment_artifacts`, `delivery_family_paths`,
-  `delivery_family_story`, `topology_story`).
+  default. The handler fixture does not populate the content-derived evidence
+  values, because they come from a content path it does not model. They are
+  uncapped under `full`; under `handles` they are dropped, and
+  `querycontract/context_evidence_detail_test.go` pins that with a context that
+  holds each of them. So the `handles` size is bounded by the capped lists plus
+  identity rows, not by an unmeasured family.
 - Seeded violations: with the cap call disabled, the cap tests fail; with the
   `ApplyContextEvidenceDetail` call disabled on the workload route, the
   worst-case budget test fails; restored, they pass.
 - Safety: copies of two or three map headers and one projection pass over at
   most 100 small rows after the reads. No query, round trip or lock.
 - Backend: none. The tests use fake graph readers.
+- A review comment pointed out that the budget guarantee did not cover those
+  families; dropping them under `handles` is the fix, and the unit tests are
+  the proof. No `full`-mode figure is claimed for a service heavy in them.
 - NOT_CHECKED: an ops-qa re-measure of `get_workload_context` and
   `get_service_context`, including which artifact read path the two outlier
   workloads took. The host was unreachable from the development laptop on

@@ -93,6 +93,102 @@ func TestApplyContextEvidenceDetailReportsRowsReadNotRowsShipped(t *testing.T) {
 	}
 }
 
+// contentEvidenceContext adds the content-derived deployment_evidence values,
+// which have no row cap of their own on the context routes, to the base fixture.
+// delivery_paths is one the row cap already cut to 50 of 120.
+func contentEvidenceContext() map[string]any {
+	ctx := evidenceDetailContext()
+	evidence := MapValue(ctx, "deployment_evidence")
+	evidence["deployment_artifacts"] = map[string]any{
+		"controller_artifacts": []map[string]any{{"path": "a"}, {"path": "b"}, {"path": "c"}},
+		"config_paths":         []map[string]any{{"path": "d"}, {"path": "e"}},
+	}
+	evidence["delivery_family_paths"] = []map[string]any{{"path": "p1"}, {"path": "p2"}, {"path": "p3"}, {"path": "p4"}}
+	evidence["delivery_family_story"] = []string{"s1", "s2"}
+	evidence["topology_story"] = []string{"t1"}
+	evidence["relationship_overview"] = map[string]any{"relationship_count": 7, "relationships": []map[string]any{{"id": "r"}}}
+	evidence["delivery_paths"] = budgetRows("path", 50)
+	evidence["raw_limits"] = map[string]any{"delivery_paths": map[string]any{"count": 120, "limit": 50, "truncated": true}}
+	evidence["empty_story"] = []string{}
+	return ctx
+}
+
+// TestApplyContextEvidenceDetailHandlesDropsContentDerivedValues proves handles
+// mode drops the content-derived deployment_evidence values that have no row cap
+// of their own, reports each as an omitted section with the rows it held (the
+// pre-cut count for a list the row cap already cut), and leaves a value that
+// holds no rows alone. This bounds the MCP default constructively instead of
+// leaving the uncapped families to headroom (#7129).
+func TestApplyContextEvidenceDetailHandlesDropsContentDerivedValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := contentEvidenceContext()
+
+	omissions := ApplyContextEvidenceDetail(ctx, ContextEvidenceDetailHandles)
+
+	evidence := MapValue(ctx, "deployment_evidence")
+	for _, key := range []string{"deployment_artifacts", "delivery_family_paths", "delivery_family_story", "topology_story", "relationship_overview", "delivery_paths"} {
+		if _, has := evidence[key]; has {
+			t.Fatalf("deployment_evidence.%s present in handles mode, want it dropped", key)
+		}
+	}
+	if _, has := evidence["empty_story"]; !has {
+		t.Fatal("a value that holds no rows was dropped")
+	}
+	want := map[string]int{
+		"deployment_evidence.deployment_artifacts":  5,
+		"deployment_evidence.delivery_family_paths": 4,
+		"deployment_evidence.delivery_family_story": 2,
+		"deployment_evidence.topology_story":        1,
+		"deployment_evidence.relationship_overview": 7,
+		"deployment_evidence.delivery_paths":        120,
+	}
+	got := map[string]TruthOmission{}
+	for _, omission := range omissions {
+		got[omission.Section] = omission
+	}
+	for section, total := range want {
+		omission, ok := got[section]
+		if !ok || omission.Detail != "omitted" || omission.Total != total {
+			t.Fatalf("omission for %s = %#v, want detail omitted and total %d", section, omission, total)
+		}
+	}
+}
+
+// TestApplyContextEvidenceDetailHandlesLeavesSharedContentValues proves the
+// drop is applied to a copy, so a map shared with a read model keeps its values.
+func TestApplyContextEvidenceDetailHandlesLeavesSharedContentValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := contentEvidenceContext()
+	shared := MapValue(ctx, "deployment_evidence")
+
+	ApplyContextEvidenceDetail(ctx, ContextEvidenceDetailHandles)
+
+	for _, key := range []string{"deployment_artifacts", "delivery_family_paths", "topology_story"} {
+		if _, has := shared[key]; !has {
+			t.Fatalf("shared evidence map lost %s", key)
+		}
+	}
+}
+
+// TestApplyContextEvidenceDetailFullKeepsContentDerivedValues proves full mode
+// keeps every content-derived value and reports nothing for them.
+func TestApplyContextEvidenceDetailFullKeepsContentDerivedValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := contentEvidenceContext()
+
+	omissions := ApplyContextEvidenceDetail(ctx, ContextEvidenceDetailFull)
+
+	if len(omissions) != 0 {
+		t.Fatalf("omissions = %#v, want none", omissions)
+	}
+	if _, has := MapValue(ctx, "deployment_evidence")["deployment_artifacts"]; !has {
+		t.Fatal("deployment_artifacts dropped in full mode")
+	}
+}
+
 // TestApplyContextEvidenceDetailFullChangesNothing proves full mode (the HTTP
 // default) keeps every row and reports no omission.
 func TestApplyContextEvidenceDetailFullChangesNothing(t *testing.T) {

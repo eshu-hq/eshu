@@ -122,7 +122,7 @@ const Entities = `
         "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/WorkloadId"},
-          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How deployment_evidence.artifacts and api_surface.endpoints rows are shaped. full (the HTTP default when absent) returns every row in full. handles projects artifact rows to id, relationship_type and resolved_id, endpoint rows to id, path and methods, drops deployment_evidence.evidence_index, keeps every count, and names each reduced family in truth.omissions. The MCP get_workload_context and get_service_context tools default to handles. Unknown values return 400 invalid_argument."}
+          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How deployment_evidence.artifacts and api_surface.endpoints rows are shaped. full (the HTTP default when absent) returns every row in full. handles projects artifact rows to id, relationship_type and resolved_id, endpoint rows to id, path and methods, drops deployment_evidence.evidence_index and the values built from repository content (deployment_artifacts, shared_config_paths, delivery_paths, delivery_family_paths, delivery_family_story, delivery_workflows, topology_story, relationship_overview), keeps every count, and names each reduced family with its total in truth.omissions. The MCP get_workload_context and get_service_context tools default to handles. Unknown values return 400 invalid_argument."}
         ],
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},
@@ -189,7 +189,7 @@ const Entities = `
         "x-scoped-token-support": true,
         "parameters": [
           {"$ref": "#/components/parameters/ServiceName"},
-          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How deployment_evidence.artifacts and api_surface.endpoints rows are shaped. full (the HTTP default when absent) returns every row in full. handles projects artifact rows to id, relationship_type and resolved_id, endpoint rows to id, path and methods, drops deployment_evidence.evidence_index, keeps every count, and names each reduced family in truth.omissions. The MCP get_workload_context and get_service_context tools default to handles. Unknown values return 400 invalid_argument."}
+          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How deployment_evidence.artifacts and api_surface.endpoints rows are shaped. full (the HTTP default when absent) returns every row in full. handles projects artifact rows to id, relationship_type and resolved_id, endpoint rows to id, path and methods, drops deployment_evidence.evidence_index and the values built from repository content (deployment_artifacts, shared_config_paths, delivery_paths, delivery_family_paths, delivery_family_story, delivery_workflows, topology_story, relationship_overview), keeps every count, and names each reduced family with its total in truth.omissions. The MCP get_workload_context and get_service_context tools default to handles. Unknown values return 400 invalid_argument."}
         ],
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},

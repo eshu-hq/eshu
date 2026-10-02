@@ -77,49 +77,14 @@ sees bounds and missing evidence without falling back to raw Cypher.
   `ordering`, fan-out counts (`relationship_count` for entity context;
   `instance_count`, `dependent_count`, `consumer_count`, `hostname_count`,
   `entrypoint_count`, `network_path_count`, and `artifact_count` for
-  workload/service context and story), a `truncated` flag, the `drilldown_tool` to call next
-  (`get_relationship_evidence` for entity context, `get_workload_story` from
-  workload context, `get_workload_context` from workload story), the
-  `drilldown_basis`, and the `context_path`. The fan-out is capped in place so
-  the read stays within the route budget and exposes truncation.
+  workload/service context and story), a `truncated` flag, the `drilldown_tool`
+  to call next (`get_relationship_evidence` for entity context,
+  `get_workload_story` from workload context, `get_workload_context` from
+  workload story), the `drilldown_basis`, and the `context_path`. Fan-out lists
+  are capped in place; see the [context evidence budget](context-evidence-budget.md).
 - `partial_reasons` is always present (possibly empty) and promotes the context
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.
-
-Workload context and service context keep their payload inside the MCP response
-budget (#7129) in two ways.
-
-Row caps. `api_surface.endpoints` and the `deployment_evidence` lists
-`artifacts`, `delivery_paths`, `delivery_workflows`, and `shared_config_paths`
-are each cut to 50 rows. Each cut is named in `partial_reasons`
-(`api_surface_endpoints_truncated`, `deployment_evidence_artifacts_truncated`,
-`deployment_evidence_delivery_paths_truncated`,
-`deployment_evidence_delivery_workflows_truncated`,
-`deployment_evidence_shared_config_paths_truncated`) and sets
-`result_limits.truncated`; `deployment_evidence.raw_limits` reports the pre-cut
-count of each cut list. The same reasons also report a list whose read stopped
-at its own bound (`api_surface.detail_truncated`,
-`deployment_evidence.artifacts_truncated`), which earlier responses did not
-disclose. `api_surface.endpoint_count` is the endpoint total.
-`deployment_evidence.artifact_count` and `result_limits.artifact_count` count
-the artifact rows read, so they are a floor when the read itself stopped at its
-bound. No route returns the cut rows of the other lists. Under `full`, cut
-artifact rows stay reachable: `deployment_evidence.evidence_index.*.resolved_ids`
-names every artifact row read, and `get_relationship_evidence` returns one by
-`resolved_id`. Under `handles` the index is dropped, so reaching an artifact row
-beyond the 50 shipped takes a `full` call.
-`deployment_overview.api_surface` keeps its counts but not the endpoint rows
-(`endpoints_shipped_at` points at the top-level list); the story routes keep
-their own bounded overview copy.
-
-Row detail. `evidence_detail` (query parameter) is `full` or `handles`; any
-other value returns 400 `invalid_argument`. `full`, the HTTP default, returns
-every row. `handles` projects artifact rows to `id`, `relationship_type`, and
-`resolved_id`, endpoint rows to `id`, `path`, and `methods`, drops
-`evidence_index`, keeps every count, sets `evidence_detail` and
-`evidence_detail_drilldown`, and lists each reduced family with its total in
-`truth.omissions`. The MCP `get_workload_context` and `get_service_context`
-tools default to `handles`; pass `evidence_detail: full` for the rows.
 
 Entity context additionally reports incomplete relationship truth with
 `relationships_complete=false` and a machine-readable

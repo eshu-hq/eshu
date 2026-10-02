@@ -25,8 +25,9 @@ recent shipped work grouped by feature area.
   at the top-level list). Both routes take a new `evidence_detail` of `full`
   or `handles`. HTTP defaults to `full`, so the console and existing callers
   see the same rows; the MCP tools default to `handles`, which returns
-  artifact and endpoint rows as identity rows, keeps every count, and lists
-  each reduced family in `truth.omissions`. Pass `evidence_detail: full` for
+  artifact and endpoint rows as identity rows, drops the content-derived
+  evidence lists that have no row cap of their own, keeps every count, and lists
+  each reduced family with its total in `truth.omissions`. Pass `evidence_detail: full` for
   the rows, or call `get_relationship_evidence` with a `resolved_id` for one
   artifact.
 

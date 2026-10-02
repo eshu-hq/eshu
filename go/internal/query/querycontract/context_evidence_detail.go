@@ -72,6 +72,7 @@ func ApplyContextEvidenceDetail(ctx map[string]any, detail string) []TruthOmissi
 	if omission, ok := projectContextArtifacts(ctx); ok {
 		omissions = append(omissions, omission)
 	}
+	omissions = append(omissions, dropContextContentEvidence(ctx)...)
 	if omission, ok := projectContextEndpoints(ctx); ok {
 		omissions = append(omissions, omission)
 	}
@@ -79,7 +80,7 @@ func ApplyContextEvidenceDetail(ctx map[string]any, detail string) []TruthOmissi
 		return nil
 	}
 	ctx["evidence_detail_drilldown"] = map[string]any{
-		"full_rows":     "repeat the call with evidence_detail full; rows past the 50 shipped are listed by resolved_id only under full",
+		"full_rows":     "repeat the call with evidence_detail full; under handles the evidence_index is dropped, so rows past the 50 shipped need full",
 		"artifact_tool": "get_relationship_evidence",
 		"artifact_key":  "resolved_id",
 	}
@@ -111,6 +112,91 @@ func projectContextEndpoints(ctx map[string]any) (TruthOmission, bool) {
 	ctx["api_surface"] = shaped
 	total := max(len(endpoints), IntVal(surface, "endpoint_count"))
 	return TruthOmission{Section: "api_surface.endpoints", Detail: ContextEvidenceDetailHandles, Total: total}, true
+}
+
+// contextContentEvidenceKeys are the deployment_evidence values built from
+// repository content. Several come from up to a repository's semantic entity
+// limit of files with no row cap of their own, so handles mode drops them and
+// counts them in truth.omissions, the same rule trace_deployment_chain applies.
+var contextContentEvidenceKeys = []string{
+	"deployment_artifacts",
+	"shared_config_paths",
+	"delivery_paths",
+	"delivery_family_paths",
+	"delivery_family_story",
+	"delivery_workflows",
+	"topology_story",
+	"relationship_overview",
+}
+
+// dropContextContentEvidence removes the content-derived values that hold rows
+// from a copy of deployment_evidence and returns one omitted-section entry per
+// value with the rows it held. A list the row cap already cut reports its
+// pre-cut count from raw_limits. A value that holds no rows stays.
+func dropContextContentEvidence(ctx map[string]any) []TruthOmission {
+	evidence := MapValue(ctx, "deployment_evidence")
+	if len(evidence) == 0 {
+		return nil
+	}
+	var (
+		shaped    map[string]any
+		omissions []TruthOmission
+	)
+	rawLimits := MapValue(evidence, "raw_limits")
+	for _, key := range contextContentEvidenceKeys {
+		value, present := evidence[key]
+		if !present {
+			continue
+		}
+		rows := contextEvidenceRowCount(key, value)
+		rows = max(rows, IntVal(MapValue(rawLimits, key), "count"))
+		if rows == 0 {
+			continue
+		}
+		if shaped == nil {
+			shaped = CopyMap(evidence)
+		}
+		delete(shaped, key)
+		omissions = append(omissions, TruthOmission{Section: "deployment_evidence." + key, Detail: contextEvidenceOmitted, Total: rows})
+	}
+	if shaped != nil {
+		ctx["deployment_evidence"] = shaped
+	}
+	return omissions
+}
+
+// contextEvidenceOmitted is the TruthOmission detail for a section whose key is
+// absent from the response.
+const contextEvidenceOmitted = "omitted"
+
+// contextEvidenceRowCount returns the rows a content-derived value holds: the
+// length of a list, the summed lengths of the lists in a map, and for
+// relationship_overview its relationship_count (its partition lists repeat the
+// same rows, so summing them would count each twice).
+func contextEvidenceRowCount(key string, value any) int {
+	if key == "relationship_overview" {
+		overview, _ := value.(map[string]any)
+		if count := IntVal(overview, "relationship_count"); count > 0 {
+			return count
+		}
+		return contextEvidenceRowCount("", overview["relationships"])
+	}
+	switch typed := value.(type) {
+	case []map[string]any:
+		return len(typed)
+	case []string:
+		return len(typed)
+	case []any:
+		return len(typed)
+	case map[string]any:
+		total := 0
+		for _, inner := range typed {
+			total += contextEvidenceRowCount("", inner)
+		}
+		return total
+	default:
+		return 0
+	}
 }
 
 // projectContextRows returns a new row list holding only the named keys each
