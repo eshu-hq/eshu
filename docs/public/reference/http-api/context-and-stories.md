@@ -76,8 +76,8 @@ sees bounds and missing evidence without falling back to raw Cypher.
 - `result_limits` is a drilldown block with a bounded `limit`, deterministic
   `ordering`, fan-out counts (`relationship_count` for entity context;
   `instance_count`, `dependent_count`, `consumer_count`, `hostname_count`,
-  `entrypoint_count`, and `network_path_count` for workload/service context and
-  story), a `truncated` flag, the `drilldown_tool` to call next
+  `entrypoint_count`, `network_path_count`, and `artifact_count` for
+  workload/service context and story), a `truncated` flag, the `drilldown_tool` to call next
   (`get_relationship_evidence` for entity context, `get_workload_story` from
   workload context, `get_workload_context` from workload story), the
   `drilldown_basis`, and the `context_path`. The fan-out is capped in place so
@@ -85,6 +85,31 @@ sees bounds and missing evidence without falling back to raw Cypher.
 - `partial_reasons` is always present (possibly empty) and promotes the context
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.
+
+Workload context and service context keep their payload inside the MCP response
+budget (#7129) by bounding the lists that grow with a service's evidence:
+
+- `api_surface.endpoints` and the `deployment_evidence` lists `artifacts`,
+  `delivery_paths`, `delivery_workflows`, and `shared_config_paths` are each cut
+  to 50 rows. The totals stay on `api_surface.endpoint_count`,
+  `deployment_evidence.artifact_count`, and `result_limits.artifact_count`, and
+  `deployment_evidence.raw_limits` reports the pre-cut count of every list that
+  was cut.
+- Each cut is named in `partial_reasons`: `api_surface_endpoints_truncated`,
+  `deployment_evidence_artifacts_truncated`,
+  `deployment_evidence_delivery_paths_truncated`,
+  `deployment_evidence_delivery_workflows_truncated`, and
+  `deployment_evidence_shared_config_paths_truncated`. The same reasons also
+  report a list whose graph read stopped at its own bound
+  (`api_surface.detail_truncated`, `deployment_evidence.artifacts_truncated`),
+  which earlier responses did not disclose. Any of them sets
+  `result_limits.truncated`.
+- Artifact rows that were cut stay reachable:
+  `deployment_evidence.evidence_index.*.resolved_ids` lists every artifact, and
+  `get_relationship_evidence` returns one by `resolved_id`.
+- `deployment_overview.api_surface` keeps its counts but no longer repeats the
+  endpoint rows; `endpoints_shipped_at` points at the top-level
+  `api_surface.endpoints`. The story routes keep their own bounded overview copy.
 
 Entity context additionally reports incomplete relationship truth with
 `relationships_complete=false` and a machine-readable

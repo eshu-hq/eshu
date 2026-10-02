@@ -9,6 +9,24 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Workload and service context stay inside the MCP response budget
+
+- **`get_workload_context` and `get_service_context` bound their evidence lists**
+  ([#7129](https://github.com/eshu-hq/eshu/issues/7129)). On services with
+  70-80 endpoint edges these two tools still went over the 256 KiB response
+  budget after the hostname cap, because `deployment_overview.api_surface`
+  repeated the endpoint rows and `deployment_evidence` carried up to 100
+  artifact rows. `api_surface.endpoints` and the `deployment_evidence` lists
+  `artifacts`, `delivery_paths`, `delivery_workflows`, and
+  `shared_config_paths` are now cut to 50 rows, with the totals kept on
+  `endpoint_count`, `artifact_count`, `result_limits.artifact_count`, and
+  `deployment_evidence.raw_limits`. Every cut is named in `partial_reasons`,
+  which also now reports a list whose graph read had already stopped at its
+  own bound. Cut artifact rows stay reachable through
+  `evidence_index.*.resolved_ids` and `get_relationship_evidence`.
+  `deployment_overview.api_surface` keeps its counts but no longer repeats the
+  endpoint rows (`endpoints_shipped_at` points at the top-level list).
+
 ### Code and content search responses drop the `matches` alias
 
 - **`matches` is removed; read `results`**
