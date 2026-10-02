@@ -4,8 +4,10 @@
 package reducer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -153,15 +155,15 @@ func TestDeployableUnitCorrelationHandleReturnsNoCandidates(t *testing.T) {
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("documentation"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-docs"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
 	if got.Status != ResultStatusSucceeded {
 		t.Fatalf("Handle().Status = %q, want %q", got.Status, ResultStatusSucceeded)
 	}
-	if got.EvidenceSummary != "no deployable unit candidates found" {
-		t.Fatalf("Handle().EvidenceSummary = %q, want no-candidates summary", got.EvidenceSummary)
+	if got.EvidenceSummary != "no deployable unit candidates found (no_admitted_candidates)" {
+		t.Fatalf("Handle().EvidenceSummary = %q, want no-candidates summary with reason", got.EvidenceSummary)
 	}
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
@@ -198,7 +200,7 @@ func TestDeployableUnitCorrelationHandleRejectsDockerfileOnlyCandidate(t *testin
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -253,7 +255,7 @@ func TestDeployableUnitCorrelationHandleAdmitsResolvedDeploymentEvidence(t *test
 		PhasePublisher: &recordingGraphProjectionPhasePublisher{},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -305,7 +307,7 @@ func TestDeployableUnitCorrelationHandlePublishesPhaseForAdmittedCandidate(t *te
 		},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("service-jenkins"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-service-jenkins"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -318,7 +320,9 @@ func TestDeployableUnitCorrelationHandlePublishesPhaseForAdmittedCandidate(t *te
 	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseDeployableUnitCorrelation; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.AcceptanceUnitID, "service-jenkins"; got != want {
+	// Acceptance-unit ids track the selecting entity key, which is id-based
+	// (#7384): the readiness key carries the full key, not the repo name.
+	if got, want := publisher.calls[0][0].Key.AcceptanceUnitID, "repo:repo-service-jenkins"; got != want {
 		t.Fatalf("acceptance unit id = %q, want %q", got, want)
 	}
 }
@@ -363,7 +367,7 @@ func TestDeployableUnitCorrelationHandleFiltersByEntityKeys(t *testing.T) {
 		},
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -414,7 +418,7 @@ func TestDeployableUnitCorrelationHandleAcceptsWorkloadPrefixedEntityKey(t *test
 		ResolvedLoader: resolvedLoader,
 	}
 
-	got, err := handler.Handle(context.Background(), deployableUnitIntent("workload:edge-api"))
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("workload:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
@@ -430,7 +434,7 @@ func TestDeployableUnitCorrelationHandleFactLoaderError(t *testing.T) {
 		FactLoader: &stubDeployableUnitFactLoader{err: fmt.Errorf("facts unavailable")},
 	}
 
-	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
 	}
@@ -477,4 +481,189 @@ func deployableUnitCorrelationEnvelopes(
 	}
 
 	return envelopes
+}
+
+// TestDeployableUnitCorrelationHandleLogsSelectionOutcome pins the #7384 Q4
+// operator signal on the actual log output: both the zero-result and success
+// completion paths emit "deployable unit correlation completed" carrying the
+// candidate selection counts and reason, so a foreign-key zero is
+// distinguishable from a mismatch without reading keys.
+func TestDeployableUnitCorrelationHandleLogsSelectionOutcome(t *testing.T) {
+	t.Parallel()
+
+	t.Run("zero path", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		handler := DeployableUnitCorrelationHandler{
+			Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
+			PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+			FactLoader: &stubDeployableUnitFactLoader{
+				envelopes: deployableUnitCorrelationEnvelopes(
+					"repo-docs",
+					"documentation",
+					nil,
+				),
+			},
+		}
+		if _, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-docs")); err != nil {
+			t.Fatalf("Handle() error = %v, want nil", err)
+		}
+		for _, want := range []string{
+			`"msg":"deployable unit correlation completed"`,
+			`"scope_candidate_count":0`,
+			`"selected_candidate_count":0`,
+			`"selection_reason":"no_admitted_candidates"`,
+			`"edge_row_count":0`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("zero-path completion log missing %s:\n%s", want, logs.String())
+			}
+		}
+	})
+
+	t.Run("foreign-key zero path", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		handler := DeployableUnitCorrelationHandler{
+			Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
+			PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+			FactLoader: &stubDeployableUnitFactLoader{
+				envelopes: deployableUnitCorrelationEnvelopes(
+					"repo-docs",
+					"documentation",
+					[]map[string]any{
+						{
+							"repo_id":       "repo-docs",
+							"language":      "dockerfile",
+							"relative_path": "Dockerfile",
+							"parsed_file_data": map[string]any{
+								"dockerfile_stages": []any{
+									map[string]any{"name": "runtime"},
+								},
+							},
+						},
+					},
+				),
+			},
+		}
+		if _, err := handler.Handle(context.Background(), deployableUnitIntent("repo:foreign-repo")); err != nil {
+			t.Fatalf("Handle() error = %v, want nil", err)
+		}
+		for _, want := range []string{
+			`"msg":"deployable unit correlation completed"`,
+			`"scope_candidate_count":1`,
+			`"selected_candidate_count":0`,
+			`"selection_reason":"foreign_key_expected"`,
+			`"edge_row_count":0`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("foreign-key zero-path completion log missing %s:\n%s", want, logs.String())
+			}
+		}
+	})
+
+	t.Run("mismatch zero path", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		envelopes := deployableUnitCorrelationEnvelopes(
+			"repo-docs",
+			"documentation",
+			[]map[string]any{
+				{
+					"repo_id":       "repo-docs",
+					"language":      "dockerfile",
+					"relative_path": "Dockerfile",
+					"parsed_file_data": map[string]any{
+						"dockerfile_stages": []any{
+							map[string]any{"name": "runtime"},
+						},
+					},
+				},
+			},
+		)
+		envelopes = append(envelopes, facts.Envelope{
+			FactID:   "fact-repo-repo-other",
+			FactKind: "repository",
+			Payload: map[string]any{
+				"graph_id": "repo-other",
+				"name":     "other",
+			},
+			ObservedAt: time.Now().UTC(),
+		})
+		handler := DeployableUnitCorrelationHandler{
+			Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
+			PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+			FactLoader:     &stubDeployableUnitFactLoader{envelopes: envelopes},
+		}
+		if _, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-other")); err != nil {
+			t.Fatalf("Handle() error = %v, want nil", err)
+		}
+		for _, want := range []string{
+			`"msg":"deployable unit correlation completed"`,
+			`"scope_candidate_count":1`,
+			`"selected_candidate_count":0`,
+			`"selection_reason":"no_key_match"`,
+			`"edge_row_count":0`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("mismatch zero-path completion log missing %s:\n%s", want, logs.String())
+			}
+		}
+	})
+
+	t.Run("success path", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		handler := DeployableUnitCorrelationHandler{
+			Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+			FactLoader: &stubDeployableUnitFactLoader{
+				envelopes: deployableUnitCorrelationEnvelopes(
+					"repo-edge-api",
+					"edge-api",
+					[]map[string]any{
+						{
+							"repo_id":       "repo-edge-api",
+							"language":      "dockerfile",
+							"relative_path": "Dockerfile",
+							"parsed_file_data": map[string]any{
+								"dockerfile_stages": []any{
+									map[string]any{"name": "runtime"},
+								},
+							},
+						},
+					},
+				),
+			},
+			ResolvedLoader: &stubDeployableUnitResolvedLoader{
+				resolved: []relationships.ResolvedRelationship{
+					{
+						SourceRepoID:     "repo-deployments",
+						TargetRepoID:     "repo-edge-api",
+						RelationshipType: relationships.RelDeploysFrom,
+						Confidence:       0.94,
+						Details: map[string]any{
+							"evidence_kinds": []string{
+								string(relationships.EvidenceKindArgoCDAppSource),
+							},
+						},
+					},
+				},
+			},
+			PhasePublisher: &recordingGraphProjectionPhasePublisher{},
+		}
+		if _, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api")); err != nil {
+			t.Fatalf("Handle() error = %v, want nil", err)
+		}
+		for _, want := range []string{
+			`"msg":"deployable unit correlation completed"`,
+			`"scope_candidate_count":1`,
+			`"selected_candidate_count":1`,
+			`"selection_reason":"key_match"`,
+			`"edge_row_count":1`,
+		} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("success-path completion log missing %s:\n%s", want, logs.String())
+			}
+		}
+	})
 }

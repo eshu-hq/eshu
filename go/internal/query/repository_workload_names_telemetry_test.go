@@ -22,14 +22,14 @@ func TestRepositoryWorkloadNamesRecordsBoundedPostgresSpanAndErrors(t *testing.T
 		{
 			name: "query error",
 			result: contentReaderQueryResult{
-				columns: []string{"entity_key"},
+				columns: []string{"name"},
 				err:     errors.New("database unavailable"),
 			},
 		},
 		{
 			name: "scan error",
 			result: contentReaderQueryResult{
-				columns: []string{"entity_key"},
+				columns: []string{"name"},
 				rows:    [][]driver.Value{{struct{}{}}},
 			},
 		},

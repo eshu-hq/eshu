@@ -197,7 +197,7 @@ func TestDeployableUnitCorrelationSelectsDisplayNamedRepository(t *testing.T) {
 
 	repository, followups := displayNamedGeneration(t)
 	intent := reducerIntentFromFollowup(t, followups["deployable_unit_correlation"])
-	if got, want := intent.EntityKeys, []string{"repo:" + displayNamedRepoName}; !reflect.DeepEqual(got, want) {
+	if got, want := intent.EntityKeys, []string{"repo:" + displayNamedRepoID}; !reflect.DeepEqual(got, want) {
 		t.Errorf("collector deployable_unit_correlation keys = %v, want %v", got, want)
 	}
 	seed := []string{displayNamedRepoID + "->" + displayNamedDeployID, displayNamedRepoID + "->" + displayNamedStaleID}
@@ -228,14 +228,14 @@ func TestDeployableUnitCorrelationSelectsDisplayNamedRepository(t *testing.T) {
 			t.Fatalf("foreign intent statements = %d edges = %v, want 0 and untouched", graph.statements, graph.sorted())
 		}
 	})
-	t.Run("the pre-fix basename key selects nothing", func(t *testing.T) {
+	t.Run("a name key selects nothing after the id switch", func(t *testing.T) {
 		t.Parallel()
 		graph := newEdgeGraph(seed...)
 		legacy := intent
-		legacy.EntityKeys = []string{"repo:" + displayNamedRepoDir}
+		legacy.EntityKeys = []string{"repo:" + displayNamedRepoName}
 		runDeployableUnit(t, graph, repository, true, legacy)
 		if graph.statements != 0 || !reflect.DeepEqual(graph.sorted(), sortedCopy(seed)) {
-			t.Fatalf("legacy-key intent statements = %d edges = %v, want 0 and untouched", graph.statements, graph.sorted())
+			t.Fatalf("name-key intent statements = %d edges = %v, want 0 and untouched", graph.statements, graph.sorted())
 		}
 	})
 }
@@ -260,7 +260,7 @@ func TestWorkloadProjectionLoaderSelectsDisplayNamedRepository(t *testing.T) {
 		ResolvedLoader: deploysFromLoader{},
 	}
 	intent := reducerIntentFromFollowup(t, followups["workload_materialization"])
-	if got, want := intent.EntityKeys, []string{"workload:" + displayNamedRepoName}; !reflect.DeepEqual(got, want) {
+	if got, want := intent.EntityKeys, []string{"workload:" + displayNamedRepoID}; !reflect.DeepEqual(got, want) {
 		t.Errorf("collector workload_materialization keys = %v, want %v", got, want)
 	}
 
@@ -279,13 +279,13 @@ func TestWorkloadProjectionLoaderSelectsDisplayNamedRepository(t *testing.T) {
 	}
 
 	legacy := intent
-	legacy.EntityKeys = []string{"workload:" + displayNamedRepoDir}
+	legacy.EntityKeys = []string{"workload:" + displayNamedRepoName}
 	legacyInputs, err := loader.LoadWorkloadProjectionScopeInputs(context.Background(), legacy)
 	if err != nil {
 		t.Fatalf("LoadWorkloadProjectionScopeInputs(legacy) error = %v", err)
 	}
 	if len(legacyInputs.Candidates) != 0 {
-		t.Fatalf("pre-fix basename key selected %d candidates, want 0 (the defect)", len(legacyInputs.Candidates))
+		t.Fatalf("name key selected %d candidates, want 0 (names no longer select)", len(legacyInputs.Candidates))
 	}
 }
 
@@ -315,7 +315,7 @@ func TestPlatformReplayKeySelectsDisplayNamedRepository(t *testing.T) {
 
 	repository, followups := displayNamedGeneration(t)
 	intent := reducerIntentFromFollowup(t, followups["deployment_mapping"])
-	if got, want := intent.EntityKeys, []string{"deployment:" + displayNamedRepoName}; !reflect.DeepEqual(got, want) {
+	if got, want := intent.EntityKeys, []string{"deployment:" + displayNamedRepoID}; !reflect.DeepEqual(got, want) {
 		t.Errorf("collector deployment_mapping keys = %v, want %v", got, want)
 	}
 	intent.RelatedScopeIDs = []string{intent.ScopeID}
@@ -329,7 +329,7 @@ func TestPlatformReplayKeySelectsDisplayNamedRepository(t *testing.T) {
 	if _, err := handler.Handle(context.Background(), intent); err != nil {
 		t.Fatalf("PlatformMaterializationHandler.Handle() error = %v", err)
 	}
-	if got, want := replayer.keys, []string{"repo:" + displayNamedRepoName}; !reflect.DeepEqual(got, want) {
+	if got, want := replayer.keys, []string{"repo:r_7316abcd"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("replay entity keys = %v, want %v", got, want)
 	}
 

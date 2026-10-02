@@ -221,7 +221,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "rationale:repo-rationale",
+            "entity_key": "rationale:repository:r_f781caa5",
             "reason": "repository generation requested rationale materialization reconciliation",
             "reducer_domain": "rationale_materialization",
             "repo_id": "repository:r_f781caa5"

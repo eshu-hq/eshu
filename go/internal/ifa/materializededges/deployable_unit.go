@@ -112,7 +112,9 @@ func resolveDeployableUnitMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 	// here rather than inside the seam does not weaken this guard's claim to
 	// run the same code path production runs.
 	candidates, _ := reducer.ExtractWorkloadCandidates(odu.Facts)
-	rows, evaluation, err := reducer.ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return deployableUnitGuardClock })
+	// The selection report is production's zero-vs-mismatch signal; the
+	// guard only checks vacuity, so it is discarded here.
+	rows, evaluation, _, err := reducer.ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, func() time.Time { return deployableUnitGuardClock })
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractDeployableUnitCorrelationRows: %v", odu.Name, err)
 	}
@@ -237,10 +239,11 @@ func deployableUnitAssertAdmittedEdgeProperties(oduName string, admitted []reduc
 
 // deployableUnitFamilyIntentFromOdu derives the reducer.Intent the pure
 // extraction seam needs from the Odù's own facts, never a hard-coded
-// literal: every repository fact's name and graph_id become EntityKeys, so
+// literal: every repository fact's graph_id becomes an EntityKey, so
 // filterDeployableUnitCandidates admits every workload candidate the Odù's
-// own repository facts describe, and ScopeID/GenerationID/SourceSystem come
-// from the facts themselves so the guard stays correct if the catalog's
+// own repository facts describe. The name is carried alongside but no longer
+// selects (selection is id-only, #7384). ScopeID/GenerationID/SourceSystem
+// come from the facts themselves so the guard stays correct if the catalog's
 // scope or generation identifiers ever change.
 func deployableUnitFamilyIntentFromOdu(odu ifa.Odu) (reducer.Intent, error) {
 	if len(odu.Facts) == 0 {

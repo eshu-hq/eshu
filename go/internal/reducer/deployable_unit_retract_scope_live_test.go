@@ -135,7 +135,7 @@ func TestLiveDeployableUnitRetractScopeIsIntentOrderIndependent(t *testing.T) {
 	foreign := "repo:" + live.repoID("du-foreign")
 	legs := map[string]func(repo string) error{
 		"matching then foreign": func(repo string) error {
-			if err := live.handleDUIntent(ctx, repo, "gen-1", true, "repo:"+repo); err != nil {
+			if err := live.handleDUIntent(ctx, repo, "gen-1", true, "repo:"+live.repoID(repo)); err != nil {
 				return err
 			}
 			return live.handleDUIntent(ctx, repo, "gen-1", true, foreign)
@@ -144,14 +144,14 @@ func TestLiveDeployableUnitRetractScopeIsIntentOrderIndependent(t *testing.T) {
 			if err := live.handleDUIntent(ctx, repo, "gen-1", true, foreign); err != nil {
 				return err
 			}
-			return live.handleDUIntent(ctx, repo, "gen-1", true, "repo:"+repo)
+			return live.handleDUIntent(ctx, repo, "gen-1", true, "repo:"+live.repoID(repo))
 		},
 	}
 	for trial := 0; trial < 10; trial++ {
 		legs[fmt.Sprintf("race %02d", trial)] = func(repo string) error {
 			var wg sync.WaitGroup
 			errs := make([]error, 2)
-			for i, key := range []string{"repo:" + repo, foreign} {
+			for i, key := range []string{"repo:" + live.repoID(repo), foreign} {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -188,7 +188,7 @@ func TestLiveDeployableUnitRetractScopeIsIntentOrderIndependent(t *testing.T) {
 		if got := live.duEdgeTargets(ctx, t, repo); !reflect.DeepEqual(got, want) {
 			t.Fatalf("foreign-keyed gen-2 intent changed the graph to %v, want %v", got, want)
 		}
-		if err := live.handleDUIntent(ctx, repo, "gen-2", false, "repo:"+repo); err != nil {
+		if err := live.handleDUIntent(ctx, repo, "gen-2", false, "repo:"+live.repoID(repo)); err != nil {
 			t.Fatalf("disappearance matching: %v", err)
 		}
 		if got := live.duEdgeTargets(ctx, t, repo); len(got) != 0 {

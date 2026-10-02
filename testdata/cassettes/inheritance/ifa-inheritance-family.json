@@ -1031,7 +1031,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "inheritance:repo-inheritance",
+            "entity_key": "inheritance:repository:r_c3a17f92",
             "reason": "repository snapshot emitted inheritance materialization follow-up",
             "reducer_domain": "inheritance_materialization",
             "repo_id": "repository:r_c3a17f92"

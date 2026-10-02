@@ -4964,8 +4964,8 @@
         "required_json_values": {
           "findings[].repository_id": "repository:r_217415d9",
           "findings[].runtime_context.truth_basis": "read_time_resolved",
-          "findings[].runtime_context.workload_ids[]": "workload:deployable-config",
-          "findings[].runtime_context.deployment_ids[]": "deployment:deployable-config",
+          "findings[].runtime_context.workload_ids[]": "workload:repository:r_217415d9",
+          "findings[].runtime_context.deployment_ids[]": "deployment:repository:r_217415d9",
           "findings[].runtime_context.environments[]": "prod",
           "findings[].runtime_context.environment_evidence.prod": "deploy_event",
           "findings[].runtime_context.environment_evidence_probe.candidate_limit": 1,
@@ -5047,7 +5047,7 @@
         "results_field": "evidence",
         "minimum_results": 8,
         "required_json_values": {
-          "input.workload_id": "workload:deployable-config",
+          "input.workload_id": "workload:repository:r_217415d9",
           "finding.repository_id": "repository:r_217415d9",
           "finding.runtime_context.truth_basis": "read_time_resolved",
           "finding.runtime_context.environments[]": "prod",
@@ -5088,7 +5088,7 @@
           "cve_id": "CVE-2026-00010",
           "package_id": "pkg:deb/debian/openssl",
           "subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-          "workload_id": "workload:deployable-config"
+          "workload_id": "workload:repository:r_217415d9"
         }
       },
       "list_security_alert_reconciliations": {
@@ -5175,7 +5175,7 @@
         "minimum_results": 0,
         "arguments": {
           "cve_id": "CVE-2026-00010",
-          "workload_id": "workload:deployable-config",
+          "workload_id": "workload:repository:r_217415d9",
           "profile": "comprehensive"
         }
       },
@@ -5206,7 +5206,7 @@
         "arguments": {
           "group_by": "impact_status",
           "cve_id": "CVE-2026-00010",
-          "workload_id": "workload:deployable-config",
+          "workload_id": "workload:repository:r_217415d9",
           "profile": "comprehensive",
           "limit": 10
         }
@@ -8105,8 +8105,8 @@
         "maximum_results": 1,
         "results_field": "findings"
       },
-      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Adeployable-config&profile=comprehensive": {
-        "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:deployable-config through active reducer_workload_identity evidence. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 this exact DPKG affected-version finding also qualifies for precise.",
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Arepository%3Ar_217415d9&profile=comprehensive": {
+        "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:repository:r_217415d9 through active reducer_workload_identity evidence. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 this exact DPKG affected-version finding also qualifies for precise.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "findings",
@@ -8121,7 +8121,7 @@
         "required_json_values": {
           "findings[].cve_id": "CVE-2026-00010",
           "findings[].repository_id": "repository:r_217415d9",
-          "findings[].runtime_context.workload_ids[]": "workload:deployable-config",
+          "findings[].runtime_context.workload_ids[]": "workload:repository:r_217415d9",
           "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
           "findings[].suppression.state": "expired"
         },

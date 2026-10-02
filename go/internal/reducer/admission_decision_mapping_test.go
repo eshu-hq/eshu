@@ -134,7 +134,7 @@ func TestDeployableUnitCorrelationWritesSharedAdmissionDecision(t *testing.T) {
 		AdmissionDecisionNow:    fixedAdmissionDecisionNow,
 	}
 
-	result, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	result, err := handler.Handle(context.Background(), deployableUnitIntent("repo:repo-edge-api"))
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}

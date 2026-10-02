@@ -129,3 +129,92 @@ failed for the intended reason, then passed with the fix restored.
   no benchmark is required.
 - The golden-corpus gate runs filesystem mode without dependency mode. It shows
   no regression here; it cannot prove the fix.
+
+## #7384: keys are now `<prefix>:<repo.ID>` (supersedes the verdict above)
+
+The open gap above ("id or scope based selection") is implemented: every
+follow-up key is `<prefix>:<repo.ID>` through the same `followupEntityKey`
+helper, reducer selection compares ids only, and the read model resolves
+display names from the repository fact instead of key suffixes.
+
+Arbiter resolutions (all Q for lane-N):
+
+- Q1: `workload:` + repo.ID verbatim. Selection equality is effectively on
+  the id suffix; documented at the call sites.
+- Q2: the read model returns the repository fact payload `name` by scope
+  (`repositoryWorkloadNames` joins `reducer_workload_identity` to the scope's
+  `repository` fact), never a `repository:r_...` id. A tombstoned or absent
+  repository fact yields empty, not a fallback.
+- Q3: `CanonicalRepositoryID` keeps the 8-hex truncation; the birthday bound
+  (~1% at ~9,300 distinct repos, ~50% at ~77,000) is documented on the
+  function. Corpus scale stays far below the 1% knee.
+- Q4: the candidate filter reports a closed selection taxonomy
+  (`no_keys` / `no_admitted_candidates` / `key_match` / `no_key_match` /
+  `foreign_key_expected`, refined by `refineCandidateSelectionReason`) and the
+  completion logs carry selected count plus reason.
+- Q5: reducer name matching is removed. The trailing-colon gap above is closed
+  by construction (no name comparison can mismatch); in-flight name-keyed
+  intents select nothing for at most one generation, then collectors re-emit
+  id keys.
+- Q6: single PR. Cassettes regenerated in one pass (the two rationale
+  cassettes whose `entity_key` was name-keyed; every other family cassette
+  already keys by repo id), fixture key tables rekeyed in lockstep, and the
+  four contract gates green (`fact-kind-registry`,
+  `contract-source-of-truth`, `factschema-diff`, `payload-usage-manifest`).
+  Follow-up (review F1): the compiled Ifa catalogs hand-build the same
+  follow-up keys independently of the cassettes, and three family Odus
+  (symbol-runtime, repo-dependency, workload-dependency) still emitted
+  name-keyed `workload:`/`deployment:` entity keys that the offline guards
+  consume directly. All three builders now emit `<prefix>:<repo.ID>` from
+  their repo-ID constants (the workload-dependency builder's now-dead
+  `repoName` parameter removed at all 9 call sites), their cassettes rekeyed
+  to match, and the four `*CassetteMatchesCompiledCatalog` lockstep tests
+  pin compiled == cassette. The materialized `WorkloadID` slug
+  (`workload:symbolruntime`) is intentionally untouched: the matcher compares
+  keys against repository `graph_id`/`repo_id` only, never against
+  `WorkloadID`.
+
+Exemption in place of a shim: there is no compatibility dual-match. An old
+name-keyed work item matches no candidate, issues no graph statement (the
+retract and write sets are both the matched repositories), and heals through
+the same replay-floor path §"Existing dependency-mode repositories heal"
+describes: the next full generation re-emits id keys. The key tables pin the
+legacy name key as explicitly non-selecting
+(`TestDeployableUnitRetractScope*`, `scopeKeepKeyCases`), so a future
+reintroduction of name matching fails closed.
+
+Proof deltas against the table above: `TestFollowupEntityKeysUseRepositoryID`
+/ `TestFollowupEntityKeysIgnoreDisplayName` replace the name-key tests;
+`TestDeployableUnitCollectorKeySelectsDisplayNames` is now an id table (the
+trailing-colon row selects via the id half); `TestFilterDeployableUnitCandidatesReportsSelectionReason`
+and `TestRefineCandidateSelectionReasonForeignKey` pin Q4;
+`TestRepositoryWorkloadNamesResolveIdKeysToRepositoryName` pins Q2
+(id key resolves to the payload name; tombstoned repo yields empty).
+
+CI consequence (PR #7508): intent entity keys flow verbatim into
+workload/deployment identity (`workloadIdentityWriteFromIntent` copies
+`intent.EntityKeys`), so the id rekey re-keys `reducer_workload_identity`
+facts downstream: supply-chain `runtime_context.workload_ids[]` /
+`deployment_ids[]` are now `workload:repository:r_<hex>` /
+`deployment:repository:r_<hex>` on both backends (graph truth still fully
+passes). The B-7 impact query shapes in `e2e-20repo-snapshot.json` are
+rekeyed to match (HTTP findings key, list/explain outputs, count/inventory/
+explain inputs; every other name-form shape still passes live from the
+graph-node keyspace and is untouched), as are the matching keys in the two
+live retract-scope tests (`repo:`/`workload:` + full repo ID; foreign keys
+were already full IDs). Graph Workload nodes stay name-form via
+`workloadid.NewWorkloadID` pending #5385; that split is out of scope here.
+
+#7384 Gates
+
+- Observability Evidence: the deployable-unit and workload-materialization
+  completion logs now carry `selected_candidate_count` and `selection_reason`
+  (closed taxonomy), so a zero selection is distinguishable from a mismatch
+  without reading keys. No new span or metric; the read-model query keeps the
+  existing `postgres.query` span with `db.operation=repository_workload_names`.
+- No-Regression Evidence: the read-model change keeps one round trip per
+  repository summary; the workload-identity side reuses the
+  `fact_records_workload_names_scope_idx` predicate and the repository side
+  probes same-scope rows through `fact_records_scope_generation_idx`, so no
+  new index and no benchmark is required. Reducer selection stays a
+  same-scope in-memory filter over admitted candidates.

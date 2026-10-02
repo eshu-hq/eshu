@@ -56,23 +56,23 @@ func TestWorkloadDependencyCassetteProductionAdmission(t *testing.T) {
 	// orphan-target has no workload candidates and needs none.
 	wantIntentsByRepo := map[string]map[reducer.Domain]string{
 		"repo-ifa-workload-dependency-source": {
-			reducer.DomainDeploymentMapping:       "workload:workload-dependency-source",
-			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-source",
+			reducer.DomainDeploymentMapping:       "workload:repo-ifa-workload-dependency-source",
+			reducer.DomainWorkloadMaterialization: "workload:repo-ifa-workload-dependency-source",
 		},
 		"repo-ifa-workload-dependency-target": {
-			reducer.DomainDeploymentMapping:       "workload:workload-dependency-target",
-			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-target",
+			reducer.DomainDeploymentMapping:       "workload:repo-ifa-workload-dependency-target",
+			reducer.DomainWorkloadMaterialization: "workload:repo-ifa-workload-dependency-target",
 		},
 		"repo-ifa-workload-dependency-multi-source": {
-			reducer.DomainDeploymentMapping:       "workload:workload-dependency-multi-source",
-			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-multi-source",
+			reducer.DomainDeploymentMapping:       "workload:repo-ifa-workload-dependency-multi-source",
+			reducer.DomainWorkloadMaterialization: "workload:repo-ifa-workload-dependency-multi-source",
 		},
 		"repo-ifa-workload-dependency-multi-target": {
-			reducer.DomainDeploymentMapping:       "workload:workload-dependency-multi-target",
-			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-multi-target",
+			reducer.DomainDeploymentMapping:       "workload:repo-ifa-workload-dependency-multi-target",
+			reducer.DomainWorkloadMaterialization: "workload:repo-ifa-workload-dependency-multi-target",
 		},
 		"repo-ifa-workload-dependency-orphan-source": {
-			reducer.DomainDeploymentMapping: "workload:workload-dependency-orphan-source",
+			reducer.DomainDeploymentMapping: "workload:repo-ifa-workload-dependency-orphan-source",
 		},
 		"repo-ifa-workload-dependency-orphan-target": {},
 	}

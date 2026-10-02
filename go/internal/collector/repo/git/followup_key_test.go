@@ -78,15 +78,16 @@ func followupKeyGeneration(t *testing.T, repoName, dirName string, delta bool) (
 	return factName, keys, followups
 }
 
-// TestFollowupEntityKeysUseRepositoryFactName pins #7316: every follow-up
-// entity_key is derived from the same repository name the repository fact
-// publishes, never from the checkout directory basename. In dependency mode
-// ESHU_BOOTSTRAP_PACKAGE_NAME sets that name, so the two differ; a key built
-// from the path then selects no candidate in the reducer and the domain neither
-// writes nor retracts.
-func TestFollowupEntityKeysUseRepositoryFactName(t *testing.T) {
+// TestFollowupEntityKeysUseRepositoryID pins #7384: every follow-up
+// entity_key is derived from the repository ID, never from the repository
+// fact name or the checkout directory basename. Names are not unique across
+// a run (dependency-mode ESHU_BOOTSTRAP_PACKAGE_NAME overrides) and can end
+// in a colon (which the alias normalizer cannot match), so name-keyed
+// selection is wrong even when the name is available.
+func TestFollowupEntityKeysUseRepositoryID(t *testing.T) {
 	t.Parallel()
 
+	const repoID = "repository:r_7316abcd"
 	const repoName = "pkg-display"
 	const dirName = "checkout-dir"
 
@@ -105,15 +106,15 @@ func TestFollowupEntityKeysUseRepositoryFactName(t *testing.T) {
 				t.Errorf("full generation missing shared_followup for reducer_domain %q", domain)
 				continue
 			}
-			if want := prefix + factName; got != want {
-				t.Errorf("%s entity_key = %q, want %q (repository fact name, not the checkout basename)", domain, got, want)
+			if want := prefix + repoID; got != want {
+				t.Errorf("%s entity_key = %q, want %q (repository ID, not the fact name)", domain, got, want)
 			}
 		}
 	})
 
 	t.Run("delta", func(t *testing.T) {
 		t.Parallel()
-		factName, keys, followups := followupKeyGeneration(t, repoName, dirName, true)
+		_, keys, followups := followupKeyGeneration(t, repoName, dirName, true)
 		if followups != len(deltaFollowupDomains) {
 			t.Fatalf("delta shared_followup envelopes = %d, want %d", followups, len(deltaFollowupDomains))
 		}
@@ -123,43 +124,33 @@ func TestFollowupEntityKeysUseRepositoryFactName(t *testing.T) {
 				t.Errorf("delta generation missing shared_followup for reducer_domain %q", domain)
 				continue
 			}
-			if want := followupKeyPrefixes[domain] + factName; got != want {
+			if want := followupKeyPrefixes[domain] + repoID; got != want {
 				t.Errorf("delta %s entity_key = %q, want %q", domain, got, want)
 			}
 		}
 	})
 }
 
-// TestFollowupEntityKeysUnchangedWithoutDisplayName is the no-churn proof for
-// #7316: with no display name the repository name IS the checkout basename, so
-// every key stays byte-identical to the pre-change spelling. That is why the
-// Ifá cassettes, the golden snapshot, queued work item ids and phase rows need
-// no regeneration for repositories outside dependency mode.
-func TestFollowupEntityKeysUnchangedWithoutDisplayName(t *testing.T) {
+// TestFollowupEntityKeysIgnoreDisplayName pins #7384: two generations for the
+// same repository ID under different display names emit byte-identical keys,
+// so selection cannot depend on the name. (This replaces the #7316
+// no-churn test, whose byte-identical rationale ended with name-keyed
+// emission; cassettes and golden rows regenerate under the new spelling.)
+func TestFollowupEntityKeysIgnoreDisplayName(t *testing.T) {
 	t.Parallel()
 
-	_, keys, followups := followupKeyGeneration(t, "checkout-dir", "checkout-dir", false)
-	want := map[string]string{
-		"workload_identity":                "workload:checkout-dir",
-		"deployable_unit_correlation":      "repo:checkout-dir",
-		"code_call_materialization":        "repo:checkout-dir",
-		"rationale_materialization":        "rationale:checkout-dir",
-		"platform_infra_materialization":   "repo:checkout-dir",
-		"workload_materialization":         "workload:checkout-dir",
-		"deployment_mapping":               "deployment:checkout-dir",
-		"sql_relationship_materialization": "sql:checkout-dir",
-		"shell_exec_materialization":       "shell:checkout-dir",
-		"inheritance_materialization":      "inheritance:checkout-dir",
-		"code_import_repo_edge":            "repo:checkout-dir",
-		"codeowners_ownership":             "codeowners:checkout-dir",
-		"submodule_pin":                    "submodule:checkout-dir",
+	_, namedKeys, _ := followupKeyGeneration(t, "pkg-display", "checkout-dir", false)
+	_, renamedKeys, renamedFollowups := followupKeyGeneration(t, "other-name:", "checkout-dir", false)
+	if renamedFollowups != len(followupKeyPrefixes) {
+		t.Fatalf("shared_followup envelopes = %d, want %d", renamedFollowups, len(followupKeyPrefixes))
 	}
-	if followups != len(want) {
-		t.Fatalf("shared_followup envelopes = %d, want %d", followups, len(want))
-	}
-	for domain, wantKey := range want {
-		if got := keys[domain]; got != wantKey {
-			t.Errorf("%s entity_key = %q, want %q", domain, got, wantKey)
+	for domain, prefix := range followupKeyPrefixes {
+		want := prefix + "repository:r_7316abcd"
+		if got := renamedKeys[domain]; got != want {
+			t.Errorf("%s entity_key = %q, want %q", domain, got, want)
+		}
+		if got := namedKeys[domain]; got != want {
+			t.Errorf("%s entity_key under first name = %q, want %q (name-independent)", domain, got, want)
 		}
 	}
 }

@@ -235,7 +235,16 @@ func RepoSlugFromRemoteURL(remoteURL string) string {
 	return strings.Trim(parsed.Path, "/")
 }
 
-// CanonicalRepositoryID returns the canonical repository identifier.
+// CanonicalRepositoryID returns the canonical repository identifier,
+// "repository:r_<8-hex>": the first 32 bits of the SHA-1 over the normalized
+// remote URL, or over the local path when no remote is available.
+//
+// The 8-hex width is deliberate and bounded (#7384 Q3): by the birthday
+// approximation a run reaches ~1% collision probability at ~9,300 distinct
+// repositories and ~50% at ~77,000. Follow-up selection compares these ids
+// (suffix-effective, #7384 Q1), so two repos sharing an id in one run would
+// select each other's candidates. Corpus scale stays far below the 1% knee;
+// widen the truncation deliberately, never to paper over a keying bug.
 func CanonicalRepositoryID(remoteURL string, localPath string) (string, error) {
 	identity := NormalizeRemoteURL(remoteURL)
 	if identity == "" {

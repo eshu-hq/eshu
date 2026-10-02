@@ -216,17 +216,19 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 		return WorkloadProjectionInputs{}, err
 	}
 	written := admitted
+	selection := CandidateSelectionReport{Admitted: len(admitted), Selected: len(admitted), Reason: SelectionNoKeys}
 	if len(intent.EntityKeys) > 0 {
 		entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
 		if err != nil {
 			return WorkloadProjectionInputs{}, err
 		}
-		written = filterDeployableUnitCandidates(admitted, entityKeys)
+		written, selection = filterDeployableUnitCandidates(admitted, entityKeys)
 	}
 	return WorkloadProjectionInputs{
 		Candidates:             written,
 		ScopeCandidates:        admitted,
 		DeploymentEnvironments: deploymentEnvironments,
+		Selection:              selection,
 	}, nil
 }
 

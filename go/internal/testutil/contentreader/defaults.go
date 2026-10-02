@@ -81,9 +81,12 @@ func contentReaderDefaultRows(query string, results []ReaderQueryResult) driver.
 // preserve when adding a branch here, not the global chain order.
 // TestContentReaderDefaultGroupsAnswerDisjointQuerySets enforces it.
 func contentReaderFactDefaultRows(query string, results []ReaderQueryResult) driver.Rows {
+	// The repository workload-name read resolves the repository fact payload
+	// name (#7384 Q2); the default answers with that shape, not the retired
+	// entity_key expansion.
 	if strings.Contains(query, "fact_kind = 'reducer_workload_identity'") &&
-		!contentReaderHeadHasColumns(results, []string{"entity_key"}) {
-		return &contentReaderRows{columns: []string{"entity_key"}, rows: nil}
+		!contentReaderHeadHasColumns(results, []string{"name"}) {
+		return &contentReaderRows{columns: []string{"name"}, rows: nil}
 	}
 	if strings.Contains(query, "fact_kind = 'reducer_platform_materialization'") &&
 		!contentReaderHeadHasColumns(results, []string{"count"}) {

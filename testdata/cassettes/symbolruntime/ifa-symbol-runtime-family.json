@@ -189,7 +189,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "workload:symbolruntime",
+            "entity_key": "workload:repo-ifa-symbol-runtime-family",
             "reason": "repository snapshot emitted workload_materialization follow-up",
             "reducer_domain": "workload_materialization",
             "repo_id": "repo-ifa-symbol-runtime-family"
@@ -202,7 +202,7 @@
           "collector_kind": "git",
           "source_confidence": "observed",
           "payload": {
-            "entity_key": "deployment:symbolruntime",
+            "entity_key": "deployment:repo-ifa-symbol-runtime-family",
             "reason": "repository snapshot emitted deployment_mapping follow-up",
             "reducer_domain": "deployment_mapping",
             "repo_id": "repo-ifa-symbol-runtime-family"

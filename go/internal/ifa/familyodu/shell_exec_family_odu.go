@@ -338,7 +338,7 @@ func shellExecFamilyFollowupFact() facts.Envelope {
 		"shared_followup:"+ShellExecFamilyRepoID+":shell_exec_materialization",
 		map[string]any{
 			"reducer_domain": "shell_exec_materialization",
-			"entity_key":     "shell:" + filepath.Base(ShellExecFamilyLocalPath),
+			"entity_key":     "shell:" + ShellExecFamilyRepoID,
 			"reason":         "repository snapshot emitted shell execution materialization follow-up",
 			"repo_id":        ShellExecFamilyRepoID,
 		},

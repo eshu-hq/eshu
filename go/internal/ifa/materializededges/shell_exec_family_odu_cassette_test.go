@@ -62,3 +62,27 @@ func TestShellExecFamilyCassetteMatchesGoOdu(t *testing.T) {
 		t.Fatalf("cassette declares more than one generation: ok=%v err=%v", ok, err)
 	}
 }
+
+// TestShellExecFamilyFollowupFactCarriesRepositoryIDKey pins the production
+// parity half of #7384 for shell_exec: the compiled follow-up entity key is
+// repository-ID form, matching the collector's followupEntityKey emission, so
+// the lockstep above guards two ID-form copies instead of two stale
+// name-form copies.
+func TestShellExecFamilyFollowupFactCarriesRepositoryIDKey(t *testing.T) {
+	t.Parallel()
+	compiled := ifa.CatalogByName()[ifa.ShellExecFamilyOduName]
+	if compiled.Name == "" {
+		t.Fatalf("CatalogByName omits %q", ifa.ShellExecFamilyOduName)
+	}
+	for _, env := range compiled.Facts {
+		if env.FactKind != "shared_followup" {
+			continue
+		}
+		got, _ := env.Payload["entity_key"].(string)
+		if want := "shell:" + ifa.ShellExecFamilyRepoID; got != want {
+			t.Fatalf("shared_followup entity_key = %q, want %q", got, want)
+		}
+		return
+	}
+	t.Fatal("shell-exec Odù carries no shared_followup fact")
+}

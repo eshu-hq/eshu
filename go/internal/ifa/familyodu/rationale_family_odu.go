@@ -285,7 +285,7 @@ var rationaleFamilyNilParserKeys = []string{
 func rationaleFamilyFollowupFact() facts.Envelope {
 	return rationaleFamilyFact("shared_followup", "shared_followup:"+RationaleFamilyRepoID+":rationale_materialization", map[string]any{
 		"reducer_domain": "rationale_materialization",
-		"entity_key":     "rationale:repo-rationale",
+		"entity_key":     "rationale:" + RationaleFamilyRepoID,
 		"reason":         "repository generation requested rationale materialization reconciliation",
 		"repo_id":        RationaleFamilyRepoID,
 	}, false)

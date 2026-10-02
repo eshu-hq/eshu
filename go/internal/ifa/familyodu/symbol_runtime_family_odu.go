@@ -259,8 +259,12 @@ func SymbolRuntimeFamilyOdu() CatalogOdu {
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHandlerFunctionName, SymbolRuntimeFamilyHandlerFunctionUID, SymbolRuntimeFamilyHandlerFunctionLine),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHealthFunctionName, SymbolRuntimeFamilyHealthFunctionUID, SymbolRuntimeFamilyHealthFunctionLine),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyCallerFunctionName, SymbolRuntimeFamilyCallerFunctionUID, SymbolRuntimeFamilyCallerFunctionLine),
-			symbolRuntimeFamilyFollowupFact("workload_materialization", "workload:"+repoName),
-			symbolRuntimeFamilyFollowupFact("deployment_mapping", "deployment:"+repoName),
+			// workload_/deployment_ keys flow through the id-only candidate
+			// filter (#7384); the code-call key keeps the family spelling
+			// because no selection path consumes code-call entity keys
+			// (the handler scopes by file RepoID).
+			symbolRuntimeFamilyFollowupFact("workload_materialization", "workload:"+SymbolRuntimeFamilyRepoID),
+			symbolRuntimeFamilyFollowupFact("deployment_mapping", "deployment:"+SymbolRuntimeFamilyRepoID),
 			symbolRuntimeFamilyFollowupFact("code_call_materialization", "code-call:"+repoName),
 		},
 	}

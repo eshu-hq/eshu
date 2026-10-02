@@ -48,13 +48,14 @@ that need both import the hook by its full path.
 ## Follow-up entity keys
 
 The `shared_followup` facts that enqueue reducer domains carry an `entity_key`
-of `<prefix>:<repository fact name>`, built by one helper
-(`followupEntityKey` in `followup_facts.go`) from the same `repo.Name` the
-repository fact publishes. It is never derived from the checkout path: in
-dependency mode `ESHU_BOOTSTRAP_PACKAGE_NAME` sets the name, the two differ, and
-the reducer's candidate filter would select nothing. Without a display name the
-name is the checkout basename, so the keys are unchanged.
-A name ending in `:` still does not match; that gap is tracked in #7384.
+of `<prefix>:<repository ID>`, built by one helper (`followupEntityKey` in
+`followup_facts.go`) from `repo.ID`, the same canonical id the repository fact
+publishes (`repository:r_<8-hex>`). It is never derived from the checkout path
+or the display name: names are not unique across a run and can end in a colon
+the alias normalizer cannot match, so name-keyed keys never select. The
+reducer's candidate filter and retract matcher compare ids only (#7384); a
+legacy name-keyed work item matches nothing and heals on the next full
+generation, which re-emits id keys.
 
 ## Directory size
 

@@ -61,8 +61,8 @@ func TestRepoDependencyCassetteProductionAdmission(t *testing.T) {
 		}
 		if isSource {
 			wantIntents := map[reducer.Domain]string{
-				reducer.DomainWorkloadMaterialization: "workload:repo-dependency-family-source",
-				reducer.DomainDeploymentMapping:       "deployment:repo-dependency-family-source",
+				reducer.DomainWorkloadMaterialization: "workload:repo-ifa-repo-dependency-source",
+				reducer.DomainDeploymentMapping:       "deployment:repo-ifa-repo-dependency-source",
 			}
 			if got, want := len(projection.reducerIntents), len(wantIntents); got != want {
 				t.Errorf("source reducer intent count = %d, want exactly %d: %+v", got, want, projection.reducerIntents)

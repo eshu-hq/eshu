@@ -56,19 +56,21 @@ unchanged by the ingestion store. The `deltaFallback*` constants are the closed
 The generation estimate is assembled from per-family pre-count functions. If you
 change what an emitter sends, change its pre-count in the same edit.
 
-## Follow-up entity keys come from the repository name
+## Follow-up entity keys come from the repository ID
 
 Every `shared_followup` envelope in `followup_facts.go` builds its `entity_key`
-through `followupEntityKey(prefix, repoName)`, and `streamFacts` feeds it
-`repo.Name`: the same value the repository fact publishes as `name`. Never
-derive a key from the checkout path (`filepath.Base(repoPath)`) and never build
-the string inline. In dependency mode `ESHU_BOOTSTRAP_PACKAGE_NAME` sets the
-name, so the path basename differs, and the reducer selects candidates by
-comparing the key against the repository fact name (#7316). A new follow-up
-envelope takes `repoName` and calls the helper; add its domain to
-`followupKeyPrefixes` in `followup_key_test.go` so the count assertion covers it.
-The residual gap (a name ending in `:`, tracked in #7384) is documented in
-`docs/internal/evidence/7316-followup-key-repository-name.md`.
+through `followupEntityKey(prefix, repoID)`, and `streamFacts` feeds it
+`repo.ID`: the same canonical id the repository fact publishes
+(`repository:r_<8-hex>`). Never derive a key from the checkout path
+(`filepath.Base(repoPath)`), the display name, or the path basename, and never
+build the string inline. In dependency mode `ESHU_BOOTSTRAP_PACKAGE_NAME` sets
+the name, so the path basename differs; names are not unique across a run and
+can end in a colon the alias normalizer cannot match, so name-keyed keys never
+select. The reducer's candidate filter and retract matcher compare ids only
+(#7384); a legacy name-keyed work item matches nothing and heals on the next
+full generation, which re-emits id keys. A new follow-up envelope takes
+`repoID` and calls the helper; add its domain to `followupKeyPrefixes` in
+`followup_key_test.go` so the count assertion covers it.
 
 ## Directory size
 

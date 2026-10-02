@@ -146,7 +146,7 @@ func TestDeployableUnitCorrelationCommittedCassetteEntityKeySurvivesFilter(t *te
 		t.Fatalf("deployableUnitCorrelationEntityKeys: %v", err)
 	}
 
-	filtered := filterDeployableUnitCandidates(candidates, entityKeys)
+	filtered, _ := filterDeployableUnitCandidates(candidates, entityKeys)
 	if len(filtered) != 1 {
 		t.Fatalf(
 			"filterDeployableUnitCandidates(candidates, entityKeys-from-committed-cassette-entity_key=%q) = %d candidates, want exactly 1 (repo-ifa-deployable-unit-app) -- "+
@@ -156,5 +156,144 @@ func TestDeployableUnitCorrelationCommittedCassetteEntityKeySurvivesFilter(t *te
 	}
 	if got := filtered[0].RepoID; got != "repo-ifa-deployable-unit-app" {
 		t.Fatalf("filterDeployableUnitCandidates survivor RepoID = %q, want repo-ifa-deployable-unit-app", got)
+	}
+}
+
+// TestCommittedCassetteWorkloadKeySelectsByRepositoryID pins the #7384 F1
+// lockstep the other way: the rekeyed family cassettes' workload_materialization
+// shared_followup entity_keys must select their scope's repository through the
+// same id-only filter the live workload-materialization handler routes every
+// intent through (CorrelatedWorkloadProjectionInputLoader). A cassette that
+// drifts back to a name key selects nothing live while every offline guard
+// (which bypasses the loader) stays green, so each case also pins that the
+// legacy name key selects nothing with reason no_key_match: if name matching
+// is ever restored, the negative half fails closed.
+func TestCommittedCassetteWorkloadKeySelectsByRepositoryID(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		cassettePath string
+		scopeID      string
+		wantRepoID   string
+		legacyName   string
+	}{
+		{
+			name:         "symbolruntime",
+			cassettePath: filepath.Join("testdata", "cassettes", "symbolruntime", "ifa-symbol-runtime-family.json"),
+			scopeID:      "scope-ifa-symbol-runtime-family",
+			wantRepoID:   "repo-ifa-symbol-runtime-family",
+			legacyName:   "symbolruntime",
+		},
+		{
+			name:         "repodependency source",
+			cassettePath: filepath.Join("testdata", "cassettes", "repodependency", "ifa-repo-dependency-family.json"),
+			scopeID:      "scope-ifa-repo-dependency-repo-dependency-family-source",
+			wantRepoID:   "repo-ifa-repo-dependency-source",
+			legacyName:   "repo-dependency-family-source",
+		},
+		{
+			name:         "workloaddependency source",
+			cassettePath: filepath.Join("testdata", "cassettes", "workloaddependency", "ifa-workload-dependency-family.json"),
+			scopeID:      "scope-ifa-workload-dependency-family",
+			wantRepoID:   "repo-ifa-workload-dependency-source",
+			legacyName:   "workload-dependency-source",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			repoRoot := deployableUnitCassetteRegressionRepoRoot(t)
+			raw, err := os.ReadFile(filepath.Join(repoRoot, tc.cassettePath)) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
+			if err != nil {
+				t.Fatalf("read committed cassette %s: %v", tc.cassettePath, err)
+			}
+			var parsed deployableUnitCassetteRegressionFile
+			if err := json.Unmarshal(raw, &parsed); err != nil {
+				t.Fatalf("parse committed cassette %s: %v", tc.cassettePath, err)
+			}
+			scopeIndex := -1
+			for i := range parsed.Scopes {
+				if parsed.Scopes[i].ScopeID == tc.scopeID {
+					scopeIndex = i
+					break
+				}
+			}
+			if scopeIndex < 0 {
+				t.Fatalf("cassette %s carries no scope %q; fixture drifted", tc.cassettePath, tc.scopeID)
+			}
+			scope := parsed.Scopes[scopeIndex]
+
+			var envelopes []facts.Envelope
+			var workloadKey string
+			var sawWorkloadFollowup bool
+			for _, fact := range scope.Facts {
+				switch fact.FactKind {
+				case "repository", "file":
+					envelopes = append(envelopes, facts.Envelope{
+						ScopeID:      scope.ScopeID,
+						GenerationID: scope.GenerationID,
+						FactKind:     fact.FactKind,
+						Payload:      fact.Payload,
+					})
+				case "shared_followup":
+					if domain, _ := fact.Payload["reducer_domain"].(string); domain != "workload_materialization" {
+						continue
+					}
+					// Production's own read of this field: a plain payload
+					// map lookup (go/internal/projector/runtime/reducer_intent.go,
+					// BuildReducerIntent).
+					key, ok := fact.Payload["entity_key"].(string)
+					if !ok || key == "" {
+						t.Fatalf("scope %q workload_materialization shared_followup fact has no entity_key payload field", tc.scopeID)
+					}
+					workloadKey = key
+					sawWorkloadFollowup = true
+				}
+			}
+			if !sawWorkloadFollowup {
+				t.Fatalf("cassette %s scope %q carries no workload_materialization shared_followup fact; fixture drifted", tc.cassettePath, tc.scopeID)
+			}
+
+			candidates, _ := ExtractWorkloadCandidates(envelopes)
+			if len(candidates) == 0 {
+				t.Fatalf("ExtractWorkloadCandidates found zero candidates from cassette %s scope %q", tc.cassettePath, tc.scopeID)
+			}
+
+			selectWith := func(key string) ([]WorkloadCandidate, CandidateSelectionReport) {
+				intent := Intent{
+					IntentID:     "regression:cassette-workload-key",
+					ScopeID:      scope.ScopeID,
+					GenerationID: scope.GenerationID,
+					SourceSystem: "git",
+					Domain:       DomainWorkloadMaterialization,
+					EntityKeys:   []string{key},
+				}
+				entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
+				if err != nil {
+					t.Fatalf("deployableUnitCorrelationEntityKeys: %v", err)
+				}
+				return filterDeployableUnitCandidates(candidates, entityKeys)
+			}
+
+			filtered, report := selectWith(workloadKey)
+			if len(filtered) != 1 || report.Reason != SelectionKeyMatch {
+				t.Fatalf(
+					"filterDeployableUnitCandidates(candidates, entityKeys-from-committed-cassette-entity_key=%q) = %d candidates reason %q, want exactly 1 (%s) with reason key_match",
+					workloadKey, len(filtered), report.Reason, tc.wantRepoID,
+				)
+			}
+			if got := filtered[0].RepoID; got != tc.wantRepoID {
+				t.Fatalf("filterDeployableUnitCandidates survivor RepoID = %q, want %q", got, tc.wantRepoID)
+			}
+
+			legacyFiltered, legacyReport := selectWith("workload:" + tc.legacyName)
+			if len(legacyFiltered) != 0 || legacyReport.Reason != SelectionNoKeyMatch {
+				t.Fatalf(
+					"filterDeployableUnitCandidates(candidates, legacy-name-key=%q) = %d candidates reason %q, want 0 with reason no_key_match: name matching must stay removed",
+					"workload:"+tc.legacyName, len(legacyFiltered), legacyReport.Reason,
+				)
+			}
+		})
 	}
 }
