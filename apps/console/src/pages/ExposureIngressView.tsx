@@ -58,7 +58,7 @@ export function ExposureIngressView({
         <StatTile
           label="Hops to service"
           value={active?.hops.length ?? 0}
-          sub="on the selected chain"
+          sub={selectedChainHopsSub(ingress)}
         />
         <PostureTile
           label="WAF coverage"
@@ -262,6 +262,15 @@ function publicEntrypointSub(ingress: ExposureIngress): string {
   return ingress.publicEntrypointsPartial
     ? "observed public hostnames (partial: server capped the list)"
     : "observed public hostnames";
+}
+
+// selectedChainHopsSub marks the live tile when the shown chain is drawn from
+// a capped path list. The chain's own hop count stays exact; the partial note
+// says the list it was selected from was cut.
+function selectedChainHopsSub(ingress: ExposureIngress): string {
+  return ingress.totalHopsPartial
+    ? "on the selected chain (partial: server capped the path list)"
+    : "on the selected chain";
 }
 
 // totalHopsValue renders the hops total. A partial total is a lower bound
