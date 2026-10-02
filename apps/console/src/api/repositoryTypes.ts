@@ -89,6 +89,7 @@ export interface ContextResponse {
   readonly graph_dependents?: ServiceContextResponse["graph_dependents"];
   readonly infrastructure?: readonly InfrastructureItem[];
   readonly repository?: StoryRepository;
+  readonly result_limits?: { readonly infrastructure_count?: number };
 }
 
 export interface ContextConsumer {

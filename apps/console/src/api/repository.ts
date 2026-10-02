@@ -320,7 +320,10 @@ function overviewStatsFromStory(
 ): readonly OverviewStat[] {
   const files = fileCount(story, context);
   const workloadCount = story.deployment_overview?.workload_count ?? 0;
+  // The context route cuts the infrastructure list to its row limit and reports
+  // the true total on result_limits, so the stat reads the total first (#7129).
   const infraCount =
+    context?.result_limits?.infrastructure_count ??
     context?.infrastructure?.length ??
     totalCount(story.infrastructure_overview?.entity_type_counts);
   const deploymentEvidence =
