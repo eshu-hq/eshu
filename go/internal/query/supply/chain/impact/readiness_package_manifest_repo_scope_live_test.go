@@ -43,19 +43,7 @@ func TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive(t *test
 	}
 	targetRepoID, targetCount, noiseCount := seedPackageManifestRepoScopeCorpus(t, ctx, db)
 
-	args := []any{
-		array.Of(vulnerabilityAdvisoryFactKinds),
-		array.Of(vulnerabilityExploitabilityFactKinds),
-		array.Of(packageConsumptionCorrelationFactKinds),
-		array.Of(packageRegistryFactKinds),
-		array.Of(sbomComponentFactKinds),
-		array.Of(sbomAttestationFactKinds),
-		array.Of(containerImageIdentityFactKinds),
-		array.Of(vulnerabilitySourceSnapshotFactKinds),
-		"", "", targetRepoID, "", "", "",
-		array.Of(vulnerabilityOSPackageFactKinds),
-		array.Of(scannerWorkerAnalysisFactKinds),
-	}
+	args := readinessArgsForRepository(targetRepoID)
 
 	var raw []byte
 	if err := db.QueryRowContext(
@@ -92,8 +80,8 @@ func TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive(t *test
 	// requested repository's own scope through ingestion_scopes.source_key,
 	// which the git collector mirrors to the repository id
 	// (TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID). Unbounded it
-	// probes fact_records once per active scope (~810 on ops-qa, 8s of the
-	// 8.1s readiness read). The local corpus is too small for the planner to
+	// probes fact_records once per active scope (~810 active scopes in the
+	// #7007 measurement, 8s of the 8.1s readiness read). The local corpus is too small for the planner to
 	// pick the per-scope nested loop, so the proof is the plan-shape anchor,
 	// not a loop count: a regression that drops the predicate removes every
 	// source_key reference from the plan.
@@ -248,4 +236,128 @@ ANALYZE scope_generations;
 	}
 
 	return targetRepositoryIDLiteral, targetManifestFactCount, seededNoiseRepos
+}
+
+// TestSupplyChainImpactReadinessRepoArmScopeLive is the #7088 proof for a
+// repository-only anchor ($11 = repository id, $20 = false). Before #7088
+// package_manifest_active's legacy-shape arm (top-level config_kind) had no
+// repository-leading index and carried an empty-$11 escape, so it probed
+// fact_records once per active scope (819 loops; 9.4 s on the warm ops-qa
+// primary, and repository-anchor calls on the cold replica hit the 30 s client
+// timeout); arm 1 heap-fetched every generation's rows before the
+// active-generation join; and package_dependency_gap_active scanned the whole
+// active scope. The proof asserts the plan shape from EXPLAIN (ANALYZE,
+// BUFFERS, FORMAT JSON) under both a custom and a forced generic plan, and
+// that the rewritten statement returns exactly the rows the previous one
+// did for the target repository (repository plus repository_ref scope), a
+// repository that owns only a repository_ref scope, and an unknown one.
+func TestSupplyChainImpactReadinessRepoArmScopeLive(t *testing.T) {
+	dsn := os.Getenv("ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN")
+	optIn := os.Getenv("ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 3*time.Minute)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("ApplyBootstrap(): %v", err)
+	}
+	seedRepoArmScopeCorpus(t, ctx, db)
+
+	var raw []byte
+	if err := db.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+ListReadinessQuery,
+		readinessArgsForRepository(repoArmTargetRepoID)...).Scan(&raw); err != nil {
+		t.Fatalf("EXPLAIN readiness (custom plan): %v", err)
+	}
+	assertRepoArmPlanBounded(t, "custom plan", raw, repoArmStatementBufferLimit)
+
+	previous := previousRepoArmReadinessQuery(t)
+	current := map[string][]string{}
+	for _, repositoryID := range []string{repoArmTargetRepoID, repoArmRefOnlyRepoID, repoArmUnknownRepoID} {
+		args := readinessArgsForRepository(repositoryID)
+		got := readinessResultRows(t, ctx, db, ListReadinessQuery, args...)
+		want := readinessResultRows(t, ctx, db, previous, args...)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: rewritten readiness rows differ from the previous statement\n got=%v\nwant=%v", repositoryID, got, want)
+		}
+		current[repositoryID] = got
+		assertRepoArmCounts(t, ctx, db, repositoryID)
+	}
+
+	// Generic-plan safety: the rewrite must not depend on the planner
+	// folding $11, which a cached generic plan cannot do.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("db.Conn(): %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = force_generic_plan"); err != nil {
+		t.Fatalf("force generic plan: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, "PREPARE repo_arm_readiness("+
+		"text[], text[], text[], text[], text[], text[], text[], text[], "+
+		"text, text, text, text, text, text, text[], text[], text[], text[], text[], boolean) AS "+ListReadinessQuery); err != nil {
+		t.Fatalf("PREPARE readiness: %v", err)
+	}
+	for i := 0; i < 7; i++ {
+		for _, repositoryID := range []string{repoArmTargetRepoID, repoArmRefOnlyRepoID, repoArmUnknownRepoID} {
+			execute := repoArmExecuteStatement(t, "repo_arm_readiness", readinessArgsForRepository(repositoryID))
+			got := readinessResultRows(t, ctx, conn, execute)
+			if !reflect.DeepEqual(got, current[repositoryID]) {
+				t.Fatalf("generic EXECUTE %d for %s differs from the custom plan\n got=%v\nwant=%v", i+1, repositoryID, got, current[repositoryID])
+			}
+		}
+	}
+	raw = nil
+	if err := conn.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+
+		repoArmExecuteStatement(t, "repo_arm_readiness", readinessArgsForRepository(repoArmTargetRepoID))).Scan(&raw); err != nil {
+		t.Fatalf("EXPLAIN readiness (generic plan): %v", err)
+	}
+	if !strings.Contains(string(raw), "$11") {
+		t.Fatalf("expected a generic plan (parameter $11 left unbound in the plan), plan=%s", raw)
+	}
+	assertRepoArmPlanBounded(t, "generic plan", raw, 0)
+}
+
+// assertRepoArmCounts pins the absolute counts, so the differential above
+// cannot pass on two equally wrong statements.
+func assertRepoArmCounts(t *testing.T, ctx context.Context, db *sql.DB, repositoryID string) {
+	t.Helper()
+	rows, err := db.QueryContext(ctx, ListReadinessQuery, readinessArgsForRepository(repositoryID)...)
+	if err != nil {
+		t.Fatalf("query readiness: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	manifest := 0
+	gaps := 0
+	for rows.Next() {
+		var family string
+		var factCount int
+		var latest sql.NullTime
+		var incompleteFlag sql.NullBool
+		var reasons array.StringArray
+		var a, b, c sql.NullString
+		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &a, &b, &c); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		switch family {
+		case "package.consumption":
+			manifest = factCount
+		case unsupportedTargetFamilyMarker:
+			targets, err := decodeUnsupportedTargets(c)
+			if err != nil {
+				t.Fatalf("decode unsupported targets: %v", err)
+			}
+			for _, target := range targets {
+				if target.TargetKind == "dependency_source" {
+					gaps += target.Count
+				}
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	if want := repoArmExpectedManifestFacts[repositoryID]; manifest != want {
+		t.Errorf("%s: package.consumption = %d, want %d (active generation, both payload shapes, repository and repository_ref scopes, no tombstones)", repositoryID, manifest, want)
+	}
+	if want := repoArmExpectedGapFacts[repositoryID]; gaps != want {
+		t.Errorf("%s: dependency_source unsupported targets = %d, want %d", repositoryID, gaps, want)
+	}
 }

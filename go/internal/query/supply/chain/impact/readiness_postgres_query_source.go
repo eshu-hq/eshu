@@ -38,43 +38,55 @@ sbom_component AS (
 
 const listSupplyChainImpactReadinessQueryUnsupportedAndSource = `
 package_dependency_gap_active AS (
+    -- #7007/#7088: bounded to the requested repository's own scopes.
+    -- These provenance-only kinds are rare (17 active rows on ops-qa; the
+    -- ~810 active scopes counted in the #7007 measurement, 819 in #7088's,
+    -- 799 of them repository scopes); unbounded, the read probed fact_records once per
+    -- active scope (8.0s of an 8.1s readiness read), and bounded by scope
+    -- alone it still scanned the whole active scope (up to 241,726
+    -- content_entity rows). The only consumer, unsupported_target_rows
+    -- below, already requires "$11 <> '' AND payload->>'repo_id' = $11", so
+    -- requiring both here is a pure narrowing. source_key is the repository
+    -- id the git collector stamps on every repository and repository_ref
+    -- scope (buildScope in collector/repo/git,
+    -- TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID), so it reaches
+    -- every scope the repo_id payload predicate would. That is a
+    -- PRECONDITION, also relied on by package_manifest_active: a scope whose
+    -- source_key differs from its facts' repo_id (a scope written without
+    -- collector metadata) drops out. Starting from those
+    -- scopes, the LATERAL probe (OFFSET 0 keeps it unflattened) reads
+    -- migration 159's repo-leading partial index with the repository, scope
+    -- and active generation in its Index Cond; the IN list must stay
+    -- textually identical to that index predicate so Postgres proves the
+    -- implication. A consumer that needs these rows without a repository
+    -- anchor must not reuse this CTE unchanged.
     SELECT fact.payload, fact.observed_at
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
+    FROM ingestion_scopes AS scope
     JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'content_entity'
-      AND fact.source_system = 'git'
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
-      AND fact.payload->>'entity_type' = 'Variable'
-      AND fact.payload->'entity_metadata'->>'config_kind' IN (
-          'vcs_dependency',
-          'path_dependency',
-          'url_dependency',
-          'editable_dependency',
-          'unsupported_dependency'
-      )
-      -- #7007: bound the read to the requested repository's own scope.
-      -- These provenance-only kinds are rare (17 active rows across ~810
-      -- scopes on ops-qa) and have no repo_id-leading index, so an unbounded
-      -- read probes fact_records once per active scope and filters ~2.7k
-      -- content_entity rows out of each (8.0s of an 8.1s readiness read).
-      -- The only consumer, unsupported_target_rows below, already requires
-      -- "$11 <> '' AND payload->>'repo_id' = $11", so requiring both here is
-      -- a pure narrowing: same rows, read from one scope. source_key is the
-      -- repository id the git collector stamps on every repository and
-      -- repository_ref scope (buildScope in collector/repo/git,
-      -- TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID), so it
-      -- reaches every generation scope the repo_id payload predicate would.
-      -- A future consumer that needs these rows without a repository anchor
-      -- must not reuse this CTE unchanged.
-      AND $11 <> ''
+      ON generation.scope_id = scope.scope_id
+     AND generation.generation_id = scope.active_generation_id
+    CROSS JOIN LATERAL (
+        SELECT dependency.payload, dependency.observed_at
+        FROM fact_records AS dependency
+        WHERE dependency.scope_id = scope.scope_id
+          AND dependency.generation_id = scope.active_generation_id
+          AND dependency.fact_kind = 'content_entity'
+          AND dependency.source_system = 'git'
+          AND dependency.is_tombstone = FALSE
+          AND dependency.payload->>'entity_type' = 'Variable'
+          AND dependency.payload->>'repo_id' = $11
+          AND dependency.payload->'entity_metadata'->>'config_kind' IN (
+              'vcs_dependency',
+              'path_dependency',
+              'url_dependency',
+              'editable_dependency',
+              'unsupported_dependency'
+          )
+        OFFSET 0
+    ) AS fact
+    WHERE $11 <> ''
       AND scope.source_key = $11
-      AND fact.payload->>'repo_id' = $11
+      AND generation.status = 'active'
 ),
 unsupported_target_rows AS (
     -- Owned dependency rows in an ecosystem the supply-chain matcher cannot

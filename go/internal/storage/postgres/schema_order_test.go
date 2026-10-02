@@ -362,4 +362,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// generation_id seek that the foreign-key cascade of every generation prune
 	// fires once per deleted generation.
 	"graph_projection_phase_state_generation_idx",
+	// Migration 159 (#7088) keys the readiness query's legacy-shape and
+	// dependency-gap reads by repository, scope and generation.
+	"fact_records_content_entity_dependency_legacy_gap_repo_idx",
 }

@@ -56,19 +56,7 @@ func TestSupplyChainImpactReadinessScanTierQueryPlanLive(t *testing.T) {
 	}
 	targetDigest := seedScanTierReadinessExplainCorpus(t, ctx, db)
 
-	args := []any{
-		array.Of(vulnerabilityAdvisoryFactKinds),
-		array.Of(vulnerabilityExploitabilityFactKinds),
-		array.Of(packageConsumptionCorrelationFactKinds),
-		array.Of(packageRegistryFactKinds),
-		array.Of(sbomComponentFactKinds),
-		array.Of(sbomAttestationFactKinds),
-		array.Of(containerImageIdentityFactKinds),
-		array.Of(vulnerabilitySourceSnapshotFactKinds),
-		"", "", "", targetDigest, "", "",
-		array.Of(vulnerabilityOSPackageFactKinds),
-		array.Of(scannerWorkerAnalysisFactKinds),
-	}
+	args := readinessArgsForQuery(ReadinessQuery{SubjectDigest: targetDigest})
 
 	var raw []byte
 	if err := db.QueryRowContext(
@@ -177,19 +165,7 @@ ANALYZE scope_generations;
 		t.Fatalf("seed os_package rows: %v", err)
 	}
 
-	args := []any{
-		array.Of(vulnerabilityAdvisoryFactKinds),
-		array.Of(vulnerabilityExploitabilityFactKinds),
-		array.Of(packageConsumptionCorrelationFactKinds),
-		array.Of(packageRegistryFactKinds),
-		array.Of(sbomComponentFactKinds),
-		array.Of(sbomAttestationFactKinds),
-		array.Of(containerImageIdentityFactKinds),
-		array.Of(vulnerabilitySourceSnapshotFactKinds),
-		"", "", "", targetDigest, "", "",
-		array.Of(vulnerabilityOSPackageFactKinds),
-		array.Of(scannerWorkerAnalysisFactKinds),
-	}
+	args := readinessArgsForQuery(ReadinessQuery{SubjectDigest: targetDigest})
 	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
 		t.Fatalf("query production shape: %v", err)

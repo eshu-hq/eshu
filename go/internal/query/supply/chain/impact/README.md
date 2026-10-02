@@ -200,6 +200,42 @@ only their package qualifier changed).
   default-registry PURL or package ID can use source manifest evidence without
   a registry owner row. Repository-only reads retain their active repository
   index path.
+- `package_manifest_active` (both payload shapes) and
+  `package_dependency_gap_active` are repository-anchored only (#7088). Each
+  starts from the repository's own scopes (`ingestion_scopes.source_key = $11`,
+  which covers repository and `repository_ref` scopes) and probes
+  `fact_records` once per scope through a LATERAL subquery. The `OFFSET 0`
+  fence keeps that subquery unflattened, so the probe binds repository,
+  scope and active generation in the Index Cond of migration 121's index
+  (entity_metadata shape) or migration 159's (legacy top-level `config_kind`
+  shape and the five gap kinds). Do not reintroduce a `$11 = '' OR` escape:
+  under a generic plan it forces a probe of every active scope. Do not pin
+  through `scope_id = 'git-repository-scope:' || $11`: that drops
+  `repository_ref` scopes. Keep the gap `IN` list textually identical to
+  migration 159's predicate, or the planner cannot prove the implication.
+  PRECONDITION: the `source_key = $11` anchor reaches the same facts as the
+  `repo_id` payload predicate only when every active git dependency-variable
+  fact sits in a scope whose `source_key` equals the fact's payload `repo_id`.
+  Collector-written scopes hold it (`buildScope` stamps both from `repo.ID`),
+  and the gap CTE already relied on it (#7007); `scopestore.SourceKey` falls
+  back to the scope id when scope metadata has no `source_key` and
+  `parserfixture.Emitter` writes scopes with none, so such scopes drop out.
+  On ops-qa all 799 repository scopes satisfy it and a 50-scope sample of
+  117,010 active `content_entity` rows had 0 violations (teammate-reported,
+  2026-10-02); a fleet-wide fact-level count is NOT_CHECKED.
+  Proof: `TestSupplyChainImpactReadinessRepoArmScopeLive` (scheduled, not run
+  in CI) and the CI-run static guards in
+  `readiness_repo_arm_static_guards_test.go`, which pin the three `OFFSET 0`
+  fences, the `scope.source_key = $11` anchors, the absent `$11 = '' OR`
+  escape, the three `generation_id` binds and `is_tombstone = FALSE` filters,
+  the arm-1/arm-2 exclusivity, the empty-repository-implies-`$20` table test,
+  and the match between both readers' predicates and the embedded
+  migration's index predicate. `TestReadinessRepoArmExecutableTextIsPinned`
+  also pins the full executable text of the three probes to
+  `testdata/readiness_repo_arm_probes.golden`; a deliberate edit to either
+  statement regenerates it with `-update-repo-arm-golden` and carries the plan
+  proof. Evidence:
+  `docs/internal/evidence/7088-readiness-repo-scope.md`.
 - Image-reference targets batch the current digest set and active registry identity
   lookups. SBOM component counts join each active component to its active
   document by scope, generation, and document ID; the subject digest is on the

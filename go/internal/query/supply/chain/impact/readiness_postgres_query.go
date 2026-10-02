@@ -20,7 +20,14 @@ const ListReadinessQueryCore = listSupplyChainImpactReadinessQueryCoreBeforePack
 	listSupplyChainImpactReadinessPackageManifestQuery +
 	listSupplyChainImpactReadinessQueryCoreAfterPackageManifest
 
-const listSupplyChainImpactReadinessQueryCoreBeforePackageManifest = `
+// listSupplyChainImpactReadinessQueryCoreBeforePackageManifest splices the
+// repository-anchored package_manifest_active CTE between the advisory/SBOM
+// CTEs and package_registry_active onward.
+const listSupplyChainImpactReadinessQueryCoreBeforePackageManifest = listSupplyChainImpactReadinessQueryCoreHead +
+	readinessPackageManifestActiveCTE +
+	listSupplyChainImpactReadinessQueryCoreFromPackageRegistry
+
+const listSupplyChainImpactReadinessQueryCoreHead = `
 WITH advisory_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
@@ -99,53 +106,9 @@ package_consumption_correlation_active AS (
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
 ),
-package_manifest_active AS (
-    SELECT fact.fact_id, fact.payload, fact.observed_at
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'content_entity'
-      AND fact.source_system = 'git'
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
-      AND fact.payload->>'entity_type' = 'Variable'
-      AND NULLIF(fact.payload->>'config_kind', '') IS NULL
-      AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
-      -- #7007: push the repository anchor down into the CTE instead of
-      -- filtering it only in the downstream family/ecosystem consumers
-      -- below. Unfiltered, this CTE materializes every dependency-variable
-      -- content_entity fact repo-wide (content_entity is the largest
-      -- fact_kind in the corpus) before any repository_id predicate ever
-      -- applies, and it is referenced more than once so Postgres
-      -- materializes that unfiltered set once and rescans it per consumer.
-      -- Every downstream consumer already re-applies this exact
-      -- "$11 = '' OR payload->>'repo_id' = $11" predicate (or is a no-op
-      -- when $11 is empty), so pushing it here is a pure narrowing: byte
-      -- identical output, bounded to the requested repository's own rows
-      -- instead of every repository's.
-      AND ($11 = '' OR fact.payload->>'repo_id' = $11)
-    UNION ALL
-    SELECT fact.fact_id, fact.payload, fact.observed_at
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'content_entity'
-      AND fact.source_system = 'git'
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
-      AND fact.payload->>'entity_type' = 'Variable'
-      AND fact.payload->>'config_kind' = 'dependency'
-      AND ($11 = '' OR fact.payload->>'repo_id' = $11)
-),
-package_registry_active AS (
+`
+
+const listSupplyChainImpactReadinessQueryCoreFromPackageRegistry = `package_registry_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
