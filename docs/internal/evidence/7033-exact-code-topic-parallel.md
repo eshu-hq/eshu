@@ -101,11 +101,11 @@ restored healthy. Temporary API containers and volumes were removed; the
 preserved database volumes were retained. Earlier attempts with a path error
 and an out-of-bound control sample were rejected rather than counted.
 
-## Current-source fixed-corpus endpoint comparison, 2026-10-02
+## Historical pre-permit fixed-corpus endpoint comparison, 2026-10-02
 
 The accepted private artifact is `7033-exact-20261002-ab-1459`. An
 API-only Dockerfile built baseline `abc6d3c7b4cac6ebe05907c047741f1dbefc86f6`
-and current candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`
+and pre-review-fix candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`
 with the same pinned Go toolchain and runtime image
 `sha256:b5ce6d52b6a9e2f0456dfa6c73612ddebef8da9ad7a02070efe5ee5b0bd6a136`.
 The resulting API images were
@@ -117,8 +117,9 @@ settings, an eight-connection total pool with four readers, and isolated
 loopback-only API containers. Source and the recorded single-host/four-reader
 configuration imply the candidate's four-partition shared-snapshot path for
 this 16-term request; no trace export directly captured the execution-mode
-attribute. This is an exact-source relative result on a test stack, not an
-ops-qa run.
+attribute. This is an exact-source relative result for those two SHAs on a
+test stack, not an ops-qa run or a measurement of the later permit/fallback
+changes.
 
 Two warmups per variant preceded two eight-request baseline control sets.
 Their medians were 0.775120 and 0.772025 s; the frozen maximum-sample
@@ -148,6 +149,10 @@ half-CPU invalidation threshold. Candidate API memory reached 35.71 MiB
 versus 15.65 MiB for baseline in the sampled series; both had a 2 GiB
 limit. This is a roughly 20 MiB sampled increase, not a no-memory-cost
 claim. No resource sampler invalidation occurred.
+
+The current review-fix source has no accepted fixed-corpus endpoint A/B yet:
+its quiet-host latency, resource delta, and `<1 s` result are **NOT_CHECKED**.
+The historical medians above must not be attributed to that source.
 
 Both API `/healthz` probes passed. Both `/readyz` probes returned the
 same HTTP 503 solely because the preserved test database lacks the receipt
@@ -205,13 +210,34 @@ regression was red before the guard and green after it; the ordinary reader
 host-selection policy was unchanged. This is a correctness guard, not a
 multi-host parallel performance claim.
 
+## Review-fix guarded-reader correctness proof, 2026-10-02
+
+At source `dffc84d2700c01e53781e391a3867027e5671476`, the opt-in
+`TestInvestigateCodeTopicGuardedParallelPostgresLive` passed against a
+temporary, isolated PostgreSQL 18.6 single-primary container (image
+`sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2`).
+The test ran the production guarded reader with four reader permits, compared
+unscoped, grant/language, null-language, repository, and paginated responses
+with the serial SQL, then held one read-only reader while the four-reader
+reservation expired. The pressure subtest passed in 2.06 s: the result
+matched the serial path, three partial readers and one fallback reader were
+observed, and the pool returned to zero in-use connections after release.
+The full test exited 0 in 4.25 s. Its generated proof database was absent
+before teardown; the temporary container and storage were removed and
+verified absent. This tiny disposable fixture proves fallback correctness and
+cleanup, not representative latency, replica replay, or the deployed budget.
+The subsequent clean rebase onto `b872673df44c546dbaea7b7491ac4ae91af3ae13`
+kept the cumulative patch ID
+`bff2709b7f3ac9033218ebea8bdc1a76de3c7747` unchanged, with no changed-path
+overlap; the local live test was not rerun on the rebased commit.
+
 ## Deployed ops-qa acceptance
 
-NOT_CHECKED for the exact rebased guarded-reader candidate on the deployed
-topology. This branch is based on
-`abc6d3c7b4cac6ebe05907c047741f1dbefc86f6`; the exact current-source
-relative comparison is recorded above. The current source includes migration
-155. Ops-qa's migration ledger was last observed at 152 on 2026-10-02;
+NOT_CHECKED for the current guarded-reader candidate on the deployed
+topology. The fixed-corpus comparison above belongs to the pre-permit
+candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`; a current-source
+comparison is still required before merge. The current source includes
+migration 155. Ops-qa's migration ledger was last observed at 152 on 2026-10-02;
 this record does not establish a later ledger state. An earlier exact-source
 attempt on 2026-10-02 aborted during storage-digest/cleanup validation and
 yielded no accepted endpoint timing evidence. The owner approved using the
