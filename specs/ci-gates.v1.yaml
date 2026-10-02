@@ -2962,6 +2962,46 @@ gates:
       - nornicdb
     ci_only_reason: ""
 
+  # #7529 staging row. The trusted publisher reads main's registry, so the
+  # new check first lands non-blocking and flips after a green main run.
+  - id: live-postgres-readiness
+    name: Live PostgreSQL Readiness (disposable PostgreSQL 18)
+    category: exactness
+    layer: performance
+    purpose: "Runs four PostgreSQL readiness plan and truth proofs with explicit pass-event accounting; skips and missing tests fail."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "go/internal/query/supply/chain/impact/**"
+      - "go/internal/storage/postgres/**"
+      - "go/internal/testutil/postgresproof/**"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "specs/live-tests.v1.yaml"
+      - "specs/ci-gates.v1.yaml"
+      - "scripts/run-live-postgres-readiness-tests.sh"
+      - "scripts/test-run-live-postgres-readiness-tests.sh"
+      - "scripts/lib/live_postgres_readiness_results.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "scripts/test-verify-live-tests-ledger.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/live-postgres-readiness.yml"
+      - ".github/workflows/required-gates.yml"
+    local:
+      command: "bash scripts/test-run-live-postgres-readiness-tests.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: live-postgres-readiness.yml
+      job: "live-postgres-readiness (postgres18)"
+      check_names:
+        - "live-postgres-readiness (postgres18)"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: ""
+
   - id: golden-corpus-differential
     name: Differential NornicDB vs Neo4j oracle (Docker)
     category: exactness

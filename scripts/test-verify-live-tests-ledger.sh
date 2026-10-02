@@ -24,6 +24,57 @@ out="$("${script}")" || fail "validator failed on the clean tree"
 [[ "${out}" =~ ^live-tests\ ledger\ ok:\ [1-9][0-9]*\ rows,\ [1-9][0-9]*\ live\ files\ classified$ ]] ||
 	fail "unexpected validator output: ${out}"
 
+# A scheduled row without a verified runner belongs to a frozen, reviewed
+# legacy inventory. Reclassifying an existing CI row must not silently expand
+# that inventory, even though the file and reason still look valid.
+legacy_probe="$(mktemp -d)"
+trap 'rm -rf "${legacy_probe}"' EXIT
+awk 'BEGIN { changed = 0 } /^    class: ci$/ && !changed { $0 = "    class: scheduled"; changed = 1 } { print }' \
+	"${ledger}" >"${legacy_probe}/added-scheduled.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/added-scheduled.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted an added unowned scheduled row"
+fi
+
+# An unchanged total count is not enough: swapping a legacy row for a
+# different file also needs an explicit ownership review.
+awk '/^    class: ci$/ && !added { print "    class: scheduled"; added = 1; next } /^    class: scheduled$/ && added && !removed { print "    class: ci"; removed = 1; next } { print }' \
+	"${ledger}" >"${legacy_probe}/replaced-scheduled.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/replaced-scheduled.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted a same-count legacy inventory replacement"
+fi
+
+awk '/^legacy_scheduled_exemptions:$/ { drop = 1; next } drop && /^  sha256: / { drop = 0; next } !drop { print }' \
+	"${ledger}" >"${legacy_probe}/missing-owner.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/missing-owner.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted a missing legacy owner and tracking issue"
+fi
+
+awk '/^  count: 574$/ { print "  count: 575"; next } { print }' \
+	"${ledger}" >"${legacy_probe}/wrong-count.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-count.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted a wrong legacy exemption count"
+fi
+
+awk '/^  sha256: 2cc9cf6a3573a08c7d087865a48c6d527bf3b038c16d2722c62e70c95e107b7a$/ { print "  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; next } { print }' \
+	"${ledger}" >"${legacy_probe}/wrong-digest.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-digest.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted a wrong legacy exemption digest"
+fi
+
+awk '/^    runner: live-postgres-readiness$/ && !changed { print "    runner: not-a-runner"; changed = 1; next } { print }' \
+	"${ledger}" >"${legacy_probe}/wrong-runner.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-runner.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted a PostgreSQL row with an unknown runner"
+fi
+
+awk '/^    class: scheduled$/ && !changed { print "    class: postgres_ci"; changed = 1; next } { print }' \
+	"${ledger}" >"${legacy_probe}/unowned-promotion.yaml"
+if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/unowned-promotion.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator accepted a legacy promotion with no runner or inventory shrink"
+fi
+rm -r "${legacy_probe}"
+trap - EXIT
+
 # ── RED: a planted unclassified live test fails ──────────────────────────
 fixture="$(mktemp -d)"
 trap 'rm -rf "${fixture}"' EXIT
@@ -114,6 +165,12 @@ issue: 6784
 parent_issue: 6788
 owners:
   - graph
+legacy_scheduled_exemptions:
+  baseline_main: 0000000000000000000000000000000000000000
+  steward: fixture-owner
+  tracking_issue: 7533
+  count: 1
+  sha256: 5034469d7413342fc776d519828de61f90ec4497f6d6635d8f47856ad89d7937
 purpose: fixture
 design: fixture
 tests:
@@ -229,6 +286,12 @@ issue: 6784
 parent_issue: 6788
 owners:
   - graph
+legacy_scheduled_exemptions:
+  baseline_main: 0000000000000000000000000000000000000000
+  steward: fixture-owner
+  tracking_issue: 7533
+  count: 1
+  sha256: 6eca53a4977543a9fab078095bf3a5b99acd480d365f9aeb1bbff439fc91f0c8
 purpose: fixture
 design: fixture
 tests:
@@ -240,5 +303,30 @@ EOF
 if REPO_ROOT="${wild}" LEDGER_PATH="${wild}/ledger.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator passed with an unclassified nonstandard live file"
 fi
+
+# A new proof with explicit PostgreSQL ownership is permitted without
+# expanding the closed legacy exemption set.
+printf 'package calm\n' >"${calm}/go/calm/new_live_test.go"
+git -C "${calm}" add go/calm/new_live_test.go
+cp "${calm}/ledger.yaml" "${calm}/owned.yaml"
+printf '  - file: go/calm/new_live_test.go\n    tag: ~\n    class: postgres_ci\n    reason: fixture PostgreSQL proof with verified runner\n    runner: live-postgres-readiness\n' >>"${calm}/owned.yaml"
+REPO_ROOT="${calm}" LEDGER_PATH="${calm}/owned.yaml" "${script}" >/dev/null 2>&1 ||
+	fail "validator rejected a newly owned PostgreSQL proof"
+
+# A deliberate promotion removes the former legacy file from the frozen
+# inventory and re-pins its count/digest; it must keep its own runner.
+awk '
+    /^  count: 1$/ { print "  count: 0"; next }
+    /^  sha256: 5034469d7413342fc776d519828de61f90ec4497f6d6635d8f47856ad89d7937$/ {
+        print "  sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; next
+    }
+    /^    class: scheduled$/ { print "    class: postgres_ci"; promoted = 1; next }
+    /^    reason: fixture live proof$/ && promoted {
+        print; print "    runner: live-postgres-readiness"; promoted = 0; next
+    }
+    { print }
+' "${calm}/owned.yaml" >"${calm}/promoted.yaml"
+REPO_ROOT="${calm}" LEDGER_PATH="${calm}/promoted.yaml" "${script}" >/dev/null 2>&1 ||
+	fail "validator rejected a reviewed shrink of the legacy exemption set"
 
 printf 'test-verify-live-tests-ledger: RED/GREEN pair passed\n'

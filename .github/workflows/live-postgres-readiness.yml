@@ -1,0 +1,98 @@
+name: Live PostgreSQL Readiness
+
+# The four readiness proofs use EXPLAIN and correctness assertions against
+# separately created disposable databases. The merge queue always runs this
+# job; PR and main-push events select the paths that can change the proof.
+on:
+  merge_group:
+    types: [checks_requested]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'go/internal/query/supply/chain/impact/**'
+      - 'go/internal/storage/postgres/**'
+      - 'go/internal/testutil/postgresproof/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'specs/live-tests.v1.yaml'
+      - 'specs/ci-gates.v1.yaml'
+      - 'scripts/run-live-postgres-readiness-tests.sh'
+      - 'scripts/test-run-live-postgres-readiness-tests.sh'
+      - 'scripts/lib/live_postgres_readiness_results.py'
+      - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/verify-live-tests-ledger.sh'
+      - 'scripts/test-verify-live-tests-ledger.sh'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - '.github/workflows/live-postgres-readiness.yml'
+      - '.github/workflows/required-gates.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'go/internal/query/supply/chain/impact/**'
+      - 'go/internal/storage/postgres/**'
+      - 'go/internal/testutil/postgresproof/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'specs/live-tests.v1.yaml'
+      - 'specs/ci-gates.v1.yaml'
+      - 'scripts/run-live-postgres-readiness-tests.sh'
+      - 'scripts/test-run-live-postgres-readiness-tests.sh'
+      - 'scripts/lib/live_postgres_readiness_results.py'
+      - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/verify-live-tests-ledger.sh'
+      - 'scripts/test-verify-live-tests-ledger.sh'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - '.github/workflows/live-postgres-readiness.yml'
+      - '.github/workflows/required-gates.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  live-postgres-readiness:
+    name: live-postgres-readiness (postgres18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-proof-only
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Check runner fail-closed behavior
+        run: bash scripts/test-run-live-postgres-readiness-tests.sh
+
+      - name: Run live readiness proofs
+        env:
+          ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE: '1'
+          ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE: '1'
+        run: bash scripts/run-live-postgres-readiness-tests.sh

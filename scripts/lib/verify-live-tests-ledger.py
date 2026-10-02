@@ -11,6 +11,7 @@
 # deadlocks on heredoc bodies over 512 bytes.
 #
 # Usage: verify-live-tests-ledger.py <ledger_path> <repo_root>
+import hashlib
 import os
 import re
 import subprocess
@@ -22,7 +23,7 @@ ledger_path, repo_root = sys.argv[1], sys.argv[2]
 text = open(ledger_path).read()
 
 rows = re.findall(
-    r"^  - file: (\S+)\n    tag: (.*)\n    class: (\S+)\n    reason: ([^\n]*)(?:\n    backends: (\S+))?",
+    r"^  - file: (\S+)\n    tag: (.*)\n    class: (\S+)\n    reason: ([^\n]*)(?:\n    runner: (\S+))?(?:\n    backends: (\S+))?",
     text,
     re.M,
 )
@@ -31,13 +32,21 @@ if not rows:
 
 seen_files = set()
 classes = {}
-for path, tag, cls, reason, backends in rows:
+legacy_scheduled = []
+for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
         sys.exit(f"duplicate ledger row: {path}")
     seen_files.add(path)
     classes[path] = cls
-    if cls not in ("ci", "scheduled", "retired"):
+    if cls not in ("ci", "postgres_ci", "scheduled", "retired"):
         sys.exit(f"invalid class {cls!r} for {path}")
+    if cls == "postgres_ci":
+        if runner != "live-postgres-readiness" or tag.strip() != "~" or backends:
+            sys.exit(f"PostgreSQL CI row needs its verified runner and untagged test: {path}")
+    elif runner:
+        sys.exit(f"unexpected runner {runner!r} for {cls} row: {path}")
+    if cls == "scheduled":
+        legacy_scheduled.append(path)
     # Backend targeting defaults to both; a row naming a backend-specific
     # test pins the backends it can run on so the runner never schedules
     # a hardcoded-"nornic" test against Neo4j.
@@ -65,6 +74,34 @@ for path, tag, cls, reason, backends in rows:
         claimed = ""
     if claimed != actual:
         sys.exit(f"tag mismatch for {path}: ledger {tag!r} vs file {actual!r}")
+
+# The ledger itself lists the exact grandfathered paths. Bind that readable
+# inventory to a fixed digest so a newly scheduled row cannot inherit an
+# exemption merely by carrying a plausible reason. Canonical input is sorted,
+# unique, UTF-8 repo-relative paths with exactly one LF after each path.
+legacy_policy = re.search(
+    r"^legacy_scheduled_exemptions:\n"
+    r"  baseline_main: ([0-9a-f]{40})\n"
+    r"  steward: (\S+)\n"
+    r"  tracking_issue: ([1-9][0-9]*)\n"
+    r"  count: ([0-9]+)\n"
+    r"  sha256: ([0-9a-f]{64})$",
+    text,
+    re.M,
+)
+if not legacy_policy:
+    sys.exit("missing or invalid legacy scheduled exemption owner, issue, count, or digest")
+expected_count = int(legacy_policy.group(4))
+canonical_paths = sorted(legacy_scheduled)
+actual_digest = hashlib.sha256(
+    "".join(f"{path}\n" for path in canonical_paths).encode("utf-8")
+).hexdigest()
+if expected_count != len(canonical_paths) or actual_digest != legacy_policy.group(5):
+    sys.exit(
+        "legacy scheduled exemption inventory changed without reviewed disposition: "
+        f"count={len(canonical_paths)} sha256={actual_digest}, "
+        f"want count={expected_count} sha256={legacy_policy.group(5)}"
+    )
 
 # --cached plus --others: a brand-new live test must be at least present on
 # disk to be classified. Untracked-but-ignored build output stays excluded
