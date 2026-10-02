@@ -1,0 +1,65 @@
+go/internal/storage/postgres/db/read.go
+  s_b0d7e3abc26c5a::t_6ec2dbccae171e 6-14
+go/internal/query/code_topic_parallel_driver_test.go
+  s_b0d7e3abc26c5a::t_fa7eda6ff0fa49 32-42,137-139
+  s_b0d7e3abc26c5a::t_0c7149e78655d1 395-398
+  s_b0d7e3abc26c5a::t_a1aecb414c70ee 21,377-394,399-409
+  s_b0d7e3abc26c5a::t_1d49a113ce1030 27-31,410-411
+go/internal/runtime/postgres/read_store.go
+  s_b0d7e3abc26c5a::t_f13ff1293bddb4 36,54,57,62,64,67-72,79-82,115,120,130,234
+go/internal/runtime/postgres/access_test.go
+  s_b0d7e3abc26c5a::t_31ae5133ee84ca 45,64-68
+  s_9b6bb30511490e::t_f47d2e676002bc 69
+go/internal/query/code_topic_parallel_guarded_live_test.go
+  s_b0d7e3abc26c5a::t_adfbcd32a5bc32 217-218,224-225
+  s_b0d7e3abc26c5a::t_a188414e384f10 190-216,219-223,226-228
+go/internal/runtime/postgres/read_snapshot_set_test.go
+  s_b0d7e3abc26c5a::t_31ae5133ee84ca 122,161,221
+go/internal/runtime/postgres/read_reservation_test.go
+  s_b0d7e3abc26c5a::t_8c124e6c098f59 10,64-75,77-97
+  s_b0d7e3abc26c5a::t_c8f00aa55ae64a 76
+  s_b0d7e3abc26c5a::t_d5ec123bd5065c 1-9,11-63,98-99
+go/internal/query/code_topic_parallel_fallback_test.go
+  s_b0d7e3abc26c5a::t_fa7eda6ff0fa49 22-23,38-39
+  s_b0d7e3abc26c5a::t_a19574e0cf00d9 1-21,24-37,40-43
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_6ec2dbccae171e 61,106,108-110
+go/internal/query/codetopicparallel/reader.go
+  s_b0d7e3abc26c5a::t_6ec2dbccae171e 42
+  s_b0d7e3abc26c5a::t_e84f50d05061a6 221
+go/internal/query/code_topic_parallel_snapshot_adapter_test.go
+  s_b0d7e3abc26c5a::t_a19574e0cf00d9 24,69-71
+  s_b0d7e3abc26c5a::t_dafe7f4149aae1 9,97-102
+  s_b0d7e3abc26c5a::t_a1aecb414c70ee 12,22-23,82-88
+go/internal/query/content_reader_code_topic.go
+  s_b0d7e3abc26c5a::t_bdc47da5f72591 8,90-95,105
+  s_b0d7e3abc26c5a::t_adfbcd32a5bc32 99
+go/internal/runtime/postgres/reader.go
+  s_b0d7e3abc26c5a::t_8ba1f67a1dcdcc 19-39,58,66-77,81-83,93-95,98,148,156
+go/internal/query/code_topic_parallel_test.go
+  s_b0d7e3abc26c5a::t_a1aecb414c70ee 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f52dff2d7e9c4a7e56b0a9fac5476312b0d8ab53",
+  "prompts": {},
+  "sessions": {
+    "s_9b6bb30511490e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35219556-b5fe-469b-bf15-60d798ac1788",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
