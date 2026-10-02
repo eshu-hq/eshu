@@ -7,10 +7,14 @@ package postgres
 // from the LSH band side table (epic #6833, child #6837). $1 is the repo_id,
 // $2 the token floor, $3 the per-entity candidate budget.
 //
-// Shape: the band self-join is served by the (repo_id, band_no, band_hash)
-// lookup index from migration 111 — the #6834 EXPLAIN evidence (single-repo
-// band join 4.0ms indexed) requires that predicate shape, so keep the
-// equi-join on all three columns. Pairs sharing an equality fingerprint
+// Shape: the band self-join keeps its equi-join on all three of
+// (repo_id, band_no, band_hash), the predicate shape the #6834 EXPLAIN
+// evidence (single-repo band join 4.0ms indexed) measured. Which index serves
+// it depends on table state and plan mode: the primary key with index-only
+// scans on a vacuumed table, a sequential scan or code_fingerprint_band_entity_idx
+// bitmap scans on a never-vacuumed one, and the migration 111 lookup index only
+// under a generic plan (docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md,
+// #7254). Pairs sharing an equality fingerprint
 // (fp_exact or fp_renamed) are excluded before ranking: the #6836 read
 // surface owns them, and counting them against the budget would drop genuine
 // drift below the cut. Ranking is per-entity by shared-band count desc with

@@ -212,9 +212,66 @@ here: that SQL is gone from the tree). The 1x churn cell no longer regresses
 plain wall time, 5 interleaved rounds, median ms: 5x custom 4,710 to 4,650,
 5x generic 9,734 to 9,662, 1x custom 511 to 503, 1x generic 1,020 to 1,009,
 identical row counts (9,033 at 1x, 81,235 at 5x). Nothing moves, and no plan in
-either arm touches the new index. The planner joins the band primary key (a
-merge join of index-only scans), not the migration 111 lookup index that the
-query's comment names; that holds in both arms.
+either arm touches the new index. That holds for this shim's state only: it was
+vacuumed, so the planner joined the band primary key with index-only scans (a
+merge join), not the migration 111 lookup index that the query's comment names.
+A freshly bootstrapped table is not vacuumed; see the next subsection.
+
+### Drift query on a never-vacuumed table
+
+Rebuilt on the remote host on PostgreSQL 16.15 and 18.6 (run dir basename
+`7254-plan-20261002T205403Z`): the 11.5M-row shape with a 5x repository
+(799,200 band rows, 78,094 result rows; the generator is this run's, not real
+sketches), cloned into BEFORE and AFTER arms, with `ANALYZE` only and an empty
+visibility map (`relallvisible = 0`, the state right after a bootstrap), and
+again after `VACUUM (ANALYZE)`.
+
+- With the empty visibility map and a custom plan, the AFTER arm's band
+  self-join uses `code_fingerprint_band_entity_idx` on both sides (a
+  `Parallel Bitmap Heap Scan` over `Bitmap Index Scan on
+  code_fingerprint_band_entity_idx`, feeding a `Parallel Hash Join`), on both
+  versions. The BEFORE arm does a `Parallel Hash Join` over two
+  `Parallel Seq Scan`s. The estimated costs are within 2 to 3% (about 390k and
+  397k): the primary-key index-only scans lose because without a visibility map
+  every entry needs a heap visit.
+- After `VACUUM (ANALYZE)`, or under a forced generic plan, both arms choose the
+  same plan and the index is unused. With `enable_indexonlyscan = off` the
+  planner chooses the entity index in the vacuumed custom case as well.
+- Warm execution time barely moves, and its sign depends on heap layout. 16.15,
+  empty visibility map, custom plan: 4,908 to 4,493 ms (-8.5%, different
+  plans); vacuumed 4,760 to 4,742; with the rows inserted in random heap order
+  7,853 to 8,601 ms (+9.5%). 18.6: 5,092 to 4,793 ms in one pass, and 5,083 to
+  5,081 ms vacuumed. A second 18.6 pass landed on a different statistics sample
+  where the AFTER arm flipped to a lookup-index merge join (5,771 ms, 624 ms of
+  it JIT).
+- Plan flips across `ANALYZE` samples happen in both arms (40 samples per arm:
+  18.6 1 of 40 without and 0 of 40 with; 16.15 1 of 40 and 3 of 40), so they are
+  not caused by migration 151; their cause was not found.
+
+Warm medians, 5x repository, milliseconds (the plan column names the AFTER
+arm's self-join; BEFORE is the same unless noted):
+
+| Version | Table state | Plan mode | BEFORE | AFTER | AFTER plan |
+| --- | --- | --- | --- | --- | --- |
+| 16.15 | no VACUUM | custom | 4,908 (seq-scan hash join) | 4,493 | entity index, bitmap hash join |
+| 16.15 | no VACUUM | generic | 11,616 | 11,321 | lookup index, merge join |
+| 16.15 | vacuumed | custom | 4,760 | 4,742 | primary key, index-only merge join |
+| 16.15 | vacuumed | generic | 10,206 | 10,197 | lookup index, merge join |
+| 18.6 | no VACUUM | custom | 5,045 | 5,771 (one sample flipped to a merge join; 5,092 to 4,793 in another pass) | entity index, or merge join on a flip |
+| 18.6 | no VACUUM | generic | 11,263 | 11,133 | lookup index, merge join |
+| 18.6 | vacuumed | custom | 5,083 | 5,081 | primary key, index-only merge join |
+| 18.6 | vacuumed | generic | 9,921 | 9,941 | lookup index, merge join |
+
+So the earlier "no plan uses the index" holds only for a vacuumed table. On a
+fresh bootstrap the index does enter the drift query's self-join plan, at about
+the same cost per execution on a 5x repository. This does not reproduce or
+explain the reference-corpus `code_drifted` item (3,444 s WITH against 2,201 s
+WITHOUT), which is hundreds of times the work of this 5x repository. The reference-corpus tail and the plan regime are tracked in #7531; they are
+properties of the drift query (a generic plan is twice as slow in both arms) and
+are not attributed to this index. NOT_CHECKED:
+cold-cache execution (all runs here are warm; the seq-scan plan reads about 232k
+pages from cache against about 20k heap pages for the bitmap plan, so a
+disk-bound run could move either way), concurrency, and real band hashes.
 
 ### Limits of the shim
 
@@ -270,15 +327,18 @@ One reducer item needs its own mention. The queue tail is longer WITH because a
 single `code_drifted` item ran 3,443.8 s against 2,200.8 s WITHOUT; the longest
 such item in the earlier runs that logged it was 1,564 to 2,024 s. While it ran,
 `pg_stat_activity` showed the band self-join of `listCodeDriftedPairsQuery`,
-which joins on `(repo_id, band_no, band_hash)`. The shim above shows no plan in
-either arm touching the new index for that statement at the 5x repository's size
-(`r_de3355a0`, the heaviest repository, has 241,726 `upsert_fingerprints` rows
-here, the same scale), and the run cannot separate an index effect from host
-load (load average peaked at 73.8 WITH against 55.7 WITHOUT) or ordinary variance
-on one heavy repository. NOT_CHECKED: an `EXPLAIN` of that statement on the heavy
-repository with the index present and absent on production-shaped data (the
-ops-qa session this needed had expired), repeat runs, and a second WITHOUT run
-to bound the tail.
+which joins on `(repo_id, band_no, band_hash)`. On a vacuumed table the shim
+shows no plan in either arm touching the new index, but on a never-vacuumed
+table (the state after a bootstrap) the AFTER arm's plan does use it, at about
+the same warm cost on a 5x repository (see "Drift query on a never-vacuumed
+table"). The heaviest repository here (`r_de3355a0`, 241,726
+`upsert_fingerprints` rows) is the same scale, so this plan change does not by
+itself explain 3,444 s, and the run cannot separate an index effect from host
+load (load average peaked at 73.8 WITH against 55.7 WITHOUT) or ordinary
+variance on one heavy repository. NOT_CHECKED: the plan of that exact
+statement on the heavy repository inside the corpus run (that run did not log
+plans), an `EXPLAIN` on production data (the ops-qa session this needed had expired), repeat corpus
+runs, and a second WITHOUT run to bound the tail.
 
 ## Migration build strategy (acceptance 4)
 
