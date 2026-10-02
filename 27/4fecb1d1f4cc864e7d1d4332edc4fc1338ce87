@@ -1,0 +1,19 @@
+docs/internal/evidence/7419-generation-prune-generation-idx.md
+  s_9b6bb30511490e::t_994ea0ac7e9f82 107-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "274fecb1d1f4cc864e7d1d4332edc4fc1338ce87",
+  "prompts": {},
+  "sessions": {
+    "s_9b6bb30511490e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35219556-b5fe-469b-bf15-60d798ac1788",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+docs/internal/evidence/7419-generation-prune-generation-idx.md
+  s_9b6bb30511490e::t_e89fcde88ebf80 28-35,71-75,88-91,135-140,143,145,201
+go/internal/storage/postgres/migrations/156_graph_projection_phase_state_generation_idx.sql
+  s_9b6bb30511490e::t_f62e80f620aff3 14-16
+go/internal/storage/postgres/migrations/embed_invariant_test.go
+  s_9b6bb30511490e::t_ee040d62c06978 58
+go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go
+  s_9b6bb30511490e::t_601fcd81647252 208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4c0cab96dc2eb87cf5239fd688e8a8badba958b",
+  "prompts": {},
+  "sessions": {
+    "s_9b6bb30511490e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35219556-b5fe-469b-bf15-60d798ac1788",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
