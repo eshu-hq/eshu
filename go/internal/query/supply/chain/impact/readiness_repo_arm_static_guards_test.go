@@ -231,7 +231,7 @@ func TestReadinessGapAndLegacyReadsStayInsideTheMigrationIndexPredicate(t *testi
 
 	migration := collapseSQLSpace(legacyGapIndexMigrationSQL(t))
 
-	gapMatch := inListPattern.FindStringSubmatch(collapseSQLSpace(repoArmGapCTE(t)))
+	gapMatch := inListPattern.FindStringSubmatch(collapseProbeText(repoArmGapCTE(t)))
 	if gapMatch == nil {
 		t.Fatalf("package_dependency_gap_active lost its config_kind IN list")
 	}
@@ -247,7 +247,7 @@ func TestReadinessGapAndLegacyReadsStayInsideTheMigrationIndexPredicate(t *testi
 	}
 
 	const legacyPredicate = "payload->>'config_kind' = 'dependency'"
-	if !strings.Contains(collapseSQLSpace(readinessPackageManifestActiveCTE), "dependency."+legacyPredicate) {
+	if !strings.Contains(collapseProbeText(readinessPackageManifestActiveCTE), "dependency."+legacyPredicate) {
 		t.Errorf("legacy package_manifest_active arm lost %q", legacyPredicate)
 	}
 	if !strings.Contains(migration, legacyPredicate) {

@@ -157,9 +157,18 @@ from a sampled count over 45 scopes.
 | large, 21,824 rows | 226.2 ms warm, 147,139 buffers; first run cold 1,550 ms | 262.7 ms, 159,539 buffers | 255-328 ms, 0 generic plans |
 | 59,033 rows (extra) | 245.1 ms warm, 60,440 buffers; first run cold 375 ms | 241.4 ms, 72,877 buffers | 225-300 ms, 0 generic plans |
 
+These figures are not comparable with the 30 s timeouts of the HTTP calls
+earlier in this note: those are end-to-end API calls on the replica, while
+these are statement-level `EXPLAIN ... EXECUTE` timings with a warm cache and
+different start and end events. The closest statement-level before figures are
+the old text's 9.4 s on the warm primary and its run on the replica that the
+teammate's own 20 s `statement_timeout` cancelled (cache state not recorded).
+The figures here are also without migration 159.
+
 Reading it:
 
-- A forced generic plan cost 8% to 54% more buffers than the custom plan and
+- A forced generic plan cost 8% to 56% more buffers than the custom plan
+  (+56% small, +48% medium, +8% large, +21% for the 59k-row repository) and
   ran in the same wall-time class. The extra is about 12.4k buffers on every
   repository, so it follows the 819 active scopes and not the repository's
   size: the advisory and exploitability arms lose a cheap index path because
@@ -168,12 +177,15 @@ Reading it:
 - `plan_cache_mode = auto` never adopted the generic plan: `generic_plans` was
   0 after 8 executions on all four repositories. The generic plan's estimated
   cost (3,732.90) was above the custom average (2,671.65). An anchor where that
-  estimate flips was not tested.
+  estimate flips was not tested. pgx's binary parameter typing was not
+  exercised and could shift that cost comparison.
 - The ~1.07 M-buffer figure on the local corpus did not reproduce. On ops-qa
   the per-scope probes return 0 rows at about 5 buffers per scope; the local
-  figure is about 1,650 buffers per scope. This is an inference from the plan
-  nodes: the local corpus probably holds rows of those fact kinds in every
-  scope. The local corpus was not inspected for this.
+  figure is about 1,650 buffers per scope. The cause of the local figure is not
+  established. An earlier guess, that the local corpus holds rows of those fact
+  kinds in every scope, is contradicted by the seed, which inserts only
+  `content_entity` facts; the local per-scope cost may come from the tiny
+  corpus's statistics or plan choice, which was not investigated.
 - The largest cost on the large repository was the anchored-scope scan
   (`unsupported_target_rows` 67,674 buffers, `package_manifest_active` 63,248),
   which migration 159 targets, not the plan cache.
