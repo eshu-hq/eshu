@@ -26,7 +26,10 @@ generation, with a non-blank `provider_work_item_id` on both sides.
 - An issue with N links to R yields its record once and each transition once; the
   SQL carries the lowest qualifying link id as `linked_via_fact_id`, and the Go
   re-check (`support.JiraFactLinked`) accepts a derived row only with that
-  witness, a non-blank issue id and a record or transition kind.
+  witness, a non-blank issue id, a record or transition kind, and the stamped
+  `linked_via_repository` equal to the story's repository (the same check
+  `RoutingFactCorrelatedTo` makes for a PagerDuty row), so a row read for another
+  repository never counts.
 - An issue linked to R and R2 is evidence in both stories. Metadata kinds and
   `metadata_warning` stay source-only.
 - A service target applies the #7480 DEFINES gate to the derived rows unchanged:

@@ -346,7 +346,7 @@ func storySupportFactLinkedToRepository(fact map[string]any, repoID string) bool
 		return support.RoutingFactCorrelatedTo(fact, repoID)
 	}
 	if support.IsJiraIssueFact(StringVal(fact, "fact_kind")) {
-		return support.JiraFactLinked(fact)
+		return support.JiraFactLinked(fact, repoID)
 	}
 	if StringVal(fact, "fact_kind") != storySupportLinkFactKind {
 		return false

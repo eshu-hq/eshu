@@ -21,8 +21,8 @@
 // scope and active generation, a non-blank provider_work_item_id, and a link
 // whose linked_repository_id is the repository. JiraIssueLinkSQL renders the read
 // (records first, transitions only while the bound is unfilled, each row stamped
-// with the link it joined through), JiraFactLinked re-checks that witness in Go,
-// and LinkedIssuesSQL and LinkedIssuePredicate give the source-only count its
+// with the link it joined through and the repository that link names),
+// JiraFactLinked re-checks that witness and repository in Go, and LinkedIssuesSQL and LinkedIssuePredicate give the source-only count its
 // "issue linked to some repository" half. The second hop is served by migration
 // 155, keyed on the kind and the issue id.
 //

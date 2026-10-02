@@ -127,32 +127,39 @@ func TestLinkedIssuePredicateIsTwoValued(t *testing.T) {
 func TestJiraFactLinked(t *testing.T) {
 	t.Parallel()
 
-	row := func(kind, issueID, witness string) map[string]any {
+	const target = "repo-r"
+	row := func(kind, issueID, witness, linkedRepo string) map[string]any {
 		return map[string]any{
-			"fact_kind":          kind,
-			"payload":            map[string]any{"provider_work_item_id": issueID},
-			"linked_via_fact_id": witness,
+			"fact_kind":             kind,
+			"payload":               map[string]any{"provider_work_item_id": issueID},
+			"linked_via_fact_id":    witness,
+			"linked_via_repository": linkedRepo,
 		}
 	}
 	tests := []struct {
 		name string
 		fact map[string]any
+		repo string
 		want bool
 	}{
-		{"record with a witness", row(WorkItemRecordKind, "20001", "f-link"), true},
-		{"transition with a witness", row(WorkItemTransitionKind, "20001", "f-link"), true},
-		{"record without a witness", row(WorkItemRecordKind, "20001", ""), false},
-		{"record with a blank issue id", row(WorkItemRecordKind, "", "f-link"), false},
-		{"record with no payload", map[string]any{"fact_kind": WorkItemRecordKind, "linked_via_fact_id": "f-link"}, false},
-		{"external link is not a derived row", row(WorkItemExternalLinkKind, "20001", "f-link"), false},
-		{"metadata is never linked", row("work_item.project_metadata", "20001", "f-link"), false},
-		{"routing kind is not a Jira row", row(AppliedPagerDutyResourceKind, "20001", "f-link"), false},
+		{"record with a witness", row(WorkItemRecordKind, "20001", "f-link", target), target, true},
+		{"transition with a witness", row(WorkItemTransitionKind, "20001", "f-link", target), target, true},
+		{"target is trimmed like a story target", row(WorkItemRecordKind, "20001", "f-link", target), "  " + target + " ", true},
+		{"record without a witness", row(WorkItemRecordKind, "20001", "", target), target, false},
+		{"record with a blank issue id", row(WorkItemRecordKind, "", "f-link", target), target, false},
+		{"record with no payload", map[string]any{"fact_kind": WorkItemRecordKind, "linked_via_fact_id": "f-link", "linked_via_repository": target}, target, false},
+		{"witness link names another repository", row(WorkItemRecordKind, "20001", "f-link", "repo-other"), target, false},
+		{"witness link names no repository", row(WorkItemRecordKind, "20001", "f-link", ""), target, false},
+		{"blank target links nothing", row(WorkItemRecordKind, "20001", "f-link", ""), "  ", false},
+		{"external link is not a derived row", row(WorkItemExternalLinkKind, "20001", "f-link", target), target, false},
+		{"metadata is never linked", row("work_item.project_metadata", "20001", "f-link", target), target, false},
+		{"routing kind is not a Jira row", row(AppliedPagerDutyResourceKind, "20001", "f-link", target), target, false},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := JiraFactLinked(tt.fact); got != tt.want {
+			if got := JiraFactLinked(tt.fact, tt.repo); got != tt.want {
 				t.Fatalf("JiraFactLinked() = %v, want %v", got, tt.want)
 			}
 		})

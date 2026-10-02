@@ -21,6 +21,7 @@ func jiraDerivedFact(id, kind, issueID, witness, observedAt string) map[string]a
 	}
 	if witness != "" {
 		fact["linked_via_fact_id"] = witness
+		fact["linked_via_repository"] = writerLinkedRepoID
 	}
 	return fact
 }
@@ -28,11 +29,16 @@ func jiraDerivedFact(id, kind, issueID, witness, observedAt string) map[string]a
 func TestBuildStoryTargetSupportAttachesDerivedJiraRowsThroughTheirWitness(t *testing.T) {
 	t.Parallel()
 
+	otherRepoRow := jiraDerivedFact("rec-other-repo", support.WorkItemRecordKind, "20003", "link-x", "2026-09-30T12:00:00Z")
+	otherRepoRow["linked_via_repository"] = "repo-someone-else"
 	facts := []map[string]any{
 		writerLinkFact("link-r", writerLinkedRepoID),
 		jiraDerivedFact("rec", support.WorkItemRecordKind, "20001", "link-r", "2026-09-30T12:00:00Z"),
 		jiraDerivedFact("tr", support.WorkItemTransitionKind, "20001", "link-r", "2026-09-30T12:00:00Z"),
-		// Never evidence: no witness, a blank issue id, a kind the join does not derive.
+		// Never evidence: no witness, a witness link that names another repository
+		// (a row read for a different story), a blank issue id, a kind the join does
+		// not derive.
+		otherRepoRow,
 		jiraDerivedFact("rec-no-witness", support.WorkItemRecordKind, "20002", "", "2026-09-30T12:00:00Z"),
 		jiraDerivedFact("rec-blank-id", support.WorkItemRecordKind, "", "link-r", "2026-09-30T12:00:00Z"),
 		jiraDerivedFact("meta", "work_item.project_metadata", "20001", "link-r", "2026-09-30T12:00:00Z"),

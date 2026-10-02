@@ -54,7 +54,8 @@ func IssueKey(alias string) string {
 // transitions and a bounded section would otherwise hold only those. An issue
 // with several links to repositoryID yields each fact once, and an issue linked to
 // two repositories yields its facts for each. Every row carries linked_via_fact_id,
-// which JiraFactLinked re-checks.
+// and linked_via_repository, the repository that link names, which JiraFactLinked
+// re-checks.
 func JiraIssueLinkSQL(repositoryID string, limit int) (string, []any) {
 	if strings.TrimSpace(repositoryID) == "" {
 		return "", nil
@@ -122,7 +123,8 @@ SELECT jsonb_build_object(
     'source_record_id', ranked.source_record_id,
     'observed_at', ranked.observed_at,
     'payload', ranked.payload,
-    'linked_via_fact_id', ranked.link_fact_id
+    'linked_via_fact_id', ranked.link_fact_id,
+    'linked_via_repository', $1::text
 ) AS payload
 FROM (
   SELECT 1 AS kind_rank, records.* FROM records
@@ -191,16 +193,24 @@ func LinkedIssuePredicate() string {
 
 // JiraFactLinked re-checks in Go what JiraIssueLinkSQL selected on: fact is a
 // work_item.record or work_item.transition, it carries a non-blank
-// provider_work_item_id, and the SQL stamped the external link it joined through.
-// A row that fails any of these is never evidence, whatever reached it.
-func JiraFactLinked(fact map[string]any) bool {
+// provider_work_item_id, the SQL stamped the external link it joined through, and
+// that link names repositoryID (as RoutingFactCorrelatedTo does for a PagerDuty
+// row), so a row read for another repository never counts here. A row that fails
+// any of these is never evidence, whatever reached it.
+func JiraFactLinked(fact map[string]any, repositoryID string) bool {
+	repositoryID = strings.TrimSpace(repositoryID)
+	if repositoryID == "" {
+		return false
+	}
 	switch fact["fact_kind"] {
 	case WorkItemRecordKind, WorkItemTransitionKind:
 	default:
 		return false
 	}
 	payload, _ := fact["payload"].(map[string]any)
-	return text(payload, workItemIssueKey) != "" && text(fact, "linked_via_fact_id") != ""
+	return text(payload, workItemIssueKey) != "" &&
+		text(fact, "linked_via_fact_id") != "" &&
+		text(fact, "linked_via_repository") == repositoryID
 }
 
 // IsJiraIssueFact reports whether kind is one of the two Jira kinds this package
