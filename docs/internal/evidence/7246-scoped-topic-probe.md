@@ -29,8 +29,11 @@ heap rechecks and applied the repository predicate as a filter. Those two
 branches together accounted for 5,021.191 ms of the 5,933.388 ms execution.
 This identifies expensive branches; it does not establish a pure I/O cause.
 
-The candidate adds a singleton materialized term CTE inside each file branch
-and reads that term through a scalar subquery in the content-only predicate.
+For requests with a nonempty trimmed explicit repository ID, the candidate
+adds a singleton materialized term CTE inside each file branch and reads that
+term through a scalar subquery in the content-only predicate. Requests without
+an explicit repository ID retain the original SQL, including searches bounded
+by a repository grant list.
 The measured plans then intersected the repository and content indexes
 before heap rechecks. Path-first quotas, path exclusion, repository predicates,
 entity candidates, grouping, scoring, pagination, and truncation metadata
@@ -77,6 +80,31 @@ The direct client exited 0, acknowledged rollback, and finished in
 An earlier baseline comparison timed out at 8 seconds before its candidate
 started. That censored result is retained separately and is not a passing
 sample. The successful pairs do not replace it.
+
+## Compiled handler proof status
+
+The baseline and candidate compiled locally using Go 1.27.1 on Darwin arm64,
+with the production content reader, graph reader, impact handler, default
+code-surface backend, and production profile. The planned experiment used a
+synthetic scoped post-auth context granting only the fixed repository.
+Original caller headers, enforcement mode, and grant class were not retained;
+original authentication parity is **NOT_CHECKED**.
+
+The one-shot experiment stopped during its initial replica identity check,
+before graph connection or any handler request. Its direct exit was 1.
+The baseline did not start; both owned forwards were terminated. Total runtime,
+including setup and cleanup, was 4.082883 seconds within the 120-second bound.
+This is a failed setup, not a latency sample. No database or handler retry was
+performed. The helper retained the failing stage but not the driver cause, so
+the connection failure's root cause is **NOT_CHECKED**.
+
+Focused generated-SQL, explicit-repository language, grant-list language, and
+scoped grant/deny tests passed after the implementation. Source-template checks
+confirmed that unscoped branches match the original SQL and the explicit
+repository branch matches the measured shim after whitespace normalization.
+The final selected static run stopped at its five-minute bound with exit 143;
+completed cells passed, and the overall run and remaining cells are
+**NOT_CHECKED**. Compiled SQL/cache/handler evidence remains a publication hold.
 
 ## Limits and remaining acceptance
 
