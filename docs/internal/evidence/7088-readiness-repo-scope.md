@@ -154,8 +154,8 @@ from a sampled count over 45 scopes.
 | --- | --- | --- | --- |
 | small, 1,042 rows | 143.6 ms, 22,096 buffers | 109.1 ms, 34,496 buffers | 103-173 ms, 0 generic plans |
 | medium, 9,127 rows | 166.9 ms, 26,090 buffers | 112.5 ms, 38,490 buffers | 114-186 ms, 0 generic plans |
-| large, 21,824 rows | 226.2 ms warm, 147,139 buffers; first run cold 1,550 ms | 262.7 ms, 159,539 buffers | 255-328 ms, 0 generic plans |
-| 59,033 rows (extra) | 245.1 ms warm, 60,440 buffers; first run cold 375 ms | 241.4 ms, 72,877 buffers | 225-300 ms, 0 generic plans |
+| large, 21,824 rows | 226.2 ms warm, 147,139 buffers; first run 1,550 ms (cache state not controlled) | 262.7 ms, 159,539 buffers | 255-328 ms, 0 generic plans |
+| 59,033 rows (extra) | 245.1 ms warm, 60,440 buffers; first run 375 ms (cache state not controlled) | 241.4 ms, 72,877 buffers | 225-300 ms, 0 generic plans |
 
 These figures are not comparable with the 30 s timeouts of the HTTP calls
 earlier in this note: those are end-to-end API calls on the replica, while
@@ -192,9 +192,9 @@ Reading it:
 
 Limits: one run per cell for custom and generic, 8 for auto; warm replica
 cache, so these are not p50 or p95 latencies; the first run on the two larger
-repositories was cold and is shown separately; psql text-literal parameters,
-not pgx binary typing; CVE, package and digest anchors, a repository with dense
-advisory or consumption facts, the primary's plans and behaviour under
+repositories is shown separately and its cache state was not controlled; psql text-literal parameters,
+not pgx binary typing; CVE, package and digest anchors, a deployment whose
+per-scope probes are not index-bounded, the primary's plans and behaviour under
 concurrent load were not measured. This is not a measurement of the new index
 on ops-qa, and it does not replace the after-number the owner's deploy makes
 possible.
