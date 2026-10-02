@@ -115,8 +115,11 @@ There is a ref-only repository and an unknown repository.
 | Custom plan, whole statement | 238,642 shared buffers | 6,753 shared buffers |
 | Generic plan (`force_generic_plan`), dependency-variable reads | 204,290 shared buffers; arm 1 a full scan of `fact_records_active_package_dependency_entity_idx` (empty Index Cond); arm 2 654 loops | 588 shared buffers; same bounded shape as custom |
 
-Re-run at code/test commit `ddc43b5d7` (the last commit that changed Go or
-SQL; later commits are docs only) with `go test ./internal/query/supply/chain/impact -run 'RepoArm|PackageManifestRepoScope|ScanTier' -count=1 -v`
+Re-run at the commit titled "docs(postgres): state measured samples and the
+source_key precondition for the readiness repo arms (#7088)" (the last commit
+that touched the live proof, the query SQL or the migration; later commits
+change only the evidence note, the package README and the static-guard test
+helper, so the live proof and the SQL are unchanged since) with `go test ./internal/query/supply/chain/impact -run 'RepoArm|PackageManifestRepoScope|ScanTier' -count=1 -v`
 against a disposable PG 18.6 container: all tests PASS, exit 0. The custom
 plan reported dependency-scan buffers 588 and statement shared buffers 6,753;
 the generic plan reported 588 and 1,071,445. These equal the table values.
