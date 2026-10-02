@@ -145,3 +145,24 @@ func TestGetSemanticExtractionStatusRequestsSemanticOnlySelection(t *testing.T) 
 		t.Fatalf("truth = %+v, want current", envelope.Truth)
 	}
 }
+
+func TestRepositoryDetailAndListChooseDistinctStatusSelections(t *testing.T) {
+	reader := &selectionRecordingReader{snapshot: statuspkg.RawSnapshot{AsOf: time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)}}
+	h := &StatusHandler{StatusReader: reader}
+	mux := http.NewServeMux()
+	h.Mount(mux)
+	for _, route := range []string{"/api/v0/status/ingesters/repository", "/api/v0/ingesters/repository"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
+		if rec.Code != http.StatusOK || !reader.lastSelection.SkipTerraformStateEvidence {
+			t.Fatalf("detail %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
+		}
+	}
+	for _, route := range []string{"/api/v0/status/ingesters", "/api/v0/status/index", "/api/v0/status/pipeline"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
+		if rec.Code != http.StatusOK || reader.lastSelection.SkipTerraformStateEvidence {
+			t.Fatalf("non-detail %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
+		}
+	}
+}

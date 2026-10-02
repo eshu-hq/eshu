@@ -142,11 +142,50 @@ func TestReadStatusSnapshotFilteredRejectsInvalidModesBeforeSQL(t *testing.T) {
 		{Mode: "unknown"},
 		{Mode: statuspkg.SnapshotModeSemanticOnly, IncludeRegistryCollectors: true},
 		{Mode: statuspkg.SnapshotModeSemanticOnly, IncludeCollectorFactEvidence: true},
+		{Mode: statuspkg.SnapshotModeSemanticOnly, SkipTerraformStateEvidence: true},
 	} {
 		queryer := &recordingQueryer{}
 		_, err := NewStatusStore(queryer).ReadStatusSnapshotFiltered(context.Background(), time.Now(), selection)
 		if err == nil || len(queryer.queries) != 0 {
 			t.Fatalf("selection %+v: err=%v queries=%d; want fail closed before SQL", selection, err, len(queryer.queries))
 		}
+	}
+}
+
+func TestReadStatusSnapshotFilteredSkipsOnlyTerraformEvidence(t *testing.T) {
+	t.Parallel()
+	asOf := time.Date(2026, 6, 20, 9, 0, 0, 0, time.UTC)
+	skipped := &recordingQueryer{}
+	selection := statuspkg.SnapshotSelection{SkipTerraformStateEvidence: true}
+	if _, err := NewStatusStore(skipped).ReadStatusSnapshotFiltered(context.Background(), asOf, selection); err != nil {
+		t.Fatal(err)
+	}
+	normal := &recordingQueryer{}
+	if _, err := NewStatusStore(normal).ReadStatusSnapshotFiltered(context.Background(), asOf, statuspkg.SnapshotSelection{}); err != nil {
+		t.Fatal(err)
+	}
+	full := &recordingQueryer{}
+	if _, err := NewStatusStore(full).ReadStatusSnapshotFiltered(context.Background(), asOf, statuspkg.FullSnapshotSelection()); err != nil {
+		t.Fatal(err)
+	}
+	isTerraform := func(query string) bool {
+		return strings.Contains(query, "WITH ranked_generations AS") || strings.Contains(query, "WITH raw_warning_rows AS")
+	}
+	fullTerraform := 0
+	for _, query := range skipped.queries {
+		if isTerraform(query) {
+			t.Fatal("skipped selection issued Terraform evidence SQL")
+		}
+	}
+	for _, query := range full.queries {
+		if isTerraform(query) {
+			fullTerraform++
+		}
+	}
+	if fullTerraform != 2 {
+		t.Fatalf("full Terraform evidence statements = %d, want 2", fullTerraform)
+	}
+	if len(skipped.queries) != len(normal.queries)-2 {
+		t.Fatalf("skipped %d statements, normal %d; want only two Terraform statements removed", len(skipped.queries), len(normal.queries))
 	}
 }

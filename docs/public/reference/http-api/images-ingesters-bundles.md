@@ -62,6 +62,13 @@ The default ingester is `repository`. Status responses include identity,
 current status, active run ID, last attempt and success, next retry timing,
 repository progress counts, failure counts, and last error details.
 
+Repository detail (`GET /api/v0/status/ingesters/repository` and its legacy
+alias) reads queue, coordinator, scope activity, stage summaries, domain
+backlogs, and health from one status snapshot. It omits Terraform-state serial
+and warning evidence, which is not part of this detail response. Full pipeline
+and index status still read that evidence and surface its read failures. The
+`get_ingester_status` MCP tool uses the same detail route.
+
 The shipped public API does not include a per-ingester scan POST route. Use
 `POST /api/v0/admin/reindex` or deployment-managed ingestion.
 

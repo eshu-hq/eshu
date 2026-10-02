@@ -16,7 +16,8 @@ import (
 )
 
 type fakeMCPStatusReader struct {
-	snapshot statuspkg.RawSnapshot
+	snapshot  statuspkg.RawSnapshot
+	selection *statuspkg.SnapshotSelection
 }
 
 func (f fakeMCPStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
@@ -24,10 +25,13 @@ func (f fakeMCPStatusReader) ReadStatusSnapshot(context.Context, time.Time) (sta
 }
 
 func (f fakeMCPStatusReader) ReadStatusSnapshotFiltered(
-	context.Context,
-	time.Time,
-	statuspkg.SnapshotSelection,
+	_ context.Context,
+	_ time.Time,
+	selection statuspkg.SnapshotSelection,
 ) (statuspkg.RawSnapshot, error) {
+	if f.selection != nil {
+		*f.selection = selection
+	}
 	return f.snapshot, nil
 }
 

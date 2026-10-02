@@ -253,3 +253,49 @@ func statusReadOutcomes(t *testing.T, reader *sdkmetric.ManualReader) map[string
 	}
 	return outcomes
 }
+
+func TestSkippedTerraformStatusReadEmitsNoTerraformPhase(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	queryer := &stageCountingQueryer{}
+	store := NewInstrumentedStatusStore(queryer, instruments)
+	_, err = store.ReadStatusSnapshotFiltered(context.Background(), time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC), statuspkg.SnapshotSelection{SkipTerraformStateEvidence: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(queryer.summaries, "terraform_state") {
+		t.Fatal("skipped Terraform query carried telemetry label")
+	}
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatal(err)
+	}
+	active := uint64(0)
+	for _, scope := range collected.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name != "eshu_dp_status_snapshot_read_duration_seconds" {
+				continue
+			}
+			histogram, ok := metric.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("read metric type = %T", metric.Data)
+			}
+			for _, point := range histogram.DataPoints {
+				value, _ := point.Attributes.Value(attribute.Key("read"))
+				if value.AsString() == "terraform_state" {
+					t.Fatal("skipped Terraform read emitted duration metric")
+				}
+				if value.AsString() == "active_work_summary" {
+					active += point.Count
+				}
+			}
+		}
+	}
+	if active != 1 {
+		t.Fatalf("active work read metric count = %d, want 1", active)
+	}
+}
