@@ -83,6 +83,19 @@ var (
 	_ semanticEvidenceStore                      = (*ContentReader)(nil)
 )
 
+// The dead-code investigation looks these two narrow coverage ports up by type
+// assertion (codequery/deadcode/investigation_coverage.go) and falls back to the
+// full RepositoryCoverage -- the entity aggregate that reads about 1 GiB of heap
+// on a large repository (#7525) -- when either is missing. A fake-backed test
+// cannot see *ContentReader lose one of them, so these assertions fail `go build`
+// the moment a signature drift would silently route production back to the
+// expensive read. They sit in their own block so the 14 above keep their
+// alignment.
+var (
+	_ querycontract.RepositoryContextCoverageReadModelStore = (*ContentReader)(nil)
+	_ querycontract.RepositoryFilesIndexedAtReadModelStore  = (*ContentReader)(nil)
+)
+
 // EntityContent is one indexed entity and its content metadata.
 type EntityContent = querycontract.EntityContent
 

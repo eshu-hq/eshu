@@ -17,7 +17,8 @@ recent shipped work grouped by feature area.
   ([#7525](https://github.com/eshu-hq/eshu/issues/7525), part of
   [#7249](https://github.com/eshu-hq/eshu/issues/7249)). The coverage block
   counted every content entity of the repository on each call, about 135k heap
-  blocks on the largest repository sampled. It now uses the same narrow file
+  blocks on the largest repository sampled (measured on the QA replica before
+  this change; the after-latency is not measured). It now uses the same narrow file
   summary repository context uses plus one files `max(indexed_at)` read.
   `file_count` and `languages` are unchanged. The repository stats and coverage
   routes still report `entity_count`.
