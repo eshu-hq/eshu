@@ -19,6 +19,10 @@ No DDL, standalone `ANALYZE`, data mutation, or server setting change was made.
 
 ## Measured theory
 
+Performance Evidence: the bounded replica probes below establish the measured
+custom-plan SQL change and fixed-case candidate equality. They do not establish
+application cached-plan or endpoint p95 performance.
+
 The initial actual plan spent 5,554.564 ms in the file candidate probe.
 Two content branches used the global content trigram index, then performed
 heap rechecks and applied the repository predicate as a filter. Those two
@@ -75,6 +79,12 @@ started. That censored result is retained separately and is not a passing
 sample. The successful pairs do not replace it.
 
 ## Limits and remaining acceptance
+
+No-Observability-Change: the change preserves the existing
+`postgres.query` span, `investigate_code_topic` operation, candidate-cap and
+truncation attributes, HTTP route tracing, and response truth metadata.
+The existing spans identified the SQL bottleneck; no new public fields,
+metric labels, or telemetry transport are introduced.
 
 These are isolated SQL diagnostics on a changing replica corpus, with cache
 state uncontrolled. They are not cold measurements, a p95 distribution, a
