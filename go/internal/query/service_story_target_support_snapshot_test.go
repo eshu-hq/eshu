@@ -9,16 +9,24 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// snapshotTestTimeout bounds a snapshot test: a read that leaves the snapshot
+// asks the single-connection test store for a second connection and would wait
+// on it for as long as the package timeout, so the context turns that hang into
+// a prompt failure.
+const snapshotTestTimeout = 5 * time.Second
+
 // TestServiceStoryTargetSupportReadsOnOneSnapshot guards the #7463 review
-// finding: the link read, the PagerDuty routing read and the source-only summary
-// each filter on the active generation, so they must share one read-only
-// repeatable-read snapshot. A generation activated between autocommit reads
-// could otherwise put rows of two generations in one section.
+// finding: the link read, the PagerDuty routing read, the Jira record and
+// transition read (#7464) and the source-only summary each filter on the active
+// generation, so they must share one read-only repeatable-read snapshot. A
+// generation activated between autocommit reads could otherwise put rows of two
+// generations in one section.
 func TestServiceStoryTargetSupportReadsOnOneSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -34,6 +42,11 @@ func TestServiceStoryTargetSupportReadsOnOneSnapshot(t *testing.T) {
 			queryContains: []string{"reducer_incident_repository_correlation", "correlated.provider_service_id"},
 		},
 		{
+			columns:       []string{"payload"},
+			rows:          [][]driver.Value{},
+			queryContains: []string{"'work_item.record'", "provider_work_item_id", "linked_via_fact_id"},
+		},
+		{
 			columns:       []string{"support_source_only_count", "work_item_source_only_count", "incident_routing_source_only_count"},
 			rows:          [][]driver.Value{{int64(3), int64(2), int64(1)}},
 			queryContains: []string{"COUNT(*) AS support_source_only_count"},
@@ -42,11 +55,13 @@ func TestServiceStoryTargetSupportReadsOnOneSnapshot(t *testing.T) {
 	guard := &countedReadStore{ReadStore: postgres.NewSQLReadStore(sqlDB)}
 	reader := NewContentReaderWithReadStore(guard)
 
-	model, err := reader.ServiceStoryTargetSupportEvidence(context.Background(), serviceStoryTargetSupportFilter{
+	ctx, cancel := context.WithTimeout(context.Background(), snapshotTestTimeout)
+	defer cancel()
+	model, err := reader.ServiceStoryTargetSupportEvidence(ctx, serviceStoryTargetSupportFilter{
 		Repository: "repo-x", TargetKind: "repository", TargetID: "repo-x", Limit: 10,
 	})
 	if err != nil {
-		t.Fatalf("ServiceStoryTargetSupportEvidence() error = %v", err)
+		t.Fatalf("ServiceStoryTargetSupportEvidence() error = %v (a read that left the snapshot waits for a second connection until %s)", err, snapshotTestTimeout)
 	}
 	coverage := mapValue(model.Support, "coverage")
 	if got := IntVal(coverage, "source_only_count"); got != 3 {

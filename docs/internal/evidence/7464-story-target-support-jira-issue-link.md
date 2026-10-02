@@ -142,8 +142,10 @@ cd go && go test ./internal/storage/postgres/migrations ./internal/storage/postg
 ```
 
 Observability Evidence: the read keeps the `postgres.query` span (operation
-`list_service_story_target_support`), now covering up to three bounded statements,
-and the evidence rows carry `linked_via_fact_id`. The stage events already log
+`list_service_story_target_support`), now covering up to four bounded statements
+(the link read, the PagerDuty routing read, this record and transition read, and
+the source-only summary) on one read-only snapshot, and the evidence rows carry
+`linked_via_fact_id`. The stage events already log
 `target_support_evidence_count` and `target_support_ambiguous_count`; derived rows
 count in them. No collector, reducer queue, graph write, metric instrument or
 runtime flag changes.
