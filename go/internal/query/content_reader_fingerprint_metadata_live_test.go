@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -22,8 +23,9 @@ import (
 // then comes back through ContentReader on a search path and an entity-content
 // path. The API rows must carry the non-fingerprint metadata and none of
 // entity.FingerprintMetadataKeys(), while the same fingerprint stays present in the
-// code_function_fingerprint side table the divergence report reads. That is
-// the contract the strip rests on: removed from responses, kept in the store.
+// code_function_fingerprint side table the divergence report reads. Since
+// #7172 the keys are also absent from content_entities.metadata itself: the
+// side tables own fingerprint truth, the metadata column carries the rest.
 //
 // Run against a disposable Postgres: set
 // ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN (an administrative "postgres"-database
@@ -85,6 +87,7 @@ func TestContentReaderOmitsFingerprintKeysAfterStorageWriteLive(t *testing.T) {
 	}
 
 	assertStoreKeepsFingerprint(ctx, t, db, entityID)
+	assertContentEntitiesMetadataOmitsFingerprintKeys(ctx, t, db, entityID, docstr)
 
 	reader := NewContentReader(db)
 	searched, err := reader.SearchEntityContent(ctx, repoID, name, 5)
@@ -112,6 +115,34 @@ func TestContentReaderOmitsFingerprintKeysAfterStorageWriteLive(t *testing.T) {
 			if _, present := got[key]; present {
 				t.Errorf("%s metadata kept store-internal key %q", label, key)
 			}
+		}
+	}
+}
+
+// assertContentEntitiesMetadataOmitsFingerprintKeys proves the #7172 write
+// contract on the persisted row itself: content_entities.metadata carries the
+// non-fingerprint metadata and none of the five fingerprint keys (the side
+// tables own that truth), so the response strip is not the only thing keeping
+// fingerprints out of the metadata column.
+func assertContentEntitiesMetadataOmitsFingerprintKeys(ctx context.Context, t *testing.T, db *sql.DB, entityID, docstr string) {
+	t.Helper()
+	var raw []byte
+	err := db.QueryRowContext(ctx,
+		`SELECT metadata FROM content_entities WHERE entity_id = $1`, entityID,
+	).Scan(&raw)
+	if err != nil {
+		t.Fatalf("read content_entities.metadata: %v", err)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(raw, &metadata); err != nil {
+		t.Fatalf("decode content_entities.metadata: %v", err)
+	}
+	if metadata["docstring"] != docstr {
+		t.Errorf("content_entities.metadata = %#v, want docstring %q kept", metadata, docstr)
+	}
+	for _, key := range entitycontract.FingerprintMetadataKeys() {
+		if _, present := metadata[key]; present {
+			t.Errorf("content_entities.metadata kept store-internal key %q", key)
 		}
 	}
 }

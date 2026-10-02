@@ -50,3 +50,43 @@ func TestFingerprintRowReadsEveryMetadataKey(t *testing.T) {
 		}
 	}
 }
+
+// TestPersistedEntityMetadataStripsFingerprintKeys pins the #7172 write
+// contract: the metadata map persisted to content_entities carries no parser
+// fingerprint keys (side tables own that truth), while every other entry
+// survives and the caller's map is never mutated (the same map still feeds
+// the side-table fan-out).
+func TestPersistedEntityMetadataStripsFingerprintKeys(t *testing.T) {
+	t.Parallel()
+
+	full := map[string]any{
+		"docstring":               "Handles the request.",
+		fingerprint.KeyExact:      "abc",
+		fingerprint.KeyRenamed:    "def",
+		fingerprint.KeySketch:     "00ff",
+		fingerprint.KeyShingles:   fingerprint.EncodeShingles([]uint64{7, 42}),
+		fingerprint.KeyTokenCount: 77,
+	}
+	got := persistedEntityMetadata(full)
+	for _, key := range entitycontract.FingerprintMetadataKeys() {
+		if _, present := got[key]; present {
+			t.Errorf("persisted metadata kept store-internal key %q", key)
+		}
+	}
+	if got["docstring"] != "Handles the request." {
+		t.Errorf("persisted metadata = %#v, want non-fingerprint entries kept", got)
+	}
+	if len(full) != 6 {
+		t.Errorf("persistedEntityMetadata mutated its input: %#v", full)
+	}
+	if out := persistedEntityMetadata(nil); out != nil {
+		t.Errorf("persistedEntityMetadata(nil) = %#v, want nil", out)
+	}
+	if out := persistedEntityMetadata(map[string]any{}); len(out) != 0 {
+		t.Errorf("persistedEntityMetadata(empty) = %#v, want empty", out)
+	}
+	plain := map[string]any{"docstring": "Handles the request.", "lang": "go"}
+	if out := persistedEntityMetadata(plain); !reflect.DeepEqual(out, plain) {
+		t.Errorf("persistedEntityMetadata(plain) = %#v, want entries kept", out)
+	}
+}

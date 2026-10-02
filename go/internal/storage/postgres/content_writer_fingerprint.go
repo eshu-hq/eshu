@@ -33,6 +33,52 @@ type preparedFingerprintRow struct {
 	hasFingerprint bool
 }
 
+// persistedEntityMetadata returns the entity-metadata copy written to
+// content_entities: every parser fingerprint key removed, everything else
+// kept (#7172). The fingerprint side tables are derived from the in-memory
+// metadata before persisting, and no store reader consumes the
+// metadata-column copy (responses strip it per #7167, grouping reads the
+// side tables), so the keys only bloat the column: 39% of metadata bytes
+// for exact-only entities and 94-99% for full tiers by pg_column_size on
+// production-encoded payloads. The input map is never mutated, so callers
+// keep deriving side-table rows from the same map they pass here.
+func persistedEntityMetadata(metadata map[string]any) map[string]any {
+	if metadata == nil {
+		return nil
+	}
+	// Fast path for the common plain-entity case: no copy when none of
+	// the keys are present. Returning the input is safe because both
+	// consumers only read it (metadataJSON marshals, the side-table
+	// derivation reads).
+	present := false
+	for key := range metadata {
+		switch key {
+		case fingerprint.KeyExact,
+			fingerprint.KeyRenamed,
+			fingerprint.KeySketch,
+			fingerprint.KeyShingles,
+			fingerprint.KeyTokenCount:
+			present = true
+		}
+	}
+	if !present {
+		return metadata
+	}
+	kept := make(map[string]any, len(metadata))
+	for key, value := range metadata {
+		switch key {
+		case fingerprint.KeyExact,
+			fingerprint.KeyRenamed,
+			fingerprint.KeySketch,
+			fingerprint.KeyShingles,
+			fingerprint.KeyTokenCount:
+			continue
+		}
+		kept[key] = value
+	}
+	return kept
+}
+
 // fingerprintRowFromMetadata extracts the #6835 fingerprint side-table row
 // from entity metadata. It returns hasFingerprint=false when the entity
 // carries no complete fingerprint (absent means "not fingerprinted", never
