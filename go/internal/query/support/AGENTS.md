@@ -35,7 +35,9 @@ the repository gate, and the evidence shaping, in
   generation, a non-blank `provider_work_item_id` on both sides, and a link whose
   `linked_repository_id` is the repository. Never join on `work_item_key`, across
   scopes or generations, or on a project-to-repository guess. A derived row is
-  evidence only with its `linked_via_fact_id` witness and a non-blank issue id.
+  evidence only with its `linked_via_fact_id` witness, a non-blank issue id, and
+  the stamped `linked_via_repository` equal to the story's repository; keep all
+  three in `JiraFactLinked`.
 - The Jira statement keeps its three `OFFSET 0` fences, its `MATERIALIZED`
   expressions and the one-time gate on the transitions, and the key and kind
   literals identical to migration 155. The linked-issue predicate is read under
