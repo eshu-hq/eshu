@@ -101,6 +101,65 @@ restored healthy. Temporary API containers and volumes were removed; the
 preserved database volumes were retained. Earlier attempts with a path error
 and an out-of-bound control sample were rejected rather than counted.
 
+## Current-source fixed-corpus endpoint comparison, 2026-10-02
+
+The accepted private artifact is `7033-exact-20261002-ab-1459`. An
+API-only Dockerfile built baseline `abc6d3c7b4cac6ebe05907c047741f1dbefc86f6`
+and current candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`
+with the same pinned Go toolchain and runtime image
+`sha256:b5ce6d52b6a9e2f0456dfa6c73612ddebef8da9ad7a02070efe5ee5b0bd6a136`.
+The resulting API images were
+`sha256:376237e32cf542e3512224919c1af1560a9096066a8cf3bd09495ce69cf3d3c6`
+and
+`sha256:f711f1ac094619a9f344f9f277412d2ae19206a84c41d853b808aceab76e4b29`.
+Both used the same preserved PostgreSQL 18/Neo4j stack, identical connection
+settings, an eight-connection total pool with four readers, and isolated
+loopback-only API containers. Source and the recorded single-host/four-reader
+configuration imply the candidate's four-partition shared-snapshot path for
+this 16-term request; no trace export directly captured the execution-mode
+attribute. This is an exact-source relative result on a test stack, not an
+ops-qa run.
+
+Two warmups per variant preceded two eight-request baseline control sets.
+Their medians were 0.775120 and 0.772025 s; the frozen maximum-sample
+control bound was 0.878257 s. Eight alternating ABBA rounds then produced
+16 timed full-body HTTP requests per variant:
+
+| Source | Median | Nearest-rank p95 |
+| --- | ---: | ---: |
+| Baseline | 0.765572 s | 0.778206 s |
+| Candidate | 0.464944 s | 0.473124 s |
+
+The median saving was **0.300628 s (39.27%)**. All 52 warmup, control,
+and ABBA requests returned HTTP 200 with `count=25`,
+`candidate_pool_truncated=true`, and one full canonical JSON SHA-256
+`095bfc68e8251d24b6a684901263dd5d69b8c9c55b9203cccaed5b7dde7c3e88`.
+The content-entity row-version, content-file row-version, and content-index
+catalog/state SHA-256s were identical before and after the timed window:
+
+```text
+entities 65bfccb02802b68710b1945ddba8505ed58ffd3cc7042ac83df0ac9c1476ebf6
+files    c7740414bf9b0ee0827b361c5b3a645dfa47368346c667720ed6f65e55ed3cb2
+indexes  58b4e9db18a383c1c33845db9a7b48f2418c5b998066fab1e02b1079fcec66b3
+```
+
+The maximum sampled host load was 2.97 on 16 logical CPUs, below the
+half-CPU invalidation threshold. Candidate API memory reached 35.71 MiB
+versus 15.65 MiB for baseline in the sampled series; both had a 2 GiB
+limit. This is a roughly 20 MiB sampled increase, not a no-memory-cost
+claim. No resource sampler invalidation occurred.
+
+Both API `/healthz` probes passed. Both `/readyz` probes returned the
+same HTTP 503 solely because the preserved test database lacks the receipt
+for migration 155, a story-support index on `fact_records` unrelated to
+the measured content tables. A temporary SELECT/EXECUTE-only role denied
+one best-effort bootstrap audit INSERT (SQLSTATE 42501) per container before
+timing; no bootstrap audit row persisted, and no later store error appeared.
+The containers, role, and temporary images were removed; PostgreSQL and
+Neo4j remained healthy. Thus this result proves neither rollout readiness
+nor audit integrity, and it does not establish the deployed ops-qa
+`<1 s` budget.
+
 ## Deployed ops-qa endpoint-only diagnostic, 2026-10-02
 
 Performance Evidence: an isolated two-container Pod compared baseline
@@ -150,15 +209,12 @@ multi-host parallel performance claim.
 
 NOT_CHECKED for the exact rebased guarded-reader candidate on the deployed
 topology. This branch is based on
-`abc6d3c7b4cac6ebe05907c047741f1dbefc86f6`; its final candidate SHA
-will be recorded with the reviewed build and comparison. The current source
-includes migration 155. Ops-qa's migration ledger was last observed at 152 on
-2026-10-02; this record does not establish a later ledger state. A subsequent
-exact-source attempt on 2026-10-02 aborted during full storage-digest/cleanup
-validation and yielded no accepted endpoint timing evidence. A valid exact
-source run still needs a completed interleaved comparison, full-response
-parity, content- and index-specific storage proof, resource evidence, and
-verified teardown. The owner approved using an exact-source fixed-corpus
-remote comparison for the merge measurement, with the deployed ops-qa `<1 s`
-check tracked separately. Do not claim the deployed budget from the remote
-result or open the #7033 PR on this record alone.
+`abc6d3c7b4cac6ebe05907c047741f1dbefc86f6`; the exact current-source
+relative comparison is recorded above. The current source includes migration
+155. Ops-qa's migration ledger was last observed at 152 on 2026-10-02;
+this record does not establish a later ledger state. An earlier exact-source
+attempt on 2026-10-02 aborted during storage-digest/cleanup validation and
+yielded no accepted endpoint timing evidence. The owner approved using the
+fixed-corpus remote comparison for the merge measurement, with the deployed
+ops-qa `<1 s` check tracked separately in #7516. Do not claim the deployed
+budget from this remote result.
