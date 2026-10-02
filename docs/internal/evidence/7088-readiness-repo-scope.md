@@ -27,8 +27,9 @@ and the gap read use migration 159's new
 `fact_records_content_entity_dependency_legacy_gap_repo_idx`, on
 `((payload->>'repo_id'), scope_id, generation_id)` with a partial predicate
 equal to those two readers' predicates joined by OR. The former
-`$11 = '' OR` escape is removed. It was unreachable, because an empty `$11`
-always comes with a target anchor that sets `$20`, and that skips the CTE.
+`$11 = '' OR` escape is removed. By code reading it was unreachable: every
+consumer of the CTE requires a non-empty `$11` or `NOT $20`, and an empty `$11`
+arrives with a target anchor that sets `$20`.
 
 Rejected shapes, measured on a scratch corpus of the same shape (803 scopes,
 the target with 16 superseded generations):
@@ -48,8 +49,9 @@ the target with 16 superseded generations):
 
 ## Measurements
 
-Performance Evidence: Ops-qa figures were measured on ops-qa by a teammate on
-2026-10-02, on PG 18.3, using read-only EXPLAIN (ANALYZE, BUFFERS):
+Performance Evidence: The ops-qa figures below were reported by a teammate who
+ran read-only EXPLAIN (ANALYZE, BUFFERS) on ops-qa, PG 18.3, on 2026-10-02.
+They were not re-measured for this note:
 
 - Base statement: ~9.4 s on the warm primary and over 30 s on the cold read
   replica (cancelled). About 97% of its buffers went to arm 2, which probed
@@ -62,7 +64,8 @@ Performance Evidence: Ops-qa figures were measured on ops-qa by a teammate on
   repositories with 10k+ rows, they took 3.5-8.3 s, and the remaining cost was
   arm 2 and the gap read scanning the one active scope.
 - With the `$11 = '' OR` escape kept, the statement timed out at 20 s under
-  `force_generic_plan`. Without it, the arms ran in 79-191 ms.
+  `force_generic_plan`. Without it, the three dependency-variable arms ran in
+  79-191 ms. That figure covers those arms only, not the whole statement.
 
 Local figures were measured by this change on 2026-10-02, against a disposable
 `postgres:18-alpine` with the real bootstrap applied. The corpus is the one in
@@ -83,16 +86,19 @@ The whole statement under the forced generic plan stays near 1.07M buffers
 (1.30M before). That cost is in other CTEs (`package_consumption_correlation_active`
 and the advisory family), which filter on `fact_kind = ANY($n)` and, on this
 corpus, probe every active scope under a generic plan. #7088 does not change
-them. The ops-qa generic-plan measurement above (79-191 ms without the
-escape) suggests they are not a problem on that corpus. This is recorded as an
-observation, not a claim.
+them.
+
+NOT_CHECKED: the whole-statement cost under a generic plan on ops-qa. The
+79-191 ms ops-qa figure above is an arm-level measurement of the three
+dependency-variable reads only, so it says nothing about those other CTEs. This
+change does not claim the replica timeout is gone under a generic plan.
 
 The new index on the local corpus is 98,304 bytes, covering 1,621 of 281,816
 `fact_records` rows. The seed deliberately puts one legacy and one gap row in
 each of the 650 noise scopes. Migration 121's index is 245,760 bytes over
 10,162 rows. On ops-qa the arm-2 predicate matches 0 rows and the gap
-predicate matches 17 (teammate measurement), so the index is expected to be a
-page or two. Write tax: only rows that satisfy the predicate pay index
+predicate matches 17 (teammate measurement), so the index is expected, not
+measured, to be a page or two. Write tax: only rows that satisfy the predicate pay index
 maintenance. Every git content_entity insert or update pays the partial
 predicate evaluation (a few JSONB extractions). No insert benchmark was run:
 NOT_CHECKED.
@@ -122,9 +128,23 @@ existing statement.
 - It repeats the comparison for 7 EXECUTEs of a SQL-level prepared statement
   under `plan_cache_mode = force_generic_plan`.
 
-The RED run (commit 4c405e8e2) used the origin/main SQL and schema. It failed
+The RED run (the regression-test commit that precedes the fix in this PR) used the origin/main SQL and schema. It failed
 only on plan shape: 654 loops, the missing index, and generation not in the
 Index Cond. Its row comparison and counts passed.
+
+The live test is scheduled-class and no CI workflow runs it. The CI-run guards
+in `readiness_repo_arm_static_guards_test.go` pin the three `OFFSET 0` fences,
+the `scope.source_key = $11` anchors, the absent `$11 = '' OR` escape, and the
+equality of the gap `IN` list and the legacy `config_kind` predicate with the
+embedded migration's index predicate. Each was shown RED by temporarily
+mutating the production constant or the migration SQL, and GREEN on the clean
+tree.
+
+The scan-tier live proofs (`readiness_scan_tier_explain_live_test.go`) bound 16
+arguments to the 20-parameter statement and failed on main with `expected 20
+arguments, got 16`. They now bind all 20 through `readinessArgsForQuery`, which
+takes `$17`-`$20` from `readinessTargetArguments`, and pass against a
+disposable PG 18.
 
 Commands:
 

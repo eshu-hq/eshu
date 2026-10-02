@@ -213,7 +213,12 @@ only their package qualifier changed).
   through `scope_id = 'git-repository-scope:' || $11`: that drops
   `repository_ref` scopes. Keep the gap `IN` list textually identical to
   migration 159's predicate, or the planner cannot prove the implication.
-  Proof: `TestSupplyChainImpactReadinessRepoArmScopeLive`; evidence:
+  Proof: `TestSupplyChainImpactReadinessRepoArmScopeLive` (scheduled, not run
+  in CI) and the CI-run static guards in
+  `readiness_repo_arm_static_guards_test.go`, which pin the three `OFFSET 0`
+  fences, the `scope.source_key = $11` anchors, the absent `$11 = '' OR`
+  escape, and the match between both readers' predicates and the embedded
+  migration's index predicate; evidence:
   `docs/internal/evidence/7088-readiness-repo-scope.md`.
 - Image-reference targets batch the current digest set and active registry identity
   lookups. SBOM component counts join each active component to its active
