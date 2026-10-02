@@ -20,6 +20,16 @@ import (
 
 const (
 	defaultGenerationRetentionPollInterval = time.Hour
+
+	// defaultGenerationRetentionSkippedRetryBaseInterval is the first retry
+	// delay after a pass that found candidates but pruned none (#7398). A
+	// skipped-only backlog is usually transiently blocked (a batch over the
+	// row limit that a later pass admits, or a scope whose lock frees), so
+	// retrying at poll cadence leaves it standing a full interval. The delay
+	// doubles per consecutive skipped-only pass and is capped at the poll
+	// interval, so a permanently-blocked backlog converges back to the
+	// configured cadence instead of retrying hot forever.
+	defaultGenerationRetentionSkippedRetryBaseInterval = time.Minute
 )
 
 // GenerationRetentionPolicy bounds automated cleanup of superseded source
@@ -102,12 +112,16 @@ type GenerationRetentionRunner struct {
 	Logger      *slog.Logger
 }
 
-// Run drains eligible retention batches until the context is cancelled.
+// Run drains eligible retention batches until the context is cancelled. A
+// pass that prunes drains immediately into the next pass; a pass that finds
+// nothing sleeps the full poll interval; a pass that finds candidates but
+// prunes none retries soon with backoff bounded by the poll interval (#7398).
 func (r *GenerationRetentionRunner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
 
+	consecutiveSkipped := 0
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -115,6 +129,7 @@ func (r *GenerationRetentionRunner) Run(ctx context.Context) error {
 
 		result, err := r.RunOnce(ctx)
 		if err != nil {
+			consecutiveSkipped = 0
 			r.recordFailure(ctx, err)
 			if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
 				if generationRetentionContextDone(ctx, waitErr) {
@@ -125,8 +140,29 @@ func (r *GenerationRetentionRunner) Run(ctx context.Context) error {
 			continue
 		}
 		if result.GenerationsPruned > 0 {
+			consecutiveSkipped = 0
 			continue
 		}
+		if generationRetentionSkippedTotal(result.Skipped) > 0 {
+			// Candidates exist but none was pruned: the backlog is only
+			// temporarily blocked, so retry soon with a bounded backoff
+			// rather than sleeping a full poll interval.
+			consecutiveSkipped++
+			waitFor := generationRetentionSkippedRetryInterval(r.Config.pollInterval(), consecutiveSkipped)
+			if waitErr := r.wait(ctx, waitFor); waitErr != nil {
+				if generationRetentionContextDone(ctx, waitErr) {
+					return nil
+				}
+				return fmt.Errorf("wait for generation retention skipped retry: %w", waitErr)
+			}
+			continue
+		}
+		// No prunable candidates and none skipped. Lock-held candidates are
+		// invisible here by design: the candidate SELECT takes its locks
+		// with SKIP LOCKED, so a pass starved by locks reports no skips and
+		// keeps this full sleep. The lock holder is making progress on those
+		// rows, and the next poll sees whatever it left behind.
+		consecutiveSkipped = 0
 		if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
 			if generationRetentionContextDone(ctx, waitErr) {
 				return nil
@@ -284,6 +320,28 @@ func generationRetentionRowsPrunedTotal(rows map[string]int64) int64 {
 		total += count
 	}
 	return total
+}
+
+// generationRetentionSkippedRetryInterval returns the retry delay after
+// consecutiveSkipped consecutive skipped-only passes: the base interval
+// doubling per pass, capped at the poll interval (#7398). The cap keeps a
+// permanently-blocked backlog on the configured cadence, and it keeps a
+// shorter-than-base poll interval unchanged.
+func generationRetentionSkippedRetryInterval(poll time.Duration, consecutiveSkipped int) time.Duration {
+	wait := defaultGenerationRetentionSkippedRetryBaseInterval
+	if wait <= 0 {
+		return poll
+	}
+	for i := 1; i < consecutiveSkipped; i++ {
+		wait *= 2
+		if wait <= 0 || wait >= poll {
+			return poll
+		}
+	}
+	if wait > poll {
+		return poll
+	}
+	return wait
 }
 
 func generationRetentionSkippedTotal(skipped map[string]int) int {

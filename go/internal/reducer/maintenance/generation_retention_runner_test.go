@@ -53,6 +53,121 @@ func TestGenerationRetentionRunnerDrainsUntilEmpty(t *testing.T) {
 	require.Equal(t, "test-policy", pruner.policies[0].PolicyRevision)
 }
 
+// TestGenerationRetentionRunnerRetriesSoonAfterSkippedPass pins the #7398
+// cadence: a pass that prunes nothing but reports skipped candidates retries
+// soon instead of sleeping the full poll interval, while a truly empty pass
+// keeps the full sleep.
+func TestGenerationRetentionRunnerRetriesSoonAfterSkippedPass(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pruner := &fakeGenerationRetentionPruner{
+		results: []GenerationRetentionResult{
+			{RowsPruned: map[string]int64{}, Skipped: map[string]int{"row_limit": 2}},
+			{RowsPruned: map[string]int64{}},
+		},
+	}
+	var waits []time.Duration
+	runner := &GenerationRetentionRunner{
+		Pruner: pruner,
+		Config: GenerationRetentionRunnerConfig{PollInterval: time.Hour},
+		Wait: func(_ context.Context, d time.Duration) error {
+			waits = append(waits, d)
+			if len(waits) == 2 {
+				cancel()
+				return context.Canceled
+			}
+			return nil
+		},
+	}
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, pruner.callCount())
+	require.Equal(t, []time.Duration{defaultGenerationRetentionSkippedRetryBaseInterval, time.Hour}, waits)
+}
+
+// TestGenerationRetentionRunnerSkippedRetryBacksOffToPollInterval pins the
+// #7398 bound: consecutive skipped-only passes double the retry delay up to
+// the poll interval, so a permanently-blocked backlog converges back to the
+// configured cadence instead of retrying hot forever.
+func TestGenerationRetentionRunnerSkippedRetryBacksOffToPollInterval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	results := make([]GenerationRetentionResult, 10)
+	for i := range results {
+		results[i] = GenerationRetentionResult{
+			RowsPruned: map[string]int64{},
+			Skipped:    map[string]int{"row_limit": 1},
+		}
+	}
+	pruner := &fakeGenerationRetentionPruner{results: results}
+	var waits []time.Duration
+	runner := &GenerationRetentionRunner{
+		Pruner: pruner,
+		Config: GenerationRetentionRunnerConfig{PollInterval: time.Hour},
+		Wait: func(_ context.Context, d time.Duration) error {
+			waits = append(waits, d)
+			if len(waits) == 8 {
+				cancel()
+				return context.Canceled
+			}
+			return nil
+		},
+	}
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, 8, pruner.callCount())
+	require.Equal(t, []time.Duration{
+		time.Minute, 2 * time.Minute, 4 * time.Minute, 8 * time.Minute,
+		16 * time.Minute, 32 * time.Minute, time.Hour, time.Hour,
+	}, waits)
+	for _, wait := range waits {
+		require.LessOrEqual(t, wait, time.Hour)
+	}
+}
+
+// TestGenerationRetentionRunnerSkippedBackoffResetsAfterPrune pins the #7398
+// reset: a pass that prunes clears the skipped streak, so the next
+// skipped-only pass retries at the base interval again.
+func TestGenerationRetentionRunnerSkippedBackoffResetsAfterPrune(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pruner := &fakeGenerationRetentionPruner{
+		results: []GenerationRetentionResult{
+			{RowsPruned: map[string]int64{}, Skipped: map[string]int{"row_limit": 2}},
+			{GenerationsPruned: 1, RowsPruned: map[string]int64{"scope_generations": 1}},
+			{RowsPruned: map[string]int64{}, Skipped: map[string]int{"row_limit": 2}},
+			{RowsPruned: map[string]int64{}},
+		},
+	}
+	var waits []time.Duration
+	runner := &GenerationRetentionRunner{
+		Pruner: pruner,
+		Config: GenerationRetentionRunnerConfig{PollInterval: time.Hour},
+		Wait: func(_ context.Context, d time.Duration) error {
+			waits = append(waits, d)
+			if len(waits) == 3 {
+				cancel()
+				return context.Canceled
+			}
+			return nil
+		},
+	}
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, 4, pruner.callCount())
+	require.Equal(t, []time.Duration{
+		defaultGenerationRetentionSkippedRetryBaseInterval,
+		defaultGenerationRetentionSkippedRetryBaseInterval,
+		time.Hour,
+	}, waits)
+}
+
 func TestGenerationRetentionRunnerValidation(t *testing.T) {
 	runner := &GenerationRetentionRunner{}
 
