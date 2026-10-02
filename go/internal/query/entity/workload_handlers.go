@@ -31,6 +31,11 @@ func (h *Handler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	evidenceDetail, ok := readContextEvidenceDetail(w, r)
+	if !ok {
+		return
+	}
+
 	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
@@ -61,7 +66,9 @@ func (h *Handler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
 
 	ctx["result_limits"] = querycontract.WorkloadContextResultLimits(ctx, workloadID, "context")
 	ctx["partial_reasons"] = querycontract.ContextPartialReasons(ctx)
-	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, workloadContextTruthEnvelope(h.profile(), "context"))
+	truth := workloadContextTruthEnvelope(h.profile(), "context")
+	truth.Omissions = querycontract.ApplyContextEvidenceDetail(ctx, evidenceDetail)
+	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, truth)
 }
 
 // GetWorkloadStory retrieves a narrative summary for a workload. Exported so the staying contract endpoint test keeps driving the handler; see #6060. The response

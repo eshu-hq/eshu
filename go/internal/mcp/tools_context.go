@@ -71,6 +71,11 @@ func entityWorkloadContextTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional environment context",
 					},
+					"evidence_detail": map[string]any{
+						"type":        "string",
+						"enum":        []string{"full", "handles"},
+						"description": "Row detail for deployment evidence artifacts and API surface endpoints. handles (the default for this tool) returns identity rows only (id, relationship_type, resolved_id for artifacts; id, path, methods for endpoints), drops the evidence_index and the content-derived evidence lists (deployment_artifacts, delivery_paths, topology_story and similar), keeps every count, and names each reduced family with its total in truth.omissions; repeat the call with full for the rows. full returns every row in full and can exceed the response budget on a populated service.",
+					},
 				},
 				"required": []string{"workload_id"},
 			},

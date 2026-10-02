@@ -82,6 +82,14 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	hostnameTotal, hostTrunc := capRows(ctx, "hostnames", "hostnames_truncated")
 	entrypointTotal, entryTrunc := capRows(ctx, "entrypoints", "entrypoints_truncated")
 	networkPathTotal, pathTrunc := capRows(ctx, "network_paths", "network_paths_truncated")
+	// The API surface endpoint rows and the deployment-evidence row lists get
+	// the same treatment so the response stays inside the MCP budget (#7129).
+	// The story surface emits neither, so it only reports the artifact total.
+	artifactTotal := len(MapSliceValue(MapValue(ctx, "deployment_evidence"), "artifacts"))
+	var budgetTrunc bool
+	if surface != "story" {
+		artifactTotal, budgetTrunc = capContextBudgetRows(ctx)
+	}
 	// #5720 PR #5933 review fix (Codex, query_enrichment.go:190):
 	// dependents_truncated, consumer_repositories_truncated, and
 	// provisioning_source_chains_truncated are set on ctx whenever the
@@ -111,7 +119,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 		BoolVal(ctx, "consumer_repositories_truncated") ||
 		BoolVal(ctx, "provisioning_source_chains_truncated") ||
 		slices.Contains(StringSliceVal(ctx, "limitations"), "infrastructure_truncated")
-	truncated := instTrunc || depTrunc || conTrunc || hostTrunc || entryTrunc || pathTrunc || upstreamTruncated
+	truncated := instTrunc || depTrunc || conTrunc || hostTrunc || entryTrunc || pathTrunc || budgetTrunc || upstreamTruncated
 	drilldownTool := "get_workload_story"
 	if surface == "story" {
 		drilldownTool = "get_workload_context"
@@ -125,6 +133,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 		"hostname_count":     hostnameTotal,
 		"entrypoint_count":   entrypointTotal,
 		"network_path_count": networkPathTotal,
+		"artifact_count":     artifactTotal,
 		"truncated":          truncated,
 		"drilldown_basis":    "resolved_id",
 		"relationship_tool":  "get_relationship_evidence",

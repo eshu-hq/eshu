@@ -250,9 +250,14 @@ func resolveRoute(toolName string, args map[string]any) (*routecontract.Request,
 
 	// ── Entities ──
 	case "get_workload_context":
-		q := map[string]string{}
+		q := map[string]string{"evidence_detail": "handles"}
 		if env := str(args, "environment"); env != "" {
 			q["environment"] = env
+		}
+		// #7129: handles keeps a populated service inside the response budget;
+		// an explicit value wins, and the handler rejects an unknown one.
+		if detail := str(args, "evidence_detail"); detail != "" {
+			q["evidence_detail"] = detail
 		}
 		return &routecontract.Request{Method: "GET", Path: "/api/v0/workloads/" + url.PathEscape(str(args, "workload_id")) + "/context", Query: q}, nil
 	case "get_workload_story":

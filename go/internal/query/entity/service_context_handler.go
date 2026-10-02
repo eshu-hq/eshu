@@ -42,6 +42,11 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	evidenceDetail, ok := readContextEvidenceDetail(w, r)
+	if !ok {
+		return
+	}
+
 	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
 	if err != nil {
 		if querycontract.WriteWorkloadSelectorOverflow(w, err) {
@@ -101,5 +106,7 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 	// (#7169). The workload context route does the same.
 	ctx["result_limits"] = querycontract.WorkloadContextResultLimits(ctx, querycontract.SafeStr(ctx, "id"), "context")
 	ctx["partial_reasons"] = querycontract.ContextPartialReasons(ctx)
-	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisHybrid, "resolved from service context and platform evidence"))
+	truth := querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisHybrid, "resolved from service context and platform evidence")
+	truth.Omissions = querycontract.ApplyContextEvidenceDetail(ctx, evidenceDetail)
+	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, truth)
 }

@@ -92,6 +92,15 @@ func serviceSelectorRoute(args routecontract.Arguments, toolName string, suffix 
 	if env := args.String("environment"); env != "" {
 		q["environment"] = env
 	}
+	if suffix == "context" {
+		// #7129: the MCP default is handles so a populated service fits the
+		// response budget; the HTTP default stays full. An explicit value wins,
+		// and the handler rejects an unknown one.
+		q["evidence_detail"] = "handles"
+		if detail := args.String("evidence_detail"); detail != "" {
+			q["evidence_detail"] = detail
+		}
+	}
 	if suffix == "story" {
 		if serviceID := canonicalWorkloadIdentifier(selector); serviceID != "" {
 			q["service_id"] = serviceID

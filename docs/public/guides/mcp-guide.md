@@ -47,6 +47,14 @@ cut. To read a family in full, call the tool again with the entry's
 the `direct_only`, `max_depth`, and `include_related_module_usage` of the
 original call, so the drilldown returns the rows the first call held).
 
+`get_workload_context` and `get_service_context` also default to
+`evidence_detail: handles` on MCP: artifact and API endpoint rows come back as
+identity rows (`resolved_id` for an artifact), the content-derived evidence
+lists are dropped, every count stays, and `truth.omissions` names each reduced
+family with its total. Lists are capped at 50 rows and each cut is named in
+`partial_reasons`. Call again with `evidence_detail: "full"` for the rows. See
+[Context Evidence Budget](../reference/http-api/context-evidence-budget.md).
+
 ## Pick The Right Tool Shape
 
 Use story and investigation tools for explanations:

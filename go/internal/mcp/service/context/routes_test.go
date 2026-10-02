@@ -60,10 +60,50 @@ func TestRouteMapsGetServiceContext(t *testing.T) {
 	want := routecontract.Request{
 		Method: "GET",
 		Path:   "/api/v0/services/sample-service-api/context",
-		Query:  map[string]string{"environment": "prod"},
+		Query:  map[string]string{"environment": "prod", "evidence_detail": "handles"},
 	}
 	if !reflect.DeepEqual(request, want) {
 		t.Fatalf("Route() = %#v, want %#v", request, want)
+	}
+}
+
+// TestRouteGetServiceContextEvidenceDetail proves the MCP default is handles
+// (#7129), an explicit value wins, and a bad value travels verbatim so the
+// handler, not this adapter, rejects it with a 400.
+func TestRouteGetServiceContextEvidenceDetail(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, arg, want string }{
+		{"default", "", "handles"},
+		{"explicit full", "full", "full"},
+		{"explicit handles", "handles", "handles"},
+		{"unknown value is forwarded", "compact", "compact"},
+	} {
+		args := routecontract.Arguments{"workload_id": "workload:sample-service-api"}
+		if tc.arg != "" {
+			args["evidence_detail"] = tc.arg
+		}
+		request, _, err := Route("get_service_context", args)
+		if err != nil {
+			t.Fatalf("%s: Route() error = %v", tc.name, err)
+		}
+		if got := request.Query["evidence_detail"]; got != tc.want {
+			t.Fatalf("%s: evidence_detail = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestRouteGetServiceStoryHasNoEvidenceDetail proves the story route, which
+// builds its own bounded dossier, is not given the context-only parameter.
+func TestRouteGetServiceStoryHasNoEvidenceDetail(t *testing.T) {
+	t.Parallel()
+
+	request, _, err := Route("get_service_story", routecontract.Arguments{"workload_id": "workload:sample-service-api"})
+	if err != nil {
+		t.Fatalf("Route() error = %v", err)
+	}
+	if _, has := request.Query["evidence_detail"]; has {
+		t.Fatalf("story query = %#v, want no evidence_detail", request.Query)
 	}
 }
 
