@@ -130,10 +130,62 @@ and the advisory family), which filter on `fact_kind = ANY($n)` and, on this
 corpus, probe every active scope under a generic plan. #7088 does not change
 them.
 
-NOT_CHECKED: the whole-statement cost under a generic plan on ops-qa. The
-79-191 ms ops-qa figure above is an arm-level measurement of the three
-dependency-variable reads only, so it says nothing about those other CTEs. This
-change does not claim the replica timeout is gone under a generic plan.
+The 79-191 ms ops-qa figure above is an arm-level measurement of the three
+dependency-variable reads only, so it says nothing about those other CTEs. The
+whole statement was measured separately on ops-qa (next section).
+
+### Whole statement on ops-qa, new query text against the old schema
+
+Measured by a teammate, read-only, 2026-10-02 18:25 to 18:28 UTC, on the read
+replica (PostgreSQL 18.3, in recovery, no peer activity at start or before the
+last runs; 819 active scopes, 799 of them repository scopes; `fact_records`
+about 137.9 M rows, 186 GB; `shared_buffers` 4 GiB). The query text is the
+shipped `ListReadinessQuery` of this branch with the 20 arguments bound as
+production binds them for a repository anchor. The schema is ops-qa's, which
+does not have migration 159, so the manifest and gap reads scan the anchored
+scope as they did before the index; the figures are therefore without the new
+index. Custom plan = `PREPARE` plus `SET LOCAL plan_cache_mode =
+force_custom_plan` plus `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF) EXECUTE`;
+auto = `plan_cache_mode = auto`, `PREPARE` then 8 plain `EXECUTE`s with
+`pg_prepared_statements` read afterwards. Active `content_entity` rows come
+from a sampled count over 45 scopes.
+
+| Repository size class | Custom plan | Forced generic plan | auto, 8 executions |
+| --- | --- | --- | --- |
+| small, 1,042 rows | 143.6 ms, 22,096 buffers | 109.1 ms, 34,496 buffers | 103-173 ms, 0 generic plans |
+| medium, 9,127 rows | 166.9 ms, 26,090 buffers | 112.5 ms, 38,490 buffers | 114-186 ms, 0 generic plans |
+| large, 21,824 rows | 226.2 ms warm, 147,139 buffers; first run cold 1,550 ms | 262.7 ms, 159,539 buffers | 255-328 ms, 0 generic plans |
+| 59,033 rows (extra) | 245.1 ms warm, 60,440 buffers; first run cold 375 ms | 241.4 ms, 72,877 buffers | 225-300 ms, 0 generic plans |
+
+Reading it:
+
+- A forced generic plan cost 8% to 54% more buffers than the custom plan and
+  ran in the same wall-time class. The extra is about 12.4k buffers on every
+  repository, so it follows the 819 active scopes and not the repository's
+  size: the advisory and exploitability arms lose a cheap index path because
+  `$13` is not constant-folded, and the container-image-identity CTE (5,850
+  buffers) is skipped by the custom plan.
+- `plan_cache_mode = auto` never adopted the generic plan: `generic_plans` was
+  0 after 8 executions on all four repositories. The generic plan's estimated
+  cost (3,732.90) was above the custom average (2,671.65). An anchor where that
+  estimate flips was not tested.
+- The ~1.07 M-buffer figure on the local corpus did not reproduce. On ops-qa
+  the per-scope probes return 0 rows at about 5 buffers per scope; the local
+  figure is about 1,650 buffers per scope. This is an inference from the plan
+  nodes: the local corpus probably holds rows of those fact kinds in every
+  scope. The local corpus was not inspected for this.
+- The largest cost on the large repository was the anchored-scope scan
+  (`unsupported_target_rows` 67,674 buffers, `package_manifest_active` 63,248),
+  which migration 159 targets, not the plan cache.
+
+Limits: one run per cell for custom and generic, 8 for auto; warm replica
+cache, so these are not p50 or p95 latencies; the first run on the two larger
+repositories was cold and is shown separately; psql text-literal parameters,
+not pgx binary typing; CVE, package and digest anchors, a repository with dense
+advisory or consumption facts, the primary's plans and behaviour under
+concurrent load were not measured. This is not a measurement of the new index
+on ops-qa, and it does not replace the after-number the owner's deploy makes
+possible.
 
 The new index on the local corpus is 98,304 bytes, covering 1,621 of 281,816
 `fact_records` rows. The seed deliberately puts one legacy and one gap row in
