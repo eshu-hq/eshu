@@ -221,7 +221,7 @@ kinds (non-tombstoned), and the source-only statement carries those kinds as a
 literal `IN` list inside its per-(scope, kind) LATERAL so the planner proves the
 index predicate in custom and generic plans
 (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`); the #7126
-measurements are in the evidence note below. The row reads are single-kind probes
+measurements are in `docs/internal/evidence/7126-story-read-cost.md`. The row reads are single-kind probes
 served by migration 152 (links) and migration 155 (record and transition issue
 ids). Ingest cost: migration 123 adds one btree entry per non-tombstoned
 support-kind fact, migration 152 one more per non-tombstoned

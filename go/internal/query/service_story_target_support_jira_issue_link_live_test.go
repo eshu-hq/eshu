@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	jirasupport "github.com/eshu-hq/eshu/go/internal/query/support"
 )
 
 // jiraIssueLinkFixture holds the repository ids the #7464 matrix asserts on.
@@ -20,6 +21,7 @@ type jiraIssueLinkFixture struct {
 	repoID  string // R: linked by issues 1 and 2
 	repo2ID string // R2: linked by issues 2 and 3
 	repo3ID string // R3: nothing links to it
+	repo4ID string // R4: its one link has a blank issue id, as does a transition
 }
 
 // TestServiceStoryTargetSupportJiraIssueLinkMatrixLive is the #7464
@@ -124,6 +126,36 @@ func TestServiceStoryTargetSupportJiraIssueLinkMatrixLive(t *testing.T) {
 			if strings.Contains(id, "blank") {
 				t.Fatalf("blank-id row %s attached to R: %v", id, supportEvidenceFactIDs(support))
 			}
+		}
+		// The fourth repository owns the one link with a blank issue id. Its story
+		// reads that link as its own evidence and nothing else: a '' = '' join would
+		// attach the blank-id transition to it, which only the row read's blank-id
+		// guard prevents.
+		fourth := readStorySupport(ctx, t, reader, serviceStoryTargetSupportFilter{
+			Repository: fixture.repo4ID, TargetKind: "repository", TargetID: fixture.repo4ID, Limit: 20,
+		})
+		if got := strings.Join(supportEvidenceFactIDs(fourth), ","); got != "f-l-blank" {
+			t.Fatalf("fourth repository evidence = %q, want only its blank-id link f-l-blank (the blank-id transition must not join it)", got)
+		}
+		// The Go re-check (JiraFactLinked) also drops a blank-id row, so the story
+		// alone cannot tell whether the statement's own blank-id guard is there.
+		// Read the statement directly: it must return no row for the fourth
+		// repository, whose only link has a blank issue id.
+		statement, args := jirasupport.JiraIssueLinkSQL(fixture.repo4ID, 20)
+		rows, err := db.QueryContext(ctx, statement, args...)
+		if err != nil {
+			t.Fatalf("JiraIssueLinkSQL(R4) error = %v", err)
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var raw []byte
+			if err := rows.Scan(&raw); err != nil {
+				t.Fatalf("scan JiraIssueLinkSQL(R4) row: %v", err)
+			}
+			t.Errorf("JiraIssueLinkSQL(R4) returned a row for a blank issue id: %s", raw)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("JiraIssueLinkSQL(R4) rows: %v", err)
 		}
 	})
 
@@ -313,8 +345,10 @@ VALUES ('g-jira-old', 's-jira', 'snapshot', $1, $1, 'superseded', '{}'::jsonb)`,
 	repoID, _ := link(main, "x", "1", "K-1", payments+"1").Payload["linked_repository_id"].(string)
 	repo2, _ := link(main, "y", "1", "K-1", billing+"1").Payload["linked_repository_id"].(string)
 	repo3, _ := link(main, "z", "1", "K-1", "https://github.com/acme/unlinked/pull/1").Payload["linked_repository_id"].(string)
-	if repoID == "" || repo2 == "" || repo3 == "" || repoID == repo2 || repoID == repo3 {
-		t.Fatalf("writer ids not distinct canonical repository ids: %q %q %q", repoID, repo2, repo3)
+	repo4, _ := link(main, "w", "1", "K-1", other4+"1").Payload["linked_repository_id"].(string)
+	if repoID == "" || repo2 == "" || repo3 == "" || repo4 == "" ||
+		repoID == repo2 || repoID == repo3 || repoID == repo4 || repo2 == repo4 || repo3 == repo4 {
+		t.Fatalf("writer ids not distinct canonical repository ids: %q %q %q %q", repoID, repo2, repo3, repo4)
 	}
-	return jiraIssueLinkFixture{repoID: repoID, repo2ID: repo2, repo3ID: repo3}
+	return jiraIssueLinkFixture{repoID: repoID, repo2ID: repo2, repo3ID: repo3, repo4ID: repo4}
 }
