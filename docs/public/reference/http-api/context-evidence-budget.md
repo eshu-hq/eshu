@@ -32,6 +32,10 @@ The story routes keep their own bounded dossier and are not covered here.
   `deployment_evidence` and in `result_limits` counts the artifact rows read, so
   it is a floor when the read itself stopped at its bound.
 - No route returns the cut rows of the lists other than `artifacts`.
+- `infrastructure` is cut to 50 rows. `result_limits.infrastructure_count` is the
+  total read, and the cut is named `infrastructure_rows_truncated`. The read
+  itself stops at 5,000 rows and reports `infrastructure_truncated`; before this
+  cap a service could ship all 5,000 rows (about 730 KB).
 - `deployment_overview.api_surface` keeps its counts but not the endpoint rows;
   `endpoints_shipped_at` points at the top-level `api_surface.endpoints`.
 

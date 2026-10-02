@@ -45,6 +45,15 @@ recent shipped work grouped by feature area.
   the rows, or call `get_relationship_evidence` with a `resolved_id` for one
   artifact.
 
+- **`infrastructure` is cut to 50 rows on the context routes**
+  ([#7129](https://github.com/eshu-hq/eshu/issues/7129)). A re-measure on ops-qa
+  after the evidence caps deployed found 25 services still over the MCP budget,
+  all dominated by the `infrastructure` list: the read bound is 5,000 rows and
+  the 50-row context caps did not cover it. The list is now cut to 50 rows, the
+  total is on `result_limits.infrastructure_count`, and the cut is named
+  `infrastructure_rows_truncated` in `partial_reasons`. The existing
+  `infrastructure_truncated` still means the read itself hit its 5,000-row bound.
+
 ### Code and content search responses drop the `matches` alias
 
 - **`matches` is removed; read `results`**

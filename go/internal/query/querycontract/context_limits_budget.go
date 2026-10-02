@@ -11,10 +11,11 @@ import "slices"
 // what one page of deployment evidence holds (#7129).
 var contextEvidenceRowKeys = []string{"artifacts", "delivery_paths", "delivery_workflows", "shared_config_paths"}
 
-// capContextBudgetRows bounds the two payload families that kept the workload
+// capContextBudgetRows bounds the three payload families that kept the workload
 // and service context responses over the MCP response budget after the
 // hostname and entrypoint caps (#7129): the API surface endpoint rows, which
-// the overview repeated, and the deployment-evidence row lists.
+// the overview repeated, the deployment-evidence row lists, and the
+// infrastructure list, whose read bound is 5,000 rows.
 //
 // It runs from WorkloadContextResultLimits, after every consumer of the full
 // lists has read them, so the cut changes only what ships. Pre-cut totals stay
@@ -30,7 +31,24 @@ var contextEvidenceRowKeys = []string{"artifacts", "delivery_paths", "delivery_w
 func capContextBudgetRows(ctx map[string]any) (artifactTotal int, truncated bool) {
 	artifactTotal, evidenceTruncated := capContextDeploymentEvidence(ctx)
 	apiTruncated := capContextAPISurface(ctx)
-	return artifactTotal, evidenceTruncated || apiTruncated
+	infraTruncated := capContextInfrastructure(ctx)
+	return artifactTotal, evidenceTruncated || apiTruncated || infraTruncated
+}
+
+// capContextInfrastructure cuts the infrastructure list to ContextStoryItemLimit
+// and names the cut with a reason of its own. The read bound is 5,000 rows, and
+// the 50-row context caps never covered this list, so a service shipped up to
+// 5,000 rows (about 730 KB). infrastructure_truncated is a different signal:
+// it means the read itself hit that 5,000-row bound.
+func capContextInfrastructure(ctx map[string]any) bool {
+	rows := MapSliceValue(ctx, "infrastructure")
+	capped, cut := CapMapRows(rows, ContextStoryItemLimit)
+	if !cut {
+		return false
+	}
+	ctx["infrastructure"] = capped
+	appendContextLimitation(ctx, "infrastructure_rows_truncated")
+	return true
 }
 
 // capContextDeploymentEvidence cuts the deployment_evidence row lists on a

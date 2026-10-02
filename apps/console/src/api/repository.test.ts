@@ -189,6 +189,36 @@ describe("workspace story adapter", () => {
     );
     expect(story?.deploymentGraph.nodes.map((node) => node.label)).toContain("iac-eks-argocd");
   });
+  it("reports the true infrastructure total when the context list is cut to its row limit", async () => {
+    const client = new EshuApiClient({
+      baseUrl: "http://localhost:8080",
+      fetcher: async (input: RequestInfo | URL): Promise<Response> => {
+        const path = new URL(new Request(input).url).pathname;
+        if (path.endsWith("/context")) {
+          return Response.json({
+            infrastructure: [
+              { name: "a", type: "HelmChart" },
+              { name: "b", type: "HelmChart" },
+              { name: "c", type: "HelmChart" },
+            ],
+            result_limits: { infrastructure_count: 1161 },
+          });
+        }
+        return Response.json({
+          drilldowns: { context_path: "/api/v0/repositories/repository:r_cut/context" },
+          subject: { id: "repository:r_cut", name: "cut-total", type: "repository" },
+        });
+      },
+    });
+    const story = await loadWorkspaceStory({
+      client,
+      entityId: "repository:r_cut",
+      entityKind: "repositories",
+      mode: "private",
+    });
+    const infra = story?.overviewStats.find((stat) => stat.label === "Infra objects");
+    expect(infra?.value).toBe("1161");
+  });
   it("uses service story dossiers for single-workload repository deployment graphs", async () => {
     const paths: string[] = [];
     const client = new EshuApiClient({

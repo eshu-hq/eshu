@@ -255,3 +255,61 @@ func TestWorkloadContextResultLimitsStorySurfaceEmitsNoEvidence(t *testing.T) {
 		t.Fatal("result_limits.truncated = true for lists the story does not emit")
 	}
 }
+
+func infrastructureRows(n int) []map[string]any {
+	rows := make([]map[string]any, 0, n)
+	for i := 0; i < n; i++ {
+		rows = append(rows, map[string]any{"name": fmt.Sprintf("res-%04d", i), "kind": "Deployment", "file_path": fmt.Sprintf("deploy/overlays/prod/res-%04d.yaml", i)})
+	}
+	return rows
+}
+
+// TestWorkloadContextResultLimitsCapsInfrastructureRows proves the
+// infrastructure list is cut to the row limit on the context surface, with the
+// true total on result_limits and a reason of its own. The read bound is 5,000
+// rows, so before this cap a service shipped up to 5,000 rows (#7129).
+func TestWorkloadContextResultLimitsCapsInfrastructureRows(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{"infrastructure": infrastructureRows(1161)}
+
+	limits := WorkloadContextResultLimits(ctx, "workload:svc", "context")
+
+	if got, want := len(MapSliceValue(ctx, "infrastructure")), ContextStoryItemLimit; got != want {
+		t.Fatalf("infrastructure len = %d, want %d", got, want)
+	}
+	if got, want := IntVal(limits, "infrastructure_count"), 1161; got != want {
+		t.Fatalf("result_limits.infrastructure_count = %d, want %d (total before the cut)", got, want)
+	}
+	if !BoolVal(limits, "truncated") {
+		t.Fatal("result_limits.truncated = false next to a cut list, want true")
+	}
+	if !slices.Contains(ContextPartialReasons(ctx), "infrastructure_rows_truncated") {
+		t.Fatalf("partial_reasons = %#v, want infrastructure_rows_truncated", ContextPartialReasons(ctx))
+	}
+}
+
+// TestWorkloadContextResultLimitsLeavesSmallInfrastructureAndStoryAlone proves a
+// list within the limit is untouched with no reason, and the story surface,
+// which emits no infrastructure list, neither cuts nor claims a cut.
+func TestWorkloadContextResultLimitsLeavesSmallInfrastructureAndStoryAlone(t *testing.T) {
+	t.Parallel()
+
+	small := map[string]any{"infrastructure": infrastructureRows(ContextStoryItemLimit)}
+	limits := WorkloadContextResultLimits(small, "workload:svc", "context")
+	if got := len(MapSliceValue(small, "infrastructure")); got != ContextStoryItemLimit {
+		t.Fatalf("within-limit infrastructure len = %d, want %d", got, ContextStoryItemLimit)
+	}
+	if slices.Contains(ContextPartialReasons(small), "infrastructure_rows_truncated") || BoolVal(limits, "truncated") {
+		t.Fatal("a within-limit infrastructure list was reported as cut")
+	}
+
+	story := map[string]any{"infrastructure": infrastructureRows(300)}
+	storyLimits := WorkloadContextResultLimits(story, "workload:svc", "story")
+	if got := len(MapSliceValue(story, "infrastructure")); got != 300 {
+		t.Fatalf("story infrastructure len = %d, want 300 (not cut)", got)
+	}
+	if got := IntVal(storyLimits, "infrastructure_count"); got != 300 || BoolVal(storyLimits, "truncated") {
+		t.Fatalf("story infrastructure_count=%d truncated=%v, want 300 and false", got, BoolVal(storyLimits, "truncated"))
+	}
+}
