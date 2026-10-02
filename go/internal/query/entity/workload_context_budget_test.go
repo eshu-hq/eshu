@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
@@ -86,9 +85,12 @@ func budgetArtifactRows(direction string, count int) []map[string]any {
 	return rows
 }
 
-// populatedContextHandler reproduces a populated ops-qa service through the
-// real enrichment path: 78 endpoint edges (50 rows returned) and a
-// deployment-evidence read filled to its cap in both directions.
+// populatedContextHandler builds a populated service through the real
+// enrichment path: the 671-hostname outlier (50 hostnames, 50 entrypoints and
+// 50 network paths after the #7169 cap), 78 endpoint edges (50 rows returned),
+// and a deployment-evidence read filled to its cap in both directions, which
+// is the graph fallback path. The Postgres read model caps artifacts at 50 in
+// total.
 func populatedContextHandler() *Handler {
 	h := outlierHostnameHandler()
 	reader := h.Neo4j.(graph.FakeWorkloadGraphReader)
@@ -97,25 +99,22 @@ func populatedContextHandler() *Handler {
 	reader.RunByMatch["RETURN 'outgoing' AS direction"] = budgetArtifactRows("outgoing", budgetArtifactsPerDirection)
 	reader.RunByMatch["RETURN 'incoming' AS direction"] = budgetArtifactRows("incoming", budgetArtifactsPerDirection)
 	h.Neo4j = reader
-	h.Content = content.FakePortContentStore{}
 	return h
 }
 
-// TestGetWorkloadContextFitsBudgetOnPopulatedService drives the real
-// GetWorkloadContext handler over a populated service and requires it to fit
-// the MCP response budget (#7129). The overview's second copy of the endpoint
-// rows must go, and the artifact rows must be cut to the row limit with the
-// true total, an explicit truncation marker, and the evidence_index handles
-// that still address every cut row.
-func TestGetWorkloadContextFitsBudgetOnPopulatedService(t *testing.T) {
+// TestGetWorkloadContextCapsEvidenceRowsOnPopulatedService drives the real
+// GetWorkloadContext handler over a populated service (#7129). The overview's
+// second copy of the endpoint rows must go, and the artifact rows must be cut
+// to the row limit with the row count read, an explicit truncation marker, and
+// the evidence_index handles that still address every cut row. The row caps
+// alone do not fit this fixture in the MCP budget; evidence_detail handles
+// does, and TestContextRoutesHandlesModeFitsWorstCaseBudget proves that.
+func TestGetWorkloadContextCapsEvidenceRowsOnPopulatedService(t *testing.T) {
 	t.Parallel()
 
 	data, wireBytes := getOutlierJSON(t, populatedContextHandler(), "/api/v0/workloads/workload-1/context", "workload_id", "workload-1")
 
-	t.Logf("populated context est2x = %d bytes (budget %d)", wireBytes, mcpResponseByteBudget)
-	if wireBytes > mcpResponseByteBudget {
-		t.Fatalf("context est2x = %d bytes, want <= %d", wireBytes, mcpResponseByteBudget)
-	}
+	t.Logf("populated context est2x with the row caps only = %d bytes (budget %d)", wireBytes, mcpResponseByteBudget)
 
 	apiSurface := querycontract.MapValue(data, "api_surface")
 	if got := len(querycontract.MapSliceValue(apiSurface, "endpoints")); got != querycontract.ContextStoryItemLimit {
