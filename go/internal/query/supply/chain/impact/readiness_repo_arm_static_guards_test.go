@@ -168,3 +168,101 @@ func TestReadinessGapAndLegacyReadsStayInsideTheMigrationIndexPredicate(t *testi
 		}
 	}
 }
+
+const (
+	// repoArmGenerationBindNeedle binds a LATERAL probe to the scope's active
+	// generation. It is code-shaped: no SQL comment spells it this way.
+	repoArmGenerationBindNeedle = "dependency.generation_id = scope.active_generation_id"
+	// repoArmTombstoneNeedle keeps tombstoned facts out of a probe.
+	repoArmTombstoneNeedle = "dependency.is_tombstone = FALSE"
+	// repoArmCurrentArmExclusivityNeedle is arm 1's mutual exclusion with the
+	// legacy arm: a row with a top-level config_kind belongs to arm 2 only.
+	repoArmCurrentArmExclusivityNeedle = "AND NULLIF(dependency.payload->>'config_kind', '') IS NULL"
+	// repoArmLegacyArmNeedle is arm 2's legacy payload shape (#7301).
+	repoArmLegacyArmNeedle = "AND dependency.payload->>'config_kind' = 'dependency'"
+)
+
+// TestReadinessRepoArmProbesBindGenerationAndTombstone pins, from the shipped
+// constants, that all three LATERAL probes (both package_manifest_active arms
+// and the gap CTE) read only the scope's active generation and skip tombstones.
+// Dropping either from one probe changes the answer (stale generations or
+// deleted facts leak in) while the plan still looks fine.
+func TestReadinessRepoArmProbesBindGenerationAndTombstone(t *testing.T) {
+	t.Parallel()
+
+	probes := collapseProbeText(readinessPackageManifestActiveCTE) + " " + collapseProbeText(repoArmGapCTE(t))
+	if got := strings.Count(probes, repoArmGenerationBindNeedle); got != 3 {
+		t.Errorf("%q occurrences = %d, want 3 (two manifest arms + gap CTE)", repoArmGenerationBindNeedle, got)
+	}
+	if got := strings.Count(probes, repoArmTombstoneNeedle); got != 3 {
+		t.Errorf("%q occurrences = %d, want 3 (two manifest arms + gap CTE)", repoArmTombstoneNeedle, got)
+	}
+}
+
+// TestReadinessRepoArmManifestArmsStayMutuallyExclusive pins that each payload
+// shape is read by exactly one arm: arm 1 requires an absent top-level
+// config_kind and arm 2 requires the legacy value. Without the exclusivity a
+// row that carries both shapes would be counted twice by the UNION ALL.
+func TestReadinessRepoArmManifestArmsStayMutuallyExclusive(t *testing.T) {
+	t.Parallel()
+
+	manifest := collapseProbeText(readinessPackageManifestActiveCTE)
+	if got := strings.Count(manifest, repoArmCurrentArmExclusivityNeedle); got != 1 {
+		t.Errorf("arm 1 exclusivity %q occurrences = %d, want exactly 1", repoArmCurrentArmExclusivityNeedle, got)
+	}
+	if got := strings.Count(manifest, repoArmLegacyArmNeedle); got != 1 {
+		t.Errorf("arm 2 legacy predicate %q occurrences = %d, want exactly 1", repoArmLegacyArmNeedle, got)
+	}
+}
+
+// collapseProbeText drops SQL line comments and normalizes whitespace so a
+// needle is matched against executable SQL only.
+func collapseProbeText(sql string) string {
+	return collapseSQLSpace(stripSQLLineComments(sql))
+}
+
+// TestReadinessEmptyRepositoryAlwaysCarriesATargetAnchor pins the implication
+// that makes the removed empty-$11 escape unreachable: every query that has a
+// fact anchor but no repository id has needsTargetResolution() true, so the
+// production argument builder sets $20 and package_manifest_dependency takes
+// the consumption-key arm instead of reading package_manifest_active. A
+// repository-only anchor takes the manifest arm ($20 = false) with a non-empty
+// $11. The cases call the production methods, not copies.
+func TestReadinessEmptyRepositoryAlwaysCarriesATargetAnchor(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		query        ReadinessQuery
+		wantResolved bool
+	}{
+		{name: "cve only", query: ReadinessQuery{CVEID: "CVE-2024-0001"}, wantResolved: true},
+		{name: "package only", query: ReadinessQuery{PackageID: "pkg:npm/left-pad"}, wantResolved: true},
+		{name: "subject digest only", query: ReadinessQuery{SubjectDigest: "sha256:abc"}, wantResolved: true},
+		{name: "image ref only", query: ReadinessQuery{ImageRef: "registry.example/app:1"}, wantResolved: true},
+		{name: "repository only", query: ReadinessQuery{RepositoryID: "repository:r_1"}, wantResolved: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !tc.query.hasFactAnchor() {
+				t.Fatalf("hasFactAnchor() = false, want true: the store would return before reading")
+			}
+			if got := tc.query.needsTargetResolution(); got != tc.wantResolved {
+				t.Fatalf("needsTargetResolution() = %t, want %t", got, tc.wantResolved)
+			}
+			_, _, _, resolved := readinessTargetArguments(readinessTarget{}, tc.query)
+			if resolved != tc.wantResolved {
+				t.Fatalf("readinessTargetArguments $20 = %t, want %t", resolved, tc.wantResolved)
+			}
+			args := readinessArgsForQuery(tc.query)
+			if got := args[19]; got != tc.wantResolved {
+				t.Fatalf("bound $20 = %v, want %t", got, tc.wantResolved)
+			}
+			if strings.TrimSpace(tc.query.RepositoryID) == "" && !resolved {
+				t.Fatalf("empty repository id with $20 = false would read package_manifest_active unanchored")
+			}
+		})
+	}
+}
