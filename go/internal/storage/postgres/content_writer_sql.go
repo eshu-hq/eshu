@@ -167,8 +167,9 @@ SET repo_id = EXCLUDED.repo_id,
 
 // upsertFingerprintBandBatchPrefix/Suffix persist one code_fingerprint_band
 // row per (entity, LSH band). The primary key covers the full row, so
-// re-upserts are DO NOTHING; the (repo_id, band_no, band_hash) lookup index
-// from migration 111 serves the #6837 band self-join.
+// re-upserts are DO NOTHING; the #6837 band self-join joins on
+// (repo_id, band_no, band_hash), and which index serves it depends on table
+// state and plan mode (see listCodeDriftedPairsQuery and #7254).
 const upsertFingerprintBandBatchPrefix = `INSERT INTO code_fingerprint_band (
     repo_id, band_no, band_hash, entity_id
 ) VALUES `
