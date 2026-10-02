@@ -1,0 +1,28 @@
+go/internal/runtime/postgres/read_snapshot_host_test.go
+  s_b0d7e3abc26c5a::t_eecae85cd9b756 1-45
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_1f80544c79561c 53-54,56-60,105,122-132
+  s_b0d7e3abc26c5a::t_264b284e994027 55
+go/internal/runtime/postgres/doc.go
+  s_b0d7e3abc26c5a::t_1f80544c79561c 16-20
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_1f80544c79561c 11-15
+go/internal/runtime/postgres/read_store.go
+  s_b0d7e3abc26c5a::t_cee51d126d7e49 23-24,38-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d19af16a185900b750505aa15efc91144297e38d",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+go/internal/runtime/postgres/read_snapshot_set_test.go
+  s_b0d7e3abc26c5a::t_f98fa17e445c09 98-104,106-113
+  s_b0d7e3abc26c5a::t_7897833626fb85 105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e9c5e6c70d227ea5070672b46e3ee50fd4d03f3f",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
