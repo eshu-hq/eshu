@@ -53,7 +53,7 @@ func (s snapshotReaderStub) CheckStatusReadiness(ctx context.Context) error {
 }
 
 func TestSnapshotStatusReaderCommitsBeforeReturningFullAndFiltered(t *testing.T) {
-	for _, selection := range []status.SnapshotSelection{status.FullSnapshotSelection(), {}, status.SemanticOnlySnapshotSelection()} {
+	for _, selection := range []status.SnapshotSelection{status.FullSnapshotSelection(), {}, status.SemanticOnlySnapshotSelection(), {SkipTerraformStateEvidence: true}} {
 		tx := &snapshotTxStub{}
 		begins, factories := 0, 0
 		store := snapshotBeginStub{begin: func(ctx context.Context) (db.ReadTransaction, error) {
@@ -97,11 +97,14 @@ func TestSnapshotStatusReaderPreservesReadAndTerminalFaults(t *testing.T) {
 	readErr, rollbackErr, commitErr := errors.New("read"), errors.New("rollback"), errors.New("commit")
 	for _, tc := range []struct {
 		name                            string
+		selection                       status.SnapshotSelection
 		readErr, commitErr, rollbackErr error
 		commits, rollbacks              int
 	}{
-		{"read", readErr, nil, rollbackErr, 0, 1},
-		{"commit", nil, commitErr, nil, 1, 0},
+		{"read", status.FullSnapshotSelection(), readErr, nil, rollbackErr, 0, 1},
+		{"commit", status.FullSnapshotSelection(), nil, commitErr, nil, 1, 0},
+		{"read_repository_detail", status.SnapshotSelection{SkipTerraformStateEvidence: true}, readErr, nil, rollbackErr, 0, 1},
+		{"commit_repository_detail", status.SnapshotSelection{SkipTerraformStateEvidence: true}, nil, commitErr, nil, 1, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx := &snapshotTxStub{commitErr: tc.commitErr, rollbackErr: tc.rollbackErr}
@@ -112,7 +115,7 @@ func TestSnapshotStatusReaderPreservesReadAndTerminalFaults(t *testing.T) {
 					}}
 				},
 				noop.NewTracerProvider().Tracer("test"))
-			raw, err := reader.ReadStatusSnapshot(context.Background(), time.Now())
+			raw, err := reader.ReadStatusSnapshotFiltered(context.Background(), time.Now(), tc.selection)
 			if !raw.AsOf.IsZero() || !errors.Is(err, tc.readErr) && tc.readErr != nil || !errors.Is(err, tc.commitErr) && tc.commitErr != nil || !errors.Is(err, tc.rollbackErr) && tc.rollbackErr != nil || tx.commits != tc.commits || tx.rollbacks != tc.rollbacks {
 				t.Fatalf("raw=%v err=%v commit=%d rollback=%d", raw.AsOf, err, tx.commits, tx.rollbacks)
 			}
@@ -128,6 +131,7 @@ func TestSnapshotStatusReaderCancelCannotReturnSuccess(t *testing.T) {
 		{"full", status.FullSnapshotSelection()},
 		{"filtered", status.SnapshotSelection{}},
 		{"semantic", status.SemanticOnlySnapshotSelection()},
+		{"repository_detail", status.SnapshotSelection{SkipTerraformStateEvidence: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx := &snapshotTxStub{}
@@ -167,6 +171,7 @@ func TestSnapshotStatusReaderCancelAfterCommitCannotReturnSuccess(t *testing.T) 
 		{"full", status.FullSnapshotSelection()},
 		{"filtered", status.SnapshotSelection{}},
 		{"semantic", status.SemanticOnlySnapshotSelection()},
+		{"repository_detail", status.SnapshotSelection{SkipTerraformStateEvidence: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			parent, cancel := context.WithCancel(t.Context())

@@ -26,8 +26,10 @@ func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
 		privateConflictKey = "repo://private/repository"
 	)
 	now := time.Date(2026, 6, 10, 5, 5, 0, 0, time.UTC)
+	var selected statuspkg.SnapshotSelection
 	statusHandler := &query.StatusHandler{
 		StatusReader: fakeMCPStatusReader{
+			selection: &selected,
 			snapshot: statuspkg.RawSnapshot{
 				AsOf: now,
 				Coordinator: &statuspkg.CoordinatorSnapshot{
@@ -77,6 +79,9 @@ func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
 		t.Fatalf("dispatchTool(list_ingesters) error = %v, want nil", err)
 	}
 	assertIngesterDispatchResultRedacted(t, list, privateInstanceID, privateDisplayName, privateConflictKey)
+	if selected.SkipTerraformStateEvidence {
+		t.Fatal("list_ingesters omitted Terraform evidence")
+	}
 
 	detail, err := dispatchTool(
 		context.Background(),
@@ -90,6 +95,9 @@ func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
 		t.Fatalf("dispatchTool(get_ingester_status) error = %v, want nil", err)
 	}
 	assertIngesterDispatchResultRedacted(t, detail, privateInstanceID, privateDisplayName, privateConflictKey)
+	if !selected.SkipTerraformStateEvidence {
+		t.Fatal("get_ingester_status did not select detail read")
+	}
 }
 
 func assertIngesterDispatchResultRedacted(t *testing.T, result *dispatchResult, forbiddenValues ...string) {

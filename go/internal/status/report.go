@@ -75,6 +75,10 @@ type SnapshotSelection struct {
 	// IncludeRegistryCollectors requests RawSnapshot.RegistryCollectors, which
 	// reads registry collector status from fact_records.
 	IncludeRegistryCollectors bool
+	// SkipTerraformStateEvidence omits the Terraform-only serial and warning
+	// reads for repository ingester detail, which does not render that section.
+	// Other status surfaces retain those reads and their errors by default.
+	SkipTerraformStateEvidence bool
 }
 
 // SnapshotMode identifies the status read shape. The zero value preserves
@@ -101,7 +105,7 @@ func (s SnapshotSelection) Validate() error {
 	case SnapshotModeStandard:
 		return nil
 	case SnapshotModeSemanticOnly:
-		if s.IncludeCollectorFactEvidence || s.IncludeRegistryCollectors {
+		if s.IncludeCollectorFactEvidence || s.IncludeRegistryCollectors || s.SkipTerraformStateEvidence {
 			return fmt.Errorf("semantic-only status cannot include other sections")
 		}
 		return nil

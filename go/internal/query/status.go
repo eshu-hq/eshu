@@ -168,7 +168,11 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		h.StatusReader,
 		time.Now(),
 		status.DefaultOptions(),
-		status.SnapshotSelection{IncludeCollectorFactEvidence: false, IncludeRegistryCollectors: false},
+		status.SnapshotSelection{
+			IncludeCollectorFactEvidence: false,
+			IncludeRegistryCollectors:    false,
+			SkipTerraformStateEvidence:   true,
+		},
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))

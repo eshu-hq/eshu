@@ -182,15 +182,18 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 			return statuspkg.RawSnapshot{}, err
 		}
 	}
-	q, done = s.read(ctx, statusReadTerraformState)
-	terraformStateEvidence, err := statestore.ReadTerraformStateAdminEvidence(
-		ctx,
-		q,
-		statuspkg.MaxTerraformStateRecentWarnings,
-		asOf.UTC(),
-	)
-	if err = done(err); err != nil {
-		return statuspkg.RawSnapshot{}, err
+	var terraformStateEvidence statestore.TerraformStateAdminEvidence
+	if !selection.SkipTerraformStateEvidence {
+		q, done = s.read(ctx, statusReadTerraformState)
+		terraformStateEvidence, err = statestore.ReadTerraformStateAdminEvidence(
+			ctx,
+			q,
+			statuspkg.MaxTerraformStateRecentWarnings,
+			asOf.UTC(),
+		)
+		if err = done(err); err != nil {
+			return statuspkg.RawSnapshot{}, err
+		}
 	}
 	q, done = s.read(ctx, statusReadSemanticExtraction)
 	semanticExtraction, err := semanticstore.ReadSemanticExtractionObservability(ctx, q)

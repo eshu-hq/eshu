@@ -18,9 +18,11 @@ import (
 // selectionRecordingReader captures the selection requested through the filtered
 // reader contract so handler tests can assert which sections a route loads.
 type selectionRecordingReader struct {
-	snapshot          statuspkg.RawSnapshot
-	lastSelection     statuspkg.SnapshotSelection
-	filteredCallCount int
+	snapshot              statuspkg.RawSnapshot
+	omitTerraformOnSkip   bool
+	returnedTerraformRows int
+	lastSelection         statuspkg.SnapshotSelection
+	filteredCallCount     int
 }
 
 func (r *selectionRecordingReader) ReadStatusSnapshot(
@@ -37,7 +39,13 @@ func (r *selectionRecordingReader) ReadStatusSnapshotFiltered(
 ) (statuspkg.RawSnapshot, error) {
 	r.lastSelection = selection
 	r.filteredCallCount++
-	return r.snapshot, nil
+	raw := r.snapshot
+	if r.omitTerraformOnSkip && selection.SkipTerraformStateEvidence {
+		raw.TerraformStateLastSerials = nil
+		raw.TerraformStateRecentWarnings = nil
+	}
+	r.returnedTerraformRows = len(raw.TerraformStateLastSerials) + len(raw.TerraformStateRecentWarnings)
+	return raw, nil
 }
 
 func TestGetIndexStatusRequestsFilteredSelection(t *testing.T) {
@@ -143,5 +151,26 @@ func TestGetSemanticExtractionStatusRequestsSemanticOnlySelection(t *testing.T) 
 	}
 	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessFresh {
 		t.Fatalf("truth = %+v, want current", envelope.Truth)
+	}
+}
+
+func TestRepositoryDetailAndListChooseDistinctStatusSelections(t *testing.T) {
+	reader := &selectionRecordingReader{snapshot: statuspkg.RawSnapshot{AsOf: time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)}}
+	h := &StatusHandler{StatusReader: reader}
+	mux := http.NewServeMux()
+	h.Mount(mux)
+	for _, route := range []string{"/api/v0/status/ingesters/repository", "/api/v0/ingesters/repository"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
+		if rec.Code != http.StatusOK || !reader.lastSelection.SkipTerraformStateEvidence {
+			t.Fatalf("detail %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
+		}
+	}
+	for _, route := range []string{"/api/v0/status/ingesters", "/api/v0/status/index", "/api/v0/status/pipeline"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
+		if rec.Code != http.StatusOK || reader.lastSelection.SkipTerraformStateEvidence {
+			t.Fatalf("non-detail %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
+		}
 	}
 }
