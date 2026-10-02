@@ -83,6 +83,41 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	}
 }
 
+func TestContentReaderInvestigateCodeTopicExplicitRepoLanguageKeepsScopedTerm(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{
+			"source_kind", "repo_id", "relative_path", "entity_id", "entity_name",
+			"entity_type", "language", "start_line", "end_line", "matched_terms", "score", "pool_truncated",
+		},
+	}})
+	reader := NewContentReader(db)
+	_, err := reader.InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
+		RepoID:               "repo-1",
+		AllowedRepositoryIDs: []string{"repo-1"},
+		Language:             "go",
+		Terms:                []string{"surface"},
+		Limit:                11,
+	})
+	if err != nil {
+		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
+	}
+	query := recorder.queries[0]
+	for _, fragment := range []string{
+		"repo_id = $1", "coalesce(language, '') = $2",
+		"term_param AS MATERIALIZED (SELECT $3::text AS term)",
+		"f.content ILIKE '%' || (SELECT term FROM term_param) || '%'",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("query missing %q", fragment)
+		}
+	}
+	if got, want := fmt.Sprint(recorder.args[0]), "[repo-1 go surface 11 0]"; got != want {
+		t.Fatalf("query args = %s, want %s", got, want)
+	}
+}
+
 // TestContentReaderInvestigateCodeTopicBoundsCandidatePoolPerTerm proves
 // #7008's fan-out bound: each per-term match probe runs inside a bounded
 // `CROSS JOIN LATERAL (... LIMIT n)` scaled by term count, instead of the
