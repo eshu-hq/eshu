@@ -40,7 +40,8 @@ const (
 	repoArmStatementBufferLimit = 20000
 	// repoArmDependencyScanBufferLimit bounds the shared buffers of the three
 	// dependency-variable reads themselves, under custom and generic plans.
-	// Bounded, they read ~120 buffers on this corpus; the pre-#7088 legacy
+	// Bounded, they read 588 buffers on this corpus (evidence table in
+	// docs/internal/evidence/7088-readiness-repo-scope.md); the pre-#7088 legacy
 	// arm alone read ~245k custom and the generic plan more.
 	repoArmDependencyScanBufferLimit = 2000
 )
@@ -150,10 +151,13 @@ func TestPreviousRepoArmReadinessQuerySplicesOnlyTheTwoCTEs(t *testing.T) {
 	}
 }
 
-// readinessArgsForRepository returns the 20 production arguments
-// readSupplyChainImpactReadiness binds for a repository-only anchor
-// ($20 = false: no CVE/package/digest/image target resolution).
-func readinessArgsForRepository(repositoryID string) []any {
+// readinessArgsForQuery returns the 20 production arguments
+// readSupplyChainImpactReadiness binds for query, in the same order and with
+// the target-resolution arguments ($17-$20) taken from readinessTargetArguments
+// for a target with no resolved package keys. The statement takes exactly 20
+// arguments; a shorter list fails with "expected 20 arguments".
+func readinessArgsForQuery(query ReadinessQuery) []any {
+	ecosystems, packageNames, packageIDs, resolved := readinessTargetArguments(readinessTarget{}, query)
 	return []any{
 		array.Of(vulnerabilityAdvisoryFactKinds),
 		array.Of(vulnerabilityExploitabilityFactKinds),
@@ -163,14 +167,21 @@ func readinessArgsForRepository(repositoryID string) []any {
 		array.Of(sbomAttestationFactKinds),
 		array.Of(containerImageIdentityFactKinds),
 		array.Of(vulnerabilitySourceSnapshotFactKinds),
-		"", "", repositoryID, "", "", "",
+		query.CVEID, query.PackageID, query.RepositoryID, query.SubjectDigest, query.AdvisoryID, query.ImageRef,
 		array.Of(vulnerabilityOSPackageFactKinds),
 		array.Of(scannerWorkerAnalysisFactKinds),
-		array.Of([]string{}),
-		array.Of([]string{}),
-		array.Of([]string{}),
-		false,
+		array.Of(ecosystems),
+		array.Of(packageNames),
+		array.Of(packageIDs),
+		resolved,
 	}
+}
+
+// readinessArgsForRepository returns the production arguments for a
+// repository-only anchor ($20 = false: no CVE/package/digest/image target
+// resolution).
+func readinessArgsForRepository(repositoryID string) []any {
+	return readinessArgsForQuery(ReadinessQuery{RepositoryID: repositoryID})
 }
 
 type repoArmQueryer interface {
