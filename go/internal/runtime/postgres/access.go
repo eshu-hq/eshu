@@ -143,6 +143,14 @@ func (a *Access) Ping(ctx context.Context) error {
 	if err := a.writer.PingContext(ctx); err != nil {
 		return privateFailure(failureWriterPing, err)
 	}
+	if a.readerPermits != nil {
+		select {
+		case <-a.readerPermits:
+			defer func() { a.readerPermits <- struct{}{} }()
+		case <-ctx.Done():
+			return privateFailure(failureReaderPing, ctx.Err())
+		}
+	}
 	if err := a.reader.PingContext(ctx); err != nil {
 		return privateFailure(failureReaderPing, err)
 	}

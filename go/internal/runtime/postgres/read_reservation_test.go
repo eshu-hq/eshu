@@ -97,3 +97,22 @@ func TestReaderConnectionPermitReturnedOnceAcrossCancelAndClose(t *testing.T) {
 		t.Fatalf("closed reader holds %d connections", got)
 	}
 }
+
+func TestAccessPingSharesReaderPermits(t *testing.T) {
+	pool := sql.OpenDB(terminalErrorConnector{})
+	defer pool.Close()
+	pool.SetMaxOpenConns(1)
+	access := &Access{writer: pool, reader: pool, readerPermits: make(chan struct{}, 1)}
+	waitCtx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+	if err := access.Ping(waitCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("ping bypassed held reader permit: %v", err)
+	}
+	access.readerPermits <- struct{}{}
+	if err := access.Ping(t.Context()); err != nil {
+		t.Fatalf("ping after permit release: %v", err)
+	}
+	if got := len(access.readerPermits); got != 1 {
+		t.Fatalf("ping leaked reader permit: available=%d", got)
+	}
+}
