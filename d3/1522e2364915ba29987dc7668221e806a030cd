@@ -1,0 +1,21 @@
+scripts/test-run-live-postgres-readiness-tests.sh
+  s_b0d7e3abc26c5a::t_8af58941f150c0 99,101-102
+scripts/lib/live_postgres_readiness_results.py
+  s_b0d7e3abc26c5a::t_366594f7409e19 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d31522e2364915ba29987dc7668221e806a030cd",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
