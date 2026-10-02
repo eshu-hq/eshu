@@ -39,10 +39,11 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	reader := NewContentReader(db)
 
 	rows, err := reader.InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
-		RepoID: "repo-1",
-		Terms:  []string{"repo", "sync", "auth", "github"},
-		Limit:  26,
-		Offset: 0,
+		RepoID:               "repo-1",
+		AllowedRepositoryIDs: []string{"repo-1"},
+		Terms:                []string{"repo", "sync", "auth", "github"},
+		Limit:                26,
+		Offset:               0,
 	})
 	if err != nil {
 		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
@@ -73,6 +74,12 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	}
 	if strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("repo-scoped query = %q, must remain available during global index finalization", recorder.queries[0])
+	}
+	if got, want := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"), 4; got != want {
+		t.Fatalf("explicit repo term CTEs = %d, want %d even with a grant list", got, want)
+	}
+	if got, want := strings.Count(recorder.queries[0], "f.content ILIKE '%' || (SELECT term FROM term_param) || '%'"), 4; got != want {
+		t.Fatalf("explicit repo content predicates = %d, want %d", got, want)
 	}
 }
 
@@ -225,8 +232,11 @@ func TestContentReaderInvestigateCodeTopicFileProbePrioritizesPaths(t *testing.T
 	if got, want := strings.Count(fileProbe, "f.content ILIKE"), len(terms); got != want {
 		t.Fatalf("content predicate count = %d, want %d (one content-only probe per term)", got, want)
 	}
-	if got, want := strings.Count(fileProbe, "f.content ILIKE '%' || (SELECT term FROM term_param) || '%'"), len(terms); got != want {
-		t.Fatalf("bound content-term predicate count = %d, want %d", got, want)
+	if got := strings.Count(fileProbe, "term_param AS MATERIALIZED"); got != 0 {
+		t.Fatalf("grant-list search term CTEs = %d, want none", got)
+	}
+	if got, want := strings.Count(fileProbe, "f.content ILIKE '%' || $"), len(terms); got != want {
+		t.Fatalf("grant-list direct content-term predicates = %d, want %d", got, want)
 	}
 	if got, want := strings.Count(fileProbe, "f.relative_path NOT ILIKE"), len(terms); got != want {
 		t.Fatalf("path exclusion count = %d, want %d (content probe must exclude path hits)", got, want)
@@ -272,10 +282,6 @@ func TestContentReaderInvestigateCodeTopicFileProbePrioritizesPaths(t *testing.T
 			t.Fatalf("term arg $%d = %#v, want %#v", argIndex, got, want)
 		}
 		placeholder := fmt.Sprintf("$%d", argIndex)
-		termParam := fmt.Sprintf("term_param AS MATERIALIZED (SELECT %s::text AS term)", placeholder)
-		if got := strings.Count(fileProbe, termParam); got != 1 {
-			t.Fatalf("materialized term parameter %s count = %d, want 1", placeholder, got)
-		}
 		if got, wantUses := strings.Count(fileProbe, placeholder), 5; got != wantUses {
 			t.Fatalf("term placeholder %s uses = %d, want %d (matched values plus path/content/exclusion)", placeholder, got, wantUses)
 		}
@@ -294,14 +300,21 @@ func TestInvestigateCodeTopicUnscopedRequiresSubstringIndexesReady(t *testing.T)
 	reader := NewContentReader(db)
 
 	_, err := reader.InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
-		Terms: []string{"auth"},
-		Limit: 26,
+		RepoID: " \t",
+		Terms:  []string{"auth"},
+		Limit:  26,
 	})
 	if err != nil {
 		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
 	}
 	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("query = %q, want durable unscoped substring-index readiness gate", recorder.queries[0])
+	}
+	if strings.Contains(recorder.queries[0], "term_param AS MATERIALIZED") {
+		t.Fatal("unscoped query must retain its original file content predicate")
+	}
+	if !strings.Contains(recorder.queries[0], "f.content ILIKE '%' || $1 || '%'") {
+		t.Fatal("unscoped query must use the original bound content term")
 	}
 }
 
