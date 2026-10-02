@@ -63,10 +63,13 @@ func TestReadinessRepoArmCTEsAreComposedIntoTheShippedStatement(t *testing.T) {
 func TestReadinessRepoArmLateralProbesKeepTheirOffsetFence(t *testing.T) {
 	t.Parallel()
 
-	if got := strings.Count(readinessPackageManifestActiveCTE, repoArmLateralFenceNeedle); got != 2 {
+	// Counted on comment-stripped text: a fence commented out with "--" (even at
+	// column 0, which keeps the needle's own text intact after the marker) must
+	// not count.
+	if got := strings.Count(stripSQLLineComments(readinessPackageManifestActiveCTE), repoArmLateralFenceNeedle); got != 2 {
 		t.Errorf("package_manifest_active OFFSET 0 fences = %d, want 2 (one per arm)", got)
 	}
-	if got := strings.Count(repoArmGapCTE(t), repoArmLateralFenceNeedle); got != 1 {
+	if got := strings.Count(stripSQLLineComments(repoArmGapCTE(t)), repoArmLateralFenceNeedle); got != 1 {
 		t.Errorf("package_dependency_gap_active OFFSET 0 fences = %d, want 1", got)
 	}
 }
@@ -77,14 +80,15 @@ func TestReadinessRepoArmLateralProbesKeepTheirOffsetFence(t *testing.T) {
 func TestReadinessRepoArmManifestArmsStartFromTheRepositoryScopes(t *testing.T) {
 	t.Parallel()
 
-	if got := strings.Count(readinessPackageManifestActiveCTE, repoArmScopeAnchorNeedle); got != 2 {
+	manifest := stripSQLLineComments(readinessPackageManifestActiveCTE)
+	if got := strings.Count(manifest, repoArmScopeAnchorNeedle); got != 2 {
 		t.Errorf("package_manifest_active scope.source_key = $11 anchors = %d, want 2 (one per arm)", got)
 	}
-	if got := strings.Count(readinessPackageManifestActiveCTE, "AS dependency"); got != 2 {
+	if got := strings.Count(manifest, "AS dependency"); got != 2 {
 		t.Errorf("package_manifest_active LATERAL probes = %d, want 2", got)
 	}
 	for _, escape := range []string{"$11 = '' OR", "$11 = ''"} {
-		if strings.Contains(readinessPackageManifestActiveCTE, escape) {
+		if strings.Contains(manifest, escape) {
 			t.Errorf("package_manifest_active contains the empty-repository escape %q; under a generic plan it probes every active scope", escape)
 		}
 	}
@@ -108,8 +112,10 @@ func stripSQLLineComments(sql string) string {
 	var kept []string
 	for _, line := range strings.Split(sql, "\n") {
 		if cut := strings.Index(line, "--"); cut >= 0 {
-			line = line[:cut]
-			if strings.TrimSpace(line) == "" {
+			// Trim the space before the comment so a multi-line needle still
+			// matches the code that preceded a trailing comment.
+			line = strings.TrimRight(line[:cut], " \t")
+			if line == "" {
 				continue
 			}
 		}
@@ -131,8 +137,9 @@ func TestStripSQLLineCommentsDropsEverySQLComment(t *testing.T) {
 		want string
 	}{
 		{"whole line comment", "A\n  -- B\nC", "A\nC"},
-		{"trailing comment", "A -- B\nC", "A \nC"},
-		{"trailing comment hides a needle", "WHERE x = 1 -- AND is_tombstone = FALSE", "WHERE x = 1 "},
+		{"trailing comment", "A -- B\nC", "A\nC"},
+		{"trailing comment hides a needle", "WHERE x = 1 -- AND is_tombstone = FALSE", "WHERE x = 1"},
+		{"comment at column zero keeps no needle", "--        OFFSET 0\n    ) AS fact", "    ) AS fact"},
 		{"no comment", "A\nB", "A\nB"},
 		{"operators that are not comments", "a->>'k' = 'v' AND b - c > 0", "a->>'k' = 'v' AND b - c > 0"},
 	}
@@ -164,6 +171,25 @@ func TestReadinessRepoArmGuardedSQLHasNoDoubleDashInsideLiterals(t *testing.T) {
 			if strings.Count(line[:cut], "'")%2 == 1 {
 				t.Errorf("%s: %q has a %q inside a quoted literal; the comment cut would corrupt it", name, line, "--")
 			}
+		}
+	}
+}
+
+// TestReadinessRepoArmGuardedSQLHasNoBlockComments pins that the guarded text
+// holds no "/* */" block comment. stripSQLLineComments removes only "--"
+// comments, so a block comment could still carry a needle for a predicate that
+// was deleted from the code. The shipped SQL has none; adding one must be a
+// deliberate change to this guard, not a way around it.
+func TestReadinessRepoArmGuardedSQLHasNoBlockComments(t *testing.T) {
+	t.Parallel()
+
+	for name, sql := range map[string]string{
+		"package_manifest_active":        readinessPackageManifestActiveCTE,
+		"package_dependency_gap_active":  repoArmGapCTE(t),
+		"migration 159 index definition": legacyGapIndexMigrationSQLWithComments(t),
+	} {
+		if strings.Contains(sql, "/*") || strings.Contains(sql, "*/") {
+			t.Errorf("%s contains a block comment; the guards strip only -- comments", name)
 		}
 	}
 }

@@ -204,7 +204,10 @@ embedded migration's index predicate. They also pin (counts taken on text with
 every `--` comment removed, whole-line or trailing, so a needle left in a
 comment cannot satisfy them; `TestStripSQLLineCommentsDropsEverySQLComment`
 pins the helper and `TestReadinessRepoArmGuardedSQLHasNoDoubleDashInsideLiterals`
-pins that the cut cannot corrupt a literal) three `dependency.generation_id =
+pins that the cut cannot corrupt a literal; `TestReadinessRepoArmGuardedSQLHasNoBlockComments`
+rejects `/* */` comments, which the helper does not strip; the `OFFSET 0` fence,
+`scope.source_key` anchor and LATERAL-probe counts use the same stripped text)
+three `dependency.generation_id =
 scope.active_generation_id` binds and three `dependency.is_tombstone = FALSE`
 filters across the two manifest arms and the gap CTE, and arm 1's `NULLIF(...
 config_kind, '') IS NULL` exclusivity and arm 2's `config_kind = 'dependency'`
