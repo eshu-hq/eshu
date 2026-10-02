@@ -61,8 +61,12 @@ returned HTTP 200, the complete canonical JSON response matched, and the
 content and queue fingerprint was unchanged. This is a built endpoint result
 on the dedicated instance, not a deployed ops-qa acceptance result. Those
 measurements remain bound to the pre-rebase source commit. The later
-guarded-reader integration changed the production connection path and needs
-its own built endpoint proof before claiming the deployed budget.
+guarded-reader integration has its own [current-source built endpoint
+comparison](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md):
+on the same dedicated corpus, baseline and candidate medians were 0.765572
+and 0.464944 seconds, with matching full responses. This remains a relative
+test-instance result; deployed ops-qa readiness and the `<1 s` endpoint budget
+are not yet validated and are tracked in #7516.
 
 Observability Evidence: The `postgres.query` span records the selected route,
 reservation wait and cancellation, connection count, probe row count, JSON
