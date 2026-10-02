@@ -6,8 +6,10 @@ package query
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
@@ -373,4 +375,95 @@ func cleanDeadCodeIncomingEntityIDs(entityIDs []string) []string {
 		cleaned = append(cleaned, entityID)
 	}
 	return cleaned
+}
+
+// crossRepoDeadCodeRowScanner is the Scan surface scanCrossRepoDeadCodeEvidence
+// needs, so the cross-repo evidence decoder can be fed by *sql.Rows or a test row.
+type crossRepoDeadCodeRowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanCrossRepoDeadCodeEvidence(rows crossRepoDeadCodeRowScanner) (string, deadcode.CrossRepoDeadCodeEvidence, error) {
+	var (
+		entityID         string
+		consumerRepoID   string
+		consumerRepoName string
+		rootEntityID     string
+		depth            int
+		state            string
+		confidence       float64
+		resolutionMethod string
+		rawEvidence      []byte
+		rawRootKinds     []byte
+		generationID     string
+		generationStatus string
+		observedAt       time.Time
+		updatedAt        time.Time
+	)
+	if err := rows.Scan(
+		&entityID,
+		&consumerRepoID,
+		&consumerRepoName,
+		&rootEntityID,
+		&depth,
+		&state,
+		&confidence,
+		&resolutionMethod,
+		&rawEvidence,
+		&rawRootKinds,
+		&generationID,
+		&generationStatus,
+		&observedAt,
+		&updatedAt,
+	); err != nil {
+		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("scan cross-repo dead code consumer evidence: %w", err)
+	}
+	var evidence []string
+	if err := json.Unmarshal(rawEvidence, &evidence); err != nil {
+		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code evidence: %w", err)
+	}
+	var rootKinds []string
+	if err := json.Unmarshal(rawRootKinds, &rootKinds); err != nil {
+		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code root kinds: %w", err)
+	}
+	item := deadcode.CrossRepoDeadCodeEvidence{
+		ConsumerRepoID:   consumerRepoID,
+		ConsumerRepoName: consumerRepoName,
+		ConsumerEntityID: rootEntityID,
+		RelationshipType: crossRepoDeadCodeRelationshipType(evidence),
+		EvidenceFamily:   "direct_code",
+		Citation:         crossRepoDeadCodeCitation(generationID, consumerRepoID, rootEntityID, entityID),
+		Confidence:       confidence,
+		ConfidenceLabel:  deadcode.CrossRepoDeadCodeConfidenceLabel(confidence),
+		ResolutionMethod: resolutionMethod,
+		Depth:            depth,
+		GenerationID:     generationID,
+		GenerationStatus: generationStatus,
+		ObservedAt:       observedAt,
+		Ambiguous:        strings.EqualFold(state, "ambiguous"),
+	}
+	if !strings.EqualFold(generationStatus, "active") {
+		item.NeedsEvidence = true
+		item.Reason = "stale_generation"
+	}
+	if item.Ambiguous {
+		item.NeedsEvidence = true
+		item.Reason = "ambiguous_consumer_ownership"
+	}
+	return entityID, item, nil
+}
+
+func crossRepoDeadCodeRelationshipType(evidence []string) string {
+	for _, value := range evidence {
+		for _, relationship := range []string{"CALLS", "REFERENCES", "INHERITS", "IMPORTS"} {
+			if strings.Contains(strings.ToUpper(value), relationship) {
+				return relationship
+			}
+		}
+	}
+	return "REACHES"
+}
+
+func crossRepoDeadCodeCitation(generationID string, consumerRepoID string, rootEntityID string, entityID string) string {
+	return "code_reachability_rows:" + generationID + "/" + consumerRepoID + "/" + rootEntityID + "/" + entityID
 }

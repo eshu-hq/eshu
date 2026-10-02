@@ -58,15 +58,19 @@ func TestContentReaderCrossRepoDeadCodeEvidenceUsesBoundedEntityLookup(t *testin
 	if !containsAllSubstrings(
 		query,
 		"FROM code_reachability_rows AS row",
-		"row.entity_id IN ($2, $3)",
+		"unnest($2::text[])",
+		"WHERE row.entity_id = page.id",
 		"row.repository_id <> $1",
-		"scope.active_generation_id = row.generation_id",
-		"ORDER BY row.entity_id ASC, row.confidence DESC",
+		"SELECT scope.active_generation_id",
+		"ORDER BY row.confidence DESC",
+		"ORDER BY page.id ASC, hit.confidence DESC",
 		"LIMIT",
 	) {
 		t.Fatalf("query missing bounded active-generation lookup clauses:\n%s", query)
 	}
-	if got, want := len(recorder.args[0]), 3; got != want {
+	// One array for the page rather than one placeholder per entity, so the
+	// statement text -- and the plan cache entry -- is the same for every page.
+	if got, want := len(recorder.args[0]), 2; got != want {
 		t.Fatalf("len(args) = %d, want %d args=%#v", got, want, recorder.args[0])
 	}
 }
