@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type checkpoint struct {
@@ -24,9 +26,12 @@ var (
 	// ErrWrongTopology means a role, database, or system identity differs.
 	ErrWrongTopology = errors.New("PostgreSQL reader topology mismatch")
 	// ErrReaderStale means replay did not reach the writer checkpoint in time.
-	ErrReaderStale = errors.New("PostgreSQL reader has not reached writer checkpoint")
+	// It is the shared db.ErrReaderStale so the query layer can classify it
+	// without importing this package.
+	ErrReaderStale = db.ErrReaderStale
 	// ErrReaderUnavailable means reader acquisition, identity, or replay failed.
-	ErrReaderUnavailable = errors.New("PostgreSQL reader unavailable")
+	// It is the shared db.ErrReaderUnavailable.
+	ErrReaderUnavailable = db.ErrReaderUnavailable
 	// ErrWriterUnavailable means the writer checkpoint could not be obtained.
 	ErrWriterUnavailable = errors.New("PostgreSQL writer unavailable")
 )

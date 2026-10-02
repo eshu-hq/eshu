@@ -43,6 +43,20 @@ rather than a generic transport failure:
 
 Responses do not expose Bolt addresses, Cypher text, or raw driver errors.
 
+The same helper also maps a PostgreSQL reader that was stale, or whose
+connection acquisition (pool wait or dial) or identity check timed out inside
+the replay window, onto `503` `backend_unavailable` with the fixed message
+`database read temporarily unavailable; retry shortly`. A reader failure that is
+not a timeout (authentication or TLS failure, connection refused, permission
+denied, a client disconnect, a wrong topology, a missing checkpoint) stays a
+`500`. See [HTTP API](../http-api.md#postgresql-reader-fence-failures).
+
+`Retry-After` is set only on the transient verdicts the shared mapping produces:
+the graph-unavailable `503` above and the reader `503`. It is not set by the
+generic envelope writer, so a permanent `503` `backend_unavailable` (for example
+a route that needs a graph backend the deployment did not configure) carries no
+retry hint. The checkpoint middleware's `503` carries it too.
+
 `POST /api/v0/code/visualize` was a known gap, tracked separately: it followed
 the contract at runtime but had no OpenAPI path entry at all — a gap that
 predated this contract, so it could not advertise `503`/`504` until that entry

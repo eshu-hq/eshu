@@ -151,6 +151,9 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 	}
 	repoIDs, err := h.resolveRepositoryScope(r.Context(), repoIDs)
 	if err != nil {
+		if querycontract.WriteGraphReadError(w, r, err, DeadCapability) {
+			return
+		}
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -164,7 +167,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 			req.IncludeAmbiguous,
 		)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeDeadIaCReadError(w, r, err)
 			return
 		}
 		rows, err := h.Reachability.ListLatestCleanupFindings(
@@ -176,7 +179,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 			req.Offset,
 		)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeDeadIaCReadError(w, r, err)
 			return
 		}
 		if len(rows) > 0 {
@@ -189,7 +192,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 		}
 		hasRows, err := h.Reachability.HasLatestRows(r.Context(), repoIDs, families)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeDeadIaCReadError(w, r, err)
 			return
 		}
 		if hasRows {
@@ -206,7 +209,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 
 	filesByRepo, err := loadIaCDeadFiles(r.Context(), h.Content, repoIDs)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeDeadIaCReadError(w, r, err)
 		return
 	}
 	findings := analyzeDeadIaC(filesByRepo, iacreachability.FamilyFilter(families), req.IncludeAmbiguous)
@@ -231,6 +234,17 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 			"exact dead-IaC requires reducer-materialized usage rows",
 		},
 	}, querycontract.BuildTruthEnvelope(h.profile(), DeadCapability, querycontract.TruthBasisContentIndex, "derived from bounded IaC content references"))
+}
+
+// writeDeadIaCReadError answers a failed dead-IaC store read. A stale reader, or
+// one whose connection acquisition (pool wait or dial) or identity check timed
+// out inside the replay window, is a retryable 503 with Retry-After (#7523); any
+// other failure, including a non-timeout reader failure, stays a 500.
+func writeDeadIaCReadError(w http.ResponseWriter, r *http.Request, err error) {
+	if querycontract.WriteGraphReadError(w, r, err, DeadCapability) {
+		return
+	}
+	querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 }
 
 func writeMaterializedDeadIaC(

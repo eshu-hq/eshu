@@ -9,6 +9,16 @@ All business SQL must be fenced on its exact borrowed connection. Keep writer
 checkpoint acquisition after authorization and release it before waiting on
 a reader. Cursor cleanup owns connection release on every terminal path.
 
+`ErrReaderStale` and `ErrReaderUnavailable` must stay the same values as
+`db.ErrReaderStale` and `db.ErrReaderUnavailable`: the query layer classifies
+reader failures by those shared sentinels and maps them to a retryable 503 with
+`Retry-After` (#7523) only for `ErrReaderStale` and for `ErrReaderUnavailable`
+joined with `context.DeadlineExceeded`. This package joins `ErrReaderUnavailable`
+onto every reader connection, identity-query, and replay-query failure, so a
+bare `ErrReaderUnavailable` is NOT retryable and must stay a 500. A new reader
+error path that is genuinely transient must carry a deadline (or a new sentinel
+the query layer matches); a permanent one must not wrap `context.DeadlineExceeded`.
+
 The current scope allows native host candidates behind one writer pool and one
 reader pool. Writer candidates must resolve to the frozen physical primary
 incarnation; reader candidates must resolve to its streaming standbys, or to

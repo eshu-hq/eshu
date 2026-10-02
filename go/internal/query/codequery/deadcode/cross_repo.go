@@ -119,10 +119,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 
 	scan, err := a.ScanCrossRepoDeadCodeCandidates(r.Context(), req)
 	if err != nil {
-		if a.deps.WriteGraphReadError(w, r, err, crossRepoDeadCodeCapability) {
-			return
-		}
-		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
+		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
 		return
 	}
 	clippedDocstrings := clipCrossRepoDeadCodeDocstrings(&scan)
@@ -133,7 +130,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		req.ConsumerRepoIDs,
 	)
 	if err != nil {
-		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
+		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
 		return
 	}
 
