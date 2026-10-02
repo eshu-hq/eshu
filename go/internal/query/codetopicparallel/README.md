@@ -81,8 +81,12 @@ on the same span.
 - Compute the candidate cap from the full request before partitioning terms.
 - The guarded reader reserves four connections under a per-pool acquisition
   gate before starting transactions and releases partial reservations on
-  cancellation. A pool of eight can run two requests concurrently. Smaller
-  pools, or a store without snapshot-set support, use the single statement.
+  cancellation. A pool of eight can run two requests concurrently. A reported
+  capacity below four, including zero, or a store without snapshot-set support
+  uses the single statement. If the guarded reader's permit reservation
+  expires with a live request and clean partial release, the caller makes one
+  single-statement attempt through that same fenced store. Fencing, snapshot
+  setup, probe, assembly, and caller-cancellation errors remain failures.
 - Preserve the SQL `ORDER BY` and `string_agg(DISTINCT ...)` rules. Go string
   sorting is not a replacement for database collation.
 

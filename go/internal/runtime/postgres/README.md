@@ -52,6 +52,16 @@ before its first query. The exporter stays open through caller assembly. A
 per-Access, context-aware reservation gate prevents two sets from holding
 partial pool reservations; cancellation and setup failures release all
 acquired connections. Cursor close does not release that transaction.
+Every guarded reader borrow and the exposed readiness ping also own one permit
+from the configured reader pool budget until their connection is returned. If a
+snapshot set's internal permit wait expires while the request remains live, it
+releases its partial reservation and reports a typed capacity error. The
+code-topic handler may
+then make one single-statement attempt through the same fenced reader and
+checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
+do not trigger that fallback. The permit wait retains the configured reader
+deadline (two seconds by default), so a contended fallback is not a
+subsecond-latency claim.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
 adapter scan contracts remain unchanged.

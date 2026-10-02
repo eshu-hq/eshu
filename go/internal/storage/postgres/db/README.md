@@ -52,6 +52,10 @@ transaction, or a raw connection.
 - `ReadSnapshotSet` / `ReadSnapshotSetBeginner` -- open query-only readers
   sharing one exported read-only repeatable-read snapshot; the requested count
   includes the exporter and is bounded by the reader pool's connection cap.
+- `ErrSnapshotReservationCapacity` -- marks only an expired guarded-reader
+  permit reservation with a live caller and completed partial cleanup. Callers
+  may choose a separately fenced single-statement path; setup or query errors
+  do not carry this marker.
 - `ReadStore` -- combines cursor, row, and snapshot reads.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
   check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for
