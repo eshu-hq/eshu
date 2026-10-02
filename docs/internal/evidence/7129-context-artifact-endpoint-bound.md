@@ -106,3 +106,18 @@ signal is in the response: `partial_reasons`, `result_limits.truncated` and
 `truth.omissions`. The existing MCP budget signals
 (`eshu_dp_mcp_response_bytes`, `eshu_dp_mcp_response_over_budget_total`) show
 whether either tool still crosses the budget.
+
+## Follow-up: infrastructure rows (measured on ops-qa after #7520 deployed)
+
+A scan of all 809 indexed repositories on build 4274e83 found 25 services still
+over the MCP budget at default arguments. In all 25 the largest field is
+`infrastructure` (169,807 to 585,055 bytes of 245,349 to 606,211 byte bodies,
+read over the HTTP route). On one service it holds 1,161 rows of 69 / 139 / 295
+bytes (min / median / max); the read bound is 5,000 rows and the 50-row context
+caps did not cover the list. The change cuts it to 50 rows with the total on
+`result_limits.infrastructure_count` and the reason `infrastructure_rows_truncated`.
+
+No-Regression Evidence: unit tests on the cap and its within-limit and story-surface
+cases; no query changes. The effect on the 25 services is NOT_CHECKED until this
+build is deployed to ops-qa and they are re-measured.
+No-Observability-Change: the signal is in the response (`partial_reasons`, `result_limits`).

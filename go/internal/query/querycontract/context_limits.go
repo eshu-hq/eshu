@@ -85,6 +85,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	// The API surface endpoint rows and the deployment-evidence row lists get
 	// the same treatment so the response stays inside the MCP budget (#7129).
 	// The story surface emits neither, so it only reports the artifact total.
+	infrastructureTotal := len(MapSliceValue(ctx, "infrastructure"))
 	artifactTotal := len(MapSliceValue(MapValue(ctx, "deployment_evidence"), "artifacts"))
 	var budgetTrunc bool
 	if surface != "story" {
@@ -125,20 +126,21 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 		drilldownTool = "get_workload_context"
 	}
 	return map[string]any{
-		"limit":              ContextStoryItemLimit,
-		"ordering":           "deterministic",
-		"instance_count":     instanceTotal,
-		"dependent_count":    dependentTotal,
-		"consumer_count":     consumerTotal,
-		"hostname_count":     hostnameTotal,
-		"entrypoint_count":   entrypointTotal,
-		"network_path_count": networkPathTotal,
-		"artifact_count":     artifactTotal,
-		"truncated":          truncated,
-		"drilldown_basis":    "resolved_id",
-		"relationship_tool":  "get_relationship_evidence",
-		"drilldown_tool":     drilldownTool,
-		"context_path":       "/api/v0/workloads/" + workloadID + "/context",
+		"limit":                ContextStoryItemLimit,
+		"ordering":             "deterministic",
+		"instance_count":       instanceTotal,
+		"dependent_count":      dependentTotal,
+		"consumer_count":       consumerTotal,
+		"hostname_count":       hostnameTotal,
+		"entrypoint_count":     entrypointTotal,
+		"network_path_count":   networkPathTotal,
+		"artifact_count":       artifactTotal,
+		"infrastructure_count": infrastructureTotal,
+		"truncated":            truncated,
+		"drilldown_basis":      "resolved_id",
+		"relationship_tool":    "get_relationship_evidence",
+		"drilldown_tool":       drilldownTool,
+		"context_path":         "/api/v0/workloads/" + workloadID + "/context",
 	}
 }
 
