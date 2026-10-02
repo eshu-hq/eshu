@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 125 gates. Local execution runs the primary
+The registry currently defines 126 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -149,9 +149,10 @@ results are derived from the inputs rather than written by hand. See
 - `parserfixture-tests` (blocking): Replays recorded parser fixtures against the real parser to prove its output stays deterministic.
 - `replay-tier` (blocking): Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend.
 
-### Truth: Does the whole system produce the known right answer? (6 gates)
+### Truth: Does the whole system produce the known right answer? (7 gates)
 
 - `accuracy-golden-gate` (blocking): Fails when parser/reducer accuracy metrics (complexity, call resolution, correlation precision) drop below the published baseline floor.
+- `supply-chain-impact-live` (blocking): Keeps the supply-chain impact retraction, fencing and capped-evidence proofs enrolled in the reducer contention gate so they run on real Postgres.
 - `golden-corpus-gate-neo4j` (blocking): Runs the full pipeline over the fixed golden corpus on Neo4j, the supported backend, and fails if queues don't drain or the graph differs from the snapshot.
 - `live-backend-tests` (blocking): Runs the CI-class tests from the live-test ledger against NornicDB and Neo4j in Docker and fails on a wrong answer.
 - `golden-corpus-differential` (blocking): Runs the golden corpus on NornicDB and Neo4j with statement capture; failed runs, empty captures or missing statement coverage block, row diffs are advisory.
@@ -228,6 +229,7 @@ results are derived from the inputs rather than written by hand. See
 | `env-registry-doc` | Generate Environment Variable Registry Reference | exactness | pre-pr | true | `bash scripts/verify-env-registry-doc.sh`<br>then self-test: `bash scripts/test-generate-env-registry-doc.sh` | static-contract-gates.yml / Verify environment registry reference gate | 6 path(s): go/internal/envregistry/**, docs/public/reference/env-registry.md, go/internal/envregistry/README.md, … |
 | `race-graph-writes` | Race detector — graph writes | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...` | race-graph-writes.yml / race | 11 path(s): go/cmd/ingester/**, go/cmd/projector/**, go/internal/storage/cypher/**, … |
 | `reducer-contention` | Reducer Contention Gate (real Postgres) | race | pre-pr | true | — (CI-only: needs Postgres service container (GitHub Actions)) | reducer-contention-gate.yml / reducer contention gate | 5 path(s): go/internal/storage/postgres/**, go/internal/reducer/**, schema/data-plane/postgres/**, … |
+| `supply-chain-impact-live` | Supply-chain impact live proofs (real Postgres) | exactness | pre-pr | true | `cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate)$' -count=1`<br>then self-test: `cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof\|TestProofStepScopesTheEnvChecksToTheProofStep\|TestLiveDSNOpenersFollowsWrappersTransitively\|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles\|TestHelperFailsOnRequiredPinsTheOutcomeAction\|TestSupplyChainImpactLiveDecision)$' -count=1` | reducer-contention-gate.yml / reducer contention gate | 5 path(s): go/internal/reducer/supplychain/**, go/internal/storage/postgres/**, .github/workflows/reducer-contention-gate.yml, … |
 | `claude-rules-scope` | Claude path-scoped rules | exactness | pre-pr | true | `bash scripts/dev/claude-rules-lint.sh`<br>then self-test: `bash scripts/test-claude-rules-lint.sh` | static-contract-gates.yml / Verify Claude path-scoped rules gate | 4 path(s): .claude/rules/**, scripts/dev/claude-rules-lint.sh, scripts/test-claude-rules-lint.sh, … |
 | `docs-catalog-metadata` | Docs catalog metadata | exactness | pre-pr | true | `bash scripts/verify-docs-catalog.sh`<br>then self-test: `bash scripts/test-verify-docs-catalog.sh` | test.yml / docs-helm-hygiene | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-catalog.sh, … |
 | `storage-doc-bundled-nornicdb-example` | Storage doc bundled-NornicDB Helm example renders | exactness | pre-pr | true | `bash scripts/verify-storage-doc-bundled-nornicdb-example.sh`<br>then self-test: `bash scripts/test-verify-storage-doc-bundled-nornicdb-example.sh` | test.yml / docs-helm-hygiene | 6 path(s): docs/public/deploy/kubernetes/storage.md, deploy/helm/eshu/**, scripts/verify-storage-doc-bundled-nornicdb-example.sh, … |

@@ -1611,6 +1611,39 @@ gates:
       - postgres
     ci_only_reason: "needs Postgres service container (GitHub Actions)"
 
+  # The supply-chain impact retraction, fencing and capped-evidence proofs need
+  # real Postgres (advisory locks, row locks, snapshots, plans), so they run as
+  # steps of the reducer contention gate's job rather than in a job of their
+  # own. This row is what keeps them there: the local command is the hermetic
+  # enrollment guard, which reads the real workflow filter and the real test
+  # files, and its RED/GREEN pair proves the guard can fail. The live proofs
+  # themselves run only in CI, on the contention gate's Postgres service (#7141).
+  - id: supply-chain-impact-live
+    name: Supply-chain impact live proofs (real Postgres)
+    category: exactness
+    layer: truth
+    purpose: "Keeps the supply-chain impact retraction, fencing and capped-evidence proofs enrolled in the reducer contention gate so they run on real Postgres."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/reducer/supplychain/**"
+      - "go/internal/storage/postgres/**"
+      - ".github/workflows/reducer-contention-gate.yml"
+      - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
+      - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
+    self_test_triggers:
+      - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
+      - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
+    local:
+      command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate)$' -count=1"
+      test_command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision)$' -count=1"
+    ci:
+      workflow: reducer-contention-gate.yml
+      job: "reducer contention gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   # ─── DOCS ──────────────────────────────────────────────────────────────────
 
   - id: claude-rules-scope

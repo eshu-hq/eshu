@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -58,10 +57,7 @@ func openCappedScopeLiveDB(t *testing.T) (context.Context, *sql.DB) {
 // resolve gin_trgm_ops.
 func openCappedScopeSchema(ctx context.Context, t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("ESHU_POSTGRES_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #7154 capped-scope proof")
-	}
+	dsn := supplyChainImpactLiveDSN(t, "#7154 capped-scope proof")
 	adminDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres admin connection: %v", err)
