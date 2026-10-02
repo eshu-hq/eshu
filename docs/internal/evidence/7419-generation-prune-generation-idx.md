@@ -104,8 +104,12 @@ faster on the fixture. Draining the 21,489 ops-qa backlog would cost about 112 s
 of cascade scans without the index on the fixture's smaller table (about 316 s
 at ops-qa's 14.7 ms scan), against well under 1 s with it; in steady state
 (about 1,150 generations per day) that is 6 to 17 s of database time per day. A
-500-generation batch holds its row locks for about 2.6 s without the index (up
-to 7 s at ops-qa's table size) and about 15 ms with it.
+500-generation batch's cascade through this table adds about 2.6 s (up to 7 s
+at ops-qa's table size) to the time the retention transaction holds its scope
+row locks without the index, and about 15 ms with it. The transaction holds
+those locks through every other step too (candidate selection, the row-count
+join, content prunes, and the cascades into the other children), so this is
+this table's share of the hold, not the whole of it.
 
 ### Write cost
 
