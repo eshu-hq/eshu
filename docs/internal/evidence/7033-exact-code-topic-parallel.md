@@ -134,14 +134,31 @@ parallel-read connection/fallback span attributes in code; this aborted run
 did not capture a trace export or a completed resource series. No deployed
 operator-signal claim follows from these samples.
 
+## Reader-host safety proof
+
+The guarded reader advertises shared snapshot sets only for a single native
+PostgreSQL reader host. A multi-host reader retains the single-statement path:
+PostgreSQL exported snapshots are server-local, while the normal reader pool
+can select a different candidate for each connection. A disposable PostgreSQL
+18.6 experiment imported an exported snapshot on its origin server and failed
+with `snapshot ... does not exist` on a second server. The multi-host capability
+regression was red before the guard and green after it; the ordinary reader
+host-selection policy was unchanged. This is a correctness guard, not a
+multi-host parallel performance claim.
+
 ## Deployed ops-qa acceptance
 
-NOT_CHECKED for the final rebased guarded-reader candidate on the deployed
-topology. The patch was rebased onto `42d2ff84ebf56d75cf323e39d7aa4081da23ab00`
-without changing its stable patch ID, but the binaries above predate that
-base. Ops-qa's migration ledger still ended at 152 on 2026-10-02 while the
-rebased source includes 154. A new exact-source run needs fully ready APIs,
-a quiet completed interleaved comparison, full-response parity, content- and
-index-specific storage proof, resource and operator-signal evidence, and
-verified teardown. Do not claim the deployed `<1 s` budget or open the #7033
-PR on this record alone.
+NOT_CHECKED for the exact rebased guarded-reader candidate on the deployed
+topology. This branch is based on
+`abc6d3c7b4cac6ebe05907c047741f1dbefc86f6`; its final candidate SHA
+will be recorded with the reviewed build and comparison. The current source
+includes migration 155. Ops-qa's migration ledger was last observed at 152 on
+2026-10-02; this record does not establish a later ledger state. A subsequent
+exact-source attempt on 2026-10-02 aborted during full storage-digest/cleanup
+validation and yielded no accepted endpoint timing evidence. A valid exact
+source run still needs a completed interleaved comparison, full-response
+parity, content- and index-specific storage proof, resource evidence, and
+verified teardown. The owner approved using an exact-source fixed-corpus
+remote comparison for the merge measurement, with the deployed ops-qa `<1 s`
+check tracked separately. Do not claim the deployed budget from the remote
+result or open the #7033 PR on this record alone.

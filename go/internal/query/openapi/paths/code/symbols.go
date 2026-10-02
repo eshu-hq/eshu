@@ -311,7 +311,7 @@ const Symbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate a code topic",
-        "description": "Finds ranked files and symbols for a broad natural-language code topic using one bounded content-index query. Returns coverage, truncation, source handles, and exact next-call handles for source reads and relationship stories. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "description": "Finds ranked files and symbols for a broad natural-language code topic using bounded content-index probes. Eligible 16-term searches run probes in parallel over a shared read-only snapshot and assemble the ranked candidate page in PostgreSQL; other requests use the bounded serial path. Returns coverage, truncation, source handles, and exact next-call handles for source reads and relationship stories. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "investigateCodeTopic",
         "x-scoped-token-support": true,
         "requestBody": {
