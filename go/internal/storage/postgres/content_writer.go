@@ -331,8 +331,10 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			continue
 		}
 
-		// Validate and prepare row for batching
-		metadataJSON, err := metadataJSON(entity.Metadata)
+		// Validate and prepare row for batching. The persisted copy drops
+		// the parser fingerprint keys (#7172); the side-table row below
+		// still derives from the untouched in-memory metadata.
+		metadataJSON, err := metadataJSON(persistedEntityMetadata(entity.Metadata))
 		if err != nil {
 			return content.Result{}, fmt.Errorf("marshal content entity metadata for %q: %w", entity.EntityID, err)
 		}

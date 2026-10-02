@@ -145,7 +145,9 @@ func (s ContentStore) UpsertEntityBatch(
 			continue
 		}
 
-		mdJSON, err := metadataJSON(entity.Metadata)
+		// Same #7172 write contract as ContentWriter.Write: fingerprint
+		// keys never reach content_entities.metadata.
+		mdJSON, err := metadataJSON(persistedEntityMetadata(entity.Metadata))
 		if err != nil {
 			return fmt.Errorf("marshal content entity metadata for %q: %w", entity.EntityID, err)
 		}
