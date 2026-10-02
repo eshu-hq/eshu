@@ -288,6 +288,24 @@ implication is what made the removed `$11 = ''` escape unreachable. Each guard
 was shown RED by temporarily mutating the production constant or the migration
 SQL, and GREEN on the clean tree.
 
+Two independent reviewers then showed that conditions inside the probes were
+still unbound: the `dependency.scope_id` bind, `fact_kind`, `source_system`,
+`entity_type` and the outer generation join. Dropping `fact_kind`,
+`source_system` or `entity_type` from a probe breaks predicate implication for
+migrations 121 and 159, so the index cannot be used, and none of that changes
+the text shapes the needles look for. `TestReadinessRepoArmExecutableTextIsPinned`
+closes the class by comparing the executable SQL of `package_manifest_active`
+and `package_dependency_gap_active` (comments stripped, whitespace collapsed)
+with `testdata/readiness_repo_arm_probes.golden`. Dropping any of those
+conditions from any probe fails it (seeded: scope bind in arm 2 and the gap
+probe, `fact_kind` in arm 1 and the gap probe, `source_system` in arm 2,
+`entity_type` in the gap probe, the outer generation join in arm 1); adding a
+comment or blank line does not. It is a change detector: a deliberate edit to
+either statement must regenerate the golden with `-update-repo-arm-golden` and
+carry the plan proof that justifies it. It does not check that the plan is
+good, only that the text that produced the measured plan is the text shipped;
+the scheduled live proof remains the only check of the plan itself.
+
 The scan-tier live proofs (`readiness_scan_tier_explain_live_test.go`) bound 16
 arguments to the 20-parameter statement and failed on main with `expected 20
 arguments, got 16`. They now bind all 20 through `readinessArgsForQuery`, which

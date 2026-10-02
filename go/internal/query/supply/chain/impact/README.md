@@ -230,7 +230,11 @@ only their package qualifier changed).
   escape, the three `generation_id` binds and `is_tombstone = FALSE` filters,
   the arm-1/arm-2 exclusivity, the empty-repository-implies-`$20` table test,
   and the match between both readers' predicates and the embedded
-  migration's index predicate; evidence:
+  migration's index predicate. `TestReadinessRepoArmExecutableTextIsPinned`
+  also pins the full executable text of the three probes to
+  `testdata/readiness_repo_arm_probes.golden`; a deliberate edit to either
+  statement regenerates it with `-update-repo-arm-golden` and carries the plan
+  proof. Evidence:
   `docs/internal/evidence/7088-readiness-repo-scope.md`.
 - Image-reference targets batch the current digest set and active registry identity
   lookups. SBOM component counts join each active component to its active
