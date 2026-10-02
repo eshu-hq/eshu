@@ -11,10 +11,11 @@ import "slices"
 // what one page of deployment evidence holds (#7129).
 var contextEvidenceRowKeys = []string{"artifacts", "delivery_paths", "delivery_workflows", "shared_config_paths"}
 
-// capContextBudgetRows bounds the two payload families that kept the workload
+// capContextBudgetRows bounds the three payload families that kept the workload
 // and service context responses over the MCP response budget after the
 // hostname and entrypoint caps (#7129): the API surface endpoint rows, which
-// the overview repeated, and the deployment-evidence row lists.
+// the overview repeated, the deployment-evidence row lists, and the
+// infrastructure list, whose read bound is 5,000 rows.
 //
 // It runs from WorkloadContextResultLimits, after every consumer of the full
 // lists has read them, so the cut changes only what ships. Pre-cut totals stay
