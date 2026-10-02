@@ -38,6 +38,11 @@ const (
 	// ~300 content_entity rows per noise scope), and arm 1 without the
 	// generation in its Index Cond read ~30k on the target's old generations.
 	repoArmStatementBufferLimit = 20000
+	// repoArmDependencyScanBufferLimit bounds the shared buffers of the three
+	// dependency-variable reads themselves, under custom and generic plans.
+	// Bounded, they read ~120 buffers on this corpus; the pre-#7088 legacy
+	// arm alone read ~245k custom and the generic plan more.
+	repoArmDependencyScanBufferLimit = 2000
 )
 
 // previousRepoArmManifestCTE and previousRepoArmGapCTE are the
@@ -231,12 +236,15 @@ func decodeRepoArmPlan(t *testing.T, raw []byte) repoArmPlanNode {
 // repoArmDependencyScans returns every fact_records scan that reads
 // dependency-variable rows: package_manifest_active's two arms and
 // package_dependency_gap_active. They are the only fact_records reads in the
-// statement whose predicate names entity_type 'Variable' or that use one of
-// the two dependency-variable partial indexes (whose predicate carries it).
+// statement whose predicate names entity_type 'Variable', config_kind or
+// repo_id, or that use one of the two dependency-variable partial indexes
+// (whose predicate carries them).
 func repoArmDependencyScans(node repoArmPlanNode) []repoArmPlanNode {
 	var out []repoArmPlanNode
 	if node.RelationName == "fact_records" &&
 		(strings.Contains(node.IndexCond+node.Filter, "'Variable'") ||
+			strings.Contains(node.IndexCond+node.Filter, "'config_kind'") ||
+			strings.Contains(node.IndexCond+node.Filter, "'repo_id'") ||
 			node.IndexName == repoArmDependencyIndex || node.IndexName == repoArmLegacyAndGapIndex) {
 		out = append(out, node)
 	}
@@ -249,14 +257,20 @@ func repoArmDependencyScans(node repoArmPlanNode) []repoArmPlanNode {
 // assertRepoArmPlanBounded fails unless every dependency-variable read is an
 // index probe through one of the two repo-leading partial indexes with the
 // scope and active generation in its Index Cond, executed at most once per
-// target scope, and the statement stays under its buffer bound.
-func assertRepoArmPlanBounded(t *testing.T, label string, raw []byte) {
+// target scope, and their buffers stay under repoArmDependencyScanBufferLimit.
+// A positive statementBufferLimit also bounds the whole statement; the
+// generic-plan proof passes 0 because other, fact-kind-anchored CTEs
+// (advisory, package consumption) probe every active scope under a generic
+// plan on this corpus, which #7088 does not change.
+func assertRepoArmPlanBounded(t *testing.T, label string, raw []byte, statementBufferLimit int64) {
 	t.Helper()
 	root := decodeRepoArmPlan(t, raw)
 	scans := repoArmDependencyScans(root)
 	used := map[string]int{}
+	var scanBuffers int64
 	for _, scan := range scans {
 		used[scan.IndexName]++
+		scanBuffers += scan.SharedHit + scan.SharedRead
 		if scan.IndexName != repoArmDependencyIndex && scan.IndexName != repoArmLegacyAndGapIndex {
 			t.Errorf("%s: dependency-variable read uses %s %q (loops=%.0f), want %s or %s",
 				label, scan.NodeType, scan.IndexName, scan.ActualLoops, repoArmDependencyIndex, repoArmLegacyAndGapIndex)
@@ -274,10 +288,14 @@ func assertRepoArmPlanBounded(t *testing.T, label string, raw []byte) {
 		t.Errorf("%s: dependency index usage = %v, want arm 1 on %s and arm 2 plus the gap CTE on %s",
 			label, used, repoArmDependencyIndex, repoArmLegacyAndGapIndex)
 	}
-	if buffers := root.SharedHit + root.SharedRead; buffers > repoArmStatementBufferLimit {
-		t.Errorf("%s: statement shared buffers = %d, want <= %d", label, buffers, repoArmStatementBufferLimit)
+	if scanBuffers > repoArmDependencyScanBufferLimit {
+		t.Errorf("%s: dependency-variable reads used %d shared buffers, want <= %d", label, scanBuffers, repoArmDependencyScanBufferLimit)
 	}
-	t.Logf("%s: dependency scans=%d index usage=%v statement shared buffers=%d", label, len(scans), used, root.SharedHit+root.SharedRead)
+	if buffers := root.SharedHit + root.SharedRead; statementBufferLimit > 0 && buffers > statementBufferLimit {
+		t.Errorf("%s: statement shared buffers = %d, want <= %d", label, buffers, statementBufferLimit)
+	}
+	t.Logf("%s: dependency scans=%d index usage=%v dependency-scan buffers=%d statement shared buffers=%d",
+		label, len(scans), used, scanBuffers, root.SharedHit+root.SharedRead)
 }
 
 // repoArmExecuteStatement renders an EXECUTE of the SQL-level prepared

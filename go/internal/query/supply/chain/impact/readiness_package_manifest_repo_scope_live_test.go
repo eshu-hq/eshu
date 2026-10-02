@@ -264,7 +264,7 @@ func TestSupplyChainImpactReadinessRepoArmScopeLive(t *testing.T) {
 		readinessArgsForRepository(repoArmTargetRepoID)...).Scan(&raw); err != nil {
 		t.Fatalf("EXPLAIN readiness (custom plan): %v", err)
 	}
-	assertRepoArmPlanBounded(t, "custom plan", raw)
+	assertRepoArmPlanBounded(t, "custom plan", raw, repoArmStatementBufferLimit)
 
 	previous := previousRepoArmReadinessQuery(t)
 	current := map[string][]string{}
@@ -311,7 +311,7 @@ func TestSupplyChainImpactReadinessRepoArmScopeLive(t *testing.T) {
 	if !strings.Contains(string(raw), "$11") {
 		t.Fatalf("expected a generic plan (parameter $11 left unbound in the plan), plan=%s", raw)
 	}
-	assertRepoArmPlanBounded(t, "generic plan", raw)
+	assertRepoArmPlanBounded(t, "generic plan", raw, 0)
 }
 
 // assertRepoArmCounts pins the absolute counts, so the differential above

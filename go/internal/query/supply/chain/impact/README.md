@@ -200,6 +200,21 @@ only their package qualifier changed).
   default-registry PURL or package ID can use source manifest evidence without
   a registry owner row. Repository-only reads retain their active repository
   index path.
+- `package_manifest_active` (both payload shapes) and
+  `package_dependency_gap_active` are repository-anchored only (#7088). Each
+  starts from the repository's own scopes (`ingestion_scopes.source_key = $11`,
+  which covers repository and `repository_ref` scopes) and probes
+  `fact_records` once per scope through a LATERAL subquery. The `OFFSET 0`
+  fence keeps that subquery unflattened, so the probe binds repository,
+  scope and active generation in the Index Cond of migration 121's index
+  (entity_metadata shape) or migration 156's (legacy top-level `config_kind`
+  shape and the five gap kinds). Do not reintroduce a `$11 = '' OR` escape:
+  under a generic plan it forces a probe of every active scope. Do not pin
+  through `scope_id = 'git-repository-scope:' || $11`: that drops
+  `repository_ref` scopes. Keep the gap `IN` list textually identical to
+  migration 156's predicate, or the planner cannot prove the implication.
+  Proof: `TestSupplyChainImpactReadinessRepoArmScopeLive`; evidence:
+  `docs/internal/evidence/7088-readiness-repo-scope.md`.
 - Image-reference targets batch the current digest set and active registry identity
   lookups. SBOM component counts join each active component to its active
   document by scope, generation, and document ID; the subject digest is on the
