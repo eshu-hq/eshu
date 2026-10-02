@@ -7,18 +7,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 )
 
-// The guards TestCrossRepoDeadCodeConsumerEvidencePageBoundLive runs, and the
-// EXPLAIN plumbing they share. They live beside the driver rather than in it so
-// neither file approaches the 500-line cap.
+// The guards TestCrossRepoDeadCodeConsumerEvidencePageBoundLive runs. They live
+// beside the driver rather than in it so neither file approaches the 500-line
+// cap; the EXPLAIN plumbing they read plans through is in
+// code_dead_code_cross_repo_page_bound_live_plan_test.go.
 
 // runCrossRepoDeadCodeConsumerPageIndexGuard fails when the shipped migrations
 // did not leave the page's ordering index behind with its key columns in the
@@ -40,14 +38,15 @@ func runCrossRepoDeadCodeConsumerPageIndexGuard(ctx context.Context, t *testing.
 		}
 		const wantKey = "(entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id, generation_id)"
 		if !strings.Contains(definition, wantKey) {
-			t.Fatalf("%s is defined as %q, want its key to be %s -- the page's ORDER BY with entity_id pinned by the IN list, ending in the scope and generation that make the order total",
+			t.Fatalf("%s is defined as %q, want its key to be %s -- the page's ORDER BY with entity_id pinned per page entity, ending in the scope and generation that make the order total",
 				crossRepoDeadCodeConsumerPageRankIndex, definition, wantKey)
 		}
 	})
 }
 
 // runCrossRepoDeadCodeConsumerPageAnswerGuard reads the page through the
-// shipped reader and requires the rows and the per-entity truncation marker the
+// shipped reader as an unscoped caller -- the read that takes the per-entity
+// lateral -- and requires the rows and the per-entity truncation marker the
 // route contracts for.
 func runCrossRepoDeadCodeConsumerPageAnswerGuard(
 	ctx context.Context,
@@ -61,7 +60,7 @@ func runCrossRepoDeadCodeConsumerPageAnswerGuard(
 		reader := NewContentReader(db)
 		evidence, hidden, err := reader.CrossRepoDeadCodeConsumerEvidence(
 			ctx, "repo-producer", page,
-			code.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: crossRepoDeadCodeConsumerPageHotRepositories},
+			code.CrossRepoDeadCodeConsumerReads{},
 		)
 		if err != nil {
 			t.Fatalf("read cross-repo consumer evidence: %v", err)
@@ -71,9 +70,8 @@ func runCrossRepoDeadCodeConsumerPageAnswerGuard(
 		}
 		// The ordinary entities sort before the busy one, so the read returns
 		// every row they have and then spends the rest of its cap inside
-		// ent-hot. Each has one consumer row per repository, and none of them
-		// can be truncated.
-		perOrdinary := len(crossRepoDeadCodeConsumerPageHotRepositories)
+		// ent-hot. Each has one consumer row per ordinary repository, and none
+		// of them can be truncated.
 		rows := 0
 		for _, entityID := range page {
 			items := evidence[entityID]
@@ -94,8 +92,8 @@ func runCrossRepoDeadCodeConsumerPageAnswerGuard(
 				if truncated != 0 {
 					t.Errorf("%s carries %d truncation markers, want 0; the read moved past it", entityID, truncated)
 				}
-				if len(items) != perOrdinary {
-					t.Errorf("%s has %d consumer rows, want %d", entityID, len(items), perOrdinary)
+				if len(items) != crossRepoDeadCodeConsumerPageOrdinaryConsumers {
+					t.Errorf("%s has %d consumer rows, want %d", entityID, len(items), crossRepoDeadCodeConsumerPageOrdinaryConsumers)
 				}
 			}
 		}
@@ -105,243 +103,131 @@ func runCrossRepoDeadCodeConsumerPageAnswerGuard(
 	})
 }
 
-// runCrossRepoDeadCodeConsumerPageWorkGuard counts the rows the plan's
-// reachability scan read. It is the guard the issue exists for: without
-// migration 103 the answer above is identical and the scan reads the busy
-// entity's whole group to produce it.
+// crossRepoDeadCodeConsumerPageWorkBudget bounds the entries the ranking scan
+// may walk for one page. ceiling is the most it may walk; floor, when non-zero,
+// is what it must walk MORE than, so an arm whose fixture stopped carrying the
+// work it exists to measure fails instead of passing vacuously.
+type crossRepoDeadCodeConsumerPageWorkBudget struct {
+	ceiling float64
+	floor   float64
+}
+
+// runCrossRepoDeadCodeConsumerPageWorkGuard plans the page under both plan
+// modes and requires the shape that keeps the read bounded by the page rather
+// than by a producer entity's fan-in or by the number of ingestion scopes.
 func runCrossRepoDeadCodeConsumerPageWorkGuard(
 	ctx context.Context,
 	t *testing.T,
 	db *sql.DB,
 	page []string,
+	grant []string,
+	budget crossRepoDeadCodeConsumerPageWorkBudget,
 ) {
 	t.Helper()
 
-	t.Run("the page is answered in index order, not by ranking the group", func(t *testing.T) {
-		for _, mode := range crossRepoDeadCodeProbePlanModes {
-			t.Run(mode.name, func(t *testing.T) {
-				plan := crossRepoDeadCodeConsumerPagePlan(ctx, t, db, mode, page)
-				// The work first, the reason second. The rows read are the
-				// claim; which index produced them is the explanation, and a
-				// failure that leads with the number says what went wrong
-				// rather than what is missing.
-				scanned := crossRepoDeadCodeConsumerPageScanRows(t, plan)
-				if scanned > crossRepoDeadCodeConsumerPageScanRowBudget {
-					t.Errorf("the page read scanned %d code_reachability_rows rows, want at most %d; it is bounded by the entity's fan-in rather than by its LIMIT",
-						scanned, crossRepoDeadCodeConsumerPageScanRowBudget)
-				}
-				// No sort at all, anywhere in the plan. The rows read say
-				// the LIMIT bounded the scan; this says WHY, and it is the
-				// assertion that stays true if a future planner finds some
-				// other way to over-read. An Incremental Sort presorted on
-				// entity_id is exactly the node this change removes, and it
-				// reads a group in full before it can emit that group's first
-				// row.
-				if sorts := crossRepoDeadCodeConsumerPageSortNodes(plan); len(sorts) > 0 {
-					t.Errorf("the page read plans %v under its Limit; the index is meant to supply the order so nothing has to sort",
-						sorts)
-				}
-				if !strings.Contains(plan, crossRepoDeadCodeConsumerPageRankIndex) {
-					t.Fatalf("the page read does not use %s, so it is ranking the group before its LIMIT:\n%s",
-						crossRepoDeadCodeConsumerPageRankIndex, plan)
-				}
-			})
-		}
-	})
+	for _, mode := range crossRepoDeadCodeProbePlanModes {
+		t.Run(mode.name, func(t *testing.T) {
+			plan, raw := crossRepoDeadCodeConsumerPagePlan(ctx, t, db, mode, page, grant)
+			failures, walked := crossRepoDeadCodeConsumerPageShapeFailures(plan, budget)
+			t.Logf("ranking scan walked %.0f entries (ceiling %.0f, floor %.0f)", walked, budget.ceiling, budget.floor)
+			if len(failures) > 0 {
+				t.Errorf("the page read is not bounded by its page:\n  %s\nplan:\n%s", strings.Join(failures, "\n  "), raw)
+			}
+		})
+	}
 }
 
-// crossRepoDeadCodeConsumerPagePlan runs the shipped page statement under
-// EXPLAIN (ANALYZE) in the given plan mode and returns the plan as text.
-func crossRepoDeadCodeConsumerPagePlan(
-	ctx context.Context,
-	t *testing.T,
-	db *sql.DB,
-	mode crossRepoDeadCodeProbePlanMode,
-	page []string,
-) string {
-	t.Helper()
-
-	const prefix = "EXPLAIN (ANALYZE) "
-	query, args := buildCrossRepoDeadCodeConsumerEvidenceQuery(
-		"repo-producer", page, crossRepoDeadCodeConsumerPageHotRepositories,
-	)
-	statement := prefix + query
-	if mode.generic {
-		statement, args = crossRepoDeadCodeConsumerPageGenericStatement(ctx, t, db, prefix, query, page)
-	}
-
-	rows, err := db.QueryContext(ctx, statement, args...)
-	if err != nil {
-		t.Fatalf("explain the page read (%s): %v", mode.name, err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	plan := strings.Builder{}
-	for rows.Next() {
-		var line string
-		if err := rows.Scan(&line); err != nil {
-			t.Fatalf("scan plan line: %v", err)
-		}
-		plan.WriteString(line)
-		plan.WriteString("\n")
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("plan rows: %v", err)
-	}
-	// The same honesty check the probe's plumbing makes: a generic plan leaves
-	// the producer repository a parameter marker where a custom plan inlines
-	// it, so a refactor that stopped forcing the mode cannot leave two subtests
-	// asking the planner the same question twice.
-	if mode.generic && !strings.Contains(plan.String(), "repository_id <> $1") {
-		t.Fatalf("plan was not built generically -- the producer repository is not a parameter in it:\n%s", plan.String())
-	}
-	if !mode.generic && !strings.Contains(plan.String(), "repository_id <> 'repo-producer'::text") {
-		t.Fatalf("plan was not built with the values in hand:\n%s", plan.String())
-	}
-	return plan.String()
-}
-
-// crossRepoDeadCodeConsumerPageGenericStatement prepares the page statement on
-// the connection and forces a plan built without its values, returning an
-// EXPLAIN of an EXECUTE with nothing left to bind.
+// crossRepoDeadCodeConsumerPageShapeFailures reads one plan, names every way it
+// departs from the bounded shape, and returns the entries the ranking scan
+// walked. Each check fails to a different mutation:
 //
-// The statement takes one text parameter for the producer repository, one per
-// entity id, and a trailing text[] for the consumer-repository list, so the
-// PREPARE's parameter list is built from the page rather than written out.
-func crossRepoDeadCodeConsumerPageGenericStatement(
-	ctx context.Context,
-	t *testing.T,
-	db *sql.DB,
-	prefix string,
-	query string,
-	page []string,
-) (string, []any) {
-	t.Helper()
-
-	name := fmt.Sprintf("cross_repo_dead_code_page_%d", time.Now().UnixNano())
-	types := make([]string, 0, len(page)+2)
-	values := make([]string, 0, len(page)+2)
-	types = append(types, "text")
-	values = append(values, crossRepoDeadCodeProbeQuoteLiteral("repo-producer"))
-	for _, entityID := range page {
-		types = append(types, "text")
-		values = append(values, crossRepoDeadCodeProbeQuoteLiteral(entityID))
-	}
-	types = append(types, "text[]")
-	values = append(values, crossRepoDeadCodeProbeQuoteLiteral(
-		crossRepoDeadCodeProbeTextArray(crossRepoDeadCodeConsumerPageHotRepositories)))
-
-	if _, err := db.ExecContext(ctx, "SET plan_cache_mode = force_generic_plan"); err != nil {
-		t.Fatalf("force a generic plan: %v", err)
-	}
-	// Registered before the PREPARE, and separately from it, for the reason
-	// the probe's plumbing records: the pool is pinned to one connection, so a
-	// failed PREPARE must still leave plan_cache_mode reset, and a DEALLOCATE
-	// of a statement that was never created is an error of its own.
-	t.Cleanup(func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := db.ExecContext(cleanupCtx, "RESET plan_cache_mode"); err != nil {
-			t.Errorf("reset plan_cache_mode: %v", err)
+//   - the ranking scan is an Index Only Scan on migration 103's index whose
+//     parent is the per-entity Limit. A Sort anywhere between them -- the
+//     node this route's #6527 work removed, and the one a lateral planned from
+//     an average fan-in puts back -- reads an entity's whole group before its
+//     first row. An Index Only Scan, not an Index Scan, because the heap-free
+//     walk is what makes the ordered path cheaper than "another index plus a
+//     sort" whatever fan-in the planner assumes for a lateral parameter.
+//   - every sort above the ranking scan is an Incremental Sort presorted on the
+//     page's entity id, which sorts one entity's at most cap+1 rows at a time
+//     and lets the outer LIMIT stop the page early. A full Sort there runs every
+//     entity's lateral before the LIMIT can stop anything.
+//   - the entries the ranking scan walked stay inside the budget. The liveness
+//     test is a per-entry filter, so the scan walks one entry per retained
+//     generation per position; the budget is the cap times (1 + retained).
+//   - every other scan of code_reachability_rows -- the per-row column fetch --
+//     reads at most one entry per loop. That holds because the reducer writes
+//     at most one row per entity per (scope, generation, repository) snapshot.
+//   - ingestion_scopes and scope_generations are read only inside SubPlans,
+//     per walked entry. Read as a join they can drive the plan: the shipped
+//     join form flipped, at 250 page entities on the QA replica's statistics,
+//     to probing the primary key once per active ingestion scope.
+func crossRepoDeadCodeConsumerPageShapeFailures(
+	plan crossRepoDeadCodeConsumerPagePlanNode,
+	budget crossRepoDeadCodeConsumerPageWorkBudget,
+) ([]string, float64) {
+	var failures []string
+	ranked := 0
+	walked := 0.0
+	crossRepoDeadCodeConsumerPagePlanVisit(plan, nil, func(node crossRepoDeadCodeConsumerPagePlanNode, ancestors []crossRepoDeadCodeConsumerPagePlanNode) {
+		inSubPlan := node.ParentRelationship == "SubPlan"
+		for _, ancestor := range ancestors {
+			inSubPlan = inSubPlan || ancestor.ParentRelationship == "SubPlan"
+		}
+		switch {
+		case node.RelationName == "ingestion_scopes" || node.RelationName == "scope_generations":
+			if !inSubPlan {
+				failures = append(failures, fmt.Sprintf("%s is read by a %s outside a SubPlan, so the liveness tables can drive the page", node.RelationName, node.NodeType))
+			}
+		case node.RelationName != "code_reachability_rows" || inSubPlan:
+		case node.NodeType == "Index Only Scan" && node.IndexName == crossRepoDeadCodeConsumerPageRankIndex:
+			ranked++
+			walked += node.entries()
+			if parent := ancestors[len(ancestors)-1]; parent.NodeType != "Limit" {
+				failures = append(failures, fmt.Sprintf("a %s sits between the per-entity Limit and the ranking scan, so an entity's whole group is read before its first row", parent.NodeType))
+			}
+			for _, ancestor := range ancestors {
+				if ancestor.NodeType == "Sort" || (ancestor.NodeType == "Incremental Sort" && len(ancestor.PresortedKey) != 1) {
+					failures = append(failures, fmt.Sprintf("a %s (presorted on %v) above the ranking scan sorts more than one entity's capped rows before the page LIMIT", ancestor.NodeType, ancestor.PresortedKey))
+				}
+			}
+		case node.ActualLoops > 0 && node.ActualRows+node.RowsRemovedByFilter > 1:
+			failures = append(failures, fmt.Sprintf("the column fetch (%s on %s) reads %.2f entries per loop, want at most one", node.NodeType, node.IndexName, node.ActualRows+node.RowsRemovedByFilter))
 		}
 	})
-	if _, err := db.ExecContext(ctx, "PREPARE "+name+"("+strings.Join(types, ", ")+") AS "+query); err != nil {
-		t.Fatalf("prepare the page read: %v", err)
+	if ranked == 0 {
+		failures = append(failures, "no Index Only Scan on "+crossRepoDeadCodeConsumerPageRankIndex+" ranks the consumers, so nothing walks the page in its own order")
 	}
-	t.Cleanup(func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, err := db.ExecContext(cleanupCtx, "DEALLOCATE "+name); err != nil {
-			t.Errorf("deallocate the page read: %v", err)
-		}
-	})
-	return prefix + "EXECUTE " + name + "(" + strings.Join(values, ", ") + ")", nil
+	if walked > budget.ceiling {
+		failures = append(failures, fmt.Sprintf("the ranking scan walked %.0f entries, want at most %.0f", walked, budget.ceiling))
+	}
+	if budget.floor > 0 && walked <= budget.floor {
+		failures = append(failures, fmt.Sprintf("the ranking scan walked %.0f entries, want more than %.0f; the fixture no longer carries the work this arm measures", walked, budget.floor))
+	}
+	return failures, walked
 }
 
-// crossRepoDeadCodeConsumerPageScanRowPattern reads the rows and loop count off
-// the plan node that scans code_reachability_rows.
-var crossRepoDeadCodeConsumerPageScanRowPattern = regexp.MustCompile(
-	`on code_reachability_rows[^\n]*actual time=[0-9.]+\.\.[0-9.]+ rows=(\d+) loops=(\d+)`)
-
-// crossRepoDeadCodeConsumerPageScanRows totals the rows every scan of
-// code_reachability_rows in the plan actually read.
-func crossRepoDeadCodeConsumerPageScanRows(t *testing.T, plan string) int {
-	t.Helper()
-
-	matches := crossRepoDeadCodeConsumerPageScanRowPattern.FindAllStringSubmatch(plan, -1)
-	if len(matches) == 0 {
-		t.Fatalf("no plan node scans code_reachability_rows; the page statement's shape has drifted:\n%s", plan)
-	}
-	total := 0
-	for _, match := range matches {
-		rows, err := strconv.Atoi(match[1])
-		if err != nil {
-			t.Fatalf("parse scanned rows from %q: %v", match[0], err)
-		}
-		loops, err := strconv.Atoi(match[2])
-		if err != nil {
-			t.Fatalf("parse scan loops from %q: %v", match[0], err)
-		}
-		total += rows * loops
-	}
-	return total
-}
-
-// crossRepoDeadCodeConsumerPageSortNodePattern matches an EXPLAIN plan node
-// that sorts, in either spelling, whether it is the plan's root or a child.
-var crossRepoDeadCodeConsumerPageSortNodePattern = regexp.MustCompile(
-	`(?m)^\s*(?:->\s+)?(Incremental Sort|Sort)\s+\(cost`)
-
-// crossRepoDeadCodeConsumerPageSortNodes names every sort node in the plan.
-func crossRepoDeadCodeConsumerPageSortNodes(plan string) []string {
-	matches := crossRepoDeadCodeConsumerPageSortNodePattern.FindAllStringSubmatch(plan, -1)
-	nodes := make([]string, 0, len(matches))
-	for _, match := range matches {
-		nodes = append(nodes, match[1])
-	}
-	return nodes
-}
-
-// runCrossRepoDeadCodeConsumerPageRetainedWorkGuard bounds the same scan on a
-// page whose busy entity carries retained superseded generations.
-//
-// This is the arm that measures what the LIMIT actually bounds. The
-// active-generation test is a join above the scan, so the scan walks one entry
-// per retained generation per position and the join discards the superseded
-// ones: the read is bounded by the cap TIMES the retained generations, not by
-// the cap. A guard that asserted the cap alone would pass only on a fixture
-// with one generation, which is a state no install stays in.
-func runCrossRepoDeadCodeConsumerPageRetainedWorkGuard(
+// runCrossRepoDeadCodeConsumerPageCachedPlanGuard reads the plan Postgres's
+// plan cache serves after twelve executions and holds it to the same shape. It
+// logs which kind of plan the cache settled on, because that is the plan the
+// reader's pgx connection actually runs.
+func runCrossRepoDeadCodeConsumerPageCachedPlanGuard(
 	ctx context.Context,
 	t *testing.T,
 	db *sql.DB,
 	page []string,
+	grant []string,
+	budget crossRepoDeadCodeConsumerPageWorkBudget,
 ) {
 	t.Helper()
 
-	t.Run("retained generations multiply the scan, and nothing else does", func(t *testing.T) {
-		for _, mode := range crossRepoDeadCodeProbePlanModes {
-			t.Run(mode.name, func(t *testing.T) {
-				plan := crossRepoDeadCodeConsumerPagePlan(ctx, t, db, mode, page)
-				scanned := crossRepoDeadCodeConsumerPageScanRows(t, plan)
-				if scanned > crossRepoDeadCodeConsumerPageRetainedScanRowBudget {
-					t.Errorf("the page read scanned %d code_reachability_rows rows against a budget of %d (the %d-row cap times %d generations per position, plus slack); it is reading more than the retention window explains",
-						scanned, crossRepoDeadCodeConsumerPageRetainedScanRowBudget,
-						maxCrossRepoDeadCodeConsumerEvidenceRows+1,
-						1+crossRepoDeadCodeConsumerPageRetainedGenerations)
-				}
-				// The floor matters as much as the ceiling. If this arm ever
-				// reads no more than the no-retention one, the fixture has
-				// stopped carrying retained generations and the budget above
-				// is bounding nothing.
-				if scanned <= crossRepoDeadCodeConsumerPageScanRowBudget {
-					t.Errorf("the retention arm scanned %d rows, no more than the no-retention budget of %d; the fixture is not carrying retained generations and this guard is vacuous",
-						scanned, crossRepoDeadCodeConsumerPageScanRowBudget)
-				}
-				if !strings.Contains(plan, crossRepoDeadCodeConsumerPageRankIndex) {
-					t.Fatalf("the page read does not use %s:\n%s", crossRepoDeadCodeConsumerPageRankIndex, plan)
-				}
-			})
+	t.Run("the plan cache's choice after twelve executions", func(t *testing.T) {
+		plan, raw, generic, custom := crossRepoDeadCodeConsumerPageCachedPlan(ctx, t, db, page, grant)
+		t.Logf("pg_prepared_statements after 12 executions: generic_plans=%d custom_plans=%d", generic, custom)
+		failures, walked := crossRepoDeadCodeConsumerPageShapeFailures(plan, budget)
+		t.Logf("ranking scan walked %.0f entries (ceiling %.0f)", walked, budget.ceiling)
+		if len(failures) > 0 {
+			t.Errorf("the cached page plan is not bounded by its page:\n  %s\nplan:\n%s", strings.Join(failures, "\n  "), raw)
 		}
 	})
 }

@@ -5,10 +5,8 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -248,10 +246,9 @@ func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
 }
 
 // crossRepoDeadCodeGrantFilter appends a consumer-repository array to args and
-// renders the membership test the consumer-evidence statement binds. It renders
-// nothing for an empty list, so an unscoped caller who named no consumers -- the
-// one case where an unbounded page is the right answer -- executes exactly the
-// statement this route shipped before the grant landed.
+// renders the membership test the grant-bound evidence statement binds ahead of
+// its LIMIT, so the cap falls on consumers the caller may see. It renders
+// nothing for an empty list.
 func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]any, string) {
 	if len(allowedRepositoryIDs) == 0 {
 		return args, ""
@@ -262,37 +259,38 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 
 // buildCrossRepoDeadCodeConsumerEvidenceQuery renders the evidence page: the
 // active-generation consumer rows for these producer entities, ranked strongest
-// first within each entity, capped at the sentinel.
+// first within each entity, capped at the sentinel. Both shapes return the same
+// rows in the same order, (entity_id, confidence DESC, depth, repository_id,
+// root_entity_id, scope_id, generation_id) -- migration 103's
+// code_reachability_entity_confidence_rank_idx key. The last two columns are a
+// tiebreak: without them an index scan and a top-N heapsort disagree about
+// which of two rows equal on the first five lands at the cap. depth > 0 stays a
+// predicate: depth 0 is the root's own row, not a consumer edge.
 //
-// The ORDER BY and migration 103's
-// code_reachability_entity_confidence_rank_idx are one thing in two places.
-// With entity_id pinned by the IN list the index's key columns ARE this
-// statement's ordering, so the scan can be answered in output order and the
-// LIMIT can stop it. Change either without the other and the read goes back to
-// ranking a producer entity's whole consumer fan-in before it can emit that
-// entity's first row: 1,000,497 rows for a 1,001-row answer on the corpus in
-// docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
-//
-// The last two columns are a tiebreak, not a ranking. Rows equal on the first
-// five differ only in the scope and generation that wrote them, which happens
-// when two ingestion scopes cover one repository and both generations are
-// active. Without scope_id and generation_id here that pair has no defined
-// order, and an index scan and a top-N heapsort disagree about which one lands
-// at the cap -- measured, and it is the citation the caller gets that changes.
-//
-// What the LIMIT bounds is rows RETURNED, not rows read, and the gap is the
-// retention window: the active-generation test is a join above this scan, so
-// the scan emits one entry per retained generation per position and the join
-// discards the superseded ones. Measured serially
-// (max_parallel_workers_per_gather = 0) at 1,001 entries walked with no retained
-// generations and 11,081 at twenty, for the same 1,001-row answer. On the
-// default two workers the planner parallelises the scan and the count varies
-// with how the workers race to fill the cap -- about 60% higher in the readings
-// in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
-//
-// depth > 0 stays a plain predicate rather than part of the ranking: depth 0 is
-// the root's own row, not a consumer edge.
+// An unscoped read (no consumer list) takes the per-entity lateral (#7249). A
+// grant-bound read keeps the flat statement, unchanged, because neither shape
+// bounds it: with the grant bound the planner leaves the rank index for another
+// index plus a sort in both, and reads an entity's whole fan-in from about 50
+// granted repositories up. The lateral also costs more buffers there, through
+// its per-row ingestion_scopes probe. That is a documented pre-existing limit,
+// see docs/internal/evidence/7249-dead-code-reachability.md.
 func buildCrossRepoDeadCodeConsumerEvidenceQuery(
+	producerRepoID string,
+	entityIDs []string,
+	allowedRepositoryIDs []string,
+) (string, []any) {
+	if len(allowedRepositoryIDs) > 0 {
+		return buildCrossRepoDeadCodeConsumerEvidenceGrantQuery(producerRepoID, entityIDs, allowedRepositoryIDs)
+	}
+	return crossRepoDeadCodeConsumerEvidenceLateralQuery, []any{producerRepoID, array.Of(entityIDs)}
+}
+
+// buildCrossRepoDeadCodeConsumerEvidenceGrantQuery renders the grant-bound page:
+// one placeholder per entity, the grant ahead of the LIMIT, and the liveness
+// test as joins above one ordered scan. The active-generation join discards
+// superseded entries after the scan reads them, so the read is the cap times
+// the retained generations per position at best.
+func buildCrossRepoDeadCodeConsumerEvidenceGrantQuery(
 	producerRepoID string,
 	entityIDs []string,
 	allowedRepositoryIDs []string,
@@ -338,6 +336,82 @@ LIMIT %d
 	return query, args
 }
 
+// crossRepoDeadCodeConsumerEvidenceLateralQuery is the unscoped page. $1 is the
+// producer repository and $2 the page's entity ids as one text[], so the text
+// is the same for every page. Each entity's consumers are ranked by an Index
+// Only Scan of the rank index in key order under a per-entity LIMIT; the cap is
+// lossless because the page is ordered entity first. The liveness tests are
+// per-row subqueries, not joins: the join form flipped, at 250 page entities on
+// the QA replica's statistics, to probing the primary key once per active
+// ingestion scope, and a subquery cannot drive the plan. A lateral is planned
+// from the AVERAGE fan-in, so "another index plus a sort" is always a
+// candidate; the ordered walk wins because it needs no heap. That holds while
+// the table's pages are marked all-visible, which the planner prices into an
+// Index Only Scan (97.9% of pages on the QA replica; the guards run on a
+// vacuumed fixture): pages a fresh snapshot rewrite has not yet had vacuumed
+// need heap reads and can tip the plan the other way. The walk is the cap times
+// (1 + retained generations) per entity, and an entity that crosses the cap is
+// read in full to its boundary.
+//
+// The columns the index lacks are fetched per returned row on the five
+// primary-key columns plus depth, which identify one row. The writer bounds the
+// index entries that fetch reads when the planner serves it from an index whose
+// key lacks root_entity_id: the only writer,
+// CodeReachabilityStore.ReplaceRepositoryRows, replaces a (scope, generation,
+// repository) snapshot that codeintel.BuildCodeReachabilityRowsWithStats builds
+// with one row per entity (codeReachabilityKeepBest; pinned by
+// TestBuildCodeReachabilityRowsEmitsOneRowPerEntityPerSnapshot).
+// generation_status is the literal 'active': the liveness test admits nothing
+// else.
+var crossRepoDeadCodeConsumerEvidenceLateralQuery = fmt.Sprintf(`
+SELECT hit.entity_id,
+       detail.repository_id,
+       '' AS consumer_repo_name,
+       detail.root_entity_id,
+       detail.depth,
+       detail.state,
+       detail.confidence,
+       detail.min_resolution_method,
+       detail.evidence,
+       detail.root_kinds,
+       detail.generation_id,
+       'active'::text AS generation_status,
+       detail.observed_at,
+       detail.updated_at
+FROM (SELECT DISTINCT id FROM unnest($2::text[]) AS id ORDER BY id) AS page
+CROSS JOIN LATERAL (
+  SELECT row.entity_id, row.confidence, row.depth, row.repository_id,
+         row.root_entity_id, row.scope_id, row.generation_id
+  FROM code_reachability_rows AS row
+  WHERE row.entity_id = page.id
+    AND row.repository_id <> $1
+    AND row.depth > 0
+    AND row.generation_id = (
+      SELECT scope.active_generation_id
+      FROM ingestion_scopes AS scope
+      WHERE scope.scope_id = row.scope_id)
+    AND (
+      SELECT generation.status
+      FROM scope_generations AS generation
+      WHERE generation.generation_id = row.generation_id) = 'active'
+  ORDER BY row.confidence DESC, row.depth ASC,
+           row.repository_id ASC, row.root_entity_id ASC,
+           row.scope_id ASC, row.generation_id ASC
+  LIMIT %[1]d
+) AS hit
+JOIN code_reachability_rows AS detail
+  ON detail.scope_id = hit.scope_id
+ AND detail.generation_id = hit.generation_id
+ AND detail.repository_id = hit.repository_id
+ AND detail.root_entity_id = hit.root_entity_id
+ AND detail.entity_id = hit.entity_id
+ AND detail.depth = hit.depth
+ORDER BY page.id ASC, hit.confidence DESC, hit.depth ASC,
+         hit.repository_id ASC, hit.root_entity_id ASC,
+         hit.scope_id ASC, hit.generation_id ASC
+LIMIT %[1]d
+`, maxCrossRepoDeadCodeConsumerEvidenceRows+1)
+
 // markCrossRepoDeadCodeConsumerEvidenceTruncated adds the truncation marker to
 // every entity the evidence page is not proven to have finished. The marker
 // carries NeedsEvidence, so the handler answers unknown_needs_evidence for that
@@ -369,93 +443,4 @@ func markCrossRepoDeadCodeConsumerEvidenceTruncated(
 			Ambiguous:        false,
 		})
 	}
-}
-
-type crossRepoDeadCodeRowScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanCrossRepoDeadCodeEvidence(rows crossRepoDeadCodeRowScanner) (string, deadcode.CrossRepoDeadCodeEvidence, error) {
-	var (
-		entityID         string
-		consumerRepoID   string
-		consumerRepoName string
-		rootEntityID     string
-		depth            int
-		state            string
-		confidence       float64
-		resolutionMethod string
-		rawEvidence      []byte
-		rawRootKinds     []byte
-		generationID     string
-		generationStatus string
-		observedAt       time.Time
-		updatedAt        time.Time
-	)
-	if err := rows.Scan(
-		&entityID,
-		&consumerRepoID,
-		&consumerRepoName,
-		&rootEntityID,
-		&depth,
-		&state,
-		&confidence,
-		&resolutionMethod,
-		&rawEvidence,
-		&rawRootKinds,
-		&generationID,
-		&generationStatus,
-		&observedAt,
-		&updatedAt,
-	); err != nil {
-		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("scan cross-repo dead code consumer evidence: %w", err)
-	}
-	var evidence []string
-	if err := json.Unmarshal(rawEvidence, &evidence); err != nil {
-		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code evidence: %w", err)
-	}
-	var rootKinds []string
-	if err := json.Unmarshal(rawRootKinds, &rootKinds); err != nil {
-		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code root kinds: %w", err)
-	}
-	item := deadcode.CrossRepoDeadCodeEvidence{
-		ConsumerRepoID:   consumerRepoID,
-		ConsumerRepoName: consumerRepoName,
-		ConsumerEntityID: rootEntityID,
-		RelationshipType: crossRepoDeadCodeRelationshipType(evidence),
-		EvidenceFamily:   "direct_code",
-		Citation:         crossRepoDeadCodeCitation(generationID, consumerRepoID, rootEntityID, entityID),
-		Confidence:       confidence,
-		ConfidenceLabel:  deadcode.CrossRepoDeadCodeConfidenceLabel(confidence),
-		ResolutionMethod: resolutionMethod,
-		Depth:            depth,
-		GenerationID:     generationID,
-		GenerationStatus: generationStatus,
-		ObservedAt:       observedAt,
-		Ambiguous:        strings.EqualFold(state, "ambiguous"),
-	}
-	if !strings.EqualFold(generationStatus, "active") {
-		item.NeedsEvidence = true
-		item.Reason = "stale_generation"
-	}
-	if item.Ambiguous {
-		item.NeedsEvidence = true
-		item.Reason = "ambiguous_consumer_ownership"
-	}
-	return entityID, item, nil
-}
-
-func crossRepoDeadCodeRelationshipType(evidence []string) string {
-	for _, value := range evidence {
-		for _, relationship := range []string{"CALLS", "REFERENCES", "INHERITS", "IMPORTS"} {
-			if strings.Contains(strings.ToUpper(value), relationship) {
-				return relationship
-			}
-		}
-	}
-	return "REACHES"
-}
-
-func crossRepoDeadCodeCitation(generationID string, consumerRepoID string, rootEntityID string, entityID string) string {
-	return "code_reachability_rows:" + generationID + "/" + consumerRepoID + "/" + rootEntityID + "/" + entityID
 }

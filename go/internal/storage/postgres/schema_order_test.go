@@ -358,6 +358,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 155 (#7464) keys the issue-id probe of a linked Jira issue's
 	// records and transitions.
 	"fact_records_story_support_issue_idx",
+	// Migration 156 (#7419) gives graph_projection_phase_state the
+	// generation_id seek that the foreign-key cascade of every generation prune
+	// fires once per deleted generation.
+	"graph_projection_phase_state_generation_idx",
 	// Migration 159 (#7088) keys the readiness query's legacy-shape and
 	// dependency-gap reads by repository, scope and generation.
 	"fact_records_content_entity_dependency_legacy_gap_repo_idx",

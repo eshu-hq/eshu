@@ -1,0 +1,32 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- #7419: graph_projection_phase_state carries generation_id only as the
+-- fourth column of its primary key
+-- (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace,
+-- phase), so a lookup by generation_id cannot seek. Every generation prune
+-- (deleteScopeGenerationsForRetentionQuery, DELETE FROM scope_generations
+-- WHERE generation_id = ANY($1)) fires this table's generation_id
+-- REFERENCES ... ON DELETE CASCADE foreign key once per deleted generation,
+-- and each firing scans the whole table. On a read-only census of ops-qa
+-- (PostgreSQL 18.3, 91,558 rows, 10,167 generations) the generation_id probe
+-- is a 3,687-buffer seq scan at ~15 ms, and the primary key cannot skip-scan
+-- it because its three leading columns are about 80% distinct together. On a
+-- PostgreSQL 18.6 fixture at that shape, deleting 500 generations took
+-- ~2,611 ms before this index and ~15 ms after. See
+-- docs/internal/evidence/7419-generation-prune-generation-idx.md.
+--
+-- Plain (generation_id): the cascade and the retention row-count join are
+-- equality matches with no ordering, so a single-column btree is the whole
+-- contract. The sibling tables fact_replay_events and
+-- graph_projection_phase_repair_queue are deliberately not indexed: they were
+-- measured at 262 rows and 0 rows on ops-qa, with no evidence a seek helps.
+--
+-- Built on cold bootstrap too: nothing rebuilds a deferred index later, and an
+-- empty table builds instantly. Keep this the only statement in the file.
+-- PostgreSQL rejects a concurrent build inside a transaction block, the
+-- migration coordinator runs a sole concurrent definition in autocommit mode
+-- without the bootstrap lock_timeout (#7004), and it drops an invalid
+-- same-name index before retrying a failed build.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_projection_phase_state_generation_idx
+    ON graph_projection_phase_state (generation_id);
