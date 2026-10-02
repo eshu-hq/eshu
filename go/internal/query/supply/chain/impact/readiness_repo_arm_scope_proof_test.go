@@ -170,11 +170,20 @@ func readinessArgsForQuery(query ReadinessQuery) []any {
 		query.CVEID, query.PackageID, query.RepositoryID, query.SubjectDigest, query.AdvisoryID, query.ImageRef,
 		array.Of(vulnerabilityOSPackageFactKinds),
 		array.Of(scannerWorkerAnalysisFactKinds),
-		array.Of(ecosystems),
-		array.Of(packageNames),
-		array.Of(packageIDs),
+		array.Of(nonNilStrings(ecosystems)),
+		array.Of(nonNilStrings(packageNames)),
+		array.Of(nonNilStrings(packageIDs)),
 		resolved,
 	}
+}
+
+// nonNilStrings turns a nil slice into an empty one so the SQL-level prepared
+// statement path renders an empty array literal instead of NULL.
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 // readinessArgsForRepository returns the production arguments for a
