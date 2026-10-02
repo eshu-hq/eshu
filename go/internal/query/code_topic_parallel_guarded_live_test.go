@@ -121,6 +121,7 @@ VALUES
 		wantRows  int
 		wantNulls bool
 	}{
+		{name: "unscoped", wantRows: 11, wantNulls: true},
 		{name: "grant_and_language", grants: []string{"repo-a"}, lang: "go", wantRows: 5},
 		{name: "null_language", grants: []string{"repo-a"}, wantRows: 7, wantNulls: true},
 		{name: "specific_repository", repoID: "repo-b", wantRows: 2},
@@ -151,7 +152,7 @@ VALUES
 			}
 			var files, entities, nullLanguages int
 			for _, row := range got {
-				if row.PoolTruncated || (tc.repoID == "" && row.RepoID != "repo-a") ||
+				if row.PoolTruncated || (len(tc.grants) > 0 && row.RepoID != "repo-a") ||
 					(tc.repoID != "" && row.RepoID != tc.repoID) {
 					t.Fatalf("unexpected grant or pool status: %#v", row)
 				}
