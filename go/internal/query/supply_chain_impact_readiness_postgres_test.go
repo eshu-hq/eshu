@@ -99,7 +99,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// once per active scope (8s on ops-qa). The needle spans the closing
 		// of the CTE so the surrounding SQL comment cannot satisfy it and the
 		// lines cannot drift into another CTE. The repo_id anchor sits in the
-		// LATERAL probe that migration 156's index serves; the live plan
+		// LATERAL probe that migration 159's index serves; the live plan
 		// proof (TestSupplyChainImpactReadinessRepoArmScopeLive in
 		// supply/chain/impact) asserts the resulting plan shape.
 		"\n    WHERE $11 <> ''\n      AND scope.source_key = $11\n      AND generation.status = 'active'\n),\nunsupported_target_rows AS (",

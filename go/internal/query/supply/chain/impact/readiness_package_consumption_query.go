@@ -65,7 +65,7 @@ package_manifest_dependency AS (
 // active scope (819 loops, 9.4 s warm / >30 s cold on ops-qa). The former
 // empty-$11 escape is gone: it was unreachable, and under a generic plan it
 // forced that per-scope probe. Arm 1 uses migration 121's index; the legacy
-// arm uses migration 156's. Do not reuse this CTE without a repository
+// arm uses migration 159's. Do not reuse this CTE without a repository
 // anchor.
 const readinessPackageManifestActiveCTE = `package_manifest_active AS (
     SELECT fact.fact_id, fact.payload, fact.observed_at

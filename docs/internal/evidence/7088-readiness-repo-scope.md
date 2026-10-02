@@ -23,7 +23,7 @@ All three now start from the repository's own scopes
 `repository_ref` scopes). Each probes `fact_records` once per scope through a
 `CROSS JOIN LATERAL (... OFFSET 0)`, so repository, scope and active
 generation are all in the Index Cond. Arm 1 uses migration 121's index. Arm 2
-and the gap read use migration 156's new
+and the gap read use migration 159's new
 `fact_records_content_entity_dependency_legacy_gap_repo_idx`, on
 `((payload->>'repo_id'), scope_id, generation_id)` with a partial predicate
 equal to those two readers' predicates joined by OR. The former
@@ -75,7 +75,7 @@ There is a ref-only repository and an unknown repository.
 
 | Target repository, one statement | Before (origin/main) | After |
 | --- | --- | --- |
-| Custom plan, dependency-variable reads | 211,558 shared buffers; arm 2 654 loops on `fact_records_collector_status_active_idx`; arm 1 Index Cond repo_id only | 588 shared buffers; 3 scans, loops ≤ 2, Index Cond (repo_id, scope_id, generation_id) on the 121 and 156 indexes |
+| Custom plan, dependency-variable reads | 211,558 shared buffers; arm 2 654 loops on `fact_records_collector_status_active_idx`; arm 1 Index Cond repo_id only | 588 shared buffers; 3 scans, loops ≤ 2, Index Cond (repo_id, scope_id, generation_id) on the 121 and 159 indexes |
 | Custom plan, whole statement | 238,642 shared buffers | 6,753 shared buffers |
 | Generic plan (`force_generic_plan`), dependency-variable reads | 204,290 shared buffers; arm 1 a full scan of `fact_records_active_package_dependency_entity_idx` (empty Index Cond); arm 2 654 loops | 588 shared buffers; same bounded shape as custom |
 
@@ -97,7 +97,7 @@ maintenance. Every git content_entity insert or update pays the partial
 predicate evaluation (a few JSONB extractions). No insert benchmark was run:
 NOT_CHECKED.
 
-NOT_CHECKED: the cold-replica after-number with migration 156 applied. It
+NOT_CHECKED: the cold-replica after-number with migration 159 applied. It
 stays unknown until the owner deploys the migration to ops-qa and reruns
 EXPLAIN (ANALYZE, BUFFERS) for a 10k+ row repository anchor.
 

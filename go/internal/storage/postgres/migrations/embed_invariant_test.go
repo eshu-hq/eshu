@@ -54,8 +54,8 @@ import (
 // 153_fact_records_os_package_purl_prefix_idx.sql; #7142 adds
 // 154_supply_chain_impact_write_admission.sql; #7464 adds
 // 155_fact_records_story_support_issue_idx.sql; #7088 adds
-// 156_fact_records_content_entity_dependency_legacy_gap_repo_idx.sql.
-const goldenBootstrapDefinitionsDigest = "7313ce75e20530ead4c9ccf3eb6c67eab6fcd16ef207b41f2e45b9955a4772e4"
+// 159_fact_records_content_entity_dependency_legacy_gap_repo_idx.sql.
+const goldenBootstrapDefinitionsDigest = "deca3ee35370cb25b290489fffa34e081c5cd35e1fc736a2ef58b145786b37b9"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

@@ -51,7 +51,7 @@ package_dependency_gap_active AS (
     -- TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID), so it reaches
     -- every scope the repo_id payload predicate would. Starting from those
     -- scopes, the LATERAL probe (OFFSET 0 keeps it unflattened) reads
-    -- migration 156's repo-leading partial index with the repository, scope
+    -- migration 159's repo-leading partial index with the repository, scope
     -- and active generation in its Index Cond; the IN list must stay
     -- textually identical to that index predicate so Postgres proves the
     -- implication. A consumer that needs these rows without a repository
