@@ -1,0 +1,16 @@
+docs/internal/evidence/7419-generation-prune-generation-idx.md
+  h_78a442cba0b3e6 76-109
+go/internal/storage/postgres/generation_prune_generation_index_schema_test.go
+  h_78a442cba0b3e6 9-10,58-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "56c02d321c862d83fdc480a5a8e1c01b97cfe1b3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
