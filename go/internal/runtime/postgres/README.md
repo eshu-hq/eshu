@@ -4,8 +4,15 @@
 processes use `Writer()` for authentication, revocation, audit, mutation,
 and startup writes. This ordinary pgx writer does not set the infra inventory
 `eshu.infra_inventory_writer` derivation marker; API/MCP writes do not all keep
-that read model in step. PostgreSQL business reads receive only `Reader()`'s `db.ReadStore`: cursor,
-row, and read-only snapshot operations. Their request boundary must call
+that read model in step. PostgreSQL business reads receive only `Reader()`'s
+`db.ReadStore`: cursor, row, and read-only snapshot operations. A query-only
+optional `db.ReadSnapshotSetBeginner` adds multiple readers on one exported
+repeatable-read snapshot; the requested count includes the exporter and cannot
+exceed the private pool's connection cap. This optional surface is available
+only for a single physical reader host. Native multi-host reader candidates
+retain guarded cursor, row, and single-connection snapshot reads, but not
+snapshot sets: PostgreSQL exported snapshots cannot cross server boundaries.
+Their request boundary must call
 `ContextWithCheckpoint` after authorization and before business SQL. A request with no checkpoint fails
 before borrowing a reader.
 
@@ -39,7 +46,22 @@ the setting would otherwise reject the deliberately read-only reader session.
 The borrowed connection is checked again immediately before each business
 query or row scan. A snapshot fences once before `BeginReadOnlySnapshot` and
 retains the same read-only repeatable-read connection until Commit, Rollback,
-or request cancellation. Cursor close does not release that transaction.
+or request cancellation. Snapshot-set setup fences every reserved reader
+before beginning any transaction, then imports the export into each worker
+before its first query. The exporter stays open through caller assembly. A
+per-Access, context-aware reservation gate prevents two sets from holding
+partial pool reservations; cancellation and setup failures release all
+acquired connections. Cursor close does not release that transaction.
+Every guarded reader borrow and the exposed readiness ping also own one permit
+from the configured reader pool budget until their connection is returned. If a
+snapshot set's internal permit wait expires while the request remains live, it
+releases its partial reservation and reports a typed capacity error. The
+code-topic handler may
+then make one single-statement attempt through the same fenced reader and
+checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
+do not trigger that fallback. The permit wait retains the configured reader
+deadline (two seconds by default), so a contended fallback is not a
+subsecond-latency claim.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
 adapter scan contracts remain unchanged.

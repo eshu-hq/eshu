@@ -277,6 +277,10 @@ tests:
     tag: ~
     class: scheduled
     reason: disposable PostgreSQL path/content partition proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
+  - file: go/internal/query/code_topic_parallel_guarded_live_test.go
+    tag: ~
+    class: scheduled
+    reason: disposable PostgreSQL guarded-reader parity proof gated by ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN and explicit opt-in; the graph live-backend job has no PostgreSQL DSN, so promote only after CI timing and provisioning evidence
   - file: go/internal/query/codequery/chain/call_chain_grant_clause_live_test.go
     tag: live_nornicdb_call_chain
     class: scheduled

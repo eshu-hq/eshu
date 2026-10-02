@@ -3,7 +3,15 @@
 
 package db
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrSnapshotReservationCapacity means a snapshot set could not reserve its
+// guarded reader permits before its internal wait expired. No transaction or
+// business query started, and all partial reservations were released.
+var ErrSnapshotReservationCapacity = errors.New("snapshot reader reservation capacity unavailable")
 
 // Row scans one result without exposing the underlying SQL connection.
 type Row interface {
@@ -29,6 +37,21 @@ type ReadTransaction interface {
 // ReadSnapshotBeginner opens a guarded read-only repeatable-read transaction.
 type ReadSnapshotBeginner interface {
 	BeginReadOnlySnapshot(context.Context) (ReadTransaction, error)
+}
+
+// ReadSnapshotSet holds multiple query-only readers on one exported snapshot.
+// Reader indexes are stable for the lifetime of the set; Close releases every
+// transaction and connection owned by it.
+type ReadSnapshotSet interface {
+	Reader(index int) (Queryer, error)
+	Close() error
+}
+
+// ReadSnapshotSetBeginner opens a group whose members share one read-only
+// repeatable-read snapshot. Count includes the exporting reader.
+type ReadSnapshotSetBeginner interface {
+	MaxReadConnections() int
+	BeginReadOnlySnapshotSet(context.Context, int) (ReadSnapshotSet, error)
 }
 
 // ReadStore combines guarded cursor, row, and snapshot reads.

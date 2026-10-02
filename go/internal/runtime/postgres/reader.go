@@ -16,6 +16,27 @@ import (
 
 type fencedQueryer struct{ access *Access }
 
+var errReaderPermitTimeout = errors.New("guarded reader permit wait timed out")
+
+// readerConnection returns its permit only after database/sql has returned the
+// physical connection to the pool. Every guarded read owns exactly one lease.
+type readerConnection struct {
+	*sql.Conn
+	permits chan struct{}
+	once    sync.Once
+	err     error
+}
+
+func (c *readerConnection) Close() error {
+	c.once.Do(func() {
+		c.err = c.Conn.Close()
+		if c.permits != nil {
+			c.permits <- struct{}{}
+		}
+	})
+	return c.err
+}
+
 var _ db.Queryer = fencedQueryer{}
 
 func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args ...any) (db.Rows, error) {
@@ -34,7 +55,7 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 	return newOwnedRows(ctx, rows, conn), nil
 }
 
-func (a *Access) borrowFresh(ctx context.Context) (*sql.Conn, error) {
+func (a *Access) borrowFresh(ctx context.Context) (*readerConnection, error) {
 	point, ok := ctx.Value(checkpointKey{}).(checkpoint)
 	if !ok || point.owner != a {
 		return nil, ErrMissingCheckpoint
@@ -42,9 +63,24 @@ func (a *Access) borrowFresh(ctx context.Context) (*sql.Conn, error) {
 	fenceCtx, cancel := context.WithTimeout(ctx, a.replayTimeout)
 	defer cancel()
 	borrowed := time.Now()
+	if a.readerPermits != nil {
+		select {
+		case <-a.readerPermits:
+		case <-fenceCtx.Done():
+			borrowErr := fenceCtx.Err()
+			if ctx.Err() == nil && errors.Is(borrowErr, context.DeadlineExceeded) {
+				borrowErr = errors.Join(errReaderPermitTimeout, borrowErr)
+			}
+			a.observe("reader", StageReaderBorrow, borrowed, borrowErr)
+			return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, borrowErr))
+		}
+	}
 	conn, err := a.reader.Conn(fenceCtx)
 	a.observe("reader", StageReaderBorrow, borrowed, err)
 	if err != nil {
+		if a.readerPermits != nil {
+			a.readerPermits <- struct{}{}
+		}
 		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
 	}
 	if err := a.checkReader(fenceCtx, conn, point); err != nil {
@@ -54,9 +90,12 @@ func (a *Access) borrowFresh(ctx context.Context) (*sql.Conn, error) {
 			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
 		_ = conn.Close()
+		if a.readerPermits != nil {
+			a.readerPermits <- struct{}{}
+		}
 		return nil, err
 	}
-	return conn, nil
+	return &readerConnection{Conn: conn, permits: a.readerPermits}, nil
 }
 
 func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint) error {
@@ -106,7 +145,7 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 
 type ownedRows struct {
 	rows     *sql.Rows
-	conn     *sql.Conn
+	conn     interface{ Close() error }
 	once     sync.Once
 	stop     func() bool
 	closeErr error
@@ -114,7 +153,7 @@ type ownedRows struct {
 
 var _ db.Rows = (*ownedRows)(nil)
 
-func newOwnedRows(ctx context.Context, rows *sql.Rows, conn *sql.Conn) *ownedRows {
+func newOwnedRows(ctx context.Context, rows *sql.Rows, conn interface{ Close() error }) *ownedRows {
 	owned := &ownedRows{rows: rows, conn: conn}
 	// The callback cannot reference stop: cancellation may run before the
 	// AfterFunc return value has been published.

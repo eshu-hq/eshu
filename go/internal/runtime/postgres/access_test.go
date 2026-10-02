@@ -42,7 +42,7 @@ func (o *observed) has(stage Stage, outcome Outcome) bool {
 	return o.seen[stage][outcome] > 0
 }
 
-func testAccess(t *testing.T, reader string) *Access {
+func testAccess(t *testing.T, reader string, readMax ...int) *Access {
 	t.Helper()
 	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
 	if writer == "" {
@@ -60,6 +60,12 @@ func testAccess(t *testing.T, reader string) *Access {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(readMax) > 0 {
+		cfg.ReadMaxOpenConns = readMax[0]
+		if cfg.ReadMaxIdleConns > cfg.ReadMaxOpenConns {
+			cfg.ReadMaxIdleConns = cfg.ReadMaxOpenConns
+		}
 	}
 	cfg.ReplayTimeout = 500 * time.Millisecond
 	access, err := Open(context.Background(), cfg, &observed{seen: map[Stage]map[Outcome]int{}})
