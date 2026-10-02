@@ -46,6 +46,24 @@ func persistedEntityMetadata(metadata map[string]any) map[string]any {
 	if metadata == nil {
 		return nil
 	}
+	// Fast path for the common plain-entity case: no copy when none of
+	// the keys are present. Returning the input is safe because both
+	// consumers only read it (metadataJSON marshals, the side-table
+	// derivation reads).
+	present := false
+	for key := range metadata {
+		switch key {
+		case fingerprint.KeyExact,
+			fingerprint.KeyRenamed,
+			fingerprint.KeySketch,
+			fingerprint.KeyShingles,
+			fingerprint.KeyTokenCount:
+			present = true
+		}
+	}
+	if !present {
+		return metadata
+	}
 	kept := make(map[string]any, len(metadata))
 	for key, value := range metadata {
 		switch key {

@@ -85,4 +85,8 @@ func TestPersistedEntityMetadataStripsFingerprintKeys(t *testing.T) {
 	if out := persistedEntityMetadata(map[string]any{}); len(out) != 0 {
 		t.Errorf("persistedEntityMetadata(empty) = %#v, want empty", out)
 	}
+	plain := map[string]any{"docstring": "Handles the request.", "lang": "go"}
+	if out := persistedEntityMetadata(plain); !reflect.DeepEqual(out, plain) {
+		t.Errorf("persistedEntityMetadata(plain) = %#v, want entries kept", out)
+	}
 }
