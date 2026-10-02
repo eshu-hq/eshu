@@ -61,7 +61,13 @@ const componentsResponses = `    "responses": {
         }
       },
       "ServiceUnavailable": {
-        "description": "Service unavailable",
+        "description": "Service unavailable. A graph backend outage, or a PostgreSQL read replica that has not replayed to the writer checkpoint or whose reader pool wait timed out, answers with the stable backend_unavailable error code, a fixed message, and a Retry-After hint; those conditions are transient and the request is safe to retry. Any other PostgreSQL reader failure (for example a permission or connection error) is not transient and answers 500.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before retrying a backend_unavailable response.",
+            "schema": {"type": "integer", "minimum": 1}
+          }
+        },
         "content": {
           "application/json": {
             "schema": {"$ref": "#/components/schemas/ErrorResponse"}

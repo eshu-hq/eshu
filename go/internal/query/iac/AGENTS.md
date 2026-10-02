@@ -97,6 +97,15 @@
   matching row (path, symbol, and `source_sha256` -- see README.md's Move
   evidence for the pattern this move followed).
 
+## Postgres reader failures (#7523)
+
+`handleDeadIaC` routes every reader and content failure through
+`writeDeadIaCReadError` (and the selector failure through
+`querycontract.WriteGraphReadError`) so a stale or pool-wait-timed-out guarded
+PostgreSQL reader (any other reader failure stays a 500) answers a retryable 503 `backend_unavailable` with
+`Retry-After`. The other handlers in this package still write store errors as
+500 and have not been moved to the helper.
+
 ## What NOT to change without an ADR
 
 - The two Part C capability-string mirrors' values

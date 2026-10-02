@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CheckpointSource captures the primary's committed visibility boundary without
@@ -28,16 +30,24 @@ func WithCheckpoint(next http.Handler, source CheckpointSource, selected func(*h
 			return
 		}
 		if source == nil {
-			http.Error(w, "database read unavailable", http.StatusServiceUnavailable)
+			writeReadUnavailable(w)
 			return
 		}
 		ctx, err := source.ContextWithCheckpoint(r.Context())
 		if err != nil {
-			http.Error(w, "database read unavailable", http.StatusServiceUnavailable)
+			writeReadUnavailable(w)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// writeReadUnavailable answers a failed checkpoint with a retryable 503. The
+// body is a fixed string and Retry-After carries the shared reader retry hint,
+// matching the query layer's backend_unavailable contract (#7523).
+func writeReadUnavailable(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", strconv.Itoa(db.ReaderRetryAfterSeconds))
+	http.Error(w, "database read unavailable", http.StatusServiceUnavailable)
 }
 
 // NewTrustedStatusReader gives the public runtime admin surface its own bounded

@@ -77,6 +77,20 @@ No failed fence falls back to the writer or executes business SQL. The reader
 cursor retains its borrowed connection until Close, exhaustion, scan failure,
 or request cancellation.
 
+`ErrReaderStale` and `ErrReaderUnavailable` are the shared
+`storage/postgres/db` sentinels (re-exported here), so the query layer maps a
+stale replica (`ErrReaderStale`) or a timed-out reader-pool wait
+(`ErrReaderUnavailable` joined with `context.DeadlineExceeded`) to a retryable
+HTTP 503 `backend_unavailable` with `Retry-After` without importing this package
+(#7523). Other `ErrReaderUnavailable` failures (authentication, connection
+refused, permission denied on the identity query, client cancel) are not
+retryable and stay a 500; `reader_borrow`/`reader_identity`/`reader_replay` with
+`outcome="error"` is their operator signal.
+`WithCheckpoint` answers the same 503 and `Retry-After` when the checkpoint step
+fails. Replica staleness and pool-wait timeouts are visible as
+`reader_replay` and `reader_borrow` stage durations with `outcome="deadline"`;
+no separate counter exists.
+
 A borrowed connection that fails its topology check is removed from the SQL
 pool before it can serve another request. Public API and MCP errors name only
 the failed reader or writer stage; private wrapped causes retain

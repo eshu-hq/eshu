@@ -53,6 +53,12 @@ transaction, or a raw connection.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
   check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for
   `errors.As` callers.
+- `ErrReaderStale` / `ErrReaderUnavailable` / `ReaderRetryAfterSeconds` --
+  shared guarded-reader failure sentinels and the retry hint the query layer
+  sends with the resulting 503 (#7523); `runtime/postgres` re-exports the
+  sentinels. Only `ErrReaderStale` and `ErrReaderUnavailable` joined with
+  `context.DeadlineExceeded` (a pool-wait timeout) map to the 503; any other
+  `ErrReaderUnavailable` stays a 500.
 - `WithQuerySummary` / `QuerySummaryFromContext` -- bounded read-name context
   plumbing for the `postgres.query` span's `db.query.summary` attribute.
 

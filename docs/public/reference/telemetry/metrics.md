@@ -46,6 +46,20 @@ short stage spans are standalone diagnostics rather than children of the API/MCP
 request span. These signals do not establish deployed latency or replica
 capacity until API/MCP wiring and measurement are complete.
 
+The same histogram is the signal for reader fence outcomes (#7523); no separate
+counter exists. With `role="reader"`, `stage="reader_replay"` and
+`outcome="deadline"` counts replicas that missed the writer checkpoint within
+the replay window (the API answers `503 backend_unavailable` with `Retry-After`),
+`stage="reader_borrow"` and `outcome="deadline"` counts reader-pool wait
+timeouts (the same `503`; a `reader_identity` `deadline`, the identity check
+timing out inside the replay window, answers it too), and `stage="reader_replay"` with `outcome="ok"` and a
+duration near the replay window counts reads that waited for replay and then
+succeeded. Only the `deadline` outcomes map to the `503`. The same stages with
+`outcome="error"` (authentication or TLS failure, connection refused, a role
+denied `pg_control_system()`, a failing replay query) answer `500`, not `503`, and
+are the operator signal for a permanent reader misconfiguration; `canceled` is a
+client disconnect and also stays `500`.
+
 ## Runtime Health And Backlog
 
 Use these first when asking whether a runtime is alive, ready, or stuck:

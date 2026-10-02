@@ -48,6 +48,12 @@ func WriteErrorEnvelope(w http.ResponseWriter, r *http.Request, status int, errE
 		WriteError(w, status, http.StatusText(status))
 		return
 	}
+	if status == http.StatusServiceUnavailable && errEnv.Code == ErrorCodeBackendUnavailable {
+		// Every retryable backend outage tells the client when to retry, in
+		// the header an HTTP client honors; MCP callers get the same hint from
+		// the envelope details because the dispatcher does not forward headers.
+		w.Header().Set("Retry-After", strconv.Itoa(BackendUnavailableRetryAfterSeconds))
+	}
 	if AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{Error: errEnv})
 		return

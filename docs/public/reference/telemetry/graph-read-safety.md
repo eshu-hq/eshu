@@ -43,6 +43,12 @@ rather than a generic transport failure:
 
 Responses do not expose Bolt addresses, Cypher text, or raw driver errors.
 
+The same helper also maps a PostgreSQL reader that was stale or whose pool wait
+timed out (not any other reader failure, which stays a `500`) onto `503` `backend_unavailable` with the fixed message `database read
+temporarily unavailable; retry shortly`; see
+[HTTP API](../http-api.md#postgresql-reader-fence-failures). Every `503`
+`backend_unavailable` written through the envelope helper carries `Retry-After`.
+
 `POST /api/v0/code/visualize` was a known gap, tracked separately: it followed
 the contract at runtime but had no OpenAPI path entry at all — a gap that
 predated this contract, so it could not advertise `503`/`504` until that entry

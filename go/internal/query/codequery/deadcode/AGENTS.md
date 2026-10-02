@@ -49,6 +49,16 @@ stdlib plus the leaves named in [doc.go](doc.go).
   levels below root, so `tests/fixtures/...` needs five `..`
   segments, not three.
 
+## Postgres reader failures (#7523)
+
+Every store or scan error in the three handlers goes through
+`Dependencies.WriteGraphReadError` before the 500 fallback, including the
+cross-repo consumer-evidence read and the investigation coverage read, so a
+stale or pool-wait-timed-out guarded PostgreSQL reader (a reader failure that is
+not a timeout stays a 500) answers a retryable 503
+`backend_unavailable` with `Retry-After` instead of a 500 carrying Go error
+text. A new store read in these handlers needs the same call.
+
 ## Verification (paste all)
 
 ```bash

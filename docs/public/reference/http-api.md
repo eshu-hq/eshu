@@ -90,7 +90,8 @@ and `504` in the OpenAPI spec; the deadline, retry, and telemetry semantics
 behind it are owned by
 [Graph-read safety](telemetry/graph-read-safety.md), which also records the one
 route still exempt. The graph-read contract does not apply to Postgres or
-content-store reads; those follow the store-error contract below.
+content-store reads, except the reader fence failures below; those follow the
+store-error contract below.
 
 Any other graph-read failure (a driver fault that is neither a deadline nor an
 availability problem) answers `500` whose detail ends in `graph query failed`;
@@ -102,6 +103,37 @@ The response carries no trace id and no statement fingerprint, so an operator
 matches a reported failure to its log record by the time of the failure, and
 reads the query name, statement fingerprint, and statement head from the record
 to name the offending shape.
+
+#### PostgreSQL reader fence failures
+
+When the API or MCP server reads through a read replica (see
+[PostgreSQL Read Routing](../deployment/postgres-read-routing.md)), a read can
+fail closed because the replica has not replayed to the writer checkpoint within
+the replay window, or because acquiring or checking a reader connection (the
+pool wait, the connection dial, or the identity check) hit the same deadline.
+Both are timeouts and transient.
+The dead-code routes (`POST /api/v0/code/dead-code`, `.../cross-repo`,
+`.../investigate`), `POST /api/v0/iac/dead`, and every other route that writes
+its failures through the shared graph-read helper answer:
+
+| Condition | HTTP status | Error code | Message |
+| --- | --- | --- | --- |
+| Replica behind the writer checkpoint, or reader connection acquisition or identity check timed out | `503` | `backend_unavailable` | `database read temporarily unavailable; retry shortly` |
+
+The response carries `Retry-After: 2` (a fixed number of seconds, sized to the
+2-second replay window) and the same hint in the envelope as
+`error.details.retry_after_seconds`, because the MCP transport forwards the
+envelope rather than HTTP headers. The body never carries the Go error text.
+The request-level checkpoint failure answers the same `503` and `Retry-After`.
+Clients should retry after the hinted delay. A reader failure that is neither
+condition stays a `500` with a fixed message and no `Retry-After`: a rejected
+statement, a reader connection that fails to authenticate or connect (refused
+connection, TLS error), a role denied `pg_control_system()` or another identity
+or replay query, and a client disconnect are not transient, so the API does not
+tell the client to retry them. Routes outside the
+dead-code and dead-IaC lane that write a store error straight into a `500` do
+not yet map a reader fence failure and still answer `500` until they are routed
+through the shared helper.
 
 A failed Postgres call on the API and MCP server answers `500`, `503`, or `504`
 per the handler, and its detail never carries the driver's own message, which

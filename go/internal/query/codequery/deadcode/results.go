@@ -76,10 +76,7 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 
 	scan, err := a.ScanDeadCodeCandidates(r.Context(), req)
 	if err != nil {
-		if a.deps.WriteGraphReadError(w, r, err, "code_quality.dead_code") {
-			return
-		}
-		a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
+		a.writeStoreError(w, r, err, "code_quality.dead_code")
 		return
 	}
 	// Clip after the scan's final page trim and policy filter so the count matches
@@ -104,6 +101,19 @@ func (a *Analyzer) HandleDeadCode(w http.ResponseWriter, r *http.Request) {
 	}
 	querycontract.AddDocstringClipMarkers(data, clippedDocstrings)
 	a.deps.WriteSuccess(w, r, http.StatusOK, data, querycontract.BuildTruthEnvelope(a.deps.Profile, "code_quality.dead_code", querycontract.TruthBasisHybrid, "resolved from graph-backed dead-code candidates with partial root modeling"))
+}
+
+// writeStoreError answers a failed scan or store read of a dead-code route. A
+// guarded PostgreSQL reader that was stale or whose pool wait timed out (not any
+// other reader failure), and the shared graph-read sentinels, get their
+// retryable 503/504 contract through WriteGraphReadError (#7523); anything else,
+// including a permanent reader failure, is a 500. Every store read in these
+// handlers must come through here so none writes err.Error() into a 500 directly.
+func (a *Analyzer) writeStoreError(w http.ResponseWriter, r *http.Request, err error, capability string) {
+	if a.deps.WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	a.deps.WriteError(w, http.StatusInternalServerError, err.Error())
 }
 
 func (a *Analyzer) buildDeadCodeResults(

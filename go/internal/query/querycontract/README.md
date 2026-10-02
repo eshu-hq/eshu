@@ -323,6 +323,20 @@ canceled context and a live-context error keep their own mapping, and an error
 that already carries `ErrGraphUnavailable` stays a 503, so the handler's
 `failure_class` log and its response agree.
 
+`WriteGraphReadError` and `GraphReadErrorEnvelope` also map a guarded
+PostgreSQL reader that was stale (`db.ErrReaderStale`) or whose pool wait timed
+out (`db.ErrReaderUnavailable` joined with `context.DeadlineExceeded`) to `503`
+`backend_unavailable` with the fixed `ErrReaderRetryable` message and
+`error.details.retry_after_seconds` (#7523). The check runs before the deadline
+sentinel because the stale verdict wraps `context.DeadlineExceeded`, and
+`ClassifyBoundedGraphReadError` leaves such an error untouched. A reader
+failure that is not a timeout (authentication, TLS, connection refused,
+permission denied, client cancel) also carries `db.ErrReaderUnavailable` but is
+not transient, so it is not claimed and stays the caller's 500. `WriteErrorEnvelope`
+sets `Retry-After` (`BackendUnavailableRetryAfterSeconds`, a fixed constant, no
+clock read) on every `503` `backend_unavailable`. Handlers that write a store
+error as a 500 must call `WriteGraphReadError` first for this contract to apply.
+
 `K8sSelectCandidate` carries selector presence separately from selector value.
 Family code must preserve absent, present-empty, and present-nonempty states
 when converting it into matcher input.

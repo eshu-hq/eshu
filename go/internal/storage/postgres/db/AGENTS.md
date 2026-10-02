@@ -27,6 +27,14 @@
   `SearchIndexTermCopyUnsupportedError` and `WithQuerySummary` /
   `QuerySummaryFromContext` (InstrumentedDB plumbing, also hoisted
   byte-identically). See `go/internal/storage/postgres/db/README.md`.
+- `ErrReaderStale`, `ErrReaderUnavailable`, and `ReaderRetryAfterSeconds`
+  (`reader_errors.go`) are the shared guarded-reader failure identities and the
+  retry hint. They live here so `runtime/postgres` (producer) and
+  `query/querycontract` (HTTP mapping) agree on one error identity without
+  importing each other (#7523). `ErrReaderUnavailable` is a classification
+  marker, not a transience promise: only with `context.DeadlineExceeded` (a
+  pool-wait timeout) does the query layer answer a retryable 503. Add no other
+  error or policy here.
 - Standard library only (`context`, `database/sql`, `fmt`, `strings`). No
   I/O, no SQL text, no migration state, no telemetry, no Eshu import --
   importing the postgres root (directly or transitively) would recreate the

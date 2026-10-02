@@ -41,6 +41,7 @@ const Routes = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
             "description": "Dead-IaC candidate findings",
             "content": {

@@ -83,6 +83,30 @@ is a guard, not a replacement for database privileges. The writer and reader
 roles need `EXECUTE` on `pg_control_system()` for identity checks; grant that
 specific function if the deployment revokes the default access.
 
+A reader that has not replayed to the writer checkpoint within the replay
+window, or whose connection acquisition (pool wait or dial) or identity check
+times out, is a retryable condition. A reader
+failure that is not a timeout (authentication or TLS failure, connection
+refused, permission denied on `pg_control_system()`, a client disconnect) is not
+retryable and stays HTTP `500` with a fixed message and no `Retry-After`. API and MCP
+clients receive HTTP `503` with error code `backend_unavailable`, a fixed message,
+and `Retry-After: 2` (also `error.details.retry_after_seconds` in the envelope);
+the Go error text and driver detail never reach the response. The writer
+checkpoint failure answers the same `503` and `Retry-After`. Retry after the
+hinted delay. A burst of these `503` responses points at replica lag, for
+example long snapshot reads on a replica with `hot_standby_feedback=off` and a
+short `max_standby_streaming_delay` causing recovery conflicts; check replay lag
+on the replica before widening any Eshu timeout. To tell the two causes apart,
+read `eshu_dp_postgres_reader_stage_duration_seconds` with `role="reader"`:
+`stage="reader_replay"` with `outcome="deadline"` is a replica that missed the
+checkpoint, `stage="reader_borrow"` with `outcome="deadline"` is a pool-wait
+or dial timeout, and a `reader_replay` `ok` tail near the replay window shows requests
+that waited and then succeeded. A `reader_borrow`, `reader_identity`, or
+`reader_replay` sample with `outcome="error"` is NOT a `503`: it is a permanent
+reader failure (credentials, network, grants, a failing identity or replay
+query) that answers `500`, so alert on it as a misconfiguration rather than
+waiting for replica lag to clear. See [HTTP API](../reference/http-api.md#postgresql-reader-fence-failures).
+
 `/readyz` checks both pools and the fenced status schema. `/healthz` remains
 independent of dependencies. If status cannot be loaded, `/metrics` retains
 valid independent OTEL samples and reports
