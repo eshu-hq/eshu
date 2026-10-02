@@ -10,8 +10,7 @@ documented_selector_scan_case() {
   fixture="$(init_repo "$name")"
   printf '\n`%s`\n' "$command" \
     >>"${fixture}/docs/public/contributing-language-support.md"
-  git -C "$fixture" add .
-  git -C "$fixture" commit -q -m "$name"
+  fixture_add_commit "$fixture" "$name"
   case "$expected" in
     fail) expect_fail "$fixture" ;;
     pass) expect_pass "$fixture" ;;
@@ -24,8 +23,7 @@ documented_selector_fenced_scan_case() {
   fixture="$(init_repo "$name")"
   printf '\n```bash\n%s\n```\n' "$command" \
     >>"${fixture}/docs/public/contributing-language-support.md"
-  git -C "$fixture" add .
-  git -C "$fixture" commit -q -m "$name"
+  fixture_add_commit "$fixture" "$name"
   case "$expected" in
     fail) expect_fail "$fixture" ;;
     pass) expect_pass "$fixture" ;;
@@ -38,8 +36,7 @@ documented_selector_delimited_scan_case() {
   fixture="$(init_repo "$name")"
   printf '\n%s%s%s\n' "$delimiter" "$command" "$delimiter" \
     >>"${fixture}/docs/public/contributing-language-support.md"
-  git -C "$fixture" add .
-  git -C "$fixture" commit -q -m "$name"
+  fixture_add_commit "$fixture" "$name"
   case "$expected" in
     fail) expect_fail "$fixture" ;;
     pass) expect_pass "$fixture" ;;
@@ -52,8 +49,7 @@ documented_selector_custom_fence_scan_case() {
   fixture="$(init_repo "$name")"
   printf '\n%sbash\n%s\n%s\n' "$fence" "$command" "$closing" \
     >>"${fixture}/docs/public/contributing-language-support.md"
-  git -C "$fixture" add .
-  git -C "$fixture" commit -q -m "$name"
+  fixture_add_commit "$fixture" "$name"
   case "$expected" in
     fail) expect_fail "$fixture" ;;
     pass) expect_pass "$fixture" ;;
