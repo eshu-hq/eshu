@@ -172,6 +172,59 @@ func TestApplyContextEvidenceDetailHandlesLeavesSharedContentValues(t *testing.T
 	}
 }
 
+// TestApplyContextEvidenceDetailHandlesKeepsEmptyContentValues proves a
+// content-derived value that holds no rows stays, with no omission, so an
+// empty list never reads as a reduced family with a total of zero.
+func TestApplyContextEvidenceDetailHandlesKeepsEmptyContentValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := evidenceDetailContext()
+	evidence := MapValue(ctx, "deployment_evidence")
+	evidence["topology_story"] = []string{}
+	evidence["delivery_family_story"] = []string{}
+	evidence["deployment_artifacts"] = map[string]any{"controller_artifacts": []map[string]any{}}
+
+	omissions := ApplyContextEvidenceDetail(ctx, ContextEvidenceDetailHandles)
+
+	kept := MapValue(ctx, "deployment_evidence")
+	for _, key := range []string{"topology_story", "delivery_family_story", "deployment_artifacts"} {
+		if _, has := kept[key]; !has {
+			t.Fatalf("deployment_evidence.%s dropped although it holds no rows", key)
+		}
+	}
+	for _, omission := range omissions {
+		switch omission.Section {
+		case "deployment_evidence.topology_story", "deployment_evidence.delivery_family_story", "deployment_evidence.deployment_artifacts":
+			t.Fatalf("omission %#v reported for a value that holds no rows", omission)
+		}
+	}
+}
+
+// TestApplyContextEvidenceDetailHandlesDropsContentValuesWithoutArtifacts
+// proves the content-derived drop works when there are no graph artifacts, and
+// that it still copies: the evidence map a caller holds keeps its values.
+func TestApplyContextEvidenceDetailHandlesDropsContentValuesWithoutArtifacts(t *testing.T) {
+	t.Parallel()
+
+	shared := map[string]any{
+		"artifact_count": 0,
+		"topology_story": []string{"t1", "t2"},
+	}
+	ctx := map[string]any{"deployment_evidence": shared}
+
+	omissions := ApplyContextEvidenceDetail(ctx, ContextEvidenceDetailHandles)
+
+	if _, has := MapValue(ctx, "deployment_evidence")["topology_story"]; has {
+		t.Fatal("topology_story present in handles mode, want it dropped")
+	}
+	if _, has := shared["topology_story"]; !has {
+		t.Fatal("the original evidence map lost topology_story; the drop must act on a copy")
+	}
+	if len(omissions) != 1 || omissions[0].Section != "deployment_evidence.topology_story" || omissions[0].Total != 2 {
+		t.Fatalf("omissions = %#v, want one for topology_story with total 2", omissions)
+	}
+}
+
 // TestApplyContextEvidenceDetailFullKeepsContentDerivedValues proves full mode
 // keeps every content-derived value and reports nothing for them.
 func TestApplyContextEvidenceDetailFullKeepsContentDerivedValues(t *testing.T) {

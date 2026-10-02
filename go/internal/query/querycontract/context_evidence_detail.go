@@ -54,8 +54,9 @@ func ValidateContextEvidenceDetail(detail string) error {
 //
 // Under handles it projects deployment_evidence.artifacts and
 // api_surface.endpoints to identity rows, drops deployment_evidence.evidence_index
-// (a regrouping of the same artifacts that handle rows already carry), and
-// returns one truth omission per reduced family with its true total. Rows are
+// (a regrouping of the same artifacts that handle rows already carry) and the
+// content-derived evidence values that hold rows (contextContentEvidenceKeys),
+// and returns one truth omission per reduced family with its true total. Rows are
 // projected into new maps, so a map shared with a read model is never mutated.
 // An empty detail means full. It always sets evidence_detail; it adds
 // evidence_detail_drilldown only when a family was reduced. Call
