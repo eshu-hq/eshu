@@ -20,6 +20,8 @@ var (
 	_ db.ReadSnapshotSetBeginner = fencedQueryer{}
 )
 
+var errSnapshotSetMultiHost = errors.New("snapshot sets require one physical reader host")
+
 // MaxReadConnections reports the private reader pool's configured limit.
 func (q fencedQueryer) MaxReadConnections() int {
 	if q.access == nil || q.access.reader == nil {
@@ -33,6 +35,9 @@ func (q fencedQueryer) MaxReadConnections() int {
 // begins, and the exporter remains open until the returned set is closed.
 func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) (db.ReadSnapshotSet, error) {
 	a := q.access
+	if a != nil && a.readerHasFallbacks {
+		return nil, privateFailure(failureSnapshotBegin, errSnapshotSetMultiHost)
+	}
 	if count < 1 || count > q.MaxReadConnections() {
 		return nil, privateFailure(failureSnapshotBegin, errors.New("invalid snapshot reader count"))
 	}

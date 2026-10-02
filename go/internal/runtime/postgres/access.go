@@ -50,13 +50,14 @@ type Observer interface {
 // Writer is exposed for authorization, audit, and mutation paths; business
 // reads use Reader, which does not expose its underlying sql.DB.
 type Access struct {
-	writer          *sql.DB
-	reader          *sql.DB
-	samePrimary     bool
-	replayTimeout   time.Duration
-	observer        Observer
-	identity        physicalIdentity
-	snapshotSetGate chan struct{}
+	writer             *sql.DB
+	reader             *sql.DB
+	readerHasFallbacks bool
+	samePrimary        bool
+	replayTimeout      time.Duration
+	observer           Observer
+	identity           physicalIdentity
+	snapshotSetGate    chan struct{}
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
@@ -101,7 +102,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
 	reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	access := &Access{writer: writer, reader: reader, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
+	access := &Access{writer: writer, reader: reader, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
 	access.snapshotSetGate <- struct{}{}
 	if err := writer.PingContext(pingCtx); err != nil {
 		_ = access.Close()
@@ -118,7 +119,17 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 func (a *Access) Writer() *sql.DB { return a.writer }
 
 // Reader returns guarded row, cursor, and snapshot reads without exposing the raw reader pool.
-func (a *Access) Reader() db.ReadStore { return fencedQueryer{access: a} }
+// Multi-host readers do not advertise snapshot sets: exported snapshots cannot
+// be imported on a different physical PostgreSQL server.
+func (a *Access) Reader() db.ReadStore {
+	reader := fencedQueryer{access: a}
+	if a.readerHasFallbacks {
+		return snapshotlessReadStore{ReadStore: reader}
+	}
+	return reader
+}
+
+type snapshotlessReadStore struct{ db.ReadStore }
 
 // Stats reports both pool states under closed role names.
 func (a *Access) Stats() (writer, reader sql.DBStats) { return a.writer.Stats(), a.reader.Stats() }

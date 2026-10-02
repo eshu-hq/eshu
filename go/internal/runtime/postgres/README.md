@@ -8,7 +8,11 @@ that read model in step. PostgreSQL business reads receive only `Reader()`'s
 `db.ReadStore`: cursor, row, and read-only snapshot operations. A query-only
 optional `db.ReadSnapshotSetBeginner` adds multiple readers on one exported
 repeatable-read snapshot; the requested count includes the exporter and cannot
-exceed the private pool's connection cap. Their request boundary must call
+exceed the private pool's connection cap. This optional surface is available
+only for a single physical reader host. Native multi-host reader candidates
+retain guarded cursor, row, and single-connection snapshot reads, but not
+snapshot sets: PostgreSQL exported snapshots cannot cross server boundaries.
+Their request boundary must call
 `ContextWithCheckpoint` after authorization and before business SQL. A request with no checkpoint fails
 before borrowing a reader.
 
