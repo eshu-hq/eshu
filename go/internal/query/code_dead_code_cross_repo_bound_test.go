@@ -212,69 +212,93 @@ func TestCrossRepoDeadCodeProbeStatementIsSizeIndependent(t *testing.T) {
 const crossRepoDeadCodeConsumerPageRankMigration = "../storage/postgres/migrations/103_code_reachability_entity_confidence_rank_idx.sql"
 
 // TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey pins the evidence
-// page's ORDER BY and migration 103's index key to each other, by reading both
-// (#6527, and the tiebreak from #6535's replacement review).
+// page's two orderings and migration 103's index key to each other, by reading
+// all three (#6527, the tiebreak from #6535's replacement review, and #7249's
+// per-entity lateral).
 //
-// They are one decision written in two places. With entity_id pinned by the
-// statement's IN list the index's key columns ARE the ordering, so the scan can
-// be answered in output order. Edit either alone and it cannot: Postgres goes
-// back to ranking a producer entity's whole consumer fan-in before it can emit
-// that entity's first row, which is 1,000,497 rows read for a 1,001-row answer
-// on the corpus in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+// They are one decision written in three places. Inside the lateral, entity_id
+// is pinned to one page entity, so the ranking's ORDER BY has to be the index
+// key after entity_id: then the index-only scan is answered in output order and
+// the per-entity LIMIT stops it. The page's outer ORDER BY is the whole key with
+// the page entity first, which is what makes the per-entity cap lossless against
+// the page sentinel. Edit any one alone and Postgres goes back to ranking a
+// producer entity's whole consumer fan-in before it can emit that entity's first
+// row, which is 1,000,497 rows read for a 1,001-row answer on the corpus in
+// docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
 //
 // Answered in output order is not the same as bounded by the cap. The cap bounds
 // rows RETURNED; the scan walks one entry per retained generation per position,
-// because the liveness test is a join above it.
+// because the liveness test discards superseded entries after reading them.
 //
 // Nothing else can catch that drift. The answer is identical either way, so no
 // behavioural assertion moves; the live proof sees it, but only against a real
-// Postgres, and this runs in the unit lane on every change to either file.
+// Postgres, and this runs in the unit lane on every change to any of the files.
 func TestCrossRepoDeadCodeConsumerPageOrderMatchesItsIndexKey(t *testing.T) {
 	t.Parallel()
 
-	query, _ := buildCrossRepoDeadCodeConsumerEvidenceQuery(
+	query, _ := buildCrossRepoDeadCodeConsumerEvidenceQuery(codeGrantGrantedRepo, []string{"entity-1"}, nil)
+	granted, _ := buildCrossRepoDeadCodeConsumerEvidenceQuery(
 		codeGrantGrantedRepo, []string{"entity-1"}, []string{codeGrantConsumerRepo},
 	)
-	order := crossRepoDeadCodeConsumerPageOrderColumns(t, query)
+	page := crossRepoDeadCodeConsumerPageOrderColumns(t, query, "\n")
+	ranking := crossRepoDeadCodeConsumerPageOrderColumns(t, query, "\n  ")
 	key := crossRepoDeadCodeConsumerPageIndexKeyColumns(t)
+	// The grant-bound page keeps the flat statement, ordered by the same key.
+	if flat := crossRepoDeadCodeConsumerPageOrderColumns(t, granted, "\n"); flat != key {
+		t.Fatalf("the grant-bound evidence page orders by (%s) and migration 103's index key is (%s); they have to be the same columns in the same order", flat, key)
+	}
 	// Two parsers that both returned nothing would agree, and this test would
 	// pass for the wrong reason. Require the parse to have found the ranking
 	// column, the four that break its ties, and the two that make the order
-	// total -- seven in all.
-	if strings.Count(order, ",") != 6 || !strings.Contains(order, "confidence DESC") {
-		t.Fatalf("read the page's ORDER BY as (%s), want seven columns including confidence DESC; the parse has drifted from the statement", order)
+	// total -- seven in all on the page, six inside the lateral.
+	if strings.Count(page, ",") != 6 || !strings.Contains(page, "confidence DESC") {
+		t.Fatalf("read the page's ORDER BY as (%s), want seven columns including confidence DESC; the parse has drifted from the statement", page)
 	}
 	// The last two are the tiebreak, and they are the half a reader is most
 	// likely to drop as noise. Rows equal on the first five differ only in the
 	// scope and generation that wrote them, and without these an index scan and
 	// a top-N heapsort return different rows at the cap.
-	if !strings.HasSuffix(order, "scope_id, generation_id") {
-		t.Fatalf("the page's ORDER BY is (%s); it has to end scope_id, generation_id so rows equal on the ranking have one defined order in every plan", order)
+	for _, order := range []string{page, ranking} {
+		if !strings.HasSuffix(order, "scope_id, generation_id") {
+			t.Fatalf("an evidence page ORDER BY is (%s); it has to end scope_id, generation_id so rows equal on the ranking have one defined order in every plan", order)
+		}
 	}
-	if order != key {
+	if page != key {
 		t.Fatalf("the evidence page orders by (%s) and migration 103's index key is (%s); they have to be the same columns in the same order, or the page ranks a producer entity's whole fan-in before its LIMIT",
-			order, key)
+			page, key)
+	}
+	if want := strings.TrimPrefix(key, "entity_id, "); ranking != want {
+		t.Fatalf("the per-entity ranking orders by (%s); with entity_id pinned it has to be migration 103's key after entity_id, (%s), or the lateral sorts the entity's fan-in before its LIMIT",
+			ranking, want)
+	}
+	// The ranking's order only matches the index because entity_id is pinned
+	// to one page entity inside the lateral.
+	if !strings.Contains(query, "WHERE row.entity_id = page.id") {
+		t.Fatalf("the per-entity ranking no longer pins entity_id to the page entity:\n%s", query)
 	}
 }
 
-// crossRepoDeadCodeConsumerPageOrderColumns renders the page statement's ORDER
-// BY as a comparable column list: the table alias dropped, ASC dropped as the
-// default, DESC kept because it is part of the index key.
-func crossRepoDeadCodeConsumerPageOrderColumns(t *testing.T, query string) string {
+// crossRepoDeadCodeConsumerPageOrderColumns renders one of the page statement's
+// ORDER BY clauses -- the one whose line starts with indent -- as a comparable
+// column list: the table alias dropped, the page entity read as entity_id, ASC
+// dropped as the default, DESC kept because it is part of the index key.
+func crossRepoDeadCodeConsumerPageOrderColumns(t *testing.T, query string, indent string) string {
 	t.Helper()
 
-	_, after, found := strings.Cut(query, "\nORDER BY ")
+	_, after, found := strings.Cut(query, indent+"ORDER BY ")
 	if !found {
-		t.Fatalf("the evidence page statement has no ORDER BY:\n%s", query)
+		t.Fatalf("the evidence page statement has no ORDER BY at indent %q:\n%s", indent, query)
 	}
-	clause, _, found := strings.Cut(after, "\nLIMIT ")
+	clause, _, found := strings.Cut(after, indent+"LIMIT ")
 	if !found {
-		t.Fatalf("the evidence page statement has no LIMIT after its ORDER BY:\n%s", query)
+		t.Fatalf("the evidence page statement has no LIMIT after its ORDER BY at indent %q:\n%s", indent, query)
 	}
-	columns := make([]string, 0, 5)
+	columns := make([]string, 0, 7)
 	for _, column := range strings.Split(clause, ",") {
 		column = strings.Join(strings.Fields(column), " ")
+		column = strings.Replace(column, "page.id", "entity_id", 1)
 		column = strings.TrimPrefix(column, "row.")
+		column = strings.TrimPrefix(column, "hit.")
 		column = strings.TrimSuffix(column, " ASC")
 		columns = append(columns, column)
 	}

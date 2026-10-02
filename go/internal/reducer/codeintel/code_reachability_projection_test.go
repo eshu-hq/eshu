@@ -6,6 +6,8 @@ package codeintel
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
 func TestBuildCodeReachabilityRowsWithStatsTruncatesAtMaxVisited(t *testing.T) {
@@ -228,5 +230,65 @@ func TestBuildCodeReachabilityRowsDeltaScopesAffectedSlice(t *testing.T) {
 	}
 	if gotEntities["entity:root"] || gotEntities["entity:c"] {
 		t.Fatalf("delta rows included unaffected entities: %#v", rows)
+	}
+}
+
+// TestBuildCodeReachabilityRowsEmitsOneRowPerEntityPerSnapshot pins the writer
+// invariant the cross-repo dead-code evidence page's column fetch relies on
+// (#7249): one snapshot carries at most one row per entity_id, however many
+// roots reach it and by however many paths. The traversal is multi-source, so
+// an entity reached from several roots keeps only its strongest shortest path.
+// The page's fetch identifies a row by the primary key, which already yields at
+// most one row; this invariant bounds the index entries the fetch reads when the
+// planner serves it from an index whose key lacks root_entity_id. A build that
+// kept one row per (root, entity) would put a busy entity's whole
+// per-repository fan-in under every fetch.
+func TestBuildCodeReachabilityRowsEmitsOneRowPerEntityPerSnapshot(t *testing.T) {
+	const roots = 20
+	input := CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+		RepositoryID: "repo-1",
+		MaxDepth:     10,
+	}
+	for i := 0; i < roots; i++ {
+		root := fmt.Sprintf("entity:root-%02d", i)
+		input.Roots = append(input.Roots, CodeReachabilityRoot{EntityID: root, RootKinds: []string{"go.main_function"}})
+		// Every root reaches the shared helper directly AND through its own
+		// intermediate, and half of them reach it more strongly than the rest.
+		method := "scip"
+		if i%2 == 1 {
+			method = "repo_unique_name"
+		}
+		middle := fmt.Sprintf("entity:middle-%02d", i)
+		input.Edges = append(input.Edges,
+			CodeReachabilityEdge{SourceEntityID: root, TargetEntityID: "entity:shared", RelationshipType: "CALLS", ResolutionMethod: method},
+			CodeReachabilityEdge{SourceEntityID: root, TargetEntityID: middle, RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			CodeReachabilityEdge{SourceEntityID: middle, TargetEntityID: "entity:shared", RelationshipType: "REFERENCES", ResolutionMethod: "scip"},
+			CodeReachabilityEdge{SourceEntityID: middle, TargetEntityID: "entity:leaf", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+		)
+	}
+
+	rows := BuildCodeReachabilityRows(input)
+	perEntity := make(map[string]int, len(rows))
+	for _, row := range rows {
+		perEntity[row.EntityID]++
+		if row.ScopeID != "scope-1" || row.GenerationID != "generation-1" || row.RepositoryID != "repo-1" {
+			t.Fatalf("row left its snapshot: %#v", row)
+		}
+	}
+	for entityID, count := range perEntity {
+		if count != 1 {
+			t.Fatalf("%s has %d rows in one snapshot, want 1; the evidence page's per-row fetch would read them all", entityID, count)
+		}
+	}
+	// Every root, its intermediate, the shared helper and the leaf: one each.
+	if got, want := len(rows), 2*roots+2; got != want {
+		t.Fatalf("rows = %d, want %d", got, want)
+	}
+	for _, row := range rows {
+		if row.EntityID == "entity:shared" && (row.Depth != 1 || row.Confidence != codeprovenance.Confidence("scip")) {
+			t.Fatalf("entity:shared kept depth %d confidence %v, want its strongest shortest path (depth 1, scip)", row.Depth, row.Confidence)
+		}
 	}
 }
