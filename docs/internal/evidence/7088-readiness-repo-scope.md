@@ -260,8 +260,9 @@ pins that the cut cannot corrupt a literal; `TestReadinessRepoArmGuardedSQLHasNo
 rejects `/* */` comments, which the helper does not strip; the `OFFSET 0` fence,
 `scope.source_key` anchor and LATERAL-probe counts use the same stripped text)
 three `dependency.generation_id =
-scope.active_generation_id` binds and three `dependency.is_tombstone = FALSE`
-filters across the two manifest arms and the gap CTE, and arm 1's `NULLIF(...
+scope.active_generation_id` binds, three `dependency.is_tombstone = FALSE`
+filters and three `dependency.payload->>'repo_id' = $11` binds across the two
+manifest arms and the gap CTE, and arm 1's `NULLIF(...
 config_kind, '') IS NULL` exclusivity and arm 2's `config_kind = 'dependency'`
 each exactly once. An independent reviewer showed that the earlier helper
 removed only whole-line comments, so a needle in a trailing comment kept a

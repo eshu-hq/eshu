@@ -276,6 +276,10 @@ const (
 	repoArmCurrentArmExclusivityNeedle = "AND NULLIF(dependency.payload->>'config_kind', '') IS NULL"
 	// repoArmLegacyArmNeedle is arm 2's legacy payload shape (#7301).
 	repoArmLegacyArmNeedle = "AND dependency.payload->>'config_kind' = 'dependency'"
+	// repoArmRepositoryBindNeedle binds a probe to the anchored repository. The
+	// "dependency." alias keeps the outer consumers' own repo_id filters, which
+	// are not probes, from satisfying the count.
+	repoArmRepositoryBindNeedle = "dependency.payload->>'repo_id' = $11"
 )
 
 // TestReadinessRepoArmProbesBindGenerationAndTombstone pins, from the shipped
@@ -308,6 +312,23 @@ func TestReadinessRepoArmManifestArmsStayMutuallyExclusive(t *testing.T) {
 	}
 	if got := strings.Count(manifest, repoArmLegacyArmNeedle); got != 1 {
 		t.Errorf("arm 2 legacy predicate %q occurrences = %d, want exactly 1", repoArmLegacyArmNeedle, got)
+	}
+}
+
+// TestReadinessRepoArmProbesBindTheAnchoredRepository pins that all three
+// LATERAL probes filter on the anchored repository's id. repo_id is the leading
+// key of the indexes the probes use (migrations 121 and 159) and the Index Cond
+// the live proof asserts; a probe without it reads every fact in the scope
+// instead of the repository's own, the pre-#7088 scan shape, while the scope
+// and generation conditions still look right.
+func TestReadinessRepoArmProbesBindTheAnchoredRepository(t *testing.T) {
+	t.Parallel()
+
+	if got := strings.Count(collapseProbeText(readinessPackageManifestActiveCTE), repoArmRepositoryBindNeedle); got != 2 {
+		t.Errorf("package_manifest_active %q occurrences = %d, want 2 (one per arm)", repoArmRepositoryBindNeedle, got)
+	}
+	if got := strings.Count(collapseProbeText(repoArmGapCTE(t)), repoArmRepositoryBindNeedle); got != 1 {
+		t.Errorf("package_dependency_gap_active %q occurrences = %d, want 1", repoArmRepositoryBindNeedle, got)
 	}
 }
 
