@@ -85,8 +85,8 @@ func TestPostgresCodeDriftedEvidenceLoaderAssemblesPairs(t *testing.T) {
 }
 
 // TestCodeDriftedQueriesCarryLoadBearingClauses is the hermetic shape guard
-// for the candidate SQL: the band self-join predicate (served by the #6834
-// lookup index), the per-entity budget window, the equality ownership
+// for the candidate SQL: the band self-join predicate (the three-column
+// equi-join the #6834 evidence measured), the per-entity budget window, the equality ownership
 // exclusion, and the member ANY() lookup must survive refactoring. It reads
 // the shipped constants, never a hand copy.
 func TestCodeDriftedQueriesCarryLoadBearingClauses(t *testing.T) {

@@ -116,10 +116,12 @@ fixture runs are not production-shaped). The run metadata does not label a
 | `20260927T193419Z` | candidate | 5,754.4 | 4,981 |
 
 So the hazard has fired in production-shaped runs of both arms. Each hit is a
-probe that matched nothing and still cost about 5.4 to 6.0 s, which is the
-cost the entity index removes. The runs below the 5 s threshold are not in the
-logs, so the other 11 runs are "no execution of 5 s or more", not "the plan did
-not occur". The execution time is far below the 18,853 ms the issue quotes for
+probe that matched nothing and still cost about 5.4 to 6.0 s, which the
+entity index is expected to remove (these hits read about 12.7k buffers, against
+about 6M in the shim, so the mechanism is the same plan shape at a smaller
+scale, not the same cost). The runs below the 5 s threshold are not in the logs,
+so the other 8 of the 15 searched runs are "no execution of 5 s or more", not
+"the plan did not occur". The execution time is far below the 18,853 ms the issue quotes for
 one chunk; that figure came from the #7230 shim, not from these runs.
 
 ## Shim at the #7230 sizes (acceptances 3 and 5, drift query)
@@ -166,8 +168,10 @@ re-upsert: without it, from the sixth 500-id chunk the planner takes the
 generic primary-key scan and the 5x repository spends 22.4 of its 22.7 minutes
 in `deleteFingerprintBandsForEntities`. The BEFORE 5x re-upsert is a single
 run, because one run takes about 20 minutes; the AFTER arm has five.
-Where the custom plan survives (848 ms per chunk at 5x), the index is a net
-cost, but that is not the plan pgx reaches after five executions.
+Even where the custom plan survives, the delete chunk goes from 848.2 to 16.0 ms
+at 5x, so the index pays back wherever the delete scans; no measured cell shows
+a net cost on the steady path. A repository too small for the delete to matter
+would only pay the insert cost, and that was not measured.
 
 ### Acceptance 5: the 18.9 s chunk and the #7230 churn cell
 
@@ -201,7 +205,9 @@ interleaved rounds, median ms:
 
 BEFORE is the #7230 after-state, and its 5x churn custom cell is 1,775.8 ms
 against the 1,362.5 ms recorded in the #7230 note (1.30x). With the index it
-is 397.0 ms, below that note's 587.8 ms pre-#7230 figure too (not re-measured
+is 397.0 ms, below that note's 587.8 ms pre-#7230 figure too (a cross-hardware
+comparison, since this host runs 1.2 to 3x that note's laptop values, so only
+the ratios carry; not re-measured
 here: that SQL is gone from the tree). The 1x churn cell no longer regresses
 (165.4 to 86.3 ms; #7230 recorded +4 ms). The stale band delete at 5x drops
 1,323 to 136 ms and the stale-id read 371 to 195 ms.
@@ -215,16 +221,17 @@ identical row counts (9,033 at 1x, 81,235 at 5x). Nothing moves, and no plan in
 either arm touches the new index. That holds for this shim's state only: it was
 vacuumed, so the planner joined the band primary key with index-only scans (a
 merge join), not the migration 111 lookup index that the query's comment names.
-A freshly bootstrapped table is not vacuumed; see the next subsection.
+A table that autovacuum has not yet processed (for example right after a bulk
+load) has an empty visibility map; see the next subsection.
 
-### Drift query on a never-vacuumed table
+### Drift query with an empty visibility map
 
 Rebuilt on the remote host on PostgreSQL 16.15 and 18.6 (run dir basename
-`7254-plan-20261002T205403Z`): the 11.5M-row shape with a 5x repository
+`7254-plan-20261002T205403Z`): the 11.3M-row shape with a 5x repository
 (799,200 band rows, 78,094 result rows; the generator is this run's, not real
-sketches), cloned into BEFORE and AFTER arms, with `ANALYZE` only and an empty
-visibility map (`relallvisible = 0`, the state right after a bootstrap), and
-again after `VACUUM (ANALYZE)`.
+sketches), cloned into BEFORE and AFTER arms, with autovacuum off, `ANALYZE` only and an
+empty visibility map (`relallvisible = 0`, constructed here to model a table
+that autovacuum has not processed yet), and again after `VACUUM (ANALYZE)`.
 
 - With the empty visibility map and a custom plan, the AFTER arm's band
   self-join uses `code_fingerprint_band_entity_idx` on both sides (a
@@ -262,14 +269,21 @@ arm's self-join; BEFORE is the same unless noted):
 | 18.6 | vacuumed | custom | 5,083 | 5,081 | primary key, index-only merge join |
 | 18.6 | vacuumed | generic | 9,921 | 9,941 | lookup index, merge join |
 
-So the earlier "no plan uses the index" holds only for a vacuumed table. On a
-fresh bootstrap the index does enter the drift query's self-join plan, at about
-the same cost per execution on a 5x repository. This does not reproduce or
-explain the reference-corpus `code_drifted` item (3,444 s WITH against 2,201 s
-WITHOUT), which is hundreds of times the work of this 5x repository. The reference-corpus tail and the plan regime are tracked in #7531; they are
-properties of the drift query (a generic plan is twice as slow in both arms) and
-are not attributed to this index. NOT_CHECKED:
-cold-cache execution (all runs here are warm; the seq-scan plan reads about 232k
+So the earlier "no plan uses the index" holds only for a vacuumed table. If
+autovacuum has not processed the band table when `code_drifted` runs, the index
+does enter the drift query's self-join plan, at about the same warm cost per
+execution on a 5x repository. Whether the corpus Postgres is in that state when
+the stage runs was not observed (no `relallvisible` or autovacuum reading in the
+corpus run), so this is a possible regime, not a measured one in production.
+Cause of the reference-corpus `code_drifted` item (3,444 s WITH against
+2,201 s WITHOUT) is not established. Candidates: an index-driven plan change
+(not checked inside the corpus run), a generic-plan switch (a theory in #7531),
+host load, and variance on one heavy repository. The shim does not predict
+corpus timing in either arm (the WITHOUT item's 2,201 s is also hundreds of
+times this repository's 4.7 s elapsed), so a same-scale shim result neither
+implicates nor exonerates the index here. A generic plan is about twice as slow
+as a custom one in both arms, which is why #7531 tracks the plan regime.
+NOT_CHECKED: cold-cache execution (all runs here are warm; the seq-scan plan reads about 232k
 pages from cache against about 20k heap pages for the bitmap plan, so a
 disk-bound run could move either way), concurrency, and real band hashes.
 
@@ -319,7 +333,12 @@ entity index) put the `upsert_fingerprints` sum at 285.9 to 353.3 s, about 24%
 min to max, on 728 to 804 repositories (so compare means per repo: 0.356 to
 0.461 s there against 0.425 and 0.493 here) and the bootstrap wall at 1,194 to
 1,315 s, about 10%. The +16.1% stage sum and +5.6% wall are inside those spreads,
-so this run supports neither a specific cost nor a saving. It does show that the
+so this run supports neither a specific cost nor a saving. Two readings cut
+the other way and are not hidden by that: the WITH mean per repo (0.493 s) is
+above every earlier run's (0.356 to 0.461 s), and both arms' bootstrap walls
+(1,594 and 1,683 s) are above the earlier 1,194 to 1,315 s, which ran on other
+commits on a quieter host. The reap's -24.8% is within its own spread and is not
+a clean saving either. Neo4j and read-path effects were not examined. It does show that the
 index does not make the reference-corpus bootstrap fail, stall, or leave the
 queue unclean.
 
@@ -328,14 +347,15 @@ single `code_drifted` item ran 3,443.8 s against 2,200.8 s WITHOUT; the longest
 such item in the earlier runs that logged it was 1,564 to 2,024 s. While it ran,
 `pg_stat_activity` showed the band self-join of `listCodeDriftedPairsQuery`,
 which joins on `(repo_id, band_no, band_hash)`. On a vacuumed table the shim
-shows no plan in either arm touching the new index, but on a never-vacuumed
-table (the state after a bootstrap) the AFTER arm's plan does use it, at about
-the same warm cost on a 5x repository (see "Drift query on a never-vacuumed
-table"). The heaviest repository here (`r_de3355a0`, 241,726
-`upsert_fingerprints` rows) is the same scale, so this plan change does not by
-itself explain 3,444 s, and the run cannot separate an index effect from host
-load (load average peaked at 73.8 WITH against 55.7 WITHOUT) or ordinary
-variance on one heavy repository. NOT_CHECKED: the plan of that exact
+shows no plan in either arm touching the new index; with an empty visibility map
+and a custom plan the AFTER arm's plan does use it, at about the same warm cost
+on a 5x repository (see "Drift query with an empty visibility map"). Cause not
+established: candidates are that plan change (not checked inside this run, which
+logged no plans), a generic-plan switch (theory, #7531), host load (load average
+peaked at 73.8 WITH against 55.7 WITHOUT, and the peers' load differed between
+arms), and ordinary variance on one heavy repository (`r_de3355a0`, 241,726
+`upsert_fingerprints` rows). A shim of that size cannot settle it: the WITHOUT
+arm's own item took 2,201 s. NOT_CHECKED: the plan of that exact
 statement on the heavy repository inside the corpus run (that run did not log
 plans), an `EXPLAIN` on production data (the ops-qa session this needed had expired), repeat corpus
 runs, and a second WITHOUT run to bound the tail.
@@ -356,8 +376,10 @@ changes, so no reader gets a different result. Measured on the #7230-sized
 shim: the upsert path's delete goes from the generic-plan primary-key scan
 (26.2 s per 500-id chunk at 5x) to an index seek (about 11 to 16 ms), the
 steady re-upsert of the 5x repository from 22.7 minutes to 29.4 s, and the
-reap's churn cell from 1,775.8 to 397.0 ms; the drift query does not move and
-no plan in either arm uses the index. The hazard also fired in 7 of the 15
+reap's churn cell from 1,775.8 to 397.0 ms; on a vacuumed table the drift query
+does not move and no plan uses the index, and with an empty visibility map and a
+custom plan the index is in its plan with warm time -8.5% to +9.5%. The
+hazard also fired in 7 of the 15
 retained #7206 production-shaped runs, each time costing 5.4 to 6.0 s for a
 DELETE that matched nothing.
 
