@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +69,7 @@ func TestStatusActiveWorkQueriesPreserveSemantics(t *testing.T) {
 				"reducer|pending|4",
 				"reducer|retrying|1",
 				"reducer|succeeded|2",
+				"reducer|superseded|1",
 			},
 		},
 		{
@@ -78,9 +78,9 @@ func TestStatusActiveWorkQueriesPreserveSemantics(t *testing.T) {
 			args:  []any{statusSemanticsAsOf},
 			// total counts every row, hidden stale rows included. The
 			// bootstrap records the 096 provenance upgrade marker, and
-			// migration 115 adds the one standing succeeded refresh row
-			// (total 14, succeeded 2).
-			want: []string{"14|8|5|2|1|2|0|1|true|0|1800|1"},
+			// migration 115 adds the one standing succeeded refresh row; this fixture also adds one superseded
+			// row (total 15, succeeded 2).
+			want: []string{"15|8|5|2|1|2|0|1|true|0|1800|1"},
 		},
 		{
 			name:  "domain backlog",
@@ -358,6 +358,7 @@ VALUES ($1, $2, 'snapshot', $3, $3,
 		{id: "w-old-pending", stage: "reducer", domain: "done", status: "pending", scope: "s-stale", gen: "g-old", conflictDomain: "cd"},
 		{id: "w-old-claimed", stage: "reducer", domain: "done", status: "claimed", scope: "s-stale", gen: "g-old", conflictDomain: "c-old", claimUntil: durationPtr(-time.Minute)},
 		{id: "w-old-succeeded", stage: "reducer", domain: "done", status: "succeeded", scope: "s-stale", gen: "g-old", conflictDomain: "c1"},
+		{id: "w-old-superseded", stage: "reducer", domain: "done", status: "superseded", scope: "s-stale", gen: "g-old", conflictDomain: "c1"},
 		{id: "w-old-dead", stage: "reducer", domain: "done", status: "dead_letter", scope: "s-stale", gen: "g-old", conflictDomain: "c1", failure: "hidden", updated: -time.Minute},
 		{id: "w-new-pending", stage: "reducer", domain: "done", status: "pending", scope: "s-stale", gen: "g-new", conflictDomain: "c1", created: -10 * time.Minute},
 		{id: "w-projector-old", stage: "projector", domain: "dproj", status: "pending", scope: "s-stale", gen: "g-old", conflictDomain: "c1"},
@@ -428,65 +429,45 @@ VALUES ($1, 0, 1, NULLIF($2, ''), $3, $4)`, lease.domain, lease.owner, at(lease.
 
 func durationPtr(d time.Duration) *time.Duration { return &d }
 
-// statusSemanticsRows renders every row as pipe-joined text so the expected
-// rows stay readable; numeric ages are rounded to whole seconds.
-func statusSemanticsRows(ctx context.Context, t *testing.T, conn *sql.Conn, query string, args ...any) []string {
-	t.Helper()
-	rows, err := conn.QueryContext(ctx, query, args...)
-	if err != nil {
-		t.Fatalf("query: %v\n%s", err, query)
-	}
-	defer func() { _ = rows.Close() }()
-	cols, err := rows.Columns()
-	if err != nil {
-		t.Fatalf("columns: %v", err)
-	}
-	var out []string
-	for rows.Next() {
-		values := make([]any, len(cols))
-		ptrs := make([]any, len(cols))
-		for i := range values {
-			ptrs[i] = &values[i]
+// TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows exercises the
+// production summary CTE against the status fixture. Terminal rows still
+// contribute to counts, but do not carry text used only by active consumers.
+func TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_POSTGRES_DSN is required for the active work projection proof")
 		}
-		if err := rows.Scan(ptrs...); err != nil {
-			t.Fatalf("scan: %v", err)
-		}
-		fields := make([]string, len(values))
-		for i, value := range values {
-			switch typed := value.(type) {
-			case float64:
-				fields[i] = fmt.Sprintf("%.0f", typed)
-			case string:
-				// pgx renders numeric EXTRACT(EPOCH ...) results as text.
-				fields[i] = typed
-				if parsed, parseErr := strconv.ParseFloat(typed, 64); parseErr == nil && strings.Contains(typed, ".") {
-					fields[i] = fmt.Sprintf("%.0f", parsed)
-				}
-			case time.Time:
-				fields[i] = typed.UTC().Format(time.RFC3339)
-			default:
-				fields[i] = fmt.Sprint(typed)
-			}
-		}
-		out = append(out, strings.Join(fields, "|"))
+		t.Skip("set ESHU_POSTGRES_DSN to run the active work projection proof")
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows: %v", err)
-	}
-	return out
-}
+	ctx := context.Background()
+	conn := openStatusSemanticsSchema(ctx, t, dsn)
+	seedStatusSemanticsFixture(ctx, t, conn)
 
-// statusSemanticsWorkItemIDs keeps the work_item_id field (the first
-// "w-"-prefixed field) of each rendered row.
-func statusSemanticsWorkItemIDs(rows []string) []string {
-	ids := make([]string, 0, len(rows))
-	for _, row := range rows {
-		for _, field := range strings.Split(row, "|") {
-			if strings.HasPrefix(field, "w-") {
-				ids = append(ids, field)
-				break
-			}
-		}
+	prefix, _, ok := strings.Cut(activeWorkSummaryQuery, "\n),\nfact_domain_backlogs AS (")
+	if !ok || !strings.HasPrefix(prefix, "\nWITH "+activeFactWorkItemsScopeStateCTE) {
+		t.Fatal("could not derive active work CTE from production summary query")
 	}
-	return ids
+	tail := `
+)
+SELECT COUNT(*) FILTER (WHERE status = 'succeeded'),
+       COUNT(*) FILTER (WHERE status = 'superseded'),
+       COUNT(*) FILTER (WHERE status IN ('succeeded', 'superseded')
+         AND (work_item_id IS NOT NULL OR scope_id IS NOT NULL
+           OR generation_id IS NOT NULL OR domain IS NOT NULL
+           OR conflict_domain IS NOT NULL OR conflict_key IS NOT NULL))
+FROM active_fact_work_items`
+	rows := statusSemanticsRows(ctx, t, conn, prefix+tail)
+	if len(rows) != 1 || rows[0] != "2|1|0" {
+		t.Fatalf("succeeded, superseded, and wide terminal rows = %v, want [2|1|0]", rows)
+	}
+	conditionalID := "CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.work_item_id END AS work_item_id"
+	unconditional := strings.Replace(prefix, conditionalID, "work.work_item_id AS work_item_id", 1)
+	if unconditional == prefix {
+		t.Fatal("seeded unconditional identity projection did not change production CTE")
+	}
+	violatingRows := statusSemanticsRows(ctx, t, conn, unconditional+tail)
+	if len(violatingRows) != 1 || violatingRows[0] != "2|1|3" {
+		t.Fatalf("seeded unconditional identity projection = %v, want [2|1|3]", violatingRows)
+	}
 }

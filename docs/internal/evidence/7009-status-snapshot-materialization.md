@@ -83,3 +83,56 @@ was not shipped.
 The statement result does not establish a below-one-second endpoint p95 or
 resolve the other #7009 endpoint families. Owner deployment and a comparable
 cold/warm sweep remain required before closing the issue.
+
+## Follow-up status-only scan and terminal text (#7009, 2026-10-02)
+
+The later `sha-4274e83` ops-qa image still served a repository ingester-status
+request in 1.453011 seconds. Its server trace spent 1.349317 seconds in the
+status snapshot. The five-minute `active_work_summary` read histogram averaged
+1.318449 seconds on that API pod. The histogram is aggregated across requests;
+it does not attribute that exact trace to the summary statement.
+
+### Performance Evidence:
+
+The assembled deployed summary SQL, run in a read-only repeatable-read snapshot,
+processed about 204,000 work rows and used roughly 42,200 temporary blocks
+read and 10,550 written. An isolated projection-width shim reduced the measured
+CTE storage from 84 MiB on disk to 18 MiB in memory, with zero temporary
+blocks. The combined status-only scan fence and terminal text projection
+returned the same nine ordered section rows as the original SQL in one shared
+snapshot. One loaded paired run measured 1,508.638 ms for the original and
+797.488 ms for the combined shim. These statement timings are a theory check,
+not quiet-host endpoint p95 or a 100-user capacity result.
+
+This follow-up applies that exact combined shape only to the status summary.
+Its `OFFSET 0` work-input boundary enables the measured hash scan while the
+shared generation predicate remains identical for other observers. Six more
+text columns become NULL on succeeded and superseded rows: work, scope, and generation IDs;
+domain; conflict domain and key. Stage, status, timestamps, provenance flag,
+failure-row identity and details, stale-generation fencing, section ordering, and limits stay
+as before. No queue write, lock, lease, schema, or index changes.
+
+A disposable PostgreSQL 18.3 fixture first failed the production-CTE regression:
+two succeeded rows retained consumer-only text. After the edit, the regression
+and the existing summary-versus-standalone differential passed, including stale
+and foreign generation pointers, blockages, failure ties, and section limits.
+A temporary same-package accessor compiled the edited summary SQL from base
+`b30e97189`; its SHA-256 and the measured combined shim's SHA-256 were both
+`bef1078e2f5b971f6f35f576403b5c7197b59b6e37ccf13974d3240e4d432e2e`
+(byte-for-byte equal). The shared observer FROM/WHERE SQL remained byte-for-byte
+equal to base, SHA-256
+`b48ac934a750e8946c708d3aa47bb47655eb1088d03122d50db8b805ff150791`.
+The temporary accessor was removed. The fixture now includes one superseded
+work row: stage counts retain it, queue total rises by one, and the summary
+materializes neither of its consumer-only IDs or conflict strings. A seeded
+unconditional ID projection produces three wide completed rows on that same
+fixture. The blocking PostgreSQL CI job selects this regression explicitly and
+sets `ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF=1`, making an unset DSN fail.
+Reader-plan replay, API/MCP p95, and the full #7009 endpoint sweep remain
+publication and deployment evidence for the coordinator to record.
+
+No-Observability-Change: the existing
+`eshu_dp_status_snapshot_read_duration_seconds{read="active_work_summary",outcome}`
+continues to time this status read. The currently deployed API path passes a raw
+read transaction into the store, so it has no per-query `postgres.query` child
+span; use the labeled read metric and status snapshot span for this path.

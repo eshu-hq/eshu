@@ -18,17 +18,17 @@ import (
 )
 
 // activeWorkSummaryColumns retains wide detail only for rows whose summary
-// consumers may read it. Terminal history otherwise stays narrow (#7009).
+// consumers may read it. Succeeded and superseded history stays narrow (#7009).
 // Keep payload eligibility in sync with eligible in status_blockage.go and
 // failure text eligibility in sync with latestQueueFailureSelect below.
-const activeWorkSummaryColumns = `work.work_item_id,
-         work.scope_id,
-         work.generation_id,
+const activeWorkSummaryColumns = `CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.work_item_id END AS work_item_id,
+         CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.scope_id END AS scope_id,
+         CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.generation_id END AS generation_id,
          work.stage,
-         work.domain,
+         CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.domain END AS domain,
          work.status,
-         work.conflict_domain,
-         work.conflict_key,
+         CASE WHEN work.stage = 'reducer' AND work.status IN ('pending', 'claimed', 'running', 'retrying') THEN work.conflict_domain END AS conflict_domain,
+         CASE WHEN work.stage = 'reducer' AND work.status IN ('pending', 'claimed', 'running', 'retrying') THEN work.conflict_key END AS conflict_key,
          work.visible_at,
          work.claim_until,
          work.created_at,
@@ -43,6 +43,11 @@ const activeWorkSummaryColumns = `work.work_item_id,
          CASE WHEN work.status IN ('retrying', 'failed', 'dead_letter')
               THEN work.failure_details END AS failure_details,
          work.provenance_edge_identity_upgrade_required`
+
+// activeWorkSummaryFromWhere fences the status-only work input before the
+// shared generation join. The other active-work observers retain their
+// original FROM shape; both use the same generation predicate.
+const activeWorkSummaryFromWhere = "FROM (SELECT * FROM fact_work_items OFFSET 0) AS work" + activeFactWorkItemsScopeJoinWhere
 
 // latestQueueFailureSelect lists active work items that are retrying, failed,
 // or dead-lettered with failure text; the status surface keeps the newest one.
@@ -89,7 +94,7 @@ var activeWorkSummaryQuery = `
 WITH ` + activeFactWorkItemsScopeStateCTE + `,
 active_fact_work_items AS MATERIALIZED (
   SELECT ` + activeWorkSummaryColumns + `
-  ` + activeFactWorkItemsFromWhere + `
+  ` + activeWorkSummaryFromWhere + `
 ),
 ` + domainBacklogCTEs + `,
 ` + reducerConflictBlockageCTEs + `,

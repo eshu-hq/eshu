@@ -36,6 +36,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte("ESHU_POSTGRES_DSN:")) {
 		t.Fatalf("%s no longer passes a PostgreSQL DSN: the live proofs would skip in CI", workflowPath)
 	}
+	if !activeWorkProjectionProofEnv(t, string(workflow)) {
+		t.Fatalf("%s must pass an actual PostgreSQL DSN and require the active-work projection proof in its Postgres test step", workflowPath)
+	}
 	if !bytes.Contains(workflow, []byte("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN:")) {
 		t.Fatalf("%s must pass the projector supersession proof DSN", workflowPath)
 	}
@@ -105,6 +108,7 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		// to exactly what the pre-change standalone reads return, and the
 		// stale-generation/backlog contract is pinned on real Postgres.
 		"TestActiveWorkSummaryMatchesStandaloneReads",
+		"TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows",
 		"TestStatusActiveWorkQueriesPreserveSemantics",
 		"TestActiveFactWorkItemsFormsSelectTheSameRows",
 		"TestProjectorHeartbeatSupersessionPreservesActivePointer",
@@ -267,4 +271,56 @@ func generationLivenessGatedTests(t *testing.T) []string {
 		t.Fatalf("no test references %s: the discovery scan is broken", generationLivenessProofDSN)
 	}
 	return names
+}
+
+// activeWorkProjectionProofEnv requires live settings in the step that runs the
+// PostgreSQL proof, rather than accepting a comment or an unrelated step.
+func activeWorkProjectionProofEnv(t *testing.T, workflow string) bool {
+	t.Helper()
+	step := proofStep(t, workflow)
+	inEnv := false
+	hasDSN, hasRequired := false, false
+	for _, line := range strings.Split(step, "\n") {
+		if !inEnv {
+			inEnv = line == "        env:"
+			continue
+		}
+		if !strings.HasPrefix(line, "          ") {
+			break
+		}
+		field := strings.TrimSpace(line)
+		if strings.HasPrefix(field, "ESHU_POSTGRES_DSN:") {
+			value := strings.TrimSpace(strings.TrimPrefix(field, "ESHU_POSTGRES_DSN:"))
+			hasDSN = value != "" && value != `""` && value != "''" && !strings.HasPrefix(value, "#")
+		}
+		if field == `ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: "1"` {
+			hasRequired = true
+		}
+	}
+	return hasDSN && hasRequired
+}
+
+func TestActiveWorkProjectionProofEnvIsInProofStep(t *testing.T) {
+	t.Parallel()
+	const run = "        run: go test ./internal/storage/postgres/ -run 'X'\n"
+	const dsn = "          ESHU_POSTGRES_DSN: postgres://example.invalid/eshu\n"
+	const required = "          ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: \"1\"\n"
+	for _, tc := range []struct {
+		name, workflow string
+	}{
+		{"DSN in other step", "jobs:\n    steps:\n      - name: Other\n        env:\n" + dsn + "      - name: Run\n        env:\n" + required + run},
+		{"required flag in other step", "jobs:\n    steps:\n      - name: Other\n        env:\n" + required + "      - name: Run\n        env:\n" + dsn + run},
+		{"commented DSN", "jobs:\n    steps:\n      - name: Run\n        env:\n          # ESHU_POSTGRES_DSN: postgres://example.invalid/eshu\n" + required + run},
+		{"commented required flag", "jobs:\n    steps:\n      - name: Run\n        env:\n" + dsn + "          # ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: \"1\"\n" + run},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if activeWorkProjectionProofEnv(t, tc.workflow) {
+				t.Fatal("an unbound or commented setting satisfied the Postgres proof guard")
+			}
+		})
+	}
+	green := "jobs:\n    steps:\n      - name: Run\n        env:\n" + dsn + required + run
+	if !activeWorkProjectionProofEnv(t, green) {
+		t.Fatal("the Postgres proof step's live DSN and required flag were rejected")
+	}
 }
