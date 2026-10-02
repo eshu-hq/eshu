@@ -5,6 +5,8 @@ package querycontract
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -69,8 +71,12 @@ func TestApplyContextEvidenceDetailHandlesProjectsRowsToIdentityKeys(t *testing.
 			t.Fatalf("omission = %#v, want handles with total %d for a known section", omission, total)
 		}
 	}
-	if MapValue(ctx, "evidence_detail_drilldown") == nil {
+	drilldown := MapValue(ctx, "evidence_detail_drilldown")
+	if drilldown == nil {
 		t.Fatal("evidence_detail_drilldown absent; handles mode must say how to fetch the full rows")
+	}
+	if text := StringVal(drilldown, "full_rows"); !strings.Contains(text, fmt.Sprintf("past the %d shipped", ContextStoryItemLimit)) {
+		t.Fatalf("drilldown full_rows = %q, want it to name the row limit %d", text, ContextStoryItemLimit)
 	}
 }
 
