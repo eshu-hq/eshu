@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 126 gates. Local execution runs the primary
+The registry currently defines 127 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -159,13 +159,14 @@ results are derived from the inputs rather than written by hand. See
 - `e2e-tests` (blocking): Boots the full Docker service stack and checks the whole system produces the right end-to-end results.
 - `auth-mcp-e2e` (blocking): Runs a real browser plus scripted OAuth flow against a fresh stack to prove MCP identity auth works end-to-end.
 
-### Performance: Do performance budgets hold on the supported backend? (7 gates)
+### Performance: Do performance budgets hold on the supported backend? (8 gates)
 
 - `query-plan-regression` (blocking): Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses.
 - `reducer-contention` (blocking): Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention.
 - `read-api-latency-gate` (blocking): Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets.
 - `read-api-work-budget-mirror` (blocking): Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet.
 - `backend-latency-compare-mirror` (blocking): Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed.
+- `live-postgres-readiness` (advisory): Runs four PostgreSQL readiness plan and truth proofs with explicit pass-event accounting; skips and missing tests fail.
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 
@@ -264,6 +265,7 @@ results are derived from the inputs rather than written by hand. See
 | `backend-latency-compare-mirror` | Cross-backend latency comparator mirror (static) | hygiene | pre-pr | true | `bash scripts/test-compare-backend-latency.sh` | read-api-latency-gate.yml / static-mirror (backend latency comparator) | 3 path(s): scripts/compare-backend-latency.sh, scripts/test-compare-backend-latency.sh, scripts/lib/test-compare-backend-latency-report.json |
 | `golden-corpus-gate-neo4j` | Golden Corpus Gate on Neo4j (Docker) | exactness | ci-heavy | true | `ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`<br>then self-test: `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / corpus-gate (neo4j) | 89 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/projector/**, … |
 | `live-backend-tests` | Live Backend Tests on NornicDB and Neo4j (Docker) | exactness | ci-heavy | true | `bash scripts/run-live-backend-tests.sh --backend both`<br>then self-test: `bash scripts/test-run-live-backend-tests.sh` | live-backend-tests.yml / live-backend (nornicdb and neo4j) | 16 path(s): go/**, specs/live-tests.v1.yaml, scripts/run-live-backend-tests.sh, … |
+| `live-postgres-readiness` | Live PostgreSQL Readiness (disposable PostgreSQL 18) | exactness | ci-heavy | false | `bash scripts/test-run-live-postgres-readiness-tests.sh` | live-postgres-readiness.yml / live-postgres-readiness (postgres18) | 16 path(s): go/internal/query/supply/chain/impact/**, go/internal/storage/postgres/**, go/internal/testutil/postgresproof/**, … |
 | `golden-corpus-differential` | Differential NornicDB vs Neo4j oracle (Docker) | exactness | ci-heavy | true | `rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml && go run ./cmd/golden-corpus-gate -phase=statement-coverage -coverage-manifest=internal/queryplan/testdata/statement-builders.yaml -coverage-dirs=/tmp/diff-capture/neo4j)`<br>then self-test: `bash scripts/test-verify-golden-corpus-gate.sh && (cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff\|TestRunBackendDiff\|TestStatementCoverage\|TestRunStatementCoverage' -count=1 && go test ./internal/backendconformance -run 'TestComputeStatementCoverage' -count=1 && go test ./internal/queryplan -run 'TestDiscoverStatementBuilders\|TestValidateBuilderManifest\|TestStatementBuildersManifestMatchesProduction' -count=1)` | golden-corpus-gate.yml / differential nornicdb vs neo4j | 20 path(s): go/internal/graph/**, go/internal/backendconformance/**, go/internal/queryplan/**, … |
 | `golden-corpus-filter-exhaustive` | Golden corpus PR path filter exhaustiveness | hygiene | pre-pr | true | `bash scripts/verify-golden-corpus-filter-exhaustive.sh`<br>then self-test: `bash scripts/test-verify-golden-corpus-filter-exhaustive.sh` | test.yml / verify-contracts | 6 path(s): go/**, .github/workflows/golden-corpus-gate.yml, scripts/verify-golden-corpus-filter-exhaustive.sh, … |
 | `replay-coverage-gate` | C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate | exactness | pre-pr | true | `bash scripts/verify-replay-coverage-gate.sh --blocking`<br>then self-test: `bash scripts/test-verify-replay-coverage-gate.sh` | replay-coverage-gate.yml / coverage-gate (blocking) | 37 path(s): go/cmd/replay-coverage-gate/**, go/cmd/eshu/**, go/internal/cli/**, … |
