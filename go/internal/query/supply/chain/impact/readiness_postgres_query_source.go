@@ -39,8 +39,9 @@ sbom_component AS (
 const listSupplyChainImpactReadinessQueryUnsupportedAndSource = `
 package_dependency_gap_active AS (
     -- #7007/#7088: bounded to the requested repository's own scopes.
-    -- These provenance-only kinds are rare (17 active rows across ~810
-    -- scopes on ops-qa); unbounded, the read probed fact_records once per
+    -- These provenance-only kinds are rare (17 active rows on ops-qa; the
+    -- ~810 active scopes counted in the #7007 measurement, 819 in #7088's,
+    -- 799 of them repository scopes); unbounded, the read probed fact_records once per
     -- active scope (8.0s of an 8.1s readiness read), and bounded by scope
     -- alone it still scanned the whole active scope (up to 241,726
     -- content_entity rows). The only consumer, unsupported_target_rows
@@ -49,7 +50,10 @@ package_dependency_gap_active AS (
     -- id the git collector stamps on every repository and repository_ref
     -- scope (buildScope in collector/repo/git,
     -- TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID), so it reaches
-    -- every scope the repo_id payload predicate would. Starting from those
+    -- every scope the repo_id payload predicate would. That is a
+    -- PRECONDITION, also relied on by package_manifest_active: a scope whose
+    -- source_key differs from its facts' repo_id (a scope written without
+    -- collector metadata) drops out. Starting from those
     -- scopes, the LATERAL probe (OFFSET 0 keeps it unflattened) reads
     -- migration 159's repo-leading partial index with the repository, scope
     -- and active generation in its Index Cond; the IN list must stay

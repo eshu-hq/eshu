@@ -80,8 +80,8 @@ func TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive(t *test
 	// requested repository's own scope through ingestion_scopes.source_key,
 	// which the git collector mirrors to the repository id
 	// (TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID). Unbounded it
-	// probes fact_records once per active scope (~810 on ops-qa, 8s of the
-	// 8.1s readiness read). The local corpus is too small for the planner to
+	// probes fact_records once per active scope (~810 active scopes in the
+	// #7007 measurement, 8s of the 8.1s readiness read). The local corpus is too small for the planner to
 	// pick the per-scope nested loop, so the proof is the plan-shape anchor,
 	// not a loop count: a regression that drops the predicate removes every
 	// source_key reference from the plan.
@@ -241,9 +241,10 @@ ANALYZE scope_generations;
 // TestSupplyChainImpactReadinessRepoArmScopeLive is the #7088 proof for a
 // repository-only anchor ($11 = repository id, $20 = false). Before #7088
 // package_manifest_active's legacy-shape arm (top-level config_kind) had no
-// repository-leading index and carried a "$11 = ” OR" escape, so it probed
-// fact_records once per active scope (819 loops, 9.4 s warm / >30 s cold on
-// ops-qa); arm 1 heap-fetched every generation's rows before the
+// repository-leading index and carried an empty-$11 escape, so it probed
+// fact_records once per active scope (819 loops; 9.4 s on the warm ops-qa
+// primary, and repository-anchor calls on the cold replica hit the 30 s client
+// timeout); arm 1 heap-fetched every generation's rows before the
 // active-generation join; and package_dependency_gap_active scanned the whole
 // active scope. The proof asserts the plan shape from EXPLAIN (ANALYZE,
 // BUFFERS, FORMAT JSON) under both a custom and a forced generic plan, and

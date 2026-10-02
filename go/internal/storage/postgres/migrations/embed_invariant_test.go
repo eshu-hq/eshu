@@ -55,7 +55,7 @@ import (
 // 154_supply_chain_impact_write_admission.sql; #7464 adds
 // 155_fact_records_story_support_issue_idx.sql; #7088 adds
 // 159_fact_records_content_entity_dependency_legacy_gap_repo_idx.sql.
-const goldenBootstrapDefinitionsDigest = "deca3ee35370cb25b290489fffa34e081c5cd35e1fc736a2ef58b145786b37b9"
+const goldenBootstrapDefinitionsDigest = "da2f7c1df279882813b9fae1df5598dd0ea001285e36b90a51124626b718e8ad"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

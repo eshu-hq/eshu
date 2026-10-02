@@ -62,11 +62,29 @@ package_manifest_dependency AS (
 // OFFSET 0 keeps the LATERAL subquery from being flattened, so the planner
 // cannot start from the fact index and heap-fetch every generation's rows
 // (8,832 fetched to keep 552 on ops-qa) or, for the legacy arm, probe every
-// active scope (819 loops, 9.4 s warm / >30 s cold on ops-qa). The former
-// empty-$11 escape is gone: it was unreachable, and under a generic plan it
-// forced that per-scope probe. Arm 1 uses migration 121's index; the legacy
-// arm uses migration 159's. Do not reuse this CTE without a repository
-// anchor.
+// active scope (819 loops, 9.4 s on the warm ops-qa primary; calls on the cold
+// replica hit the 30 s client timeout). The former empty-$11 escape is gone:
+// it was unreachable (TestReadinessEmptyRepositoryAlwaysCarriesATargetAnchor),
+// and under a generic plan it forced that per-scope probe. Arm 1 uses
+// migration 121's index, whose key is ((payload->>'repo_id'), scope_id,
+// generation_id): before this change the plan bound only repo_id in its Index
+// Cond; the LATERAL probe now binds all three. The legacy arm uses migration
+// 159's index. Do not reuse this CTE without a repository anchor.
+//
+// PRECONDITION (#7088): the rewrite adds scope.source_key = $11 to both arms.
+// Old and new agree only when every active git dependency-variable fact sits
+// in a scope whose source_key equals the fact's payload repo_id. Collector
+// written scopes hold it: buildScope in
+// go/internal/collector/repo/git/source_processing.go stamps both from
+// repo.ID. The gap CTE already depended on it (#7007). scopestore.SourceKey
+// falls back to the scope id when scope metadata carries no source_key, and
+// parserfixture.Emitter builds scopes with no metadata, so such scopes would
+// drop out of both arms. Evidence on ops-qa (teammate-reported, read-only,
+// 2026-10-02): all 799 repository scopes satisfy scope_id =
+// 'git-repository-scope:' || source_key and scope payload repo_id =
+// source_key; a 50-scope sample of 117,010 active content_entity rows had 0
+// whose payload repo_id differs from the scope's source_key. A fleet-wide
+// fact-level count was not run (unbounded scan): NOT_CHECKED.
 const readinessPackageManifestActiveCTE = `package_manifest_active AS (
     SELECT fact.fact_id, fact.payload, fact.observed_at
     FROM ingestion_scopes AS scope

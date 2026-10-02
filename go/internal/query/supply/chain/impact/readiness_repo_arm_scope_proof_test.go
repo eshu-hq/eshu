@@ -34,15 +34,17 @@ const (
 	repoArmLegacyAndGapIndex = "fact_records_content_entity_dependency_legacy_gap_repo_idx"
 	// repoArmStatementBufferLimit bounds the whole readiness statement for the
 	// target repository. The fixed cost of the other CTEs on this corpus is
-	// ~7.5k shared buffers; the pre-#7088 arm 2 alone read ~245k (one probe of
-	// ~300 content_entity rows per noise scope), and arm 1 without the
+	// ~7.5k shared buffers; the pre-#7088 whole statement read 238,642 on it
+	// (custom plan; evidence table in
+	// docs/internal/evidence/7088-readiness-repo-scope.md), mostly arm 2
+	// probing ~300 content_entity rows per noise scope, and arm 1 without the
 	// generation in its Index Cond read ~30k on the target's old generations.
 	repoArmStatementBufferLimit = 20000
 	// repoArmDependencyScanBufferLimit bounds the shared buffers of the three
 	// dependency-variable reads themselves, under custom and generic plans.
 	// Bounded, they read 588 buffers on this corpus (evidence table in
-	// docs/internal/evidence/7088-readiness-repo-scope.md); the pre-#7088 legacy
-	// arm alone read ~245k custom and the generic plan more.
+	// docs/internal/evidence/7088-readiness-repo-scope.md); the pre-#7088
+	// dependency-variable reads read 211,558 (custom) and 204,290 (generic).
 	repoArmDependencyScanBufferLimit = 2000
 )
 
@@ -151,11 +153,14 @@ func TestPreviousRepoArmReadinessQuerySplicesOnlyTheTwoCTEs(t *testing.T) {
 	}
 }
 
-// readinessArgsForQuery returns the 20 production arguments
-// readSupplyChainImpactReadiness binds for query, in the same order and with
-// the target-resolution arguments ($17-$20) taken from readinessTargetArguments
-// for a target with no resolved package keys. The statement takes exactly 20
-// arguments; a shorter list fails with "expected 20 arguments".
+// readinessArgsForQuery returns the 20 arguments readSupplyChainImpactReadiness
+// binds for query, in the same order, with the target-resolution arguments
+// ($17-$20) taken from readinessTargetArguments for a target with no resolved
+// package keys. It differs from production in one way: $17-$19 go through
+// nonNilStrings, so an empty target renders as an empty array instead of NULL
+// in the SQL-level prepared statements these proofs use; $20 is the production
+// value. The statement takes exactly 20 arguments; a shorter list fails with
+// "expected 20 arguments".
 func readinessArgsForQuery(query ReadinessQuery) []any {
 	ecosystems, packageNames, packageIDs, resolved := readinessTargetArguments(readinessTarget{}, query)
 	return []any{
