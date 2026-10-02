@@ -98,13 +98,58 @@ This is a failed setup, not a latency sample. No database or handler retry was
 performed. The helper retained the failing stage but not the driver cause, so
 the connection failure's root cause is **NOT_CHECKED**.
 
+A corrected, separately reviewed experiment retained the original failure,
+mapped all approved pgx transport fallbacks to the tunnel, and removed the
+unused session timeout change. It kept the production driver's statement
+cache capacity of 512 and cache-statement mode. The existing server
+statement timeout was zero and was left unchanged. Requests used a
+7-second client context within the 8-second request ceiling; actual backend
+termination was checked separately from client exit.
+
+Six candidate requests completed with HTTP 200 on one physical replica
+session. Handler timings include actual database and graph driver waits and
+in-process HTTP serialization, but exclude external HTTP transport. Topic
+timings are pgx client elapsed times, not per-node EXPLAIN runtimes. The driver's query fingerprints matched the prepared statement, and
+its counters identify the transition from custom to generic planning:
+
+| Call | Complete handler seconds | Topic SQL seconds | Custom plans | Generic plans |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 1.336928 | 1.057195 | 1 | 0 |
+| 2 | 1.038395 | 0.889141 | 2 | 0 |
+| 3 | 1.056282 | 0.900708 | 3 | 0 |
+| 4 | 1.051849 | 0.902089 | 4 | 0 |
+| 5 | 1.070759 | 0.906071 | 5 | 0 |
+| 6 | 3.073575 | 2.893725 | 5 | 1 |
+
+All six complete response byte hashes matched. Their parsed response also
+matched the saved original response, which does not establish the unknown
+original caller's authorization. The baseline's first request was censored
+at 7.002068 seconds, so full baseline/candidate response comparison remains
+**NOT_CHECKED**. No remaining baseline request ran. The controller stopped,
+reaped both owned forwards, and finished in 22.232589 seconds.
+
+The candidate backend was absent before baseline dispatch. The baseline
+backend remained present during the three immediate cleanup observations;
+a later read-only metadata check on the sole ready replica endpoint
+confirmed it absent. This follow-up executed no handler or topic query.
+No planner mode, server timeout, schema, cache, or deployment setting changed.
+
+The compiled result disproves sufficiency of the custom-plan win for the
+one-second endpoint target: even the custom-plan handler samples exceeded
+one second, and the observed generic-plan sample took over three seconds.
+This is not a p95 distribution or deployed acceptance. Publication remains
+on hold for a measured improvement that holds through the actual cached
+driver path and meets the endpoint budget.
+
 Focused generated-SQL, explicit-repository language, grant-list language, and
 scoped grant/deny tests passed after the implementation. Source-template checks
 confirmed that unscoped branches match the original SQL and the explicit
 repository branch matches the measured shim after whitespace normalization.
-The final selected static run stopped at its five-minute bound with exit 143;
-completed cells passed, and the overall run and remaining cells are
-**NOT_CHECKED**. Compiled SQL/cache/handler evidence remains a publication hold.
+The interrupted selected static run has no passing aggregate. Its five
+unfinished floor commands were subsequently run separately and passed:
+the FIPS seeded test, hot-Cypher source coverage and its validator tests,
+performance-evidence verifier, and verifier self-tests. Deferred gates
+remain **NOT_CHECKED** unless their separate retained proof covers this change.
 
 ## Limits and remaining acceptance
 
@@ -116,13 +161,14 @@ metric labels, or telemetry transport are introduced.
 
 These are isolated SQL diagnostics on a changing replica corpus, with cache
 state uncontrolled. They are not cold measurements, a p95 distribution, a
-built-candidate API/MCP measurement, or an immutable-corpus acceptance run.
-The application's cached-plan behavior is also not established by fresh
-`PREPARE` probes. A separate planner-only `EXPLAIN (GENERIC_PLAN)` returned
+deployed API/MCP measurement, or an immutable-corpus acceptance run.
+Fresh PREPARE probes do not establish application cached-plan behavior;
+the separate compiled-handler experiment above observes that behavior only
+for its fixed case and declared scoped authorization. A separate planner-only `EXPLAIN (GENERIC_PLAN)` returned
 serial repository index scans with content filters for both variants; it did
 not reproduce the custom-plan bitmap intersection improvement. This check
-executed no data query and changed no settings. Generic-plan runtime remains
-unmeasured. Inner candidate limits have no SQL-level ordering guarantee;
+executed no data query and changed no settings. The generic-plan runtime observed above does not attribute
+individual scan-node costs to that planner-only shape. Inner candidate limits have no SQL-level ordering guarantee;
 this one-snapshot comparison proves the observed capped membership only.
 
 The approximately 911 ms SQL sample leaves little room for handler and
