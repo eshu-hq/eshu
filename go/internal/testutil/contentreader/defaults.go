@@ -108,6 +108,15 @@ func contentReaderFactDefaultRows(query string, results []ReaderQueryResult) dri
 		!contentReaderHeadHasColumns(results, []string{"payload"}) {
 		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
 	}
+	// The Jira record and transition read of the same section (#7464) starts from
+	// the repository's links and probes each linked issue's records by issue id.
+	if strings.Contains(query, "FROM fact_records AS fact") &&
+		strings.Contains(query, "fact.fact_kind = 'work_item.record'") &&
+		strings.Contains(query, "linked.issue_id") &&
+		strings.Contains(query, "source_record_id") &&
+		!contentReaderHeadHasColumns(results, []string{"payload"}) {
+		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
+	}
 	// The story target-support row read (#7138) probes the one literal
 	// work_item.external_link kind and matches its linked_repository_id key.
 	if strings.Contains(query, "FROM fact_records AS fact") &&

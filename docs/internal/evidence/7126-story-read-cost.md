@@ -98,3 +98,29 @@ statements render one rule. The two forms agree on every case the merged
 `TestServiceStoryTargetSupportSQLSemanticsLive` fixture carries: missing keys,
 some empty keys, an object value, a scalar value, all-empty arrays (counted),
 and one nonempty array (excluded).
+
+## Migration 123 measurements
+
+Moved here unchanged from `docs/public/reference/http-api/story-routes.md`, which
+keeps a one-paragraph summary and points to this note (#7464 needed that page's
+lines).
+
+Performance Evidence: migration 123 adds a partial index over the twelve
+`work_item.*` and `incident_routing.*` support kinds (non-tombstoned), and both
+support statements now carry those kinds as a literal `IN` list inside the
+existing per-(scope, kind) LATERAL so the planner proves the index predicate in
+custom and generic plans (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`
+asserts the index in all four plan/statement combinations). On a disposable
+postgres:18.6 fixture of 600,000 `fact_records` rows (200 scopes, three
+generations each, support kinds about 1% of rows), nine interleaved runs with
+alternating first mover: row read 14.40 ms median / 11,675 buffers to 11.31 ms /
+9,263; source-only count 8.49 ms / 11,675 to 6.85 ms / 9,263. That is a modest
+gain at this scale (about 21%); the fixture bounds the per-scope probe overhead,
+and the win grows with the number of non-support facts sharing each scope. The
+`Kept` `OFFSET 0` and kind cross join from #6794 are unchanged for the
+source-only count, so a missing or invalid index degrades to the previous cost,
+not worse. Since #7138 the row read is a separate single-kind probe served by
+migration 152's partial expression index; migration 123 still serves the
+source-only count. Ingest cost: migration 123 adds one btree entry per
+non-tombstoned support-kind fact, and migration 152 adds one more for each
+non-tombstoned `work_item.external_link` fact; other kinds pay neither.

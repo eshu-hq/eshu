@@ -156,7 +156,8 @@ cd go && ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=postgres://.../postgres ESHU
 
 Observability Evidence: the Postgres read keeps the existing `postgres.query`
 span, operation `list_service_story_target_support`, now covering up to three
-bounded statements on one read-only snapshot. The repository story `target_support` stage event and the
+bounded statements on one read-only snapshot (#7464 adds a fourth, the Jira
+record and transition read, to the same snapshot). The repository story `target_support` stage event and the
 service story `support_target_evidence` stage event gain
 `target_support_incident_routing_count`, so an operator can see whether a story
 carries routing evidence without reading the payload. No collector, reducer

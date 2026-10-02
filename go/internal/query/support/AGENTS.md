@@ -4,8 +4,9 @@ Scope: `go/internal/query/support/` (package `support`).
 
 ## Ownership
 
-This leaf owns the PagerDuty routing link for the story `target_support` section
-(#7463): `routing.go` (statement builders, key helpers, the Go re-check). The
+This leaf owns the PagerDuty routing link (#7463) and the Jira same-issue link
+(#7464) for the story `target_support` section: `routing.go` and
+`jira_issue_link.go` (statement builders, key helpers, the Go re-checks). The
 query root owns execution (`ContentReader.queryServiceStoryTargetSupportFacts`),
 the repository gate, and the evidence shaping, in
 `go/internal/query/service_story_target_support*.go`.
@@ -29,6 +30,18 @@ the repository gate, and the evidence shaping, in
   that.
 - The source-only predicate is read under `NOT`; keep it two-valued
   (`COALESCE(key, '') IN (SELECT ...)`, never `NOT IN`, never a bare key).
+- A Jira record or transition attaches only through a live
+  `work_item.external_link` of the same issue: same `scope_id`, same active
+  generation, a non-blank `provider_work_item_id` on both sides, and a link whose
+  `linked_repository_id` is the repository. Never join on `work_item_key`, across
+  scopes or generations, or on a project-to-repository guess. A derived row is
+  evidence only with its `linked_via_fact_id` witness, a non-blank issue id, and
+  the stamped `linked_via_repository` equal to the story's repository; keep all
+  three in `JiraFactLinked`.
+- The Jira statement keeps its three `OFFSET 0` fences, its `MATERIALIZED`
+  expressions and the one-time gate on the transitions, and the key and kind
+  literals identical to migration 155. The linked-issue predicate is read under
+  `NOT`; keep it two-valued.
 - The set of linkable kinds is the applied PagerDuty service and the observed
   PagerDuty service. `incident_routing.coverage_warning` and every other applied
   resource class stay source-only.

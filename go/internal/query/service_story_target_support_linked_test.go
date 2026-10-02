@@ -156,6 +156,39 @@ func TestServiceStoryTargetSupportLinkIndexMatchesQuery(t *testing.T) {
 	}
 }
 
+// TestServiceStoryTargetSupportIssueIndexMatchesQuery binds the Jira issue-link
+// read to migration 155 (#7464), derived from the builder and not hand-copied:
+// the index is keyed on the same scope, generation, kind and plain
+// payload->>'provider_work_item_id' expression the record and transition probes
+// carry, and its predicate is implied by their literal kind and tombstone
+// conditions, so Postgres can prove it in custom and generic plans alike.
+func TestServiceStoryTargetSupportIssueIndexMatchesQuery(t *testing.T) {
+	t.Parallel()
+
+	query, _ := support.JiraIssueLinkSQL(writerLinkedRepoID, 10)
+	migration := normalizeSQLWhitespace(migrationSQLByName(t, "fact_records_story_support_issue_idx"))
+	for _, want := range []string{
+		"ON fact_records (scope_id, generation_id, fact_kind, (payload->>'provider_work_item_id'))",
+		"WHERE fact_kind IN ('work_item.record', 'work_item.transition') AND is_tombstone = FALSE",
+	} {
+		if !strings.Contains(migration, normalizeSQLWhitespace(want)) {
+			t.Fatalf("issue index migration missing %q:\n%s", want, migration)
+		}
+	}
+	for _, want := range []string{
+		"fact.fact_kind = 'work_item.record'",
+		"fact.fact_kind = 'work_item.transition'",
+		"fact.is_tombstone = FALSE",
+		"fact.payload->>'provider_work_item_id' = linked.issue_id",
+		"fact.scope_id = linked.scope_id",
+		"fact.generation_id = linked.generation_id",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("issue read missing the index-provable fragment %q:\n%s", want, query)
+		}
+	}
+}
+
 func TestBuildStoryTargetSupportAttachesWriterLinkToRepositoryTarget(t *testing.T) {
 	t.Parallel()
 

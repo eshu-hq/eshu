@@ -76,6 +76,17 @@ func defaultRowsCases() []defaultRowsCase {
 			want:  []string{"payload"},
 		},
 		{
+			name: "support Jira issue-link read",
+			query: "WITH linked AS MATERIALIZED (SELECT link.scope_id FROM ingestion_scopes AS scope CROSS JOIN LATERAL " +
+				"(SELECT fact.source_record_id FROM fact_records AS fact WHERE fact.fact_kind = 'work_item.external_link' " +
+				"AND fact.payload->>'linked_repository_id' = $1 OFFSET 0) AS link WHERE generation.status = 'active') " +
+				"SELECT jsonb_build_object('linked_via_fact_id', ranked.link_fact_id) AS payload FROM linked " +
+				"CROSS JOIN LATERAL (SELECT fact.source_record_id FROM fact_records AS fact " +
+				"WHERE fact.fact_kind = 'work_item.record' AND fact.payload->>'provider_work_item_id' = linked.issue_id OFFSET 0) AS ranked",
+			group: factGroup,
+			want:  []string{"payload"},
+		},
+		{
 			name: "support incident routing read",
 			query: "WITH correlated AS MATERIALIZED (SELECT cand.provider_service_id FROM (SELECT corr.scope_id " +
 				"FROM fact_records AS corr WHERE corr.fact_kind = 'reducer_incident_repository_correlation' OFFSET 0) AS cand) " +

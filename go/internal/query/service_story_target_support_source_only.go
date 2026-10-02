@@ -23,9 +23,10 @@ type serviceStoryTargetSupportStatement struct {
 }
 
 // buildServiceStoryTargetSupportStatements returns the row reads that can find
-// evidence for filter: the work_item.external_link read and, through the
-// reducer's incident-repository correlation, the PagerDuty routing read. Both
-// are keyed on the same repository id and bounded to limit+1 rows, so both stay
+// evidence for filter: the work_item.external_link read, the PagerDuty routing
+// read through the reducer's incident-repository correlation, and the Jira
+// record and transition read through the same issue's link (#7464). All are
+// keyed on the same repository id and bounded to limit+1 rows, so all stay
 // closed for a service target whose graph gate did not pass (no statement at all).
 func buildServiceStoryTargetSupportStatements(
 	filter serviceStoryTargetSupportFilter,
@@ -34,12 +35,12 @@ func buildServiceStoryTargetSupportStatements(
 	if query, args := buildServiceStoryTargetSupportSQL(filter); query != "" {
 		statements = append(statements, serviceStoryTargetSupportStatement{query: query, args: args})
 	}
-	routingQuery, routingArgs := support.IncidentRoutingSQL(
-		storySupportLinkRepositoryID(filter),
-		serviceStoryTargetSupportRowLimit(filter.Limit),
-	)
-	if routingQuery != "" {
-		statements = append(statements, serviceStoryTargetSupportStatement{query: routingQuery, args: routingArgs})
+	repoID, rowLimit := storySupportLinkRepositoryID(filter), serviceStoryTargetSupportRowLimit(filter.Limit)
+	if query, args := support.IncidentRoutingSQL(repoID, rowLimit); query != "" {
+		statements = append(statements, serviceStoryTargetSupportStatement{query: query, args: args})
+	}
+	if query, args := support.JiraIssueLinkSQL(repoID, rowLimit); query != "" {
+		statements = append(statements, serviceStoryTargetSupportStatement{query: query, args: args})
 	}
 	return statements
 }
@@ -125,15 +126,30 @@ func scanServiceStoryTargetSupportRows(rows db.Rows) ([]map[string]any, error) {
 	return facts, nil
 }
 
-// sortServiceStoryTargetSupportFacts orders rows newest first, then by fact id
-// descending, the order each statement returns them in. observed_at is parsed
+// sortServiceStoryTargetSupportFacts orders rows by kind rank, then newest first,
+// then by fact id descending, the order each statement returns them in. Links and
+// PagerDuty routing facts rank first, Jira records next and transitions last: an
+// issue carries up to a hundred transitions, which would otherwise crowd the
+// links that justify them out of a bounded section (#7464). observed_at is parsed
 // rather than compared as text because the JSON timestamp drops trailing zeros.
 func sortServiceStoryTargetSupportFacts(facts []map[string]any) {
 	observed := func(fact map[string]any) time.Time {
 		parsed, _ := time.Parse(time.RFC3339Nano, StringVal(fact, "observed_at"))
 		return parsed
 	}
+	rank := func(fact map[string]any) int {
+		switch StringVal(fact, "fact_kind") {
+		case support.WorkItemRecordKind:
+			return 1
+		case support.WorkItemTransitionKind:
+			return 2
+		}
+		return 0
+	}
 	sort.SliceStable(facts, func(i, j int) bool {
+		if left, right := rank(facts[i]), rank(facts[j]); left != right {
+			return left < right
+		}
 		if left, right := observed(facts[i]), observed(facts[j]); !left.Equal(right) {
 			return left.After(right)
 		}
@@ -184,10 +200,12 @@ func serviceStoryTargetSupportSourceOnlySummaryOn(
 
 // serviceStoryTargetSupportUnlinkedPredicate is "this active support fact has no
 // durable link to any target". A work_item.external_link that carries a
-// linked_repository_id is linked (to some repository), and so is a PagerDuty
-// applied or observed service whose provider service id the reducer correlated
-// to some repository (support.LinkedIncidentRoutingPredicate); every other
-// support kind has no target key yet, so it is source-only. The predicate is
+// linked_repository_id is linked (to some repository), and so is a Jira record or
+// transition whose issue has such a link in the same scope and active generation
+// (support.LinkedIssuePredicate), and a PagerDuty applied or observed service
+// whose provider service id the reducer correlated to some repository
+// (support.LinkedIncidentRoutingPredicate); every other support kind has no
+// target key yet, so it is source-only. The predicate is
 // two-valued: the kind comparison is never NULL, NULLIF(...) IS NOT NULL is never
 // NULL, and the routing half coalesces its key, so NOT of it cannot drop a row to
 // UNKNOWN. A row linked to a different repository is neither evidence for this
@@ -195,13 +213,13 @@ func serviceStoryTargetSupportSourceOnlySummaryOn(
 // statement defines with support.AdmissibleCorrelationsSQL.
 var serviceStoryTargetSupportUnlinkedPredicate = "NOT (\n  (fact.fact_kind = '" + storySupportLinkFactKind +
 	"' AND NULLIF(fact.payload->>'" + storySupportLinkPayloadKey + "', '') IS NOT NULL)\n  OR " +
-	support.LinkedIncidentRoutingPredicate() + "\n)"
+	support.LinkedIssuePredicate() + "\n  OR " + support.LinkedIncidentRoutingPredicate() + "\n)"
 
 func buildServiceStoryTargetSupportSourceOnlySQL(factKinds []string) (string, []any) {
 	if len(factKinds) == 0 {
 		return "", nil
 	}
-	return support.AdmissibleCorrelationsSQL() + `
+	return support.AdmissibleCorrelationsSQL() + support.LinkedIssuesSQL() + `
 SELECT
     COUNT(*) AS support_source_only_count,
     COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'work_item.%') AS work_item_source_only_count,

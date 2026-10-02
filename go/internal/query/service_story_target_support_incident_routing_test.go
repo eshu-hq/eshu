@@ -18,14 +18,14 @@ func TestBuildServiceStoryTargetSupportStatementsFollowsTheRepositoryGate(t *tes
 		filter serviceStoryTargetSupportFilter
 		want   int
 	}{
-		{"repository target", serviceStoryTargetSupportFilter{TargetKind: "repository", TargetID: "repo-x", Limit: 10}, 2},
-		{"repository target by repository field", serviceStoryTargetSupportFilter{TargetKind: "repository", Repository: "repo-x", Limit: 10}, 2},
+		{"repository target", serviceStoryTargetSupportFilter{TargetKind: "repository", TargetID: "repo-x", Limit: 10}, 3},
+		{"repository target by repository field", serviceStoryTargetSupportFilter{TargetKind: "repository", Repository: "repo-x", Limit: 10}, 3},
 		{"service whose repository defines exactly it", serviceStoryTargetSupportFilter{
 			TargetKind: "service", Repository: "repo-x", RepositoryDefinesTarget: true, RepositoryWorkloadCount: 1,
-		}, 2},
+		}, 3},
 		{"service whose repository defines several workloads", serviceStoryTargetSupportFilter{
 			TargetKind: "service", Repository: "repo-x", RepositoryDefinesTarget: true, RepositoryWorkloadCount: 3,
-		}, 2},
+		}, 3},
 		{"service, graph did not show the repository defining it", serviceStoryTargetSupportFilter{
 			TargetKind: "service", Repository: "repo-x", RepositoryWorkloadCount: 1,
 		}, 0},
@@ -54,6 +54,9 @@ func TestBuildServiceStoryTargetSupportStatementsFollowsTheRepositoryGate(t *tes
 			}
 			if !strings.Contains(statements[1].query, "'"+support.IncidentCorrelationKind+"'") {
 				t.Fatalf("second statement is not the PagerDuty routing read:\n%s", statements[1].query)
+			}
+			if !strings.Contains(statements[2].query, "'"+support.WorkItemRecordKind+"'") {
+				t.Fatalf("third statement is not the Jira issue-link read:\n%s", statements[2].query)
 			}
 			for i, statement := range statements {
 				if len(statement.args) != 2 || statement.args[0] != "repo-x" {
