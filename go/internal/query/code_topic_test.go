@@ -225,6 +225,9 @@ func TestContentReaderInvestigateCodeTopicFileProbePrioritizesPaths(t *testing.T
 	if got, want := strings.Count(fileProbe, "f.content ILIKE"), len(terms); got != want {
 		t.Fatalf("content predicate count = %d, want %d (one content-only probe per term)", got, want)
 	}
+	if got, want := strings.Count(fileProbe, "f.content ILIKE '%' || (SELECT term FROM term_param) || '%'"), len(terms); got != want {
+		t.Fatalf("bound content-term predicate count = %d, want %d", got, want)
+	}
 	if got, want := strings.Count(fileProbe, "f.relative_path NOT ILIKE"), len(terms); got != want {
 		t.Fatalf("path exclusion count = %d, want %d (content probe must exclude path hits)", got, want)
 	}
@@ -269,6 +272,10 @@ func TestContentReaderInvestigateCodeTopicFileProbePrioritizesPaths(t *testing.T
 			t.Fatalf("term arg $%d = %#v, want %#v", argIndex, got, want)
 		}
 		placeholder := fmt.Sprintf("$%d", argIndex)
+		termParam := fmt.Sprintf("term_param AS MATERIALIZED (SELECT %s::text AS term)", placeholder)
+		if got := strings.Count(fileProbe, termParam); got != 1 {
+			t.Fatalf("materialized term parameter %s count = %d, want 1", placeholder, got)
+		}
 		if got, wantUses := strings.Count(fileProbe, placeholder), 5; got != wantUses {
 			t.Fatalf("term placeholder %s uses = %d, want %d (matched values plus path/content/exclusion)", placeholder, got, wantUses)
 		}

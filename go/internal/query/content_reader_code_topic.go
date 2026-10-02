@@ -132,7 +132,11 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	fileBranches := make([]string, len(req.Terms))
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
-		fileBranches[i] = codetopicparallel.FileBranch(nextArg, where, candidateCap)
+		if strings.TrimSpace(req.RepoID) != "" {
+			fileBranches[i] = scopedCodeTopicFileBranch(nextArg, where, candidateCap)
+		} else {
+			fileBranches[i] = codetopicparallel.FileBranch(nextArg, where, candidateCap)
+		}
 		args = append(args, term)
 		nextArg++
 	}
