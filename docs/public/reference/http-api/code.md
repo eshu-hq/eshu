@@ -374,7 +374,8 @@ admitted by a fallback the bound could not evaluate in its new position.
 route. It returns coverage, language maturity, exactness blockers,
 cleanup-ready and ambiguous buckets, suppressed modeled roots, source handles,
 recommended next calls, paging, and truncation state. MCP defaults and bounds:
-[Response Bounds](../dead-code-reachability-spec.md#response-bounds).
+[Response Bounds](../dead-code-reachability-spec.md#response-bounds); the
+`coverage` fields: [Investigation Coverage](../dead-code-reachability-spec.md#investigation-coverage).
 
 `POST /api/v0/code/dead-code` is the lower-level candidate scan. `repo_id`,
 `language`, and `candidate_kind` are optional; `limit` defaults to `100` and is

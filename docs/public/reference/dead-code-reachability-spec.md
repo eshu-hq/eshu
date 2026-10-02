@@ -176,6 +176,22 @@ dead_code:
 
 Request-level decorator exclusions also set `analysis.user_overrides_applied`.
 
+## Investigation Coverage
+
+For a repository-scoped request, the `coverage` block of
+`POST /api/v0/code/dead-code/investigate` and `investigate_dead_code` reports
+content-index coverage from the content files only: `content_coverage_available`,
+`file_count`, `languages`, `content_last_indexed_at`, and `freshness_state`.
+`content_last_indexed_at` is the newest `indexed_at` of the repository's indexed
+files; it no longer folds in the newest entity timestamp, so it can be older
+than before when entities were indexed after the last file, and a repository
+with entities but no indexed files reports `freshness_state` as `not_reported`.
+The block no longer
+carries `entity_count` (#7525): the count required a scan of every content
+entity of the repository on each call and the investigation does not use it.
+`entity_count` remains on `GET /api/v0/repositories/{repo_id}/stats` and
+`/coverage`. A whole-index request reports no repository coverage.
+
 ## Response Bounds
 
 The three MCP tools default `limit` to `25`, not `100`. A `limit` of `100`

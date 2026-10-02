@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Dead-code investigation coverage skips the entity scan
+
+- **`investigate_dead_code` / `POST /api/v0/code/dead-code/investigate` no
+  longer report `entity_count`, and `content_last_indexed_at` now comes from
+  files only**
+  ([#7525](https://github.com/eshu-hq/eshu/issues/7525), part of
+  [#7249](https://github.com/eshu-hq/eshu/issues/7249)). The coverage block
+  counted every content entity of the repository on each call, about 135k heap
+  blocks on the largest repository sampled. It now uses the same narrow file
+  summary repository context uses plus one files `max(indexed_at)` read.
+  `file_count` and `languages` are unchanged. The repository stats and coverage
+  routes still report `entity_count`.
+
 ### Workload and service context stay inside the MCP response budget
 
 - **`get_workload_context` and `get_service_context` bound their evidence**

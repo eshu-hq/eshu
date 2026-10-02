@@ -62,7 +62,8 @@ The parser now models:
 - imported type references used by public TypeScript declarations, bounded by
   the package public surface and repository-local import resolution.
 
-Final API evidence from the same request after the parser fix:
+Final API evidence from the same request after the parser fix (captured before
+#7525 removed `entity_count` from the investigation `coverage` block):
 
 ```json
 {

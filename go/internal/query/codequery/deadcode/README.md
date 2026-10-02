@@ -49,6 +49,11 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `suppressed_truncated`, so `limit=1` cannot return dozens of modeled-root
   rows and a short bucket says whether it was cut (#7168). Policy stats still
   count every suppressed row; only the returned bucket is bounded.
+- **Investigation coverage never reads `content_entities`.** The `coverage`
+  block takes `file_count` and `languages` from the narrow
+  `RepositoryContextCoverage` read and `content_last_indexed_at` from the files
+  `max(indexed_at)` read (`investigation_coverage.go`); it carries no
+  `entity_count` (#7525). Do not reintroduce full `RepositoryCoverage` there.
 - **Exports are caller-driven.** Every export exists because a staying
   caller names it (delegates, seam, grant proofs, staying tests); each
   carries a comment saying which. Do not export anything else.
