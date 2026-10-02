@@ -24,7 +24,7 @@ On the ops-qa reader snapshot, the Terraform serial query took 0.671 ms for
 four rows, and the recent-warning query took 360.839 ms for 92 rows. Those
 statements are absent from the repository detail response's input selection,
 so this change removes them from that route. These are individual SQL timings;
-built HTTP/MCP endpoint p95, physical cold latency, deployed p95, and
+deployed HTTP/MCP endpoint p95, physical cold latency, and
 100-user capacity remain NOT_CHECKED. Full pipeline and index routes continue
 to pay the cost of these required reads.
 
