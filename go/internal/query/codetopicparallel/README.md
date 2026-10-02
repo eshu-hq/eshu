@@ -66,7 +66,11 @@ comparison](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md
 on the same dedicated corpus, baseline and candidate medians were 0.765572
 and 0.464944 seconds, with matching full responses. That result is bound to
 candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`, before the
-permit/fallback changes; current-source fixed-corpus A/B is NOT_CHECKED.
+permit/fallback changes. The current guarded-reader source
+`5d44dda539ad5e2e136aa25e738aaca4910d4e50` has its own fixed-corpus
+ABBA comparison against baseline `575ef287bfe13785639a8e4548593ccb92cf3c27`:
+16 timed requests per variant yielded medians of 0.797406 and 0.484409
+seconds, with matching complete JSON and unchanged content/index fingerprints.
 Deployed ops-qa readiness and the `<1 s` endpoint budget are also not yet
 validated and are tracked in #7516.
 

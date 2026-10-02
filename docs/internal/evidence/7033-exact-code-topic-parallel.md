@@ -150,9 +150,8 @@ versus 15.65 MiB for baseline in the sampled series; both had a 2 GiB
 limit. This is a roughly 20 MiB sampled increase, not a no-memory-cost
 claim. No resource sampler invalidation occurred.
 
-The current review-fix source has no accepted fixed-corpus endpoint A/B yet:
-its quiet-host latency, resource delta, and `<1 s` result are **NOT_CHECKED**.
-The historical medians above must not be attributed to that source.
+The historical medians above must not be attributed to the later guarded-reader
+source; its separate exact-source comparison follows below.
 
 Both API `/healthz` probes passed. Both `/readyz` probes returned the
 same HTTP 503 solely because the preserved test database lacks the receipt
@@ -164,6 +163,56 @@ The containers, role, and temporary images were removed; PostgreSQL and
 Neo4j remained healthy. Thus this result proves neither rollout readiness
 nor audit integrity, and it does not establish the deployed ops-qa
 `<1 s` budget.
+
+## Current guarded-reader fixed-corpus comparison, 2026-10-02
+
+The accepted private run `7033-exact-current-5d44-20261002b` compared
+baseline `575ef287bfe13785639a8e4548593ccb92cf3c27` with the exact
+reviewed PR source `5d44dda539ad5e2e136aa25e738aaca4910d4e50`. Both
+API images were built from those Git commits with the same Dockerfile
+(`sha256:031d70e15d536537b4d6be8f135af85bd0ebe2931b4837a1b8758e989130cc60`)
+and runtime image
+`sha256:b5ce6d52b6a9e2f0456dfa6c73612ddebef8da9ad7a02070efe5ee5b0bd6a136`.
+They used the same preserved PostgreSQL 18/Neo4j stack and loopback-only
+API containers, each limited to four CPUs and 2 GiB memory, with the same
+eight-connection total/four-reader PostgreSQL pool settings. The canonical
+16-term request, limit 25, offset 0, was unchanged. This is a dedicated
+test-instance comparison, not deployed ops-qa acceptance.
+
+Two warmups per variant preceded two eight-request baseline control sets.
+Their medians were 0.781043 and 0.768598 s; the frozen control bound was
+0.878429 s. Eight alternating ABBA rounds then produced 16 timed full-body
+HTTP requests per variant:
+
+| Source | Median | Nearest-rank p95 |
+| --- | ---: | ---: |
+| Baseline | 0.797406 s | 0.861517 s |
+| Current candidate | 0.484409 s | 0.507398 s |
+
+The ratio-of-medians saving was **0.312997 s (39.25%)** on this fixed corpus.
+The eight same-round ABBA saving ratios were 39.4064%, 39.3548%, 40.3558%,
+41.0330%, 40.4396%, 39.2943%, 39.5571%, and 38.3997%; their mean was
+39.7301% with a sample SD of 0.8305 percentage points. All 52
+warmup, control, and ABBA requests returned HTTP 200 with `count=25`,
+`candidate_pool_truncated=true`, and the same full canonical JSON SHA-256,
+`095bfc68e8251d24b6a684901263dd5d69b8c9c55b9203cccaed5b7dde7c3e88`.
+The content-entity row-version, content-file row-version, and index
+catalog/state fingerprints matched before and after; their respective
+SHA-256s were `65bfccb02802b68710b1945ddba8505ed58ffd3cc7042ac83df0ac9c1476ebf6`,
+`c7740414bf9b0ee0827b361c5b3a645dfa47368346c667720ed6f65e55ed3cb2`,
+and `58b4e9db18a383c1c33845db9a7b48f2418c5b998066fab1e02b1079fcec66b3`.
+No baseline request exceeded the control bound. Maximum sampled host load
+was 3.5 on 16 logical CPUs, below the half-CPU invalidation threshold.
+Sampled API memory peaked at 15.06 MiB baseline and 34.06 MiB candidate,
+a 19.00 MiB increase within each container's 2 GiB limit.
+
+Both canaries had the same known missing-migration-155 `/readyz` response and
+one denied best-effort bootstrap audit insert each, with no persisted audit
+row or later store error. The restricted temporary role, canaries, images,
+source worktrees, and credential file were removed after the successful run;
+the preserved databases remained healthy. The result satisfies the
+current-source relative merge measurement, but **does not** establish the
+deployed ops-qa `<1 s` budget or rollout readiness.
 
 ## Deployed ops-qa endpoint-only diagnostic, 2026-10-02
 
@@ -234,13 +283,13 @@ overlap; the local live test was not rerun on the rebased commit.
 ## Deployed ops-qa acceptance
 
 NOT_CHECKED for the current guarded-reader candidate on the deployed
-topology. The fixed-corpus comparison above belongs to the pre-permit
-candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`; a current-source
-comparison is still required before merge. The current source includes
-migration 155. Ops-qa's migration ledger was last observed at 152 on 2026-10-02;
-this record does not establish a later ledger state. An earlier exact-source
-attempt on 2026-10-02 aborted during storage-digest/cleanup validation and
-yielded no accepted endpoint timing evidence. The owner approved using the
-fixed-corpus remote comparison for the merge measurement, with the deployed
+topology. The current-source fixed-corpus comparison above is accepted as
+the relative merge measurement, not deployed endpoint acceptance. The current
+source includes migration 155. Ops-qa's migration ledger was last observed at
+152 on 2026-10-02; this record does not establish a later ledger state. An
+earlier exact-source attempt on 2026-10-02 aborted during
+storage-digest/cleanup validation and yielded no accepted endpoint timing
+evidence. The owner approved using the fixed-corpus remote comparison for
+the merge measurement, with the deployed
 ops-qa `<1 s` check tracked separately in #7516. Do not claim the deployed
 budget from this remote result.
