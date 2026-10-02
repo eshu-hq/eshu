@@ -1,5 +1,5 @@
 version: live-tests/v1
-updated_at: 2026-09-28
+updated_at: 2026-10-02
 issue: 6784
 parent_issue: 6788
 owners:
@@ -20,8 +20,9 @@ legacy_scheduled_exemptions:
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
   legacy-scheduled exemption, or retired with
-  a reason, so no live test is a one-time developer proof by default. The
-  live-backend CI job runs every CI-class row on both backends; the ledger
+  a reason and explicit execution or exemption ownership. The graph
+  live-backend CI job runs every ci-class row on its selected backend; the
+  PostgreSQL readiness job runs the postgres_ci rows. The ledger
   validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
