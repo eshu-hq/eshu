@@ -39,7 +39,7 @@ type ProbeRow struct {
 // Eligible bounds parallel reads to the measured sixteen-term query and a pool
 // that can provide four independent sessions.
 func Eligible(termCount, maxOpenConns int) bool {
-	return termCount == 16 && (maxOpenConns == 0 || maxOpenConns >= Partitions)
+	return termCount == 16 && maxOpenConns >= Partitions
 }
 
 // FileBranch is shared by the serial and partitioned probe builders.
@@ -218,7 +218,7 @@ func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span tra
 		attribute.Int64("code_topic.connection_reservation_wait_ms", time.Since(reservationStarted).Milliseconds()),
 	)
 	if err != nil {
-		span.SetAttributes(attribute.Bool("code_topic.connection_reservation_canceled", errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)))
+		span.SetAttributes(attribute.Bool("code_topic.connection_reservation_canceled", ctx.Err() != nil))
 		return nil, err
 	}
 	span.SetAttributes(attribute.Int("code_topic.reserved_connections", Partitions))

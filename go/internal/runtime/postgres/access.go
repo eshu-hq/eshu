@@ -58,6 +58,7 @@ type Access struct {
 	observer           Observer
 	identity           physicalIdentity
 	snapshotSetGate    chan struct{}
+	readerPermits      chan struct{}
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
@@ -102,8 +103,11 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
 	reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 	reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	access := &Access{writer: writer, reader: reader, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
+	access := &Access{writer: writer, reader: reader, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, cfg.ReadMaxOpenConns)}
 	access.snapshotSetGate <- struct{}{}
+	for range cfg.ReadMaxOpenConns {
+		access.readerPermits <- struct{}{}
+	}
 	if err := writer.PingContext(pingCtx); err != nil {
 		_ = access.Close()
 		return nil, privateFailure(failureWriterPing, err)

@@ -90,7 +90,7 @@ func TestCodeTopicParallelGateBoundsPoolUse(t *testing.T) {
 		terms, maxOpen int
 		want           bool
 	}{
-		{15, 0, false}, {16, 0, true}, {16, 3, false}, {16, 4, true}, {17, 4, false},
+		{15, 0, false}, {16, 0, false}, {16, 3, false}, {16, 4, true}, {17, 4, false},
 	} {
 		if got := codetopicparallel.Eligible(tc.terms, tc.maxOpen); got != tc.want {
 			t.Errorf("gate(%d, %d) = %t, want %t", tc.terms, tc.maxOpen, got, tc.want)

@@ -3,7 +3,15 @@
 
 package db
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrSnapshotReservationCapacity means a snapshot set could not reserve its
+// guarded reader permits before its internal wait expired. No transaction or
+// business query started, and all partial reservations were released.
+var ErrSnapshotReservationCapacity = errors.New("snapshot reader reservation capacity unavailable")
 
 // Row scans one result without exposing the underlying SQL connection.
 type Row interface {

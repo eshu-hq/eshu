@@ -18,26 +18,28 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 var codeTopicParallelDriverSequence atomic.Uint64
 
 type codeTopicParallelRecorder struct {
-	mu           sync.Mutex
-	active       int
-	maxActive    int
-	imports      int
-	probes       int
-	probeTerms   [][]string
-	assemblyJSON string
-	assemblyPage []driver.Value
-	beginOptions []driver.TxOptions
-	probeFailure error
-	emptyProbes  bool
-	saturation   bool
-	db           *sql.DB
-	probeHold    chan struct{}
-	probeStarts  int
+	mu            sync.Mutex
+	active        int
+	maxActive     int
+	imports       int
+	probes        int
+	serialQueries int
+	probeTerms    [][]string
+	assemblyJSON  string
+	assemblyPage  []driver.Value
+	beginOptions  []driver.TxOptions
+	probeFailure  error
+	emptyProbes   bool
+	saturation    bool
+	db            *sql.DB
+	probeHold     chan struct{}
+	probeStarts   int
 }
 
 func (r *codeTopicParallelRecorder) recordBegin(opts driver.TxOptions) {
@@ -132,6 +134,9 @@ func (c *codeTopicParallelConn) QueryContext(ctx context.Context, query string, 
 		if err := c.waitForSaturation(ctx); err != nil {
 			return nil, err
 		}
+		c.recorder.mu.Lock()
+		c.recorder.serialQueries++
+		c.recorder.mu.Unlock()
 		return codeTopicParallelFinalRows(), nil
 	case strings.Contains(query, "jsonb_to_recordset"):
 		if len(args) != 3 {
@@ -366,6 +371,41 @@ func TestInvestigateCodeTopicParallelCanceledReservationReleasesConnections(t *t
 	}
 	if _, err := newCodeTopicParallelTestReader(db).InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26}); err != nil {
 		t.Fatalf("request after canceled reservation: %v", err)
+	}
+}
+
+func TestInvestigateCodeTopicParallelFallsBackOnReservationAcquireTimeout(t *testing.T) {
+	recorder := &codeTopicParallelRecorder{}
+	pool := openCodeTopicParallelDB(t, recorder)
+	ordinary, err := pool.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ordinary.Close() }()
+	store := codeTopicTestSnapshotStore{
+		ReadStore:          postgres.NewSQLReadStore(pool),
+		handle:             pool,
+		reservationTimeout: 50 * time.Millisecond,
+	}
+	reader := NewContentReaderWithReadStore(store)
+	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	rows, err := reader.InvestigateCodeTopic(ctx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+	serialRows, serialErr := NewContentReader(pool).InvestigateCodeTopic(ctx, codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
+	if serialErr != nil || len(serialRows) != 1 {
+		t.Fatalf("one-connection theory shim rows=%#v err=%v", serialRows, serialErr)
+	}
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("serial fallback rows=%#v err=%v", rows, err)
+	}
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	if recorder.probes != 0 || recorder.assemblyJSON != "" || recorder.active != 0 {
+		t.Fatalf("unexpected parallel work: probes=%d assembly=%q active=%d", recorder.probes, recorder.assemblyJSON, recorder.active)
+	}
+	if got := pool.Stats().InUse; got != 1 {
+		t.Fatalf("connections in use after fallback = %d, want ordinary reader only", got)
 	}
 }
 

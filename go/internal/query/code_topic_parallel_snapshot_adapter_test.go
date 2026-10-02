@@ -6,8 +6,10 @@ package query
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -17,7 +19,9 @@ import (
 // snapshot-set contract. Production uses runtime/postgres's fenced reader.
 type codeTopicTestSnapshotStore struct {
 	db.ReadStore
-	handle *sql.DB
+	handle             *sql.DB
+	reservationTimeout time.Duration
+	beginErr           error
 }
 
 var codeTopicTestGates sync.Map
@@ -62,6 +66,9 @@ func (set *codeTopicTestSnapshotSet) Close() error {
 }
 
 func (store codeTopicTestSnapshotStore) BeginReadOnlySnapshotSet(ctx context.Context, count int) (db.ReadSnapshotSet, error) {
+	if store.beginErr != nil {
+		return nil, store.beginErr
+	}
 	gateAny, _ := codeTopicTestGates.LoadOrStore(store.handle, make(chan struct{}, 1))
 	gate := gateAny.(chan struct{})
 	select {
@@ -72,7 +79,13 @@ func (store codeTopicTestSnapshotStore) BeginReadOnlySnapshotSet(ctx context.Con
 	set := &codeTopicTestSnapshotSet{}
 	var reserveErr error
 	for range count {
-		conn, err := store.handle.Conn(ctx)
+		borrowCtx := ctx
+		cancel := func() {}
+		if store.reservationTimeout > 0 {
+			borrowCtx, cancel = context.WithTimeout(ctx, store.reservationTimeout)
+		}
+		conn, err := store.handle.Conn(borrowCtx)
+		cancel()
 		if err != nil {
 			reserveErr = err
 			break
@@ -81,8 +94,12 @@ func (store codeTopicTestSnapshotStore) BeginReadOnlySnapshotSet(ctx context.Con
 	}
 	<-gate
 	if reserveErr != nil {
-		_ = set.Close()
-		return nil, reserveErr
+		cleanupErr := set.Close()
+		if store.reservationTimeout > 0 && ctx.Err() == nil &&
+			errors.Is(reserveErr, context.DeadlineExceeded) && cleanupErr == nil {
+			return nil, errors.Join(reserveErr, db.ErrSnapshotReservationCapacity)
+		}
+		return nil, errors.Join(reserveErr, cleanupErr)
 	}
 	options := &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}
 	exporter, err := set.conns[0].BeginTx(ctx, options)

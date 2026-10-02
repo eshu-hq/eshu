@@ -33,7 +33,7 @@ func (q fencedQueryer) MaxReadConnections() int {
 // BeginReadOnlySnapshotSet opens count read-only repeatable-read transactions
 // on one exported snapshot. All connections are fenced before any transaction
 // begins, and the exporter remains open until the returned set is closed.
-func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) (db.ReadSnapshotSet, error) {
+func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) (set db.ReadSnapshotSet, err error) {
 	a := q.access
 	if a != nil && a.readerHasFallbacks {
 		return nil, privateFailure(failureSnapshotBegin, errSnapshotSetMultiHost)
@@ -51,27 +51,35 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 	}
 	defer func() { a.snapshotSetGate <- struct{}{} }()
 
-	connections := make([]*sql.Conn, 0, count)
+	connections := make([]*readerConnection, 0, count)
 	transactions := make([]*readTransaction, 0, count)
 	ready := false
+	capacityTimeout := false
 	defer func() {
 		if ready {
 			return
 		}
+		var cleanupErr error
 		for i := len(transactions) - 1; i >= 0; i-- {
-			_ = transactions[i].Rollback()
+			cleanupErr = errors.Join(cleanupErr, transactions[i].Rollback())
 		}
 		for i := len(transactions); i < len(connections); i++ {
-			_ = connections[i].Close()
+			cleanupErr = errors.Join(cleanupErr, connections[i].Close())
+		}
+		if cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		} else if capacityTimeout && ctx.Err() == nil {
+			err = errors.Join(err, db.ErrSnapshotReservationCapacity)
 		}
 	}()
 
 	// Keep the gate through the complete reservation so concurrent sets cannot
 	// each hold a partial pool reservation while waiting for the other.
 	for range count {
-		conn, err := a.borrowFresh(ctx)
-		if err != nil {
-			return nil, privateFailure(failureSnapshotBegin, err)
+		conn, borrowErr := a.borrowFresh(ctx)
+		if borrowErr != nil {
+			capacityTimeout = errors.Is(borrowErr, errReaderPermitTimeout)
+			return nil, privateFailure(failureSnapshotBegin, borrowErr)
 		}
 		connections = append(connections, conn)
 	}
@@ -104,12 +112,12 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 	if err := ctx.Err(); err != nil {
 		return nil, privateFailure(failureSnapshotBegin, err)
 	}
-	set := &readSnapshotSet{readers: transactions}
+	set = &readSnapshotSet{readers: transactions}
 	ready = true
 	return set, nil
 }
 
-func beginReadTransaction(ctx context.Context, conn *sql.Conn, access *Access) (*readTransaction, error) {
+func beginReadTransaction(ctx context.Context, conn *readerConnection, access *Access) (*readTransaction, error) {
 	started := time.Now()
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	access.observe("reader", StageBusinessQuery, started, err)
@@ -119,7 +127,7 @@ func beginReadTransaction(ctx context.Context, conn *sql.Conn, access *Access) (
 	return newReadTransaction(ctx, tx, conn, access), nil
 }
 
-func newReadTransaction(ctx context.Context, tx *sql.Tx, conn *sql.Conn, access *Access) *readTransaction {
+func newReadTransaction(ctx context.Context, tx *sql.Tx, conn interface{ Close() error }, access *Access) *readTransaction {
 	owned := &readTransaction{tx: tx, conn: conn, access: access}
 	owned.stop = context.AfterFunc(ctx, func() { _ = owned.finish(false) })
 	return owned
@@ -223,7 +231,7 @@ func (q fencedQueryer) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransa
 
 type readTransaction struct {
 	tx     *sql.Tx
-	conn   *sql.Conn
+	conn   interface{ Close() error }
 	access *Access
 	once   sync.Once
 	stop   func() bool

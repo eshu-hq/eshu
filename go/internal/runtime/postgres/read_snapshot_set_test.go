@@ -119,8 +119,7 @@ func TestReadSnapshotSetCanceledReservationReleasesPartialReaders(t *testing.T) 
 	if reader == "" {
 		t.Skip("owned physical reader fixture not configured")
 	}
-	access := testAccess(t, reader)
-	access.reader.SetMaxOpenConns(4)
+	access := testAccess(t, reader, 4)
 	ctx, err := access.ContextWithCheckpoint(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -159,8 +158,7 @@ func TestReadSnapshotSetConcurrentGroupsUseReaderPoolCap(t *testing.T) {
 	if reader == "" {
 		t.Skip("owned physical reader fixture not configured")
 	}
-	access := testAccess(t, reader)
-	access.reader.SetMaxOpenConns(8)
+	access := testAccess(t, reader, 8)
 	ctx, err := access.ContextWithCheckpoint(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -220,8 +218,7 @@ func TestReadSnapshotSetCanceledGateWaitDoesNotLeak(t *testing.T) {
 	if reader == "" {
 		t.Skip("owned physical reader fixture not configured")
 	}
-	access := testAccess(t, reader)
-	access.reader.SetMaxOpenConns(4)
+	access := testAccess(t, reader, 4)
 	ctx, err := access.ContextWithCheckpoint(context.Background())
 	if err != nil {
 		t.Fatal(err)

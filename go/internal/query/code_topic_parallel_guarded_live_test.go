@@ -187,4 +187,43 @@ VALUES
 			}
 		})
 	}
+
+	t.Run("reader_pool_pressure_falls_back_to_one_fenced_statement", func(t *testing.T) {
+		checkedCtx, err := access.ContextWithCheckpoint(ctx)
+		if err != nil {
+			t.Fatalf("writer checkpoint: %v", err)
+		}
+		holder, err := readStore.BeginReadOnlySnapshot(checkedCtx)
+		if err != nil {
+			t.Fatalf("hold one guarded reader: %v", err)
+		}
+		defer func() { _ = holder.Rollback() }()
+		req := CodeTopicInvestigationRequest{Terms: terms, Limit: 100}
+		want, err := serial.InvestigateCodeTopic(ctx, req)
+		if err != nil {
+			t.Fatalf("serial reference: %v", err)
+		}
+		before := observer.borrows.Load()
+		got, err := guarded.InvestigateCodeTopic(checkedCtx, req)
+		if err != nil {
+			t.Fatalf("guarded pressure fallback: %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("pressure result differs: guarded=%#v serial=%#v", got, want)
+		}
+		if borrowed := observer.borrows.Load() - before; borrowed != 4 {
+			t.Fatalf("borrowed %d readers, want three partial and one serial", borrowed)
+		}
+		_, readerStats := access.Stats()
+		if inUse := readerStats.InUse; inUse != 1 {
+			t.Fatalf("pressure fallback holds %d readers, want holder only", inUse)
+		}
+		if err := holder.Rollback(); err != nil {
+			t.Fatalf("release holder: %v", err)
+		}
+		_, readerStats = access.Stats()
+		if inUse := readerStats.InUse; inUse != 0 {
+			t.Fatalf("holder release left %d readers", inUse)
+		}
+	})
 }
