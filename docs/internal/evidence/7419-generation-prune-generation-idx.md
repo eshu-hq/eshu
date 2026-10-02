@@ -1,140 +1,194 @@
 # Generation-Prune Generation-ID Index Evidence (#7419)
 
-Three cascade children of `scope_generations` carry `generation_id` but no
-index that leads with it:
+`graph_projection_phase_state` carries `generation_id` only as the fourth
+column of its primary key `(scope_id, acceptance_unit_id, source_run_id,
+generation_id, keyspace, phase)`, so no lookup by `generation_id` can seek.
+Migration `156_graph_projection_phase_state_generation_idx.sql` adds a plain
+`(generation_id)` btree as a sole `CREATE INDEX CONCURRENTLY IF NOT EXISTS`
+statement. No query text changes.
 
-- `fact_replay_events`: only index is `(work_item_id, created_at)`.
-- `graph_projection_phase_state`: `generation_id` is the fourth column of the
-  primary key `(scope_id, acceptance_unit_id, source_run_id, generation_id,
-  keyspace, phase)`.
-- `graph_projection_phase_repair_queue`: same primary-key shape.
+## Where the cost is
 
-Every prune deletes one generation row
-(`deleteScopeGenerationsForRetentionQuery`, `DELETE FROM scope_generations
-WHERE generation_id = ANY($1)`), which checks each of these tables through
-its `generation_id REFERENCES ... ON DELETE CASCADE` foreign key, and the
-retention row-count query probes each by `candidate.generation_id`. With
-nothing to seek by, each probe reads the whole table per pruned generation,
-scaling with total corpus size regardless of the pruned generation's size.
+Every prune deletes scope generations with
+`deleteScopeGenerationsForRetentionQuery`
+(`DELETE FROM scope_generations WHERE generation_id = ANY($1)`). The
+`generation_id REFERENCES scope_generations ... ON DELETE CASCADE` foreign key
+on this table fires once per deleted generation and runs
+`DELETE FROM ONLY graph_projection_phase_state WHERE generation_id = $1`. With
+nothing to seek by, each firing scans the whole table, so a prune of N
+generations scans it N times, and the retention transaction holds its scope row
+locks (`FOR UPDATE` on `ingestion_scopes` and `scope_generations`) across all of
+them.
 
-Migrations `156_fact_replay_events_generation_idx.sql`,
-`157_graph_projection_phase_state_generation_idx.sql`, and
-`158_graph_projection_phase_repair_queue_generation_idx.sql` add plain
-`(generation_id)` btrees, each as a sole `CREATE INDEX CONCURRENTLY IF NOT
-EXISTS` statement. The probes are equality matches with no ordering, so a
-single-column btree is the whole contract.
+The retention row-count statement is not per generation. It joins the batch's
+candidate set to each table (`candidate LEFT JOIN table ... GROUP BY`), which
+the planner runs as one hash join over one scan per batch. This change does
+not claim to speed it up.
 
-## Fixture (local only)
+Two sibling tables were considered and not indexed:
+`graph_projection_phase_repair_queue` and `fact_replay_events` (see
+"Tables not indexed").
 
-`postgres:16.15` in a throwaway container (`eshu-7419-idx-proof`), real child
-DDL from migrations 006/012/013 with stub parents, `VACUUM ANALYZE` after
-seeding.
+## ops-qa census (read-only, 2026-10-02 16:44-16:52Z)
 
-| Table | Rows | Generations | Total size | New index |
-| --- | --- | --- | --- | --- |
-| `fact_replay_events` | 200,000 | 200 (1,000 each) | 38 MB | 1,440 kB |
-| `graph_projection_phase_state` | 50,000 | 200 (250 each) | 11 MB | 376 kB |
-| `graph_projection_phase_repair_queue` | 50,000 | 200 (250 each) | 13 MB | 376 kB |
+PostgreSQL 18.3 (`postgres` pod, plans on the read replica, counters on the
+primary), session with `default_transaction_read_only=on`; no DDL, no writes.
 
-The 50k phase-table scale matches the issue's ops-qa census (53,135 rows in
-`graph_projection_phase_state`). Statements are measured with `EXPLAIN
-(ANALYZE, BUFFERS, TIMING OFF)`; the prune DELETE runs inside
-`BEGIN ... ROLLBACK` on this fixture database.
+| Item | `graph_projection_phase_state` |
+| --- | --- |
+| rows | 91,558 across 10,167 generations (p50 10, p95 13, max 31 rows per generation) |
+| size | 139 MB total: 29 MB heap, 110 MB indexes (`updated_idx` 72 MB, `idx_scan` 0) |
+| `pg_stat_user_tables` | n_tup_ins 23,315, n_tup_upd 737,846, n_tup_hot_upd 7,289, n_tup_del 0 |
+| write rate | about 326,000 rows per day over the 56 h stats window, 454,000 per day over a 357 s window; 97% conflict updates |
+| generation churn | 672 to 2,300 generations superseded per day, about 1,150 per day over the last week |
 
-## Before / after
+`pg_stat_database.stats_reset` is NULL, but `pg_stat_wal.stats_reset` is
+2026-09-30 08:43:53Z, the postmaster start. The counters cover about 56
+hours; `scope_generations` shows 2,863 inserts against about 1,150 created per
+day, which agrees.
 
-Per-prune probe `SELECT COUNT(*) FROM <table> WHERE generation_id = 'gen-7'`
-(one of 200 generations), plus the rolled-back single-generation prune.
+`generation_retention_events` has 0 rows: no prune has run on ops-qa.
+`ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` is `87600h` there (default
+168h), and 21,489 superseded generations are waiting. Retention itself is on by
+default and the Helm chart refuses to render it off, so a config change is the
+only thing between ops-qa and draining that backlog. The saving below is
+therefore projected from churn, not observed.
 
-| Probe | Before (no index) | After (index) |
-| --- | --- | --- |
-| replay events count | seq scan, 1,856 buffers, 17.0 ms | bitmap index scan, 1,003 buffers, 2.5-3.7 ms warm |
-| phase state count | seq scan, 569 buffers, 4.1 ms | index-only scan, 253 buffers, 0.6-0.9 ms warm |
-| repair queue count | seq scan, 717 buffers, 4.6 ms | index-only scan, 253 buffers, 0.7-0.9 ms warm |
-| prune `DELETE FROM scope_generations` | 23.7 ms (cascade checks scan all three) | 1.9 ms |
+Plans on the replica (`EXPLAIN (ANALYZE, BUFFERS)`):
 
-After shapes:
+- `SELECT count(*) ... WHERE generation_id = $1`: `Seq Scan`, 91,545 rows
+  removed by filter, 3,687 buffer hits, 14.7 to 15.3 ms.
+- The cascade shape, `DELETE FROM ONLY ... WHERE generation_id = $1`, plans as
+  a `Seq Scan` (generic plan cost 4,832). The primary key cannot serve it:
+  `pg_stats` `n_distinct` is 813 for `scope_id` and about -0.12 and -0.11
+  (near unique) for `acceptance_unit_id` and `source_run_id`, so even a
+  PostgreSQL 18 skip scan has nothing to skip.
+- The real retention count join at 1, 50 and 500 candidates is a
+  `Hash Right Join` over a single `Seq Scan` of this table (31 to 45 ms in
+  total with the candidate selection).
 
-```text
-->  Bitmap Index Scan on fact_replay_events_generation_idx
-      Index Cond: (generation_id = 'gen-7'::text)
-->  Index Only Scan using graph_projection_phase_state_generation_idx
-      Index Cond: (generation_id = 'gen-7'::text)
-->  Index Only Scan using graph_projection_phase_repair_queue_generation_idx
-      Index Cond: (generation_id = 'gen-7'::text)
-```
+The cascade `DELETE` itself cannot run on ops-qa read-only. Its cost is
+established by the plan above and the fixture below.
 
-### Write amplification
+## Fixture at the ops-qa shape (PostgreSQL 18.6)
 
-Rolled-back batched inserts through the production column shapes, single run
-each arm: 10k replay rows 266.2 ms without / 264.7 ms with; 2k phase-state
-rows 33.4 / 33.3 ms; 2k repair rows 35.9 / 34.9 ms. No measurable delta at
-this scale (heap + FK checks dominate); the standing cost is ~2.2 MB of
-indexes at this fixture scale. Not measured: sustained writer throughput on a
-larger corpus; these tables are small and grow with generations, not facts.
+`postgres:18.6` in a throwaway container, real child DDL from migrations
+012 with stub parents and the foreign keys, 800 scopes, 22,309 generations, and
+91,503 `graph_projection_phase_state` rows over 10,167 generations (9 rows each),
+`VACUUM ANALYZE` after seeding. The fixture table is 33 MB; ops-qa's is 139 MB
+because of update bloat, so ops-qa's per-generation scan cost is higher than
+the fixture's.
 
-## Conflict-update write cost (arbiter condition B, 2026-10-02)
+### Prune cascade
 
-Both phase tables upsert with `ON CONFLICT (…primary key…) DO UPDATE` touching
-the indexed `updated_at`, so conflict updates are non-HOT and maintain every
-index. Measured with the production writer shapes (8-column state upsert, 11-column
-repair-queue upsert) over 2,000 existing rows per table, each batch inside
-`BEGIN ... ROLLBACK`, `\timing`, every run reported.
+`DELETE FROM scope_generations WHERE generation_id IN (<500 generations>)` inside
+`BEGIN ... ROLLBACK`, 8 runs per arm, every run in milliseconds:
 
-Unpaired runs first showed WITH slower with times climbing run-over-run in both
-arms — a dead-tuple confound: each rolled-back batch leaves ~4k dead tuples per
-table, and the later arm inherits the earlier arm's dead rows. Post-VACUUM first
-runs of both arms agreed, confirming the climb was dead-row drag, not index cost.
-Definitive comparison is vacuum-paired (VACUUM ANALYZE before every run), 3 rounds
-per arm, WITHOUT arm first:
+- without the index: 2,602.6, 2,673.8, 2,607.4, 2,629.4, 2,608.3, 2,604.8,
+  2,613.8, 2,622.9 (median 2,611.1)
+- with the index: 16.5, 15.3, 15.6, 15.1, 15.2, 15.3, 16.1, 15.2 (median 15.3)
 
-| Round | State WITHOUT | State WITH | Repair WITHOUT | Repair WITH |
-| --- | --- | --- | --- | --- |
-| 1 | 34.844 ms | 37.281 ms | 36.448 ms | 39.708 ms |
-| 2 | 33.258 ms | 38.115 ms | 36.082 ms | 41.052 ms |
-| 3 | 34.414 ms | 38.664 ms | 34.954 ms | 39.968 ms |
+That is 5.22 ms per generation before and 0.031 ms after, about 170 times
+faster on the fixture. Draining the 21,489 ops-qa backlog would cost about 112 s
+of cascade scans without the index on the fixture's smaller table (about 316 s
+at ops-qa's 14.7 ms scan), against well under 1 s with it; in steady state
+(about 1,150 generations per day) that is 6 to 17 s of database time per day. A
+500-generation batch holds its row locks for about 2.6 s without the index (up
+to 7 s at ops-qa's table size) and about 15 ms with it.
 
-Medians: state 34.4 → 38.1 ms (+3.7 ms, +10.8%); repair 36.1 → 40.0 ms (+3.9 ms,
-+10.8%). Within-arm spread is ~1.5 ms; all six WITH runs sit above all six WITHOUT
-runs, so the gap exceeds run-to-run spread. Cost is ~2 µs per conflict-updated row
-for the extra index entry. For scale context (not a re-decision): the prune-probe
-saving is ~20 ms per pruned generation at fixture scale and grows with table size,
-while the write cost is constant per row. Per the arbiter's condition B this stops
-the enqueue: WITH slower beyond spread, numbers returned, no enqueue.
+### Write cost
 
-Unpaired runs for the record — WITHOUT state 38.006 / 37.091 / 36.680 ms, repair
-42.672 / 40.104 / 38.597 ms; WITH state 41.527 / 47.113 / 48.758 ms, repair 44.129 /
-50.805 / 53.708 ms; post-VACUUM WITH state 37.368 / 44.946 / 47.035 ms, repair 40.999 /
-47.072 / 48.018 ms (climb within each unvacuumed series is the dead-tuple artifact above).
+2,000-row batches shaped like the production writer (8-column upsert), each
+inside `BEGIN ... ROLLBACK`. `VACUUM` before every run so earlier rolled-back
+batches do not leave dead rows for the next one, two copies of the table (one
+with the index, one without), arms interleaved, 16 runs per arm, every run in
+milliseconds.
+
+Conflict update (`ON CONFLICT ... DO UPDATE`, indexed `updated_at`, so
+non-HOT):
+
+- without: 41.7, 41.2, 40.6, 41.3, 43.3, 42.0, 40.2, 42.4, 41.4, 40.9, 40.7,
+  41.8, 40.8, 42.7, 40.5, 41.0 (median 41.26)
+- with: 53.3, 49.9, 49.6, 50.3, 49.4, 50.3, 49.3, 48.9, 49.2, 49.8, 48.4,
+  48.3, 68.7, 49.0, 48.9, 49.1 (median 49.37; the 68.7 is one outlier)
+
+Fresh insert:
+
+- without: 51.1, 52.0, 51.8, 51.0, 51.7, 51.6, 51.7, 52.2, 52.7, 51.9, 51.9,
+  51.8, 52.7, 51.4, 52.9, 51.9 (median 51.86)
+- with: 57.3, 60.1, 58.1, 56.5, 56.0, 57.0, 57.6, 56.5, 57.3, 56.8, 56.3,
+  56.2, 56.7, 56.5, 58.9, 56.0 (median 56.78)
+
+Conflict update +8.1 ms per 2,000 rows (+19.7%, about 4.1 microseconds per
+row); insert +4.9 ms (+9.5%, about 2.5 microseconds per row). Every run of the
+with arm is above every run of the without arm. Each written row also adds one
+WAL record of about 64 bytes. The index is about 0.7 MB at this size.
+
+Production translation at ops-qa's 326,000 to 454,000 written rows per day,
+97% conflict updates: 1.3 to 1.8 s of extra write CPU per day, and 21 to 29 MB
+of extra WAL per day (the primary wrote about 3,200 GB of WAL in the same 56
+hours, so this is about 0.002%). At the production writer's batch of 250 rows
+the extra cost is about 1 ms per batch (extrapolated from the 2,000-row run, not
+measured at 250).
+
+The saving is 3 to 13 times the write cost once retention runs, and zero until
+it does. An earlier PostgreSQL 16.15 fixture at 50,000 rows (+9.8% on conflict
+update, ~1.9 microseconds per row, vacuum-paired) agrees on sign and order of
+magnitude; PostgreSQL 18.6 is the primary evidence because production runs
+18.x.
+
+## Tables not indexed
+
+Both fail the index doctrine (query hot enough, plan can use it).
+
+- `graph_projection_phase_repair_queue`: 0 rows, no inserts, updates or deletes
+  in the 56 h window. On PostgreSQL 18 the planner already uses an
+  `Index Only Scan` on the primary key with `generation_id` as the index
+  condition (0.05 ms). Nothing to save, nothing to pay.
+- `fact_replay_events`: 262 rows in 25 pages, last written 2026-09-25, written
+  only by the admin replay path
+  (`go/internal/query/admin/store/replay.go`). The probe is a 25-page scan,
+  about 2 ms cold and 0.1 ms warm. An earlier draft of this change indexed it
+  from a 200,000-row fixture that has no production basis.
+
+Revisit either table with a census showing rows and write volume that
+justify an index.
 
 ## Migration build strategy
 
 A concurrent build takes `ShareUpdateExclusiveLock`, which does not block
-`INSERT`/`UPDATE`/`DELETE`, so writers keep running during the build. Each
-file holds exactly one statement so the migration coordinator runs it in
-autocommit without the bootstrap `lock_timeout` (#7004) and drops an invalid
-same-name index before a retry. `IF NOT EXISTS` makes a re-run a no-op. One
-file per index per `coordination.IsSoleConcurrentIndexStatement`: PostgreSQL
-rejects a concurrent build inside a multi-statement string. The three shipped
-files were applied verbatim to the fixture (`CREATE INDEX` each, index names
-confirmed in `pg_indexes`).
+`INSERT`/`UPDATE`/`DELETE`, so writers keep running during the build. The file
+holds exactly one statement so the migration coordinator runs it in autocommit
+without the bootstrap `lock_timeout` (#7004) and drops an invalid same-name
+index before a retry (`coordination.IsSoleConcurrentIndexStatement`, pinned by
+`TestGenerationPruneGenerationIndexMigration`). `IF NOT EXISTS` makes a re-run a
+no-op. The shipped file was applied verbatim to the fixture.
+
+## Not measured
+
+- The cascade `DELETE` time on ops-qa itself (read-only session; the proxy is
+  the generic plan plus the fixture).
+- The 250-row batch write delta (extrapolated from 2,000 rows).
+- Prune timings with retention running, because no prune has run on ops-qa;
+  after the age knob is reset, `generation_retention_events` timings and
+  `pg_stat_user_indexes.idx_scan` on the new index confirm the saving.
+- Which other deployments run the default 168h age.
+- `graph_projection_phase_state_updated_idx` (72 MB, `idx_scan` 0 on ops-qa) is
+  a separate question and is not part of this change.
 
 ## No-Regression Evidence
 
-No-Regression Evidence (#7419): the change is three new indexes and no query
-text changes, so no reader gets a different result. The per-prune probes go
-from whole-table reads to seeks (table above); the pruned generation's rows
-are unchanged, only reached cheaper. The cascade still deletes exactly the
-same rows. No lease, claim, queue, or transaction path changes. Out of scope
-by triage, not by oversight: `fact_work_items`, `semantic_extraction_jobs`,
-and `shared_projection_acceptance` also probe by `generation_id` in the
-row-count query but already carry `(scope_id, generation_id, ...)` prefixes
-that serve their scope-joined arms; the issue names only the three tables
-with no usable prefix, and this change adds nothing elsewhere.
+No-Regression Evidence (#7419): the change is one new index and no query text
+changes, so no reader gets a different result and the cascade deletes exactly
+the same rows, only reaching them by a seek. The cost is on the write side:
++4.1 microseconds per conflict-updated row and +2.5 per inserted row on the
+PostgreSQL 18.6 fixture (+19.7% and +9.5% at 2,000 rows), 1.3 to 1.8 s of CPU
+and 21 to 29 MB of WAL per day at ops-qa's write rate. No lease, claim, queue,
+or transaction path changes.
 
 ## Observability Evidence
 
 No-Observability-Change: no metric, span, log, or status signal is added. The
-indexes are observable through `pg_stat_user_indexes`
-(`idx_scan` on the three `*_generation_idx` indexes) and the existing
-generation-retention timing.
+index is observable through `pg_stat_user_indexes` (`idx_scan` on
+`graph_projection_phase_state_generation_idx`) and the existing
+generation-retention timing and `generation_retention_events`.

@@ -358,11 +358,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 155 (#7464) keys the issue-id probe of a linked Jira issue's
 	// records and transitions.
 	"fact_records_story_support_issue_idx",
-	// Migrations 156-158 (#7419) give the three generation-prune tables
-	// without a generation_id-leading index (fact_replay_events,
-	// graph_projection_phase_state, graph_projection_phase_repair_queue)
-	// the generation_id seek each prune's probes filter on.
-	"fact_replay_events_generation_idx",
+	// Migration 156 (#7419) gives graph_projection_phase_state the
+	// generation_id seek that the foreign-key cascade of every generation prune
+	// fires once per deleted generation.
 	"graph_projection_phase_state_generation_idx",
-	"graph_projection_phase_repair_queue_generation_idx",
 }
