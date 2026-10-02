@@ -197,12 +197,18 @@ The live test is scheduled-class and no CI workflow runs it. The CI-run guards
 in `readiness_repo_arm_static_guards_test.go` pin the three `OFFSET 0` fences,
 the `scope.source_key = $11` anchors, the absent `$11 = '' OR` escape, and the
 equality of the gap `IN` list and the legacy `config_kind` predicate with the
-embedded migration's index predicate. They also pin (code-shaped needles that
-a SQL comment cannot satisfy) three `dependency.generation_id =
+embedded migration's index predicate. They also pin (counts taken on text with
+every `--` comment removed, whole-line or trailing, so a needle left in a
+comment cannot satisfy them; `TestStripSQLLineCommentsDropsEverySQLComment`
+pins the helper and `TestReadinessRepoArmGuardedSQLHasNoDoubleDashInsideLiterals`
+pins that the cut cannot corrupt a literal) three `dependency.generation_id =
 scope.active_generation_id` binds and three `dependency.is_tombstone = FALSE`
 filters across the two manifest arms and the gap CTE, and arm 1's `NULLIF(...
 config_kind, '') IS NULL` exclusivity and arm 2's `config_kind = 'dependency'`
-each exactly once. `TestReadinessEmptyRepositoryAlwaysCarriesATargetAnchor`
+each exactly once. An independent reviewer showed that the earlier helper
+removed only whole-line comments, so a needle in a trailing comment kept a
+guard green after its predicate was deleted; the helper was fixed and that
+exact violation now fails the tombstone guard (2 occurrences, want 3). `TestReadinessEmptyRepositoryAlwaysCarriesATargetAnchor`
 calls the production `hasFactAnchor`, `needsTargetResolution` and
 `readinessTargetArguments` for each of the CVE-only, package-only,
 subject-digest-only and image-ref-only anchors with an empty repository id and

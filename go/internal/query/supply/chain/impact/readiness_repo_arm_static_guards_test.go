@@ -98,17 +98,87 @@ func collapseSQLSpace(sql string) string {
 	return strings.Join(strings.Fields(sql), " ")
 }
 
-// stripSQLLineComments drops "--" comment lines so prose in a migration header
-// cannot satisfy a predicate guard.
+// stripSQLLineComments removes every "--" SQL comment, whole-line or trailing,
+// so prose in a migration header or a note after a code line cannot satisfy a
+// predicate guard for a condition that was deleted from the code. It cuts at
+// the first "--" on a line, which is safe only while no guarded text holds
+// "--" inside a quoted literal;
+// TestReadinessRepoArmGuardedSQLHasNoDoubleDashInsideLiterals pins that.
 func stripSQLLineComments(sql string) string {
 	var kept []string
 	for _, line := range strings.Split(sql, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "--") {
-			continue
+		if cut := strings.Index(line, "--"); cut >= 0 {
+			line = line[:cut]
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
 		}
 		kept = append(kept, line)
 	}
 	return strings.Join(kept, "\n")
+}
+
+// TestStripSQLLineCommentsDropsEverySQLComment pins the contract the count
+// guards rely on: no text after "--" survives, whether the comment fills a
+// whole line or trails code. A needle left in a trailing comment must not be
+// able to satisfy a guard for a predicate that was deleted from the code.
+func TestStripSQLLineCommentsDropsEverySQLComment(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"whole line comment", "A\n  -- B\nC", "A\nC"},
+		{"trailing comment", "A -- B\nC", "A \nC"},
+		{"trailing comment hides a needle", "WHERE x = 1 -- AND is_tombstone = FALSE", "WHERE x = 1 "},
+		{"no comment", "A\nB", "A\nB"},
+		{"operators that are not comments", "a->>'k' = 'v' AND b - c > 0", "a->>'k' = 'v' AND b - c > 0"},
+	}
+	for _, tc := range cases {
+		if got := stripSQLLineComments(tc.in); got != tc.want {
+			t.Errorf("%s: stripSQLLineComments(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestReadinessRepoArmGuardedSQLHasNoDoubleDashInsideLiterals proves the
+// comment cut is safe on the guarded text: no guarded constant carries "--"
+// inside a quoted literal, where cutting at "--" would corrupt real SQL.
+func TestReadinessRepoArmGuardedSQLHasNoDoubleDashInsideLiterals(t *testing.T) {
+	t.Parallel()
+
+	for name, sql := range map[string]string{
+		"package_manifest_active":        readinessPackageManifestActiveCTE,
+		"package_dependency_gap_active":  repoArmGapCTE(t),
+		"migration 159 index definition": legacyGapIndexMigrationSQLWithComments(t),
+	} {
+		for _, line := range strings.Split(sql, "\n") {
+			cut := strings.Index(line, "--")
+			if cut < 0 {
+				continue
+			}
+			// A "--" outside a literal has an even number of single quotes before
+			// it. Apostrophes inside the comment text that follows do not count.
+			if strings.Count(line[:cut], "'")%2 == 1 {
+				t.Errorf("%s: %q has a %q inside a quoted literal; the comment cut would corrupt it", name, line, "--")
+			}
+		}
+	}
+}
+
+// legacyGapIndexMigrationSQLWithComments returns the embedded migration text
+// unchanged, for scans that must see the raw bytes.
+func legacyGapIndexMigrationSQLWithComments(t *testing.T) string {
+	t.Helper()
+	for _, def := range migrations.BootstrapDefinitions() {
+		if strings.HasSuffix(path.Base(def.Path), "_fact_records_content_entity_dependency_legacy_gap_repo_idx.sql") {
+			return def.SQL
+		}
+	}
+	t.Fatalf("no embedded migration creates fact_records_content_entity_dependency_legacy_gap_repo_idx")
+	return ""
 }
 
 // legacyGapIndexMigrationSQL returns the embedded SQL of the migration that
