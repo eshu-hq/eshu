@@ -11,33 +11,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
+// TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive proves
+// that a mutable image reference resolves every current digest, including sets
+// larger than 500, and that target resolution stays within three queries. It
+// runs in a disposable database created by the live PostgreSQL readiness job.
 func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the mutable-ref readiness proof")
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-	defer cancel()
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	dsn := os.Getenv("ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN")
+	optIn := os.Getenv("ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 3*time.Minute)
 	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
 		t.Fatalf("ApplyBootstrap(): %v", err)
 	}
-	cleanupReadinessMutableRefProof(t, ctx, db)
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		cleanupReadinessMutableRefProof(t, cleanupCtx, db)
-	})
 	seedReadinessMutableRefProof(t, ctx, db)
 
 	args := []any{
@@ -346,17 +335,6 @@ INSERT INTO fact_records (
      '{"document_id":"readiness-over500-doc-1","reason":"unsupported_field"}'::jsonb);
 	`); err != nil {
 		t.Fatalf("seed cross-scope SBOM warning: %v", err)
-	}
-}
-
-func cleanupReadinessMutableRefProof(t *testing.T, ctx context.Context, db *sql.DB) {
-	t.Helper()
-	if _, err := db.ExecContext(ctx, `
-DELETE FROM ingestion_scopes
-WHERE scope_id LIKE 'readiness-over500-scope-%'
-   OR scope_id = 'readiness-over500-scan'
-   OR scope_id = 'readiness-over500-unrelated-sbom'`); err != nil {
-		t.Fatalf("clean mutable-ref readiness proof: %v", err)
 	}
 }
 

@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 573
-  sha256: 572809087a96a8a251c5538533a542366ba6ee1181777e477f1ae670b92facfd
+  count: 572
+  sha256: e9bca60b16993280ccf8b1a9f12bec9c5478f5243fae36175f16702573a02a98
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -805,8 +805,9 @@ tests:
     reason: "#5167 live row-membership proof for the grant-filtered index-status repository count (seven grant shapes, empty grant makes no graph call); env-gated by ESHU_INDEX_STATUS_NORNICDB_LIVE — promote to blocking with repeated timing evidence"
   - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 mutable-ref proof over a 513-digest set, enrolled in the live-postgres-readiness runner; local six-proof runner passed in 28s suite time (1.84s for this proof) on postgres:18.6-alpine on 2026-10-03"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go
     tag: ~
     class: postgres_ci
