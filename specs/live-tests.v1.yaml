@@ -1,15 +1,29 @@
 version: live-tests/v1
-updated_at: 2026-09-28
+updated_at: 2026-10-02
 issue: 6784
 parent_issue: 6788
 owners:
   - graph
   - backendconformance
 
+# #7533 owns disposition of this exact pre-existing inventory. "scheduled"
+# exempts a file from this ledger's verified runner mapping; some rows have
+# independently verified blocking runners and others do not. A reason alone
+# is not proof of execution. Re-pinning requires a reviewed policy change
+# and corresponding owner/runner evidence.
+legacy_scheduled_exemptions:
+  baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
+  steward: linuxdynasty
+  tracking_issue: 7533
+  count: 574
+  sha256: 2cc9cf6a3573a08c7d087865a48c6d527bf3b038c16d2722c62e70c95e107b7a
+
 purpose: >
-  Classify every live backend proof in go/ as CI, scheduled, or retired with
-  a reason, so no live test is a one-time developer proof by default. The
-  live-backend CI job runs every CI-class row on both backends; the ledger
+  Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
+  legacy-scheduled exemption, or retired with
+  a reason and explicit execution or exemption ownership. The graph
+  live-backend CI job runs every ci-class row on its selected backend; the
+  PostgreSQL readiness job runs the postgres_ci rows. The ledger
   validator (scripts/verify-live-tests-ledger.sh) fails on any live test
   file this ledger does not name, so a new unclassified live test can never
   pass as clean. A live test is any *_live_test.go file plus any
@@ -19,10 +33,12 @@ purpose: >
   pins each row's tag against the file's actual //go:build line.
 
 design: >
-  One row per *_live_test.go file. class is ci (blocking live-backend CI
-  job, both backends), scheduled (runs in the scheduled live lane with the
-  cadence noted in the reason, never blocking), or retired (a former live
-  proof repaired in place: the file still exists but no longer meets the
+  One row per *_live_test.go file. class is ci (graph live-backend CI
+  job, selected backends), postgres_ci (the named PostgreSQL runner),
+  scheduled (an exact-file legacy exemption from this ledger's verified
+  runner mapping, tracked by issue 7533; independently owned blocking
+  runners may exist, but a reason does not prove execution), or retired (a
+  former live proof repaired in place: the file still exists but no longer meets the
   live definition, and the reason names the repair commit). A missing
   or blank reason fails validation. A row for a deleted file is removed
   in the deleting commit; the validator rejects rows naming missing
@@ -797,12 +813,14 @@ tests:
     reason: "#7088 disposable Postgres package-scope proof; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
   - file: go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 readiness plan and truth proof; local four-test run passed in 41.3s on 2026-10-02"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 scan-tier plan and truth proofs; local four-test run passed in 41.3s on 2026-10-02"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
     tag: integration
     class: scheduled
