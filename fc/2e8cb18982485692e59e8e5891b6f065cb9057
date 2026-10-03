@@ -1,0 +1,60 @@
+go/internal/runtime/postgres/reader_members.go
+  s_b0d7e3abc26c5a::t_739186ce2e42f4 39
+  s_b0d7e3abc26c5a::t_66359076acc6d4 44-47,72-74,81-88,93-94
+  s_b0d7e3abc26c5a::t_c9f7354f73b75e 11,15,48-60,62-71,75-77,89-92,95-111
+  s_b0d7e3abc26c5a::t_be6526cc279675 306-308
+  s_b0d7e3abc26c5a::t_c9be3c23b809b5 206,208-213,233-234,236,239,255,258,265,267
+  s_b0d7e3abc26c5a::t_fc46d9aeade83e 214-232,235,237,240-252,254,256-257,259-261,264,266,269
+  s_b0d7e3abc26c5a::t_49c9ede210e3b1 78-80,118-120,125-126
+  s_b0d7e3abc26c5a::t_fc985e7a24293d 112-117,121-124
+  s_b0d7e3abc26c5a::t_464ee8e139285e 13-14,16,24,38,40-43,127-155,157-176,179-186,188-193,195-202
+  s_b0d7e3abc26c5a::t_95d647bd4c8fac 207
+go/internal/runtime/postgres/reader_fleet_test.go
+  s_b0d7e3abc26c5a::t_654782e99de8a2 24,28
+go/internal/runtime/postgres/reader_qualification_test.go
+  s_b0d7e3abc26c5a::t_8b69efbaf93660 129
+  s_b0d7e3abc26c5a::t_5f4620ab4d701e 12
+  s_b0d7e3abc26c5a::t_18b3285d80c054 131-133,146-147
+  s_b0d7e3abc26c5a::t_fb2e39ec413d0f 139-142
+  s_b0d7e3abc26c5a::t_dbdec36d335a7c 178-215
+  s_b0d7e3abc26c5a::t_a8d4325099597d 137-138
+  s_b0d7e3abc26c5a::t_55dec1a163aaf3 1-7,9-11,13-75,77-88,90-100,106-118,121-128,130,134-136,143-145,148-177
+  s_b0d7e3abc26c5a::t_9bf74bfc146975 8
+  s_b0d7e3abc26c5a::t_3a2f0023ca0f8a 76,89,101-105
+  s_b0d7e3abc26c5a::t_f27feb401e4657 119
+  s_b0d7e3abc26c5a::t_719284f1e619e0 120
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_980975f04b9aa3 72,98
+  s_b0d7e3abc26c5a::t_f634aa8dfc6fd8 99-107,109-112,131,133
+  s_b0d7e3abc26c5a::t_0eb3b50028f573 132
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_d159338b79d91b 54-58,62-65
+go/internal/runtime/postgres/reader_dial_cleanup_shim_test.go
+  s_b0d7e3abc26c5a::t_d8f735e1dab8f3 1-24,26-32,38-40,42-45,50-72,76-81,83-84,86,96-126,141-142
+  s_b0d7e3abc26c5a::t_3962c1849d1c84 41,46-49,73-75,82
+  s_b0d7e3abc26c5a::t_dcce7dba918137 127-140
+  s_b0d7e3abc26c5a::t_635fb693c1fa6e 25,33-37,85,87-95
+go/internal/runtime/postgres/reader_bootstrap_dial.go
+  s_b0d7e3abc26c5a::t_fb10f3b2cb25be 110-115
+  s_b0d7e3abc26c5a::t_f6db0502e216d6 18,22-25,39,47,49,54,95-97,101-102
+  s_b0d7e3abc26c5a::t_d132057f447af1 1-17,19-21,26-38,40-46,48,50-53,55-94,98-100,103-109
+go/internal/runtime/postgres/reader_fleet.go
+  s_b0d7e3abc26c5a::t_58985f87b54295 38,50,53-54,111,119
+  s_b0d7e3abc26c5a::t_b800da7b55b5e6 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fc2e8cb18982485692e59e8e5891b6f065cb9057",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

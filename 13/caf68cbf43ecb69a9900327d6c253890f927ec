@@ -1,0 +1,21 @@
+go/cmd/mcp-server/README.md
+  s_b0d7e3abc26c5a::t_4bdf40471a8194 146-148
+go/cmd/api/README.md
+  s_b0d7e3abc26c5a::t_4bdf40471a8194 161-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "13caf68cbf43ecb69a9900327d6c253890f927ec",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
