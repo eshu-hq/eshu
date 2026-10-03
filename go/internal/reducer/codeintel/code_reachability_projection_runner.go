@@ -70,9 +70,10 @@ type CodeReachabilityProjectionRunnerConfig struct {
 type CodeReachabilityProjectionResult struct {
 	InputsProcessed int
 	RowsWritten     int
-	// SnapshotsTruncated counts snapshots whose traversal hit the MaxVisited
-	// bound; the dead-code query falls back to the legacy lookup for entities
-	// omitted from a truncated slice.
+	// SnapshotsTruncated counts snapshots that cannot prove an absent entity
+	// unreachable (no roots, the MaxVisited bound, or edges past MaxDepth); the
+	// dead-code query falls back to the legacy lookup for entities omitted from
+	// a truncated slice.
 	SnapshotsTruncated int
 	// VerdictsWritten is the total #5376 code-root verdict rows written
 	// (confirmed + downgraded) across the cycle.
@@ -319,11 +320,12 @@ func (r *CodeReachabilityProjectionRunner) projectInput(
 		atomic.AddInt64(&agg.truncated, 1)
 		if r.Logger != nil {
 			r.Logger.Warn(
-				"code reachability snapshot truncated at max visited bound",
+				"code reachability snapshot truncated; absent entities are not proven unreachable",
 				log.ScopeID(input.ScopeID),
 				log.GenerationID(input.GenerationID),
 				log.RepositoryID(input.RepositoryID),
 				slog.Int("visited", stats.Visited),
+				slog.String("truncation_reason", stats.TruncationReason),
 			)
 		}
 	}

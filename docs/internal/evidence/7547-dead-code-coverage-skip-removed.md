@@ -44,4 +44,4 @@ Revert the commit. No schema, data, or contract changed. `CodeReachabilityCovera
 
 ## Not in this change
 
-The reachability loader and reducer (PR B of #7547) are untouched: recording the depth-10 cutoff as truncation when unseen targets remain, stamping `truncated = true` for a zero-root repository, and adopting PR #7554's completeness predicates (full generation, both work items succeeded, no pending intents) with a drift test against the query constant. A skip may return only behind `exact` language maturity plus a completeness proof; no hook is built now.
+The reachability loader (PR B of #7547) is untouched here. The reducer-side watermark fixes (depth-10 cutoff with unseen targets, zero-root repository stamped `truncated = true`) landed separately in `go/internal/reducer/codeintel`. Still open: adopting PR #7554's completeness predicates (full generation, both work items succeeded, no pending intents) with a drift test against the query constant. A skip may return only behind `exact` language maturity plus a completeness proof; no hook is built now.

@@ -47,7 +47,20 @@ alongside the other projection lanes.
   `BuildCodeReachabilityRowsWithStats`, `CodeReachabilityProjectionInput`,
   `CodeReachabilityRow`, `CodeReachabilityRoot`, `CodeReachabilityEdge`,
   `CodeReachabilityProjectionStats`, `CodeReachabilityStateReachable`,
-  `CodeReachabilityStateAmbiguous`.
+  `CodeReachabilityStateAmbiguous`, `CodeReachabilityTruncationNoRoots`,
+  `CodeReachabilityTruncationMaxVisited`, `CodeReachabilityTruncationMaxDepth`.
+
+### Truncation watermark (#7547)
+
+`CodeReachabilityProjectionStats.Truncated` is stamped onto the snapshot
+watermark and means "this snapshot cannot prove an absent entity unreachable".
+It is true when (`TruncationReason`): `no_roots` (no usable root, so nothing was
+traversed), `max_visited` (the `MaxVisited` bound stopped discovery), or
+`max_depth` (an entity at `MaxDepth` has an outgoing edge to an entity the
+traversal never visited). An entity that merely sits at `MaxDepth` with no
+unseen target, or whose only deeper edge returns to a visited entity, is not
+truncation. The runner logs `truncation_reason` and counts the snapshot in
+`snapshots_truncated`.
 - Runner and ports: `CodeReachabilityProjectionRunner`,
   `CodeReachabilityProjectionRunnerConfig`, `CodeReachabilityProjectionResult`,
   `CodeReachabilityInputLoader`, `CodeReachabilityRowWriter`.

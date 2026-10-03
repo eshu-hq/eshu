@@ -256,6 +256,62 @@ func TestCodeReachabilityProjectionRunnerRecordsEmptyInputWatermark(t *testing.T
 	}
 }
 
+func TestCodeReachabilityProjectionRunnerStampsZeroRootSnapshotTruncated(t *testing.T) {
+	t.Parallel()
+
+	loader := &fakeCodeReachabilityInputLoader{
+		inputs: []CodeReachabilityProjectionInput{{
+			ScopeID:      "scope-noroots",
+			GenerationID: "generation-noroots",
+			RepositoryID: "repo-noroots",
+			Edges: []CodeReachabilityEdge{
+				{SourceEntityID: "fn:a", TargetEntityID: "fn:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			},
+			UpdatedAt: time.Date(2026, 6, 17, 4, 5, 0, 0, time.UTC),
+		}},
+	}
+	writer := &fakeCodeReachabilityRowWriter{}
+	runner := CodeReachabilityProjectionRunner{InputLoader: loader, RowWriter: writer}
+
+	result, err := runner.ProcessOnce(context.Background(), time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ProcessOnce() error = %v", err)
+	}
+	if !writer.truncated {
+		t.Fatalf("writer.truncated = false, want true: a zero-root snapshot cannot prove absence")
+	}
+	if got, want := result.SnapshotsTruncated, 1; got != want {
+		t.Fatalf("SnapshotsTruncated = %d, want %d", got, want)
+	}
+}
+
+func TestCodeReachabilityProjectionRunnerStampsCompleteSnapshotNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	loader := &fakeCodeReachabilityInputLoader{
+		inputs: []CodeReachabilityProjectionInput{{
+			ScopeID:      "scope-ok",
+			GenerationID: "generation-ok",
+			RepositoryID: "repo-ok",
+			Roots:        []CodeReachabilityRoot{{EntityID: "fn:a"}},
+			Edges: []CodeReachabilityEdge{
+				{SourceEntityID: "fn:a", TargetEntityID: "fn:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			},
+			UpdatedAt: time.Date(2026, 6, 17, 4, 5, 0, 0, time.UTC),
+		}},
+	}
+	writer := &fakeCodeReachabilityRowWriter{}
+	runner := CodeReachabilityProjectionRunner{InputLoader: loader, RowWriter: writer}
+
+	result, err := runner.ProcessOnce(context.Background(), time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ProcessOnce() error = %v", err)
+	}
+	if writer.truncated || result.SnapshotsTruncated != 0 {
+		t.Fatalf("truncated = %v, SnapshotsTruncated = %d, want a complete snapshot", writer.truncated, result.SnapshotsTruncated)
+	}
+}
+
 type fakeCodeReachabilityInputLoader struct {
 	inputs []CodeReachabilityProjectionInput
 }

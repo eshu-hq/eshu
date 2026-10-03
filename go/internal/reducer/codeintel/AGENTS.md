@@ -35,7 +35,10 @@ without re-proving the cycle is gone.
 - **Absence means kept, not dead.** No verdict, no reachability row, or a
   truncated/omitted entity must never be read as "proven dead" anywhere this
   package's output is consumed. The dead-code query's fallback to the legacy
-  incoming-edge lookup depends on this.
+  incoming-edge lookup depends on this. The watermark must be honest to match:
+  `Stats.Truncated` is true for zero roots, the `MaxVisited` bound, and a
+  `MaxDepth` cutoff with unseen targets (#7547). Never report a snapshot
+  complete when the traversal dropped part of the graph.
 - **Base-class resolution is lexically scoped (#5500).** `onwardHop` restricts
   candidate resolution to the lexical-prefix chain of the referencing class's
   own namespace before falling back to a broad suffix search. Do not widen
