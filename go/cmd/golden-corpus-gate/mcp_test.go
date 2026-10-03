@@ -89,19 +89,21 @@ func TestCheckMCPQueryCanAssertTruthEnvelope(t *testing.T) {
 	t.Parallel()
 
 	doer := &fakeMCPDoer{byTool: map[string]string{
-		"find_cross_repo_dead_code": `{"jsonrpc":"2.0","id":1,"result":{"content":[],"structuredContent":{"data":{"query_shape":"bounded_cross_repo_dead_code","candidate_buckets":{"live_by_consumer":[{"consumer_evidence":[{"citation":"code_reachability_rows:scope/gen/consumer/root/entity"}]}]}},"truth":{"level":"derived","basis":"hybrid"},"error":null}}}`,
+		"find_cross_repo_dead_code": `{"jsonrpc":"2.0","id":1,"result":{"content":[],"structuredContent":{"data":{"query_shape":"bounded_cross_repo_dead_code","evidence_detail":"handles","candidate_buckets":{"live_by_consumer":[{"consumer_evidence":[{"consumer_repo_id":"consumer","relationship_type":"CALLS","evidence_family":"direct_code","confidence_label":"high","item_count":1}]}]}},"truth":{"level":"derived","basis":"hybrid"},"error":null}}}`,
 	}}
 	snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{
 		"find_cross_repo_dead_code": {
 			Envelope:               true,
 			RequiredResponseFields: []string{"data", "truth", "error"},
 			RequiredJSONPaths: []string{
-				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].consumer_repo_id",
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
 			},
 			RequiredJSONValues: map[string]any{
-				"truth.level":      "derived",
-				"truth.basis":      "hybrid",
-				"data.query_shape": "bounded_cross_repo_dead_code",
+				"truth.level":          "derived",
+				"truth.basis":          "hybrid",
+				"data.query_shape":     "bounded_cross_repo_dead_code",
+				"data.evidence_detail": "handles",
 			},
 			Arguments: map[string]any{"repo_id": "deadcode-producer", "language": "go", "limit": float64(20)},
 		},

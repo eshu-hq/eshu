@@ -123,6 +123,13 @@ func crossRepoDeadCodeTool() toolcontract.ToolDefinition {
 					"description": "Decorator names to suppress from active candidates",
 					"default":     []any{},
 				},
+				"evidence_detail": map[string]any{
+					"type": "string",
+					"enum": []string{"full", "handles"},
+					// The default depends on the transport (handles on MCP, full on HTTP),
+					// which one JSON-Schema default cannot say, so none is advertised.
+					"description": "Row detail for consumer evidence. handles (the default for this tool) replaces each row's consumer_evidence items with at most 5 groups {consumer_repo_id, relationship_type, evidence_family, confidence_label, item_count}, strongest first so the group that decided the bucket leads, and caps the shared boundary_consumer_evidence list at 25; consumer_evidence_count, consumer_evidence_group_count, boundary_consumer_evidence_count and the *_truncated markers keep the totals, and truth.omissions names each reduced section. Buckets, reasons and analysis are identical in both modes. Evidence under handles is bounded to at most 17.5% of the response budget, but the row base is not: each docstring is clipped to 512 bytes yet echoed about six times per row, so on a repository with long docstrings the reply can still be delivered as the full resource only (structuredContent omitted) or exceed the budget. Repeat the call with full for every evidence item (citation, entity id, generation); full can exceed the response budget on a populated repository, so narrow with consumer_repo_ids and limit.",
+				},
 			},
 			"required": []string{"repo_id"},
 		},

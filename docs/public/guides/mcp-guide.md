@@ -55,6 +55,19 @@ family with its total. Lists are capped at 50 rows and each cut is named in
 `partial_reasons`. Call again with `evidence_detail: "full"` for the rows. See
 [Context Evidence Budget](../reference/http-api/context-evidence-budget.md).
 
+`find_cross_repo_dead_code` defaults to `evidence_detail: handles` too: each
+row's `consumer_evidence` is at most 5 groups (`consumer_repo_id`,
+`relationship_type`, `evidence_family`, `confidence_label`, `item_count`) with the
+strongest group first, and the shared `boundary_consumer_evidence` list is capped
+at 25. `consumer_evidence_count` and `boundary_consumer_evidence_count` keep the
+totals, `consumer_evidence_handles_truncated` marks a row whose groups were cut,
+and `truth.omissions` names what was reduced. Classification is the same in both
+modes. Handles bounds the evidence, not the row base: with long docstrings the
+reply can still arrive as the full resource only, without `structuredContent`.
+Call again with `evidence_detail: "full"` for every item, narrowing with
+`consumer_repo_ids` and `limit`, since a populated repository can exceed the
+response budget in full.
+
 ## Pick The Right Tool Shape
 
 Use story and investigation tools for explanations:

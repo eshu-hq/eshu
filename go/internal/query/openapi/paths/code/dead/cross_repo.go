@@ -31,6 +31,7 @@ const CrossRepo = `
                   },
                   "language": {"type": "string", "description": "Optional parser language filter."},
                   "limit": {"type": "integer", "description": "Maximum active producer candidates to classify (default 100, max 500).", "default": 100},
+                  "evidence_detail": {"type": "string", "enum": ["full", "handles"], "description": "Row detail for consumer evidence. full (the HTTP default) returns every evidence item on each row. handles returns at most 5 groups per row {consumer_repo_id, relationship_type, evidence_family, confidence_label, item_count}, strongest first, and at most 25 boundary items; counts, truncation markers, and truth.omissions carry what was reduced. Classification is identical in both modes. An unknown value is rejected with HTTP 400. The MCP find_cross_repo_dead_code tool defaults to handles."},
                   "exclude_decorated_with": {
                     "type": "array",
                     "description": "Optional decorator names to suppress from active candidates.",
@@ -73,25 +74,34 @@ const CrossRepo = `
                       "description": "Every row in every bucket has its docstring clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.",
                       "properties": {
                         "dead": {"type": "array", "items": {"type": "object", "properties": {
-                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
+                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence: every item under evidence_detail full, or at most 5 groups (consumer_repo_id, relationship_type, evidence_family, confidence_label, item_count) under handles. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
                           "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none); hidden_consumer_evidence_count can still reflect hidden boundary relationships. repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
-                          "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
+                          "consumer_evidence_count": {"type": "integer", "description": "Evidence items this row held before any grouping; 0 when consumer_evidence_source is repository_boundary."},
+                          "consumer_evidence_group_count": {"type": "integer", "description": "Groups the row's items formed before the 5-group cap. Present only under evidence_detail handles."},
+                          "consumer_evidence_handles_truncated": {"type": "boolean", "description": "True only when groups were cut at the cap; the strongest group is always kept. Present only under handles."}
                         }}},
                         "live_by_consumer": {"type": "array", "items": {"type": "object", "properties": {
-                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
+                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence: every item under evidence_detail full, or at most 5 groups (consumer_repo_id, relationship_type, evidence_family, confidence_label, item_count) under handles. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
                           "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none). repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
-                          "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
+                          "consumer_evidence_count": {"type": "integer", "description": "Evidence items this row held before any grouping; 0 when consumer_evidence_source is repository_boundary."},
+                          "consumer_evidence_group_count": {"type": "integer", "description": "Groups the row's items formed before the 5-group cap. Present only under evidence_detail handles."},
+                          "consumer_evidence_handles_truncated": {"type": "boolean", "description": "True only when groups were cut at the cap; the strongest group is always kept. Present only under handles."}
                         }}},
                         "unknown": {"type": "array", "items": {"type": "object", "properties": {
-                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
+                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence: every item under evidence_detail full, or at most 5 groups (consumer_repo_id, relationship_type, evidence_family, confidence_label, item_count) under handles. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
                           "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none). repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
-                          "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
+                          "consumer_evidence_count": {"type": "integer", "description": "Evidence items this row held before any grouping; 0 when consumer_evidence_source is repository_boundary."},
+                          "consumer_evidence_group_count": {"type": "integer", "description": "Groups the row's items formed before the 5-group cap. Present only under evidence_detail handles."},
+                          "consumer_evidence_handles_truncated": {"type": "boolean", "description": "True only when groups were cut at the cap; the strongest group is always kept. Present only under handles."}
                         }}},
                         "suppressed": {"type": "array", "items": {"type": "object"}}
                       }
                     },
-                    "boundary_consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "Repository-level boundary evidence (relationship_type, citation, confidence and the other consumer evidence fields) after the request's consumer selector and grant. Returned once for every candidate row whose consumer_evidence_source is repository_boundary, instead of repeated on each row. Always present; empty (and the count 0) when no row used the fallback, including when the repository has no boundary relationships or none the caller may see."},
-                    "boundary_consumer_evidence_count": {"type": "integer", "description": "Length of boundary_consumer_evidence; 0 when the list is not emitted."},
+                    "boundary_consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "Repository-level boundary evidence (relationship_type, citation, confidence and the other consumer evidence fields; under handles the five group keys with item_count 1, at most 25) after the request's consumer selector and grant. Returned once for every candidate row whose consumer_evidence_source is repository_boundary, instead of repeated on each row. Always present; empty (and the count 0) when no row used the fallback, including when the repository has no boundary relationships or none the caller may see."},
+                    "boundary_consumer_evidence_count": {"type": "integer", "description": "Total boundary items; 0 when the list is not emitted. Under handles boundary_consumer_evidence holds at most 25 of them."},
+                    "boundary_consumer_evidence_truncated": {"type": "boolean", "description": "True only when evidence_detail handles cut the boundary list at 25."},
+                    "evidence_detail": {"type": "string", "enum": ["full", "handles"], "description": "The detail mode this response used."},
+                    "evidence_detail_drilldown": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Present only when handles reduced something: how to get the full rows."},
                     "bucket_counts": {"type": "object", "additionalProperties": true},
                     "analysis": {"type": "object", "additionalProperties": true}
                   }
