@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -69,6 +71,72 @@ func TestReaderQualificationRunsCandidatesConcurrentlyAndKeepsOrdinal(t *testing
 	}
 }
 
+func TestReaderOpenKeepsHealthyMemberWhenFirstMemberBlackholes(t *testing.T) {
+	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	if writer == "" || reader == "" {
+		t.Skip("owned primary and physical standby not configured")
+	}
+	endpoint, err := parsePhysicalEndpoint(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	var sockets sync.WaitGroup
+	go func() {
+		defer close(done)
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			sockets.Add(1)
+			go func() {
+				defer sockets.Done()
+				<-stop
+				_ = conn.Close()
+			}()
+		}
+	}()
+	t.Cleanup(func() {
+		close(stop)
+		_ = listener.Close()
+		<-done
+		sockets.Wait()
+	})
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return writer
+		case "ESHU_POSTGRES_READ_DSN":
+			return reader
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ReadMembers = []ReaderMember{
+		{ID: "blackhole", Host: "127.0.0.1", Port: uint16(listener.Addr().(*net.TCPAddr).Port)},
+		{ID: "healthy", Host: endpoint.Host, Port: endpoint.Port},
+	}
+	cfg.PingTimeout = 3 * time.Second
+	access, err := Open(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("healthy physical reader was hidden by blackhole: %v", err)
+	}
+	t.Cleanup(func() { _ = access.Close() })
+	if len(access.readerMembers) != 1 || access.readerMembers[0].id != "healthy" {
+		t.Fatalf("qualified readers = %+v, want only healthy member", access.readerMembers)
+	}
+}
+
 func TestReaderQualificationDelayedFatalCannotBeHiddenByHealthyPeer(t *testing.T) {
 	inventory := []ReaderMember{{ID: "auth-failure", Host: "unused", Port: 5432}, {ID: "healthy", Host: "unused", Port: 5433}}
 	started := make(chan int, len(inventory))
@@ -112,6 +180,74 @@ func TestReaderQualificationDelayedFatalCannotBeHiddenByHealthyPeer(t *testing.T
 		}
 	case <-time.After(time.Second):
 		t.Fatal("qualification workers did not join after a fatal result")
+	}
+}
+
+func TestReaderQualificationKeepsSlowValidMemberThroughSharedStage(t *testing.T) {
+	const stage = 300 * time.Millisecond
+	inventory := []ReaderMember{{ID: "slow-valid"}, {ID: "blackhole"}}
+	started := time.Now()
+	members, err := qualifyReaderCandidates(context.Background(), inventory, stage, func(ctx context.Context, ordinal int, _ ReaderMember) (physicalReaderMember, error) {
+		if ordinal == 0 {
+			select {
+			case <-time.After(200 * time.Millisecond):
+				return physicalReaderMember{id: "slow-valid", ordinal: ordinal}, nil
+			case <-ctx.Done():
+				return physicalReaderMember{}, ctx.Err()
+			}
+		}
+		<-ctx.Done()
+		return physicalReaderMember{}, ctx.Err()
+	})
+	if err != nil || len(members) != 1 || members[0].id != "slow-valid" {
+		t.Fatalf("stage qualification = %+v, %v; want slow valid member", members, err)
+	}
+	if elapsed := time.Since(started); elapsed > 2*stage {
+		t.Fatalf("shared stage took %s, want at most %s", elapsed, 2*stage)
+	}
+}
+
+func TestReaderQualificationOverallDeadlineRejectsCompletedPeer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	inventory := []ReaderMember{{ID: "healthy"}, {ID: "blocked"}}
+	members, err := qualifyReaderCandidates(ctx, inventory, time.Second, func(ctx context.Context, ordinal int, _ ReaderMember) (physicalReaderMember, error) {
+		if ordinal == 0 {
+			return physicalReaderMember{id: "healthy", ordinal: ordinal}, nil
+		}
+		<-ctx.Done()
+		return physicalReaderMember{}, ctx.Err()
+	})
+	if len(members) != 0 || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired overall deadline = %+v, %v; want no members and deadline", members, err)
+	}
+}
+
+func TestReaderQualificationStageTimeoutDoesNotHideDelayedAuth(t *testing.T) {
+	inventory := []ReaderMember{{ID: "auth"}, {ID: "healthy"}}
+	members, err := qualifyReaderCandidates(context.Background(), inventory, 30*time.Millisecond, func(ctx context.Context, ordinal int, _ ReaderMember) (physicalReaderMember, error) {
+		if ordinal == 0 {
+			<-ctx.Done()
+			return physicalReaderMember{}, errors.Join(ctx.Err(), &pgconn.PgError{Code: "28P01"})
+		}
+		return physicalReaderMember{id: "healthy", ordinal: ordinal}, nil
+	})
+	var pgErr *pgconn.PgError
+	if len(members) != 0 || !errors.As(err, &pgErr) || pgErr.Code != "28P01" {
+		t.Fatalf("delayed authentication result = %+v, %v; want fatal authentication", members, err)
+	}
+}
+
+func TestReaderQualificationPreservesIdentityBesideCleanupFailure(t *testing.T) {
+	writer := physicalIdentity{systemID: "1", database: "eshu"}
+	decoded := physicalIdentity{recovery: "true", readOnly: "on", defaultReadOnly: "on", systemID: "2", database: "eshu", incarnation: "reader"}
+	cleanupErr := context.DeadlineExceeded
+	err := readerMemberQualificationError(nil, decoded, writer, "10.0.0.2", []net.IP{net.ParseIP("10.0.0.2")}, cleanupErr)
+	if !errors.Is(err, ErrWrongTopology) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("identity and cleanup result = %v; want both causes", err)
+	}
+	if transientReaderMemberFailure(context.Background(), err) {
+		t.Fatalf("decoded identity contradiction became transient: %v", err)
 	}
 }
 

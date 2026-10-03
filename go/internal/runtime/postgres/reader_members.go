@@ -31,11 +31,11 @@ type physicalReaderMember struct {
 	maxOpen     int
 }
 
-func openReaderMembers(ctx context.Context, cfg Config, template *pgx.ConnConfig, writer physicalIdentity) ([]physicalReaderMember, error) {
+func openReaderMembers(ctx context.Context, stageBudget time.Duration, cfg Config, template *pgx.ConnConfig, writer physicalIdentity) ([]physicalReaderMember, error) {
 	if len(cfg.ReadMembers) < 2 || cfg.SamePrimary || len(template.Fallbacks) != 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 {
 		return nil, errors.New("invalid physical reader member configuration")
 	}
-	return qualifyReaderCandidates(ctx, cfg.ReadMembers, cfg.PingTimeout/3, func(memberCtx context.Context, index int, member ReaderMember) (physicalReaderMember, error) {
+	return qualifyReaderCandidates(ctx, cfg.ReadMembers, stageBudget, func(memberCtx context.Context, index int, member ReaderMember) (physicalReaderMember, error) {
 		return qualifyReaderMember(memberCtx, cfg, template, writer, index, member)
 	})
 }
@@ -81,13 +81,7 @@ func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConf
 	closeErr := conn.Close(ctx)
 	trackerErr := dialTracker.closeAll()
 	cleanupErr := awaitPGXCleanup(ctx, conn.PgConn().CleanupDone(), dialTracker.closeAll)
-	if readErr != nil || closeErr != nil {
-		return physicalReaderMember{}, errors.Join(readErr, closeErr, trackerErr, cleanupErr)
-	}
-	if trackerErr != nil || cleanupErr != nil {
-		return physicalReaderMember{}, errors.Join(trackerErr, cleanupErr)
-	}
-	if err := validateReaderMemberIdentity(id, writer, serverAddress, physicalAddresses); err != nil {
+	if err := readerMemberQualificationError(readErr, id, writer, serverAddress, physicalAddresses, closeErr, trackerErr, cleanupErr); err != nil {
 		return physicalReaderMember{}, err
 	}
 	config.DialFunc = originalDialFunc
@@ -133,6 +127,14 @@ func validateReaderMemberIdentity(id, writer physicalIdentity, serverAddress str
 	return nil
 }
 
+func readerMemberQualificationError(readErr error, id, writer physicalIdentity, serverAddress string, addresses []net.IP, cleanupErrors ...error) error {
+	var identityErr error
+	if readErr == nil {
+		identityErr = validateReaderMemberIdentity(id, writer, serverAddress, addresses)
+	}
+	return errors.Join(append([]error{readErr, identityErr}, cleanupErrors...)...)
+}
+
 type readerCandidateResult struct {
 	ordinal int
 	member  physicalReaderMember
@@ -140,7 +142,13 @@ type readerCandidateResult struct {
 }
 
 func qualifyReaderCandidates(ctx context.Context, inventory []ReaderMember, attemptTimeout time.Duration, qualify func(context.Context, int, ReaderMember) (physicalReaderMember, error)) ([]physicalReaderMember, error) {
-	workCtx, cancel := context.WithCancel(ctx)
+	var workCtx context.Context
+	var cancel context.CancelFunc
+	if attemptTimeout > 0 {
+		workCtx, cancel = context.WithTimeout(ctx, attemptTimeout)
+	} else {
+		workCtx, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 	results := make(chan readerCandidateResult, len(inventory))
 	var workers sync.WaitGroup
@@ -149,13 +157,7 @@ func qualifyReaderCandidates(ctx context.Context, inventory []ReaderMember, atte
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			attemptCtx := workCtx
-			attemptCancel := func() {}
-			if attemptTimeout > 0 {
-				attemptCtx, attemptCancel = context.WithTimeout(workCtx, attemptTimeout)
-			}
-			defer attemptCancel()
-			qualified, err := qualify(attemptCtx, ordinal, member)
+			qualified, err := qualify(workCtx, ordinal, member)
 			if err != nil && transientReaderMemberFailure(ctx, err) {
 				err = fmt.Errorf("reader member qualification: %w", errors.Join(ErrReaderUnavailable, err))
 			}
@@ -192,6 +194,9 @@ func qualifyReaderCandidates(ctx context.Context, inventory []ReaderMember, atte
 		if result.err == nil {
 			members = append(members, result.member)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(err, failures, closeReaderMembers(members))
 	}
 	if len(members) == 0 {
 		return nil, errors.Join(ErrReaderUnavailable, failures, ctx.Err())
