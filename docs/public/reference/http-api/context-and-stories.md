@@ -3,11 +3,10 @@
 Use this page for entity resolution, context reads, incident/work-item evidence,
 catalog navigation, and response rules shared by story and deployment routes.
 
-The route list here is maintained by hand against the handlers in
-`go/internal/query`. No gate enforces doc-to-handler parity:
-`scripts/verify-route-coverage.sh` checks that a newly registered route has
-handler test coverage, not that this page lists it. When this page and
-`GET /api/v0/openapi.json` disagree, the spec wins.
+The route list here is maintained by hand against the handlers in `go/internal/query`.
+No gate enforces doc-to-handler parity: `scripts/verify-route-coverage.sh`
+checks that a newly registered route has handler test coverage, not that this
+page lists it. When this page and `GET /api/v0/openapi.json` disagree, the spec wins.
 
 ## Route Map
 
@@ -25,16 +24,15 @@ OpenAPI remains canonical for full request and response schemas.
 
 ## Entity Resolution
 
-The entity resolution route accepts `name`, optional `type`, optional
-`repo_id`, and optional `limit`. `name` is required. The response includes
-`entities`, `count`, normalized `limit`, and `truncated`.
+The entity resolution route accepts `name`, optional `type`, `repo_id`, and `limit`.
+`name` is required. The response includes `entities`, `count`, normalized `limit`, and `truncated`.
 
-Name matching is exact and case-sensitive. When `repo_id` is omitted, `type`
-is required and must identify a content-backed entity family; unknown types
-fail closed. Global `repository`, `directory`, and `file` resolution requires
-`repo_id` because those graph-only families cannot be represented completely
-by the content snapshot. Canonical `content-entity:` IDs and `type=workload`
-retain their dedicated exact content and authoritative graph paths.
+Name matching is exact and case-sensitive. When `repo_id` is omitted, `type` is
+required and must identify a content-backed entity family; unknown types fail
+closed. Global `repository`, `directory`, and `file` resolution requires `repo_id`
+because those graph-only families cannot be represented completely by the content
+snapshot. Canonical `content-entity:` IDs and `type=workload` retain their dedicated
+exact content and authoritative graph paths.
 
 Use this route before context or story routes when the caller has an exact
 entity name or canonical content handle and needs its stable identifier.
@@ -49,27 +47,23 @@ Context routes are canonical-ID oriented:
 - service context is an alias over workload context and adds
   `requested_as=service`
 
-Repository context reports `workload_count` as the number of distinct
-materialized `Workload` nodes connected to the repository by `DEFINES`.
-Repository read-model workload names describe identity and display intent; they
-do not increase this graph count. A graph read failure returns an error rather
-than an inferred count from those names.
+Repository context `workload_count` counts distinct materialized `Workload` nodes linked by `DEFINES`.
+Read-model workload names convey identity and display intent without increasing it; a graph read failure
+returns an error, not a count inferred from those names.
 
-When a repository has workload identity facts but no materialized `Workload`
-node, service context can fall back to the repository read model. Those
-responses use `materialization_status=identity_only`,
-`query_basis=repository_read_model`, an empty `instances` array, and a
-`limitations` entry of `workload_identity_not_materialized`.
+When a repository has workload identity facts but no materialized `Workload` node,
+service context can fall back to the repository read model. Responses use
+`materialization_status=identity_only`, `query_basis=repository_read_model`, an empty
+`instances` array, and a `limitations` entry of `workload_identity_not_materialized`.
 
-Workload and service context also carry `limitations` on the primary
-graph-materialized path, not only the read-model fallback above: once a
-repository is resolved, an auxiliary infrastructure read that fails degrades
-the response to a 200 with an empty `infrastructure` list and appends
-`infrastructure_read_degraded`, and a healthy infrastructure read that lands
-past its bound appends `infrastructure_truncated`. `partial_reasons` promotes
-these same reasons into its sorted, de-duplicated array. A failed outgoing
-dependencies, API surface, language or source-tool read degrades the same way
-(#6810): `relationships_read_degraded`, `api_surface_read_degraded`,
+Workload and service context also carry `limitations` on the primary graph-materialized
+path, not only the read-model fallback above: once a repository is resolved, an auxiliary
+infrastructure read that fails degrades the response to a 200 with an empty
+`infrastructure` list and appends `infrastructure_read_degraded`, and a healthy
+infrastructure read that lands past its bound appends `infrastructure_truncated`.
+`partial_reasons` promotes these same reasons into its sorted, de-duplicated array.
+A failed outgoing dependencies, API surface, language or source-tool read degrades
+the same way (#6810): `relationships_read_degraded`, `api_surface_read_degraded`,
 `languages_read_degraded`, `source_tool_breakdown_read_degraded`.
 
 Entity context may include semantic narrative fields when normalized semantic
