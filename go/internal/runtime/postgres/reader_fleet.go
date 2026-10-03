@@ -267,7 +267,7 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 	}
 	transactions = append(transactions, exporter)
 	var snapshotID string
-	if err := exporter.QueryRowContext(setupCtx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
+	if err := exporter.queryControlRowContext(setupCtx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
 		return nil, err
 	}
 	literal, err := snapshotSQLLiteral(snapshotID)
@@ -322,11 +322,17 @@ func bridgeSnapshotSetup(setupCtx, ownerCtx context.Context) (context.Context, c
 }
 
 func beginReadTransactionOwned(txCtx context.Context, conn *readerConnection, access *Access) (*readTransaction, error) {
+	identity := readerBackendIdentity{}
+	if access.readerQueryStartObserver(txCtx) != nil {
+		identity = captureReaderBackendIdentity(conn.Conn)
+	}
 	started := time.Now()
 	tx, err := conn.BeginTx(txCtx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	access.observe("reader", StageBusinessQuery, started, err)
 	if err != nil {
 		return nil, err
 	}
-	return newReadTransaction(txCtx, tx, conn, access), nil
+	owned := newReadTransaction(txCtx, tx, conn, access)
+	owned.identity = identity
+	return owned, nil
 }

@@ -251,6 +251,8 @@ before each guarded business SQL call. The event includes the actual borrowed
 reader's backend PID and TCP peer address, a sequence unique to this `Access`, and
 `postgres.role=reader`. Snapshot transactions copy this identity before
 `BeginTx` and keep only the scalar values for their subsequent query calls.
+Legacy and direct-member fleet snapshot constructors both use that order.
+Snapshot export and import are control SQL; they do not emit a query-start event.
 An unsupported driver or address emits `postgres.backend.identity=unavailable`;
 that event cannot identify a backend. An unsampled request, missing event, or
 lost trace is also unqualified for request-to-backend diagnosis. No SQL, args,
@@ -275,6 +277,14 @@ with distinct query sequences, an explicit unavailable event for an unsupported
 driver, and ordinary and transaction SQL execution after the start event with
 unchanged statement and argument values. Deployed trace retention and native
 cancellation remain unverified.
+
+No-Regression Evidence: Fleet composition tests verify one business-start
+sequence, no event during snapshot export or failed setup, and release of the
+member reservation and connection. An owned disposable PostgreSQL 18.6 primary
+verified that a fleet-owned transaction's recorded PID matched
+`pg_backend_pid()` on the same lease, with a nonempty TCP peer and no retained
+connection. That primary-only check does not establish standby behavior,
+deployed trace retention, endpoint latency, or cancellation.
 
 ## Local proof and limits
 
