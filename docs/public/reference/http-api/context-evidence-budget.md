@@ -36,6 +36,10 @@ The story routes keep their own bounded dossier and are not covered here.
   total read, and the cut is named `infrastructure_rows_truncated`. The read
   itself stops at 5,000 rows and reports `infrastructure_truncated`; before this
   cap a service could ship all 5,000 rows (about 730 KB).
+- `entrypoint_candidates` is cut to 50 rows. `result_limits.entrypoint_candidate_count`
+  is the total before the cut, and the cut is named `entrypoint_candidates_truncated`.
+  The list had no bound and grows with repository size (357 rows, about 63 KB, on the
+  largest service measured).
 - `deployment_overview.api_surface` keeps its counts but not the endpoint rows;
   `endpoints_shipped_at` points at the top-level `api_surface.endpoints`.
 

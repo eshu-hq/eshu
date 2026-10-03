@@ -54,6 +54,13 @@ recent shipped work grouped by feature area.
   `infrastructure_rows_truncated` in `partial_reasons`. The existing
   `infrastructure_truncated` still means the read itself hit its 5,000-row bound.
 
+- **`entrypoint_candidates` is cut to 50 rows on the context routes**
+  ([#7129](https://github.com/eshu-hq/eshu/issues/7129)). The list had no bound
+  and grows with repository size: 357 rows, about 63 KB, on the largest service
+  measured on ops-qa. It is now cut to 50 rows, the total is on
+  `result_limits.entrypoint_candidate_count`, and the cut is named
+  `entrypoint_candidates_truncated` in `partial_reasons`.
+
 ### Code and content search responses drop the `matches` alias
 
 - **`matches` is removed; read `results`**

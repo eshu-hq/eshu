@@ -313,3 +313,91 @@ func TestWorkloadContextResultLimitsLeavesSmallInfrastructureAndStoryAlone(t *te
 		t.Fatalf("story infrastructure_count=%d truncated=%v, want 300 and false", got, BoolVal(storyLimits, "truncated"))
 	}
 }
+
+func entrypointCandidateRows(n int) []map[string]any {
+	rows := make([]map[string]any, 0, n)
+	for i := 0; i < n; i++ {
+		rows = append(rows, map[string]any{
+			"candidate":      fmt.Sprintf("cfg-%04d.example.internal", i),
+			"classification": "config_key",
+			"relative_path":  fmt.Sprintf("config/settings/cfg-%04d.yaml", i),
+			"reason":         "dotted token rejected as a config key",
+		})
+	}
+	return rows
+}
+
+// TestWorkloadContextResultLimitsCapsEntrypointCandidates proves the
+// entrypoint_candidates list is cut to the row limit on the context surface,
+// with the true total on result_limits and a reason of its own. The list had no
+// cap and grows with repository size: 357 rows (about 63 KB) on the largest
+// ops-qa service (#7129).
+func TestWorkloadContextResultLimitsCapsEntrypointCandidates(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{"entrypoint_candidates": entrypointCandidateRows(357)}
+
+	limits := WorkloadContextResultLimits(ctx, "workload:svc", "context")
+
+	if got, want := len(MapSliceValue(ctx, "entrypoint_candidates")), ContextStoryItemLimit; got != want {
+		t.Fatalf("entrypoint_candidates len = %d, want %d", got, want)
+	}
+	if got, want := IntVal(limits, "entrypoint_candidate_count"), 357; got != want {
+		t.Fatalf("result_limits.entrypoint_candidate_count = %d, want %d (total before the cut)", got, want)
+	}
+	if !BoolVal(limits, "truncated") {
+		t.Fatal("result_limits.truncated = false next to a cut list, want true")
+	}
+	if !slices.Contains(ContextPartialReasons(ctx), "entrypoint_candidates_truncated") {
+		t.Fatalf("partial_reasons = %#v, want entrypoint_candidates_truncated", ContextPartialReasons(ctx))
+	}
+	first := MapSliceValue(ctx, "entrypoint_candidates")[0]
+	if got, want := SafeStr(first, "candidate"), "cfg-0000.example.internal"; got != want {
+		t.Fatalf("first kept candidate = %q, want %q (the cut keeps the leading rows)", got, want)
+	}
+}
+
+// TestWorkloadContextResultLimitsLeavesSmallEntrypointCandidatesAndStoryAlone
+// proves a list within the limit is untouched with no reason, and the story
+// surface, which ships its own bounded copy, neither cuts nor claims a cut
+// while still reporting the total.
+func TestWorkloadContextResultLimitsLeavesSmallEntrypointCandidatesAndStoryAlone(t *testing.T) {
+	t.Parallel()
+
+	small := map[string]any{"entrypoint_candidates": entrypointCandidateRows(ContextStoryItemLimit)}
+	limits := WorkloadContextResultLimits(small, "workload:svc", "context")
+	if got := len(MapSliceValue(small, "entrypoint_candidates")); got != ContextStoryItemLimit {
+		t.Fatalf("within-limit entrypoint_candidates len = %d, want %d", got, ContextStoryItemLimit)
+	}
+	if got := IntVal(limits, "entrypoint_candidate_count"); got != ContextStoryItemLimit {
+		t.Fatalf("within-limit entrypoint_candidate_count = %d, want %d", got, ContextStoryItemLimit)
+	}
+	if slices.Contains(ContextPartialReasons(small), "entrypoint_candidates_truncated") || BoolVal(limits, "truncated") {
+		t.Fatal("a within-limit entrypoint_candidates list was reported as cut")
+	}
+
+	story := map[string]any{"entrypoint_candidates": entrypointCandidateRows(300)}
+	storyLimits := WorkloadContextResultLimits(story, "workload:svc", "story")
+	if got := len(MapSliceValue(story, "entrypoint_candidates")); got != 300 {
+		t.Fatalf("story entrypoint_candidates len = %d, want 300 (not cut)", got)
+	}
+	if got := IntVal(storyLimits, "entrypoint_candidate_count"); got != 300 || BoolVal(storyLimits, "truncated") {
+		t.Fatalf("story entrypoint_candidate_count=%d truncated=%v, want 300 and false", got, BoolVal(storyLimits, "truncated"))
+	}
+}
+
+// TestWorkloadContextResultLimitsEntrypointCandidateCutLeavesSourceRowsAlone
+// proves the cut never reaches the backing array of the caller's slice, so a
+// read model that handed the same slice to another reader keeps every row.
+func TestWorkloadContextResultLimitsEntrypointCandidateCutLeavesSourceRowsAlone(t *testing.T) {
+	t.Parallel()
+
+	source := entrypointCandidateRows(120)
+	ctx := map[string]any{"entrypoint_candidates": source}
+
+	WorkloadContextResultLimits(ctx, "workload:svc", "context")
+
+	if len(source) != 120 || SafeStr(source[119], "candidate") != "cfg-0119.example.internal" {
+		t.Fatalf("source slice was mutated: len=%d last=%q", len(source), SafeStr(source[len(source)-1], "candidate"))
+	}
+}
