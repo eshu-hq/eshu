@@ -225,13 +225,18 @@ no-index runs, so this measurement cannot separate the tax from noise.
 0.058 and 0.059 s and produced a 16,384-byte index (16 predicate rows); the
 heap was 86,237,184 bytes. These are LOCAL numbers from a single-session
 insert, not an ops-qa build time: ops-qa has a 183 GB heap and about 138M
-rows, and the build time, the build's effect on the replica, and the real
-insert tax there are NOT_CHECKED until the owner deploys the migration. The
-raw log is not committed. Every git `content_entity` insert or update also
-evaluates the partial predicate (a few JSONB extractions); only matching rows
-pay index maintenance.
+rows. The deployed build duration is recorded below. Its attributable
+effect on replica conflicts and the real ops-qa insert tax remain
+NOT_CHECKED. The local insert-run raw log is not committed. Every git
+`content_entity` insert or update also evaluates the partial predicate
+(a few JSONB extractions); only matching rows pay index maintenance.
 
 ### Deployed after-index read-only follow-up (2026-10-03)
+
+The sanitized plan, endpoint sample, and material-data count inputs are in
+[the deployed run record](7088-opsqa-migration159-run-20261003.md). It binds
+the measurements to the deployed image and query source without publishing
+repository identifiers or credentials.
 
 Migration 159 is deployed on ops-qa. The schema Job logged 1,221,522 ms
 (20m21.522s) for its concurrent index build, completing at 03:08:09 UTC.
