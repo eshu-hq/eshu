@@ -173,6 +173,8 @@ legacy_scheduled_exemptions:
   sha256: 5034469d7413342fc776d519828de61f90ec4497f6d6635d8f47856ad89d7937
 purpose: fixture
 design: fixture
+EOF
+cat >>"${calm}/ledger.yaml" <<'EOF'
 tests:
   - file: go/calm/calm_live_test.go
     tag: ~

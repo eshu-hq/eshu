@@ -15,12 +15,18 @@ cat >"${seed_dir}/bin/go" <<'EOF'
 [[ "$*" == *"-json"* ]] || { echo 'missing -json' >&2; exit 9; }
 [[ "$*" == *"-count=1"* ]] || { echo 'missing -count=1' >&2; exit 9; }
 [[ "$*" == *"./internal/query/supply/chain/impact"* ]] || { echo 'wrong package' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "$*" == *"TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive"* ]] || { echo 'missing package-manifest test' >&2; exit 9; }
 [[ "$*" == *"TestSupplyChainImpactReadinessRepoArmScopeLive"* ]] || { echo 'missing repo-arm test' >&2; exit 9; }
 [[ "$*" == *"TestSupplyChainImpactReadinessScanTierQueryPlanLive"* ]] || { echo 'missing scan-tier plan test' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "$*" == *"TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive"* ]] || { echo 'missing fan-out test' >&2; exit 9; }
 [[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong manifest DSN' >&2; exit 9; }
 [[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong scan-tier DSN' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing manifest opt-in' >&2; exit 9; }
 [[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing scan-tier opt-in' >&2; exit 9; }
 [[ -n "${ESHU_FAKE_GO_JSON:-}" ]] || exit 9
