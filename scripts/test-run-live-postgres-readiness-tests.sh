@@ -69,7 +69,7 @@ out="$(run_runner)" || fail "four PASS events rejected: ${out}"
 
 # A successful go test exit is insufficient when a selected test skips.
 write_events
-sed -i 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessRepoArmScopeLive"/"Action":"skip","Test":"TestSupplyChainImpactReadinessRepoArmScopeLive"/' "${ESHU_FAKE_GO_JSON}"
+sed -i.bak 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessRepoArmScopeLive"/"Action":"skip","Test":"TestSupplyChainImpactReadinessRepoArmScopeLive"/' "${ESHU_FAKE_GO_JSON}"
 out="$(run_runner)" && fail "SKIP event passed"
 [[ "${out}" == *"SKIP"* ]] || fail "SKIP failure not named: ${out}"
 
@@ -79,12 +79,12 @@ out="$(run_runner)" && fail "zero matched tests passed"
 [[ "${out}" == *"missing"* ]] || fail "zero-test failure not named: ${out}"
 
 write_events
-sed -i '/"Action":"pass","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/d' "${ESHU_FAKE_GO_JSON}"
+sed -i.bak '/"Action":"pass","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/d' "${ESHU_FAKE_GO_JSON}"
 out="$(run_runner)" && fail "missing terminal event passed"
 [[ "${out}" == *"missing"* ]] || fail "missing-event failure not named: ${out}"
 
 write_events
-sed -i 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/"Action":"fail","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/' "${ESHU_FAKE_GO_JSON}"
+sed -i.bak 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/"Action":"fail","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/' "${ESHU_FAKE_GO_JSON}"
 out="$(run_runner)" && fail "FAIL event passed"
 [[ "${out}" == *"FAIL"* ]] || fail "FAIL event not named: ${out}"
 
