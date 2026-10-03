@@ -8,7 +8,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"io"
+	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -24,6 +24,62 @@ type memberLocalTopology struct{}
 func (memberLocalTopology) Error() string { return "PostgreSQL physical reader member changed" }
 func (memberLocalTopology) Unwrap() error { return ErrWrongTopology }
 
+// snapshotSetupTimeout retains the original operation and cleanup errors while
+// classifying a proved setup deadline as retryable on another member.
+type snapshotSetupTimeout struct{ cause error }
+
+func (e snapshotSetupTimeout) Error() string   { return context.DeadlineExceeded.Error() }
+func (e snapshotSetupTimeout) Unwrap() []error { return []error{context.DeadlineExceeded, e.cause} }
+
+func fleetFailureClass(err error) readerFailureKind {
+	if err == nil {
+		return readerFailureNeutral
+	}
+	if _, ok := err.(snapshotSetupTimeout); ok {
+		return readerFailureTransient
+	}
+	if _, ok := err.(memberLocalTopology); ok {
+		return readerFailureNeutral
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		kind := readerFailureNeutral
+		for _, cause := range joined.Unwrap() {
+			child := fleetFailureClass(cause)
+			if child == readerFailureFatal {
+				return child
+			}
+			if child == readerFailureCanceled {
+				kind = child
+			} else if child == readerFailureTransient && kind == readerFailureNeutral {
+				kind = child
+			}
+		}
+		return kind
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return fleetFailureClass(wrapped.Unwrap())
+	}
+	return readerFailureClass(err)
+}
+
+func expectedCanceledSetupCleanup(err error) bool {
+	if err == nil {
+		return true
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, cause := range joined.Unwrap() {
+			if !expectedCanceledSetupCleanup(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return expectedCanceledSetupCleanup(wrapped.Unwrap())
+	}
+	return errors.Is(err, sql.ErrTxDone) || errors.Is(err, sql.ErrConnDone) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || pgconn.SafeToRetry(err)
+}
+
 func fleetCheckpoint(ctx context.Context, access *Access) (checkpoint, error) {
 	point, ok := ctx.Value(checkpointKey{}).(checkpoint)
 	if !ok || point.owner != access {
@@ -36,22 +92,18 @@ func fleetCheckpoint(ctx context.Context, access *Access) (checkpoint, error) {
 }
 
 func sharedFleetFailure(parent context.Context, err error) bool {
-	var local memberLocalTopology
-	if errors.As(err, &local) {
-		return false
-	}
-	if errors.Is(err, ErrWrongTopology) || errors.Is(err, ErrMissingCheckpoint) {
+	if errors.Is(err, ErrMissingCheckpoint) {
 		return true
 	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return len(pgErr.Code) >= 2 && pgErr.Code[:2] == "28" || pgErr.Code == "42501" || pgErr.Code == "3D000"
+	var local memberLocalTopology
+	if errors.Is(err, ErrWrongTopology) {
+		return !errors.As(err, &local) || fleetFailureClass(err) == readerFailureFatal
 	}
 	return !retryableFleetFailure(parent, err)
 }
 
 func retryableFleetFailure(parent context.Context, err error) bool {
-	return transientReaderMemberFailure(parent, err) || errors.Is(err, io.EOF)
+	return parent.Err() == nil && fleetFailureClass(err) == readerFailureTransient
 }
 
 func fleetAttemptContext(parent context.Context, alternative bool) (context.Context, context.CancelFunc) {
@@ -177,6 +229,7 @@ func (a *Access) beginFleetSnapshotSet(ctx context.Context, count int) (db.ReadS
 }
 
 func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, count int, reservation *readerReservation, point checkpoint) (set db.ReadSnapshotSet, err error) {
+	txCtx, cancelTx, detachSetup := bridgeSnapshotSetup(setupCtx, ownerCtx)
 	connections := make([]*readerConnection, 0, count)
 	transactions := make([]*readTransaction, 0, count)
 	ready := false
@@ -184,6 +237,9 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 		if ready {
 			return
 		}
+		cancelTx(setupCtx.Err())
+		detachSetup()
+		attemptErr := err
 		var cleanupErr error
 		for i := len(transactions) - 1; i >= 0; i-- {
 			cleanupErr = errors.Join(cleanupErr, transactions[i].Rollback())
@@ -191,7 +247,12 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 		for i := len(transactions); i < len(connections); i++ {
 			cleanupErr = errors.Join(cleanupErr, connections[i].Close())
 		}
-		err = errors.Join(err, cleanupErr)
+		if ownerCtx.Err() == nil && errors.Is(setupCtx.Err(), context.DeadlineExceeded) && errors.Is(context.Cause(txCtx), context.DeadlineExceeded) &&
+			(fleetFailureClass(attemptErr) == readerFailureCanceled || fleetFailureClass(attemptErr) == readerFailureTransient) && expectedCanceledSetupCleanup(cleanupErr) {
+			err = snapshotSetupTimeout{cause: errors.Join(attemptErr, cleanupErr)}
+		} else {
+			err = errors.Join(attemptErr, cleanupErr)
+		}
 	}()
 	for range count {
 		conn, borrowErr := a.borrowReserved(setupCtx, point, reservation)
@@ -200,7 +261,7 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 		}
 		connections = append(connections, conn)
 	}
-	exporter, err := beginReadTransactionOwned(setupCtx, ownerCtx, connections[0], a)
+	exporter, err := beginReadTransactionOwned(txCtx, connections[0], a)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +275,7 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 		return nil, err
 	}
 	for i := 1; i < count; i++ {
-		worker, beginErr := beginReadTransactionOwned(setupCtx, ownerCtx, connections[i], a)
+		worker, beginErr := beginReadTransactionOwned(txCtx, connections[i], a)
 		if beginErr != nil {
 			return nil, beginErr
 		}
@@ -229,18 +290,43 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 	if err := setupCtx.Err(); err != nil {
 		return nil, err
 	}
+	detachSetup()
+	if err := setupCtx.Err(); err != nil {
+		return nil, err
+	}
+	if err := txCtx.Err(); err != nil {
+		return nil, err
+	}
 	ready = true
-	return &readSnapshotSet{readers: transactions}, nil
+	return &readSnapshotSet{readers: transactions, cancel: cancelTx}, nil
 }
 
-func beginReadTransactionOwned(_ context.Context, ownerCtx context.Context, conn *readerConnection, access *Access) (*readTransaction, error) {
+// bridgeSnapshotSetup bounds database/sql's transaction lifetime during setup
+// without letting a successful set inherit the short attempt deadline.
+func bridgeSnapshotSetup(setupCtx, ownerCtx context.Context) (context.Context, context.CancelCauseFunc, func()) {
+	txCtx, cancelTx := context.WithCancelCause(ownerCtx)
+	done := make(chan struct{})
+	stop := context.AfterFunc(setupCtx, func() {
+		cancelTx(setupCtx.Err())
+		close(done)
+	})
+	var once sync.Once
+	detach := func() {
+		once.Do(func() {
+			if !stop() {
+				<-done
+			}
+		})
+	}
+	return txCtx, cancelTx, detach
+}
+
+func beginReadTransactionOwned(txCtx context.Context, conn *readerConnection, access *Access) (*readTransaction, error) {
 	started := time.Now()
-	// database/sql rolls a transaction back when BeginTx's context is
-	// canceled. The setup quantum must not own a successfully returned set.
-	tx, err := conn.BeginTx(ownerCtx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	tx, err := conn.BeginTx(txCtx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	access.observe("reader", StageBusinessQuery, started, err)
 	if err != nil {
 		return nil, err
 	}
-	return newReadTransaction(ownerCtx, tx, conn, access), nil
+	return newReadTransaction(txCtx, tx, conn, access), nil
 }

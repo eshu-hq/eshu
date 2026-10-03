@@ -110,8 +110,12 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	}
 	pingCtx, cancel := context.WithTimeout(ctx, totalBudget)
 	defer cancel()
+	writerCtx := pingCtx
 	stageBudget := totalBudget / 3
-	writerCtx, cancelWriter := context.WithTimeout(pingCtx, stageBudget)
+	cancelWriter := func() {}
+	if len(cfg.ReadMembers) > 0 {
+		writerCtx, cancelWriter = context.WithTimeout(pingCtx, stageBudget)
+	}
 	identity, err := bootstrapPhysicalWriter(writerCtx, writerCfg, cfg.ExpectedSystemID)
 	cancelWriter()
 	if err != nil {
