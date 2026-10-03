@@ -64,6 +64,27 @@ func (o *otelObserver) Observe(role string, stage Stage, outcome Outcome, durati
 	span.End(trace.WithTimestamp(ended))
 }
 
+func (o *otelObserver) recordsReaderQueryStart(ctx context.Context) bool {
+	return o != nil && trace.SpanFromContext(ctx).IsRecording()
+}
+
+func (o *otelObserver) recordReaderQueryStart(ctx context.Context, sequence uint64, identity readerBackendIdentity) {
+	attrs := []attribute.KeyValue{
+		attribute.String(readerQueryRoleKey, "reader"),
+		attribute.Int64(readerQuerySequenceKey, int64(sequence)),
+	}
+	if identity.available {
+		attrs = append(attrs,
+			attribute.String(readerQueryIdentityKey, "available"),
+			attribute.Int64(readerQueryPIDKey, int64(identity.pid)),
+			attribute.String(readerQueryRemoteKey, identity.remote),
+		)
+	} else {
+		attrs = append(attrs, attribute.String(readerQueryIdentityKey, "unavailable"))
+	}
+	trace.SpanFromContext(ctx).AddEvent(readerQueryStartEventName, trace.WithAttributes(attrs...))
+}
+
 func closedReaderRole(role string) string {
 	if role == "writer" || role == "reader" {
 		return role
