@@ -61,6 +61,14 @@ default-args MCP reply at 824,864 bytes against a 262,144 budget. The
 `TestFindCrossRepoDeadCodeBoundaryOnly...` test in `internal/mcp` and
 `cross_repo_boundary_classification_test.go` pin both halves.
 
+## Incoming-edge read (#7547)
+
+`DeadCodeIncomingEntityIDs` must run the legacy one-hop read for every entity
+the reachability snapshot did not answer. Never gate that read on
+`CodeReachabilityCoverage` (`Available`/`Truncated`), a root count, a ratio, or a
+language: a watermark does not prove the roots were adequate. The fallback is the
+legacy read, not `ambiguous`.
+
 ## Postgres reader failures (#7523)
 
 Every store or scan error in the three handlers goes through

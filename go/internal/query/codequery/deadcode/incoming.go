@@ -36,25 +36,16 @@ func (a *Analyzer) DeadCodeIncomingEntityIDs(
 			if err != nil {
 				return nil, err
 			}
-			coverage := CodeReachabilityCoverage{Available: false, Truncated: true}
-			if coverageStore, ok := a.deps.Content.(codeReachabilityCoverageStore); ok {
-				coverage, err = coverageStore.CodeReachabilityCoverage(ctx, repoID)
-				if err != nil {
-					return nil, err
-				}
+			for entityID, edge := range repoIncoming {
+				MergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
 			}
-			if len(repoIncoming) > 0 {
-				for entityID, edge := range repoIncoming {
-					MergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
-				}
-			}
-			if coverage.Available && !coverage.Truncated {
+			// The snapshot's watermark is not proof its roots were adequate: a
+			// repository with zero roots still stamps one, so an entity with no
+			// row is unanswered, not unreachable. Always run the legacy
+			// one-hop read for those entities (#7547).
+			legacyEntityIDs = missingDeadCodeIncomingEntityIDs(entityIDs, repoIncoming)
+			if len(legacyEntityIDs) == 0 {
 				continue
-			} else if len(repoIncoming) > 0 {
-				legacyEntityIDs = missingDeadCodeIncomingEntityIDs(entityIDs, repoIncoming)
-				if len(legacyEntityIDs) == 0 {
-					continue
-				}
 			}
 		}
 		repoIncoming, err := content.DeadCodeIncomingEntityIDs(ctx, repoID, legacyEntityIDs)
@@ -116,7 +107,7 @@ func (a *Analyzer) deadCodeIncomingGroups(
 
 // missingDeadCodeIncomingEntityIDs names the entities the materialized
 // reachability read did not answer for, so the producer-anchored legacy probe
-// still runs for them when the snapshot is unavailable or truncated.
+// still runs for them whatever the snapshot's coverage says.
 //
 // An entity whose only entry is the hidden-consumer marker counts as missing.
 // The marker records that a consumer sits outside the caller's grant; it is not
@@ -171,13 +162,14 @@ type codeReachabilityContentStore interface {
 	) (map[string]DeadCodeIncomingEdge, error)
 }
 
+// CodeReachabilityCoverage reports whether a repository's active generation has
+// a materialized reachability snapshot and whether it was cut short. It is kept
+// for the codequery seam alias and the reachability-loader follow-up (#7547);
+// no production caller reads it after DeadCodeIncomingEntityIDs stopped
+// consulting it, because a watermark does not prove adequate roots.
 type CodeReachabilityCoverage struct {
 	Available bool
 	Truncated bool
-}
-
-type codeReachabilityCoverageStore interface {
-	CodeReachabilityCoverage(ctx context.Context, repoID string) (CodeReachabilityCoverage, error)
 }
 
 // BuildDeadCodeIncomingBatchProbeCypher builds the unrestricted incoming-edge

@@ -118,12 +118,16 @@ See [Dead Code Language Maturity](dead-code-language-maturity.md) for the
 current language-by-language model.
 
 No-Regression Evidence: issue #2706 / #2731 / #2732 / #2733 focused proof on
-2026-06-18. `go test ./internal/query -run
-'TestDeadCodeIncomingEntityIDs(CompleteReachabilitySnapshotSkipsLegacyDeadCluster|TruncatedReachabilitySnapshotFallsBack|PrefersMaterializedReachabilityRows)|TestContentReaderCodeReachabilityIncomingEntityIDsUsesCrossRepoRows|TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata|TestBuildDeadCodeAnalysisForLanguageReportsReflectionModeledTruth|TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter'
--count=1` proves complete materialized reachability snapshots suppress legacy
-one-hop dead-cluster fallback, truncated snapshots remain conservative,
-cross-repo materialized rows keep library symbols live through stable entity
-IDs, and reflection modeling is only claimed for Java. `go test
+2026-06-18, updated for #7547. `go test ./internal/query/codequery/deadcode -run
+'TestDeadCodeIncomingEntityIDs(CompleteSnapshotStillReadsLegacyEdgesForUnansweredEntities|TruncatedReachabilitySnapshotFallsBack|PrefersMaterializedReachabilityRows)|TestHandleDeadCodeReturnsDerivedTruthAndAnalysisMetadata|TestBuildDeadCodeAnalysisForLanguageReportsReflectionModeledTruth'
+-count=1` proves a complete, non-truncated snapshot still runs the legacy
+one-hop read for the entities it did not answer (this superseded the original
+skip), truncated snapshots remain conservative, and reflection modeling is only
+claimed for Java. `go test ./internal/query -run
+'TestContentReaderCodeReachabilityIncomingEntityIDsUsesCrossRepoRows|TestOpenAPIDeadCodeMentionsHaskellRootsAndLanguageFilter'
+-count=1` proves cross-repo materialized rows keep library symbols live through
+stable entity IDs and the OpenAPI contract still names the Haskell roots and
+language filter. `go test
 ./internal/storage/postgres -run 'TestCodeReachability' -count=1` proves the
 watermark stores truncation truth, active-generation lookups still work, and
 the entity-scoped reachability index is present for bounded cross-repo reads.
@@ -134,7 +138,8 @@ converge.
 
 No-Observability-Change: the query path reuses existing `postgres.query` spans
 and `db.operation=code_reachability_incoming_entity_ids`,
-`code_reachability_coverage`, and `dead_code_incoming_entity_ids` labels plus
+`code_reachability_coverage` (no longer emitted by the dead-code path after
+#7547), and `dead_code_incoming_entity_ids` labels plus
 the existing dead-code handler span and HTTP route metrics. The reducer path
 keeps the existing code reachability completion log and truncation warning; no
 metric, worker, queue domain, runtime knob, graph write, or high-cardinality
@@ -149,7 +154,11 @@ The default policy is intentionally conservative:
 - Parser-backed `dead_code_root_kinds` metadata suppresses cleanup candidates.
 - Content metadata is preferred when available; graph metadata is still used
   when content is not available.
-- Direct incoming code or reference edges suppress candidates.
+- Direct incoming code or reference edges suppress candidates. A materialized
+  reachability snapshot answers for the entities it has rows for; every other
+  entity still gets the producer-anchored one-hop incoming read, whether or not
+  the snapshot's watermark reads complete, because a watermark does not prove
+  its roots were adequate (#7547).
 - SQL trigger routines are protected when reducer materialization creates
   parser-proven trigger-to-function `EXECUTES` edges.
 - JavaScript and TypeScript candidates remain conservative because dynamic
