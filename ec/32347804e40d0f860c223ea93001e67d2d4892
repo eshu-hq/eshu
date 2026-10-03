@@ -1,0 +1,21 @@
+docs/internal/evidence/7088-readiness-repo-scope.md
+  s_b0d7e3abc26c5a::t_46ddd615eade01 205-207,227,247-248
+  s_b0d7e3abc26c5a::t_f84da9a120bf79 249-250
+  s_b0d7e3abc26c5a::t_c4ce56a720cf07 228-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ec32347804e40d0f860c223ea93001e67d2d4892",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
