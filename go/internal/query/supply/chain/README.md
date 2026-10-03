@@ -101,6 +101,41 @@ exactly why a finding did or did not promote to `runtime_confirmed`.
 Span names, capability strings, and attribute keys are unchanged by the
 move.
 
+`GET /api/v0/supply-chain/impact/findings` also logs one bounded event per
+backing read (`query_timing.go`, issue #7007): `supply_chain_query.stage_started`
+and `supply_chain_query.stage_completed` for the stages `impact_findings_query`,
+`cloud_runtime_evidence`, `kubernetes_runtime_evidence`, `runtime_context`, and
+`readiness_snapshot`. Every completion carries a boolean `error` attribute,
+including `impact_findings_query`, so a failed read and an empty page no longer
+log identically (#7546).
+
+A handler-owned HTTP 500 on the route additionally emits ONE ERROR-level
+`supply_chain_query.stage_failed` event, because `querycontract.WriteError`
+never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
+
+- `error`: the error text, cut to 256 bytes on a UTF-8 boundary. The guarded
+  PostgreSQL reader's errors already carry a fixed site string such as
+  `PostgreSQL reader connection unavailable`, the same text the response body
+  returns.
+- `error_site`, a closed set from the error chain: `reader_stale`,
+  `reader_unavailable`, `other`. The writer-side and topology sentinels
+  (`ErrWriterUnavailable`, `ErrMissingCheckpoint`, `ErrWrongTopology`) live in
+  `internal/runtime/postgres`, which the query layer must not import, so they
+  classify as `other`.
+- `error_cause`, a closed set that never contains error text:
+  `deadline_exceeded`, `canceled`, `conn_done`, `eof`, `conn_refused`,
+  `conn_reset`, `net_timeout`, `sqlstate_<two-character class>`, `unknown`.
+  The SQLSTATE class comes from an `interface{ SQLState() string }` found with
+  `errors.As`, and only a well-formed two-character class is kept.
+
+The same branches record the error on the handler span (`RecordError`) and set
+its status to Error with the fixed description
+`supply-chain impact findings stage failed`. The graph-read verdicts that
+`querycontract.WriteGraphReadError` maps to 503/504 are not handler-owned 500s
+and are not logged by this event. The unchanged wire contract (status codes and
+response bodies) is pinned by
+`TestListImpactFindingsLogsFailedStageOnHandlerOwned500`.
+
 ## Move evidence (#6060)
 
 This package was created by moving twenty-five files out of root package

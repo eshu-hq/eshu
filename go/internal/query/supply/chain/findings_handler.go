@@ -136,8 +136,9 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	// or graph probe instead of seeing only the route's total duration.
 	findingsTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "impact_findings_query")
 	rows, err := h.ImpactFindings.ListSupplyChainImpactFindings(r.Context(), filter)
-	findingsTimer.Done(r.Context(), slog.Int("rows_fetched", len(rows)))
+	findingsTimer.Done(r.Context(), slog.Int("rows_fetched", len(rows)), slog.Bool("error", err != nil))
 	if err != nil {
+		failStage(r.Context(), span, findingsTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -156,6 +157,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	cloudRuntimeErr := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows)
 	cloudRuntimeTimer.Done(r.Context(), slog.Bool("error", cloudRuntimeErr != nil))
 	if cloudRuntimeErr != nil {
+		failStage(r.Context(), span, cloudRuntimeTimer, cloudRuntimeErr)
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
@@ -169,6 +171,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, k8sRuntimeErr, ImpactFindingsCapability) {
 			return
 		}
+		failStage(r.Context(), span, k8sRuntimeTimer, k8sRuntimeErr)
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
 		return
 	}
@@ -189,6 +192,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, runtimeContextErr, ImpactFindingsCapability) {
 			return
 		}
+		failStage(r.Context(), span, runtimeContextTimer, runtimeContextErr)
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
 		return
 	}

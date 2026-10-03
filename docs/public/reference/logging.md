@@ -67,6 +67,9 @@ drift/extraction, and query-stage timing events. Examples include:
 - `service_query.stage_completed`
 - `repository_query.stage_started`
 - `repository_query.stage_completed`
+- `supply_chain_query.stage_started`
+- `supply_chain_query.stage_completed`
+- `supply_chain_query.stage_failed`
 
 Do not treat examples such as `http.request.completed`,
 `mcp.request.received`, or `index.discovery.completed` as current universal Go
