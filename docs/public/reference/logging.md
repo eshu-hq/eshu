@@ -71,6 +71,15 @@ drift/extraction, and query-stage timing events. Examples include:
 - `supply_chain_query.stage_completed`
 - `supply_chain_query.stage_failed`
 
+`supply_chain_query.stage_failed` is an ERROR event emitted once when the
+supply-chain impact-findings route answers HTTP 500 from its own code. It carries
+`stage`, `repo_id`, `duration_seconds`, the error text cut to 256 bytes, and two
+closed-set labels that never contain error text: `error_site` (`reader_stale`,
+`reader_unavailable`, `other`) and `error_cause` (`deadline_exceeded`,
+`canceled`, `conn_done`, `eof`, `conn_refused`, `conn_reset`, `net_timeout`,
+`sqlstate_<class>`, `unknown`). A `canceled` cause is usually a client that
+disconnected.
+
 Do not treat examples such as `http.request.completed`,
 `mcp.request.received`, or `index.discovery.completed` as current universal Go
 events. Those are test or illustrative values unless a call site explicitly

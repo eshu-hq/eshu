@@ -115,8 +115,10 @@ never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
 
 - `error`: the error text, cut to 256 bytes on a UTF-8 boundary. The guarded
   PostgreSQL reader's errors already carry a fixed site string such as
-  `PostgreSQL reader connection unavailable`, the same text the response body
-  returns.
+  `PostgreSQL reader connection unavailable`. For the findings read this is the
+  same text the response body returns; the cloud-runtime, Kubernetes-runtime and
+  runtime-context branches return a fixed body, so there the log carries the
+  underlying error text, still cut to 256 bytes.
 - `error_site`, a closed set from the error chain: `reader_stale`,
   `reader_unavailable`, `other`. The writer-side and topology sentinels
   (`ErrWriterUnavailable`, `ErrMissingCheckpoint`, `ErrWrongTopology`) live in
@@ -130,11 +132,15 @@ never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
 
 The same branches record the error on the handler span (`RecordError`) and set
 its status to Error with the fixed description
-`supply-chain impact findings stage failed`. The graph-read verdicts that
-`querycontract.WriteGraphReadError` maps to 503/504 are not handler-owned 500s
-and are not logged by this event. The unchanged wire contract (status codes and
-response bodies) is pinned by
-`TestListImpactFindingsLogsFailedStageOnHandlerOwned500`.
+`supply-chain impact findings stage failed`. The graph and
+reader-fence verdicts that `querycontract.WriteGraphReadError` maps to 503/504
+are not handler-owned 500s and are not logged by this event. The unchanged wire
+contract (status codes and response bodies) is pinned by
+`TestListImpactFindingsLogsFailedStageOnHandlerOwned500`, and the silence and
+unchanged status of the mapped verdicts by
+`TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged`. A findings-read
+error that is itself a reader-fence verdict still answers 500 on this route
+(tracked in #7548); `error_site=reader_stale` on a `stage_failed` line marks it.
 
 ## Move evidence (#6060)
 
