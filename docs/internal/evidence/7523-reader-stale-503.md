@@ -42,10 +42,11 @@ way.
   `isReaderFenceError` predicate, so the classifier and the mapper agree and
   leave these untouched. `Retry-After: 2` (a fixed constant, no clock read) is
   set only for the transient verdicts: `GraphReadErrorEnvelope` marks the
-  envelope it returns for a 503 verdict (graph unavailable, stale or timed-out
-  reader) with an unexported flag and `WriteErrorEnvelope` honors only a marked
-  envelope, so every seam that writes a `GraphReadErrorEnvelope` result keeps
-  the header; `WithCheckpoint` sets it for its own 503. The generic
+  envelope it returns for a verdict it marks transient (graph unavailable,
+  stale or timed-out reader; per verdict since #7536) with an unexported flag
+  and `WriteErrorEnvelope` honors only a marked envelope, so every seam that
+  writes a `GraphReadErrorEnvelope` result keeps the header; `WithCheckpoint`
+  sets it only when its checkpoint step fails. The generic
   `WriteErrorEnvelope` no longer sets it for an arbitrary 503
   `backend_unavailable`. The pre-existing graph-unavailable 503 is transient and
   keeps the header.
@@ -135,7 +136,7 @@ Re-derived with `rg -n 'WriteErrorEnvelope\(' go --glob '!*_test.go'` and
   index build is worth a retry hint is a separate contract question and is not
   decided here.
 - `semanticsearch` `writeSemanticSearchError` 503: own writer, unchanged.
-- `runtime/postgres` `WithCheckpoint`: transient (a failed checkpoint step),
+- `runtime/postgres` `WithCheckpoint`: transient (a failed checkpoint step; a nil source carries no hint, #7536),
   sets the header directly.
 - Review fix (blocking P2): the non-transient cases were added first and failed
   against the prior commit with 503 where 500 was required
@@ -153,6 +154,41 @@ Re-derived with `rg -n 'WriteErrorEnvelope\(' go --glob '!*_test.go'` and
   pool-wait error satisfies both `ErrReaderUnavailable` and
   `context.DeadlineExceeded` through `privateFailure`, and that a connect
   failure does not.
+
+## Follow-up #7536
+
+Refs #7527 and #7249. Two hardening edits, both with no change to the retryable
+verdicts or to any status code or body:
+
+- The retry marker is now per verdict. `graphReadHTTPError` carries a
+  `retryable` field, set only for graph unavailable and the reader fence;
+  `GraphReadErrorEnvelope` copies it instead of deriving it from
+  `status == 503`. A future permanent 503 verdict therefore cannot inherit
+  `Retry-After`. `TestGraphReadVerdictRetryabilityIsPerVerdictNotPerStatus`
+  drives an unmarked synthetic 503 verdict (through the unexported
+  `mapGraphReadError` seam variable) through `GraphReadErrorEnvelope` and
+  `WriteGraphReadError`. It does not compile at 472fee6f5, which has no
+  per-verdict field, so its RED base is 472fee6f5 plus the
+  behaviour-preserving `envelope()` refactor with the status-derived marker
+  restored (`Retry-After = "2"`). It also goes RED under two `go test -overlay`
+  mutants (marker derived from status inside `envelope()`, and re-derived
+  inside `GraphReadErrorEnvelope` after the mapper) and is GREEN on the final
+  tree. `TestRetryableVerdictsAreExactlyGraphUnavailableAndReaderFence` pins
+  the marked set and that the 504 deadline is unmarked.
+- `WithCheckpoint` sets `Retry-After` only when the checkpoint step fails
+  (the writer checkpoint query errors or times out, or the writer fails its
+  topology check; replay lag is a reader-fence condition, not a checkpoint-step
+  one). A nil source is a permanent wiring state,
+  unreachable in production because `cmd/api` and `cmd/mcp-server` fail startup
+  when `pgaccess.Open` errors, so it keeps the 503 and its body but carries no
+  hint. `TestCheckpointHandlerNilSourceCarriesNoRetryAfter` failed against
+  472fee6f5 (`Retry-After = "2"`) and passes after;
+  `TestCheckpointHandlerFailureCarriesRetryAfter` stays green.
+
+No-Regression Evidence: error-mapping and header edits only, run once per
+already-failed request; no SQL, Cypher, lock, queue, pool, or timeout change.
+
+No-Observability-Change: eshu_dp_postgres_reader_stage_duration_seconds, eshu_dp_postgres_reader_pool_waits_total, eshu_dp_postgres_reader_pool_wait_duration_seconds
 
 ## Performance and concurrency
 

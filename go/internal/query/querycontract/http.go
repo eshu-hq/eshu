@@ -49,9 +49,10 @@ func WriteErrorEnvelope(w http.ResponseWriter, r *http.Request, status int, errE
 		return
 	}
 	if status == http.StatusServiceUnavailable && errEnv.retryable {
-		// Only the transient graph-read availability verdicts (a graph outage,
-		// a stale or timed-out PostgreSQL reader) are marked retryable by
-		// GraphReadErrorEnvelope. Any other 503 backend_unavailable, such as
+		// Only the verdicts the shared mapping marks retryable (a graph outage,
+		// a stale or timed-out PostgreSQL reader) reach here; the marker is
+		// set per verdict, not derived from the status (#7536). Any other 503
+		// backend_unavailable, such as
 		// an unconfigured graph backend, is a permanent state and carries no
 		// hint. MCP callers get the same hint from the envelope details because
 		// the dispatcher does not forward headers.
