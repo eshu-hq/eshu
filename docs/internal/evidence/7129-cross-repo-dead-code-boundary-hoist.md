@@ -64,6 +64,8 @@ Emit-only-when-used: `TestCrossRepoDeadCodeBoundaryListIsOmittedWhenNoRowUsedIt`
 emit the list): the test fails with 20 items. The fixture-1 est2x above is
 unchanged by this rule (187,776), because every row there uses the fallback.
 
+The seeded violation puts the per-row evidence back but keeps the new response keys (the hoisted list and the per-row `consumer_evidence_source` and `consumer_evidence_count`), so it carries the boundary evidence twice. That is why it is larger than HEAD, which has neither; the test fails in both because both are over budget.
+
 The 824,864 figure is a synthetic fixture, not the live 761,090-byte reply; the
 live number is NOT_CHECKED after this change (no ops-qa access in this
 worktree).

@@ -71,7 +71,10 @@ func TestFindCrossRepoDeadCodeBoundaryOnlyRepositoryFitsDefaultBudget(t *testing
 			est2x, result.ResourceOnly, defaultToolResponseByteBudget)
 	}
 
-	data, _ := result.Envelope.Data.(map[string]any)
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map[string]any", result.Envelope.Data)
+	}
 	hoisted, _ := data["boundary_consumer_evidence"].([]any)
 	if len(hoisted) != boundaryRelationshipCount {
 		t.Fatalf("boundary_consumer_evidence = %d items, want %d", len(hoisted), boundaryRelationshipCount)
