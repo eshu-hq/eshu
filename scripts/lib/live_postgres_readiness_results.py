@@ -7,28 +7,111 @@ import re
 import sys
 
 
-EXPECTED = {
-    "go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go": (
-        "TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive",
-        "TestSupplyChainImpactReadinessRepoArmScopeLive",
-    ),
-    "go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go": (
-        "TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive",
-    ),
-    "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
-        "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
-    ),
-    "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
-        "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
-        "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
-    ),
-    "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
-        "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
-    ),
+IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
+STORAGE_PACKAGE = "./internal/storage/postgres"
+REDUCER_PACKAGE = "./cmd/reducer"
+QUERY_PACKAGE = "./internal/query"
+
+# Expected files and tests per Go package (relative to the go/ module root).
+# The runner invokes one go test per package, each with its own events file
+# and package terminal event.
+PACKAGES = {
+    IMPACT_PACKAGE: {
+        "go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go": (
+            "TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive",
+            "TestSupplyChainImpactReadinessRepoArmScopeLive",
+        ),
+        "go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go": (
+            "TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive",
+        ),
+        "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
+            "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
+        ),
+        "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
+            "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
+            "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
+        ),
+        "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
+            "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
+            "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
+        ),
+    },
+    STORAGE_PACKAGE: {
+        "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
+            "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
+            "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",
+            "TestPackageManifestConsumptionBackfillWaitsForScopeWriterLive",
+            "TestPackageManifestConsumptionBackfillBoundsTwentyFiveScopePassLive",
+            "TestPackageManifestConsumptionBackfillConcurrentPassesAreIdempotentLive",
+        ),
+        "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
+            "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
+        ),
+    },
+    REDUCER_PACKAGE: {
+        "go/cmd/reducer/package_manifest_backfill_live_test.go": (
+            "TestPackageManifestBackfillOnlyOneCandidateOwnsPass",
+            "TestPackageManifestBackfillDoesNotStarveSingleConnectionPool",
+        ),
+    },
+    QUERY_PACKAGE: {
+        "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
+            "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
+        ),
+    },
 }
-EXPECTED_TESTS = {test for tests in EXPECTED.values() for test in tests}
-# One go test package terminal event per Go package directory of EXPECTED.
-EXPECTED_PACKAGE_COUNT = len({path.rsplit("/", 1)[0] for path in EXPECTED})
+EXPECTED = {
+    path: tests
+    for package_expected in PACKAGES.values()
+    for path, tests in package_expected.items()
+}
+TOTAL_TESTS = sum(len(tests) for tests in EXPECTED.values())
+
+
+def package_records() -> list[tuple[str, list[str]]]:
+    """Return (package, expected tests) per package, failing closed on bad data.
+
+    PACKAGES is the single source of truth for the runner's package list and
+    its -run patterns, so an empty or malformed table must stop the run rather
+    than let it pass with fewer packages.
+    """
+    if not isinstance(PACKAGES, dict) or not PACKAGES:
+        raise ValueError("PACKAGES is empty")
+    records = []
+    for package, files in PACKAGES.items():
+        if not isinstance(package, str) or not package.startswith("./"):
+            raise ValueError(f"malformed package path: {package!r}")
+        if not isinstance(files, dict) or not files:
+            raise ValueError(f"{package}: no expected files")
+        tests: list[str] = []
+        for path, names in files.items():
+            if not isinstance(names, (tuple, list)) or not names:
+                raise ValueError(f"{package}: {path}: no expected tests")
+            for name in names:
+                if not isinstance(name, str) or not re.fullmatch(r"Test\w+", name):
+                    raise ValueError(f"{package}: {path}: malformed test {name!r}")
+                if name in tests:
+                    raise ValueError(f"{package}: duplicate test {name}")
+                tests.append(name)
+        records.append((package, tests))
+    return records
+
+
+def list_packages() -> int:
+    """Print one tab-separated record per package for the runner.
+
+    Fields: Go package path, anchored go test -run pattern, then the expected
+    test names separated by spaces. Names are \\w only, so no field needs
+    escaping.
+    """
+    try:
+        records = package_records()
+    except ValueError as error:
+        print(f"list-packages: {error}", file=sys.stderr)
+        return 1
+    for package, tests in records:
+        print(f"{package}\t^({'|'.join(tests)})$\t{' '.join(tests)}")
+    return 0
 
 
 def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
@@ -69,19 +152,22 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
             return 1
     print(
         f"postgres_ci ledger selection: {len(EXPECTED)} files, "
-        f"{len(EXPECTED_TESTS)} tests selected"
+        f"{TOTAL_TESTS} tests selected"
     )
     return 0
 
 
-def verify_results(events_path: pathlib.Path) -> int:
-    """Require one run and one passing terminal event for every expected test."""
-    runs = {name: 0 for name in EXPECTED_TESTS}
+def verify_results(events_path: pathlib.Path, package: str) -> int:
+    """Require one run and one passing terminal event per expected test of a package."""
+    expected_tests = {
+        test for tests in PACKAGES[package].values() for test in tests
+    }
+    runs = {name: 0 for name in expected_tests}
     terminals: dict[str, list[tuple[str, float]]] = {
-        name: [] for name in EXPECTED_TESTS
+        name: [] for name in expected_tests
     }
     package_terminal = []
-    output: dict[str, list[str]] = {name: [] for name in EXPECTED_TESTS}
+    output: dict[str, list[str]] = {name: [] for name in expected_tests}
     with events_path.open(encoding="utf-8") as events:
         for line_number, line in enumerate(events, start=1):
             try:
@@ -91,7 +177,7 @@ def verify_results(events_path: pathlib.Path) -> int:
                 return 1
             action = event.get("Action")
             name = event.get("Test")
-            if name in EXPECTED_TESTS:
+            if name in expected_tests:
                 if action == "run":
                     runs[name] += 1
                 elif action in {"pass", "fail", "skip"}:
@@ -102,7 +188,7 @@ def verify_results(events_path: pathlib.Path) -> int:
                 package_terminal.append(action)
 
     failed = False
-    for name in sorted(EXPECTED_TESTS):
+    for name in sorted(expected_tests):
         terminal = terminals[name]
         if runs[name] != 1 or len(terminal) != 1:
             print(
@@ -117,27 +203,32 @@ def verify_results(events_path: pathlib.Path) -> int:
             failed = True
             for text in output[name][-6:]:
                 print(f"  {text}")
-    if package_terminal != ["pass"] * EXPECTED_PACKAGE_COUNT:
-        print(
-            f"package terminal: expected {EXPECTED_PACKAGE_COUNT} PASS, "
-            f"actual={package_terminal}"
-        )
+    if package_terminal != ["pass"]:
+        print(f"package terminal ({package}): expected PASS, actual={package_terminal}")
         failed = True
     if failed:
         return 1
-    print(f"live-postgres-readiness: {len(EXPECTED_TESTS)}/{len(EXPECTED_TESTS)} PASS")
+    print(
+        f"live-postgres-readiness: {package} "
+        f"{len(expected_tests)}/{len(expected_tests)} PASS"
+    )
     return 0
 
 
 def main() -> int:
-    """Dispatch the ledger and go-test event checks."""
+    """Dispatch the ledger, per-package go-test event, and summary checks."""
     if len(sys.argv) == 4 and sys.argv[1] == "verify-ledger":
         return verify_ledger(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]))
-    if len(sys.argv) == 3 and sys.argv[1] == "verify-results":
-        return verify_results(pathlib.Path(sys.argv[2]))
+    if len(sys.argv) == 4 and sys.argv[1] == "verify-results" and sys.argv[3] in PACKAGES:
+        return verify_results(pathlib.Path(sys.argv[2]), sys.argv[3])
+    if len(sys.argv) == 2 and sys.argv[1] == "list-packages":
+        return list_packages()
+    if len(sys.argv) == 2 and sys.argv[1] == "summary":
+        print(f"live-postgres-readiness: {TOTAL_TESTS}/{TOTAL_TESTS} PASS")
+        return 0
     print(
         "usage: live_postgres_readiness_results.py "
-        "verify-ledger <ledger> <repo-root> | verify-results <events>",
+        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> | list-packages | summary",
         file=sys.stderr,
     )
     return 2

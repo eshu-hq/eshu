@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 572
-  sha256: e9bca60b16993280ccf8b1a9f12bec9c5478f5243fae36175f16702573a02a98
+  count: 569
+  sha256: c9ea707ef12e7ce1f0deeb22c38cb01e022197729e5c4c8e0e00c33d19f6e900
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -140,6 +140,11 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/cmd/reducer/package_manifest_backfill_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 proofs of the package-manifest backfill leadership lock (one candidate owns a pass, a crashed owner is taken over) and the single-connection pool (no starvation), enrolled in the live-postgres-readiness runner; the env-gated pair moved out of the hermetic package_manifest_backfill_test.go so this ledger can classify it. Upper-bound timing: in the local sixteen-proof runner the two proofs took 0.05s and 0.02s of test time (2.4s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took under 1s; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/cmd/reducer/repo_dependency_commit_response_loss_prove_theory_live_test.go
     tag: ~
     class: scheduled
@@ -834,17 +839,18 @@ tests:
     reason: "#7529 disposable PostgreSQL 18 scan-tier plan and truth proofs; local four-test run passed in 41.3s on 2026-10-02"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
-    tag: integration
-    class: scheduled
-    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 proofs of the runtime-environment evidence read, enrolled in the live-postgres-readiness runner: the hot digest (about 1,000,199 seeded rows, 200 candidates) keeps one artifact-index probe per candidate at the seeded active scope/generation pair count with analyzed statistics, and the truth matrix admits only current, authorized, accepted facts. Pair-count scaling is not checked and is tracked in #7552. Upper-bound timing: local eight-proof runner passed in 90s suite time (50.7s hot digest, dominated by the seed; 0.63s truth matrix) on postgres:18-alpine with host load average 65 to 94 on 12 CPUs on 2026-10-03; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    reason: "env-gated by ESHU_POSTGRES_TEST_DSN and not enrollable as-is: its absolute wall-clock ceilings (origin/main medians from an unnamed host, #5856, times 1.10) fail docs/internal/timing-proof-rules.md rule 2 and are not a regression signal; 5 of 5 runs on a loaded laptop failed the direct_list ceiling at 195 to 202 ms against the 177.170 ms constant (194.9 ms ceiling) on unchanged code; steward linuxdynasty; reshape to plan and buffer assertions tracked in #7553"
   - file: go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    reason: "helper-only file (no Test function) holding the EXPLAIN decoders and query arguments that TestSupplyChainSuppressionPathsPerformanceLive uses; it runs only through that proof, which is not enrolled for the reasons on its own row (absolute wall-clock ceilings, #5856, timing-proof-rules rule 2; reshape tracked in #7553); steward linuxdynasty"
   - file: go/internal/query/supply/chain/runtime_context_scope_live_test.go
     tag: ~
     class: scheduled
@@ -2120,16 +2126,18 @@ tests:
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
   - file: go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7088 disposable Postgres backfill and contention proof; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 backfill and contention proofs (repair after ready, heavy-scope paging, scope-writer wait, 25-scope bound, concurrent idempotent passes) over the package-manifest consumption keys, enrolled in the #7529 live-postgres-readiness runner. Upper-bound timing: local sixteen-proof runner passed the five proofs in 0.62s to 1.24s each (4.2s summed; the six-test storage package ran in 7.3s test time and 16s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took about 27s for the six storage proofs including compile; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/migration_148_delta_baseline_live_test.go
     tag: ~
     class: scheduled
     reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7088 disposable Postgres upgrade proof from shipped migration 138; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 upgrade proof from shipped migration 138 across the secret-lines migrations, enrolled in the #7529 live-postgres-readiness runner. Upper-bound timing: 0.60s of test time in the local sixteen-proof runner (same storage package run as the backfill proofs: 7.3s test time, 16s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took about 27s for the six storage proofs including compile; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go
     tag: ~
     class: scheduled
