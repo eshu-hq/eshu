@@ -23,11 +23,13 @@ cat >>"${seed_dir}/bin/go" <<'EOF'
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "$*" == *"TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive"* ]] || { echo 'missing fan-out test' >&2; exit 9; }
+[[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong manifest DSN' >&2; exit 9; }
+[[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong scan-tier DSN' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "$*" == *"TestSupplyChainImpactReadinessPackageConsumptionScopeLive"* ]] || { echo 'missing package-consumption test' >&2; exit 9; }
 [[ "${ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong package-consumption DSN' >&2; exit 9; }
 [[ "${ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing package-consumption opt-in' >&2; exit 9; }
-[[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong manifest DSN' >&2; exit 9; }
-[[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong scan-tier DSN' >&2; exit 9; }
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing manifest opt-in' >&2; exit 9; }
