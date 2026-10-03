@@ -1,6 +1,6 @@
 name: Live PostgreSQL Readiness
 
-# The fifteen readiness and dead-code incoming proofs use EXPLAIN and correctness assertions against
+# The seventeen readiness and dead-code incoming proofs use EXPLAIN and correctness assertions against
 # separately created disposable databases. The merge queue always runs this
 # job; PR and main-push events select the paths that can change the proof.
 on:
@@ -12,6 +12,7 @@ on:
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/storage/postgres/**'
+      - 'go/cmd/reducer/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/go.mod'
       - 'go/go.sum'
@@ -32,6 +33,7 @@ on:
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/storage/postgres/**'
+      - 'go/cmd/reducer/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/go.mod'
       - 'go/go.sum'

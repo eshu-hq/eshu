@@ -140,6 +140,11 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/cmd/reducer/package_manifest_backfill_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 proofs of the package-manifest backfill leadership lock (one candidate owns a pass, a crashed owner is taken over) and the single-connection pool (no starvation), enrolled in the live-postgres-readiness runner; the env-gated pair moved out of the hermetic package_manifest_backfill_test.go so this ledger can classify it. Upper-bound timing: in the local sixteen-proof runner the two proofs took 0.05s and 0.02s of test time (2.4s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took under 1s; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/cmd/reducer/repo_dependency_commit_response_loss_prove_theory_live_test.go
     tag: ~
     class: scheduled

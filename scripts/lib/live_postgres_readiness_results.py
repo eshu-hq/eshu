@@ -9,6 +9,7 @@ import sys
 
 IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
 STORAGE_PACKAGE = "./internal/storage/postgres"
+REDUCER_PACKAGE = "./cmd/reducer"
 QUERY_PACKAGE = "./internal/query"
 
 # Expected files and tests per Go package (relative to the go/ module root).
@@ -45,6 +46,12 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
+        ),
+    },
+    REDUCER_PACKAGE: {
+        "go/cmd/reducer/package_manifest_backfill_live_test.go": (
+            "TestPackageManifestBackfillOnlyOneCandidateOwnsPass",
+            "TestPackageManifestBackfillDoesNotStarveSingleConnectionPool",
         ),
     },
     QUERY_PACKAGE: {
