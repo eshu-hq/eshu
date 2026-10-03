@@ -18,8 +18,10 @@ go/internal/runtime/postgres/access.go
   s_b0d7e3abc26c5a::t_66439217534292 272
   s_b0d7e3abc26c5a::t_b0c42720603aa1 70,151
   s_b0d7e3abc26c5a::t_61d775235e430b 265
+  s_b0d7e3abc26c5a::t_4c686694db788b 68
 docs/public/observability/telemetry-coverage.md
   s_b0d7e3abc26c5a::t_c773ac8250164e 804
+  s_b0d7e3abc26c5a::t_4c686694db788b 803
 go/internal/runtime/postgres/README.md
   s_b0d7e3abc26c5a::t_9aef0c48021a07 214
   s_b0d7e3abc26c5a::t_c97e3ddbbe2ded 215
@@ -35,6 +37,7 @@ go/internal/runtime/postgres/reader_member_telemetry_test.go
 go/internal/runtime/postgres/telemetry_contract.go
   s_b0d7e3abc26c5a::t_110ba4d7ad679d 9-14,16-17,21-24,26-27
   s_b0d7e3abc26c5a::t_7f1171a1ce5ccd 15,25
+  s_b0d7e3abc26c5a::t_4c686694db788b 28-33
 go/internal/runtime/postgres/reader_allocator.go
   s_b0d7e3abc26c5a::t_60a8856f254ff4 53-65
 ---
