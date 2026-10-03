@@ -49,6 +49,16 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `suppressed_truncated`, so `limit=1` cannot return dozens of modeled-root
   rows and a short bucket says whether it was cut (#7168). Policy stats still
   count every suppressed row; only the returned bucket is bounded.
+- **Boundary consumer evidence is returned once.** A cross-repo candidate with
+  no entity-level evidence classifies against the repository's incoming
+  relationships (`consumers.Boundary`), but those items are the same for every
+  such row, so `bucketCrossRepoDeadCodeResults` filters them once per request
+  and the handler returns them as `boundary_consumer_evidence` (+ `_count`),
+  empty and 0 when no row used the fallback. A
+  fallback row keeps `consumer_evidence: []` and
+  `consumer_evidence_source: "repository_boundary"`; other rows get `entity`;
+  every row gets `consumer_evidence_count` (#7129). Classification still reads
+  the in-memory evidence slice, never the row map.
 - **Investigation coverage never reads `content_entities`.** The `coverage`
   block takes `file_count` and `languages` from the narrow
   `RepositoryContextCoverage` read and `content_last_indexed_at` from the files

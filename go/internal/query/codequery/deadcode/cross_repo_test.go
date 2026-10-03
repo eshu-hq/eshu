@@ -274,11 +274,11 @@ func TestHandleCrossRepoDeadCodeRepositoryBoundaryEvidenceStaysUnknown(t *testin
 	buckets := data["candidate_buckets"].(map[string]any)
 	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-boundary")
 	assertCrossRepoDeadCodeReason(t, unknown, "package_module_repo_needs_symbol_evidence")
-	assertCrossRepoDeadCodeEvidenceCitation(
-		t,
-		unknown,
-		"repository_relationships:relationship-generation-1/relationship-1",
-	)
+	// The boundary evidence is returned once, not per row (#7129).
+	if got := hoistedCitations(t, data); len(got) != 1 ||
+		got[0] != "repository_relationships:relationship-generation-1/relationship-1" {
+		t.Fatalf("boundary_consumer_evidence citations = %v, want the relationship citation", got)
+	}
 	deadRows := buckets["dead"].([]any)
 	if len(deadRows) != 0 {
 		t.Fatalf("dead bucket = %#v, want repository-boundary candidate kept unknown", deadRows)

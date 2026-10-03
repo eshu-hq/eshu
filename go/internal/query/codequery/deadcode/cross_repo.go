@@ -135,7 +135,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 	}
 
 	boundaryEvidence := a.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
-	buckets := a.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
+	buckets, boundaryVisible := a.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
 		Evidence:        evidence,
 		HiddenConsumers: hiddenConsumers,
 		Boundary:        boundaryEvidence,
@@ -157,7 +157,12 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		"candidate_scan_pages":           scan.CandidateScanPages,
 		"candidate_scan_rows":            scan.CandidateScanRows,
 		"candidate_buckets":              buckets,
-		"bucket_counts":                  crossRepoDeadCodeBucketCounts(buckets),
+		// The repository-boundary evidence every fallback row used to repeat,
+		// returned once (#7129). The keys are always present; the list is empty
+		// when no row used the fallback.
+		"boundary_consumer_evidence":       crossRepoDeadCodeEvidenceMaps(boundaryVisible),
+		"boundary_consumer_evidence_count": len(boundaryVisible),
+		"bucket_counts":                    crossRepoDeadCodeBucketCounts(buckets),
 		"analysis": codemodel.BuildDeadCodeAnalysisForLanguage(
 			crossRepoDeadCodeAnalysisRows(buckets),
 			req.ExcludeDecoratedWith,
@@ -319,9 +324,15 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 	req CrossRepoDeadCodeRequest,
 	scan CrossRepoDeadCodeScan,
 	consumers crossRepoDeadCodeConsumerEvidenceSet,
-) map[string]any {
+) (map[string]any, []CrossRepoDeadCodeEvidence) {
 	allowedConsumers := crossRepoDeadCodeConsumerSet(req.ConsumerRepoIDs)
 	access := a.deps.GrantFilter(ctx)
+	// The boundary filter depends on the request's selector and grant, never on
+	// the entity, so it runs once. The second return value is the visible list
+	// the handler hoists into data.boundary_consumer_evidence, or nil when no
+	// row used it: the list is unbounded, so it ships only to explain a row.
+	boundaryUsed := false
+	boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(consumers.Boundary, allowedConsumers, access)
 	buckets := map[string]any{
 		"dead":             []any{},
 		"live_by_consumer": []any{},
@@ -342,12 +353,16 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 		if consumers.HiddenConsumers.Has(entityID) {
 			hiddenCount++
 		}
+		usedBoundary := false
 		if len(visible) == 0 && hiddenCount == 0 {
-			boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(consumers.Boundary, allowedConsumers, access)
+			// Classification keeps reading the boundary items through visible;
+			// only the row's output omits them (see setCrossRepoDeadCodeRowEvidence).
 			visible = append(visible, boundaryVisible...)
 			hiddenCount += len(boundaryHidden)
+			usedBoundary = len(boundaryVisible) > 0
+			boundaryUsed = boundaryUsed || usedBoundary
 		}
-		row["consumer_evidence"] = crossRepoDeadCodeEvidenceMaps(visible)
+		setCrossRepoDeadCodeRowEvidence(row, visible, usedBoundary)
 		if hiddenCount > 0 {
 			row["hidden_consumer_evidence_count"] = hiddenCount
 		}
@@ -385,7 +400,10 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 		}
 		buckets["dead"] = append(buckets["dead"].([]any), row)
 	}
-	return buckets
+	if !boundaryUsed {
+		return buckets, nil
+	}
+	return buckets, boundaryVisible
 }
 
 func crossRepoDeadCodeHasStrongLiveEvidence(evidence []CrossRepoDeadCodeEvidence) bool {
@@ -413,42 +431,6 @@ func crossRepoDeadCodeStrongestConfidenceLabel(evidence []CrossRepoDeadCodeEvide
 		return CrossRepoDeadCodeConfidenceLabel(best)
 	}
 	return label
-}
-
-func crossRepoDeadCodeEvidenceMaps(evidence []CrossRepoDeadCodeEvidence) []any {
-	rows := make([]any, 0, len(evidence))
-	for _, item := range evidence {
-		if item.ConfidenceLabel == "" {
-			item.ConfidenceLabel = CrossRepoDeadCodeConfidenceLabel(item.Confidence)
-		}
-		if item.EvidenceFamily == "" {
-			item.EvidenceFamily = "code_reachability"
-		}
-		row := map[string]any{
-			"consumer_repo_id":   item.ConsumerRepoID,
-			"consumer_repo_name": item.ConsumerRepoName,
-			"consumer_entity_id": item.ConsumerEntityID,
-			"relationship_type":  item.RelationshipType,
-			"evidence_family":    item.EvidenceFamily,
-			"citation":           item.Citation,
-			"confidence":         item.Confidence,
-			"confidence_label":   item.ConfidenceLabel,
-			"resolution_method":  item.ResolutionMethod,
-			"depth":              item.Depth,
-			"generation_id":      item.GenerationID,
-			"generation_status":  item.GenerationStatus,
-			"ambiguous":          item.Ambiguous,
-			"needs_evidence":     item.NeedsEvidence,
-		}
-		if !item.ObservedAt.IsZero() {
-			row["observed_at"] = item.ObservedAt.Format(time.RFC3339Nano)
-		}
-		if item.Reason != "" {
-			row["reason"] = item.Reason
-		}
-		rows = append(rows, row)
-	}
-	return rows
 }
 
 func CrossRepoDeadCodeConfidenceLabel(confidence float64) string {
