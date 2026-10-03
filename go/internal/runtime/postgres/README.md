@@ -300,6 +300,16 @@ Fleet tests additionally require `ESHU_READER_TEST_SECOND_READER_DSN` for a
 separately slotted physical standby on the same disposable primary. They cover
 snapshot affinity/distribution, aggregate capacity, cancellation, wrong-role
 rejection, member replacement/loss cleanup, and one-member readiness.
+The physical code-topic mid-read loss test also requires
+`ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1`,
+`ESHU_READER_TEST_TERMINATE_BACKEND=1`, and the exact
+`ESHU_READER_TEST_PRIMARY_CONTAINER`,
+`ESHU_READER_TEST_FIRST_READER_CONTAINER`, and
+`ESHU_READER_TEST_SECOND_READER_CONTAINER` names. Each of the three DSNs must
+point to a distinct direct IP of a running Docker container labeled
+`eshu.goal=7033-midread`; the test rejects a missing or mismatched fixture
+before it creates its proof database or terminates a backend. Never set these
+opt-ins for a shared or deployed database.
 
 The API and MCP public-error wire tests additionally take
 `ESHU_AUTH_QUALIFIED_DSN` and `ESHU_AUTH_QUALIFIED_READ_DSN`, pointing at one

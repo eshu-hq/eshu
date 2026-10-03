@@ -408,3 +408,35 @@ API returned HTTP 200 in 1.241450, 1.122866, and 1.127621 s (median
 window changed, so these values are a fresh current-state check, not an
 interleaved before/after speedup. Its trace routing mode was **NOT_CHECKED**;
 there is still one deployed physical reader and no fleet endpoint measurement.
+
+### Established mid-read member loss, 2026-10-03
+
+A separate one-primary PostgreSQL 18.6 shim established the failure mode before
+the follow-up edit. Terminating the backend after the first streamed row of a
+read-only repeatable-read query made pgx return `*pgconn.PgError` SQLSTATE
+`57P01` from `rows.Err()`; the old fleet classifier did not mark it as a lost
+member. An abrupt container kill instead returned `io.ErrUnexpectedEOF`,
+which the old classifier already handled. This shim did not prove peer retry
+or fleet reservation cleanup.
+
+The follow-up at source `579eda56b` added a narrow fleet-only classifier for
+`57P01` and `57P02`, with negative cases for cancellation, ordinary SQL,
+authentication, and capacity errors. On an owned PostgreSQL 18.6 primary and
+two distinct streaming standbys, the full 16-term code-topic test terminated
+one standby backend during an established snapshot. It observed the underlying
+`57P01` and loss marker, exactly two whole-snapshot attempts on distinct
+member addresses, and a complete retry result equal to the uninterrupted
+baseline. SQL pools ended with `InUse=0`, and both member reservation gauges
+were zero. The test was green for three consecutive normal runs (5.222 s,
+exit 0) and one race run (3.126 s after cached build, exit 0). A response
+digest was **NOT_CAPTURED**; equivalence here is the test's complete row-slice
+comparison, not a cross-run hash.
+
+The test requires explicit disposable-database and backend-termination opt-ins,
+three direct DSNs, and three running Docker containers with the exact task
+label. It checks DSN IPs against those containers before creating its proof
+database and verifies the backend's proof-database name before termination.
+A planted missing-ownership violation failed before database creation. The
+owned containers, volumes, and network were removed after the run. This is a
+physical failure/retry proof, not an interleaved latency comparison, a deployed
+ops-qa fleet result, or evidence that #7033 meets the `<1 s` budget.
