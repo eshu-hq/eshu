@@ -12,6 +12,9 @@ EXPECTED = {
         "TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive",
         "TestSupplyChainImpactReadinessRepoArmScopeLive",
     ),
+    "go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go": (
+        "TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive",
+    ),
     "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
         "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
     ),
