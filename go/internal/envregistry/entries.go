@@ -30,6 +30,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_POSTGRES_MAX_OPEN_CONNS", Type: VarInt, Default: "30", Subsystem: "postgres", Description: "Maximum open Postgres connections."},
 	{Name: "ESHU_POSTGRES_MAX_IDLE_CONNS", Type: VarInt, Default: "10", Subsystem: "postgres", Description: "Maximum idle Postgres connections (capped at max open)."},
 	{Name: "ESHU_POSTGRES_READ_DSN", Type: VarDSN, Subsystem: "postgres", Description: "Optional API/MCP read-only PostgreSQL endpoint; omitted uses the writer DSN with a separate read-only session pool."},
+	{Name: "ESHU_POSTGRES_READ_MEMBERS", Type: VarString, Subsystem: "postgres", Description: "Optional API/MCP JSON array of at least two direct physical reader members (id, host, port). Uses shared credentials and TLS from ESHU_POSTGRES_READ_DSN; startup validates members and per-member pool capacity. Omit for legacy reader Service routing."},
 	{Name: "ESHU_POSTGRES_READ_MAX_IDLE_CONNS", Type: VarInt, Subsystem: "postgres", Description: "Optional API/MCP reader idle allocation from ESHU_POSTGRES_MAX_IDLE_CONNS; omitted defaults near half while respecting both pool limits."},
 	{Name: "ESHU_POSTGRES_READ_MAX_OPEN_CONNS", Type: VarInt, Subsystem: "postgres", Description: "Optional API/MCP reader open allocation from ESHU_POSTGRES_MAX_OPEN_CONNS; omitted defaults to half and the writer gets the remainder."},
 	{Name: "ESHU_POSTGRES_CONN_MAX_LIFETIME", Type: VarDuration, Default: "30m", Subsystem: "postgres", Description: "Connection lifetime before recycling."},
