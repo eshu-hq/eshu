@@ -1,7 +1,7 @@
 # 7561 — filename destutter: reducer/incident, reducer/crossplane
 
 Issue: #7561. Branch `refactor/7561-incident-crossplane-destutter`, base `origin/main`
-0dd29ff19c48.
+306eac09c893.
 
 Seventeen files whose stem repeated their own leaf directory were renamed, dropping
 the repeated word. This note exists because ten of the renamed files carry hot
@@ -12,7 +12,7 @@ evidence in the repo rather than only in the PR body.
 ## What changed
 
 - `go/internal/reducer/incident/`: the `incident_` prefix dropped from twelve files
-  (six production, six test).
+  (seven production, five test).
 - `go/internal/reducer/crossplane/`: the `crossplane_` prefix dropped from five files
   (three production, two test).
 - Reference updates only: three design docs, `telemetry-coverage.md`,
