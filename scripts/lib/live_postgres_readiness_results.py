@@ -68,6 +68,52 @@ EXPECTED = {
 TOTAL_TESTS = sum(len(tests) for tests in EXPECTED.values())
 
 
+def package_records() -> list[tuple[str, list[str]]]:
+    """Return (package, expected tests) per package, failing closed on bad data.
+
+    PACKAGES is the single source of truth for the runner's package list and
+    its -run patterns, so an empty or malformed table must stop the run rather
+    than let it pass with fewer packages.
+    """
+    if not isinstance(PACKAGES, dict) or not PACKAGES:
+        raise ValueError("PACKAGES is empty")
+    records = []
+    for package, files in PACKAGES.items():
+        if not isinstance(package, str) or not package.startswith("./"):
+            raise ValueError(f"malformed package path: {package!r}")
+        if not isinstance(files, dict) or not files:
+            raise ValueError(f"{package}: no expected files")
+        tests: list[str] = []
+        for path, names in files.items():
+            if not isinstance(names, (tuple, list)) or not names:
+                raise ValueError(f"{package}: {path}: no expected tests")
+            for name in names:
+                if not isinstance(name, str) or not re.fullmatch(r"Test\w+", name):
+                    raise ValueError(f"{package}: {path}: malformed test {name!r}")
+                if name in tests:
+                    raise ValueError(f"{package}: duplicate test {name}")
+                tests.append(name)
+        records.append((package, tests))
+    return records
+
+
+def list_packages() -> int:
+    """Print one tab-separated record per package for the runner.
+
+    Fields: Go package path, anchored go test -run pattern, then the expected
+    test names separated by spaces. Names are \\w only, so no field needs
+    escaping.
+    """
+    try:
+        records = package_records()
+    except ValueError as error:
+        print(f"list-packages: {error}", file=sys.stderr)
+        return 1
+    for package, tests in records:
+        print(f"{package}\t^({'|'.join(tests)})$\t{' '.join(tests)}")
+    return 0
+
+
 def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
     """Require the untagged rows, runner ownership, and test names."""
     ledger = ledger_path.read_text(encoding="utf-8")
@@ -175,12 +221,14 @@ def main() -> int:
         return verify_ledger(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]))
     if len(sys.argv) == 4 and sys.argv[1] == "verify-results" and sys.argv[3] in PACKAGES:
         return verify_results(pathlib.Path(sys.argv[2]), sys.argv[3])
+    if len(sys.argv) == 2 and sys.argv[1] == "list-packages":
+        return list_packages()
     if len(sys.argv) == 2 and sys.argv[1] == "summary":
         print(f"live-postgres-readiness: {TOTAL_TESTS}/{TOTAL_TESTS} PASS")
         return 0
     print(
         "usage: live_postgres_readiness_results.py "
-        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> | summary",
+        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> | list-packages | summary",
         file=sys.stderr,
     )
     return 2

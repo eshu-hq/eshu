@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Run the seventeen readiness and dead-code incoming plan/correctness proofs on
 # disposable PostgreSQL 18 (eight in the impact package, six in storage/postgres,
-# two in cmd/reducer, one in internal/query),
-# one go test per package.
+# two in cmd/reducer, one in internal/query), one go test per package.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,33 +38,33 @@ done
 python3 "${results}" verify-ledger "${ledger}" "${repo_root}" ||
   die "postgres_ci ledger selection is invalid"
 
-impact_pattern='^(TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive|TestSupplyChainImpactReadinessRepoArmScopeLive|TestSupplyChainImpactReadinessScanTierQueryPlanLive|TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive|TestSupplyChainImpactReadinessPackageConsumptionScopeLive|TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive|TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive|TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive)$'
-storage_pattern='^(TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive|TestPackageManifestConsumptionBackfillPagesHeavyScopeLive|TestPackageManifestConsumptionBackfillWaitsForScopeWriterLive|TestPackageManifestConsumptionBackfillBoundsTwentyFiveScopePassLive|TestPackageManifestConsumptionBackfillConcurrentPassesAreIdempotentLive|TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive)$'
-reducer_pattern='^(TestPackageManifestBackfillOnlyOneCandidateOwnsPass|TestPackageManifestBackfillDoesNotStarveSingleConnectionPool)$'
-# Parallel lists: package path (relative to go/) and its -run pattern. The
-# package paths must match the keys of PACKAGES in the results verifier.
-query_pattern='^(TestDeadCodeIncomingEntityIDsActiveRunBoundLive)$'
-packages=(./internal/query/supply/chain/impact ./internal/storage/postgres ./cmd/reducer ./internal/query)
-patterns=("${impact_pattern}" "${storage_pattern}" "${reducer_pattern}" "${query_pattern}")
-
+# The package list and each package's anchored -run pattern come from PACKAGES
+# in the results verifier, the single source of truth, so this runner cannot
+# drift from the ledger-checked expectations. Records are tab separated:
+# package path (relative to go/), -run pattern, expected test names.
 scratch="$(mktemp -d)"
 trap 'rm -rf "${scratch}"' EXIT
+python3 "${results}" list-packages >"${scratch}/packages.tsv" ||
+  die "package list from the results verifier is invalid"
+[[ -s "${scratch}/packages.tsv" ]] || die "results verifier listed no packages"
+
 started="${SECONDS}"
 failed_packages=()
 
 # Every package runs even after an earlier one fails, so one CI run reports
 # every broken proof. The final status fails closed if any package failed.
-for i in "${!packages[@]}"; do
-  package="${packages[$i]}"
+i=0
+while IFS=$'\t' read -r package pattern _tests; do
+  i=$((i + 1))
   events="${scratch}/events-${i}.jsonl"
   if (cd "${repo_root}/go" && go test -json -count=1 -timeout=15m \
-    "${package}" -run "${patterns[$i]}") \
-    >"${events}" 2>"${scratch}/stderr-${i}"; then
+    "${package}" -run "${pattern}") \
+    >"${events}" 2>"${scratch}/stderr-${i}" </dev/null; then
     go_status=0
   else
     go_status=$?
   fi
-  if python3 "${results}" verify-results "${events}" "${package}"; then
+  if python3 "${results}" verify-results "${events}" "${package}" </dev/null; then
     results_status=0
   else
     results_status=$?
@@ -80,7 +79,7 @@ for i in "${!packages[@]}"; do
     printf 'live-postgres-readiness: %s: expected tests did not all pass\n' "${package}" >&2
     failed_packages+=("${package}")
   fi
-done
+done <"${scratch}/packages.tsv"
 printf 'live-postgres-readiness: suite_elapsed=%ss\n' "$((SECONDS - started))"
 if [[ "${#failed_packages[@]}" -ne 0 ]]; then
   die "failed packages: ${failed_packages[*]}"
