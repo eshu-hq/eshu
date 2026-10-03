@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	reachabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -352,4 +353,147 @@ func deadCodeIncomingSortedStrings(values []string) []string {
 	out := slices.Clone(values)
 	slices.Sort(out)
 	return out
+}
+
+// coverageLiveRepo seeds one repository scope for the consumer-coverage proof.
+type coverageLiveRepo struct {
+	repo      string
+	suffix    string
+	hasGen    bool
+	intent    string // "completed", "pending", "other", or "" for none
+	watermark string // "complete", "truncated", "old-epoch", or "" for none
+	staleOnly bool   // the only code intents belong to a superseded generation
+}
+
+// seedCoverageLiveRepo writes the rows a repository scope, its generation, its
+// acceptance row, an optional intent and an optional watermark leave behind.
+func seedCoverageLiveRepo(ctx context.Context, t *testing.T, db *sql.DB, r coverageLiveRepo) {
+	t.Helper()
+
+	scopeID := "git-repository-scope:" + r.repo + r.suffix
+	generationID := "gen-" + r.repo + r.suffix
+	oldGenerationID := "old-" + r.repo + r.suffix
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("seed %s: %v\n%s", r.repo, err, query)
+		}
+	}
+	const intentSQL = `INSERT INTO shared_projection_intents(intent_id, projection_domain, partition_key,
+		scope_id, acceptance_unit_id, repository_id, source_run_id, generation_id, payload, created_at, completed_at)
+		VALUES ($1, $2, 'k', $3, $4, $4, $5, $6, '{}', now(), $7)`
+	exec(`INSERT INTO ingestion_scopes(scope_id, scope_kind, source_system, source_key, collector_kind,
+		partition_key, observed_at, ingested_at, status)
+		VALUES ($1, 'repository', 'git', $2, 'git', 'p', now(), now(), 'active')`, scopeID, r.repo)
+	if r.staleOnly {
+		exec(`INSERT INTO scope_generations(generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
+			VALUES ($1, $2, 'x', now(), now(), 'superseded')`, oldGenerationID, scopeID)
+		exec(`INSERT INTO shared_projection_acceptance(scope_id, acceptance_unit_id, source_run_id, generation_id,
+			accepted_at, updated_at) VALUES ($1, $2, 'run-old', $3, now(), now())`, scopeID, r.repo, oldGenerationID)
+		exec(intentSQL, "i-old-"+r.repo+r.suffix, "code_calls", scopeID, r.repo, "run-old", oldGenerationID, time.Now())
+	}
+	if !r.hasGen {
+		return
+	}
+	exec(`INSERT INTO scope_generations(generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		VALUES ($1, $2, 'x', now(), now(), 'active', now())`, generationID, scopeID)
+	exec(`UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2`, generationID, scopeID)
+	exec(`INSERT INTO shared_projection_acceptance(scope_id, acceptance_unit_id, source_run_id, generation_id,
+		accepted_at, updated_at) VALUES ($1, $2, 'run-new', $3, now(), now())`, scopeID, r.repo, generationID)
+	switch r.intent {
+	case "completed":
+		exec(intentSQL, "i-"+r.repo+r.suffix, "code_calls", scopeID, r.repo, "run-new", generationID, time.Now())
+	case "pending":
+		exec(intentSQL, "i-"+r.repo+r.suffix, "inheritance_edges", scopeID, r.repo, "run-new", generationID, nil)
+	case "other":
+		exec(intentSQL, "i-"+r.repo+r.suffix, "platform_infra", scopeID, r.repo, "run-new", generationID, time.Now())
+	}
+	switch r.watermark {
+	case "complete", "truncated", "old-epoch":
+		epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
+		if r.watermark == "old-epoch" {
+			epoch--
+		}
+		exec(`INSERT INTO code_reachability_repository_watermarks(scope_id, generation_id, repository_id, truncated,
+			updated_at, verdict_schema_epoch) VALUES ($1, $2, $3, $4, now(), $5)`,
+			scopeID, generationID, r.repo, r.watermark == "truncated", epoch)
+	}
+}
+
+// TestCrossRepoDeadCodeConsumerCoverageLive runs both shipped coverage
+// statements on PostgreSQL and proves which repositories are gaps (#7547). A
+// missing, truncated, or older-epoch watermark counts only for a repository whose
+// active generation has a code_calls or inheritance_edges intent (completed or
+// pending). With no such intent (docs, IaC, other domains, intents only on a
+// superseded generation) it is complete. A pending-only repository with no
+// watermark is a gap, and a repository with two scopes is a gap when either is.
+//
+// Run with a disposable PostgreSQL 18 administrative database, the same
+// variables as TestDeadCodeIncomingEntityIDsActiveRunBoundLive.
+func TestCrossRepoDeadCodeConsumerCoverageLive(t *testing.T) {
+	dsn := os.Getenv("ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN")
+	optIn := os.Getenv("ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("ApplyBootstrap(): %v", err)
+	}
+	for _, r := range []coverageLiveRepo{
+		{repo: "r-ok", hasGen: true, intent: "completed", watermark: "complete"},
+		{repo: "r-nowm", hasGen: true, intent: "completed"},
+		{repo: "r-trunc", hasGen: true, intent: "completed", watermark: "truncated"},
+		{repo: "r-pending", hasGen: true, intent: "pending"},
+		{repo: "r-docs", hasGen: true},
+		{repo: "r-docs-trunc", hasGen: true, watermark: "truncated"},
+		{repo: "r-otherdomain", hasGen: true, intent: "other"},
+		{repo: "r-nogen"},
+		{repo: "r-stale", hasGen: true, staleOnly: true},
+		{repo: "r-oldepoch", hasGen: true, intent: "completed", watermark: "old-epoch"},
+		{repo: "r-oldepoch-docs", hasGen: true, watermark: "old-epoch"},
+		{repo: "r-multi", suffix: "-a", hasGen: true, intent: "completed", watermark: "complete"},
+		{repo: "r-multi", suffix: "-b", hasGen: true, intent: "completed"},
+	} {
+		seedCoverageLiveRepo(ctx, t, db, r)
+	}
+	reader := NewContentReader(db)
+	everyRepo := []string{
+		"r-ok", "r-nowm", "r-trunc", "r-pending", "r-docs", "r-docs-trunc",
+		"r-otherdomain", "r-nogen", "r-stale", "r-multi", "r-oldepoch", "r-oldepoch-docs", "r-missing",
+	}
+	cases := []struct {
+		name    string
+		request code.CrossRepoDeadCodeCoverageRequest
+		want    []string
+	}{
+		{
+			name:    "named: a repository with no active scope is a gap",
+			request: code.CrossRepoDeadCodeCoverageRequest{RepositoryIDs: everyRepo, RequireActiveScope: true},
+			want:    []string{"r-missing", "r-multi", "r-nogen", "r-nowm", "r-oldepoch", "r-pending", "r-trunc"},
+		},
+		{
+			name:    "grant: a granted repository nobody ingested is not a gap",
+			request: code.CrossRepoDeadCodeCoverageRequest{RepositoryIDs: everyRepo},
+			want:    []string{"r-multi", "r-nowm", "r-oldepoch", "r-pending", "r-trunc"},
+		},
+		{
+			name:    "named repositories that cannot be consumers are complete",
+			request: code.CrossRepoDeadCodeCoverageRequest{RepositoryIDs: []string{"r-ok", "r-docs", "r-docs-trunc", "r-otherdomain", "r-stale", "r-oldepoch-docs"}, RequireActiveScope: true},
+			want:    nil,
+		},
+		{
+			name:    "every repository",
+			request: code.CrossRepoDeadCodeCoverageRequest{AllRepositories: true},
+			want:    []string{"r-multi", "r-nowm", "r-oldepoch", "r-pending", "r-trunc"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := reader.CrossRepoDeadCodeConsumerCoverage(ctx, tc.request)
+			if err != nil {
+				t.Fatalf("CrossRepoDeadCodeConsumerCoverage() error = %v", err)
+			}
+			if !slices.Equal(got.IncompleteRepositoryIDs, tc.want) || got.IncompleteTruncated {
+				t.Fatalf("incomplete = %v (truncated=%v), want %v", got.IncompleteRepositoryIDs, got.IncompleteTruncated, tc.want)
+			}
+		})
+	}
 }

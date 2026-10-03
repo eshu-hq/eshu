@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
@@ -166,4 +168,14 @@ func TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal(t *testing.T) {
 	if strings.Contains(body, `"classification":"dead"`) {
 		t.Fatalf("a symbol with an out-of-grant consumer was marked dead: %s", body)
 	}
+}
+
+// CrossRepoDeadCodeConsumerCoverage reports every consumer repository complete,
+// so this double keeps classifying exactly as it did before the reader consulted
+// reachability watermarks (#7547).
+func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerCoverage(
+	_ context.Context,
+	_ code.CrossRepoDeadCodeCoverageRequest,
+) (code.CrossRepoDeadCodeCoverage, error) {
+	return code.CrossRepoDeadCodeCoverage{}, nil
 }

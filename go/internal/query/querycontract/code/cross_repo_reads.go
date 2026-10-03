@@ -51,3 +51,49 @@ func (h CrossRepoDeadCodeHiddenConsumers) Has(entityID string) bool {
 	_, ok := h[entityID]
 	return ok
 }
+
+// CrossRepoDeadCodeCoverageRequest says which consumer repositories the
+// per-request coverage check must prove complete before a producer symbol may
+// be called dead. The handler builds it from the same read plan as the evidence
+// page; the reader does what it says in one statement, never one per candidate.
+//
+// A consumer repository is a gap when one of its repository scopes has an active
+// generation with code_calls or inheritance_edges work and no code_reachability_
+// repository_watermarks row for that generation, a truncated one, or one whose
+// verdict_schema_epoch is below the current epoch (#7547).
+// Absence of a consumer row only means "not called" for a repository that is not
+// a gap. The check does not detect a stale or partly drained snapshot whose
+// watermark says truncated = false, nor a zero-root snapshot before the writer
+// stamps it truncated.
+//
+// RepositoryIDs is the consumer list when AllRepositories is false: the
+// request's own consumer selector, or the caller's grant. AllRepositories
+// checks every repository scope with an active generation, and is only used for
+// an unscoped caller who named no consumer. RequireActiveScope makes a listed
+// repository with no active repository scope at all count as incomplete; the
+// handler sets it for a consumer the request named, because the caller asked
+// for that repository's evidence by name, and leaves it off for the grant
+// list, where a granted repository nobody has ingested is not a consumer.
+type CrossRepoDeadCodeCoverageRequest struct {
+	RepositoryIDs      []string
+	AllRepositories    bool
+	RequireActiveScope bool
+}
+
+// CrossRepoDeadCodeCoverage is the coverage check's answer: the consumer
+// repositories that are not proven complete.
+//
+// IncompleteRepositoryIDs is sorted and capped; IncompleteTruncated says the
+// cap cut the list. A repository id here is one the request named, one inside
+// the caller's grant, or -- for an unscoped caller -- any repository, so it
+// never discloses a repository the caller may not see.
+type CrossRepoDeadCodeCoverage struct {
+	IncompleteRepositoryIDs []string
+	IncompleteTruncated     bool
+}
+
+// Complete reports whether every consumer repository the request covers has a
+// complete watermark for its active generation.
+func (c CrossRepoDeadCodeCoverage) Complete() bool {
+	return len(c.IncompleteRepositoryIDs) == 0 && !c.IncompleteTruncated
+}

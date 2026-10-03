@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	reachabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -371,4 +373,95 @@ func crossRepoDeadCodeRelationshipType(evidence []string) string {
 
 func crossRepoDeadCodeCitation(generationID string, consumerRepoID string, rootEntityID string, entityID string) string {
 	return "code_reachability_rows:" + generationID + "/" + consumerRepoID + "/" + rootEntityID + "/" + entityID
+}
+
+// CrossRepoDeadCodeConsumerCoverage reports which consumer repositories the
+// request covers lack a complete reachability snapshot for their active
+// generation. The dead-code route calls it once per request: a producer symbol
+// with no consumer row is only dead when this answer is complete, because a
+// repository whose snapshot is missing, truncated, or built under an older
+// verdict schema epoch (reachabilitystore.CodeReachabilityVerdictSchemaEpoch,
+// bound by this method) contributes no rows, or wrong ones, for symbols it really
+// does call (#7547). Those are the only three gaps it detects: a
+// stale or partly drained snapshot whose watermark says truncated = false reads
+// complete, as does a zero-root repository until the writer stamps it truncated.
+//
+// An empty request that is not AllRepositories is refused rather than answered
+// "complete": naming no repository proves nothing about any of them.
+func (cr *ContentReader) CrossRepoDeadCodeConsumerCoverage(
+	ctx context.Context,
+	request code.CrossRepoDeadCodeCoverageRequest,
+) (code.CrossRepoDeadCodeCoverage, error) {
+	if cr == nil || cr.db == nil {
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: content reader unavailable")
+	}
+	if !request.AllRepositories && len(request.RepositoryIDs) == 0 {
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: request names no repositories")
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx,
+		"postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "cross_repo_dead_code_consumer_coverage"),
+			attribute.String("db.sql.table", "code_reachability_repository_watermarks"),
+			attribute.Bool("db.coverage.all_repositories", request.AllRepositories),
+			attribute.Int("db.coverage.requested_repositories", len(request.RepositoryIDs)),
+		),
+	)
+	defer span.End()
+
+	limit := deadcode.CrossRepoDeadCodeCoverageGapCap + 1
+	epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
+	query, args := deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery, []any{epoch, limit}
+	if !request.AllRepositories {
+		query = deadcode.CrossRepoDeadCodeNamedConsumerCoverageQuery
+		args = []any{array.Of(request.RepositoryIDs), request.RequireActiveScope, epoch, limit}
+	}
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	seen := make(map[string]struct{}, limit)
+	rowCount := 0
+	for rows.Next() {
+		rowCount++
+		var repositoryID string
+		if err := rows.Scan(&repositoryID); err != nil {
+			span.RecordError(err)
+			return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("scan cross-repo dead code consumer coverage: %w", err)
+		}
+		seen[repositoryID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: %w", err)
+	}
+
+	incomplete := make([]string, 0, len(seen))
+	for repositoryID := range seen {
+		incomplete = append(incomplete, repositoryID)
+	}
+	slices.Sort(incomplete)
+	coverage := code.CrossRepoDeadCodeCoverage{}
+	// Reaching the limit means the statement may have stopped short, which a
+	// repository reported by two scopes can hide behind the dedupe above.
+	if rowCount >= limit {
+		coverage.IncompleteTruncated = true
+	}
+	if len(incomplete) > deadcode.CrossRepoDeadCodeCoverageGapCap {
+		incomplete = incomplete[:deadcode.CrossRepoDeadCodeCoverageGapCap]
+	}
+	if len(incomplete) > 0 {
+		coverage.IncompleteRepositoryIDs = incomplete
+	}
+	span.SetAttributes(
+		attribute.Int("db.rows.incomplete_consumer_repositories", len(incomplete)),
+		attribute.Bool("db.coverage.truncated", coverage.IncompleteTruncated),
+	)
+	return coverage, nil
 }

@@ -57,6 +57,7 @@ PACKAGES = {
     QUERY_PACKAGE: {
         "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
             "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
+            "TestCrossRepoDeadCodeConsumerCoverageLive",
         ),
     },
 }

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
+
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -187,4 +189,14 @@ func TestDeadCodeRoutesKeep500ForNonTransientReaderFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// CrossRepoDeadCodeConsumerCoverage reports every consumer repository complete,
+// so this double keeps classifying exactly as it did before the reader consulted
+// reachability watermarks (#7547).
+func (s *readerFenceStore) CrossRepoDeadCodeConsumerCoverage(
+	_ context.Context,
+	_ code.CrossRepoDeadCodeCoverageRequest,
+) (code.CrossRepoDeadCodeCoverage, error) {
+	return code.CrossRepoDeadCodeCoverage{}, nil
 }

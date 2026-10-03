@@ -40,6 +40,69 @@ Ambiguous ownership, stale generations, missing evidence coverage, and
 scoped-token-hidden consumers are returned as `unknown_needs_evidence`; they
 are never converted into dead-code truth.
 
+### Consumer coverage
+
+A symbol with no consumer row is only `dead` when no consumer repository the
+answer is judged against is a coverage gap. No row means "not called" only for a
+repository whose snapshot holds its calls; a repository whose active generation
+has no snapshot, a truncated one, or one built under an older verdict schema
+epoch contributes no rows, or wrong ones, for symbols it really does call
+(#7547). Those three cases are all the check detects; see the limits below.
+
+Each request runs one coverage statement against
+`code_reachability_repository_watermarks`. A repository scope with an active
+generation is a gap when it has no watermark for that generation, or the
+watermark is `truncated`, or its `verdict_schema_epoch` is below the current
+`CodeReachabilityVerdictSchemaEpoch` (the writer bumps it when verdict semantics
+change, and a snapshot built earlier carries the old ones), **and** that
+generation has a `code_calls` or
+`inheritance_edges` projection intent (completed or still pending). A repository
+with no such intent has no code edges, cannot be a consumer, and is complete
+without a watermark. A repository with intents is never excluded for having zero
+roots: its edges can still sit on a chain from a rooted repository to the
+producer symbol. The check covers the consumers the request named (a named
+repository with no active generation is incomplete), otherwise the caller's
+grant, otherwise every repository with an active generation. When
+it finds a gap, a candidate with no strong live consumer evidence comes back
+`unknown_needs_evidence` with the reason `consumer_coverage_incomplete` instead
+of `dead`. Strong consumer evidence still wins: a symbol a covered consumer
+calls stays `live_by_consumer`. A store that cannot answer the check yields
+`cross_repo_evidence_unavailable`, never `dead`.
+
+The response carries `consumer_coverage`: `complete`, `incomplete_repo_ids`
+(at most 25) and `incomplete_truncated`. It is omitted when the check did not
+produce an answer: no candidate needed classifying, the evidence read was
+unavailable, or the store cannot answer the check. The ids are always returned
+sorted. A request that names consumers or a grant returns the lowest-sorting 25. An
+unscoped request with no named consumers stops at the first gaps with no ordering,
+so with more than 25 gaps which ids come back is an arbitrary subset and
+`incomplete_truncated` is `true`. It reports no count
+of the repositories it checked, because that count would force a full scan; the
+statement stops at the first gaps.
+
+Name `consumer_repo_ids` to narrow a request. An unscoped request with no named
+consumers is judged against every repository with an active generation, so one
+repository with code edges and no complete snapshot makes every symbol unknown.
+`complete` means no gap was found, not that every caller was found. Three
+limits are known:
+
+- A consumer whose watermark is not truncated, in a language with no public-API
+  root kind, can still hide an exported caller no root reaches.
+- A stale or partly drained snapshot with `truncated = false` reads complete until
+  the reducer rebuilds it, including one beside a pending `code_calls` or
+  `inheritance_edges` intent. The intent only decides whether a missing or
+  truncated or older-epoch watermark counts. Building a snapshot from an incomplete run is a
+  writer-side matter, outside this check.
+- A repository with zero roots is flagged only once the writer stamps its
+  watermark `truncated`; before that it reads complete.
+
+The ids are
+repositories the request named, the caller's grant, or, for an unscoped caller,
+any repository, so a scoped token never learns of a repository outside its grant.
+An ungranted consumer with a partial snapshot is not covered by this check,
+because the hidden-consumer probe that finds ungranted consumers needs rows to
+exist.
+
 ## Exactness Rule
 
 Dead-code truth is `exact` only when all of these are true for the queried

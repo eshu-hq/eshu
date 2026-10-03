@@ -258,3 +258,13 @@ func TestFindCrossRepoDeadCodeHandlesCollapseKeepsEveryGroup(t *testing.T) {
 		t.Fatalf("checked %d entity-evidence rows, want %d", checked, handlesFixtureRows)
 	}
 }
+
+// CrossRepoDeadCodeConsumerCoverage reports every consumer repository complete,
+// so this double keeps classifying exactly as it did before the reader consulted
+// reachability watermarks (#7547).
+func (s *crossRepoHandlesStore) CrossRepoDeadCodeConsumerCoverage(
+	_ context.Context,
+	_ code.CrossRepoDeadCodeCoverageRequest,
+) (code.CrossRepoDeadCodeCoverage, error) {
+	return code.CrossRepoDeadCodeCoverage{}, nil
+}
