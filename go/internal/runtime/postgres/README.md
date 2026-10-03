@@ -95,6 +95,32 @@ checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
 do not trigger that fallback. The legacy permit wait retains the configured
 reader deadline (two seconds by default), so a contended fallback is not a
 subsecond-latency claim.
+
+### Local fleet selection evidence
+
+Performance Evidence: In an isolated PostgreSQL 18.6 primary plus two direct
+standbys (one system ID, `postgres` database, 7,870,143-byte database before
+and after), the same four-connection snapshot-set probe held A's four slots
+and selected B with the same writer checkpoint, eight-slot aggregate cap, and
+unchanged storage state. Seven interleaved runs of committed baseline
+`553fc06c0` and the candidate selection path used a byte-identical probe.
+The baseline second-set selection median was 428,692 microseconds (samples:
+428670, 428692, 428566, 429468, 428141, 428927, 429412); the candidate median
+was 26,525 microseconds (27409, 26788, 25860, 25849, 26525, 26387, 26872).
+Every run ended with four connections on each standby, one exported snapshot
+per set, and zero business rows read; no mixed-member result was accepted.
+The final follow-up edit classified TLS failures as permanent and did not
+change successful selection. Raced integration after that edit passed. This
+is a local saturated-member selection measurement. Full endpoint and ops-qa
+`<1s` budget: NOT_CHECKED. The fixture, volumes, and network were removed.
+
+Observability Evidence: Existing closed-cardinality `reader_borrow`,
+`reader_identity`, `reader_replay`, and `business_query` stages report duration
+and outcome without SQL or member identifiers. The new allocator records its
+reservation wait under `reader_borrow`; pool `Stats()` continues to aggregate
+member open/in-use/wait counters. The isolated integration tested cancellation,
+member replacement/loss, replay lag, and writer-saturated readiness; no new
+operator metric or log key was added.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
 adapter scan contracts remain unchanged.
