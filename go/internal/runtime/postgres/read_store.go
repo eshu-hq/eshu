@@ -63,22 +63,7 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 	}
 	defer func() { a.snapshotSetGate <- struct{}{} }()
 
-	if len(a.readerMembers) == 0 {
-		return a.beginSnapshotSetOn(ctx, count, a.reader, nil)
-	}
-	var result error
-	for _, index := range a.memberOrder(count) {
-		member := &a.readerMembers[index]
-		set, attemptErr := a.beginSnapshotSetOn(ctx, count, member.pool, member)
-		if attemptErr == nil {
-			return set, nil
-		}
-		result = errors.Join(result, attemptErr)
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	return nil, privateFailure(failureSnapshotBegin, result)
+	return a.beginSnapshotSetOn(ctx, count, a.reader, nil)
 }
 
 func (a *Access) beginSnapshotSetOn(ctx context.Context, count int, pool *sql.DB, member *physicalReaderMember) (set db.ReadSnapshotSet, err error) {
