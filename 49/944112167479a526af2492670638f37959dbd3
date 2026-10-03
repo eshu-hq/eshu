@@ -24,6 +24,7 @@ go/internal/runtime/postgres/read_store.go
   s_b0d7e3abc26c5a::t_cf8717e2b96689 25,380-382
   s_b0d7e3abc26c5a::t_b9ece3b4c5f695 30-38,63-81,107
   s_b0d7e3abc26c5a::t_33f56eb36bdda5 324,339
+  s_b0d7e3abc26c5a::t_388bd00fe16538 280
 go/internal/runtime/postgres/reader_members.go
   s_b0d7e3abc26c5a::t_6091234c3d7909 10,47-49
   s_b0d7e3abc26c5a::t_cc5fbe5576158b 1-9,11-22,24-32,34-46,51-56,61-62,64,66-71,73-74,77,83-99,101-102,104-117,119-180
