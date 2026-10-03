@@ -34,7 +34,7 @@ func queryRepositoryContextCounts(
 	if err != nil {
 		return repositoryContextCounts{}, err
 	}
-	workloadCount, err := queryRepositoryWorkloadCount(ctx, reader, params, fallback, readModelSummary)
+	workloadCount, err := queryRepositoryWorkloadCount(ctx, reader, params, fallback)
 	if err != nil {
 		return repositoryContextCounts{}, err
 	}
@@ -59,11 +59,7 @@ func queryRepositoryWorkloadCount(
 	reader querycontract.GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
 ) (int, error) {
-	if readModelSummary != nil && readModelSummary.Available {
-		return len(readModelSummary.WorkloadNames), nil
-	}
 	return queryRepositoryContextCount(ctx, reader, params, "workload_count", `
 			MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
 			RETURN count(DISTINCT w) AS count

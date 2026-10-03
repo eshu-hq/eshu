@@ -19,6 +19,15 @@ documenting the repository routes live in `openapi/paths/repository/`
 trio the census missed are counted, so the fragments stay where the spec
 assembly already references them.
 
+## Context workload count
+
+`getRepositoryContext` counts distinct graph `Workload` nodes reached through
+`Repository` `DEFINES`, even when the repository read-model summary is
+available. The summary workload names remain available for identity and story
+display; they do not establish materialization. A failed graph count aborts the
+context response rather than reporting an inferred zero or name count. File,
+platform, and dependency counts retain their existing read-model paths.
+
 ## Story file list
 
 `getRepositoryStory` reads the repository file list once, in the
