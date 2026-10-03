@@ -110,6 +110,22 @@ How to reference the issue instead depends on where the text goes:
   warning. `--cleanup=verbatim` also preserves it, but `Refs #NNNN` needs no
   flag and survives every path.
 
+## Shallow clones hide history
+
+Run `git rev-parse --is-shallow-repository` before you trust history. In a
+shallow clone, `git log -S<text> -- <path>` returns the single squashed commit
+that holds the text, so it looks like the change's origin when it is not.
+`git show <sha>~1:<path>` fails for the same reason.
+
+To read an older version of a file without fetching history, use the GitHub API:
+
+```bash
+gh api -H 'Accept: application/vnd.github.raw' \
+  'repos/eshu-hq/eshu/contents/<path>?ref=<sha>'
+```
+
+Do not run `git fetch --unshallow` on a low-disk host without a reason.
+
 ## Remote test machines
 
 Synchronize source to remote test machines through a Git fetch and a

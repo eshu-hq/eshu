@@ -384,6 +384,10 @@ use a run-unique session or prompt id, and any surprising ALLOW should be
 re-run with a fresh pair before it is believed. The suites do this already, and
 say so where they do.
 
+The `/goal <text>` command also registers a session-level Stop condition that
+these two hooks do not control. A model judges it against the transcript, not
+the goal file. See [Writing A `/goal` Condition](agent-goal-conditions.md).
+
 ## Why the goal is restated every turn
 
 The Stop hook alone does not solve idling, and the first version of it proved
