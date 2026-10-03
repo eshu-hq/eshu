@@ -92,7 +92,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(cfg.ReadMembers) > 0 && (cfg.SamePrimary || len(readCfg.Fallbacks) > 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4) {
+	if len(cfg.ReadMembers) > 0 && (cfg.SamePrimary || len(readCfg.Fallbacks) > 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 || cfg.ReadMaxIdleConns/len(cfg.ReadMembers) < 4) {
 		return nil, errors.New("invalid physical reader member configuration")
 	}
 	if len(cfg.ReadMembers) > 0 {

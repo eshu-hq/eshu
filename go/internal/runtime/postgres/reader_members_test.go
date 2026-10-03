@@ -148,7 +148,7 @@ func TestReaderMembersSnapshotSetsStayOnOnePhysicalReader(t *testing.T) {
 	}
 	cfg.ReadMembers = []ReaderMember{{ID: "a", Host: memberA.Host, Port: memberA.Port}, {ID: "b", Host: memberB.Host, Port: memberB.Port}}
 	cfg.ReadMaxOpenConns = 8
-	cfg.ReadMaxIdleConns = 4
+	cfg.ReadMaxIdleConns = 8
 	cfg.ReplayTimeout = 150 * time.Millisecond
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {
@@ -348,7 +348,7 @@ func openFleetRegressionAccess(t *testing.T, replayTimeout time.Duration) *Acces
 		{ID: "b", Host: secondEndpoint.Host, Port: secondEndpoint.Port},
 	}
 	cfg.ReadMaxOpenConns = 8
-	cfg.ReadMaxIdleConns = 4
+	cfg.ReadMaxIdleConns = 8
 	cfg.ReplayTimeout = replayTimeout
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {

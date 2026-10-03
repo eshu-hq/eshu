@@ -305,6 +305,24 @@ func TestOpenRejectsInconsistentSamePrimaryBeforeDial(t *testing.T) {
 	}
 }
 
+func TestOpenRejectsFleetIdleBelowSnapshotWidthBeforeDial(t *testing.T) {
+	cfg := Config{
+		WriterDSN: "postgres://user:secret@127.0.0.1:1/db?sslmode=disable",
+		ReadDSN:   "postgres://user:secret@127.0.0.1:2/db?sslmode=disable",
+		ReadMembers: []ReaderMember{
+			{ID: "a", Host: "reader-a", Port: 5432},
+			{ID: "b", Host: "reader-b", Port: 5432},
+		},
+		WriterMaxOpenConns: 8, ReadMaxOpenConns: 8,
+		WriterMaxIdleConns: 3, ReadMaxIdleConns: 7,
+		PingTimeout: time.Second, ReplayTimeout: time.Second,
+	}
+	_, err := Open(context.Background(), cfg, nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid physical reader member configuration") || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("Open error = %v, want fleet idle validation before dial without credentials", err)
+	}
+}
+
 func TestAccessCheckpointRejectsFrozenIncarnation(t *testing.T) {
 	access := testAccess(t, "")
 	access.identity.incarnation = "0"
