@@ -231,9 +231,82 @@ raw log is not committed. Every git `content_entity` insert or update also
 evaluates the partial predicate (a few JSONB extractions); only matching rows
 pay index maintenance.
 
-NOT_CHECKED: the cold-replica after-number with migration 159 applied. It
-stays unknown until the owner deploys the migration to ops-qa and reruns
-EXPLAIN (ANALYZE, BUFFERS) for a 10k+ row repository anchor.
+### Deployed after-index read-only follow-up (2026-10-03)
+
+Migration 159 is deployed on ops-qa. The schema Job logged 1,221,522 ms
+(20m21.522s) for its concurrent index build, completing at 03:08:09 UTC.
+The streaming reader's cumulative `confl_snapshot` counter was 7 when
+checked afterwards; without a before counter and a matching stats-reset
+boundary, none of those conflicts can be attributed to the build.
+The deployed index occupies 49,152 bytes on the standby versus
+208,274,554,880 bytes for the `fact_records` heap. The standby reported
+1,049 scans of that index at observation time; this counter has no
+before-build comparator.
+
+A temporary, uncommitted Go diagnostic passed the shipped
+`ListReadinessQuery` and its production-shaped 20 repository arguments to
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` in one read-only,
+repeatable-read transaction on the ops-qa PostgreSQL standby. It checked
+`pg_is_in_recovery()` before querying. Four deterministic repository
+anchors had approximately 1,113, 8,452, 19,804, and 36,678 active
+`content_entity` rows in earlier bounded counts. Each of the three
+dependency-variable probes used the repository-leading partial index
+from migrations 121 or 159 exactly once. The two migration-159 probes
+each hit two shared buffers and read none in every plan.
+
+| Active-row class | Full statement execution | Statement shared hit/read blocks | Dependency-variable index probes |
+| --- | ---: | ---: | --- |
+| 1,113 | 63.655 ms | 20,359 / 0 | 3, each 1 loop |
+| 8,452 | 56.883 ms | 20,217 / 6 | 3, each 1 loop |
+| 19,804 | 94.097 ms | 22,855 / 21 | 3, each 1 loop |
+| 36,678 | 57.460 ms | 20,947 / 0 | 3, each 1 loop |
+
+The matching deployed API route (`GET /api/v0/supply-chain/impact/findings`,
+`profile=precise`, `limit=1`, repository anchor,
+`Accept: application/eshu.envelope+json`) returned HTTP 200 on 32/32
+serial calls, eight per anchor. Its truth envelope reported `exact` and
+`fresh`; the readiness snapshot reported `fresh` and
+`evidence_incomplete` on every call. The canonical readiness payload
+digest was stable within each anchor. These reported labels and stable
+digests do not independently prove that the verdict or freshness is
+correct against source facts.
+
+| Active-row class | API median | Eight-sample nearest-rank p95 |
+| --- | ---: | ---: |
+| 1,113 | 0.204979 s | 0.226672 s |
+| 8,452 | 0.202595 s | 0.544880 s |
+| 19,804 | 0.224139 s | 0.265203 s |
+| 36,678 | 0.210831 s | 0.214650 s |
+
+One additional material-data truth probe selected an active repository
+through the five dependency-gap `config_kind` values using the standby's
+active-generation rows, without printing its identifier. An independent
+read-only count found five active gap facts for that repository. The
+deployed endpoint returned five `dependency_source` unsupported targets,
+`readiness_state=unsupported`, and an `exact`, `fresh` truth envelope in
+0.489043 s (HTTP 200). This is a direct count match for one populated
+repository gap case, not proof of every readiness family or every anchor.
+
+These are after-index absolute latencies, not a matched before/after
+speedup: the earlier table used different repository anchors and an old
+schema, and the live reader continued replaying writes during this run.
+Cache state was warm or unknown, so the cold-cache p95 remains NOT_CHECKED.
+The requested approximately 59k-row class was not found by a bounded
+45-repository sample; that sample's read-only index-count plan took
+4,321.415 ms and read 19,227 blocks, so the search was not widened on
+the live replica. Populated non-repository anchors, full independent result
+truth beyond the five-fact gap case, an attributable build-time
+replica-conflict delta, and deployed insert tax also remain NOT_CHECKED.
+Do not close #7530 or #7088 on these numbers alone.
+
+For #7530's insert-cost alternative, a live before/after writer test would
+require dropping and rebuilding the production index that took 20m21.522s
+to build, while ingest and standby replay continue. That change is not
+justified solely to measure a possible tax. The controlled interleaved
+200,000-row local insert run above found a +0.9% median difference inside
+its own spread, and the deployed index footprint is 49,152 bytes. Those
+facts support avoiding a disruptive live A/B; they do not establish zero
+predicate-evaluation or index-maintenance cost on the ops-qa writer.
 
 No-Observability-Change: No new runtime signal was added. The readiness read
 is already timed by the existing `readiness_snapshot` stage timing, and
