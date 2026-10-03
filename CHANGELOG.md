@@ -9,6 +9,23 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Cross-repo dead-code returns repository-boundary evidence once
+
+- **`find_cross_repo_dead_code` / `POST /api/v0/code/dead-code/cross-repo` no
+  longer repeat the repository-boundary evidence on every row**
+  ([#7129](https://github.com/eshu-hq/eshu/issues/7129)). A candidate with no
+  entity-level consumer evidence carried the same incoming-relationship items,
+  about 12 KB per row on one ops-qa repository, so default arguments returned
+  `mcp_response_over_budget`. The items now come once in
+  `data.boundary_consumer_evidence` (with `boundary_consumer_evidence_count`,
+  always present). Such rows keep `consumer_evidence: []` and gain
+  `consumer_evidence_source: "repository_boundary"`; other rows get `"entity"`;
+  every row gets `consumer_evidence_count`. Classification and
+  `hidden_consumer_evidence_count` are unchanged. Clients that read a fallback
+  row's `consumer_evidence` should read `boundary_consumer_evidence` instead.
+  Measured on the 400-candidate, 20-relationship fixture through the MCP
+  dispatcher (both wire copies): 824,864 bytes before, 187,776 after.
+
 ### Dead-code investigation coverage skips the entity scan
 
 - **`investigate_dead_code` / `POST /api/v0/code/dead-code/investigate` no

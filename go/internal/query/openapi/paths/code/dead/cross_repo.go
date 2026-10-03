@@ -72,12 +72,26 @@ const CrossRepo = `
                       "type": "object",
                       "description": "Every row in every bucket has its docstring clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.",
                       "properties": {
-                        "dead": {"type": "array", "items": {"type": "object"}},
-                        "live_by_consumer": {"type": "array", "items": {"type": "object"}},
-                        "unknown": {"type": "array", "items": {"type": "object"}},
+                        "dead": {"type": "array", "items": {"type": "object", "properties": {
+                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
+                          "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none). repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
+                          "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
+                        }}},
+                        "live_by_consumer": {"type": "array", "items": {"type": "object", "properties": {
+                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
+                          "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none). repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
+                          "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
+                        }}},
+                        "unknown": {"type": "array", "items": {"type": "object", "properties": {
+                          "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
+                          "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none). repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
+                          "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
+                        }}},
                         "suppressed": {"type": "array", "items": {"type": "object"}}
                       }
                     },
+                    "boundary_consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "Repository-level boundary evidence (relationship_type, citation, confidence and the other consumer evidence fields) after the request's consumer selector and grant. Returned once for every candidate row whose consumer_evidence_source is repository_boundary, instead of repeated on each row. Always present, empty when the repository has no boundary relationships."},
+                    "boundary_consumer_evidence_count": {"type": "integer", "description": "Length of boundary_consumer_evidence."},
                     "bucket_counts": {"type": "object", "additionalProperties": true},
                     "analysis": {"type": "object", "additionalProperties": true}
                   }

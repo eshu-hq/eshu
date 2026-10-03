@@ -216,6 +216,25 @@ The `suppressed` bucket is a bounded sample, not a census, and it has no
 The top-level `truncated` flag covers the active rows only; check
 `suppressed_truncated` for the suppressed bucket.
 
+The cross-repo route returns repository-boundary evidence once. A candidate with
+no entity-level consumer evidence falls back to the repository's incoming
+relationships, which are the same for every such candidate; they used to be
+copied into each row's `consumer_evidence` (about 12 KB per row on the measured
+ops-qa repository, enough to push a default-args reply over the MCP budget,
+#7129). The route now puts them in `data.boundary_consumer_evidence`, with
+`data.boundary_consumer_evidence_count`, after the request's `consumer_repo_ids`
+selector and the caller's grant. Both keys are always present, and the list is
+empty when the repository has no boundary relationships. A row that used the
+fallback keeps `consumer_evidence: []` and carries
+`consumer_evidence_source: "repository_boundary"`; every other row carries
+`consumer_evidence_source: "entity"` and its own evidence. Each row also reports
+`consumer_evidence_count`, the length of its own `consumer_evidence` (0 for a
+fallback row). Classification, `needs_evidence_reasons` and
+`hidden_consumer_evidence_count` are unchanged: they read the evidence, not the
+row field. A client that read a fallback row's `consumer_evidence` for its
+citations should read `boundary_consumer_evidence` instead. Entity-level
+evidence stays on its row.
+
 The cross-repo route has no `offset`; it is limit-only. To see more of a large
 producer repository, narrow it with a `language` or `consumer_repo_ids`
 selector instead of paging.
