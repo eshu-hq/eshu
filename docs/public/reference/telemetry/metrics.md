@@ -46,7 +46,7 @@ short stage spans are standalone diagnostics rather than children of the API/MCP
 request span. These signals do not establish deployed latency or replica
 capacity until API/MCP wiring and measurement are complete.
 
-A recording request span also receives `postgres.reader_query_start` before
+The active recording span in a request trace receives `postgres.reader_query_start` before
 each guarded business query. The event has `postgres.role=reader`, a per-`Access`
 `postgres.query.sequence`, and `postgres.backend.identity` (`available` or
 `unavailable`). When available, it includes `postgres.backend.pid` and

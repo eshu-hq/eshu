@@ -146,7 +146,7 @@ business query. API/MCP attach those to their telemetry provider through `NewObs
 `Stats` exposes both pools' wait and in-use counters for readiness and pool
 pressure checks. No DSN, SQL text, or credential becomes a signal label.
 
-A recording request span receives a `postgres.reader_query_start` event immediately
+The active recording span in a request trace receives `postgres.reader_query_start` immediately
 before each guarded business SQL call. The event includes the actual borrowed
 reader's backend PID and TCP peer address, a sequence unique to this `Access`, and
 `postgres.role=reader`. Snapshot transactions copy this identity before
