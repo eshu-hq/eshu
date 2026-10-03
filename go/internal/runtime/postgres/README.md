@@ -211,7 +211,10 @@ latency, 100-user capacity, or replica memory requirements.
 elapsed time for writer checkpoint, reader pool borrow, identity, replay, and
 business query. API/MCP attach those to their telemetry provider through `NewObserver`.
 `Stats` exposes both pools' wait and in-use counters for readiness and pool
-pressure checks. No DSN, SQL text, or credential becomes a signal label.
+pressure checks. Fleet metrics also expose bootstrap qualification, pool
+connections, reserved slots, queued requests, and attempt outcomes per
+zero-based inventory ordinal. They use no raw member ID, host, DSN, SQL text,
+or credential label; scrapes read in-memory pool and allocator state without SQL.
 
 The active recording span in a request trace receives `postgres.reader_query_start` immediately
 before each guarded business SQL call. The event includes the actual borrowed

@@ -103,6 +103,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 		tryCtx, stop := fleetAttemptContext(bounded, len(eligible) > 1)
 		result, attemptErr := attempt(tryCtx, ctx, reservation, point)
 		stop()
+		access.observeMemberAttempt(access.readerMembers[reservation.member].ordinal, attemptErr)
 		if attemptErr == nil {
 			return result, nil
 		}
