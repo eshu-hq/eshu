@@ -841,11 +841,11 @@ tests:
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    reason: "env-gated by ESHU_POSTGRES_TEST_DSN and not enrollable as-is: its absolute wall-clock ceilings (origin/main medians from an unnamed host, #5856, times 1.10) fail docs/internal/timing-proof-rules.md rule 2 and are not a regression signal; 5 of 5 runs on a loaded laptop failed the direct_list ceiling at 195 to 202 ms against the 177.170 ms constant (194.9 ms ceiling) on unchanged code; steward linuxdynasty; reshape to plan and buffer assertions tracked in #7553"
   - file: go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    reason: "helper-only file (no Test function) holding the EXPLAIN decoders and query arguments that TestSupplyChainSuppressionPathsPerformanceLive uses; it runs only through that proof, which is not enrolled for the reasons on its own row (absolute wall-clock ceilings, #5856, timing-proof-rules rule 2; reshape tracked in #7553); steward linuxdynasty"
   - file: go/internal/query/supply/chain/runtime_context_scope_live_test.go
     tag: ~
     class: scheduled
