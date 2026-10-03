@@ -93,6 +93,21 @@ func TestReaderQueryIdentityUnavailableDoesNotFailOrDiscardLease(t *testing.T) {
 	if len(events) != 1 || events[0].Name != readerQueryStartEventName {
 		t.Fatalf("unavailable event = %v", events)
 	}
+	attrs := make(map[attribute.Key]attribute.Value)
+	for _, kv := range events[0].Attributes {
+		attrs[kv.Key] = kv.Value
+	}
+	if len(attrs) != 3 || attrs[readerQueryRoleKey].AsString() != "reader" ||
+		attrs[readerQuerySequenceKey].AsInt64() != 1 ||
+		attrs[readerQueryIdentityKey].AsString() != "unavailable" {
+		t.Fatalf("unavailable event attributes = %v", attrs)
+	}
+	if _, present := attrs[readerQueryPIDKey]; present {
+		t.Fatal("unavailable event contains backend PID")
+	}
+	if _, present := attrs[readerQueryRemoteKey]; present {
+		t.Fatal("unavailable event contains backend peer")
+	}
 }
 
 type queryStartSpy struct{ starts int }
