@@ -22,8 +22,13 @@ EXPECTED = {
         "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
         "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
     ),
+    "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
+        "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
+    ),
 }
 EXPECTED_TESTS = {test for tests in EXPECTED.values() for test in tests}
+# One go test package terminal event per Go package directory of EXPECTED.
+EXPECTED_PACKAGE_COUNT = len({path.rsplit("/", 1)[0] for path in EXPECTED})
 
 
 def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
@@ -112,8 +117,11 @@ def verify_results(events_path: pathlib.Path) -> int:
             failed = True
             for text in output[name][-6:]:
                 print(f"  {text}")
-    if package_terminal != ["pass"]:
-        print(f"package terminal: expected PASS, actual={package_terminal}")
+    if package_terminal != ["pass"] * EXPECTED_PACKAGE_COUNT:
+        print(
+            f"package terminal: expected {EXPECTED_PACKAGE_COUNT} PASS, "
+            f"actual={package_terminal}"
+        )
         failed = True
     if failed:
         return 1

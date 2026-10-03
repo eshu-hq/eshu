@@ -140,6 +140,12 @@ keeps the existing code reachability completion log and truncation warning; no
 metric, worker, queue domain, runtime knob, graph write, or high-cardinality
 telemetry label is added.
 
+The `dead_code_incoming_entity_ids` span also carries
+`dead_code_incoming.read_mode`: `active_run` when the legacy incoming read was
+answered from the repository's active acceptance run because that run provably
+holds its complete edge set, and `all_generations` when the read fell back to
+every completed edge across retained generations (#7249).
+
 ## Default Policy
 
 The default policy is intentionally conservative:

@@ -425,6 +425,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/content_reader_dead_code_incoming_bound_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7249 disposable PostgreSQL 18 proof of the active-run bound and its unbound fallbacks for the legacy dead-code incoming read; every case passes on disposable PostgreSQL 18"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_entity_search_plan_live_test.go
     tag: ~
     class: scheduled
