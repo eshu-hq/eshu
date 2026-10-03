@@ -158,7 +158,9 @@ uses shared credentials/TLS from a distinct single-host read DSN and divides
 the total reader pool budget across members (at least four connections each).
 Snapshot-set requests pin all connections to one member. An unavailable member
 is skipped until process restart; wrong topology fails startup. Without the
-inventory, legacy reader Service/pgx host-list routing remains snapshotless.
+inventory, native pgx multi-host fallback does not advertise snapshot sets.
+A single-host reader Service still advertises them, so it must not load-balance
+one snapshot set across multiple physical readers.
 
 `ESHU_POSTGRES_MAX_OPEN_CONNS` and `ESHU_POSTGRES_MAX_IDLE_CONNS` are totals
 across both pools (defaults 30 and 10). Optional
