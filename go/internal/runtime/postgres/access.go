@@ -47,23 +47,28 @@ type Observer interface {
 	Observe(role string, stage Stage, outcome Outcome, duration time.Duration)
 }
 
+type memberAttemptObserver interface {
+	ObserveMemberAttempt(ordinal int, outcome Outcome)
+}
+
 // Access owns distinct writer and reader pools for one API or MCP process.
 // Writer is exposed for authorization, audit, and mutation paths; business
 // reads use Reader, which does not expose its underlying sql.DB.
 type Access struct {
-	writer             *sql.DB
-	reader             *sql.DB
-	readerHasFallbacks bool
-	samePrimary        bool
-	replayTimeout      time.Duration
-	pingTimeout        time.Duration
-	observer           Observer
-	identity           physicalIdentity
-	snapshotSetGate    chan struct{}
-	readerPermits      chan struct{}
-	readerMembers      []physicalReaderMember
-	allocator          *readerAllocator
-	nextReader         atomic.Uint64
+	writer               *sql.DB
+	reader               *sql.DB
+	readerHasFallbacks   bool
+	samePrimary          bool
+	replayTimeout        time.Duration
+	pingTimeout          time.Duration
+	observer             Observer
+	identity             physicalIdentity
+	snapshotSetGate      chan struct{}
+	readerPermits        chan struct{}
+	readerMembers        []physicalReaderMember
+	readerInventoryCount int
+	allocator            *readerAllocator
+	nextReader           atomic.Uint64
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
@@ -142,7 +147,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
-	access := &Access{writer: writer, reader: reader, readerMembers: members, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
 	access.snapshotSetGate <- struct{}{}
 	if len(members) > 0 {
 		caps := make([]int, len(members))
@@ -250,6 +255,26 @@ func (a *Access) observe(role string, stage Stage, started time.Time, err error)
 	if a.observer == nil {
 		return
 	}
+	a.observer.Observe(role, stage, readerOutcome(err), time.Since(started))
+}
+
+func (a *Access) observeMemberAttempt(ordinal int, err error) {
+	observer, ok := a.observer.(memberAttemptObserver)
+	if !ok {
+		return
+	}
+	outcome := readerOutcome(err)
+	switch readerFailureClass(err) {
+	case readerFailureFatal:
+		outcome = OutcomeError
+	case readerFailureCanceled:
+		outcome = OutcomeCanceled
+	case readerFailureNeutral, readerFailureTransient:
+	}
+	observer.ObserveMemberAttempt(ordinal, outcome)
+}
+
+func readerOutcome(err error) Outcome {
 	outcome := OutcomeOK
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
@@ -259,5 +284,5 @@ func (a *Access) observe(role string, stage Stage, started time.Time, err error)
 	case err != nil:
 		outcome = OutcomeError
 	}
-	a.observer.Observe(role, stage, outcome, time.Since(started))
+	return outcome
 }

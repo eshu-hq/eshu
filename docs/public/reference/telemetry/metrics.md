@@ -41,7 +41,21 @@ The reader access pool callback exposes
 `eshu_dp_postgres_reader_pool_wait_duration_seconds` (`role`). The writer and
 reader points are the two process pools, including when a pool has multiple
 candidate hosts. A rising wait rate or in-use count near `max_open` suggests
-pool pressure. The current `Observer` callback has no request context, so its
+pool pressure. When `ESHU_POSTGRES_READ_MEMBERS` is set, four additional gauges
+identify each configured member by its zero-based inventory ordinal, never by
+host, address, credential, or free-form ID:
+`eshu_dp_postgres_reader_member_qualified` (1 if bootstrap accepted it, else 0),
+`eshu_dp_postgres_reader_member_connections` (`state` = `max_open`, `open`, or
+`in_use`), `eshu_dp_postgres_reader_member_reservations` (allocator slots), and
+`eshu_dp_postgres_reader_member_waiters` (queued requests). A missing member has
+only a zero qualification point; it has no pool or allocator point. The
+allocator gauges are read under one short lock and the scrape runs no SQL.
+Compare an in-use or reservation count near its member maximum with waiters
+to identify the pressured member. `eshu_dp_postgres_reader_member_attempts_total`
+counts each fleet attempt by original `member_ordinal` and a closed `outcome`
+(`ok`, `error`, `deadline`, or `canceled`). An error rate on one ordinal beside
+successful attempts on another shows failover without exposing the endpoint.
+The current `Observer` callback has no request context, so its
 short stage spans are standalone diagnostics rather than children of the API/MCP
 request span. These signals do not establish deployed latency or replica
 capacity until API/MCP wiring and measurement are complete.

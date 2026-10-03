@@ -50,6 +50,19 @@ func newReaderAllocator(capacities []int, maximum int) *readerAllocator {
 	}
 }
 
+// pressure copies allocator state under one short lock for scrape-time
+// reporting. It never holds the lock while the metric observer runs.
+func (a *readerAllocator) pressure() (reserved, waiters []int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	reserved = append([]int(nil), a.used...)
+	waiters = make([]int, len(a.waiting))
+	for member := range a.waiting {
+		waiters[member] = len(a.waiting[member])
+	}
+	return reserved, waiters
+}
+
 func (a *readerAllocator) canGrantLocked(member, count int) bool {
 	return a.used[member]+count <= a.capacity[member] && a.total+count <= a.maximum
 }

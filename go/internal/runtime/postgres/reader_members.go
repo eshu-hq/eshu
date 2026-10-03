@@ -220,6 +220,7 @@ const (
 	readerFailureFatal readerFailureKind = iota
 	readerFailureNeutral
 	readerFailureTransient
+	readerFailureCanceled
 )
 
 // A joined transport timeout must not mask a sibling authentication, TLS, or
@@ -247,7 +248,9 @@ func readerFailureClass(err error) readerFailureKind {
 			if child == readerFailureFatal {
 				return readerFailureFatal
 			}
-			if child == readerFailureTransient {
+			if child == readerFailureCanceled {
+				kind = readerFailureCanceled
+			} else if child == readerFailureTransient && kind == readerFailureNeutral {
 				kind = readerFailureTransient
 			}
 		}
@@ -260,6 +263,9 @@ func readerFailureClass(err error) readerFailureKind {
 		if errors.Is(err, neutral) {
 			return readerFailureNeutral
 		}
+	}
+	if errors.Is(err, context.Canceled) {
+		return readerFailureCanceled
 	}
 	for _, transient := range []error{context.DeadlineExceeded, io.EOF, io.ErrUnexpectedEOF, syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.ECONNABORTED, syscall.ENETUNREACH, syscall.EHOSTUNREACH, syscall.ETIMEDOUT} {
 		if errors.Is(err, transient) {
