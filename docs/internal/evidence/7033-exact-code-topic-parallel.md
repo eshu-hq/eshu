@@ -400,7 +400,7 @@ target remains unmet; they are not a controlled before/after comparison with
 the separate preserved corpus or a candidate deployed fleet result. #7033
 remains open.
 
-PR boatsgroup/iac-eks-eshu#221 then pinned the ops-qa API and MCP to image
+A later ops-qa deployment change pinned the API and MCP to image
 `sha-306eac0`; ArgoCD reported Synced/Healthy, and the API, MCP, writer, and
 single reader were Ready. Three further read-only requests on that now-deployed
 API returned HTTP 200 in 1.241450, 1.122866, and 1.127621 s (median
