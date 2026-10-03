@@ -1,0 +1,31 @@
+docs/internal/writing-for-agents.md
+  s_cb740432995e10::t_26bb4e12a8c2ef 1-59
+docs/internal/agent-verification-details.md
+  s_cb740432995e10::t_02a7272f824cb3 1-76
+docs/internal/claim-evidence-locations.md
+  s_cb740432995e10::t_8547a55eea8461 1-42
+AGENTS.md
+  s_cb740432995e10::t_74aca96db25fda 14-19,22-42,46,48-51,54-56,59-72,76-80,82-87,90-91,95-104,108-117,142,145-147,150-165,168-174,176-188,191-192,202-204,235-236,240-244,246-252,255-257,276-300,302-309,311,313-315,319-326,373-389,392-400,404-406,409,411-416,418-419,421-429,433-447
+docs/internal/agent-git-hygiene.md
+  s_cb740432995e10::t_6a7306603ae7c5 113-128
+docs/internal/agent-goal-conditions.md
+  s_cb740432995e10::t_4332bf344e068c 1-24
+docs/internal/agent-hooks.md
+  s_cb740432995e10::t_40eeab83ae2a4d 387-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44c8f80290b3862b85c784c7c855ad297c74b9f1",
+  "prompts": {},
+  "sessions": {
+    "s_cb740432995e10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b03d91-e592-4228-b5e2-9b7a3380bb13",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
