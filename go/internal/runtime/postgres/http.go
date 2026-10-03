@@ -30,7 +30,9 @@ func WithCheckpoint(next http.Handler, source CheckpointSource, selected func(*h
 			return
 		}
 		if source == nil {
-			writeReadUnavailable(w)
+			// A nil source is a permanent wiring state, not a transient
+			// replay or capture failure, so it carries no retry hint (#7536).
+			http.Error(w, readUnavailableBody, http.StatusServiceUnavailable)
 			return
 		}
 		ctx, err := source.ContextWithCheckpoint(r.Context())
@@ -42,12 +44,15 @@ func WithCheckpoint(next http.Handler, source CheckpointSource, selected func(*h
 	})
 }
 
-// writeReadUnavailable answers a failed checkpoint with a retryable 503. The
+// readUnavailableBody is the fixed 503 body shared by both checkpoint branches.
+const readUnavailableBody = "database read unavailable"
+
+// writeReadUnavailable answers a failed checkpoint step with a retryable 503. The
 // body is a fixed string and Retry-After carries the shared reader retry hint,
 // matching the query layer's backend_unavailable contract (#7523).
 func writeReadUnavailable(w http.ResponseWriter) {
 	w.Header().Set("Retry-After", strconv.Itoa(db.ReaderRetryAfterSeconds))
-	http.Error(w, "database read unavailable", http.StatusServiceUnavailable)
+	http.Error(w, readUnavailableBody, http.StatusServiceUnavailable)
 }
 
 // NewTrustedStatusReader gives the public runtime admin surface its own bounded

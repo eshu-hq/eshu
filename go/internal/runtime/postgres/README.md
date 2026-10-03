@@ -110,7 +110,8 @@ refused, permission denied on the identity query, client cancel) are not
 retryable and stay a 500 (`ErrWrongTopology` and `ErrMissingCheckpoint` too); `reader_borrow`/`reader_identity`/`reader_replay` with
 `outcome="error"` is their operator signal.
 `WithCheckpoint` answers the same 503 and `Retry-After` when the checkpoint step
-fails. Replica staleness and connection-acquisition timeouts are visible as
+fails (replay lag or capture failure); a nil checkpoint source answers the same 503
+body with no `Retry-After`, because it is a permanent wiring state (#7536). Replica staleness and connection-acquisition timeouts are visible as
 `reader_replay` and `reader_borrow` stage durations with `outcome="deadline"`;
 no separate counter exists.
 

@@ -113,15 +113,19 @@ type graphReadHTTPError struct {
 	code    ErrorCode
 	message string
 	details map[string]any
+	// retryable marks a verdict that is transient and safe to tell a client to
+	// retry (#7536). It is set per verdict, never derived from the status code,
+	// so a future permanent 503 verdict cannot inherit Retry-After.
+	retryable bool
 }
 
 // WriteGraphReadError writes the stable HTTP contract for a bounded graph-read
 // availability error, and for a PostgreSQL reader that was stale or whose
 // connection acquisition (pool wait or dial) or identity check timed out (a
 // retryable 503 backend_unavailable with Retry-After, #7523).
-// Every 503 it writes is a transient verdict and carries Retry-After; the
-// header is set only for envelopes this mapping produced, never by the generic
-// WriteErrorEnvelope for an arbitrary 503.
+// Each verdict carries its own retryable marker (graph unavailable and the
+// reader fence are marked); WriteErrorEnvelope sets Retry-After only for a
+// marked 503, never for an arbitrary 503 and not merely because the status is 503.
 // A reader failure that is not a timeout is not claimed and stays the caller's 500.
 // It returns false without touching the response when err
 // is not one of the shared graph-read errors, leaving the caller's own mapping
@@ -140,26 +144,38 @@ func WriteGraphReadError(w http.ResponseWriter, r *http.Request, err error, capa
 // caller instead of writing the response themselves. It reports false when err
 // is not one of the shared graph-read errors.
 func GraphReadErrorEnvelope(err error, capability string) (int, *ErrorEnvelope, bool) {
-	mapped, ok := mapGraphReadHTTPError(err)
+	mapped, ok := mapGraphReadError(err)
 	if !ok {
 		return 0, nil, false
 	}
-	return mapped.status, &ErrorEnvelope{
-		Code:       mapped.code,
-		Message:    mapped.message,
-		Capability: capability,
-		Details:    mapped.details,
-		retryable:  mapped.status == http.StatusServiceUnavailable,
-	}, true
+	return mapped.status, mapped.envelope(capability), true
 }
+
+// envelope builds the wire envelope for one mapped verdict.
+func (e graphReadHTTPError) envelope(capability string) *ErrorEnvelope {
+	return &ErrorEnvelope{
+		Code:       e.code,
+		Message:    e.message,
+		Capability: capability,
+		Details:    e.details,
+		retryable:  e.retryable,
+	}
+}
+
+// mapGraphReadError is the verdict mapper GraphReadErrorEnvelope runs. It is a
+// variable only so a test can drive a verdict the production mapping does not
+// produce today (a 503 that is not retryable) through the real envelope and
+// writer path (#7536); nothing outside tests reassigns it.
+var mapGraphReadError = mapGraphReadHTTPError
 
 func mapGraphReadHTTPError(err error) (graphReadHTTPError, bool) {
 	switch {
 	case errors.Is(err, ErrGraphUnavailable):
 		return graphReadHTTPError{
-			status:  http.StatusServiceUnavailable,
-			code:    ErrorCodeBackendUnavailable,
-			message: ErrGraphUnavailable.Error(),
+			status:    http.StatusServiceUnavailable,
+			code:      ErrorCodeBackendUnavailable,
+			message:   ErrGraphUnavailable.Error(),
+			retryable: true,
 		}, true
 	case isReaderFenceError(err):
 		// Checked before the deadline sentinel: the reader's stale verdict
@@ -167,10 +183,11 @@ func mapGraphReadHTTPError(err error) (graphReadHTTPError, bool) {
 		// 504 bounded-read budget. The body carries only the fixed message;
 		// the reader's error text never reaches the client.
 		return graphReadHTTPError{
-			status:  http.StatusServiceUnavailable,
-			code:    ErrorCodeBackendUnavailable,
-			message: ErrReaderRetryable.Error(),
-			details: map[string]any{"retry_after_seconds": BackendUnavailableRetryAfterSeconds},
+			status:    http.StatusServiceUnavailable,
+			code:      ErrorCodeBackendUnavailable,
+			message:   ErrReaderRetryable.Error(),
+			details:   map[string]any{"retry_after_seconds": BackendUnavailableRetryAfterSeconds},
+			retryable: true,
 		}, true
 	case errors.Is(err, ErrGraphReadDeadline):
 		return graphReadHTTPError{
