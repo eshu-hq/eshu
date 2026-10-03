@@ -34,6 +34,25 @@ failure, which `querycontract` does not map to a 503/504 verdict and which
 therefore stays the handler's 500) are hypotheses. Nothing in this change or
 note selects one.
 
+## Supporting observations, not a cause
+
+Read from the same pod's cumulative Prometheus endpoint on 2026-10-03 (about 12:08 UTC), reported by the
+engineer who scraped it, not re-derived by a gate:
+
+- `eshu_dp_api_request_errors_total{route="GET /api/v0/supply-chain/impact/findings",status_class="5xx"}`
+  was 1 for the pod's 11 h lifetime, and was 1 again after the 200-call run below. No other route had a 5xx.
+- `eshu_dp_postgres_reader_stage_duration_seconds_count{stage="reader_borrow",outcome="error"}` was 1 over the
+  same lifetime (and unchanged after the run). The counters carry no timestamps, so they cannot show that
+  the borrow error and the 500 are the same request. The matching counts and the 4.9 ms stage duration make a
+  non-timeout reader-borrow failure a candidate; it is not established.
+- The replica's `postgresql` log (errors only) holds no line between 10:50:00 and 10:54:30 UTC, so no
+  replica-side error is recorded around 10:53:20. The log window before 10:54:30 is absent, so this does not
+  rule out a connection that never reached a backend.
+- Reproduction attempt: 200 serial `limit=1` calls over 10 fresh port-forwards against six anchors returned
+  200 times HTTP 200 (slowest 0.334 s), with both counters unchanged. Together with the 91 earlier calls that
+  had no repeat and 30 further calls in the issue, the 500 has not recurred in about 320 calls. This is a
+  lower bound on rarity, not a rate.
+
 ## What the change makes attributable
 
 The wire behavior (status codes, response bodies) is unchanged. On each
