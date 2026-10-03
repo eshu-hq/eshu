@@ -53,6 +53,21 @@ engineer who scraped it, not re-derived by a gate:
   had no repeat and 30 further calls in the issue, the 500 has not recurred in about 320 calls. This is a
   lower bound on rarity, not a rate.
 
+A second, longer run (1,500 serial `limit=1` calls, 6 anchors, fresh port-forward every 50 calls, a metrics
+scrape every 20 calls, 12:11:39 to 12:21:37 UTC) did produce HTTP 500s, but of a different class:
+
+- 4 of 1,500 calls returned 500, each after 2.09 s (calls 163, 164, 165 and 325). The API's 5xx counter for the route
+  went from 1 to 5, matching the four client-observed responses.
+- `reader_replay` outcome=deadline rose by 7 over the run, all of it in the two 20-call windows that hold those
+  500s (calls 161 to 180: +5; calls 321 to 340: +2), and `reader_borrow` outcome=error rose by 0. The 2.09 s duration
+  is the 2 s replay fence timeout plus handling. These are replay-fence timeouts, the class #7548 covers; they are
+  not the 0.096 s failure, whose stage completed in 4.9 ms. Attribution is by counter window, not per request.
+- The API pod log was empty when read after the run (0 lines over 3 h; cause not established), so the per-trace
+  stage join for this run is NOT_CHECKED.
+
+So the original 0.096 s 500 remains unreproduced (about 1,700 calls since); the reader_borrow hypothesis above is
+neither supported nor ruled out by this run.
+
 ## What the change makes attributable
 
 The wire behavior (status codes, response bodies) is unchanged. On each
