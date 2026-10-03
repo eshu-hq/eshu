@@ -6,18 +6,18 @@ materialized graph truth: distinct `Workload` nodes connected through a
 identity and display hints for story and service fallback. They are not a count
 of materialized workloads.
 
-## Theory and performance evidence
+## Performance Evidence: theory PROFILE only
 
 A read-only Neo4j PROFILE of the existing count query, anchored by the unique
 `Repository.id` index, returned zero materialized workloads on each of two
 representative repositories with 12,403 and 7,097 files. Server query time was
-5 ms and 0 ms respectively, with 6 and 7 DB hits and about 120 B of result
-payload. This is server-only query timing, not API or MCP latency. The
+5 ms and 0 ms respectively, with 6 and 7 DB hits and about 120 B of allocated memory. This is server-only query timing, not API or MCP latency. The
 previous read-model path avoided this graph query when a summary was available;
 this change adds one indexed, scalar count read to that path. The count query
-text and index are unchanged. Deployed endpoint p95 remains NOT_CHECKED.
+text and index are unchanged. Built after-fix API/MCP no-regression and
+deployed endpoint p95 are NOT_CHECKED.
 
-## No-Regression Evidence:
+## Regression proof
 
 The focused regression first failed with a retained workload name and graph
 count zero: context reported one. It also failed when the graph count was two
