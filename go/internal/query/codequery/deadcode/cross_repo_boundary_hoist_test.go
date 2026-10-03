@@ -4,6 +4,7 @@
 package deadcode_test
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -113,5 +114,69 @@ func TestCrossRepoDeadCodeWithoutBoundaryReportsEmptyHoist(t *testing.T) {
 	row := assertCrossRepoDeadCodeBucketEntity(t, data["candidate_buckets"].(map[string]any), "dead", "p-boundary-a")
 	if row["consumer_evidence_source"] != "entity" {
 		t.Fatalf("dead row consumer_evidence_source = %#v, want entity (no boundary evidence backed it)", row["consumer_evidence_source"])
+	}
+}
+
+// TestCrossRepoDeadCodeBoundaryListIsOmittedWhenNoRowUsedIt pins that the
+// hoisted list costs bytes only when a row needed it: with 20 boundary
+// relationships but entity evidence on every candidate, no row falls back, so
+// the response carries an empty list and a zero count, as it carried no
+// boundary bytes before the hoist.
+func TestCrossRepoDeadCodeBoundaryListIsOmittedWhenNoRowUsedIt(t *testing.T) {
+	t.Parallel()
+
+	relationships := make([]map[string]any, 0, 20)
+	for i := 0; i < 20; i++ {
+		relationships = append(relationships, boundaryRelationship(fmt.Sprintf("consumer-%02d", i)))
+	}
+	store := boundaryHoistStore(relationships)
+	for _, id := range []string{"p-boundary-a", "p-boundary-b"} {
+		store.evidenceByEntity[id] = store.evidenceByEntity["p-entity"]
+	}
+
+	data := postBoundaryHoistRequest(t, store, `{"repo_id":"repo-producer","limit":10}`, nil)
+	if got := hoistedCitations(t, data); len(got) != 0 {
+		t.Fatalf("boundary_consumer_evidence = %d items, want none because no row used the fallback", len(got))
+	}
+	if data["boundary_consumer_evidence_count"] != float64(0) {
+		t.Fatalf("boundary_consumer_evidence_count = %#v, want 0 to match the empty list", data["boundary_consumer_evidence_count"])
+	}
+	for _, row := range data["candidate_buckets"].(map[string]any)["live_by_consumer"].([]any) {
+		if row.(map[string]any)["consumer_evidence_source"] != "entity" {
+			t.Fatalf("row %v source = %#v, want entity", row.(map[string]any)["entity_id"], row.(map[string]any)["consumer_evidence_source"])
+		}
+	}
+}
+
+// TestCrossRepoDeadCodeScopedCallerGrantedNoBoundaryConsumers pins the fallback
+// edge: every boundary consumer is outside the grant, so the boundary list is
+// empty for this caller, the rows count the hidden consumers, and no row is
+// labelled repository_boundary because no boundary item reached it.
+func TestCrossRepoDeadCodeScopedCallerGrantedNoBoundaryConsumers(t *testing.T) {
+	t.Parallel()
+
+	relationships := []map[string]any{boundaryRelationship("consumer-1"), boundaryRelationship("consumer-2")}
+	data := postBoundaryHoistRequest(t, boundaryHoistStore(relationships),
+		`{"repo_id":"repo-producer","limit":10}`, []string{"repo-producer"})
+
+	if got := hoistedCitations(t, data); len(got) != 0 {
+		t.Fatalf("boundary_consumer_evidence = %v, want empty: no boundary consumer is granted", got)
+	}
+	if data["boundary_consumer_evidence_count"] != float64(0) {
+		t.Fatalf("boundary_consumer_evidence_count = %#v, want 0", data["boundary_consumer_evidence_count"])
+	}
+	row := assertCrossRepoDeadCodeBucketEntity(t, data["candidate_buckets"].(map[string]any), "unknown", "p-boundary-a")
+	if evidence, ok := row["consumer_evidence"].([]any); !ok || len(evidence) != 0 {
+		t.Fatalf("consumer_evidence = %#v, want an empty array", row["consumer_evidence"])
+	}
+	if row["consumer_evidence_source"] != "entity" || row["consumer_evidence_count"] != float64(0) {
+		t.Fatalf("source/count = %#v/%#v, want entity/0", row["consumer_evidence_source"], row["consumer_evidence_count"])
+	}
+	if row["hidden_consumer_evidence_count"] != float64(2) {
+		t.Fatalf("hidden_consumer_evidence_count = %#v, want 2", row["hidden_consumer_evidence_count"])
+	}
+	assertCrossRepoDeadCodeReason(t, row, "permission_hidden_consumer")
+	if row["classification"] != "unknown_needs_evidence" {
+		t.Fatalf("classification = %#v, want unknown_needs_evidence", row["classification"])
 	}
 }

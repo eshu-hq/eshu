@@ -158,7 +158,8 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		"candidate_scan_rows":            scan.CandidateScanRows,
 		"candidate_buckets":              buckets,
 		// The repository-boundary evidence every fallback row used to repeat,
-		// returned once (#7129). The key is always present, possibly empty.
+		// returned once (#7129). The keys are always present; the list is empty
+		// when no row used the fallback.
 		"boundary_consumer_evidence":       crossRepoDeadCodeEvidenceMaps(boundaryVisible),
 		"boundary_consumer_evidence_count": len(boundaryVisible),
 		"bucket_counts":                    crossRepoDeadCodeBucketCounts(buckets),
@@ -328,7 +329,9 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 	access := a.deps.GrantFilter(ctx)
 	// The boundary filter depends on the request's selector and grant, never on
 	// the entity, so it runs once. The second return value is the visible list
-	// the handler hoists into data.boundary_consumer_evidence.
+	// the handler hoists into data.boundary_consumer_evidence, or nil when no
+	// row used it: the list is unbounded, so it ships only to explain a row.
+	boundaryUsed := false
 	boundaryVisible, boundaryHidden := filterCrossRepoDeadCodeEvidence(consumers.Boundary, allowedConsumers, access)
 	buckets := map[string]any{
 		"dead":             []any{},
@@ -357,6 +360,7 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 			visible = append(visible, boundaryVisible...)
 			hiddenCount += len(boundaryHidden)
 			usedBoundary = len(boundaryVisible) > 0
+			boundaryUsed = boundaryUsed || usedBoundary
 		}
 		setCrossRepoDeadCodeRowEvidence(row, visible, usedBoundary)
 		if hiddenCount > 0 {
@@ -395,6 +399,9 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 			"code_reachability_rows:no_active_cross_repo_consumer_evidence",
 		}
 		buckets["dead"] = append(buckets["dead"].([]any), row)
+	}
+	if !boundaryUsed {
+		return buckets, nil
 	}
 	return buckets, boundaryVisible
 }

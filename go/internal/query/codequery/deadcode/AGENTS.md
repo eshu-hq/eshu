@@ -54,7 +54,8 @@ stdlib plus the leaves named in [doc.go](doc.go).
 `bucketCrossRepoDeadCodeResults` keeps the repository-boundary items in the
 `visible` slice that classification reads, and keeps them OUT of the row's
 `consumer_evidence` (`setCrossRepoDeadCodeRowEvidence`); the handler returns
-them once as `boundary_consumer_evidence`. Never classify from the row map, and
+them once as `boundary_consumer_evidence` (nil when no row used the fallback:
+the list is unbounded, so it ships only to explain a row). Never classify from the row map, and
 never append the boundary list to a row again: 20 boundary items per row put a
 default-args MCP reply at 824,864 bytes against a 262,144 budget. The
 `TestFindCrossRepoDeadCodeBoundaryOnly...` test in `internal/mcp` and

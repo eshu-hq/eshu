@@ -74,7 +74,7 @@ const CrossRepo = `
                       "properties": {
                         "dead": {"type": "array", "items": {"type": "object", "properties": {
                           "consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "The row's own consumer evidence. Empty when consumer_evidence_source is repository_boundary: that evidence is the response's boundary_consumer_evidence."},
-                          "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none). repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
+                          "consumer_evidence_source": {"type": "string", "enum": ["entity", "repository_boundary"], "description": "entity: consumer_evidence is this entity's own evidence (possibly none); hidden_consumer_evidence_count can still reflect hidden boundary relationships. repository_boundary: no entity-level evidence existed, so classification used the repository-level boundary evidence returned once in boundary_consumer_evidence."},
                           "consumer_evidence_count": {"type": "integer", "description": "Length of this row's consumer_evidence."}
                         }}},
                         "live_by_consumer": {"type": "array", "items": {"type": "object", "properties": {
@@ -90,8 +90,8 @@ const CrossRepo = `
                         "suppressed": {"type": "array", "items": {"type": "object"}}
                       }
                     },
-                    "boundary_consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "Repository-level boundary evidence (relationship_type, citation, confidence and the other consumer evidence fields) after the request's consumer selector and grant. Returned once for every candidate row whose consumer_evidence_source is repository_boundary, instead of repeated on each row. Always present, empty when the repository has no boundary relationships."},
-                    "boundary_consumer_evidence_count": {"type": "integer", "description": "Length of boundary_consumer_evidence."},
+                    "boundary_consumer_evidence": {"type": "array", "items": {"type": "object"}, "description": "Repository-level boundary evidence (relationship_type, citation, confidence and the other consumer evidence fields) after the request's consumer selector and grant. Returned once for every candidate row whose consumer_evidence_source is repository_boundary, instead of repeated on each row. Always present; empty (and the count 0) when no row used the fallback, including when the repository has no boundary relationships or none the caller may see."},
+                    "boundary_consumer_evidence_count": {"type": "integer", "description": "Length of boundary_consumer_evidence; 0 when the list is not emitted."},
                     "bucket_counts": {"type": "object", "additionalProperties": true},
                     "analysis": {"type": "object", "additionalProperties": true}
                   }

@@ -53,7 +53,8 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   no entity-level evidence classifies against the repository's incoming
   relationships (`consumers.Boundary`), but those items are the same for every
   such row, so `bucketCrossRepoDeadCodeResults` filters them once per request
-  and the handler returns them as `boundary_consumer_evidence` (+ `_count`). A
+  and the handler returns them as `boundary_consumer_evidence` (+ `_count`),
+  empty and 0 when no row used the fallback. A
   fallback row keeps `consumer_evidence: []` and
   `consumer_evidence_source: "repository_boundary"`; other rows get `entity`;
   every row gets `consumer_evidence_count` (#7129). Classification still reads
