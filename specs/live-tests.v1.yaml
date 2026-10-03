@@ -2391,7 +2391,7 @@ tests:
   - file: go/internal/storage/postgres/status_active_work_semantics_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    reason: "runs in the blocking reducer-contention-gate workflow against its own PostgreSQL service; the #7009 active-work projection proof fails on an unset DSN when ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF is set"
   - file: go/internal/storage/postgres/status_blockage_leases_live_test.go
     tag: ~
     class: scheduled

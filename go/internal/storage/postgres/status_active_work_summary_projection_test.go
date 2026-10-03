@@ -4,10 +4,14 @@
 package postgres
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers guards the measured
@@ -18,9 +22,9 @@ func TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers(t *testing.T) {
 	if err := checkActiveWorkSummaryProjection(activeWorkSummaryQuery); err != nil {
 		t.Fatal(err)
 	}
-	original := "SELECT " + activeWorkSummaryColumns + "\n  FROM fact_work_items AS work"
+	original := "SELECT " + activeWorkSummaryColumns + "\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work"
 	widened := strings.Replace(activeWorkSummaryQuery, original,
-		"SELECT work.*\n  FROM fact_work_items AS work", 1)
+		"SELECT work.*\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work", 1)
 	if widened == activeWorkSummaryQuery {
 		t.Fatal("wildcard positive control did not change the production CTE")
 	}
@@ -28,7 +32,7 @@ func TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers(t *testing.T) {
 		t.Fatal("wildcard positive control passed the projection guard")
 	}
 	appended := strings.Replace(activeWorkSummaryQuery, original,
-		"SELECT "+activeWorkSummaryColumns+",\n         *\n  FROM fact_work_items AS work", 1)
+		"SELECT "+activeWorkSummaryColumns+",\n         *\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work", 1)
 	if appended == activeWorkSummaryQuery {
 		t.Fatal("trailing wildcard positive control did not change the production CTE")
 	}
@@ -46,7 +50,7 @@ func checkActiveWorkSummaryProjection(query string) error {
 	if !ok {
 		return fmt.Errorf("summary has no materialized active work CTE boundary")
 	}
-	projection, _, ok := strings.Cut(cte, "\n  FROM fact_work_items AS work")
+	projection, _, ok := strings.Cut(cte, "\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work")
 	if !ok {
 		return fmt.Errorf("summary has no active work projection boundary")
 	}
@@ -54,6 +58,12 @@ func checkActiveWorkSummaryProjection(query string) error {
 		return fmt.Errorf("summary materializes a wildcard projection")
 	}
 	required := map[string]string{
+		"work_item_id":    `CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.work_item_id END AS work_item_id`,
+		"scope_id":        `CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.scope_id END AS scope_id`,
+		"generation_id":   `CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.generation_id END AS generation_id`,
+		"domain":          `CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.domain END AS domain`,
+		"conflict_domain": `CASE WHEN work.stage = 'reducer' AND work.status IN ('pending', 'claimed', 'running', 'retrying') THEN work.conflict_domain END AS conflict_domain`,
+		"conflict_key":    `CASE WHEN work.stage = 'reducer' AND work.status IN ('pending', 'claimed', 'running', 'retrying') THEN work.conflict_key END AS conflict_key`,
 		"payload": `CASE WHEN work.stage = 'reducer'
                    AND work.status IN ('pending', 'retrying', 'claimed', 'running')
               THEN work.payload END AS payload`,
@@ -70,4 +80,67 @@ func checkActiveWorkSummaryProjection(query string) error {
 		}
 	}
 	return nil
+}
+
+// statusSemanticsRows renders every row as pipe-joined text so the expected
+// rows stay readable; numeric ages are rounded to whole seconds.
+func statusSemanticsRows(ctx context.Context, t *testing.T, conn *sql.Conn, query string, args ...any) []string {
+	t.Helper()
+	rows, err := conn.QueryContext(ctx, query, args...)
+	if err != nil {
+		t.Fatalf("query: %v\n%s", err, query)
+	}
+	defer func() { _ = rows.Close() }()
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("columns: %v", err)
+	}
+	var out []string
+	for rows.Next() {
+		values := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		fields := make([]string, len(values))
+		for i, value := range values {
+			switch typed := value.(type) {
+			case float64:
+				fields[i] = fmt.Sprintf("%.0f", typed)
+			case string:
+				// pgx renders numeric EXTRACT(EPOCH ...) results as text.
+				fields[i] = typed
+				if parsed, parseErr := strconv.ParseFloat(typed, 64); parseErr == nil && strings.Contains(typed, ".") {
+					fields[i] = fmt.Sprintf("%.0f", parsed)
+				}
+			case time.Time:
+				fields[i] = typed.UTC().Format(time.RFC3339)
+			default:
+				fields[i] = fmt.Sprint(typed)
+			}
+		}
+		out = append(out, strings.Join(fields, "|"))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	return out
+}
+
+// statusSemanticsWorkItemIDs keeps the work_item_id field (the first
+// "w-"-prefixed field) of each rendered row.
+func statusSemanticsWorkItemIDs(rows []string) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		for _, field := range strings.Split(row, "|") {
+			if strings.HasPrefix(field, "w-") {
+				ids = append(ids, field)
+				break
+			}
+		}
+	}
+	return ids
 }

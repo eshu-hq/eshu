@@ -30,14 +30,14 @@ const activeFactWorkItemsScopeStateCTE = `active_fact_work_items_scope_state AS 
   ) AS active_generation ON TRUE
 )`
 
-// activeFactWorkItemsFromWhere is the FROM/WHERE body shared by every
-// active_fact_work_items definition. It needs activeFactWorkItemsScopeStateCTE
-// earlier in the same WITH list, requires the work item's generation to belong
-// to its scope, and hides only unleased reducer rows on a generation older than
+// activeFactWorkItemsScopeJoinWhere is the shared generation join and filter.
+// It needs activeFactWorkItemsScopeStateCTE earlier in the same WITH list and
+// requires the work item's generation to belong to its scope. It hides only
+// unleased reducer rows on a generation older than
 // the scope's active one (older ingested_at, or equal ingested_at with a
 // smaller generation_id). Claimed/running rows stay visible so a live stale
 // worker remains diagnosable instead of disappearing.
-const activeFactWorkItemsFromWhere = `FROM fact_work_items AS work
+const activeFactWorkItemsScopeJoinWhere = `
   JOIN active_fact_work_items_scope_state AS scope_state
     ON scope_state.scope_id = work.scope_id
   JOIN scope_generations AS stale_generation
@@ -56,6 +56,10 @@ const activeFactWorkItemsFromWhere = `FROM fact_work_items AS work
       )
     )
   )`
+
+// activeFactWorkItemsFromWhere preserves the original work input for every
+// observer except the status summary.
+const activeFactWorkItemsFromWhere = "FROM fact_work_items AS work" + activeFactWorkItemsScopeJoinWhere
 
 // activeFactWorkItemsCTE keeps live status, drain, and observer reads from
 // reporting unleased reducer rows whose generation is older than the scope's
