@@ -50,13 +50,12 @@ func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Full selection: listCollectors' collector readiness classification
-	// (status.CollectorRuntimeStatuses) folds in CollectorFactEvidence, which
-	// the index route's lighter selection (IncludeCollectorFactEvidence:
-	// false) deliberately skips (status.go getIndexStatus). The bundle needs
-	// both the pipeline and the collector sections, so it always loads the
-	// full snapshot rather than the index route's trimmed one.
-	_, report, err := loadStatusReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	// Retain the existing collector fact and registry selections. The live
+	// bundle does not expose Terraform-state serials or warnings, so omit only
+	// those reads; required status reads and their errors remain unchanged.
+	selection := status.FullSnapshotSelection()
+	selection.SkipTerraformStateEvidence = true
+	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), selection)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return

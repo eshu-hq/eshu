@@ -1,0 +1,87 @@
+{
+  "schema_version": "evidence_bundle.v1",
+  "bundle_id": "",
+  "identity": {
+    "scope_id": "live:local",
+    "profile": "unknown",
+    "created_at": "2026-07-01T12:00:00Z"
+  },
+  "source": {"repository": "live:stack"},
+  "redaction": {
+    "profile": "share_safe_v1",
+    "rules": [
+      "handles_only",
+      "screened_credentials",
+      "screened_model_inputs_or_outputs",
+      "screened_private_endpoints"
+    ]
+  },
+  "contents": {
+    "operator_state": [
+      {"kind": "freshness", "state": "unknown", "reason": "no_freshness_signal_in_status_routes"},
+      {"kind": "readiness", "state": "blocked"}
+    ],
+    "pipeline_state": {
+      "repository_count": 5,
+      "health_state": "stalled",
+      "health_reasons": ["3 overdue claims suggest stuck workers"],
+      "queue": {
+        "total": 18,
+        "outstanding": 7,
+        "overdue_claims": 3,
+        "oldest_outstanding_age_seconds": 12.5,
+        "pending": 4,
+        "in_flight": 2,
+        "retrying": 1,
+        "succeeded": 10,
+        "dead_letter": 1
+      },
+      "queue_blocked_count": 5,
+      "scope_activity": {"active": 5, "changed": 1, "unchanged": 4},
+      "generation_history": {"active": 1, "completed": 9, "superseded": 5, "other": 2},
+      "stage_summaries": [
+        {"stage": "parse", "pending": 2, "claimed": 6, "running": 3, "succeeded": 11}
+      ],
+      "domain_backlogs": [
+        {"domain": "aws_relationship_materialization", "outstanding": 5, "in_flight": 4, "blocked": 3, "dead_letter": 1, "oldest_age_seconds": 41.5},
+        {"domain": "theory_domain_d", "outstanding": 4, "oldest_age_seconds": 4},
+        {"domain": "theory_domain_e", "outstanding": 5, "oldest_age_seconds": 5},
+        {"domain": "theory_domain_f", "outstanding": 6, "oldest_age_seconds": 6},
+        {"domain": "theory_domain_g", "outstanding": 7, "oldest_age_seconds": 7}
+      ],
+      "collectors": [
+        {"collector_kind": "git", "status_category": "coordinator_managed", "health": "observed"}
+      ]
+    },
+    "semantic_provider_state": {
+      "state": "unavailable",
+      "reason": "provider_not_configured",
+      "provider_configured": false,
+      "provider_profiles": [
+        {"profile_id": "profile-a", "provider_kind": "local", "state": "configured", "reason": "configured"}
+      ]
+    }
+  },
+  "missing_evidence": [
+    {"family": "fact_counts", "reason": "fact_counts_not_exposed_by_status_api"},
+    {"family": "freshness", "reason": "status_routes_carry_no_indexed_at_or_generation_completed_at"},
+    {"family": "runtime_profile", "reason": "status_routes_do_not_report_the_target_runtime_profile"}
+  ],
+  "reproduce": [
+    {"kind": "api", "target": "GET /api/v0/status/collectors"},
+    {"kind": "api", "target": "GET /api/v0/status/index"},
+    {"kind": "api", "target": "GET /api/v0/status/pipeline"},
+    {"kind": "cli", "target": "eshu evidence bundle export --live"}
+  ],
+  "bounds": {
+    "max_answer_packets": 25,
+    "max_investigation_packets": 25,
+    "max_handles": 200,
+    "truncated": true,
+    "truncated_layers": ["domain_backlogs"]
+  },
+  "validation": {
+    "status": "passed",
+    "checks": ["private_data_canaries", "redaction", "reproduce_handles", "schema"]
+  }
+}

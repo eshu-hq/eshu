@@ -57,11 +57,14 @@ See `doc.go` for the godoc contract. Key types and functions:
   `ReadStatusSnapshot` is equivalent to `ReadStatusSnapshotFiltered` with
   `FullSnapshotSelection()`, so surfaces that never render those sections (e.g.
   the index status endpoint) skip the full-table aggregates at repository scale
-- `SkipTerraformStateEvidence` — repository ingester detail alone omits the
-  Terraform-state serial and warning evidence reads because that response does
-  not expose the Terraform section. The zero value, full status, index status,
-  and ingester list retain the reads and propagate their failures. Other
-  snapshot sections and health evaluation are unchanged.
+- `SkipTerraformStateEvidence` — repository ingester detail and the live
+  evidence bundle omit Terraform-state serial and warning reads because neither
+  response exposes that section. The bundle still requests collector fact and
+  registry evidence. The zero value, full status, index status, and ingester
+  list retain Terraform reads and propagate their failures. Bundle requests
+  no longer fail on errors confined to the omitted Terraform reads; failures
+  in retained status reads still fail the request. Other snapshot sections and
+  health evaluation are unchanged.
 - `SemanticOnlySnapshotSelection()` — explicit opt-in for the semantic
   extraction status route. It reads only semantic queue, budget, and audit
   aggregates through the existing SQL and decoder; it cannot be combined with

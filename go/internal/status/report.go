@@ -76,8 +76,9 @@ type SnapshotSelection struct {
 	// reads registry collector status from fact_records.
 	IncludeRegistryCollectors bool
 	// SkipTerraformStateEvidence omits the Terraform-only serial and warning
-	// reads for repository ingester detail, which does not render that section.
-	// Other status surfaces retain those reads and their errors by default.
+	// reads for callers that do not render them, including repository ingester
+	// detail and the live evidence bundle. Full and index status retain these
+	// reads and their errors by default.
 	SkipTerraformStateEvidence bool
 }
 
