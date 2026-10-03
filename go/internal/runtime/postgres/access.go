@@ -61,6 +61,8 @@ type Access struct {
 	snapshotSetGate    chan struct{}
 	readerPermits      chan struct{}
 	querySequence      atomic.Int64
+	readerMembers      []physicalReaderMember
+	nextReader         atomic.Uint64
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
@@ -82,6 +84,14 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(cfg.ReadMembers) > 0 && (cfg.SamePrimary || len(readCfg.Fallbacks) > 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4) {
+		return nil, errors.New("invalid physical reader member configuration")
+	}
+	if len(cfg.ReadMembers) > 0 {
+		if err := validateReaderMembers(cfg.ReadMembers); err != nil {
+			return nil, err
+		}
+	}
 	pingCtx, cancel := context.WithTimeout(ctx, cfg.PingTimeout)
 	defer cancel()
 	identity, err := bootstrapPhysicalWriter(pingCtx, writerCfg, cfg.ExpectedSystemID)
@@ -100,12 +110,23 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	}
 	readCfg.RuntimeParams["default_transaction_read_only"] = "on"
 	readCfg.ValidateConnect = readerValidator(identity, cfg.SamePrimary)
-	reader := stdlib.OpenDB(*readCfg, stdlib.OptionBeforeConnect(stdlib.RandomizeHostOrderFunc))
-	reader.SetMaxOpenConns(cfg.ReadMaxOpenConns)
-	reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
-	reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-	reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	access := &Access{writer: writer, reader: reader, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, cfg.ReadMaxOpenConns)}
+	var reader *sql.DB
+	var members []physicalReaderMember
+	if len(cfg.ReadMembers) > 0 {
+		members, err = openReaderMembers(pingCtx, cfg, readCfg, identity)
+		if err != nil {
+			_ = writer.Close()
+			return nil, privateFailure(failureReaderPing, err)
+		}
+		reader = members[0].pool
+	} else {
+		reader = stdlib.OpenDB(*readCfg, stdlib.OptionBeforeConnect(stdlib.RandomizeHostOrderFunc))
+		reader.SetMaxOpenConns(cfg.ReadMaxOpenConns)
+		reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
+		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+	}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, cfg.ReadMaxOpenConns)}
 	access.snapshotSetGate <- struct{}{}
 	for range cfg.ReadMaxOpenConns {
 		access.readerPermits <- struct{}{}
@@ -114,7 +135,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		_ = access.Close()
 		return nil, privateFailure(failureWriterPing, err)
 	}
-	if err := reader.PingContext(pingCtx); err != nil {
+	if err := access.pingReader(pingCtx); err != nil {
 		_ = access.Close()
 		return nil, privateFailure(failureReaderPing, err)
 	}
@@ -124,9 +145,9 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 // Writer returns the write-capable pool for authorization, audits, and writes.
 func (a *Access) Writer() *sql.DB { return a.writer }
 
-// Reader returns guarded row, cursor, and snapshot reads without exposing the raw reader pool.
-// Multi-host readers do not advertise snapshot sets: exported snapshots cannot
-// be imported on a different physical PostgreSQL server.
+// Reader returns guarded row, cursor, and snapshot reads without exposing a raw
+// pool. Native multi-host fallback DSNs do not advertise snapshot sets;
+// explicit direct-member fleets select one physical member per set.
 func (a *Access) Reader() db.ReadStore {
 	reader := fencedQueryer{access: a}
 	if a.readerHasFallbacks {
@@ -137,14 +158,20 @@ func (a *Access) Reader() db.ReadStore {
 
 type snapshotlessReadStore struct{ db.ReadStore }
 
-// Stats reports both pool states under closed role names.
-func (a *Access) Stats() (writer, reader sql.DBStats) { return a.writer.Stats(), a.reader.Stats() }
+// Stats reports the writer pool and aggregate reader-member pool state.
+func (a *Access) Stats() (writer, reader sql.DBStats) {
+	return a.writer.Stats(), a.aggregateReaderStats()
+}
 
-// Ping checks connectivity of both pools for readiness probes.
+// Ping checks the writer and at least one qualified reader for readiness.
 func (a *Access) Ping(ctx context.Context) error {
 	if err := a.writer.PingContext(ctx); err != nil {
 		return privateFailure(failureWriterPing, err)
 	}
+	return a.pingReader(ctx)
+}
+
+func (a *Access) pingReader(ctx context.Context) error {
 	if a.readerPermits != nil {
 		select {
 		case <-a.readerPermits:
@@ -152,6 +179,14 @@ func (a *Access) Ping(ctx context.Context) error {
 		case <-ctx.Done():
 			return privateFailure(failureReaderPing, ctx.Err())
 		}
+	}
+	if len(a.readerMembers) > 0 {
+		for _, index := range a.memberOrder(1) {
+			if a.readerMembers[index].pool.PingContext(ctx) == nil {
+				return nil
+			}
+		}
+		return privateFailure(failureReaderPing, ErrReaderUnavailable)
 	}
 	if err := a.reader.PingContext(ctx); err != nil {
 		return privateFailure(failureReaderPing, err)
@@ -161,6 +196,9 @@ func (a *Access) Ping(ctx context.Context) error {
 
 // Close releases both pools, including when one close reports an error.
 func (a *Access) Close() error {
+	if len(a.readerMembers) > 0 {
+		return privateFailure(failurePoolClose, errors.Join(closeReaderMembers(a.readerMembers), a.writer.Close()))
+	}
 	return privateFailure(failurePoolClose, errors.Join(a.reader.Close(), a.writer.Close()))
 }
 
