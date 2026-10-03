@@ -1,0 +1,51 @@
+go/internal/runtime/postgres/reader_allocator_test.go
+  s_b0d7e3abc26c5a::t_6a8382de114f83 1-29,31-35,37-64,79,88,92-154
+  s_b0d7e3abc26c5a::t_309a35fc87c128 30,36,65-78,80-87,89-91
+go/internal/runtime/postgres/reader_members.go
+  s_b0d7e3abc26c5a::t_dd8288e6d5ba89 123
+go/internal/runtime/postgres/reader_fleet_test.go
+  s_b0d7e3abc26c5a::t_409309801e3e8c 8,14,16-31
+  s_b0d7e3abc26c5a::t_6d39e1f9f68527 1-7,9-11,15,32-51,89-90
+  s_b0d7e3abc26c5a::t_311a8e0b87ae0c 12-13,52-88
+go/internal/runtime/postgres/reader.go
+  s_b0d7e3abc26c5a::t_2a9d070cf7831f 64,127
+  s_b0d7e3abc26c5a::t_4aaa4d968aee61 25-29,35-37
+go/internal/runtime/postgres/reader_fleet.go
+  s_b0d7e3abc26c5a::t_03aa6d4bdd235d 53-57
+  s_b0d7e3abc26c5a::t_896ed8d77e1f3c 1-11,14-52,58-59,71-89,91-94,96-99,109-131,135,139-248,250,254-259
+  s_b0d7e3abc26c5a::t_062e4c0a8e8283 12-13,60-70,132-134
+  s_b0d7e3abc26c5a::t_a54ede60da55da 90,95,100-108,136-138
+  s_b0d7e3abc26c5a::t_14fc96d66d6047 249,251-253
+go/internal/runtime/postgres/reader_allocator.go
+  s_b0d7e3abc26c5a::t_5ff06cfabba1f6 40,42-43,156,165,182-190,202-203,215
+  s_b0d7e3abc26c5a::t_f827290e9ab5fd 1-36,38-39,44-155,157-164,166-181,198,200-201,204-207,217
+  s_b0d7e3abc26c5a::t_6191f8339ec95e 37,41,191-197,199,208-214,216
+go/internal/runtime/postgres/read_store.go
+  s_b0d7e3abc26c5a::t_7f970cd9f7dcd2 53-55
+go/internal/runtime/postgres/doc.go
+  s_b0d7e3abc26c5a::t_4dd1af25308879 21-24
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_11ad53021d7e5c 59,65,130,132-142,186-188,192-196,214-216,218
+  s_b0d7e3abc26c5a::t_7f970cd9f7dcd2 148-156
+  s_b0d7e3abc26c5a::t_a778d4fd27cc50 189-191,197
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_4dd1af25308879 69-80,85-91,95-96
+go/internal/runtime/postgres/reader_members_test.go
+  s_b0d7e3abc26c5a::t_551fa4daa3c9b7 306-405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0e5587b2f84a920e052b6193b7176b9a3615a4dc",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
