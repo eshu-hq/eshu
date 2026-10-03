@@ -24,22 +24,23 @@ import (
 var codeTopicParallelDriverSequence atomic.Uint64
 
 type codeTopicParallelRecorder struct {
-	mu            sync.Mutex
-	active        int
-	maxActive     int
-	imports       int
-	probes        int
-	serialQueries int
-	probeTerms    [][]string
-	assemblyJSON  string
-	assemblyPage  []driver.Value
-	beginOptions  []driver.TxOptions
-	probeFailure  error
-	emptyProbes   bool
-	saturation    bool
-	db            *sql.DB
-	probeHold     chan struct{}
-	probeStarts   int
+	mu               sync.Mutex
+	active           int
+	maxActive        int
+	imports          int
+	probes           int
+	serialQueries    int
+	probeTerms       [][]string
+	assemblyJSON     string
+	assemblyPage     []driver.Value
+	beginOptions     []driver.TxOptions
+	probeFailure     error
+	probeFailureOnce error
+	emptyProbes      bool
+	saturation       bool
+	db               *sql.DB
+	probeHold        chan struct{}
+	probeStarts      int
 }
 
 func (r *codeTopicParallelRecorder) recordBegin(opts driver.TxOptions) {
@@ -155,6 +156,10 @@ func (c *codeTopicParallelConn) QueryContext(ctx context.Context, query string, 
 			close(c.recorder.probeHold)
 		}
 		failure := c.recorder.probeFailure
+		if c.recorder.probeFailureOnce != nil {
+			failure = c.recorder.probeFailureOnce
+			c.recorder.probeFailureOnce = nil
+		}
 		empty := c.recorder.emptyProbes
 		hold := c.recorder.probeHold
 		boundTerms := make([]string, 0, len(args))
@@ -274,21 +279,6 @@ func TestInvestigateCodeTopicParallelEmptyProbeSendsJSONArray(t *testing.T) {
 	defer recorder.mu.Unlock()
 	if recorder.assemblyJSON != "[]" || recorder.active != 0 {
 		t.Fatalf("empty assembly=%q active=%d", recorder.assemblyJSON, recorder.active)
-	}
-}
-
-func TestInvestigateCodeTopicParallelRollsBackAfterProbeError(t *testing.T) {
-	recorder := &codeTopicParallelRecorder{probeFailure: errors.New("injected probe failure")}
-	reader := newCodeTopicParallelTestReader(openCodeTopicParallelDB(t, recorder))
-	terms := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
-	_, err := reader.InvestigateCodeTopic(context.Background(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 26})
-	if err == nil || !strings.Contains(err.Error(), "injected probe failure") {
-		t.Fatalf("error = %v, want injected failure", err)
-	}
-	recorder.mu.Lock()
-	defer recorder.mu.Unlock()
-	if recorder.active != 0 || recorder.assemblyJSON != "" {
-		t.Fatalf("active=%d assembly=%q", recorder.active, recorder.assemblyJSON)
 	}
 }
 

@@ -152,6 +152,14 @@ Native pgx host lists share each pool's budget rather than allocating a pool
 per host. Writer candidates must resolve to one accepted primary; independent
 writable databases are outside this contract.
 
+Optional `ESHU_POSTGRES_READ_MEMBERS` enables a startup-frozen JSON inventory of
+at least two credential-free direct reader endpoints (`id`, `host`, `port`). It
+uses shared credentials/TLS from a distinct single-host read DSN and divides
+the total reader pool budget across members (at least four connections each).
+Snapshot-set requests pin all connections to one member. An unavailable member
+is skipped until process restart; wrong topology fails startup. Without the
+inventory, legacy reader Service/pgx host-list routing remains snapshotless.
+
 `ESHU_POSTGRES_MAX_OPEN_CONNS` and `ESHU_POSTGRES_MAX_IDLE_CONNS` are totals
 across both pools (defaults 30 and 10). Optional
 `ESHU_POSTGRES_READ_MAX_OPEN_CONNS` and

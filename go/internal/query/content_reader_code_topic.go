@@ -41,6 +41,13 @@ func codeTopicCandidateCap(termCount int) int {
 	return candidateCap
 }
 
+// isReaderMemberLoss accepts only a guarded runtime marker for a lost physical
+// reader; generic PostgreSQL failures and caller cancellation are not retried.
+func isReaderMemberLoss(err error) bool {
+	var lost interface{ ReaderMemberLost() bool }
+	return errors.As(err, &lost) && lost.ReaderMemberLost()
+}
+
 // InvestigateCodeTopic scores entities and files in content_entities and
 // content_files against req.Terms (name/source-cache substring match for
 // entities, path/content substring match for files), ranked by distinct
@@ -86,7 +93,15 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	}
 	if supportsSnapshotSet && codetopicparallel.Eligible(len(req.Terms), maxOpenConns) {
 		filters, args, _ := codeTopicFilters(req)
-		results, err := codetopicparallel.Investigate(ctx, parallelStore, span, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
+		var results []codequery.CodeTopicEvidenceRow
+		var err error
+		for attempt := 0; attempt < 2; attempt++ {
+			results, err = codetopicparallel.Investigate(ctx, parallelStore, span, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
+			if err == nil || ctx.Err() != nil || attempt > 0 || !isReaderMemberLoss(err) {
+				break
+			}
+			span.SetAttributes(attribute.Int("code_topic.reader_member_retries", 1))
+		}
 		if err == nil {
 			span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))
 			return results, nil
