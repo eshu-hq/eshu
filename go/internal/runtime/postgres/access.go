@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -59,6 +60,7 @@ type Access struct {
 	identity           physicalIdentity
 	snapshotSetGate    chan struct{}
 	readerPermits      chan struct{}
+	querySequence      atomic.Int64
 }
 
 // Open validates physical writer and reader identity before exposing either pool.

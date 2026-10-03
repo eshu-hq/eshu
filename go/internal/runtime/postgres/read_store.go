@@ -89,7 +89,7 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 	}
 	transactions = append(transactions, exporter)
 	var snapshotID string
-	if err := exporter.QueryRowContext(ctx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
+	if err := exporter.queryControlRowContext(ctx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
 		return nil, privateFailure(failureSnapshotBegin, err)
 	}
 	snapshotLiteral, err := snapshotSQLLiteral(snapshotID)
@@ -118,13 +118,19 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 }
 
 func beginReadTransaction(ctx context.Context, conn *readerConnection, access *Access) (*readTransaction, error) {
+	identity := readerBackendIdentity{}
+	if access.readerQueryStartObserver(ctx) != nil {
+		identity = captureReaderBackendIdentity(conn.Conn)
+	}
 	started := time.Now()
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	access.observe("reader", StageBusinessQuery, started, err)
 	if err != nil {
 		return nil, err
 	}
-	return newReadTransaction(ctx, tx, conn, access), nil
+	owned := newReadTransaction(ctx, tx, conn, access)
+	owned.identity = identity
+	return owned, nil
 }
 
 func newReadTransaction(ctx context.Context, tx *sql.Tx, conn interface{ Close() error }, access *Access) *readTransaction {
@@ -219,6 +225,10 @@ func (q fencedQueryer) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransa
 	if err != nil {
 		return nil, err
 	}
+	identity := readerBackendIdentity{}
+	if q.access.readerQueryStartObserver(ctx) != nil {
+		identity = captureReaderBackendIdentity(conn.Conn)
+	}
 	started := time.Now()
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	q.access.observe("reader", StageBusinessQuery, started, err)
@@ -226,21 +236,30 @@ func (q fencedQueryer) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransa
 		_ = conn.Close()
 		return nil, privateFailure(failureSnapshotBegin, err)
 	}
-	return newReadTransaction(ctx, tx, conn, q.access), nil
+	owned := newReadTransaction(ctx, tx, conn, q.access)
+	owned.identity = identity
+	return owned, nil
 }
 
 type readTransaction struct {
-	tx     *sql.Tx
-	conn   interface{ Close() error }
-	access *Access
-	once   sync.Once
-	stop   func() bool
-	err    error
+	tx       *sql.Tx
+	conn     interface{ Close() error }
+	access   *Access
+	identity readerBackendIdentity
+	once     sync.Once
+	stop     func() bool
+	err      error
 }
 
 var _ db.ReadTransaction = (*readTransaction)(nil)
 
 func (r *readTransaction) QueryContext(ctx context.Context, statement string, args ...any) (db.Rows, error) {
+	r.access.recordReaderQueryStart(ctx, r.identity)
+	return r.queryContext(ctx, statement, args...)
+}
+
+// queryContext retains query timing and cleanup for business and control SQL.
+func (r *readTransaction) queryContext(ctx context.Context, statement string, args ...any) (db.Rows, error) {
 	started := time.Now()
 	rows, err := r.tx.QueryContext(ctx, statement, args...)
 	r.access.observe("reader", StageBusinessQuery, started, err)
@@ -252,6 +271,12 @@ func (r *readTransaction) QueryContext(ctx context.Context, statement string, ar
 
 func (r *readTransaction) QueryRowContext(ctx context.Context, statement string, args ...any) db.Row {
 	rows, err := r.QueryContext(ctx, statement, args...)
+	return &fencedRow{rows: rows, err: err}
+}
+
+// queryControlRowContext excludes internal snapshot control SQL from business events.
+func (r *readTransaction) queryControlRowContext(ctx context.Context, statement string, args ...any) db.Row {
+	rows, err := r.queryContext(ctx, statement, args...)
 	return &fencedRow{rows: rows, err: err}
 }
 

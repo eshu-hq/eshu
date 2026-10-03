@@ -46,6 +46,20 @@ short stage spans are standalone diagnostics rather than children of the API/MCP
 request span. These signals do not establish deployed latency or replica
 capacity until API/MCP wiring and measurement are complete.
 
+The active recording span in a request trace receives `postgres.reader_query_start` before
+each guarded business query. The event has `postgres.role=reader`, a per-`Access`
+`postgres.query.sequence`, and `postgres.backend.identity` (`available` or
+`unavailable`). When available, it includes `postgres.backend.pid` and
+`postgres.backend.remote` copied from the exact borrowed TCP connection. Snapshot
+transactions retain that scalar identity for each query. These values are trace
+event attributes, never metric labels. A missing or unretained event, an
+unavailable identity, or a nonrecording request cannot identify the backend.
+For cancellation checks, pair a retained event with the physical reader and
+native `pg_stat_activity` PID plus `backend_start`. The socket peer can be a
+Service address and does not identify its backing pod. Then observe the active
+query and transaction leave after cancellation. The event alone proves only
+that the query was about to start. It does not prove deployed cancellation.
+
 The same histogram is the signal for reader fence outcomes (#7523); no separate
 counter exists. With `role="reader"`, `stage="reader_replay"` and
 `outcome="deadline"` counts replicas that missed the writer checkpoint within

@@ -13,12 +13,18 @@ const (
 )
 
 const (
-	readerAttributeRole    = "role"
-	readerAttributeStage   = "stage"
-	readerAttributeOutcome = "outcome"
-	readerAttributeState   = "state"
-	readerUnknown          = "unknown"
-	readerAccessSpanName   = "postgres.reader_access"
+	readerAttributeRole       = "role"
+	readerAttributeStage      = "stage"
+	readerAttributeOutcome    = "outcome"
+	readerAttributeState      = "state"
+	readerUnknown             = "unknown"
+	readerAccessSpanName      = "postgres.reader_access"
+	readerQueryStartEventName = "postgres.reader_query_start"
+	readerQueryPIDKey         = "postgres.backend.pid"
+	readerQueryRemoteKey      = "postgres.backend.remote"
+	readerQueryRoleKey        = "postgres.role"
+	readerQueryIdentityKey    = "postgres.backend.identity"
+	readerQuerySequenceKey    = "postgres.query.sequence"
 )
 
 // StatusSnapshotSpanName identifies the bounded, one-transaction status read.

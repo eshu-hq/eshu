@@ -146,7 +146,45 @@ business query. API/MCP attach those to their telemetry provider through `NewObs
 `Stats` exposes both pools' wait and in-use counters for readiness and pool
 pressure checks. No DSN, SQL text, or credential becomes a signal label.
 
+The active recording span in a request trace receives `postgres.reader_query_start` immediately
+before each guarded business SQL call. The event includes the actual borrowed
+reader's backend PID and TCP peer address, a sequence unique to this `Access`, and
+`postgres.role=reader`. Snapshot transactions copy this identity before
+`BeginTx` and keep only the scalar values for their subsequent query calls.
+An unsupported driver or address emits `postgres.backend.identity=unavailable`;
+that event cannot identify a backend. An unsampled request, missing event, or
+lost trace is also unqualified for request-to-backend diagnosis. No SQL, args,
+DSN, credentials, or PID metric labels are emitted. To check cancellation,
+match a retained event to native `pg_stat_activity` with the PID, backend start
+time, physical reader instance, and event time. The socket peer can be a
+Kubernetes Service address, so it does not identify the backing pod alone.
+Confirm that the backend leaves its active query and transaction after
+cancellation; the event alone is not
+cancellation proof. The existing stage spans remain standalone diagnostics.
+
+No-Regression Evidence: On an Apple M5 Max, a 200-iteration Go benchmark of a
+recording request and synchronous in-memory trace exporter measured 854.4 ns
+per baseline request and 16,426 ns with 22 synthetic query-start events per
+request. The difference was 15,571.6 ns per request. This isolates trace event
+recording/export into memory; it does not measure the live pgx Raw call, network
+export, or deployed request latency. A separate native reader lease theory probe
+measured the PID getter at 84 ns p95 over four paired 2,000-call rounds with
+zero allocations, but that value is not additive proof of deployed cost.
+Observability Evidence: Focused tests proved recording request-parent events
+with distinct query sequences, an explicit unavailable event for an unsupported
+driver, and ordinary and transaction SQL execution after the start event with
+unchanged statement and argument values. Deployed trace retention and native
+cancellation remain unverified.
+
 ## Local proof and limits
+
+The opt-in `TestReaderQueryIdentityMatchesOneNativeLease` takes only
+`ESHU_READER_TEST_READER_DSN` and opens one read-only connection to an owned
+physical standby. It compares the production Raw getter and retained request
+event with `pg_backend_pid()` on the same lease. It does not open a writer,
+mutate data, or prove endpoint cancellation; without the DSN it skips. The
+operator must bind the DSN to the intended standby and verify its instance
+identity outside this test.
 
 The disposable live tests take `ESHU_READER_TEST_WRITER_DSN` and
 `ESHU_READER_TEST_READER_DSN`. Candidate tests additionally take complete

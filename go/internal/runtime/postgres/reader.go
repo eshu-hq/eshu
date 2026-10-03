@@ -45,6 +45,7 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 	if err != nil {
 		return nil, err
 	}
+	a.startReaderQuery(ctx, conn.Conn)
 	started := time.Now()
 	rows, err := conn.QueryContext(ctx, statement, args...)
 	a.observe("reader", StageBusinessQuery, started, err)
