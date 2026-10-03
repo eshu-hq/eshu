@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -29,6 +31,14 @@ func TestReaderMemberLossMarkerOnlyForEstablishedFleetTransportLoss(t *testing.T
 	}{
 		{"fleet EOF", io.EOF, true, true},
 		{"fleet bad connection", driver.ErrBadConn, true, true},
+		{"fleet admin shutdown", fmt.Errorf("rows failed: %w", &pgconn.PgError{Code: "57P01"}), true, true},
+		{"fleet crash shutdown", &pgconn.PgError{Code: "57P02"}, true, true},
+		{"legacy admin shutdown", &pgconn.PgError{Code: "57P01"}, false, false},
+		{"fleet query canceled", &pgconn.PgError{Code: "57014"}, true, false},
+		{"fleet too many connections", &pgconn.PgError{Code: "53300"}, true, false},
+		{"fleet invalid password", &pgconn.PgError{Code: "28P01"}, true, false},
+		{"fleet insufficient privilege", &pgconn.PgError{Code: "42501"}, true, false},
+		{"fleet canceled shutdown", errors.Join(context.Canceled, &pgconn.PgError{Code: "57P01"}), true, false},
 		{"legacy EOF", io.EOF, false, false},
 		{"fleet canceled", context.Canceled, true, false},
 		{"fleet SQL failure", errors.New("invalid SQL"), true, false},

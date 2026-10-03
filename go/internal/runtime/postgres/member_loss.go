@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io"
 	"net"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // readerMemberLoss is a narrow marker for an established fleet snapshot whose
@@ -24,7 +26,9 @@ func memberQueryFailure(err error, fleet bool) error {
 		return err
 	}
 	var networkError *net.OpError
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, driver.ErrBadConn) || errors.As(err, &networkError) {
+	var pgErr *pgconn.PgError
+	memberShutdown := errors.As(err, &pgErr) && (pgErr.Code == "57P01" || pgErr.Code == "57P02")
+	if memberShutdown || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, driver.ErrBadConn) || errors.As(err, &networkError) {
 		return errors.Join(readerMemberLoss{}, err)
 	}
 	return err
