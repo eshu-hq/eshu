@@ -92,8 +92,9 @@ retryable and stays HTTP `500` with a fixed message and no `Retry-After`. API an
 clients receive HTTP `503` with error code `backend_unavailable`, a fixed message,
 and `Retry-After: 2` (also `error.details.retry_after_seconds` in the envelope);
 the Go error text and driver detail never reach the response. The writer
-checkpoint step failure (replay lag or checkpoint capture failure) answers the same
-`503` and `Retry-After`. Retry after the hinted delay. `Retry-After` is set only on
+checkpoint step failure (the writer checkpoint query erroring or timing out, or
+the writer failing its topology check; replay lag appears later, in the reader
+fence) answers the same `503` and `Retry-After`. Retry after the hinted delay. `Retry-After` is set only on
 these transient verdicts; a permanent `503` such as a route that needs an
 unconfigured graph backend, or a checkpoint source that was never configured
 (unreachable in the API and MCP binaries, which fail startup first), carries none. The

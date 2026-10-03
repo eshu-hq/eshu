@@ -176,7 +176,9 @@ verdicts or to any status code or body:
   tree. `TestRetryableVerdictsAreExactlyGraphUnavailableAndReaderFence` pins
   the marked set and that the 504 deadline is unmarked.
 - `WithCheckpoint` sets `Retry-After` only when the checkpoint step fails
-  (replay lag or capture failure). A nil source is a permanent wiring state,
+  (the writer checkpoint query errors or times out, or the writer fails its
+  topology check; replay lag is a reader-fence condition, not a checkpoint-step
+  one). A nil source is a permanent wiring state,
   unreachable in production because `cmd/api` and `cmd/mcp-server` fail startup
   when `pgaccess.Open` errors, so it keeps the 503 and its body but carries no
   hint. `TestCheckpointHandlerNilSourceCarriesNoRetryAfter` failed against

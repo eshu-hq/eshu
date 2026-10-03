@@ -31,7 +31,7 @@ func WithCheckpoint(next http.Handler, source CheckpointSource, selected func(*h
 		}
 		if source == nil {
 			// A nil source is a permanent wiring state, not a transient
-			// replay or capture failure, so it carries no retry hint (#7536).
+			// checkpoint-query failure, so it carries no retry hint (#7536).
 			http.Error(w, readUnavailableBody, http.StatusServiceUnavailable)
 			return
 		}

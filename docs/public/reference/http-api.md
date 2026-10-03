@@ -124,8 +124,9 @@ The response carries `Retry-After: 2` (a fixed number of seconds, sized to the
 2-second replay window) and the same hint in the envelope as
 `error.details.retry_after_seconds`, because the MCP transport forwards the
 envelope rather than HTTP headers. The body never carries the Go error text.
-A failed request-level checkpoint step (replay lag or checkpoint capture failure)
-answers the same `503` and `Retry-After`; a checkpoint source that was never
+A failed request-level checkpoint step (the writer checkpoint query erroring or
+timing out, or the writer failing its topology check; replay lag is a reader-fence
+condition, not a checkpoint-step one) answers the same `503` and `Retry-After`; a checkpoint source that was never
 configured is a wiring state and carries no hint.
 Clients should retry after the hinted delay. `Retry-After` is set only on these
 transient verdicts and on the graph-unavailable `503` above; any other `503`

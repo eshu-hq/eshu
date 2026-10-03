@@ -107,10 +107,13 @@ wait or dial) or identity check timed out inside the replay window
 HTTP 503 `backend_unavailable` with `Retry-After` without importing this package
 (#7523). Other `ErrReaderUnavailable` failures (authentication, connection
 refused, permission denied on the identity query, client cancel) are not
-retryable and stay a 500 (`ErrWrongTopology` and `ErrMissingCheckpoint` too); `reader_borrow`/`reader_identity`/`reader_replay` with
+retryable and stay a 500 on the reader path (`ErrWrongTopology` and
+`ErrMissingCheckpoint` too); `reader_borrow`/`reader_identity`/`reader_replay` with
 `outcome="error"` is their operator signal.
 `WithCheckpoint` answers the same 503 and `Retry-After` when the checkpoint step
-fails (replay lag or capture failure); a nil checkpoint source answers the same 503
+fails (the writer checkpoint query errors or times out, or the writer fails its
+topology check: `ErrWrongTopology` at the checkpoint step, the existing #7527
+503, unlike the reader path above); a nil checkpoint source answers the same 503
 body with no `Retry-After`, because it is a permanent wiring state (#7536). Replica staleness and connection-acquisition timeouts are visible as
 `reader_replay` and `reader_borrow` stage durations with `outcome="deadline"`;
 no separate counter exists.
