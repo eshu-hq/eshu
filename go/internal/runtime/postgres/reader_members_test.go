@@ -11,10 +11,12 @@ import (
 	"net"
 	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 func TestReaderMemberLossMarkerOnlyForEstablishedFleetTransportLoss(t *testing.T) {
@@ -249,11 +251,17 @@ func TestReaderMembersSnapshotSetsStayOnOnePhysicalReader(t *testing.T) {
 		t.Fatal(err)
 	}
 	access.readerMembers[0].incarnation = oldIncarnation
-	// A closed member pool models a lost Pod. Readiness and a complete new
-	// snapshot remain available on the other qualified member.
+	// A refused dial models a lost Pod without treating a deliberately closed
+	// in-process pool as a PostgreSQL transport failure. Readiness and a
+	// complete new snapshot remain available on the other qualified member.
 	if err := access.readerMembers[1].pool.Close(); err != nil {
 		t.Fatal(err)
 	}
+	deadMember := memberB.Copy()
+	deadMember.DialFunc = func(context.Context, string, string) (net.Conn, error) {
+		return nil, syscall.ECONNREFUSED
+	}
+	access.readerMembers[1].pool = stdlib.OpenDB(*deadMember)
 	access.nextReader.Store(1)
 	lostSet, err := beginner.BeginReadOnlySnapshotSet(ctx, 4)
 	if err != nil {
