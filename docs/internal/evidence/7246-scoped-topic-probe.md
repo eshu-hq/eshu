@@ -29,11 +29,17 @@ heap rechecks and applied the repository predicate as a filter. Those two
 branches together accounted for 5,021.191 ms of the 5,933.388 ms execution.
 This identifies expensive branches; it does not establish a pure I/O cause.
 
-For requests with a nonempty trimmed explicit repository ID, the candidate
-adds a singleton materialized term CTE inside each file branch and reads that
-term through a scalar subquery in the content-only predicate. Requests without
-an explicit repository ID retain the original SQL, including searches bounded
-by a repository grant list.
+On the single-statement route, requests with a nonempty trimmed explicit
+repository ID add a singleton materialized term CTE inside each file branch
+and read that term through a scalar subquery in the content-only predicate.
+Requests without an explicit repository ID retain the original SQL, including
+searches bounded by a repository grant list. The three-term request measured
+here uses this route.
+
+The candidate was rebased onto main `6d0c1d81` on 2026-10-03. Main's eligible
+16-term shared-snapshot route runs before the single-statement builder and
+retains its existing file-branch SQL. The measurements below do not validate
+that parallel route or the rebased candidate's deployed latency.
 The measured plans then intersected the repository and content indexes
 before heap rechecks. Path-first quotas, path exclusion, repository predicates,
 entity candidates, grouping, scoring, pagination, and truncation metadata
