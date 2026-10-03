@@ -241,6 +241,40 @@ func TestEvaluateQueryShape(t *testing.T) {
 			t.Fatalf("missing nested citation passed unexpectedly: %s", f.Detail)
 		}
 	})
+
+	t.Run("handles-mode dead-code evidence groups and detail value", func(t *testing.T) {
+		shape := QueryShape{
+			RequiredResponseFields: []string{"data", "truth", "error"},
+			RequiredJSONPaths: []string{
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].consumer_repo_id",
+				"data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
+			},
+			RequiredJSONValues: map[string]any{
+				"truth.level":          "derived",
+				"data.evidence_detail": "handles",
+			},
+		}
+		handles := func(detail, groupKeys string) []byte {
+			return []byte(`{
+			  "data": {
+			    "evidence_detail": "` + detail + `",
+			    "candidate_buckets": {"live_by_consumer": [{"consumer_evidence": [` + groupKeys + `]}]}
+			  },
+			  "truth": {"level": "derived"},
+			  "error": null
+			}`)
+		}
+		group := `{"consumer_repo_id": "consumer", "relationship_type": "CALLS", "evidence_family": "direct_code", "confidence_label": "high", "item_count": 1}`
+		if f := EvaluateQueryShape("dead-code-cross-repo-mcp", shape, handles("handles", group)); !f.OK {
+			t.Fatalf("handles-shaped dead-code response failed: %s", f.Detail)
+		}
+		if f := EvaluateQueryShape("dead-code-cross-repo-mcp", shape, handles("full", group)); f.OK {
+			t.Fatalf("a full-detail response passed the handles pin unexpectedly: %s", f.Detail)
+		}
+		if f := EvaluateQueryShape("dead-code-cross-repo-mcp", shape, handles("handles", `{"confidence_label": "high"}`)); f.OK {
+			t.Fatalf("a group missing consumer_repo_id passed unexpectedly: %s", f.Detail)
+		}
+	})
 }
 
 func TestEvaluateQuerySurfaceParity(t *testing.T) {

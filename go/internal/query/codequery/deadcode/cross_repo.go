@@ -27,6 +27,11 @@ type CrossRepoDeadCodeRequest struct {
 	Limit                int      `json:"limit"`
 	ConsumerRepoIDs      []string `json:"consumer_repo_ids"`
 	ExcludeDecoratedWith []string `json:"exclude_decorated_with"`
+	// EvidenceDetail is "full" (the HTTP default) or "handles": under handles
+	// each row's consumer_evidence ships as capped group objects instead of
+	// every item (#7129). The MCP adapter sends handles unless the caller asks
+	// for full.
+	EvidenceDetail string `json:"evidence_detail"`
 }
 
 type CrossRepoDeadCodeEvidence struct {
@@ -141,7 +146,17 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		Boundary:        boundaryEvidence,
 		Available:       evidenceAvailable,
 	})
-	a.deps.WriteSuccess(w, r, http.StatusOK, withDocstringClipMarkers(clippedDocstrings, map[string]any{
+	// Counts and analysis read the classified buckets; shaping only changes what
+	// ships, so they are identical in full and handles (#7129).
+	bucketCounts := crossRepoDeadCodeBucketCounts(buckets)
+	analysis := codemodel.BuildDeadCodeAnalysisForLanguage(
+		crossRepoDeadCodeAnalysisRows(buckets),
+		req.ExcludeDecoratedWith,
+		scan.PolicyStats,
+		req.Language,
+	)
+	shaped := shapeCrossRepoDeadCodeEvidence(buckets, boundaryVisible, req.EvidenceDetail)
+	data := map[string]any{
 		"repo_id":                        req.RepoID,
 		"language":                       req.Language,
 		"limit":                          req.Limit,
@@ -156,20 +171,18 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		"candidate_scan_limit_per_label": scan.CandidateScanLimitPerLabel,
 		"candidate_scan_pages":           scan.CandidateScanPages,
 		"candidate_scan_rows":            scan.CandidateScanRows,
-		"candidate_buckets":              buckets,
-		// The repository-boundary evidence every fallback row used to repeat,
-		// returned once (#7129). The keys are always present; the list is empty
-		// when no row used the fallback.
-		"boundary_consumer_evidence":       crossRepoDeadCodeEvidenceMaps(boundaryVisible),
-		"boundary_consumer_evidence_count": len(boundaryVisible),
-		"bucket_counts":                    crossRepoDeadCodeBucketCounts(buckets),
-		"analysis": codemodel.BuildDeadCodeAnalysisForLanguage(
-			crossRepoDeadCodeAnalysisRows(buckets),
-			req.ExcludeDecoratedWith,
-			scan.PolicyStats,
-			req.Language,
-		),
-	}), querycontract.BuildTruthEnvelope(a.deps.Profile, crossRepoDeadCodeCapability, querycontract.TruthBasisHybrid, "resolved from bounded candidate scan plus active cross-repo consumer evidence"))
+		"candidate_buckets":              shaped.Buckets,
+		"bucket_counts":                  bucketCounts,
+		"analysis":                       analysis,
+	}
+	// The boundary list and detail-mode keys: the repository-boundary evidence
+	// every fallback row used to repeat, returned once (#7129).
+	for key, value := range shaped.Data {
+		data[key] = value
+	}
+	truth := querycontract.BuildTruthEnvelope(a.deps.Profile, crossRepoDeadCodeCapability, querycontract.TruthBasisHybrid, "resolved from bounded candidate scan plus active cross-repo consumer evidence")
+	truth.Omissions = shaped.Omissions
+	a.deps.WriteSuccess(w, r, http.StatusOK, withDocstringClipMarkers(clippedDocstrings, data), truth)
 }
 
 func normalizeCrossRepoDeadCodeRequest(req *CrossRepoDeadCodeRequest) error {
@@ -184,6 +197,11 @@ func normalizeCrossRepoDeadCodeRequest(req *CrossRepoDeadCodeRequest) error {
 	}
 	req.Language = normalizeDeadCodeLanguage(req.Language)
 	req.ConsumerRepoIDs = cleanCrossRepoDeadCodeStrings(req.ConsumerRepoIDs)
+	detail, err := normalizeCrossRepoDeadCodeEvidenceDetail(req.EvidenceDetail)
+	if err != nil {
+		return err
+	}
+	req.EvidenceDetail = detail
 	return nil
 }
 

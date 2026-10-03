@@ -179,7 +179,6 @@ func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 		"data.bucket_counts.unknown",
 		"data.bucket_counts.suppressed",
 		"data.candidate_buckets.dead[]",
-		"data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation",
 		"data.candidate_buckets.live_by_consumer[].consumer_evidence[].confidence_label",
 		"data.candidate_buckets.unknown[].needs_evidence_reasons[]",
 		"data.candidate_buckets.suppressed[]",
@@ -190,6 +189,29 @@ func TestGoldenSnapshotIncludesDeadCodeReplayLibrary(t *testing.T) {
 		if !containsString(crossRepoMCP.RequiredJSONPaths, path) {
 			t.Fatalf("MCP cross-repo dead-code shape missing bucket path %q", path)
 		}
+	}
+	// The HTTP default keeps every evidence item and its citation. The MCP tool
+	// defaults to evidence_detail handles (#7129), where an item has no citation
+	// and a row carries capped group objects, so its shape pins the group key
+	// and the detail mode instead; a citation path there could never resolve.
+	const (
+		citationPath = "data.candidate_buckets.live_by_consumer[].consumer_evidence[].citation"
+		groupKeyPath = "data.candidate_buckets.live_by_consumer[].consumer_evidence[].consumer_repo_id"
+	)
+	if !containsString(crossRepoHTTP.RequiredJSONPaths, citationPath) {
+		t.Fatalf("HTTP cross-repo dead-code shape missing %q", citationPath)
+	}
+	if containsString(crossRepoMCP.RequiredJSONPaths, citationPath) {
+		t.Fatalf("MCP cross-repo dead-code shape requires %q, which handles mode (the MCP default) never returns", citationPath)
+	}
+	if !containsString(crossRepoMCP.RequiredJSONPaths, groupKeyPath) {
+		t.Fatalf("MCP cross-repo dead-code shape missing handles group path %q", groupKeyPath)
+	}
+	if got := crossRepoMCP.RequiredJSONValues["data.evidence_detail"]; got != "handles" {
+		t.Fatalf("MCP cross-repo evidence_detail value = %#v, want handles", got)
+	}
+	if _, pinned := crossRepoHTTP.RequiredJSONValues["data.evidence_detail"]; pinned {
+		t.Fatalf("HTTP cross-repo shape pins evidence_detail; the HTTP default (full) is not part of this contract")
 	}
 	for _, shape := range []struct {
 		name  string

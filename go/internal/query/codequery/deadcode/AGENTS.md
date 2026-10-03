@@ -69,6 +69,29 @@ the reachability snapshot did not answer. Never gate that read on
 language: a watermark does not prove the roots were adequate. The fallback is the
 legacy read, not `ambiguous`.
 
+## Cross-repo evidence detail (#7129)
+
+`shapeCrossRepoDeadCodeEvidence` (`cross_repo_evidence_detail.go`) is output
+projection that runs AFTER `bucketCrossRepoDeadCodeResults`. Never classify from
+a shaped row, never move shaping before bucketing, and never mutate a bucket row
+in place (project into new maps). Under `handles` a row ships at most
+`crossRepoDeadCodeHandleGroupLimit` (5) groups and the boundary list at most
+`crossRepoDeadCodeBoundaryHandleLimit` (25); every cut must keep its count,
+marker and `truth.omissions` entry. The group order (highest confidence, then
+`item_count`, then keys ascending) is what guarantees the group that decided
+`live_by_consumer` is first and never cut; changing it breaks that. Lowering the
+default `limit`, raising the MCP budget, or cutting items without a marker are
+not alternatives. The byte bar is
+`TestFindCrossRepoDeadCodeHandlesCalibratedBaseBars` in `internal/mcp`, which runs
+on the #7168 calibrated base (`newDeadCodeBudgetStore`: 60-byte docstrings, full
+suppressed bucket, default args): the pathological evidence may add at most
+45,875 bytes (17.5% of the budget) and the reply must fit with
+`structuredContent` delivered. A cap change must be measured against that test.
+The thin-base fixtures in `dispatch_cross_repo_handles_budget_test.go` only
+isolate the evidence term and are not a bar. The row base (each docstring
+clipped to 512 bytes but echoed about six times) is outside this cap, so a long-
+docstring repository can still be resource-only until the echo dedupe lands.
+
 ## Postgres reader failures (#7523)
 
 Every store or scan error in the three handlers goes through

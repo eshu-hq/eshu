@@ -59,6 +59,12 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `consumer_evidence_source: "repository_boundary"`; other rows get `entity`;
   every row gets `consumer_evidence_count` (#7129). Classification still reads
   the in-memory evidence slice, never the row map.
+- **`evidence_detail` is output projection after bucketing.**
+  `cross_repo_evidence_detail.go` shapes the finished buckets: `full` (the HTTP
+  default) leaves them alone, `handles` replaces each row's `consumer_evidence`
+  with at most 5 group objects and caps the boundary list at 25, with counts,
+  `*_truncated` markers and `truth.omissions` (#7129). `bucket_counts` and
+  `analysis` are computed before shaping, so both modes agree.
 - **Investigation coverage never reads `content_entities`.** The `coverage`
   block takes `file_count` and `languages` from the narrow
   `RepositoryContextCoverage` read and `content_last_indexed_at` from the files

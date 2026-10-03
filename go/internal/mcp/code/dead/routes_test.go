@@ -109,6 +109,25 @@ func TestRouteCarriesEveryDeadCodeBodyKey(t *testing.T) {
 				"language":               "go",
 				"limit":                  7,
 				"exclude_decorated_with": []any{"deprecated"},
+				"evidence_detail":        "handles",
+			},
+		},
+		{
+			tool: "find_cross_repo_dead_code",
+			args: routecontract.Arguments{
+				"repo_id":                "repo-producer",
+				"consumer_repo_ids":      []any{"repo-consumer"},
+				"limit":                  float64(7),
+				"evidence_detail":        "full",
+				"exclude_decorated_with": []any{},
+			},
+			want: map[string]any{
+				"repo_id":                "repo-producer",
+				"consumer_repo_ids":      []string{"repo-consumer"},
+				"language":               "",
+				"limit":                  7,
+				"exclude_decorated_with": []any{},
+				"evidence_detail":        "full",
 			},
 		},
 	}
@@ -145,6 +164,28 @@ func TestRouteAppliesDeadCodeDefaultsForAbsentArguments(t *testing.T) {
 		}
 		if got, present := body["repo_id"]; !present || got != "" {
 			t.Errorf("%s absent repo_id -> (%#v, %v), want an explicit empty string", tool, got, present)
+		}
+	}
+
+	// The cross-repo MCP default is handles, even when consumer_repo_ids is
+	// named; an explicit value wins and an unknown one is forwarded so the
+	// handler can reject it (#7129).
+	cross, _ := Route("find_cross_repo_dead_code", nil)
+	if got := cross.Body.(map[string]any)["evidence_detail"]; got != "handles" {
+		t.Errorf("find_cross_repo_dead_code absent evidence_detail -> %#v, want handles", got)
+	}
+	named, _ := Route("find_cross_repo_dead_code", routecontract.Arguments{"consumer_repo_ids": []any{"repo-consumer"}})
+	if got := named.Body.(map[string]any)["evidence_detail"]; got != "handles" {
+		t.Errorf("find_cross_repo_dead_code with consumer_repo_ids -> evidence_detail %#v, want handles", got)
+	}
+	bogus, _ := Route("find_cross_repo_dead_code", routecontract.Arguments{"evidence_detail": "everything"})
+	if got := bogus.Body.(map[string]any)["evidence_detail"]; got != "everything" {
+		t.Errorf("find_cross_repo_dead_code unknown evidence_detail -> %#v, want it forwarded for the handler to reject", got)
+	}
+	for _, tool := range []string{"find_dead_code", "investigate_dead_code"} {
+		request, _ := Route(tool, routecontract.Arguments{"evidence_detail": "handles"})
+		if _, present := request.Body.(map[string]any)["evidence_detail"]; present {
+			t.Errorf("%s forwards evidence_detail, which only the cross-repo handler decodes", tool)
 		}
 	}
 

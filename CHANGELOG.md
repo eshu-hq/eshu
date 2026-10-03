@@ -26,6 +26,34 @@ recent shipped work grouped by feature area.
   Measured on the 400-candidate, 20-relationship fixture through the MCP
   dispatcher (both wire copies): 824,864 bytes before, 187,776 after.
 
+### Cross-repo dead-code `evidence_detail` handles
+
+- **`find_cross_repo_dead_code` defaults to `evidence_detail: handles`; the HTTP
+  route keeps `full`** ([#7129](https://github.com/eshu-hq/eshu/issues/7129)).
+  Hoisting the boundary list left per-entity evidence shipping in full on every
+  row: one SQL page can hold up to 1,000 items at about 616 bytes each. Under
+  `handles` each row's `consumer_evidence` is at most 5 groups
+  (`consumer_repo_id`, `relationship_type`, `evidence_family`,
+  `confidence_label`, `item_count`), strongest first so the group that decided
+  `live_by_consumer` always leads, and the hoisted boundary list is capped at 25.
+  `consumer_evidence_count`, `consumer_evidence_group_count`,
+  `boundary_consumer_evidence_count`, the `*_truncated` markers and
+  `truth.omissions` carry the totals. Buckets, reasons, hidden counts and
+  `analysis` are identical in both modes; pass `evidence_detail: "full"` for every
+  item. An unknown value is HTTP 400. Clients that read a live row's
+  `consumer_evidence[].citation` on MCP should repeat the call with `full`.
+  Evidence under `handles` is bounded to at most 17.5% of the response budget;
+  the row base is not reduced by it. Each docstring is clipped to 512 bytes but
+  echoed about six times per row, so on a repository with long docstrings the
+  MCP reply can still be delivered as the full resource only (no
+  `structuredContent`) or exceed the budget until that echo is deduplicated.
+  Measured through the MCP dispatcher on the calibrated #7168 base (60-byte
+  docstrings, full suppressed bucket, limit 25) with 24 rows of 40 items in
+  distinct consumer repositories, one fallback row and a 60-item boundary list:
+  1,482,262 bytes (`mcp_response_over_budget`) under `full`, 209,824 under
+  `handles` (both wire copies, budget 262,144), against 164,116 with no
+  evidence.
+
 ### Dead-code investigation coverage skips the entity scan
 
 - **`investigate_dead_code` / `POST /api/v0/code/dead-code/investigate` no

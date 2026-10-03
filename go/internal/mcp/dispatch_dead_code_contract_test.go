@@ -26,7 +26,7 @@ var deadCodeRouteTools = map[string]string{
 var deadCodeBodyKeys = map[string][]string{
 	"find_dead_code":            {"repo_id", "limit", "exclude_decorated_with"},
 	"investigate_dead_code":     {"repo_id", "language", "limit", "offset", "exclude_decorated_with"},
-	"find_cross_repo_dead_code": {"repo_id", "consumer_repo_ids", "language", "limit", "exclude_decorated_with"},
+	"find_cross_repo_dead_code": {"repo_id", "consumer_repo_ids", "language", "limit", "exclude_decorated_with", "evidence_detail"},
 }
 
 func TestResolveRouteUsesExactDeadCodeChildRequest(t *testing.T) {
@@ -105,6 +105,7 @@ func TestDeadCodeDispatchKeepsEveryBodyKey(t *testing.T) {
 		"offset":                 3,
 		"consumer_repo_ids":      []string{"repo-consumer", "repo-consumer-2"},
 		"exclude_decorated_with": []any{"deprecated", "celery.task"},
+		"evidence_detail":        "handles",
 	}
 
 	for tool, wantPath := range deadCodeRouteTools {

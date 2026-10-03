@@ -65,6 +65,12 @@ API request duration and error metrics (`request.go` in
   surfaces to the caller as HTTP 400. The two parameters are deliberately
   asymmetric — an out-of-range limit is silently corrected, an out-of-range
   offset is refused.
+- `find_cross_repo_dead_code` alone sends `evidence_detail`: `handles` when the
+  caller omits it (also when `consumer_repo_ids` is named), and an explicit value,
+  valid or not, is forwarded for the handler to accept or answer HTTP 400. The
+  HTTP route defaults to `full`; the two defaults differ on purpose, as for the
+  context routes, because only MCP has a response byte budget (#7129). The other
+  two tools do not send the key.
 - `exclude_decorated_with` travels as a nil `[]any` (JSON `null`) when absent
   or malformed and as a non-nil empty `[]any` (JSON `[]`) when the caller
   sent an empty list. `consumer_repo_ids` is always a non-nil `[]string`

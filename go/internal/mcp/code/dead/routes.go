@@ -39,12 +39,22 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 			"exclude_decorated_with": args.StringSlice("exclude_decorated_with"),
 		}}, true
 	case "find_cross_repo_dead_code":
+		// #7129: the MCP default is handles so a populated producer fits the
+		// response budget; the HTTP default stays full. An explicit value wins,
+		// and the handler rejects an unknown one. Naming consumer_repo_ids does
+		// not change the default: a named consumer bounds who is read, not how
+		// many evidence items a row can hold.
+		evidenceDetail := "handles"
+		if explicit := args.String("evidence_detail"); explicit != "" {
+			evidenceDetail = explicit
+		}
 		return routecontract.Request{Method: "POST", Path: "/api/v0/code/dead-code/cross-repo", Body: map[string]any{
 			"repo_id":                args.String("repo_id"),
 			"consumer_repo_ids":      stringValues(args, "consumer_repo_ids"),
 			"language":               args.String("language"),
 			"limit":                  args.IntOr("limit", DefaultLimit),
 			"exclude_decorated_with": args.StringSlice("exclude_decorated_with"),
+			"evidence_detail":        evidenceDetail,
 		}}, true
 	default:
 		return routecontract.Request{}, false

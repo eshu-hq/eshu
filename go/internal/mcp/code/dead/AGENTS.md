@@ -36,6 +36,11 @@
   response-budget default, advertised as the schema default too) and
   `offset` 0. Do not raise it back to the handlers' 100 without re-measuring
   the reply against the 256 KiB dispatch budget.
+- `find_cross_repo_dead_code` sends `evidence_detail` and the other two tools
+  must not: the MCP default is `handles` (also with `consumer_repo_ids` named), an
+  explicit value wins, and the handler owns validation. Do not default it to
+  `full` to keep a golden path alive; the MCP golden shape pins `handles`
+  (#7129).
 - Preserve the two list arguments' opposite absent shapes:
   `exclude_decorated_with` is nil (JSON `null`) when absent and a non-nil
   empty `[]any` (JSON `[]`) when sent empty; `consumer_repo_ids` is always a

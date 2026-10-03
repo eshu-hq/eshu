@@ -241,8 +241,9 @@ ops-qa repository, enough to push a default-args reply over the MCP budget,
 selector and the caller's grant. Both keys are always present. The list is
 empty, and the count 0, when no row used the fallback: every candidate had its
 own entity evidence, the repository has no boundary relationships, or the caller
-may see none of them. It is not capped here, so a repository with many incoming
-relationships still returns every one of them once. A row that used the
+may see none of them. Under `evidence_detail` `full` it is not capped, so a
+repository with many incoming relationships returns every one of them once
+(`handles` caps it, below). A row that used the
 fallback keeps `consumer_evidence: []` and carries
 `consumer_evidence_source: "repository_boundary"`; every other row carries
 `consumer_evidence_source: "entity"` and its own evidence. Each row also reports
@@ -252,6 +253,45 @@ fallback row). Classification, `needs_evidence_reasons` and
 row field. A client that read a fallback row's `consumer_evidence` for its
 citations should read `boundary_consumer_evidence` instead. Entity-level
 evidence stays on its row.
+
+Per-entity evidence is bounded by `evidence_detail`, `full` or `handles`
+(#7129). One SQL page can hold up to 1,000 evidence items across the candidate
+rows, about 616 bytes each, so a page of 25 rows with 40 items each is roughly
+1.2 MB of `consumer_evidence` alone. The MCP tool `find_cross_repo_dead_code`
+defaults to `handles`, including when `consumer_repo_ids` is named; an explicit
+`evidence_detail` wins. The HTTP route defaults to `full`, which keeps the shape
+described above, and rejects any other value with HTTP 400.
+
+Under `handles` each row's `consumer_evidence` is at most 5 group objects
+`{consumer_repo_id, relationship_type, evidence_family, confidence_label,
+item_count}`, one per distinct (consumer repository, relationship type,
+evidence family), with `confidence_label` taken from the group's strongest item.
+Groups are ordered by highest confidence, then `item_count`, then the three key
+fields ascending, so the group that decided a `live_by_consumer` row is first
+and is never the one cut. `consumer_evidence_count` stays the number of items
+the row held, `consumer_evidence_group_count` is the number of groups before the
+cap, and `consumer_evidence_handles_truncated` is `true` only on a row whose
+groups were cut. A sentinel item such as `consumer_evidence_truncated` (empty
+`consumer_repo_id`) groups like any other and may fall under the cap; its reason
+stays in the row's `needs_evidence_reasons`. The hoisted
+`boundary_consumer_evidence` becomes the same five-key objects, one per item
+(`item_count` 1), strongest first, capped at 25;
+`boundary_consumer_evidence_count` stays the total and
+`boundary_consumer_evidence_truncated` is `true` only when the list was cut.
+
+Shaping runs after classification, so buckets, `needs_evidence_reasons`,
+`hidden_consumer_evidence_count`, `bucket_counts` and `analysis` are identical in
+both modes. `data.evidence_detail` is always set. When handles reduced anything,
+`data.evidence_detail_drilldown.full_rows` says how to get the rows back (repeat
+with `evidence_detail` `full`, narrowing with `consumer_repo_ids` and `limit`)
+and `truth.omissions` lists `candidate_buckets.consumer_evidence` (the total
+items across rows) and `boundary_consumer_evidence` (the boundary total), each
+with `detail: "handles"`. Item detail (citation, consumer entity id, generation)
+is only in `full`. `handles` bounds the evidence to at most 17.5% of the 262,144-byte
+MCP response budget; it does not reduce the row base. Each docstring is clipped to
+512 bytes but echoed about six times per row, so on a repository with long
+docstrings the reply can still be delivered as the full resource only (no
+`structuredContent`) or exceed the budget, until that echo is deduplicated.
 
 The cross-repo route has no `offset`; it is limit-only. To see more of a large
 producer repository, narrow it with a `language` or `consumer_repo_ids`
