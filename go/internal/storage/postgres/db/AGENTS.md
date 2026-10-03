@@ -29,7 +29,11 @@
   and incident store families share one implementation), plus
   `SearchIndexTermCopyUnsupportedError` and `WithQuerySummary` /
   `QuerySummaryFromContext` (InstrumentedDB plumbing, also hoisted
-  byte-identically). See `go/internal/storage/postgres/db/README.md`.
+  byte-identically), and the per-request guarded-reader accumulator
+  `ReaderStage` / `StageTimings` / `WithStageTimings` / `StageTimingsFrom`
+  (`stage_timings.go`, #7545: stdlib `sync/atomic` only; the stage set is closed
+  and fixed-size, every figure is a SUM, and nothing may enter it that is SQL
+  text, error text, or an identifier). See `go/internal/storage/postgres/db/README.md`.
 - `ErrReaderStale`, `ErrReaderUnavailable`, and `ReaderRetryAfterSeconds`
   (`reader_errors.go`) are the shared guarded-reader failure identities and the
   retry hint. They live here so `runtime/postgres` (producer) and
@@ -39,7 +43,7 @@
   pool-wait, dial, or identity-check timeout inside the replay window) does the
   query layer answer a retryable 503. Add no other
   error or policy here.
-- Standard library only (`context`, `database/sql`, `fmt`, `strings`). No
+- Standard library only (`context`, `database/sql`, `fmt`, `strings`, `sync/atomic`, `time`). No
   I/O, no SQL text, no migration state, no telemetry, no Eshu import --
   importing the postgres root (directly or transitively) would recreate the
   cycle this leaf exists to prevent.

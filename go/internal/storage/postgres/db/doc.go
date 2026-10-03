@@ -36,6 +36,15 @@
 // unavailable reader that also hit a deadline (a pool-wait, dial, or
 // identity-check timeout inside the replay window), to a retryable 503 without importing each other (#7523).
 //
+// ReaderStage, StageTimings, WithStageTimings, and StageTimingsFrom are the
+// per-request accounting of guarded-reader stage time (#7545): the query layer
+// attaches an accumulator to the context of one read, runtime/postgres adds the
+// borrow, identity, replay, and business-query durations it observes, and the
+// caller reads the sums afterward. Each stage carries a SUM and an observation
+// count because a stage can run more than once per request. The accumulator is
+// two atomic counters per stage with no lock and no growth, and it carries no
+// SQL text, error text, or identifier.
+//
 // The concrete adapters (SQLDB, SQLTx, SQLQueryer), the schema bootstrap and
 // migration ledger, and the advisory-lock machinery stay in the root package
 // with the types they guard. SQLDB.withSchemaBootstrapLock satisfies the

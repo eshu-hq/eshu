@@ -70,6 +70,18 @@ transaction, or a raw connection.
   client disconnect) stays a 500.
 - `WithQuerySummary` / `QuerySummaryFromContext` -- bounded read-name context
   plumbing for the `postgres.query` span's `db.query.summary` attribute.
+- `ReaderStage` (`ReaderStageBorrow`, `ReaderStageIdentity`,
+  `ReaderStageReplay`, `ReaderStageBusinessQuery`), `StageTimings`,
+  `WithStageTimings`, and `StageTimingsFrom` (`stage_timings.go`, #7545) -- a
+  goroutine-safe per-request accumulator of guarded-reader stage time. The
+  query layer wraps one read's context with `WithStageTimings`;
+  `runtime/postgres` calls `Add` from `Access.observe` for each reader stage it
+  finishes; the caller reads `Seconds`, `Count`, and `Recorded` afterward.
+  Every figure is the SUM across all observations of that stage inside the
+  wrapped read (borrow can run more than once per request), and `Recorded` is
+  false when the read never went through the guarded reader. Two atomic
+  counters per stage, no lock, no growth; a nil accumulator and an out-of-set
+  stage are no-ops.
 
 The seven original interfaces keep the exact names, method sets, and
 semantics they had in the root package. There are no aliases left behind in root and no forwarding
@@ -92,7 +104,7 @@ byte-identically from the root `adapters.go` and `status_read_telemetry.go`.
 
 ## Dependencies
 
-Only the Go standard library (`context`, `database/sql`, `fmt`, `strings`).
+Only the Go standard library (`context`, `database/sql`, `fmt`, `strings`, `sync/atomic`, `time`).
 The package performs no I/O and imports no Eshu package -- not even the
 postgres root. A `db` import of root (or of any package that imports root)
 would recreate the cycle this package exists to prevent.

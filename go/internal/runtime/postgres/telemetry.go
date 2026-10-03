@@ -23,7 +23,10 @@ type otelObserver struct {
 	tracer         trace.Tracer
 }
 
-var _ Observer = (*otelObserver)(nil)
+var (
+	_ Observer        = (*otelObserver)(nil)
+	_ ContextObserver = (*otelObserver)(nil)
+)
 
 // NewObserver emits a bounded stage duration histogram and a stage span for
 // writer checkpoints, reader fences, and guarded business queries.
@@ -63,9 +66,21 @@ func (o *otelObserver) ObserveMemberAttempt(ordinal int, outcome Outcome) {
 	))
 }
 
-// Observe records only closed role, stage, and outcome values; invalid values
-// collapse to unknown rather than becoming a metric or trace cardinality leak.
+// Observe is the legacy, request-less entry point. It records the observation
+// as ObserveContext would with context.Background(), so the stage span is a
+// root. Access prefers ObserveContext, so this path serves only a caller that
+// holds no request context.
 func (o *otelObserver) Observe(role string, stage Stage, outcome Outcome, duration time.Duration) {
+	o.ObserveContext(context.Background(), role, stage, outcome, duration)
+}
+
+// ObserveContext records only closed role, stage, and outcome values; invalid
+// values collapse to unknown rather than becoming a metric or trace
+// cardinality leak. The stage span starts from ctx, so under a recording
+// request span it is that request's child and a slow request names the stage
+// that paid for it (#7545). The span keeps the retro-fitted start timestamp, so
+// it covers the stage, not the callback.
+func (o *otelObserver) ObserveContext(ctx context.Context, role string, stage Stage, outcome Outcome, duration time.Duration) {
 	if o == nil {
 		return
 	}
@@ -77,9 +92,9 @@ func (o *otelObserver) Observe(role string, stage Stage, outcome Outcome, durati
 		attribute.String(readerAttributeStage, closedReaderStage(stage)),
 		attribute.String(readerAttributeOutcome, closedReaderOutcome(outcome)),
 	}
-	o.duration.Record(context.Background(), duration.Seconds(), metric.WithAttributes(attrs...))
+	o.duration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 	ended := time.Now()
-	_, span := o.tracer.Start(context.Background(), readerAccessSpanName,
+	_, span := o.tracer.Start(ctx, readerAccessSpanName,
 		trace.WithTimestamp(ended.Add(-duration)), trace.WithAttributes(attrs...))
 	if outcome != OutcomeOK {
 		span.SetStatus(codes.Error, closedReaderOutcome(outcome))

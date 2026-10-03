@@ -51,6 +51,19 @@ type memberAttemptObserver interface {
 	ObserveMemberAttempt(ordinal int, outcome Outcome)
 }
 
+// ContextObserver is an optional extension of Observer. An Observer that also
+// implements it receives the request context through ObserveContext instead of
+// Observe, so a span or histogram sample for a stage can join the request that
+// paid for it (#7545). An Observer without it keeps receiving Observe, with no
+// request identity, exactly as before. ObserveContext carries the same closed
+// role, stage, and outcome values and the same secret-free duration; the
+// context is for correlation only and an implementation must not read request
+// data from it. Access calls exactly one of the two methods per observation.
+type ContextObserver interface {
+	Observer
+	ObserveContext(ctx context.Context, role string, stage Stage, outcome Outcome, duration time.Duration)
+}
+
 // Access owns distinct writer and reader pools for one API or MCP process.
 // Writer is exposed for authorization, audit, and mutation paths; business
 // reads use Reader, which does not expose its underlying sql.DB.
@@ -254,11 +267,30 @@ func (a *Access) Close() error {
 	return privateFailure(failurePoolClose, errors.Join(a.reader.Close(), a.writer.Close()))
 }
 
-func (a *Access) observe(role string, stage Stage, started time.Time, err error) {
+// observe reports one finished stage. When ctx carries a db.StageTimings
+// accumulator, the guarded-reader stages are summed into it so the request can
+// log which stage it paid for (#7545); this happens with or without an
+// observer. A missing accumulator and observer cost one ctx.Value lookup.
+func (a *Access) observe(ctx context.Context, role string, stage Stage, started time.Time, err error) {
+	timings := db.StageTimingsFrom(ctx)
+	if timings == nil && a.observer == nil {
+		return
+	}
+	elapsed := time.Since(started)
+	if role == "reader" {
+		if readerStage, ok := requestReaderStage(stage); ok {
+			timings.Add(readerStage, elapsed)
+		}
+	}
 	if a.observer == nil {
 		return
 	}
-	a.observer.Observe(role, stage, readerOutcome(err), time.Since(started))
+	outcome := readerOutcome(err)
+	if contextual, ok := a.observer.(ContextObserver); ok {
+		contextual.ObserveContext(ctx, role, stage, outcome, elapsed)
+		return
+	}
+	a.observer.Observe(role, stage, outcome, elapsed)
 }
 
 func (a *Access) observeMemberAttempt(ordinal int, err error) {
@@ -288,4 +320,22 @@ func readerOutcome(err error) Outcome {
 		outcome = OutcomeError
 	}
 	return outcome
+}
+
+// requestReaderStage maps the four guarded-reader stages to the per-request
+// accumulator's closed set. The writer checkpoint stage has no accumulator
+// slot: it runs before the reader fence and is not reader time.
+func requestReaderStage(stage Stage) (db.ReaderStage, bool) {
+	switch stage {
+	case StageReaderBorrow:
+		return db.ReaderStageBorrow, true
+	case StageReaderIdentity:
+		return db.ReaderStageIdentity, true
+	case StageReaderReplay:
+		return db.ReaderStageReplay, true
+	case StageBusinessQuery:
+		return db.ReaderStageBusinessQuery, true
+	default:
+		return 0, false
+	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -135,8 +136,11 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	// an operator can attribute request latency to a specific Postgres query
 	// or graph probe instead of seeing only the route's total duration.
 	findingsTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactFindingsOperation, filter.RepositoryID, "impact_findings_query")
-	rows, err := h.ImpactFindings.ListSupplyChainImpactFindings(r.Context(), filter)
-	findingsTimer.Done(r.Context(), slog.Int("rows_fetched", len(rows)), slog.Bool("error", err != nil))
+	// #7545: scope a stage accumulator to this read only, so the Done line can
+	// say which guarded-reader stage the findings read paid for.
+	readCtx, readerTimings := db.WithStageTimings(r.Context())
+	rows, err := h.ImpactFindings.ListSupplyChainImpactFindings(readCtx, filter)
+	findingsTimer.Done(r.Context(), append(readerStageAttrs(readerTimings), slog.Int("rows_fetched", len(rows)), slog.Bool("error", err != nil))...)
 	if err != nil {
 		// #7548: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope, like the runtime probes below. The mapped

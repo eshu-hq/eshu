@@ -195,6 +195,12 @@ extend the seam instead.
 
 ## Common changes
 
+- Reader stage attributes on `impact_findings_query` (#7545): only the findings
+  read is wrapped in `db.WithStageTimings`, so the sums cover that read and not
+  the later probes. Keep the four attributes together and only when
+  `Recorded()`; never import `runtime/postgres` here (the accumulator lives in
+  `storage/postgres/db` for that reason).
+
 - New supply-chain route: add the method, register it in `Mount`, add
   the capability constant here and the matrix row in root
   `contract_supply_chain.go` (via the `*Support()` constructors, never

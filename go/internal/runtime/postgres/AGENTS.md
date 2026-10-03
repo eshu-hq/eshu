@@ -52,6 +52,16 @@ variables documented in README.md. Never hardcode a session host, port, or
 container target in committed tests. A restart test must first prove a fresh
 Access is ready, then require the old Access to reject the new incarnation.
 
+`Observer` stays the legacy, request-less contract and must not change.
+`ContextObserver` is the optional extension: `Access.observe` takes the request
+`ctx` at every call site and calls `ObserveContext` when the observer implements
+it, `Observe` otherwise, never both. Pass the request context (not
+`context.Background()`) at any new `observe` call so the stage span parents to
+the request and the `db.StageTimings` accumulator on it is filled; the four
+reader stages map to `db.ReaderStage` in `requestReaderStage`, the writer
+checkpoint has no slot. A missing accumulator and observer must cost one
+`ctx.Value` lookup (`BenchmarkReaderQueryObserve`, #7545 evidence).
+
 The writer pool is built by `openWriterPool` (`writer_pool.go`) through
 `boundederr.NewConnector`, so its driver errors carry a fixed text and the detail
 goes to `Config.Logger` as `postgres.store.error` (#7253). Keep it that way: the

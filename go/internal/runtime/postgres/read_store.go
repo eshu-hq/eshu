@@ -120,7 +120,7 @@ func (a *Access) beginSnapshotSetOn(ctx context.Context, count int, pool *sql.DB
 		transactions = append(transactions, worker)
 		started := time.Now()
 		_, err = worker.tx.ExecContext(ctx, "SET TRANSACTION SNAPSHOT "+snapshotLiteral)
-		a.observe("reader", StageBusinessQuery, started, err)
+		a.observe(ctx, "reader", StageBusinessQuery, started, err)
 		if err != nil {
 			return nil, privateFailure(failureSnapshotBegin, err)
 		}
@@ -140,7 +140,7 @@ func beginReadTransaction(ctx context.Context, conn *readerConnection, access *A
 	}
 	started := time.Now()
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
-	access.observe("reader", StageBusinessQuery, started, err)
+	access.observe(ctx, "reader", StageBusinessQuery, started, err)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (q fencedQueryer) BeginReadOnlySnapshot(ctx context.Context) (db.ReadTransa
 	}
 	started := time.Now()
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
-	q.access.observe("reader", StageBusinessQuery, started, err)
+	q.access.observe(ctx, "reader", StageBusinessQuery, started, err)
 	if err != nil {
 		_ = conn.Close()
 		return nil, privateFailure(failureSnapshotBegin, err)
@@ -286,7 +286,7 @@ func (r *readTransaction) QueryContext(ctx context.Context, statement string, ar
 func (r *readTransaction) queryContext(ctx context.Context, statement string, args ...any) (db.Rows, error) {
 	started := time.Now()
 	rows, err := r.tx.QueryContext(ctx, statement, args...)
-	r.access.observe("reader", StageBusinessQuery, started, err)
+	r.access.observe(ctx, "reader", StageBusinessQuery, started, err)
 	if err != nil {
 		return nil, privateFailure(failureReaderQuery, memberQueryFailure(err, r.fleet))
 	}

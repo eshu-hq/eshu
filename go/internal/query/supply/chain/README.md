@@ -109,6 +109,14 @@ and `supply_chain_query.stage_completed` for the stages `impact_findings_query`,
 including `impact_findings_query`, so a failed read and an empty page no longer
 log identically (#7546).
 
+The `impact_findings_query` completion also carries `reader_borrow_seconds`,
+`reader_identity_seconds`, `reader_replay_seconds`, and `business_query_seconds`
+(#7545). The handler wraps only the findings read in `db.WithStageTimings`, and
+the guarded reader adds each stage it pays for; each value is the SUM of that
+stage across the reader operations inside the findings read, and the four
+attributes are present only when the guarded reader recorded a stage. The other
+stages, the cloud-runtime probe, and the readiness read do not carry them.
+
 A handler-owned HTTP 500 on the route additionally emits ONE ERROR-level
 `supply_chain_query.stage_failed` event, because `querycontract.WriteError`
 never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:

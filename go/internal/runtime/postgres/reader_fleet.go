@@ -151,7 +151,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 		}
 		borrowed := time.Now()
 		reservation, reserveErr := access.allocator.reserve(bounded, eligible, count)
-		access.observe("reader", StageReaderBorrow, borrowed, reserveErr)
+		access.observe(context.Background(), "reader", StageReaderBorrow, borrowed, reserveErr)
 		if reserveErr != nil {
 			failures = errors.Join(failures, reserveErr)
 			break
@@ -207,7 +207,7 @@ func (a *Access) borrowReserved(ctx context.Context, point checkpoint, reservati
 	member := &a.readerMembers[reservation.member]
 	borrowed := time.Now()
 	conn, err := member.pool.Conn(ctx)
-	a.observe("reader", StageReaderBorrow, borrowed, err)
+	a.observe(context.Background(), "reader", StageReaderBorrow, borrowed, err)
 	if err != nil {
 		reservation.ReleaseOne()
 		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
@@ -297,7 +297,7 @@ func (a *Access) beginSnapshotSetReserved(setupCtx, ownerCtx context.Context, co
 		transactions = append(transactions, worker)
 		started := time.Now()
 		_, execErr := worker.tx.ExecContext(setupCtx, "SET TRANSACTION SNAPSHOT "+literal)
-		a.observe("reader", StageBusinessQuery, started, execErr)
+		a.observe(context.Background(), "reader", StageBusinessQuery, started, execErr)
 		if execErr != nil {
 			return nil, execErr
 		}
@@ -343,7 +343,7 @@ func beginReadTransactionOwned(txCtx context.Context, conn *readerConnection, ac
 	}
 	started := time.Now()
 	tx, err := conn.BeginTx(txCtx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
-	access.observe("reader", StageBusinessQuery, started, err)
+	access.observe(context.Background(), "reader", StageBusinessQuery, started, err)
 	if err != nil {
 		return nil, err
 	}
