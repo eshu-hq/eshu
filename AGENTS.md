@@ -402,11 +402,12 @@ CI stays authoritative. The `required-gates-complete` aggregate, with
 the Ifá/Odù gates for contracts, performance, and end-to-end behavior. The live
 cells need Docker, NornicDB, and Postgres and never run locally.
 
-Docs, root agent files, and README changes need the docs build and
-`git diff --check`. A common check is `cd go && golangci-lint run ./...`. If it
-fails with `plugin.Open` in a fresh clone or worktree, build the custom lint
-plugins first. For that fix, the full `pre-push` scope, the Ifá/Odù gate list,
-and the other check commands, see
+Docs, root agent files, and README changes need the docs build
+(`mkdocs build --strict --config-file docs/mkdocs.yml`) and `git diff --check`.
+A common check is `cd go && golangci-lint run ./...`. If it fails with
+`plugin.Open` in a fresh clone or worktree, build the custom lint plugins first.
+For that fix, the full `pre-push` scope, the Ifá/Odù gate list, and the other
+check commands, see
 [Agent Verification Details](docs/internal/agent-verification-details.md).
 
 ## Orchestration, PR, And CI Discipline
@@ -438,7 +439,8 @@ and the other check commands, see
   the review-thread API with the displayed unresolved comments before you
   declare the threads clear.
 - When a PR uses `Refs #N` and leaves the issue open, comment on #N with what
-  remains. A reader of the issue then needs no search to find the fix.
+  remains. That comment, on the issue your PR references, needs no extra
+  approval. A reader of the issue then needs no search to find the fix.
 
 ## Pre-Ready Checklist
 
