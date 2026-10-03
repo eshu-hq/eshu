@@ -12,6 +12,9 @@ EXPECTED = {
         "TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive",
         "TestSupplyChainImpactReadinessRepoArmScopeLive",
     ),
+    "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
+        "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
+    ),
     "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
         "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
         "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
@@ -21,7 +24,7 @@ EXPECTED_TESTS = {test for tests in EXPECTED.values() for test in tests}
 
 
 def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
-    """Require the two untagged rows, runner ownership, and test names."""
+    """Require the untagged rows, runner ownership, and test names."""
     ledger = ledger_path.read_text(encoding="utf-8")
     rows = re.findall(
         r"^  - file: (\S+)\n((?:    [^\n]*\n)*)",
@@ -56,7 +59,10 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
                 file=sys.stderr,
             )
             return 1
-    print("postgres_ci ledger selection: 2 files, 4 tests selected")
+    print(
+        f"postgres_ci ledger selection: {len(EXPECTED)} files, "
+        f"{len(EXPECTED_TESTS)} tests selected"
+    )
     return 0
 
 
@@ -108,7 +114,7 @@ def verify_results(events_path: pathlib.Path) -> int:
         failed = True
     if failed:
         return 1
-    print("live-postgres-readiness: 4/4 PASS")
+    print(f"live-postgres-readiness: {len(EXPECTED_TESTS)}/{len(EXPECTED_TESTS)} PASS")
     return 0
 
 

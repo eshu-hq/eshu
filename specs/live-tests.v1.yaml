@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 574
-  sha256: 2cc9cf6a3573a08c7d087865a48c6d527bf3b038c16d2722c62e70c95e107b7a
+  count: 573
+  sha256: 572809087a96a8a251c5538533a542366ba6ee1181777e477f1ae670b92facfd
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -809,8 +809,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7088 disposable Postgres package-scope proof; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 package-scope proof, enrolled in the #7529 readiness runner; local run passed in 0.87s of test time on postgres:18.6-bookworm on 2026-10-02"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_package_manifest_repo_scope_live_test.go
     tag: ~
     class: postgres_ci
