@@ -1,0 +1,21 @@
+docs/internal/writing-for-agents.md
+  s_cb740432995e10::t_e167a56d9265be 59-89
+AGENTS.md
+  s_cb740432995e10::t_9e21123db10e93 405-406,441-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c045174ec536265ef33e74e4553da448e991b572",
+  "prompts": {},
+  "sessions": {
+    "s_cb740432995e10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b03d91-e592-4228-b5e2-9b7a3380bb13",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
