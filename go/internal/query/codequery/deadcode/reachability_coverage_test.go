@@ -10,10 +10,18 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
-func TestDeadCodeIncomingEntityIDsCompleteReachabilitySnapshotSkipsLegacyDeadCluster(t *testing.T) {
+// TestDeadCodeIncomingEntityIDsCompleteSnapshotStillReadsLegacyEdgesForUnansweredEntities
+// pins the #7547 contract: a snapshot watermark that is available and not
+// truncated does not prove the snapshot's roots were adequate (a repository with
+// zero roots still stamps one), so an entity the snapshot has no row for must
+// still reach the producer-anchored legacy read. Skipping it classified a symbol
+// whose only caller is a non-root function as having no incoming edge.
+func TestDeadCodeIncomingEntityIDsCompleteSnapshotStillReadsLegacyEdgesForUnansweredEntities(t *testing.T) {
 	t.Parallel()
 
 	store := &coverageReachabilityIncomingStore{
@@ -36,17 +44,64 @@ func TestDeadCodeIncomingEntityIDsCompleteReachabilitySnapshotSkipsLegacyDeadClu
 	if err != nil {
 		t.Fatalf("deadCodeIncomingEntityIDs() error = %v, want nil", err)
 	}
-	if len(incoming) != 0 {
-		t.Fatalf("incoming = %#v, want no incoming for dead cluster unreachable by roots", incoming)
+	for _, entityID := range []string{"dead-a", "dead-b"} {
+		if _, ok := incoming[entityID]; !ok {
+			t.Fatalf("incoming = %#v, want %s to carry its legacy incoming edge", incoming, entityID)
+		}
 	}
 	if got, want := store.reachabilityCalls, 1; got != want {
 		t.Fatalf("reachability calls = %d, want %d", got, want)
 	}
-	if got, want := store.coverageCalls, 1; got != want {
-		t.Fatalf("coverage calls = %d, want %d", got, want)
+	if got, want := store.coverageCalls, 0; got != want {
+		t.Fatalf("coverage calls = %d, want %d: the watermark must not decide whether the legacy read runs", got, want)
 	}
-	if got, want := store.legacyCalls, 0; got != want {
+	if got, want := store.legacyCalls, 1; got != want {
 		t.Fatalf("legacy incoming calls = %d, want %d", got, want)
+	}
+	if got, want := store.legacyAskedFor["repo-1"], []string{"dead-a", "dead-b"}; !slices.Equal(got, want) {
+		t.Fatalf("legacy probe asked for %#v, want %#v", got, want)
+	}
+}
+
+// TestFilterDeadCodeResultsKeepsNonRootCalleeReachableUnderCompleteSnapshot is
+// the fixture-intent proof for #7547 at the layer where classification happens.
+// The repository has a complete, non-truncated reachability snapshot with no row
+// for either candidate. The helper's only caller is a non-root function, which
+// the snapshot's root-seeded traversal never reaches, so the completed legacy
+// incoming edge is the only evidence: the helper must be filtered out as
+// reachable. The orphan has no incoming edge of any kind and must stay a
+// candidate.
+func TestFilterDeadCodeResultsKeepsNonRootCalleeReachableUnderCompleteSnapshot(t *testing.T) {
+	t.Parallel()
+
+	store := &coverageReachabilityIncomingStore{
+		coverageByRepo: map[string]deadcode.CodeReachabilityCoverage{
+			"repo-1": {Available: true, Truncated: false},
+		},
+		legacyByRepo: map[string]map[string]deadcode.DeadCodeIncomingEdge{
+			"repo-1": {
+				"callee-of-non-root": {
+					MaxConfidence: codeprovenance.Confidence(codeprovenance.MethodSCIP),
+					Method:        codeprovenance.MethodSCIP,
+				},
+			},
+		},
+	}
+	analyzer := newDeadCodeTestAnalyzer(store, graph.FakeGraphReader{})
+
+	results, err := analyzer.FilterDeadCodeResultsWithoutIncomingEdges(context.Background(), []map[string]any{
+		{"entity_id": "callee-of-non-root", "labels": []any{"Function"}, "repo_id": "repo-1"},
+		{"entity_id": "orphan", "labels": []any{"Function"}, "repo_id": "repo-1"},
+	}, "Function")
+	if err != nil {
+		t.Fatalf("FilterDeadCodeResultsWithoutIncomingEdges() error = %v, want nil", err)
+	}
+	var kept []string
+	for _, result := range results {
+		kept = append(kept, querycontract.StringVal(result, "entity_id"))
+	}
+	if want := []string{"orphan"}; !slices.Equal(kept, want) {
+		t.Fatalf("classified unused = %#v, want %#v: a symbol with a completed legacy incoming edge is not unused", kept, want)
 	}
 }
 

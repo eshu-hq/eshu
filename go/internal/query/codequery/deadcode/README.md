@@ -64,6 +64,15 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `RepositoryContextCoverage` read and `content_last_indexed_at` from the files
   `max(indexed_at)` read (`investigation_coverage.go`); it carries no
   `entity_count` (#7525). Do not reintroduce full `RepositoryCoverage` there.
+- **A reachability watermark never skips the legacy incoming read.**
+  `DeadCodeIncomingEntityIDs` merges the materialized snapshot rows first, then
+  always runs the producer-anchored one-hop read for the entities the snapshot
+  did not answer (a hidden-consumer-only entry counts as unanswered). It does
+  not consult `CodeReachabilityCoverage` (kept for the seam alias and the
+  reachability-loader follow-up; no production caller reads it): a watermark with zero or few roots
+  still reads "available, not truncated", so treating it as complete classified
+  callees of non-root functions as unused (#7547). Do not reintroduce a skip
+  without an `exact` language maturity plus a completeness proof.
 - **Exports are caller-driven.** Every export exists because a staying
   caller names it (delegates, seam, grant proofs, staying tests); each
   carries a comment saying which. Do not export anything else.

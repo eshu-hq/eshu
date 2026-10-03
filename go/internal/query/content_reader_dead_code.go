@@ -296,9 +296,10 @@ func (cr *ContentReader) DowngradedCodeRootKinds(
 
 // CodeReachabilityCoverage reports whether the active generation has a
 // materialized reachability snapshot for repoID, and whether that snapshot hit
-// the traversal bound. Complete snapshots make absent entities authoritative
-// dead-code candidates; truncated or unavailable snapshots keep the legacy
-// incoming-edge fallback conservative.
+// the traversal bound. It is a status read only: since #7547 the dead-code
+// incoming read no longer consults it, because a watermark does not prove the
+// snapshot's roots were adequate, and the legacy incoming read runs for every
+// entity the snapshot did not answer.
 func (cr *ContentReader) CodeReachabilityCoverage(
 	ctx context.Context,
 	repoID string,
