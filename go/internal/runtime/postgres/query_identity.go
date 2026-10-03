@@ -21,7 +21,7 @@ type readerBackendIdentity struct {
 
 type readerQueryStartObserver interface {
 	recordsReaderQueryStart(context.Context) bool
-	recordReaderQueryStart(context.Context, uint64, readerBackendIdentity)
+	recordReaderQueryStart(context.Context, int64, readerBackendIdentity)
 }
 
 // captureReaderBackendIdentity does not change connection health when the

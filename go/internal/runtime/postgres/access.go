@@ -60,7 +60,7 @@ type Access struct {
 	identity           physicalIdentity
 	snapshotSetGate    chan struct{}
 	readerPermits      chan struct{}
-	querySequence      atomic.Uint64
+	querySequence      atomic.Int64
 }
 
 // Open validates physical writer and reader identity before exposing either pool.

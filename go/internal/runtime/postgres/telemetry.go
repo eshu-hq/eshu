@@ -68,10 +68,10 @@ func (o *otelObserver) recordsReaderQueryStart(ctx context.Context) bool {
 	return o != nil && trace.SpanFromContext(ctx).IsRecording()
 }
 
-func (o *otelObserver) recordReaderQueryStart(ctx context.Context, sequence uint64, identity readerBackendIdentity) {
+func (o *otelObserver) recordReaderQueryStart(ctx context.Context, sequence int64, identity readerBackendIdentity) {
 	attrs := []attribute.KeyValue{
 		attribute.String(readerQueryRoleKey, "reader"),
-		attribute.Int64(readerQuerySequenceKey, int64(sequence)),
+		attribute.Int64(readerQuerySequenceKey, sequence),
 	}
 	if identity.available {
 		attrs = append(attrs,

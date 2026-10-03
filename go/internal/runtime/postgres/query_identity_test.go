@@ -114,7 +114,7 @@ type queryStartSpy struct{ starts int }
 
 func (*queryStartSpy) Observe(string, Stage, Outcome, time.Duration) {}
 func (*queryStartSpy) recordsReaderQueryStart(context.Context) bool  { return true }
-func (s *queryStartSpy) recordReaderQueryStart(_ context.Context, _ uint64, identity readerBackendIdentity) {
+func (s *queryStartSpy) recordReaderQueryStart(_ context.Context, _ int64, identity readerBackendIdentity) {
 	if identity.available {
 		panic("fake driver unexpectedly reported a backend")
 	}
