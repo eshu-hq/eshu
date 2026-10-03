@@ -63,10 +63,11 @@ func (a *Access) readerQueryStartObserver(ctx context.Context) readerQueryStartO
 }
 
 func (a *Access) startReaderQuery(ctx context.Context, conn *sql.Conn) {
-	if a.readerQueryStartObserver(ctx) == nil {
+	observer := a.readerQueryStartObserver(ctx)
+	if observer == nil {
 		return
 	}
-	a.recordReaderQueryStart(ctx, captureReaderBackendIdentity(conn))
+	observer.recordReaderQueryStart(ctx, a.querySequence.Add(1), captureReaderBackendIdentity(conn))
 }
 
 func (a *Access) recordReaderQueryStart(ctx context.Context, identity readerBackendIdentity) {

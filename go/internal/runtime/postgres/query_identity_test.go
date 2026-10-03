@@ -110,10 +110,14 @@ func TestReaderQueryIdentityUnavailableDoesNotFailOrDiscardLease(t *testing.T) {
 	}
 }
 
-type queryStartSpy struct{ starts int }
+type queryStartSpy struct{ starts, checks int }
 
 func (*queryStartSpy) Observe(string, Stage, Outcome, time.Duration) {}
-func (*queryStartSpy) recordsReaderQueryStart(context.Context) bool  { return true }
+func (s *queryStartSpy) recordsReaderQueryStart(context.Context) bool {
+	s.checks++
+	return true
+}
+
 func (s *queryStartSpy) recordReaderQueryStart(_ context.Context, _ int64, identity readerBackendIdentity) {
 	if identity.available {
 		panic("fake driver unexpectedly reported a backend")
@@ -201,6 +205,9 @@ func TestGuardedReaderEmitsStartBeforeUnchangedBusinessSQL(t *testing.T) {
 			var value int
 			if err := rows.Scan(&value); err != nil {
 				t.Fatal(err)
+			}
+			if !snapshot && spy.checks != 1 {
+				t.Fatalf("observer checks=%d, want once per ordinary query", spy.checks)
 			}
 			if value != 42 || spy.starts != 1 {
 				t.Fatalf("value=%d starts=%d", value, spy.starts)
