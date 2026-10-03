@@ -129,8 +129,10 @@ Every run ended with four connections on each standby, one exported snapshot
 per set, and zero business rows read; no mixed-member result was accepted.
 The final follow-up edit classified TLS failures as permanent and did not
 change successful selection. Raced integration after that edit passed. This
-is a local saturated-member selection measurement. Full endpoint and ops-qa
-`<1s` budget: NOT_CHECKED. The fixture, volumes, and network were removed.
+is a local saturated-member selection measurement, not a full endpoint test.
+The later [fixed-corpus endpoint runs](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md#reader-fleet-follow-up-2026-10-03)
+measure the legacy and opt-in fleet paths separately. The deployed ops-qa
+`<1s` budget is still unmet. The fixture, volumes, and network were removed.
 
 Root-Cause Evidence: In an owned PostgreSQL 18.6 primary plus two physical
 standbys, a healthy legacy writer behind a 500 ms connection delay failed
@@ -142,10 +144,11 @@ those regressions. Socket stalls at `BEGIN`, snapshot export, and import each
 time out the first member, release its four reservations, and return a set
 from the healthy member that remains usable after the short attempt ends.
 These are bounded behavior checks, not interleaved latency medians or an
-endpoint speedup claim; the #7033 fixed-corpus endpoint A/B remains NOT_CHECKED.
+endpoint speedup claim. The later fixed-corpus endpoint A/B is recorded above;
+it does not establish deployed fleet latency.
 
-No-Observability-Change: The existing `business_query` duration/outcome and
-member-attempt outcome signals still show timeout and failover. No SQL, host,
+Observability Evidence: The `business_query` duration/outcome and closed
+member-attempt outcome signals show timeout and failover. No SQL, host,
 member ID, or credential was added to telemetry labels.
 
 Observability Evidence: Existing closed-cardinality `reader_borrow`,
@@ -153,8 +156,9 @@ Observability Evidence: Existing closed-cardinality `reader_borrow`,
 and outcome without SQL or member identifiers. The new allocator records its
 reservation wait under `reader_borrow`; pool `Stats()` continues to aggregate
 member open/in-use/wait counters. The isolated integration tested cancellation,
-member replacement/loss, replay lag, and writer-saturated readiness; no new
-operator metric or log key was added.
+member replacement/loss, replay lag, and writer-saturated readiness. Fleet
+qualification, connection, reservation, waiter, and attempt metrics are new
+closed-cardinality operator signals; no new log key was added.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
 adapter scan contracts remain unchanged.
