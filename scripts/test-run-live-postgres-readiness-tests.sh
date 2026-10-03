@@ -27,6 +27,11 @@ cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong scan-tier DSN' >&2; exit 9; }
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
+[[ "$*" == *"TestSupplyChainImpactReadinessPackageConsumptionScopeLive"* ]] || { echo 'missing package-consumption test' >&2; exit 9; }
+[[ "${ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong package-consumption DSN' >&2; exit 9; }
+[[ "${ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing package-consumption opt-in' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing manifest opt-in' >&2; exit 9; }
 [[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing scan-tier opt-in' >&2; exit 9; }
 [[ -n "${ESHU_FAKE_GO_JSON:-}" ]] || exit 9
@@ -38,6 +43,8 @@ chmod +x "${seed_dir}/bin/go"
 export ESHU_EXPECTED_DSN='postgres://postgres:local-test@127.0.0.1:15432/postgres?sslmode=disable'
 export ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN="${ESHU_EXPECTED_DSN}"
 export ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN="${ESHU_EXPECTED_DSN}"
+export ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN="${ESHU_EXPECTED_DSN}"
+export ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1
 export ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE=1
 export ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=1
 export PATH="${seed_dir}/bin:${PATH}"
@@ -48,6 +55,7 @@ names=(
   TestSupplyChainImpactReadinessRepoArmScopeLive
   TestSupplyChainImpactReadinessScanTierQueryPlanLive
   TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive
+  TestSupplyChainImpactReadinessPackageConsumptionScopeLive
 )
 
 write_events() {
@@ -63,8 +71,8 @@ write_events() {
 run_runner() { bash "${runner}" 2>&1; }
 
 write_events
-out="$(run_runner)" || fail "four PASS events rejected: ${out}"
-[[ "${out}" == *"4/4 PASS"* ]] || fail "pass summary missing: ${out}"
+out="$(run_runner)" || fail "five PASS events rejected: ${out}"
+[[ "${out}" == *"5/5 PASS"* ]] || fail "pass summary missing: ${out}"
 [[ "${out}" == *"suite_elapsed="* ]] || fail "suite timing missing: ${out}"
 
 # A successful go test exit is insufficient when a selected test skips.
@@ -95,16 +103,22 @@ ESHU_FAKE_GO_EXIT=1 out="$(ESHU_FAKE_GO_EXIT=1 run_runner)" && fail "go nonzero 
 out="$(env -u ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN bash "${runner}" 2>&1)" && fail "unset DSN passed"
 [[ "${out}" == *"ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN"* ]] || fail "unset DSN not named: ${out}"
 
+out="$(env -u ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN bash "${runner}" 2>&1)" && fail "unset package-consumption DSN passed"
+[[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN"* ]] || fail "unset package-consumption DSN not named: ${out}"
+
+out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing package-consumption opt-in passed"
+[[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "missing package-consumption opt-in not named: ${out}"
+
 out="$(env ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing opt-in passed"
 [[ "${out}" == *"ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE"* ]] || fail "missing opt-in not named: ${out}"
 
 # The ledger mapping is part of the gate: a changed classification cannot
-# leave the live job green with four hard-coded test names.
+# leave the live job green with five hard-coded test names.
 ledger="${repo_root}/specs/live-tests.v1.yaml"
 checker="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
 selection="$(python3 "${checker}" verify-ledger "${ledger}" "${repo_root}")" ||
   fail "clean postgres_ci ledger mapping rejected"
-[[ "${selection}" == *"4 tests selected"* && "${selection}" != *"PASS"* ]] ||
+[[ "${selection}" == *"5 tests selected"* && "${selection}" != *"PASS"* ]] ||
   fail "ledger selection claimed a test pass before Go ran: ${selection}"
 sed 's/class: postgres_ci/class: scheduled/g' "${ledger}" >"${seed_dir}/ledger-missing.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-missing.yaml" "${repo_root}" 2>&1)" &&
