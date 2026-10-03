@@ -32,6 +32,16 @@ retain the exporter through assembly. Failure and cancellation release every
 reserved connection and transaction.
 Snapshot cursor Scan must reject any `*sql.RawBytes` destination before touching
 other destinations, close through its public Close, and preserve Close errors.
+Opt-in `ESHU_POSTGRES_READ_MEMBERS` is credential-free and contains only stable
+IDs and direct physical standby hosts/ports; use the shared read DSN for auth,
+TLS, and database. Never infer snapshot affinity from a Service hostname,
+`sslmode`, or pgx fallback count. Freeze each member's role, system/database,
+direct-address, and postmaster-incarnation identity at bootstrap; all set
+connections must stay on one member. A setup retry releases the entire prior
+attempt first. Never retry one business statement after partial rows; mark
+only an established fleet member's transport loss for a caller-owned whole
+workflow retry. Reader pool limits remain aggregate across members, and
+readiness needs the writer and one qualified reader.
 Use the owned disposable PostgreSQL fixture for physical replay tests; do not
 point write tests at ops-qa. Coordinate fixture use with other agents. Run the
 package tests with and without `-race`; classify a new `*_live_test.go` in the

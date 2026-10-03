@@ -1,6 +1,7 @@
 # API and MCP PostgreSQL reader access
 
-`Access` owns one writer pool and one private reader pool. The API and MCP
+`Access` owns one writer pool and either one private legacy reader pool or an
+opt-in inventory of private physical-reader pools. The API and MCP
 processes use `Writer()` for authentication, revocation, audit, mutation,
 and startup writes. This ordinary pgx writer does not set the infra inventory
 `eshu.infra_inventory_writer` derivation marker; API/MCP writes do not all keep
@@ -9,9 +10,10 @@ that read model in step. PostgreSQL business reads receive only `Reader()`'s
 optional `db.ReadSnapshotSetBeginner` adds multiple readers on one exported
 repeatable-read snapshot; the requested count includes the exporter and cannot
 exceed the private pool's connection cap. This optional surface is available
-only for a single physical reader host. Native multi-host reader candidates
-retain guarded cursor, row, and single-connection snapshot reads, but not
-snapshot sets: PostgreSQL exported snapshots cannot cross server boundaries.
+for one physical reader host or an explicit direct-member inventory: each set
+uses exactly one member. Native multi-host reader candidates without that
+inventory retain guarded cursor, row, and single-connection snapshot reads,
+but not snapshot sets: PostgreSQL exported snapshots cannot cross servers.
 Their request boundary must call
 `ContextWithCheckpoint` after authorization and before business SQL. A request with no checkpoint fails
 before borrowing a reader.
@@ -35,6 +37,21 @@ before borrowing a reader.
 - Native pgx host-list syntax selects candidate hosts within the two pools.
   The reader randomizes host order for each new physical connection. Candidate
   counts never multiply the total open or idle budgets.
+- `ESHU_POSTGRES_READ_MEMBERS` optionally names two or more physical standbys
+  as JSON objects with `id`, direct `host`, and numeric `port` fields. It has
+  no password or TLS material; members inherit the shared read role, database,
+  and TLS from `ESHU_POSTGRES_READ_DSN`. Fleet mode requires a distinct,
+  single-host read DSN with no pgx fallback (including `sslmode=prefer`'s TLS
+  fallback). Member hosts must resolve directly to database Pods/VMs, not a
+  Service, load balancer, or proxy. The resolved IP must match PostgreSQL's
+  accepted-connection address at bootstrap and on connection validation;
+  role, system/database identity, read-only mode, replay, and postmaster
+  incarnation are checked separately. Direct-IP matching excludes NAT/proxy
+  access and may exclude some dual-stack routes. It is a qualification check,
+  not universal physical-identity proof. Restart API/MCP to change inventory.
+  Member pools split the existing total read open/idle budgets; each configured
+  member needs at least four open slots for a four-way code-topic set. A
+  member unavailable at bootstrap remains ineligible until restart.
 - Connection lifetime, idle time, and startup ping timeout retain the shared
   runtime PostgreSQL settings. Reader pool acquisition and replay waiting have
   a separate bounded deadline; business SQL uses the caller's request context.
@@ -52,6 +69,14 @@ before its first query. The exporter stays open through caller assembly. A
 per-Access, context-aware reservation gate prevents two sets from holding
 partial pool reservations; cancellation and setup failures release all
 acquired connections. Cursor close does not release that transaction.
+In fleet mode, failed set setup releases the complete attempt and tries the
+next qualified member. No exported snapshot or partial result crosses members.
+If an established member disappears during a snapshot, a narrow
+`ReaderMemberLost() bool` error marker permits the caller to retry its whole
+read workflow from a fresh snapshot, not an individual SQL statement. Auth,
+TLS, SQL, caller cancellation, and replay staleness do not carry that marker.
+`Ping` requires the writer and at least one qualified reader member; pool
+metrics aggregate all reader members.
 Every guarded reader borrow and the exposed readiness ping also own one permit
 from the configured reader pool budget until their connection is returned. If a
 snapshot set's internal permit wait expires while the request remains live, it
@@ -158,6 +183,10 @@ The disposable live tests take `ESHU_READER_TEST_WRITER_DSN` and
 with `ESHU_READER_TEST_RESTART_PRIMARY=1` and an explicit disposable
 `ESHU_READER_TEST_PRIMARY_CONTAINER` target. No fixture host, port, or
 container name is embedded in the tests.
+Fleet tests additionally require `ESHU_READER_TEST_SECOND_READER_DSN` for a
+separately slotted physical standby on the same disposable primary. They cover
+snapshot affinity/distribution, aggregate capacity, cancellation, wrong-role
+rejection, member replacement/loss cleanup, and one-member readiness.
 
 The API and MCP public-error wire tests additionally take
 `ESHU_AUTH_QUALIFIED_DSN` and `ESHU_AUTH_QUALIFIED_READ_DSN`, pointing at one
