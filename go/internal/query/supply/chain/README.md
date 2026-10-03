@@ -116,6 +116,9 @@ the guarded reader adds each stage it pays for; each value is the SUM of that
 stage across the reader operations inside the findings read, and the four
 attributes are present only when the guarded reader recorded a stage. The other
 stages, the cloud-runtime probe, and the readiness read do not carry them.
+`business_query_seconds` covers only the database call that starts the query;
+row streaming, scanning, and decoding happen afterward and are not timed, so the
+four sums can sit well below the stage's `duration_seconds`.
 
 A handler-owned HTTP 500 on the route additionally emits ONE ERROR-level
 `supply_chain_query.stage_failed` event, because `querycontract.WriteError`

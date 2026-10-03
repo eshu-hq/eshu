@@ -28,9 +28,18 @@ The change adds three things and no SQL, pool, timeout, or query change:
   guarded-reader operation inside the findings read (a stage can run more than
   once per request). They appear only when the guarded reader recorded a stage.
 
-One behavior consequence is recorded rather than hidden: stage spans now follow
-the request's sampling decision instead of being sampled as independent roots,
-so `postgres.reader_access` volume tracks sampled requests.
+The reader stages time the borrow, the identity check, the replay fence, and
+the database call that starts the business query. Row streaming and scanning
+happen afterward in the row cursor and are not timed, so the four sums can be
+well below `duration_seconds`; the remainder is row consumption, decoding, and
+handler-side work.
+
+Three behavior consequences are recorded rather than hidden. Stage spans now
+follow the request's sampling decision instead of being sampled as independent
+roots, so `postgres.reader_access` volume tracks sampled requests. The writer
+checkpoint span also becomes a child of the request span. Recording the
+histogram with the request context lets the SDK attach trace exemplars when it
+is configured to.
 
 ## Method
 
@@ -44,7 +53,9 @@ metric reader, so the OpenTelemetry SDK cost is real and no memory accumulates.
 `db.WithStageTimings` context created per request, so the accumulator cost is
 the difference from the same arm without it.
 
-The BEFORE arms ran on a throwaway detached worktree at the merge base
+The existing `BenchmarkReaderQueryStartRecordedRequest` never calls the
+observer, so it cannot measure this path; `BenchmarkReaderQueryObserve` is new
+and drives the fenced `QueryContext`. The BEFORE arms ran on a throwaway detached worktree at the merge base
 `791078e81` (the merge of #7565) using the same two benchmark fixture files
 copied in. The AFTER arms ran on this branch. Both are compiled test binaries,
 run in four interleaved rounds (before, after, accumulator) of five

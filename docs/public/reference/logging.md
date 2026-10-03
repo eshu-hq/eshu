@@ -89,7 +89,11 @@ findings read (a stage can run more than once per request, for example the
 borrow), not a single latency. The four attributes appear together, are always
 on with no sampling, and appear only when the guarded reader recorded a stage
 for the read; a read that did not go through it omits them rather than logging
-zeros. Other stages never carry them.
+zeros. Other stages never carry them. `business_query_seconds` times the
+database call that starts the query, not the row streaming and scanning that
+follows it, so the four sums can be well below the stage's `duration_seconds`:
+the remainder is row consumption, decoding, and handler-side work, not an
+unexplained reader stall.
 
 Do not treat examples such as `http.request.completed`,
 `mcp.request.received`, or `index.discovery.completed` as current universal Go
