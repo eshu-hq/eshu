@@ -5,12 +5,70 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
+
+func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		graphCount   int64
+		summaryNames []string
+	}{
+		{name: "retained identity without materialization", graphCount: 0, summaryNames: []string{"retained-intent"}},
+		{name: "multiple materialized workloads", graphCount: 2, summaryNames: []string{"single-summary-name"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := graph.FakeRepoGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)") ||
+					!strings.Contains(cypher, "RETURN count(DISTINCT w) AS count") || params["repo_id"] != "repo-1" {
+					t.Fatalf("unexpected workload count query %q with params %#v", cypher, params)
+				}
+				return []map[string]any{{"count": tc.graphCount}}, nil
+			}}
+			summary := &querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: tc.summaryNames}
+			counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
+				&querycontract.RepositoryContentCoverage{Available: true}, summary)
+			got := counts.workloadCount
+			if err != nil || got != int(tc.graphCount) {
+				t.Fatalf("workload count = %d, %v; want %d, nil", got, err, tc.graphCount)
+			}
+		})
+	}
+}
+
+func TestQueryRepositoryWorkloadCountWithoutSummary(t *testing.T) {
+	t.Parallel()
+	reader := graph.FakeRepoGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if !strings.Contains(cypher, "RETURN count(DISTINCT w) AS count") {
+			t.Fatalf("unexpected workload count query %q", cypher)
+		}
+		return []map[string]any{{"count": int64(1)}}, nil
+	}}
+	got, err := queryRepositoryWorkloadCount(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil)
+	if got != 1 || err != nil {
+		t.Fatalf("workload count = %d, %v; want 1, nil", got, err)
+	}
+}
+
+func TestQueryRepositoryWorkloadCountGraphErrorWithSummary(t *testing.T) {
+	t.Parallel()
+	reader := graph.FakeRepoGraphReader{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		return nil, querycontract.ErrGraphReadDeadline
+	}}
+	counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
+		&querycontract.RepositoryContentCoverage{Available: true},
+		&querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: []string{"retained-intent"}})
+	got := counts.workloadCount
+	if got != 0 || !errors.Is(err, querycontract.ErrGraphReadDeadline) {
+		t.Fatalf("workload count = %d, %v; want 0, graph read deadline", got, err)
+	}
+}
 
 // TestQueryRepositoryContextCountCallersAlwaysProjectACountAggregate guards
 // queryRepositoryContextCount's unenforced contract (query-source-coverage.yaml
@@ -46,7 +104,7 @@ func TestQueryRepositoryContextCountCallersAlwaysProjectACountAggregate(t *testi
 	t.Run("workload_count", func(t *testing.T) {
 		t.Parallel()
 		assertCountAggregate(t, func(reader querycontract.GraphQuery) error {
-			_, err := queryRepositoryWorkloadCount(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil, nil)
+			_, err := queryRepositoryWorkloadCount(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil)
 			return err
 		})
 	})

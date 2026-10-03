@@ -603,6 +603,11 @@ tests:
     tag: live_nornicdb_language_imports_grant
     class: scheduled
     reason: live-gated proof outside the answer-truth family; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/query/repository_context_workload_count_neo4j_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "isolated Neo4j #7542 production HTTP handler proof of distinct materialized workloads despite mismatched read-model names; local fixture passed in 1.049s, CI timing pending"
+    backends: neo4j
   - file: go/internal/query/service_story_target_support_defines_neo4j_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled

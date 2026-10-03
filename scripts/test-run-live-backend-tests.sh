@@ -178,11 +178,35 @@ EOF
 # (guards the runs-loop field split: the tests field holds |-joined
 # names, so a left-anchored split silently dropped multi-Test files)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "55" ]] || fail "planned runs ${#plan[@]}, want 55 (28 nornicdb + 27 neo4j)"
+[[ "${#plan[@]}" == "56" ]] || fail "planned runs ${#plan[@]}, want 56 (28 nornicdb + 28 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "28" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 28"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "27" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 27"
+[[ "${#plan_neo4j[@]}" == "28" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 28"
+printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
+	fail "materialized workload-count regression missing from neo4j plan"
+assert_workload_count_neo4j_only() {
+	! printf '%s\n' "$1" | rg -q '^nornicdb\|[^|]*\|.*repository_context_workload_count_neo4j_live_test'
+}
+printf -v nornicdb_plan_text '%s\n' "${plan_nornicdb[@]}"
+assert_workload_count_neo4j_only "${nornicdb_plan_text}" ||
+	fail "neo4j-only materialized workload-count regression scheduled on nornicdb"
+# Seed a misclassified ledger in a private mirror and prove the pin guard fails.
+seed_root="${seed_dir}/misclassified"
+mkdir -p "${seed_root}/scripts" "${seed_root}/specs"
+cp "${script}" "${seed_root}/scripts/run-live-backend-tests.sh"
+ln -s "${repo_root}/scripts/lib" "${seed_root}/scripts/lib"
+ln -s "${repo_root}/go" "${seed_root}/go"
+awk '
+	/^  - file:/ { target = ($0 == "  - file: go/internal/query/repository_context_workload_count_neo4j_live_test.go") }
+	target && /^    backends: neo4j$/ { print "    backends: both"; found = 1; next }
+	{ print }
+	END { if (!found) exit 1 }
+' "${ledger}" >"${seed_root}/specs/live-tests.v1.yaml" || fail "could not seed workload-count backend drift"
+seeded_plan="$(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${seed_root}/scripts/run-live-backend-tests.sh" --backend nornicdb)" ||
+	fail "could not plan misclassified workload-count row"
+assert_workload_count_neo4j_only "${seeded_plan}" &&
+	fail "misclassified workload-count row passed the neo4j-only guard"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*ownership_neo4j_live_test' ||
 	fail "directory ownership regression missing from neo4j plan"
 printf '%s\n' "${plan_nornicdb[@]}" | rg -q '^nornicdb\|[^|]*\|.*ownership_neo4j_live_test' &&

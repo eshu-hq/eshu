@@ -233,15 +233,17 @@ func TestGetRepositoryContextUsesContentCoverageForFileCountsAndLanguages(t *tes
 			}, nil
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "RETURN count(DISTINCT w) AS count") {
+				return []map[string]any{{"count": int64(0)}}, nil
+			}
 			for _, forbidden := range []string{
 				"RETURN count(DISTINCT f) AS count",
-				"RETURN count(DISTINCT w) AS count",
 				"RETURN count(DISTINCT p) AS count",
 				"RETURN count(DISTINCT dep) AS count",
 				"f.language IS NOT NULL",
 			} {
 				if strings.Contains(cypher, forbidden) {
-					t.Fatalf("cypher = %q, want read-model summary instead of graph summary fanout", cypher)
+					t.Fatalf("cypher = %q, want read-model summary for file, platform, and dependency counts", cypher)
 				}
 			}
 			return nil, nil
@@ -285,7 +287,7 @@ func TestGetRepositoryContextUsesContentCoverageForFileCountsAndLanguages(t *tes
 	if got, want := resp["file_count"], float64(456); got != want {
 		t.Fatalf("file_count = %#v, want %#v", got, want)
 	}
-	if got, want := resp["workload_count"], float64(1); got != want {
+	if got, want := resp["workload_count"], float64(0); got != want {
 		t.Fatalf("workload_count = %#v, want %#v", got, want)
 	}
 	if got, want := resp["platform_count"], float64(1); got != want {
