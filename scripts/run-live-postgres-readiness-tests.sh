@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Run the nine readiness and dead-code incoming plan/correctness proofs on
-# disposable PostgreSQL 18 (eight in the impact package, one in internal/query),
-# one go test per package.
+# Run the fifteen readiness and dead-code incoming plan/correctness proofs on
+# disposable PostgreSQL 18 (eight in the impact package, six in
+# storage/postgres, one in internal/query), one go test per package.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,11 +39,12 @@ python3 "${results}" verify-ledger "${ledger}" "${repo_root}" ||
   die "postgres_ci ledger selection is invalid"
 
 impact_pattern='^(TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive|TestSupplyChainImpactReadinessRepoArmScopeLive|TestSupplyChainImpactReadinessScanTierQueryPlanLive|TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive|TestSupplyChainImpactReadinessPackageConsumptionScopeLive|TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive|TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive|TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive)$'
+storage_pattern='^(TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive|TestPackageManifestConsumptionBackfillPagesHeavyScopeLive|TestPackageManifestConsumptionBackfillWaitsForScopeWriterLive|TestPackageManifestConsumptionBackfillBoundsTwentyFiveScopePassLive|TestPackageManifestConsumptionBackfillConcurrentPassesAreIdempotentLive|TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive)$'
 # Parallel lists: package path (relative to go/) and its -run pattern. The
 # package paths must match the keys of PACKAGES in the results verifier.
 query_pattern='^(TestDeadCodeIncomingEntityIDsActiveRunBoundLive)$'
-packages=(./internal/query/supply/chain/impact ./internal/query)
-patterns=("${impact_pattern}" "${query_pattern}")
+packages=(./internal/query/supply/chain/impact ./internal/storage/postgres ./internal/query)
+patterns=("${impact_pattern}" "${storage_pattern}" "${query_pattern}")
 
 scratch="$(mktemp -d)"
 trap 'rm -rf "${scratch}"' EXIT

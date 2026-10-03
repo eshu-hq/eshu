@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 571
-  sha256: 16699353c0b6dd9f766c51662dd870b70b867dc6a50151cec3a5118875d0b636
+  count: 569
+  sha256: c9ea707ef12e7ce1f0deeb22c38cb01e022197729e5c4c8e0e00c33d19f6e900
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -2121,16 +2121,18 @@ tests:
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
   - file: go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7088 disposable Postgres backfill and contention proof; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 backfill and contention proofs (repair after ready, heavy-scope paging, scope-writer wait, 25-scope bound, concurrent idempotent passes) over the package-manifest consumption keys, enrolled in the #7529 live-postgres-readiness runner. Upper-bound timing: local sixteen-proof runner passed the five proofs in 0.62s to 1.24s each (4.2s summed; the six-test storage package ran in 7.3s test time and 16s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took about 27s for the six storage proofs including compile; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/migration_148_delta_baseline_live_test.go
     tag: ~
     class: scheduled
     reason: "#7319 delta-baseline fence proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; unmeasured in CI — promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go
     tag: ~
-    class: scheduled
-    reason: "#7088 disposable Postgres upgrade proof from shipped migration 138; requires explicit ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE opt-in, so keep scheduled until CI runtime is measured"
+    class: postgres_ci
+    reason: "#7088 disposable PostgreSQL 18 upgrade proof from shipped migration 138 across the secret-lines migrations, enrolled in the #7529 live-postgres-readiness runner. Upper-bound timing: 0.60s of test time in the local sixteen-proof runner (same storage package run as the backfill proofs: 7.3s test time, 16s wall with a warm build cache) on postgres:18-alpine on tmpfs on 2026-10-03; an earlier run on a loaded laptop took about 27s for the six storage proofs including compile; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go
     tag: ~
     class: scheduled

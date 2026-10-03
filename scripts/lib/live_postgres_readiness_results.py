@@ -8,6 +8,7 @@ import sys
 
 
 IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
+STORAGE_PACKAGE = "./internal/storage/postgres"
 QUERY_PACKAGE = "./internal/query"
 
 # Expected files and tests per Go package (relative to the go/ module root).
@@ -32,6 +33,18 @@ PACKAGES = {
         "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
             "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
             "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",
+        ),
+    },
+    STORAGE_PACKAGE: {
+        "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
+            "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
+            "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",
+            "TestPackageManifestConsumptionBackfillWaitsForScopeWriterLive",
+            "TestPackageManifestConsumptionBackfillBoundsTwentyFiveScopePassLive",
+            "TestPackageManifestConsumptionBackfillConcurrentPassesAreIdempotentLive",
+        ),
+        "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
+            "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
     },
     QUERY_PACKAGE: {
