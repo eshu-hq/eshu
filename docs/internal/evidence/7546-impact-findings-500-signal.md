@@ -53,15 +53,23 @@ engineer who scraped it, not re-derived by a gate:
   had no repeat and 30 further calls in the issue, the 500 has not recurred in about 320 calls. This is a
   lower bound on rarity, not a rate.
 
-A second, longer run (1,500 serial `limit=1` calls, 6 anchors, fresh port-forward every 50 calls, a metrics
-scrape every 20 calls, 12:11:39 to 12:21:37 UTC) did produce HTTP 500s, but of a different class:
+A second, longer run (reported by the engineer who ran it: 1,500 serial `limit=1` calls, 6 anchors, fresh
+port-forward every 50 calls, a metrics scrape every 20 calls, 12:11:39 to 12:21:37 UTC) did produce HTTP 500s, but
+of a different class than the one this issue reports:
 
-- 4 of 1,500 calls returned 500, each after 2.09 s (calls 163, 164, 165 and 325). The API's 5xx counter for the route
-  went from 1 to 5, matching the four client-observed responses.
+- 4 of 1,500 calls returned 500, each after 2.09 s (calls 163, 164, 165 and 325); the other 1,496 returned 200
+  (client-measured). The API's 5xx counter for the route went from 1 to 5, matching the four client-observed
+  responses.
 - `reader_replay` outcome=deadline rose by 7 over the run, all of it in the two 20-call windows that hold those
-  500s (calls 161 to 180: +5; calls 321 to 340: +2), and `reader_borrow` outcome=error rose by 0. The 2.09 s duration
-  is the 2 s replay fence timeout plus handling. These are replay-fence timeouts, the class #7548 covers; they are
-  not the 0.096 s failure, whose stage completed in 4.9 ms. Attribution is by counter window, not per request.
+  500s (calls 161 to 180: +5; calls 321 to 340: +2), and `reader_borrow` outcome=error rose by 0. A 2.09 s duration
+  sits just above the 2 s replay fence timeout, so these are consistent with replay-fence timeouts, the class #7548
+  covers; that is an inference from the counter window and the duration, not a per-request attribution.
+- The 7 deadline increments exceed the 4 observed 500s. The other 3 are unexplained: they were not 500s, so
+  candidates are a readiness read that degraded to a 200 (call 166 returned 200 after 2.087 s), a call by another
+  client, or a different route. Not checked.
+- The original failure is the issue's client-measured 0.096 s total, while its findings stage took 4.9 ms in the pod
+  log, which leaves about 91 ms outside the stage (not attributed). It is a different duration class from the 2.09 s
+  cases above.
 - The API pod log was empty when read after the run (0 lines over 3 h; cause not established), so the per-trace
   stage join for this run is NOT_CHECKED.
 
