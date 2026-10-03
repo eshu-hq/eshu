@@ -24,8 +24,8 @@ out="$("${script}")" || fail "validator failed on the clean tree"
 [[ "${out}" =~ ^live-tests\ ledger\ ok:\ [1-9][0-9]*\ rows,\ [1-9][0-9]*\ live\ files\ classified$ ]] ||
 	fail "unexpected validator output: ${out}"
 
-# A scheduled row without a verified runner belongs to a frozen, reviewed
-# legacy inventory. Reclassifying an existing CI row must not silently expand
+# A scheduled row outside this ledger's verified runner mapping belongs to a
+# frozen, reviewed legacy inventory. Reclassifying a CI row must not expand
 # that inventory, even though the file and reason still look valid.
 legacy_probe="$(mktemp -d)"
 trap 'rm -rf "${legacy_probe}"' EXIT

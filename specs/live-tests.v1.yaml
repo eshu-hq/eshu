@@ -6,10 +6,11 @@ owners:
   - graph
   - backendconformance
 
-# #7533 owns disposition of this exact pre-existing inventory. These files
-# have no verified runner today; "scheduled" is a legacy exemption, not a
-# claim that a scheduled job actually executes them. Re-pinning requires a
-# reviewed policy change and corresponding owner/runner evidence.
+# #7533 owns disposition of this exact pre-existing inventory. "scheduled"
+# exempts a file from this ledger's verified runner mapping; some rows have
+# independently verified blocking runners and others do not. A reason alone
+# is not proof of execution. Re-pinning requires a reviewed policy change
+# and corresponding owner/runner evidence.
 legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
@@ -34,9 +35,10 @@ purpose: >
 design: >
   One row per *_live_test.go file. class is ci (graph live-backend CI
   job, selected backends), postgres_ci (the named PostgreSQL runner),
-  scheduled (an exact-file legacy exemption with no verified runner, tracked
-  by issue 7533; its reason does not prove scheduled execution), or retired (a former live
-  proof repaired in place: the file still exists but no longer meets the
+  scheduled (an exact-file legacy exemption from this ledger's verified
+  runner mapping, tracked by issue 7533; independently owned blocking
+  runners may exist, but a reason does not prove execution), or retired (a
+  former live proof repaired in place: the file still exists but no longer meets the
   live definition, and the reason names the repair commit). A missing
   or blank reason fails validation. A row for a deleted file is removed
   in the deleting commit; the validator rejects rows naming missing
