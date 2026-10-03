@@ -303,3 +303,103 @@ func TestReaderMembersRejectPrimaryAsStandby(t *testing.T) {
 		t.Fatalf("primary member error=%v, want wrong topology", err)
 	}
 }
+
+// openFleetRegressionAccess uses only an explicitly owned primary and two
+// standbys. It does not create or mutate database state.
+func openFleetRegressionAccess(t *testing.T, replayTimeout time.Duration) *Access {
+	t.Helper()
+	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
+	first := os.Getenv("ESHU_READER_TEST_READER_DSN")
+	second := os.Getenv("ESHU_READER_TEST_SECOND_READER_DSN")
+	if writer == "" || first == "" || second == "" {
+		t.Skip("owned primary and two physical standbys not configured")
+	}
+	firstEndpoint, err := parsePhysicalEndpoint(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondEndpoint, err := parsePhysicalEndpoint(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(func(key string) string {
+		switch key {
+		case "ESHU_POSTGRES_DSN":
+			return writer
+		case "ESHU_POSTGRES_READ_DSN":
+			return first
+		default:
+			return ""
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ReadMembers = []ReaderMember{
+		{ID: "a", Host: firstEndpoint.Host, Port: firstEndpoint.Port},
+		{ID: "b", Host: secondEndpoint.Host, Port: secondEndpoint.Port},
+	}
+	cfg.ReadMaxOpenConns = 8
+	cfg.ReadMaxIdleConns = 4
+	cfg.ReplayTimeout = replayTimeout
+	access, err := Open(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := access.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return access
+}
+
+func TestReaderMembersSkipSaturatedMemberBeforeWaiting(t *testing.T) {
+	access := openFleetRegressionAccess(t, 400*time.Millisecond)
+	ctx, err := access.ContextWithCheckpoint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	beginner := access.Reader().(db.ReadSnapshotSetBeginner)
+	access.nextReader.Store(0)
+	first, err := beginner.BeginReadOnlySnapshotSet(ctx, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = first.Close() })
+	if got := access.readerMembers[0].pool.Stats().InUse; got != 4 {
+		t.Fatalf("first member holds %d connections, want 4", got)
+	}
+	if got := access.readerMembers[1].pool.Stats().InUse; got != 0 {
+		t.Fatalf("second member holds %d connections, want idle", got)
+	}
+	access.nextReader.Store(0)
+	started := time.Now()
+	second, err := beginner.BeginReadOnlySnapshotSet(ctx, 4)
+	elapsed := time.Since(started)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	if got := access.readerMembers[1].pool.Stats().InUse; got != 4 {
+		t.Fatalf("second member holds %d connections, want 4", got)
+	}
+	if elapsed >= 200*time.Millisecond {
+		t.Fatalf("idle peer selected after %s; waited behind saturated member", elapsed)
+	}
+}
+
+func TestReaderMembersPingRequiresFrozenMemberIdentity(t *testing.T) {
+	access := openFleetRegressionAccess(t, 400*time.Millisecond)
+	if err := access.Ping(context.Background()); err != nil {
+		t.Fatalf("healthy fleet ping: %v", err)
+	}
+	access.readerMembers[0].incarnation = "replaced"
+	if err := access.Ping(context.Background()); err != nil {
+		t.Fatalf("one qualified member should keep readiness: %v", err)
+	}
+	access.readerMembers[1].incarnation = "replaced"
+	if err := access.Ping(context.Background()); err == nil {
+		t.Fatal("readiness accepted two members that no longer match frozen identity")
+	}
+}

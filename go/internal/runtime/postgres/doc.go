@@ -18,8 +18,10 @@
 // snapshot-set surface is offered with one physical reader host or an explicit
 // direct-member inventory. It reserves and fences every connection on one
 // selected member before beginning transactions, exports one snapshot, and
-// imports it into all other set connections. Setup can retry a different
-// member only after the entire failed attempt has been released. Native
+// imports it into all other set connections. Fleet reservations account for
+// every guarded read against per-member and aggregate caps and protect a
+// waiting complete set from later singles on the same member. Fleet setup can
+// retry a different member only after the entire failed attempt is released. Native
 // multi-host readers without an inventory retain guarded reads and
 // single-connection snapshots without advertising snapshot sets because
 // exported snapshots are server-local.

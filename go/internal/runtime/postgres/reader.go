@@ -22,16 +22,19 @@ var errReaderPermitTimeout = errors.New("guarded reader permit wait timed out")
 // physical connection to the pool. Every guarded read owns exactly one lease.
 type readerConnection struct {
 	*sql.Conn
-	permits chan struct{}
-	member  *physicalReaderMember
-	once    sync.Once
-	err     error
+	permits     chan struct{}
+	reservation *readerReservation
+	member      *physicalReaderMember
+	once        sync.Once
+	err         error
 }
 
 func (c *readerConnection) Close() error {
 	c.once.Do(func() {
 		c.err = c.Conn.Close()
-		if c.permits != nil {
+		if c.reservation != nil {
+			c.reservation.ReleaseOne()
+		} else if c.permits != nil {
 			c.permits <- struct{}{}
 		}
 	})
@@ -59,19 +62,7 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 
 func (a *Access) borrowFresh(ctx context.Context) (*readerConnection, error) {
 	if len(a.readerMembers) > 0 {
-		var result error
-		for _, index := range a.memberOrder(1) {
-			member := &a.readerMembers[index]
-			conn, err := a.borrowFreshFrom(ctx, member.pool, member)
-			if err == nil {
-				return conn, nil
-			}
-			result = errors.Join(result, err)
-			if ctx.Err() != nil {
-				break
-			}
-		}
-		return nil, result
+		return a.borrowFleet(ctx)
 	}
 	return a.borrowFreshFrom(ctx, a.reader, nil)
 }
@@ -134,7 +125,7 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 		err = ErrWrongTopology
 	}
 	if err == nil && member != nil && (incarnation != member.incarnation || !addressMatches(serverAddress, member.addresses)) {
-		err = ErrWrongTopology
+		err = memberLocalTopology{}
 	}
 	a.observe("reader", StageReaderIdentity, started, err)
 	if err != nil {

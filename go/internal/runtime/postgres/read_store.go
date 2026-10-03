@@ -50,6 +50,9 @@ func (q fencedQueryer) BeginReadOnlySnapshotSet(ctx context.Context, count int) 
 	if count < 1 || count > q.MaxReadConnections() {
 		return nil, privateFailure(failureSnapshotBegin, errors.New("invalid snapshot reader count"))
 	}
+	if a != nil && len(a.readerMembers) > 0 {
+		return a.beginFleetSnapshotSet(ctx, count)
+	}
 	if a == nil || a.snapshotSetGate == nil {
 		return nil, privateFailure(failureSnapshotBegin, errors.New("snapshot set gate unavailable"))
 	}
