@@ -79,9 +79,9 @@ bounded; business SQL retains the caller's own deadline. The reader pool sets
 `default_transaction_read_only=on` on every connection and reconnect.
 
 For a sampled API or MCP request, the request trace records a
-`postgres.reader_query_start` event before guarded business SQL. Its backend PID,
-TCP peer address, and query sequence identify the exact reader lease. The
-socket peer can be a Service address. Use the actual reader pod identity and
+`postgres.reader_query_start` event before guarded business SQL. The backend
+PID and TCP peer address come from the exact borrowed lease. A per-`Access`
+query sequence separates its calls. The socket peer can be a Service address. Use the actual reader pod identity and
 `pg_stat_activity.backend_start` to distinguish PID reuse and prove the
 physical destination. A missing event or
 `postgres.backend.identity=unavailable` cannot qualify a cancellation claim. Query text and credentials are excluded.

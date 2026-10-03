@@ -148,7 +148,7 @@ pressure checks. No DSN, SQL text, or credential becomes a signal label.
 
 A recording request span receives a `postgres.reader_query_start` event immediately
 before each guarded business SQL call. The event includes the actual borrowed
-reader's backend PID and TCP peer address, a process-unique query sequence, and
+reader's backend PID and TCP peer address, a sequence unique to this `Access`, and
 `postgres.role=reader`. Snapshot transactions copy this identity before
 `BeginTx` and keep only the scalar values for their subsequent query calls.
 An unsupported driver or address emits `postgres.backend.identity=unavailable`;

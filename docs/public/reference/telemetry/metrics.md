@@ -47,7 +47,7 @@ request span. These signals do not establish deployed latency or replica
 capacity until API/MCP wiring and measurement are complete.
 
 A recording request span also receives `postgres.reader_query_start` before
-each guarded business query. The event has `postgres.role=reader`, a process-wide
+each guarded business query. The event has `postgres.role=reader`, a per-`Access`
 `postgres.query.sequence`, and `postgres.backend.identity` (`available` or
 `unavailable`). When available, it includes `postgres.backend.pid` and
 `postgres.backend.remote` copied from the exact borrowed TCP connection. Snapshot
