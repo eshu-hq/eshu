@@ -18,6 +18,10 @@ EXPECTED = {
     "go/internal/query/supply/chain/impact/readiness_package_consumption_scope_live_test.go": (
         "TestSupplyChainImpactReadinessPackageConsumptionScopeLive",
     ),
+    "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
+        "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
+        "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
+    ),
     "go/internal/query/supply/chain/impact/readiness_scan_tier_explain_live_test.go": (
         "TestSupplyChainImpactReadinessScanTierQueryPlanLive",
         "TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive",

@@ -37,6 +37,14 @@ cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "${ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing mutable-ref opt-in' >&2; exit 9; }
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
+[[ "$*" == *"TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive"* ]] || { echo 'missing hot-digest test' >&2; exit 9; }
+[[ "$*" == *"TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive"* ]] || { echo 'missing truth-matrix test' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
+[[ "${ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong runtime-env DSN' >&2; exit 9; }
+[[ "${ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE:-}" == "1" ]] || { echo 'missing runtime-env opt-in' >&2; exit 9; }
+EOF
+cat >>"${seed_dir}/bin/go" <<'EOF'
 [[ "$*" == *" ./internal/query "* ]] || { echo 'missing dead-code query package' >&2; exit 9; }
 [[ "$*" == *"TestDeadCodeIncomingEntityIDsActiveRunBoundLive"* ]] || { echo 'missing dead-code incoming test' >&2; exit 9; }
 [[ "${ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong dead-code DSN' >&2; exit 9; }
@@ -58,6 +66,8 @@ export ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN="${ESHU_EXPECTED_DSN}"
 export ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1
 export ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN="${ESHU_EXPECTED_DSN}"
 export ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE=1
+export ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN="${ESHU_EXPECTED_DSN}"
+export ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE=1
 export ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE=1
 export ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=1
 export ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN="${ESHU_EXPECTED_DSN}"
@@ -73,6 +83,8 @@ names=(
   TestSupplyChainImpactReadinessPackageConsumptionScopeLive
   TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive
   TestDeadCodeIncomingEntityIDsActiveRunBoundLive
+  TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive
+  TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive
 )
 
 write_events() {
@@ -89,8 +101,8 @@ write_events() {
 run_runner() { bash "${runner}" 2>&1; }
 
 write_events
-out="$(run_runner)" || fail "seven PASS events rejected: ${out}"
-[[ "${out}" == *"7/7 PASS"* ]] || fail "pass summary missing: ${out}"
+out="$(run_runner)" || fail "nine PASS events rejected: ${out}"
+[[ "${out}" == *"9/9 PASS"* ]] || fail "pass summary missing: ${out}"
 [[ "${out}" == *"suite_elapsed="* ]] || fail "suite timing missing: ${out}"
 
 # A successful go test exit is insufficient when a selected test skips.
@@ -155,16 +167,35 @@ sed -i.bak '/"Test":"TestSupplyChainImpactReadinessMutableRefIncludesEveryCurren
 out="$(run_runner)" && fail "missing mutable-ref events passed"
 [[ "${out}" == *"missing"* ]] || fail "missing mutable-ref events not named: ${out}"
 
+out="$(env -u ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN bash "${runner}" 2>&1)" && fail "unset runtime-env DSN passed"
+[[ "${out}" == *"ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN"* ]] || fail "unset runtime-env DSN not named: ${out}"
+
+out="$(env ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing runtime-env opt-in passed"
+[[ "${out}" == *"ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE"* ]] || fail "missing runtime-env opt-in not named: ${out}"
+
+# Each runtime-environment proof needs its own pass event: a skip or a
+# missing event for either test fails.
+for name in TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive; do
+  write_events
+  sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${name}\"/\"Action\":\"skip\",\"Test\":\"${name}\"/" "${ESHU_FAKE_GO_JSON}"
+  out="$(run_runner)" && fail "${name} SKIP event passed"
+  [[ "${out}" == *"SKIP"* ]] || fail "${name} SKIP not named: ${out}"
+  write_events
+  sed -i.bak "/\"Test\":\"${name}\"/d" "${ESHU_FAKE_GO_JSON}"
+  out="$(run_runner)" && fail "missing ${name} events passed"
+  [[ "${out}" == *"missing"* ]] || fail "missing ${name} events not named: ${out}"
+done
+
 out="$(env ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing opt-in passed"
 [[ "${out}" == *"ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE"* ]] || fail "missing opt-in not named: ${out}"
 
 # The ledger mapping is part of the gate: a changed classification cannot
-# leave the live job green with seven hard-coded test names.
+# leave the live job green with nine hard-coded test names.
 ledger="${repo_root}/specs/live-tests.v1.yaml"
 checker="${repo_root}/scripts/lib/live_postgres_readiness_results.py"
 selection="$(python3 "${checker}" verify-ledger "${ledger}" "${repo_root}")" ||
   fail "clean postgres_ci ledger mapping rejected"
-[[ "${selection}" == *"7 tests selected"* && "${selection}" != *"PASS"* ]] ||
+[[ "${selection}" == *"9 tests selected"* && "${selection}" != *"PASS"* ]] ||
   fail "ledger selection claimed a test pass before Go ran: ${selection}"
 sed 's/class: postgres_ci/class: scheduled/g' "${ledger}" >"${seed_dir}/ledger-missing.yaml"
 out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-missing.yaml" "${repo_root}" 2>&1)" &&

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build integration
-
 package impact
 
 import (
@@ -23,9 +21,16 @@ import (
 const runtimeEnvironmentEvidenceArtifactIndex = "fact_records_ci_cd_run_correlations_artifact_lookup_idx"
 
 // TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive proves the
-// production SQL remains indexed when one visible digest has many current
-// deployment facts. It is opt-in because it writes one million disposable
-// rows into a production-schema PostgreSQL database.
+// production SQL stays on the artifact lookup index, with one index probe per
+// candidate digest, when one visible digest has many current deployment facts.
+//
+// It pins that cost shape at the seeded active scope/generation pair count (the
+// test requires at least two, because ApplyBootstrap seeds the eshu:global pair)
+// and with every table the query joins analyzed. It does not check how the plan
+// scales as the active pair count grows: a scope-first plan multiplies the probe
+// count by the pair count, and that exposure is tracked in #7552. It is opt-in
+// because it writes about one million disposable rows into a production-schema
+// PostgreSQL database in a database created and dropped by the helper.
 func TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive(t *testing.T) {
 	ctx, db := postgresproof.OpenDisposableDatabase(
 		t,
@@ -37,6 +42,7 @@ func TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive(t *testing.T) 
 		t.Fatalf("apply production Postgres schema: %v", err)
 	}
 	seedRuntimeEnvironmentEvidenceHotDigest(t, ctx, db)
+	requireRuntimeEnvironmentEvidenceActivePairs(t, ctx, db, 2)
 
 	candidates, digests, environments := runtimeEnvironmentEvidenceLiveCandidates()
 	assertRuntimeEnvironmentEvidenceIndexPlan(
@@ -61,9 +67,9 @@ func TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive(t *testing.T) 
 	if got[digests[0]]["prod"] != RuntimeEnvironmentEvidenceDeployEvent {
 		t.Fatalf("hot digest evidence = %#v, want deploy_event", got[digests[0]])
 	}
-	if elapsed > 2*time.Second {
-		t.Fatalf("production store call = %s, want <= 2s", elapsed)
-	}
+	// Wall time is reported, not gated: a clock bound on a shared runner has no
+	// derived spread (docs/internal/timing-proof-rules.md rule 2), and the plan
+	// assertion above pins the cost shape.
 	t.Logf("RUNTIME_ENVIRONMENT_EVIDENCE candidates=%d hot_rows=100000 total_rows=1000199 elapsed=%s", len(candidates), elapsed)
 }
 
@@ -237,12 +243,38 @@ SELECT 'runtime-environment-background:' || n,
          'environment', 'prod', 'environment_evidence', 'declared', 'outcome', 'exact'
        )
 FROM generate_series(1, 900000) AS n`,
+		// The query joins fact_records to the active scope/generation pairs, so
+		// the planner needs statistics for all three tables, not only the large one.
 		`ANALYZE fact_records`,
+		`ANALYZE ingestion_scopes`,
+		`ANALYZE scope_generations`,
 	} {
 		if _, err := db.ExecContext(ctx, statement); err != nil {
 			t.Fatalf("seed runtime environment evidence proof: %v", err)
 		}
 	}
+}
+
+// requireRuntimeEnvironmentEvidenceActivePairs fails the proof when fewer than
+// minimum active scope/generation pairs exist. With a single pair a scope-first
+// plan and a fact-first plan both probe the artifact index once per candidate,
+// so the loop-count assertion could not tell them apart.
+func requireRuntimeEnvironmentEvidenceActivePairs(t *testing.T, ctx context.Context, db *sql.DB, minimum int) {
+	t.Helper()
+	var pairs int
+	if err := db.QueryRowContext(ctx, `
+SELECT count(*)
+FROM ingestion_scopes AS scopes
+JOIN scope_generations AS generations
+  ON generations.generation_id = scopes.active_generation_id
+WHERE scopes.status = 'active'
+  AND generations.status = 'active'`).Scan(&pairs); err != nil {
+		t.Fatalf("count active scope/generation pairs: %v", err)
+	}
+	if pairs < minimum {
+		t.Fatalf("active scope/generation pairs = %d, want at least %d so a scope-first plan is distinguishable", pairs, minimum)
+	}
+	t.Logf("RUNTIME_ENVIRONMENT_EVIDENCE active_pairs=%d", pairs)
 }
 
 func runtimeEnvironmentEvidenceLiveCandidates() ([]RuntimeEnvironmentCandidate, []string, []string) {

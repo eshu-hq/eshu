@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 572
-  sha256: e9bca60b16993280ccf8b1a9f12bec9c5478f5243fae36175f16702573a02a98
+  count: 571
+  sha256: 16699353c0b6dd9f766c51662dd870b70b867dc6a50151cec3a5118875d0b636
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -834,9 +834,10 @@ tests:
     reason: "#7529 disposable PostgreSQL 18 scan-tier plan and truth proofs; local four-test run passed in 41.3s on 2026-10-02"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
-    tag: integration
-    class: scheduled
-    reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+    tag: ~
+    class: postgres_ci
+    reason: "#7529 disposable PostgreSQL 18 proofs of the runtime-environment evidence read, enrolled in the live-postgres-readiness runner: the hot digest (about 1,000,199 seeded rows, 200 candidates) keeps one artifact-index probe per candidate at the seeded active scope/generation pair count with analyzed statistics, and the truth matrix admits only current, authorized, accepted facts. Pair-count scaling is not checked and is tracked in #7552. Upper-bound timing: local eight-proof runner passed in 90s suite time (50.7s hot digest, dominated by the seed; 0.63s truth matrix) on postgres:18-alpine with host load average 65 to 94 on 12 CPUs on 2026-10-03; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~
     class: scheduled
