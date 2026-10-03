@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Hermetic RED/GREEN checks for the dedicated PostgreSQL readiness runner.
+# Hermetic RED/GREEN checks for the dedicated PostgreSQL readiness runner:
+# a fake go supplies the per-package event streams of every enrolled proof.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,93 +10,78 @@ trap 'rm -rf "${seed_dir}"' EXIT
 
 fail() { printf 'test-run-live-postgres-readiness-tests: %s\n' "$*" >&2; exit 1; }
 
-mkdir -p "${seed_dir}/bin"
+mkdir -p "${seed_dir}/bin" "${seed_dir}/fake"
+fake="${seed_dir}/fake"
+# The fake go selects its events by package path, checks the -run pattern
+# names every expected test of that package, and checks the opt-in env.
 cat >"${seed_dir}/bin/go" <<'EOF'
 #!/usr/bin/env bash
 [[ "$*" == *"-json"* ]] || { echo 'missing -json' >&2; exit 9; }
 [[ "$*" == *"-count=1"* ]] || { echo 'missing -count=1' >&2; exit 9; }
-[[ "$*" == *"./internal/query/supply/chain/impact"* ]] || { echo 'wrong package' >&2; exit 9; }
+for arg in "$@"; do [[ "${arg}" == ./* ]] && pkg="${arg}"; done
+key="${pkg//[^a-z]/_}"
+[[ -f "${ESHU_FAKE_DIR}/${key}.names" ]] || { echo "unexpected package ${pkg}" >&2; exit 9; }
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "$*" == *"TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive"* ]] || { echo 'missing package-manifest test' >&2; exit 9; }
-[[ "$*" == *"TestSupplyChainImpactReadinessRepoArmScopeLive"* ]] || { echo 'missing repo-arm test' >&2; exit 9; }
-[[ "$*" == *"TestSupplyChainImpactReadinessScanTierQueryPlanLive"* ]] || { echo 'missing scan-tier plan test' >&2; exit 9; }
+while read -r name; do
+  [[ "$*" == *"${name}"* ]] || { echo "missing test ${name}" >&2; exit 9; }
+done <"${ESHU_FAKE_DIR}/${key}.names"
+while read -r var; do
+  case "${var}" in *_DSN) want="${ESHU_EXPECTED_DSN:-}" ;; *) want=1 ;; esac
+  [[ "${!var:-}" == "${want}" ]] || { echo "wrong ${var}" >&2; exit 9; }
+done <"${ESHU_FAKE_DIR}/envs"
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "$*" == *"TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive"* ]] || { echo 'missing fan-out test' >&2; exit 9; }
-[[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong manifest DSN' >&2; exit 9; }
-[[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong scan-tier DSN' >&2; exit 9; }
-EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "$*" == *"TestSupplyChainImpactReadinessPackageConsumptionScopeLive"* ]] || { echo 'missing package-consumption test' >&2; exit 9; }
-[[ "${ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong package-consumption DSN' >&2; exit 9; }
-[[ "${ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing package-consumption opt-in' >&2; exit 9; }
-EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "$*" == *"TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive"* ]] || { echo 'missing mutable-ref test' >&2; exit 9; }
-[[ "${ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong mutable-ref DSN' >&2; exit 9; }
-[[ "${ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing mutable-ref opt-in' >&2; exit 9; }
-EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "$*" == *"TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive"* ]] || { echo 'missing hot-digest test' >&2; exit 9; }
-[[ "$*" == *"TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive"* ]] || { echo 'missing truth-matrix test' >&2; exit 9; }
-EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "${ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong runtime-env DSN' >&2; exit 9; }
-[[ "${ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE:-}" == "1" ]] || { echo 'missing runtime-env opt-in' >&2; exit 9; }
-EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "$*" == *" ./internal/query "* ]] || { echo 'missing dead-code query package' >&2; exit 9; }
-[[ "$*" == *"TestDeadCodeIncomingEntityIDsActiveRunBoundLive"* ]] || { echo 'missing dead-code incoming test' >&2; exit 9; }
-[[ "${ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN:-}" == "${ESHU_EXPECTED_DSN:-}" ]] || { echo 'wrong dead-code DSN' >&2; exit 9; }
-[[ "${ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing dead-code opt-in' >&2; exit 9; }
-EOF
-cat >>"${seed_dir}/bin/go" <<'EOF'
-[[ "${ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing manifest opt-in' >&2; exit 9; }
-[[ "${ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE:-}" == "1" ]] || { echo 'missing scan-tier opt-in' >&2; exit 9; }
-[[ -n "${ESHU_FAKE_GO_JSON:-}" ]] || exit 9
-cp "${ESHU_FAKE_GO_JSON}" /dev/stdout
-exit "${ESHU_FAKE_GO_EXIT:-0}"
+cat "${ESHU_FAKE_DIR}/${key}.jsonl"
+if [[ -f "${ESHU_FAKE_DIR}/${key}.exit" ]]; then exit "$(cat "${ESHU_FAKE_DIR}/${key}.exit")"; fi
+exit 0
 EOF
 chmod +x "${seed_dir}/bin/go"
+for var in ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF \
+  ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF ESHU_READINESS_CONTAINER_IDENTITY_PROOF \
+  ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES ESHU_DEAD_CODE_INCOMING_BOUND_PROOF; do
+  printf '%s_DSN\n%s_DISPOSABLE\n' "${var}" "${var}" >>"${fake}/envs"
+done
 
+export ESHU_FAKE_DIR="${fake}"
 export ESHU_EXPECTED_DSN='postgres://postgres:local-test@127.0.0.1:15432/postgres?sslmode=disable'
-export ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN="${ESHU_EXPECTED_DSN}"
-export ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN="${ESHU_EXPECTED_DSN}"
-export ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN="${ESHU_EXPECTED_DSN}"
-export ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=1
-export ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN="${ESHU_EXPECTED_DSN}"
-export ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE=1
-export ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN="${ESHU_EXPECTED_DSN}"
-export ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE=1
-export ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE=1
-export ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=1
-export ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN="${ESHU_EXPECTED_DSN}"
-export ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE=1
+while read -r var; do
+  case "${var}" in *_DSN) export "${var}=${ESHU_EXPECTED_DSN}" ;; *) export "${var}=1" ;; esac
+done <"${fake}/envs"
 export PATH="${seed_dir}/bin:${PATH}"
-export ESHU_FAKE_GO_JSON="${seed_dir}/events.jsonl"
 
-names=(
-  TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive
-  TestSupplyChainImpactReadinessRepoArmScopeLive
-  TestSupplyChainImpactReadinessScanTierQueryPlanLive
-  TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive
-  TestSupplyChainImpactReadinessPackageConsumptionScopeLive
-  TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive
-  TestDeadCodeIncomingEntityIDsActiveRunBoundLive
-  TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive
-  TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive
+impact=./internal/query/supply/chain/impact
+query=./internal/query
+# One "package|test" entry per enrolled proof, in the runner's order.
+proofs=(
+  "${impact}|TestSupplyChainImpactReadinessPackageManifestRepoScopeQueryPlanLive"
+  "${impact}|TestSupplyChainImpactReadinessRepoArmScopeLive"
+  "${impact}|TestSupplyChainImpactReadinessScanTierQueryPlanLive"
+  "${impact}|TestSupplyChainImpactReadinessScanTierOSPackageCountDoesNotFanOutLive"
+  "${impact}|TestSupplyChainImpactReadinessPackageConsumptionScopeLive"
+  "${impact}|TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive"
+  "${impact}|TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive"
+  "${impact}|TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive"
+  "${query}|TestDeadCodeIncomingEntityIDsActiveRunBoundLive"
 )
 
+pkg_key() { printf '%s' "${1//[^a-z]/_}"; }
+events_of() { printf '%s/%s.jsonl' "${fake}" "$(pkg_key "$1")"; }
+
 write_events() {
-  : >"${ESHU_FAKE_GO_JSON}"
-  local name
-  for name in "${names[@]}"; do
-    printf '{"Action":"run","Test":"%s"}\n' "$name" >>"${ESHU_FAKE_GO_JSON}"
-    printf '{"Action":"pass","Test":"%s","Elapsed":0.25}\n' "$name" >>"${ESHU_FAKE_GO_JSON}"
+  local entry pkg name
+  rm -f "${fake}"/*.jsonl "${fake}"/*.names "${fake}"/*.exit "${fake}"/*.bak
+  for entry in "${proofs[@]}"; do
+    pkg="${entry%%|*}"
+    name="${entry##*|}"
+    printf '%s\n' "${name}" >>"${fake}/$(pkg_key "${pkg}").names"
+    printf '{"Action":"run","Test":"%s"}\n' "${name}" >>"$(events_of "${pkg}")"
+    printf '{"Action":"pass","Test":"%s","Elapsed":0.25}\n' "${name}" >>"$(events_of "${pkg}")"
   done
-  printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact","Elapsed":1.0}\n' >>"${ESHU_FAKE_GO_JSON}"
-  printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/internal/query","Elapsed":1.0}\n' >>"${ESHU_FAKE_GO_JSON}"
+  for pkg in "${impact}" "${query}"; do
+    printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":1.0}\n' \
+      "${pkg#./}" >>"$(events_of "${pkg}")"
+  done
 }
 
 run_runner() { bash "${runner}" 2>&1; }
@@ -104,90 +90,57 @@ write_events
 out="$(run_runner)" || fail "nine PASS events rejected: ${out}"
 [[ "${out}" == *"9/9 PASS"* ]] || fail "pass summary missing: ${out}"
 [[ "${out}" == *"suite_elapsed="* ]] || fail "suite timing missing: ${out}"
+[[ "${out}" == *"${impact} 8/8 PASS"* && "${out}" == *"${query} 1/1 PASS"* ]] ||
+  fail "per-package summaries missing: ${out}"
 
-# A successful go test exit is insufficient when a selected test skips.
-write_events
-sed -i.bak 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessRepoArmScopeLive"/"Action":"skip","Test":"TestSupplyChainImpactReadinessRepoArmScopeLive"/' "${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "SKIP event passed"
-[[ "${out}" == *"SKIP"* ]] || fail "SKIP failure not named: ${out}"
-
-# Each selected package must report its own PASS terminal event.
-write_events
-sed -i.bak '/"Action":"pass","Package":"github.com\/eshu-hq\/eshu\/go\/internal\/query","Elapsed"/d' "${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "missing query package terminal passed"
-[[ "${out}" == *"package terminal"* ]] || fail "missing package terminal not named: ${out}"
-
-out="$(env -u ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN bash "${runner}" 2>&1)" && fail "unset dead-code DSN passed"
-[[ "${out}" == *"ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN"* ]] || fail "unset dead-code DSN not named: ${out}"
-
-out="$(env ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing dead-code opt-in passed"
-[[ "${out}" == *"ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE"* ]] || fail "missing dead-code opt-in not named: ${out}"
-
-# Likewise, a stale -run expression must not allow zero or missing tests.
-printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact","Elapsed":0.1}\n' >"${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "zero matched tests passed"
-[[ "${out}" == *"missing"* ]] || fail "zero-test failure not named: ${out}"
-
-write_events
-sed -i.bak '/"Action":"pass","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/d' "${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "missing terminal event passed"
-[[ "${out}" == *"missing"* ]] || fail "missing-event failure not named: ${out}"
-
-write_events
-sed -i.bak 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/"Action":"fail","Test":"TestSupplyChainImpactReadinessScanTierQueryPlanLive"/' "${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "FAIL event passed"
-[[ "${out}" == *"FAIL"* ]] || fail "FAIL event not named: ${out}"
-
-write_events
-ESHU_FAKE_GO_EXIT=1 out="$(ESHU_FAKE_GO_EXIT=1 run_runner)" && fail "go nonzero exit passed"
-[[ "${out}" == *"go test exited 1"* ]] || fail "go exit not reported: ${out}"
-
-out="$(env -u ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN bash "${runner}" 2>&1)" && fail "unset DSN passed"
-[[ "${out}" == *"ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN"* ]] || fail "unset DSN not named: ${out}"
-
-out="$(env -u ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN bash "${runner}" 2>&1)" && fail "unset package-consumption DSN passed"
-[[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN"* ]] || fail "unset package-consumption DSN not named: ${out}"
-
-out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing package-consumption opt-in passed"
-[[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "missing package-consumption opt-in not named: ${out}"
-
-out="$(env -u ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN bash "${runner}" 2>&1)" && fail "unset mutable-ref DSN passed"
-[[ "${out}" == *"ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN"* ]] || fail "unset mutable-ref DSN not named: ${out}"
-
-out="$(env ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing mutable-ref opt-in passed"
-[[ "${out}" == *"ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE"* ]] || fail "missing mutable-ref opt-in not named: ${out}"
-
-# The new proof needs its own pass event: a skip or a missing event fails.
-write_events
-sed -i.bak 's/"Action":"pass","Test":"TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive"/"Action":"skip","Test":"TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive"/' "${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "mutable-ref SKIP event passed"
-[[ "${out}" == *"SKIP"* ]] || fail "mutable-ref SKIP not named: ${out}"
-write_events
-sed -i.bak '/"Test":"TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive"/d' "${ESHU_FAKE_GO_JSON}"
-out="$(run_runner)" && fail "missing mutable-ref events passed"
-[[ "${out}" == *"missing"* ]] || fail "missing mutable-ref events not named: ${out}"
-
-out="$(env -u ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN bash "${runner}" 2>&1)" && fail "unset runtime-env DSN passed"
-[[ "${out}" == *"ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN"* ]] || fail "unset runtime-env DSN not named: ${out}"
-
-out="$(env ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing runtime-env opt-in passed"
-[[ "${out}" == *"ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE"* ]] || fail "missing runtime-env opt-in not named: ${out}"
-
-# Each runtime-environment proof needs its own pass event: a skip or a
-# missing event for either test fails.
-for name in TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive; do
+# Every enrolled proof needs its own pass event in its own package: a skip, a
+# failure, or a missing event for any one of the nine fails the run.
+for entry in "${proofs[@]}"; do
+  pkg="${entry%%|*}"
+  name="${entry##*|}"
+  for action in skip fail; do
+    write_events
+    sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${name}\"/\"Action\":\"${action}\",\"Test\":\"${name}\"/" "$(events_of "${pkg}")"
+    out="$(run_runner)" && fail "${name} ${action} event passed"
+    want="$(printf '%s' "${action}" | tr '[:lower:]' '[:upper:]')"
+    [[ "${out}" == *"${name}: ${want}"* ]] || fail "${name} ${action} not named: ${out}"
+  done
   write_events
-  sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${name}\"/\"Action\":\"skip\",\"Test\":\"${name}\"/" "${ESHU_FAKE_GO_JSON}"
-  out="$(run_runner)" && fail "${name} SKIP event passed"
-  [[ "${out}" == *"SKIP"* ]] || fail "${name} SKIP not named: ${out}"
-  write_events
-  sed -i.bak "/\"Test\":\"${name}\"/d" "${ESHU_FAKE_GO_JSON}"
+  sed -i.bak "/\"Test\":\"${name}\"/d" "$(events_of "${pkg}")"
   out="$(run_runner)" && fail "missing ${name} events passed"
-  [[ "${out}" == *"missing"* ]] || fail "missing ${name} events not named: ${out}"
+  [[ "${out}" == *"${name}: missing"* ]] || fail "missing ${name} events not named: ${out}"
 done
 
-out="$(env ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "missing opt-in passed"
-[[ "${out}" == *"ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE"* ]] || fail "missing opt-in not named: ${out}"
+# A stale -run expression must not allow zero matched tests in any package.
+for pkg in "${impact}" "${query}"; do
+  write_events
+  printf '{"Action":"pass","Package":"github.com/eshu-hq/eshu/go/%s","Elapsed":0.1}\n' "${pkg#./}" >"$(events_of "${pkg}")"
+  out="$(run_runner)" && fail "zero matched tests in ${pkg} passed"
+  [[ "${out}" == *"missing"* ]] || fail "zero-test failure in ${pkg} not named: ${out}"
+done
+
+# A failed package terminal fails the run even when every test passed.
+for pkg in "${impact}" "${query}"; do
+  write_events
+  sed -i.bak 's/"Action":"pass","Package"/"Action":"fail","Package"/' "$(events_of "${pkg}")"
+  out="$(run_runner)" && fail "failed package terminal of ${pkg} passed"
+  [[ "${out}" == *"package terminal (${pkg})"* ]] || fail "package terminal of ${pkg} not named: ${out}"
+done
+
+# A package that exits nonzero fails the run and names that package.
+for pkg in "${impact}" "${query}"; do
+  write_events
+  printf '1\n' >"${fake}/$(pkg_key "${pkg}").exit"
+  out="$(run_runner)" && fail "go nonzero exit in ${pkg} passed"
+  [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
+done
+# A missing DSN or opt-in names the variable before any package runs.
+while read -r var; do
+  out="$(env -u "${var}" bash "${runner}" 2>&1)" && fail "unset ${var} passed"
+  [[ "${out}" == *"${var}"* ]] || fail "unset ${var} not named: ${out}"
+done <"${fake}/envs"
+out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "opt-in 0 passed"
+[[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "opt-in 0 not named: ${out}"
 
 # The ledger mapping is part of the gate: a changed classification cannot
 # leave the live job green with nine hard-coded test names.
