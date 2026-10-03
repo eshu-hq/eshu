@@ -112,6 +112,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if len(members) > 0 && readOpen/len(members) < 4 {
 		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_OPEN_CONNS must allow four connections per reader member")
 	}
+	minimumFleetIdle := 4 * len(members)
+	if base.MaxIdleConns < minimumFleetIdle {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_MAX_IDLE_CONNS must allow four idle connections per reader member")
+	}
 	readIdle := base.MaxIdleConns / 2
 	if value := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_MAX_IDLE_CONNS")); value != "" {
 		readIdle, err = strconv.Atoi(value)
@@ -121,7 +125,13 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		if readIdle < 0 || readIdle > base.MaxIdleConns || readIdle > readOpen || base.MaxIdleConns-readIdle > writeOpen {
 			return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_IDLE_CONNS must fit both pools and the total idle budget")
 		}
+		if readIdle < minimumFleetIdle {
+			return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_IDLE_CONNS must allow four idle connections per reader member")
+		}
 	} else {
+		if readIdle < minimumFleetIdle {
+			readIdle = minimumFleetIdle
+		}
 		if readIdle < base.MaxIdleConns-writeOpen {
 			readIdle = base.MaxIdleConns - writeOpen
 		}

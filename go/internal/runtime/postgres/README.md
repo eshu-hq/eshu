@@ -31,6 +31,10 @@ before borrowing a reader.
   `ESHU_POSTGRES_READ_MAX_OPEN_CONNS` or
   `ESHU_POSTGRES_READ_MAX_IDLE_CONNS` to change the reader allocation; the
   writer receives the remainder. Both open allocations must be positive.
+  With direct reader members, the default reader idle allocation rises to
+  four per member (8 for two members), within the unchanged total budget.
+  An explicit reader idle value below four per member, or a total idle budget
+  too small for that floor, fails startup instead of causing repeat dials.
 - `ESHU_POSTGRES_EXPECTED_SYSTEM_ID` optionally pins writer bootstrap to an
   externally supplied physical cluster ID. Without it, bootstrap establishes
   agreement among the configured writer and reader endpoints only.
@@ -50,7 +54,8 @@ before borrowing a reader.
   access and may exclude some dual-stack routes. It is a qualification check,
   not universal physical-identity proof. Restart API/MCP to change inventory.
   Member pools split the existing total read open/idle budgets; each configured
-  member needs at least four open slots for a four-way code-topic set. A
+  member needs at least four open and four idle slots for a warm four-way
+  code-topic set. A
   member with a recognized transient DNS/transport/SQL availability failure at
   bootstrap remains ineligible until restart. Authentication, completed TLS,
   permission, missing-database, malformed-identity, and unknown setup failures

@@ -24,7 +24,7 @@ flowchart LR
 | `ESHU_POSTGRES_MAX_OPEN_CONNS` | Total open connections across both pools per API/MCP process; default 30, minimum 2. |
 | `ESHU_POSTGRES_MAX_IDLE_CONNS` | Total idle connections across both pools; default 10. |
 | `ESHU_POSTGRES_READ_MAX_OPEN_CONNS` | Reader allocation, default half the total; writer gets the remainder. |
-| `ESHU_POSTGRES_READ_MAX_IDLE_CONNS` | Reader idle allocation, default half subject to both pool limits. |
+| `ESHU_POSTGRES_READ_MAX_IDLE_CONNS` | Reader idle allocation, default half without an inventory; with direct members, at least four per member within the unchanged total budget. An explicit lower value fails startup. |
 | `ESHU_POSTGRES_EXPECTED_SYSTEM_ID` | Optional independently supplied physical cluster identity. |
 
 A single-instance install can set both DSNs to exactly the same string or omit
@@ -61,7 +61,11 @@ database, credentials, and TLS settings; configure its transport explicitly so
 pgx has no alternate-host or TLS fallback. Prefer verified TLS when the reader
 certificates support it. No credentials belong in the inventory. The total
 reader connection allocation is divided across members, with at least four
-connections available to each for snapshot-set reads.
+open and four idle connections for each member's snapshot-set reads. With two
+members and the default 10 idle connections, eight go to readers and two
+remain for the writer. More members require a large enough
+`ESHU_POSTGRES_MAX_IDLE_CONNS` total; startup rejects a smaller total or an
+explicit reader idle allocation below four per member. Open limits do not rise.
 
 Membership is fixed at startup. An unreachable member is ineligible; a role,
 cluster, database, or direct-address mismatch fails startup. One qualified
