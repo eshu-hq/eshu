@@ -66,26 +66,34 @@ retains the same read-only repeatable-read connection until Commit, Rollback,
 or request cancellation. Snapshot-set setup fences every reserved reader
 before beginning any transaction, then imports the export into each worker
 before its first query. The exporter stays open through caller assembly. A
-per-Access, context-aware reservation gate prevents two sets from holding
-partial pool reservations; cancellation and setup failures release all
-acquired connections. Cursor close does not release that transaction.
-In fleet mode, failed set setup releases the complete attempt and tries the
-next qualified member. No exported snapshot or partial result crosses members.
+per-Access reservation gate protects legacy single-reader sets. In fleet mode,
+one allocator atomically reserves all four slots on one member before setup;
+it also accounts for single reads, transactions, and readiness checks under
+both the member and aggregate caps. An older waiting four-slot set is protected
+from later single reads on the same member while another available member can
+continue serving work. Cancellation and setup failures release all slots.
+Cursor close does not release its transaction. Fleet setup can retry another
+member within one overall replay deadline, starting with a short attempt when
+an alternative is available. A changed local incarnation/address may fail
+over only to a different qualified member; writer/checkpoint and shared
+configuration mismatches fail closed. No snapshot or partial result crosses
+members.
 If an established member disappears during a snapshot, a narrow
 `ReaderMemberLost() bool` error marker permits the caller to retry its whole
 read workflow from a fresh snapshot, not an individual SQL statement. Auth,
 TLS, SQL, caller cancellation, and replay staleness do not carry that marker.
-`Ping` requires the writer and at least one qualified reader member; pool
-metrics aggregate all reader members.
-Every guarded reader borrow and the exposed readiness ping also own one permit
-from the configured reader pool budget until their connection is returned. If a
-snapshot set's internal permit wait expires while the request remains live, it
-releases its partial reservation and reports a typed capacity error. The
+Fleet `Ping` has one ping deadline, captures a writer checkpoint, and requires
+at least one reader passing the same frozen identity and replay fence as a
+business read. Pool metrics aggregate all reader members. In legacy mode,
+guarded borrows and readiness checks own one permit from the reader budget
+until their connection is returned. If a legacy snapshot set's permit wait
+expires while the request remains live, it releases its partial reservation
+and reports a typed capacity error. The
 code-topic handler may
 then make one single-statement attempt through the same fenced reader and
 checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
-do not trigger that fallback. The permit wait retains the configured reader
-deadline (two seconds by default), so a contended fallback is not a
+do not trigger that fallback. The legacy permit wait retains the configured
+reader deadline (two seconds by default), so a contended fallback is not a
 subsecond-latency claim.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL

@@ -120,7 +120,7 @@ func memberValidator(writer physicalIdentity, incarnation string, addresses []ne
 			return err
 		}
 		if id.incarnation != incarnation || len(results) != 1 || len(results[0].Rows) != 1 || len(results[0].Rows[0]) != 1 || !addressMatches(string(results[0].Rows[0][0]), addresses) {
-			return ErrWrongTopology
+			return memberLocalTopology{}
 		}
 		return nil
 	}

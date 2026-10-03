@@ -56,11 +56,13 @@ type Access struct {
 	readerHasFallbacks bool
 	samePrimary        bool
 	replayTimeout      time.Duration
+	pingTimeout        time.Duration
 	observer           Observer
 	identity           physicalIdentity
 	snapshotSetGate    chan struct{}
 	readerPermits      chan struct{}
 	readerMembers      []physicalReaderMember
+	allocator          *readerAllocator
 	nextReader         atomic.Uint64
 }
 
@@ -125,16 +127,33 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
-	access := &Access{writer: writer, reader: reader, readerMembers: members, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, cfg.ReadMaxOpenConns)}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
 	access.snapshotSetGate <- struct{}{}
-	for range cfg.ReadMaxOpenConns {
-		access.readerPermits <- struct{}{}
+	if len(members) > 0 {
+		caps := make([]int, len(members))
+		for i := range members {
+			caps[i] = members[i].maxOpen
+		}
+		access.allocator = newReaderAllocator(caps, cfg.ReadMaxOpenConns)
+	} else {
+		access.readerPermits = make(chan struct{}, cfg.ReadMaxOpenConns)
+		for range cfg.ReadMaxOpenConns {
+			access.readerPermits <- struct{}{}
+		}
 	}
 	if err := writer.PingContext(pingCtx); err != nil {
 		_ = access.Close()
 		return nil, privateFailure(failureWriterPing, err)
 	}
-	if err := access.pingReader(pingCtx); err != nil {
+	readerPingCtx := pingCtx
+	if len(members) > 0 {
+		readerPingCtx, err = access.ContextWithCheckpoint(pingCtx)
+		if err != nil {
+			_ = access.Close()
+			return nil, privateFailure(failureReaderPing, err)
+		}
+	}
+	if err := access.pingReader(readerPingCtx); err != nil {
 		_ = access.Close()
 		return nil, privateFailure(failureReaderPing, err)
 	}
@@ -164,6 +183,18 @@ func (a *Access) Stats() (writer, reader sql.DBStats) {
 
 // Ping checks the writer and at least one qualified reader for readiness.
 func (a *Access) Ping(ctx context.Context) error {
+	if len(a.readerMembers) > 0 {
+		bounded, cancel := context.WithTimeout(ctx, a.pingTimeout)
+		defer cancel()
+		if err := a.writer.PingContext(bounded); err != nil {
+			return privateFailure(failureWriterPing, err)
+		}
+		checkpointCtx, err := a.ContextWithCheckpoint(bounded)
+		if err != nil {
+			return privateFailure(failureReaderPing, err)
+		}
+		return a.pingReader(checkpointCtx)
+	}
 	if err := a.writer.PingContext(ctx); err != nil {
 		return privateFailure(failureWriterPing, err)
 	}
@@ -180,12 +211,11 @@ func (a *Access) pingReader(ctx context.Context) error {
 		}
 	}
 	if len(a.readerMembers) > 0 {
-		for _, index := range a.memberOrder(1) {
-			if a.readerMembers[index].pool.PingContext(ctx) == nil {
-				return nil
-			}
+		conn, err := a.borrowFleet(ctx)
+		if err != nil {
+			return privateFailure(failureReaderPing, err)
 		}
-		return privateFailure(failureReaderPing, ErrReaderUnavailable)
+		return privateFailure(failureReaderPing, conn.Close())
 	}
 	if err := a.reader.PingContext(ctx); err != nil {
 		return privateFailure(failureReaderPing, err)
