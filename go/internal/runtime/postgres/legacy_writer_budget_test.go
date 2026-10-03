@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -87,7 +89,10 @@ func TestLegacyWriterBootstrapKeepsFullPingBudget(t *testing.T) {
 		workers.Wait()
 	})
 	proxyPort := listener.Addr().(*net.TCPAddr).Port
-	proxyDSN := fmt.Sprintf("host=127.0.0.1 port=%d user=postgres dbname=postgres sslmode=disable", proxyPort)
+	proxyDSN, err := legacyWriterProxyDSN(writerDSN, proxyPort)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg, err := LoadConfig(func(key string) string {
 		switch key {
 		case "ESHU_POSTGRES_DSN", "ESHU_POSTGRES_READ_DSN":
@@ -107,4 +112,40 @@ func TestLegacyWriterBootstrapKeepsFullPingBudget(t *testing.T) {
 	if err := access.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestLegacyWriterProxyDSNRetainsFixtureIdentity(t *testing.T) {
+	for _, raw := range []string{
+		"host=writer.internal port=5432 user=fixture_user dbname=fixture_db password=fixture_password sslmode=disable application_name=fixture_probe",
+		"postgres://fixture_user:fixture_password@writer.internal:5432/fixture_db?sslmode=disable&application_name=fixture_probe",
+	} {
+		original, err := parsePhysicalEndpoint(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proxyDSN, err := legacyWriterProxyDSN(raw, 15432)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proxied, err := parsePhysicalEndpoint(proxyDSN)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if proxied.Host != "127.0.0.1" || proxied.Port != 15432 || proxied.User != original.User || proxied.Database != original.Database ||
+			proxied.Password != original.Password || proxied.RuntimeParams["application_name"] != original.RuntimeParams["application_name"] {
+			t.Fatalf("proxy changed fixture identity or options: host=%q port=%d user=%q database=%q", proxied.Host, proxied.Port, proxied.User, proxied.Database)
+		}
+	}
+}
+
+func legacyWriterProxyDSN(raw string, port int) (string, error) {
+	if strings.HasPrefix(raw, "postgres://") || strings.HasPrefix(raw, "postgresql://") {
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			return "", err
+		}
+		parsed.Host = net.JoinHostPort("127.0.0.1", fmt.Sprint(port))
+		return parsed.String(), nil
+	}
+	return raw + fmt.Sprintf(" host=127.0.0.1 port=%d", port), nil
 }
