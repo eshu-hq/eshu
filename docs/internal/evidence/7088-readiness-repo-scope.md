@@ -202,9 +202,9 @@ possible.
 The new index on the local corpus is 98,304 bytes, covering 1,621 of 281,816
 `fact_records` rows. The seed deliberately puts one legacy and one gap row in
 each of the 650 noise scopes. Migration 121's index is 245,760 bytes over
-10,162 rows. On ops-qa the arm-2 predicate matches 0 rows and the gap
-predicate matches 17 (teammate measurement), so the index is expected, not
-measured, to be a page or two.
+10,162 rows. Before deployment, the teammate measured 0 arm-2 matches and
+17 gap matches on ops-qa and expected a small index. The deployed standby
+size, measured later, is six 8 KiB pages as recorded below.
 
 Insert tax and build time, LOCAL measurement (2026-10-02, disposable
 `postgres:18-alpine` container (18.6), real bootstrap schema with all 177 migrations, so
@@ -224,10 +224,11 @@ no-index runs, so this measurement cannot separate the tax from noise.
 `CREATE INDEX CONCURRENTLY` on the populated 200,000-row table took 0.058,
 0.058 and 0.059 s and produced a 16,384-byte index (16 predicate rows); the
 heap was 86,237,184 bytes. These are LOCAL numbers from a single-session
-insert, not an ops-qa build time: ops-qa has a 183 GB heap and about 138M
-rows. The deployed build duration is recorded below. Its attributable
-effect on replica conflicts and the real ops-qa insert tax remain
-NOT_CHECKED. The local insert-run raw log is not committed. Every git
+insert, not an ops-qa build time. At the 2026-10-02 pre-deploy observation,
+the ops-qa heap was reported at about 183 GB and 138M rows. The later
+standby size and deployed build duration are recorded below; build-attributable
+replica conflicts and the real ops-qa insert tax remain NOT_CHECKED. The
+local insert-run raw log is not committed. Every git
 `content_entity` insert or update also evaluates the partial predicate
 (a few JSONB extractions); only matching rows pay index maintenance.
 
@@ -243,10 +244,10 @@ Migration 159 is deployed on ops-qa. The schema Job logged 1,221,522 ms
 The streaming reader's cumulative `confl_snapshot` counter was 7 when
 checked afterwards; without a before counter and a matching stats-reset
 boundary, none of those conflicts can be attributed to the build.
-The deployed index occupies 49,152 bytes on the standby versus
-208,274,554,880 bytes for the `fact_records` heap. The standby reported
-1,049 scans of that index at observation time; this counter has no
-before-build comparator.
+The deployed index occupies 49,152 bytes (six 8 KiB pages) on the standby
+versus 208,274,554,880 bytes (about 194 GiB) for the `fact_records` heap.
+The standby reported 1,049 scans of that index at observation time; this
+counter has no before-build comparator.
 
 A temporary, uncommitted Go diagnostic passed the shipped
 `ListReadinessQuery` and its production-shaped 20 repository arguments to
