@@ -153,7 +153,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainWorkloadCloudRelationshipMaterialization: "additive, gated on FactLoader+WorkloadCloudRelationshipEdgeWriter with readiness lookup; idempotency proven by workload_cloud_relationship_materialization_*_test.go",
 	DomainObservabilityCoverageMaterialization:     "additive, gated on FactLoader+ObservabilityCoverageEdgeWriter with readiness lookup; idempotency proven by observability_coverage_materialization_*_test.go",
 	DomainKubernetesCorrelationMaterialization:     "additive, gated on FactLoader+KubernetesCorrelationEdgeWriter with readiness lookup; idempotency proven by kubernetes_correlation_materialization_*_test.go",
-	DomainCrossplaneSatisfiedByMaterialization:     "additive, gated on FactLoader+CrossplaneSatisfiedByEdgeWriter; MATCH-MATCH-MERGE edge write is idempotent by (claim_uid, SATISFIED_BY, xrd_uid) and rows are deduplicated before write, idempotency proven by crossplane_satisfied_by_edge_rows_test.go and crossplane_satisfied_by_edge/writer/dispatch_test.go",
+	DomainCrossplaneSatisfiedByMaterialization:     "additive, gated on FactLoader+CrossplaneSatisfiedByEdgeWriter; MATCH-MATCH-MERGE edge write is idempotent by (claim_uid, SATISFIED_BY, xrd_uid) and rows are deduplicated before write, idempotency proven by satisfied_by_edge_rows_test.go and crossplane_satisfied_by_edge/writer/dispatch_test.go",
 	DomainEC2UsesProfileMaterialization:            "additive, gated on FactLoader+EC2UsesProfileEdgeWriter with dual readiness lookup; idempotency proven by ec2usesprofile/ec2_uses_profile_materialization_*_test.go",
 
 	// Security group + IAM edge materializers: readiness-gated graph edges, proven
@@ -174,7 +174,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainCodeTaintEvidence:              "additive, gated on CodeTaint evidence loader+writer with prior-generation check; idempotency proven by code/taint/evidence_materialization_test.go",
 	DomainCodeInterprocEvidence:          "additive, gated on CodeInterproc evidence loader+writer with prior-generation check; idempotency proven by code/taint/interproc_evidence_materialization_test.go",
 	DomainCodeFunctionSummary:            "additive, gated on CodeFunctionSummary loader+writer plus source/graph-id/value-flow writers; idempotency proven by code_function_summary_materialization_test.go",
-	DomainIncidentRoutingMaterialization: "additive, gated on IncidentRouting evidence loader+writer with prior-generation check; idempotency proven by incident_routing_materialization_test.go",
-	DomainIncidentRepositoryCorrelation:  "additive, gated on PagerDuty routing loader+repo resolver+IncidentRepositoryCorrelationWriter; cross-source fan-in, idempotency proven by incident_repository_correlation_test.go",
+	DomainIncidentRoutingMaterialization: "additive, gated on IncidentRouting evidence loader+writer with prior-generation check; idempotency proven by routing_materialization_test.go",
+	DomainIncidentRepositoryCorrelation:  "additive, gated on PagerDuty routing loader+repo resolver+IncidentRepositoryCorrelationWriter; cross-source fan-in, idempotency proven by repository_correlation_test.go",
 	DomainDeployableUnitCorrelation:      "additive, gated on DeployableUnitCorrelationHandler; cross-source/cross-scope candidate correlation with graph read-back, idempotency proven by deployable_unit_correlation_*_test.go",
 }

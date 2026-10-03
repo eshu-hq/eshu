@@ -367,7 +367,7 @@ func observabilityCoverageCorrelationDomainDefinition() DomainDefinition {
 
 // incidentRoutingMaterializationDomainDefinition returns the additive
 // definition for PagerDuty incident-routing graph materialization. It moved
-// here from incident_routing_materialization.go (now internal/reducer/incident,
+// here from routing_materialization.go (now internal/reducer/incident,
 // issue #6061): every additive family's DomainDefinition builder stays in the
 // root registry regardless of where its handler lives, matching
 // configStateDriftDomainDefinition and eshuSearchDocumentDomainDefinition
@@ -393,7 +393,7 @@ func incidentRoutingMaterializationDomainDefinition() DomainDefinition {
 
 // incidentRepositoryCorrelationDomainDefinition returns the additive
 // incident-repository correlation domain definition. It moved here from
-// incident_repository_correlation_writer.go (now internal/reducer/incident,
+// repository_correlation_writer.go (now internal/reducer/incident,
 // issue #6061); see incidentRoutingMaterializationDomainDefinition above for
 // why the builder stays in the root registry. Its truth contract spans the
 // source declaration layer (the applied routing fact) and the
