@@ -199,7 +199,7 @@ parity, Compose execution, redaction, and operator evidence.
 | Remote Compose proof | Complete | `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml` and `scripts/verify-remote-e2e-pagerduty-component-extension.sh` |
 | Private-data proof | Complete | Remote proof redaction canary and reference component redaction test |
 | Operator evidence | Complete | `docs/internal/remote-validation/prod-component-extension-inventory.md` and `docs/internal/remote-validation/prod-component-extension-diagnostics.md`; health, readiness, metrics, logs, and status endpoints. |
-| Production reducer/read truth | In-tree only | `go/internal/reducer/incident/incident_routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, and `go/internal/query/incident_context_routing.go`. |
+| Production reducer/read truth | In-tree only | `go/internal/reducer/incident/routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, and `go/internal/query/incident_context_routing.go`. |
 
 The two capability-state markers above are backed by the named production
 validation artifacts. The diagnostics artifact records a live authenticated

@@ -65,7 +65,7 @@ the inline budget (see below). And two remaining root call sites were
 repointed directly at this package so that the function containing them keeps
 its own inlinability — in `shared_projection_worker_refresh_fence.go` and
 `match.go`. Three earlier bypass sites —
-`container_image_identity_ref_parsing.go`, `crossplane_satisfied_by_edge_rows.go`,
+`container_image_identity_ref_parsing.go`, `satisfied_by_edge_rows.go`,
 and `observability_coverage_metadata.go` — have since moved into their own
 family subpackages (`containerimage`, `crossplane`, and `obscoverage`
 respectively), where a direct `payloadcore` import is unremarkable rather than

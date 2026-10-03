@@ -191,7 +191,7 @@ func TestMergeSeamsByIdentityCollapsesCrossSurfaceDuplicate(t *testing.T) {
 	usage := map[string][]FieldUsage{
 		// The reducer-side qualified call's field reads happen through a
 		// helper function the scanner does not trace into, mirroring
-		// incident_routing_evidence_decode.go's real shape: zero usage.
+		// routing_evidence_decode.go's real shape: zero usage.
 		"DecodeIncidentRecord": nil,
 		// The query-layer seam's own local wrapper reads fields inline.
 		"decodeIncidentRecord": {

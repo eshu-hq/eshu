@@ -221,7 +221,7 @@ func TestGateAgainstRealReducerAndSchemas(t *testing.T) {
 // asserts two things the fix must hold:
 //
 //  1. Positive coverage — the manifest lists the incident kinds and their real
-//     field usage from incident_routing_evidence_decode.go, so the gate has an
+//     field usage from routing_evidence_decode.go, so the gate has an
 //     incident contract to check at all.
 //  2. Live reverse-break — if a field the incident handler actually reads
 //     (resource_class on the applied_pagerduty_resource kind, the sharpest

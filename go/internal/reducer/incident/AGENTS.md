@@ -48,7 +48,7 @@ this move.
   how many provider services or rows share it.
 - **Do not import the reducer root's shared batch-insert test doubles.**
   This package keeps its own scoped copy
-  (`incident_repository_correlation_writer_batch_test_helpers_test.go`) of
+  (`repository_correlation_writer_batch_test_helpers_test.go`) of
   the `fakeWorkloadIdentityExecer` / `decodeBatchedFactCalls` shapes instead
   of the root's `workload_identity_writer_test.go` /
   `reducer_fact_batch_insert_test_helpers_test.go` versions — those are still
@@ -69,15 +69,15 @@ this move.
 Adding a new incident-routing evidence slot (beyond
 declared/applied/observed): extend `incidentRoutingSlotDecision` and the
 three `incidentRouting*Decision` builders in
-`incident_routing_evidence_rows.go` together, and update
+`routing_evidence_rows.go` together, and update
 `incidentRoutingEvidenceIsGraphEligible`'s convergence rule to say whether the
 new slot participates in exact eligibility.
 
 Adding a new correlation outcome: extend
 `IncidentRepositoryCorrelationOutcome`'s const block and
 `incidentRepositoryCorrelationOutcomes()` in
-`incident_repository_correlation.go` together, and decide in
-`classifyProviderServiceCandidate` (`incident_repository_correlation_build.go`)
+`repository_correlation.go` together, and decide in
+`classifyProviderServiceCandidate` (`repository_correlation_build.go`)
 which classification path produces it.
 
 ## Failure modes to avoid
@@ -88,7 +88,7 @@ which classification path produces it.
   non-exact outcome as a graph row.
 - Adding the resolved `RepositoryID` to `incidentRepositoryCorrelationIdentity`.
 - Adding a batch-insert-shaped test helper to this package's
-  `incident_repository_correlation_writer_batch_test_helpers_test.go` that
+  `repository_correlation_writer_batch_test_helpers_test.go` that
   silently diverges from the root's copies other families still use. If the
   shared shape changes, change both.
 

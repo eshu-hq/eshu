@@ -138,7 +138,6 @@ LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/aws_resource_service_anchor.go:33
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/azure_resource_materialization.go:203
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/gcp_resource_materialization.go:305
-LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/incident/incident_repository_correlation_writer.go:150
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/kubernetes_workload_materialization.go:312
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/projected_source_ledger.go:11
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/workload_identity_writer.go:164
@@ -299,8 +298,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/setup_han
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_policy_mutations.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_repository_correlation.go:278
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_routing_materialization.go:203
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_dependency_projection_runner.go:149
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358

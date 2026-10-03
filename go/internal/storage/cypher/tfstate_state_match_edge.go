@@ -105,7 +105,7 @@ SET e.evidence_source = 'projector/tfstate',
 // (backend_kind, locator_hash) pair within this batch -- one resolver call
 // per distinct backend, not one per resource -- mirroring the memoization
 // already used for the equivalent drift-correlation lookup
-// (incident_repository_correlation_build.go). A nil resolver (the default;
+// (repository_correlation_build.go). A nil resolver (the default;
 // see WithTerraformStateOwnershipResolver) or a row with a blank backend
 // identity leaves OwningRepoID empty and OwnershipOutcome at its zero value
 // (canonical.TerraformStateOwnershipTransientFailure), which downstream

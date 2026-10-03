@@ -136,7 +136,7 @@ var readOnlyMapBindings = map[string]string{
 	// reducer/code/value.CloudSinkTargetsByPairCypher: a MATCH-only loader.
 	"pair": "reducer/code/value/cloud_sink_loader.go",
 	// crossplaneSatisfiedByEdgeExistsCypher: MATCH ... RETURN existence probe.
-	"candidate": "reducer/crossplane/crossplane_satisfied_by_edge_existence.go",
+	"candidate": "reducer/crossplane/satisfied_by_edge_existence.go",
 	// Orphan-sweep reads and marker writes: candidate_key.key_N only anchors
 	// MATCH/WHERE; the writes store $observed_at_unix or REMOVE the marker.
 	"candidate_key": "storage/cypher/orphan_sweep_queries.go, orphan_sweep_writes.go",
