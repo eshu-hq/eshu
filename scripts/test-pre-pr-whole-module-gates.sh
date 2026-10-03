@@ -10,6 +10,7 @@ fast_runner="${repo_root}/tests/run_tests.sh"
 parser_agent_guidance="${repo_root}/go/internal/parser/AGENTS.md"
 canonical_parser_test_docs=(
 	"${repo_root}/AGENTS.md"
+	"${repo_root}/docs/internal/agent-verification-details.md"
 	"${repo_root}/CONTRIBUTING.md"
 	"${repo_root}/docs/public/contributing-language-support.md"
 	"${repo_root}/docs/public/guides/fixture-ecosystems.md"
@@ -352,6 +353,17 @@ assert_canonical_parser_commands_recursive() {
 if (assert_canonical_parser_commands_recursive "${temp_root}/missing-parser-guidance.md") 2>/dev/null; then
 	fail "canonical parser command audit accepted a missing input"
 fi
+# Seeded pair: the audit must reject a planted non-recursive command and accept
+# the recursive form. Without it the audit can go vacuous when a canonical block
+# moves to a doc that is not on the list, as the verification-details move did.
+seeded_nonrecursive="${temp_root}/seeded-nonrecursive-parser.md"
+printf 'cd go && go test ./internal/parser ./internal/collector -count=1\n' >"${seeded_nonrecursive}"
+if (assert_canonical_parser_commands_recursive "${seeded_nonrecursive}") 2>/dev/null; then
+	fail "canonical parser command audit accepted a non-recursive ./internal/parser command"
+fi
+seeded_recursive="${temp_root}/seeded-recursive-parser.md"
+printf 'cd go && go test ./internal/parser/... ./internal/collector -count=1\n' >"${seeded_recursive}"
+assert_canonical_parser_commands_recursive "${seeded_recursive}"
 assert_canonical_parser_commands_recursive "${canonical_parser_test_docs[@]}"
 [[ -f "${parser_agent_guidance}" ]] ||
 	fail "missing canonical parser test guidance: ${parser_agent_guidance}"
