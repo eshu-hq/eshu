@@ -121,3 +121,34 @@ No-Regression Evidence: unit tests on the cap and its within-limit and story-sur
 cases; no query changes. The effect on the 25 services is NOT_CHECKED until this
 build is deployed to ops-qa and they are re-measured.
 No-Observability-Change: the signal is in the response (`partial_reasons`, `result_limits`).
+
+## Follow-up: entrypoint_candidates rows (measured on ops-qa with #7528 merged)
+
+The largest `get_service_context` response read over the HTTP route was
+240,068 bytes against the 262,144 byte budget, with `result_limits.truncated`
+true. By JSON size its payload fields were `entrypoint_candidates` 62,978
+(357 rows, no cap), `deployment_overview` 42,620, `api_surface` 42,044,
+`documentation_overview` 37,413, `entrypoints` 10,084 (50, capped), `hostnames`
+8,184 (50, capped); `infrastructure` was 33 rows. `entrypoint_candidates` is
+built from the repository's content evidence per request with no read bound,
+so it grows with repository size, the same defect class as `infrastructure`.
+
+The change cuts it to 50 rows after every consumer of the full list has run.
+The total is on `result_limits.entrypoint_candidate_count`, read before the
+cut, and the reason is `entrypoint_candidates_truncated`. The story surface
+ships its own bounded copy and is not cut. Nothing downstream of the cap reads
+the list, and the console does not read it.
+
+By code reading only (not measured): `deployment_overview` carries counts and
+a copy of `api_surface` minus the endpoint rows, but `api_surface` also holds
+`docs_routes`, `hostnames`, `spec_paths`, `spec_versions` and `api_versions`
+with no cap, and `documentation_overview` carries `api_spec_paths`, also
+uncapped. Those are the likely source of the remaining bytes and need their
+own measurement before a cap.
+
+No-Regression Evidence: unit tests on the cut, the within-limit case, the story
+surface and the source slice; no query changes. With the cap call disabled the
+cut test fails (`entrypoint_candidates len = 357, want 50`). The effect on the
+largest service is NOT_CHECKED until this build is deployed to ops-qa and it is
+re-measured.
+No-Observability-Change: the signal is in the response (`partial_reasons`, `result_limits`).

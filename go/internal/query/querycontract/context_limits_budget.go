@@ -11,11 +11,12 @@ import "slices"
 // what one page of deployment evidence holds (#7129).
 var contextEvidenceRowKeys = []string{"artifacts", "delivery_paths", "delivery_workflows", "shared_config_paths"}
 
-// capContextBudgetRows bounds the three payload families that kept the workload
+// capContextBudgetRows bounds the four payload families that kept the workload
 // and service context responses over the MCP response budget after the
 // hostname and entrypoint caps (#7129): the API surface endpoint rows, which
-// the overview repeated, the deployment-evidence row lists, and the
-// infrastructure list, whose read bound is 5,000 rows.
+// the overview repeated, the deployment-evidence row lists, the infrastructure
+// list, whose read bound is 5,000 rows, and the entrypoint_candidates list,
+// which had no bound at all.
 //
 // It runs from WorkloadContextResultLimits, after every consumer of the full
 // lists has read them, so the cut changes only what ships. Pre-cut totals stay
@@ -32,7 +33,26 @@ func capContextBudgetRows(ctx map[string]any) (artifactTotal int, truncated bool
 	artifactTotal, evidenceTruncated := capContextDeploymentEvidence(ctx)
 	apiTruncated := capContextAPISurface(ctx)
 	infraTruncated := capContextInfrastructure(ctx)
-	return artifactTotal, evidenceTruncated || apiTruncated || infraTruncated
+	candidatesTruncated := capContextEntrypointCandidates(ctx)
+	return artifactTotal, evidenceTruncated || apiTruncated || infraTruncated || candidatesTruncated
+}
+
+// capContextEntrypointCandidates cuts the entrypoint_candidates list to
+// ContextStoryItemLimit and names the cut with a reason of its own. The list
+// holds hostname-shaped tokens kept as non-entrypoint supporting evidence, has
+// no read bound, and grows with repository size: 357 rows (about 63 KB) on the
+// largest ops-qa service. The caller reports the pre-cut total as
+// result_limits.entrypoint_candidate_count. It only reassigns the ctx key to a
+// shorter view, so the caller's backing slice is never written.
+func capContextEntrypointCandidates(ctx map[string]any) bool {
+	rows := MapSliceValue(ctx, "entrypoint_candidates")
+	capped, cut := CapMapRows(rows, ContextStoryItemLimit)
+	if !cut {
+		return false
+	}
+	ctx["entrypoint_candidates"] = capped
+	appendContextLimitation(ctx, "entrypoint_candidates_truncated")
+	return true
 }
 
 // capContextInfrastructure cuts the infrastructure list to ContextStoryItemLimit
