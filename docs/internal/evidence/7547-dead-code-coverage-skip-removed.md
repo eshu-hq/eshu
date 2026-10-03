@@ -36,6 +36,8 @@ Performance Evidence: this branch is based on `origin/main` without PR #7554, wh
 
 No-Observability-Change: the change removes one `code_reachability_coverage` read from the dead-code incoming path and adds no metric, span, log key, status field, worker, or queue stage. The existing `postgres.query` span and `db.operation=dead_code_incoming_entity_ids` label now cover more calls; an operator sees the shift as more `dead_code_incoming_entity_ids` operations per dead-code request.
 
+The deployed endpoint result after both this change and #7554 are rolled out is recorded in the "Deployed acceptance sweep" section of `docs/internal/evidence/7249-dead-code-reachability.md`: all 21 swept pairs under 1 s in the second run, with one disclosed 1.005 s repeat in the first.
+
 ## Rollback
 
 Revert the commit. No schema, data, or contract changed. `CodeReachabilityCoverage` and the content reader's coverage method stay in place for the codequery seam alias and PR B; no production caller reads them after this change.
