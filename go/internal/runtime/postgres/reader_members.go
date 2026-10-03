@@ -325,6 +325,7 @@ func (a *Access) memberOrder(count int) []int {
 	if len(a.readerMembers) == 0 {
 		return nil
 	}
+	// #nosec G115 -- modulo a nonempty slice length bounds the result to an int index.
 	start := int((a.nextReader.Add(1) - 1) % uint64(len(a.readerMembers)))
 	order := make([]int, 0, len(a.readerMembers))
 	for offset := range a.readerMembers {

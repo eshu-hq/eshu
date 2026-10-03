@@ -411,3 +411,14 @@ func TestReaderMembersPingRequiresFrozenMemberIdentity(t *testing.T) {
 		t.Fatal("readiness accepted two members that no longer match frozen identity")
 	}
 }
+
+func TestMemberOrderCounterWrapKeepsIndexesInBounds(t *testing.T) {
+	access := &Access{readerMembers: []physicalReaderMember{
+		{maxOpen: 4}, {maxOpen: 4}, {maxOpen: 4},
+	}}
+	access.nextReader.Store(^uint64(0))
+	order := access.memberOrder(4)
+	if len(order) != 3 || order[0] != 0 || order[1] != 1 || order[2] != 2 {
+		t.Fatalf("member order after counter wrap = %v, want [0 1 2]", order)
+	}
+}
