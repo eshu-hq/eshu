@@ -26,7 +26,13 @@ Response shaping only. No read, query or graph change.
   `consumer_evidence_source: "repository_boundary"`. Other rows get `"entity"`.
   Every row gets `consumer_evidence_count` (length of its own list).
 - The response gains `data.boundary_consumer_evidence` and
-  `data.boundary_consumer_evidence_count`, always present.
+  `data.boundary_consumer_evidence_count`, always present. The list is emitted
+  only when at least one row got `repository_boundary`; otherwise it is `[]` and
+  the count 0, so a response whose rows all have entity evidence carries no
+  boundary bytes, as before the change.
+- The hoisted list is itself unbounded (one item per incoming relationship that
+  the selector and grant admit). The follow-up (`evidence_detail` handles) caps
+  it at 50; this change does not.
 - A row counts as a fallback row only when boundary items were visible to it. A
   row nothing backs (no boundary relationships at all, so it classifies dead) is
   `entity` with count 0.
@@ -51,6 +57,12 @@ candidates, no per-entity evidence, 20 fully populated incoming relationships
 | HEAD (6d0c1d81d) | 824,864 (`mcp_response_over_budget`) | 3.15x over |
 | With the hoist | 187,776 | 71.6% of budget, 74,368 bytes headroom |
 | Hoist reverted to the per-row append (seeded violation) | 855,726 (`mcp_response_over_budget`) | the test fails |
+
+Emit-only-when-used: `TestCrossRepoDeadCodeBoundaryListIsOmittedWhenNoRowUsedIt`
+(20 boundary relationships, entity evidence on every candidate) requires
+`boundary_consumer_evidence` to be `[]` and its count 0. Seeded violation (always
+emit the list): the test fails with 20 items. The fixture-1 est2x above is
+unchanged by this rule (187,776), because every row there uses the fallback.
 
 The 824,864 figure is a synthetic fixture, not the live 761,090-byte reply; the
 live number is NOT_CHECKED after this change (no ops-qa access in this

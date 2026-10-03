@@ -223,8 +223,11 @@ copied into each row's `consumer_evidence` (about 12 KB per row on the measured
 ops-qa repository, enough to push a default-args reply over the MCP budget,
 #7129). The route now puts them in `data.boundary_consumer_evidence`, with
 `data.boundary_consumer_evidence_count`, after the request's `consumer_repo_ids`
-selector and the caller's grant. Both keys are always present, and the list is
-empty when the repository has no boundary relationships. A row that used the
+selector and the caller's grant. Both keys are always present. The list is
+empty, and the count 0, when no row used the fallback: every candidate had its
+own entity evidence, the repository has no boundary relationships, or the caller
+may see none of them. It is not capped here, so a repository with many incoming
+relationships still returns every one of them once. A row that used the
 fallback keeps `consumer_evidence: []` and carries
 `consumer_evidence_source: "repository_boundary"`; every other row carries
 `consumer_evidence_source: "entity"` and its own evidence. Each row also reports

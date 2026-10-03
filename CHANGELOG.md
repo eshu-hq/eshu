@@ -18,7 +18,7 @@ recent shipped work grouped by feature area.
   about 12 KB per row on one ops-qa repository, so default arguments returned
   `mcp_response_over_budget`. The items now come once in
   `data.boundary_consumer_evidence` (with `boundary_consumer_evidence_count`,
-  always present). Such rows keep `consumer_evidence: []` and gain
+  always present, empty and 0 when no row used the fallback). Such rows keep `consumer_evidence: []` and gain
   `consumer_evidence_source: "repository_boundary"`; other rows get `"entity"`;
   every row gets `consumer_evidence_count`. Classification and
   `hidden_consumer_evidence_count` are unchanged. Clients that read a fallback
