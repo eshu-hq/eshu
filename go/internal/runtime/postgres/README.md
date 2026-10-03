@@ -51,10 +51,18 @@ before borrowing a reader.
   not universal physical-identity proof. Restart API/MCP to change inventory.
   Member pools split the existing total read open/idle budgets; each configured
   member needs at least four open slots for a four-way code-topic set. A
-  member unavailable at bootstrap remains ineligible until restart.
+  member with a recognized transient DNS/transport/SQL availability failure at
+  bootstrap remains ineligible until restart. Authentication, completed TLS,
+  permission, missing-database, malformed-identity, and unknown setup failures
+  abort startup even when another member qualifies. Only a decoded physical
+  identity contradiction is classified as wrong topology.
 - Connection lifetime, idle time, and startup ping timeout retain the shared
   runtime PostgreSQL settings. Reader pool acquisition and replay waiting have
   a separate bounded deadline; business SQL uses the caller's request context.
+  `Open` caps writer bootstrap and concurrent direct-member qualification at
+  one third of its single `min(PingTimeout, caller deadline)` budget each; the
+  writer/reader readiness checks share the remaining deadline. Canceled
+  bootstrap sockets and pgx cleanup are joined before an Access can be returned.
 
 The reader pool sets `default_transaction_read_only=on` on every physical
 connection, including reconnects. A DSN's `target_session_attrs=read-write`

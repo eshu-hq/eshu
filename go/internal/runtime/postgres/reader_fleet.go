@@ -5,12 +5,10 @@ package postgres
 
 import (
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"io"
-	"net"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -37,7 +35,7 @@ func fleetCheckpoint(ctx context.Context, access *Access) (checkpoint, error) {
 	return point, nil
 }
 
-func sharedFleetFailure(err error) bool {
+func sharedFleetFailure(parent context.Context, err error) bool {
 	var local memberLocalTopology
 	if errors.As(err, &local) {
 		return false
@@ -47,25 +45,13 @@ func sharedFleetFailure(err error) bool {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return len(pgErr.Code) >= 2 && pgErr.Code[:2] == "28"
+		return len(pgErr.Code) >= 2 && pgErr.Code[:2] == "28" || pgErr.Code == "42501" || pgErr.Code == "3D000"
 	}
-	var certificateErr x509.UnknownAuthorityError
-	var hostnameErr x509.HostnameError
-	var invalidErr x509.CertificateInvalidError
-	var rootsErr x509.SystemRootsError
-	return errors.As(err, &certificateErr) || errors.As(err, &hostnameErr) ||
-		errors.As(err, &invalidErr) || errors.As(err, &rootsErr)
+	return !retryableFleetFailure(parent, err)
 }
 
-func retryableFleetFailure(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return len(pgErr.Code) >= 2 && pgErr.Code[:2] == "08"
-	}
-	var networkErr *net.OpError
-	return errors.Is(err, ErrReaderStale) || errors.Is(err, ErrReaderUnavailable) ||
-		errors.Is(err, context.DeadlineExceeded) || errors.Is(err, driver.ErrBadConn) ||
-		errors.Is(err, io.EOF) || errors.As(err, &networkErr)
+func retryableFleetFailure(parent context.Context, err error) bool {
+	return transientReaderMemberFailure(parent, err) || errors.Is(err, io.EOF)
 }
 
 func fleetAttemptContext(parent context.Context, alternative bool) (context.Context, context.CancelFunc) {
@@ -122,7 +108,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 		}
 		reservation.Release()
 		failures = errors.Join(failures, attemptErr)
-		if sharedFleetFailure(attemptErr) {
+		if sharedFleetFailure(bounded, attemptErr) {
 			return zero, attemptErr
 		}
 		var local memberLocalTopology
@@ -130,7 +116,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 			excluded[reservation.member] = true
 			continue
 		}
-		if !retryableFleetFailure(attemptErr) {
+		if !retryableFleetFailure(bounded, attemptErr) {
 			return zero, attemptErr
 		}
 		// Try every other member before revisiting a transiently failed one.

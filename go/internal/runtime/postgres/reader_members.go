@@ -8,7 +8,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"sort"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -16,6 +21,7 @@ import (
 )
 
 type physicalReaderMember struct {
+	ordinal     int
 	id          string
 	host        string
 	pool        *sql.DB
@@ -29,80 +35,238 @@ func openReaderMembers(ctx context.Context, cfg Config, template *pgx.ConnConfig
 	if len(cfg.ReadMembers) < 2 || cfg.SamePrimary || len(template.Fallbacks) != 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 {
 		return nil, errors.New("invalid physical reader member configuration")
 	}
-	members := make([]physicalReaderMember, 0, len(cfg.ReadMembers))
-	var unavailable error
-	for index, member := range cfg.ReadMembers {
-		config := template.Copy()
-		config.Host, config.Port, config.Fallbacks = member.Host, member.Port, nil
-		if config.TLSConfig != nil {
-			config.TLSConfig = config.TLSConfig.Clone()
-			config.TLSConfig.ServerName = member.Host
+	return qualifyReaderCandidates(ctx, cfg.ReadMembers, cfg.PingTimeout/3, func(memberCtx context.Context, index int, member ReaderMember) (physicalReaderMember, error) {
+		return qualifyReaderMember(memberCtx, cfg, template, writer, index, member)
+	})
+}
+
+func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConfig, writer physicalIdentity, index int, member ReaderMember) (physicalReaderMember, error) {
+	config := template.Copy()
+	originalDialFunc := config.DialFunc
+	dialTracker := &bootstrapDialTracker{}
+	config.DialFunc = dialTracker.wrap(originalDialFunc)
+	config.Host, config.Port, config.Fallbacks = member.Host, member.Port, nil
+	if config.TLSConfig != nil {
+		config.TLSConfig = config.TLSConfig.Clone()
+		config.TLSConfig.ServerName = member.Host
+	}
+	if config.RuntimeParams == nil {
+		config.RuntimeParams = map[string]string{}
+	}
+	config.RuntimeParams["default_transaction_read_only"] = "on"
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, member.Host)
+	if err != nil || len(addresses) == 0 {
+		if err == nil {
+			err = errors.New("no member addresses")
 		}
-		if config.RuntimeParams == nil {
-			config.RuntimeParams = map[string]string{}
-		}
-		config.RuntimeParams["default_transaction_read_only"] = "on"
-		addresses, err := net.DefaultResolver.LookupIPAddr(ctx, member.Host)
-		if err != nil || len(addresses) == 0 {
-			if err == nil {
-				err = errors.New("no member addresses")
+		return physicalReaderMember{}, fmt.Errorf("reader member DNS: %w", err)
+	}
+	physicalAddresses := make([]net.IP, 0, len(addresses))
+	for _, address := range addresses {
+		physicalAddresses = append(physicalAddresses, address.IP)
+	}
+	// Inspect the physical endpoint ourselves at bootstrap. A pgx role
+	// validator can reject a primary with a generic connect error, which
+	// would incorrectly treat a wrong member as merely unavailable.
+	config.ValidateConnect = nil
+	conn, err := pgx.ConnectConfig(ctx, config)
+	if err != nil {
+		return physicalReaderMember{}, errors.Join(fmt.Errorf("reader member connect: %w", err), dialTracker.closeAll())
+	}
+	id, readErr := readPhysicalPGX(ctx, conn)
+	var serverAddress string
+	if readErr == nil {
+		readErr = conn.QueryRow(ctx, "SELECT host(inet_server_addr())").Scan(&serverAddress)
+	}
+	closeErr := conn.Close(ctx)
+	trackerErr := dialTracker.closeAll()
+	cleanupErr := awaitPGXCleanup(ctx, conn.PgConn().CleanupDone(), dialTracker.closeAll)
+	if readErr != nil || closeErr != nil {
+		return physicalReaderMember{}, errors.Join(readErr, closeErr, trackerErr, cleanupErr)
+	}
+	if trackerErr != nil || cleanupErr != nil {
+		return physicalReaderMember{}, errors.Join(trackerErr, cleanupErr)
+	}
+	if err := validateReaderMemberIdentity(id, writer, serverAddress, physicalAddresses); err != nil {
+		return physicalReaderMember{}, err
+	}
+	config.DialFunc = originalDialFunc
+	config.ValidateConnect = memberValidator(writer, id.incarnation, physicalAddresses)
+	pool := stdlib.OpenDB(*config)
+	maxOpen := cfg.ReadMaxOpenConns / len(cfg.ReadMembers)
+	if index < cfg.ReadMaxOpenConns%len(cfg.ReadMembers) {
+		maxOpen++
+	}
+	maxIdle := cfg.ReadMaxIdleConns / len(cfg.ReadMembers)
+	if index < cfg.ReadMaxIdleConns%len(cfg.ReadMembers) {
+		maxIdle++
+	}
+	if maxIdle > maxOpen {
+		maxIdle = maxOpen
+	}
+	pool.SetMaxOpenConns(maxOpen)
+	pool.SetMaxIdleConns(maxIdle)
+	pool.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	pool.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+	return physicalReaderMember{ordinal: index, id: member.ID, host: member.Host, pool: pool, incarnation: id.incarnation, serverIP: net.ParseIP(serverAddress), addresses: physicalAddresses, maxOpen: maxOpen}, nil
+}
+
+func awaitPGXCleanup(ctx context.Context, cleanupDone <-chan struct{}, forceClose func() error) error {
+	select {
+	case <-cleanupDone:
+		return nil
+	default:
+	}
+	if ctx.Err() != nil {
+		closeErr := forceClose()
+		<-cleanupDone
+		return errors.Join(ctx.Err(), closeErr)
+	}
+	<-cleanupDone
+	return nil
+}
+
+func validateReaderMemberIdentity(id, writer physicalIdentity, serverAddress string, addresses []net.IP) error {
+	if id.recovery != "true" || id.readOnly != "on" || id.defaultReadOnly != "on" || id.systemID != writer.systemID || id.database != writer.database || id.incarnation == "" || !addressMatches(serverAddress, addresses) {
+		return ErrWrongTopology
+	}
+	return nil
+}
+
+type readerCandidateResult struct {
+	ordinal int
+	member  physicalReaderMember
+	err     error
+}
+
+func qualifyReaderCandidates(ctx context.Context, inventory []ReaderMember, attemptTimeout time.Duration, qualify func(context.Context, int, ReaderMember) (physicalReaderMember, error)) ([]physicalReaderMember, error) {
+	workCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	results := make(chan readerCandidateResult, len(inventory))
+	var workers sync.WaitGroup
+	for ordinal, member := range inventory {
+		ordinal, member := ordinal, member
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			attemptCtx := workCtx
+			attemptCancel := func() {}
+			if attemptTimeout > 0 {
+				attemptCtx, attemptCancel = context.WithTimeout(workCtx, attemptTimeout)
 			}
-			unavailable = errors.Join(unavailable, fmt.Errorf("reader member %s DNS: %w", member.ID, err))
-			continue // An unavailable member may rejoin after an Access restart.
-		}
-		physicalAddresses := make([]net.IP, 0, len(addresses))
-		for _, address := range addresses {
-			physicalAddresses = append(physicalAddresses, address.IP)
-		}
-		// Inspect the physical endpoint ourselves at bootstrap. A pgx role
-		// validator can reject a primary with a generic connect error, which
-		// would incorrectly treat a wrong member as merely unavailable.
-		config.ValidateConnect = nil
-		conn, err := pgx.ConnectConfig(ctx, config)
-		if err != nil {
-			unavailable = errors.Join(unavailable, fmt.Errorf("reader member %s connect: %w", member.ID, err))
-			if errors.Is(err, ErrWrongTopology) {
-				return nil, errors.Join(ErrWrongTopology, closeReaderMembers(members))
+			defer attemptCancel()
+			qualified, err := qualify(attemptCtx, ordinal, member)
+			if err != nil && transientReaderMemberFailure(ctx, err) {
+				err = fmt.Errorf("reader member qualification: %w", errors.Join(ErrReaderUnavailable, err))
 			}
-			continue
-		}
-		id, readErr := readPhysicalPGX(ctx, conn)
-		var serverAddress string
-		if readErr == nil {
-			readErr = conn.QueryRow(ctx, "SELECT host(inet_server_addr())").Scan(&serverAddress)
-		}
-		closeErr := conn.Close(ctx)
-		if readErr != nil || closeErr != nil || id.recovery != "true" || id.readOnly != "on" || id.defaultReadOnly != "on" || id.systemID != writer.systemID || id.database != writer.database || id.incarnation == "" || !addressMatches(serverAddress, physicalAddresses) {
-			return nil, errors.Join(ErrWrongTopology, readErr, closeErr, closeReaderMembers(members))
-		}
-		for _, prior := range members {
-			if prior.serverIP.Equal(net.ParseIP(serverAddress)) && prior.incarnation == id.incarnation {
-				return nil, errors.Join(ErrWrongTopology, closeReaderMembers(members))
+			results <- readerCandidateResult{ordinal: ordinal, member: qualified, err: err}
+		}()
+	}
+	qualified := make([]readerCandidateResult, 0, len(inventory))
+	var failures error
+	var fatal error
+	for range inventory {
+		result := <-results
+		qualified = append(qualified, result)
+		if result.err != nil {
+			if errors.Is(result.err, ErrReaderUnavailable) {
+				failures = errors.Join(failures, result.err)
+			} else {
+				fatal = errors.Join(fatal, result.err)
+				cancel()
 			}
 		}
-		config.ValidateConnect = memberValidator(writer, id.incarnation, physicalAddresses)
-		pool := stdlib.OpenDB(*config)
-		maxOpen := cfg.ReadMaxOpenConns / len(cfg.ReadMembers)
-		if index < cfg.ReadMaxOpenConns%len(cfg.ReadMembers) {
-			maxOpen++
+	}
+	workers.Wait()
+	if fatal != nil {
+		var opened []physicalReaderMember
+		for _, result := range qualified {
+			if result.err == nil {
+				opened = append(opened, result.member)
+			}
 		}
-		maxIdle := cfg.ReadMaxIdleConns / len(cfg.ReadMembers)
-		if index < cfg.ReadMaxIdleConns%len(cfg.ReadMembers) {
-			maxIdle++
+		return nil, errors.Join(fatal, closeReaderMembers(opened))
+	}
+	members := make([]physicalReaderMember, 0, len(qualified))
+	for _, result := range qualified {
+		if result.err == nil {
+			members = append(members, result.member)
 		}
-		if maxIdle > maxOpen {
-			maxIdle = maxOpen
-		}
-		pool.SetMaxOpenConns(maxOpen)
-		pool.SetMaxIdleConns(maxIdle)
-		pool.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-		pool.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-		members = append(members, physicalReaderMember{id: member.ID, host: member.Host, pool: pool, incarnation: id.incarnation, serverIP: net.ParseIP(serverAddress), addresses: physicalAddresses, maxOpen: maxOpen})
 	}
 	if len(members) == 0 {
-		return nil, errors.Join(ErrReaderUnavailable, unavailable)
+		return nil, errors.Join(ErrReaderUnavailable, failures, ctx.Err())
+	}
+	sort.Slice(members, func(i, j int) bool { return members[i].ordinal < members[j].ordinal })
+	for i := range members {
+		for j := 0; j < i; j++ {
+			if members[i].serverIP != nil && members[i].serverIP.Equal(members[j].serverIP) && members[i].incarnation == members[j].incarnation {
+				return nil, errors.Join(ErrWrongTopology, closeReaderMembers(members))
+			}
+		}
 	}
 	return members, nil
+}
+
+func transientReaderMemberFailure(parent context.Context, err error) bool {
+	if err == nil || parent.Err() != nil {
+		return false
+	}
+	return readerFailureClass(err) == readerFailureTransient
+}
+
+type readerFailureKind uint8
+
+const (
+	readerFailureFatal readerFailureKind = iota
+	readerFailureNeutral
+	readerFailureTransient
+)
+
+// A joined transport timeout must not mask a sibling authentication, TLS, or
+// malformed-metadata failure. Only a tree of known transient causes may be
+// skipped; sentinels are neutral when paired with an actual transient cause.
+func readerFailureClass(err error) readerFailureKind {
+	if err == nil {
+		return readerFailureNeutral
+	}
+	if pgErr, ok := err.(*pgconn.PgError); ok {
+		switch pgErr.Code {
+		case "08001", "08003", "08006", "57P01", "57P02", "57P03", "53300":
+			return readerFailureTransient
+		default:
+			return readerFailureFatal
+		}
+	}
+	if _, ok := err.(*net.DNSError); ok {
+		return readerFailureTransient
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		kind := readerFailureNeutral
+		for _, cause := range joined.Unwrap() {
+			child := readerFailureClass(cause)
+			if child == readerFailureFatal {
+				return readerFailureFatal
+			}
+			if child == readerFailureTransient {
+				kind = readerFailureTransient
+			}
+		}
+		return kind
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return readerFailureClass(wrapped.Unwrap())
+	}
+	for _, neutral := range []error{ErrReaderUnavailable, ErrReaderStale, errReaderPermitTimeout} {
+		if errors.Is(err, neutral) {
+			return readerFailureNeutral
+		}
+	}
+	for _, transient := range []error{context.DeadlineExceeded, io.EOF, io.ErrUnexpectedEOF, syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.ECONNABORTED, syscall.ENETUNREACH, syscall.EHOSTUNREACH, syscall.ETIMEDOUT} {
+		if errors.Is(err, transient) {
+			return readerFailureTransient
+		}
+	}
+	return readerFailureFatal
 }
 
 func memberValidator(writer physicalIdentity, incarnation string, addresses []net.IP) pgconn.ValidateConnectFunc {
@@ -139,7 +303,9 @@ func addressMatches(actual string, expected []net.IP) bool {
 func closeReaderMembers(members []physicalReaderMember) error {
 	var result error
 	for _, member := range members {
-		result = errors.Join(result, member.pool.Close())
+		if member.pool != nil {
+			result = errors.Join(result, member.pool.Close())
+		}
 	}
 	return result
 }

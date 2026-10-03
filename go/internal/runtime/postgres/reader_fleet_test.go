@@ -21,11 +21,11 @@ func TestFleetSharedFailuresDoNotRetryAnotherMember(t *testing.T) {
 		x509.UnknownAuthorityError{},
 		ErrWrongTopology,
 	} {
-		if !sharedFleetFailure(err) {
+		if !sharedFleetFailure(context.Background(), err) {
 			t.Fatalf("shared error %T was retryable", err)
 		}
 	}
-	if sharedFleetFailure(memberLocalTopology{}) {
+	if sharedFleetFailure(context.Background(), memberLocalTopology{}) {
 		t.Fatal("member-local topology mismatch was treated as global")
 	}
 }

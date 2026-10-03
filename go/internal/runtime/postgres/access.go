@@ -69,6 +69,7 @@ type Access struct {
 
 // Open validates physical writer and reader identity before exposing either pool.
 func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
+	openStarted := time.Now()
 	if cfg.WriterDSN == "" || cfg.ReadDSN == "" || cfg.WriterMaxOpenConns < 1 || cfg.ReadMaxOpenConns < 1 ||
 		cfg.WriterMaxIdleConns < 0 || cfg.ReadMaxIdleConns < 0 || cfg.WriterMaxIdleConns > cfg.WriterMaxOpenConns ||
 		cfg.ReadMaxIdleConns > cfg.ReadMaxOpenConns || cfg.SamePrimary != (cfg.WriterDSN == cfg.ReadDSN) ||
@@ -94,9 +95,21 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 			return nil, err
 		}
 	}
-	pingCtx, cancel := context.WithTimeout(ctx, cfg.PingTimeout)
+	totalBudget := cfg.PingTimeout - time.Since(openStarted)
+	if callerDeadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(callerDeadline); remaining < totalBudget {
+			totalBudget = remaining
+		}
+	}
+	if totalBudget <= 0 {
+		return nil, context.DeadlineExceeded
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, totalBudget)
 	defer cancel()
-	identity, err := bootstrapPhysicalWriter(pingCtx, writerCfg, cfg.ExpectedSystemID)
+	stageBudget := totalBudget / 3
+	writerCtx, cancelWriter := context.WithTimeout(pingCtx, stageBudget)
+	identity, err := bootstrapPhysicalWriter(writerCtx, writerCfg, cfg.ExpectedSystemID)
+	cancelWriter()
 	if err != nil {
 		return nil, privateFailure(failureWriterIdentity, err)
 	}
@@ -115,7 +128,9 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	var reader *sql.DB
 	var members []physicalReaderMember
 	if len(cfg.ReadMembers) > 0 {
-		members, err = openReaderMembers(pingCtx, cfg, readCfg, identity)
+		readerCtx, cancelReader := context.WithTimeout(pingCtx, stageBudget)
+		members, err = openReaderMembers(readerCtx, cfg, readCfg, identity)
+		cancelReader()
 		if err != nil {
 			_ = writer.Close()
 			return nil, privateFailure(failureReaderPing, err)
