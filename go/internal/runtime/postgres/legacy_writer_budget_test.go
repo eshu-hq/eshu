@@ -31,6 +31,7 @@ func TestLegacyWriterBootstrapKeepsFullPingBudget(t *testing.T) {
 	var workers sync.WaitGroup
 	var clientsMu sync.Mutex
 	var clients []net.Conn
+	var servers []net.Conn
 	serverDone := make(chan struct{})
 	go func() {
 		defer close(serverDone)
@@ -50,6 +51,9 @@ func TestLegacyWriterBootstrapKeepsFullPingBudget(t *testing.T) {
 				if dialErr != nil {
 					return
 				}
+				clientsMu.Lock()
+				servers = append(servers, server)
+				clientsMu.Unlock()
 				defer server.Close()
 				workers.Add(1)
 				go func() {
@@ -71,12 +75,15 @@ func TestLegacyWriterBootstrapKeepsFullPingBudget(t *testing.T) {
 	}()
 	t.Cleanup(func() {
 		_ = listener.Close()
+		<-serverDone
 		clientsMu.Lock()
 		for _, client := range clients {
 			_ = client.Close()
 		}
+		for _, server := range servers {
+			_ = server.Close()
+		}
 		clientsMu.Unlock()
-		<-serverDone
 		workers.Wait()
 	})
 	proxyPort := listener.Addr().(*net.TCPAddr).Port

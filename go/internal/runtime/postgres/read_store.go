@@ -184,6 +184,7 @@ type readSnapshotSet struct {
 	mu      sync.Mutex
 	once    sync.Once
 	readers []*readTransaction
+	cancel  context.CancelCauseFunc
 	closed  bool
 	err     error
 }
@@ -212,6 +213,9 @@ func (s *readSnapshotSet) Close() error {
 		// throughout caller assembly and all importer cleanup.
 		for i := len(readers) - 1; i >= 0; i-- {
 			s.err = errors.Join(s.err, readers[i].finishSnapshotSet())
+		}
+		if s.cancel != nil {
+			s.cancel(context.Canceled)
 		}
 	})
 	return s.err

@@ -59,9 +59,11 @@ before borrowing a reader.
 - Connection lifetime, idle time, and startup ping timeout retain the shared
   runtime PostgreSQL settings. Reader pool acquisition and replay waiting have
   a separate bounded deadline; business SQL uses the caller's request context.
-  `Open` caps writer bootstrap and concurrent direct-member qualification at
-  one third of its single `min(PingTimeout, caller deadline)` budget each; the
-  writer/reader readiness checks share the remaining deadline. Canceled
+  With a direct-member inventory, `Open` caps writer bootstrap and concurrent
+  member qualification at one third of its single
+  `min(PingTimeout, caller deadline)` budget each; readiness uses the remaining
+  deadline. Without an inventory, writer bootstrap and readiness share the
+  full startup budget. Canceled
   bootstrap sockets and pgx cleanup are joined before an Access can be returned.
 
 The reader pool sets `default_transaction_read_only=on` on every physical
@@ -81,11 +83,14 @@ both the member and aggregate caps. An older waiting four-slot set is protected
 from later single reads on the same member while another available member can
 continue serving work. Cancellation and setup failures release all slots.
 Cursor close does not release its transaction. Fleet setup can retry another
-member within one overall replay deadline, starting with a short attempt when
-an alternative is available. A changed local incarnation/address may fail
+  member within one overall replay deadline, starting with a short attempt when
+  an alternative is available. A changed local incarnation/address may fail
 over only to a different qualified member; writer/checkpoint and shared
 configuration mismatches fail closed. No snapshot or partial result crosses
-members.
+  members.
+  The setup attempt bounds transaction start, snapshot export, and imports.
+  The setup timer is detached only after those steps finish; a returned set
+  remains owned by the caller context until it is closed or canceled.
 If an established member disappears during a snapshot, a narrow
 `ReaderMemberLost() bool` error marker permits the caller to retry its whole
 read workflow from a fresh snapshot, not an individual SQL statement. Auth,
@@ -121,6 +126,22 @@ The final follow-up edit classified TLS failures as permanent and did not
 change successful selection. Raced integration after that edit passed. This
 is a local saturated-member selection measurement. Full endpoint and ops-qa
 `<1s` budget: NOT_CHECKED. The fixture, volumes, and network were removed.
+
+Root-Cause Evidence: In an owned PostgreSQL 18.6 primary plus two physical
+standbys, a healthy legacy writer behind a 500 ms connection delay failed
+startup with a 1.2 s ping budget because its bootstrap received only one
+third of that budget. A stalled fleet `BEGIN` exceeded its 100 ms setup
+attempt and waited for the 600 ms caller deadline because `database/sql`
+owned the transaction under the caller context. The corrected path passes
+those regressions. Socket stalls at `BEGIN`, snapshot export, and import each
+time out the first member, release its four reservations, and return a set
+from the healthy member that remains usable after the short attempt ends.
+These are bounded behavior checks, not interleaved latency medians or an
+endpoint speedup claim; the #7033 fixed-corpus endpoint A/B remains NOT_CHECKED.
+
+No-Observability-Change: The existing `business_query` duration/outcome and
+member-attempt outcome signals still show timeout and failover. No SQL, host,
+member ID, or credential was added to telemetry labels.
 
 Observability Evidence: Existing closed-cardinality `reader_borrow`,
 `reader_identity`, `reader_replay`, and `business_query` stages report duration
