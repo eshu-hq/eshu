@@ -1,5 +1,7 @@
 go/internal/runtime/postgres/README.md
   s_b0d7e3abc26c5a::t_f2b24c0e6d2436 132-135,147-148,150-151,159-161
+docs/public/observability/telemetry-coverage.md
+  s_b0d7e3abc26c5a::t_9b64488da47e36 803
 ---
 {
   "schema_version": "authorship/3.0.0",
