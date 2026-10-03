@@ -132,9 +132,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	var reader *sql.DB
 	var members []physicalReaderMember
 	if len(cfg.ReadMembers) > 0 {
-		readerCtx, cancelReader := context.WithTimeout(pingCtx, stageBudget)
-		members, err = openReaderMembers(readerCtx, cfg, readCfg, identity)
-		cancelReader()
+		members, err = openReaderMembers(pingCtx, stageBudget, cfg, readCfg, identity)
 		if err != nil {
 			_ = writer.Close()
 			return nil, privateFailure(failureReaderPing, err)
