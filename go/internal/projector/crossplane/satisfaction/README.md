@@ -21,7 +21,7 @@ root `internal/projector` package validates scope-generation boundaries,
 constructs and owns the immutable fact lookup, preserves family order, and
 owns projection lifecycle, queue writes, retries, and telemetry. The
 reducer's `DomainCrossplaneSatisfiedByMaterialization` handler
-(`go/internal/reducer/crossplane/crossplane_satisfied_by_materialization.go` and its
+(`go/internal/reducer/crossplane/satisfied_by_materialization.go` and its
 sibling files) owns the cross-scope join against active CrossplaneXRD facts,
 `ExtractCrossplaneSatisfiedByEdgeRows`, and the `SATISFIED_BY` graph write;
 none of that happens here.

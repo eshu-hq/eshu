@@ -119,7 +119,7 @@ that owns the handler code moved.
   case).
 - **This package's test doubles for the shared batch-insert primitives are a
   scoped, package-local copy**
-  (`incident_repository_correlation_writer_batch_test_helpers_test.go`), not
+  (`repository_correlation_writer_batch_test_helpers_test.go`), not
   the reducer root's `reducer_fact_batch_insert_test_helpers_test.go` /
   `fakeWorkloadIdentityExecer` (`workload_identity_writer_test.go`). Those
   root helpers are still shared by other families that have not moved out of
@@ -132,10 +132,10 @@ that owns the handler code moved.
   wiring and handler construction, never the reverse.
 
 No-Regression Evidence: #6061 relocates
-`incident_repository_correlation.go`, `incident_repository_correlation_build.go`,
-`incident_repository_correlation_writer.go`, `incident_routing_evidence_decode.go`,
-`incident_routing_evidence_rows.go`, `incident_routing_materialization.go`, and
-`incident_routing_types.go` (plus their four existing test files) from the
+`repository_correlation.go`, `repository_correlation_build.go`,
+`repository_correlation_writer.go`, `routing_evidence_decode.go`,
+`routing_evidence_rows.go`, `routing_materialization.go`, and
+`routing_types.go` (plus their four existing test files) from the
 reducer root into this package with no logic change: every function body is
 byte-identical except for qualifying the now-external `payloadcore`,
 `reducercontract`, `factdecode`, `schemadecode`, and `factwrite` symbols the

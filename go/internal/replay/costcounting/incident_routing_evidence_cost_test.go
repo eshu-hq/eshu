@@ -36,7 +36,7 @@ const (
 // positive and N+1 scenarios: two "applied_routing" evidence rows from two
 // DISTINCT incidents in one scope, shaped like the current production row
 // contract for the applied slot
-// (go/internal/reducer/incident/incident_routing_evidence_rows.go
+// (go/internal/reducer/incident/routing_evidence_rows.go
 // incidentRoutingBaseRow lines 214-242 plus incidentRoutingAppliedDecision's
 // extra map, lines 159-175): incident_uid, uid (the routing-evidence node
 // identity), slot, source_class, truth_label, provider, provider_incident_id,

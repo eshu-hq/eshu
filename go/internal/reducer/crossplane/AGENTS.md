@@ -51,7 +51,7 @@ decisions into canonical `SATISFIED_BY` graph edges.
 Adding a new candidate entity type or join key: extend
 `crossplaneContentEntityType`'s switch and the corresponding
 `crossplane*CandidateFromPayload` builder in
-`crossplane_satisfied_by_edge_rows.go`, then update
+`satisfied_by_edge_rows.go`, then update
 `go/internal/projector/crossplane/satisfaction`'s `triggerFact` switch so the
 projector still enqueues the intent for the new entity type (see that
 package's own AGENTS.md).

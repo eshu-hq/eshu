@@ -103,7 +103,7 @@ emission sites, only the package that owns the code moved. See
   content_entity facts, so a same-repo XRD can appear twice in `envelopes`.
   Do not remove the uid-dedup or a same-repo Claim/XRD pair will read as a
   false ambiguity (this exact regression is the B-7 golden-corpus rc-151
-  assertion `crossplane_satisfied_by_edge_rows_test.go` guards).
+  assertion `satisfied_by_edge_rows_test.go` guards).
 
 ## Related docs
 

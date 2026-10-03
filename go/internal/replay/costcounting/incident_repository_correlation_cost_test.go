@@ -29,7 +29,7 @@ const incidentRepositoryCorrelationCostIntentID = "intent-incident-repository-co
 // incidentRepositoryCorrelationFixtureDecisions is the deterministic input
 // for this scenario: two exact-outcome decisions for distinct provider
 // services in one scope. WriteIncidentRepositoryCorrelations
-// (go/internal/reducer/incident/incident_repository_correlation_writer.go) now
+// (go/internal/reducer/incident/repository_correlation_writer.go) now
 // calls the shared factwrite.BatchInsertFacts bounded chunked bulk insert
 // (issue #5317), so two decisions fit in one 1000-row chunk and cost exactly
 // one ExecContext round-trip.
