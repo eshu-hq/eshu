@@ -28,7 +28,7 @@ func queryRepositoryContextCounts(
 	params map[string]any,
 	fallback map[string]any,
 	contentCoverage *querycontract.RepositoryContentCoverage,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
+	readModelCounts *querycontract.RepositoryReadModelCounts,
 ) (repositoryContextCounts, error) {
 	fileCount, err := queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage)
 	if err != nil {
@@ -38,11 +38,12 @@ func queryRepositoryContextCounts(
 	if err != nil {
 		return repositoryContextCounts{}, err
 	}
-	platformCount, err := queryRepositoryPlatformCount(ctx, reader, params, fallback, readModelSummary)
+	sharedCounts := countsAsSummary(readModelCounts)
+	platformCount, err := queryRepositoryPlatformCount(ctx, reader, params, fallback, sharedCounts)
 	if err != nil {
 		return repositoryContextCounts{}, err
 	}
-	dependencyCount, err := queryRepositoryDependencyCount(ctx, reader, params, fallback, readModelSummary)
+	dependencyCount, err := queryRepositoryDependencyCount(ctx, reader, params, fallback, sharedCounts)
 	if err != nil {
 		return repositoryContextCounts{}, err
 	}
@@ -52,6 +53,19 @@ func queryRepositoryContextCounts(
 		platformCount:   platformCount,
 		dependencyCount: dependencyCount,
 	}, nil
+}
+
+// countsAsSummary adapts the context-only scalars to the shared story count
+// helpers without changing story's workload-name read model.
+func countsAsSummary(counts *querycontract.RepositoryReadModelCounts) *querycontract.RepositoryReadModelSummary {
+	if counts == nil {
+		return nil
+	}
+	return &querycontract.RepositoryReadModelSummary{
+		Available:       counts.Available,
+		PlatformCount:   counts.PlatformCount,
+		DependencyCount: counts.DependencyCount,
+	}
 }
 
 func queryRepositoryWorkloadCount(

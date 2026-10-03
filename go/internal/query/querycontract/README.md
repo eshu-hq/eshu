@@ -9,6 +9,11 @@ need without depending on the root `query` package.
 its name and source pages apply language and exact-name predicates before the
 limit. The root `ContentReader` implements it through this port.
 
+`RepositoryReadModelCountsStore` is an optional repository-context port. It
+returns only platform and dependency counts and keeps authoritative zeroes
+distinct from unavailable data. Context falls back to graph counts when this
+port fails or is unavailable; stores without it retain the full-summary port.
+
 ## Ownership boundary
 
 This package owns query profiles, truth and error envelopes, freshness causes,

@@ -95,3 +95,42 @@ The existing `summary_counts` repository query stage logs the four count
 fields and graph read errors. The graph read uses the existing query adapter,
 spans, and duration metrics. No new metric, span, status, or runtime setting is
 introduced.
+
+## Performance Evidence: #7542 count-only context port
+
+On source `306eac09` against the PostgreSQL 18 read replica, one read-only
+repeatable-read snapshot compared the
+original full summary with a count-only path for repositories with 12,403 and
+7,097 files. Both AB/BA orderings matched on scope, availability, platform
+count (11), and dependency count (0). The workload-names read took
+0.924480208 s and 3.038443042 s; the required count reads together took
+0.092049124 s and 0.126132124 s. These are one-snapshot query-path samples,
+not endpoint latency or a p95 estimate. The full/narrow SQL texts were the
+same as the four relevant source files on `ebce60b8`.
+
+The context handler now selects a count-only read-model port. Its adapter
+reuses the existing scope, platform, and dependency SQL with no query rewrite,
+index, cache, or concurrency change. It leaves the graph `Workload` count in
+place. Story and entity loaders still fetch workload names. If the new port
+fails or returns unavailable, context uses the graph counts without a full
+summary retry. A failure of workload-name hydration alone no longer triggers
+context graph fallback; this is an intentional behavior change for a field
+context does not consume. The `summary_counts` stage remains; the new bounded
+`postgres.query` span identifies `repository_context_counts` and records
+errors without repository IDs. Built API/MCP latency and original-argument
+cold/warm p95 for this follow-up remain NOT_CHECKED until post-deployment
+proof.
+
+The finished `ContentReader` methods were also run through the repository's
+FIFO SQL fixture driver in alternating order, 100 calls each. The full
+summary made 400 SQL calls in 1.523085 ms of local method time; the count
+method made 300 calls in 0.672120 ms. Both returned platform count 11 and
+dependency count 0. The fixture has no PostgreSQL server work, so these
+times only check local call-path cost and cannot be combined with the
+read-only snapshot times or used as endpoint latency evidence.
+
+Observability Evidence: the context `summary_counts` stage still logs all
+four counts and graph errors. The new `postgres.query` span records the
+`repository_context_counts` operation and required Postgres errors with
+bounded attributes; the focused span test proves the operation and error
+event without a repository ID attribute. No queue or write path runs here.

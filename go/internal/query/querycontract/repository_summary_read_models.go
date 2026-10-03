@@ -31,6 +31,45 @@ type RepositoryReadModelSummary struct {
 	DependencyCount int
 }
 
+// RepositoryReadModelCounts holds only the count truth needed by repository
+// context. Available distinguishes an authoritative zero from missing data.
+type RepositoryReadModelCounts struct {
+	Available       bool
+	PlatformCount   int
+	DependencyCount int
+}
+
+// RepositoryReadModelCountsStore is the optional count-only context read port.
+// A store that implements it does not need to read workload names for context.
+type RepositoryReadModelCountsStore interface {
+	RepositoryReadModelCounts(context.Context, string) (RepositoryReadModelCounts, error)
+}
+
+// LoadRepositoryContextCounts selects the count-only port when present. An
+// error or unavailable result leaves graph fallback to the caller; it does not
+// retry through the full summary. Legacy stores retain the summary path.
+func LoadRepositoryContextCounts(ctx context.Context, content ContentStore, repoID string) *RepositoryReadModelCounts {
+	if content == nil || repoID == "" {
+		return nil
+	}
+	if store, ok := content.(RepositoryReadModelCountsStore); ok {
+		counts, err := store.RepositoryReadModelCounts(ctx, repoID)
+		if err != nil || !counts.Available {
+			return nil
+		}
+		return &counts
+	}
+	summary := LoadRepositoryReadModelSummary(ctx, content, repoID)
+	if summary == nil {
+		return nil
+	}
+	return &RepositoryReadModelCounts{
+		Available:       true,
+		PlatformCount:   summary.PlatformCount,
+		DependencyCount: summary.DependencyCount,
+	}
+}
+
 // RepositoryRelationshipReadModel is the Postgres read-model fast path for a
 // repository's resolved relationships and derived consumers, hydrated from
 // resolved_relationships so a read avoids the incoming-fanout graph traversal.

@@ -54,7 +54,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		coverageAttrs = append(coverageAttrs, slog.String("failure_class", contextCoverageDegradedReason))
 	}
 	timer.Done(ctx, coverageAttrs...)
-	readModelSummary := querycontract.LoadRepositoryReadModelSummary(ctx, h.Content, repoID)
+	readModelCounts := querycontract.LoadRepositoryContextCounts(ctx, h.Content, repoID)
 	relationshipReadModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
 	if relationshipReadModel != nil {
 		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "deployable_unit_relationships")
@@ -78,7 +78,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "summary_counts")
-	counts, err := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelSummary)
+	counts, err := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelCounts)
 	if err != nil {
 		timer.Done(ctx, slog.Bool("error", true))
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {

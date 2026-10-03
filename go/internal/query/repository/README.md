@@ -28,6 +28,15 @@ display; they do not establish materialization. A failed graph count aborts the
 context response rather than reporting an inferred zero or name count. File,
 platform, and dependency counts retain their existing read-model paths.
 
+Repository context uses the optional count-only Postgres read port for platform
+and dependency counts. It does not load workload names. A missing or failed
+count read falls back to the existing graph counts without retrying the full
+summary. Legacy content stores can still use the full summary port. A workload
+name read failure alone no longer changes context counts; story and entity
+responses still use names. The context `summary_counts` stage and the bounded
+`postgres.query` span named `repository_context_counts` expose read timing and
+errors without repository IDs in span attributes.
+
 ## Story file list
 
 `getRepositoryStory` reads the repository file list once, in the

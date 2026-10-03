@@ -31,7 +31,7 @@ func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing
 				}
 				return []map[string]any{{"count": tc.graphCount}}, nil
 			}}
-			summary := &querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: tc.summaryNames}
+			summary := &querycontract.RepositoryReadModelCounts{Available: true}
 			counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
 				&querycontract.RepositoryContentCoverage{Available: true}, summary)
 			got := counts.workloadCount
@@ -63,7 +63,7 @@ func TestQueryRepositoryWorkloadCountGraphErrorWithSummary(t *testing.T) {
 	}}
 	counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
 		&querycontract.RepositoryContentCoverage{Available: true},
-		&querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: []string{"retained-intent"}})
+		&querycontract.RepositoryReadModelCounts{Available: true})
 	got := counts.workloadCount
 	if got != 0 || !errors.Is(err, querycontract.ErrGraphReadDeadline) {
 		t.Fatalf("workload count = %d, %v; want 0, graph read deadline", got, err)

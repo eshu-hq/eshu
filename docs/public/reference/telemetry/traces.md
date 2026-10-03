@@ -67,9 +67,15 @@ mode with a high true live share means the table statistics lag the table
 (#7009).
 
 For a slow repository-context read, inspect the child `postgres.query` span with
-`db.operation=repository_workload_names` and `db.sql.table=fact_records`. It
-separates the workload-name SQL from the other read-model statements without
-putting repository or scope identifiers in span attributes.
+`db.operation=repository_context_counts`. It covers the scope, platform, and
+dependency count reads. This span reads several tables and has no
+`db.sql.table` attribute. Repository and scope identifiers stay out of span
+attributes.
+
+Story and entity reads still load workload names. Their workload-name SQL uses
+`db.operation=repository_workload_names` and `db.sql.table=fact_records`.
+Stores that implement only the legacy summary port may still load workload
+names. Their tracing depends on the store.
 
 For a parallel code-topic read, `query.code_topic_partition` children identify
 each bounded PostgreSQL probe. See [Code-topic probe traces](code-topic-probes.md)
