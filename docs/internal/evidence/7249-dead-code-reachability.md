@@ -252,3 +252,39 @@ Rollback is reverting the statement change; no schema, index or data change ship
 Performance Evidence: Query shape: the legacy producer-local incoming read as one statement, an active-acceptance-run CTE and a completeness gate (full generation, both reducer materialization work items succeeded and none outstanding, no pending edge intent) followed by the unchanged three-branch `UNION ALL` with each row's (`source_run_id`, `generation_id`) pair matched to an active acceptance pair by a correlated `EXISTS`, or one sentinel row that makes the reader run the previous statement. Backend: PostgreSQL 18 on the QA replica, read-only. Input cardinality: the largest repository, 677,963 completed `code_calls` intents across 11 generations, 61,633 in the active run, a 101-id candidate page, 78 result rows. Index state: unchanged, no migration. Before and after, same cache state (forced generic, all shared hits): 3,148 ms and 384,604 buffers against 282 ms and 30,055. Forced custom: 1,752 ms against 97 ms, but the previous statement read 190,523 buffers from disk and the bound one 328, so that pair is not cache-matched; the coordinator's warm custom shim pair was 1,164 ms against 84 ms. 787 of 799 repositories with an active acceptance row pass the gate. The pair-correlated predicate measured 270 ms against 313 ms forced generic and 86 against 84 ms forced custom with the same buffers. Every figure is a PostgreSQL statement time, not an HTTP or MCP endpoint p95.
 
 Observability Evidence: The existing `postgres.query` span with `db.operation=dead_code_incoming_entity_ids` still records errors and duration, and now carries `dead_code_incoming.read_mode` set to `active_run` when the bound read answered or `all_generations` when the reader fell back to the previous statement. No worker, queue stage, metric or status field is added.
+
+## Deployed acceptance sweep (QA, `sha-306eac0`)
+
+The 7 endpoints x 3 argument sets x (1 first call + 10 repeats) sweep was run read-only and sequentially on the QA deployment after the build containing #7521, #7526, #7554 and #7559 was rolled out (Eshu main at #7554, image digest `sha256:8b630ec7...`; the range from the previous `sha-ebce60b` image is the single commit #7554 and changes no schema or migration file). Two runs: run 1 at 21:16 UTC, within about a minute of the rolling restart finishing (cold pods), and run 2 at 21:18 UTC. The "before" column is a sweep taken on 2026-10-02 at about 16:02 UTC, on the build QA ran then (before #7521 and #7526 merged), and the `sha-101cd4f` column is the build that had #7521 and #7526 but neither #7554 nor #7559. The sweep tooling is the same replayable script used for the earlier two runs in the table. Every pair returned one response digest across its 11 calls and no call failed, in both runs. Times are seconds, measured through a port-forward with a health-check round trip of about 0.09 s that is not subtracted; p95 is nearest-rank over the 10 repeats, so it is the largest repeat.
+
+| endpoint | set | before (first / p95) | `sha-101cd4f` (first / p95) | `sha-306eac0` run 1 (first / p95) | `sha-306eac0` run 2 (first / p95 / max) |
+| --- | --- | --- | --- | --- | --- |
+| api_iac_dead | 1 | 0.200 / 0.257 | 0.177 / 0.143 | 0.185 / 0.177 | 0.120 / 0.120 / 0.120 |
+| api_iac_dead | 2 | 0.361 / 0.387 | 0.382 / 0.353 | 0.149 / 0.172 | 0.114 / 0.131 / 0.131 |
+| api_iac_dead | 3 | 0.533 / 0.130 | 0.269 / 0.489 | 0.138 / 0.132 | 0.106 / 0.111 / 0.111 |
+| api_cross_repo | 1 | 1.084 / 1.295 | 1.223 / 1.489 | 0.678 / 0.356 | 0.243 / 0.358 / 0.358 |
+| api_cross_repo | 2 | 0.701 / 0.712 | 0.846 / 0.860 | 0.359 / 0.299 | 0.161 / 0.251 / 0.251 |
+| api_cross_repo | 3 | 0.785 / 0.808 | 0.930 / 0.664 | 0.259 / 0.267 | 0.226 / 0.293 / 0.293 |
+| api_investigate | 1 | 0.789 / 0.609 | 0.208 / 0.246 | 0.415 / 0.557 | 0.380 / 0.413 / 0.413 |
+| api_investigate | 2 | 0.689 / 0.553 | 0.207 / 0.221 | 0.349 / 0.341 | 0.253 / 0.504 / 0.504 |
+| api_investigate | 3 | 1.788 / 0.817 | 0.191 / 0.273 | 0.298 / 0.410 | 0.206 / 0.282 / 0.282 |
+| api_dead_code | 1 | 0.178 / 0.198 | 0.125 / 0.220 | 0.389 / 0.577 | 0.204 / 0.357 / 0.357 |
+| api_dead_code | 2 | 0.164 / 0.214 | 0.126 / 0.221 | 0.236 / 0.483 | 0.218 / 0.258 / 0.258 |
+| api_dead_code | 3 | 0.171 / 0.231 | 0.135 / 0.164 | 0.238 / 0.252 | 0.264 / 0.349 / 0.349 |
+| mcp_find_dead_code | 1 | 0.170 / 0.137 | 0.182 / 0.182 | 0.263 / 0.354 | 0.400 / 0.392 / 0.400 |
+| mcp_find_dead_code | 2 | 0.141 / 0.200 | 0.108 / 0.163 | 0.142 / 0.271 | 0.174 / 0.251 / 0.251 |
+| mcp_find_dead_code | 3 | 0.155 / 0.290 | 0.119 / 0.159 | 0.169 / 1.005 **(one call 1.005)** | 0.231 / 0.277 / 0.277 |
+| mcp_find_cross_repo_dead_code | 1 | 0.975 / 1.402 | 0.898 / 1.386 | 0.279 / 0.555 | 0.393 / 0.465 / 0.465 |
+| mcp_find_cross_repo_dead_code | 2 | 0.459 / 0.735 | 0.408 / 0.779 | 0.210 / 0.358 | 0.274 / 0.379 / 0.379 |
+| mcp_find_cross_repo_dead_code | 3 | 0.607 / 0.992 | 0.298 / 0.591 | 0.390 / 0.353 | 0.495 / 0.418 / 0.495 |
+| mcp_investigate_dead_code | 1 | 0.724 / 1.023 | 0.129 / 0.162 | 0.431 / 0.891 | 0.440 / 0.498 / 0.498 |
+| mcp_investigate_dead_code | 2 | 0.746 / 0.708 | 0.125 / 0.169 | 0.321 / 0.484 | 0.311 / 0.453 / 0.453 |
+| mcp_investigate_dead_code | 3 | 0.527 / 1.002 | 0.177 / 0.196 | 0.379 / 0.558 | 0.404 / 0.365 / 0.404 |
+
+Result: in run 2 all 21 pairs are under 1 s for the first call and the warm p95, and the largest call anywhere was 0.504 s. In run 1, 20 of 21 pairs were under 1 s; one repeat call of `mcp_find_dead_code` set 3 took 1.005 s (its first call was 0.169 s and its median 0.210 s), which made that pair's nearest-rank p95 1.005 s. It did not repeat in run 2 (0.277 s, two minutes later) and is recorded here and not dropped; it was repeat call 10, about 70 s into the run, on pods that had restarted minutes earlier, and its cause is not established. Before the fixes 5 of 21 pairs were over 1 s; on `sha-101cd4f` (which had #7521 and #7526) 2 were, both cross-repo set 1 (the legacy read was 1,173.6 ms of a 1,368 ms request, the slowest of 60 traced requests, until #7554 bounded it). The work queue's dead-letter count was 1 before the rollout, right after it, and after both sweeps (read-only status counts taken by the operator; no raw artifact is committed for them).
+
+Performance Evidence: Query shape and backend as in the sections above (PostgreSQL 18 replica behind the API and MCP). Scope: seven endpoints (the API iac, cross-repo, investigate and dead-code routes and the MCP find, cross-repo and investigate tools), three repositories as argument sets, 10 repeats plus a first call each. Before and after on the two former misses, cross-repo set 1 (first / warm p95), from the `sha-101cd4f` run to the `sha-306eac0` runs: API 1.223 / 1.489 to 0.243 to 0.678 / 0.356 to 0.358; MCP 0.898 / 1.386 to 0.279 to 0.393 / 0.465 to 0.555. These are client-side times through a port-forward on one environment, not production traffic.
+
+Limits: one environment and data copy, three argument sets per endpoint, nearest-rank p95 over 10 repeats, first-call numbers taken on pods that had just restarted. Delta-generation or incomplete repositories take the unbound legacy read by design (the #7554 guard falls back) and none of the three swept repositories is one, so that cost is not in these numbers. The accuracy follow-up for the general path is #7547 (PR A merged; the reducer-honesty part, PR B, is planned there and not yet opened). The sweep times each build's own answers: response sizes differ across builds (for example API cross-repo set 1 is 29,121 bytes on `sha-101cd4f` and 29,830 on `sha-306eac0`), which follows from #7559.
+
+No-Observability-Change: this section records a measurement; no code, metric, span, log key or status field changed.
