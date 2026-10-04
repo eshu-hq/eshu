@@ -387,8 +387,8 @@ func crossRepoDeadCodeCitation(generationID string, consumerRepoID string, rootE
 // complete, as does a zero-root repository until the writer stamps it truncated.
 //
 // Each gap carries why it is one (no_snapshot_yet, truncated, older_epoch or
-// no_active_scope), the scope's active generation id, and whether waiting can fix
-// it. The named statement returns one row per repository; the
+// no_active_scope), the scope's active generation id, and whether a snapshot is expected
+// without action (a hint, not a promise). The named statement returns one row per repository; the
 // all-repositories statement can return one per scope, and this method keeps one
 // per repository by the rule on code.CrossRepoDeadCodeCoverageGap. A state this
 // method does not know is an error, never a made-up retry promise.

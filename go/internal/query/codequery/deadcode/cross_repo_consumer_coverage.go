@@ -49,8 +49,8 @@ func (c crossRepoDeadCodeConsumerCoverageResult) incomplete() bool {
 //
 // incomplete is the per-repository answer (repository_id, state, generation_id,
 // retryable); incomplete_repo_ids is the same list's ids, kept for callers that
-// read it before the detail existed. retryable is true only when waiting can
-// close every gap: see code.CrossRepoDeadCodeCoverage.Retryable. generation_id
+// read it before the detail existed. retryable is a hint, true only when a
+// snapshot is expected for every gap without action: see code.CrossRepoDeadCodeCoverage.Retryable. generation_id
 // is left out for a repository with no active scope, which has none.
 func (c crossRepoDeadCodeConsumerCoverageResult) summary() map[string]any {
 	if !c.Checked || c.Unavailable {
