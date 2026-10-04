@@ -1,0 +1,24 @@
+docs/internal/evidence/7033-exact-code-topic-parallel.md
+  s_b0d7e3abc26c5a::t_3c7203057fe97e 388-389
+  s_b0d7e3abc26c5a::t_d5f3aceba35e23 358,371
+  s_b0d7e3abc26c5a::t_607e357395db96 390
+docs/internal/evidence/7033-reader-fleet-identity-final-source.md
+  s_b0d7e3abc26c5a::t_fe2ad07ab92868 10-15
+  s_b0d7e3abc26c5a::t_3c7203057fe97e 1-9,16-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "679adac7539decfdff901ed3ed17ed01d2dc3185",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
