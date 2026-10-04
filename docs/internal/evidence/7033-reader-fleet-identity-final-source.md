@@ -47,6 +47,9 @@ The later `e54a85fd0` change affects bootstrap qualification cleanup and its
 tests, not the timed request path after `/readyz`. That commit was not rebuilt
 or re-timed in this A/B; the numbers above are tied to the stated source and
 binary hashes, not claimed as an exact-final-binary latency result.
+The subsequent request-time attempt-budget change at `aaaf47ff7` has its own
+[physical-standby before/after proof](7033-fleet-attempt-budget.md). That
+microbenchmark is not a repeat of this 16-term endpoint A/B.
 
 Observability Evidence: Native standby tests verified that the query-start
 event records the leased backend PID and TCP peer on a recording request.
