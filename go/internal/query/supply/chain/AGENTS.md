@@ -38,6 +38,12 @@ Read `doc.go` and `README.md` first.
 - The packet route MUST compose through `ImpactPacketResponder`
   and MUST NOT name lane-B packet types. If lane-B moves the envelope to
   a leaf, collapse this seam to direct calls and delete the responder.
+- Every handler-owned 500 branch in `listImpactFindings` MUST call
+  `querycontract.WriteGraphReadError` first and return before `failStage`
+  when it reports true (#7548): a stale or timed-out guarded PostgreSQL reader
+  is a retryable 503 with `Retry-After`, not a 500, and the mapped verdict is
+  deliberately not logged as `stage_failed`. The readiness read is the
+  exception: its error serves a `readiness_unavailable` envelope.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.
