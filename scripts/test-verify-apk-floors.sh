@@ -5,7 +5,7 @@
 # mirror built under mktemp, holding real APKINDEX.tar.gz archives.
 #
 # The seeded RED/GREEN pair:
-#   RED   scripts/fixtures/apk-floors/Dockerfile.r1-floors, the final stage as
+#   RED   scripts/fixtures/apk-floors/r1-floors.stage, the final stage as
 #         origin/main had it before #7571 (libssl3/libcrypto3 floors at
 #         3.3.7-r1), against a mirror serving 3.3.7-r2: the verifier must fail.
 #   GREEN the repository Dockerfile against a mirror built FROM that
@@ -19,7 +19,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-apk-floors.sh"
-red_dockerfile="${repo_root}/scripts/fixtures/apk-floors/Dockerfile.r1-floors"
+red_dockerfile="${repo_root}/scripts/fixtures/apk-floors/r1-floors.stage"
 repo_dockerfile="${repo_root}/Dockerfile"
 
 tmp_root="$(mktemp -d)"
@@ -167,7 +167,7 @@ expect_rc 1 "several records, highest listed last: the highest is compared"
 # A comment line inside a RUN continuation does not end the logical line, so
 # floors after it still count. Literal fixture, not floors_of: that helper
 # shares this blind spot. The index lacks "bar": the verifier must notice.
-comment_fixture="${repo_root}/scripts/fixtures/apk-floors/Dockerfile.comment-in-continuation"
+comment_fixture="${repo_root}/scripts/fixtures/apk-floors/comment-in-continuation.stage"
 mirror="${tmp_root}/comment-missing"
 make_mirror "${mirror}" v3.21 "foo=3.3.7-r3"
 run_verifier "${comment_fixture}" "${mirror}"
