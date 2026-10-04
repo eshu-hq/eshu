@@ -1,0 +1,47 @@
+go/cmd/reducer/config.go
+  s_b0d7e3abc26c5a::t_840c56b11485ce 41,281,311-319
+go/internal/storage/postgres/generation_retention.go
+  s_b0d7e3abc26c5a::t_aa4f3ee91f35eb 23-31,51-54,58-65,70-71,76,92-94,335
+go/internal/storage/postgres/generation_retention_hard_ceiling_test.go
+  s_b0d7e3abc26c5a::t_1ba0acf4616274 1-69
+docs/internal/design/2248-retention-semantics-generations-facts-content.md
+  s_b5b0055e3cdece::t_49d48c8af24ae6 33-36,102,112-117,119
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_7b337460ddc1d9 387
+docs/public/services/resolution-engine.md
+  s_b0d7e3abc26c5a::t_4ed13bb297ce9f 319
+go/cmd/reducer/generation_retention_config_test.go
+  s_b5b0055e3cdece::t_f21e4f4250c289 20,25,34,46,51-63
+go/internal/storage/postgres/generation_retention_events.go
+  s_b0d7e3abc26c5a::t_37ea95ce1630c2 244-245
+go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go
+  s_b5b0055e3cdece::t_a1a2f645a482d7 1-77
+go/internal/storage/postgres/generation_retention_lock_set_live_test.go
+  s_b0d7e3abc26c5a::t_57ebc04fad9250 44
+go/internal/storage/postgres/generation_retention_sql.go
+  s_b0d7e3abc26c5a::t_5dc4252135e5c7 23-25,49,115-116,128,136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4681b389c9ee8fdcb3a490546a3c14676b426df4",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b5b0055e3cdece": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a108a2-41bb-7343-a097-6b69d1d756e6",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
