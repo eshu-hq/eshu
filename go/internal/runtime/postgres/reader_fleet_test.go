@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"syscall"
 	"testing"
 	"time"
 
@@ -28,6 +29,52 @@ func TestFleetSharedFailuresDoNotRetryAnotherMember(t *testing.T) {
 	if sharedFleetFailure(context.Background(), memberLocalTopology{}) {
 		t.Fatal("member-local topology mismatch was treated as global")
 	}
+}
+
+func TestFleetWholeReadRetryMayRevisitMember(t *testing.T) {
+	access := &Access{
+		readerMembers: []physicalReaderMember{{ordinal: 0, maxOpen: 4}, {ordinal: 1, maxOpen: 4}},
+		allocator:     newReaderAllocator([]int{4, 4}, 8),
+		replayTimeout: time.Second,
+		identity:      physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"},
+	}
+	ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{
+		owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",
+	})
+	selectMember := func(t *testing.T, failFirst bool) int {
+		t.Helper()
+		failed := false
+		member, err := runFleet(access, ctx, 1, func(_ context.Context, _ context.Context, reservation *readerReservation, _ checkpoint) (int, error) {
+			if failFirst && !failed {
+				failed = true
+				return 0, syscall.ECONNREFUSED
+			}
+			reservation.Release()
+			return reservation.member, nil
+		})
+		if err != nil {
+			t.Fatalf("fleet member selection: %v", err)
+		}
+		return member
+	}
+
+	t.Run("intervening selection", func(t *testing.T) {
+		access.nextReader.Store(0)
+		first := selectMember(t, false)
+		intervening := selectMember(t, false)
+		retry := selectMember(t, false)
+		if first != 0 || intervening != 1 || retry != first {
+			t.Fatalf("member choices first=%d intervening=%d retry=%d, want 0,1,0", first, intervening, retry)
+		}
+	})
+	t.Run("setup fallback", func(t *testing.T) {
+		access.nextReader.Store(0)
+		first := selectMember(t, true)
+		retry := selectMember(t, false)
+		if first != 1 || retry != first {
+			t.Fatalf("member choices after setup fallback first=%d retry=%d, want 1,1", first, retry)
+		}
+	})
 }
 
 func TestFleetPingBoundsWriterSaturation(t *testing.T) {

@@ -96,9 +96,11 @@ configuration mismatches fail closed. No snapshot or partial result crosses
   The setup attempt bounds transaction start, snapshot export, and imports.
   The setup timer is detached only after those steps finish; a returned set
   remains owned by the caller context until it is closed or canceled.
-If an established member disappears during a snapshot, a narrow
+If an established fleet connection is lost during a snapshot, a narrow
 `ReaderMemberLost() bool` error marker permits the caller to retry its whole
-read workflow from a fresh snapshot, not an individual SQL statement. Auth,
+read workflow from a fresh snapshot, not an individual SQL statement. The
+fresh attempt uses shared round-robin ordering and may select the same member
+again; it does not retain a request-specific failed-member exclusion. Auth,
 TLS, SQL, caller cancellation, and replay staleness do not carry that marker.
 Fleet `Ping` has one ping deadline, captures a writer checkpoint, and requires
 at least one reader passing the same frozen identity and replay fence as a

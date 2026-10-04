@@ -72,10 +72,12 @@ cluster, database, or direct-address mismatch fails startup. One qualified
 member can continue serving reads if another is unavailable, but adding or
 readmitting a member requires a reviewed API/MCP restart. A four-connection
 snapshot set is pinned to one member from reservation through cleanup. When a
-qualified member disappears during an unscoped code-topic investigation, Eshu
-retries that *whole* read once on a fresh snapshot while the request deadline
-allows it. It does not retry individual SQL statements or silently route reads
-to the writer. This is reader availability and scale-out, not writer scaling,
+qualified fleet connection is lost during an unscoped code-topic investigation,
+Eshu retries that *whole* read once on a fresh snapshot while the request
+deadline allows it. Selection uses shared round-robin ordering and available
+capacity, so the retry may select the same member again. It does not retry
+individual SQL statements or silently route reads to the writer. This is
+reader availability and scale-out, not writer scaling,
 automatic primary failover, or proof of a particular latency budget.
 
 ## What reads and writes use
