@@ -101,6 +101,38 @@ func TestLoadConfigReaderMembersAreCredentialFreeAndBounded(t *testing.T) {
 	}
 }
 
+func TestLoadConfigReaderMembersIPv6Hosts(t *testing.T) {
+	for _, tc := range []struct {
+		name, inventory string
+		valid           bool
+	}{
+		{"IPv4 and DNS", `[{"id":"a","host":"127.0.0.1","port":5432},{"id":"b","host":"reader-b","port":5432}]`, true},
+		{"bare IPv6", `[{"id":"a","host":"::1","port":5432},{"id":"b","host":"2001:db8::2","port":5432}]`, true},
+		{"scoped IPv6", `[{"id":"a","host":"fe80::1%eth0","port":5432},{"id":"b","host":"2001:db8::2","port":5432}]`, true},
+		{"bracketed IPv6", `[{"id":"a","host":"[::1]","port":5432},{"id":"b","host":"2001:db8::2","port":5432}]`, false},
+		{"host and port", `[{"id":"a","host":"reader-a:5432","port":5432},{"id":"b","host":"2001:db8::2","port":5432}]`, false},
+		{"duplicate IPv6 spelling", `[{"id":"a","host":"2001:0db8::2","port":5432},{"id":"b","host":"2001:db8::2","port":5432}]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadConfig(func(key string) string {
+				switch key {
+				case "ESHU_POSTGRES_DSN":
+					return "postgres://proof:secret@writer/eshu"
+				case "ESHU_POSTGRES_READ_DSN":
+					return "postgres://proof:secret@reader-service/eshu?sslmode=disable"
+				case "ESHU_POSTGRES_READ_MEMBERS":
+					return tc.inventory
+				default:
+					return ""
+				}
+			})
+			if (err == nil) != tc.valid {
+				t.Fatalf("LoadConfig error=%v, valid=%t", err, tc.valid)
+			}
+		})
+	}
+}
+
 func TestLoadConfigReaderMembersRejectAmbiguousTransport(t *testing.T) {
 	inventory := `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432}]`
 	for _, readDSN := range []string{

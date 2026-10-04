@@ -55,8 +55,10 @@ array such as:
 ```
 
 These hosts must reach distinct physical standbys directly, not a
-load-balanced Service or proxy. The separate, single-host
-`ESHU_POSTGRES_READ_DSN` supplies shared
+load-balanced Service or proxy. The `host` field accepts a DNS name, IPv4
+address, or bare IPv6 literal (including a zone when needed); do not include
+IPv6 brackets or a port in `host`. The numeric `port` field is separate. The
+single-host `ESHU_POSTGRES_READ_DSN` supplies shared
 database, credentials, and TLS settings; configure its transport explicitly so
 pgx has no alternate-host or TLS fallback. Prefer verified TLS when the reader
 certificates support it. No credentials belong in the inventory. The total

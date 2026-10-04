@@ -42,8 +42,10 @@ before borrowing a reader.
   The reader randomizes host order for each new physical connection. Candidate
   counts never multiply the total open or idle budgets.
 - `ESHU_POSTGRES_READ_MEMBERS` optionally names two or more physical standbys
-  as JSON objects with `id`, direct `host`, and numeric `port` fields. It has
-  no password or TLS material; members inherit the shared read role, database,
+  as JSON objects with `id`, direct `host`, and numeric `port` fields. Each
+  `host` may be a DNS name, IPv4 address, or bare IPv6 literal; IPv6 brackets
+  and an embedded port are invalid. The inventory has no password or TLS
+  material; members inherit the shared read role, database,
   and TLS from `ESHU_POSTGRES_READ_DSN`. Fleet mode requires a distinct,
   single-host read DSN with no pgx fallback (including `sslmode=prefer`'s TLS
   fallback). Member hosts must resolve directly to database Pods/VMs, not a

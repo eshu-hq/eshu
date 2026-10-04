@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +18,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ReaderMember names one directly reachable physical standby. It contains no
+// ReaderMember names one directly reachable physical standby. Host is a DNS
+// name, IPv4 address, or bare IPv6 literal; Port is separate. It contains no
 // credentials; ReadDSN supplies the shared database, role, and TLS settings.
 type ReaderMember struct {
 	ID   string `json:"id"`
@@ -175,10 +178,18 @@ func validateReaderMembers(members []ReaderMember) error {
 	}
 	ids, endpoints := map[string]bool{}, map[string]bool{}
 	for _, member := range members {
-		if member.ID == "" || member.Host == "" || member.Port == 0 || strings.ContainsAny(member.Host, "@/: \t\r\n") || strings.ContainsAny(member.ID, "@/: \t\r\n") {
+		if member.ID == "" || member.Host == "" || member.Port == 0 || strings.ContainsAny(member.Host, "@/[] \t\r\n") || strings.ContainsAny(member.ID, "@/: \t\r\n") {
 			return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains an invalid direct member")
 		}
-		key := fmt.Sprintf("%s:%d", member.Host, member.Port)
+		host := member.Host
+		if strings.Contains(host, ":") {
+			address, err := netip.ParseAddr(host)
+			if err != nil || !address.Is6() {
+				return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains an invalid direct member")
+			}
+			host = address.String()
+		}
+		key := net.JoinHostPort(host, strconv.Itoa(int(member.Port)))
 		if ids[member.ID] || endpoints[key] {
 			return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains a duplicate ID or endpoint")
 		}
