@@ -45,3 +45,21 @@ Revert the commit. No schema, data, or contract changed. `CodeReachabilityCovera
 ## Not in this change
 
 The reachability loader (PR B of #7547) is untouched here. The reducer-side watermark fixes (depth-10 cutoff with unseen targets, zero-root repository stamped `truncated = true`) landed separately in `go/internal/reducer/codeintel`. Still open: adopting PR #7554's completeness predicates (full generation, both work items succeeded, no pending intents) with a drift test against the query constant. A skip may return only behind `exact` language maturity plus a completeness proof; no hook is built now.
+
+## Epoch bump to 4 (reducer watermark change)
+
+Decision: the arbiter ruled on #7547 that `CodeReachabilityVerdictSchemaEpoch` goes from 3 to 4 in `go/internal/storage/postgres/code/reachability/store.go`. The reducer now stamps `truncated = true` for a zero-root snapshot and for a depth cutoff with unseen targets. That changes the truncated bit for unchanged inputs. A watermark stamped at epoch 3 carries the old `truncated = false`, and the loader only reschedules a repo on a stale `updated_at` or a lower epoch, so without the bump those watermarks would never be re-stamped. No DDL, backfill SQL, loader change, worker change or batch change.
+
+Cost estimate (unmeasured on QA): the QA census read 790 active watermarks, 378 of them with zero rows and at most 7 depth-cut. After the bump every epoch-3 watermark is stale once, so roughly 790 re-projections run one time. At the default batch limit of 100 that is about 8 reducer cycles. Each re-projection reads the repo's roots and edges and replaces its rows, as any normal projection does.
+
+Owner-visible consequence: after the bump the roughly 378 zero-root consumers stay `truncated = true`, so an unscoped cross-repo dead-code request reads as unknown for those repos instead of as proven dead. That is the intended result. A repo leaves that state only when it gains a root.
+
+Fixture-scale proof (throwaway `postgres:18-alpine`, Docker; not QA data, not QA scale):
+
+- `TestCodeReachabilityTruncationEpochBumpRestampsWatermarks` (`go/internal/storage/postgres/code_reachability_upgrade_backfill_live_test.go`) seeds three repos at epoch 3, `truncated = false`, `updated_at` newer than the last completed intent: a zero-root repo, an 11-hop chain, and a rooted complete repo. After one `ProcessOnce` the zero-root repo is `truncated = true` with logged `truncation_reason = no_roots`, the chain is `truncated = true` with `max_depth`, and the complete repo is `truncated = false`. All three are at epoch 4. `code_reachability_rows` for the complete repo is identical before and after (`EXCEPT ALL` both ways returns 0). A second pass does not reschedule any of the three. The test runs in 0.15 s. The "before" rows for the complete repo come from a first projection by the same code, then restoring the epoch-3 stamp, so this proves idempotent re-projection, not an independent baseline.
+- Seeded mutation: setting the constant back to 3 turns that test RED (`epoch-3 watermark for ... was not re-scheduled at epoch 3`) and turns `TestCodeReachabilityVerdictSchemaEpochBumpedForTruncationSemantics` RED (`want >= 4`).
+- `TestCodeReachabilityPendingInputsPlanAtEpochBump` (`go/internal/storage/postgres/code/reachability/store_route_liveness_live_test.go`) runs `EXPLAIN (ANALYZE, BUFFERS)` of `listPendingCodeReachabilityInputsSQL` over 800 fixture watermarks, all stale at epoch 4. The plan has the same node classes as the same query at epoch 3 (all current): Limit, Sort, GroupAggregate, Nested Loop, Hash Join, index scans on the intents lookup index, the generation primary key and the watermark primary key. Epoch 3 runs in 7.4 ms (0 rows), epoch 4 in 8.5 ms (100 rows, top-N heapsort), at 7229 and 7227 shared buffer hits. The loader walks every accepted repo on every call today, and it still does; the bump does not change that.
+
+No-Regression Evidence: the epoch 4 plan above keeps the node classes of the epoch 3 plan at fixture scale (800 repos, 7.4 ms to 8.5 ms); the one-time re-projection cost on QA is estimated, not measured.
+
+No-Observability-Change: the bump adds no metric, span, log key or status field. The `truncation_reason` attribute on the existing truncation warning came with the reducer change above.

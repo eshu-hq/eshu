@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -307,5 +308,74 @@ func TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController(t *t
 	}
 	if len(downgraded) != 0 {
 		t.Fatalf("root-only-routed WelcomeController#index must not be downgraded, got %v", downgraded)
+	}
+}
+
+// TestCodeReachabilityPendingInputsPlanAtEpochBump is the #7547 fixture-scale
+// (800 repos, NOT QA-scale) EXPLAIN (ANALYZE, BUFFERS) of the pending-input
+// loader with $2 = the bumped epoch, against a fixture of epoch-3 watermarks
+// that all become stale at the bump. It asserts the plan keeps the node classes
+// of the same query at the previous epoch (all watermarks current) and logs both
+// plans and timings.
+func TestCodeReachabilityPendingInputsPlanAtEpochBump(t *testing.T) {
+	ctx, db := openRouteLivenessLiveDB(t)
+	const prefix = "scope-explain7547-"
+	exec := func(q string) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("seed %q: %v", q, err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, table := range []string{"code_reachability_repository_watermarks", "shared_projection_intents", "shared_projection_acceptance", "scope_generations", "ingestion_scopes"} {
+			_, _ = db.ExecContext(context.Background(), "DELETE FROM "+table+" WHERE scope_id LIKE '"+prefix+"%'")
+		}
+	})
+	exec(`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+	        observed_at, ingested_at, status, active_generation_id, payload)
+	      SELECT '` + prefix + `' || g, 'repository', 'git', 'k' || g, 'git', 'k' || g, now(), now(), 'active', 'gen-explain7547-' || g, '{}'::jsonb
+	      FROM generate_series(1, 800) g`)
+	exec(`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+	      SELECT 'gen-explain7547-' || g, '` + prefix + `' || g, 'manual', now(), now(), 'active', now() FROM generate_series(1, 800) g`)
+	exec(`INSERT INTO shared_projection_acceptance (scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at)
+	      SELECT '` + prefix + `' || g, 'repo-explain7547-' || g, 'run-' || g, 'gen-explain7547-' || g, now() - interval '1 hour', now() - interval '1 hour'
+	      FROM generate_series(1, 800) g`)
+	exec(`INSERT INTO shared_projection_intents (intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id, repository_id,
+	        source_run_id, generation_id, payload, created_at, completed_at)
+	      SELECT 'intent-explain7547-' || g, 'code_calls', 'repo-explain7547-' || g, '` + prefix + `' || g, 'repo-explain7547-' || g, 'repo-explain7547-' || g,
+	        'run-' || g, 'gen-explain7547-' || g, '{}'::jsonb, now() - interval '1 hour', now() - interval '1 hour'
+	      FROM generate_series(1, 800) g`)
+	exec(`INSERT INTO code_reachability_repository_watermarks (scope_id, generation_id, repository_id, truncated, updated_at, verdict_schema_epoch)
+	      SELECT '` + prefix + `' || g, 'gen-explain7547-' || g, 'repo-explain7547-' || g, false, now() - interval '59 minutes', 3 FROM generate_series(1, 800) g`)
+	exec(`ANALYZE ingestion_scopes; ANALYZE scope_generations; ANALYZE shared_projection_acceptance; ANALYZE shared_projection_intents; ANALYZE code_reachability_repository_watermarks`)
+
+	nodeClass := regexp.MustCompile(`(?m)(Nested Loop|Hash(?: Right| Left)? Join|Merge Join|Seq Scan|Index Only Scan|Index Scan|Bitmap Heap Scan|HashAggregate|GroupAggregate|Sort|Limit)`)
+	explain := func(epoch int) (plan string, classes map[string]bool) {
+		t.Helper()
+		rows, err := db.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+reachabilitystore.ListPendingCodeReachabilityInputsSQL, 100, epoch)
+		if err != nil {
+			t.Fatalf("explain at epoch %d: %v", epoch, err)
+		}
+		defer func() { _ = rows.Close() }()
+		var b strings.Builder
+		for rows.Next() {
+			var line string
+			if err := rows.Scan(&line); err != nil {
+				t.Fatalf("scan plan: %v", err)
+			}
+			b.WriteString(line + "\n")
+		}
+		classes = map[string]bool{}
+		for _, m := range nodeClass.FindAllString(b.String(), -1) {
+			classes[m] = true
+		}
+		return b.String(), classes
+	}
+	prevPlan, prevClasses := explain(3)
+	bumpPlan, bumpClasses := explain(reachabilitystore.CodeReachabilityVerdictSchemaEpoch)
+	t.Logf("fixture-scale (800 repos) plan at epoch 3 (all current):\n%s", prevPlan)
+	t.Logf("fixture-scale (800 repos) plan at epoch %d (all stale, LIMIT 100):\n%s", reachabilitystore.CodeReachabilityVerdictSchemaEpoch, bumpPlan)
+	if fmt.Sprint(prevClasses) != fmt.Sprint(bumpClasses) {
+		t.Fatalf("plan node classes changed at the bump: epoch 3 %v vs epoch %d %v", prevClasses, reachabilitystore.CodeReachabilityVerdictSchemaEpoch, bumpClasses)
 	}
 }
