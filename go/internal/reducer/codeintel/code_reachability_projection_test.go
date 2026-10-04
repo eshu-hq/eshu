@@ -193,6 +193,64 @@ func TestBuildCodeReachabilityRowsWithStatsCompleteHasNoReason(t *testing.T) {
 	}
 }
 
+func TestBuildCodeReachabilityRowsWithStatsBothBoundsFireReportsMaxVisited(t *testing.T) {
+	// MaxVisited drops entity d while expanding b, and the depth cutoff drops
+	// entity e from c at MaxDepth=2; max_visited must win.
+	edge := func(src, dst string) CodeReachabilityEdge {
+		return CodeReachabilityEdge{SourceEntityID: src, TargetEntityID: dst, RelationshipType: "CALLS", ResolutionMethod: "scip"}
+	}
+	_, stats := BuildCodeReachabilityRowsWithStats(CodeReachabilityProjectionInput{
+		Roots: []CodeReachabilityRoot{{EntityID: "entity:root"}},
+		Edges: []CodeReachabilityEdge{
+			edge("entity:root", "entity:a"), edge("entity:root", "entity:b"),
+			edge("entity:a", "entity:c"), edge("entity:b", "entity:d"), edge("entity:c", "entity:e"),
+		},
+		MaxDepth:   2,
+		MaxVisited: 4,
+	})
+	if got, want := stats.TruncationReason, CodeReachabilityTruncationMaxVisited; !stats.Truncated || got != want {
+		t.Fatalf("stats = %#v, want Truncated with reason %q", stats, want)
+	}
+}
+
+func TestBuildCodeReachabilityRowsWithStatsDiamondAtCutoffIsComplete(t *testing.T) {
+	// t is reached at depth 1 directly and again from y at MaxDepth=2: the edge
+	// past the cutoff returns to a visited entity, so nothing is dropped.
+	edge := func(src, dst string) CodeReachabilityEdge {
+		return CodeReachabilityEdge{SourceEntityID: src, TargetEntityID: dst, RelationshipType: "CALLS", ResolutionMethod: "scip"}
+	}
+	_, stats := BuildCodeReachabilityRowsWithStats(CodeReachabilityProjectionInput{
+		Roots: []CodeReachabilityRoot{{EntityID: "entity:root"}},
+		Edges: []CodeReachabilityEdge{
+			edge("entity:root", "entity:x"), edge("entity:root", "entity:t"),
+			edge("entity:x", "entity:y"), edge("entity:y", "entity:t"),
+		},
+		MaxDepth: 2,
+	})
+	if stats.Truncated {
+		t.Fatalf("stats = %#v, want complete: the only edge past the cutoff targets a visited entity", stats)
+	}
+}
+
+func TestBuildCodeReachabilityRowsWithStatsMultiRootFrontierOnSecondRootIsTruncated(t *testing.T) {
+	// The first root's tree is complete; only the second root has an unseen
+	// target past MaxDepth=1, and that alone must truncate the snapshot.
+	edge := func(src, dst string) CodeReachabilityEdge {
+		return CodeReachabilityEdge{SourceEntityID: src, TargetEntityID: dst, RelationshipType: "CALLS", ResolutionMethod: "scip"}
+	}
+	_, stats := BuildCodeReachabilityRowsWithStats(CodeReachabilityProjectionInput{
+		Roots: []CodeReachabilityRoot{{EntityID: "entity:r1"}, {EntityID: "entity:r2"}},
+		Edges: []CodeReachabilityEdge{
+			edge("entity:r1", "entity:shared"),
+			edge("entity:r2", "entity:shared"), edge("entity:r2", "entity:far"), edge("entity:far", "entity:beyond"),
+		},
+		MaxDepth: 1,
+	})
+	if got, want := stats.TruncationReason, CodeReachabilityTruncationMaxDepth; !stats.Truncated || got != want {
+		t.Fatalf("stats = %#v, want Truncated with reason %q", stats, want)
+	}
+}
+
 // BenchmarkBuildCodeReachabilityRows records the bounded-traversal cost over a
 // large synthetic corpus: a fan-out graph with depth and visited bounds applied.
 // Run: go test ./internal/reducer/codeintel -run='^$' -bench=BenchmarkBuildCodeReachabilityRows -benchmem

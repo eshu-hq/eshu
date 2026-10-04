@@ -44,7 +44,7 @@ Revert the commit. No schema, data, or contract changed. `CodeReachabilityCovera
 
 ## Not in this change
 
-The reachability loader (PR B of #7547) is untouched here. The reducer-side watermark fixes (depth-10 cutoff with unseen targets, zero-root repository stamped `truncated = true`) landed separately in `go/internal/reducer/codeintel`. Still open: adopting PR #7554's completeness predicates (full generation, both work items succeeded, no pending intents) with a drift test against the query constant. A skip may return only behind `exact` language maturity plus a completeness proof; no hook is built now.
+This change is PR A of #7547 (PR #7559, merged): the reader no longer skips the legacy read. The reducer-side writer fix (the depth-10 cutoff with unseen targets, and a zero-root repository stamped `truncated = true`) plus the epoch bump below is PR B. Still open as a follow-up that waits on QA measurement: adopting PR #7554's completeness predicates (full generation, both work items succeeded, no pending intents) with a drift test against the query constant. A skip may return only behind `exact` language maturity plus a completeness proof; no hook is built now.
 
 ## Epoch bump to 4 (reducer watermark change)
 
@@ -52,7 +52,9 @@ Decision: the arbiter ruled on #7547 that `CodeReachabilityVerdictSchemaEpoch` g
 
 Cost estimate (unmeasured on QA): the QA census read 790 active watermarks, 378 of them with zero rows and at most 7 depth-cut. After the bump every epoch-3 watermark is stale once, so roughly 790 re-projections run one time. At the default batch limit of 100 that is about 8 reducer cycles. Each re-projection reads the repo's roots and edges and replaces its rows, as any normal projection does.
 
-Owner-visible consequence: after the bump the roughly 378 zero-root consumers stay `truncated = true`, so an unscoped cross-repo dead-code request reads as unknown for those repos instead of as proven dead. That is the intended result. A repo leaves that state only when it gains a root.
+Owner-visible consequence: after the bump the roughly 378 zero-root repos stay `truncated = true`. Once the companion cross-repo reader (PR C) lands, an unscoped cross-repo dead-code request reads as unknown for those repos instead of as proven dead. Nothing on `origin/main` reads `watermark.truncated` today, so there is no change to a served answer until then. That is the intended result. A repo leaves that state only when it gains a root.
+
+Counter and log behavior: `snapshots_truncated` counts zero-root snapshots now, so it jumps on the first cycles after the bump (about 378 on QA) and then settles; that jump is the intended re-stamp, not a regression. To keep it from burying real signals, the per-snapshot `truncation_reason = no_roots` line logs at INFO, while `max_visited` and `max_depth` stay at WARN. Known behavior: during a rolling deploy an older reducer replica can re-stamp a repo at epoch 3 with the old `truncated` bit, and the new replica then re-stamps it at epoch 4, so a watermark can flip once more until the rollout finishes.
 
 Fixture-scale proof (throwaway `postgres:18-alpine`, Docker; not QA data, not QA scale):
 

@@ -375,13 +375,14 @@ func TestCodeReachabilityTruncationEpochBumpRestampsWatermarks(t *testing.T) {
 			t.Fatalf("epoch-3 watermark for %q was not re-scheduled at epoch %d", repoID, reachabilitystore.CodeReachabilityVerdictSchemaEpoch)
 		}
 	}
+	before := fmt.Sprintf("code_reachability_rows_before_%d", time.Now().UnixNano())
 	const rowsSQL = `SELECT root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds
 		FROM code_reachability_rows WHERE repository_id = $1`
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS code_reachability_rows_before_7547 AS SELECT * FROM code_reachability_rows WHERE false`); err != nil {
+	if _, err := db.ExecContext(ctx, `CREATE TABLE `+before+` AS SELECT * FROM code_reachability_rows WHERE false`); err != nil {
 		t.Fatalf("create before table: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DROP TABLE IF EXISTS code_reachability_rows_before_7547`)
+		_, _ = db.ExecContext(context.Background(), `DROP TABLE IF EXISTS `+before)
 	})
 	// Rows for the complete repo as the pre-bump logic left them: project it once
 	// (rows are unchanged by #7547), snapshot them, then restore the epoch-3 stamp.
@@ -391,7 +392,7 @@ func TestCodeReachabilityTruncationEpochBumpRestampsWatermarks(t *testing.T) {
 	if _, err := runner.ProcessOnce(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("ProcessOnce: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `INSERT INTO code_reachability_rows_before_7547 SELECT * FROM code_reachability_rows WHERE repository_id = $1`, okRepo); err != nil {
+	if _, err := db.ExecContext(ctx, `INSERT INTO `+before+` SELECT * FROM code_reachability_rows WHERE repository_id = $1`, okRepo); err != nil {
 		t.Fatalf("snapshot rows: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE code_reachability_repository_watermarks SET verdict_schema_epoch = 3, truncated = false
@@ -416,9 +417,9 @@ func TestCodeReachabilityTruncationEpochBumpRestampsWatermarks(t *testing.T) {
 		}
 	}
 	for _, diff := range []string{
-		`SELECT count(*) FROM (SELECT root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds FROM code_reachability_rows_before_7547
+		`SELECT count(*) FROM (SELECT root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds FROM ` + before + `
 		  EXCEPT ALL ` + rowsSQL + `) d`,
-		`SELECT count(*) FROM (` + rowsSQL + ` EXCEPT ALL SELECT root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds FROM code_reachability_rows_before_7547) d`,
+		`SELECT count(*) FROM (` + rowsSQL + ` EXCEPT ALL SELECT root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds FROM ` + before + `) d`,
 	} {
 		var n int
 		if err := db.QueryRowContext(ctx, diff, okRepo).Scan(&n); err != nil || n != 0 {

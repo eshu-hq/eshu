@@ -319,7 +319,16 @@ func (r *CodeReachabilityProjectionRunner) projectInput(
 	if stats.Truncated {
 		atomic.AddInt64(&agg.truncated, 1)
 		if r.Logger != nil {
-			r.Logger.Warn(
+			// A snapshot with no usable root is an expected state for many
+			// repositories, so it logs at INFO; a bound that dropped part of
+			// the graph (max_visited, max_depth) stays a WARN.
+			level := slog.LevelWarn
+			if stats.TruncationReason == CodeReachabilityTruncationNoRoots {
+				level = slog.LevelInfo
+			}
+			r.Logger.Log(
+				ctx,
+				level,
 				"code reachability snapshot truncated; absent entities are not proven unreachable",
 				log.ScopeID(input.ScopeID),
 				log.GenerationID(input.GenerationID),
