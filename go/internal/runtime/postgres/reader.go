@@ -22,15 +22,19 @@ var errReaderPermitTimeout = errors.New("guarded reader permit wait timed out")
 // physical connection to the pool. Every guarded read owns exactly one lease.
 type readerConnection struct {
 	*sql.Conn
-	permits chan struct{}
-	once    sync.Once
-	err     error
+	permits     chan struct{}
+	reservation *readerReservation
+	member      *physicalReaderMember
+	once        sync.Once
+	err         error
 }
 
 func (c *readerConnection) Close() error {
 	c.once.Do(func() {
 		c.err = c.Conn.Close()
-		if c.permits != nil {
+		if c.reservation != nil {
+			c.reservation.ReleaseOne()
+		} else if c.permits != nil {
 			c.permits <- struct{}{}
 		}
 	})
@@ -57,6 +61,13 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 }
 
 func (a *Access) borrowFresh(ctx context.Context) (*readerConnection, error) {
+	if len(a.readerMembers) > 0 {
+		return a.borrowFleet(ctx)
+	}
+	return a.borrowFreshFrom(ctx, a.reader, nil)
+}
+
+func (a *Access) borrowFreshFrom(ctx context.Context, pool *sql.DB, member *physicalReaderMember) (*readerConnection, error) {
 	point, ok := ctx.Value(checkpointKey{}).(checkpoint)
 	if !ok || point.owner != a {
 		return nil, ErrMissingCheckpoint
@@ -76,7 +87,7 @@ func (a *Access) borrowFresh(ctx context.Context) (*readerConnection, error) {
 			return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, borrowErr))
 		}
 	}
-	conn, err := a.reader.Conn(fenceCtx)
+	conn, err := pool.Conn(fenceCtx)
 	a.observe("reader", StageReaderBorrow, borrowed, err)
 	if err != nil {
 		if a.readerPermits != nil {
@@ -84,7 +95,7 @@ func (a *Access) borrowFresh(ctx context.Context) (*readerConnection, error) {
 		}
 		return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, err))
 	}
-	if err := a.checkReader(fenceCtx, conn, point); err != nil {
+	if err := a.checkReader(fenceCtx, conn, point, member); err != nil {
 		if errors.Is(err, ErrWrongTopology) {
 			// sql.Conn.Close returns healthy connections to the pool. This
 			// physical connection failed its borrowed-session identity check.
@@ -96,16 +107,25 @@ func (a *Access) borrowFresh(ctx context.Context) (*readerConnection, error) {
 		}
 		return nil, err
 	}
-	return &readerConnection{Conn: conn, permits: a.readerPermits}, nil
+	return &readerConnection{Conn: conn, permits: a.readerPermits, member: member}, nil
 }
 
-func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint) error {
+func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoint, member *physicalReaderMember) error {
 	started := time.Now()
 	var readOnly, systemID, database string
 	var recovery bool
-	err := conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database() FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database)
+	var err error
+	var incarnation, serverAddress string
+	if member == nil {
+		err = conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database() FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database)
+	} else {
+		err = conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database(), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text, host(inet_server_addr()) FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database, &incarnation, &serverAddress)
+	}
 	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || systemID != a.identity.systemID || database != a.identity.database || recovery == a.samePrimary) {
 		err = ErrWrongTopology
+	}
+	if err == nil && member != nil && (incarnation != member.incarnation || !addressMatches(serverAddress, member.addresses)) {
+		err = memberLocalTopology{}
 	}
 	a.observe("reader", StageReaderIdentity, started, err)
 	if err != nil {

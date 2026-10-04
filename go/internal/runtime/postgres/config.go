@@ -4,8 +4,12 @@
 package postgres
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -14,12 +18,22 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// ReaderMember names one directly reachable physical standby. Host is a DNS
+// name, IPv4 address, or bare IPv6 literal; Port is separate. It contains no
+// credentials; ReadDSN supplies the shared database, role, and TLS settings.
+type ReaderMember struct {
+	ID   string `json:"id"`
+	Host string `json:"host"`
+	Port uint16 `json:"port"`
+}
+
 // Config fixes one API or MCP process's total pool budget across writer and reader.
 // Candidates must resolve to one accepted physical primary and its streaming
 // standbys; routing does not imply failover or promotion safety.
 type Config struct {
 	WriterDSN          string
 	ReadDSN            string
+	ReadMembers        []ReaderMember
 	SamePrimary        bool
 	WriterMaxOpenConns int
 	ReadMaxOpenConns   int
@@ -77,6 +91,16 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 			return Config{}, err
 		}
 	}
+	members, err := parseReaderMembers(strings.TrimSpace(getenv("ESHU_POSTGRES_READ_MEMBERS")))
+	if err != nil {
+		return Config{}, err
+	}
+	if len(members) > 0 {
+		readCfg, parseErr := parsePhysicalEndpoint(read)
+		if parseErr != nil || read == writer || len(readCfg.Fallbacks) > 0 {
+			return Config{}, fmt.Errorf("reader members require a distinct single-host read DSN")
+		}
+	}
 	readOpen := base.MaxOpenConns / 2
 	if value := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_MAX_OPEN_CONNS")); value != "" {
 		readOpen, err = strconv.Atoi(value)
@@ -88,6 +112,13 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if readOpen < 1 || writeOpen < 1 {
 		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_OPEN_CONNS must leave at least one connection for each pool")
 	}
+	if len(members) > 0 && readOpen/len(members) < 4 {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_OPEN_CONNS must allow four connections per reader member")
+	}
+	minimumFleetIdle := 4 * len(members)
+	if base.MaxIdleConns < minimumFleetIdle {
+		return Config{}, fmt.Errorf("ESHU_POSTGRES_MAX_IDLE_CONNS must allow four idle connections per reader member")
+	}
 	readIdle := base.MaxIdleConns / 2
 	if value := strings.TrimSpace(getenv("ESHU_POSTGRES_READ_MAX_IDLE_CONNS")); value != "" {
 		readIdle, err = strconv.Atoi(value)
@@ -97,7 +128,13 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		if readIdle < 0 || readIdle > base.MaxIdleConns || readIdle > readOpen || base.MaxIdleConns-readIdle > writeOpen {
 			return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_IDLE_CONNS must fit both pools and the total idle budget")
 		}
+		if readIdle < minimumFleetIdle {
+			return Config{}, fmt.Errorf("ESHU_POSTGRES_READ_MAX_IDLE_CONNS must allow four idle connections per reader member")
+		}
 	} else {
+		if readIdle < minimumFleetIdle {
+			readIdle = minimumFleetIdle
+		}
 		if readIdle < base.MaxIdleConns-writeOpen {
 			readIdle = base.MaxIdleConns - writeOpen
 		}
@@ -106,13 +143,59 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		}
 	}
 	return Config{
-		WriterDSN: writer, ReadDSN: read, SamePrimary: read == writer,
+		WriterDSN: writer, ReadDSN: read, ReadMembers: members, SamePrimary: read == writer,
 		WriterMaxOpenConns: writeOpen, ReadMaxOpenConns: readOpen,
 		WriterMaxIdleConns: base.MaxIdleConns - readIdle, ReadMaxIdleConns: readIdle,
 		ConnMaxLifetime: base.ConnMaxLifetime, ConnMaxIdleTime: base.ConnMaxIdleTime,
 		PingTimeout: base.PingTimeout, ReplayTimeout: 2 * time.Second,
 		ExpectedSystemID: expectedSystemID,
 	}, nil
+}
+
+func parseReaderMembers(raw string) ([]ReaderMember, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var members []ReaderMember
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&members); err != nil || len(members) < 2 {
+		return nil, fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS must be a JSON array of at least two direct members")
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return nil, fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains trailing data")
+	}
+	if err := validateReaderMembers(members); err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
+func validateReaderMembers(members []ReaderMember) error {
+	if len(members) < 2 {
+		return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS needs at least two direct members")
+	}
+	ids, endpoints := map[string]bool{}, map[string]bool{}
+	for _, member := range members {
+		if member.ID == "" || member.Host == "" || member.Port == 0 || strings.ContainsAny(member.Host, "@/[] \t\r\n") || strings.ContainsAny(member.ID, "@/: \t\r\n") {
+			return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains an invalid direct member")
+		}
+		host := member.Host
+		if strings.Contains(host, ":") {
+			address, err := netip.ParseAddr(host)
+			if err != nil || !address.Is6() {
+				return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains an invalid direct member")
+			}
+			host = address.String()
+		}
+		key := net.JoinHostPort(host, strconv.Itoa(int(member.Port)))
+		if ids[member.ID] || endpoints[key] {
+			return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS contains a duplicate ID or endpoint")
+		}
+		ids[member.ID], endpoints[key] = true, true
+	}
+	return nil
 }
 
 func parsePhysicalEndpoint(dsn string) (*pgx.ConnConfig, error) {

@@ -35,6 +35,49 @@ func TestLoadConfigSplitsOneBudget(t *testing.T) {
 	}
 }
 
+func TestLoadConfigFleetKeepsFourIdleConnectionsPerMember(t *testing.T) {
+	const members = `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432}]`
+	const threeMembers = `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432},{"id":"c","host":"reader-c","port":5432}]`
+	for _, tc := range []struct {
+		name      string
+		env       map[string]string
+		readIdle  int
+		totalIdle int
+		wantErr   string
+	}{
+		{"default", nil, 8, 10, ""},
+		{"explicit floor", map[string]string{"ESHU_POSTGRES_READ_MAX_IDLE_CONNS": "8"}, 8, 10, ""},
+		{"explicit below floor", map[string]string{"ESHU_POSTGRES_READ_MAX_IDLE_CONNS": "7"}, 0, 0, "ESHU_POSTGRES_READ_MAX_IDLE_CONNS"},
+		{"total below floor", map[string]string{"ESHU_POSTGRES_MAX_IDLE_CONNS": "7"}, 0, 0, "ESHU_POSTGRES_MAX_IDLE_CONNS"},
+		{"three members", map[string]string{"ESHU_POSTGRES_READ_MEMBERS": threeMembers, "ESHU_POSTGRES_MAX_IDLE_CONNS": "14"}, 12, 14, ""},
+		{"three members with default idle budget", map[string]string{"ESHU_POSTGRES_READ_MEMBERS": threeMembers}, 0, 0, "ESHU_POSTGRES_MAX_IDLE_CONNS"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := map[string]string{
+				"ESHU_POSTGRES_DSN":          "postgres://user:secret@writer/db",
+				"ESHU_POSTGRES_READ_DSN":     "postgres://user:secret@reader/db?sslmode=disable",
+				"ESHU_POSTGRES_READ_MEMBERS": members,
+			}
+			for key, value := range tc.env {
+				env[key] = value
+			}
+			cfg, err := LoadConfig(func(key string) string { return env[key] })
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) || strings.Contains(err.Error(), "secret") {
+					t.Fatalf("LoadConfig error = %v, want %s without credentials", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.ReadMaxIdleConns != tc.readIdle || cfg.WriterMaxIdleConns+cfg.ReadMaxIdleConns != tc.totalIdle || cfg.ReadMaxOpenConns+cfg.WriterMaxOpenConns != 30 {
+				t.Fatalf("fleet pool split = read idle %d, writer idle %d, read open %d, writer open %d; want read idle %d, total idle %d, total open 30", cfg.ReadMaxIdleConns, cfg.WriterMaxIdleConns, cfg.ReadMaxOpenConns, cfg.WriterMaxOpenConns, tc.readIdle, tc.totalIdle)
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidPoolsWithoutSecrets(t *testing.T) {
 	for _, tc := range []map[string]string{
 		{"ESHU_POSTGRES_MAX_OPEN_CONNS": "1"},

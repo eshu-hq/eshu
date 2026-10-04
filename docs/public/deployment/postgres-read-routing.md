@@ -20,10 +20,11 @@ flowchart LR
 | --- | --- |
 | `ESHU_POSTGRES_DSN` | Writer DSN; `ESHU_CONTENT_STORE_DSN` is the legacy fallback. |
 | `ESHU_POSTGRES_READ_DSN` | Optional reader DSN. Omitted means the exact writer DSN. |
+| `ESHU_POSTGRES_READ_MEMBERS` | Optional credential-free JSON inventory of at least two direct physical readers (`id`, `host`, `port`). Omit for the legacy reader Service path. |
 | `ESHU_POSTGRES_MAX_OPEN_CONNS` | Total open connections across both pools per API/MCP process; default 30, minimum 2. |
 | `ESHU_POSTGRES_MAX_IDLE_CONNS` | Total idle connections across both pools; default 10. |
 | `ESHU_POSTGRES_READ_MAX_OPEN_CONNS` | Reader allocation, default half the total; writer gets the remainder. |
-| `ESHU_POSTGRES_READ_MAX_IDLE_CONNS` | Reader idle allocation, default half subject to both pool limits. |
+| `ESHU_POSTGRES_READ_MAX_IDLE_CONNS` | Reader idle allocation, default half without an inventory; with direct members, at least four per member within the unchanged total budget. An explicit lower value fails startup. |
 | `ESHU_POSTGRES_EXPECTED_SYSTEM_ID` | Optional independently supplied physical cluster identity. |
 
 A single-instance install can set both DSNs to exactly the same string or omit
@@ -31,7 +32,7 @@ the reader DSN. The process creates a private read-only session pool alongside
 the writer pool. This separates ownership and connection budgets; one database
 still shares CPU, memory, and storage between reads and writes.
 
-Both DSNs accept native pgx host lists, for example:
+Without a member inventory, both DSNs accept native pgx host lists, for example:
 
 ```text
 host=reader-a,reader-b port=5432,5432 dbname=eshu user=reader sslmode=verify-full
@@ -42,6 +43,52 @@ pooled connections remain attached to their selected host; requests are not
 round-robin balanced. Multiple hosts share one configured reader pool budget.
 Writer candidates must reach the same accepted writable primary incarnation.
 This is not independent multi-primary replication.
+
+For request-scoped reader affinity, set `ESHU_POSTGRES_READ_MEMBERS` to a JSON
+array such as:
+
+```json
+[
+  {"id":"read-0","host":"reader-0.example","port":5432},
+  {"id":"read-1","host":"reader-1.example","port":5432}
+]
+```
+
+These hosts must reach distinct physical standbys directly, not a
+load-balanced Service or proxy. The `host` field accepts a DNS name, IPv4
+address, or bare IPv6 literal (including a zone when needed); do not include
+IPv6 brackets or a port in `host`. The numeric `port` field is separate. The
+single-host `ESHU_POSTGRES_READ_DSN` supplies shared
+database, credentials, and TLS settings; configure its transport explicitly so
+pgx has no alternate-host or TLS fallback. Prefer verified TLS when the reader
+certificates support it. No credentials belong in the inventory. The total
+reader connection allocation is divided across members, with at least four
+open and four idle connections for each member's snapshot-set reads. With two
+members and the default 10 idle connections, eight go to readers and two
+remain for the writer. More members require a large enough
+`ESHU_POSTGRES_MAX_IDLE_CONNS` total; startup rejects a smaller total or an
+explicit reader idle allocation below four per member. Open limits do not rise.
+
+Membership is fixed at startup. An unreachable member is ineligible; a role,
+cluster, database, or direct-address mismatch fails startup. One qualified
+member can continue serving reads if another is unavailable, but adding or
+readmitting a member requires a reviewed API/MCP restart. A four-connection
+snapshot set is pinned to one member from reservation through cleanup. When a
+qualified fleet connection is lost during an unscoped code-topic investigation,
+Eshu retries that *whole* read once on a fresh snapshot while the request
+deadline allows it. Selection uses shared round-robin ordering and available
+capacity, so the retry may select the same member again. It does not retry
+individual SQL statements or silently route reads to the writer. This is
+reader availability and scale-out, not writer scaling,
+automatic primary failover, or proof of a particular latency budget.
+
+For request-time setup, Eshu divides the remaining reader replay window among
+the eligible, untried members after it reserves a whole snapshot set. The last
+member receives the remaining time. This protects a healthy reader whose four
+connection fences take more than 100 ms, but a stalled first member can use
+about half the window before failover. With the default two-second window and
+two readers, degraded-path failover may exceed one second. The normal endpoint
+latency target does not establish a subsecond failover guarantee.
 
 ## What reads and writes use
 
@@ -68,8 +115,10 @@ guarded status query without opening a snapshot transaction.
 Streaming replication is asynchronous. The guard promises visibility through
 the captured checkpoint or an explicit error; it cannot promise the reader
 shows every write committed while the response is being assembled. Separate
-parallel reads are not one shared snapshot. A future mixed mutation/read path
-must capture again after its mutation commits before using the reader.
+ordinary reads are not one shared snapshot; code-topic snapshot-set workers
+explicitly share one exported snapshot on one member. A future mixed
+mutation/read path must capture again after its mutation commits before using
+the reader.
 
 ## Failure and operations
 

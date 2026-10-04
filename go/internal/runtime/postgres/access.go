@@ -47,24 +47,34 @@ type Observer interface {
 	Observe(role string, stage Stage, outcome Outcome, duration time.Duration)
 }
 
+type memberAttemptObserver interface {
+	ObserveMemberAttempt(ordinal int, outcome Outcome)
+}
+
 // Access owns distinct writer and reader pools for one API or MCP process.
 // Writer is exposed for authorization, audit, and mutation paths; business
 // reads use Reader, which does not expose its underlying sql.DB.
 type Access struct {
-	writer             *sql.DB
-	reader             *sql.DB
-	readerHasFallbacks bool
-	samePrimary        bool
-	replayTimeout      time.Duration
-	observer           Observer
-	identity           physicalIdentity
-	snapshotSetGate    chan struct{}
-	readerPermits      chan struct{}
-	querySequence      atomic.Int64
+	writer               *sql.DB
+	reader               *sql.DB
+	readerHasFallbacks   bool
+	samePrimary          bool
+	replayTimeout        time.Duration
+	pingTimeout          time.Duration
+	observer             Observer
+	identity             physicalIdentity
+	snapshotSetGate      chan struct{}
+	readerPermits        chan struct{}
+	querySequence        atomic.Int64
+	readerMembers        []physicalReaderMember
+	readerInventoryCount int
+	allocator            *readerAllocator
+	nextReader           atomic.Uint64
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
 func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
+	openStarted := time.Now()
 	if cfg.WriterDSN == "" || cfg.ReadDSN == "" || cfg.WriterMaxOpenConns < 1 || cfg.ReadMaxOpenConns < 1 ||
 		cfg.WriterMaxIdleConns < 0 || cfg.ReadMaxIdleConns < 0 || cfg.WriterMaxIdleConns > cfg.WriterMaxOpenConns ||
 		cfg.ReadMaxIdleConns > cfg.ReadMaxOpenConns || cfg.SamePrimary != (cfg.WriterDSN == cfg.ReadDSN) ||
@@ -82,9 +92,33 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if err != nil {
 		return nil, err
 	}
-	pingCtx, cancel := context.WithTimeout(ctx, cfg.PingTimeout)
+	if len(cfg.ReadMembers) > 0 && (cfg.SamePrimary || len(readCfg.Fallbacks) > 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 || cfg.ReadMaxIdleConns/len(cfg.ReadMembers) < 4) {
+		return nil, errors.New("invalid physical reader member configuration")
+	}
+	if len(cfg.ReadMembers) > 0 {
+		if err := validateReaderMembers(cfg.ReadMembers); err != nil {
+			return nil, err
+		}
+	}
+	totalBudget := cfg.PingTimeout - time.Since(openStarted)
+	if callerDeadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(callerDeadline); remaining < totalBudget {
+			totalBudget = remaining
+		}
+	}
+	if totalBudget <= 0 {
+		return nil, context.DeadlineExceeded
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, totalBudget)
 	defer cancel()
-	identity, err := bootstrapPhysicalWriter(pingCtx, writerCfg, cfg.ExpectedSystemID)
+	writerCtx := pingCtx
+	stageBudget := totalBudget / 3
+	cancelWriter := func() {}
+	if len(cfg.ReadMembers) > 0 {
+		writerCtx, cancelWriter = context.WithTimeout(pingCtx, stageBudget)
+	}
+	identity, err := bootstrapPhysicalWriter(writerCtx, writerCfg, cfg.ExpectedSystemID)
+	cancelWriter()
 	if err != nil {
 		return nil, privateFailure(failureWriterIdentity, err)
 	}
@@ -100,21 +134,49 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	}
 	readCfg.RuntimeParams["default_transaction_read_only"] = "on"
 	readCfg.ValidateConnect = readerValidator(identity, cfg.SamePrimary)
-	reader := stdlib.OpenDB(*readCfg, stdlib.OptionBeforeConnect(stdlib.RandomizeHostOrderFunc))
-	reader.SetMaxOpenConns(cfg.ReadMaxOpenConns)
-	reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
-	reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-	reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
-	access := &Access{writer: writer, reader: reader, readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, cfg.ReadMaxOpenConns)}
+	var reader *sql.DB
+	var members []physicalReaderMember
+	if len(cfg.ReadMembers) > 0 {
+		members, err = openReaderMembers(pingCtx, stageBudget, cfg, readCfg, identity)
+		if err != nil {
+			_ = writer.Close()
+			return nil, privateFailure(failureReaderPing, err)
+		}
+		reader = members[0].pool
+	} else {
+		reader = stdlib.OpenDB(*readCfg, stdlib.OptionBeforeConnect(stdlib.RandomizeHostOrderFunc))
+		reader.SetMaxOpenConns(cfg.ReadMaxOpenConns)
+		reader.SetMaxIdleConns(cfg.ReadMaxIdleConns)
+		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+	}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
 	access.snapshotSetGate <- struct{}{}
-	for range cfg.ReadMaxOpenConns {
-		access.readerPermits <- struct{}{}
+	if len(members) > 0 {
+		caps := make([]int, len(members))
+		for i := range members {
+			caps[i] = members[i].maxOpen
+		}
+		access.allocator = newReaderAllocator(caps, cfg.ReadMaxOpenConns)
+	} else {
+		access.readerPermits = make(chan struct{}, cfg.ReadMaxOpenConns)
+		for range cfg.ReadMaxOpenConns {
+			access.readerPermits <- struct{}{}
+		}
 	}
 	if err := writer.PingContext(pingCtx); err != nil {
 		_ = access.Close()
 		return nil, privateFailure(failureWriterPing, err)
 	}
-	if err := reader.PingContext(pingCtx); err != nil {
+	readerPingCtx := pingCtx
+	if len(members) > 0 {
+		readerPingCtx, err = access.ContextWithCheckpoint(pingCtx)
+		if err != nil {
+			_ = access.Close()
+			return nil, privateFailure(failureReaderPing, err)
+		}
+	}
+	if err := access.pingReader(readerPingCtx); err != nil {
 		_ = access.Close()
 		return nil, privateFailure(failureReaderPing, err)
 	}
@@ -124,9 +186,9 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 // Writer returns the write-capable pool for authorization, audits, and writes.
 func (a *Access) Writer() *sql.DB { return a.writer }
 
-// Reader returns guarded row, cursor, and snapshot reads without exposing the raw reader pool.
-// Multi-host readers do not advertise snapshot sets: exported snapshots cannot
-// be imported on a different physical PostgreSQL server.
+// Reader returns guarded row, cursor, and snapshot reads without exposing a raw
+// pool. Native multi-host fallback DSNs do not advertise snapshot sets;
+// explicit direct-member fleets select one physical member per set.
 func (a *Access) Reader() db.ReadStore {
 	reader := fencedQueryer{access: a}
 	if a.readerHasFallbacks {
@@ -137,14 +199,32 @@ func (a *Access) Reader() db.ReadStore {
 
 type snapshotlessReadStore struct{ db.ReadStore }
 
-// Stats reports both pool states under closed role names.
-func (a *Access) Stats() (writer, reader sql.DBStats) { return a.writer.Stats(), a.reader.Stats() }
+// Stats reports the writer pool and aggregate reader-member pool state.
+func (a *Access) Stats() (writer, reader sql.DBStats) {
+	return a.writer.Stats(), a.aggregateReaderStats()
+}
 
-// Ping checks connectivity of both pools for readiness probes.
+// Ping checks the writer and at least one qualified reader for readiness.
 func (a *Access) Ping(ctx context.Context) error {
+	if len(a.readerMembers) > 0 {
+		bounded, cancel := context.WithTimeout(ctx, a.pingTimeout)
+		defer cancel()
+		if err := a.writer.PingContext(bounded); err != nil {
+			return privateFailure(failureWriterPing, err)
+		}
+		checkpointCtx, err := a.ContextWithCheckpoint(bounded)
+		if err != nil {
+			return privateFailure(failureReaderPing, err)
+		}
+		return a.pingReader(checkpointCtx)
+	}
 	if err := a.writer.PingContext(ctx); err != nil {
 		return privateFailure(failureWriterPing, err)
 	}
+	return a.pingReader(ctx)
+}
+
+func (a *Access) pingReader(ctx context.Context) error {
 	if a.readerPermits != nil {
 		select {
 		case <-a.readerPermits:
@@ -152,6 +232,13 @@ func (a *Access) Ping(ctx context.Context) error {
 		case <-ctx.Done():
 			return privateFailure(failureReaderPing, ctx.Err())
 		}
+	}
+	if len(a.readerMembers) > 0 {
+		conn, err := a.borrowFleet(ctx)
+		if err != nil {
+			return privateFailure(failureReaderPing, err)
+		}
+		return privateFailure(failureReaderPing, conn.Close())
 	}
 	if err := a.reader.PingContext(ctx); err != nil {
 		return privateFailure(failureReaderPing, err)
@@ -161,6 +248,9 @@ func (a *Access) Ping(ctx context.Context) error {
 
 // Close releases both pools, including when one close reports an error.
 func (a *Access) Close() error {
+	if len(a.readerMembers) > 0 {
+		return privateFailure(failurePoolClose, errors.Join(closeReaderMembers(a.readerMembers), a.writer.Close()))
+	}
 	return privateFailure(failurePoolClose, errors.Join(a.reader.Close(), a.writer.Close()))
 }
 
@@ -168,6 +258,26 @@ func (a *Access) observe(role string, stage Stage, started time.Time, err error)
 	if a.observer == nil {
 		return
 	}
+	a.observer.Observe(role, stage, readerOutcome(err), time.Since(started))
+}
+
+func (a *Access) observeMemberAttempt(ordinal int, err error) {
+	observer, ok := a.observer.(memberAttemptObserver)
+	if !ok {
+		return
+	}
+	outcome := readerOutcome(err)
+	switch readerFailureClass(err) {
+	case readerFailureFatal:
+		outcome = OutcomeError
+	case readerFailureCanceled:
+		outcome = OutcomeCanceled
+	case readerFailureNeutral, readerFailureTransient:
+	}
+	observer.ObserveMemberAttempt(ordinal, outcome)
+}
+
+func readerOutcome(err error) Outcome {
 	outcome := OutcomeOK
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
@@ -177,5 +287,5 @@ func (a *Access) observe(role string, stage Stage, started time.Time, err error)
 	case err != nil:
 		outcome = OutcomeError
 	}
-	a.observer.Observe(role, stage, outcome, time.Since(started))
+	return outcome
 }
