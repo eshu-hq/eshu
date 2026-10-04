@@ -74,3 +74,31 @@ a completed latency fix. The measured helper bypasses production Reader Access,
 authentication middleware, and external HTTP transport. It does not establish
 deployed API or MCP cold/warm p95, a cold storage state, or a controlled speedup.
 The next investigation is the new candidate generic plan; the issue remains open.
+
+## New per-query mode theory trial
+
+The cached-handler run above retained the first generic-plan transition. We
+then ran only three new candidate reads with pgx CacheDescribe; we did not
+repeat the baseline. The SQL digest was unchanged, and all four business
+arguments retained their original positions.
+
+| New read | SQL seconds | Rows | Named topic statements |
+| --- | ---: | ---: | ---: |
+| U1 | 0.204045042 | 11 | 0 |
+| U2 | 0.126354083 | 11 | 0 |
+| U3 | 0.126036000 | 11 | 0 |
+
+The read-only replica transaction used repeatable-read isolation. Every read
+matched the independently retained 11 rows across all 12 fields, row order,
+multiplicity, and column types. Each named-statement counter stayed at zero.
+The helper closed its reader and observer; its observer confirmed the reader
+PID was absent. The helper, controller, and owned port-forward exited, and
+the forwarding port was free. The controller completed in 4.994 seconds
+within its 60-second limit.
+
+Replica replay advanced during this trial. These are new diagnostic samples,
+not a controlled storage comparison, a speedup claim, or endpoint p95. The
+trial supports a per-query mode change for the measured repository-scoped,
+single-term SQL shape with no language filter. The finished production path
+still requires regression tests, compiled handler proof, and cold/warm API
+and MCP p95 measurements before the latency issue can close.
