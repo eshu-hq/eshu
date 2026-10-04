@@ -27,9 +27,11 @@ recent shipped work grouped by feature area.
   The response gains `consumer_coverage` (`complete`, `retryable`, `incomplete`,
   `incomplete_repo_ids`, `incomplete_truncated`). Each `incomplete` entry names
   the repository, a `state` (`no_snapshot_yet`, `older_epoch`, `truncated` or
-  `no_active_scope`), the `generation_id` being waited for and whether waiting can
-  fix it (`retryable`): a missing or older-epoch snapshot will be built, a
-  truncated one will not. `retryable` at the top is true only when every gap is
+  `no_active_scope`), the `generation_id` and a `retryable` hint: for a missing or older-epoch
+  snapshot one is expected to appear or refresh without action, for a truncated
+  one it is not. The hint is not a promise: it can stay true for a long time when
+  the active generation is a delta generation or a full generation whose reducer
+  work did not complete. `retryable` at the top is true only when every gap is
   retryable. An unscoped request with no named consumers checks every
   repository, so name `consumer_repo_ids` to narrow it.
 

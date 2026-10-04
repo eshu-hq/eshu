@@ -45,7 +45,12 @@ separate changes, all merged on the base of this branch; none is touched here.
 ## Per-repository state
 
 Three situations used to collapse into one answer, so a caller could not tell
-whether to wait. Each gap now carries `state`, `generation_id` and `retryable`:
+whether a snapshot is expected. Each gap now carries `state`, `generation_id` and
+`retryable`. `retryable` is a hint, not a promise: it means a snapshot is expected
+to appear or refresh without action, and it can stay true for a long time when
+the active generation is a delta generation or a full generation whose reducer
+work did not complete (see the drain section below). It never changes the
+classification, which stays `unknown_needs_evidence`:
 
 | `state` | Condition | `retryable` |
 | --- | --- | --- |
@@ -56,15 +61,15 @@ whether to wait. Each gap now carries `state`, `generation_id` and `retryable`:
 
 Precedence inside one watermark: missing, then truncated, then older epoch. A
 watermark that is both truncated and older-epoch reports `truncated`. The
-alternative, older epoch first, would report `retryable: true` and promise a
+alternative, older epoch first, would report `retryable: true` and hint at a
 rebuild that may land on `truncated` again; the cost of the chosen order is that
 a stale truncated bit written under old semantics reads as final until a rebuild
 re-stamps it. Both are named so the order can be revisited.
 
-`generation_id` is the scope's `active_generation_id`, the snapshot being waited
-for; `no_active_scope` has none and the key is omitted. A repository with several
+`generation_id` is the scope's `active_generation_id`, the snapshot expected;
+`no_active_scope` has none and the key is omitted. A repository with several
 gap scopes yields one entry: a truncated scope first (so `retryable` never
-promises a wait another scope defeats), then the lowest generation id. The named
+hints at a refresh another scope defeats), then the lowest generation id. The named
 statement does this with `DISTINCT ON (repository_id) ... ORDER BY repository_id,
 (state = 'truncated') DESC, generation_id`; the all-repositories statement has no
 `ORDER BY` (its `LIMIT` must keep stopping the scan early), so
@@ -72,6 +77,16 @@ statement does this with `DISTINCT ON (repository_id) ... ORDER BY repository_id
 rows. The top-level `retryable` is true only when every listed gap is retryable
 and `incomplete_truncated` is false: a cut list hides gaps that may not be
 retryable.
+
+Two limits of the multi-scope pick, neither changed. `ORDER BY` in the named
+statement uses the database collation, while `Outranks` and the final Go sort
+compare bytes, so "lowest generation" and the sort order can differ under a
+non-C collation between the named and all-repositories paths; each is
+deterministic. And when the all-repositories list is cut at its `LIMIT`, one
+entry's state and `retryable` for a multi-scope repository can be approximate
+(the other scope's row may not have been read), and a repository returned twice
+for two scopes can reach the row limit and set `incomplete_truncated` with
+nothing cut. The top-level `retryable` stays false in both.
 
 Both statements return the two extra columns from the join and CASE they already
 had (`scope.active_generation_id`, and a `CASE` over the same watermark row). No
@@ -212,15 +227,21 @@ When `older_epoch` is gone on ops-qa: the drain is done when the split census in
 `7547-reachability-loader-gate.md` (section "Interaction with the epoch-4
 drain") reports `residual` equal to `gated_out`. A residual above `gated_out`
 is a drain still running, and those repositories answer `older_epoch` with
-`retryable: true`. A gated-out run (delta generation, failed or retrying work
-item, pending intent) is never scheduled by the loader, so its older watermark
-stays until a later full generation replaces it: such a repository keeps
-answering `older_epoch` and waiting does not clear it until then. The `retryable`
-flag cannot see that case; it follows the watermark, not the loader's gate.
+`retryable: true`.
+
+`retryable` is a hint, and the merged loader gate (#7579) is why. A run the gate
+rejects never gets a watermark for its active generation until a later full
+generation: a delta generation activated after deploy, and a full generation
+whose materialization work item failed or is pending. The coverage join keys on
+the active generation, so such a repository answers `no_snapshot_yet` with
+`retryable: true` for as long as that generation stays active. `older_epoch` has
+the same limit when a gated-out run left an older watermark and its generation is
+still active. In both cases the answer stays `unknown_needs_evidence`, and
+`retryable` cannot see the loader's gate: it follows the watermark.
 
 On the QA replica the scope side is a cheap sequential scan of the 819-row `ingestion_scopes` table on the custom plan (the generic plan, from the sixth prepared execution on, used the partial `ingestion_scopes_active_generation_idx`; both are fast, and 799 of the 819 scopes qualify, so the index buys little); the earlier fixture-scale expectation that the partial index serves the scope side was wrong at this table size. The watermark side is a primary-key probe, and the intent probe is a correlated prefix probe. Neither statement reads `code_reachability_rows`.
 
-Performance Evidence: QA replica, read-only, PostgreSQL 18.3, one data copy, three runs per case in one session, measured by the #7547 measurement agent (verified, not fixture). Execution times: named statement, 20 ids, 0.4 to 0.9 ms at epoch 3 and 0.95 to 1.9 ms with every watermark one epoch behind; named, 3,000 ids (799 real keys plus 2,201 absent), 23 to 42 ms at epoch 3 and 43 to 61 ms one epoch behind; all-repositories statement, 7.3 to 7.8 ms for a full pass with no gaps, 1.2 to 1.4 ms when it stops at its limit with every watermark behind, and 37 ms when every scope runs the intent probe. Shared-buffer hits stay in the tens of thousands at most (22,388 for the 3,000-id case one epoch behind, zero reads once warm). Plan facts: the named statement is one pass (a single scan of `ingestion_scopes` with `source_key = ANY($1)` and a hashed NOT IN, no list-by-scopes nested loop); the intent probe uses `shared_projection_acceptance_pkey` and then `shared_projection_intents_acceptance_lookup_idx`, and shows as never executed when there are no gaps. Identity check: 799 active repository scopes; 796 of the 799 active repository scopes have a watermark for their active generation, matched on `repository_id = source_key` (one query, not two independent counts); the 3 scopes without a watermark have no `code_calls` or `inheritance_edges` intents, so they are not gaps; all 796 watermarks are at epoch 3 with `truncated = false`, so at epoch 3 the coverage check finds 0 gaps. The all-repositories one-epoch-behind full-probe cases ran on a generic plan (seventh to ninth executions of a prepared statement); the driver may choose differently. Fixture-scale figures earlier in this note stay labeled fixture-scale. A repository with many retained historical intents and no intent on its active generation scans those intents once per request before it is found complete; retention bounds it.
+Performance Evidence: QA replica, read-only, PostgreSQL 18.3, one data copy, three runs per case in one session, measured by the #7547 measurement agent (verified, not fixture). These timings are for the statements as first shipped (`SELECT DISTINCT repository_id`, no state `CASE`, no `DISTINCT ON`); the per-repository-state statements were only `EXPLAIN`ed on QA, without `ANALYZE` (see "Plan, old statement against new"). Execution times: named statement, 20 ids, 0.4 to 0.9 ms at epoch 3 and 0.95 to 1.9 ms with every watermark one epoch behind; named, 3,000 ids (799 real keys plus 2,201 absent), 23 to 42 ms at epoch 3 and 43 to 61 ms one epoch behind; all-repositories statement, 7.3 to 7.8 ms for a full pass with no gaps, 1.2 to 1.4 ms when it stops at its limit with every watermark behind, and 37 ms when every scope runs the intent probe. Shared-buffer hits stay in the tens of thousands at most (22,388 for the 3,000-id case one epoch behind, zero reads once warm). Plan facts: the named statement is one pass (a single scan of `ingestion_scopes` with `source_key = ANY($1)` and a hashed NOT IN, no list-by-scopes nested loop); the intent probe uses `shared_projection_acceptance_pkey` and then `shared_projection_intents_acceptance_lookup_idx`, and shows as never executed when there are no gaps. Identity check: 799 active repository scopes; 796 of the 799 active repository scopes have a watermark for their active generation, matched on `repository_id = source_key` (one query, not two independent counts); the 3 scopes without a watermark have no `code_calls` or `inheritance_edges` intents, so they are not gaps; all 796 watermarks are at epoch 3 with `truncated = false`, so at epoch 3 the coverage check finds 0 gaps. The all-repositories one-epoch-behind full-probe cases ran on a generic plan (seventh to ninth executions of a prepared statement); the driver may choose differently. Fixture-scale figures earlier in this note stay labeled fixture-scale. A repository with many retained historical intents and no intent on its active generation scans those intents once per request before it is found complete; retention bounds it.
 
 No-Regression Evidence: the change adds one bounded statement per classified
 request and touches no existing statement, index, or writer.

@@ -37,7 +37,7 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // repository the request named that has no active repository scope at all is a
 // gap when $2 is true.
 //
-// Each gap row also says why and which snapshot is waited for (#7547): state is
+// Each gap row also says why and which snapshot is expected (#7547): state is
 // no_snapshot_yet (no watermark), truncated (current-epoch watermark that
 // cannot prove absence) or older_epoch (watermark below $3), tested in that
 // order so a truncated bit outranks the epoch test; generation_id is the
@@ -45,7 +45,7 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // 'no_active_scope' and a NULL generation_id. Both come from the join and
 // columns the statement already reads, so the plan class is unchanged. A
 // repository with several gap scopes yields one row (DISTINCT ON): a truncated
-// scope first, because waiting cannot close the repository while one stands,
+// scope first, because a refresh is not expected to close the repository while one stands,
 // then the lowest generation id. The caller applies the same order to the
 // all-repositories rows.
 //

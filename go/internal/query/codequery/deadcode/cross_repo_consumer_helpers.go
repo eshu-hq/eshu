@@ -36,6 +36,9 @@ func crossRepoDeadCodeStrongestConfidenceLabel(evidence []CrossRepoDeadCodeEvide
 	return label
 }
 
+// CrossRepoDeadCodeConfidenceLabel maps a numeric consumer-evidence confidence
+// to its response label: high at 0.9 and above, medium above the repository
+// unique-name confidence, low for any other positive value, and unknown for zero.
 func CrossRepoDeadCodeConfidenceLabel(confidence float64) string {
 	switch {
 	case confidence >= 0.9:

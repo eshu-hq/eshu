@@ -74,24 +74,32 @@ The response carries `consumer_coverage`: `complete`, `retryable`, `incomplete`,
 the check did not produce an answer: no candidate needed classifying, the
 evidence read was unavailable, or the store cannot answer the check.
 
-`incomplete` says why each repository is a gap and whether waiting can fix it.
+`incomplete` says why each repository is a gap and whether a snapshot is expected
+without action.
 Each entry has `repository_id`, `state`, `generation_id` and `retryable`:
 
 | `state` | Meaning | `retryable` |
 | --- | --- | --- |
-| `no_snapshot_yet` | The active generation has code edges but no reachability watermark yet. The reducer has not built the snapshot. | `true` |
-| `older_epoch` | The snapshot was built under an older verdict schema epoch and is being rebuilt. | `true` |
+| `no_snapshot_yet` | The active generation has code edges but no reachability watermark yet. The reducer has not built the snapshot; one is expected. | `true` |
+| `older_epoch` | The snapshot was built under an older verdict schema epoch and is expected to refresh. | `true` |
 | `truncated` | The snapshot is current but cannot prove a symbol is not called (no roots, or a depth cutoff). | `false` |
 | `no_active_scope` | A repository the request named has no active repository scope, so nothing is being built. | `false` |
 
-`generation_id` is the repository scope's active generation, the snapshot being
-waited for. It is left out for `no_active_scope`. One watermark that is both
+`generation_id` is the repository scope's active generation, the snapshot
+expected. It is left out for `no_active_scope`. One watermark that is both
 truncated and older-epoch is reported `truncated`. A repository with several
 scopes in a gap is reported once: a truncated scope first, so `retryable` never
-promises a wait that another scope of the same repository would defeat, then the
+hints at a refresh that another scope of the same repository would defeat, then the
 lowest generation id.
 
-The top-level `retryable` is `true` only when waiting can close every gap: each
+`retryable` is a hint, not a promise. `true` means a snapshot is expected to
+appear or refresh without action. It can stay `true` for a long time when the
+active generation is a delta generation, or a full generation whose reducer work
+did not complete, because the loader schedules only complete runs; such a
+repository answers `no_snapshot_yet`, or `older_epoch` if a gated-out run left an
+older watermark, until a later full generation replaces it. The classification
+(`unknown_needs_evidence`) does not change. The top-level `retryable` is `true`
+only when every gap is retryable: each
 listed gap is retryable and `incomplete_truncated` is `false`, because a cut list
 hides gaps that may not be retryable. It is `false` when `complete` is `true`.
 `incomplete_repo_ids` is the same list as `incomplete`, in the same order, kept

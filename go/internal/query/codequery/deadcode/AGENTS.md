@@ -124,18 +124,23 @@ incomplete answer into `consumer_coverage_incomplete`. The rules:
   `source_key = ANY($1)` pass (a row-by-row join of the list to the scopes planned
   as a nested loop, 520 ms for 3,000 ids). The response carries no checked-count:
   it would force a full scan.
-- Each gap says WHY and whether waiting helps: `no_snapshot_yet` (no watermark),
+- Each gap says WHY and whether a snapshot is expected without action: `no_snapshot_yet` (no watermark),
   `truncated` (current-epoch watermark that cannot prove absence), `older_epoch`
-  (being rebuilt) or `no_active_scope` (a named repository nobody ingested), with
-  the scope's active `generation_id` and a `retryable` flag (true only for the
-  first and third). The precedence inside one watermark is missing, then truncated,
+  (a refresh is expected) or `no_active_scope` (a named repository nobody ingested), with
+  the scope's active `generation_id` and a `retryable` HINT, not a promise (true only for the
+  first and third; it can stay true for a long time on a delta generation or a
+  full generation whose reducer work did not complete). The precedence inside one watermark is missing, then truncated,
   then older epoch. A repository with several gap scopes yields one entry, a
   truncated scope first and then the lowest generation id: the named statement
   does it with `DISTINCT ON`, the all-repositories statement has no `ORDER BY`
   (its `LIMIT` must stop the scan early) so
   `ContentReader.CrossRepoDeadCodeConsumerCoverage` applies the same rule in Go.
   The top-level `retryable` is false when the list was cut. Both are proven by
-  `TestCrossRepoDeadCodeConsumerCoverageLive`.
+  `TestCrossRepoDeadCodeConsumerCoverageLive`. `ORDER BY` uses the database
+  collation while `Outranks` and the final Go sort use byte order, so "lowest
+  generation" and the sort order can differ under a non-C collation between the
+  named and all-repositories paths; each is deterministic. Do not change the SQL
+  for this.
 - A store without the coverage method, or a coverage read that cannot answer,
   is `cross_repo_evidence_unavailable`, never covered. A coverage read error is
   a failed request.

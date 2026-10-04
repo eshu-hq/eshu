@@ -91,7 +91,6 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   with no strong live evidence `unknown_needs_evidence` with
   `consumer_coverage_incomplete`; the response's `consumer_coverage` object
   names the incomplete repositories, each with a `state` (`no_snapshot_yet`,
-  `older_epoch`, `truncated`, `no_active_scope`), the `generation_id` being waited
-  for and a `retryable` flag, so a caller can tell a wait that helps from one
-  that does not. See
+  `older_epoch`, `truncated`, `no_active_scope`), the `generation_id` and a
+  `retryable` hint (a snapshot is expected without action; not a promise). See
   `docs/public/reference/dead-code-reachability-spec.md`.

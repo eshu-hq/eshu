@@ -81,19 +81,23 @@ type CrossRepoDeadCodeCoverageRequest struct {
 }
 
 // Coverage gap states: why one consumer repository is not proven complete, and
-// so whether waiting can fix it (#7547). They are the wire values of
-// consumer_coverage.incomplete[].state.
+// so whether a snapshot is expected without action (#7547). They are the wire
+// values of consumer_coverage.incomplete[].state.
 const (
 	// CrossRepoDeadCodeCoverageStateNoSnapshotYet means the repository's
 	// active generation has code edges but no reachability watermark yet.
-	// The reducer has not built its snapshot; waiting fixes it.
+	// The reducer has not built its snapshot; one is expected, but not guaranteed:
+	// the loader schedules only complete runs, so a delta generation or a full
+	// generation whose reducer work did not complete can stay here a long time.
 	CrossRepoDeadCodeCoverageStateNoSnapshotYet = "no_snapshot_yet"
 	// CrossRepoDeadCodeCoverageStateTruncated means the snapshot is current
 	// but truncated (no roots, or a depth cutoff), so it cannot prove a symbol
-	// is not called. Waiting does not fix it.
+	// is not called. No refresh is expected to clear it.
 	CrossRepoDeadCodeCoverageStateTruncated = "truncated"
 	// CrossRepoDeadCodeCoverageStateOlderEpoch means the snapshot was built
-	// under an older verdict schema epoch and is being rebuilt. Waiting fixes it.
+	// under an older verdict schema epoch and a refresh is expected. Like
+	// no_snapshot_yet it is a hint: a gated-out run keeps its older watermark
+	// until a later full generation replaces it.
 	CrossRepoDeadCodeCoverageStateOlderEpoch = "older_epoch"
 	// CrossRepoDeadCodeCoverageStateNoActiveScope means a repository the
 	// request named has no active repository scope: nothing is being built,
@@ -102,12 +106,12 @@ const (
 )
 
 // CrossRepoDeadCodeCoverageGap is one consumer repository that is not proven
-// complete, with the reason and whether waiting can fix it.
+// complete, with the reason and whether a snapshot is expected without action.
 //
 // GenerationID is the repository scope's active generation: the snapshot being
 // waited for. It is empty for CrossRepoDeadCodeCoverageStateNoActiveScope,
 // which has no scope. A repository with several scopes in a gap reports one:
-// a non-retryable (truncated) scope first, so Retryable never promises a wait
+// a non-retryable (truncated) scope first, so Retryable never hints at a wait
 // that another scope of the same repository would defeat, then the lowest
 // generation id.
 type CrossRepoDeadCodeCoverageGap struct {
@@ -132,7 +136,7 @@ func (g CrossRepoDeadCodeCoverageGap) KnownState() bool {
 
 // Outranks reports whether g should replace current as the one reported for a
 // repository with several gap scopes: a non-retryable gap first, because
-// waiting cannot close the repository while it stands, then the lowest
+// a refresh is not expected to close the repository while it stands, then the lowest
 // generation id so the pick never depends on row order. The named coverage
 // statement applies the same order in SQL
 // (ORDER BY repository_id, (state = 'truncated') DESC, generation_id).
@@ -143,8 +147,9 @@ func (g CrossRepoDeadCodeCoverageGap) Outranks(current CrossRepoDeadCodeCoverage
 	return g.GenerationID < current.GenerationID
 }
 
-// CrossRepoDeadCodeCoverageGapRetryable reports whether waiting can fix a gap
-// in the given state. Only a snapshot being built or rebuilt can be waited for.
+// CrossRepoDeadCodeCoverageGapRetryable reports whether a snapshot is expected
+// to appear or refresh without action for a gap in the given state. It is a
+// hint, not a promise; see the state constants.
 func CrossRepoDeadCodeCoverageGapRetryable(state string) bool {
 	return state == CrossRepoDeadCodeCoverageStateNoSnapshotYet ||
 		state == CrossRepoDeadCodeCoverageStateOlderEpoch
@@ -172,9 +177,10 @@ func (c CrossRepoDeadCodeCoverage) IncompleteRepositoryIDs() []string {
 	return ids
 }
 
-// Retryable reports whether waiting can close every gap: each listed gap is
-// retryable and the list was not cut, because a cut list hides gaps that may
-// not be. A complete coverage is not retryable; there is nothing to wait for.
+// Retryable reports whether a snapshot is expected for every gap: each listed gap
+// is retryable and the list was not cut, because a cut list hides gaps that may
+// not be. It is a hint, not a promise. A complete coverage is not retryable;
+// there is nothing to wait for.
 func (c CrossRepoDeadCodeCoverage) Retryable() bool {
 	if len(c.Gaps) == 0 || c.IncompleteTruncated {
 		return false
