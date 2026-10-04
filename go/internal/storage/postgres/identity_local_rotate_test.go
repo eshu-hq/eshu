@@ -221,8 +221,11 @@ func TestRotateLocalIdentityPasswordRejectsWrongCurrentPassword(t *testing.T) {
 	if result.Status != LocalIdentityAuthInvalid || result.Authenticated {
 		t.Fatalf("rotate result = %#v, want invalid", result)
 	}
-	if !db.rolledBack || db.committed {
-		t.Fatalf("transaction committed=%t rolledBack=%t, want rollback only", db.committed, db.rolledBack)
+	// Issue #7499: the failed attempt is written on tx and committed there, so
+	// the write stays durable on a single-connection pool instead of being
+	// discarded by the deferred rollback.
+	if !db.committed || db.rolledBack {
+		t.Fatalf("transaction committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
 	}
 	if !fakeExecsContainQuery(db.execs, "INSERT INTO identity_local_auth_attempts") {
 		t.Fatalf("wrong-password rotation did not record a failed attempt: %#v", db.execs)
@@ -299,6 +302,10 @@ func TestRotateLocalIdentityPasswordRejectsInvalidRecoveryCode(t *testing.T) {
 	}
 	if !fakeExecsContainQuery(db.execs, "INSERT INTO identity_local_auth_attempts") {
 		t.Fatalf("invalid-recovery-code rotation did not record a failed attempt: %#v", db.execs)
+	}
+	// Issue #7499: the failed attempt is committed on tx so it stays durable.
+	if !db.committed || db.rolledBack {
+		t.Fatalf("transaction committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
 	}
 }
 

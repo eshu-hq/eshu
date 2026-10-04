@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 570
-  sha256: 0cd3090ac24d58986903ab77ed872c636717b89e945584c83e485ae0c5549c03
+  count: 571
+  sha256: 8f0d386e5c306632e2279ca0db3f8494a5fd862e76cd4029b22ec07ed17c972c
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -2000,6 +2000,10 @@ tests:
     tag: ~
     class: scheduled
     reason: "untagged Postgres-only failed-attempt upsert proof for #7498 gated by ESHU_POSTGRES_DSN Skip; ~4.5s locally including full bootstrap migration; promote to blocking with timing evidence"
+  - file: go/internal/storage/postgres/identity_local_rotate_single_connection_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged Postgres-only single-connection rotation proof for #7499 gated by ESHU_POSTGRES_DSN Skip; ~4.3s locally including full bootstrap migration; promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/identity_mapping_pagination_live_test.go
     tag: ~
     class: scheduled

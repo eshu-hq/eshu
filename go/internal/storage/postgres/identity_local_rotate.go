@@ -76,7 +76,7 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 		return LocalIdentityAuthenticationResult{Status: LocalIdentityAuthLocked, LockedUntil: row.LockedUntil}, nil
 	}
 	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(rotation.CurrentPassword)) != nil {
-		return s.recordFailedLocalIdentityAttempt(ctx, row, rotation.Now)
+		return s.recordFailedLocalIdentityAttemptInTx(ctx, tx, &committed, row, rotation.Now)
 	}
 	// MFA re-proof is required whenever the account has an active factor,
 	// independent of admin role or the require_mfa_for_all_users policy: this
@@ -104,18 +104,20 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 		// Same TOTP-first ordering as AuthenticateLocalIdentity (issue
 		// #4986): prefer the non-consuming TOTP proof over spending a
 		// single-use recovery code when both are submitted. verifyLocalIdentityTOTPCode
-		// reads through s.database directly (not tx) — it is a read-mostly
-		// verification with one same-row last_used_at stamp on success, and
-		// running it outside the row-locked credential transaction does not
+		// runs on tx here (not s.database): it is a read-mostly verification
+		// with one same-row last_used_at stamp on success, and running it
+		// through the pool while this transaction holds a pooled connection
+		// would wait on itself under a single-connection pool (issue #7499).
+		// Reading inside the row-locked credential transaction does not
 		// change what it proves: it authenticates possession of the TOTP
 		// secret independent of the password-rotation row lock above.
 		if rotation.MFATOTPCode != "" {
-			verified, _, err := s.verifyLocalIdentityTOTPCode(ctx, row.UserID, rotation.MFATOTPCode, rotation.Now)
+			verified, _, err := s.verifyLocalIdentityTOTPCode(ctx, tx, row.UserID, rotation.MFATOTPCode, rotation.Now)
 			if err != nil {
 				return LocalIdentityAuthenticationResult{}, err
 			}
 			if !verified {
-				return s.recordFailedLocalIdentityAttempt(ctx, row, rotation.Now)
+				return s.recordFailedLocalIdentityAttemptInTx(ctx, tx, &committed, row, rotation.Now)
 			}
 		} else if err := consumeLocalIdentityRecoveryCode(ctx, tx, row.UserID, LocalIdentityAuthenticationAttempt{
 			MFARecoveryCodeHash:   rotation.MFARecoveryCodeHash,
@@ -123,7 +125,7 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 			Now:                   rotation.Now,
 		}); err != nil {
 			if errors.Is(err, errLocalIdentityRecoveryCodeInvalid) {
-				return s.recordFailedLocalIdentityAttempt(ctx, row, rotation.Now)
+				return s.recordFailedLocalIdentityAttemptInTx(ctx, tx, &committed, row, rotation.Now)
 			}
 			return LocalIdentityAuthenticationResult{}, err
 		}

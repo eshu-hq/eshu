@@ -220,7 +220,7 @@ func TestVerifyLocalIdentityTOTPCode_MatchesActiveFactorAndStampsLastUsed(t *tes
 	store := NewIdentitySubjectStore(db)
 	store.SetTOTPSecretKeyring(keyring)
 
-	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), "user_owner", code, now)
+	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), db, "user_owner", code, now)
 	if err != nil {
 		t.Fatalf("verifyLocalIdentityTOTPCode() error = %v", err)
 	}
@@ -249,7 +249,7 @@ func TestVerifyLocalIdentityTOTPCode_WrongCodeReturnsFalseNoError(t *testing.T) 
 	store := NewIdentitySubjectStore(db)
 	store.SetTOTPSecretKeyring(keyring)
 
-	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), "user_owner", "000000", now)
+	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), db, "user_owner", "000000", now)
 	if err != nil {
 		t.Fatalf("verifyLocalIdentityTOTPCode() error = %v", err)
 	}
@@ -270,7 +270,7 @@ func TestVerifyLocalIdentityTOTPCode_NoActiveFactorReturnsFalseNoError(t *testin
 	store := NewIdentitySubjectStore(db)
 	store.SetTOTPSecretKeyring(testTOTPKeyring(t))
 
-	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), "user_owner", "123456", time.Now())
+	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), db, "user_owner", "123456", time.Now())
 	if err != nil {
 		t.Fatalf("verifyLocalIdentityTOTPCode() error = %v", err)
 	}
@@ -286,7 +286,7 @@ func TestVerifyLocalIdentityTOTPCode_EmptyCodeReturnsFalseNoQuery(t *testing.T) 
 	store := NewIdentitySubjectStore(db)
 	store.SetTOTPSecretKeyring(testTOTPKeyring(t))
 
-	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), "user_owner", "", time.Now())
+	ok, factorID, err := store.verifyLocalIdentityTOTPCode(context.Background(), db, "user_owner", "", time.Now())
 	if err != nil {
 		t.Fatalf("verifyLocalIdentityTOTPCode() error = %v", err)
 	}

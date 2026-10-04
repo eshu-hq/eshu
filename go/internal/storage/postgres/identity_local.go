@@ -261,7 +261,7 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 		// preferring the non-consuming TOTP proof whenever one is present
 		// avoids burning a one-time code the caller did not need to spend.
 		if attempt.MFATOTPCode != "" {
-			verified, _, err := s.verifyLocalIdentityTOTPCode(ctx, row.UserID, attempt.MFATOTPCode, attempt.Now)
+			verified, _, err := s.verifyLocalIdentityTOTPCode(ctx, s.database, row.UserID, attempt.MFATOTPCode, attempt.Now)
 			if err != nil {
 				return LocalIdentityAuthenticationResult{}, err
 			}
