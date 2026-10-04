@@ -54,6 +54,30 @@ func TestHandleCodeTopicInvestigationReturns503UntilSubstringIndexesReady(t *tes
 	}
 }
 
+func TestHandleCodeTopicInvestigationSearchesExplicitIntent(t *testing.T) {
+	t.Parallel()
+
+	store := &topicInvestigationContentStore{}
+	handler := &CodeHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/topics/investigate",
+		bytes.NewBufferString(`{"topic":"showImage","intent":"change_surface","repo_id":"repo-1"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("topic reads = %d, want 1", len(store.requests))
+	}
+	for _, term := range []string{"change", "showimage", "surface"} {
+		if !codeTopicStringSliceContains(store.requests[0].Terms, term) {
+			t.Fatalf("terms = %#v, want %q", store.requests[0].Terms, term)
+		}
+	}
+}
+
 func TestHandleCodeTopicInvestigationReturnsRankedEvidenceAndHandles(t *testing.T) {
 	t.Parallel()
 
