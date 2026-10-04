@@ -92,6 +92,32 @@ seed_cross_repo_dead_code_fixture() {
 		    observed_at = EXCLUDED.observed_at,
 		    updated_at = EXCLUDED.updated_at;
 	"
+	# The cross-repo route answers dead only when the consumer's reachability
+	# snapshot is complete (#7547): a consumer with code intents and no
+	# watermark, a truncated one, or one below the current verdict epoch reads
+	# unknown. The rows above are seeded directly, so state the coverage they rely
+	# on: a complete watermark for the consumer's active generation. The epoch is a
+	# value no verdict-epoch bump will reach, so the fixture stays complete.
+	golden_pg_exec "
+	WITH consumer AS (
+	  SELECT scope_id,
+	         active_generation_id AS generation_id,
+	         COALESCE(payload->>'repo_id', payload->>'id', scope_id) AS repo_id
+	  FROM ingestion_scopes
+	  WHERE scope_kind = 'repository'
+	    AND COALESCE(payload->>'name', payload->>'repo_name', payload->>'repo_slug', scope_id) = 'orders-api'
+	)
+	INSERT INTO code_reachability_repository_watermarks (
+	  scope_id, generation_id, repository_id, truncated, updated_at, verdict_schema_epoch
+	)
+	SELECT scope_id, generation_id, repo_id, false, now(), 1000000
+	FROM consumer
+	WHERE generation_id IS NOT NULL
+	ON CONFLICT (scope_id, generation_id, repository_id) DO UPDATE
+	SET truncated = false,
+	    updated_at = EXCLUDED.updated_at,
+	    verdict_schema_epoch = EXCLUDED.verdict_schema_epoch;
+	"
 	golden_pg_exec "
 	DO \$\$
 	DECLARE
@@ -134,6 +160,17 @@ seed_cross_repo_dead_code_fixture() {
 	  WHERE row.entity_id IN (SELECT entity_id FROM producer_entities);
 	  IF seeded_count < 2 THEN
 	    RAISE EXCEPTION 'expected at least 2 cross-repo dead-code reachability rows, got %', seeded_count;
+	  END IF;
+	  IF NOT EXISTS (
+	    SELECT 1
+	    FROM consumer_scope
+	    JOIN code_reachability_repository_watermarks AS watermark
+	      ON watermark.scope_id = consumer_scope.scope_id
+	     AND watermark.generation_id = consumer_scope.generation_id
+	     AND watermark.repository_id = consumer_scope.repo_id
+	    WHERE NOT watermark.truncated
+	  ) THEN
+	    RAISE EXCEPTION 'expected a complete reachability watermark for the cross-repo dead-code consumer';
 	  END IF;
 	END
 	\$\$;
