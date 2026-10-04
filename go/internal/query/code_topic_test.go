@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Code-topic ContentReader proofs that live in package query: they drive
@@ -80,6 +82,52 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	}
 	if got, want := strings.Count(recorder.queries[0], "f.content ILIKE '%' || (SELECT term FROM term_param) || '%'"), 4; got != want {
 		t.Fatalf("explicit repo content predicates = %d, want %d", got, want)
+	}
+}
+
+// One repository and one term use an unnamed pgx execution while retaining
+// the same SQL placeholders and complete evidence row.
+func TestContentReaderInvestigateCodeTopicSingleRepoTermUsesCacheDescribe(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{
+			"source_kind", "repo_id", "relative_path", "entity_id", "entity_name",
+			"entity_type", "language", "start_line", "end_line", "matched_terms",
+			"score", "pool_truncated",
+		},
+		rows: [][]driver.Value{{
+			"file", "repo-1", "viewer.go", "", "", "", "go",
+			int64(1), int64(24), "showimage", int64(1), false,
+		}},
+	}})
+	rows, err := NewContentReader(db).InvestigateCodeTopic(
+		context.Background(),
+		CodeTopicInvestigationRequest{
+			RepoID: "repo-1", Terms: []string{"showimage"}, Limit: 11,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder.queries) != 1 || len(recorder.args) != 1 ||
+		len(recorder.args[0]) != 5 {
+		t.Fatalf("query and driver args = %#v %#v, want one query and mode plus four binds", recorder.queries, recorder.args)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][0]), int64(pgx.QueryExecModeCacheDescribe); got != want {
+		t.Fatalf("driver mode = %d, want CacheDescribe (%d)", got, want)
+	}
+	if got, want := fmt.Sprint(recorder.args[0][1:]), "[repo-1 showimage 11 0]"; got != want {
+		t.Fatalf("business args = %s, want %s", got, want)
+	}
+	if !strings.Contains(recorder.queries[0], "repo_id = $1") ||
+		!strings.Contains(recorder.queries[0], "LIMIT $3 OFFSET $4") {
+		t.Fatal("SQL placeholders or repo scope changed")
+	}
+	if len(rows) != 1 || rows[0].RepoID != "repo-1" ||
+		rows[0].RelativePath != "viewer.go" || rows[0].Score != 1 ||
+		rows[0].PoolTruncated {
+		t.Fatalf("evidence row changed: %+v", rows)
 	}
 }
 
@@ -342,6 +390,9 @@ func TestInvestigateCodeTopicUnscopedRequiresSubstringIndexesReady(t *testing.T)
 	if err != nil {
 		t.Fatalf("InvestigateCodeTopic() error = %v, want nil", err)
 	}
+	if got, want := fmt.Sprint(recorder.args[0]), "[auth 26 0]"; got != want {
+		t.Fatalf("unscoped driver args = %s, want %s", got, want)
+	}
 	if !strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("query = %q, want durable unscoped substring-index readiness gate", recorder.queries[0])
 	}
@@ -350,6 +401,32 @@ func TestInvestigateCodeTopicUnscopedRequiresSubstringIndexesReady(t *testing.T)
 	}
 	if !strings.Contains(recorder.queries[0], "f.content ILIKE '%' || $1 || '%'") {
 		t.Fatal("unscoped query must use the original bound content term")
+	}
+}
+
+func TestInvestigateCodeTopicGrantedOneTermKeepsGrantAndDriverArgs(t *testing.T) {
+	t.Parallel()
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{
+			"source_kind", "repo_id", "relative_path", "entity_id", "entity_name",
+			"entity_type", "language", "start_line", "end_line", "matched_terms",
+			"score", "pool_truncated",
+		},
+	}})
+	_, err := NewContentReader(db).InvestigateCodeTopic(
+		context.Background(),
+		CodeTopicInvestigationRequest{
+			AllowedRepositoryIDs: []string{"repo-1"},
+			Terms:                []string{"showimage"}, Limit: 11,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder.args) != 1 || len(recorder.args[0]) != 4 ||
+		fmt.Sprint(recorder.args[0][1:]) != "[showimage 11 0]" ||
+		!strings.Contains(recorder.queries[0], "repo_id = ANY($1)") {
+		t.Fatalf("grant or driver args changed: %#v %#v", recorder.queries, recorder.args)
 	}
 }
 

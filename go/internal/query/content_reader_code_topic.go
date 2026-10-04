@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -46,28 +47,16 @@ func isReaderMemberLoss(err error) bool {
 	return errors.As(err, &lost) && lost.ReaderMemberLost()
 }
 
-// InvestigateCodeTopic scores entities and files in content_entities and
-// content_files against req.Terms (name/source-cache substring match for
-// entities, path/content substring match for files), ranked by distinct
-// term hits and scoped by req.RepoID or, for a corpus-wide search, by
-// req.AllowedRepositoryIDs. It is the batched fast path
-// codequery.CodeTopicContentInvestigator exposes to CodeHandler.codeTopicRows and
-// changeSurfaceTopicRows; the fallback those callers take without a
-// satisfying store returns an error rather than a slower equivalent result.
+// InvestigateCodeTopic ranks term matches in content_entities (name/source)
+// and content_files (path/content), scoped by repo or caller grant. It serves
+// CodeHandler and change-surface fast paths; a missing store fails closed.
 //
-// #7008: entity_probe bounds each per-term match with `CROSS JOIN LATERAL
-// (... LIMIT codeTopicCandidateCap)` -- both its OR branches are indexed, so
-// BitmapOr keeps that cheap. file_probe UNIONs one independently bounded
-// branch per term instead: a materialized path pool establishes the remaining
-// content-only capacity before its branch starts. The path predicate can use
-// the relative-path trigram index; the content-only branch excludes path hits
-// so an uncapped pool preserves the prior OR-match set without duplicate rows.
-// The LATERAL form forced every term's content Seq Scan to run serially with no
-// parallel workers (measured >35s on 9 terms; top-level per-term SELECTs let
-// the planner parallelize each branch, measured ~16-23s for the same 9).
-// entity_pool_capped/file_pool_capped detect, from the already-materialized
-// probe rows, whether any term's pool hit its cap; PoolTruncated carries
-// that so a capped search reports an explicit marker, not a silent gap.
+// #7008: entity_probe caps indexed OR matches per term with LATERAL.
+// file_probe uses independent UNION branches: LATERAL serialized content scans
+// (>35s for nine terms), while top-level branches measured ~16-23s.
+// A materialized path pool sets remaining content capacity; the content branch
+// excludes path hits and preserves the uncapped match set. Pool-capped flags
+// derive from probe rows and explicitly report candidate truncation.
 func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery.CodeTopicInvestigationRequest) ([]codequery.CodeTopicEvidenceRow, error) {
 	if len(req.Terms) == 0 {
 		return nil, nil
@@ -119,13 +108,11 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 			span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
 		}
 	}
-
 	filters, args, nextArg := codeTopicFilters(req)
 	where := ""
 	if len(filters) > 0 {
 		where = "AND " + strings.Join(filters, " AND ")
 	}
-
 	termValues := make([]string, len(req.Terms))
 	fileBranches := make([]string, len(req.Terms))
 	scopedRepo := strings.TrimSpace(req.RepoID) != ""
@@ -141,7 +128,6 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	}
 	limitArg, offsetArg := nextArg, nextArg+1
 	args = append(args, req.Limit, req.Offset)
-
 	// #nosec G201 -- interpolates integer arg indices and the generated
 	// per-term UNION branches above, which contain only $N placeholders
 	// and static SQL; no user data concatenated
@@ -207,6 +193,11 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		LIMIT $%[5]d OFFSET $%[6]d
 	`, strings.Join(termValues, ", "), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg)
 
+	// CacheDescribe keeps the measured one-term repo query off a generic
+	// named plan while retaining parameter types and SQL placeholders.
+	if scopedRepo && len(req.Terms) == 1 && strings.TrimSpace(req.Language) == "" {
+		args = append([]any{pgx.QueryExecModeCacheDescribe}, args...)
+	}
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		err = contentSubstringIndexReadError(err)
