@@ -195,16 +195,28 @@ The deploy watch uses signals that already exist:
   non-candidates, not a stuck drain.
 
 Deploy path and stop lever. ops-qa deploys by an owner pin commit in the
-GitOps repository, which ArgoCD syncs automatically with self-heal; merging
-this change to `main` does not deploy it. ops-prod is a separate overlay pinned
-separately. The stop lever is re-pinning the previous image: the epoch-3 binary
-selects nothing new because every comparison is `<`, in-flight per-repository
-transactions commit or roll back whole, and the drain halts within one sync
-plus a pod restart. Scaling the reducer to 0 by hand is reverted by self-heal
-unless automated sync is paused, so it is not the lever. Reverting the
-constant on `main` is the slow path.
+GitOps repository. Automated sync is currently paused on the ops-qa
+Application (`autoSync: false` in its config, paused for the NornicDB to Neo4j
+cutover), so merging the pin changes Git only: the owner runs a manual sync of
+the Application to deploy, and the same holds for a rollback. `selfHeal` is
+configured but is a sub-option of automated sync, so it does nothing while
+automated sync is off. Merging the epoch bump to `main` does not deploy it.
+ops-prod is a separate overlay pinned separately.
 
-Stop triggers, with a time box. Re-pin the previous image if reader-fence 503s
+Stop levers. The fast lever is scaling the reducer deployment to 0 by hand
+(`kubectl -n eshu scale deployment/eshu-resolution-engine --replicas=0`; confirm the name with `kubectl -n eshu get deploy`). It stays at 0 while automated sync is off, the
+Application shows OutOfSync, and the owner restores the replicas afterwards;
+in-flight per-repository transactions commit or roll back whole. The durable
+lever is re-pinning the previous image: the epoch-3 binary selects nothing new
+because every comparison is `<`, but it needs a merged pin change and a manual
+sync, so it is slower than the fast lever. Reverting the constant on `main` is
+the slowest path. If automated sync is re-enabled before the drain (it is
+meant to be restored after the cutover health proof), scaling to 0 is reverted
+by self-heal and re-pinning becomes the only lever; check the Application's
+sync policy before relying on either.
+
+Stop triggers, with a time box. Stop the drain (the fast lever above, with
+re-pinning the previous image as the durable fallback) if reader-fence 503s
 (replay lag over the 2 s fence) persist for 2 consecutive minutes, if the
 reducer restarts or exits with a projection error, if reducer RSS exceeds 50%
 of `GOMEMLIMIT`, or if the census has not reached 0 within 60 minutes of the
