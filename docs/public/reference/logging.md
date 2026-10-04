@@ -71,13 +71,15 @@ drift/extraction, and query-stage timing events. Examples include:
 - `supply_chain_query.stage_completed`
 - `supply_chain_query.stage_failed`
 
-`supply_chain_query.stage_failed` is an ERROR event emitted once when the
-supply-chain impact-findings route answers HTTP 500 from its own code. It carries
-`stage`, `repo_id`, `duration_seconds`, the error text cut to 256 bytes, and two
+`supply_chain_query.stage_failed` is an ERROR event emitted once when any
+supply-chain query route answers HTTP 500 from its own store-read code. It carries
+`operation`, `stage`, `repo_id`, `duration_seconds`, the error text cut to 256 bytes, and two
 closed-set labels that never contain error text: `error_site` (`reader_stale`,
 `reader_unavailable`, `other`) and `error_cause` (`deadline_exceeded`,
 `canceled`, `conn_done`, `eof`, `conn_refused`, `conn_reset`, `net_timeout`,
-`sqlstate_<class>`, `unknown`). A `canceled` cause is usually a client that
+`sqlstate_<class>`, `unknown`). Reader-fence verdicts the shared graph-read
+helper maps to a retryable `503`/`504` are not handler-owned 500s and emit no
+event. A `canceled` cause is usually a client that
 disconnected.
 
 The `supply_chain_query.stage_completed` event for stage `impact_findings_query`

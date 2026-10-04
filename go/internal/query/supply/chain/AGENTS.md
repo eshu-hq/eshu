@@ -38,9 +38,10 @@ Read `doc.go` and `README.md` first.
 - The packet route MUST compose through `ImpactPacketResponder`
   and MUST NOT name lane-B packet types. If lane-B moves the envelope to
   a leaf, collapse this seam to direct calls and delete the responder.
-- Every handler-owned 500 branch in `listImpactFindings` MUST call
+- Every handler-owned 500 store-read branch on every sibling route MUST call
   `querycontract.WriteGraphReadError` first and return before `failStage`
-  when it reports true (#7548): a stale or timed-out guarded PostgreSQL reader
+  when it reports true (#7548 for the findings route, #7549 for all nineteen
+  sibling branches): a stale or timed-out guarded PostgreSQL reader
   is a retryable 503 with `Retry-After`, not a 500, and the mapped verdict is
   deliberately not logged as `stage_failed`. The readiness read is the
   exception: its error serves a `readiness_unavailable` envelope.
@@ -128,6 +129,14 @@ or suite-local doubles):
 
 - the probe suites: cloud probe, Kubernetes probe + fair + bench
   (apply side) + perf live, findings freshness + winners-read;
+- the sibling error-path suites (`sibling_stage_failed_test.go`,
+  `sibling_reader_retryable_test.go`): every sibling store-read branch
+  answers a handler-owned 500 with exactly one `stage_failed` record, and
+  fence verdicts answer retryable 503s with `Retry-After` and no record
+  (#7549). Their advisory branches register the advisory capabilities
+  through the file-local `ensureSiblingAdvisoryCapabilities` helper, and
+  their packet branch carries a no-op `PacketResponder` so the read (not
+  the nil-responder guard) is what fails;
 - the runtime-context suites: context probe, digest bound, environment
   evidence (with two minimal local doubles), the runtime-filter live
   cluster (filter, plan, normalization, precedence, scope, args,

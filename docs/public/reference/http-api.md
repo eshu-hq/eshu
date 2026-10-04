@@ -144,12 +144,14 @@ condition stays a `500` with a fixed message and no `Retry-After`: a rejected
 statement, a reader connection that fails to authenticate or connect (refused
 connection, TLS error), a role denied `pg_control_system()` or another identity
 or replay query, and a client disconnect are not transient, so the API does not
-tell the client to retry them. Routes outside the dead-code and dead-IaC lanes
-and `GET /api/v0/supply-chain/impact/findings` that write a store error
-straight into a `500` do not yet map a reader fence failure and still answer
-`500` until they are routed through the shared helper. That includes the other
-supply-chain routes, such as the impact-findings count and the aggregates
-routes (#7567).
+tell the client to retry them. Every supply-chain query route sends its store
+reads through the shared helper first (#7549): a stale or timed-out guarded
+reader answers the retryable `503` with `Retry-After` above, while any other
+store failure stays a handler-owned `500` with a
+`supply_chain_query.stage_failed` log line. Routes outside the dead-code and
+dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
+store error straight into a `500` do not yet map a reader fence failure and
+still answer `500` until they are routed through the shared helper.
 
 A failed Postgres call on the API and MCP server answers `500`, `503`, or `504`
 per the handler, and its detail never carries the driver's own message, which

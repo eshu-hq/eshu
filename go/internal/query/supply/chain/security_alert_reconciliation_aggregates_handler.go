@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -11,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainSecurityAlertAggregateOperation names the log.Operation attribute
+// on every stage event these routes emit (query_timing.go).
+const supplyChainSecurityAlertAggregateOperation = "supply_chain_security_alert_aggregate_read"
 
 // SecurityAlertReconciliationAggregateCapability keys the capability-matrix
 // row that gates the security-alert reconciliation count route. It is a
@@ -74,8 +79,17 @@ func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
+	countTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, "security_alert_aggregate_count")
 	count, err := h.SecurityAlertAggregates.CountSecurityAlertReconciliations(r.Context(), filter)
+	countTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, SecurityAlertReconciliationAggregateCapability) {
+			return
+		}
+		failStage(r.Context(), span, countTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -163,8 +177,17 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 		return
 	}
 
+	inventoryTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, "security_alert_aggregate_inventory")
 	rows, err := h.SecurityAlertAggregates.SecurityAlertReconciliationInventory(r.Context(), filter, dimension, limit+1, offset)
+	inventoryTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, SecurityAlertReconciliationAggregateCapability) {
+			return
+		}
+		failStage(r.Context(), span, inventoryTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

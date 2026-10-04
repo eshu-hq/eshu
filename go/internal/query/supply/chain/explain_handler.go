@@ -5,12 +5,30 @@ package chain
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// supplyChainImpactExplanationOperation names the log.Operation attribute on
+// every stage event this route emits (query_timing.go).
+const supplyChainImpactExplanationOperation = "supply_chain_impact_explanation_read"
+
+// failExplanationRead answers a failed explanation store read or runtime
+// probe: a reader-fence verdict becomes the retryable 503, and any other
+// error becomes a handler-owned 500 carrying msg with the stage_failed
+// signal (#7549).
+func failExplanationRead(w http.ResponseWriter, r *http.Request, span trace.Span, timer supplyChainQueryStageTimer, err error, msg string) {
+	if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
+		return
+	}
+	failStage(r.Context(), span, timer, err)
+	querycontract.WriteError(w, http.StatusInternalServerError, msg)
+}
 
 func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -84,8 +102,10 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	explanationTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, filter.RepositoryID, "impact_explanation_query")
 	row, err := h.ImpactExplanations.ExplainSupplyChainImpact(r.Context(), filter)
 	if errors.Is(err, impact.ErrExplanationNotFound) {
+		explanationTimer.Done(r.Context(), slog.Bool("error", false))
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
 		body := impact.BuildNoEvidenceExplanation(filter, readiness)
 		querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
@@ -97,6 +117,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, impact.ErrExplanationAmbiguous) {
+		explanationTimer.Done(r.Context(), slog.Bool("error", false))
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
 		body := impact.BuildAmbiguousExplanation(
 			filter,
@@ -111,8 +132,12 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		))
 		return
 	}
+	explanationTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope, like the sibling probes below. The mapped
+		// verdict is not a handler-owned 500, so it returns before failStage.
+		failExplanationRead(w, r, span, explanationTimer, err, err.Error())
 		return
 	}
 
@@ -120,15 +145,21 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	// owner ledger before assembling the finding, so explain and list select the
 	// same deployment and version-resolution tiers.
 	rows := []impact.FindingRow{row.Finding}
-	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
+	cloudRuntimeTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, filter.RepositoryID, "cloud_runtime_evidence")
+	cloudRuntimeErr := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows)
+	cloudRuntimeTimer.Done(r.Context(), slog.Bool("error", cloudRuntimeErr != nil))
+	if cloudRuntimeErr != nil {
+		// #7549: this probe never called WriteGraphReadError, unlike the
+		// findings route's cloud-runtime branch (#7548). Route it the same
+		// way so a reader fence failure answers the retryable 503.
+		failExplanationRead(w, r, span, cloudRuntimeTimer, cloudRuntimeErr, "supply-chain impact runtime evidence probe failed")
 		return
 	}
-	if err := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
+	k8sRuntimeTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, filter.RepositoryID, "kubernetes_runtime_evidence")
+	k8sRuntimeErr := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows)
+	k8sRuntimeTimer.Done(r.Context(), slog.Bool("error", k8sRuntimeErr != nil))
+	if k8sRuntimeErr != nil {
+		failExplanationRead(w, r, span, k8sRuntimeTimer, k8sRuntimeErr, "supply-chain impact kubernetes runtime evidence probe failed")
 		return
 	}
 	// Same shape, same root cause as the cloud-runtime probe above:
@@ -142,11 +173,11 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	// h.ImpactExplanations) for the optional supplyChainImpactRuntimeContextReader
 	// capability and resolves at most one repository, well inside what list
 	// already resolves for a full page.
-	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
+	runtimeContextTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, filter.RepositoryID, "runtime_context")
+	runtimeContextErr := h.applySupplyChainRuntimeContext(r.Context(), rows, access)
+	runtimeContextTimer.Done(r.Context(), slog.Bool("error", runtimeContextErr != nil))
+	if runtimeContextErr != nil {
+		failExplanationRead(w, r, span, runtimeContextTimer, runtimeContextErr, "supply-chain impact runtime context probe failed")
 		return
 	}
 	row.Finding = rows[0]

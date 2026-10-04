@@ -107,7 +107,9 @@ and `supply_chain_query.stage_completed` for the stages `impact_findings_query`,
 `cloud_runtime_evidence`, `kubernetes_runtime_evidence`, `runtime_context`, and
 `readiness_snapshot`. Every completion carries a boolean `error` attribute,
 including `impact_findings_query`, so a failed read and an empty page no longer
-log identically (#7546).
+log identically (#7546). Every sibling list, aggregate, advisory, and packet
+route emits the same per-read started/completed pair with its own operation
+and stage names (#7549).
 
 The `impact_findings_query` completion also carries `reader_borrow_seconds`,
 `reader_identity_seconds`, `reader_replay_seconds`, and `business_query_seconds`
@@ -122,7 +124,7 @@ four sums can sit well below the stage's `duration_seconds`. The values are
 sums, which could exceed wall time only if reader operations ran concurrently in
 one scope; the findings read runs them one after another, so they cannot.
 
-A handler-owned HTTP 500 on the route additionally emits ONE ERROR-level
+A handler-owned HTTP 500 on any sibling route additionally emits ONE ERROR-level
 `supply_chain_query.stage_failed` event, because `querycontract.WriteError`
 never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
 
@@ -145,17 +147,20 @@ never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
 
 The same branches record the error on the handler span (`RecordError`) and set
 its status to Error with the fixed description
-`supply-chain impact findings stage failed`. The graph and
+`supply-chain query stage failed`. The graph and
 reader-fence verdicts that `querycontract.WriteGraphReadError` maps to 503/504
 are not handler-owned 500s and are not logged by this event. The unchanged wire
 contract (status codes and response bodies) is pinned by
 `TestListImpactFindingsLogsFailedStageOnHandlerOwned500`, and the silence and
 unchanged status of the mapped verdicts by
-`TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged`.
+`TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged`. The sibling
+routes carry the same invariant, pinned by
+`TestSiblingRoutesLogFailedStageOnHandlerOwned500` and
+`TestSiblingStoreReadsAnswerRetryable503` (#7549).
 
-Every backing read on the route calls `querycontract.WriteGraphReadError`
+Every backing store read on every sibling route calls `querycontract.WriteGraphReadError`
 BEFORE `failStage`, including the findings read and the cloud-runtime probe
-read (#7548): a stale guarded PostgreSQL reader (`db.ErrReaderStale`), or one
+read (#7548) and all nineteen sibling store-read branches (#7549): a stale guarded PostgreSQL reader (`db.ErrReaderStale`), or one
 whose connection acquisition or identity check timed out inside the replay
 window (`db.ErrReaderUnavailable` joined with `context.DeadlineExceeded`),
 answers the retryable `503` `backend_unavailable` with `Retry-After` and no
@@ -164,7 +169,8 @@ answers the retryable `503` `backend_unavailable` with `Retry-After` and no
 still answers `500` with the `stage_failed` line, where `error_site` and
 `error_cause` classify it. The readiness read is unchanged: its error serves a
 `readiness_unavailable` envelope, not a `500`. Pinned by
-`TestListImpactFindingsReaderTimeoutAnswersRetryable503`.
+`TestListImpactFindingsReaderTimeoutAnswersRetryable503` and, for the
+siblings, `TestSiblingStoreReadsAnswerRetryable503`.
 
 ## Move evidence (#6060)
 

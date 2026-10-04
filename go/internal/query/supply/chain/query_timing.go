@@ -29,8 +29,10 @@ const stageFailedErrorMaxBytes = 256
 
 // stageFailedSpanStatus is the fixed, bounded status description set on the
 // handler span for a handler-owned 5xx; the error itself is recorded as a span
-// event, never in the status text.
-const stageFailedSpanStatus = "supply-chain impact findings stage failed"
+// event, never in the status text. It names the supply-chain query family,
+// not one route: failStage serves every sibling route (#7549), and the
+// per-route operation rides on the stage_failed log event instead.
+const stageFailedSpanStatus = "supply-chain query stage failed"
 
 // supplyChainQueryStageTimer emits per-backing-read stage timings for
 // supply-chain query routes, mirroring the repository_query/service_query

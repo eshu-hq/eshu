@@ -5,6 +5,7 @@ package chain
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -13,6 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainContainerImageIdentityOperation names the log.Operation attribute
+// on every stage event this route emits (query_timing.go).
+const supplyChainContainerImageIdentityOperation = "supply_chain_container_image_identity_read"
 
 func (h *Handler) listContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -83,8 +88,17 @@ func (h *Handler) listContainerImageIdentities(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	identityTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainContainerImageIdentityOperation, filter.SourceRepositoryID, "container_image_identity_query")
 	rows, err := h.ContainerImageIdentities.ListContainerImageIdentities(r.Context(), filter)
+	identityTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, ContainerImageIdentitiesCapability) {
+			return
+		}
+		failStage(r.Context(), span, identityTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
