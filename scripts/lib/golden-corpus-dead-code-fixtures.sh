@@ -163,12 +163,14 @@ seed_cross_repo_dead_code_fixture() {
 	  END IF;
 	  IF NOT EXISTS (
 	    SELECT 1
-	    FROM consumer_scope
+	    FROM ingestion_scopes AS scope
 	    JOIN code_reachability_repository_watermarks AS watermark
-	      ON watermark.scope_id = consumer_scope.scope_id
-	     AND watermark.generation_id = consumer_scope.generation_id
-	     AND watermark.repository_id = consumer_scope.repo_id
-	    WHERE NOT watermark.truncated
+	      ON watermark.scope_id = scope.scope_id
+	     AND watermark.generation_id = scope.active_generation_id
+	     AND watermark.repository_id = COALESCE(scope.payload->>'repo_id', scope.payload->>'id', scope.scope_id)
+	    WHERE scope.scope_kind = 'repository'
+	      AND COALESCE(scope.payload->>'name', scope.payload->>'repo_name', scope.payload->>'repo_slug', scope.scope_id) = 'orders-api'
+	      AND NOT watermark.truncated
 	  ) THEN
 	    RAISE EXCEPTION 'expected a complete reachability watermark for the cross-repo dead-code consumer';
 	  END IF;
