@@ -33,7 +33,7 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 				{
 					"entity", "repo-1", "go/internal/collector/reposync/auth.go", "entity-auth",
 					"resolveGitHubAppAuth", "Function", "go", int64(44), int64(88),
-					"auth\x1fgithub\x1frepo\x1fsync", int64(4), false,
+					"auth\x1frepo\x1fsync", int64(3), false,
 				},
 			},
 		},
@@ -43,7 +43,7 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	rows, err := reader.InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
 		RepoID:               "repo-1",
 		AllowedRepositoryIDs: []string{"repo-1"},
-		Terms:                []string{"repo", "sync", "auth", "github"},
+		Terms:                []string{"repo", "sync", "auth"},
 		Limit:                26,
 		Offset:               0,
 	})
@@ -59,17 +59,17 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	if !strings.Contains(recorder.queries[0], "WITH terms(term) AS") {
 		t.Fatalf("query = %q, want scored terms CTE", recorder.queries[0])
 	}
-	// repo_id ($1), then one bound arg per term ($2-$5, in request order),
+	// repo_id ($1), then one bound arg per term ($2-$4, in request order),
 	// then limit/offset (#7008: each term is its own placeholder now, shared
 	// by entity_probe's LATERAL terms table and file_probe's per-term UNION
 	// branches, instead of one delimited-string arg unnested in SQL).
-	if got, want := len(recorder.args[0]), 7; got != want {
-		t.Fatalf("len(query args) = %d, want %d (repo_id + 4 terms + limit + offset)", got, want)
+	if got, want := len(recorder.args[0]), 6; got != want {
+		t.Fatalf("len(query args) = %d, want %d (repo_id + 3 terms + limit + offset)", got, want)
 	}
 	if got, want := recorder.args[0][0], "repo-1"; got != want {
 		t.Fatalf("repo arg = %#v, want %#v", got, want)
 	}
-	for i, want := range []string{"repo", "sync", "auth", "github"} {
+	for i, want := range []string{"repo", "sync", "auth"} {
 		if got := recorder.args[0][1+i]; got != want {
 			t.Fatalf("term arg[%d] = %#v, want %#v", i, got, want)
 		}
@@ -77,11 +77,11 @@ func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {
 	if strings.Contains(recorder.queries[0], "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("repo-scoped query = %q, must remain available during global index finalization", recorder.queries[0])
 	}
-	if got, want := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"), 4; got != want {
-		t.Fatalf("explicit repo term CTEs = %d, want %d even with a grant list", got, want)
+	if got := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"); got != 0 {
+		t.Fatalf("three-term repo search term CTEs = %d, want upstream SQL", got)
 	}
-	if got, want := strings.Count(recorder.queries[0], "f.content ILIKE '%' || (SELECT term FROM term_param) || '%'"), 4; got != want {
-		t.Fatalf("explicit repo content predicates = %d, want %d", got, want)
+	if got, want := strings.Count(recorder.queries[0], "f.content ILIKE '%' || $"), 3; got != want {
+		t.Fatalf("three-term repo content predicates = %d, want %d direct binds", got, want)
 	}
 }
 
@@ -124,6 +124,9 @@ func TestContentReaderInvestigateCodeTopicSingleRepoTermUsesCacheDescribe(t *tes
 		!strings.Contains(recorder.queries[0], "LIMIT $3 OFFSET $4") {
 		t.Fatal("SQL placeholders or repo scope changed")
 	}
+	if got := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"); got != 1 {
+		t.Fatalf("one-term repo search term CTEs = %d, want measured SQL", got)
+	}
 	if len(rows) != 1 || rows[0].RepoID != "repo-1" ||
 		rows[0].RelativePath != "viewer.go" || rows[0].Score != 1 ||
 		rows[0].PoolTruncated {
@@ -154,12 +157,14 @@ func TestContentReaderInvestigateCodeTopicExplicitRepoLanguageKeepsScopedTerm(t 
 	query := recorder.queries[0]
 	for _, fragment := range []string{
 		"repo_id = $1", "coalesce(language, '') = $2",
-		"term_param AS MATERIALIZED (SELECT $3::text AS term)",
-		"f.content ILIKE '%' || (SELECT term FROM term_param) || '%'",
+		"f.content ILIKE '%' || $3 || '%'",
 	} {
 		if !strings.Contains(query, fragment) {
 			t.Fatalf("query missing %q", fragment)
 		}
+	}
+	if strings.Contains(query, "term_param AS MATERIALIZED") {
+		t.Fatal("language-filtered repo search must retain upstream file branch")
 	}
 	if got, want := fmt.Sprint(recorder.args[0]), "[repo-1 go surface 11 0]"; got != want {
 		t.Fatalf("query args = %s, want %s", got, want)

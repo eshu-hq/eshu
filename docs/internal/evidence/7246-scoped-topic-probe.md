@@ -29,12 +29,14 @@ heap rechecks and applied the repository predicate as a filter. Those two
 branches together accounted for 5,021.191 ms of the 5,933.388 ms execution.
 This identifies expensive branches; it does not establish a pure I/O cause.
 
-On the single-statement route, requests with a nonempty trimmed explicit
-repository ID add a singleton materialized term CTE inside each file branch
-and read that term through a scalar subquery in the content-only predicate.
-Requests without an explicit repository ID retain the original SQL, including
-searches bounded by a repository grant list. The three-term request measured
-here uses this route.
+At the time of this historical probe, the single-statement route added a
+singleton materialized term CTE inside each file branch whenever the request
+had a nonempty trimmed explicit repository ID. The three-term request measured
+here used that candidate. The later #7246 implementation narrows that branch
+to one term without a language filter. Three-term, language-filtered,
+grant-list-only, and unscoped searches now retain the upstream file branch.
+The measurements below describe the historical candidate, not the current
+three-term route.
 
 The candidate was rebased onto main `6d0c1d81` on 2026-10-03. Main's eligible
 16-term shared-snapshot route runs before the single-statement builder and

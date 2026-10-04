@@ -7,12 +7,14 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestInvestigateCodeTopicParallelFallsBackWhenPoolIsSmall(t *testing.T) {
@@ -117,5 +119,55 @@ func TestRunCodeTopicPartitionsCancelsAndJoinsOnFailure(t *testing.T) {
 	}
 	if got := active.Load(); got != 0 {
 		t.Fatalf("active workers after return = %d, want 0", got)
+	}
+}
+
+func TestInvestigateCodeTopicWhitespaceScopeUsesMeasuredOneTermMode(t *testing.T) {
+	t.Parallel()
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{"source_kind", "repo_id", "relative_path", "entity_id", "entity_name", "entity_type", "language", "start_line", "end_line", "matched_terms", "score", "pool_truncated"},
+	}})
+	_, err := NewContentReader(db).InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
+		RepoID: " repo-1 ", Language: " 	 ", Terms: []string{"showimage"}, Limit: 11,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(recorder.queries[0], "term_param AS MATERIALIZED"); got != 1 {
+		t.Fatalf("measured file branch count = %d, want 1", got)
+	}
+	if strings.Contains(recorder.queries[0], "coalesce(language, '') = $") {
+		t.Fatal("blank trimmed language must not add a predicate")
+	}
+	args := recorder.args[0]
+	if len(args) != 5 || numericDriverValue(t, args[0]) != int64(pgx.QueryExecModeCacheDescribe) ||
+		fmt.Sprint(args[1:]) != "[repo-1 showimage 11 0]" {
+		t.Fatalf("normalized one-term driver args = %#v", args)
+	}
+}
+
+func TestInvestigateCodeTopicSixteenTermSerialFallbackRetainsUpstreamBranch(t *testing.T) {
+	t.Parallel()
+	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{{
+		columns: []string{"source_kind", "repo_id", "relative_path", "entity_id", "entity_name", "entity_type", "language", "start_line", "end_line", "matched_terms", "score", "pool_truncated"},
+	}})
+	terms := make([]string, 16)
+	for i := range terms {
+		terms[i] = fmt.Sprint(i)
+	}
+	_, err := NewContentReader(db).InvestigateCodeTopic(context.Background(), CodeTopicInvestigationRequest{
+		RepoID: "repo-1", Terms: terms, Limit: 26,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := recorder.queries[0]
+	if strings.Contains(query, "term_param AS MATERIALIZED") ||
+		strings.Count(query, "f.content ILIKE '%' || $") != 16 {
+		t.Fatal("sixteen-term serial fallback changed the upstream file branch")
+	}
+	args := recorder.args[0]
+	if len(args) != 19 || args[0] != "repo-1" || numericDriverValue(t, args[17]) != 26 || numericDriverValue(t, args[18]) != 0 {
+		t.Fatalf("sixteen-term fallback driver args = %#v", args)
 	}
 }

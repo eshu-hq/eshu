@@ -115,10 +115,10 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	}
 	termValues := make([]string, len(req.Terms))
 	fileBranches := make([]string, len(req.Terms))
-	scopedRepo := strings.TrimSpace(req.RepoID) != ""
+	measuredScopedOneTerm := strings.TrimSpace(req.RepoID) != "" && len(req.Terms) == 1 && strings.TrimSpace(req.Language) == ""
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
-		if scopedRepo {
+		if measuredScopedOneTerm {
 			fileBranches[i] = scopedCodeTopicFileBranch(nextArg, where, candidateCap)
 		} else {
 			fileBranches[i] = codetopicparallel.FileBranch(nextArg, where, candidateCap)
@@ -195,7 +195,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 
 	// CacheDescribe keeps the measured one-term repo query off a generic
 	// named plan while retaining parameter types and SQL placeholders.
-	if scopedRepo && len(req.Terms) == 1 && strings.TrimSpace(req.Language) == "" {
+	if measuredScopedOneTerm {
 		args = append([]any{pgx.QueryExecModeCacheDescribe}, args...)
 	}
 	rows, err := cr.db.QueryContext(ctx, query, args...)

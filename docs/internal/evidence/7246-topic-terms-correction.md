@@ -102,3 +102,55 @@ trial supports a per-query mode change for the measured repository-scoped,
 single-term SQL shape with no language filter. The finished production path
 still requires regression tests, compiled handler proof, and cold/warm API
 and MCP p95 measurements before the latency issue can close.
+
+## Three-call compiled handler proof and current limit
+
+The reviewed binary built from source head `5d6a0274900729d74619b285dbee2837912efcb5`
+had SHA-256 `5a69370135a587e16755663cf568129a32b39cfda5254f3a3dcb2f6fc154dea9`.
+Its one-shot controller made three **new** developer-change-plan calls with
+the retained request body SHA-256
+`10840ce1b51a417e52dfdb32b20e8b8b207d49371955e25d97b46b088f643dc5`.
+It made no old-mode or baseline business call.
+
+| New call | Handler ms | Topic SQL ms | Named topic statements |
+| --- | ---: | ---: | ---: |
+| 1 | 380.353916 | 196.123708 | 0 |
+| 2 | 286.865042 | 123.212833 | 0 |
+| 3 | 273.335125 | 121.601209 | 0 |
+
+Each topic read used SQL SHA-256
+`ad7367332c67f9073c78bf27fe07ac129f959e25633f23f7f3fd8a258b2b0131`.
+The pgx trace saw six arguments: the standard-library result-format option,
+`CacheDescribe`, then the four original business arguments. The independently
+retained eleven-row topic truth and seven-entity response projection matched;
+all three responses matched each other. The result retained partial coverage,
+missing changed-path evidence, and blocked patch guidance. The reader and graph
+close acknowledgments were recorded. A read-only observer checked that the
+reader PID was absent on the same pinned replica pod and postmaster. Both
+owned port forwards and the controller terminated. This is diagnostic proof
+through the mounted production impact handler with a synthetic scoped
+post-auth context and a raw one-connection content reader. Production Reader
+Access, authentication middleware, external transport, other API/MCP routes,
+and deployed cold/warm p95 remain **NOT_CHECKED**.
+
+The final source boundary restricts both the measured file branch and
+`CacheDescribe` to a nonempty explicit repository ID, exactly one term, and
+an empty trimmed language filter. Three-term and language-filtered explicit
+repository searches use the upstream file branch and existing driver mode.
+Grant-list-only and unscoped searches retain their prior behavior, as does
+the eligible sixteen-term shared-snapshot path. Boundary regressions failed
+before this restriction and passed after it. The binary above predates the
+boundary restriction. A final-source, offline interception of the production
+content reader captured the same SQL SHA-256, `pgx.QueryExecModeCacheDescribe`,
+and ordered typed arguments: repository ID and `showimage` as strings, then
+limit 11 and offset 0 as integers. The retained request-body SHA-256 matched.
+The capture made one intercepted read and no backend call. Together with the
+boundary regressions and changed-package build, this links the prior measured
+one-term handler path to the final source for that exact input. It does not
+measure any other route or a new deployed artifact.
+
+Performance Evidence: the three new calls above measured only the diagnostic
+handler path. No paired old/new speedup or deployed endpoint p95 is claimed.
+No-Observability-Change: the existing topic query span, execution-mode
+attribute, repository scope, pool/truncation status, and response truth fields
+remain in place. No new runtime signal is introduced.
