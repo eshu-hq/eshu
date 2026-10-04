@@ -55,15 +55,19 @@ internal/storage/postgres' generation reader both still name them that way.
 
 ## Telemetry
 
-`Logger` (when wired) emits three structured logs, "code value-flow stale
+`Logger` (when wired) emits four structured logs, "code value-flow stale
 cleanup cycle completed" (with `lease_acquired`, `lease_ttl_seconds`
 (`telemetry.LogKeyLeaseTTLSeconds`), `scopes_scanned`, `scopes_skipped`,
 `taint_sweeps`, `interproc_sweeps`, `cursor_exhausted`, `duration_seconds`),
 "code value-flow stale cleanup cycle failed" (with the error,
 `lease_ttl_seconds` — the configured TTL, not proof a lease was held — and
-`code_value_flow_stale_cleanup_error` failure class), and a lease-release
+`code_value_flow_stale_cleanup_error` failure class), a lease-release
 WARN when the deferred bounded release fails (with `lease_ttl_seconds` —
-the configured TTL after which the unreleased lease expires server-side).
+the configured TTL after which the unreleased lease expires server-side),
+and "code value-flow stale cleanup partition lease held by another owner"
+when a cycle's claim is refused (with `partition_id`, `partition_count`,
+`lease_owner`, `lease_ttl_seconds`), so a contended lease is visible per
+poll instead of spinning silently (#7502).
 All carry `telemetry.PhaseReduction`. `lease_ttl_seconds` is registered in
 `telemetry.LogKeys()`; see `docs/public/reference/telemetry/logs.md`.
 
@@ -81,6 +85,31 @@ All carry `telemetry.PhaseReduction`. `lease_ttl_seconds` is registered in
 - **The cursor restarts from the first page once the last page is
   shorter than `ScopeBatchLimit`.** A caller relying on exhaustive coverage
   across restarts must account for this wraparound.
+
+## Contention dynamics (#7502)
+
+No-Regression Evidence: a refused partition-lease claim no longer spins.
+Conflict domain is the single lease row `code_value_flow_stale_cleanup`
+(partition 0 of 1); worker shape is unchanged (one sequential side-runner
+loop, default 1h poll, 10m lease TTL — no worker reduction, no drain
+serialization). Baseline (pre-fix, `TestCodeValueFlowStaleCleanupRunnerBacksOffWhenLeaseContended`
+RED): 50 claims with 0 poll waits before the test backstop fired, and no
+log line — one Postgres `ClaimPartitionLease` round trip per loop iteration
+for up to the full lease TTL. After (GREEN): claims == waits (one claim per
+poll interval), cursor untouched on the refused path, full-page drain still
+continues without waiting, and the nil-`LeaseManager` path is unchanged.
+Proof is unit-level with a fake lease manager (`go test
+./internal/reducer/code/value/cleanup/ -count=1`, `go vet` clean); the claim
+SQL itself is untouched so no plan or live-Postgres proof applies, and no
+corpus run was needed.
+
+Observability Evidence: each refused claim emits one Info log, "code
+value-flow stale cleanup partition lease held by another owner", carrying
+the existing registered keys (`partition_id`, `partition_count`,
+`lease_owner`, `lease_ttl_seconds`, reduction phase) — no new instrument,
+metric, or span, so no coverage-registry update is triggered. Contended
+steady state is 1 claim + 1 log line per poll interval instead of an
+unbounded silent claim rate.
 
 ## Related docs
 

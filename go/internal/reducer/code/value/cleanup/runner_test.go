@@ -652,3 +652,99 @@ func TestCodeValueFlowStaleCleanupRunnerLogsReleaseFailure(t *testing.T) {
 		t.Fatal("no WARN log record for the failed lease release")
 	}
 }
+
+// TestCodeValueFlowStaleCleanupRunnerBacksOffWhenLeaseContended pins #7502:
+// a refused lease claim must wait for the poll interval and emit a
+// contention signal instead of spinning one Postgres claim per iteration
+// with no log until the 10m lease expires.
+func TestCodeValueFlowStaleCleanupRunnerBacksOffWhenLeaseContended(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	leases := &alwaysRefusedCleanupLeaseManager{cancelAfter: 50, cancel: cancel}
+	waitCalls := 0
+	runner := &Runner{
+		CurrentGenerations: &fakeCodeValueFlowCurrentGenerationReader{},
+		TaintEvidence:      &recordingCodeValueFlowTaintSweeper{},
+		InterprocEvidence:  &recordingCodeValueFlowInterprocSweeper{},
+		LeaseManager:       leases,
+		Config: RunnerConfig{
+			PollInterval: time.Hour,
+			LeaseOwner:   "value-flow-owner-contended",
+			LeaseTTL:     2 * time.Minute,
+		},
+		Wait: func(ctx context.Context, d time.Duration) error {
+			waitCalls++
+			if d != time.Hour {
+				t.Errorf("wait duration = %v, want poll interval %v", d, time.Hour)
+			}
+			if waitCalls >= 2 {
+				cancel()
+			}
+			return ctx.Err()
+		},
+		Logger: logger,
+	}
+	if err := runner.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if waitCalls != 2 {
+		t.Fatalf("wait calls = %d, want 2 (one poll wait per refused claim)", waitCalls)
+	}
+	if got := leases.claimCalls; got != waitCalls {
+		t.Fatalf("lease claims = %d, want %d (one claim per poll wait, not a spin)", got, waitCalls)
+	}
+	const wantMsg = "code value-flow stale cleanup partition lease held by another owner"
+	found := false
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			t.Fatalf("unmarshal log line %q: %v", line, err)
+		}
+		if record["msg"] != wantMsg {
+			continue
+		}
+		for _, key := range []string{`"partition_id"`, `"partition_count"`, `"lease_owner"`, `"lease_ttl_seconds"`} {
+			if !bytes.Contains(line, []byte(key)) {
+				t.Fatalf("contended-lease log must carry %s:\n%s", key, line)
+			}
+		}
+		found = true
+	}
+	if !found {
+		t.Fatalf("no log record with msg %q:\n%s", wantMsg, buf.String())
+	}
+}
+
+// alwaysRefusedCleanupLeaseManager simulates a lease held by another owner
+// for the whole run: every claim is refused. cancelAfter bounds the pre-fix
+// spin so the regression test fails fast instead of hanging.
+type alwaysRefusedCleanupLeaseManager struct {
+	claimCalls  int
+	cancelAfter int
+	cancel      context.CancelFunc
+}
+
+func (l *alwaysRefusedCleanupLeaseManager) ClaimPartitionLease(
+	_ context.Context,
+	_ string,
+	_, _ int,
+	_ string,
+	_ time.Duration,
+) (bool, error) {
+	l.claimCalls++
+	if l.cancelAfter > 0 && l.claimCalls >= l.cancelAfter && l.cancel != nil {
+		l.cancel()
+	}
+	return false, nil
+}
+
+func (l *alwaysRefusedCleanupLeaseManager) ReleasePartitionLease(
+	_ context.Context,
+	_ string,
+	_, _ int,
+	_ string,
+) error {
+	return nil
+}

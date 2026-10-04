@@ -177,6 +177,23 @@ func (r *Runner) Run(ctx context.Context) error {
 			}
 			continue
 		}
+		// A refused claim is contention, not drainable work: without this
+		// guard the empty result falls into the cursor check below and
+		// spins one Postgres claim per iteration with no signal until the
+		// 10m lease expires (#7502). The sibling orphan runner backs off
+		// here because its drain condition (deleted total) is empty on a
+		// refused claim; this runner's cursor condition is inverted, so
+		// the guard must be explicit.
+		if !result.LeaseAcquired {
+			r.recordLeaseContended(ctx)
+			if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
+				if contextDone(ctx, waitErr) {
+					return nil
+				}
+				return fmt.Errorf("wait for code value-flow stale cleanup contention: %w", waitErr)
+			}
+			continue
+		}
 		if !result.CursorExhausted {
 			continue
 		}
@@ -389,6 +406,26 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Int("interproc_sweeps", result.InterprocSweeps),
 		slog.Bool("cursor_exhausted", result.CursorExhausted),
 		slog.Float64("duration_seconds", result.Duration.Seconds()),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
+}
+
+// recordLeaseContended logs a refused lease claim: another owner holds the
+// partition, so this cycle makes no progress until that lease expires or is
+// released. Before #7502 a refused claim returned an empty result with no
+// signal at all, and the tight claim-reject loop could not be attributed
+// from the runner's own log.
+func (r *Runner) recordLeaseContended(ctx context.Context) {
+	if r.Logger == nil {
+		return
+	}
+	r.Logger.InfoContext(
+		ctx,
+		"code value-flow stale cleanup partition lease held by another owner",
+		slog.Int("partition_id", leasePartitionID),
+		slog.Int("partition_count", leasePartitionCount),
+		slog.String("lease_owner", r.Config.LeaseOwner),
+		slog.Float64(telemetry.LogKeyLeaseTTLSeconds, r.Config.leaseTTL().Seconds()),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)
 }
