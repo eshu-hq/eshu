@@ -120,7 +120,11 @@ lookup and a type assertion per observation). It was not separated from
 code-layout differences between two compiled binaries, and no profile was taken.
 
 The accumulator arms (AFTER only), same units, compared with the same arm without
-the accumulator:
+the accumulator. The accumulator benchmark ran as a third invocation in each of the
+same 10 rounds (the order of the three invocations rotated over three permutations),
+so it has 50 samples per arm; the without-accumulator values come from the AFTER
+invocation of the same round, and rounds slower counts rounds in which the
+with-accumulator median was above that round's without-accumulator median:
 
 | Arm | ns/op without, with | Delta | B/op | allocs/op | Rounds slower |
 | --- | --- | --- | --- | --- | --- |
