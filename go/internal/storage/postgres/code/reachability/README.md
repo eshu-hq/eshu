@@ -40,8 +40,9 @@ across package boundaries.
   `LoadPendingCodeReachabilityInputs`.
 - `CodeReachabilitySchemaSQL()` returns the DDL.
 - `CodeReachabilityVerdictSchemaEpoch` is the current verdict schema epoch;
-  bump it whenever verdict semantics change so every projected repo
-  re-projects exactly once on upgrade.
+  bump it whenever verdict semantics or the watermark's truncation
+  semantics change so every projected repo re-projects exactly once on
+  upgrade.
 
 See `doc.go` for the godoc contract.
 

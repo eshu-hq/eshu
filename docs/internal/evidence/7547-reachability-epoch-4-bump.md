@@ -60,7 +60,7 @@ generation are loader candidates.
 
 Performance Evidence: the loader's candidate selection takes 8,385 ms cold and
 4,698 ms and 4,667 ms warm per call on the QA replica (`t2_cur.out` and the
-loader line in `SUMMARY.md`). That is the existing steady cost of selecting
+loader line in `SUMMARY.md`; `LIMIT 10` at epoch 3, which returns 0 candidates). That is the existing steady cost of selecting
 candidates, paid on every shared-projection cycle today. The bump does not add
 to it and does not change the query. The largest repository (61,633 edge rows)
 loads its edges in 360 to 413 ms and its roots in 296 to 888 ms (`j3b.out`).
@@ -91,9 +91,16 @@ performance proof, and this document does not cite it as one.
 The shared projection runner takes `ESHU_SHARED_PROJECTION_BATCH_LIMIT`
 (default 100) repositories per cycle. 795 repositories at batch 100 is at
 least 8 cycles. Each cycle pays about 4.7 s of candidate selection plus the
-per-repository project time. Estimated upper bound: about 1 to 12 minutes.
-This is an estimate from the pieces above, not an observation. The ops-qa
-deploy watch is the measurement.
+per-repository project time. Estimated range: about 1 to 12 minutes, which
+leaves out the full delete and re-insert of about 844,577 rows described under
+write-path properties below, so treat it as a lower-bound-style estimate, not a
+ceiling. It is an estimate from the pieces above, not an observation. The
+ops-qa deploy watch is the measurement.
+
+Memory: the loader reads roots and edges for all 100 candidates of a cycle
+before projecting. In the worst case a batch holds up to the corpus total of
+496,637 edges in memory at once; that bound is stated, not measured, and the
+reducer RSS trigger below covers it.
 
 The runner polls every `ESHU_SHARED_PROJECTION_POLL_INTERVAL` (default
 500 ms). While a cycle processes intents, `Run` re-polls without waiting, so
@@ -107,8 +114,15 @@ Write-path properties, from the code:
 - Each repository is replaced in one transaction
   (`CodeReachabilityStore.ReplaceRepositoryRows`): rows, verdicts, and the
   watermark commit together or not at all.
-- The write is idempotent: `ON CONFLICT ... DO UPDATE` upserts plus a
-  primary-key-scoped DELETE of rows the new snapshot no longer holds.
+- The write is idempotent but it is a full rewrite: `replaceCodeReachabilityRepositoryRows`
+  deletes every `code_reachability_rows` and `code_root_verdicts` row of the
+  (scope, generation, repository) partition and re-inserts the whole snapshot
+  in the same transaction (`ON CONFLICT ... DO UPDATE` upserts on the insert).
+  Write volume: the drain therefore deletes and re-inserts the reachability
+  rows of every active repository, about 844,577 rows in a 2,245 MB table
+  including indexes, plus the verdict rows. Expect dead tuples and write-ahead
+  log of the order of the table size; the WAL volume and the replica replay lag
+  it causes are unmeasured.
 - The drain is self-extinguishing: once a repository is stamped at epoch 4 the
   loader's `verdict_schema_epoch` comparison no longer selects it.
 - A partial drain is resumable: repositories already stamped stay stamped, and
@@ -149,8 +163,23 @@ The deploy watch uses signals that already exist:
   `max_depth` at WARN, and 0 `max_visited`. Many more WARNs means stop.
 - Replica replay lag against the API's 2 s fence, and the 5xx rate on the
   dead-code routes.
-- Dead tuples and autovacuum on `code_reachability_rows`.
+- Dead tuples and autovacuum on `code_reachability_rows` (the drain rewrites
+  every row of it).
 - Reducer RSS against `GOMEMLIMIT`.
+- Reducer restarts and exit errors. A projection error (`load code reachability
+  inputs`, `delete code reachability rows`, `upsert code reachability
+  watermark`) is returned by `CodeReachabilityProjectionRunner.Run` and
+  recorded by the service, which cancels the whole reducer service
+  (`internal/reducer/service.go` `recordErr`). One repository that fails every
+  time is selected again after the restart (oldest first), so a failing
+  repository can crash-loop the reducer and stall all reducer work. That
+  behavior predates this change; the drain makes it more likely, because 795
+  re-projections run in about 8 back-to-back cycles. A restart during the
+  drain is a stop signal.
+- Census caveat: the census query joins only `ingestion_scopes`; the loader
+  also requires an acceptance row, an active generation and a completed
+  intent. A residual above 0 after the completion log lines stop means
+  non-candidates, not a stuck drain.
 
 A staged rollout (ops-qa drained fully with a flat API error rate before any
 production pin) is required if any of these holds:
@@ -159,8 +188,11 @@ production pin) is required if any of these holds:
   batch 100;
 - reducer RSS exceeds 50% of `GOMEMLIMIT`;
 - replica lag trips the 2 s fence, or the dead-code 5xx rate rises;
-- the target runs more than one reducer replica (a rolling deploy can
-  double-stamp).
+- the reducer restarts or exits with a projection error during the drain;
+- the target runs more than one reducer replica (the runner takes no lease or
+  claim, so two replicas select the same 100 candidates and both run the full
+  delete and re-insert on the same repositories at the same time: duplicate
+  work and concurrent rewrites, not only a double stamp).
 
 Pacing is not a lever: do not lower the batch limit, the worker count, or the
 poll rate to slow the drain.

@@ -384,8 +384,10 @@ func TestCodeReachabilityTruncationEpochBumpRestampsWatermarks(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), `DROP TABLE IF EXISTS `+before)
 	})
-	// Rows for the complete repo as the pre-bump logic left them: project it once
-	// (rows are unchanged by #7547), snapshot them, then restore the epoch-3 stamp.
+	// Rows for the complete repo after the first projection by the current binary:
+	// project it once (rows are unchanged by #7547), snapshot them, then restore
+	// the epoch-3 stamp. The test proves re-projection is idempotent, not parity
+	// with rows written by the pre-bump binary.
 	var logs bytes.Buffer
 	runner := upgradeBackfillRunner(store)
 	runner.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
