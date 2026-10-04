@@ -35,9 +35,12 @@ const (
 // GenerationRetentionPolicy bounds automated cleanup of superseded source
 // generations. Raw scope and generation identifiers are intentionally absent
 // from the runner contract; the storage implementation owns candidate locking.
+// HardMaxSupersededAge (#7585) caps the count preference: ordinary superseded
+// history older than it is eligible even within the retained count.
 type GenerationRetentionPolicy struct {
 	MinSupersededGenerations int
 	MaxSupersededAge         time.Duration
+	HardMaxSupersededAge     time.Duration
 	BatchGenerationLimit     int
 	BatchRowLimit            int
 	PolicyScope              string

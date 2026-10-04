@@ -1965,6 +1965,11 @@ tests:
     tag: ~
     class: scheduled
     reason: runs in the blocking reducer-contention-gate workflow against its own Postgres service, not the live-backend job; the unset-DSN skip is a failure there (ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF)
+  - file: go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7585 disposable PostgreSQL 18 boundary proof that the hard history ceiling caps the retained count (100-day-old rank-1 generation pruned under the configured and the defaulted 90d ceilings, 10-day-old rank-1 retained); local run passed in 2.14s wall with the full 178-migration setup on postgres:18-alpine on 2026-10-04"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_lock_set_live_test.go
     tag: ~
     class: scheduled

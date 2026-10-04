@@ -1,6 +1,6 @@
 name: Live PostgreSQL Readiness
 
-# The seventeen readiness and dead-code incoming proofs use EXPLAIN and correctness assertions against
+# The twenty readiness and dead-code incoming proofs use EXPLAIN and correctness assertions against
 # separately created disposable databases. The merge queue always runs this
 # job; PR and main-push events select the paths that can change the proof.
 on:
@@ -107,4 +107,6 @@ jobs:
           ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE: '1'
           ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE: '1'
+          ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

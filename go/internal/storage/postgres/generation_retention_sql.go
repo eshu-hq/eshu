@@ -20,7 +20,9 @@ import (
 // active_generation_id at lock time and is byte-identical to the prior
 // statement. Rationale/proofs: docs/internal/evidence/7334-generation-retention-selection.md.
 //
-// $1 cutoff, $2 min newer superseded generations, $3 batch/lock-set limit.
+// $1 soft cutoff, $2 min newer superseded generations, $3 batch/lock-set
+// limit, $4 hard-ceiling cutoff (#7585): the count preference cannot retain
+// ordinary superseded history older than $4.
 const generationRetentionCandidateQuery = `
 WITH ranked_superseded_generations AS (
     SELECT
@@ -44,8 +46,7 @@ eligible AS MATERIALIZED (
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = ranked.scope_id
     WHERE ranked.generation_id IS DISTINCT FROM scope.active_generation_id
-      AND ranked.superseded_at < $1
-      AND ranked.superseded_rank > $2
+      AND ((ranked.superseded_at < $1 AND ranked.superseded_rank > $2) OR ranked.superseded_at < $4)
       AND NOT EXISTS (
           SELECT 1
           FROM live_work
@@ -111,8 +112,8 @@ const (
 // No row means another session took, re-activated or started work on the
 // candidate after the rollback; the pass then prunes nothing.
 //
-// $1 superseded cutoff, $2 minimum newer superseded generations, $3 excluded
-// generation ids, $4 scope id, $5 generation id.
+// $1 soft cutoff, $2 minimum newer generations, $3 excluded ids, $4 scope
+// id, $5 generation id, $6 hard-ceiling cutoff (#7585).
 const generationRetentionTargetedCandidateQuery = `-- retention: targeted candidate lock
 SELECT generation.scope_id, generation.generation_id, scope.scope_kind, generation.superseded_at, generation.observed_at
 FROM scope_generations AS generation
@@ -123,9 +124,8 @@ WHERE scope.scope_id = $4
   AND generation.status = 'superseded'
   AND generation.generation_id <> ALL($3::text[])
   AND generation.superseded_at IS NOT NULL
-  AND generation.superseded_at < $1
   AND generation.generation_id IS DISTINCT FROM scope.active_generation_id
-  AND (
+  AND ((generation.superseded_at < $1 AND (
       SELECT count(*)
       FROM scope_generations AS newer
       WHERE newer.scope_id = generation.scope_id
@@ -133,7 +133,7 @@ WHERE scope.scope_id = $4
         AND newer.generation_id <> ALL($3::text[])
         AND newer.superseded_at IS NOT NULL
         AND (newer.superseded_at, newer.generation_id) > (generation.superseded_at, generation.generation_id)
-  ) >= $2
+  ) >= $2) OR generation.superseded_at < $6)
   AND NOT EXISTS (
       SELECT 1
       FROM fact_work_items AS work

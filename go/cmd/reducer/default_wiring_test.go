@@ -75,6 +75,7 @@ func reducerGenerationRetentionPolicy(policy postgres.GenerationRetentionPolicy)
 	return maintenance.GenerationRetentionPolicy{
 		MinSupersededGenerations: policy.MinSupersededGenerations,
 		MaxSupersededAge:         policy.MaxSupersededAge,
+		HardMaxSupersededAge:     policy.HardMaxSupersededAge,
 		BatchGenerationLimit:     policy.BatchGenerationLimit,
 		BatchRowLimit:            policy.BatchRowLimit,
 		PolicyScope:              policy.PolicyScope,

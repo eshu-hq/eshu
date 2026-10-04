@@ -42,6 +42,7 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	cutoff := now.Add(-7 * 24 * time.Hour)
+	hardCutoff := now.Add(-90 * 24 * time.Hour)
 	old := now.Add(-10 * 24 * time.Hour)
 
 	t.Run("pruned-and-committed-by-another-session", func(t *testing.T) {
@@ -49,7 +50,7 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 		seedRetentionSelectionScope(t, ctx, database, scopeID)
 		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, generationID, old)
 
-		locked := runGenerationRetentionRaceCase(t, ctx, database, generationID, cutoff, func(holder *sql.Tx) {
+		locked := runGenerationRetentionRaceCase(t, ctx, database, generationID, cutoff, hardCutoff, func(holder *sql.Tx) {
 			if _, err := holder.ExecContext(context.Background(), `DELETE FROM scope_generations WHERE generation_id = $1`, generationID); err != nil {
 				t.Fatalf("concurrent delete: %v", err)
 			}
@@ -68,7 +69,7 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 		// only one 'active' row per scope, and this fixture's scope already
 		// has one (its own active generation). Any non-'superseded' status
 		// exercises the same EvalPlanQual recheck on generation.status.
-		locked := runGenerationRetentionRaceCase(t, ctx, database, generationID, cutoff, func(holder *sql.Tx) {
+		locked := runGenerationRetentionRaceCase(t, ctx, database, generationID, cutoff, hardCutoff, func(holder *sql.Tx) {
 			if _, err := holder.ExecContext(context.Background(), `UPDATE scope_generations SET status = 'pending' WHERE generation_id = $1`, generationID); err != nil {
 				t.Fatalf("concurrent reactivate: %v", err)
 			}
@@ -117,7 +118,7 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 // wait, applies race (the concurrent write) and commits the holder, then
 // waits for the mirror query and returns the generation ids it ended up
 // locking.
-func runGenerationRetentionRaceCase(t *testing.T, ctx context.Context, database *sql.DB, generationID string, cutoff time.Time, race func(holder *sql.Tx)) []string {
+func runGenerationRetentionRaceCase(t *testing.T, ctx context.Context, database *sql.DB, generationID string, cutoff, hardCutoff time.Time, race func(holder *sql.Tx)) []string {
 	t.Helper()
 	holder, err := database.BeginTx(ctx, nil)
 	if err != nil {
@@ -141,7 +142,7 @@ func runGenerationRetentionRaceCase(t *testing.T, ctx context.Context, database 
 			return
 		}
 		defer func() { _ = tx.Rollback() }()
-		rows, err := tx.QueryContext(ctx, generationRetentionCandidateQueryBlockingLock, cutoff, 0, 10) // blocks on the holder
+		rows, err := tx.QueryContext(ctx, generationRetentionCandidateQueryBlockingLock, cutoff, 0, 10, hardCutoff) // blocks on the holder
 		if err != nil {
 			lockErr = err
 			return

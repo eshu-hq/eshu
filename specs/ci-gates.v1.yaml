@@ -2970,7 +2970,7 @@ gates:
     name: Live PostgreSQL Readiness (disposable PostgreSQL 18)
     category: exactness
     layer: performance
-    purpose: "Runs seventeen PostgreSQL readiness and dead-code incoming plan and truth proofs with explicit pass-event accounting; skips and missing tests fail."
+    purpose: "Runs twenty PostgreSQL readiness and dead-code incoming plan and truth proofs with explicit pass-event accounting; skips and missing tests fail."
     tier: ci-heavy
     blocking: false
     triggers:

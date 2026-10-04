@@ -60,6 +60,7 @@ func TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive(t *testing.
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	now := time.Now().UTC()
 	cutoff := now.Add(-7 * 24 * time.Hour)
+	hardCutoff := now.Add(-90 * 24 * time.Hour)
 	old := now.Add(-10 * 24 * time.Hour)
 	newer := now.Add(-9 * 24 * time.Hour)
 
@@ -86,14 +87,14 @@ func TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive(t *testing.
 
 	t.Run("shipped/never-analyzed-custom", func(t *testing.T) {
 		if v := check(t, generationRetentionCandidateQuery, func(q string) []byte {
-			return explainCandidateCustom(t, ctx, database, q, cutoff)
+			return explainCandidateCustom(t, ctx, database, q, cutoff, hardCutoff)
 		}); len(v) > 0 {
 			t.Errorf("violations: %v", v)
 		}
 	})
 	t.Run("shipped/forced-generic-cold", func(t *testing.T) {
 		if v := check(t, generationRetentionCandidateQuery, func(q string) []byte {
-			return explainCandidateGeneric(t, ctx, database, q, cutoff)
+			return explainCandidateGeneric(t, ctx, database, q, cutoff, hardCutoff)
 		}); len(v) > 0 {
 			t.Errorf("violations: %v", v)
 		}
@@ -107,7 +108,7 @@ func TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive(t *testing.
 	// this small, so this seeded check must run before analyzeCandidateProbeTables.
 	t.Run("seeded-red-per-row-live-work-cold", func(t *testing.T) {
 		v := check(t, generationRetentionCandidateQuerySeededPerRowLiveWork, func(q string) []byte {
-			return explainCandidateGeneric(t, ctx, database, q, cutoff)
+			return explainCandidateGeneric(t, ctx, database, q, cutoff, hardCutoff)
 		})
 		if len(v) == 0 {
 			t.Fatal("plan guard accepted the seeded per-row live_work reversion cold, want a violation (fact_work_items must loop once per ranked row)")
@@ -116,14 +117,14 @@ func TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive(t *testing.
 	analyzeCandidateProbeTables(t, ctx, database)
 	t.Run("shipped/forced-generic-analyzed", func(t *testing.T) {
 		if v := check(t, generationRetentionCandidateQuery, func(q string) []byte {
-			return explainCandidateGeneric(t, ctx, database, q, cutoff)
+			return explainCandidateGeneric(t, ctx, database, q, cutoff, hardCutoff)
 		}); len(v) > 0 {
 			t.Errorf("violations: %v", v)
 		}
 	})
 	t.Run("shipped/custom-analyzed", func(t *testing.T) {
 		if v := check(t, generationRetentionCandidateQuery, func(q string) []byte {
-			return explainCandidateCustom(t, ctx, database, q, cutoff)
+			return explainCandidateCustom(t, ctx, database, q, cutoff, hardCutoff)
 		}); len(v) > 0 {
 			t.Errorf("violations: %v", v)
 		}
@@ -184,7 +185,7 @@ func jsonNumber(f float64) string {
 // bound directly, the shape a one-off (non-prepared) execution settles on. It
 // runs inside a transaction that is always rolled back, so the row locks the
 // query's own FOR UPDATE clauses take are released.
-func explainCandidateCustom(t *testing.T, ctx context.Context, database *sql.DB, query string, cutoff time.Time) []byte {
+func explainCandidateCustom(t *testing.T, ctx context.Context, database *sql.DB, query string, cutoff, hardCutoff time.Time) []byte {
 	t.Helper()
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
@@ -192,7 +193,7 @@ func explainCandidateCustom(t *testing.T, ctx context.Context, database *sql.DB,
 	}
 	defer func() { _ = tx.Rollback() }()
 	var plan []byte
-	if err := tx.QueryRowContext(ctx, "EXPLAIN (ANALYZE, FORMAT JSON, BUFFERS) "+query, cutoff, 0, 100).Scan(&plan); err != nil {
+	if err := tx.QueryRowContext(ctx, "EXPLAIN (ANALYZE, FORMAT JSON, BUFFERS) "+query, cutoff, 0, 100, hardCutoff).Scan(&plan); err != nil {
 		t.Fatalf("explain custom plan: %v", err)
 	}
 	return plan
@@ -201,7 +202,7 @@ func explainCandidateCustom(t *testing.T, ctx context.Context, database *sql.DB,
 // explainCandidateGeneric plans query as a prepared statement under
 // plan_cache_mode=force_generic_plan, the plan a reused prepared statement
 // settles on, which cannot see the bound cutoff value.
-func explainCandidateGeneric(t *testing.T, ctx context.Context, database *sql.DB, query string, cutoff time.Time) []byte {
+func explainCandidateGeneric(t *testing.T, ctx context.Context, database *sql.DB, query string, cutoff, hardCutoff time.Time) []byte {
 	t.Helper()
 	conn, err := database.Conn(ctx)
 	if err != nil {
@@ -209,19 +210,20 @@ func explainCandidateGeneric(t *testing.T, ctx context.Context, database *sql.DB
 	}
 	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, "BEGIN; SET LOCAL plan_cache_mode = force_generic_plan; "+
-		"PREPARE retention_candidate_probe(timestamptz, int, int) AS "+query); err != nil {
+		"PREPARE retention_candidate_probe(timestamptz, int, int, timestamptz) AS "+query); err != nil {
 		t.Fatalf("prepare generic plan: %v", err)
 	}
 	defer func() {
 		_, _ = conn.ExecContext(context.Background(), "DEALLOCATE retention_candidate_probe; ROLLBACK")
 	}()
-	// A literal, not a bound arg: EXECUTE's arguments are plain SQL text, and
+	// Literals, not bound args: EXECUTE's arguments are plain SQL text, and
 	// the outer EXPLAIN call must issue no bind parameters of its own so pgx
 	// does not try to reconcile them against the already-prepared statement.
 	literal := "'" + cutoff.UTC().Format(time.RFC3339Nano) + "'::timestamptz"
+	hardLiteral := "'" + hardCutoff.UTC().Format(time.RFC3339Nano) + "'::timestamptz"
 	var plan []byte
 	if err := conn.QueryRowContext(ctx,
-		"EXPLAIN (ANALYZE, FORMAT JSON, BUFFERS) EXECUTE retention_candidate_probe("+literal+", 0, 100)",
+		"EXPLAIN (ANALYZE, FORMAT JSON, BUFFERS) EXECUTE retention_candidate_probe("+literal+", 0, 100, "+hardLiteral+")",
 	).Scan(&plan); err != nil {
 		t.Fatalf("explain generic plan: %v", err)
 	}

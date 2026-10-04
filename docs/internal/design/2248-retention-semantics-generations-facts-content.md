@@ -30,7 +30,10 @@ cleanup, which rows may cascade, and what operators must be able to observe.
 - The default retained history is the active generation plus superseded
   generations that are either among the last 24 superseded generations for the
   scope or superseded less than 7 days ago. A superseded generation is eligible
-  only when it is outside both bounds.
+  only when it is outside both bounds, except past the hard history ceiling
+  (#7585): ordinary superseded history older than 90 days (`2160h`,
+  `hard_max_superseded_age`) is eligible even when the count bound would
+  retain it. Age is measured from the original `superseded_at`.
 - Pending, active, running, claimed, retrying, failed, and first-generation
   states are not retention candidates. Failed current generations belong to
   recovery or dead-letter workflow, not automated history cleanup.
@@ -96,6 +99,7 @@ Each source scope has an effective retention policy:
 | --- | --- | --- |
 | `min_superseded_generations` | Minimum superseded generations to keep after the active one. | `24` |
 | `max_superseded_age` | Age since `superseded_at` below which a superseded generation is still retained. | `168h` |
+| `hard_max_superseded_age` | Hard history ceiling (#7585): age since the original `superseded_at` above which ordinary superseded history is eligible even when the count bound would retain it. Configurable, finite, default `2160h` (90 days); must not be set below `max_superseded_age` (rejected as contradictory). | `2160h` |
 | `batch_generation_limit` | Maximum candidate generations deleted in one transaction. | `100` |
 | `batch_row_limit` | Maximum estimated dependent rows deleted in one transaction of two or more generations. A transaction of one generation may exceed it by that generation's changed-since ledger rows only (#7127, arbiter ruling arb-7127-3d-b); a generation whose other rows exceed it is skipped. | implementation-defined conservative cap |
 | `policy_scope` | Policy source: global default, source-system override, collector-kind override, or exact scope override. | global default |
@@ -105,12 +109,14 @@ A generation is eligible only when all of these are true:
 1. `scope_generations.status = 'superseded'`.
 2. It is not `ingestion_scopes.active_generation_id`.
 3. Its `superseded_at` is present.
-4. It is older than `max_superseded_age`.
-5. Its descending superseded rank for the scope is greater than
-   `min_superseded_generations`.
-6. It has no claimed, running, or retrying work that could still write side
+4. Either it is older than `max_superseded_age` with a descending
+   superseded rank for the scope greater than `min_superseded_generations`,
+   or it is older than `hard_max_superseded_age` regardless of rank (#7585:
+   the count preference cannot retain ordinary superseded history beyond
+   the hard ceiling).
+5. It has no claimed, running, or retrying work that could still write side
    effects.
-7. The generation is not referenced by an unexpired explicit operator hold.
+6. The generation is not referenced by an unexpired explicit operator hold.
 
 The policy is intentionally per-scope because repository, hosted collector,
 documentation source, cloud account, and scanner scopes have different cadence,

@@ -25,8 +25,9 @@ import (
 // exclusions, i.e. 4 candidate queries of 10 rows each with a growing 4th
 // (exclusion) argument, and reported the same Skipped count. After removing
 // the loop and the exclusion parameter, this must collapse to exactly one
-// candidate query, of only 3 arguments, one row-count query, and the same
-// Skipped total (the row_limit skip logic itself is unchanged).
+// candidate query, of only 4 arguments (soft cutoff, count, limit, hard
+// ceiling cutoff — still no exclusion parameter), one row-count query, and
+// the same Skipped total (the row_limit skip logic itself is unchanged).
 func TestGenerationRetentionStoreCandidateQueryRunsOncePerPass(t *testing.T) {
 	t.Parallel()
 
@@ -74,8 +75,8 @@ func TestGenerationRetentionStoreCandidateQueryRunsOncePerPass(t *testing.T) {
 		switch {
 		case strings.Contains(query.query, "ranked_superseded_generations"):
 			candidateQueries++
-			if got, want := len(query.args), 3; got != want {
-				t.Fatalf("candidate query arg count = %d, want %d (no exclusion parameter)", got, want)
+			if got, want := len(query.args), 4; got != want {
+				t.Fatalf("candidate query arg count = %d, want %d (soft cutoff, count, limit, hard ceiling; no exclusion parameter)", got, want)
 			}
 		case strings.Contains(query.query, "generation_retention_row_counts"):
 			countQueries++

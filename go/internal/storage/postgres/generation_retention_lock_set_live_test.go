@@ -41,7 +41,7 @@ func TestGenerationRetentionLockSetMatchesEligibleScopesLive(t *testing.T) {
 		t.Fatalf("begin: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	rows, err := tx.QueryContext(ctx, generationRetentionCandidateQuery, now.Add(-7*24*time.Hour), 0, 100)
+	rows, err := tx.QueryContext(ctx, generationRetentionCandidateQuery, now.Add(-7*24*time.Hour), 0, 100, now.Add(-90*24*time.Hour))
 	if err != nil {
 		t.Fatalf("candidate query: %v", err)
 	}
