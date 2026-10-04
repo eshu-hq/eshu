@@ -24,6 +24,17 @@ repeat run on a second copy. The raw outputs (`SUMMARY.md`, `t1.out`,
 `t1c.out`, `j3a.out`, `j3b.out`, `t2_cur.out`, `id.out`) sit in the
 measurement agent's local `7547-gate` scratch directory and are not committed.
 
+## Measurement practice
+
+The QA measurement session ran two statements of the naive gate shape on the
+replica with a 60 s statement timeout. The standby cancelled both ("conflict
+with recovery", `confl_snapshot` = 2 in `pg_stat_database_conflicts`). The
+window was 2026-10-04 around 09:55 to 10:20 UTC. API reads may have returned
+500s through the 2 s replay fence during it. That is not confirmed: no API logs
+were read. From now on, replica reads use a statement timeout of 10 s or less,
+run `EXPLAIN` without `ANALYZE` first for any new query shape, read replay lag
+and the API 5xx rate before and after a heavy read, and run in a quiet window.
+
 ## What the bump selects
 
 Performance Evidence: on the QA replica, 795 active repository watermarks are
