@@ -5,6 +5,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"reflect"
 	"testing"
 	"time"
 
@@ -84,6 +86,209 @@ INSERT INTO fact_records (
         )
     )
 )`, factID, scopeID, generationID, relativePath, symbol, observedAt); err != nil {
+		t.Fatalf("insert fact %q: %v", factID, err)
+	}
+}
+
+// recordingCodeCallSymbolQueryer records each query the loader issues, with
+// its arguments, so a live proof can assert which statements ran against real
+// Postgres and which producer scopes the anchored scan was given.
+type recordingCodeCallSymbolQueryer struct {
+	SQLDB
+	queries []string
+	args    [][]any
+}
+
+func (r *recordingCodeCallSymbolQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	r.queries = append(r.queries, query)
+	r.args = append(r.args, args)
+	return r.SQLDB.QueryContext(ctx, query, args...)
+}
+
+// TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsPackageKeys proves
+// on real Postgres that a package:<package_id>#<export_name> key loads only the
+// active file facts of the scopes whose stored manifests publish that package
+// (#7601): a duplicate-name pair returns both producers, while a stale
+// generation and a non-producer scope carrying the same derived key are
+// excluded. Scopes whose manifest names the package but which have no active
+// generation are kept out of the producer set passed to the anchored scan.
+func TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsPackageKeys(t *testing.T) {
+	ctx, database := openActiveCodeCallSymbolContentSchema(t)
+	now := time.Now().UTC()
+
+	// Producer of @acme/logging: a root manifest plus a nested workspace one.
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:logging", "repository:r_logging", "generation-logging", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "package.json", `{"name":"@acme/logging","version":"1.0.0"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "packages/format/package.json", `{"name":"@acme/format"}`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-logging-active", "scope:logging", "generation-logging", "src/logger.js", "@acme/logging", "Logger", now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-logging-stale", "scope:logging", "generation-logging-stale", "src/old_logger.js", "@acme/logging", "Logger", now.Add(-time.Second))
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-format-active", "scope:logging", "generation-logging", "packages/format/index.js", "@acme/format", "format", now.Add(time.Second))
+
+	// Two repositories publish @acme/shared: both producers must load.
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:shared-a", "repository:r_shared_a", "generation-shared-a", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_shared_a", "package.json", `{"name":"@acme/shared"}`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-shared-a", "scope:shared-a", "generation-shared-a", "index.js", "@acme/shared", "Thing", now.Add(2*time.Second))
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:shared-b", "repository:r_shared_b", "generation-shared-b", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_shared_b", "package.json", `{"name":"@acme/shared"}`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-shared-b", "scope:shared-b", "generation-shared-b", "index.js", "@acme/shared", "Thing", now.Add(3*time.Second))
+
+	// Not a producer: the same derived key, but no manifest names the package.
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:vendored", "repository:r_vendored", "generation-vendored", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_vendored", "package.json", `{"name":"@acme/app"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_vendored", "broken/package.json", `{"name": "@acme/logging",`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-vendored", "scope:vendored", "generation-vendored", "vendor/logger.js", "@acme/logging", "Logger", now.Add(4*time.Second))
+
+	// Manifests whose scope has no active generation are not producers: one
+	// scope was never activated, the other points at a generation that is
+	// still pending. Both carry a pending-generation fact with the same key.
+	for _, pending := range []struct{ scopeID, repoID, activeGenerationID string }{
+		{"scope:never-active", "repository:r_never_active", ""},
+		{"scope:pending-generation", "repository:r_pending_generation", "generation-pending-scope:pending-generation"},
+	} {
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES ($1, 'repository', 'git', $2, 'git', $1, $3, $3, 'pending', NULLIF($4, ''))`,
+			pending.scopeID, pending.repoID, now, pending.activeGenerationID); err != nil {
+			t.Fatalf("insert pending scope %q: %v", pending.scopeID, err)
+		}
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status
+) VALUES ('generation-pending-' || $1, $1, 'snapshot', $2, $2, 'pending')`, pending.scopeID, now); err != nil {
+			t.Fatalf("insert pending generation for %q: %v", pending.scopeID, err)
+		}
+		seedActiveCodeCallSymbolManifest(t, ctx, database, pending.repoID, "package.json", `{"name":"@acme/logging"}`, now)
+		seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-"+pending.scopeID, pending.scopeID, "generation-pending-"+pending.scopeID, "src/logger.js", "@acme/logging", "Logger", now.Add(5*time.Second))
+	}
+
+	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
+	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
+		"package:@acme/logging#Logger",
+		"package:@acme/format#format",
+		"package:@acme/shared#Thing",
+	})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	want := []string{"fact-logging-active", "fact-format-active", "fact-shared-a", "fact-shared-b"}
+	if got := factIDs(loaded); !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
+	}
+	if got, want := queryer.queries, []string{
+		listActiveCodeCallPackageManifestsQuery,
+		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d queries, want the manifest read then the anchored scan only", len(got))
+	}
+	wantScopes := []string{"scope:logging", "scope:shared-a", "scope:shared-b"}
+	if got := queryer.args[1][4]; !reflect.DeepEqual(got, wantScopes) {
+		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, wantScopes)
+	}
+}
+
+// TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
+// proves a package key that no stored manifest publishes runs only the
+// manifest read and never the definition scan, while a Go key in the same
+// request still loads through the corpus-wide scan.
+func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer(t *testing.T) {
+	ctx, database := openActiveCodeCallSymbolContentSchema(t)
+	now := time.Now().UTC()
+	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
+	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-unpublished", "repository:repo-lib", "generation-lib", "index.js", "@acme/unpublished", "run", now.Add(time.Second))
+
+	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
+	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
+		activeCodeCallSymbolProofKey,
+		"package:@acme/unpublished#run",
+	})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	if got, want := factIDs(loaded), []string{"fact-lib-active"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
+	}
+	if got, want := queryer.queries, []string{
+		listActiveCodeCallSymbolDefinitionFactsQuery,
+		listActiveCodeCallPackageManifestsQuery,
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d queries, want the unanchored scan then the manifest read only", len(got))
+	}
+}
+
+func openActiveCodeCallSymbolContentSchema(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the real-Postgres loader proof")
+	}
+	ctx := context.Background()
+	database, schemaName := openFactCrossBatchFencingSchema(t, ctx, dsn)
+	// content_store creates pg_trgm, which lives in public when another schema
+	// installed it first, so keep public on the path for its operator classes.
+	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, MigrationSQL("content_store")); err != nil {
+		t.Fatalf("apply content_store schema: %v", err)
+	}
+	return ctx, database
+}
+
+func seedActiveCodeCallSymbolRepositoryScope(t *testing.T, ctx context.Context, database db.Executor, scopeID, sourceKey, generationID string, observedAt time.Time) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES ($1, 'repository', 'git', $2, 'git', $1, $4, $4, 'active', $3)`, scopeID, sourceKey, generationID, observedAt); err != nil {
+		t.Fatalf("insert scope %q: %v", scopeID, err)
+	}
+	for _, generation := range []struct {
+		id     string
+		status string
+	}{{generationID, "active"}, {generationID + "-stale", "superseded"}} {
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status
+) VALUES ($1, $2, 'snapshot', $3, $3, $4)`, generation.id, scopeID, observedAt, generation.status); err != nil {
+			t.Fatalf("insert generation %q: %v", generation.id, err)
+		}
+	}
+}
+
+func seedActiveCodeCallSymbolManifest(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, content string, indexedAt time.Time) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO content_files (
+    repo_id, relative_path, content, content_hash, line_count, language, indexed_at
+) VALUES ($1, $2, $3, md5($3), 1, 'json', $4)`, repoID, relativePath, content, indexedAt); err != nil {
+		t.Fatalf("insert manifest %s/%s: %v", repoID, relativePath, err)
+	}
+}
+
+func seedActiveCodeCallSymbolPackageFact(t *testing.T, ctx context.Context, database db.Executor, factID, scopeID, generationID, relativePath, packageID, exportName string, observedAt time.Time) {
+	t.Helper()
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, payload
+) VALUES (
+    $1, $2, $3, 'file', 'file:' || $2 || ':' || $4,
+    'git', $4, $7, $7,
+    jsonb_build_object(
+        'repo_id', $2,
+        'relative_path', $4,
+        'parsed_file_data', jsonb_build_object(
+            'functions', jsonb_build_array(jsonb_build_object(
+                'uid', 'uid:' || $1, 'name', $6::text,
+                'package_id', $5::text, 'export_name', $6::text
+            ))
+        )
+    )
+)`, factID, scopeID, generationID, relativePath, packageID, exportName, observedAt); err != nil {
 		t.Fatalf("insert fact %q: %v", factID, err)
 	}
 }

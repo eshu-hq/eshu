@@ -183,6 +183,21 @@ No-Regression Evidence: `go test ./internal/reducer/code/call ./internal/reducer
 
 Observability Evidence: the existing `code call materialization completed` log now includes stable symbol key count, active definition fact count, and active symbol-definition load duration beside the existing fact count, repository count, row counts, and load/extract/intent/upsert timings. The change adds no metric instrument, metric label, span, route, runtime knob, queue table, or graph backend branch.
 
+## Producer-anchored package keys (issue #7601)
+
+`LoadActiveCodeCallSymbolDefinitionFacts` splits the requested keys. A
+`package:<package_id>#<export_name>` key is anchored on its producer scopes:
+the repository scopes with an active generation whose stored `package.json`
+manifests in `content_files` name that package, nested workspace manifests
+included. Only those scopes' active file facts are scanned. A package published
+by two or more repositories loads every producer, so the unique-or-unresolved
+rule still leaves the key unresolved. A package key with no producer manifest
+issues no definition scan and stays unresolved. Every other key (Go
+`stable_symbol_key`, SCIP symbols) keeps the corpus-wide scan unchanged. No
+parser emits `package:` call keys yet, so resolution output is unchanged until
+the JavaScript and TypeScript parser change lands. Measurements are in
+`docs/internal/evidence/7601-anchored-symbol-definition-loader.md`.
+
 ## Java imported receiver resolution (issue #3004)
 
 No-Regression Evidence: `go test ./internal/reducer/code/call -run 'TestResolveGenericCalleeUsesJava(ImportedReceiverBeforeAmbiguousRepoName|ReceiverTypeBeforeRepoUniqueName)|TestResolveGenericCalleeLeavesAmbiguousJavaImportedReceiverUnresolved|TestExtractCodeCallRowsResolvesJava' -count=1` failed before Java imported receiver calls could beat ambiguous repository-wide same-name candidates and before duplicate import-bound class files stayed unresolved, then passed after the Java resolver used parser import rows plus the existing prescan `imports_map` to bind `inferred_obj_type` to one imported class file. `go test ./internal/reducer/code/call -run 'TestResolveGenericCallee(LeavesDuplicateJavaImportBindingUnresolvedBeforeMethodLookup|DoesNotBindQualifiedJavaReceiverToConflictingImport)' -count=1` proves duplicate import-bound class files block weak fallback before method lookup and qualified receiver declarations do not bind to conflicting same-leaf imports. `go test ./internal/parser/java -run TestParseEmitsQualifiedJavaReceiverType -count=1` proves the parser preserves qualified receiver evidence for that reducer guard. `go test ./internal/resolutionparity -run 'TestGoldenCallGraphCorrectnessHarness/java_import_binding|TestResolutionTierGoldens' -count=1` proves the source-derived Java fixture emits the exact imported target as `import_binding` and the existing tier distribution remains stable.
