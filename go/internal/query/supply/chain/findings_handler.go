@@ -138,6 +138,12 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.ImpactFindings.ListSupplyChainImpactFindings(r.Context(), filter)
 	findingsTimer.Done(r.Context(), slog.Int("rows_fetched", len(rows)), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7548: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope, like the runtime probes below. The mapped
+		// verdict is not a handler-owned 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
+			return
+		}
 		failStage(r.Context(), span, findingsTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -157,6 +163,9 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	cloudRuntimeErr := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows)
 	cloudRuntimeTimer.Done(r.Context(), slog.Bool("error", cloudRuntimeErr != nil))
 	if cloudRuntimeErr != nil {
+		if querycontract.WriteGraphReadError(w, r, cloudRuntimeErr, ImpactFindingsCapability) {
+			return
+		}
 		failStage(r.Context(), span, cloudRuntimeTimer, cloudRuntimeErr)
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return

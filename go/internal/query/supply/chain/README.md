@@ -138,9 +138,20 @@ are not handler-owned 500s and are not logged by this event. The unchanged wire
 contract (status codes and response bodies) is pinned by
 `TestListImpactFindingsLogsFailedStageOnHandlerOwned500`, and the silence and
 unchanged status of the mapped verdicts by
-`TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged`. A findings-read
-error that is itself a reader-fence verdict still answers 500 on this route
-(tracked in #7548); `error_site=reader_stale` on a `stage_failed` line marks it.
+`TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged`.
+
+Every backing read on the route calls `querycontract.WriteGraphReadError`
+BEFORE `failStage`, including the findings read and the cloud-runtime probe
+read (#7548): a stale guarded PostgreSQL reader (`db.ErrReaderStale`), or one
+whose connection acquisition or identity check timed out inside the replay
+window (`db.ErrReaderUnavailable` joined with `context.DeadlineExceeded`),
+answers the retryable `503` `backend_unavailable` with `Retry-After` and no
+`stage_failed` line. A reader failure that is not a timeout (a bare
+`db.ErrReaderUnavailable`, a refused or reset connection) is not transient and
+still answers `500` with the `stage_failed` line, where `error_site` and
+`error_cause` classify it. The readiness read is unchanged: its error serves a
+`readiness_unavailable` envelope, not a `500`. Pinned by
+`TestListImpactFindingsReaderTimeoutAnswersRetryable503`.
 
 ## Move evidence (#6060)
 
