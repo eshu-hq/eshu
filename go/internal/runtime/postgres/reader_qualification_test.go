@@ -312,20 +312,16 @@ func TestReaderMemberIdentityContradictionRequiresDecodedIdentity(t *testing.T) 
 	}
 }
 
-func TestCanceledBootstrapJoinsAsyncCleanupBeforeReturning(t *testing.T) {
+func TestCanceledBootstrapReturnsBeforeAsyncCleanupJoins(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cleanupDone := make(chan struct{})
 	forceCloseCalled := make(chan struct{})
-	releaseCleanup := make(chan struct{})
+	defer close(cleanupDone)
 	finished := make(chan error, 1)
 	go func() {
 		finished <- awaitPGXCleanup(ctx, cleanupDone, func() error {
 			close(forceCloseCalled)
-			go func() {
-				<-releaseCleanup
-				close(cleanupDone)
-			}()
 			return nil
 		})
 	}()
@@ -336,16 +332,108 @@ func TestCanceledBootstrapJoinsAsyncCleanupBeforeReturning(t *testing.T) {
 	}
 	select {
 	case err := <-finished:
-		t.Fatalf("bootstrap returned before async cleanup joined: %v", err)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cleanup error = %v, want canceled context", err)
+		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("canceled bootstrap waited for asynchronous PostgreSQL cleanup")
+	}
+}
+
+func TestBootstrapCleanupDeadlineDuringWaitReturns(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cleanupDone := make(chan struct{})
+	defer close(cleanupDone)
+	finished := make(chan error, 1)
+	forceCloseCalled := make(chan struct{})
+	go func() {
+		finished <- awaitPGXCleanup(ctx, cleanupDone, func() error {
+			close(forceCloseCalled)
+			return nil
+		})
+	}()
+	select {
+	case <-forceCloseCalled:
+		t.Fatal("bootstrap forced a socket close before cancellation")
 	case <-time.After(10 * time.Millisecond):
 	}
-	close(releaseCleanup)
+	cancel()
+	select {
+	case <-forceCloseCalled:
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("bootstrap did not close its socket after cancellation")
+	}
 	select {
 	case err := <-finished:
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("cleanup error = %v, want canceled context", err)
 		}
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("bootstrap waited for asynchronous PostgreSQL cleanup past its deadline")
+	}
+}
+
+func TestReaderQualificationStageReturnsWithPendingAsyncCleanup(t *testing.T) {
+	cleanupDone := make(chan struct{})
+	defer close(cleanupDone)
+	forceCloseCalled := make(chan struct{})
+	type result struct {
+		members []physicalReaderMember
+		err     error
+	}
+	finished := make(chan result, 1)
+	go func() {
+		members, err := qualifyReaderCandidates(context.Background(), []ReaderMember{{ID: "pending"}, {ID: "healthy"}}, 30*time.Millisecond,
+			func(ctx context.Context, ordinal int, member ReaderMember) (physicalReaderMember, error) {
+				if ordinal == 0 {
+					return physicalReaderMember{}, awaitPGXCleanup(ctx, cleanupDone, func() error {
+						close(forceCloseCalled)
+						return nil
+					})
+				}
+				return physicalReaderMember{id: member.ID, ordinal: ordinal}, nil
+			})
+		finished <- result{members: members, err: err}
+	}()
+	select {
+	case <-forceCloseCalled:
 	case <-time.After(time.Second):
-		t.Fatal("bootstrap worker did not join async PostgreSQL cleanup")
+		t.Fatal("qualification did not close the expired member socket")
+	}
+	select {
+	case got := <-finished:
+		if got.err != nil {
+			t.Fatalf("healthy peer was hidden by expired member: %v", got.err)
+		}
+		if len(got.members) != 1 || got.members[0].id != "healthy" {
+			t.Fatalf("qualified members = %+v, want healthy peer", got.members)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("qualification waited past its stage for asynchronous cleanup")
+	}
+}
+
+func TestBootstrapSuccessJoinsAsyncCleanupBeforeReturning(t *testing.T) {
+	cleanupDone := make(chan struct{})
+	finished := make(chan error, 1)
+	go func() {
+		finished <- awaitPGXCleanup(context.Background(), cleanupDone, func() error {
+			return errors.New("unexpected socket close")
+		})
+	}()
+	select {
+	case err := <-finished:
+		t.Fatalf("successful bootstrap returned before cleanup joined: %v", err)
+	case <-time.After(10 * time.Millisecond):
+	}
+	close(cleanupDone)
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatalf("successful cleanup returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("successful bootstrap did not join asynchronous cleanup")
 	}
 }

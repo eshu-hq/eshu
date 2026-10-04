@@ -112,12 +112,14 @@ func awaitPGXCleanup(ctx context.Context, cleanupDone <-chan struct{}, forceClos
 	default:
 	}
 	if ctx.Err() != nil {
-		closeErr := forceClose()
-		<-cleanupDone
-		return errors.Join(ctx.Err(), closeErr)
+		return errors.Join(ctx.Err(), forceClose())
 	}
-	<-cleanupDone
-	return nil
+	select {
+	case <-cleanupDone:
+		return nil
+	case <-ctx.Done():
+		return errors.Join(ctx.Err(), forceClose())
+	}
 }
 
 func validateReaderMemberIdentity(id, writer physicalIdentity, serverAddress string, addresses []net.IP) error {
