@@ -167,7 +167,9 @@ The deploy watch uses signals that already exist:
   replay timeout, and there is no writer fallback, so lag over 2 s answers 503
   `backend_unavailable` with Retry-After on every such route. Watch the
   API-wide 503 `backend_unavailable` rate and the existing
-  `eshu_dp_postgres_reader_stage_duration_seconds` stage `replay` panel.
+  `eshu_dp_postgres_reader_stage_duration_seconds` panel filtered to
+  `stage="reader_replay"`, where `outcome="deadline"` marks a replica that missed
+  the fence.
   Lag can exceed WAL-volume expectations because the reader is asynchronous
   (`numSynchronousReplicas: 0`) and `max_standby_streaming_delay` is not set in
   the chart values (PostgreSQL default 30 s; the live value was not checked),
@@ -211,7 +213,7 @@ ops-qa drain (census 0) with a flat API-wide 503 rate.
 
 Concurrency of the burst: up to 8 concurrent per-repository rewrite
 transactions on ops-qa (`ESHU_REDUCER_WORKERS` is 8 in the ops-qa values and is
-clamped to the CPU count; the default 4 applies only when it is unset). The
+clamped to the CPU count; when it is unset the runner uses min(CPUs, 4) on Neo4j). The
 runner takes no lease or claim, so two reducer replicas would select the same
 100 candidates and both run the full delete and re-insert on the same
 repositories at the same time: duplicate work and concurrent rewrites, not
