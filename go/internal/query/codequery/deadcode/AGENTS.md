@@ -114,8 +114,14 @@ incomplete answer into `consumer_coverage_incomplete`. The rules:
   `code_calls` or `inheritance_edges` intent (completed or pending). The intent
   only decides whether a missing, truncated or older-epoch watermark counts; a pending intent
   next to an existing `truncated = false` watermark is NOT a gap. No such
-  intent means complete (docs, IaC). Zero-root repositories with intents are NOT
-  excluded. Both statements carry the same probe, pinned by
+  intent means complete (docs, IaC). Zero-root repositories with edge intents are
+  NOT excluded. On a full generation a refresh intent (`is_refresh_intent`,
+  payload `action = 'refresh'`) is not an edge: it has no caller or child
+  entity and the loader never reads it, so a repository whose only intents are
+  refreshes is complete (#7591). On a delta generation any code intent counts,
+  because no watermark is ever written for it; never replace the probe's
+  `(is_delta OR NOT is_refresh_intent)` with a bare `NOT is_refresh_intent`.
+  Both statements carry the same probe, pinned by
   `TestCrossRepoDeadCodeConsumerCoverageUniversePredicate`, and its meaning is
   proven on PostgreSQL by `TestCrossRepoDeadCodeConsumerCoverageLive`.
 - Keep the statements' shape: the intent probe is a scalar `LIMIT 1` subquery

@@ -26,9 +26,19 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // gap: a pending intent beside an existing truncated = false watermark is not one
 // (a stale snapshot reads complete until the reducer rebuilds it). A repository with no
 // such intent (docs, IaC) is complete without a watermark. A zero-root
-// repository WITH intents is not excluded: its edges can still sit on a chain
-// from a rooted repository to the producer symbol, and its truncated watermark
-// is a gap.
+// repository WITH edge intents is not excluded: its edges can still sit on a
+// chain from a rooted repository to the producer symbol, and its truncated
+// watermark is a gap.
+//
+// On a full generation only per-edge intents count (#7591). A refresh intent
+// (payload action = 'refresh', the stored generated column is_refresh_intent)
+// names no caller or child entity, and the reachability loader never reads it,
+// so a repository whose only intents are refreshes has no edges and cannot be a
+// consumer. On a delta generation the intents describe only the changed files,
+// the run gate never writes a watermark for the generation, and its consumer
+// rows are read only for the active generation, so any code intent keeps the
+// gap there: the probe filter is (is_delta OR NOT is_refresh_intent). A legacy
+// row with no action key has is_refresh_intent = false and counts as an edge.
 //
 // A scope with an active generation and such intents is a gap when it has no
 // code_reachability_repository_watermarks row for that generation, or the row is
@@ -78,7 +88,7 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // to the root-declared receiver.
 const CrossRepoDeadCodeNamedConsumerCoverageQuery = `
 WITH matched AS MATERIALIZED (
-  SELECT scope.scope_id, scope.source_key, scope.active_generation_id
+  SELECT scope.scope_id, scope.source_key, scope.active_generation_id, generation.is_delta
   FROM ingestion_scopes AS scope
   JOIN scope_generations AS generation
     ON generation.generation_id = scope.active_generation_id
@@ -108,6 +118,7 @@ WITH matched AS MATERIALIZED (
                AND intent.source_run_id = acceptance.source_run_id
                AND intent.generation_id = acceptance.generation_id
                AND intent.projection_domain IN ('code_calls', 'inheritance_edges')
+               AND (scope.is_delta OR NOT intent.is_refresh_intent)
               WHERE acceptance.scope_id = scope.scope_id
                 AND acceptance.generation_id = scope.active_generation_id
                 AND acceptance.acceptance_unit_id = scope.source_key
@@ -131,7 +142,9 @@ LIMIT $4
 // plus its sentinel. It applies the same universe as the named statement: a
 // missing, truncated or older-epoch watermark is a gap only for a scope whose
 // active generation has a code_calls or inheritance_edges intent, probed the
-// same way and for the same reason.
+// same way and for the same reason, including the refresh-intent rule: on a full
+// generation a refresh intent does not count, on a delta generation it does
+// (#7591).
 //
 // Each row carries the same state and generation_id as the named statement's;
 // a repository with several gap scopes can return several rows, and the caller
@@ -173,6 +186,7 @@ WHERE scope.scope_kind = 'repository'
              AND intent.source_run_id = acceptance.source_run_id
              AND intent.generation_id = acceptance.generation_id
              AND intent.projection_domain IN ('code_calls', 'inheritance_edges')
+             AND (generation.is_delta OR NOT intent.is_refresh_intent)
             WHERE acceptance.scope_id = scope.scope_id
               AND acceptance.generation_id = scope.active_generation_id
               AND acceptance.acceptance_unit_id = scope.source_key

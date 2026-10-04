@@ -277,9 +277,12 @@ func TestCrossRepoDeadCodeConsumerCoverageStatementShape(t *testing.T) {
 }
 
 // coverageIntentProbe returns the scalar intent probe a coverage statement
-// carries, with the repository expression it binds replaced by <repo> and the
-// whitespace collapsed, so the two statements' probes can be compared.
-func coverageIntentProbe(t *testing.T, query, repoExpr string) string {
+// carries, with the repository expression it binds replaced by <repo>, the
+// generation's is_delta column replaced by <delta> (the named statement reads
+// it through its matched CTE, the all-repositories statement from the
+// generation join), and the whitespace collapsed, so the two statements'
+// probes can be compared.
+func coverageIntentProbe(t *testing.T, query, repoExpr, deltaExpr string) string {
 	t.Helper()
 
 	start := strings.Index(query, "(SELECT true")
@@ -288,7 +291,8 @@ func coverageIntentProbe(t *testing.T, query, repoExpr string) string {
 		t.Fatalf("coverage SQL has no scalar intent probe ending in LIMIT 1):\n%s", query)
 	}
 	probe := query[start : end+len("LIMIT 1)")]
-	return strings.Join(strings.Fields(strings.ReplaceAll(probe, repoExpr, "<repo>")), " ")
+	probe = strings.ReplaceAll(strings.ReplaceAll(probe, repoExpr, "<repo>"), deltaExpr, "<delta>")
+	return strings.Join(strings.Fields(probe), " ")
 }
 
 // A missing or truncated watermark is a gap only for a repository that CAN be a
@@ -299,12 +303,13 @@ func coverageIntentProbe(t *testing.T, query, repoExpr string) string {
 // database. Run against PostgreSQL the predicate answers: a repository with no
 // intent is complete, a zero-root repository with intents and a truncated
 // watermark is a gap, and a pending-only repository with no watermark is a gap
-// (TestCrossRepoDeadCodeConsumerCoverageLive).
+// (TestCrossRepoDeadCodeConsumerCoverageLive). A refresh intent counts only on a
+// delta generation (TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive).
 func TestCrossRepoDeadCodeConsumerCoverageUniversePredicate(t *testing.T) {
 	t.Parallel()
 
-	named := coverageIntentProbe(t, deadcode.CrossRepoDeadCodeNamedConsumerCoverageQuery, "scope.source_key")
-	all := coverageIntentProbe(t, deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery, "scope.source_key")
+	named := coverageIntentProbe(t, deadcode.CrossRepoDeadCodeNamedConsumerCoverageQuery, "scope.source_key", "scope.is_delta")
+	all := coverageIntentProbe(t, deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery, "scope.source_key", "generation.is_delta")
 	if named != all {
 		t.Fatalf("the two statements disagree about which repositories can be consumers:\nnamed: %s\nall:   %s", named, all)
 	}
@@ -315,6 +320,11 @@ func TestCrossRepoDeadCodeConsumerCoverageUniversePredicate(t *testing.T) {
 		"intent.generation_id = acceptance.generation_id",
 		"acceptance.generation_id = scope.active_generation_id",
 		"acceptance.acceptance_unit_id = <repo>",
+		// A refresh intent has no edge and the loader never reads it, so on a
+		// full generation it cannot make a repository a consumer; on a delta
+		// generation no watermark is ever written, so any intent keeps the gap
+		// (#7591). A bare "NOT intent.is_refresh_intent" would hide that gap.
+		"AND (<delta> OR NOT intent.is_refresh_intent)",
 	} {
 		if !strings.Contains(named, want) {
 			t.Errorf("intent probe is missing %q:\n%s", want, named)

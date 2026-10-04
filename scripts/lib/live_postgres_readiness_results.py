@@ -59,6 +59,9 @@ PACKAGES = {
             "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
             "TestCrossRepoDeadCodeConsumerCoverageLive",
         ),
+        "go/internal/query/content_reader_dead_code_refresh_probe_live_test.go": (
+            "TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive",
+        ),
     },
 }
 EXPECTED = {
