@@ -215,7 +215,8 @@ meant to be restored after the cutover health proof), scaling to 0 is reverted
 by self-heal and re-pinning becomes the only lever; check the Application's
 sync policy before relying on either.
 
-Stop triggers, with a time box. Re-pin the previous image if reader-fence 503s
+Stop triggers, with a time box. Stop the drain (the fast lever above, with
+re-pinning the previous image as the durable fallback) if reader-fence 503s
 (replay lag over the 2 s fence) persist for 2 consecutive minutes, if the
 reducer restarts or exits with a projection error, if reducer RSS exceeds 50%
 of `GOMEMLIMIT`, or if the census has not reached 0 within 60 minutes of the
