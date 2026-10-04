@@ -1,0 +1,22 @@
+docs/internal/evidence/7033-fleet-attempt-budget.md
+  s_b0d7e3abc26c5a::t_defacf6dd93cb1 1-46,48-89
+  s_b0d7e3abc26c5a::t_e76b15aef1d889 47
+docs/internal/evidence/7033-reader-fleet-identity-final-source.md
+  s_b0d7e3abc26c5a::t_cb6532e2b5650e 50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2f6242771d07b4521879fe06b575d64db42780ab",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

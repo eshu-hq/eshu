@@ -1,0 +1,63 @@
+go/internal/runtime/postgres/reader.go
+  s_b0d7e3abc26c5a::t_2875030a6aaba9 26,119
+  s_b0d7e3abc26c5a::t_3cb1dfa7b94f6f 131
+  s_b0d7e3abc26c5a::t_169e5dde02895f 61-79,99,107,122,126-130,132,136,138
+  s_b0d7e3abc26c5a::t_a916a82453d81a 137
+go/internal/runtime/postgres/AGENTS.md
+  s_b0d7e3abc26c5a::t_96c15374f309c5 35-44
+go/internal/runtime/postgres/access.go
+  s_b0d7e3abc26c5a::t_0b60b0855ddd3a 148-150,161,166
+  s_b0d7e3abc26c5a::t_9cbfea60e9673c 90-94
+  s_b0d7e3abc26c5a::t_058d01e3ca7720 129,138,162-164,171-174
+  s_b0d7e3abc26c5a::t_e45f85fce1b7d2 10,64-65,87-89,113-128,183-190,199-201
+go/internal/runtime/postgres/reader_members_test.go
+  s_b0d7e3abc26c5a::t_b6f5f667bd7e89 1-7,12-14,16-18,51-86,114-149,151-152,154-176,188-205,233,295,304-305
+  s_b0d7e3abc26c5a::t_a4fc868a3a49f5 236-267
+  s_b0d7e3abc26c5a::t_5672f48c2123d2 11,40-48
+  s_b0d7e3abc26c5a::t_bef30f35890f6a 153
+  s_b0d7e3abc26c5a::t_c60ce6bc7f7be7 15,150,206-232,234-235,268-294,296-303
+  s_b0d7e3abc26c5a::t_4fba46e7e5b886 8-10,19-22,25,27-39,49-50
+  s_b0d7e3abc26c5a::t_7332e3cdc7de2c 23-24,26,87-113
+  s_b0d7e3abc26c5a::t_aa8593ec2ec9bd 177-187
+go/internal/runtime/postgres/read_store.go
+  s_b0d7e3abc26c5a::t_8c2840b0a55df0 166-168,299,301,347-350,370,378-379
+  s_b0d7e3abc26c5a::t_cf8717e2b96689 25,380-382
+  s_b0d7e3abc26c5a::t_b9ece3b4c5f695 30-38,63-81,107
+  s_b0d7e3abc26c5a::t_33f56eb36bdda5 324,339
+  s_b0d7e3abc26c5a::t_388bd00fe16538 280
+go/internal/runtime/postgres/reader_members.go
+  s_b0d7e3abc26c5a::t_6091234c3d7909 10,47-49
+  s_b0d7e3abc26c5a::t_cc5fbe5576158b 1-9,11-22,24-32,34-46,51-56,61-62,64,66-71,73-74,77,83-99,101-102,104-117,119-180
+  s_b0d7e3abc26c5a::t_c2884d8f25df9f 57-60,75
+  s_b0d7e3abc26c5a::t_fd354ea8d8d858 72,118
+  s_b0d7e3abc26c5a::t_29642840b8c40d 65,76,80
+  s_b0d7e3abc26c5a::t_69a64e726317da 33,50,63,103
+  s_b0d7e3abc26c5a::t_e6b0fe364e0521 23,78-79,81-82,100
+go/internal/runtime/postgres/doc.go
+  s_b0d7e3abc26c5a::t_04c4fc3a9e25f0 6-8,18-25
+go/internal/runtime/postgres/member_loss.go
+  s_b0d7e3abc26c5a::t_907e0d9f2d29f1 1-31
+go/internal/runtime/postgres/config.go
+  s_b0d7e3abc26c5a::t_f57eb5df752b98 9,153,156-165,169,173,177-178
+  s_b0d7e3abc26c5a::t_aa18b499b8ba9c 7,19-26,33,91-100,112-114,133,142-152,154-155,166-167,170-172,174-176
+  s_b0d7e3abc26c5a::t_2f53893a2418a3 168
+  s_b0d7e3abc26c5a::t_ac0b83dcfd7b56 179
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_02a0f43ee5c440 3-4,13-16,40-54,72-79,224-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5f7c3c6358b90ecfb00661a1ae6f6f6f1e965fdd",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
