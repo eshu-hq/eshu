@@ -8,7 +8,9 @@
    loader, and row helpers.
 4. `store_test.go`, `store_sql_shape_test.go`, and
    `store_route_liveness_live_test.go` for the store contract, SQL-shape
-   assertions, and the #5494 route-liveness live proof.
+   assertions, and the #5494 route-liveness and #7547 loader-gate live
+   proofs (helpers in `live_helpers_test.go` and
+   `loader_gate_fixture_test.go`).
 5. `internal/reducer/AGENTS.md` for how `CodeReachabilityProjectionRunner`
    drives this store's `InputLoader`/`RowWriter` methods end to end.
 
@@ -23,6 +25,14 @@
 - `ReplaceRepositoryRows` must always stamp the watermark, even for an empty
   replacement; dropping that breaks the #5376 upgrade-backfill anti-loop
   proof.
+- The loader schedules only complete, non-delta runs. Keep
+  `CompleteRunGateSQL` equal to the dead-code `run_gate` in
+  `internal/query/content_reader_dead_code_candidates.go`; change both
+  together, or `TestDeadCodeRunGateMatchesReachabilityLoaderGate` fails.
+- Keep the candidate statement gate-first with one `LATERAL` aggregate per
+  run. A per-intent-row join plus `GROUP BY` is the shape #7547 removed
+  (seconds per call on QA); re-measure with `EXPLAIN (ANALYZE, BUFFERS)`
+  before changing it.
 - Bump `CodeReachabilityVerdictSchemaEpoch` whenever verdict semantics or the
   watermark's truncation semantics change so every projected repo re-projects
   exactly once; see the constant's
@@ -34,8 +44,8 @@
   `postgres` package: it defines `testSuffix`, which unrelated root live
   tests also use. Do not move it here without first extracting `testSuffix`
   to something every caller can share; until then, this package's own
-  `store_route_liveness_live_test.go` keeps its own copies of the DSN-open,
-  suffix, and cleanup helpers it needs.
+  external live tests keep their own copies (`live_helpers_test.go`) of the DSN-open,
+  suffix, and cleanup helpers they need.
 
 ## Common changes
 

@@ -97,14 +97,32 @@ func TestCodeReachabilityPendingInputsWatchAllTraversedDomains(t *testing.T) {
 		"code_reachability_repository_watermarks",
 		"watermark.updated_at",
 		"max(intent.completed_at) AS completed_at",
-		// #5376 P1 upgrade-backfill: the epoch aggregate + the predicate that
+		// #5376 P1 upgrade-backfill: the epoch column + the predicate that
 		// re-schedules a repo whose watermark predates the current verdict epoch.
-		"max(watermark.verdict_schema_epoch) AS reach_verdict_epoch",
+		// #7547 joins the watermark once per run, so no aggregate is needed.
+		"watermark.verdict_schema_epoch AS reach_verdict_epoch",
 		"coalesce(reach_verdict_epoch, 0) < $2",
 	} {
 		if !strings.Contains(listPendingCodeReachabilityInputsSQL, want) {
 			t.Fatalf("pending reachability query missing %q:\n%s", want, listPendingCodeReachabilityInputsSQL)
 		}
+	}
+	// #7547 shape: complete runs are selected first, then one LATERAL
+	// max(completed_at) per run. The measured QA plan depends on both, and on
+	// never grouping the per-intent join (the pre-#7547 112 MB external sort).
+	for _, want := range []string{
+		"WITH ready AS MATERIALIZED (",
+		"WHERE " + CompleteRunGateSQL,
+		"CROSS JOIN LATERAL (",
+		"ORDER BY completed_at ASC, repository_id ASC",
+		"LIMIT $1",
+	} {
+		if !strings.Contains(listPendingCodeReachabilityInputsSQL, want) {
+			t.Fatalf("pending reachability query missing %q:\n%s", want, listPendingCodeReachabilityInputsSQL)
+		}
+	}
+	if strings.Contains(listPendingCodeReachabilityInputsSQL, "GROUP BY") {
+		t.Fatalf("pending reachability query must not group the intent join (#7547):\n%s", listPendingCodeReachabilityInputsSQL)
 	}
 	// The watermark upsert must stamp the epoch column.
 	for _, want := range []string{

@@ -50,6 +50,7 @@ func registerUpgradeBackfillCleanup(t *testing.T, db *sql.DB, scopeID, repoID st
 			{`DELETE FROM code_reachability_repository_watermarks WHERE scope_id=$1`, []any{scopeID}},
 			{`DELETE FROM shared_projection_intents WHERE scope_id=$1`, []any{scopeID}},
 			{`DELETE FROM shared_projection_acceptance WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM fact_work_items WHERE scope_id=$1`, []any{scopeID}},
 			{`DELETE FROM content_entities WHERE repo_id=$1`, []any{repoID}},
 			{`DELETE FROM scope_generations WHERE scope_id=$1`, []any{scopeID}},
 			{`DELETE FROM ingestion_scopes WHERE scope_id=$1`, []any{scopeID}},
@@ -98,6 +99,15 @@ func seedUpgradeBackfillRepo(t *testing.T, ctx context.Context, db *sql.DB, suff
 	exec(`INSERT INTO shared_projection_acceptance
 	  (scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at)
 	  VALUES ($1,$2,$3,$4,$5,$5) ON CONFLICT DO NOTHING`, scopeID, repoID, sourceRunID, generationID, completedAt)
+	// #7547: the loader schedules only complete full runs, so the seeded run
+	// carries both succeeded reducer materialization work items.
+	for _, domain := range []string{"code_call_materialization", "inheritance_materialization"} {
+		exec(`INSERT INTO fact_work_items
+		  (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count,
+		   payload, created_at, updated_at)
+		  VALUES ($1,$2,$3,'reducer',$4,'succeeded',1,'{}'::jsonb,$5,$5)`,
+			"wi-"+domain+"-"+suffix, scopeID, generationID, domain, completedAt)
+	}
 	exec(`INSERT INTO shared_projection_intents
 	  (intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id, repository_id,
 	   source_run_id, generation_id, payload, created_at, completed_at)
