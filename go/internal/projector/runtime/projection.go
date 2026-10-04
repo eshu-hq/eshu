@@ -372,7 +372,8 @@ func validateFactBoundary(scopeValue scope.IngestionScope, generation scope.Scop
 // content store persists. The second result is false when the fact carries no
 // content_path, or carries neither a content_body nor a content_digest, so a
 // fact that only describes a path is not mistaken for content. A tombstone fact
-// produces a record marked Deleted rather than being skipped.
+// produces a record marked Deleted rather than being skipped. The body retains
+// its literal whitespace and newlines; digest parsing retains its existing rules.
 func BuildContentRecord(fact facts.Envelope) (content.Record, bool) {
 	path, ok := decode.PayloadString(fact.Payload, "content_path")
 	if !ok {
@@ -382,7 +383,7 @@ func BuildContentRecord(fact facts.Envelope) (content.Record, bool) {
 		return content.Record{}, false
 	}
 
-	body, _ := decode.PayloadString(fact.Payload, "content_body")
+	body, _ := decode.PayloadRawText(fact.Payload, "content_body")
 	digest, _ := decode.PayloadString(fact.Payload, "content_digest")
 
 	return content.Record{
@@ -398,7 +399,7 @@ func BuildContentRecord(fact facts.Envelope) (content.Record, bool) {
 // the content store persists, resolving the entity's path from content_path,
 // relative_path, or path in that order. The second result is false when the fact
 // carries none of them, because an entity record with no path cannot be
-// addressed on read.
+// addressed on read. SourceCache retains its literal whitespace and newlines.
 func BuildContentEntityRecord(repoID string, fact facts.Envelope) (content.EntityRecord, bool) {
 	relativePath, ok := decode.PayloadString(fact.Payload, "content_path")
 	if !ok {
@@ -469,7 +470,7 @@ func BuildContentEntityRecord(repoID string, fact facts.Envelope) (content.Entit
 	if !ok {
 		entityID = content.CanonicalEntityIDWithMetadata(repoID, relativePath, entityType, entityName, startLine, metadata)
 	}
-	sourceCache, _ := decode.PayloadString(fact.Payload, "source_cache")
+	sourceCache, _ := decode.PayloadRawText(fact.Payload, "source_cache")
 
 	return content.EntityRecord{
 		EntityID:        entityID,

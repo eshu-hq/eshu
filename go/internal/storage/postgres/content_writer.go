@@ -323,7 +323,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		if endLine < entity.StartLine {
 			endLine = entity.StartLine
 		}
-		sourceCache := strings.TrimSpace(entity.SourceCache)
+		sourceCache := entity.SourceCache
 
 		if entity.Deleted {
 			deletedEntityIDs = append(deletedEntityIDs, entity.EntityID)
