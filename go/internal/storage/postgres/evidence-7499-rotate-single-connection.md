@@ -17,7 +17,7 @@ PostgreSQL 18.6 (local Compose project `eshu-7498-localid`, isolated schema
 via `openIsolatedLiveDB` applying all 178 bootstrap migrations). Baseline:
 every failure-path rotation on a single-connection pool self-waited to the
 context deadline, so no successful baseline latency exists to regress. After
-the fix, `TestRotateLocalIdentityPasswordWrongPasswordSingleConnectionCompletes`
+the fix, `TestRotateLocalIdentityPasswordSingleConnectionCompletes`
 passes: 5 sequential rotations on the same `MaxOpenConns(1)` pool (input
 shape: single-user fixture, wrong password x2, wrong TOTP with an active
 factor, invalid recovery code, then a full success rotation with TOTP

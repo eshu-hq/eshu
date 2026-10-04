@@ -19,7 +19,7 @@ import (
 // on itself until the context expires. Each sub-proof below runs on the same
 // one-connection pool: wrong password, wrong TOTP with an active factor,
 // an invalid recovery code, and a full success rotation with TOTP re-proof.
-func TestRotateLocalIdentityPasswordWrongPasswordSingleConnectionCompletes(t *testing.T) {
+func TestRotateLocalIdentityPasswordSingleConnectionCompletes(t *testing.T) {
 	database, ctx := openIsolatedLiveDB(t, "local_identity_rotate_single_conn", "set ESHU_POSTGRES_DSN to run the rotation single-connection #7499 proof")
 
 	base := time.Now().UTC().Truncate(time.Millisecond)
