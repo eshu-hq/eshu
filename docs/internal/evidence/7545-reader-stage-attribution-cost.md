@@ -61,13 +61,22 @@ the difference from the same arm without it.
 
 The existing `BenchmarkReaderQueryStartRecordedRequest` never calls the
 observer, so it cannot measure this path; `BenchmarkReaderQueryObserve` is new
-and drives the fenced `QueryContext`. The BEFORE arms ran on a throwaway detached worktree at the merge base
-`791078e81` (the merge of #7565) using the same two benchmark fixture files
-copied in. The AFTER arms ran on this branch. Both are compiled test binaries,
-run in four interleaved rounds (before, after, accumulator) of five
-`-test.count` repetitions at `-test.benchtime=20000x`, giving 20 samples per
-arm. Go 1.27.1, darwin/arm64, Apple M4 Pro, 12 cores. A different heavy gate
-was running on the host: the load average was 9 to 14 during the runs.
+and drives the fenced `QueryContext`. The figures below come from a quiet remote
+Linux host. The BEFORE arms ran on a clean checkout of the PR base `4529a8f9`
+with only the two benchmark fixture files copied in (the base has no
+`ContextObserver` symbol; the AFTER binary has four). The AFTER arms ran on the
+reviewed head of #7572 (`d67c4ac8`, whose tree equals the squash-merge commit
+`6e2307c1c` on `main`). Both checkouts were fetched by commit from Git, and
+both are compiled test binaries (`go1.26.6 linux/amd64`, picked from `go.mod`),
+run in 10 interleaved rounds with the order rotated, 5 repetitions each at
+`-test.benchtime=20000x -test.benchmem`, GOMAXPROCS 16: 50 samples per arm. Host:
+AMD EPYC 9R14, 16 CPUs, 123 GiB, Linux 6.17; the remote-validation profile
+labels it r7a.4xlarge class (the instance type itself was not read from the
+metadata service). Load average was 0.24 before the run and peaked at 2.50 during it,
+which includes the build of the two binaries. An earlier run of the same
+benchmarks on a laptop under a load average of 9 to 14 (Go 1.27.1, Apple M4 Pro,
+base `791078e81`) is superseded by this one and not used; its "inside the noise"
+reading did not survive a quiet host.
 
 ```sh
 go test -c -o before.test ./internal/runtime/postgres/   # in the base worktree
@@ -79,50 +88,59 @@ go test -c -o after.test ./internal/runtime/postgres/    # on this branch
 
 ## Results
 
-This is a hermetic callback-cost proof on a laptop under load. It is not a
-deployed endpoint p95, it excludes a network, real PostgreSQL, and exporter I/O,
-and the per-query fixed cost of `database/sql` is part of every number.
+This is a hermetic callback-cost proof on a quiet host. It is not a deployed
+endpoint p95. It excludes a network, real PostgreSQL, and exporter I/O, and the
+per-query fixed cost of `database/sql` is part of every number. Absolute numbers
+do not compare with any run on another machine or Go version; only the BEFORE to
+AFTER comparison on this host is valid.
 
-Per-query time, ns/op, 20 samples per arm: p50, then p25 to p75, then min to max.
+Per-query time, ns/op, 50 samples per arm, median with the interquartile range
+in parentheses. Rounds slower counts the interleaved rounds in which the AFTER
+median was above the BEFORE median.
 
-| Arm | Before p50 (p25-p75) | After p50 (p25-p75) | Allocs/op before / after |
-| --- | --- | --- | --- |
-| `nil_observer` | 2752 (2603-3069) | 2538 (2495-2619) | 57-58 / 57-58 |
-| `legacy_observer` | 2722 (2580-2883) | 2604 (2570-2660) | 57-58 / 57 |
-| `otel_no_request_span` | 7976 (7787-8129) | 7886 (7789-8004) | 121 / 121 |
-| `otel_request_span` | 9018 (8784-9172) | 9235 (8988-9407) | 132 / 132 |
+| Arm | Before | After | Delta | Rounds slower | B/op, allocs/op before = after |
+| --- | --- | --- | --- | --- | --- |
+| `nil_observer` | 5887 (5827-5957) | 5974 (5938-6056) | +86 ns (+1.5%) | 9/10 | 2856, 59 |
+| `legacy_observer` | 6048 (5858-6106) | 6117 (6028-6179) | +70 ns (+1.1%) | 9/10 | 2856, 59 |
+| `otel_no_request_span` | 16918 (16728-17027) | 17358 (17192-17499) | +439 ns (+2.6%) | 10/10 | 11176, 123 |
+| `otel_request_span` | 19045 (18700-19170) | 19585 (19462-19709) | +540 ns (+2.8%) | 10/10 | 12912, 134 |
 
-Min to max spread: `nil_observer` 2501-6971 before and 2450-2812 after;
-`otel_request_span` 8617-9461 before and 8867-10604 after. The p50 differences
-(a 214 ns lower and a 217 ns higher value on arms with 2.5 to 9 microsecond
-medians) are inside the interquartile ranges and the host noise. No delta
-smaller than that noise is claimed. The allocation counts per query are
-identical before and after on every arm, so re-parenting the stage span and
-passing the context add no allocation to the observed path. The 57 versus 58
-allocations flip appears in both the before and after runs of the same arm and
-comes from `database/sql`, not from this change.
+Deltas are computed from the unrounded medians, so a delta can differ by 1 ns
+from the difference of the rounded columns. Allocation counts and bytes per query
+are identical before and after on every arm, so re-parenting the stage span and passing the context add no allocation to
+the observed path. The OpenTelemetry arms are measurably slower: their
+interquartile ranges do not overlap and the AFTER median was higher in all 10
+rounds. Each fenced query makes four stage observations, so the otel delta is
+about 110 to 135 ns per observation. The nil and legacy arms moved by 70 to
+86 ns: their interquartile ranges overlap, but 9 of 10 rounds were slower, so the
+shift is small and probably real. The cause of the otel delta is a hypothesis only: it fits the
+extra work the change does (the request context reaches the histogram sample, a
+child stage span is started from it, and the observer pays one `context.Value`
+lookup and a type assertion per observation). It was not separated from
+code-layout differences between two compiled binaries, and no profile was taken.
 
-The accumulator arms (after only), same units:
+The accumulator arms (AFTER only), same units, compared with the same arm without
+the accumulator:
 
-| Arm | p50 (p25-p75) | Allocs/op | B/op | Same arm without accumulator |
-| --- | --- | --- | --- | --- |
-| `acc+nil_observer` | 2772 (2639-3007) | 59-60 | 2984 | 2538, 57-58 allocs, 2872 B |
-| `acc+otel_request_span` | 9372 (8994-9920) | 134 | 13038 | 9235, 132 allocs, 12926 B |
+| Arm | ns/op without, with | Delta | B/op | allocs/op | Rounds slower |
+| --- | --- | --- | --- | --- | --- |
+| `acc+nil_observer` | 5974, 6216 | +242 ns | +112 | +2 | 10/10 |
+| `acc+otel_request_span` | 19585, 19799 | +214 ns | +112 | +2 | 8/10 |
 
 Creating the accumulator and its context value adds two allocations and about
 112 bytes per request. That is one fixed cost per findings read, not per stage
 observation: the four `Add` calls per query are two atomic additions each and
-allocate nothing. The `acc+nil_observer` arm, the one with the smallest floor,
-shows about 0.1 to 0.25 microseconds more per request with a p25 just above the
-p75 of the arm without it; the `acc+otel_request_span` arm overlaps its
-counterpart. Against a findings read whose measured stage time in #7545 was
-1,439 ms, a fixed sub-microsecond, two-allocation cost is five orders of
-magnitude below the signal it attributes. A request with no accumulator pays one
+allocate nothing. Against a findings read whose measured stage time in #7545 was
+1,439 ms, the largest per-query delta here (+540 ns for the observer change, a
+further +214 to +242 ns for the accumulator) is under one part in a million of
+the signal it attributes. Every observer arm moved by less than 3% and the
+accumulator arms by 1.1% (`acc+otel_request_span`) and 4.1%
+(`acc+nil_observer`), all well under the 10% line that would call for a profile. A request with no accumulator pays one
 `context.Value` lookup.
 
-Performance Evidence: on the fenced guarded-reader `QueryContext` path with the in-process fake driver, passing the request context to the observer and re-parenting the `postgres.reader_access` span changed no allocation count (57-58, 57-58, 121, 132 allocs/op before and after) and moved p50 ns/op by less than the interquartile noise (otel_request_span 9018 to 9235, nil_observer 2752 to 2538); the per-request `db.StageTimings` accumulator adds two allocations and 112 B once per request. Hermetic callback cost only, not a deployed endpoint p95.
+Performance Evidence: on the fenced guarded-reader `QueryContext` path with the in-process fake driver, on a quiet 16-CPU Linux host (50 interleaved samples per arm, `go1.26.6`), passing the request context to the observer and re-parenting the `postgres.reader_access` span changed no allocation count or byte count (59, 59, 123, 134 allocs/op before and after) and raised median ns/op by +86 ns (+1.5%) on `nil_observer`, +70 ns (+1.1%) on `legacy_observer`, +439 ns (+2.6%) on `otel_no_request_span` and +540 ns (+2.8%) on `otel_request_span`, with the otel arms slower in 10 of 10 rounds; the per-request `db.StageTimings` accumulator adds two allocations, 112 B and 214 to 242 ns once per request. Hermetic callback cost only, not a deployed endpoint p95.
 
-No-Regression Evidence: allocs/op per guarded query are identical before and after on all four observer arms, legacy `Observer` implementations still receive every `Observe` call (`TestLegacyObserverStillReceivesEveryStage`), and the no-accumulator path costs one `context.Value` lookup.
+No-Regression Evidence: allocs/op and B/op per guarded query are identical before and after on all four observer arms, every observer arm's median moved by less than 3% and the accumulator arms by 1.1% and 4.1% (all below the 10% profiling line), legacy `Observer` implementations still receive every `Observe` call (`TestLegacyObserverStillReceivesEveryStage`), and the no-accumulator path costs one `context.Value` lookup. The otel arms are measurably slower, by 2.6% and 2.8%; that cost is accepted as the price of request-parented spans and per-stage attribution and is recorded, not hidden.
 
 ## Observability
 
