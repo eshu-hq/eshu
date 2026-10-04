@@ -287,12 +287,23 @@ carries `is_delta` through its `matched` CTE):
   `NOT is_refresh_intent` would hide a refresh-only delta repository that is a
   real `no_snapshot_yet`; the delta case is pinned for that reason.
 - A repository with no per-edge intent on a full generation is complete without
-  a watermark, the same as a docs or IaC repository. An empty generation (no
-  intent) was already complete. A repository whose only intents are
-  `inheritance_edges` refreshes is complete on a full generation.
-- A refresh intent beside a pending real edge is not a separate window: the
-  refresh and the edges are written in one call, so a repository is never seen
-  with the refresh and without its edges.
+  a watermark, the same as a docs or IaC repository. A generation with no
+  intent yet was already complete (queue-time window below). A repository whose
+  only intents are `inheritance_edges` refreshes is complete on a full
+  generation.
+- Queue-time window (pre-existing, widened by #7591). From generation activation
+  (projector Ack) until the reducer writes the repository's per-edge intents,
+  both statements read the repository complete, and a cross-repo answer can say
+  `dead` for a symbol it calls. Before #7591 the window ended at the first
+  `code_calls` or `inheritance_edges` intent of either handler; now it ends at
+  the first per-edge write. The two work items (`code_call_materialization`,
+  `inheritance_materialization`) are independent and unordered, so an
+  inheritance refresh-only write while the code-call item is still queued is
+  inside the window. `UpsertIntents` writes 2,000-row statements with no
+  enclosing transaction, so a refresh can also sit one round trip or one retry
+  interval ahead of its edges. It is not closed here; see #7602. Net effect on
+  accuracy: the 278 repositories that were permanent false gaps on ops-qa leave
+  the gap list.
 
 `CodeReachabilityVerdictSchemaEpoch` stays 4; no schema, response shape or
 index changes.
@@ -343,6 +354,7 @@ Observability Evidence: no change. The read keeps its `postgres.query` span
   watermark, or a truncated one, makes every symbol of an unscoped, unnamed request unknown.
   Repositories with no such work (docs, IaC) no longer do. Name
   `consumer_repo_ids` or use a grant to narrow a request.
+- The queue-time window above is not closed by #7591 (#7602).
 - The check detects only a missing, truncated or older-epoch watermark on a repository with
   code edges (on a full generation, per-edge intents; see "Refresh intents (#7591)"). A stale or partly drained snapshot with `truncated = false`, even
   beside a pending intent, reads complete until the reducer rebuilds it. A

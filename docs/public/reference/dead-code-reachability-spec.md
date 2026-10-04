@@ -57,8 +57,8 @@ watermark is `truncated`, or its `verdict_schema_epoch` is below the current
 change, and a snapshot built earlier carries the old ones), **and** that
 generation has a `code_calls` or
 `inheritance_edges` projection intent (completed or still pending). On a full
-generation a refresh intent (one that names no caller or child entity) does not
-count, because it is not an edge. On a delta generation any such intent counts,
+generation a refresh intent (a projection intent whose payload `action` is `refresh`)
+does not count, because it carries no edge. On a delta generation any such intent counts,
 because a delta generation never gets a watermark. A repository with no such
 intent has no code edges, cannot be a consumer, and is complete
 without a watermark. A repository with intents is never excluded for having zero

@@ -123,7 +123,8 @@ incomplete answer into `consumer_coverage_incomplete`. The rules:
   `(is_delta OR NOT is_refresh_intent)` with a bare `NOT is_refresh_intent`.
   Both statements carry the same probe, pinned by
   `TestCrossRepoDeadCodeConsumerCoverageUniversePredicate`, and its meaning is
-  proven on PostgreSQL by `TestCrossRepoDeadCodeConsumerCoverageLive`.
+  proven on PostgreSQL by `TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive`
+  (and `TestCrossRepoDeadCodeConsumerCoverageLive` for the rest of the universe).
 - Keep the statements' shape: the intent probe is a scalar `LIMIT 1` subquery
   inside a `CASE` (as `EXISTS` Postgres hoists it into a hashed subplan over every
   such intent), and the named statement finds scopes with a hashed

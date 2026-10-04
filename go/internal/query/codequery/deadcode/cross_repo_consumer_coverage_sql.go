@@ -155,8 +155,8 @@ LIMIT $4
 // gaps; a fully covered corpus reads every repository scope once, which is the
 // bound, and the response carries no count of the repositories it checked
 // because that count would force the full scan. Rows are not ordered in SQL, so
-// the caller sorts and dedupes the ones it keeps. The plan is unmeasured at QA
-// scale; see the named statement.
+// the caller sorts and dedupes the ones it keeps. Measured on the QA
+// replica for #7591: see the evidence note's "Refresh intents" section.
 //
 // Exported for ContentReader's coverage read in package query.
 const CrossRepoDeadCodeAllConsumerCoverageQuery = `
