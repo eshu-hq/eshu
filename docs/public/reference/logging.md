@@ -80,6 +80,24 @@ closed-set labels that never contain error text: `error_site` (`reader_stale`,
 `sqlstate_<class>`, `unknown`). A `canceled` cause is usually a client that
 disconnected.
 
+The `supply_chain_query.stage_completed` event for stage `impact_findings_query`
+also carries `reader_borrow_seconds`, `reader_identity_seconds`,
+`reader_replay_seconds`, and `business_query_seconds` (#7545), so a slow findings
+read names the guarded-reader stage that paid for it. Each is a float in seconds
+and the SUM of that stage across every guarded-reader operation inside the
+findings read (a stage can run more than once per request, for example the
+borrow), not a single latency. The four attributes appear together, are always
+on with no sampling, and appear only when the guarded reader recorded a stage
+for the read; a read that did not go through it omits them rather than logging
+zeros. Other stages never carry them. `business_query_seconds` times the
+database call that starts the query, not the row streaming and scanning that
+follows it, so the four sums can be well below the stage's `duration_seconds`:
+the remainder is row consumption, decoding, and handler-side work, not an
+unexplained reader stall. On the member-fleet path the borrow counts both the
+slot reservation and the connection acquisition, and a read that moved to
+another member includes the stages of the attempt that failed first, so the
+sums say what the request paid, not only what the final attempt paid.
+
 Do not treat examples such as `http.request.completed`,
 `mcp.request.received`, or `index.discovery.completed` as current universal Go
 events. Those are test or illustrative values unless a call site explicitly

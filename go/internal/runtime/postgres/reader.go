@@ -52,7 +52,7 @@ func (q fencedQueryer) QueryContext(ctx context.Context, statement string, args 
 	a.startReaderQuery(ctx, conn.Conn)
 	started := time.Now()
 	rows, err := conn.QueryContext(ctx, statement, args...)
-	a.observe("reader", StageBusinessQuery, started, err)
+	a.observe(ctx, "reader", StageBusinessQuery, started, err)
 	if err != nil {
 		_ = conn.Close()
 		return nil, privateFailure(failureReaderQuery, err)
@@ -83,12 +83,12 @@ func (a *Access) borrowFreshFrom(ctx context.Context, pool *sql.DB, member *phys
 			if ctx.Err() == nil && errors.Is(borrowErr, context.DeadlineExceeded) {
 				borrowErr = errors.Join(errReaderPermitTimeout, borrowErr)
 			}
-			a.observe("reader", StageReaderBorrow, borrowed, borrowErr)
+			a.observe(ctx, "reader", StageReaderBorrow, borrowed, borrowErr)
 			return nil, privateFailure(failureReaderBorrow, errors.Join(ErrReaderUnavailable, borrowErr))
 		}
 	}
 	conn, err := pool.Conn(fenceCtx)
-	a.observe("reader", StageReaderBorrow, borrowed, err)
+	a.observe(ctx, "reader", StageReaderBorrow, borrowed, err)
 	if err != nil {
 		if a.readerPermits != nil {
 			a.readerPermits <- struct{}{}
@@ -127,7 +127,7 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 	if err == nil && member != nil && (incarnation != member.incarnation || !addressMatches(serverAddress, member.addresses)) {
 		err = memberLocalTopology{}
 	}
-	a.observe("reader", StageReaderIdentity, started, err)
+	a.observe(ctx, "reader", StageReaderIdentity, started, err)
 	if err != nil {
 		if errors.Is(err, ErrWrongTopology) {
 			return privateFailure(failureReaderIdentity, err)
@@ -138,7 +138,7 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 		return nil
 	}
 	replayStarted := time.Now()
-	defer func() { a.observe("reader", StageReaderReplay, replayStarted, err) }()
+	defer func() { a.observe(ctx, "reader", StageReaderReplay, replayStarted, err) }()
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {

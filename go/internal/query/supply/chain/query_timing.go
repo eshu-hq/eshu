@@ -93,6 +93,23 @@ func (t supplyChainQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr
 	t.logger.LogAttrs(ctx, slog.LevelInfo, "supply chain query stage completed", base...)
 }
 
+// readerStageAttrs returns the four guarded-reader stage attributes for a stage
+// Done line, or nil when the read never went through the guarded reader. Each
+// value is the SUM of that stage's durations across the reads the guarded
+// reader performed inside the stage: a stage that ran several times reports its
+// total, not one latency (#7545).
+func readerStageAttrs(timings *db.StageTimings) []slog.Attr {
+	if !timings.Recorded() {
+		return nil
+	}
+	return []slog.Attr{
+		slog.Float64("reader_borrow_seconds", timings.Seconds(db.ReaderStageBorrow)),
+		slog.Float64("reader_identity_seconds", timings.Seconds(db.ReaderStageIdentity)),
+		slog.Float64("reader_replay_seconds", timings.Seconds(db.ReaderStageReplay)),
+		slog.Float64("business_query_seconds", timings.Seconds(db.ReaderStageBusinessQuery)),
+	}
+}
+
 // Failed emits ONE ERROR-level supply_chain_query.stage_failed event for a
 // handler-owned 5xx on this stage (#7546). It carries the stage, repository,
 // the error text bounded to 256 bytes, and the closed-set error_site and

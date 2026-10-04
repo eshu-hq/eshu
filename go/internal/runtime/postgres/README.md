@@ -248,6 +248,20 @@ latency, 100-user capacity, or replica memory requirements.
 `Observer` receives the closed `role`, `stage`, and `outcome` categories with
 elapsed time for writer checkpoint, reader pool borrow, identity, replay, and
 business query. API/MCP attach those to their telemetry provider through `NewObserver`.
+An `Observer` that also implements `ContextObserver` receives the request
+context through `ObserveContext` instead of `Observe`; `NewObserver`'s observer
+does, so its `postgres.reader_access` reader stage spans are children of
+whatever span is active on the request context (the API server span or the query
+handler span) and the stage histogram sample carries the request context
+(#7545). The writer-checkpoint span is a child of the API server span and stays
+a root on MCP, which has no server span when the checkpoint is taken. For a
+sampled request the SDK's default trace-based exemplar filter attaches a trace
+exemplar to that sample; set `OTEL_METRICS_EXEMPLAR_FILTER` to change it. A
+legacy `Observer` keeps receiving `Observe` with no request identity. Stage
+spans now follow the request's sampling decision, so their volume tracks
+sampled requests. Independently of any observer, `Access` adds each reader
+stage to the `db.StageTimings` accumulator on the request context when one is
+present; the impact-findings handler uses it to log per-stage seconds.
 `Stats` exposes both pools' wait and in-use counters for readiness and pool
 pressure checks. Fleet metrics also expose bootstrap qualification, pool
 connections, reserved slots, queued requests, and attempt outcomes per
@@ -270,7 +284,9 @@ time, physical reader instance, and event time. The socket peer can be a
 Kubernetes Service address, so it does not identify the backing pod alone.
 Confirm that the backend leaves its active query and transaction after
 cancellation; the event alone is not
-cancellation proof. The existing stage spans remain standalone diagnostics.
+cancellation proof. Reader stage spans are children of the active request-context span
+when the observer implements `ContextObserver` (see above), so a slow request
+names the stage that paid for it.
 
 No-Regression Evidence: On an Apple M5 Max, a 200-iteration Go benchmark of a
 recording request and synchronous in-memory trace exporter measured 854.4 ns
