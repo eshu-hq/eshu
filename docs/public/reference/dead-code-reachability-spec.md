@@ -141,7 +141,7 @@ and `db.operation=code_reachability_incoming_entity_ids`,
 `code_reachability_coverage` (no longer emitted by the dead-code path after
 #7547), and `dead_code_incoming_entity_ids` labels plus
 the existing dead-code handler span and HTTP route metrics. The reducer path
-keeps the existing code reachability completion log and truncation warning (the warning now carries a `truncation_reason` of `no_roots`, `max_visited`, or `max_depth`); no
+keeps the existing code reachability completion log and truncation log line (it now carries a `truncation_reason` of `no_roots`, `max_visited`, or `max_depth`; `no_roots` logs at INFO, the other two at WARN); no
 metric, worker, queue domain, runtime knob, graph write, or high-cardinality
 telemetry label is added.
 
