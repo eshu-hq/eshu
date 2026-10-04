@@ -60,14 +60,35 @@ type CodeReachabilityProjectionInput struct {
 	UpdatedAt  time.Time
 }
 
+// Truncation reasons reported in CodeReachabilityProjectionStats.TruncationReason.
+const (
+	// CodeReachabilityTruncationNoRoots marks a snapshot with no usable root
+	// entity: with nothing to traverse from, the snapshot cannot prove any
+	// entity unreachable.
+	CodeReachabilityTruncationNoRoots = "no_roots"
+	// CodeReachabilityTruncationMaxVisited marks a snapshot whose MaxVisited
+	// bound stopped discovery of new entities.
+	CodeReachabilityTruncationMaxVisited = "max_visited"
+	// CodeReachabilityTruncationMaxDepth marks a snapshot where an entity at
+	// MaxDepth has an outgoing edge to an entity the traversal never visited.
+	CodeReachabilityTruncationMaxDepth = "max_depth"
+)
+
 // CodeReachabilityProjectionStats reports bounded-traversal outcomes for one
 // snapshot so the runner can surface truncation to operators.
 type CodeReachabilityProjectionStats struct {
 	// Visited counts the distinct reachable entities retained in the snapshot.
 	Visited int
-	// Truncated is true when the MaxVisited bound stopped traversal before the
-	// full reachable set was enumerated.
+	// Truncated is true when the snapshot cannot prove that an entity absent
+	// from it is unreachable: the traversal had no roots, the MaxVisited bound
+	// stopped discovery, or an entity at MaxDepth has an outgoing edge to an
+	// entity that was never visited. The dead-code query falls back to the
+	// legacy incoming-edge lookup for a truncated snapshot.
 	Truncated bool
+	// TruncationReason names why Truncated is true, one of the
+	// CodeReachabilityTruncation* constants; empty when Truncated is false.
+	// When several bounds fire, MaxVisited wins over MaxDepth.
+	TruncationReason string
 }
 
 // CodeReachabilityRoot identifies an entrypoint/root entity.
@@ -138,20 +159,28 @@ func BuildCodeReachabilityRows(input CodeReachabilityProjectionInput) []CodeReac
 
 // BuildCodeReachabilityRowsWithStats is BuildCodeReachabilityRows plus a
 // CodeReachabilityProjectionStats report. Traversal is bounded by both MaxDepth
-// and MaxVisited; when the MaxVisited bound stops expansion before the full
-// reachable set is enumerated, Stats.Truncated is true. The traversal is
+// and MaxVisited. Stats.Truncated is true whenever the snapshot cannot prove an
+// absent entity unreachable: no usable roots, the MaxVisited bound stopped
+// discovery, or an entity at MaxDepth has an outgoing edge to an unvisited
+// entity (an entity merely sitting at MaxDepth with no unseen target is not
+// truncation). Stats.TruncationReason names which. The traversal is
 // uid-anchored and single-connected-path: each entity keeps only its strongest
 // shortest root path, mirroring the depth/frontier discipline of the
 // NornicDB hop-by-hop call-chain fallback.
 func BuildCodeReachabilityRowsWithStats(input CodeReachabilityProjectionInput) ([]CodeReachabilityRow, CodeReachabilityProjectionStats) {
 	roots := cleanCodeReachabilityRoots(input.Roots)
 	if len(roots) == 0 {
-		return nil, CodeReachabilityProjectionStats{}
+		// No roots means nothing was traversed, so the snapshot proves
+		// nothing about absent entities; report it truncated.
+		return nil, CodeReachabilityProjectionStats{
+			Truncated:        true,
+			TruncationReason: CodeReachabilityTruncationNoRoots,
+		}
 	}
 	edgesBySource := codeReachabilityEdgesBySource(input.Edges)
 	maxDepth := normalizeCodeReachabilityMaxDepth(input.MaxDepth)
 	maxVisited := normalizeCodeReachabilityMaxVisited(input.MaxVisited)
-	truncated := false
+	truncationReason := ""
 	affected := codeReachabilityAffectedSet(input.AffectedEntityIDs)
 	now := time.Now().UTC()
 	observedAt := input.ObservedAt
@@ -182,6 +211,14 @@ func BuildCodeReachabilityRowsWithStats(input CodeReachabilityProjectionInput) (
 		path := queue[0]
 		queue = queue[1:]
 		if path.depth >= maxDepth {
+			// Depth cutoff: every entity at depth <= maxDepth is already in
+			// best (the queue is level-ordered), so a target missing from best
+			// is a real entity the cutoff drops, not one reached another way.
+			for _, edge := range edgesBySource[path.entityID] {
+				if _, seen := best[edge.TargetEntityID]; !seen && truncationReason == "" {
+					truncationReason = CodeReachabilityTruncationMaxDepth
+				}
+			}
 			continue
 		}
 		for _, edge := range edgesBySource[path.entityID] {
@@ -189,7 +226,7 @@ func BuildCodeReachabilityRowsWithStats(input CodeReachabilityProjectionInput) (
 				// Bound reached: stop discovering new entities. Omitted
 				// entities are not asserted dead; the dead-code query falls
 				// back to the legacy incoming-edge lookup for them.
-				truncated = true
+				truncationReason = CodeReachabilityTruncationMaxVisited
 				continue
 			}
 			confidence := codeprovenance.Confidence(edge.ResolutionMethod)
@@ -236,7 +273,11 @@ func BuildCodeReachabilityRowsWithStats(input CodeReachabilityProjectionInput) (
 		}
 		return rows[i].EntityID < rows[j].EntityID
 	})
-	return rows, CodeReachabilityProjectionStats{Visited: len(best), Truncated: truncated}
+	return rows, CodeReachabilityProjectionStats{
+		Visited:          len(best),
+		Truncated:        truncationReason != "",
+		TruncationReason: truncationReason,
+	}
 }
 
 func cleanCodeReachabilityRoots(roots []CodeReachabilityRoot) []CodeReachabilityRoot {

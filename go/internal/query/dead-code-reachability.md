@@ -187,9 +187,12 @@ projection tests are unchanged and still pass.
 Observability Evidence: the runner logs `code reachability projection completed`
 with `partition_count`, `concurrency`, `snapshots_truncated`, `input_count`,
 `row_count`, and `duration_seconds`, and emits a `code reachability snapshot
-truncated at max visited bound` warning carrying `scope_id`, `generation_id`,
-`repository_id`, and `visited` whenever a snapshot hits the bound, so an
-operator can see partition fan-out, throughput, and any truncation at 3 AM.
+truncated; absent entities are not proven unreachable` line carrying
+`scope_id`, `generation_id`, `repository_id`, `visited`, and
+`truncation_reason` (`no_roots`, `max_visited`, or `max_depth`) whenever a
+snapshot cannot prove an absent entity unreachable, so an operator can see
+partition fan-out, throughput, and any truncation at 3 AM. `no_roots` logs at
+INFO; the two bounds log at WARN.
 Dead-code candidate paging uses `DeadCodeCandidateRows` in
 `content_reader_dead_code_candidates.go:13` when the content read model is
 available, pushing the optional language predicate into the Postgres query so

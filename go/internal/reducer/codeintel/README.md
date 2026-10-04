@@ -47,7 +47,8 @@ alongside the other projection lanes.
   `BuildCodeReachabilityRowsWithStats`, `CodeReachabilityProjectionInput`,
   `CodeReachabilityRow`, `CodeReachabilityRoot`, `CodeReachabilityEdge`,
   `CodeReachabilityProjectionStats`, `CodeReachabilityStateReachable`,
-  `CodeReachabilityStateAmbiguous`.
+  `CodeReachabilityStateAmbiguous`, `CodeReachabilityTruncationNoRoots`,
+  `CodeReachabilityTruncationMaxVisited`, `CodeReachabilityTruncationMaxDepth`.
 - Runner and ports: `CodeReachabilityProjectionRunner`,
   `CodeReachabilityProjectionRunnerConfig`, `CodeReachabilityProjectionResult`,
   `CodeReachabilityInputLoader`, `CodeReachabilityRowWriter`.
@@ -57,6 +58,20 @@ alongside the other projection lanes.
 - Route liveness (#5494): `RubyRailsRouteFacts`, `ReasonRouteUnreachable`,
   `RouteEvidenceNoData`, `RouteEvidenceAmbiguous`, `RouteEvidenceRouted`,
   `RouteEvidenceUnrouted`.
+
+### Truncation watermark (#7547)
+
+`CodeReachabilityProjectionStats.Truncated` is stamped onto the snapshot
+watermark and means "this snapshot cannot prove an absent entity unreachable".
+It is true when (`TruncationReason`): `no_roots` (no usable root, so nothing was
+traversed), `max_visited` (the `MaxVisited` bound stopped discovery), or
+`max_depth` (an entity at `MaxDepth` has an outgoing edge to an entity the
+traversal never visited). An entity that merely sits at `MaxDepth` with no
+unseen target, or whose only deeper edge returns to a visited entity, is not
+truncation. The runner counts every truncated snapshot in
+`snapshots_truncated` and logs the reason as `truncation_reason`: `no_roots` at
+INFO (an expected state for a repo with no roots), `max_visited` and
+`max_depth` at WARN.
 
 See `doc.go` for the godoc-rendered contract, in particular how the two
 downgrade paths (ancestry and route liveness) relate.

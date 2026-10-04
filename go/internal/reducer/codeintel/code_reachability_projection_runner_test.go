@@ -4,7 +4,12 @@
 package codeintel
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 )
@@ -253,6 +258,153 @@ func TestCodeReachabilityProjectionRunnerRecordsEmptyInputWatermark(t *testing.T
 	}
 	if len(writer.rows) != 0 {
 		t.Fatalf("rows = %#v, want empty replacement", writer.rows)
+	}
+}
+
+func TestCodeReachabilityProjectionRunnerStampsZeroRootSnapshotTruncated(t *testing.T) {
+	t.Parallel()
+
+	loader := &fakeCodeReachabilityInputLoader{
+		inputs: []CodeReachabilityProjectionInput{{
+			ScopeID:      "scope-noroots",
+			GenerationID: "generation-noroots",
+			RepositoryID: "repo-noroots",
+			Edges: []CodeReachabilityEdge{
+				{SourceEntityID: "fn:a", TargetEntityID: "fn:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			},
+			UpdatedAt: time.Date(2026, 6, 17, 4, 5, 0, 0, time.UTC),
+		}},
+	}
+	writer := &fakeCodeReachabilityRowWriter{}
+	runner := CodeReachabilityProjectionRunner{InputLoader: loader, RowWriter: writer}
+
+	result, err := runner.ProcessOnce(context.Background(), time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ProcessOnce() error = %v", err)
+	}
+	if !writer.truncated {
+		t.Fatalf("writer.truncated = false, want true: a zero-root snapshot cannot prove absence")
+	}
+	if got, want := result.SnapshotsTruncated, 1; got != want {
+		t.Fatalf("SnapshotsTruncated = %d, want %d", got, want)
+	}
+}
+
+func TestCodeReachabilityProjectionRunnerStampsCompleteSnapshotNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	loader := &fakeCodeReachabilityInputLoader{
+		inputs: []CodeReachabilityProjectionInput{{
+			ScopeID:      "scope-ok",
+			GenerationID: "generation-ok",
+			RepositoryID: "repo-ok",
+			Roots:        []CodeReachabilityRoot{{EntityID: "fn:a"}},
+			Edges: []CodeReachabilityEdge{
+				{SourceEntityID: "fn:a", TargetEntityID: "fn:b", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			},
+			UpdatedAt: time.Date(2026, 6, 17, 4, 5, 0, 0, time.UTC),
+		}},
+	}
+	writer := &fakeCodeReachabilityRowWriter{}
+	runner := CodeReachabilityProjectionRunner{InputLoader: loader, RowWriter: writer}
+
+	result, err := runner.ProcessOnce(context.Background(), time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ProcessOnce() error = %v", err)
+	}
+	if writer.truncated || result.SnapshotsTruncated != 0 {
+		t.Fatalf("truncated = %v, SnapshotsTruncated = %d, want a complete snapshot", writer.truncated, result.SnapshotsTruncated)
+	}
+}
+
+func TestCodeReachabilityProjectionRunnerStampsAllDowngradedRootsTruncatedNoRoots(t *testing.T) {
+	t.Parallel()
+
+	// The only root is a Rails controller action whose base is not a controller,
+	// so it is downgraded and removed before the walk: zero live roots remain.
+	loader := &fakeCodeReachabilityInputLoader{
+		inputs: []CodeReachabilityProjectionInput{{
+			ScopeID:      "scope-alldown",
+			GenerationID: "generation-alldown",
+			RepositoryID: "repo-alldown",
+			Roots: []CodeReachabilityRoot{
+				{EntityID: "fn:FakeController:index", RootKinds: []string{CodeRootKindRubyRailsControllerAction}, ClassContext: "FakeController"},
+			},
+			RubyClasses: []RubyClassEntity{
+				{Name: "FakeController", QualifiedBases: []string{"ApplicationRecord"}},
+				{Name: "ApplicationRecord", QualifiedBases: []string{"ActiveRecord::Base"}},
+			},
+			Edges: []CodeReachabilityEdge{
+				{SourceEntityID: "fn:FakeController:index", TargetEntityID: "fn:helper", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			},
+			UpdatedAt: time.Date(2026, 6, 17, 4, 5, 0, 0, time.UTC),
+		}},
+	}
+	writer := &fakeCodeReachabilityRowWriter{}
+	runner := CodeReachabilityProjectionRunner{InputLoader: loader, RowWriter: writer}
+
+	result, err := runner.ProcessOnce(context.Background(), time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ProcessOnce() error = %v", err)
+	}
+	if got, want := result.VerdictsDowngraded, 1; got != want {
+		t.Fatalf("VerdictsDowngraded = %d, want %d", got, want)
+	}
+	if len(writer.rows) != 0 || !writer.truncated || result.SnapshotsTruncated != 1 {
+		t.Fatalf("rows=%d truncated=%v SnapshotsTruncated=%d, want no rows and a truncated watermark", len(writer.rows), writer.truncated, result.SnapshotsTruncated)
+	}
+}
+
+func TestCodeReachabilityProjectionRunnerLogsTruncationReasonAtSeverity(t *testing.T) {
+	t.Parallel()
+
+	chain := func(hops int) []CodeReachabilityEdge {
+		edges := make([]CodeReachabilityEdge, 0, hops)
+		for i := 0; i < hops; i++ {
+			edges = append(edges, CodeReachabilityEdge{
+				SourceEntityID: fmt.Sprintf("fn:n%d", i), TargetEntityID: fmt.Sprintf("fn:n%d", i+1),
+				RelationshipType: "CALLS", ResolutionMethod: "scip",
+			})
+		}
+		return edges
+	}
+	for name, tc := range map[string]struct {
+		roots     []CodeReachabilityRoot
+		wantLevel string
+		wantWhy   string
+	}{
+		"no roots stays INFO": {roots: nil, wantLevel: "INFO", wantWhy: CodeReachabilityTruncationNoRoots},
+		"depth cutoff warns":  {roots: []CodeReachabilityRoot{{EntityID: "fn:n0"}}, wantLevel: "WARN", wantWhy: CodeReachabilityTruncationMaxDepth},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			runner := CodeReachabilityProjectionRunner{
+				InputLoader: &fakeCodeReachabilityInputLoader{inputs: []CodeReachabilityProjectionInput{{
+					ScopeID: "scope-log", GenerationID: "generation-log", RepositoryID: "repo-log",
+					Roots: tc.roots, Edges: chain(12), UpdatedAt: time.Date(2026, 6, 17, 4, 5, 0, 0, time.UTC),
+				}}},
+				RowWriter: &fakeCodeReachabilityRowWriter{},
+				Logger:    slog.New(slog.NewJSONHandler(&logs, nil)),
+			}
+			if _, err := runner.ProcessOnce(context.Background(), time.Date(2026, 6, 17, 4, 10, 0, 0, time.UTC)); err != nil {
+				t.Fatalf("ProcessOnce() error = %v", err)
+			}
+			var found bool
+			for _, line := range strings.Split(logs.String(), "\n") {
+				var rec map[string]any
+				if json.Unmarshal([]byte(line), &rec) != nil || rec["truncation_reason"] == nil {
+					continue
+				}
+				found = true
+				if rec["level"] != tc.wantLevel || rec["truncation_reason"] != tc.wantWhy {
+					t.Fatalf("truncation log = level %v reason %v, want %s %s", rec["level"], rec["truncation_reason"], tc.wantLevel, tc.wantWhy)
+				}
+			}
+			if !found {
+				t.Fatalf("no truncation log line in %q", logs.String())
+			}
+		})
 	}
 }
 
