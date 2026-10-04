@@ -282,7 +282,7 @@ binary re-selects it, so this is bounded.
   synced the build: 795 active watermarks at epoch 4 and none below, 8 cycles
   in about 42 seconds (slowest cycle 15.7 s), 77,825 rows written, 384
   truncation stamps (379 `no_roots`, 5 `max_depth`, no `max_visited`), no
-  reducer restart (261 MiB), no reader-fence deadline or 503. The loader gate
+  reducer restart (261 MiB RSS), no reader-fence deadline or 503. The loader gate
   held nothing back. The figures are on eshu-hq/eshu#7547.
 
 NOT_CHECKED for the drain: dead tuples and autovacuum on the rewritten tables
