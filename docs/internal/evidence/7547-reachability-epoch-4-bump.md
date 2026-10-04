@@ -200,11 +200,11 @@ Application (`autoSync: false` in its config, paused for the NornicDB to Neo4j
 cutover), so merging the pin changes Git only: the owner runs a manual sync of
 the Application to deploy, and the same holds for a rollback. `selfHeal` is
 configured but is a sub-option of automated sync, so it does nothing while
-automated sync is off. Merging this change to `main` does not deploy it.
+automated sync is off. Merging the epoch bump to `main` does not deploy it.
 ops-prod is a separate overlay pinned separately.
 
 Stop levers. The fast lever is scaling the reducer deployment to 0 by hand
-(`kubectl -n eshu scale`). It stays at 0 while automated sync is off, the
+(`kubectl -n eshu scale deployment/eshu-resolution-engine --replicas=0`; confirm the name with `kubectl -n eshu get deploy`). It stays at 0 while automated sync is off, the
 Application shows OutOfSync, and the owner restores the replicas afterwards;
 in-flight per-repository transactions commit or roll back whole. The durable
 lever is re-pinning the previous image: the epoch-3 binary selects nothing new
