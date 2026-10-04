@@ -264,15 +264,18 @@ binary re-selects it, so this is bounded.
   from #7570 ran on 2026-10-04 on the quiet remote validation host (16 CPUs,
   load about 0.01, Go 1.26.2), from git worktrees of the reviewed commits:
   base `791078e81` against the #7570 merge `4529a8f9b`, interleaved pairs,
-  `-cpu=1`, 10 samples per side, benchstat. Result: the frontier-at-cutoff
+  `-cpu=1`, 10 samples per side, benchstat. The benchmark itself is new in
+  #7570, so its file was copied from the head commit into the base worktree
+  to run the same benchmark on both sides; no other file differed. Result: the frontier-at-cutoff
   benchmark took 19.65 ms (±3%) on base and 20.36 ms (±4%) on head, +3.6%
   (p<0.001); the older 12-deep benchmark, which never reaches the cutoff, took
   102.6 ms (±2%) and 105.0 ms (±2%), +2.3% (p=0.035). Bytes and allocations per
-  call are identical on both. So the added scan has a small, statistically
-  detectable cost of about 0.7 ms on a 50,000-node graph; the older benchmark
+  call are identical on both. So #7570's change to the walk (the frontier scan plus the stamping
+  code around it) has a small, statistically detectable cost of about 0.7 ms
+  on a 50,000-node graph; the older benchmark
   moving about 2% as well suggests code layout or the extra branch, not the new
-  scan alone. It is well under the repo's 10% stop-and-profile bar and
-  negligible against the seconds a re-projection cycle spends on I/O. The
+  scan alone. It is well under the repo's 10% stop-and-profile bar and small against
+  the 5 to 16 seconds the ops-qa drain cycles took. The
   earlier laptop result ("no significant difference") was taken on a noisy
   machine and is superseded by this one.
 - The end-to-end drain on ops-qa ran on 2026-10-04 after the owner pinned and
@@ -281,3 +284,7 @@ binary re-selects it, so this is bounded.
   truncation stamps (379 `no_roots`, 5 `max_depth`, no `max_visited`), no
   reducer restart (261 MiB), no reader-fence deadline or 503. The loader gate
   held nothing back. The figures are on eshu-hq/eshu#7547.
+
+NOT_CHECKED for the drain: dead tuples and autovacuum on the rewritten tables
+(the replica's statistics views were empty), and the loader's `LIMIT 100`
+and generic-plan behavior on ops-qa.
