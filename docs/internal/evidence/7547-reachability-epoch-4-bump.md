@@ -258,9 +258,26 @@ is consistent. Re-applying the bump resumes the drain. During a rolling deploy
 an old binary can re-stamp a repository at epoch 3 on a new ingest; the new
 binary re-selects it, so this is bounded.
 
-## Still owed
+## Owed items, now closed
 
 - The remote rerun of `BenchmarkBuildCodeReachabilityRowsFrontierAtCutoff`
-  from #7570 (base `791078e81` against the #7570 head, `-cpu=1 -count=10`,
-  benchstat). It may be folded into the deploy watch.
-- The end-to-end drain measurement on ops-qa, before any production pin.
+  from #7570 ran on 2026-10-04 on the quiet remote validation host (16 CPUs,
+  load about 0.01, Go 1.26.2), from git worktrees of the reviewed commits:
+  base `791078e81` against the #7570 merge `4529a8f9b`, interleaved pairs,
+  `-cpu=1`, 10 samples per side, benchstat. Result: the frontier-at-cutoff
+  benchmark took 19.65 ms (±3%) on base and 20.36 ms (±4%) on head, +3.6%
+  (p<0.001); the older 12-deep benchmark, which never reaches the cutoff, took
+  102.6 ms (±2%) and 105.0 ms (±2%), +2.3% (p=0.035). Bytes and allocations per
+  call are identical on both. So the added scan has a small, statistically
+  detectable cost of about 0.7 ms on a 50,000-node graph; the older benchmark
+  moving about 2% as well suggests code layout or the extra branch, not the new
+  scan alone. It is well under the repo's 10% stop-and-profile bar and
+  negligible against the seconds a re-projection cycle spends on I/O. The
+  earlier laptop result ("no significant difference") was taken on a noisy
+  machine and is superseded by this one.
+- The end-to-end drain on ops-qa ran on 2026-10-04 after the owner pinned and
+  synced the build: 795 active watermarks at epoch 4 and none below, 8 cycles
+  in about 42 seconds (slowest cycle 15.7 s), 77,825 rows written, 384
+  truncation stamps (379 `no_roots`, 5 `max_depth`, no `max_visited`), no
+  reducer restart (261 MiB), no reader-fence deadline or 503. The loader gate
+  held nothing back. The figures are on eshu-hq/eshu#7547.
