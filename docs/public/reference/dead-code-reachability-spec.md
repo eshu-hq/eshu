@@ -164,7 +164,10 @@ The default policy is intentionally conservative:
   reachability snapshot answers for the entities it has rows for; every other
   entity still gets the producer-anchored one-hop incoming read, whether or not
   the snapshot's watermark reads complete, because a watermark does not prove
-  its roots were adequate (#7547).
+  its roots were adequate (#7547). The reducer builds a snapshot only for a
+  run whose edge set is complete. An active delta generation (changed files
+  only) is not projected until the next full generation, so dead-code reads
+  for its entities fall back to the legacy one-hop incoming read.
 - SQL trigger routines are protected when reducer materialization creates
   parser-proven trigger-to-function `EXECUTES` edges.
 - JavaScript and TypeScript candidates remain conservative because dynamic

@@ -81,7 +81,8 @@ repository is pending. Among those, it picks runs whose watermark is
 missing, older than the run's newest completed intent, or stamped under an
 older verdict-schema epoch, ordered `completed_at ASC, repository_id ASC`.
 An active delta generation gets no new snapshot; the next full generation
-does.
+does. Until then, dead-code reads for its entities fall back to the legacy
+one-hop incoming read.
 
 The candidate statement (`loader_candidates_sql.go`) gates acceptance rows
 first in a `ready` CTE, then reads one `LATERAL max(completed_at)` per run

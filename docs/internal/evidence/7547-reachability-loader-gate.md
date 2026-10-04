@@ -105,6 +105,35 @@ epoch 3, 795 at epoch 4). The gate removed nothing on QA, because every QA
 run was complete at the time. The fixture tests above prove what the gate
 does on incomplete runs.
 
+The figures above were taken on the measurement shim, which used different
+aliases. The coordinator later measured the exact shipped statement on the QA
+replica on 2026-10-04 (label verified): PostgreSQL 18.3, read-only,
+`statement_timeout` 10 s, `jit` off, a prepared statement, `LIMIT 10`.
+EXPLAIN without ANALYZE came first. Its plan has no sequential scan on
+`shared_projection_intents` or `fact_work_items`. It uses index scans on
+`fact_work_items_scope_generation_idx`,
+`shared_projection_intents_generation_pending_idx`,
+`shared_projection_intents_acceptance_lookup_idx`, and the watermark primary
+key. The only sequential scan is on `ingestion_scopes` (819 rows). Then
+EXPLAIN (ANALYZE, BUFFERS) gave:
+
+| Shipped statement on QA | Execution time | Notes |
+| --- | ---: | --- |
+| First execution (cold) | 5,266 ms | 111,016 shared reads |
+| Epoch 3 | 702.7 ms | warm |
+| Epoch 4 parameter | 702.2 ms | warm |
+
+Planning took 8 to 12.6 ms. For comparison, the measurement agent's earlier
+QA runs of the pre-#7547 statement took 8,385 ms cold and 4,698 and 4,667 ms
+warm.
+
+Replica replay lag was 0.06 s before the cold execution and 1.7 s right after
+it (read 0.6 s later). The loader runs on the primary in production, not on
+the replica, so this lag does not apply to it. Still, a cold read on the
+replica can hold replay back. The practice for replica measurements is now: a
+`statement_timeout` of 10 s or less, EXPLAIN before EXPLAIN ANALYZE, and a lag
+check before and after.
+
 Fixture-scale figures are mine, from the throwaway PostgreSQL 18.6 container
 (`shared_buffers=512MB`, `work_mem=16MB`, `jit=off`, warm cache, three runs
 each). The fixture has 800 repositories with one active and one superseded
