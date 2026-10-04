@@ -93,7 +93,10 @@ zeros. Other stages never carry them. `business_query_seconds` times the
 database call that starts the query, not the row streaming and scanning that
 follows it, so the four sums can be well below the stage's `duration_seconds`:
 the remainder is row consumption, decoding, and handler-side work, not an
-unexplained reader stall.
+unexplained reader stall. On the member-fleet path the borrow counts both the
+slot reservation and the connection acquisition, and a read that moved to
+another member includes the stages of the attempt that failed first, so the
+sums say what the request paid, not only what the final attempt paid.
 
 Do not treat examples such as `http.request.completed`,
 `mcp.request.received`, or `index.discovery.completed` as current universal Go

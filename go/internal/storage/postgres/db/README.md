@@ -78,8 +78,11 @@ transaction, or a raw connection.
   `runtime/postgres` calls `Add` from `Access.observe` for each reader stage it
   finishes; the caller reads `Seconds`, `Count`, and `Recorded` afterward.
   Every figure is the SUM across all observations of that stage inside the
-  wrapped read (borrow can run more than once per request), and `Recorded` is
-  false when the read never went through the guarded reader. Because they are
+  wrapped read (borrow can run more than once per request: on the member-fleet
+  path it counts the slot reservation and the connection acquisition, and a
+  read that moved to another member includes the failed attempt's stages), and
+  `Recorded` is false when the read never went through the guarded reader.
+  Because they are
   sums, a caller that runs reader operations concurrently inside one
   accumulator scope can see the sum of stages exceed wall time; the
   impact-findings route runs its reads one after another, so it cannot. Two
