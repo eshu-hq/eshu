@@ -299,9 +299,10 @@ carries `is_delta` through its `matched` CTE):
   the first per-edge write. The two work items (`code_call_materialization`,
   `inheritance_materialization`) are independent and unordered, so an
   inheritance refresh-only write while the code-call item is still queued is
-  inside the window. `UpsertIntents` writes 2,000-row statements with no
-  enclosing transaction, so a refresh can also sit one round trip or one retry
-  interval ahead of its edges. It is not closed here; see #7602. Net effect on
+  inside the window. Within one handler the intents and the acceptance row
+  commit in one transaction (`SharedIntentAcceptanceWriter.UpsertIntents`), so
+  the window is only between the two handlers. It is not closed here; see
+  #7602. Net effect on
   accuracy: the 278 repositories that were permanent false gaps on ops-qa leave
   the gap list.
 
