@@ -1,0 +1,8 @@
+# Literal fixture for scripts/test-verify-apk-floors.sh. Docker ignores a
+# comment line inside a RUN continuation and keeps the continuation open, so
+# "bar>=1.0-r0" is still a floor of this apk add. Do not derive this file's
+# floors with a helper: the point is a hand-written expectation.
+FROM alpine:3.21 AS runtime
+RUN apk add --no-cache git "foo>=3.3.7-r3" \
+    # a comment inside the continuation
+    "bar>=1.0-r0"

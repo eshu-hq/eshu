@@ -4908,6 +4908,56 @@ gates:
       - docker
     ci_only_reason: "requires two clean hosted Docker Buildx builds"
 
+  - id: apk-floors
+    name: Alpine apk floors match the repository
+    category: exactness
+    layer: contract
+    purpose: "Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves."
+    tier: pre-pr
+    blocking: true
+    # Path-triggered only: the Dockerfile, the publish workflow, and the
+    # verifier with its own self-test and fixtures. Unrelated PRs never select
+    # it. The same paths gate docker-publish.yml's on.paths and its `changes`
+    # job, so the verify-apk-floors check exists on every pull_request and
+    # merge_group run that selects this row. The job is skipped on push, tag,
+    # and dispatch so a post-merge stale floor cannot redden the publish run;
+    # the apk-floors-drift row covers main daily.
+    triggers:
+      - "Dockerfile"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/verify-apk-floors.sh"
+      - "scripts/test-verify-apk-floors.sh"
+      - "scripts/fixtures/apk-floors/**"
+    local:
+      command: "bash scripts/verify-apk-floors.sh"
+      test_command: "bash scripts/test-verify-apk-floors.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-apk-floors"
+    requirements:
+      - network
+    ci_only_reason: ""
+
+  - id: apk-floors-drift
+    name: Alpine apk floors drift (daily)
+    category: exactness
+    layer: secondary
+    purpose: "Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - ".github/workflows/apk-floors-drift.yml"
+      - "scripts/verify-apk-floors.sh"
+      - "scripts/test-verify-apk-floors.sh"
+      - "scripts/fixtures/apk-floors/**"
+    ci:
+      workflow: apk-floors-drift.yml
+      job: "Apk floors drift (daily)"
+    requirements:
+      - network
+    ci_only_reason: "daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script"
+
   - id: helm-package
     name: Helm chart lint and package
     category: release

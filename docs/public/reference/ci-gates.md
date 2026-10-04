@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 127 gates. Local execution runs the primary
+The registry currently defines 129 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -91,7 +91,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (47 gates)
+### Contract: Do declared or generated artifacts match the code? (48 gates)
 
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `route-coverage` (blocking): Fails when a registered HTTP route has no test that actually references it.
@@ -138,6 +138,7 @@ results are derived from the inputs rather than written by hand. See
 - `cassette-author` (blocking): Scans committed cassettes for leaked private data and validates each one against the v1 cassette-format schema.
 - `authz-scoped-route-tests` (blocking): Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs.
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
+- `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
 - `ci-gate-registry` (blocking): Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes.
 
@@ -170,11 +171,12 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 
-### Secondary: What do we watch without blocking a merge? (5 gates)
+### Secondary: What do we watch without blocking a merge? (6 gates)
 
 - `docs-prose-quality` (advisory): Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate.
 - `docs-contradiction` (advisory): Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline.
 - `golden-corpus-gate` (advisory): Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate.
+- `apk-floors-drift` (advisory): Runs the apk floor check daily against the live Alpine repository so a stale floor surfaces without a Dockerfile change.
 - `docker-publish` (advisory): Publishes the Docker image and Helm chart after merge; the publish steps never block a pull request.
 - `macos-build` (advisory): Builds the project on macOS on a schedule as an extra-platform check with no bearing on merges.
 
@@ -290,6 +292,8 @@ results are derived from the inputs rather than written by hand. See
 | `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
+| `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 5 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/verify-apk-floors.sh, … |
+| `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
 | `helm-package` | Helm chart lint and package | release | ci-heavy | true | — (CI-only: requires the hosted Helm packaging lane; PR runs skip the registry push) | docker-publish.yml / package-and-push-chart | 2 path(s): deploy/helm/**, .github/workflows/docker-publish.yml |
 | `docker-publish` | Docker image and Helm publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `macos-build` | macOS build verification (nightly) | build | ci-heavy | false | — (CI-only: requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)) | macos.yml / macos | 2 path(s): go/**, scripts/ci/go-mod-download-retry.sh |

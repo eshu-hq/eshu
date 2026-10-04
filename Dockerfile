@@ -147,22 +147,28 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 CMD ["eshu-mock-github"]
 
 # Production stage. MUST remain the last stage in this file — see the
-# mock-oidc-idp comment above.
-FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
+# mock-oidc-idp comment above. It is named `runtime` because
+# docker-publish.yml passes `no-cache-filters: runtime` to the image build.
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS runtime
 
 # c-ares (a transitive libcurl dependency) is pinned to the patched build for
 # CVE-2026-33630. libexpat is likewise pinned for CVE-2026-76956 and
 # CVE-2026-76957. libssl3/libcrypto3 (pulled in transitively by curl) are
-# pinned for CVE-2026-45447 (OpenSSL PKCS7_verify use-after-free, #7315).
-# Pinning them here — rather than relying on a base-image digest bump — is
-# load-bearing: docker-publish.yml imports a persistent type=gha layer cache,
-# and this RUN precedes the go-binary COPY, so a go.mod-only change leaves
-# this layer's cache key untouched and BuildKit would reship the old vulnerable
-# packages. The explicit constraints change the layer's cache key (forcing a
-# rebuild that pulls the fixed packages) and fail the build closed if the
-# Alpine 3.21 repo ever regresses below any patched version.
+# pinned for CVE-2026-45447 (OpenSSL PKCS7_verify use-after-free, #7315),
+# then raised to 3.3.7-r2 for CVE-2026-75804 and CVE-2026-84782 (#7571).
+#
+# Three controls keep these packages current:
+#   1. The version floors below are the fail-closed guard: the build fails if
+#      the Alpine repo ever regresses below a patched version.
+#   2. docker-publish.yml sets `no-cache-filters: runtime` on the image build,
+#      so this stage skips the persistent type=gha layer cache and resolves
+#      packages afresh on every publish, instead of reshipping an old layer.
+#   3. scripts/verify-apk-floors.sh compares these floors with what the Alpine
+#      repository serves and fails when a floor is stale. It runs on every PR
+#      or merge-queue entry that touches this file, and daily on a schedule
+#      (never on the publish run itself, so a stale floor cannot skip Trivy).
 RUN apk add --no-cache git curl "c-ares>=1.34.8-r0" "libexpat>=2.8.4-r0" \
-    "libssl3>=3.3.7-r1" "libcrypto3>=3.3.7-r1"
+    "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
