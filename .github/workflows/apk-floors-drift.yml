@@ -1,0 +1,31 @@
+name: Apk Floors Drift
+
+# Daily, non-blocking (#7571). Compares the Dockerfile's `apk add` version
+# floors with what the Alpine repository serves today, so a floor that has
+# gone stale is reported within a day instead of when an image scan fails.
+# The blocking per-PR check lives in docker-publish.yml (verify-apk-floors).
+# This workflow has no pull_request or merge_group trigger, so it never holds
+# an unrelated change.
+on:
+  schedule:
+    # Daily 05:30 UTC, ahead of the Monday 06:00 security-scan.yml run.
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-apk-floors-drift:
+    name: Apk floors drift (daily)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Self-test the apk floor verifier
+        run: bash scripts/test-verify-apk-floors.sh
+
+      - name: Verify apk floors against the Alpine repository
+        run: bash scripts/verify-apk-floors.sh

@@ -16,6 +16,9 @@ on:
       - go/**
       - deploy/helm/**
       - .github/workflows/docker-publish.yml
+      - scripts/verify-apk-floors.sh
+      - scripts/test-verify-apk-floors.sh
+      - scripts/fixtures/apk-floors/**
   pull_request:
     branches:
       - main
@@ -33,6 +36,9 @@ on:
       - .dockerignore
       - deploy/helm/**
       - .github/workflows/docker-publish.yml
+      - scripts/verify-apk-floors.sh
+      - scripts/test-verify-apk-floors.sh
+      - scripts/fixtures/apk-floors/**
   workflow_dispatch:
 
 concurrency:
@@ -53,6 +59,7 @@ jobs:
     outputs:
       image: ${{ steps.filter.outputs.image }}
       chart: ${{ steps.filter.outputs.chart }}
+      apkfloors: ${{ steps.filter.outputs.apkfloors }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -69,6 +76,7 @@ jobs:
             {
               echo "image=true"
               echo "chart=true"
+              echo "apkfloors=true"
             } >> "${GITHUB_OUTPUT}"
             exit 0
           fi
@@ -97,10 +105,18 @@ jobs:
 
           image=false
           chart=false
+          apkfloors=false
           while IFS= read -r path; do
             case "${path}" in
-              Dockerfile|.dockerignore)
+              Dockerfile)
                 image=true
+                apkfloors=true
+                ;;
+              .dockerignore)
+                image=true
+                ;;
+              scripts/verify-apk-floors.sh|scripts/test-verify-apk-floors.sh|scripts/fixtures/apk-floors/*)
+                apkfloors=true
                 ;;
               go/*)
                 if [[ "${merge_group_lane}" == "false" ]]; then
@@ -113,6 +129,7 @@ jobs:
               .github/workflows/docker-publish.yml)
                 image=true
                 chart=true
+                apkfloors=true
                 ;;
             esac
           done < <(git diff --name-only "${base_sha}" "${head_sha}")
@@ -120,7 +137,36 @@ jobs:
           {
             echo "image=${image}"
             echo "chart=${chart}"
+            echo "apkfloors=${apkfloors}"
           } >> "${GITHUB_OUTPUT}"
+
+  # Blocking only for a change to the Dockerfile, this workflow, or the
+  # verifier itself and its fixtures (#7571):
+  # compares the Dockerfile's `apk add` version floors with what the Alpine
+  # repository serves and fails closed on a fetch error. It is a separate job
+  # from the build so a mirror outage is named for what it is. A queue entry
+  # that touches neither file passes as a no-op.
+  verify-apk-floors:
+    needs: changes
+    if: github.event_name == 'merge_group' || needs.changes.outputs.apkfloors == 'true'
+    env:
+      LANE_APPLIES: ${{ needs.changes.outputs.apkfloors }}
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        if: env.LANE_APPLIES == 'true'
+        uses: actions/checkout@v5
+
+      - name: Self-test the apk floor verifier
+        if: env.LANE_APPLIES == 'true'
+        run: bash scripts/test-verify-apk-floors.sh
+
+      - name: Verify apk floors against the Alpine repository
+        if: env.LANE_APPLIES == 'true'
+        run: bash scripts/verify-apk-floors.sh
 
   build-and-push-image:
     needs: changes
@@ -202,6 +248,11 @@ jobs:
           labels: ${{ steps.labels.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # The final Dockerfile stage (named `runtime`) never reuses the gha
+          # layer cache, so its `apk add` resolves fresh packages on every
+          # publish. Without this, an unchanged RUN line reshipped stale
+          # libssl3/libcrypto3 from a cached layer (#7571).
+          no-cache-filters: runtime
           platforms: ${{ env.IMAGE_PLATFORMS }}
 
       - name: Generate artifact attestation

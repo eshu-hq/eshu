@@ -323,10 +323,10 @@ gates its changed paths select:
   `merge_group` runs on the queue commit, so strict mode is not required.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
-- **CI-only / release-only:** PR image-build, reproducibility, and Helm-package
-  proof are blocking hosted lanes. The post-publish Trivy image scan,
-  GHCR/package publication, and release-attestation checks require credentials
-  and cannot block the merge that creates their artifacts.
+- **CI-only / release-only:** PR image-build, reproducibility, apk-floor
+  (`scripts/verify-apk-floors.sh`), and Helm-package proof are blocking hosted
+  lanes. The post-publish Trivy image scan, GHCR/package publication, and
+  release-attestation checks need credentials and cannot block their own merge.
 
 `blocking: true` is an enforced merge contract when a row's triggers match, not
 only a local/preflight label. Exactness and race gates stay blocking when their
