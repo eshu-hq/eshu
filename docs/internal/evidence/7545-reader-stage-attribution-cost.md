@@ -62,7 +62,7 @@ the difference from the same arm without it.
 The existing `BenchmarkReaderQueryStartRecordedRequest` never calls the
 observer, so it cannot measure this path; `BenchmarkReaderQueryObserve` is new
 and drives the fenced `QueryContext`. The figures below come from a quiet remote
-Linux host. The BEFORE arms ran on a clean checkout of the PR base `4529a8f9`
+Linux host. The BEFORE arms ran on a clean checkout of #7572's base `4529a8f9`
 with only the two benchmark fixture files copied in (the base has no
 `ContextObserver` symbol; the AFTER binary has four). The AFTER arms ran on the
 reviewed head of #7572 (`d67c4ac8`, whose tree equals the squash-merge commit
