@@ -119,17 +119,9 @@ repository with code intents reads as a gap until the loader rebuilds it, which
 the loader already does for any watermark below the current epoch. Pre-upgrade
 watermarks (epoch default 0) are gaps for the same reason until rebuilt.
 
-Both scope sides read `ingestion_scopes_active_generation_idx`; the watermark side
-is a primary-key probe or a hash of the small watermark table. Neither statement
-reads `code_reachability_rows`.
+On the QA replica the scope side is a cheap sequential scan of the 819-row `ingestion_scopes` table, not the partial `ingestion_scopes_active_generation_idx` (799 of the 819 scopes qualify, so the index would not help); the earlier fixture-scale expectation that the partial index serves the scope side was wrong at this table size. The watermark side is a primary-key probe, and the intent probe is a correlated prefix probe. Neither statement reads `code_reachability_rows`.
 
-Performance Evidence: fixture-scale only, as above. The QA-replica `EXPLAIN` is
-UNMEASURED (SSO expired); the figures are not QA timings and do not support a
-QA-scale claim. At QA scale confirm: the scope side keeps using the partial index,
-the named statement stays a single pass for a large grant, and the intent probe
-stays a primary-key-prefix probe. A repository with many retained historical
-intents and no intent on its active generation scans those intents once per
-request before it is found complete; retention bounds it.
+Performance Evidence: QA replica, read-only, PostgreSQL 18.3, one data copy, three runs per case in one session, measured by the #7547 measurement agent (verified, not fixture). Execution times: named statement, 20 ids, 0.4 to 0.9 ms at epoch 3 and 0.95 to 1.9 ms with every watermark one epoch behind; named, 3,000 ids (799 real keys plus 2,201 absent), 23 to 42 ms at epoch 3 and 43 to 61 ms one epoch behind; all-repositories statement, 7.3 to 7.8 ms for a full pass with no gaps, 1.2 to 1.4 ms when it stops at its limit with every watermark behind, and 37 ms when every scope runs the intent probe. Shared-buffer hits stay in the tens of thousands at most (22,388 for the 3,000-id case one epoch behind, zero reads once warm). Plan facts: the named statement is one pass (a single scan of `ingestion_scopes` with `source_key = ANY($1)` and a hashed NOT IN, no list-by-scopes nested loop); the intent probe uses `shared_projection_acceptance_pkey` and then `shared_projection_intents_acceptance_lookup_idx`, and shows as never executed when there are no gaps. Identity check: 799 active repository scopes; 796 watermark rows for their active generation; the join on `repository_id = source_key` also gives 796; the 3 scopes without a watermark have no `code_calls` or `inheritance_edges` intents, so they are not gaps; all 796 watermarks are at epoch 3 with `truncated = false`, so at epoch 3 the coverage check finds 0 gaps. The all-repositories one-epoch-behind full-probe case ran on a generic plan (seventh execution of a prepared statement); the driver may choose differently. Fixture-scale figures earlier in this note stay labeled fixture-scale. A repository with many retained historical intents and no intent on its active generation scans those intents once per request before it is found complete; retention bounds it.
 
 No-Regression Evidence: the change adds one bounded statement per classified
 request and touches no existing statement, index, or writer.
@@ -175,7 +167,6 @@ operator finding a surprising `unknown_needs_evidence` reads the response's
   `source_key` as the repository id. Production already treats the two as one
   identity space: `code_reachability_rows.repository_id = ANY(grant)` and
   `scope.source_key = ANY(grant)` bind the same grant list in the evidence page
-  and in the changed-since and generation-lifecycle routes. It is not proven end
-  to end by a live row here; a QA check that the three counts agree
-  (`ingestion_scopes` repository scopes, watermarks, and the join of the two) is
-  the confirmation.
+  and in the changed-since and generation-lifecycle routes. The QA check that
+  the three counts agree (799 repository scopes, 796 watermarks, 796 in the join;
+  the 3 scopes without a watermark have no code intents) is recorded above.
