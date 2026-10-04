@@ -385,7 +385,7 @@ Focused live tests covered same-member snapshots, contention, topology
 rejection, and a refused-dial member-loss retry. A real proxy-loss endpoint
 test and representative fleet-scale latency remain **NOT_CHECKED**.
 
-The final-source comparison after the #7565 query-identity integration is in
+The query-path comparison after the #7565 query-identity integration is in
 [the reader-fleet A/B evidence](7033-reader-fleet-identity-final-source.md).
 
 ### Current deployed acceptance boundary

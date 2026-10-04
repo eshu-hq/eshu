@@ -1,6 +1,6 @@
-# #7033 final-source reader-fleet A/B
+# #7033 reader-fleet query-path A/B at source 987282a15
 
-Performance Evidence: The final code source `987282a151404e7ece59802f34d7a7ae782c7c71`
+Performance Evidence: The query-path code source `987282a151404e7ece59802f34d7a7ae782c7c71`
 was compared with main `791078e81a1f0c769ddf1e1f70792adc869cf5e7` on
 2026-10-04. Both APIs were built with Go 1.26.6 (binary SHA-256 values
 `88ea54e976ffc40b537fb18095647861213e510e366956c1012e9635b9f40546`
@@ -23,7 +23,7 @@ balanced ABBA rounds yielded 16 full-body HTTP timings per variant:
 | Source | Median | Nearest-rank p95 |
 | --- | ---: | ---: |
 | Main | 0.086599 s | 0.090735 s |
-| Final reader fleet | 0.090038 s | 0.095682 s |
+| Reader fleet at 987282a15 | 0.090038 s | 0.095682 s |
 
 The candidate/base median ratio was 1.039712, a 3.97% local median cost,
 not a speedup. The eight same-round ratios averaged 1.030643 with sample SD
@@ -43,6 +43,10 @@ The retained private harness and timing artifacts have SHA-256 values
 and `c0dace43b34fceab1b84b75c90644d1bd7d0dcb118052d22a77e5bb9ed596b21`.
 This small fixed-corpus comparison bounds the touched fleet path. It is not
 an ops-qa `<1 s` acceptance measurement or proof at 100,000 repositories.
+The later `e54a85fd0` change affects bootstrap qualification cleanup and its
+tests, not the timed request path after `/readyz`. That commit was not rebuilt
+or re-timed in this A/B; the numbers above are tied to the stated source and
+binary hashes, not claimed as an exact-final-binary latency result.
 
 Observability Evidence: Native standby tests verified that the query-start
 event records the leased backend PID and TCP peer on a recording request.
