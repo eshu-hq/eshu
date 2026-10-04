@@ -92,6 +92,69 @@ isolate the evidence term and are not a bar. The row base (each docstring
 clipped to 512 bytes but echoed about six times) is outside this cap, so a long-
 docstring repository can still be resource-only until the echo dedupe lands.
 
+## Consumer coverage gates "dead" (#7547)
+
+`dead` on the cross-repo route means "no consumer row AND no consumer repository
+is a coverage gap". A consumer with no row proves nothing when its snapshot is
+missing, its watermark is truncated, or its `verdict_schema_epoch` is below the
+current `CodeReachabilityVerdictSchemaEpoch` (imported from the reachability
+store, never copied, and bound as a parameter of both statements); those are the
+only three gaps the check detects. It does not see a stale or partly drained snapshot whose watermark says
+`truncated = false`, nor a zero-root snapshot until the writer stamps it
+truncated.
+`crossRepoDeadCodeConsumerCoverage` (`cross_repo_consumer_coverage.go`) runs one
+statement per request, through the optional `crossRepoDeadCodeCoverageStore`
+beside the evidence store, and `bucketCrossRepoDeadCodeResults` turns an
+incomplete answer into `consumer_coverage_incomplete`. The rules:
+
+- A strong live consumer outranks an incomplete one, exactly like the hidden
+  count: used stays used. Every other path to `dead` needs complete coverage.
+- The coverage universe is repositories that CAN be consumers: a missing,
+  truncated or older-epoch watermark is a gap only when the scope's active generation has a
+  `code_calls` or `inheritance_edges` intent (completed or pending). The intent
+  only decides whether a missing, truncated or older-epoch watermark counts; a pending intent
+  next to an existing `truncated = false` watermark is NOT a gap. No such
+  intent means complete (docs, IaC). Zero-root repositories with intents are NOT
+  excluded. Both statements carry the same probe, pinned by
+  `TestCrossRepoDeadCodeConsumerCoverageUniversePredicate`, and its meaning is
+  proven on PostgreSQL by `TestCrossRepoDeadCodeConsumerCoverageLive`.
+- Keep the statements' shape: the intent probe is a scalar `LIMIT 1` subquery
+  inside a `CASE` (as `EXISTS` Postgres hoists it into a hashed subplan over every
+  such intent), and the named statement finds scopes with a hashed
+  `source_key = ANY($1)` pass (a row-by-row join of the list to the scopes planned
+  as a nested loop, 520 ms for 3,000 ids). The response carries no checked-count:
+  it would force a full scan.
+- Each gap says WHY and whether a snapshot is expected without action: `no_snapshot_yet` (no watermark),
+  `truncated` (current-epoch watermark that cannot prove absence), `older_epoch`
+  (a refresh is expected) or `no_active_scope` (a named repository nobody ingested), with
+  the scope's active `generation_id` and a `retryable` HINT, not a promise (true only for the
+  first and third; it can stay true for a long time on a delta generation or a
+  full generation whose reducer work did not complete). The precedence inside one watermark is missing, then truncated,
+  then older epoch. A repository with several gap scopes yields one entry, a
+  truncated scope first and then the lowest generation id: the named statement
+  does it with `DISTINCT ON`, the all-repositories statement has no `ORDER BY`
+  (its `LIMIT` must stop the scan early) so
+  `ContentReader.CrossRepoDeadCodeConsumerCoverage` applies the same rule in Go.
+  The top-level `retryable` is false when the list was cut. Both are proven by
+  `TestCrossRepoDeadCodeConsumerCoverageLive`. `ORDER BY` uses the database
+  collation while `Outranks` and the final Go sort use byte order, so "lowest
+  generation" and the sort order can differ under a non-C collation between the
+  named and all-repositories paths; each is deterministic. Do not change the SQL
+  for this.
+- A store without the coverage method, or a coverage read that cannot answer,
+  is `cross_repo_evidence_unavailable`, never covered. A coverage read error is
+  a failed request.
+- The check is per request, never per candidate, and is skipped when no candidate
+  needs classifying. Do not move it into the candidate loop.
+- The check does not cover an UNGRANTED consumer with a partial snapshot: the
+  hidden-consumer probe that finds ungranted consumers needs rows to exist.
+- `CrossRepoDeadCodeCoverageGapCap` and the two coverage query constants
+  (`cross_repo_consumer_coverage_sql.go`) are exported for the one caller that
+  runs them, `ContentReader.CrossRepoDeadCodeConsumerCoverage` in package query,
+  whose receiver is declared in root.
+- The test doubles that predate this carry a coverage method that reports
+  complete; a new double that wants `dead` needs one too.
+
 ## Postgres reader failures (#7523)
 
 Every store or scan error in the three handlers goes through

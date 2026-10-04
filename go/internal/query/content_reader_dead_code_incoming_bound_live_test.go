@@ -353,3 +353,37 @@ func deadCodeIncomingSortedStrings(values []string) []string {
 	slices.Sort(out)
 	return out
 }
+
+// TestCrossRepoDeadCodeConsumerCoverageLive runs both shipped coverage
+// statements on PostgreSQL and proves which repositories are gaps (#7547). A
+// missing, truncated, or older-epoch watermark counts only for a repository whose
+// active generation has a code_calls or inheritance_edges intent (completed or
+// pending). With no such intent (docs, IaC, other domains, intents only on a
+// superseded generation) it is complete. A pending-only repository with no
+// watermark is a gap, and a repository with two scopes is a gap when either is.
+//
+// Run with a disposable PostgreSQL 18 administrative database, the same
+// variables as TestDeadCodeIncomingEntityIDsActiveRunBoundLive.
+func TestCrossRepoDeadCodeConsumerCoverageLive(t *testing.T) {
+	dsn := os.Getenv("ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN")
+	optIn := os.Getenv("ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("ApplyBootstrap(): %v", err)
+	}
+	for _, r := range coverageLiveRepos() {
+		seedCoverageLiveRepo(ctx, t, db, r)
+	}
+	reader := NewContentReader(db)
+	for _, tc := range coverageLiveCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := reader.CrossRepoDeadCodeConsumerCoverage(ctx, tc.request)
+			if err != nil {
+				t.Fatalf("CrossRepoDeadCodeConsumerCoverage() error = %v", err)
+			}
+			if !slices.Equal(got.Gaps, tc.want) || got.IncompleteTruncated {
+				t.Fatalf("gaps = %#v (truncated=%v), want %#v", got.Gaps, got.IncompleteTruncated, tc.want)
+			}
+		})
+	}
+}

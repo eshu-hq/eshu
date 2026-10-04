@@ -15,7 +15,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 
-	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -139,12 +138,19 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	coverage, err := a.crossRepoDeadCodeConsumerCoverage(r.Context(), len(scan.Active), req.ConsumerRepoIDs, evidenceAvailable)
+	if err != nil {
+		a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
+		return
+	}
+
 	boundaryEvidence := a.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
 	buckets, boundaryVisible := a.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
 		Evidence:        evidence,
 		HiddenConsumers: hiddenConsumers,
 		Boundary:        boundaryEvidence,
 		Available:       evidenceAvailable,
+		Coverage:        coverage,
 	})
 	// Counts and analysis read the classified buckets; shaping only changes what
 	// ships, so they are identical in full and handles (#7129).
@@ -179,6 +185,9 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 	// every fallback row used to repeat, returned once (#7129).
 	for key, value := range shaped.Data {
 		data[key] = value
+	}
+	if summary := coverage.summary(); summary != nil {
+		data["consumer_coverage"] = summary
 	}
 	truth := querycontract.BuildTruthEnvelope(a.deps.Profile, crossRepoDeadCodeCapability, querycontract.TruthBasisHybrid, "resolved from bounded candidate scan plus active cross-repo consumer evidence")
 	truth.Omissions = shaped.Omissions
@@ -302,6 +311,11 @@ type crossRepoDeadCodeConsumerEvidenceSet struct {
 	HiddenConsumers code.CrossRepoDeadCodeHiddenConsumers
 	Boundary        []CrossRepoDeadCodeEvidence
 	Available       bool
+	// Coverage is the per-request consumer-coverage check (#7547): whether any
+	// consumer repository this answer is judged against has no reachability
+	// watermark for its active generation, a truncated one, or an older-epoch one. A symbol with no
+	// consumer row is only dead when none does.
+	Coverage crossRepoDeadCodeConsumerCoverageResult
 }
 
 func (a *Analyzer) crossRepoDeadCodeConsumerEvidence(
@@ -396,7 +410,13 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 		if strongLiveEvidence {
 			unknownHiddenCount = 0
 		}
-		reasons := crossRepoDeadCodeUnknownReasons(row, visible, unknownHiddenCount, consumers.Available)
+		// An incomplete consumer snapshot is outranked the same way: strong
+		// evidence from a consumer proves use whatever another one's snapshot
+		// lacks, but with none the missing row proves nothing (#7547).
+		coverageIncomplete := consumers.Coverage.incomplete() && !strongLiveEvidence
+		reasons := crossRepoDeadCodeUnknownReasons(
+			row, visible, unknownHiddenCount, consumers.Available && !consumers.Coverage.Unavailable, coverageIncomplete,
+		)
 		if len(reasons) > 0 {
 			row["classification"] = "unknown_needs_evidence"
 			row["needs_evidence_reasons"] = reasons
@@ -422,75 +442,4 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 		return buckets, nil
 	}
 	return buckets, boundaryVisible
-}
-
-func crossRepoDeadCodeHasStrongLiveEvidence(evidence []CrossRepoDeadCodeEvidence) bool {
-	for _, item := range evidence {
-		if item.NeedsEvidence || item.Ambiguous || !strings.EqualFold(item.GenerationStatus, "active") {
-			continue
-		}
-		if item.Confidence > codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName) {
-			return true
-		}
-	}
-	return false
-}
-
-func crossRepoDeadCodeStrongestConfidenceLabel(evidence []CrossRepoDeadCodeEvidence) string {
-	best := 0.0
-	label := ""
-	for _, item := range evidence {
-		if item.Confidence > best {
-			best = item.Confidence
-			label = item.ConfidenceLabel
-		}
-	}
-	if label == "" {
-		return CrossRepoDeadCodeConfidenceLabel(best)
-	}
-	return label
-}
-
-func CrossRepoDeadCodeConfidenceLabel(confidence float64) string {
-	switch {
-	case confidence >= 0.9:
-		return "high"
-	case confidence > codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName):
-		return "medium"
-	case confidence > 0:
-		return "low"
-	default:
-		return "unknown"
-	}
-}
-
-func crossRepoDeadCodeConsumerSet(values []string) map[string]struct{} {
-	if len(values) == 0 {
-		return nil
-	}
-	set := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			set[value] = struct{}{}
-		}
-	}
-	return set
-}
-
-func cleanCrossRepoDeadCodeStrings(values []string) []string {
-	cleaned := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		cleaned = append(cleaned, value)
-	}
-	return cleaned
 }

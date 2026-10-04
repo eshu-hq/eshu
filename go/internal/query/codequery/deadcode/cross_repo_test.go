@@ -361,6 +361,19 @@ type crossRepoDeadCodeContentStore struct {
 	// hiddenConsumers stands in for the ungranted-consumer probe's answer: the
 	// producer entities that have a consumer outside the caller's grant.
 	hiddenConsumers []string
+	// coverageGaps stands in for the consumer-coverage check's answer: the
+	// consumer repositories without a complete watermark. The zero value is a
+	// fully covered corpus, so every test that predates #7547 keeps its meaning.
+	coverageGaps []string
+	// coverageDetail, when set, is the coverage answer's gaps verbatim (state,
+	// generation, retryable) in place of one default gap per coverageGaps id.
+	coverageDetail []code.CrossRepoDeadCodeCoverageGap
+	// coverageCut marks the answer's gap list as cut at its cap.
+	coverageCut bool
+	// coverageErr fails the coverage check.
+	coverageErr error
+	// coverageRequests records each request the handler sent, in order.
+	coverageRequests []code.CrossRepoDeadCodeCoverageRequest
 }
 
 func (s *crossRepoDeadCodeContentStore) DeadCodeCandidateRows(

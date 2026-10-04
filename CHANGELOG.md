@@ -9,6 +9,32 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Cross-repo dead-code stays unknown when a consumer's snapshot is incomplete
+
+- **`find_cross_repo_dead_code` / `POST /api/v0/code/dead-code/cross-repo` no
+  longer report a symbol dead when a consumer repository's reachability snapshot
+  is incomplete** ([#7547](https://github.com/eshu-hq/eshu/issues/7547)). A symbol
+  with no consumer row was `dead` even when the consumer's active snapshot was
+  missing or truncated, so every symbol that consumer calls read dead. The route
+  now checks `code_reachability_repository_watermarks` once per request and
+  returns `unknown_needs_evidence` with the new reason `consumer_coverage_incomplete`
+  when a consumer repository with `code_calls` or `inheritance_edges` work for its
+  active generation has no watermark for that generation, a truncated one, or one
+  stamped with an older verdict schema epoch.
+  Strong live consumer evidence still wins. The check cannot see a stale or partly
+  drained snapshot whose watermark says `truncated = false`, and a repository with
+  zero roots counts only once the writer stamps its watermark truncated.
+  The response gains `consumer_coverage` (`complete`, `retryable`, `incomplete`,
+  `incomplete_repo_ids`, `incomplete_truncated`). Each `incomplete` entry names
+  the repository, a `state` (`no_snapshot_yet`, `older_epoch`, `truncated` or
+  `no_active_scope`), the `generation_id` and a `retryable` hint: for a missing or older-epoch
+  snapshot one is expected to appear or refresh without action, for a truncated
+  one it is not. The hint is not a promise: it can stay true for a long time when
+  the active generation is a delta generation or a full generation whose reducer
+  work did not complete. `retryable` at the top is true only when every gap is
+  retryable. An unscoped request with no named consumers checks every
+  repository, so name `consumer_repo_ids` to narrow it.
+
 ### Cross-repo dead-code returns repository-boundary evidence once
 
 - **`find_cross_repo_dead_code` / `POST /api/v0/code/dead-code/cross-repo` no

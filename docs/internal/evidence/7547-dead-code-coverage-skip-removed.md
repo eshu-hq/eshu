@@ -52,7 +52,7 @@ The reducer now stamps `truncated = true` for a zero-root snapshot and for a dep
 
 PR #7570 stamps new snapshots with these semantics. The epoch bump (`CodeReachabilityVerdictSchemaEpoch` 3 to 4) is in its own change, slice E of #7547, so already-stamped watermarks re-project once and are re-stamped. Until that change deploys and its drain finishes, watermarks already stamped keep their old `truncated` value. The cost, drain estimate, watch plan, and rollback are in [7547-reachability-epoch-4-bump.md](7547-reachability-epoch-4-bump.md).
 
-Consumer effect: nothing on `origin/main` reads `watermark.truncated` today, so no served answer changes with this change. Once the companion cross-repo reader (PR C) lands, an unscoped cross-repo dead-code request reads as unknown for a repo whose watermark is stamped truncated, instead of as proven dead. A zero-root repo leaves that state only when it gains a root.
+Consumer effect: nothing on `origin/main` reads `watermark.truncated` today, so no served answer changes with this change (the single-repo reader stopped consulting the watermark in #7559, and `CodeReachabilityCoverage` has no non-test caller). Once the companion cross-repo reader (PR C) lands, an unscoped cross-repo dead-code request reads as unknown for a repo whose watermark is stamped truncated, instead of as proven dead. A zero-root repo leaves that state only when it gains a root.
 
 Log and counter: `snapshots_truncated` now also counts zero-root snapshots. To keep it from burying real signals, the per-snapshot `truncation_reason = no_roots` line logs at INFO, while `max_visited` and `max_depth` stay at WARN.
 

@@ -130,6 +130,7 @@ func crossRepoDeadCodeUnknownReasons(
 	evidence []CrossRepoDeadCodeEvidence,
 	hiddenCount int,
 	evidenceAvailable bool,
+	coverageIncomplete bool,
 ) []string {
 	reasons := make([]string, 0)
 	if !evidenceAvailable {
@@ -137,6 +138,9 @@ func crossRepoDeadCodeUnknownReasons(
 	}
 	if hiddenCount > 0 {
 		reasons = append(reasons, "permission_hidden_consumer")
+	}
+	if coverageIncomplete {
+		reasons = append(reasons, crossRepoDeadCodeConsumerCoverageReason)
 	}
 	if row["classification"] == codemodel.DeadCodeClassificationAmbiguous {
 		reasons = append(reasons, "candidate_ambiguous")

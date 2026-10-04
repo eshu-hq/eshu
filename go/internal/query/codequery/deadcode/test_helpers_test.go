@@ -338,3 +338,13 @@ func newDeadCodeTestAnalyzer(content deadcode.ContentStore, graph deadcode.Graph
 		NextCalls:       deadcode.InvestigationNextCalls,
 	})
 }
+
+// CrossRepoDeadCodeConsumerCoverage reports every consumer repository complete,
+// so this double keeps classifying exactly as it did before the reader consulted
+// reachability watermarks (#7547).
+func (s *crossRepoDeadCodeGrantStore) CrossRepoDeadCodeConsumerCoverage(
+	_ context.Context,
+	_ code.CrossRepoDeadCodeCoverageRequest,
+) (code.CrossRepoDeadCodeCoverage, error) {
+	return code.CrossRepoDeadCodeCoverage{}, nil
+}

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	reachabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -371,4 +373,121 @@ func crossRepoDeadCodeRelationshipType(evidence []string) string {
 
 func crossRepoDeadCodeCitation(generationID string, consumerRepoID string, rootEntityID string, entityID string) string {
 	return "code_reachability_rows:" + generationID + "/" + consumerRepoID + "/" + rootEntityID + "/" + entityID
+}
+
+// CrossRepoDeadCodeConsumerCoverage reports which consumer repositories the
+// request covers lack a complete reachability snapshot for their active
+// generation. The dead-code route calls it once per request: a producer symbol
+// with no consumer row is only dead when this answer is complete, because a
+// repository whose snapshot is missing, truncated, or built under an older
+// verdict schema epoch (reachabilitystore.CodeReachabilityVerdictSchemaEpoch,
+// bound by this method) contributes no rows, or wrong ones, for symbols it really
+// does call (#7547). Those are the only three gaps it detects: a
+// stale or partly drained snapshot whose watermark says truncated = false reads
+// complete, as does a zero-root repository until the writer stamps it truncated.
+//
+// Each gap carries why it is one (no_snapshot_yet, truncated, older_epoch or
+// no_active_scope), the scope's active generation id, and whether a snapshot is expected
+// without action (a hint, not a promise). The named statement returns one row per repository; the
+// all-repositories statement can return one per scope, and this method keeps one
+// per repository by the rule on code.CrossRepoDeadCodeCoverageGap. A state this
+// method does not know is an error, never a made-up retry promise.
+//
+// An empty request that is not AllRepositories is refused rather than answered
+// "complete": naming no repository proves nothing about any of them.
+func (cr *ContentReader) CrossRepoDeadCodeConsumerCoverage(
+	ctx context.Context,
+	request code.CrossRepoDeadCodeCoverageRequest,
+) (code.CrossRepoDeadCodeCoverage, error) {
+	if cr == nil || cr.db == nil {
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: content reader unavailable")
+	}
+	if !request.AllRepositories && len(request.RepositoryIDs) == 0 {
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: request names no repositories")
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx,
+		"postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "cross_repo_dead_code_consumer_coverage"),
+			attribute.String("db.sql.table", "code_reachability_repository_watermarks"),
+			attribute.Bool("db.coverage.all_repositories", request.AllRepositories),
+			attribute.Int("db.coverage.requested_repositories", len(request.RepositoryIDs)),
+		),
+	)
+	defer span.End()
+
+	limit := deadcode.CrossRepoDeadCodeCoverageGapCap + 1
+	epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
+	query, args := deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery, []any{epoch, limit}
+	if !request.AllRepositories {
+		query = deadcode.CrossRepoDeadCodeNamedConsumerCoverageQuery
+		args = []any{array.Of(request.RepositoryIDs), request.RequireActiveScope, epoch, limit}
+	}
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	// A repository behind several scopes can come back once per scope on the
+	// all-repositories read; keep one gap per repository.
+	picked := make(map[string]code.CrossRepoDeadCodeCoverageGap, limit)
+	rowCount := 0
+	for rows.Next() {
+		rowCount++
+		var repositoryID string
+		var state, generationID sql.NullString
+		if err := rows.Scan(&repositoryID, &state, &generationID); err != nil {
+			span.RecordError(err)
+			return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("scan cross-repo dead code consumer coverage: %w", err)
+		}
+		gap := code.CrossRepoDeadCodeCoverageGap{
+			RepositoryID: repositoryID,
+			State:        state.String,
+			GenerationID: generationID.String,
+			Retryable:    code.CrossRepoDeadCodeCoverageGapRetryable(state.String),
+		}
+		if !state.Valid || !gap.KnownState() {
+			err := fmt.Errorf("cross-repo dead code consumer coverage: repository %q has unknown gap state %q", repositoryID, state.String)
+			span.RecordError(err)
+			return code.CrossRepoDeadCodeCoverage{}, err
+		}
+		if current, ok := picked[repositoryID]; !ok || gap.Outranks(current) {
+			picked[repositoryID] = gap
+		}
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: %w", err)
+	}
+
+	gaps := make([]code.CrossRepoDeadCodeCoverageGap, 0, len(picked))
+	for _, gap := range picked {
+		gaps = append(gaps, gap)
+	}
+	slices.SortFunc(gaps, func(a, b code.CrossRepoDeadCodeCoverageGap) int {
+		return strings.Compare(a.RepositoryID, b.RepositoryID)
+	})
+	coverage := code.CrossRepoDeadCodeCoverage{}
+	// Reaching the limit means the statement may have stopped short, which a
+	// repository reported by two scopes can hide behind the dedupe above.
+	if rowCount >= limit {
+		coverage.IncompleteTruncated = true
+	}
+	if len(gaps) > deadcode.CrossRepoDeadCodeCoverageGapCap {
+		gaps = gaps[:deadcode.CrossRepoDeadCodeCoverageGapCap]
+	}
+	if len(gaps) > 0 {
+		coverage.Gaps = gaps
+	}
+	span.SetAttributes(
+		attribute.Int("db.rows.incomplete_consumer_repositories", len(gaps)),
+		attribute.Bool("db.coverage.truncated", coverage.IncompleteTruncated),
+		attribute.Bool("db.coverage.retryable", coverage.Retryable()),
+	)
+	return coverage, nil
 }

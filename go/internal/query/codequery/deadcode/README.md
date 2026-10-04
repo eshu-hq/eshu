@@ -82,3 +82,15 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
 - **Exports are caller-driven.** Every export exists because a staying
   caller names it (delegates, seam, grant proofs, staying tests); each
   carries a comment saying which. Do not export anything else.
+- **Consumer coverage gates "dead" (#7547).** The cross-repo route classifies a
+  symbol `dead` only when every consumer repository its answer is judged against
+  has a complete reachability watermark (present, `truncated = false`, current
+  verdict schema epoch) for its active generation, checked once per request, counting only repositories whose active
+  generation has a `code_calls` or `inheritance_edges` intent (the ones that can
+  be consumers). An incomplete consumer makes a symbol
+  with no strong live evidence `unknown_needs_evidence` with
+  `consumer_coverage_incomplete`; the response's `consumer_coverage` object
+  names the incomplete repositories, each with a `state` (`no_snapshot_yet`,
+  `older_epoch`, `truncated`, `no_active_scope`), the `generation_id` and a
+  `retryable` hint (a snapshot is expected without action; not a promise). See
+  `docs/public/reference/dead-code-reachability-spec.md`.
