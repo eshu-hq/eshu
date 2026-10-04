@@ -29,9 +29,10 @@ measurement agent's local `7547-gate` scratch directory and are not committed.
 The QA measurement session ran two statements of the naive gate shape on the
 replica with a 60 s statement timeout. The standby cancelled both ("conflict
 with recovery", `confl_snapshot` = 2 in `pg_stat_database_conflicts`). The
-window was 2026-10-04 around 09:55 to 10:20 UTC. API reads may have returned
-500s through the 2 s replay fence during it. That is not confirmed: no API logs
-were read. From now on, replica reads use a statement timeout of 10 s or less,
+window was 2026-10-04 around 09:55 to 10:20 UTC. API reads may have been refused
+through the 2 s replay fence during it; the dead-code routes map a reader-fence
+failure to a retryable 503 with Retry-After (#7523), so the visible effect would
+be 503s, not 500s. That is not confirmed: no API logs were read. From now on, replica reads use a statement timeout of 10 s or less,
 run `EXPLAIN` without `ANALYZE` first for any new query shape, read replay lag
 and the API 5xx rate before and after a heavy read, and run in a quiet window.
 
