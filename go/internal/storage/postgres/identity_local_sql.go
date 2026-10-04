@@ -270,11 +270,11 @@ INSERT INTO identity_local_auth_attempts (
     locked_until,
     last_failed_at,
     updated_at
-) VALUES ($1, 1, CASE WHEN 1 >= $2 THEN $3 ELSE NULL END, $4, $4)
+) VALUES ($1, 1, CASE WHEN 1 >= $2::int THEN $3::timestamptz ELSE NULL END, $4, $4)
 ON CONFLICT (user_id) DO UPDATE
 SET failed_attempts = identity_local_auth_attempts.failed_attempts + 1,
     locked_until = CASE
-        WHEN identity_local_auth_attempts.failed_attempts + 1 >= $2 THEN $3
+        WHEN identity_local_auth_attempts.failed_attempts + 1 >= $2::int THEN $3::timestamptz
         ELSE identity_local_auth_attempts.locked_until
     END,
     last_failed_at = EXCLUDED.last_failed_at,
