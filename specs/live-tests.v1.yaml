@@ -15,8 +15,8 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 569
-  sha256: c9ea707ef12e7ce1f0deeb22c38cb01e022197729e5c4c8e0e00c33d19f6e900
+  count: 570
+  sha256: 0cd3090ac24d58986903ab77ed872c636717b89e945584c83e485ae0c5549c03
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
@@ -1996,6 +1996,10 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/storage/postgres/identity_local_failed_attempt_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged Postgres-only failed-attempt upsert proof for #7498 gated by ESHU_POSTGRES_DSN Skip; ~4.5s locally including full bootstrap migration; promote to blocking with timing evidence"
   - file: go/internal/storage/postgres/identity_mapping_pagination_live_test.go
     tag: ~
     class: scheduled
