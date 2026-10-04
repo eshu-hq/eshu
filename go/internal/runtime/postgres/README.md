@@ -68,8 +68,10 @@ before borrowing a reader.
   member qualification at one third of its single
   `min(PingTimeout, caller deadline)` budget each; readiness uses the remaining
   deadline. Without an inventory, writer bootstrap and readiness share the
-  full startup budget. Canceled
-  bootstrap sockets and pgx cleanup are joined before an Access can be returned.
+  full startup budget. A successfully qualified member finishes pgx cleanup
+  before `Open` can return an `Access`. On a canceled qualification, tracked
+  sockets are closed by the stage deadline; `Open` can return while pgx's
+  asynchronous cleanup is still pending.
 
 The reader pool sets `default_transaction_read_only=on` on every physical
 connection, including reconnects. A DSN's `target_session_attrs=read-write`
@@ -88,20 +90,16 @@ both the member and aggregate caps. An older waiting four-slot set is protected
 from later single reads on the same member while another available member can
 continue serving work. Cancellation and setup failures release all slots.
 Cursor close does not release its transaction. Fleet setup can retry another
-  member within one overall replay deadline, starting with a short attempt when
-  an alternative is available. A changed local incarnation/address may fail
-over only to a different qualified member; writer/checkpoint and shared
-configuration mismatches fail closed. No snapshot or partial result crosses
-  members.
-  The setup attempt bounds transaction start, snapshot export, and imports.
-  The setup timer is detached only after those steps finish; a returned set
-  remains owned by the caller context until it is closed or canceled.
-  Fleet setup gives each eligible, untried member a share of the remaining
-  replay deadline after reservation; the last member receives the remainder.
-  A stalled first member in a two-reader fleet can therefore use about half
-  the window before failover. This preserves a chance for the peer but does
-  not promise subsecond degraded-path latency with the default two-second
-  replay window.
+member within one overall replay deadline. Each eligible, untried member
+receives a share of the remaining deadline after reservation; the last member
+receives the remainder. A stalled first member in a two-reader fleet can use
+about half the default two-second replay window before failover, so degraded
+latency is not guaranteed to be subsecond. A changed local incarnation/address
+may fail over only to a different qualified member; writer/checkpoint and
+shared configuration mismatches fail closed. No snapshot or partial result
+crosses members. The setup attempt bounds transaction start, snapshot export,
+and imports. Its timer is detached only after those steps finish; a returned
+set remains owned by the caller context until it is closed or canceled.
 If an established fleet connection is lost during a snapshot, a narrow
 `ReaderMemberLost() bool` error marker permits the caller to retry its whole
 read workflow from a fresh snapshot, not an individual SQL statement. The
