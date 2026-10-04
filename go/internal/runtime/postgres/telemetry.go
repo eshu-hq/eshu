@@ -76,9 +76,11 @@ func (o *otelObserver) Observe(role string, stage Stage, outcome Outcome, durati
 
 // ObserveContext records only closed role, stage, and outcome values; invalid
 // values collapse to unknown rather than becoming a metric or trace
-// cardinality leak. The stage span starts from ctx, so under a recording
-// request span it is that request's child and a slow request names the stage
-// that paid for it (#7545). The span keeps the retro-fitted start timestamp, so
+// cardinality leak. The stage span starts from ctx, so it is a child of
+// whatever recording span is active on ctx (the API server span or the query
+// handler span; the writer checkpoint runs before a handler span exists, so on
+// MCP, which has no server span, it stays a root) and a slow request names the
+// stage that paid for it (#7545). The span keeps the retro-fitted start timestamp, so
 // it covers the stage, not the callback.
 func (o *otelObserver) ObserveContext(ctx context.Context, role string, stage Stage, outcome Outcome, duration time.Duration) {
 	if o == nil {

@@ -57,7 +57,7 @@ Access is ready, then require the old Access to reject the new incarnation.
 `ctx` at every call site and calls `ObserveContext` when the observer implements
 it, `Observe` otherwise, never both. Pass the request context (not
 `context.Background()`) at any new `observe` call so the stage span parents to
-the request and the `db.StageTimings` accumulator on it is filled; the four
+the span active on the request and the `db.StageTimings` accumulator on it is filled; the four
 reader stages map to `db.ReaderStage` in `requestReaderStage`, the writer
 checkpoint has no slot. A missing accumulator and observer must cost one
 `ctx.Value` lookup (`BenchmarkReaderQueryObserve`, #7545 evidence).

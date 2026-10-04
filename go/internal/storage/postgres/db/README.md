@@ -79,9 +79,12 @@ transaction, or a raw connection.
   finishes; the caller reads `Seconds`, `Count`, and `Recorded` afterward.
   Every figure is the SUM across all observations of that stage inside the
   wrapped read (borrow can run more than once per request), and `Recorded` is
-  false when the read never went through the guarded reader. Two atomic
-  counters per stage, no lock, no growth; a nil accumulator and an out-of-set
-  stage are no-ops.
+  false when the read never went through the guarded reader. Because they are
+  sums, a caller that runs reader operations concurrently inside one
+  accumulator scope can see the sum of stages exceed wall time; the
+  impact-findings route runs its reads one after another, so it cannot. Two
+  atomic counters per stage, no lock, no growth; a nil accumulator and an
+  out-of-set stage are no-ops.
 
 The seven original interfaces keep the exact names, method sets, and
 semantics they had in the root package. There are no aliases left behind in root and no forwarding

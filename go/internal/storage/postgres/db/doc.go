@@ -40,7 +40,10 @@
 // per-request accounting of guarded-reader stage time (#7545): the query layer
 // attaches an accumulator to the context of one read, runtime/postgres adds the
 // borrow, identity, replay, and business-query durations it observes, and the
-// caller reads the sums afterward. Each stage carries a SUM and an observation
+// caller reads the sums afterward. The values are sums, so a caller that runs
+// reader operations concurrently inside one accumulator scope can see the sum of
+// stages exceed wall time; the impact-findings route runs its reads one after
+// another, so it cannot. Each stage carries a SUM and an observation
 // count because a stage can run more than once per request. The accumulator is
 // two atomic counters per stage with no lock and no growth, and it carries no
 // SQL text, error text, or identifier.

@@ -158,12 +158,53 @@ func TestGuardedQueryFillsRequestStageTimings(t *testing.T) {
 	}
 }
 
-// TestGuardedQueryWithoutAccumulatorPaysNothing keeps the no-accumulator path
-// working and leaves a bare ctx without timings.
-func TestGuardedQueryWithoutAccumulatorPaysNothing(t *testing.T) {
+// TestRequestStageTimingsKeepEachStageInItsOwnSlot gives exactly one stage a
+// delay per case and requires that stage's slot to carry it and every other
+// slot to stay below it, so swapping two slots in requestReaderStage cannot
+// pass. Only lower bounds and the ordering of the configured delay against
+// microsecond-scale fake-driver work are used, never a tight upper bound.
+func TestRequestStageTimingsKeepEachStageInItsOwnSlot(t *testing.T) {
+	const delay = 25 * time.Millisecond
+	stages := []struct {
+		name   string
+		slot   db.ReaderStage
+		delays stageFixtureDelays
+	}{
+		{"borrow", db.ReaderStageBorrow, stageFixtureDelays{connect: delay}},
+		{"identity", db.ReaderStageIdentity, stageFixtureDelays{identity: delay}},
+		{"replay", db.ReaderStageReplay, stageFixtureDelays{replay: delay}},
+		{"business_query", db.ReaderStageBusinessQuery, stageFixtureDelays{business: delay}},
+	}
+	all := []db.ReaderStage{db.ReaderStageBorrow, db.ReaderStageIdentity, db.ReaderStageReplay, db.ReaderStageBusinessQuery}
+	for _, tt := range stages {
+		t.Run(tt.name, func(t *testing.T) {
+			access, ctx := newDelayedStageFixtureAccess(t, nil, tt.delays)
+			ctx, timings := db.WithStageTimings(ctx)
+			runStageFixtureQuery(t, access, ctx)
+			if got := timings.Seconds(tt.slot); got < delay.Seconds() {
+				t.Errorf("%s slot = %vs, want >= %vs", tt.name, got, delay.Seconds())
+			}
+			for _, other := range all {
+				if other != tt.slot && timings.Seconds(other) >= delay.Seconds() {
+					t.Errorf("slot %d = %vs while only %s was delayed %vs: stage slots are swapped",
+						other, timings.Seconds(other), tt.name, delay.Seconds())
+				}
+			}
+		})
+	}
+}
+
+// TestGuardedQueryLeavesAnUnattachedAccumulatorEmpty runs a guarded query with
+// no accumulator on its context and proves it neither fails nor leaks stage
+// time into an accumulator that was created but not attached to that context.
+func TestGuardedQueryLeavesAnUnattachedAccumulatorEmpty(t *testing.T) {
 	access, ctx := newStageFixtureAccess(t, nil, 0)
+	_, unattached := db.WithStageTimings(context.Background())
 	runStageFixtureQuery(t, access, ctx)
-	if got := db.StageTimingsFrom(ctx); got != nil {
-		t.Fatalf("StageTimingsFrom = %v, want nil", got)
+	if db.StageTimingsFrom(ctx) != nil {
+		t.Fatal("bare request context unexpectedly carries an accumulator")
+	}
+	if unattached.Recorded() {
+		t.Fatal("an accumulator not attached to the request context was filled")
 	}
 }

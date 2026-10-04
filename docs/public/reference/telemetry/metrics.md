@@ -55,12 +55,18 @@ to identify the pressured member. `eshu_dp_postgres_reader_member_attempts_total
 counts each fleet attempt by original `member_ordinal` and a closed `outcome`
 (`ok`, `error`, `deadline`, or `canceled`). An error rate on one ordinal beside
 successful attempts on another shows failover without exposing the endpoint.
-The `NewObserver` observer implements the optional `ContextObserver`, so each
-`postgres.reader_access` stage span, on the single-endpoint and member-fleet
-paths alike, is a child of the API/MCP request span and follows its sampling
-decision (#7545); an observer without that method still receives the
-request-less `Observe` and its spans are roots. These signals do not establish
-deployed latency or replica
+The `NewObserver` observer implements the optional
+`ContextObserver`, so each reader `postgres.reader_access` stage span, on the
+single-endpoint and member-fleet paths alike, is a child
+of whatever span is active on the request context (the API server span or the
+query handler span) and follows its sampling decision (#7545). The
+writer-checkpoint span is a child of the API server span and stays a root on
+MCP, which has no server span when the checkpoint is taken. The histogram sample
+is recorded with the request context, so for a sampled request the SDK's default
+trace-based exemplar filter attaches a trace exemplar; set
+`OTEL_METRICS_EXEMPLAR_FILTER` to change it. An observer
+without that method still receives the request-less `Observe` and its spans are
+roots. These signals do not establish deployed latency or replica
 capacity until API/MCP wiring and measurement are complete.
 
 The active recording span in a request trace receives `postgres.reader_query_start` before

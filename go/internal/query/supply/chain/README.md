@@ -118,7 +118,9 @@ attributes are present only when the guarded reader recorded a stage. The other
 stages, the cloud-runtime probe, and the readiness read do not carry them.
 `business_query_seconds` covers only the database call that starts the query;
 row streaming, scanning, and decoding happen afterward and are not timed, so the
-four sums can sit well below the stage's `duration_seconds`.
+four sums can sit well below the stage's `duration_seconds`. The values are
+sums, which could exceed wall time only if reader operations ran concurrently in
+one scope; the findings read runs them one after another, so they cannot.
 
 A handler-owned HTTP 500 on the route additionally emits ONE ERROR-level
 `supply_chain_query.stage_failed` event, because `querycontract.WriteError`

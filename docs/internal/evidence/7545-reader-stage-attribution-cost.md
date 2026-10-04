@@ -16,8 +16,9 @@ The change adds three things and no SQL, pool, timeout, or query change:
   `go/internal/runtime/postgres`. `Access` calls `ObserveContext` with the
   request context when the observer implements it and the legacy `Observe`
   otherwise. `otelObserver` implements it, so each `postgres.reader_access`
-  span is a child of the request span and the stage histogram sample uses the
-  request context.
+  span is a child of whatever span is active on the request context (the API
+  server span or the query handler span) and the stage histogram sample uses
+  the request context.
 - `db.StageTimings` in `go/internal/storage/postgres/db`: a fixed-size,
   goroutine-safe accumulator of two atomic counters per stage for the four
   reader stages. `Access` adds each observed reader stage to the accumulator on
@@ -36,10 +37,15 @@ handler-side work.
 
 Three behavior consequences are recorded rather than hidden. Stage spans now
 follow the request's sampling decision instead of being sampled as independent
-roots, so `postgres.reader_access` volume tracks sampled requests. The writer
-checkpoint span also becomes a child of the request span. Recording the
-histogram with the request context lets the SDK attach trace exemplars when it
-is configured to.
+roots, so `postgres.reader_access` volume tracks sampled requests. Reader
+stage spans are children of whatever span is active on the request context (the
+API server span or the query handler span); the writer-checkpoint span is a
+child of the API server span and stays a root on MCP, which has no server span
+when the checkpoint is taken. The histogram sample is recorded with the request
+context, so for a sampled request the SDK's default trace-based exemplar filter
+(`exemplar.TraceBasedFilter` in the pinned `go.opentelemetry.io/otel/sdk/metric`
+v1.45.0, with nothing in the repo setting `OTEL_METRICS_EXEMPLAR_FILTER`)
+attaches a trace exemplar; set `OTEL_METRICS_EXEMPLAR_FILTER` to change it.
 
 ## Method
 
@@ -120,7 +126,7 @@ No-Regression Evidence: allocs/op per guarded query are identical before and aft
 
 ## Observability
 
-Observability Evidence: the `supply chain query stage completed` log line for stage `impact_findings_query` carries `reader_borrow_seconds`, `reader_identity_seconds`, `reader_replay_seconds`, and `business_query_seconds` on every guarded read with no sampling, and `postgres.reader_access` spans are children of the request span in the trace; proven by `TestImpactFindingsStageCompletionCarriesReaderStageSeconds`, `TestReaderStageSpansAreChildrenOfTheRequestSpan`, and `TestGuardedQueryFillsRequestStageTimings`.
+Observability Evidence: the `supply chain query stage completed` log line for stage `impact_findings_query` carries `reader_borrow_seconds`, `reader_identity_seconds`, `reader_replay_seconds`, and `business_query_seconds` on every guarded read with no sampling, and reader `postgres.reader_access` spans are children of the span active on the request context in the trace; proven by `TestImpactFindingsStageCompletionCarriesReaderStageSeconds`, `TestReaderStageSpansAreChildrenOfTheRequestSpan`, and `TestGuardedQueryFillsRequestStageTimings`.
 
 Closed sets: the accumulator holds four stages and ignores any other value; the
 attribute keys are fixed; no SQL text, error text, endpoint, or identifier enters
@@ -135,6 +141,11 @@ keeps its `role`, `stage`, and `outcome` labels and its buckets.
 - Removing the accumulator `Add` in `Access.observe` turned
   `TestGuardedQueryFillsRequestStageTimings` red for the nil, legacy, and otel
   observers.
+- Swapping two slots in `requestReaderStage` (identity with replay, and borrow
+  with business query), applied through a `go test -overlay` copy and never to
+  the real file, turned `TestRequestStageTimingsKeepEachStageInItsOwnSlot` red;
+  it gives one stage a 25 ms fake-driver delay per case and requires that slot
+  to carry it while every other slot stays below it. The real tree passes.
 - Dropping the attributes from the findings stage line turned
   `TestImpactFindingsStageCompletionCarriesReaderStageSeconds` red. That test
   records through a store stub because `query` must not import
