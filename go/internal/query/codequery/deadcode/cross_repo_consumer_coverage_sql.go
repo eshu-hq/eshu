@@ -53,9 +53,10 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 //
 // Plan class, measured on the QA replica (PostgreSQL 18.3, 819-row
 // ingestion_scopes, see docs/internal/evidence/7547-cross-repo-consumer-coverage.md):
-// the scope side is a cheap sequential scan (799 of 819 scopes qualify, so the
-// partial index ingestion_scopes_active_generation_idx would not help); there is no
-// source_key index. Each gap candidate adds a watermark primary-key probe and, for
+// the scope side is a cheap sequential scan on the custom plan (the generic plan,
+// from the sixth prepared execution on, used the partial index
+// ingestion_scopes_active_generation_idx; 799 of 819 scopes qualify, so the index
+// buys little); there is no source_key index. Each gap candidate adds a watermark primary-key probe and, for
 // a missing or truncated one, an acceptance primary-key prefix probe
 // (scope_id, acceptance_unit_id) plus shared_projection_intents_acceptance_lookup_idx.
 // The cost does not grow with producer candidates and never reads
