@@ -5,6 +5,7 @@ package chain
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainAdvisoryCatalogOperation names the log.Operation attribute on
+// every stage event this route emits (query_timing.go).
+const supplyChainAdvisoryCatalogOperation = "supply_chain_advisory_catalog_read"
 
 // listAdvisoryCatalog returns a bounded, browsable page of the known
 // vulnerability-intelligence catalog from active vulnerability source facts.
@@ -80,8 +85,17 @@ func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 		AfterKey:  afterKey,
 		Limit:     limit + 1,
 	}
+	catalogTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainAdvisoryCatalogOperation, "", "advisory_catalog_query")
 	page, err := h.AdvisoryCatalog.ListAdvisoryCatalog(r.Context(), filter)
+	catalogTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, advisory.CatalogCapability) {
+			return
+		}
+		failStage(r.Context(), span, catalogTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

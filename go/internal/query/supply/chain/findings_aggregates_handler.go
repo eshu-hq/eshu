@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -11,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainImpactAggregateOperation names the log.Operation attribute on
+// every stage event these routes emit (query_timing.go).
+const supplyChainImpactAggregateOperation = "supply_chain_impact_aggregate_read"
 
 // ImpactAggregateCapability is the capability string that gates the
 // cheap-summary impact-findings aggregate routes (count and inventory),
@@ -78,8 +83,17 @@ func (h *Handler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
 	}
 	profile := requestedSupplyChainImpactAggregateProfile(filter)
 
+	countTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactAggregateOperation, filter.RepositoryID, "impact_aggregate_count")
 	count, err := h.ImpactAggregates.CountSupplyChainImpactFindings(r.Context(), filter)
+	countTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, ImpactAggregateCapability) {
+			return
+		}
+		failStage(r.Context(), span, countTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -170,8 +184,17 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	profile := requestedSupplyChainImpactAggregateProfile(filter)
 
+	inventoryTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactAggregateOperation, filter.RepositoryID, "impact_aggregate_inventory")
 	rows, err := h.ImpactAggregates.SupplyChainImpactInventory(r.Context(), filter, dimension, limit+1, offset)
+	inventoryTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, ImpactAggregateCapability) {
+			return
+		}
+		failStage(r.Context(), span, inventoryTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

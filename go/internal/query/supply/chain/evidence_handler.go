@@ -5,6 +5,7 @@ package chain
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -13,6 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainAdvisoryEvidenceOperation names the log.Operation attribute on
+// every stage event this route emits (query_timing.go).
+const supplyChainAdvisoryEvidenceOperation = "supply_chain_advisory_evidence_read"
 
 func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -80,8 +85,17 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	evidenceTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainAdvisoryEvidenceOperation, repositoryID, "advisory_evidence_query")
 	rows, err := h.AdvisoryEvidence.ListAdvisoryEvidence(r.Context(), filter)
+	evidenceTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, advisory.EvidenceCapability) {
+			return
+		}
+		failStage(r.Context(), span, evidenceTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

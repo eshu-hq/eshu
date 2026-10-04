@@ -5,12 +5,17 @@ package chain
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainImpactPacketOperation names the log.Operation attribute on every
+// stage event this route emits (query_timing.go).
+const supplyChainImpactPacketOperation = "supply_chain_impact_packet_read"
 
 // ImpactPacketResponder composes and writes the portable
 // investigation packet for a supply-chain impact explanation. Root package
@@ -115,8 +120,10 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	explanationTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactPacketOperation, repositoryID, "impact_explanation_query")
 	row, err := h.ImpactExplanations.ExplainSupplyChainImpact(r.Context(), filter)
 	if errors.Is(err, impact.ErrExplanationNotFound) {
+		explanationTimer.Done(r.Context(), slog.Bool("error", false))
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
 		body := impact.BuildNoEvidenceExplanation(filter, readiness)
 		truth := querycontract.BuildTruthEnvelope(
@@ -129,6 +136,7 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, impact.ErrExplanationAmbiguous) {
+		explanationTimer.Done(r.Context(), slog.Bool("error", false))
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
 		body := impact.BuildAmbiguousExplanation(
 			filter,
@@ -144,7 +152,15 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		h.PacketResponder.RespondSupplyChainImpactPacket(w, r, body, truth)
 		return
 	}
+	explanationTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
+			return
+		}
+		failStage(r.Context(), span, explanationTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

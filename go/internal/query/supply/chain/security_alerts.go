@@ -5,6 +5,7 @@ package chain
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// supplyChainSecurityAlertReconciliationOperation names the log.Operation
+// attribute on every stage event this route emits (query_timing.go).
+const supplyChainSecurityAlertReconciliationOperation = "supply_chain_security_alert_reconciliation_read"
 
 func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -87,8 +92,17 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 		return
 	}
 
+	reconciliationTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainSecurityAlertReconciliationOperation, repositoryID, "security_alert_reconciliation_query")
 	rows, err := h.SecurityAlerts.ListSecurityAlertReconciliations(r.Context(), filter)
+	reconciliationTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
+		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
+		// retryable 503 envelope. The mapped verdict is not a handler-owned
+		// 500, so it returns before failStage.
+		if querycontract.WriteGraphReadError(w, r, err, SecurityAlertReconciliationsCapability) {
+			return
+		}
+		failStage(r.Context(), span, reconciliationTimer, err)
 		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
