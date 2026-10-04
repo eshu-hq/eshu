@@ -262,7 +262,16 @@ func TestRotateLocalIdentityPasswordRejectsWrongTOTPCode(t *testing.T) {
 	if result.Status != LocalIdentityAuthInvalid || result.Authenticated {
 		t.Fatalf("rotation result = %#v, want invalid", result)
 	}
-	if db.committed {
-		t.Fatalf("rotation must not commit on wrong totp code")
+	// Issue #7499: the failed attempt is written on tx and committed there, so
+	// the write stays durable on a single-connection pool instead of being
+	// discarded by the deferred rollback. No new credential may be written.
+	if !db.committed || db.rolledBack {
+		t.Fatalf("transaction committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
+	}
+	if !fakeExecsContainQuery(db.execs, "INSERT INTO identity_local_auth_attempts") {
+		t.Fatalf("wrong-totp rotation did not record a failed attempt: %#v", db.execs)
+	}
+	if fakeExecsContainQuery(db.execs, "INSERT INTO identity_local_credentials") {
+		t.Fatalf("wrong-totp rotation must not insert a new credential: %#v", db.execs)
 	}
 }

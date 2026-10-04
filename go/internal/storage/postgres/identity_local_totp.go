@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/totp"
 )
 
@@ -181,6 +182,7 @@ func (s *IdentitySubjectStore) ConfirmLocalIdentityTOTPEnrollment(
 // code" identically to "wrong recovery code" for failed-attempt accounting.
 func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 	ctx context.Context,
+	database db.ExecQueryer,
 	userID string,
 	code string,
 	now time.Time,
@@ -189,7 +191,7 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 	if code == "" {
 		return false, "", nil
 	}
-	rows, err := s.database.QueryContext(ctx, selectLocalIdentityActiveTOTPSecretQuery, userID)
+	rows, err := database.QueryContext(ctx, selectLocalIdentityActiveTOTPSecretQuery, userID)
 	if err != nil {
 		return false, "", fmt.Errorf("select active local identity totp secrets: %w", err)
 	}
@@ -226,7 +228,7 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 			return false, "", fmt.Errorf("verify local identity totp login code: %w", err)
 		}
 		if verified {
-			if _, err := s.database.ExecContext(ctx, touchLocalIdentityTOTPLastUsedQuery, userID, fs.factorID, now.UTC()); err != nil {
+			if _, err := database.ExecContext(ctx, touchLocalIdentityTOTPLastUsedQuery, userID, fs.factorID, now.UTC()); err != nil {
 				return false, "", fmt.Errorf("touch local identity totp last used: %w", err)
 			}
 			return true, fs.factorID, nil

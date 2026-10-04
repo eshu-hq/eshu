@@ -49,13 +49,13 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/missing-owner.yaml" "${
 	fail "validator accepted a missing legacy owner and tracking issue"
 fi
 
-awk '/^  count: 570$/ { print "  count: 572"; next } { print }' \
+awk '/^  count: 571$/ { print "  count: 572"; next } { print }' \
 	"${ledger}" >"${legacy_probe}/wrong-count.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-count.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator accepted a wrong legacy exemption count"
 fi
 
-awk '/^  sha256: 0cd3090ac24d58986903ab77ed872c636717b89e945584c83e485ae0c5549c03$/ { print "  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; next } { print }' \
+awk '/^  sha256: 8f0d386e5c306632e2279ca0db3f8494a5fd862e76cd4029b22ec07ed17c972c$/ { print "  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; next } { print }' \
 	"${ledger}" >"${legacy_probe}/wrong-digest.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${legacy_probe}/wrong-digest.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator accepted a wrong legacy exemption digest"

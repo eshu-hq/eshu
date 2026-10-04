@@ -139,6 +139,42 @@ func (s *IdentitySubjectStore) recordFailedLocalIdentityAttempt(
 	row localIdentityCredentialRow,
 	now time.Time,
 ) (LocalIdentityAuthenticationResult, error) {
+	result := failedLocalIdentityAttemptOutcome(row, now)
+	if err := writeFailedLocalIdentityAttempt(ctx, s.database, row.UserID, result.LockedUntil, now); err != nil {
+		return LocalIdentityAuthenticationResult{}, err
+	}
+	return result, nil
+}
+
+// recordFailedLocalIdentityAttemptInTx records a failed attempt on tx and
+// commits before returning. RotateLocalIdentityPassword calls this while its
+// row-locked transaction holds a pooled connection, so writing through the
+// pool would ask for a second connection and wait on itself (issue #7499);
+// committing here also keeps the write durable, since the deferred rollback
+// would otherwise discard it. committed is set only after a successful
+// commit, so a failed write still rolls back through the caller's defer.
+func (s *IdentitySubjectStore) recordFailedLocalIdentityAttemptInTx(
+	ctx context.Context,
+	tx db.Transaction,
+	committed *bool,
+	row localIdentityCredentialRow,
+	now time.Time,
+) (LocalIdentityAuthenticationResult, error) {
+	result := failedLocalIdentityAttemptOutcome(row, now)
+	if err := writeFailedLocalIdentityAttempt(ctx, tx, row.UserID, result.LockedUntil, now); err != nil {
+		return LocalIdentityAuthenticationResult{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return LocalIdentityAuthenticationResult{}, fmt.Errorf("commit local identity failed attempt: %w", err)
+	}
+	*committed = true
+	return result, nil
+}
+
+// failedLocalIdentityAttemptOutcome computes the lockout result for one more
+// failed attempt without writing anything, so pool and transaction callers
+// share the threshold/window decision.
+func failedLocalIdentityAttemptOutcome(row localIdentityCredentialRow, now time.Time) LocalIdentityAuthenticationResult {
 	failedAttempts := row.FailedAttempts + 1
 	lockedUntil := time.Time{}
 	status := LocalIdentityAuthInvalid
@@ -146,17 +182,28 @@ func (s *IdentitySubjectStore) recordFailedLocalIdentityAttempt(
 		lockedUntil = now.Add(defaultLocalIdentityLockoutWindow)
 		status = LocalIdentityAuthLocked
 	}
-	if _, err := s.database.ExecContext(
+	return LocalIdentityAuthenticationResult{Status: status, LockedUntil: lockedUntil}
+}
+
+// writeFailedLocalIdentityAttempt executes the failed-attempt upsert on exec.
+func writeFailedLocalIdentityAttempt(
+	ctx context.Context,
+	exec db.ExecQueryer,
+	userID string,
+	lockedUntil time.Time,
+	now time.Time,
+) error {
+	if _, err := exec.ExecContext(
 		ctx,
 		upsertLocalIdentityFailedAttemptQuery,
-		row.UserID,
+		userID,
 		defaultLocalIdentityLockoutThreshold,
 		scalars.NullTime(lockedUntil),
 		now,
 	); err != nil {
-		return LocalIdentityAuthenticationResult{}, fmt.Errorf("record local identity failed attempt: %w", err)
+		return fmt.Errorf("record local identity failed attempt: %w", err)
 	}
-	return LocalIdentityAuthenticationResult{Status: status, LockedUntil: lockedUntil}, nil
+	return nil
 }
 
 type localIdentityUserCredentialRecord struct {
