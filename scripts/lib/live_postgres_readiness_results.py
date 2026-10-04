@@ -37,6 +37,9 @@ PACKAGES = {
         ),
     },
     STORAGE_PACKAGE: {
+        "go/internal/storage/postgres/quiet_generation_maintenance_live_test.go": (
+            "TestQuietGenerationActivatesAfterMaintenanceSnapshotLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
             "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
             "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",
