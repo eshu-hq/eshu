@@ -19,10 +19,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// codeTopicCandidatePoolBudget/Floor bound the per-term candidate pool
-// InvestigateCodeTopic scans before scoring (#7008). candidateCap divides a
-// fixed row budget across the term count so scanned rows stay roughly
-// constant regardless of term count, with a floor for few-term searches.
+// codeTopicCandidatePoolBudget/Floor bound per-term scans (#7008).
+// candidateCap divides the row budget across terms with a floor for short searches.
 const (
 	codeTopicCandidatePoolBudget = 4000
 	codeTopicCandidatePoolFloor  = 150
