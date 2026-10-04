@@ -208,3 +208,35 @@ func TestGuardedQueryLeavesAnUnattachedAccumulatorEmpty(t *testing.T) {
 		t.Fatal("an accumulator not attached to the request context was filled")
 	}
 }
+
+// TestRequestReaderStageExcludesWriterCheckpoint pins that the writer
+// checkpoint never maps to a per-request reader slot. The checkpoint is writer
+// work that runs after the request's reads, so a future case that mapped it
+// into a slot would put writer time into the reader stage figures an operator
+// reads off the findings log line.
+func TestRequestReaderStageExcludesWriterCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	if stage, ok := requestReaderStage(StageWriterCheckpoint); ok {
+		t.Fatalf("requestReaderStage(writer checkpoint) = (%d, true), want (_, false)", stage)
+	}
+}
+
+// TestObserveKeepsWriterCheckpointOutOfRequestTimings drives Access.observe
+// with the checkpoint stage against an attached accumulator, with and without
+// the reader role, and proves the accumulator stays unrecorded either way.
+func TestObserveKeepsWriterCheckpointOutOfRequestTimings(t *testing.T) {
+	t.Parallel()
+
+	for _, role := range []string{"writer", "reader"} {
+		t.Run(role, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, timings := db.WithStageTimings(context.Background())
+			(&Access{}).observe(ctx, role, StageWriterCheckpoint, time.Now().Add(-time.Second), nil)
+			if timings.Recorded() {
+				t.Fatalf("role %q: writer checkpoint filled the request stage accumulator", role)
+			}
+		})
+	}
+}
