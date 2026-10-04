@@ -17,6 +17,12 @@
 // current verdict-schema epoch exactly once (LoadPendingCodeReachabilityInputs's
 // upgrade-backfill predicate), without a watermark reset.
 //
+// LoadPendingCodeReachabilityInputs schedules only active runs whose code-edge
+// set is provably complete (CompleteRunGateSQL, the same check as the
+// dead-code query's run_gate): a full generation, both reducer
+// materialization work items succeeded, and no pending code_calls or
+// inheritance_edges intent.
+//
 // The loader (LoadPendingCodeReachabilityInputs and its private per-repo
 // readers) feeds codeintel.BuildCodeRootVerdicts the roots, Ruby class
 // ancestry, and Rails route-fact snapshot it needs to confirm or downgrade a

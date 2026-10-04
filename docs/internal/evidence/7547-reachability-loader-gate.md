@@ -1,0 +1,151 @@
+# #7547 reachability loader: completeness gate and candidate restructure
+
+## Scope
+
+`LoadPendingCodeReachabilityInputs` (`go/internal/storage/postgres/code/reachability`)
+picks the next batch of repository runs for the reducer's reachability
+projection. The reducer polls it every 5 s. This change does two things to
+its candidate statement and nothing else in the loader:
+
+1. **Completeness gate.** A run is scheduled only when its code-edge set is
+   provably complete. That is the same check the dead-code query's `run_gate`
+   applies (`deadCodeIncomingBoundQuery` in `go/internal/query`): the
+   generation is not a delta, both `code_call_materialization` and
+   `inheritance_materialization` reducer work items succeeded and none is in
+   another status, and no `code_calls` or `inheritance_edges` intent of the
+   generation for the repository is still pending. Before, the loader built a
+   snapshot from whatever intents had completed, so a delta generation (only
+   changed files) or a run whose materialization was still running produced a
+   snapshot of a partial edge set.
+2. **Restructure.** The statement now narrows acceptance rows to complete
+   active runs first (`ready` CTE), then reads one `max(completed_at)` per run
+   with a `LATERAL` subquery and joins the watermark once per run. The old
+   statement joined every completed intent row, probed the watermark once per
+   intent row, and grouped afterwards.
+
+The predicate text lives once, in `reachabilitystore.CompleteRunGateSQL`.
+There is no DDL, no verdict-schema epoch bump, and no change to the worker
+count, batch size, or poll interval.
+
+What the gate means for a delta generation: an active delta generation gets
+no new snapshot. Reachability for that repository waits for the next full
+generation. The git collector emits both materialization follow-up facts on
+every full generation, unconditionally (`fact_builder.go`, after the delta
+early return), so a full run is never starved for lack of a work item.
+
+## Accuracy proof
+
+Live tests run against a throwaway `postgres:18-alpine` (PostgreSQL 18.6) with
+the full bootstrap schema (`ESHU_POSTGRES_DSN`), in
+`store_route_liveness_live_test.go` with fixtures in
+`loader_gate_fixture_test.go`:
+
+- `TestCodeReachabilityLoaderGateSkipsIncompleteRuns`: seven incomplete runs
+  (delta generation; code-call work item failed; succeeded plus a second
+  pending code-call item; code-call item missing; inheritance item missing;
+  pending `code_calls` intent; pending `inheritance_edges` intent) and one
+  complete run. The test first checks that the old statement schedules all
+  eight runs, so the fixtures are not vacuous.
+- `TestCodeReachabilityLoaderGateMatchesLegacyOnCompleteRuns`: a row-set
+  differential against the old statement text, kept test-only as
+  `legacyListPendingCodeReachabilityInputsSQL`. Complete runs only: missing
+  watermark, older watermark, newer watermark at a stale epoch, newer
+  watermark at the current epoch, a superseded generation with a newer
+  intent, an intent of another run in the active generation, and a
+  `completed_at` tie. Epochs 0, current, and current+1, with limits 100000
+  and 3. Every `(scope_id, repository_id, source_run_id, generation_id,
+  completed_at)` row must match, in order.
+- `TestCodeReachabilityLoaderGateEachPredicateIsLoadBearing`: removes one gate
+  predicate at a time from the production statement. Each mutation must
+  schedule exactly the incomplete runs that only that predicate holds back.
+
+RED against the old statement (first test, before the change): every one of
+the seven incomplete runs was scheduled (`incomplete run scheduled: {ScopeID:scope-delta-...}`
+and six more), then `want only the complete run ..., got [complete delta calls-failed calls-retrying calls-missing inheritance-missing calls-pending inheritance-pending]`.
+GREEN after: all three tests pass.
+
+Why the row set is unchanged for complete runs: `shared_projection_acceptance`
+is unique on `(scope_id, acceptance_unit_id, source_run_id)` and
+`code_reachability_repository_watermarks` on `(scope_id, generation_id,
+repository_id)`. The old `GROUP BY` over the four acceptance columns kept one
+group per acceptance row, and `max()` over a unique watermark returned that
+one row. The per-run form computes the same values.
+
+Drift guard: `TestDeadCodeRunGateMatchesReachabilityLoaderGate` in
+`go/internal/query` cuts the `bool_and` body from the statement
+`deadCodeIncomingBoundQuery` builds, maps its aliases onto the loader's
+(`active.is_delta` to `generation.is_delta`, `active.` to `acceptance.`, `$1`
+to `acceptance.acceptance_unit_id`), and requires it to equal
+`CompleteRunGateSQL` after whitespace normalization. Seeded mutations on each
+side (the loader dropping the pending `repository_id` predicate; the dead-code
+query changing `<> 'succeeded'` to `NOT IN ('succeeded')`) each turned it RED.
+
+The upgrade-backfill live fixtures in
+`code_reachability_upgrade_backfill_live_test.go` now seed the two succeeded
+work items a real full run carries. Without them all three upgrade-backfill
+tests went RED under the gate, which was expected.
+
+## Cost
+
+Performance Evidence: QA replica figures are the measurement agent's,
+read-only, one data copy, PostgreSQL 18.3, label verified. `LIMIT 10`,
+epoch 3, three runs (cold, warm, warm). The old statement took 8,385 / 4,698 /
+4,667 ms. It joined 497,431 intent rows, probed the watermark once per intent
+row (2.08M buffers), and did a 112 MB external sort before grouping. The
+restructured statement with the gate took 922 / 725 / 733 ms. Without the gate
+block it took 668 / 461 / 459 ms, so the gate costs about 0.27 s warm. Its plan
+did no sequential scan on `shared_projection_intents` or `fact_work_items`. It
+used `fact_work_items_scope_generation_idx`,
+`shared_projection_intents_generation_pending_idx` (migration 108), and
+`shared_projection_intents_acceptance_lookup_idx`. Two variants were rejected:
+gate predicates inside the old join ran past 30 s and were cancelled twice,
+and a materialized gate CTE feeding the old join and aggregate took 5.0 to
+5.6 s. The old and new candidate sets had identical sha256 on QA (0 rows at
+epoch 3, 795 at epoch 4). The gate removed nothing on QA, because every QA
+run was complete at the time. The fixture tests above prove what the gate
+does on incomplete runs.
+
+Fixture-scale figures are mine, from the throwaway PostgreSQL 18.6 container
+(`shared_buffers=512MB`, `work_mem=16MB`, `jit=off`, warm cache, three runs
+each). The fixture has 800 repositories with one active and one superseded
+generation each, 507,996 active intents (repository i has 70000/i, at most
+70,000), 202,963 superseded-generation intents, 24,000 fixture work items (15 reducer
+domains per generation, plus one bootstrap-seeded global row), and watermarks at epoch 3 newer than every intent.
+The tables were analyzed after seeding.
+
+| Statement | Epoch | Execution time (3 runs) | Shared buffer hits | Spill |
+| --- | ---: | --- | ---: | --- |
+| old | 3 | 1,075 / 1,106 / 1,070 ms | 3,158,244 | external merge sort, 33 MB |
+| new | 3 | 158 / 153 / 152 ms | 123,365 | none (top-N heapsort) |
+| old | 4 | 1,079 / 1,070 / 1,071 ms | 3,158,244 | external merge sort, 33 MB |
+| new | 4 | 149 / 153 / 151 ms | 123,365 | none (top-N heapsort) |
+
+Neither plan scans `shared_projection_intents` or `fact_work_items`
+sequentially. The only sequential scans are on
+`shared_projection_acceptance` (1,600 rows) and `ingestion_scopes` (801
+rows), the same as on QA. In the new plan, the gate's four probes use
+`fact_work_items_scope_generation_idx` and
+`shared_projection_intents_generation_pending_idx`, 800 loops each. The
+per-run `max(completed_at)` uses
+`shared_projection_intents_acceptance_lookup_idx` (110,230 buffers), and the
+watermark is probed 800 times instead of 507,996. At 100000 limit, the old
+and new row sets had the same count and md5: 0 rows at epoch 3, and 800 rows
+at epoch 4 (`5a1402575b7eeded15a95bdc9f2442dc`). The fixture is smaller than
+QA in payload bytes and cache pressure, so its absolute times are lower than
+QA. Only the ratio and the plan shape carry over.
+
+Concurrency: the candidate statement is a read-only `SELECT`. It takes no row
+lock, claim, lease, or queue write. `CodeReachabilityProjectionRunner.ProcessOnce`
+calls `LoadPendingCodeReachabilityInputs` outside any transaction or advisory
+lock. It then partitions the loaded inputs by conflict key
+(`partitionInputsByConflictKey`) and writes each partition. That partitioning
+and the write path are unchanged, so the concurrency model is the same as
+before.
+
+No-Observability-Change: no metric, span, log key, status field, worker, queue
+domain, or runtime knob is added. The runner's existing per-cycle duration and
+`InputsProcessed` result, and its completion log, still describe each poll.
+A run the gate holds back is simply not loaded. That is the same signal an
+operator sees today for a run whose intents have not completed yet. A
+"skipped as incomplete" counter would need a second query per poll, and
+nothing in the existing pattern asks for it.

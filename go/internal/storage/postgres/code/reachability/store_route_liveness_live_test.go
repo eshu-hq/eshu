@@ -5,9 +5,7 @@ package reachabilitystore_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -17,64 +15,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
-
-// openRouteLivenessLiveDB and routeLivenessTestSuffix are this file's own
-// copies of code_reachability_upgrade_backfill_live_test.go's
-// openUpgradeBackfillLiveDB/testSuffix (that file stays in the parent
-// postgres package per #6693: testSuffix is also shared by unrelated root
-// live tests, so it cannot move here, and Go test-only exports do not cross
-// package boundaries). registerRouteLivenessCleanup mirrors that file's
-// registerUpgradeBackfillCleanup for the same reason.
-func openRouteLivenessLiveDB(t *testing.T) (context.Context, *sql.DB) {
-	t.Helper()
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the #5494 route-liveness proof")
-	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	t.Cleanup(cancel)
-	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db}); err != nil {
-		t.Fatalf("apply bootstrap schema: %v", err)
-	}
-	return ctx, db
-}
-
-func routeLivenessTestSuffix(t *testing.T) string {
-	return fmt.Sprintf("%s-%d", strings.NewReplacer("/", "-", " ", "-").Replace(t.Name()), time.Now().UnixNano())
-}
-
-func registerRouteLivenessCleanup(t *testing.T, db *sql.DB, scopeID, repoID string) {
-	t.Helper()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		// Child-first so the cleanup is correct even if a table's FK is not
-		// ON DELETE CASCADE; ingestion_scopes last cascades any stragglers.
-		stmts := []struct {
-			q    string
-			args []any
-		}{
-			{`DELETE FROM code_root_verdicts WHERE scope_id=$1`, []any{scopeID}},
-			{`DELETE FROM code_reachability_rows WHERE scope_id=$1`, []any{scopeID}},
-			{`DELETE FROM code_reachability_repository_watermarks WHERE scope_id=$1`, []any{scopeID}},
-			{`DELETE FROM shared_projection_intents WHERE scope_id=$1`, []any{scopeID}},
-			{`DELETE FROM shared_projection_acceptance WHERE scope_id=$1`, []any{scopeID}},
-			{`DELETE FROM content_entities WHERE repo_id=$1`, []any{repoID}},
-			{`DELETE FROM scope_generations WHERE scope_id=$1`, []any{scopeID}},
-			{`DELETE FROM ingestion_scopes WHERE scope_id=$1`, []any{scopeID}},
-		}
-		for _, s := range stmts {
-			if _, err := db.ExecContext(ctx, s.q, s.args...); err != nil {
-				t.Logf("cleanup %q: %v", s.q, err)
-			}
-		}
-	})
-}
 
 // seedRouteLivenessController seeds one Ruby controller class (ancestry:
 // ApplicationController, so #5376 always confirms) plus one action method
@@ -327,7 +267,7 @@ func TestCodeReachabilityPendingInputsPlanAtEpochBump(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() {
-		for _, table := range []string{"code_reachability_repository_watermarks", "shared_projection_intents", "shared_projection_acceptance", "scope_generations", "ingestion_scopes"} {
+		for _, table := range []string{"code_reachability_repository_watermarks", "shared_projection_intents", "shared_projection_acceptance", "fact_work_items", "scope_generations", "ingestion_scopes"} {
 			_, _ = db.ExecContext(context.Background(), "DELETE FROM "+table+" WHERE scope_id LIKE '"+prefix+"%'")
 		}
 	})
@@ -345,9 +285,14 @@ func TestCodeReachabilityPendingInputsPlanAtEpochBump(t *testing.T) {
 	      SELECT 'intent-explain7547-' || g, 'code_calls', 'repo-explain7547-' || g, '` + prefix + `' || g, 'repo-explain7547-' || g, 'repo-explain7547-' || g,
 	        'run-' || g, 'gen-explain7547-' || g, '{}'::jsonb, now() - interval '1 hour', now() - interval '1 hour'
 	      FROM generate_series(1, 800) g`)
+	// #7547 loader gate: each run carries both succeeded reducer
+	// materialization work items, so all 800 runs stay candidates at the bump.
+	exec(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, payload, created_at, updated_at)
+	      SELECT 'wi-explain7547-' || g || '-' || d, '` + prefix + `' || g, 'gen-explain7547-' || g, 'reducer', d, 'succeeded', 1, '{}'::jsonb, now(), now()
+	      FROM generate_series(1, 800) g, unnest(ARRAY['code_call_materialization', 'inheritance_materialization']) d`)
 	exec(`INSERT INTO code_reachability_repository_watermarks (scope_id, generation_id, repository_id, truncated, updated_at, verdict_schema_epoch)
 	      SELECT '` + prefix + `' || g, 'gen-explain7547-' || g, 'repo-explain7547-' || g, false, now() - interval '59 minutes', 3 FROM generate_series(1, 800) g`)
-	exec(`ANALYZE ingestion_scopes; ANALYZE scope_generations; ANALYZE shared_projection_acceptance; ANALYZE shared_projection_intents; ANALYZE code_reachability_repository_watermarks`)
+	exec(`ANALYZE ingestion_scopes; ANALYZE scope_generations; ANALYZE shared_projection_acceptance; ANALYZE shared_projection_intents; ANALYZE fact_work_items; ANALYZE code_reachability_repository_watermarks`)
 
 	nodeClass := regexp.MustCompile(`(?m)(Nested Loop|Hash(?: Right| Left)? Join|Merge Join|Seq Scan|Index Only Scan|Index Scan|Bitmap Heap Scan|HashAggregate|GroupAggregate|Sort|Limit)`)
 	explain := func(epoch int) (plan string, classes map[string]bool) {
@@ -377,5 +322,163 @@ func TestCodeReachabilityPendingInputsPlanAtEpochBump(t *testing.T) {
 	t.Logf("fixture-scale (800 repos) plan at epoch %d (all stale, LIMIT 100):\n%s", reachabilitystore.CodeReachabilityVerdictSchemaEpoch, bumpPlan)
 	if fmt.Sprint(prevClasses) != fmt.Sprint(bumpClasses) {
 		t.Fatalf("plan node classes changed at the bump: epoch 3 %v vs epoch %d %v", prevClasses, reachabilitystore.CodeReachabilityVerdictSchemaEpoch, bumpClasses)
+	}
+}
+
+// loaderGateBase sorts every #7547 fixture run ahead of real rows on a shared
+// ESHU_POSTGRES_DSN (completed_at ASC), so LIMIT assertions stay exact.
+var loaderGateBase = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// loaderGateIncompleteRuns are the runs the #7547 completeness gate must hold
+// back: each has a completed intent and no watermark, so the pre-#7547
+// statement schedules every one of them.
+func loaderGateIncompleteRuns() []loaderGateRun {
+	at := func(m int) time.Time { return loaderGateBase.Add(time.Duration(m) * time.Minute) }
+	return []loaderGateRun{
+		{name: "delta", isDelta: true, completedAt: at(1)},
+		{name: "calls-failed", completedAt: at(2), workItems: map[string]string{
+			"code_call_materialization": "failed", "inheritance_materialization": "succeeded",
+		}},
+		{name: "calls-retrying", completedAt: at(3), extraItem: [2]string{"code_call_materialization", "pending"}},
+		{name: "calls-missing", completedAt: at(4), workItems: map[string]string{
+			"inheritance_materialization": "succeeded",
+		}},
+		{name: "inheritance-missing", completedAt: at(5), workItems: map[string]string{
+			"code_call_materialization": "succeeded",
+		}},
+		{name: "calls-pending", completedAt: at(6), pending: "code_calls"},
+		{name: "inheritance-pending", completedAt: at(7), pending: "inheritance_edges"},
+	}
+}
+
+// TestCodeReachabilityLoaderGateSkipsIncompleteRuns is the #7547 live proof
+// that the loader schedules only runs whose edge set is provably complete
+// (the dead-code run_gate): a delta generation, a materialization work item
+// that is missing or not (only) succeeded, or a pending code_calls or
+// inheritance_edges intent each keep the run out; a complete run stays in.
+func TestCodeReachabilityLoaderGateSkipsIncompleteRuns(t *testing.T) {
+	ctx, db := openRouteLivenessLiveDB(t)
+	suffix := routeLivenessTestSuffix(t)
+	epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
+
+	incomplete := map[string]bool{}
+	all := map[string]bool{}
+	for _, run := range loaderGateIncompleteRuns() {
+		scope := seedLoaderGateRun(t, ctx, db, suffix, run)
+		incomplete[scope], all[scope] = true, true
+	}
+	complete := seedLoaderGateRun(t, ctx, db, suffix, loaderGateRun{name: "complete", completedAt: loaderGateBase})
+	all[complete] = true
+
+	// Non-vacuous: the pre-#7547 statement admits every incomplete run.
+	legacy := queryLoaderGateRows(t, ctx, db, legacyListPendingCodeReachabilityInputsSQL, 100000, epoch, all)
+	if len(legacy) != len(all) {
+		t.Fatalf("legacy statement returned %d of %d seeded runs; fixtures are not admitted: %+v", len(legacy), len(all), legacy)
+	}
+	got := queryLoaderGateRows(t, ctx, db, reachabilitystore.ListPendingCodeReachabilityInputsSQL, 100000, epoch, all)
+	for _, row := range got {
+		if incomplete[row.ScopeID] {
+			t.Errorf("incomplete run scheduled: %+v", row)
+		}
+	}
+	if len(got) != 1 || got[0].ScopeID != complete {
+		t.Fatalf("want only the complete run %q, got %+v", complete, got)
+	}
+}
+
+// TestCodeReachabilityLoaderGateMatchesLegacyOnCompleteRuns is the #7547
+// row-set differential: on complete runs the restructured statement returns
+// exactly the pre-#7547 rows, order and LIMIT included, for epochs below, at,
+// and above the stored watermark epochs. Fixtures cover a missing watermark,
+// an older watermark, a newer watermark at a stale and at the current epoch,
+// a superseded generation, an intent of another run, and a completed_at tie.
+func TestCodeReachabilityLoaderGateMatchesLegacyOnCompleteRuns(t *testing.T) {
+	ctx, db := openRouteLivenessLiveDB(t)
+	suffix := routeLivenessTestSuffix(t)
+	epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
+	at := func(m int) time.Time { return loaderGateBase.Add(time.Duration(m) * time.Minute) }
+	runs := []loaderGateRun{
+		{name: "no-watermark", completedAt: at(1)},
+		{name: "older-watermark", completedAt: at(2), watermark: &loaderGateWatermark{at(1), epoch}},
+		{name: "stale-epoch", completedAt: at(3), watermark: &loaderGateWatermark{at(4), epoch - 1}},
+		{name: "current", completedAt: at(4), watermark: &loaderGateWatermark{at(5), epoch}},
+		{name: "old-generation", completedAt: at(5), oldGeneration: true},
+		{name: "stray-run", completedAt: at(6), strayRunIntent: true},
+		{name: "tie-b", completedAt: at(7)},
+		{name: "tie-a", completedAt: at(7)},
+	}
+	scopes := map[string]bool{}
+	for _, run := range runs {
+		scopes[seedLoaderGateRun(t, ctx, db, suffix, run)] = true
+	}
+	for _, e := range []int{0, epoch, epoch + 1} {
+		for _, limit := range []int{100000, 3} {
+			want := queryLoaderGateRows(t, ctx, db, legacyListPendingCodeReachabilityInputsSQL, limit, e, scopes)
+			got := queryLoaderGateRows(t, ctx, db, reachabilitystore.ListPendingCodeReachabilityInputsSQL, limit, e, scopes)
+			if len(want) == 0 {
+				t.Fatalf("epoch %d limit %d: legacy oracle returned no rows", e, limit)
+			}
+			if len(got) != len(want) {
+				t.Fatalf("epoch %d limit %d: got %d rows, want %d\ngot  %+v\nwant %+v", e, limit, len(got), len(want), got, want)
+			}
+			for i := range want {
+				if got[i].ScopeID != want[i].ScopeID || got[i].SourceRunID != want[i].SourceRunID ||
+					got[i].GenerationID != want[i].GenerationID || got[i].RepositoryID != want[i].RepositoryID ||
+					!got[i].CompletedAt.Equal(want[i].CompletedAt) {
+					t.Fatalf("epoch %d limit %d row %d: got %+v want %+v", e, limit, i, got[i], want[i])
+				}
+			}
+		}
+	}
+}
+
+// TestCodeReachabilityLoaderGateEachPredicateIsLoadBearing seeds a mutation
+// per gate predicate: the production statement with exactly that predicate
+// removed must schedule exactly the incomplete runs only it holds back,
+// so no predicate of CompleteRunGateSQL is dead weight in the fixtures above.
+func TestCodeReachabilityLoaderGateEachPredicateIsLoadBearing(t *testing.T) {
+	ctx, db := openRouteLivenessLiveDB(t)
+	suffix := routeLivenessTestSuffix(t)
+	epoch := reachabilitystore.CodeReachabilityVerdictSchemaEpoch
+
+	scopeByName := map[string]string{}
+	all := map[string]bool{}
+	for _, run := range loaderGateIncompleteRuns() {
+		scope := seedLoaderGateRun(t, ctx, db, suffix, run)
+		scopeByName[run.name], all[scope] = scope, true
+	}
+	predicates := strings.Split(reachabilitystore.CompleteRunGateSQL, "\n      AND ")
+	// Each predicate, in CompleteRunGateSQL order, and the runs only it rejects.
+	onlyRejects := [][]string{
+		{"delta"},
+		{"calls-missing"},
+		{"inheritance-missing"},
+		{"calls-retrying"},
+		{"calls-pending", "inheritance-pending"},
+	}
+	if len(predicates) != len(onlyRejects) {
+		t.Fatalf("CompleteRunGateSQL has %d predicates, mutation table covers %d", len(predicates), len(onlyRejects))
+	}
+	for i, names := range onlyRejects {
+		kept := make([]string, 0, len(predicates)-1)
+		kept = append(kept, predicates[:i]...)
+		kept = append(kept, predicates[i+1:]...)
+		mutated := strings.Replace(reachabilitystore.ListPendingCodeReachabilityInputsSQL,
+			reachabilitystore.CompleteRunGateSQL, strings.Join(kept, "\n      AND "), 1)
+		if mutated == reachabilitystore.ListPendingCodeReachabilityInputsSQL {
+			t.Fatalf("mutation %d did not change the statement", i)
+		}
+		got := queryLoaderGateRows(t, ctx, db, mutated, 100000, epoch, all)
+		gotNames := map[string]bool{}
+		for _, row := range got {
+			gotNames[row.ScopeID] = true
+		}
+		ok := len(got) == len(names)
+		for _, name := range names {
+			ok = ok && gotNames[scopeByName[name]]
+		}
+		if !ok {
+			t.Errorf("without predicate %d (%.40q...) want only runs %v scheduled, got %+v", i, predicates[i], names, got)
+		}
 	}
 }

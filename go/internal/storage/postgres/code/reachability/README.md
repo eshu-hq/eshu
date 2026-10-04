@@ -28,8 +28,9 @@ the parent `postgres` package (#6693): it defines `testSuffix`,
 (`recovery_refinalize_*`, `reducer_queue_workload_replay_live_test.go`,
 `repo_dependency_acceptance_gate_expiry_test.go`,
 `recovery_claim_token_fence_live_test.go`). This package's own external live
-test (`store_route_liveness_live_test.go`, package `reachabilitystore_test`)
-keeps its own copies of the same DSN-open/suffix/cleanup helpers rather than
+test (`store_route_liveness_live_test.go`, package `reachabilitystore_test`,
+with the #5494 route-liveness and #7547 loader-gate proofs) keeps its own
+copies, in the helper-only `live_helpers_test.go`, of the same DSN-open/suffix/cleanup helpers rather than
 depend on that root file's test-only symbols, which Go does not expose
 across package boundaries.
 
@@ -43,6 +44,10 @@ across package boundaries.
   bump it whenever verdict semantics or the watermark's truncation
   semantics change so every projected repo re-projects exactly once on
   upgrade.
+- `CompleteRunGateSQL` is the completeness predicate the loader applies to
+  each active acceptance run. It must stay equal to the dead-code query's
+  `run_gate` (`deadCodeIncomingBoundQuery` in `internal/query`);
+  `TestDeadCodeRunGateMatchesReachabilityLoaderGate` there enforces it.
 
 See `doc.go` for the godoc contract.
 
@@ -64,6 +69,26 @@ for the projection cycle; see `go/internal/reducer/AGENTS.md`.
 No-Observability-Change: this extraction moves only the store, loader, and
 helpers; no metric, span, log field, worker, queue, lease, or runtime knob
 changed.
+
+## Loader contract
+
+`LoadPendingCodeReachabilityInputs` schedules only complete, non-delta runs
+(#7547). An active acceptance run is a candidate when its generation is
+full, both `code_call_materialization` and `inheritance_materialization`
+reducer work items succeeded with none in another status, and no
+`code_calls` or `inheritance_edges` intent of the generation for the
+repository is pending. Among those, it picks runs whose watermark is
+missing, older than the run's newest completed intent, or stamped under an
+older verdict-schema epoch, ordered `completed_at ASC, repository_id ASC`.
+An active delta generation gets no new snapshot; the next full generation
+does.
+
+The candidate statement (`loader_candidates_sql.go`) gates acceptance rows
+first in a `ready` CTE, then reads one `LATERAL max(completed_at)` per run
+and joins the watermark once per run. Do not fold it back into one
+intent-row join with `GROUP BY`: on the QA replica that shape took 4.7 to
+8.4 s per 5 s poll against 0.7 to 0.9 s for this one. See
+`docs/internal/evidence/7547-reachability-loader-gate.md`.
 
 ## Gotchas / invariants
 

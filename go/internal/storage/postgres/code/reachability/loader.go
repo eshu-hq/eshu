@@ -14,45 +14,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
-const listPendingCodeReachabilityInputsSQL = `
-WITH candidate AS (
-    SELECT acceptance.scope_id,
-           acceptance.acceptance_unit_id AS repository_id,
-           acceptance.source_run_id,
-           acceptance.generation_id,
-           max(intent.completed_at) AS completed_at,
-           max(watermark.updated_at) AS reach_updated_at,
-           max(watermark.verdict_schema_epoch) AS reach_verdict_epoch
-    FROM shared_projection_acceptance AS acceptance
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = acceptance.scope_id
-     AND scope.active_generation_id = acceptance.generation_id
-    JOIN scope_generations AS generation
-      ON generation.generation_id = acceptance.generation_id
-     AND generation.status = 'active'
-    JOIN shared_projection_intents AS intent
-      ON intent.scope_id = acceptance.scope_id
-     AND intent.acceptance_unit_id = acceptance.acceptance_unit_id
-     AND intent.source_run_id = acceptance.source_run_id
-     AND intent.generation_id = acceptance.generation_id
-     AND intent.projection_domain IN ('code_calls', 'inheritance_edges')
-     AND intent.completed_at IS NOT NULL
-    LEFT JOIN code_reachability_repository_watermarks AS watermark
-      ON watermark.scope_id = acceptance.scope_id
-     AND watermark.generation_id = acceptance.generation_id
-     AND watermark.repository_id = acceptance.acceptance_unit_id
-    GROUP BY acceptance.scope_id, acceptance.acceptance_unit_id,
-             acceptance.source_run_id, acceptance.generation_id
-)
-SELECT scope_id, repository_id, source_run_id, generation_id, completed_at
-FROM candidate
-WHERE reach_updated_at IS NULL
-   OR completed_at > reach_updated_at
-   OR coalesce(reach_verdict_epoch, 0) < $2
-ORDER BY completed_at ASC, repository_id ASC
-LIMIT $1
-`
-
 const listCodeReachabilityRootsSQL = `
 SELECT entity_id, metadata->'dead_code_root_kinds' AS root_kinds,
        metadata->>'class_context' AS class_context, entity_name
