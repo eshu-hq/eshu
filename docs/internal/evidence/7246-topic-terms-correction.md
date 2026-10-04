@@ -98,10 +98,9 @@ within its 60-second limit.
 
 Replica replay advanced during this trial. These are new diagnostic samples,
 not a controlled storage comparison, a speedup claim, or endpoint p95. The
-trial supports a per-query mode change for the measured repository-scoped,
-single-term SQL shape with no language filter. The finished production path
-still requires regression tests, compiled handler proof, and cold/warm API
-and MCP p95 measurements before the latency issue can close.
+trial proved the one-term query mode. The next section records the
+regression tests and compiled handler proof. Deployed API and MCP cold/warm
+p95 remains **NOT_CHECKED** before the latency issue can close.
 
 ## Three-call compiled handler proof and current limit
 
