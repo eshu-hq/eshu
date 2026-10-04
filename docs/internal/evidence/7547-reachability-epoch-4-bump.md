@@ -266,7 +266,7 @@ binary re-selects it, so this is bounded.
   base `791078e81` against the #7570 merge `4529a8f9b`, interleaved pairs,
   `-cpu=1`, 10 samples per side, benchstat. The benchmark itself is new in
   #7570, so its file was copied from the head commit into the base worktree
-  to run the same benchmark on both sides; no other file differed. Result: the frontier-at-cutoff
+  to run the same benchmark on both sides. Result: the frontier-at-cutoff
   benchmark took 19.65 ms (±3%) on base and 20.36 ms (±4%) on head, +3.6%
   (p<0.001); the older 12-deep benchmark, which never reaches the cutoff, took
   102.6 ms (±2%) and 105.0 ms (±2%), +2.3% (p=0.035). Bytes and allocations per
@@ -275,7 +275,7 @@ binary re-selects it, so this is bounded.
   on a 50,000-node graph; the older benchmark
   moving about 2% as well suggests code layout or the extra branch, not the new
   scan alone. It is well under the repo's 10% stop-and-profile bar and small against
-  the 5 to 16 seconds the ops-qa drain cycles took. The
+  the ops-qa drain cycles (about 5 s on average, 15.7 s slowest). The
   earlier laptop result ("no significant difference") was taken on a noisy
   machine and is superseded by this one.
 - The end-to-end drain on ops-qa ran on 2026-10-04 after the owner pinned and
