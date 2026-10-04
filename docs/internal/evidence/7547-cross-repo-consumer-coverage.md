@@ -24,8 +24,10 @@ separate changes, all merged on the base of this branch; none is touched here.
   `shared_projection_intents` row in the `code_calls` or `inheritance_edges`
   domain (completed or pending), reached through `shared_projection_acceptance`.
   A repository with no such intent cannot be a consumer (docs, IaC) and is
-  complete. A zero-root repository with intents is NOT excluded: its edges can sit
-  on a chain from a rooted repository to the producer symbol.
+  complete. A zero-root repository with edge intents is NOT excluded: its edges
+  can sit on a chain from a rooted repository to the producer symbol. On a full
+  generation a refresh intent is not an edge and does not count; on a delta
+  generation any such intent counts (see "Refresh intents (#7591)").
 - `dead` needs no gap among the consumers the answer is judged against.
   Otherwise a candidate with no strong live consumer evidence is
   `unknown_needs_evidence` with the new reason `consumer_coverage_incomplete`.
@@ -260,6 +262,92 @@ operator finding a surprising `unknown_needs_evidence` reads the response's
 `consumer_coverage.incomplete` (state, generation id, retryable) and the span,
 which also carries `db.coverage.retryable`.
 
+## Refresh intents (#7591)
+
+A repository's reducer run writes one refresh intent
+(`{"action":"refresh","intent_type":"repo_refresh"}`, the stored generated column
+`shared_projection_intents.is_refresh_intent`) beside its per-edge intents, in
+one `UpsertIntents` call. A refresh intent has no `caller_entity_id` or
+`child_entity_id`, and the reachability loader's edge read
+(`listCodeReachabilityEdgesSQL`) never loads it. A repository whose only
+`code_calls` or `inheritance_edges` intents are refreshes therefore has no
+edges and cannot be a consumer, yet the first probe counted it, so it answered a
+`truncated` gap forever (zero roots stamps `truncated`).
+
+Both statements' intent probe now adds
+`AND (generation.is_delta OR NOT intent.is_refresh_intent)` (the named statement
+carries `is_delta` through its `matched` CTE):
+
+- Full generation: only per-edge intents (`action` other than `refresh`) make
+  the repository a consumer. A legacy row with no `action` key has
+  `is_refresh_intent = false` and counts as an edge.
+- Delta generation: the intents describe only the changed files, the loader's
+  run gate never writes a watermark for the generation, and consumer rows are
+  read only for the active generation, so any code intent keeps the gap. A bare
+  `NOT is_refresh_intent` would hide a refresh-only delta repository that is a
+  real `no_snapshot_yet`; the delta case is pinned for that reason.
+- A repository with no per-edge intent on a full generation is complete without
+  a watermark, the same as a docs or IaC repository. A generation with no
+  intent yet was already complete (queue-time window below). A repository whose
+  only intents are `inheritance_edges` refreshes is complete on a full
+  generation.
+- Queue-time window (pre-existing, widened by #7591). From generation activation
+  (projector Ack) until the reducer writes the repository's per-edge intents,
+  both statements read the repository complete, and a cross-repo answer can say
+  `dead` for a symbol it calls. Before #7591 the window ended at the first
+  `code_calls` or `inheritance_edges` intent of either handler; now it ends at
+  the first per-edge write. The two work items (`code_call_materialization`,
+  `inheritance_materialization`) are independent and unordered, so an
+  inheritance refresh-only write while the code-call item is still queued is
+  inside the window. Within one handler the intents and the acceptance row
+  commit in one transaction (`SharedIntentAcceptanceWriter.UpsertIntents`), so
+  the window is only between the two handlers. It is not closed here; see
+  #7602. Net effect on
+  accuracy: the 278 repositories that were permanent false gaps on ops-qa leave
+  the gap list.
+
+`CodeReachabilityVerdictSchemaEpoch` stays 4; no schema, response shape or
+index changes.
+
+Proof: `TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive` runs both
+statements on a disposable PostgreSQL 18 with the full bootstrap schema:
+(a) full generation, truncated epoch-4 watermark, refresh only: complete (failed
+before the change: it returned six gaps, three of them refresh-only repositories that are complete);
+(b) the same plus one `upsert` edge: gap `truncated`; (c) delta generation, no
+watermark, refresh only: gap `no_snapshot_yet`; (d) a legacy row with no
+`action` key: gap `truncated`; plus a no-watermark refresh-only repository and an
+`inheritance_edges` refresh-only repository, both complete. Replacing the
+predicate with a bare `NOT intent.is_refresh_intent` failed exactly case (c) in
+both statements (seeded RED); the shipped predicate passes.
+`TestCrossRepoDeadCodeConsumerCoverageUniversePredicate` pins the predicate in
+both probes and still forbids `completed_at` and `EXISTS`.
+
+Performance Evidence: QA replica, read-only, PostgreSQL 18.3, 2026-10-04,
+`statement_timeout` 10 s, replay lag 0.1 to 2.0 s before and 0.86 s after,
+`EXPLAIN` before `EXPLAIN (ANALYZE, BUFFERS)`, a unique nonce comment per timed
+run, three runs per case, parameters epoch 4 and row cap 26 (named: the 799
+active repository keys as `$1`, require-active-scope true). Measured. Plan class
+unchanged: `shared_projection_acceptance_pkey` then
+`shared_projection_intents_acceptance_lookup_idx`, with the new predicate as a
+residual `Filter` on the intent row (no new index, no hoisted subplan).
+Execution, old to new: named 28.9 to 53.3 ms before and 36.1 to 54.3 ms after
+(runs 1 to 3: 53.3, 30.9, 28.9 old; 54.3, 36.1, 39.0 new; shared hit 619 to
+628); all-repositories 3.5 to 3.7 ms before and 8.7 to 9.1 ms after (3.67,
+3.52, 3.56 old; 8.67, 8.80, 9.11 new; shared hit 690 to 699). The all-repositories
+rise is the early stop, not a costlier probe: it ends at the first 26 gaps, and
+the 278 refresh-only repositories are no longer gaps, so it scanned 140 scopes
+with 71 probes instead of 50 scopes with 27 probes; per-probe time is unchanged
+(0.07 ms old, 0.086 ms new). A fully covered corpus already read every scope, so
+the worst case is unchanged. Census over the 799 active repository scopes (795
+with a watermark for the active generation, 4 delta generations with none and no
+code intent): gap repositories 384 before, 106 after, all `truncated`, none
+`no_snapshot_yet` or `older_epoch`; 278 refresh-only repositories leave the gap
+set.
+
+Observability Evidence: no change. The read keeps its `postgres.query` span
+(`db.operation=cross_repo_dead_code_consumer_coverage`) and the response's
+`consumer_coverage.incomplete` list; the removed gaps simply stop appearing.
+
 ## Known gaps
 
 - **Unscoped requests are judged against every repository that can be a
@@ -267,8 +355,9 @@ which also carries `db.coverage.retryable`.
   watermark, or a truncated one, makes every symbol of an unscoped, unnamed request unknown.
   Repositories with no such work (docs, IaC) no longer do. Name
   `consumer_repo_ids` or use a grant to narrow a request.
+- The queue-time window above is not closed by #7591 (#7602).
 - The check detects only a missing, truncated or older-epoch watermark on a repository with
-  code edges. A stale or partly drained snapshot with `truncated = false`, even
+  code edges (on a full generation, per-edge intents; see "Refresh intents (#7591)"). A stale or partly drained snapshot with `truncated = false`, even
   beside a pending intent, reads complete until the reducer rebuilds it. A
   zero-root repository is now stamped `truncated` by the writer (#7570), so it
   reads `truncated` once its watermark is rewritten at the current epoch.

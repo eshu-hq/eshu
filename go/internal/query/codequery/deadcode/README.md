@@ -86,8 +86,8 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   symbol `dead` only when every consumer repository its answer is judged against
   has a complete reachability watermark (present, `truncated = false`, current
   verdict schema epoch) for its active generation, checked once per request, counting only repositories whose active
-  generation has a `code_calls` or `inheritance_edges` intent (the ones that can
-  be consumers). An incomplete consumer makes a symbol
+  generation has a `code_calls` or `inheritance_edges` edge intent (the ones that
+  can be consumers; on a full generation a refresh intent is not an edge, #7591). An incomplete consumer makes a symbol
   with no strong live evidence `unknown_needs_evidence` with
   `consumer_coverage_incomplete`; the response's `consumer_coverage` object
   names the incomplete repositories, each with a `state` (`no_snapshot_yet`,
