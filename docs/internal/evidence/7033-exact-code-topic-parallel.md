@@ -355,7 +355,7 @@ exceedance; the complete clean run had equal response digests and unchanged
 content fingerprints. This established the idle-budget cause before the
 configuration fix.
 
-The final candidate source was
+The earlier fleet candidate source was
 `3b49a53151bb5403c16ada31109f1a7908c48b03`, built from a clean detached
 Git worktree with pinned Go 1.26.6. Its binary SHA-256 was
 `687c8e67f3832f9906bfe6be3a969b0c9d2879d389b372cd66735549dedbd914`;
@@ -368,7 +368,7 @@ Eight interleaved ABBA rounds gave 16 timed requests per variant:
 | Source | Median | Nearest-rank p95 |
 | --- | ---: | ---: |
 | Base | 0.076659 s | 0.082437 s |
-| Final fleet candidate | 0.077670 s | 0.082110 s |
+| Earlier fleet candidate | 0.077670 s | 0.082110 s |
 
 The eight same-round candidate/base ratios had mean 1.018290 and sample SD
 0.040904. All 32 requests returned HTTP 200 with the same 25-row canonical
@@ -384,6 +384,9 @@ timing artifact SHA-256 was
 Focused live tests covered same-member snapshots, contention, topology
 rejection, and a refused-dial member-loss retry. A real proxy-loss endpoint
 test and representative fleet-scale latency remain **NOT_CHECKED**.
+
+The final-source comparison after the #7565 query-identity integration is in
+[the reader-fleet A/B evidence](7033-reader-fleet-identity-final-source.md).
 
 ### Current deployed acceptance boundary
 
