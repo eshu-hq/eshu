@@ -24,8 +24,10 @@ its candidate statement and nothing else in the loader:
    intent row, and grouped afterwards.
 
 The predicate text lives once, in `reachabilitystore.CompleteRunGateSQL`.
-There is no DDL, no verdict-schema epoch bump, and no change to the worker
-count, batch size, or poll interval.
+This change adds no DDL, no epoch change, and no change to the worker count,
+batch size, or poll interval. It is based on `main` after the epoch 3 to 4
+bump (#7576, `docs/internal/evidence/7547-reachability-epoch-4-bump.md`), so
+`$2` is 4 in production.
 
 What the gate means for a delta generation: an active delta generation gets
 no new snapshot. Reachability for that repository waits for the next full
@@ -162,6 +164,61 @@ and new row sets had the same count and md5: 0 rows at epoch 3, and 800 rows
 at epoch 4 (`5a1402575b7eeded15a95bdc9f2442dc`). The fixture is smaller than
 QA in payload bytes and cache pressure, so its absolute times are lower than
 QA. Only the ratio and the plan shape carry over.
+
+Rerun after rebasing onto the epoch bump (merged SQL, epoch 4 is the
+production value). This used a fresh container with the same settings and a
+re-seeded fixture; the timestamps are new, so the md5 differs from the first
+run. At limit 100000, old and new returned 0 rows at epoch 3, and 800 rows
+with the same md5 at epoch 4 (`b1c6e5b26ecb0d287607115d9156a85b`). EXPLAIN
+(ANALYZE, BUFFERS) at `LIMIT 10`, epoch 4, three warm runs: old took 1,007 /
+995 / 994 ms with 3,158,238 to 3,158,244 shared hits and a 33 MB external
+merge sort. New took 128 / 125 / 124 ms with 123,365 shared hits and no
+spill. Neither plan scans `shared_projection_intents` or `fact_work_items`
+sequentially. The bump's own `TestCodeReachabilityPendingInputsPlanAtEpochBump`
+now seeds the two succeeded work items per run. Without them, the gate would
+hold back all 800 runs and the epoch-4 plan would return no rows. With them,
+its epoch-4 plan returns `rows=100` at `LIMIT 100`, and it passes.
+
+## Interaction with the epoch-4 drain
+
+The bump's drain census counts active watermarks below epoch 4, and the
+drain is called complete when that count is 0. The gate changes what can
+drain. A watermark stamped at epoch 3 by the pre-#7547 loader may belong to a
+run that the gate now rejects: a delta generation, a work item that failed or
+is retrying, or a pending intent. The loader never schedules such a run, so
+its watermark stays below epoch 4 until a later full generation replaces it.
+The census residual can therefore include gated-out runs. A nonzero residual
+is not, on its own, a stuck drain. This split census (10 s statement timeout,
+replica) tells the two apart:
+
+```sql
+SELECT count(*) AS residual,
+       count(*) FILTER (WHERE NOT complete) AS gated_out
+FROM (
+  SELECT w.scope_id,
+         coalesce(bool_or(<CompleteRunGateSQL>), false) AS complete
+  FROM code_reachability_repository_watermarks w
+  JOIN ingestion_scopes s
+    ON s.scope_id = w.scope_id AND s.active_generation_id = w.generation_id
+  JOIN scope_generations AS generation
+    ON generation.generation_id = w.generation_id
+  LEFT JOIN shared_projection_acceptance AS acceptance
+    ON acceptance.scope_id = w.scope_id
+   AND acceptance.generation_id = w.generation_id
+   AND acceptance.acceptance_unit_id = w.repository_id
+  WHERE w.verdict_schema_epoch < 4
+  GROUP BY w.scope_id, w.generation_id, w.repository_id
+) per_watermark;
+```
+
+Replace `<CompleteRunGateSQL>` with the constant's text; its aliases
+`acceptance` and `generation` match this query. The drain is complete when
+`residual` equals `gated_out`. A watermark with no active acceptance row
+counts as gated out. On the fixture with every run complete, this returned
+800 and 0. After one code-call work item was set to failed and one generation
+to delta, it returned 800 and 2. It was not run on QA. Per the measurement
+agent's QA census, no active run there failed the gate, so the residual and
+the plain census should agree at deploy time.
 
 Concurrency: the candidate statement is a read-only `SELECT`. It takes no row
 lock, claim, lease, or queue write. `CodeReachabilityProjectionRunner.ProcessOnce`
