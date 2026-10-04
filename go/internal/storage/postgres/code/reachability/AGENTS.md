@@ -23,8 +23,9 @@
 - `ReplaceRepositoryRows` must always stamp the watermark, even for an empty
   replacement; dropping that breaks the #5376 upgrade-backfill anti-loop
   proof.
-- Bump `CodeReachabilityVerdictSchemaEpoch` whenever verdict semantics
-  change so every projected repo re-projects exactly once; see the constant's
+- Bump `CodeReachabilityVerdictSchemaEpoch` whenever verdict semantics or the
+  watermark's truncation semantics change so every projected repo re-projects
+  exactly once; see the constant's
   doc comment in `store.go` for the epoch history.
 - Keep the package clause as `package reachabilitystore`; callers import the
   `storage/postgres/code/reachability` path without an alias.

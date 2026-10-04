@@ -42,11 +42,19 @@ const (
 	// A repo already stamped at epoch 2 has ancestry-confirmed verdicts computed
 	// WITHOUT ever consulting route facts, so an unrouted controller action
 	// would stay silently mis-confirmed (never re-evaluated) without this bump.
+	// Epoch 4: #7547 truncation semantics. The reducer now stamps truncated=true
+	// for a zero-root snapshot and for a depth cutoff with unseen targets
+	// (codeintel.CodeReachabilityProjectionStats.TruncationReason). The same
+	// unchanged inputs now yield a different truncated bit, and a repo stamped
+	// at epoch 3 has truncated=false from the old logic, so without this bump
+	// a reader of the truncated bit (the cross-repo dead-code reader, #7573)
+	// would keep trusting that watermark as complete. No
+	// verdict or row semantics change; only the watermark's truncated bit.
 	// Each bump is forward-only: it re-triggers exactly one re-projection per
 	// already-indexed repo (self-extinguishing, per the #5376 P1
 	// upgrade-backfill precedent in evidence-5376-code-root-verdicts.md); no
 	// separate backfill script or graph migration is required.
-	CodeReachabilityVerdictSchemaEpoch = 3
+	CodeReachabilityVerdictSchemaEpoch = 4
 )
 
 const codeReachabilitySchemaSQL = `

@@ -81,6 +81,16 @@ func TestCodeReachabilityVerdictSchemaEpochBumpedForRouteLiveness(t *testing.T) 
 	}
 }
 
+func TestCodeReachabilityVerdictSchemaEpochBumpedForTruncationSemantics(t *testing.T) {
+	// #7547 changed which snapshots the reducer stamps truncated (zero roots and
+	// depth cutoffs with unseen targets). A watermark stamped at epoch 3 holds
+	// the old truncated=false, so the epoch must be at least 4 to re-project
+	// every already-indexed repo once and re-stamp it.
+	if CodeReachabilityVerdictSchemaEpoch < 4 {
+		t.Fatalf("CodeReachabilityVerdictSchemaEpoch = %d, want >= 4 (#7547 truncation-semantics bump)", CodeReachabilityVerdictSchemaEpoch)
+	}
+}
+
 func TestCodeReachabilityPendingInputsWatchAllTraversedDomains(t *testing.T) {
 	for _, want := range []string{
 		"projection_domain IN ('code_calls', 'inheritance_edges')",

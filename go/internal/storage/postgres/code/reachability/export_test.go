@@ -16,3 +16,7 @@ var (
 	LoadCodeReachabilityRoots           = (*CodeReachabilityStore).loadCodeReachabilityRoots
 	LoadCodeReachabilityRailsRouteFacts = (*CodeReachabilityStore).loadCodeReachabilityRailsRouteFacts
 )
+
+// ListPendingCodeReachabilityInputsSQL exposes the pending-input loader query to
+// the live EXPLAIN proof in store_route_liveness_live_test.go.
+const ListPendingCodeReachabilityInputsSQL = listPendingCodeReachabilityInputsSQL
