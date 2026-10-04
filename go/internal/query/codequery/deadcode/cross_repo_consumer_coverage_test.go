@@ -34,7 +34,25 @@ func (s *crossRepoDeadCodeContentStore) CrossRepoDeadCodeConsumerCoverage(
 	if s.coverageErr != nil {
 		return code.CrossRepoDeadCodeCoverage{}, s.coverageErr
 	}
-	return code.CrossRepoDeadCodeCoverage{IncompleteRepositoryIDs: slices.Clone(s.coverageGaps)}, nil
+	return code.CrossRepoDeadCodeCoverage{Gaps: s.coverageGapEntries(), IncompleteTruncated: s.coverageCut}, nil
+}
+
+// coverageGapEntries is the gap list the store answers: coverageDetail when a
+// test set it, else one retryable no_snapshot_yet gap per coverageGaps id.
+func (s *crossRepoDeadCodeContentStore) coverageGapEntries() []code.CrossRepoDeadCodeCoverageGap {
+	if s.coverageDetail != nil {
+		return slices.Clone(s.coverageDetail)
+	}
+	var gaps []code.CrossRepoDeadCodeCoverageGap
+	for _, id := range s.coverageGaps {
+		gaps = append(gaps, code.CrossRepoDeadCodeCoverageGap{
+			RepositoryID: id,
+			State:        code.CrossRepoDeadCodeCoverageStateNoSnapshotYet,
+			GenerationID: "gen-" + id,
+			Retryable:    true,
+		})
+	}
+	return gaps
 }
 
 // coverageStore builds a store with one never-called producer symbol, so the

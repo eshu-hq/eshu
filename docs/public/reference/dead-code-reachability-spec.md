@@ -69,10 +69,33 @@ of `dead`. Strong consumer evidence still wins: a symbol a covered consumer
 calls stays `live_by_consumer`. A store that cannot answer the check yields
 `cross_repo_evidence_unavailable`, never `dead`.
 
-The response carries `consumer_coverage`: `complete`, `incomplete_repo_ids`
-(at most 25) and `incomplete_truncated`. It is omitted when the check did not
-produce an answer: no candidate needed classifying, the evidence read was
-unavailable, or the store cannot answer the check. The ids are always returned
+The response carries `consumer_coverage`: `complete`, `retryable`, `incomplete`,
+`incomplete_repo_ids` (at most 25) and `incomplete_truncated`. It is omitted when
+the check did not produce an answer: no candidate needed classifying, the
+evidence read was unavailable, or the store cannot answer the check.
+
+`incomplete` says why each repository is a gap and whether waiting can fix it.
+Each entry has `repository_id`, `state`, `generation_id` and `retryable`:
+
+| `state` | Meaning | `retryable` |
+| --- | --- | --- |
+| `no_snapshot_yet` | The active generation has code edges but no reachability watermark yet. The reducer has not built the snapshot. | `true` |
+| `older_epoch` | The snapshot was built under an older verdict schema epoch and is being rebuilt. | `true` |
+| `truncated` | The snapshot is current but cannot prove a symbol is not called (no roots, or a depth cutoff). | `false` |
+| `no_active_scope` | A repository the request named has no active repository scope, so nothing is being built. | `false` |
+
+`generation_id` is the repository scope's active generation, the snapshot being
+waited for. It is left out for `no_active_scope`. One watermark that is both
+truncated and older-epoch is reported `truncated`. A repository with several
+scopes in a gap is reported once: a truncated scope first, so `retryable` never
+promises a wait that another scope of the same repository would defeat, then the
+lowest generation id.
+
+The top-level `retryable` is `true` only when waiting can close every gap: each
+listed gap is retryable and `incomplete_truncated` is `false`, because a cut list
+hides gaps that may not be retryable. It is `false` when `complete` is `true`.
+`incomplete_repo_ids` is the same list as `incomplete`, in the same order, kept
+for callers that read it before the detail existed. The ids are always returned
 sorted. A request that names consumers or a grant returns the lowest-sorting 25. An
 unscoped request with no named consumers stops at the first gaps with no ordering,
 so with more than 25 gaps which ids come back is an arbitrary subset and

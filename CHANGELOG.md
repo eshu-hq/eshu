@@ -24,8 +24,13 @@ recent shipped work grouped by feature area.
   Strong live consumer evidence still wins. The check cannot see a stale or partly
   drained snapshot whose watermark says `truncated = false`, and a repository with
   zero roots counts only once the writer stamps its watermark truncated.
-  The response gains `consumer_coverage` (`complete`, `incomplete_repo_ids`,
-  `incomplete_truncated`). An unscoped request with no named consumers checks every
+  The response gains `consumer_coverage` (`complete`, `retryable`, `incomplete`,
+  `incomplete_repo_ids`, `incomplete_truncated`). Each `incomplete` entry names
+  the repository, a `state` (`no_snapshot_yet`, `older_epoch`, `truncated` or
+  `no_active_scope`), the `generation_id` being waited for and whether waiting can
+  fix it (`retryable`): a missing or older-epoch snapshot will be built, a
+  truncated one will not. `retryable` at the top is true only when every gap is
+  retryable. An unscoped request with no named consumers checks every
   repository, so name `consumer_repo_ids` to narrow it.
 
 ### Cross-repo dead-code returns repository-boundary evidence once

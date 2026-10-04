@@ -386,6 +386,13 @@ func crossRepoDeadCodeCitation(generationID string, consumerRepoID string, rootE
 // stale or partly drained snapshot whose watermark says truncated = false reads
 // complete, as does a zero-root repository until the writer stamps it truncated.
 //
+// Each gap carries why it is one (no_snapshot_yet, truncated, older_epoch or
+// no_active_scope), the scope's active generation id, and whether waiting can fix
+// it. The named statement returns one row per repository; the
+// all-repositories statement can return one per scope, and this method keeps one
+// per repository by the rule on code.CrossRepoDeadCodeCoverageGap. A state this
+// method does not know is an error, never a made-up retry promise.
+//
 // An empty request that is not AllRepositories is refused rather than answered
 // "complete": naming no repository proves nothing about any of them.
 func (cr *ContentReader) CrossRepoDeadCodeConsumerCoverage(
@@ -426,42 +433,61 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerCoverage(
 	}
 	defer func() { _ = rows.Close() }()
 
-	seen := make(map[string]struct{}, limit)
+	// A repository behind several scopes can come back once per scope on the
+	// all-repositories read; keep one gap per repository.
+	picked := make(map[string]code.CrossRepoDeadCodeCoverageGap, limit)
 	rowCount := 0
 	for rows.Next() {
 		rowCount++
 		var repositoryID string
-		if err := rows.Scan(&repositoryID); err != nil {
+		var state, generationID sql.NullString
+		if err := rows.Scan(&repositoryID, &state, &generationID); err != nil {
 			span.RecordError(err)
 			return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("scan cross-repo dead code consumer coverage: %w", err)
 		}
-		seen[repositoryID] = struct{}{}
+		gap := code.CrossRepoDeadCodeCoverageGap{
+			RepositoryID: repositoryID,
+			State:        state.String,
+			GenerationID: generationID.String,
+			Retryable:    code.CrossRepoDeadCodeCoverageGapRetryable(state.String),
+		}
+		if !state.Valid || !gap.KnownState() {
+			err := fmt.Errorf("cross-repo dead code consumer coverage: repository %q has unknown gap state %q", repositoryID, state.String)
+			span.RecordError(err)
+			return code.CrossRepoDeadCodeCoverage{}, err
+		}
+		if current, ok := picked[repositoryID]; !ok || gap.Outranks(current) {
+			picked[repositoryID] = gap
+		}
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)
 		return code.CrossRepoDeadCodeCoverage{}, fmt.Errorf("cross-repo dead code consumer coverage: %w", err)
 	}
 
-	incomplete := make([]string, 0, len(seen))
-	for repositoryID := range seen {
-		incomplete = append(incomplete, repositoryID)
+	gaps := make([]code.CrossRepoDeadCodeCoverageGap, 0, len(picked))
+	for _, gap := range picked {
+		gaps = append(gaps, gap)
 	}
-	slices.Sort(incomplete)
+	slices.SortFunc(gaps, func(a, b code.CrossRepoDeadCodeCoverageGap) int {
+		return strings.Compare(a.RepositoryID, b.RepositoryID)
+	})
 	coverage := code.CrossRepoDeadCodeCoverage{}
 	// Reaching the limit means the statement may have stopped short, which a
 	// repository reported by two scopes can hide behind the dedupe above.
 	if rowCount >= limit {
 		coverage.IncompleteTruncated = true
 	}
-	if len(incomplete) > deadcode.CrossRepoDeadCodeCoverageGapCap {
-		incomplete = incomplete[:deadcode.CrossRepoDeadCodeCoverageGapCap]
+	if len(gaps) > deadcode.CrossRepoDeadCodeCoverageGapCap {
+		gaps = gaps[:deadcode.CrossRepoDeadCodeCoverageGapCap]
 	}
-	if len(incomplete) > 0 {
-		coverage.IncompleteRepositoryIDs = incomplete
+	if len(gaps) > 0 {
+		coverage.Gaps = gaps
 	}
 	span.SetAttributes(
-		attribute.Int("db.rows.incomplete_consumer_repositories", len(incomplete)),
+		attribute.Int("db.rows.incomplete_consumer_repositories", len(gaps)),
 		attribute.Bool("db.coverage.truncated", coverage.IncompleteTruncated),
+		attribute.Bool("db.coverage.retryable", coverage.Retryable()),
 	)
 	return coverage, nil
 }

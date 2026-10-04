@@ -33,9 +33,96 @@ and is not touched here.
   repository scope with an active generation.
 - A content store that cannot answer, or a request that cannot be planned, keeps
   `cross_repo_evidence_unavailable`. A coverage read error fails the request.
-- The response gains `consumer_coverage {complete, incomplete_repo_ids,
-  incomplete_truncated}`. It carries no count of repositories checked: that
-  would force a full scan, and the statements stop at the first gaps.
+- The response gains `consumer_coverage {complete, retryable, incomplete,
+  incomplete_repo_ids, incomplete_truncated}`. It carries no count of repositories
+  checked: that would force a full scan, and the statements stop at the first
+  gaps. `incomplete` says per repository why it is a gap (see Per-repository
+  state); `incomplete_repo_ids` is the same list, kept for callers that read it
+  first.
+
+## Per-repository state
+
+Three situations used to collapse into one answer, so a caller could not tell
+whether to wait. Each gap now carries `state`, `generation_id` and `retryable`:
+
+| `state` | Condition | `retryable` |
+| --- | --- | --- |
+| `no_snapshot_yet` | no watermark for the active generation | true |
+| `truncated` | watermark present, `truncated` | false |
+| `older_epoch` | watermark present, not truncated, epoch below the current one | true |
+| `no_active_scope` | a named repository with no active repository scope | false |
+
+Precedence inside one watermark: missing, then truncated, then older epoch. A
+watermark that is both truncated and older-epoch reports `truncated`. The
+alternative, older epoch first, would report `retryable: true` and promise a
+rebuild that may land on `truncated` again; the cost of the chosen order is that
+a stale truncated bit written under old semantics reads as final until a rebuild
+re-stamps it. Both are named so the order can be revisited.
+
+`generation_id` is the scope's `active_generation_id`, the snapshot being waited
+for; `no_active_scope` has none and the key is omitted. A repository with several
+gap scopes yields one entry: a truncated scope first (so `retryable` never
+promises a wait another scope defeats), then the lowest generation id. The named
+statement does this with `DISTINCT ON (repository_id) ... ORDER BY repository_id,
+(state = 'truncated') DESC, generation_id`; the all-repositories statement has no
+`ORDER BY` (its `LIMIT` must keep stopping the scan early), so
+`ContentReader.CrossRepoDeadCodeConsumerCoverage` applies the same rule to its
+rows. The top-level `retryable` is true only when every listed gap is retryable
+and `incomplete_truncated` is false: a cut list hides gaps that may not be
+retryable.
+
+Both statements return the two extra columns from the join and CASE they already
+had (`scope.active_generation_id`, and a `CASE` over the same watermark row). No
+index, table or parameter was added; the gating `CASE` that keeps the intent
+probe correlated is unchanged.
+
+Proof: `TestCrossRepoDeadCodeConsumerCoverageLive` seeds `r-multi2` (its `-a`
+scope has the lower generation id and no watermark, its `-b` scope is truncated)
+and `r-trunc-old` (one watermark both truncated and one epoch behind) and asserts
+repository, state, generation id and retryable for the named, grant and
+all-repositories modes. Three seeded mutations each went RED on the live test and
+the shipped statements pass: testing `older_epoch` before `truncated` (fails
+`r-trunc-old` in all three modes); dropping the `(state = 'truncated') DESC` term
+(fails `r-multi2` in the named and grant modes); and picking by lowest generation
+only in Go (fails `r-multi2` in the all-repositories mode).
+
+### Plan, old statement against new
+
+Fixture-scale, a throwaway `postgres:18-alpine` container, hot cache, NOT the QA
+replica: 3,000 repository scopes (three generations each, the last active),
+20,000 other scopes, 396,000 intents (2,400 repositories with code intents on
+every generation, noise for all), 2,850 watermarks at epoch 4 of which every 19th
+is truncated. Custom plans, three runs per case, `EXPLAIN (ANALYZE, BUFFERS,
+TIMING OFF)`, execution times in ms (old, then new, same fixture):
+
+| Statement | Case | Old | New |
+| --- | --- | --- | --- |
+| named | 20 ids | 0.64, 0.38, 0.36 | 0.67, 0.43, 0.41 |
+| named | 500 ids | 2.9, 2.9, 2.8 | 3.1, 2.7, 2.7 |
+| named | 3,000 ids (grant), all probes pass at epoch 4 | 7.9, 7.0, 6.8 | 7.8, 7.2, 7.2 |
+| named | 3,000 ids, epoch bound to 5 (every watermark behind) | 36.6, 34.4, 35.1 | 35.7, 34.2, 34.1 |
+| all | epoch 4, full pass | 2.3, 2.1, 2.0 | 2.2, 2.0, 1.9 |
+| all | epoch 5, stops at LIMIT 26 | 2.0, 1.9, 1.8 | 1.9, 1.9, 1.8 |
+| all | epoch 5, cap 100,000 (every gap probed) | 30.4, 30.7, 30.4 | 30.0, 30.7, 32.1 |
+
+The timings are within noise. The plan class is the same: the scope scan, the
+watermark primary-key probe and the acceptance and intents lookup are unchanged.
+The one difference is the named statement's last node: `HashAggregate` then
+`Sort` became `Sort` (repository, truncated first, generation) then `Unique`,
+over the same 256 estimated rows and a handful of real ones; the sort key is
+three narrow columns. The all statement's plan is identical apart from two more
+output columns.
+
+QA replica, read-only, PostgreSQL 18.3, `EXPLAIN` without `ANALYZE` (nothing was
+executed), `statement_timeout` 10 s, read-only transaction mode, replay lag
+before 0.062 s and after 0.078 s: the old and new named plans both show the
+sequential scan of `ingestion_scopes`, a primary-key probe of
+`scope_generations`, the watermark primary key and the acceptance primary key
+plus `shared_projection_intents_acceptance_lookup_idx`; the new named plan swaps
+`Unique` over `Sort` on `source_key` for `Unique` over `Sort` on the three-column
+key, with a cost of 10.54 to 10.59 against 10.29 to 10.34. The all plans are the
+same shape. No `ANALYZE` was run on the replica for this change, so execution
+timings there are NOT_CHECKED; the figures above are fixture-scale.
 
 ## Statement shape
 
@@ -137,7 +224,8 @@ Observability Evidence: the read runs under a `postgres.query` span with
 `db.coverage.all_repositories`, `db.coverage.requested_repositories`,
 `db.rows.incomplete_consumer_repositories` and `db.coverage.truncated`. An
 operator finding a surprising `unknown_needs_evidence` reads the response's
-`consumer_coverage.incomplete_repo_ids` and the span.
+`consumer_coverage.incomplete` (state, generation id, retryable) and the span,
+which also carries `db.coverage.retryable`.
 
 ## Known gaps
 

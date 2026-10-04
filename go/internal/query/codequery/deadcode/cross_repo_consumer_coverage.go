@@ -46,17 +46,33 @@ func (c crossRepoDeadCodeConsumerCoverageResult) incomplete() bool {
 // summary is the response's consumer_coverage object. It is nil when the check
 // did not produce an answer, so a response never claims a coverage it did not
 // establish.
+//
+// incomplete is the per-repository answer (repository_id, state, generation_id,
+// retryable); incomplete_repo_ids is the same list's ids, kept for callers that
+// read it before the detail existed. retryable is true only when waiting can
+// close every gap: see code.CrossRepoDeadCodeCoverage.Retryable. generation_id
+// is left out for a repository with no active scope, which has none.
 func (c crossRepoDeadCodeConsumerCoverageResult) summary() map[string]any {
 	if !c.Checked || c.Unavailable {
 		return nil
 	}
-	ids := c.IncompleteRepositoryIDs
-	if ids == nil {
-		ids = []string{}
+	incomplete := make([]map[string]any, 0, len(c.Gaps))
+	for _, gap := range c.Gaps {
+		entry := map[string]any{
+			"repository_id": gap.RepositoryID,
+			"state":         gap.State,
+			"retryable":     gap.Retryable,
+		}
+		if gap.GenerationID != "" {
+			entry["generation_id"] = gap.GenerationID
+		}
+		incomplete = append(incomplete, entry)
 	}
 	return map[string]any{
 		"complete":             c.Complete(),
-		"incomplete_repo_ids":  ids,
+		"retryable":            c.Retryable(),
+		"incomplete":           incomplete,
+		"incomplete_repo_ids":  c.IncompleteRepositoryIDs(),
 		"incomplete_truncated": c.IncompleteTruncated,
 	}
 }

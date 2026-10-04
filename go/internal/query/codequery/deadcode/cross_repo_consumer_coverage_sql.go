@@ -37,6 +37,18 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // repository the request named that has no active repository scope at all is a
 // gap when $2 is true.
 //
+// Each gap row also says why and which snapshot is waited for (#7547): state is
+// no_snapshot_yet (no watermark), truncated (current-epoch watermark that
+// cannot prove absence) or older_epoch (watermark below $3), tested in that
+// order so a truncated bit outranks the epoch test; generation_id is the
+// scope's active generation. A listed repository with no active scope reports
+// 'no_active_scope' and a NULL generation_id. Both come from the join and
+// columns the statement already reads, so the plan class is unchanged. A
+// repository with several gap scopes yields one row (DISTINCT ON): a truncated
+// scope first, because waiting cannot close the repository while one stands,
+// then the lowest generation id. The caller applies the same order to the
+// all-repositories rows.
+//
 // Shape: the repository scopes the list names are found in ONE pass over the
 // active-generation scopes with a hashed `source_key = ANY($1)` test, never by
 // joining the list to the scopes row by row -- the planner chose a nested loop
@@ -75,7 +87,12 @@ WITH matched AS MATERIALIZED (
     AND scope.active_generation_id IS NOT NULL
     AND scope.source_key = ANY($1::text[])
 ), gaps AS (
-  SELECT scope.source_key AS repository_id
+  SELECT scope.source_key AS repository_id,
+         scope.active_generation_id AS generation_id,
+         CASE WHEN watermark.scope_id IS NULL THEN 'no_snapshot_yet'
+              WHEN watermark.truncated THEN 'truncated'
+              WHEN watermark.verdict_schema_epoch < $3::integer THEN 'older_epoch'
+         END AS state
   FROM matched AS scope
   LEFT JOIN code_reachability_repository_watermarks AS watermark
     ON watermark.scope_id = scope.scope_id
@@ -97,14 +114,14 @@ WITH matched AS MATERIALIZED (
               LIMIT 1), false)
              ELSE false END
   UNION ALL
-  SELECT requested.id
+  SELECT requested.id, NULL::text, 'no_active_scope'
   FROM unnest($1::text[]) AS requested(id)
   WHERE $2::boolean
     AND requested.id NOT IN (SELECT source_key FROM matched)
 )
-SELECT DISTINCT repository_id
+SELECT DISTINCT ON (repository_id) repository_id, state, generation_id
 FROM gaps
-ORDER BY repository_id
+ORDER BY repository_id, (state = 'truncated') DESC, generation_id
 LIMIT $4
 `
 
@@ -116,6 +133,11 @@ LIMIT $4
 // active generation has a code_calls or inheritance_edges intent, probed the
 // same way and for the same reason.
 //
+// Each row carries the same state and generation_id as the named statement's;
+// a repository with several gap scopes can return several rows, and the caller
+// keeps one by the named statement's rule (a truncated scope first, then the
+// lowest generation id).
+//
 // There is no ORDER BY, so the LIMIT stops the scan at the first cap-plus-one
 // gaps; a fully covered corpus reads every repository scope once, which is the
 // bound, and the response carries no count of the repositories it checked
@@ -125,7 +147,12 @@ LIMIT $4
 //
 // Exported for ContentReader's coverage read in package query.
 const CrossRepoDeadCodeAllConsumerCoverageQuery = `
-SELECT scope.source_key AS repository_id
+SELECT scope.source_key AS repository_id,
+       CASE WHEN watermark.scope_id IS NULL THEN 'no_snapshot_yet'
+            WHEN watermark.truncated THEN 'truncated'
+            WHEN watermark.verdict_schema_epoch < $1::integer THEN 'older_epoch'
+       END AS state,
+       scope.active_generation_id AS generation_id
 FROM ingestion_scopes AS scope
 JOIN scope_generations AS generation
   ON generation.generation_id = scope.active_generation_id

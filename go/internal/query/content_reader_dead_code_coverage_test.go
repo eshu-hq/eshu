@@ -18,10 +18,16 @@ import (
 	reachabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
 
+// coverageColumns is what both coverage statements return per gap: the
+// repository, why it is a gap, and the generation being waited for.
+var coverageColumns = []string{"repository_id", "state", "generation_id"}
+
+// coverageRows builds one no_snapshot_yet gap per id, for tests that care which
+// repositories are gaps and not why.
 func coverageRows(ids ...string) [][]driver.Value {
 	rows := make([][]driver.Value, 0, len(ids))
 	for _, id := range ids {
-		rows = append(rows, []driver.Value{id})
+		rows = append(rows, []driver.Value{id, code.CrossRepoDeadCodeCoverageStateNoSnapshotYet, "gen-" + id})
 	}
 	return rows
 }
@@ -32,7 +38,7 @@ func TestCrossRepoDeadCodeConsumerCoverageNamedRequest(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{columns: []string{"repository_id"}, rows: coverageRows("repo-b", "repo-a")},
+		{columns: coverageColumns, rows: coverageRows("repo-b", "repo-a")},
 	})
 	reader := NewContentReader(db)
 	got, err := reader.CrossRepoDeadCodeConsumerCoverage(context.Background(), code.CrossRepoDeadCodeCoverageRequest{
@@ -42,7 +48,7 @@ func TestCrossRepoDeadCodeConsumerCoverageNamedRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CrossRepoDeadCodeConsumerCoverage() error = %v, want nil", err)
 	}
-	if want := []string{"repo-a", "repo-b"}; !slices.Equal(got.IncompleteRepositoryIDs, want) || got.IncompleteTruncated {
+	if want := []string{"repo-a", "repo-b"}; !slices.Equal(got.IncompleteRepositoryIDs(), want) || got.IncompleteTruncated {
 		t.Fatalf("coverage = %#v, want sorted incomplete %v, not truncated", got, want)
 	}
 	if got, want := len(recorder.queries), 1; got != want {
@@ -78,7 +84,7 @@ func TestCrossRepoDeadCodeConsumerCoverageAllRepositories(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{columns: []string{"repository_id"}, rows: coverageRows("repo-z", "repo-z", "repo-a")},
+		{columns: coverageColumns, rows: coverageRows("repo-z", "repo-z", "repo-a")},
 	})
 	reader := NewContentReader(db)
 	got, err := reader.CrossRepoDeadCodeConsumerCoverage(context.Background(), code.CrossRepoDeadCodeCoverageRequest{
@@ -88,8 +94,8 @@ func TestCrossRepoDeadCodeConsumerCoverageAllRepositories(t *testing.T) {
 		t.Fatalf("CrossRepoDeadCodeConsumerCoverage() error = %v, want nil", err)
 	}
 	// A repository covered by two scopes can be reported twice; it is one gap.
-	if want := []string{"repo-a", "repo-z"}; !slices.Equal(got.IncompleteRepositoryIDs, want) {
-		t.Fatalf("incomplete = %v, want %v", got.IncompleteRepositoryIDs, want)
+	if want := []string{"repo-a", "repo-z"}; !slices.Equal(got.IncompleteRepositoryIDs(), want) {
+		t.Fatalf("incomplete = %v, want %v", got.IncompleteRepositoryIDs(), want)
 	}
 	if recorder.queries[0] != deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery {
 		t.Fatalf("statement is not the all-repositories coverage query:\n%s", recorder.queries[0])
@@ -108,7 +114,7 @@ func TestCrossRepoDeadCodeConsumerCoverageCompleteWhenNoGaps(t *testing.T) {
 	t.Parallel()
 
 	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{columns: []string{"repository_id"}},
+		{columns: coverageColumns},
 	})
 	got, err := NewContentReader(db).CrossRepoDeadCodeConsumerCoverage(context.Background(), code.CrossRepoDeadCodeCoverageRequest{
 		AllRepositories: true,
@@ -131,7 +137,7 @@ func TestCrossRepoDeadCodeConsumerCoverageCapsTheGapList(t *testing.T) {
 		ids = append(ids, fmt.Sprintf("repo-%03d", i))
 	}
 	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
-		{columns: []string{"repository_id"}, rows: coverageRows(ids...)},
+		{columns: coverageColumns, rows: coverageRows(ids...)},
 	})
 	got, err := NewContentReader(db).CrossRepoDeadCodeConsumerCoverage(context.Background(), code.CrossRepoDeadCodeCoverageRequest{
 		AllRepositories: true,
@@ -139,8 +145,8 @@ func TestCrossRepoDeadCodeConsumerCoverageCapsTheGapList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error = %v, want nil", err)
 	}
-	if len(got.IncompleteRepositoryIDs) != deadcode.CrossRepoDeadCodeCoverageGapCap || !got.IncompleteTruncated || got.Complete() {
-		t.Fatalf("coverage = %d ids truncated=%v, want the cap and truncated", len(got.IncompleteRepositoryIDs), got.IncompleteTruncated)
+	if len(got.Gaps) != deadcode.CrossRepoDeadCodeCoverageGapCap || !got.IncompleteTruncated || got.Complete() {
+		t.Fatalf("coverage = %d ids truncated=%v, want the cap and truncated", len(got.Gaps), got.IncompleteTruncated)
 	}
 }
 
@@ -260,8 +266,10 @@ func TestCrossRepoDeadCodeConsumerCoverageStatementShape(t *testing.T) {
 		if name == "all" {
 			query = deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery
 		}
-		when := strings.Index(query, "CASE WHEN")
+		// The state CASE in the select list also starts "CASE WHEN"; the gating
+		// CASE is the one right before the intent probe.
 		then := strings.Index(query, "THEN COALESCE((SELECT true")
+		when := strings.LastIndex(query[:max(then, 0)], "CASE WHEN")
 		if when < 0 || then < when || !strings.Contains(query[when:then], want) {
 			t.Errorf("%s coverage SQL does not test %q inside the CASE that gates the intent probe", name, want)
 		}

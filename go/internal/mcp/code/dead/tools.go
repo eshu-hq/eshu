@@ -93,7 +93,7 @@ func deadCodeInvestigationTool() toolcontract.ToolDefinition {
 func crossRepoDeadCodeTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_cross_repo_dead_code",
-		Description: "Find dead-code candidates across an explicit producer repository and classify symbols kept live by deterministic consumer repository evidence. Ambiguous ownership or missing evidence, including a consumer repository with no reachability watermark, a truncated one, or an older-epoch one (consumer_coverage_incomplete), is returned as unknown instead of dead. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Find dead-code candidates across an explicit producer repository and classify symbols kept live by deterministic consumer repository evidence. Ambiguous ownership or missing evidence, including a consumer repository with no reachability watermark, a truncated one, or an older-epoch one (consumer_coverage_incomplete), is returned as unknown instead of dead. consumer_coverage.incomplete names each such repository with a state (no_snapshot_yet and older_epoch will be built, so retry later; truncated and no_active_scope will not), the generation_id being waited for and a retryable flag; consumer_coverage.retryable is true only when waiting can close every gap. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
