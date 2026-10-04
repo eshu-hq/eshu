@@ -165,7 +165,8 @@ FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d650
 #      packages afresh on every publish, instead of reshipping an old layer.
 #   3. scripts/verify-apk-floors.sh compares these floors with what the Alpine
 #      repository serves and fails when a floor is stale. It runs on every PR
-#      that touches this file and daily on a schedule.
+#      or merge-queue entry that touches this file, and daily on a schedule
+#      (never on the publish run itself, so a stale floor cannot skip Trivy).
 RUN apk add --no-cache git curl "c-ares>=1.34.8-r0" "libexpat>=2.8.4-r0" \
     "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
 

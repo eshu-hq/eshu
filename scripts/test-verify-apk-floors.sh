@@ -146,6 +146,42 @@ make_mirror "${mirror}" v3.21 "foo=1.10-r0"
 run_verifier "${tmp_root}/numeric.Dockerfile" "${mirror}"
 expect_rc 1 "numeric component ordering: 1.10-r0 is newer than 1.9-r0"
 
+# Revision ordering is numeric: r10 is newer than r2, not older.
+printf 'FROM alpine:3.21\nRUN apk add --no-cache "foo>=1.0-r2"\n' >"${tmp_root}/rev.Dockerfile"
+mirror="${tmp_root}/rev"
+make_mirror "${mirror}" v3.21 "foo=1.0-r10"
+run_verifier "${tmp_root}/rev.Dockerfile" "${mirror}"
+expect_rc 1 "two-digit revision: served r10 is newer than floor r2"
+
+# Several records of one package: the highest served version is what counts,
+# whichever order the index lists them in.
+mirror="${tmp_root}/multi-high-first"
+make_mirror "${mirror}" v3.21 "foo=1.0-r10" "foo=1.0-r1"
+run_verifier "${tmp_root}/rev.Dockerfile" "${mirror}"
+expect_rc 1 "several records, highest listed first: the highest is compared"
+mirror="${tmp_root}/multi-high-last"
+make_mirror "${mirror}" v3.21 "foo=1.0-r1" "foo=1.0-r10"
+run_verifier "${tmp_root}/rev.Dockerfile" "${mirror}"
+expect_rc 1 "several records, highest listed last: the highest is compared"
+
+# A comment line inside a RUN continuation does not end the logical line, so
+# floors after it still count. Literal fixture, not floors_of: that helper
+# shares this blind spot. The index lacks "bar": the verifier must notice.
+comment_fixture="${repo_root}/scripts/fixtures/apk-floors/Dockerfile.comment-in-continuation"
+mirror="${tmp_root}/comment-missing"
+make_mirror "${mirror}" v3.21 "foo=3.3.7-r3"
+run_verifier "${comment_fixture}" "${mirror}"
+expect_rc 2 "a floor after a comment inside a continuation is still checked (missing package)"
+expect_output "bar" "the floor after the comment is named"
+mirror="${tmp_root}/comment-stale"
+make_mirror "${mirror}" v3.21 "foo=3.3.7-r3" "bar=1.0-r1"
+run_verifier "${comment_fixture}" "${mirror}"
+expect_rc 1 "a stale floor after a comment inside a continuation turns the gate RED"
+mirror="${tmp_root}/comment-ok"
+make_mirror "${mirror}" v3.21 "foo=3.3.7-r3" "bar=1.0-r0"
+run_verifier "${comment_fixture}" "${mirror}"
+expect_rc 0 "both floors of the commented continuation pass when current"
+
 # --- Fail closed. -----------------------------------------------------------
 run_verifier "${repo_dockerfile}" "${tmp_root}/does-not-exist"
 expect_rc 2 "fetch failure exits non-zero (never passes)"

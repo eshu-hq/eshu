@@ -140,15 +140,18 @@ jobs:
             echo "apkfloors=${apkfloors}"
           } >> "${GITHUB_OUTPUT}"
 
-  # Blocking only for a change to the Dockerfile, this workflow, or the
-  # verifier itself and its fixtures (#7571):
-  # compares the Dockerfile's `apk add` version floors with what the Alpine
-  # repository serves and fails closed on a fetch error. It is a separate job
-  # from the build so a mirror outage is named for what it is. A queue entry
-  # that touches neither file passes as a no-op.
+  # Pull-request and merge-queue gate for a change to the Dockerfile, this
+  # workflow, or the verifier itself and its fixtures (#7571): compares the
+  # Dockerfile's `apk add` version floors with what the Alpine repository
+  # serves and fails closed on a fetch error. It never runs on push, tag, or
+  # workflow_dispatch: a floor that goes stale after merge must not turn the
+  # publish run red, because the image still pushes and a red run skips the
+  # post-publish Trivy scan (security-scan.yml runs it only for a successful
+  # publish). apk-floors-drift.yml reports that case daily instead. A queue
+  # entry that touches none of the paths passes as a no-op.
   verify-apk-floors:
     needs: changes
-    if: github.event_name == 'merge_group' || needs.changes.outputs.apkfloors == 'true'
+    if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true')
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.apkfloors }}
     timeout-minutes: 10

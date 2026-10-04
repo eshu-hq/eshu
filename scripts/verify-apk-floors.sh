@@ -84,7 +84,7 @@ awk '
 			runs[++nruns] = u
 		}
 	}
-	/^[ \t]*#/ && line == "" { next }
+	/^[ \t]*#/ { next }
 	{
 		s = $0
 		if (s ~ /\\[ \t]*$/) { sub(/\\[ \t]*$/, "", s); line = line s " "; next }

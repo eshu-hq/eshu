@@ -4918,7 +4918,10 @@ gates:
     # Path-triggered only: the Dockerfile, the publish workflow, and the
     # verifier with its own self-test and fixtures. Unrelated PRs never select
     # it. The same paths gate docker-publish.yml's on.paths and its `changes`
-    # job, so the verify-apk-floors check exists whenever this row is selected.
+    # job, so the verify-apk-floors check exists on every pull_request and
+    # merge_group run that selects this row. The job is skipped on push, tag,
+    # and dispatch so a post-merge stale floor cannot redden the publish run;
+    # the apk-floors-drift row covers main daily.
     triggers:
       - "Dockerfile"
       - ".github/workflows/docker-publish.yml"
