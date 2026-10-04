@@ -80,6 +80,14 @@ individual SQL statements or silently route reads to the writer. This is
 reader availability and scale-out, not writer scaling,
 automatic primary failover, or proof of a particular latency budget.
 
+For request-time setup, Eshu divides the remaining reader replay window among
+the eligible, untried members after it reserves a whole snapshot set. The last
+member receives the remaining time. This protects a healthy reader whose four
+connection fences take more than 100 ms, but a stalled first member can use
+about half the window before failover. With the default two-second window and
+two readers, degraded-path failover may exceed one second. The normal endpoint
+latency target does not establish a subsecond failover guarantee.
+
 ## What reads and writes use
 
 Business content, status, freshness, incident, infrastructure, supply-chain,

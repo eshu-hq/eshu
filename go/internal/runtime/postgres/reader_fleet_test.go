@@ -77,6 +77,102 @@ func TestFleetWholeReadRetryMayRevisitMember(t *testing.T) {
 	})
 }
 
+func TestFleetHealthySetupGetsFairShareOfReplayWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		steps int
+		delay time.Duration
+	}{
+		{name: "one slow stage", steps: 1, delay: 150 * time.Millisecond},
+		{name: "four sequential stages", steps: 4, delay: 40 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			access := &Access{
+				readerMembers: []physicalReaderMember{{ordinal: 0, maxOpen: 4}, {ordinal: 1, maxOpen: 4}},
+				allocator:     newReaderAllocator([]int{4, 4}, 8),
+				replayTimeout: 450 * time.Millisecond,
+				identity:      physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"},
+			}
+			ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{
+				owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",
+			})
+			var attempts []int
+			member, err := runFleet(access, ctx, 4, func(tryCtx, _ context.Context, reservation *readerReservation, _ checkpoint) (int, error) {
+				attempts = append(attempts, reservation.member)
+				if reservation.member == 0 {
+					for range tc.steps {
+						select {
+						case <-time.After(tc.delay):
+						case <-tryCtx.Done():
+							return 0, tryCtx.Err()
+						}
+					}
+				}
+				reservation.Release()
+				return reservation.member, nil
+			})
+			if err != nil || member != 0 || len(attempts) != 1 {
+				t.Fatalf("healthy first member result=%d err=%v attempts=%v; want member 0 once", member, err, attempts)
+			}
+			reserved, waiting := access.allocator.pressure()
+			for index := range reserved {
+				if reserved[index] != 0 || waiting[index] != 0 {
+					t.Fatalf("member %d reserved=%d waiting=%d after setup", index, reserved[index], waiting[index])
+				}
+			}
+		})
+	}
+}
+
+func TestFleetAttemptDeadlineSharesRemainingWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		window     time.Duration
+		members    int
+		preReserve time.Duration
+	}{
+		{name: "two members", window: 450 * time.Millisecond, members: 2},
+		{name: "three members", window: 900 * time.Millisecond, members: 3},
+		{name: "last member", window: 450 * time.Millisecond, members: 1},
+		{name: "after allocator wait", window: 450 * time.Millisecond, members: 2, preReserve: 50 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent, stopParent := context.WithTimeout(t.Context(), tc.window)
+			defer stopParent()
+			if tc.preReserve > 0 {
+				time.Sleep(tc.preReserve)
+			}
+			started := time.Now()
+			parentDeadline, ok := parent.Deadline()
+			if !ok {
+				t.Fatal("parent deadline is absent")
+			}
+			attempt, stopAttempt := fleetAttemptContext(parent, tc.members)
+			defer stopAttempt()
+			attemptDeadline, ok := attempt.Deadline()
+			if !ok {
+				t.Fatal("attempt deadline is absent")
+			}
+			want := parentDeadline.Sub(started) / time.Duration(tc.members)
+			got := attemptDeadline.Sub(started)
+			if got < want-30*time.Millisecond || got > want+30*time.Millisecond || attemptDeadline.After(parentDeadline) {
+				t.Fatalf("attempt budget=%s parent remaining=%s members=%d; want near %s within parent", got, parentDeadline.Sub(started), tc.members, want)
+			}
+		})
+	}
+
+	caller, stopCaller := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer stopCaller()
+	shared, stopShared := context.WithTimeout(caller, 2*time.Second)
+	defer stopShared()
+	attempt, stopAttempt := fleetAttemptContext(shared, 2)
+	defer stopAttempt()
+	deadline, ok := attempt.Deadline()
+	if !ok || time.Until(deadline) > 200*time.Millisecond {
+		t.Fatalf("short caller deadline was not shared: deadline=%v present=%t", deadline, ok)
+	}
+}
+
 func TestFleetPingBoundsWriterSaturation(t *testing.T) {
 	access := openFleetRegressionAccess(t, 400*time.Millisecond)
 	access.pingTimeout = 120 * time.Millisecond

@@ -96,6 +96,12 @@ configuration mismatches fail closed. No snapshot or partial result crosses
   The setup attempt bounds transaction start, snapshot export, and imports.
   The setup timer is detached only after those steps finish; a returned set
   remains owned by the caller context until it is closed or canceled.
+  Fleet setup gives each eligible, untried member a share of the remaining
+  replay deadline after reservation; the last member receives the remainder.
+  A stalled first member in a two-reader fleet can therefore use about half
+  the window before failover. This preserves a chance for the peer but does
+  not promise subsecond degraded-path latency with the default two-second
+  replay window.
 If an established fleet connection is lost during a snapshot, a narrow
 `ReaderMemberLost() bool` error marker permits the caller to retry its whole
 read workflow from a fresh snapshot, not an individual SQL statement. The

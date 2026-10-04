@@ -15,8 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const fleetAttemptQuantum = 100 * time.Millisecond
-
 // memberLocalTopology distinguishes a replaced physical member from a
 // writer/checkpoint or shared configuration mismatch.
 type memberLocalTopology struct{}
@@ -106,9 +104,15 @@ func retryableFleetFailure(parent context.Context, err error) bool {
 	return parent.Err() == nil && fleetFailureClass(err) == readerFailureTransient
 }
 
-func fleetAttemptContext(parent context.Context, alternative bool) (context.Context, context.CancelFunc) {
-	if alternative {
-		return context.WithTimeout(parent, fleetAttemptQuantum)
+// fleetAttemptContext shares the remaining replay window across eligible
+// members without extending the caller's deadline after a failed attempt.
+func fleetAttemptContext(parent context.Context, eligible int) (context.Context, context.CancelFunc) {
+	if eligible > 1 {
+		deadline, ok := parent.Deadline()
+		if !ok {
+			return context.WithCancel(parent)
+		}
+		return context.WithTimeout(parent, time.Until(deadline)/time.Duration(eligible))
 	}
 	return context.WithCancel(parent)
 }
@@ -152,7 +156,18 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 			failures = errors.Join(failures, reserveErr)
 			break
 		}
-		tryCtx, stop := fleetAttemptContext(bounded, len(eligible) > 1)
+		if bounded.Err() != nil {
+			reservation.Release()
+			break
+		}
+		tryCtx, stop := fleetAttemptContext(bounded, len(eligible))
+		if tryCtx.Err() != nil {
+			failures = errors.Join(failures, ErrReaderUnavailable, tryCtx.Err())
+			stop()
+			reservation.Release()
+			tried[reservation.member] = true
+			continue
+		}
 		result, attemptErr := attempt(tryCtx, ctx, reservation, point)
 		stop()
 		access.observeMemberAttempt(access.readerMembers[reservation.member].ordinal, attemptErr)
