@@ -31,7 +31,7 @@
   together, or `TestDeadCodeRunGateMatchesReachabilityLoaderGate` fails.
 - Keep the candidate statement gate-first with one `LATERAL` aggregate per
   run. A per-intent-row join plus `GROUP BY` is the shape #7547 removed
-  (seconds per poll on QA); re-measure with `EXPLAIN (ANALYZE, BUFFERS)`
+  (seconds per call on QA); re-measure with `EXPLAIN (ANALYZE, BUFFERS)`
   before changing it.
 - Bump `CodeReachabilityVerdictSchemaEpoch` whenever verdict semantics or the
   watermark's truncation semantics change so every projected repo re-projects

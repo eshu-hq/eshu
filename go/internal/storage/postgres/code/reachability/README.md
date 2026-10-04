@@ -80,15 +80,20 @@ reducer work items succeeded with none in another status, and no
 repository is pending. Among those, it picks runs whose watermark is
 missing, older than the run's newest completed intent, or stamped under an
 older verdict-schema epoch, ordered `completed_at ASC, repository_id ASC`.
-An active delta generation gets no new snapshot; the next full generation
-does. Until then, dead-code reads for its entities fall back to the legacy
-one-hop incoming read.
+An active delta generation activated after deploy gets no snapshot; the
+next full generation does. Until then, dead-code reads for its entities fall
+back to the legacy one-hop incoming read. A delta generation the pre-#7547
+loader already projected keeps its partial snapshot until the next
+generation, because the snapshot reader does not gate on completeness. That
+is conservative: rows only add reachability evidence.
 
 The candidate statement (`loader_candidates_sql.go`) gates acceptance rows
 first in a `ready` CTE, then reads one `LATERAL max(completed_at)` per run
 and joins the watermark once per run. Do not fold it back into one
-intent-row join with `GROUP BY`: on the QA replica that shape took 4.7 to
-8.4 s per 5 s poll against 0.7 to 0.9 s for this one. See
+intent-row join with `GROUP BY`: the runner re-polls nearly back to back
+(`ESHU_SHARED_PROJECTION_POLL_INTERVAL`, default 500 ms, and no wait while
+inputs remain), and on the QA replica that shape took 4.7 to 8.4 s per call.
+The shipped statement took 702.7 ms warm and 5,266 ms cold (`LIMIT 10`). See
 `docs/internal/evidence/7547-reachability-loader-gate.md`.
 
 ## Gotchas / invariants

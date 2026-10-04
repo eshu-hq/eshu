@@ -4,8 +4,12 @@
 
 `LoadPendingCodeReachabilityInputs` (`go/internal/storage/postgres/code/reachability`)
 picks the next batch of repository runs for the reducer's reachability
-projection. The reducer polls it every 5 s. This change does two things to
-its candidate statement and nothing else in the loader:
+projection. The runner polls on `ESHU_SHARED_PROJECTION_POLL_INTERVAL`
+(default 500 ms; its own 5 s default applies only when the interval is zero or
+negative). It re-polls without waiting while a batch returns inputs, so the
+statement runs nearly back to back. Its `LIMIT` is
+`ESHU_SHARED_PROJECTION_BATCH_LIMIT` (default 100). This change does two
+things to its candidate statement and nothing else in the loader:
 
 1. **Completeness gate.** A run is scheduled only when its code-edge set is
    provably complete. That is the same check the dead-code query's `run_gate`
@@ -29,9 +33,14 @@ batch size, or poll interval. It is based on `main` after the epoch 3 to 4
 bump (#7576, `docs/internal/evidence/7547-reachability-epoch-4-bump.md`), so
 `$2` is 4 in production.
 
-What the gate means for a delta generation: an active delta generation gets
-no new snapshot. Reachability for that repository waits for the next full
-generation. The git collector emits both materialization follow-up facts on
+What the gate means for a delta generation: an active delta generation
+activated after deploy gets no snapshot. Reachability for that repository
+waits for the next full generation, and dead-code reads for its entities use
+the legacy one-hop read. The snapshot reader trusts any active-generation
+rows without a gate, so a delta generation the pre-#7547 loader already
+projected before deploy keeps its partial snapshot until the next generation
+replaces it. That effect is conservative: snapshot rows only add reachability
+evidence, and the legacy read still covers every entity they do not answer. The git collector emits both materialization follow-up facts on
 every full generation, unconditionally (`fact_builder.go`, after the delta
 early return), so a full run is never starved for lack of a work item.
 
@@ -89,8 +98,8 @@ tests went RED under the gate, which was expected.
 
 ## Cost
 
-Performance Evidence: QA replica figures are the measurement agent's,
-read-only, one data copy, PostgreSQL 18.3, label verified. `LIMIT 10`,
+Performance Evidence: the QA replica figures below were measured by the
+#7547 work: read-only, one data copy, PostgreSQL 18.3, label verified. `LIMIT 10`,
 epoch 3, three runs (cold, warm, warm). The old statement took 8,385 / 4,698 /
 4,667 ms. It joined 497,431 intent rows, probed the watermark once per intent
 row (2.08M buffers), and did a 112 MB external sort before grouping. The
@@ -108,8 +117,8 @@ run was complete at the time. The fixture tests above prove what the gate
 does on incomplete runs.
 
 The figures above were taken on the measurement shim, which used different
-aliases. The coordinator later measured the exact shipped statement on the QA
-replica on 2026-10-04 (label verified): PostgreSQL 18.3, read-only,
+aliases. The exact shipped statement was then measured on the QA replica by
+the #7547 work on 2026-10-04 (label verified): PostgreSQL 18.3, read-only,
 `statement_timeout` 10 s, `jit` off, a prepared statement, `LIMIT 10`.
 EXPLAIN without ANALYZE came first. Its plan has no sequential scan on
 `shared_projection_intents` or `fact_work_items`. It uses index scans on
@@ -125,18 +134,28 @@ EXPLAIN (ANALYZE, BUFFERS) gave:
 | Epoch 3 | 702.7 ms | warm |
 | Epoch 4 parameter | 702.2 ms | warm |
 
-Planning took 8 to 12.6 ms. For comparison, the measurement agent's earlier
+Planning took 8 to 12.6 ms. These were custom plans, with the epoch
+inlined as a literal (`< 3` or `< 4`). The generic plan PostgreSQL may switch
+to after the fifth execution was not measured, and the reducer's pgx
+statement cache can reuse prepared statements. The plan shape is expected to
+stay the same, because `$2` only filters the final candidate rows, but that
+is not measured. All of these used `LIMIT 10`, while production uses the
+batch limit (default 100). The cost sits in the per-run aggregate over every
+ready run before the top-N sort, so the limit should matter little, but
+`LIMIT 100` was not measured on QA. For comparison, the earlier
 QA runs of the pre-#7547 statement took 8,385 ms cold and 4,698 and 4,667 ms
 warm.
 
-Replica replay lag was 0.06 s before the cold execution and 1.7 s right after
-it (read 0.6 s later). The loader runs on the primary in production, not on
-the replica, so this lag does not apply to it. Still, a cold read on the
-replica can hold replay back. The practice for replica measurements is now: a
+Replica replay lag read 0.06 s before and 1.7 s after the three executions
+(0.6 s on a later read). That is not evidence that a read held replay:
+`now() - pg_last_xact_replay_timestamp()` also grows while the primary is
+idle. The loader runs on the primary in production, not on the replica.
+Still, a cold read on the replica can in principle hold replay back, up to
+`max_standby_streaming_delay`. The practice for replica measurements is now: a
 `statement_timeout` of 10 s or less, EXPLAIN before EXPLAIN ANALYZE, and a lag
 check before and after.
 
-Fixture-scale figures are mine, from the throwaway PostgreSQL 18.6 container
+Fixture-scale figures come from a throwaway PostgreSQL 18.6 container
 (`shared_buffers=512MB`, `work_mem=16MB`, `jit=off`, warm cache, three runs
 each). The fixture has 800 repositories with one active and one superseded
 generation each, 507,996 active intents (repository i has 70000/i, at most
