@@ -161,8 +161,19 @@ The deploy watch uses signals that already exist:
   The drain is complete when this returns 0.
 - `truncation_reason` lines: expect about 379 `no_roots` at INFO, a handful of
   `max_depth` at WARN, and 0 `max_visited`. Many more WARNs means stop.
-- Replica replay lag against the API's 2 s fence, and the 5xx rate on the
-  dead-code routes.
+- Replica replay lag against the API's 2 s fence. The fence applies to every
+  PostgreSQL-backed API and MCP business read, not only the dead-code routes:
+  business reads receive only the reader pool, every borrow is fenced by a 2 s
+  replay timeout, and there is no writer fallback, so lag over 2 s answers 503
+  `backend_unavailable` with Retry-After on every such route. Watch the
+  API-wide 503 `backend_unavailable` rate and the existing
+  `eshu_dp_postgres_reader_stage_duration_seconds` stage `replay` panel.
+  Lag can exceed WAL-volume expectations because the reader is asynchronous
+  (`numSynchronousReplicas: 0`) and `max_standby_streaming_delay` is not set in
+  the chart values (PostgreSQL default 30 s; the live value was not checked),
+  so any long replica read during the drain can hold replay for up to 30 s.
+  During the drain the only replica read should be the census, with a 10 s
+  timeout.
 - Dead tuples and autovacuum on `code_reachability_rows` (the drain rewrites
   every row of it).
 - Reducer RSS against `GOMEMLIMIT`.
@@ -181,18 +192,45 @@ The deploy watch uses signals that already exist:
   intent. A residual above 0 after the completion log lines stop means
   non-candidates, not a stuck drain.
 
-A staged rollout (ops-qa drained fully with a flat API error rate before any
-production pin) is required if any of these holds:
+Deploy path and stop lever. ops-qa deploys by an owner pin commit in the
+GitOps repository, which ArgoCD syncs automatically with self-heal; merging
+this change to `main` does not deploy it. ops-prod is a separate overlay pinned
+separately. The stop lever is re-pinning the previous image: the epoch-3 binary
+selects nothing new because every comparison is `<`, in-flight per-repository
+transactions commit or roll back whole, and the drain halts within one sync
+plus a pod restart. Scaling the reducer to 0 by hand is reverted by self-heal
+unless automated sync is paused, so it is not the lever. Reverting the
+constant on `main` is the slow path.
 
-- the log proxy predicts a drain over 30 minutes, or any cycle exceeds 60 s at
-  batch 100;
-- reducer RSS exceeds 50% of `GOMEMLIMIT`;
-- replica lag trips the 2 s fence, or the dead-code 5xx rate rises;
-- the reducer restarts or exits with a projection error during the drain;
-- the target runs more than one reducer replica (the runner takes no lease or
-  claim, so two replicas select the same 100 candidates and both run the full
-  delete and re-insert on the same repositories at the same time: duplicate
-  work and concurrent rewrites, not only a double stamp).
+Stop triggers, with a time box. Re-pin the previous image if reader-fence 503s
+(replay lag over the 2 s fence) persist for 2 consecutive minutes, if the
+reducer restarts or exits with a projection error, if reducer RSS exceeds 50%
+of `GOMEMLIMIT`, or if the census has not reached 0 within 60 minutes of the
+pod start. The owner may tighten these. The ops-prod pin waits for a completed
+ops-qa drain (census 0) with a flat API-wide 503 rate.
+
+Concurrency of the burst: up to 8 concurrent per-repository rewrite
+transactions on ops-qa (`ESHU_REDUCER_WORKERS` is 8 in the ops-qa values and is
+clamped to the CPU count; the default 4 applies only when it is unset). The
+runner takes no lease or claim, so two reducer replicas would select the same
+100 candidates and both run the full delete and re-insert on the same
+repositories at the same time: duplicate work and concurrent rewrites, not
+only a double stamp.
+
+Interaction with the loader restructure (a separate performance PR, slice D).
+Merge order between the two is free. It shortens each cycle's candidate
+selection from about 4.7 s to about 0.7 s, which removes the natural pause
+between 100-repository write bursts. Total write volume is the same either
+way, and pacing is not a mechanism this change relies on. Pin ops-qa once with
+both, so the no-pause case is the one measured, and say which was measured. The
+loader gate also narrows candidates (delta generations and incomplete
+materialization), so with it the census residual can include gated-out runs
+that stay at epoch 3 until their next full generation; the cross-repo reader
+reports those as `unknown_needs_evidence`. On the measured QA snapshot the
+candidate-set hash was identical with and without the gate, so no repository is
+excluded today. The 1 to 12 minute estimate above must be re-derived with about
+0.7 s per cycle if the gate is in the pin; either way it is dominated by the
+unmeasured write side.
 
 Pacing is not a lever: do not lower the batch limit, the worker count, or the
 poll rate to slow the drain.
