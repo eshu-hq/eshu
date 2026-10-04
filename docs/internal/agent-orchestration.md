@@ -35,7 +35,7 @@ the codebase.
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
 | **Shared brain** | `AGENTS.md`, `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
-| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
+| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude Code, Codex, and opencode all read `AGENTS.md` (plus opencode's
@@ -231,6 +231,7 @@ select the named role for this guard to apply.
 | opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write/bash: deny` for every read role |
 | Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
 | Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
+| Cursor | `.cursor/agents/*.md` | `model: inherit`: the session's model (Auto when the session is on Auto). Cursor also loads the `.claude/` and `.codex/` shims and would run their pinned models; the same-named `.cursor/` shim wins | `readonly: true` for every read role (no file edits, no state-changing shell commands) |
 
 Muse's launcher runs one role as a headless session, rather than registering a
 native subagent. Its read-only profile may prevent a diagnostic or performance
