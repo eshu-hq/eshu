@@ -72,7 +72,7 @@ func TestListImpactFindingsReaderTimeoutAnswersRetryable503(t *testing.T) {
 			fmt.Errorf("read findings: %w", errors.Join(db.ErrReaderUnavailable, context.DeadlineExceeded)),
 			http.StatusServiceUnavailable,
 		},
-		{"bare reader unavailable", db.ErrReaderUnavailable, http.StatusInternalServerError},
+		{"bare reader unavailable", fmt.Errorf("read findings: %w", db.ErrReaderUnavailable), http.StatusInternalServerError},
 	}
 
 	for _, branch := range branches {
