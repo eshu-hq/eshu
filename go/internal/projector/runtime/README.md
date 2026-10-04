@@ -27,6 +27,11 @@ package.
 - `BuildContentRecord`, `BuildContentEntityRecord`, `BuildReducerIntent` — the
   record builders the per-family stages call.
 
+`BuildContentRecord` preserves `content_body` exactly, and
+`BuildContentEntityRecord` preserves `source_cache` exactly. Path, entity type,
+and name aliases still use trimmed identity text. The Postgres writer receives
+the original source bytes, including blank source and trailing newlines.
+
 ## Four behaviors worth knowing before changing anything here
 
 **Admission runs before any writer.** A fact whose schema version the

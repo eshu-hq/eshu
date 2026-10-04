@@ -69,6 +69,17 @@ func PayloadString(payload map[string]any, key string) (string, bool) {
 	return text, true
 }
 
+// PayloadRawText returns string-shaped payload text without normalizing it.
+// Empty and whitespace-only strings are present values. It accepts the same
+// string-shaped scalars as [PayloadString] without trimming them.
+func PayloadRawText(payload map[string]any, key string) (string, bool) {
+	value, ok := payload[key]
+	if !ok {
+		return "", false
+	}
+	return asString(value)
+}
+
 // PayloadHasKey reports whether a fact payload carries key at all, including
 // when its value is nil. Callers use it to tell a field that was explicitly
 // emitted as empty from one the producer never set.

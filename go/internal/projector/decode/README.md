@@ -30,7 +30,7 @@ Two things live here that their names might not suggest:
   `OCIRegistryRepository`, `OCIImageManifest`, `OCIImageIndex`,
   `PackageRegistryPackage`, `TerraformStateSnapshot`, `TerraformStateResource`
   and their siblings.
-- Untyped payload accessors: `PayloadString`, `PayloadInt`, `PayloadIntPtr`,
+- Untyped payload accessors: `PayloadString`, `PayloadRawText`, `PayloadInt`, `PayloadIntPtr`,
   `PayloadBoolPtr`, `PayloadHasKey`, `PayloadAttributes`.
 - Fact-kind selection: `NormalizeFactKind`, `FilterFileFacts`,
   `FilterEntityFacts`, `FilterRepositoryFacts`.
@@ -50,5 +50,10 @@ missing rows, which is the accuracy failure the Life Motto ranks first.
 
 The stage labels are a bounded metric dimension. Adding an unbounded value
 makes `eshu_dp_projector_input_invalid_facts_total` unusable.
+
+`PayloadString` trims and rejects blank metadata or identity text.
+`PayloadRawText` accepts the same string-shaped scalars and preserves their text,
+including leading whitespace, trailing newlines, and an empty value. Use the
+raw accessor for file bodies and entity source snippets, not for identifiers.
 
 See `doc.go` for the full godoc contract.
