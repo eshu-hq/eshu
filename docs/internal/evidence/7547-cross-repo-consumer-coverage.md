@@ -10,8 +10,10 @@ missing, truncated, from a delta generation, or built from zero roots writes no
 rows for the symbols it calls, so every producer symbol it calls read `dead`.
 
 This change makes the reader consult `code_reachability_repository_watermarks`.
-The writer side (stamping `truncated`, gating the loader) is a separate change
-and is not touched here.
+The writer side (stamping `truncated` for zero roots and depth cutoffs,
+#7570), the epoch-4 bump (#7576) and the loader's complete-run gate (#7579) are
+separate changes, all merged on the base of this branch; none is touched here.
+`CodeReachabilityVerdictSchemaEpoch` is 4 in this tree.
 
 ## Behavior
 
@@ -199,12 +201,22 @@ epoch test with a never-true condition made the live test fail on `r-oldepoch`
 `reachabilitystore.CodeReachabilityVerdictSchemaEpoch` and bound as a parameter
 (`$3` named, `$1` all); the reader test asserts the bound value is that constant.
 
-Merge order with the writer change is free. The predicate reads the constant as
-compiled, so it flags nothing extra while every watermark is at the current
-epoch. When the writer change raises the constant, every older watermark of a
-repository with code intents reads as a gap until the loader rebuilds it, which
-the loader already does for any watermark below the current epoch. Pre-upgrade
-watermarks (epoch default 0) are gaps for the same reason until rebuilt.
+The predicate reads the constant as compiled, so it flags nothing extra while
+every watermark is at the current epoch. The epoch-4 bump has merged: every
+watermark stamped below 4 on a repository with code intents reads as a gap
+(`older_epoch`, retryable) until the loader rebuilds it, which the loader does
+for any watermark below the current epoch. Pre-upgrade watermarks (epoch default
+0) are gaps for the same reason until rebuilt.
+
+When `older_epoch` is gone on ops-qa: the drain is done when the split census in
+`7547-reachability-loader-gate.md` (section "Interaction with the epoch-4
+drain") reports `residual` equal to `gated_out`. A residual above `gated_out`
+is a drain still running, and those repositories answer `older_epoch` with
+`retryable: true`. A gated-out run (delta generation, failed or retrying work
+item, pending intent) is never scheduled by the loader, so its older watermark
+stays until a later full generation replaces it: such a repository keeps
+answering `older_epoch` and waiting does not clear it until then. The `retryable`
+flag cannot see that case; it follows the watermark, not the loader's gate.
 
 On the QA replica the scope side is a cheap sequential scan of the 819-row `ingestion_scopes` table on the custom plan (the generic plan, from the sixth prepared execution on, used the partial `ingestion_scopes_active_generation_idx`; both are fast, and 799 of the 819 scopes qualify, so the index buys little); the earlier fixture-scale expectation that the partial index serves the scope side was wrong at this table size. The watermark side is a primary-key probe, and the intent probe is a correlated prefix probe. Neither statement reads `code_reachability_rows`.
 
@@ -236,17 +248,18 @@ which also carries `db.coverage.retryable`.
   `consumer_repo_ids` or use a grant to narrow a request.
 - The check detects only a missing, truncated or older-epoch watermark on a repository with
   code edges. A stale or partly drained snapshot with `truncated = false`, even
-  beside a pending intent, reads complete until the reducer rebuilds it, and a
-  zero-root repository is flagged only after the writer stamps `truncated`.
+  beside a pending intent, reads complete until the reducer rebuilds it. A
+  zero-root repository is now stamped `truncated` by the writer (#7570), so it
+  reads `truncated` once its watermark is rewritten at the current epoch.
 - "Complete" is bounded by root emission. A consumer whose watermark is not
   truncated, in a language with no public-API root kind, can still hide an
   exported-but-unrooted caller of the producer symbol.
 - An UNGRANTED consumer repository with a partial snapshot is not covered for a
   scoped caller who named no consumer: the check runs over the grant, and the
   ungranted-consumer probe that finds ungranted consumers needs rows to exist.
-- This reader trusts the watermark. Until the writer side stamps `truncated`
-  for zero roots and depth cutoffs, and for delta generations, a watermark with
-  `truncated = false` reads as complete.
+- This reader trusts the watermark. A watermark written by a loader older than
+  #7570 with `truncated = false` reads as complete only while its epoch is
+  current; the epoch-4 bump makes those older-epoch gaps.
 - Identity of `repository_id`. The statements join the watermark's
   `repository_id` to the scope's `source_key`. The writer stamps
   `input.RepositoryID`, the loader's `acceptance_unit_id`
