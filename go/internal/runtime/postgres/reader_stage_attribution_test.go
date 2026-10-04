@@ -211,7 +211,7 @@ func TestGuardedQueryLeavesAnUnattachedAccumulatorEmpty(t *testing.T) {
 
 // TestRequestReaderStageExcludesWriterCheckpoint pins that the writer
 // checkpoint never maps to a per-request reader slot. The checkpoint is writer
-// work that runs after the request's reads, so a future case that mapped it
+// work that runs before the request's reads, so a future case that mapped it
 // into a slot would put writer time into the reader stage figures an operator
 // reads off the findings log line.
 func TestRequestReaderStageExcludesWriterCheckpoint(t *testing.T) {
