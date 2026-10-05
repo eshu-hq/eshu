@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -19,6 +20,88 @@ import (
 	linkstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// loadGenerationRetentionConfig reads the generation retention env settings.
+// An unset, unparsable, or non-positive hard ceiling resolves to
+// postgres.DefaultGenerationRetentionHardMaxAge of the effective soft window
+// (#7611); an explicit value is kept as set for validation to judge.
+func loadGenerationRetentionConfig(getenv func(string) string) generationRetentionConfig {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	defaults := postgres.DefaultGenerationRetentionPolicy()
+	maxAge := loadDurationOrDefault(getenv, generationRetentionMaxSupersededAgeEnv, defaults.MaxSupersededAge)
+	hardMaxAge := loadDurationOrDefault(getenv, generationRetentionHardMaxSupersededAgeEnv, 0)
+	lifted := false
+	if hardMaxAge == 0 {
+		hardMaxAge = postgres.DefaultGenerationRetentionHardMaxAge(maxAge)
+		lifted = hardMaxAge > defaults.HardMaxSupersededAge
+	}
+	return generationRetentionConfig{
+		Enabled: loadBoolOrDefault(getenv, generationRetentionEnabledEnv, true),
+		Runner: maintenance.GenerationRetentionRunnerConfig{
+			PollInterval: loadDurationOrDefault(getenv, generationRetentionPollIntervalEnv, defaultGenerationRetentionPollInterval),
+			Policy: maintenance.GenerationRetentionPolicy{
+				MinSupersededGenerations: loadPositiveIntOrDefault(getenv, generationRetentionMinSupersededGenerationsEnv, defaults.MinSupersededGenerations),
+				MaxSupersededAge:         maxAge,
+				HardMaxSupersededAge:     hardMaxAge,
+				BatchGenerationLimit:     loadPositiveIntOrDefault(getenv, generationRetentionBatchGenerationLimitEnv, defaults.BatchGenerationLimit),
+				BatchRowLimit:            loadPositiveIntOrDefault(getenv, generationRetentionBatchRowLimitEnv, defaults.BatchRowLimit),
+				PolicyScope:              loadStringOrDefault(getenv, generationRetentionPolicyScopeEnv, defaults.PolicyScope),
+				PolicyRevision:           loadStringOrDefault(getenv, generationRetentionPolicyRevisionEnv, defaults.PolicyRevision),
+			},
+		},
+		HardMaxSupersededAgeLifted: lifted,
+	}
+}
+
+func validateGenerationRetentionConfig(
+	getenv func(string) string,
+	cfg generationRetentionConfig,
+) error {
+	// The hard history ceiling (#7585) caps the soft keep window: a hard
+	// ceiling below the soft age promises retention the ceiling denies, so
+	// that combination fails closed instead of silently deleting what the
+	// soft window says to keep.
+	if cfg.Runner.Policy.HardMaxSupersededAge < cfg.Runner.Policy.MaxSupersededAge {
+		return fmt.Errorf("%s (%v) must not be below %s (%v): the hard history ceiling caps the soft keep window",
+			generationRetentionHardMaxSupersededAgeEnv, cfg.Runner.Policy.HardMaxSupersededAge,
+			generationRetentionMaxSupersededAgeEnv, cfg.Runner.Policy.MaxSupersededAge)
+	}
+	if cfg.Enabled {
+		return nil
+	}
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	profile, err := query.ParseQueryProfile(getenv(queryProfileEnv))
+	if err != nil {
+		return err
+	}
+	switch profile {
+	case query.ProfileLocalLightweight, query.ProfileLocalAuthoritative, query.ProfileLocalFullStack:
+		return nil
+	default:
+		return fmt.Errorf("%s=false requires an explicit local %s profile; production reducers must run generation retention", generationRetentionEnabledEnv, queryProfileEnv)
+	}
+}
+
+// logGenerationRetentionHardCeilingLift logs once, at reducer startup, when
+// the unset hard ceiling was raised above 2160h to match a longer soft window.
+func logGenerationRetentionHardCeilingLift(ctx context.Context, logger *slog.Logger, cfg generationRetentionConfig) {
+	if logger == nil || !cfg.HardMaxSupersededAgeLifted {
+		return
+	}
+	logger.InfoContext(
+		ctx,
+		"generation retention hard ceiling raised to the soft keep window",
+		slog.String("hard_env", generationRetentionHardMaxSupersededAgeEnv),
+		slog.String("soft_env", generationRetentionMaxSupersededAgeEnv),
+		slog.String("effective_hard_max_superseded_age", cfg.Runner.Policy.HardMaxSupersededAge.String()),
+		slog.String("max_superseded_age", cfg.Runner.Policy.MaxSupersededAge.String()),
+		slog.String("default_hard_max_superseded_age", postgres.DefaultGenerationRetentionPolicy().HardMaxSupersededAge.String()),
+	)
+}
 
 type postgresGenerationRetentionPruner struct {
 	store postgres.GenerationRetentionStore

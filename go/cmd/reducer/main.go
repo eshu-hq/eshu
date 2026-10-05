@@ -54,6 +54,7 @@ func buildReducerService(
 	if err := validateGenerationRetentionConfig(getenv, generationRetentionCfg); err != nil {
 		return reducer.Service{}, err
 	}
+	logGenerationRetentionHardCeilingLift(ctx, logger, generationRetentionCfg)
 	generationLivenessCfg := loadGenerationLivenessConfig(getenv)
 	warnGenerationLivenessProgressWindowClamp(ctx, logger, generationLivenessCfg)
 	poisonLivenessCfg := loadPoisonLivenessConfig(getenv)

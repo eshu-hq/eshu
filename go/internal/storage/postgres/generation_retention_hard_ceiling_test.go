@@ -36,6 +36,45 @@ func TestGenerationRetentionPolicyNormalizeHardCeilingDefaults(t *testing.T) {
 	}
 }
 
+// TestGenerationRetentionPolicyNormalizeDerivesHardCeilingFromLongSoftAge
+// pins #7611: an unset hard ceiling resolves to the soft window when that is
+// longer than 90 days, so it never contradicts the window it caps.
+func TestGenerationRetentionPolicyNormalizeDerivesHardCeilingFromLongSoftAge(t *testing.T) {
+	t.Parallel()
+
+	soft := 87600 * time.Hour
+	policy := GenerationRetentionPolicy{MaxSupersededAge: soft}.normalize()
+	if policy.HardMaxSupersededAge != soft {
+		t.Fatalf("normalized HardMaxSupersededAge = %v, want %v", policy.HardMaxSupersededAge, soft)
+	}
+	if got := DefaultGenerationRetentionHardMaxAge(soft); got != soft {
+		t.Fatalf("DefaultGenerationRetentionHardMaxAge(%v) = %v, want %v", soft, got, soft)
+	}
+	if got, want := DefaultGenerationRetentionHardMaxAge(7*24*time.Hour), 90*24*time.Hour; got != want {
+		t.Fatalf("DefaultGenerationRetentionHardMaxAge(168h) = %v, want %v", got, want)
+	}
+}
+
+// TestGenerationRetentionStoreAcceptsUnsetHardCeilingWithLongSoftAge proves a
+// programmatic caller that leaves the hard ceiling unset with a soft window
+// above 90 days is not refused as contradictory (#7611).
+func TestGenerationRetentionStoreAcceptsUnsetHardCeilingWithLongSoftAge(t *testing.T) {
+	t.Parallel()
+
+	store := NewGenerationRetentionStore(&generationRetentionFakeDB{})
+	_, err := store.PruneSupersededGenerations(context.Background(), GenerationRetentionPolicy{
+		MinSupersededGenerations: 24,
+		MaxSupersededAge:         87600 * time.Hour,
+		BatchGenerationLimit:     10,
+		BatchRowLimit:            100,
+		PolicyScope:              "global",
+		PolicyRevision:           "test-revision",
+	})
+	if err != nil && strings.Contains(err.Error(), "hard max superseded age") {
+		t.Fatalf("PruneSupersededGenerations() error = %v, want no hard-ceiling contradiction for an unset ceiling", err)
+	}
+}
+
 // TestGenerationRetentionCandidateQueryEnforcesHardCeiling proves the
 // all-scope candidate query caps the count preference with the hard
 // ceiling: a generation older than the hard cutoff is eligible even when

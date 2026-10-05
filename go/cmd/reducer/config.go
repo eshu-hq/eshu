@@ -18,7 +18,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -96,6 +95,10 @@ const (
 type generationRetentionConfig struct {
 	Enabled bool
 	Runner  maintenance.GenerationRetentionRunnerConfig
+	// HardMaxSupersededAgeLifted reports that the hard ceiling env var gave no
+	// valid value and the derived default rose above the flat 2160h because
+	// the soft window is longer (#7611).
+	HardMaxSupersededAgeLifted bool
 }
 
 type generationLivenessConfig struct {
@@ -266,28 +269,6 @@ func loadReducerWorkerCount(getenv func(string) string, graphBackend runtimecfg.
 	return n
 }
 
-func loadGenerationRetentionConfig(getenv func(string) string) generationRetentionConfig {
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	defaults := postgres.DefaultGenerationRetentionPolicy()
-	return generationRetentionConfig{
-		Enabled: loadBoolOrDefault(getenv, generationRetentionEnabledEnv, true),
-		Runner: maintenance.GenerationRetentionRunnerConfig{
-			PollInterval: loadDurationOrDefault(getenv, generationRetentionPollIntervalEnv, defaultGenerationRetentionPollInterval),
-			Policy: maintenance.GenerationRetentionPolicy{
-				MinSupersededGenerations: loadPositiveIntOrDefault(getenv, generationRetentionMinSupersededGenerationsEnv, defaults.MinSupersededGenerations),
-				MaxSupersededAge:         loadDurationOrDefault(getenv, generationRetentionMaxSupersededAgeEnv, defaults.MaxSupersededAge),
-				HardMaxSupersededAge:     loadDurationOrDefault(getenv, generationRetentionHardMaxSupersededAgeEnv, defaults.HardMaxSupersededAge),
-				BatchGenerationLimit:     loadPositiveIntOrDefault(getenv, generationRetentionBatchGenerationLimitEnv, defaults.BatchGenerationLimit),
-				BatchRowLimit:            loadPositiveIntOrDefault(getenv, generationRetentionBatchRowLimitEnv, defaults.BatchRowLimit),
-				PolicyScope:              loadStringOrDefault(getenv, generationRetentionPolicyScopeEnv, defaults.PolicyScope),
-				PolicyRevision:           loadStringOrDefault(getenv, generationRetentionPolicyRevisionEnv, defaults.PolicyRevision),
-			},
-		},
-	}
-}
-
 func loadPoisonLivenessConfig(getenv func(string) string) poisonLivenessConfig {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -301,37 +282,6 @@ func loadPoisonLivenessConfig(getenv func(string) string) poisonLivenessConfig {
 				BatchLimit:         loadPositiveIntOrDefault(getenv, poisonLivenessBatchLimitEnv, defaultPoisonLivenessBatchLimit),
 			},
 		},
-	}
-}
-
-func validateGenerationRetentionConfig(
-	getenv func(string) string,
-	cfg generationRetentionConfig,
-) error {
-	// The hard history ceiling (#7585) caps the soft keep window: a hard
-	// ceiling below the soft age promises retention the ceiling denies, so
-	// that combination fails closed instead of silently deleting what the
-	// soft window says to keep.
-	if cfg.Runner.Policy.HardMaxSupersededAge < cfg.Runner.Policy.MaxSupersededAge {
-		return fmt.Errorf("%s (%v) must not be below %s (%v): the hard history ceiling caps the soft keep window",
-			generationRetentionHardMaxSupersededAgeEnv, cfg.Runner.Policy.HardMaxSupersededAge,
-			generationRetentionMaxSupersededAgeEnv, cfg.Runner.Policy.MaxSupersededAge)
-	}
-	if cfg.Enabled {
-		return nil
-	}
-	if getenv == nil {
-		getenv = func(string) string { return "" }
-	}
-	profile, err := query.ParseQueryProfile(getenv(queryProfileEnv))
-	if err != nil {
-		return err
-	}
-	switch profile {
-	case query.ProfileLocalLightweight, query.ProfileLocalAuthoritative, query.ProfileLocalFullStack:
-		return nil
-	default:
-		return fmt.Errorf("%s=false requires an explicit local %s profile; production reducers must run generation retention", generationRetentionEnabledEnv, queryProfileEnv)
 	}
 }
 

@@ -18,6 +18,7 @@ func TestLoadGenerationRetentionConfigDefaults(t *testing.T) {
 	require.Equal(t, 24, cfg.Runner.Policy.MinSupersededGenerations)
 	require.Equal(t, 7*24*time.Hour, cfg.Runner.Policy.MaxSupersededAge)
 	require.Equal(t, 90*24*time.Hour, cfg.Runner.Policy.HardMaxSupersededAge)
+	require.False(t, cfg.HardMaxSupersededAgeLifted)
 	require.Equal(t, 100, cfg.Runner.Policy.BatchGenerationLimit)
 	require.Equal(t, 100_000, cfg.Runner.Policy.BatchRowLimit)
 	require.Equal(t, "global", cfg.Runner.Policy.PolicyScope)
@@ -60,6 +61,62 @@ func TestLoadGenerationRetentionConfigRejectsHardCeilingBelowSoftAge(t *testing.
 
 	require.ErrorContains(t,
 		validateGenerationRetentionConfig(func(key string) string { return env[key] }, cfg),
+		"ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE")
+}
+
+// TestLoadGenerationRetentionConfigDerivesHardCeilingFromLongSoftAge pins
+// #7611: an unset hard ceiling resolves to the soft window when that is longer
+// than 2160h, so a deployment that holds retention with a long soft window and
+// never sets the hard ceiling still starts. The check runs before the Enabled
+// early return, so the disabled local path must pass too.
+func TestLoadGenerationRetentionConfigDerivesHardCeilingFromLongSoftAge(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "enabled", env: map[string]string{
+			generationRetentionMaxSupersededAgeEnv: "87600h",
+		}},
+		{name: "disabled local profile", env: map[string]string{
+			generationRetentionEnabledEnv:          "false",
+			generationRetentionMaxSupersededAgeEnv: "87600h",
+			queryProfileEnv:                        "local_authoritative",
+		}},
+		{name: "invalid hard value falls back to derived", env: map[string]string{
+			generationRetentionMaxSupersededAgeEnv:     "87600h",
+			generationRetentionHardMaxSupersededAgeEnv: "abc",
+		}},
+		{name: "non-positive hard value falls back to derived", env: map[string]string{
+			generationRetentionMaxSupersededAgeEnv:     "87600h",
+			generationRetentionHardMaxSupersededAgeEnv: "-1h",
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			getenv := func(key string) string { return tc.env[key] }
+			cfg := loadGenerationRetentionConfig(getenv)
+
+			require.Equal(t, 87600*time.Hour, cfg.Runner.Policy.HardMaxSupersededAge)
+			require.True(t, cfg.HardMaxSupersededAgeLifted)
+			require.NoError(t, validateGenerationRetentionConfig(getenv, cfg))
+		})
+	}
+}
+
+// TestLoadGenerationRetentionConfigKeepsExplicitHardCeilingBelowSoftAgeFatal
+// proves #7611 only changes the unset case: an explicit hard ceiling below a
+// long soft window still fails closed.
+func TestLoadGenerationRetentionConfigKeepsExplicitHardCeilingBelowSoftAgeFatal(t *testing.T) {
+	env := map[string]string{
+		generationRetentionMaxSupersededAgeEnv:     "87600h",
+		generationRetentionHardMaxSupersededAgeEnv: "2160h",
+	}
+	getenv := func(key string) string { return env[key] }
+	cfg := loadGenerationRetentionConfig(getenv)
+
+	require.Equal(t, 2160*time.Hour, cfg.Runner.Policy.HardMaxSupersededAge)
+	require.False(t, cfg.HardMaxSupersededAgeLifted)
+	require.ErrorContains(t, validateGenerationRetentionConfig(getenv, cfg),
 		"ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE")
 }
 
