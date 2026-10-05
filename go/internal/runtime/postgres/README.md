@@ -112,7 +112,7 @@ fresh attempt uses shared round-robin ordering and may select the same member
 again; it does not retain a request-specific failed-member exclusion. Auth,
 TLS, SQL, caller cancellation, and replay staleness do not carry that marker.
 Fleet `Ping` has one ping deadline, captures a writer checkpoint, and requires
-at least one reader passing the same frozen identity and replay fence as a
+at least one reader passing the same published identity and replay fence as a
 business read. Pool metrics aggregate all reader members. In legacy mode,
 guarded borrows and readiness checks own one permit from the reader budget
 until their connection is returned. If a legacy snapshot set's permit wait
@@ -190,11 +190,44 @@ nil). The reader pool keeps its own fixed `privateError` texts.
 
 ## Freshness and failure
 
-Startup validates a writable primary and its system/database identity, closes
-the bootstrap connection, then freezes its postmaster-start microseconds. Every
-new writer connection and every checkpoint must match that frozen incarnation.
-A writer restart needs an explicit new Access bootstrap. Startup also validates
-a reader role and matching cluster/database before returning Access.
+Startup validates a writable primary and its system/database identity, reads
+its postmaster-start microseconds (incarnation), insert timeline, and flushed
+WAL position on the same connection, closes it, and publishes that identity.
+The writer pool, the same-primary reader pool, and the checkpoint share it.
+Startup also validates a reader role and matching cluster/database before
+returning Access.
+
+A same-cluster restart recovers in place. A new connection with the published
+incarnation is accepted with the one existing metadata query. A connection
+with a different incarnation runs one writer-only query
+(`pg_walfile_name(pg_current_wal_insert_lsn())`, `pg_current_wal_flush_lsn()`)
+and is accepted only when the system identifier, database, and insert
+timeline match and the flushed LSN is at or past the watermark: the highest
+flushed LSN this Access has seen at bootstrap or in any checkpoint. The new
+incarnation is published before that connection serves a statement. The
+watermark uses the flushed LSN because crash recovery can end below an insert
+LSN the Access already observed. The checkpoint still asserts it was read on
+the published incarnation.
+
+A promoted primary (new timeline) or a restored snapshot (same timeline, flushed
+WAL behind the watermark) is refused by design: the Access latches to
+`ErrWrongTopology` until the process restarts. Every later writer or
+same-primary reader dial, every checkpoint, and `Ping` then fail with it, and
+the API auth path answers 503 with `failure_class=topology`. `Writer()` hands
+out the raw pool, so an already-established connection is not gated by the
+latch; new dials, checkpoints, and readiness are. A dial whose observation went
+stale while another dial published a different incarnation neither publishes
+nor latches; it returns a `driver.ErrBadConn` error so `database/sql` dials
+again. Streaming standbys do not check the primary incarnation. A restarted
+direct reader member (`ESHU_POSTGRES_READ_MEMBERS`) keeps its frozen
+incarnation and stays ineligible until the process restarts; that is a known
+limitation.
+
+Each accepted, raced, or latched decision logs `event_name=postgres.writer.lineage`
+on `Config.Logger` with `outcome` (`accepted`, `raced`, `latched`), the
+latch `reason` (`timeline`, `flush_below_watermark`), the previous and
+observed incarnations and timelines, and the LSNs. The `writer_checkpoint`
+stage reports `outcome=error` while latched.
 
 The writer checkpoint reads `pg_current_wal_insert_lsn()`, PostgreSQL system
 identifier, database name, and role after the caller's authorization and any
@@ -332,10 +365,22 @@ changes. Candidate tests additionally take complete
 `ESHU_READER_TEST_READER_CANDIDATES_DSN`, and
 `ESHU_READER_TEST_READ_CANDIDATES_DSN` values. The foreign-first test requires
 `ESHU_READER_TEST_FOREIGN_WRITER_FIRST_DSN` and an independently supplied
-`ESHU_READER_TEST_EXPECTED_SYSTEM_ID`. The controlled restart test runs only
-with `ESHU_READER_TEST_RESTART_PRIMARY=1` and an explicit disposable
-`ESHU_READER_TEST_PRIMARY_CONTAINER` target. No fixture host, port, or
-container name is embedded in the tests.
+`ESHU_READER_TEST_EXPECTED_SYSTEM_ID`. The restart tests (`restart_test.go`,
+`crash_restart_test.go`) run only with `ESHU_READER_TEST_RESTART_PRIMARY=1`
+and an explicit disposable `ESHU_READER_TEST_PRIMARY_CONTAINER` target; they
+stop, start, and SIGKILL it and require the same Access to recover. The crash
+test sets `wal_writer_delay` with `ALTER SYSTEM` and resets it on cleanup. The
+lineage-swap tests (`lineage_change_test.go`) also need
+`ESHU_READER_TEST_LINEAGE_SWAP=1` and
+`ESHU_READER_TEST_PROMOTED_CONTAINER` or
+`ESHU_READER_TEST_RESTORED_CONTAINER`: stopped, single-use containers built
+from a copy of the stopped primary's data volume that bind the primary's
+address. The promoted copy holds `recovery.signal` and starts with
+`restore_command=false` (PostgreSQL 18 refuses `recovery.signal` with no
+`restore_command`), so it ends recovery on a new timeline. Build both copies
+before the primary takes writes, and run the promotion test on a fresh
+fixture. These are env-gated plain `*_test.go` files, outside the live-test
+ledger. No fixture host, port, or container name is embedded in the tests.
 Fleet tests additionally require `ESHU_READER_TEST_SECOND_READER_DSN` for a
 separately slotted physical standby on the same disposable primary. They cover
 snapshot affinity/distribution, aggregate capacity, cancellation, wrong-role
@@ -375,9 +420,28 @@ reader borrow, identity, replay, and business query stages with closed role and
 outcome categories. A paused reader emitted replay `deadline` and no business
 query event. The API/MCP wiring attaches `Observer` and pool metrics to OTEL; local emission
 proof does not claim a deployed signal. The tests reported no reader connections left in use
-after Close, exhaustion, scan error, cancellation, or failed identity. A
-controlled restart of the owned primary made the old Access reject checkpoints;
-a fresh Access rebootstrap accepted the new postmaster incarnation.
+after Close, exhaustion, scan error, cancellation, or failed identity.
+
+No-Regression Evidence: Writer re-bootstrap (#7586) on an owned PostgreSQL
+18.6 primary (postgres:18-alpine). The unchanged-incarnation dial runs only
+the existing metadata query: in a two-restart run with eight concurrent
+workers, the server log showed 70 writer/reader dials, 182 checkpoints, and 4
+lineage queries (1 at bootstrap, 3 concurrent first dials after the second
+startup). With pgbench, 5 interleaved rounds of 5,000 statements each on the
+same container, the median checkpoint statement was 0.000070 s before and
+0.000048 s after adding the flushed-LSN column (round-to-round noise was larger
+than the difference). The lineage statement, run only on a changed
+incarnation, had a median of 0.000022 s.
+
+Observability Evidence: The plain, pre-checkpoint, crash, and double restart
+tests logged `postgres.writer.lineage outcome=accepted` with the previous and
+new incarnation. The promoted copy logged `outcome=latched reason=timeline`;
+its flushed LSN (0/2000000) was past the watermark (0/17A4000), so only the
+timeline refused it. The restored copy logged `reason=flush_below_watermark`
+(0/17A4000 below 0/180A1E0). With the watermark switched to the insert LSN,
+the crash test latched (watermark 0/2AE200F8, recovered flush 0/2ADDA0C0) and
+never recovered. With the timeline check removed, the promoted copy was
+accepted. Standby-shape restart and deployed behavior are not checked.
 
 ## Request and admin boundaries
 
