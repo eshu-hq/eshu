@@ -34,7 +34,7 @@ Use this route map instead of reading every telemetry page front to back.
 2. Use metrics to find the service, phase, and backlog that changed.
 3. Use logs to identify the affected scope, generation, work item, domain, or
    failure class.
-4. Use traces to explain the latency shape inside that exact operation; [PostgreSQL reader metrics](metrics.md#postgresql-reader-access) separate checkpoint, pool pressure, replay lag, and business SQL.
+4. Use traces to explain latency inside that operation; [PostgreSQL reader metrics](metrics.md#postgresql-reader-access) separate checkpoint, pool pressure, replay lag, and business SQL, while [code-topic probe spans](code-topic-probes.md) identify the slow partition.
 5. Use `/admin/status` to confirm live queue, generation, and failure state
    before restarting services or forcing a broader re-index.
 
