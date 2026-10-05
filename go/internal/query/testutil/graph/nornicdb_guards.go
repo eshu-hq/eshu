@@ -140,7 +140,8 @@ func IgnoredLabelPredicate(cypher string) string {
 				governing, governingBody = c.keyword, body
 				continue
 			}
-			if problem := labelPredicateProblem(governing, governingBody, body); problem != "" {
+			original := sameFrameText(cypher, frame, id, c.end, bodyEnd)
+			if problem := labelPredicateProblem(governing, governingBody, body, original); problem != "" {
 				return problem + ": " + strings.TrimSpace(cypher[c.start:bodyEnd])
 			}
 		}
@@ -148,7 +149,9 @@ func IgnoredLabelPredicate(cypher string) string {
 	return ""
 }
 
-func labelPredicateProblem(governing, governingBody, where string) string {
+// labelPredicateProblem classifies one WHERE. original is the same clause with
+// its string literals intact, which where has blanked.
+func labelPredicateProblem(governing, governingBody, where, original string) string {
 	if quantifiesOverLabels(where) {
 		return "quantifier or list comprehension over labels() is never evaluated correctly"
 	}
@@ -158,6 +161,9 @@ func labelPredicateProblem(governing, governingBody, where string) string {
 			return ""
 		}
 		if labelPredicateLabelTest.MatchString(blankRelationshipNodePatterns(where)) {
+			if labelTestsPairedWithInLabels(original) {
+				return ""
+			}
 			return "label test in a WHERE attached to a relationship MATCH is ignored; use 'Label' IN labels(x)"
 		}
 	case "WITH":

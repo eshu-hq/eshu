@@ -532,7 +532,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "f1e6c69d7adb7491d85781bf5ad112c9ecbb2df485b82330730f19109584044f"
+    cypher_sha256: "c1bcb4a443253ad9d00a4ae7011ecb2bf0e7138325fd3f57477f7bcc82392c3a"
   - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
     domain: impact
     backend: nornicdb

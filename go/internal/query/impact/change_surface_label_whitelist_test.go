@@ -5,6 +5,8 @@ package impact
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -95,7 +97,8 @@ func TestChangeSurfaceKeepsEveryWhitelistedLabel(t *testing.T) {
 // TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher keeps the Go whitelist and
 // the legacy server-side whitelist from drifting apart, and pins the legacy
 // whitelist to the `'Label' IN labels(impacted)` shape NornicDB v1.3.3
-// evaluates in the WHERE of a relationship MATCH (#6786 X11). The earlier
+// evaluates in the WHERE of a relationship MATCH (#6786 X11), beside the
+// ignored-there `impacted:Label` fast-path conjunct (#7246). The earlier
 // any(label IN labels(impacted) ...) form was ignored there, so LIMIT ran over
 // every reachable node.
 func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
@@ -113,8 +116,14 @@ func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 	if n := strings.Count(changeSurfaceLegacyCypher, "labels(impacted)"); n != len(terms)+1 {
 		t.Fatalf("legacy cypher reads labels(impacted) %d times, want the %d whitelist terms plus the RETURN projection", n, len(terms))
 	}
-	if regexp.MustCompile(`impacted:\w+`).MatchString(changeSurfaceLegacyCypher) {
-		t.Fatal("legacy cypher carries an impacted:Label test, which NornicDB v1.3.3 ignores in this clause position")
+	// The `impacted:Label` conjunct is the Neo4j fast path (#7246) and is
+	// ignored by NornicDB v1.3.3 in this clause position, so it may only name
+	// whitelisted labels; TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest
+	// pins its position and that it never stands alone.
+	for _, m := range regexp.MustCompile(`impacted:(\w+)`).FindAllStringSubmatch(changeSurfaceLegacyCypher, -1) {
+		if _, ok := changeSurfaceImpactedLabels[m[1]]; !ok {
+			t.Errorf("legacy cypher label test names %q, which is outside the whitelist", m[1])
+		}
 	}
 	cypherLabels := map[string]struct{}{}
 	for _, term := range terms {
@@ -240,5 +249,100 @@ func TestChangeSurfaceRowLabelAdmittedFailsClosed(t *testing.T) {
 
 	if !changeSurfaceRowLabelAdmitted(map[string]any{"labels": []string{"Workload"}}) {
 		t.Error("a row carrying a whitelisted label must still be admitted")
+	}
+}
+
+// changeSurfaceWhereConjuncts returns the top-level AND conjuncts of the WHERE
+// clause of the outgoing traversal MATCH, split only at parenthesis depth zero
+// so a parenthesised OR group stays one conjunct.
+func changeSurfaceWhereConjuncts(t *testing.T, cypher string) []string {
+	t.Helper()
+	start := strings.Index(cypher, "\nWHERE ")
+	end := strings.Index(cypher, "\nRETURN ")
+	if start < 0 || end < start {
+		t.Fatalf("cypher has no WHERE ... RETURN window:\n%s", cypher)
+	}
+	body := cypher[start+len("\nWHERE ") : end]
+	var conjuncts []string
+	depth, from := 0, 0
+	for i := 0; i < len(body); i++ {
+		switch body[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		}
+		if depth != 0 {
+			continue
+		}
+		for _, sep := range []string{" AND ", "\n  AND "} {
+			if strings.HasPrefix(body[i:], sep) {
+				conjuncts = append(conjuncts, strings.TrimSpace(body[from:i]))
+				from = i + len(sep)
+				i = from - 1
+				break
+			}
+		}
+	}
+	return append(conjuncts, strings.TrimSpace(body[from:]))
+}
+
+// TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest is the #7246 shape
+// proof. On Neo4j, six `'X' IN labels(impacted)` terms rebuild the label list
+// for every one of the 263,186 four-hop paths of a 12,403-file repository and
+// that Filter was 1.84M of 2.25M DB hits for a 0-row answer. A label test
+// (`impacted:Label`) is a cheap node-label check, and placed in front of the
+// IN labels() terms it removes every non-whitelisted path before they run.
+// The IN labels() terms stay as the NornicDB v1.3.3 guard: that backend ignores
+// a label test in this clause position (#6786 X11), so the whitelist it
+// enforces is still the IN labels() form.
+func TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest(t *testing.T) {
+	t.Parallel()
+
+	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, "")
+	conjuncts := changeSurfaceWhereConjuncts(t, rendered)
+	if len(conjuncts) != 3 {
+		t.Fatalf("unscoped outgoing WHERE has %d conjuncts, want 3 (id guard, label test, IN labels() guard): %q", len(conjuncts), conjuncts)
+	}
+	if conjuncts[0] != "impacted.id <> $target_id" {
+		t.Errorf("first conjunct = %q, want the target id guard", conjuncts[0])
+	}
+
+	labelTest := regexp.MustCompile(`^\(impacted:\w+(?:\s+OR\s+impacted:\w+)*\)$`)
+	if !labelTest.MatchString(conjuncts[1]) {
+		t.Fatalf("second conjunct = %q, want a parenthesised `impacted:Label OR ...` label test "+
+			"ahead of the IN labels() disjunction", conjuncts[1])
+	}
+	tested := map[string]struct{}{}
+	for _, m := range regexp.MustCompile(`impacted:(\w+)`).FindAllStringSubmatch(conjuncts[1], -1) {
+		tested[m[1]] = struct{}{}
+	}
+	if !reflect.DeepEqual(tested, changeSurfaceImpactedLabels) {
+		t.Errorf("label-test conjunct admits %v, want exactly changeSurfaceImpactedLabels %v", tested, changeSurfaceImpactedLabels)
+	}
+
+	guard := map[string]struct{}{}
+	for _, m := range regexp.MustCompile(`'(\w+)' IN labels\(impacted\)`).FindAllStringSubmatch(conjuncts[2], -1) {
+		guard[m[1]] = struct{}{}
+	}
+	if strings.Contains(conjuncts[2], "impacted:") || !reflect.DeepEqual(guard, changeSurfaceImpactedLabels) {
+		t.Errorf("third conjunct = %q, want the IN labels() NornicDB guard over exactly the whitelist", conjuncts[2])
+	}
+}
+
+// TestChangeSurfaceNonLegacyCypherIsPinned holds the statements this change
+// must not touch: the scoped outgoing traversal and the repository-consumers
+// read. A deliberate edit to either re-pins the digest in the same commit.
+func TestChangeSurfaceNonLegacyCypherIsPinned(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct{ cypher, sha string }{
+		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "fc148711bafaa2eb4cf1f25db2a6cbc3ee1215e353f041841011b03479fa7441"},
+		"repository consumers": {changeSurfaceRepositoryConsumersCypher, "d42bfe62558f2106f2ea952311303581ba45326c2c35d757538b66e9d7d776d7"},
+	} {
+		sum := sha256.Sum256([]byte(tc.cypher))
+		if got := hex.EncodeToString(sum[:]); got != tc.sha {
+			t.Errorf("%s cypher digest = %s, want %s", name, got, tc.sha)
+		}
 	}
 }
