@@ -29,6 +29,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="eshu-agent-roles-") as temporary:
         root = Path(temporary)
         manifest = json.loads(MANIFEST.read_text())
+        tricky = 'Use: "quoted" # not a comment --- \u00e9 \u2713 \U0001F600 \\ back'
+        manifest["roles"]["scan-eshu"]["description"] = tricky
         target = root / ".agents" / "roles.json"
         target.parent.mkdir(parents=True)
         target.write_text(json.dumps(manifest))
@@ -49,7 +51,15 @@ def main():
             claude = (root / ".claude" / "agents" / (name + ".md")).read_text()
             codex_binding = (root / ".codex" / "agents" / (name + ".toml")).read_text()
             opencode = (root / ".opencode" / "agent" / (name + ".md")).read_text()
-            assert all(message_rule in text for text in (claude, codex_binding, opencode))
+            cursor = (root / ".cursor" / "agents" / (name + ".md")).read_text()
+            assert all(message_rule in text for text in (claude, codex_binding, opencode, cursor))
+            # Cursor also loads the .claude/ and .codex/ shims and would run the
+            # model they pin; the same-named .cursor/ shim wins and inherits the
+            # session model, so a session on Auto stays on Auto.
+            cursor_front = cursor.split("---\n", 2)[1]
+            assert cursor.startswith("---\nname: " + name + "\n")
+            assert "\nmodel: inherit\n" in cursor_front
+            assert ("\nreadonly: true\n" if access == "read" else "\nreadonly: false\n") in cursor_front
             if access == "read":
                 assert "tools: Read, Glob, Grep, Bash, WebFetch, Skill, SendMessage\n" in claude
                 assert "disallowedTools:" not in claude
@@ -69,6 +79,15 @@ def main():
             stale = run(root, "check")
             assert stale.returncode != 0 and "debug-eshu.md" in stale.stderr
             reader.write_text(original)
+        scan_front = (root / ".cursor" / "agents" / "scan-eshu.md").read_text().split("---\n")[1]
+        line = next(x for x in scan_front.splitlines() if x.startswith("description: "))
+        assert json.loads(line[len("description: "):]) == tricky and "\U0001F600" in line
+        pinned = root / ".cursor" / "agents" / "develop-eshu.md"
+        original = pinned.read_text()
+        pinned.write_text(original.replace("model: inherit", "model: claude-opus-5"))
+        stale = run(root, "check")
+        assert stale.returncode != 0 and "develop-eshu.md" in stale.stderr
+        pinned.write_text(original)
         reviewer = root / ".opencode" / "agent" / "review-eshu.md"
         assert "  bash: deny\n" in reviewer.read_text()
         muse = run(root, "muse-exec", "review-eshu", "Review", "--dry-run")

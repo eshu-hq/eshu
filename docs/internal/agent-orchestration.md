@@ -35,7 +35,7 @@ the codebase.
 | --- | --- | --- |
 | **Constant floor** | CI workflows (`.github/workflows/`), local hooks | Runs identically for every harness and model. The only truly model-independent guarantee. |
 | **Shared brain** | `AGENTS.md`, `.agents/skills/`, `.agents/roles.json` | One rule and method canon, plus one role/model manifest. |
-| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
+| **Role shims** | Per-harness agent configs (`.opencode/agent/*.md`, `.claude/agents/*.md`, `.codex/agents/*.toml`, `.cursor/agents/*.md`) and Codex/Muse launchers | Thin `(role + permissions + model)` bundles. No rulebook copies — the method lives in the skill they load. |
 
 The shared brain is loaded by every harness through its native mechanism:
 Claude Code, Codex, and opencode all read `AGENTS.md` (plus opencode's
@@ -231,11 +231,13 @@ select the named role for this guard to apply.
 | opencode | `.opencode/agent/*.md` | deliberately unpinned; chosen per session | `permission.edit/write/bash: deny` for every read role |
 | Codex | `.codex/agents/*.toml`; `scripts/agent-roles.py codex-exec ROLE TASK` when custom-role selection is unavailable | `model` and `model_reasoning_effort` in the role file or launcher arguments | `sandbox_mode = "read-only"` in the role file; `--sandbox read-only` in the launcher |
 | Muse Code | `scripts/agent-roles.py muse-exec ROLE TASK` | `--model` and `--reasoning-effort` from the manifest | `--permission-profile :read-only` for read roles |
+| Cursor | `.cursor/agents/*.md` | `model: inherit`: the session's model (Auto when the session is on Auto). Cursor also loads the `.claude/` and `.codex/` shims and would run their pinned models; the same-named `.cursor/` shim wins, so `-deep` and arbiter roles run the session's model too | `readonly: true` for every read role (no file edits, no state-changing shell commands) |
 
 Muse's launcher runs one role as a headless session, rather than registering a
 native subagent. Its read-only profile may prevent a diagnostic or performance
 role from running a proof that writes local artifacts. OpenCode's read roles
-cannot run shell commands. In either case, the coordinator should run blocked
+cannot run shell commands, and Cursor's `readonly: true` roles cannot run
+state-changing ones. In each case, the coordinator should run blocked
 proof separately and pass the result back. When a Muse goal and skill prompt
 calls for a bounded role, the coordinator selects the manifest tier and either
 uses its native child tool with that configuration or invokes `muse-exec`
@@ -267,9 +269,10 @@ actual usage after long goals. The Codex spawn `PreToolUse` hook requires a
 manifest-backed Eshu role; its canonical matcher was proved on CLI 0.158.0.
 New or changed hook definitions must be trusted with `/hooks` before they run.
 
-The reviewer uses the same skill in all four:
+The reviewer uses the same skill in all five:
 [`.claude/agents/review-eshu.md`](../../.claude/agents/review-eshu.md),
-[`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md), and
+[`.opencode/agent/review-eshu.md`](../../.opencode/agent/review-eshu.md),
+[`.cursor/agents/review-eshu.md`](../../.cursor/agents/review-eshu.md), and
 [`.codex/agents/review-eshu.toml`](../../.codex/agents/review-eshu.toml) —
 tracked bindings running the same `eshu-code-review` skill. Muse loads that
 skill through workspace discovery when the launcher passes `--trust-workspace`.
@@ -478,6 +481,8 @@ brain and the same gate floor:
 - **Muse Code** — `AGENTS.md`, project skills in `.agents/skills/`, and
   `python3 scripts/agent-roles.py muse-exec ROLE 'task'` for model and permission
   routing. `--dry-run` prints the resolved invocation without starting a model.
+- **Cursor** — reads `AGENTS.md` and `.agents/skills/` natively, plus
+  `.cursor/agents/*.md` role shims that inherit the session model.
 - **pi / future** — same: an instructions pointer at `AGENTS.md`, a skills
   pointer at `.agents/skills/`, and reliance on the CI floor.
 
