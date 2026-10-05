@@ -224,12 +224,16 @@ import { destructured } from "@acme/destructured";
 import { caught } from "@acme/caught";
 const util = require("@acme/util");
 const { pick } = require("@acme/util");
+import pm = require("@acme/format");
+import pm2 = require("not-declared");
 
 export function Page(amount: Money, formatter: PF) {
   formatPrice(1);
   new PF();
   render();
   fmt.formatPrice(2);
+  pm.formatPrice(3);
+  pm2.x();
   new fmt.PriceFormatter();
   fmt.nested.deep();
   obj.formatPrice();
@@ -279,6 +283,9 @@ function withLocal() {
 		{"PF", "constructor_call", "package:@acme/format#PriceFormatter"},
 		{"render", "function_call", "package:@acme/format#default"},
 		{"fmt.formatPrice", "function_call", "package:@acme/format#formatPrice"},
+		// TypeScript import-equals is the third namespace spelling.
+		{"pm.formatPrice", "function_call", "package:@acme/format#formatPrice"},
+		{"pm2.x", "function_call", ""}, // import-equals of an undeclared package
 		{"fmt.PriceFormatter", "constructor_call", "package:@acme/format#PriceFormatter"},
 		{"util.pick", "function_call", "package:@acme/util#pick"},
 		{"pick", "function_call", "package:@acme/util#pick"},

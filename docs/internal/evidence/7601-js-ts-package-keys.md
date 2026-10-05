@@ -35,6 +35,9 @@ schema, API, MCP, or telemetry code changed.
   `new Local(`, `<Local />` for a named or default import, and `ns.member(` (also
   `new ns.Member(` and `<ns.Member />`) for a namespace import
   (`import * as ns`, `const ns = require("pkg")`, `import ns = require("pkg")`).
+  `TestDefaultEngineParsePathTSXStampsConsumerPackageExportSymbols` covers all
+  three spellings (`fmt`, `util`, `pm`); `pm2`, an import-equals of an
+  undeclared package, stays unkeyed.
 
 ## Edge cases
 
