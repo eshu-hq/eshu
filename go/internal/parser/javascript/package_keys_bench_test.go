@@ -21,7 +21,13 @@ import (
 // benchmark on the base commit to read the step's cost.
 func BenchmarkParsePathTypeScriptPackageImportCalls(b *testing.B) {
 	repoRoot := b.TempDir()
-	writeBenchFile(b, filepath.Join(repoRoot, "package.json"), `{"name": "bench-app"}`)
+	// Every imported package is declared, so every call is a keying candidate.
+	dependencies := make([]string, 0, 20)
+	for i := range 20 {
+		dependencies = append(dependencies, fmt.Sprintf("%q: \"1.0.0\"", fmt.Sprintf("@bench/pkg%d", i)))
+	}
+	writeBenchFile(b, filepath.Join(repoRoot, "package.json"),
+		`{"name": "bench-app", "dependencies": {`+strings.Join(dependencies, ", ")+`}}`)
 	filePath := filepath.Join(repoRoot, "consumer.ts")
 	writeBenchFile(b, filePath, generatePackageImportConsumerSource(200, 10))
 
