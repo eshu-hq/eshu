@@ -152,7 +152,8 @@ func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impa
 		Limit:  req.Limit + 1,
 		Offset: req.Offset,
 		Intent: "change_surface",
-		Terms:  codequery.CodeTopicSearchTerms(req.Topic, "change_surface", nil),
+		// The workflow intent describes the response; it is not a search term.
+		Terms: codequery.CodeTopicSearchTerms(req.Topic, "", nil),
 	}
 	// For corpus-wide scoped searches, the ContentReader applies grant IDs in SQL
 	// before LIMIT/OFFSET. The row filter in FetchCodeSurface is defense-in-depth

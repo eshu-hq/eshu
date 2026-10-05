@@ -44,6 +44,8 @@ func Eligible(termCount, maxOpenConns int) bool {
 
 // FileBranch is shared by the serial and partitioned probe builders.
 // Every placeholder binds the same raw term, retaining PostgreSQL ILIKE rules.
+// Keep path/content pool accounting in sync with query.scopedCodeTopicFileBranch;
+// only the term binding differs.
 func FileBranch(termArg int, where string, candidateCap int) string {
 	// #nosec G201 -- termArg and candidateCap are integers; where contains only
 	// static predicates and numbered placeholders built by codeTopicFilters.

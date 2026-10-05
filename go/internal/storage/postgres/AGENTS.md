@@ -822,8 +822,8 @@ and `content_entities.source_cache` was audited against a live 838-repo Postgres
 stack and disproven. Both indexes are actively used by the all-repo / code-topic
 search read path: `InvestigateCodeTopic` (`content_reader_code_topic.go`) and
 the `SearchFileContentAnyRepo` / `SearchEntityContentAnyRepo` content readers.
-Repo-scoped searches do not use these GINs (the selective `repo_id` equality
-wins), so the all-repo `ILIKE '%term%'` reads are the only load-bearing consumers.
+Repository-scoped probes can also use content GIN indexes; the measured #7246
+file probe intersects repository and content indexes. All-repository reads are not their only consumers.
 
 ### Performance Evidence
 

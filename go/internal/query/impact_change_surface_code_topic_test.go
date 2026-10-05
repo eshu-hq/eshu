@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
@@ -107,6 +108,58 @@ func TestInvestigateChangeSurfaceAcceptsCodeTopicAndChangedPaths(t *testing.T) {
 	nextCalls := data["recommended_next_calls"].([]any)
 	if got, want := len(nextCalls), 2; got < want {
 		t.Fatalf("recommended_next_calls = %d, want at least %d", got, want)
+	}
+}
+
+func TestChangePlanningSearchesOnlyRequestedTopicWords(t *testing.T) {
+	t.Parallel()
+
+	for _, route := range []string{
+		"/api/v0/impact/change-surface/investigate",
+		"/api/v0/impact/pre-change",
+		"/api/v0/impact/developer-change-plan",
+	} {
+		for _, tc := range []struct {
+			topic string
+			terms []string
+		}{
+			{topic: "showImage", terms: []string{"showimage"}},
+			{topic: "change", terms: []string{"change"}},
+			{topic: "surface", terms: []string{"surface"}},
+		} {
+			t.Run(route+"/"+tc.topic, func(t *testing.T) {
+				t.Parallel()
+
+				store := &topicInvestigationContentStore{}
+				handler := &ImpactHandler{Content: store, Profile: ProfileLocalAuthoritative}
+				mux := http.NewServeMux()
+				handler.Mount(mux)
+				body, err := json.Marshal(map[string]any{
+					"topic": tc.topic, "repo_id": "repo-1", "limit": 10,
+					"changed_paths": []string{"src/topic.go"},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				req := httptest.NewRequest(http.MethodPost, route, bytes.NewReader(body))
+				req.Header.Set("Accept", EnvelopeMIMEType)
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200 body=%s", rec.Code, rec.Body.String())
+				}
+				if len(store.requests) != 1 {
+					t.Fatalf("topic reads = %d, want 1", len(store.requests))
+				}
+				got := store.requests[0]
+				if got.Intent != "change_surface" {
+					t.Fatalf("intent = %q, want change_surface", got.Intent)
+				}
+				if !slices.Equal(got.Terms, tc.terms) {
+					t.Fatalf("terms = %#v, want %#v", got.Terms, tc.terms)
+				}
+			})
+		}
 	}
 }
 
