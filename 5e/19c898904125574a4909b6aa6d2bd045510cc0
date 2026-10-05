@@ -1,0 +1,22 @@
+docs/internal/evidence/7033-singleton-reader-fleet.md
+  s_b0d7e3abc26c5a::t_4506b8b9c3a443 42-43,67-68
+  s_b0d7e3abc26c5a::t_e50f5ea188bfe8 41,46,50-51,60-64
+go/internal/runtime/postgres/singleton_test.go
+  s_b0d7e3abc26c5a::t_37caa1f2802f13 57-61,77-81,120-122,124-125,137-139,175-179,185-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e19c898904125574a4909b6aa6d2bd045510cc0",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
