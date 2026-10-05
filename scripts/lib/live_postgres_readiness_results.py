@@ -48,6 +48,12 @@ PACKAGES = {
             "TestActivationObligationClaimIgnoresFinishedRowsLive",
             "TestActivationObligationFinalizeLeaseExpiryRollsBackLive",
         ),
+        "go/internal/storage/postgres/activation_obligation_terminal_live_test.go": (
+            "TestActivationObligationInapplicableWithoutRepositoryFactLive",
+            "TestActivationObligationInapplicableCollisionLoserLive",
+            "TestActivationObligationCatalogChangedIsHeldLive",
+            "TestActivationObligationNullActivePointerIsObsoleteLive",
+        ),
         "go/internal/storage/postgres/activation_obligation_consumer_live_test.go": (
             "TestActivationObligationConsumerOrderingLive",
             "TestActivationObligationConsumerLateFailureLive",

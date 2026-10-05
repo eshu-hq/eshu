@@ -25,6 +25,13 @@
 -- work_item_id records which projector work item activated the generation,
 -- and a second cascade would add a probe per deleted work item for no
 -- integrity gain.
+--
+-- States: pending and leased are open; completed (phase published, waiting
+-- rows woken), obsolete (the scope moved to another generation) and
+-- inapplicable (the generation can never carry a phase: no repository fact,
+-- or no repository maps to it in the shipped read) are terminal. The prune
+-- deletes only completed and obsolete rows; an inapplicable row stays until
+-- its generation's cascade, so catch-up cannot owe it again.
 CREATE TABLE IF NOT EXISTS activation_obligations (
     generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
     scope_id TEXT NOT NULL,
@@ -37,13 +44,13 @@ CREATE TABLE IF NOT EXISTS activation_obligations (
     finished_at TIMESTAMPTZ NULL,
     PRIMARY KEY (generation_id, scope_id),
     CONSTRAINT activation_obligations_state_check
-        CHECK (state IN ('pending', 'leased', 'completed', 'obsolete')),
+        CHECK (state IN ('pending', 'leased', 'completed', 'obsolete', 'inapplicable')),
     CONSTRAINT activation_obligations_lease_check CHECK (
         (state = 'leased' AND lease_owner IS NOT NULL AND lease_until IS NOT NULL)
         OR (state <> 'leased' AND lease_owner IS NULL AND lease_until IS NULL)
     ),
     CONSTRAINT activation_obligations_finished_check CHECK (
-        (state IN ('completed', 'obsolete')) = (finished_at IS NOT NULL)
+        (state IN ('completed', 'obsolete', 'inapplicable')) = (finished_at IS NOT NULL)
     )
 );
 
@@ -53,7 +60,8 @@ CREATE INDEX IF NOT EXISTS activation_obligations_open_idx
     ON activation_obligations (created_at, scope_id, generation_id)
     WHERE state IN ('pending', 'leased');
 
--- Prune order: oldest finished obligation first, bounded per pass.
+-- Prune order: oldest finished obligation first, bounded per pass. Excludes
+-- inapplicable on purpose (see the state comment above).
 CREATE INDEX IF NOT EXISTS activation_obligations_finished_idx
     ON activation_obligations (finished_at)
     WHERE state IN ('completed', 'obsolete');

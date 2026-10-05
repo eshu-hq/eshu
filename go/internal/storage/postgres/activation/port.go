@@ -50,6 +50,20 @@ func (r RunnerStore) FinalizeActivation(ctx context.Context, work maintenance.Ac
 	return maintenance.ActivationFinalizeResult{Outcome: string(result.Outcome), Woken: result.Woken}, nil
 }
 
+// RetireActivationInapplicable retires one claimed obligation as
+// inapplicable under the lease fence.
+func (r RunnerStore) RetireActivationInapplicable(ctx context.Context, work maintenance.ActivationObligation) (maintenance.ActivationFinalizeResult, error) {
+	result, err := r.Store.RetireInapplicable(ctx, Obligation{
+		ScopeID: work.ScopeID, GenerationID: work.GenerationID,
+		LeaseOwner: work.LeaseOwner, LeaseToken: work.LeaseToken,
+		LeaseUntil: work.LeaseUntil, CreatedAt: work.CreatedAt,
+	})
+	if err != nil {
+		return maintenance.ActivationFinalizeResult{}, err
+	}
+	return maintenance.ActivationFinalizeResult{Outcome: string(result.Outcome)}, nil
+}
+
 // CatchUpActivations owes obligations to one bounded page of scopes.
 func (r RunnerStore) CatchUpActivations(ctx context.Context, cursor string, pageSize int) (maintenance.ActivationCatchUpPage, error) {
 	page, err := r.Store.CatchUp(ctx, cursor, pageSize)

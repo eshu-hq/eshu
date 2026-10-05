@@ -23,11 +23,14 @@ const (
 	StateLeased    State = "leased"
 	StateCompleted State = "completed"
 	StateObsolete  State = "obsolete"
+	// StateInapplicable is terminal for a generation that can never carry a
+	// backward-evidence phase. Only the generation cascade removes it.
+	StateInapplicable State = "inapplicable"
 )
 
 // AllStates lists every obligation state in a fixed order, for gauges that
 // must report zero for a state with no rows.
-var AllStates = []State{StatePending, StateLeased, StateCompleted, StateObsolete}
+var AllStates = []State{StatePending, StateLeased, StateCompleted, StateObsolete, StateInapplicable}
 
 // Outcome is why one Finalize call ended. It is a closed set, safe as a
 // metric label.
@@ -57,6 +60,10 @@ const (
 	// OutcomeMissing: no scope row or no obligation row exists for the
 	// identity. Nothing was written.
 	OutcomeMissing Outcome = "missing"
+	// OutcomeInapplicable: the generation has no repository fact (or the
+	// maintainer found no repository maps to it), so no pass can publish its
+	// phase; the obligation retired as inapplicable under the lease fence.
+	OutcomeInapplicable Outcome = "inapplicable"
 )
 
 // WakeBatchLimit caps how many waiting deployment_mapping rows one Finalize

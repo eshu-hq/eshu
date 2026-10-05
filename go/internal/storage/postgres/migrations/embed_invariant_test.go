@@ -57,7 +57,7 @@ import (
 // 156_graph_projection_phase_state_generation_idx.sql; #7088 adds
 // 159_fact_records_content_entity_dependency_legacy_gap_repo_idx.sql; #7584 adds
 // 160_activation_obligations.sql.
-const goldenBootstrapDefinitionsDigest = "34b583187623450e8d50f361c82fbae237a772ab517d50dc9d829315992e2640"
+const goldenBootstrapDefinitionsDigest = "6e9dd979eedf3573e73fb82e8100dd928b326f66c53ffc8472e7b6625b6c385a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

@@ -61,6 +61,10 @@ func (s *wiringActivationStore) FinalizeActivation(context.Context, maintenance.
 	return maintenance.ActivationFinalizeResult{}, nil
 }
 
+func (s *wiringActivationStore) RetireActivationInapplicable(context.Context, maintenance.ActivationObligation) (maintenance.ActivationFinalizeResult, error) {
+	return maintenance.ActivationFinalizeResult{}, nil
+}
+
 func (s *wiringActivationStore) CatchUpActivations(context.Context, string, int) (maintenance.ActivationCatchUpPage, error) {
 	return maintenance.ActivationCatchUpPage{}, nil
 }

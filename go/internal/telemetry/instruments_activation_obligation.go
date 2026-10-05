@@ -25,7 +25,7 @@ func registerActivationObligationInstruments(meter metric.Meter, inst *Instrumen
 	var err error
 	if inst.ActivationObligations, err = meter.Int64Gauge(
 		"eshu_dp_activation_obligations",
-		metric.WithDescription("Activation obligation rows by status (pending, leased, completed, obsolete), sampled once per consumer cycle"),
+		metric.WithDescription("Activation obligation rows by status (pending, leased, completed, obsolete, inapplicable), sampled once per consumer cycle"),
 	); err != nil {
 		return fmt.Errorf("register ActivationObligations gauge: %w", err)
 	}
@@ -46,7 +46,7 @@ func registerActivationObligationInstruments(meter metric.Meter, inst *Instrumen
 	}
 	if inst.ActivationObligationFinalizes, err = meter.Int64Counter(
 		"eshu_dp_activation_obligation_finalize_total",
-		metric.WithDescription("Activation obligation finalize attempts by outcome (completed, phase_not_ready, work_pending, obsolete, not_owner, missing, lease_lost, error)"),
+		metric.WithDescription("Activation obligation finalize attempts by outcome (completed, phase_not_ready, work_pending, obsolete, inapplicable, not_owner, missing, lease_lost, error)"),
 	); err != nil {
 		return fmt.Errorf("register ActivationObligationFinalizes counter: %w", err)
 	}
@@ -78,7 +78,7 @@ func registerActivationObligationInstruments(meter metric.Meter, inst *Instrumen
 	}
 	if inst.ActivationObligationFailures, err = meter.Int64Counter(
 		"eshu_dp_activation_obligation_failures_total",
-		metric.WithDescription("Activation obligation consumer step failures by reason (claim, finalize, maintenance, catch_up, prune, stats)"),
+		metric.WithDescription("Activation obligation consumer step failures by reason (claim, finalize, maintenance, catalog_changed, catch_up, prune, stats); catalog_changed is a held refusal, not an error"),
 	); err != nil {
 		return fmt.Errorf("register ActivationObligationFailures counter: %w", err)
 	}

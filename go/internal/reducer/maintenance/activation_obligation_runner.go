@@ -27,13 +27,32 @@ const (
 	ActivationOutcomeObsolete      = "obsolete"
 	ActivationOutcomeNotOwner      = "not_owner"
 	ActivationOutcomeMissing       = "missing"
-	activationOutcomeLeaseLost     = "lease_lost"
-	activationOutcomeError         = "error"
+	// ActivationOutcomeInapplicable retires an obligation whose generation can
+	// never carry a backward-evidence phase (no repository fact, or a
+	// repository the shipped active-repository read does not map to it).
+	ActivationOutcomeInapplicable = "inapplicable"
+	activationOutcomeLeaseLost    = "lease_lost"
+	activationOutcomeError        = "error"
 )
 
 // ErrActivationLeaseLost marks a Finalize whose lease expired inside its own
 // transaction after the wake ran; the store rolled it back.
 var ErrActivationLeaseLost = errors.New("activation obligation lease lost")
+
+// ErrActivationInapplicable is returned (wrapped) by an ActivationMaintainer
+// when the owed partition is active but maps to no repository in the shipped
+// active-repository read, so no pass can ever publish its phase (a repo_id
+// collision loser). The runner retires the obligation as inapplicable through
+// the token-fenced store method; it is not a maintenance failure.
+var ErrActivationInapplicable = errors.New("activation obligation is inapplicable: no repository maps to the owed partition")
+
+// ErrActivationCatalogChanged is returned (wrapped) by an ActivationMaintainer
+// that refused because the repository catalog changed since the published
+// memos were written. The refusal is transient: the ingestion commit that
+// changed the catalog makes the next drain run the epoch whole pass, which
+// republishes every active partition. The runner keeps the lease, retries at
+// lease cadence, and never runs a fallback pass.
+var ErrActivationCatalogChanged = errors.New("activation maintenance refused: repository catalog changed")
 
 const (
 	defaultActivationLease           = 2 * time.Minute
@@ -80,6 +99,7 @@ type ActivationStats struct {
 type ActivationObligationStore interface {
 	ClaimActivation(ctx context.Context, owner string, lease time.Duration) (*ActivationObligation, error)
 	FinalizeActivation(ctx context.Context, work ActivationObligation) (ActivationFinalizeResult, error)
+	RetireActivationInapplicable(ctx context.Context, work ActivationObligation) (ActivationFinalizeResult, error)
 	CatchUpActivations(ctx context.Context, cursor string, pageSize int) (ActivationCatchUpPage, error)
 	PruneActivations(ctx context.Context, retention time.Duration, limit int) (int, error)
 	ActivationStats(ctx context.Context) (ActivationStats, error)
@@ -251,12 +271,21 @@ func (r *ActivationObligationRunner) settle(ctx context.Context, work Activation
 		started := time.Now()
 		maintainErr := r.Maintainer.MaintainActivation(ctx, work)
 		r.recordMaintenance(ctx, time.Since(started), maintainErr)
-		if maintainErr != nil {
+		switch {
+		case errors.Is(maintainErr, ErrActivationInapplicable):
+			result, err = r.Store.RetireActivationInapplicable(ctx, work)
+		case errors.Is(maintainErr, ErrActivationCatalogChanged):
+			// Held, not failed: the lease stays and the obligation is retried
+			// at lease cadence; the epoch whole pass republishes the phase.
+			r.recordCatalogChanged(ctx, work, maintainErr)
+			return
+		case maintainErr != nil:
 			// The lease stays held; the obligation is retried after it expires.
 			r.recordFailure(ctx, "maintenance", maintainErr, &work)
 			return
+		default:
+			result, err = r.Store.FinalizeActivation(ctx, work)
 		}
-		result, err = r.Store.FinalizeActivation(ctx, work)
 	}
 	if err != nil {
 		outcome := activationOutcomeError
@@ -345,6 +374,26 @@ func (r *ActivationObligationRunner) recordMaintenance(ctx context.Context, elap
 	}
 	r.Instruments.ActivationObligationMaintenanceDuration.Record(ctx, elapsed.Seconds(),
 		metric.WithAttributes(attribute.String(telemetry.MetricDimensionOutcome, outcome)))
+}
+
+// recordCatalogChanged counts a held catalog-changed refusal under its own
+// reason and logs it at INFO: it is expected after any catalog change and
+// clears when the epoch whole pass runs. eshu_dp_activation_obligation_oldest_open_age_seconds
+// is the bound to alert on (one epoch pass latency plus one lease).
+func (r *ActivationObligationRunner) recordCatalogChanged(ctx context.Context, work ActivationObligation, err error) {
+	if r.Instruments != nil {
+		r.Instruments.ActivationObligationFailures.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionReason, "catalog_changed")))
+	}
+	if r.Logger == nil {
+		return
+	}
+	attrs := append(telemetry.ScopeAttrs(work.ScopeID, work.GenerationID, ""),
+		slog.String("reason", "catalog_changed"),
+		slog.String("detail", err.Error()),
+		slog.Int64("claim_token", work.LeaseToken),
+		telemetry.PhaseAttr(telemetry.PhaseReduction))
+	r.Logger.LogAttrs(ctx, slog.LevelInfo, "activation obligation held: repository catalog changed", attrs...)
 }
 
 func (r *ActivationObligationRunner) recordFailure(ctx context.Context, reason string, err error, work *ActivationObligation) {

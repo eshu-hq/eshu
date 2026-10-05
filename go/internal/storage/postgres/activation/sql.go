@@ -75,6 +75,32 @@ WHERE scope_id = $1 AND generation_id = $2 AND state = 'leased'
   AND claim_token = $3 AND lease_owner = $4 AND lease_until > clock_timestamp()
 `
 
+// inapplicableObligationQuery retires an obligation whose generation can
+// never carry a backward-evidence phase. It is token- and lease-fenced like
+// completion. Prune never deletes an inapplicable row (only the generation
+// cascade does), so CatchUp, which skips any generation that already has a
+// row, cannot owe it again.
+const inapplicableObligationQuery = `
+UPDATE activation_obligations
+SET state = 'inapplicable', lease_owner = NULL, lease_until = NULL,
+    finished_at = clock_timestamp()
+WHERE scope_id = $1 AND generation_id = $2 AND state = 'leased'
+  AND claim_token = $3 AND lease_owner = $4 AND lease_until > clock_timestamp()
+`
+
+// repositoryFactQuery reports whether the exact generation carries a
+// repository fact. Deferred maintenance publishes a backward-evidence phase
+// only for partitions that own a repository (activeRepositoryGenerationsQuery
+// reads fact_kind = 'repository' without a tombstone filter, and so does
+// this), so a generation without one can never get a phase. It is an index
+// seek on fact_records (scope_id, generation_id, fact_kind, observed_at DESC).
+const repositoryFactQuery = `
+SELECT EXISTS (
+    SELECT 1 FROM fact_records
+    WHERE scope_id = $1 AND generation_id = $2 AND fact_kind = 'repository'
+)
+`
+
 // phaseReadyQuery checks the exact generation's own backward-evidence phase.
 // Every key column is pinned to the obligation's generation, so a phase that
 // another generation of the same scope published never satisfies it.

@@ -22,38 +22,113 @@ import (
 // obligation row. The wake skips rows other transactions hold, so it never
 // waits on reducer work.
 //
+// When the phase is absent and the generation has no repository fact, no
+// pass can ever publish it, so Finalize retires the obligation as
+// inapplicable instead of returning phase_not_ready (#7584 ruling D3(d)).
+//
 // A wake commits only while the caller still owns the lease on the database
 // clock; when the lease expired mid-transaction Finalize rolls back and
 // returns ErrLeaseLost, and the next owner repeats the wake.
 func (s Store) Finalize(ctx context.Context, work Obligation) (FinalizeResult, error) {
-	tx, err := s.database.Begin(ctx)
-	if err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: begin: %w", err)
+	owned, result, err := s.openOwned(ctx, work, "finalize")
+	if err != nil || owned == nil {
+		return result, err
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			_ = tx.Rollback()
+	defer owned.rollback()
+	if !owned.active.Valid || owned.active.String != work.GenerationID {
+		return owned.retire(ctx, obsoleteObligationQuery, OutcomeObsolete)
+	}
+	var ready bool
+	if _, err := queryOne(ctx, owned.tx, phaseReadyQuery, []any{work.ScopeID, work.GenerationID}, &ready); err != nil {
+		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: read phase: %w", err)
+	}
+	if !ready {
+		var repository bool
+		if _, err := queryOne(ctx, owned.tx, repositoryFactQuery, []any{work.ScopeID, work.GenerationID}, &repository); err != nil {
+			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: read repository fact: %w", err)
 		}
-	}()
-	commit := func(result FinalizeResult) (FinalizeResult, error) {
-		if err := tx.Commit(); err != nil {
-			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: commit: %w", err)
+		if !repository {
+			return owned.retire(ctx, inapplicableObligationQuery, OutcomeInapplicable)
 		}
-		committed = true
-		return result, nil
+		return FinalizeResult{Outcome: OutcomePhaseNotReady}, nil
 	}
 
-	if _, err := tx.ExecContext(ctx, finalizeLockTimeoutQuery); err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: set lock timeout: %w", err)
-	}
-	var active sql.NullString
-	found, err := queryOne(ctx, tx, lockScopeQuery, []any{work.ScopeID}, &active)
+	woken, err := execRows(ctx, owned.tx, wakeQuery, work.ScopeID, work.GenerationID)
 	if err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: lock scope: %w", err)
+		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: wake: %w", err)
 	}
-	if !found {
-		return FinalizeResult{Outcome: OutcomeMissing}, nil
+	var remaining bool
+	if _, err := queryOne(ctx, owned.tx, remainingWorkQuery, []any{work.ScopeID, work.GenerationID}, &remaining); err != nil {
+		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: read remaining work: %w", err)
+	}
+	if remaining {
+		var stillOwned bool
+		if _, err := queryOne(ctx, owned.tx, stillOwnedQuery, owned.fence, &stillOwned); err != nil {
+			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: recheck lease: %w", err)
+		}
+		if !stillOwned {
+			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: partial wake: %w", ErrLeaseLost)
+		}
+		return owned.commit(FinalizeResult{Outcome: OutcomeWorkPending, Woken: int(woken)})
+	}
+	changed, err := execRows(ctx, owned.tx, completeObligationQuery, owned.fence...)
+	if err != nil {
+		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: complete: %w", err)
+	}
+	if changed != 1 {
+		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: completion: %w", ErrLeaseLost)
+	}
+	return owned.commit(FinalizeResult{Outcome: OutcomeCompleted, Woken: int(woken)})
+}
+
+// RetireInapplicable retires one claimed obligation as inapplicable after the
+// maintainer reported that the owed partition maps to no repository in the
+// shipped active-repository read (a repo_id collision loser, #7584 ruling
+// D3(c)). It takes the same locks and lease fence as Finalize; a scope that
+// moved to another generation retires as obsolete instead.
+func (s Store) RetireInapplicable(ctx context.Context, work Obligation) (FinalizeResult, error) {
+	owned, result, err := s.openOwned(ctx, work, "retire inapplicable")
+	if err != nil || owned == nil {
+		return result, err
+	}
+	defer owned.rollback()
+	if !owned.active.Valid || owned.active.String != work.GenerationID {
+		return owned.retire(ctx, obsoleteObligationQuery, OutcomeObsolete)
+	}
+	return owned.retire(ctx, inapplicableObligationQuery, OutcomeInapplicable)
+}
+
+// ownedObligation is an open transaction holding the scope and obligation row
+// locks for an obligation whose lease the caller still owns.
+type ownedObligation struct {
+	tx        db.Transaction
+	op        string
+	active    sql.NullString
+	fence     []any
+	committed bool
+}
+
+// openOwned begins the transaction, takes the scope lock then the obligation
+// lock, and checks the caller's lease. It returns a nil ownedObligation with
+// the outcome to report when the scope or row is missing or the caller is not
+// the owner; nothing is written in that case.
+func (s Store) openOwned(ctx context.Context, work Obligation, op string) (*ownedObligation, FinalizeResult, error) {
+	tx, err := s.database.Begin(ctx)
+	if err != nil {
+		return nil, FinalizeResult{}, fmt.Errorf("%s activation obligation: begin: %w", op, err)
+	}
+	owned := &ownedObligation{tx: tx, op: op}
+	if _, err := tx.ExecContext(ctx, finalizeLockTimeoutQuery); err != nil {
+		owned.rollback()
+		return nil, FinalizeResult{}, fmt.Errorf("%s activation obligation: set lock timeout: %w", op, err)
+	}
+	found, err := queryOne(ctx, tx, lockScopeQuery, []any{work.ScopeID}, &owned.active)
+	if err != nil || !found {
+		owned.rollback()
+		if err != nil {
+			return nil, FinalizeResult{}, fmt.Errorf("%s activation obligation: lock scope: %w", op, err)
+		}
+		return nil, FinalizeResult{Outcome: OutcomeMissing}, nil
 	}
 	var (
 		token     int64
@@ -63,62 +138,47 @@ func (s Store) Finalize(ctx context.Context, work Obligation) (FinalizeResult, e
 	)
 	found, err = queryOne(ctx, tx, lockObligationQuery, []any{work.ScopeID, work.GenerationID},
 		&token, &owner, &state, &unexpired)
-	if err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: lock obligation: %w", err)
-	}
-	if !found {
-		return FinalizeResult{Outcome: OutcomeMissing}, nil
+	if err != nil || !found {
+		owned.rollback()
+		if err != nil {
+			return nil, FinalizeResult{}, fmt.Errorf("%s activation obligation: lock obligation: %w", op, err)
+		}
+		return nil, FinalizeResult{Outcome: OutcomeMissing}, nil
 	}
 	if state != string(StateLeased) || owner != work.LeaseOwner || token != work.LeaseToken || !unexpired {
-		return FinalizeResult{Outcome: OutcomeNotOwner}, nil
+		owned.rollback()
+		return nil, FinalizeResult{Outcome: OutcomeNotOwner}, nil
 	}
-	fence := []any{work.ScopeID, work.GenerationID, work.LeaseToken, work.LeaseOwner}
+	owned.fence = []any{work.ScopeID, work.GenerationID, work.LeaseToken, work.LeaseOwner}
+	return owned, FinalizeResult{}, nil
+}
 
-	if !active.Valid || active.String != work.GenerationID {
-		changed, err := execRows(ctx, tx, obsoleteObligationQuery, fence...)
-		if err != nil {
-			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: retire obsolete: %w", err)
-		}
-		if changed != 1 {
-			return FinalizeResult{Outcome: OutcomeNotOwner}, nil
-		}
-		return commit(FinalizeResult{Outcome: OutcomeObsolete})
-	}
-
-	var ready bool
-	if _, err := queryOne(ctx, tx, phaseReadyQuery, []any{work.ScopeID, work.GenerationID}, &ready); err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: read phase: %w", err)
-	}
-	if !ready {
-		return FinalizeResult{Outcome: OutcomePhaseNotReady}, nil
-	}
-
-	woken, err := execRows(ctx, tx, wakeQuery, work.ScopeID, work.GenerationID)
+// retire runs one token-fenced terminal write and commits it. A fence that
+// matched no row means the lease moved on; nothing is committed.
+func (o *ownedObligation) retire(ctx context.Context, query string, outcome Outcome) (FinalizeResult, error) {
+	changed, err := execRows(ctx, o.tx, query, o.fence...)
 	if err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: wake: %w", err)
-	}
-	var remaining bool
-	if _, err := queryOne(ctx, tx, remainingWorkQuery, []any{work.ScopeID, work.GenerationID}, &remaining); err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: read remaining work: %w", err)
-	}
-	if remaining {
-		var owned bool
-		if _, err := queryOne(ctx, tx, stillOwnedQuery, fence, &owned); err != nil {
-			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: recheck lease: %w", err)
-		}
-		if !owned {
-			return FinalizeResult{}, fmt.Errorf("finalize activation obligation: partial wake: %w", ErrLeaseLost)
-		}
-		return commit(FinalizeResult{Outcome: OutcomeWorkPending, Woken: int(woken)})
-	}
-	changed, err := execRows(ctx, tx, completeObligationQuery, fence...)
-	if err != nil {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: complete: %w", err)
+		return FinalizeResult{}, fmt.Errorf("%s activation obligation: retire %s: %w", o.op, outcome, err)
 	}
 	if changed != 1 {
-		return FinalizeResult{}, fmt.Errorf("finalize activation obligation: completion: %w", ErrLeaseLost)
+		return FinalizeResult{Outcome: OutcomeNotOwner}, nil
 	}
-	return commit(FinalizeResult{Outcome: OutcomeCompleted, Woken: int(woken)})
+	return o.commit(FinalizeResult{Outcome: outcome})
+}
+
+func (o *ownedObligation) commit(result FinalizeResult) (FinalizeResult, error) {
+	if err := o.tx.Commit(); err != nil {
+		return FinalizeResult{}, fmt.Errorf("%s activation obligation: commit: %w", o.op, err)
+	}
+	o.committed = true
+	return result, nil
+}
+
+func (o *ownedObligation) rollback() {
+	if !o.committed {
+		_ = o.tx.Rollback()
+		o.committed = true
+	}
 }
 
 // queryOne scans the first row of query into dest and reports whether a row

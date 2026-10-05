@@ -67,6 +67,13 @@ func (f *fakeActivationStore) FinalizeActivation(_ context.Context, work Activat
 	return result, nil
 }
 
+func (f *fakeActivationStore) RetireActivationInapplicable(_ context.Context, work ActivationObligation) (ActivationFinalizeResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "retire:"+work.GenerationID)
+	return ActivationFinalizeResult{Outcome: ActivationOutcomeInapplicable}, nil
+}
+
 func (f *fakeActivationStore) CatchUpActivations(_ context.Context, cursor string, _ int) (ActivationCatchUpPage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
