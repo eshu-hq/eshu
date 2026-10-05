@@ -4,6 +4,7 @@
 package javascript
 
 import (
+	"bytes"
 	"slices"
 	"strings"
 	"unicode"
@@ -224,6 +225,12 @@ func packageImportBindings(payload map[string]any) map[string]packageImportBindi
 // class name, a catch parameter, or a destructuring pattern. The rule is
 // file-wide on purpose. It misses a call that sits outside the shadowing scope,
 // but it never keys a call that resolves to a local binding.
+//
+// It visits only the places each name's text occurs instead of walking the
+// whole tree: every occurrence is mapped back to its AST node, and only an
+// identifier node spanning exactly that text is classified. An occurrence in a
+// comment, a string, or a longer identifier maps to some other node and is
+// skipped, so the result matches a full walk.
 func redeclaredImportNames(
 	root *tree_sitter.Node,
 	source []byte,
@@ -231,23 +238,34 @@ func redeclaredImportNames(
 	used map[string]packageImportBinding,
 ) map[string]struct{} {
 	redeclared := map[string]struct{}{}
-	walkNamed(root, func(node *tree_sitter.Node) {
-		switch node.Kind() {
-		case "identifier", "type_identifier", "shorthand_property_identifier_pattern":
-		default:
-			return
+	for name, binding := range used {
+		needle := []byte(name)
+		for offset := 0; ; {
+			index := bytes.Index(source[offset:], needle)
+			if index < 0 {
+				break
+			}
+			start := offset + index
+			offset = start + len(needle)
+			node := root.NamedDescendantForByteRange(uint(start), uint(offset))
+			if node == nil || node.StartByte() != uint(start) || node.EndByte() != uint(offset) {
+				continue
+			}
+			switch node.Kind() {
+			case "identifier", "type_identifier", "shorthand_property_identifier_pattern":
+			default:
+				continue
+			}
+			if !isBindingIdentifier(node, parents) {
+				continue
+			}
+			if requireSource, ok := requireDeclaratorSource(node, source, parents); ok && requireSource == binding.source {
+				continue // the require declarator that created the binding
+			}
+			redeclared[name] = struct{}{}
+			break
 		}
-		// The conversion inside the index expression does not allocate.
-		binding, ok := used[string(source[node.StartByte():node.EndByte()])]
-		if !ok || !isBindingIdentifier(node, parents) {
-			return
-		}
-		text := string(source[node.StartByte():node.EndByte()])
-		if requireSource, ok := requireDeclaratorSource(node, source, parents); ok && requireSource == binding.source {
-			return // the require declarator that created the binding
-		}
-		redeclared[text] = struct{}{}
-	})
+	}
 	return redeclared
 }
 

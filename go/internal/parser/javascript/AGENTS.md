@@ -51,6 +51,12 @@
 
 ## Invariants this package enforces
 
+- Cross-repository keys (`package_keys.go`, #7601) are accuracy-first: the
+  reducer joins `package_export_symbol` to `package_id`/`export_name` with no
+  further check, so a new keyed shape needs a negative test for every way it
+  could bind the wrong symbol (`engine_package_export_keys_test.go`). Type
+  references stay unkeyed, and a name the file declares again is never keyed.
+
 - Production dependency direction stays one way: parent parser code may import
   this package, but production files here must not import internal/parser. An
   external `javascript_test` file may import the parent only to test or benchmark

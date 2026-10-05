@@ -5,7 +5,7 @@
 // context from the surrounding repository layout: the nearest tsconfig.json
 // and its baseUrl/paths import-alias mappings (TSConfigImportResolver), the
 // nearest package.json and the entry points it declares (PackageFileRootKinds,
-// NearestPackageRoot, PackagePublicSourcePaths), repo-relative path
+// NearestPackageRoot, NearestPackageName, PackagePublicSourcePaths), repo-relative path
 // normalization (RelativeSlashPath, CleanPath, PathWithin), and the
 // stat-keyed cache (ScopeCache) that keeps those filesystem lookups off the
 // parser's hot path (issue #4515 P2a, issue #6771).

@@ -189,6 +189,8 @@ import { local } from "shared";
 import { Button } from "@acme/ui";
 import { shadowed } from "@acme/shadow";
 import { dup } from "@acme/dup";
+import { destructured } from "@acme/destructured";
+import { caught } from "@acme/caught";
 const util = require("@acme/util");
 const { pick } = require("@acme/util");
 
@@ -210,7 +212,19 @@ export function Page(amount: Money, formatter: PF) {
   pick();
   shadowed();
   dup();
+  destructured();
+  caught();
+  // formatPrice in a comment and "formatPrice" in a string bind nothing.
+  const label = "formatPrice";
   return <Button />;
+}
+
+function withPattern({ destructured }: { destructured: number }) {
+  try {
+    return destructured;
+  } catch (caught) {
+    return caught;
+  }
 }
 
 function withParameter(shadowed: number) {
@@ -251,6 +265,8 @@ function withLocal() {
 		{"local", "function_call", ""},
 		{"shadowed", "function_call", ""},
 		{"dup", "function_call", ""},
+		{"destructured", "function_call", ""},
+		{"caught", "function_call", ""},
 		// Type references stay emitted for type liveness and carry no key.
 		{"Money", "typescript.type_reference", ""},
 		{"PF", "typescript.type_reference", ""},
