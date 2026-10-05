@@ -56,11 +56,6 @@ func (p *targetedDiffPair) quietGeneration(scopeID, generationID, repoID, name s
 	p.workItems(scopeID, generationID)
 }
 
-// owedPartitions builds an owed partition list from scope/generation pairs.
-func owedPartitions(pairs ...string) []scopeGenerationPartition {
-	return sortedPartitions(partitionSet(pairs...))
-}
-
 // gcpRelation seeds a Cloud Run service -> Secret relation in the GCP scope
 // whose names resolve to the source and target repositories.
 func (p *targetedDiffPair) gcpRelation(factID, generationID, sourceName, targetName string) {

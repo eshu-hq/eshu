@@ -31,6 +31,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			// reopen in both arms, its correlation items are now below the
 			// replay floor in both arms.
 			reopened: workIDs("tgt-2", "deployment_mapping", "code_import_repo_edge"),
+			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
 				return &hookBeginner{onBegin: func(n int) error {
 					if n == 1 {
@@ -53,6 +54,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			reopened:    workIDs("tgt-2", "deployment_mapping", "code_import_repo_edge"),
+			outcomes:    map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
 				fired := false
 				return &hookBeginner{onQuery: func(query string, args []any) error {
@@ -78,10 +80,8 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 		outcome := p.run("successor_activation_superseded_owed", targetedDiffCase{
 			owed:     owedPartitions("git:tgt", "tgt-2"),
 			compared: map[scopeGenerationPartition]struct{}{},
+			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceNotActive},
 		})
-		if want := owedPartitions("git:tgt", "tgt-2"); !reflect.DeepEqual(outcome.result.NotActive, want) {
-			t.Fatalf("not-active owed = %v, want %v", outcome.result.NotActive, want)
-		}
 		if _, ok := outcome.whole[phaseKey("git:tgt", "tgt-3")]; !ok {
 			t.Fatal("whole arm did not publish the successor tgt-3")
 		}
@@ -119,6 +119,7 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			newEvidence: []string{"repo-m1->repo-dep"},
 			batchSize:   1,
 			wantErr:     true,
+			outcomes:    map[string]TargetedMaintenanceOutcomeKind{"git:mono/mono-2": TargetedMaintenanceRetry},
 			hooks: func(_ string, _ *sql.DB) *hookBeginner {
 				return &hookBeginner{onExec: func(query string, args []any) error {
 					if strings.HasPrefix(strings.TrimSpace(query), "INSERT INTO relationship_evidence_facts") &&
@@ -171,9 +172,12 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 		p.workItems("git:new", "new-1")
 		before := p.capture(p.targeted)
 		store := targetedDiffStore(p.targeted, targetedDiffArmsAt)
-		_, err := store.runDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, owedPartitions("git:new", "new-1"))
-		if !errors.Is(err, errTargetedMaintenanceCatalogChanged) {
-			t.Fatalf("partition-scoped pass after onboarding error = %v, want errTargetedMaintenanceCatalogChanged", err)
+		result, err := store.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, owedPartitions("git:new", "new-1"))
+		if !errors.Is(err, ErrTargetedMaintenanceCatalogChanged) {
+			t.Fatalf("partition-scoped pass after onboarding error = %v, want ErrTargetedMaintenanceCatalogChanged", err)
+		}
+		if want := []TargetedMaintenanceOutcome{{Partition: OwedPartition{ScopeID: "git:new", GenerationID: "new-1"}, Kind: TargetedMaintenanceRetry}}; !reflect.DeepEqual(result.Outcomes, want) {
+			t.Fatalf("refused pass outcomes = %v, want %v", result.Outcomes, want)
 		}
 		if changed := diffStates(before, before, p.capture(p.targeted), nil).targetedChangedOutside; len(changed) > 0 {
 			t.Fatalf("refused pass changed rows: %v", changed)

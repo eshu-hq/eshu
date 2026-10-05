@@ -1906,6 +1906,16 @@ type Instruments struct {
 	DeferredBackfillFanInPublished metric.Int64Counter
 	DeferredBackfillFanInSkipped   metric.Int64Counter
 
+	// DeferredBackfillTargetedDuration, DeferredBackfillTargetedOutcomes and
+	// DeferredBackfillTargetedReopened instrument the partition-scoped deferred
+	// maintenance pass (#7584). It reuses the whole pass's loader, batch and
+	// fan-in code with instruments off, so the whole pass's
+	// eshu_dp_deferred_backfill_* series keep measuring only the whole pass.
+	// See registerDeferredBackfillTargeted.
+	DeferredBackfillTargetedDuration metric.Float64Histogram
+	DeferredBackfillTargetedOutcomes metric.Int64Counter
+	DeferredBackfillTargetedReopened metric.Int64Counter
+
 	// ReopenSkippedByPartitionMemo counts succeeded deployment_mapping and
 	// code_import_repo_edge reducer work items whose replay was skipped because
 	// their (scope_id, generation_id) partition already committed backward
@@ -4746,6 +4756,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerDeferredBackfillTargeted(meter, inst); err != nil {
 		return nil, err
 	}
 

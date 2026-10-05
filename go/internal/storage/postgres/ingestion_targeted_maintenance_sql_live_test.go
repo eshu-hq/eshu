@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -19,8 +20,9 @@ import (
 // newest generation is pending with no active pointer, a superseded
 // generation, and a cloud scope with no repository fact.
 func TestBoundedRepositoryGenerationReadsMatchShippedRead(t *testing.T) {
-	database, ctx := openIsolatedLiveDB(t, "tgt7584_bounded",
-		"set ESHU_POSTGRES_DSN to a disposable PostgreSQL to run the bounded repository-generation differential")
+	database := openIsolatedBootstrapSchema(t, targetedMaintenanceProofDSN(t), "tgt7584_bounded")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
 	exec := func(query string, args ...any) {
 		t.Helper()
 		if _, err := database.ExecContext(ctx, query, args...); err != nil {
@@ -96,11 +98,11 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 	}
 
 	for _, partitions := range [][]scopeGenerationPartition{
-		owedPartitions("git:a", "a-1"),
-		owedPartitions("git:b", "b-1"),
-		owedPartitions("git:mono", "mono-1"),
-		owedPartitions("git:old", "old-1"),
-		owedPartitions("git:old", "old-2", "git:pending", "p-1", "gcp:cloud", "c-1"),
+		partitionsOf("git:a", "a-1"),
+		partitionsOf("git:b", "b-1"),
+		partitionsOf("git:mono", "mono-1"),
+		partitionsOf("git:old", "old-1"),
+		partitionsOf("git:old", "old-2", "git:pending", "p-1", "gcp:cloud", "c-1"),
 	} {
 		got, err := loadActiveRepositoryGenerationsForPartitions(ctx, adapter, partitions)
 		if err != nil {

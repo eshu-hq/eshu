@@ -13,7 +13,7 @@ import (
 // identically, runs the real corpus-wide pre-pass to reach steady state,
 // activates the owed generation without a maintenance pass (the quiet Ack),
 // then runs RunDeferredRelationshipMaintenance in one schema and
-// runDeferredRelationshipMaintenanceForPartitions in the other and compares
+// RunDeferredRelationshipMaintenanceForPartitions in the other and compares
 // the committed rows (see targetedDiffPair.run).
 func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 	t.Run("direct_outgoing_reference", func(t *testing.T) {
@@ -77,7 +77,10 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		p.gcpRelation("gcp-2-edge", "gcp-2", "order-gateway", "payments-service")
 		p.workItems(targetedGCPScope, "gcp-2")
 		p.run("cloud_scope_gcp_relation_owed", targetedDiffCase{
-			owed:        owedPartitions(targetedGCPScope, "gcp-2"),
+			owed: owedPartitions(targetedGCPScope, "gcp-2"),
+			// A cloud scope maps to no repository: no pass can publish its
+			// phase, so it is inapplicable, but its evidence work still runs.
+			outcomes:    map[string]TargetedMaintenanceOutcomeKind{targetedGCPScope + "/gcp-2": TargetedMaintenanceInapplicable},
 			compared:    partitionSet("git:gsrc", "gsrc-1"),
 			newEvidence: []string{"repo-gsrc->repo-tgt"},
 			published:   partitionSet("git:gsrc", "gsrc-1"),
@@ -120,7 +123,7 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 				workKeys(workIDs("tgt-1", "deployment_mapping", "code_import_repo_edge")),
 			)...),
 		})
-		if _, loaded := partitionSetOf(outcome.result.Loaded)[scopeGenerationPartition{ScopeID: targetedGCPScope, GenerationID: "gcp-1"}]; !loaded {
+		if _, loaded := owedSet(outcome.result.Loaded)[scopeGenerationPartition{ScopeID: targetedGCPScope, GenerationID: "gcp-1"}]; !loaded {
 			t.Fatalf("closure did not load the GCP cloud scope holding the inbound relation: %v", outcome.result.Loaded)
 		}
 	})

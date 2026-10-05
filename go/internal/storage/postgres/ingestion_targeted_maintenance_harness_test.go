@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func targetedDiffReopenDomains() []string {
 
 // targetedDiffPair is two isolated, fully bootstrapped schemas seeded
 // identically: "whole" runs RunDeferredRelationshipMaintenance and "targeted"
-// runs runDeferredRelationshipMaintenanceForPartitions.
+// runs RunDeferredRelationshipMaintenanceForPartitions.
 type targetedDiffPair struct {
 	t        *testing.T
 	ctx      context.Context
@@ -39,13 +40,26 @@ type targetedDiffPair struct {
 	targeted *sql.DB
 }
 
-// newTargetedDiffPair opens both arms on ESHU_POSTGRES_DSN, skipping without it.
+// targetedMaintenanceProofDSN returns the administrative DSN of the
+// disposable PostgreSQL the #7584 targeted-maintenance proofs run on. It skips
+// when ESHU_TARGETED_MAINTENANCE_PROOF_DSN is unset and fails closed when it is
+// set without ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1.
+func targetedMaintenanceProofDSN(t *testing.T) string {
+	t.Helper()
+	dsn := strings.TrimSpace(os.Getenv("ESHU_TARGETED_MAINTENANCE_PROOF_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_TARGETED_MAINTENANCE_PROOF_DSN and ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1 to run the #7584 targeted-maintenance proofs")
+	}
+	if os.Getenv("ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE") != "1" {
+		t.Fatal("ESHU_TARGETED_MAINTENANCE_PROOF_DSN is set without ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1")
+	}
+	return dsn
+}
+
+// newTargetedDiffPair opens both arms on the targeted-maintenance proof DSN.
 func newTargetedDiffPair(t *testing.T) *targetedDiffPair {
 	t.Helper()
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to a disposable PostgreSQL to run the #7584 targeted-maintenance differential")
-	}
+	dsn := targetedMaintenanceProofDSN(t)
 	pair := &targetedDiffPair{
 		t:        t,
 		whole:    openIsolatedBootstrapSchema(t, dsn, "tgt7584_whole"),
@@ -330,6 +344,16 @@ func partitionSet(pairs ...string) map[scopeGenerationPartition]struct{} {
 		set[scopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]}] = struct{}{}
 	}
 	return set
+}
+
+// partitionsOf builds a partition slice from scope/generation pairs, in the
+// given order.
+func partitionsOf(pairs ...string) []scopeGenerationPartition {
+	partitions := make([]scopeGenerationPartition, 0, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		partitions = append(partitions, scopeGenerationPartition{ScopeID: pairs[i], GenerationID: pairs[i+1]})
+	}
+	return partitions
 }
 
 // hookBeginner wraps a beginner so a fixture can act at an exact point of a

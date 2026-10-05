@@ -28,5 +28,5 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/query":              {FileCount: 252, Digest: "6a369fab5e74a59148ffd84b1c2cf0d346ad82ea635726fa348e82ab1275cfa4"},
 	"internal/reducer":            {FileCount: 129, Digest: "d1ed380a1a061cf8a3d2e8fbf5b2dcd22d77137394f7b9f533123db35de125b6"},
 	"internal/storage/cypher":     {FileCount: 109, Digest: "e8063838d416354547735422111cdaa416b281a48d60a7a49245ed3abb92660e"},
-	"internal/storage/postgres":   {FileCount: 328, Digest: "3f61850ba35aa05e1d6ff1c1c185b555ec512e08d1cd3aa10a4c58e34ef5fb67"},
+	"internal/storage/postgres":   {FileCount: 330, Digest: "9aa097569e69c870b8f801a0f4f58252b4f1df101ad6ca7ec47b84e3253b43e2"},
 }

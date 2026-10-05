@@ -100,3 +100,96 @@ func TestDeriveQueryAtMarkerRefusesMissingOrRepeatedMarker(t *testing.T) {
 		t.Fatalf("deriveQueryAtMarker() = %q, want %q", got, want)
 	}
 }
+
+// TestTargetedMaintenanceMarkersOpenAnAndOnlyWhereClause pins predicate
+// semantics, not bytes (review F7): each derived query appends "AND <bound>"
+// right after its marker, which narrows the shipped rows only while the
+// shipped WHERE clause the marker opens is a pure conjunction. A top-level OR
+// anywhere in that clause would make the inserted AND bind to one disjunct and
+// silently widen the derived query. Parenthesized ORs are fine.
+func TestTargetedMaintenanceMarkersOpenAnAndOnlyWhereClause(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct{ shipped, marker string }{
+		"active repository generations": {activeRepositoryGenerationsQuery, activeRepositoryGenerationsRepoMarker},
+		"deployment_mapping reopen":     {listSucceededDeploymentMappingWorkItemsQuery, relationshipReopenStageMarker},
+		"code_import_repo_edge reopen":  {listSucceededCodeImportRepoEdgeWorkItemsQuery, relationshipReopenStageMarker},
+		"correlation reopen":            {listSucceededReducerWorkItemsByDomainQuery, correlationReopenStageMarker},
+	} {
+		start := strings.Index(tc.shipped, tc.marker)
+		if start < 0 {
+			t.Fatalf("%s: marker missing", name)
+		}
+		if clause := whereClauseFrom(tc.shipped[start:]); hasTopLevelOR(clause) {
+			t.Fatalf("%s: WHERE clause opened by the marker has a top-level OR; the inserted AND would bind to one disjunct:\n%s",
+				name, clause)
+		}
+	}
+}
+
+// TestHasTopLevelORSeededViolation is the seeded RED/GREEN pair for the guard
+// above: a planted top-level OR is caught, a parenthesized one is not, and
+// the clause stops at ORDER BY.
+func TestHasTopLevelORSeededViolation(t *testing.T) {
+	t.Parallel()
+
+	if !hasTopLevelOR(whereClauseFrom("WHERE stage = 'reducer'\n  AND domain = $1\n   OR status = 'x'\nORDER BY 1")) {
+		t.Fatal("planted top-level OR not detected")
+	}
+	if hasTopLevelOR(whereClauseFrom("WHERE stage = 'reducer'\n  AND (a OR b)\nORDER BY x OR y")) {
+		t.Fatal("parenthesized OR or ORDER BY text flagged")
+	}
+}
+
+// whereClauseFrom returns the text from the marker up to the first top-level
+// ORDER BY, GROUP BY, LIMIT, or end of statement.
+func whereClauseFrom(text string) string {
+	depth := 0
+	upper := strings.ToUpper(text)
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		}
+		if depth != 0 {
+			continue
+		}
+		for _, stop := range []string{"ORDER BY", "GROUP BY", "LIMIT "} {
+			if strings.HasPrefix(upper[i:], stop) {
+				return text[:i]
+			}
+		}
+	}
+	return text
+}
+
+// hasTopLevelOR reports whether clause contains an OR keyword outside every
+// parenthesis and string literal.
+func hasTopLevelOR(clause string) bool {
+	depth := 0
+	inString := false
+	upper := strings.ToUpper(clause)
+	for i := 0; i < len(clause); i++ {
+		switch c := clause[i]; {
+		case c == '\'':
+			inString = !inString
+		case inString:
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+		case depth == 0 && strings.HasPrefix(upper[i:], "OR") &&
+			(i == 0 || !isIdentByte(clause[i-1])) &&
+			(i+2 >= len(clause) || !isIdentByte(clause[i+2])):
+			return true
+		}
+	}
+	return false
+}
+
+// isIdentByte reports whether b can appear in a SQL identifier.
+func isIdentByte(b byte) bool {
+	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+}

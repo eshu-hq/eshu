@@ -16,7 +16,10 @@ import (
 // targetedDiffCase states one fixture's owed partitions and, independently of
 // either arm's output, the exact tuples the partition-scoped arm must produce.
 type targetedDiffCase struct {
-	owed []scopeGenerationPartition
+	owed []OwedPartition
+	// outcomes is the expected per-owed outcome keyed "scope/generation";
+	// nil means every owed partition is published.
+	outcomes map[string]TargetedMaintenanceOutcomeKind
 	// compared is the expected affected set; the arms must agree on it exactly.
 	compared map[scopeGenerationPartition]struct{}
 	// newEvidence is "source->target" per evidence row the targeted arm newly
@@ -40,7 +43,7 @@ type targetedDiffCase struct {
 
 // targetedDiffOutcome is what run observed, for fixtures with extra checks.
 type targetedDiffOutcome struct {
-	result   targetedMaintenanceResult
+	result   TargetedMaintenanceResult
 	before   targetedDiffState
 	whole    targetedDiffState
 	targeted targetedDiffState
@@ -77,7 +80,7 @@ func (p *targetedDiffPair) run(name string, c targetedDiffCase) targetedDiffOutc
 		}
 	}
 	wholeErr := wholeStore.RunDeferredRelationshipMaintenance(p.ctx, nil, nil)
-	result, targetedErr := targetedStore.runDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, c.owed)
+	result, targetedErr := targetedStore.RunDeferredRelationshipMaintenanceForPartitions(p.ctx, nil, nil, c.owed)
 	outcome.result = result
 	if c.wantErr {
 		if wholeErr == nil || targetedErr == nil {
@@ -87,9 +90,23 @@ func (p *targetedDiffPair) run(name string, c targetedDiffCase) targetedDiffOutc
 		p.t.Fatalf("%s: whole=%v targeted=%v", name, wholeErr, targetedErr)
 	}
 	if !c.wantErr {
-		if got := partitionSetOf(result.Affected); !reflect.DeepEqual(got, c.compared) {
+		if got := owedSet(result.Affected); !reflect.DeepEqual(got, c.compared) {
 			p.t.Fatalf("%s: affected partitions = %v, want %v", name, result.Affected, sortedPartitions(c.compared))
 		}
+	}
+	wantOutcomes := c.outcomes
+	if wantOutcomes == nil {
+		wantOutcomes = map[string]TargetedMaintenanceOutcomeKind{}
+		for _, owed := range c.owed {
+			wantOutcomes[owed.ScopeID+"/"+owed.GenerationID] = TargetedMaintenancePublished
+		}
+	}
+	gotOutcomes := map[string]TargetedMaintenanceOutcomeKind{}
+	for _, outcome := range result.Outcomes {
+		gotOutcomes[outcome.Partition.ScopeID+"/"+outcome.Partition.GenerationID] = outcome.Kind
+	}
+	if !reflect.DeepEqual(gotOutcomes, wantOutcomes) {
+		p.t.Fatalf("%s: per-owed outcomes = %v, want %v", name, gotOutcomes, wantOutcomes)
 	}
 
 	outcome.whole = p.capture(p.whole)
@@ -139,7 +156,7 @@ func (p *targetedDiffPair) run(name string, c targetedDiffCase) targetedDiffOutc
 		"targeted_reopened":        len(c.reopened),
 		"loaded":                   result.Loaded,
 		"promoted":                 result.Promoted,
-		"not_active":               result.NotActive,
+		"outcomes":                 gotOutcomes,
 	})
 	p.t.Logf("DIFFERENTIAL %s", summary)
 	return outcome
@@ -176,6 +193,20 @@ func stripXmin(state targetedDiffState) map[string]string {
 		values[key] = row.value
 	}
 	return values
+}
+
+// owedPartitions builds a sorted owed list from scope/generation pairs.
+func owedPartitions(pairs ...string) []OwedPartition {
+	return owedPartitionsOf(sortedPartitions(partitionSet(pairs...)))
+}
+
+// owedSet converts exported owed partitions into an internal partition set.
+func owedSet(owed []OwedPartition) map[scopeGenerationPartition]struct{} {
+	set := make(map[scopeGenerationPartition]struct{}, len(owed))
+	for _, partition := range owed {
+		set[scopeGenerationPartition(partition)] = struct{}{}
+	}
+	return set
 }
 
 // partitionSetOf converts a partition slice into a set.

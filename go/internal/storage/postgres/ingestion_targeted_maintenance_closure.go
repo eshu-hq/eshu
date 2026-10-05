@@ -12,7 +12,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // targetedMaintenanceMaxClosureRounds bounds how many times the closure may
@@ -27,8 +26,6 @@ type targetedMaintenanceClosure struct {
 	// owed are the requested partitions whose generation is still the scope's
 	// active one, plus every promoted partition.
 	owed map[scopeGenerationPartition]struct{}
-	// notActive are requested partitions whose scope has moved on.
-	notActive []scopeGenerationPartition
 	// promoted are dependent partitions that had no committed
 	// backward_evidence phase and were therefore processed as owed.
 	promoted []scopeGenerationPartition
@@ -79,26 +76,17 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 	catalog []relationships.CatalogEntry,
 	params deferredScopedFactQueryParams,
 	hasAnchors bool,
-	requested []scopeGenerationPartition,
-	instruments *telemetry.Instruments,
+	active map[scopeGenerationPartition]struct{},
 ) (targetedMaintenanceClosure, error) {
-	closure := targetedMaintenanceClosure{owed: make(map[scopeGenerationPartition]struct{}, len(requested))}
-	for _, partition := range requested {
-		active, err := loadActiveGenerationForScope(ctx, s.database, partition.ScopeID)
-		if err != nil {
-			return closure, fmt.Errorf("read active generation for owed scope %q: %w", partition.ScopeID, err)
-		}
-		if active != partition.GenerationID {
-			closure.notActive = append(closure.notActive, partition)
-			continue
-		}
+	closure := targetedMaintenanceClosure{owed: make(map[scopeGenerationPartition]struct{}, len(active))}
+	for partition := range active {
 		closure.owed[partition] = struct{}{}
 	}
 
 	for round := 0; ; round++ {
 		if round >= targetedMaintenanceMaxClosureRounds {
-			return closure, fmt.Errorf("partition-scoped maintenance closure did not settle after %d rounds; owed=%d",
-				targetedMaintenanceMaxClosureRounds, len(closure.owed))
+			return closure, fmt.Errorf("%w: %d rounds, owed=%d",
+				ErrTargetedMaintenanceClosureTooDeep, targetedMaintenanceMaxClosureRounds, len(closure.owed))
 		}
 		owedRepos, err := loadActiveRepositoryGenerationsForPartitions(ctx, s.database, sortedPartitions(closure.owed))
 		if err != nil {
@@ -118,7 +106,7 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 		// in an owed partition resolves to.
 		if hasAnchors && len(closure.owed) > 0 {
 			ownFacts, _, err := s.loadDeferredScopedFactsAcrossPartitions(
-				ctx, s.database, params, sortedPartitions(closure.owed), instruments)
+				ctx, s.database, params, sortedPartitions(closure.owed), nil)
 			if err != nil {
 				return closure, fmt.Errorf("load owed partition facts for closure: %w", err)
 			}
@@ -176,6 +164,11 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 		}
 		closure.load = load
 		closure.affectedRepos = affected
+		promoted := make(map[scopeGenerationPartition]struct{}, len(closure.promoted))
+		for _, partition := range closure.promoted {
+			promoted[partition] = struct{}{}
+		}
+		closure.promoted = sortedPartitions(promoted)
 		return closure, nil
 	}
 }

@@ -2,14 +2,14 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Read-side parity proof for partition-scoped deferred maintenance (#7584 D3
-// step 1). It runs only against a disposable PostgreSQL opted in through
-// ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1.
+// step 1). It runs only against the disposable PostgreSQL named by
+// ESHU_TARGETED_MAINTENANCE_PROOF_DSN with
+// ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1.
 package postgres
 
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -22,12 +22,10 @@ import (
 // with the real fleet loader for evidence touching one active repository.
 // It does not prove writes, phase publication, reopen, or representative cost.
 func TestTheoryExactPartitionEvidenceClosure(t *testing.T) {
-	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
-		t.Skip("requires disposable PostgreSQL opt-in")
-	}
+	dsn := targetedMaintenanceProofDSN(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	database := openDeferredPartitionMemoProofDB(t, dsnForDeferredPartitionMemoProof(t))
+	database := openDeferredPartitionMemoProofDB(t, dsn)
 	schemaName := provisionDeferredPartitionMemoSchema(t, database)
 	t.Logf("private proof schema=%s", schemaName)
 	seedDeferredPartitionFixture(t, ctx, database)
