@@ -67,13 +67,16 @@ func TestLoadConfigReaderMembersAreCredentialFreeAndBounded(t *testing.T) {
 	for _, tc := range []struct {
 		name, inventory string
 		valid           bool
+		wantMembers     int
+		wantLastID      string
 	}{
-		{"two physical members", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432}]`, true},
-		{"duplicate ID", `[{"id":"a","host":"reader-a","port":5432},{"id":"a","host":"reader-b","port":5432}]`, false},
-		{"duplicate endpoint", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-a","port":5432}]`, false},
-		{"credentials", `[{"id":"a","host":"proof:secret@reader-a","port":5432}]`, false},
-		{"single member", `[{"id":"a","host":"reader-a","port":5432}]`, false},
-		{"insufficient budget", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432},{"id":"c","host":"reader-c","port":5432},{"id":"d","host":"reader-d","port":5432}]`, false},
+		{"two physical members", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432}]`, true, 2, "b"},
+		{"duplicate ID", `[{"id":"a","host":"reader-a","port":5432},{"id":"a","host":"reader-b","port":5432}]`, false, 0, ""},
+		{"duplicate endpoint", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-a","port":5432}]`, false, 0, ""},
+		{"credentials", `[{"id":"a","host":"proof:secret@reader-a","port":5432}]`, false, 0, ""},
+		{"single member", `[{"id":"a","host":"reader-a","port":5432}]`, true, 1, "a"},
+		{"empty inventory", `[]`, false, 0, ""},
+		{"insufficient budget", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432},{"id":"c","host":"reader-c","port":5432},{"id":"d","host":"reader-d","port":5432}]`, false, 0, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := LoadConfig(func(key string) string {
@@ -94,7 +97,7 @@ func TestLoadConfigReaderMembersAreCredentialFreeAndBounded(t *testing.T) {
 			if err != nil && strings.Contains(err.Error(), "secret") {
 				t.Fatalf("credential leaked: %v", err)
 			}
-			if tc.valid && (len(cfg.ReadMembers) != 2 || cfg.ReadMembers[0].ID != "a" || cfg.ReadMaxOpenConns+cfg.WriterMaxOpenConns != 30) {
+			if tc.valid && (len(cfg.ReadMembers) != tc.wantMembers || cfg.ReadMembers[0].ID != "a" || cfg.ReadMembers[len(cfg.ReadMembers)-1].ID != tc.wantLastID || cfg.ReadMaxOpenConns+cfg.WriterMaxOpenConns != 30) {
 				t.Fatalf("member config or pool cap: %+v", cfg)
 			}
 		})

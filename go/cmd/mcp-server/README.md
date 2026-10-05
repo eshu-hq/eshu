@@ -137,13 +137,15 @@ Native pgx host lists share each pool's budget rather than allocating a pool
 per host. Writer candidates must resolve to one accepted primary; independent
 writable databases are outside this contract.
 
-Optional `ESHU_POSTGRES_READ_MEMBERS` enables a startup-frozen JSON inventory of
-at least two credential-free direct reader endpoints (`id`, `host`, `port`). It
+Optional `ESHU_POSTGRES_READ_MEMBERS` enables a startup-frozen, nonempty JSON
+inventory of credential-free direct reader endpoints (`id`, `host`, `port`). It
 uses shared credentials/TLS from a distinct single-host read DSN and divides
 the total reader pool budget across members (at least four connections each).
 Snapshot-set requests pin all connections to one member. An unavailable member
 is skipped until process restart; wrong topology fails startup. Without the
 inventory, native pgx multi-host fallback does not advertise snapshot sets.
+A one-member inventory has no reader redundancy; loss of that member fails
+guarded reads rather than routing them to the writer.
 A single-host reader Service still advertises them, so it must not load-balance
 one snapshot set across multiple physical readers.
 

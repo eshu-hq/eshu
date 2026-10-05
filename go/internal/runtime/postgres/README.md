@@ -41,7 +41,7 @@ before borrowing a reader.
 - Native pgx host-list syntax selects candidate hosts within the two pools.
   The reader randomizes host order for each new physical connection. Candidate
   counts never multiply the total open or idle budgets.
-- `ESHU_POSTGRES_READ_MEMBERS` optionally names two or more physical standbys
+- `ESHU_POSTGRES_READ_MEMBERS` optionally names one or more physical standbys
   as JSON objects with `id`, direct `host`, and numeric `port` fields. Each
   `host` may be a DNS name, IPv4 address, or bare IPv6 literal; IPv6 brackets
   and an embedded port are invalid. The inventory has no password or TLS
@@ -62,7 +62,10 @@ before borrowing a reader.
   bootstrap remains ineligible until restart. Authentication, completed TLS,
   permission, missing-database, malformed-identity, and unknown setup failures
   abort startup even when another member qualifies. Only a decoded physical
-  identity contradiction is classified as wrong topology.
+  identity contradiction is classified as wrong topology. A one-member
+  inventory uses the same identity and snapshot fences but has no reader
+  redundancy: loss of that member fails guarded reads instead of routing them
+  to the writer or another host.
 - Connection lifetime, idle time, and startup ping timeout retain the shared
   runtime PostgreSQL settings. Reader pool acquisition and replay waiting have
   a separate bounded deadline; business SQL uses the caller's request context.
@@ -321,7 +324,10 @@ operator must bind the DSN to the intended standby and verify its instance
 identity outside this test.
 
 The disposable live tests take `ESHU_READER_TEST_WRITER_DSN` and
-`ESHU_READER_TEST_READER_DSN`. Candidate tests additionally take complete
+`ESHU_READER_TEST_READER_DSN`. `TestSingleReaderMemberKeepsSnapshotAndFailsClosed`
+uses those two endpoints to check one direct standby, four connections on one
+snapshot, zero leaked leases, and refusal after that member's frozen epoch
+changes. Candidate tests additionally take complete
 `ESHU_READER_TEST_WRITER_CANDIDATES_DSN`,
 `ESHU_READER_TEST_READER_CANDIDATES_DSN`, and
 `ESHU_READER_TEST_READ_CANDIDATES_DSN` values. The foreign-first test requires
