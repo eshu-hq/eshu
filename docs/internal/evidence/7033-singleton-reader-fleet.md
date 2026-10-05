@@ -39,7 +39,7 @@ setup correction is not a production performance or correctness finding.
 ## Narrow performance proof
 
 Performance Evidence: A disposable PostgreSQL 18.3 primary and physical standby
-served both production snapshot-set paths after the review-fix rerun. After two
+served both production snapshot-set paths after the PR review fix. After two
 warmups per path, eight
 interleaved `legacy, singleton, singleton, legacy` blocks measured the time
 from snapshot-set begin through close. Every call succeeded, and the primary
@@ -47,25 +47,26 @@ WAL insert LSN was unchanged throughout the run. Each path had 16 samples:
 
 | Path | Ordered samples in milliseconds | Median |
 | --- | --- | ---: |
-| Legacy single-host | 1.400626, 1.200217, 1.429155, 1.002394, 1.032934, 1.139294, 1.080103, 0.905636, 0.892361, 0.883223, 0.939467, 0.934582, 0.969793, 0.914718, 0.941089, 0.910252 | 0.955441 ms |
-| Singleton fleet | 1.101569, 1.060982, 1.459773, 0.988358, 0.949068, 0.938183, 0.921917, 1.016417, 0.940203, 0.924424, 0.925538, 0.902237, 0.900421, 0.903316, 0.904765, 0.916011 | 0.931860 ms |
+| Legacy single-host | 1.504776, 1.416369, 1.225845, 1.285367, 1.256645, 1.090634, 1.175259, 1.192888, 1.018590, 1.222353, 1.112917, 1.017374, 0.851068, 0.994530, 1.025416, 1.026072 | 1.144088 ms |
+| Singleton fleet | 1.515644, 1.437424, 1.518375, 1.517710, 1.569395, 1.548240, 1.378988, 1.499060, 1.319000, 1.209196, 1.231332, 1.257339, 1.167514, 1.227753, 1.255433, 1.354932 | 1.366960 ms |
 
-This is a tiny, empty-database setup microbenchmark. It checks for a gross
-singleton routing overhead and is **not** a 16-term endpoint comparison, a
-throughput test, or an ops-qa `<1 s` acceptance result. The earlier isolated
+This is a tiny, empty-database setup microbenchmark. The singleton median was
+0.222872 ms higher on this fixture. That narrow setup delta is **not** a
+16-term endpoint comparison, throughput test, or ops-qa `<1 s` acceptance
+result. The earlier isolated
 ops-qa single-reader canary had a 0.6740565 s descriptive median, but its
 streaming corpus and unequal live/canary traffic prevent a causal speedup
 claim. The deployed Service's last recorded median remained 1.184 s.
 
-The review-fix fixture used `postgres:18.3` with direct Docker bridge addresses,
-a dedicated replication slot, and primary and standby on one host. The earlier
+The post-review fixture used `postgres:18.3` with direct host-network loopback
+ports, a dedicated replication slot, and primary and standby on one host. The earlier
 one-off runner had SHA-256 `f1cf425fd77fb182546cfaffd09e074e2cd2e9459eb33cd09cd847debe3cdc31`;
-that runner and its containers and volumes were removed. The review-fix fixture
+that runner and its containers and volumes were removed. The post-review fixture
 was created with bounded Docker commands and is removed after rerunning gates.
 The relevant code SHA-256 values are `21cc87eb03a3ef51815f3ac8a1c2f26f72b2ff7cb133ab781b70299b6d805a54`
 for `config.go`, `617832ce95a37b8f7c48b05b28bc0e9d2adf3a1b927af3657aab166bd92c5d1e`
 for `reader_members.go`, and
-`39b95e670ec4b1259c1c1b1fa8e4131de8d86fc7059cfbbf73e5e35df470b156`
+`4922be08072bc7422e587b71c517e8ea20ce003fbe39fc2a90e6fa1547df9965`
 for `singleton_test.go`.
 
 ## Deployment gate

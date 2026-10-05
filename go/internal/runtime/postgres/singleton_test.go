@@ -201,7 +201,10 @@ func TestSingleReaderMemberSnapshotSetupCost(t *testing.T) {
 	}
 	measure := func(access *Access, checked context.Context) time.Duration {
 		t.Helper()
-		beginner := access.Reader().(db.ReadSnapshotSetBeginner)
+		beginner, ok := access.Reader().(db.ReadSnapshotSetBeginner)
+		if !ok {
+			t.Fatal("reader did not advertise snapshot sets")
+		}
 		started := time.Now()
 		set, beginErr := beginner.BeginReadOnlySnapshotSet(checked, 4)
 		if beginErr != nil {
