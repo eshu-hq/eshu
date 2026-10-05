@@ -412,10 +412,15 @@
 // (a MATERIALIZED fence CTE LEFT JOINed to the read), so the verdict and the
 // rows share one READ COMMITTED snapshot (#6740).
 //
-// runDeferredRelationshipMaintenanceForPartitions (#7584) is the
+// RunDeferredRelationshipMaintenanceForPartitions (#7584) is the
 // partition-scoped form of RunDeferredRelationshipMaintenance: for every
 // partition it touches it commits the same evidence, phase, memo and reopen
 // rows as the whole pass, and it changes nothing outside them. Its queries are
-// derived from the whole pass's shipped queries. See
-// docs/internal/evidence/7584-partition-scoped-maintenance.md.
+// derived from the whole pass's shipped queries. It reports one typed outcome
+// per owed partition (published, not_active, inapplicable, retry) and refuses
+// with ErrTargetedMaintenanceCatalogChanged or
+// ErrTargetedMaintenanceNoMemoBaseline; every TargetedMaintenanceError has a
+// stable Reason for telemetry labels. Its correlation reopen is
+// partition-scoped: the fleet-wide correlation replay stays on the epoch whole
+// pass. See docs/internal/evidence/7584-partition-scoped-maintenance.md.
 package postgres

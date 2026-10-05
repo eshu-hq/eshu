@@ -1,11 +1,49 @@
 # Partition-Scoped Deferred Relationship Maintenance (#7584)
 
-Proof-branch note for the D3 step 2 slice of #7584. The entry point
-`IngestionStore.runDeferredRelationshipMaintenanceForPartitions`
+Proof-branch note for the D3 slice of #7584. The entry point
+`IngestionStore.RunDeferredRelationshipMaintenanceForPartitions`
 (`go/internal/storage/postgres/ingestion_targeted_maintenance.go`) runs deferred
 relationship maintenance for owed `(scope_id, generation_id)` partitions only.
-Nothing calls it yet; the activation-obligation consumer will reach it through a
-port.
+Nothing calls it yet; the activation-obligation consumer
+(`go/internal/reducer/maintenance`) will reach it through a port.
+
+## Outcomes and refusals
+
+Each owed partition gets one typed outcome in `TargetedMaintenanceResult.Outcomes`:
+
+- `published`: the partition carries its `backward_evidence_committed` phase
+  after the pass.
+- `not_active`: the scope moved to another generation. This is decided before
+  the catalog guard, so a superseded partition is never reported as refused.
+- `inapplicable`: the partition is active but maps to no repository in the
+  shipped active-repository read (a scope without a repository fact, or the
+  scope that loses a repo_id `DISTINCT ON` collision). No pass can publish its
+  phase. Its evidence work still runs, because a cloud scope's relations attach
+  evidence to other repositories.
+- `retry`: an applicable active partition whose phase this pass did not
+  publish (its generation advanced, or a guard skipped it).
+
+Pass-level refusals return a typed error and write nothing:
+`ErrTargetedMaintenanceCatalogChanged` (an active memo row records another
+catalog fingerprint) and `ErrTargetedMaintenanceNoMemoBaseline` (no active
+partition holds a memo row, so a catalog change cannot be detected; a fresh
+install before its first whole pass, or an all-ArgoCD install). Both are held
+by the consumer until the epoch whole pass, which the same ingestion commit
+triggers, writes the memos and the phase. `ErrTargetedMaintenanceClosureTooDeep`
+reports a closure that did not settle in 8 promotion rounds. Every
+`TargetedMaintenanceError` has a stable `Reason()` used as the telemetry label.
+
+## Correlation reopen is partition-scoped
+
+The pass reopens the cross-scope correlation domains only in the affected
+partitions. The fleet-wide replay of those domains stays on the epoch whole
+pass, unchanged, and is not part of the activation obligation (#7584 ruling D1):
+the obligation owes the backward-evidence phase, while the correlation domains
+wait on producer activation. A correlation consumer whose dependency on the
+owed scope is not relationship evidence (for example a workload correlation
+waiting on an OCI scope) is not reopened by this pass. The differential pins the
+whole pass's extra rows outside the affected partitions, so a future widening
+is visible.
 
 ## Contract
 
@@ -60,7 +98,16 @@ ApplicationSet with an external config repository, two repositories in one
 partition across separate batches, empty evidence, an unrelated quiet scope,
 memo hit and miss, a generation advance before the evidence commit and before
 the phase, successor activation, a failed sibling batch and its retry, an
-unprocessed inbound source, and a catalog change.
+unprocessed inbound source, a catalog change, a superseded owed partition under
+a catalog change, the no-memo baseline, a NULL active pointer from the real
+projector Fail path, an owed repo_id collision loser, and the empty-catalog
+path.
+
+The epoch whole pass is unchanged by the batch-writer refactor: the same rich
+fixture, run through `RunDeferredRelationshipMaintenance` built from the base
+commit and from this branch, commits the same 113 evidence, phase, memo and
+work-item rows (set difference 0/0); a build with a mutated whole-pass loader
+differs on 41 rows.
 
 ## Performance and observability
 
@@ -68,21 +115,37 @@ No-Regression Evidence: the whole pass is unchanged at runtime. Its batch
 writer now takes the under-lock generation read as a parameter, and the whole
 pass passes `loadAllActiveRepositoryGenerations`, which calls the shipped
 `loadActiveRepositoryGenerations` with the same query. The rest of the batch
-transaction is the same code. `go test -p 2 -count=1 ./internal/storage/postgres`
-passed on this branch (hermetic tests; live tests skip without a DSN). The
-partition-scoped entry has no production caller yet, so no runtime path runs
-it. Its own cost has not been measured; that is D3 step 3, and no claim is made
-here.
+transaction is the same code, and a base-versus-branch output differential of
+the whole pass is 0/0 (see Evidence). The partition-scoped entry has no
+production caller yet, so no runtime path runs it. Its own cost has not been
+measured; that is D3 step 3, and no claim is made here.
 
-Observability Evidence: the entry opens a `relationship.backfill_deferred_targeted`
-span with owed, not-active, promoted, loaded, affected, evidence and published
-counts. It logs one `deferred_backfill_targeted_completed` line with the same
-counts, the relationship-domain reopen counts and the duration; the live
-differential run emitted 15 of these lines. The reopen step records the existing
-`DeploymentMappingReopened`, `CodeImportRepoEdgeReopened` and
-`CorrelationReopened{domain}` counters, and the shared loader, batch and fan-in
-code keep their existing `deferred_backfill_*` metrics and logs. No new
-instrument was registered.
+Observability Evidence: the pass records
+`eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}`,
+`eshu_dp_deferred_backfill_targeted_outcomes_total{outcome}` (one per owed
+partition and one per refused or failed pass) and
+`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`. It opens a
+`relationship.backfill_deferred_targeted` span that records the error and sets
+an error status on every failed or refused pass, logs one
+`deferred_backfill_targeted_completed` line per pass, and logs one
+`deferred_backfill_targeted_refused` line per applicable owed partition on a
+refusal. The shared loader, memo gate, batch and fan-in code run with
+instruments off, so the whole pass's `eshu_dp_deferred_backfill_*` and reopen
+series count only the whole pass; the fixture `telemetry_counts_targeted_only`
+asserts both halves.
+
+## Known pre-existing behavior the pass reproduces
+
+- A memo-hit partition that receives new evidence from a cloud scope keeps its
+  relationship items succeeded, in both passes: the same-pass skip set keys on
+  the partition's own fact load (fixture `cloud_scope_gcp_relation_owed`). The
+  fix belongs in the shared skip-set construction.
+- The deployment_mapping and code_import_repo_edge listings have no replay
+  floor, so the whole pass reopens superseded generations' items on every pass.
+- With a NULL active pointer (the active generation failed), both passes
+  resolve the scope through `COALESCE(pointer, latest)` and publish a phase for
+  the failed generation (fixture `null_active_pointer_after_projector_fail`).
+  The consumer's finalize reads the raw pointer and retires the obligation.
 
 ## Not covered
 
@@ -90,7 +153,7 @@ instrument was registered.
 - Concurrency of this entry against an ingester pass, consumer replicas, or
   lease expiry (D3 step 4).
 - Graph and API truth after the reducer replays the reopened items.
-- Correlation consumers whose dependency on the owed scope is not relationship
-  evidence (for example a workload correlation waiting on an OCI scope). The
-  whole pass reopens correlation items in every scope; this pass reopens them
-  only in the touched partitions.
+- The first-wins dedupe case in `DiscoverEvidence`: two envelopes that yield
+  the same (kind, source, target, path, matched value) key with different
+  details, one loaded and one not, could make the two passes write different
+  evidence ids. No fixture covers it.
