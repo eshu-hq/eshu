@@ -26,6 +26,18 @@ Benchmark Evidence: sampled in-process average overhead was approximately 8–9 
 
 The scratch command was `go test ./.scratch_7033_trace/overhead_test.go -run '^$' -bench '^BenchmarkTraceCost$' -benchtime=300ms -count=2 -benchmem`, with `ESHU7033_BENCH_ORDER` set to `baseline,sampled,unsampled`, `unsampled,sampled,baseline`, then `sampled,baseline,unsampled`. The untracked scratch harness is not part of this PR; its raw output and code are retained in the private local validation artifact.
 
+## Post-change production-path no-regression screen
+
+A second scratch benchmark invoked the actual `codetopicparallel.Investigate` function on exact base `d6cec878030e` and candidate `b5c9863e400b` source, with the same 16 terms, candidate cap 250, four fake snapshot readers, 2,000 rows each, zero-row assembly response, Go 1.26.6, and sampled OpenTelemetry batch exporter. The 113-line harness differed only in the candidate's required attempt argument (`0`). No database or storage state changed. Both binaries were built before timing, pinned to CPUs 4–7 with `GOMAXPROCS=4`, and run in B/C/C/B, C/B/B/C, B/C/C/B order with six one-second Go benchmark observations per version. No peer Go process ran during measurement. Full commands, harness hashes, and all twelve `ns/op`, `B/op`, and allocation results are retained under the same private run ID in `trace-overhead-scratch/production-benchmark-results.md`.
+
+| Actual function, fixed fake corpus | Base | Candidate | Difference |
+| --- | ---: | ---: | ---: |
+| Median `ns/op` | 7,843,377.5 | 7,915,361.5 | +71,984 (+0.072 ms; +0.92%) |
+| Median `allocs/op` | 16,247 | 16,291 | +44 |
+| Median `B/op` | 14,036,250.5 | 14,045,674.5 | +9,424 |
+
+No-Regression Evidence: the observed production-function median difference is below the predeclared 1 ms/request instrumentation-cost gate. Per-run timing ranges overlap, so this is not a precise tail-cost estimate or an endpoint speedup. The fake readers exercise production partition scanning and JSON assembly but do not simulate PostgreSQL I/O, deployment load, Neo4j, or 100,000 repositories. The earlier isolated 8–9 µs span-construction screen and this end-to-end local function screen measure different work and should not be subtracted from each other.
+
 ## Rejected query hypotheses
 
 | Candidate | Fixed-corpus result | Disposition |
@@ -37,6 +49,6 @@ Neither SQL screen is a deployed endpoint comparison. Adding a deterministic cap
 
 ## Signal and acceptance
 
-Observability Evidence: a recording `postgres.query` parent in `parallel_shared_snapshot` mode gets one `query.code_topic_partition` child for each executed partition. Each child records closed ordinal 0–3, successful row count, and `ok`/`error`/`canceled`/`deadline` outcome. Its duration covers query return, row iteration and scanning, row error check, and cursor close. No terms, SQL, repository IDs, connection details, credentials, or raw error payloads are span attributes. The single-statement fallback emits no partition child.
+Observability Evidence: a recording `postgres.query` parent in `parallel_shared_snapshot` mode gets one `query.code_topic_partition` child for each executed partition. Each child records attempt 0–1, partition ordinal 0–3, successful row count, and `ok`/`error`/`canceled`/`deadline` outcome. A reader-member retry can emit up to eight children under one parent. Duration covers query return, row iteration and scanning, row error check, and cursor close; a cursor-close failure marks the child `error` while retaining the prior API error behavior. No terms, SQL, repository IDs, connection details, credentials, or raw error payloads are span attributes. The single-statement fallback emits no partition child.
 
-Focused production-path tests with Go 1.26.6 verified delayed cursor-close timing, partial rows, query/scan/row errors, in-flight cancellation and deadline, exactly-once cursor cleanup, parent/ordinal and scope attribution, concurrent requests, and request completion while the batch exporter stalls. `go test ./internal/query/codetopicparallel ./internal/telemetry -count=1` and `go test -race ./internal/query/codetopicparallel -count=1` both exited 0. The telemetry-coverage gate and strict docs build also exited 0. The independently reviewed promotion gate remains required before publication. A separate reviewed deployment and organic-traffic trace are needed before the new signal can identify a live partition. A complete resource-qualified endpoint measurement is still needed to decide #7033's `<1 s` acceptance.
+Focused production-path tests with Go 1.26.6 verified delayed cursor-close timing, partial rows, query/scan/row errors, in-flight cancellation and deadline, exactly-once cursor cleanup, parent/attempt/ordinal and scope attribution, the real caller's whole-read member-loss retry, concurrent requests, and request completion while the batch exporter stalls. `go test ./internal/query ./internal/query/codetopicparallel ./internal/telemetry -count=1` and focused `go test -race` on the query and partition packages both exited 0. The telemetry-coverage gate and strict docs build also exited 0 before this evidence update and must be rerun on the final diff. The independently reviewed promotion gate remains required before publication. A separate reviewed deployment and organic-traffic trace are needed before the new signal can identify a live partition. A complete resource-qualified endpoint measurement is still needed to decide #7033's `<1 s` acceptance.
