@@ -339,7 +339,8 @@ func splitCodeCallPackageSymbolKeys(symbolKeys []string) (packageKeys, otherKeys
 }
 
 // codeCallPackageSymbolKeyPackageName returns the package_id of a
-// package:<package_id>#<export_name> key, or "" when either part is empty.
+// package:<package_id>#<export_name> key, trimmed to match the trimmed manifest
+// names, or "" when either part is empty.
 // npm package names cannot contain '#', so the first '#' ends the name.
 // Every key with the package: prefix takes the anchored path, so a key in any
 // other shape (no '#', an empty part) resolves no producer and stays
@@ -350,7 +351,7 @@ func codeCallPackageSymbolKeyPackageName(key string) string {
 	if !ok || strings.TrimSpace(packageName) == "" || strings.TrimSpace(exportName) == "" {
 		return ""
 	}
-	return packageName
+	return strings.TrimSpace(packageName)
 }
 
 // codeCallPackageManifestName returns the "name" of a package.json manifest.

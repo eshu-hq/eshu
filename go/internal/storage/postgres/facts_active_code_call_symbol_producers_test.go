@@ -312,3 +312,34 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
 }
+
+func TestLoadActiveCodeCallSymbolDefinitionFactsTrimsPackageKeyName(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.October, 4, 9, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			// Manifest names are trimmed when parsed, so a key whose package part
+			// carries stray whitespace must still find its producer.
+			{rows: [][]any{{"scope-logging", `{"name":"@acme/logging"}`}}},
+			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
+		},
+	}
+
+	loaded, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(
+		context.Background(),
+		[]string{"package: @acme/logging #Logger"},
+	)
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, anchored): a padded package name must still resolve its producer", got, want)
+	}
+	if got, want := db.queries[1].args[4], []string{"scope-logging"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("anchored producer scopes = %#v, want %#v", got, want)
+	}
+	if got, want := factIDs(loaded), []string{"fact-logging"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
+	}
+}
