@@ -152,14 +152,15 @@ GROUP BY domain
 HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM(dead_letter_count) + SUM(failed_count) > 0`
 	// domainBacklogOrder is domainBacklogSelect's result order.
 	domainBacklogOrder = `outstanding_count DESC, oldest_outstanding_age_seconds DESC, domain ASC`
-	// queueSnapshotSelect aggregates the active work-item queue into one row.
-	queueSnapshotSelect = `SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
-       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
+	// queueSnapshotLiveCounts are the queue snapshot's live-status counts;
+	// queueSnapshotSelect and activeWorkSummaryQueueSelect share them.
+	queueSnapshotLiveCounts = `       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
        COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
        COUNT(*) FILTER (WHERE status IN ('claimed', 'running')) AS in_flight_count,
        COUNT(*) FILTER (WHERE status = 'retrying') AS retrying_count,
-       COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
-       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
+`
+	// queueSnapshotTail is the rest of the queue snapshot after succeeded_count.
+	queueSnapshotTail = `       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
        COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
 	   EXISTS (
 	     SELECT 1
@@ -192,6 +193,10 @@ HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM
            AND claim_until < $1
        ) AS overdue_claim_count
 FROM active_fact_work_items`
+	// queueSnapshotSelect aggregates the active work-item queue into one row.
+	queueSnapshotSelect = `SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
+` + queueSnapshotLiveCounts + `       COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
+` + queueSnapshotTail
 )
 
 const statusReadinessSchemaQuery = `

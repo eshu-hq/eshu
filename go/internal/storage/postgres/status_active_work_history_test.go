@@ -60,3 +60,27 @@ func TestActiveWorkSummaryGroupsHistoryBeforeTheGenerationJoin(t *testing.T) {
 		last = at
 	}
 }
+
+// TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups proves the #7009
+// rewrite changed nothing but the grouped-history pieces: undoing exactly
+// those pieces, with the still-shipped standalone selects, must reproduce the
+// pre-change oracle byte for byte.
+func TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups(t *testing.T) {
+	t.Parallel()
+
+	query := activeWorkSummaryQuery
+	for _, pair := range [][2]string{
+		{activeWorkSummaryHistoryCTEs + ",\n", ""},
+		{activeWorkSummaryStageCountsSelect, stageCountsSelect},
+		{activeWorkSummaryQueueSelect, queueSnapshotSelect},
+		{activeWorkSummaryWorkInput, "FROM (SELECT * FROM fact_work_items OFFSET 0) AS work"},
+	} {
+		if n := strings.Count(query, pair[0]); n != 1 {
+			t.Fatalf("summary query contains %d copies of %q, want 1", n, pair[0])
+		}
+		query = strings.Replace(query, pair[0], pair[1], 1)
+	}
+	if query != activeWorkSummaryPreHistoryGroupsOracle {
+		t.Fatalf("undoing the grouped history pieces does not reproduce the oracle:\n%s", query)
+	}
+}

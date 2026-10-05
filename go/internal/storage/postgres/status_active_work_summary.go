@@ -18,7 +18,9 @@ import (
 )
 
 // activeWorkSummaryColumns retains wide detail only for rows whose summary
-// consumers may read it. Succeeded and superseded history stays narrow (#7009).
+// consumers may read it (#7009). activeWorkSummaryFromWhere already keeps
+// history rows out of the CTE; the CASE guards keep the projection narrow if
+// that status filter is ever widened.
 // Keep payload eligibility in sync with eligible in status_blockage.go and
 // failure text eligibility in sync with latestQueueFailureSelect below.
 const activeWorkSummaryColumns = `CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.work_item_id END AS work_item_id,
@@ -44,10 +46,66 @@ const activeWorkSummaryColumns = `CASE WHEN work.status IN ('pending', 'claimed'
               THEN work.failure_details END AS failure_details,
          work.provenance_edge_identity_upgrade_required`
 
+// activeWorkDetailStatuses are the statuses whose rows a summary section reads
+// beyond (stage, status) counts: backlog, queue, blockage, and failure all
+// filter to them. Rows in any other status (succeeded, superseded, and any
+// status a later writer adds) only feed stage counts, succeeded_count, and
+// total_count (#7009).
+const activeWorkDetailStatuses = `('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')`
+
 // activeWorkSummaryFromWhere fences the status-only work input before the
-// shared generation join. The other active-work observers retain their
-// original FROM shape; both use the same generation predicate.
-const activeWorkSummaryFromWhere = "FROM (SELECT * FROM fact_work_items OFFSET 0) AS work" + activeFactWorkItemsScopeJoinWhere
+// shared generation join and keeps only activeWorkDetailStatuses rows; the
+// grouped history CTEs count the rest. The other active-work observers retain
+// their original FROM shape; all use the same generation predicate.
+const activeWorkSummaryFromWhere = activeWorkSummaryWorkInput + activeFactWorkItemsScopeJoinWhere
+
+// activeWorkSummaryWorkInput is the fenced, status-filtered work input of
+// activeWorkSummaryFromWhere.
+const activeWorkSummaryWorkInput = "FROM (SELECT * FROM fact_work_items WHERE status IN " + activeWorkDetailStatuses + " OFFSET 0) AS work"
+
+// activeWorkSummaryHistoryCTEs count every work row in one narrow pass and
+// apply the generation identity join to the (scope_id, generation_id, stage,
+// status) groups instead of to each wide row (#7009). The groups key on both
+// join columns, so joining a group keeps or drops exactly the rows the
+// per-row join kept or dropped; ingestion_scopes.scope_id and
+// scope_generations.generation_id are primary keys, so no group is
+// duplicated. The stale-generation predicate touches only
+// activeWorkDetailStatuses, so history rows need the joins and nothing else.
+// fact_work_status_groups also yields total_count, which counts every row
+// with no join, from the same pass and the same snapshot.
+const activeWorkSummaryHistoryCTEs = `fact_work_status_groups AS MATERIALIZED (
+  SELECT scope_id, generation_id, stage, status, COUNT(*) AS row_count
+  FROM fact_work_items
+  GROUP BY scope_id, generation_id, stage, status
+),
+fact_work_history_counts AS MATERIALIZED (
+  SELECT status_group.stage, status_group.status, SUM(status_group.row_count)::BIGINT AS row_count
+  FROM fact_work_status_groups AS status_group
+  JOIN active_fact_work_items_scope_state AS scope_state
+    ON scope_state.scope_id = status_group.scope_id
+  JOIN scope_generations AS stale_generation
+    ON stale_generation.scope_id = status_group.scope_id
+   AND stale_generation.generation_id = status_group.generation_id
+  WHERE status_group.status NOT IN ` + activeWorkDetailStatuses + `
+  GROUP BY status_group.stage, status_group.status
+)`
+
+// activeWorkSummaryStageCountsSelect is stageCountsSelect over the two
+// disjoint halves of the active set: detail rows and grouped history.
+const activeWorkSummaryStageCountsSelect = `SELECT stage, status, SUM(count)::BIGINT AS count
+FROM (
+  SELECT stage, status, COUNT(*) AS count FROM active_fact_work_items GROUP BY stage, status
+  UNION ALL
+  SELECT stage, status, row_count FROM fact_work_history_counts
+) AS stage_rows
+GROUP BY stage, status`
+
+// activeWorkSummaryQueueSelect is queueSnapshotSelect with total_count read
+// from the grouped pass and succeeded_count from grouped history; every
+// other column reads only activeWorkDetailStatuses rows.
+const activeWorkSummaryQueueSelect = `SELECT (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_status_groups) AS total_count,
+` + queueSnapshotLiveCounts + `       (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_history_counts WHERE status = 'succeeded') AS succeeded_count,
+` + queueSnapshotTail
 
 // latestQueueFailureSelect lists active work items that are retrying, failed,
 // or dead-lettered with failure text; the status surface keeps the newest one.
@@ -85,23 +143,29 @@ const (
 // status snapshot's stage counts, domain backlog, queue snapshot, conflict
 // blockages, and latest queue failure from it in a single round trip (#6794).
 // Before, each of the five reads embedded activeFactWorkItemsCTE and
-// re-evaluated the active set on its own. Each section reuses the standalone
-// read's SELECT unchanged and numbers its rows with ROW_NUMBER() over that
-// read's own ORDER BY, so row order (including text collation) and the
-// blockage/failure limits are decided by Postgres exactly as before. Rows are
-// returned as (section, ordinal, to_jsonb(row)). $1 is the snapshot asOf.
+// re-evaluated the active set on its own. The active set is split in two
+// (#7009): active_fact_work_items holds only activeWorkDetailStatuses rows,
+// and activeWorkSummaryHistoryCTEs count the rest per group. Stage counts and
+// the queue snapshot merge both halves; the other sections reuse the
+// standalone read's SELECT unchanged. Each section numbers its rows with
+// ROW_NUMBER() over the standalone read's own ORDER BY, so row order
+// (including text collation) and the blockage/failure limits are decided by
+// Postgres exactly as before. Being one statement, every CTE reads one
+// snapshot. Rows are returned as (section, ordinal, to_jsonb(row)). $1 is the
+// snapshot asOf.
 var activeWorkSummaryQuery = `
 WITH ` + activeFactWorkItemsScopeStateCTE + `,
 active_fact_work_items AS MATERIALIZED (
   SELECT ` + activeWorkSummaryColumns + `
   ` + activeWorkSummaryFromWhere + `
 ),
+` + activeWorkSummaryHistoryCTEs + `,
 ` + domainBacklogCTEs + `,
 ` + reducerConflictBlockageCTEs + `,
 active_work_stage AS (
   SELECT ROW_NUMBER() OVER (ORDER BY ` + stageCountsOrder + `) AS ordinal, to_jsonb(section_row) AS section_json
   FROM (
-` + stageCountsSelect + `
+` + activeWorkSummaryStageCountsSelect + `
   ) AS section_row
 ),
 active_work_backlog AS (
@@ -113,7 +177,7 @@ active_work_backlog AS (
 active_work_queue AS (
   SELECT 1::BIGINT AS ordinal, to_jsonb(section_row) AS section_json
   FROM (
-` + queueSnapshotSelect + `
+` + activeWorkSummaryQueueSelect + `
   ) AS section_row
 ),
 active_work_blockage AS (

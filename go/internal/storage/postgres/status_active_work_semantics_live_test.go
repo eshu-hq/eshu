@@ -222,7 +222,9 @@ func TestActiveFactWorkItemsFormsSelectTheSameRows(t *testing.T) {
 
 // TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows exercises the
 // production summary CTE against the status fixture. Terminal rows still
-// contribute to counts, but do not carry text used only by active consumers.
+// contribute to counts through the grouped history CTEs (#7009), but never
+// enter the materialized detail CTE; were the status filter widened, the
+// conditional projection would still keep their consumer-only text out.
 func TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
@@ -235,7 +237,7 @@ func TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows(t *testing.T) {
 	conn := openStatusSemanticsSchema(ctx, t, dsn)
 	seedStatusSemanticsFixture(ctx, t, conn)
 
-	prefix, _, ok := strings.Cut(activeWorkSummaryQuery, "\n),\nfact_domain_backlogs AS (")
+	prefix, _, ok := strings.Cut(activeWorkSummaryQuery, "\n),\nfact_work_status_groups AS MATERIALIZED (")
 	if !ok || !strings.HasPrefix(prefix, "\nWITH "+activeFactWorkItemsScopeStateCTE) {
 		t.Fatal("could not derive active work CTE from production summary query")
 	}
@@ -248,18 +250,32 @@ SELECT COUNT(*) FILTER (WHERE status = 'succeeded'),
            OR generation_id IS NOT NULL OR domain IS NOT NULL
            OR conflict_domain IS NOT NULL OR conflict_key IS NOT NULL))
 FROM active_fact_work_items`
-	rows := statusSemanticsRows(ctx, t, conn, prefix+tail)
-	if len(rows) != 1 || rows[0] != "2|1|0" {
-		t.Fatalf("succeeded, superseded, and wide terminal rows = %v, want [2|1|0]", rows)
+	if rows := statusSemanticsRows(ctx, t, conn, prefix+tail); len(rows) != 1 || rows[0] != "0|0|0" {
+		t.Fatalf("succeeded, superseded, and wide terminal rows = %v, want [0|0|0]", rows)
+	}
+	historyTail := `
+),
+` + activeWorkSummaryHistoryCTEs + `
+SELECT COALESCE(SUM(row_count) FILTER (WHERE status = 'succeeded'), 0),
+       COALESCE(SUM(row_count) FILTER (WHERE status = 'superseded'), 0)
+FROM fact_work_history_counts`
+	if rows := statusSemanticsRows(ctx, t, conn, prefix+historyTail); len(rows) != 1 || rows[0] != "2|1" {
+		t.Fatalf("grouped succeeded and superseded history = %v, want [2|1]", rows)
+	}
+	unfiltered := strings.Replace(prefix, activeWorkSummaryWorkInput, "FROM (SELECT * FROM fact_work_items OFFSET 0) AS work", 1)
+	if unfiltered == prefix {
+		t.Fatal("seeded unfiltered work input did not change production CTE")
+	}
+	if rows := statusSemanticsRows(ctx, t, conn, unfiltered+tail); len(rows) != 1 || rows[0] != "2|1|0" {
+		t.Fatalf("seeded unfiltered work input = %v, want [2|1|0]", rows)
 	}
 	conditionalID := "CASE WHEN work.status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') THEN work.work_item_id END AS work_item_id"
-	unconditional := strings.Replace(prefix, conditionalID, "work.work_item_id AS work_item_id", 1)
-	if unconditional == prefix {
+	unconditional := strings.Replace(unfiltered, conditionalID, "work.work_item_id AS work_item_id", 1)
+	if unconditional == unfiltered {
 		t.Fatal("seeded unconditional identity projection did not change production CTE")
 	}
-	violatingRows := statusSemanticsRows(ctx, t, conn, unconditional+tail)
-	if len(violatingRows) != 1 || violatingRows[0] != "2|1|3" {
-		t.Fatalf("seeded unconditional identity projection = %v, want [2|1|3]", violatingRows)
+	if rows := statusSemanticsRows(ctx, t, conn, unconditional+tail); len(rows) != 1 || rows[0] != "2|1|3" {
+		t.Fatalf("seeded unconditional identity projection = %v, want [2|1|3]", rows)
 	}
 }
 

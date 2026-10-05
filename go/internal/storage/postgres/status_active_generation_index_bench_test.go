@@ -198,7 +198,9 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	}
 
 	// The status snapshot runs these reads through activeWorkSummaryQuery
-	// (#6794); it must keep the same no-full-scan property. The summary also
+	// (#6794); its per-work-row join must keep the same no-full-scan property
+	// (checkSummaryGenerationScans allows only the #7009 grouped history join
+	// one hashed pass). The summary also
 	// reads the shared-projection backlog and the provenance upgrade columns,
 	// which the claim-benchmark schema does not create.
 	for _, stmt := range []string{
@@ -214,8 +216,24 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf("explain analyze activeWorkSummaryQuery: %v", err)
 	}
-	if strings.Contains(summaryPlan, "Seq Scan on scope_generations") {
-		t.Fatalf("activeWorkSummaryQuery plans a sequential scan on scope_generations:\n%s", summaryPlan)
+	if err := checkSummaryGenerationScans(summaryPlan); err != nil {
+		t.Fatalf("activeWorkSummaryQuery: %v\nplan:\n%s", err, summaryPlan)
+	}
+	// Seeded violation: with index scans off the per-row detail join must
+	// fall back to a full scan, and the check must reject that plan.
+	if _, err := conn.ExecContext(ctx, "SET enable_indexscan = off; SET enable_indexonlyscan = off; SET enable_bitmapscan = off"); err != nil {
+		t.Fatalf("disable index scans: %v", err)
+	}
+	seededPlan, err := statusActiveGenerationExplainAnalyze(ctx, conn, activeWorkSummaryQuery, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+	if _, resetErr := conn.ExecContext(ctx, "RESET enable_indexscan; RESET enable_indexonlyscan; RESET enable_bitmapscan"); resetErr != nil {
+		t.Fatalf("reset index scans: %v", resetErr)
+	}
+	if err != nil {
+		t.Fatalf("explain analyze seeded activeWorkSummaryQuery: %v", err)
+	}
+	if seededErr := checkSummaryGenerationScans(seededPlan); seededErr == nil ||
+		!strings.Contains(seededErr.Error(), "active_fact_work_items scans scope_generations in full") {
+		t.Fatalf("seeded detail full scan was not rejected by the detail rule (err = %v):\n%s", seededErr, seededPlan)
 	}
 }
 
