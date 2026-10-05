@@ -1,0 +1,34 @@
+go/internal/query/codetopicparallel/reader_trace_test.go
+  s_b0d7e3abc26c5a::t_7ccb7c36076ff3 469
+  s_b0d7e3abc26c5a::t_44824fc4a14ce6 31-32,34-38,59,239-241,290,307,310,316-321,441,450,473-475
+  s_b0d7e3abc26c5a::t_fed3590047b28f 33,50-51,399,419-421,459-461
+  s_b0d7e3abc26c5a::t_b7ff8f1789e44a 86-101,339-390,392-394
+  s_b0d7e3abc26c5a::t_2ac9a0a1326481 166,173,443,447
+  s_b0d7e3abc26c5a::t_1f886c456dc928 1-10,12-17,19-30,39-49,52-58,67-85,102-112,119-129,131-165,167,171-172,174-189,395-398,400-418,422-430,436-440,442,444-446,448-449,456-458,462-468,470-472,476-485
+  s_b0d7e3abc26c5a::t_71ba792b22aa09 199,201
+  s_b0d7e3abc26c5a::t_d12ae128d2df7a 11,280-289,291-306,308-309,311-315,322-334,336-338,391
+  s_b0d7e3abc26c5a::t_1a6020751ee651 335
+  s_b0d7e3abc26c5a::t_1590281c60d5ba 60-66,113-118,130,190-198,200,202-238,242-279
+  s_b0d7e3abc26c5a::t_0c3a2aa0157d8c 18,168-170
+  s_b0d7e3abc26c5a::t_4efaedfcd29d59 431-435,451-455
+go/internal/query/codetopicparallel/reader.go
+  s_b0d7e3abc26c5a::t_7db1cda1dea0f8 17,205
+  s_b0d7e3abc26c5a::t_3a98632d00e164 185,192,197,199,202,206-224,230-231,269
+  s_b0d7e3abc26c5a::t_0c3a2aa0157d8c 204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "971f265f68ea3363bbf581690e723f07062e25dc",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
