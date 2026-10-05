@@ -300,6 +300,10 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 		// read by the projector heartbeat's supersede gate.
 		MigrationSQL("scope_generations_projection_write_started_at"),
 		MigrationSQL("fact_work_items"),
+		// migration 160 (#7584): ProjectorQueue.Ack inserts its activation
+		// obligation in the Ack transaction, so a fixture that Acks without
+		// it fails `relation "activation_obligations" does not exist`.
+		MigrationSQL("activation_obligations"),
 		reducerClaimCapabilityColumnsSchemaSQL,
 		// migration 088 (#5848/#5837): fact_work_items.reopened_at, read by the
 		// claim query as COALESCE(reopened_at, created_at). A fixture that

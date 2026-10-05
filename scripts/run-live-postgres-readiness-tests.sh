@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run the twenty-three readiness, dead-code incoming, status route-selection and
-# quiet-generation plan/correctness proofs on disposable PostgreSQL 18 (eight in
-# the impact package, eight in storage/postgres, two in cmd/reducer, five in
-# internal/query), one go test per package.
+# Run the readiness, dead-code incoming, status route-selection,
+# quiet-generation, and activation obligation plan/correctness proofs listed in
+# scripts/lib/live_postgres_readiness_results.py on disposable PostgreSQL 18,
+# one go test per package.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

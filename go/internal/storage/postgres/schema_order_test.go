@@ -365,4 +365,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 159 (#7088) keys the readiness query's legacy-shape and
 	// dependency-gap reads by repository, scope and generation.
 	"fact_records_content_entity_dependency_legacy_gap_repo_idx",
+	// Migration 160 (#7584) adds the durable exact-generation activation
+	// obligations that ProjectorQueue.Ack writes and the resolution engine's
+	// leased consumer settles.
+	"activation_obligations",
 }

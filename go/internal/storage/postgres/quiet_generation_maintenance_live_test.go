@@ -254,6 +254,12 @@ ALTER TABLE scope_generations
 `); err != nil {
 		t.Fatalf("extend deferred maintenance proof schema for real Ack: %v", err)
 	}
+	// ProjectorQueue.Ack writes its activation obligation (#7584) in the Ack
+	// transaction, so the fixture carries the production table, applied from
+	// the shipped migration rather than a copy.
+	if _, err := database.ExecContext(t.Context(), MigrationSQL("activation_obligations")); err != nil {
+		t.Fatalf("apply activation obligation migration to proof schema: %v", err)
+	}
 }
 
 func assertQuietBackwardPhase(

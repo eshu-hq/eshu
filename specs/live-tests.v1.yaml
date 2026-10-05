@@ -2270,6 +2270,31 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/activation_obligation_ack_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 atomic activation obligation insert inside real ProjectorQueue.Ack on the full bootstrap schema in an isolated disposable PostgreSQL schema; accepted Ack writes one row, rejected/stale/duplicate/superseded Ack writes none, injected insert failure rolls Ack back"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation_obligation_consumer_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation consumer protocol (ordering, late failure, parallel claim and lease recovery) on the full bootstrap schema in an isolated disposable PostgreSQL schema; real Ack, reducer Fail/Claim and control-arm maintenance"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation_obligation_matrix_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation finalize matrix (queue isolation incl. other-domain row, terminal preservation, forged identity and injected completion rollback, no phase substitution, supersession) on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation_obligation_recovery_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation restart/duplicate fencing, >32-row wake batch cap and bounded catch-up pages on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation_obligation_retention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation FK cascade under the real generation-retention prune, bounded finished-row prune and state census on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/quiet_generation_maintenance_live_test.go
     tag: ~
     class: postgres_ci

@@ -474,6 +474,11 @@ func provisionLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	if _, err := db.ExecContext(ctx, generationLivenessProofSchemaSQL); err != nil {
 		t.Fatalf("create proof tables: %v", err)
 	}
+	// migration 160 (#7584): ProjectorQueue.Ack inserts its activation
+	// obligation in the Ack transaction; apply the shipped DDL, not a copy.
+	if _, err := db.ExecContext(ctx, MigrationSQL("activation_obligations")); err != nil {
+		t.Fatalf("create activation obligation table: %v", err)
+	}
 	if seedSQL != "" {
 		if _, err := db.ExecContext(ctx, seedSQL); err != nil {
 			t.Fatalf("seed proof data: %v", err)

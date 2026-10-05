@@ -40,6 +40,30 @@ PACKAGES = {
         "go/internal/storage/postgres/quiet_generation_maintenance_live_test.go": (
             "TestQuietGenerationActivatesAfterMaintenanceSnapshotLive",
         ),
+        "go/internal/storage/postgres/activation_obligation_ack_live_test.go": (
+            "TestActivationObligationAtomicAckLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_consumer_live_test.go": (
+            "TestActivationObligationConsumerOrderingLive",
+            "TestActivationObligationConsumerLateFailureLive",
+            "TestActivationObligationConsumerClaimRecoveryLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_matrix_live_test.go": (
+            "TestActivationObligationConsumerQueueIsolationLive",
+            "TestActivationObligationConsumerTerminalPreservedLive",
+            "TestActivationObligationConsumerRollbackAndIdentityLive",
+            "TestActivationObligationConsumerNoPhaseSubstitutionLive",
+            "TestActivationObligationConsumerSupersessionLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_recovery_live_test.go": (
+            "TestActivationObligationConsumerRestartAndDuplicatesLive",
+            "TestActivationObligationConsumerWakeBatchCapLive",
+            "TestActivationObligationCatchUpLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_retention_live_test.go": (
+            "TestActivationObligationRetentionCascadeLive",
+            "TestActivationObligationPruneLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
             "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
             "TestPackageManifestConsumptionBackfillPagesHeavyScopeLive",

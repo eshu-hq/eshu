@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
@@ -271,6 +272,9 @@ func (q ProjectorQueue) Ack(
 	if !activated {
 		txDone = true // refuseSupersededAck rolls the transaction back.
 		return q.refuseSupersededAck(ctx, tx, work, now)
+	}
+	if err := activation.Insert(ctx, tx, work.Scope.ScopeID, work.Generation.GenerationID, projectorWorkItemID(work.Scope.ScopeID, work.Generation.GenerationID)); err != nil {
+		return fmt.Errorf("ack projector work: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("ack projector work: commit: %w", err)

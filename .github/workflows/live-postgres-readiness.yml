@@ -1,9 +1,11 @@
 name: Live PostgreSQL Readiness
 
-# The twenty-three readiness, dead-code incoming, status route-selection and
-# quiet-generation proofs use EXPLAIN and correctness assertions against
-# separately created disposable databases. The merge queue always runs this
-# job; PR and main-push events select the paths that can change the proof.
+# The readiness, dead-code incoming, status route-selection, quiet-generation,
+# and activation obligation proofs listed in
+# scripts/lib/live_postgres_readiness_results.py
+# use EXPLAIN and correctness assertions against separately created disposable
+# databases. The merge queue always runs this job; PR and main-push events
+# select the paths that can change the proof.
 on:
   merge_group:
     types: [checks_requested]

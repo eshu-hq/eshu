@@ -33,7 +33,7 @@ func TestProjectorQueueAckSupersedesObsoleteTerminalGenerations(t *testing.T) {
 	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 6; got != want {
+	if got, want := len(db.execs), 7; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 

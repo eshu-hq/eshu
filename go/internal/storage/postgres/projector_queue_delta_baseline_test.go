@@ -200,8 +200,8 @@ func TestProjectorAckCountsMatchedDeltaOnceAfterCommit(t *testing.T) {
 			if err := queue.Ack(context.Background(), deltaFenceWork(), runtime.Result{}); err != nil {
 				t.Fatalf("Ack() = %v, want nil", err)
 			}
-			if fake.commits != 1 || len(fake.execs) != 6 {
-				t.Fatalf("commits=%d execs=%d, want 1 and 6", fake.commits, len(fake.execs))
+			if fake.commits != 1 || len(fake.execs) != 7 {
+				t.Fatalf("commits=%d execs=%d, want 1 and 7", fake.commits, len(fake.execs))
 			}
 			var rm metricdata.ResourceMetrics
 			if err := reader.Collect(context.Background(), &rm); err != nil {
