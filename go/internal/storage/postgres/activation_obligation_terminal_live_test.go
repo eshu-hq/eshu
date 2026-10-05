@@ -279,3 +279,36 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, scopeID
 			scopeID, generationID, state, token, finished, wantState, wantToken, terminal)
 	}
 }
+
+// TestActivationObligationRetireInapplicableIsFencedLive: the maintainer-side
+// retire takes the same lease fence as Finalize (a stale token writes
+// nothing) and still retires as obsolete when the scope moved on.
+func TestActivationObligationRetireInapplicableIsFencedLive(t *testing.T) {
+	f := newActivationMatrix(t, "activation_retire_fence", true)
+	stale := f.claimObligation(t, "retire-owner", 300*time.Millisecond, f.gen)
+	f.awaitLeaseExpiry(t, f.gen)
+	fresh := f.claimObligation(t, "retire-owner", time.Minute, f.gen)
+	state := f.digest(t)
+	if result, err := f.oblig.RetireInapplicable(f.ctx, *stale); err != nil || result.Outcome != activation.OutcomeNotOwner {
+		t.Fatalf("stale-token retire = %+v err=%v, want not_owner", result, err)
+	}
+	if f.digest(t) != state {
+		t.Fatal("stale-token retire changed durable state")
+	}
+	newer := activationRepositoryFact("fact-retire-newer", f.scope, "gen-retire-newer",
+		"repo-consumer-target", "https://github.com/acme/payments-deploy.git")
+	newer.ObservedAt = newer.ObservedAt.Add(3 * time.Hour)
+	commitActivationRepository(t, f.ctx, f.store, newer, "repo-consumer-target")
+	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
+	if err := pq.Ack(f.ctx, claimActivationProjectorWork(t, f.ctx, pq, f.scope, newer.GenerationID),
+		projectorruntime.Result{}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := f.oblig.RetireInapplicable(f.ctx, *fresh)
+	if err != nil || result.Outcome != activation.OutcomeObsolete {
+		t.Fatalf("retire after the pointer moved = %+v err=%v, want obsolete", result, err)
+	}
+	if got := f.obligationState(t, f.gen); got != "obsolete" {
+		t.Fatalf("obligation state = %q, want obsolete", got)
+	}
+}
