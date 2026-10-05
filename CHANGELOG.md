@@ -34,6 +34,10 @@ recent shipped work grouped by feature area.
   work did not complete. `retryable` at the top is true only when every gap is
   retryable. An unscoped request with no named consumers checks every
   repository, so name `consumer_repo_ids` to narrow it.
+  Each `incomplete` entry also carries a plain-language `reason` and `next_step`,
+  and `consumer_coverage` a `coverage_summary` sentence
+  ([#7594](https://github.com/eshu-hq/eshu/issues/7594)). All three are fixed text
+  derived from `state`: no new data and no new query.
 
 ### Cross-repo dead-code returns repository-boundary evidence once
 

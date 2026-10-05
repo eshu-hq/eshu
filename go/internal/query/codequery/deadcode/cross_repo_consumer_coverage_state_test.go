@@ -59,15 +59,32 @@ func TestCrossRepoDeadCodeConsumerCoverageReportsPerRepositoryState(t *testing.T
 			}
 			coverage := coverageObject(t, data)
 			want := []map[string]any{
-				{"repository_id": "repo-consumer", "state": "older_epoch", "generation_id": "gen-9", "retryable": true},
-				{"repository_id": "repo-other", "state": "truncated", "generation_id": "gen-3", "retryable": false},
+				{
+					"repository_id": "repo-consumer", "state": "older_epoch", "generation_id": "gen-9", "retryable": true,
+					"reason":    "The snapshot was built by an older version of the analysis and is being rebuilt.",
+					"next_step": "Wait and ask again. This clears by itself.",
+				},
+				{
+					"repository_id": "repo-other", "state": "truncated", "generation_id": "gen-3", "retryable": false,
+					"reason":    "The snapshot is current but Eshu cannot prove it is complete: no entry points (roots) were found for this repository, or the walk hit its depth or size limit.",
+					"next_step": "Waiting will not clear this. Name the repositories you care about with `consumer_repo_ids`, or check whether this repository's framework entry points are modeled.",
+				},
 				// No active scope: no generation to wait for, so the key is absent.
-				{"repository_id": "repo-zzz", "state": "no_active_scope", "retryable": false},
+				{
+					"repository_id": "repo-zzz", "state": "no_active_scope", "retryable": false,
+					"reason":    "This repository id is not an indexed repository.",
+					"next_step": "Check the id, or index the repository.",
+				},
 			}
 			if got := coverageGapObjects(t, coverage); !reflect.DeepEqual(got, want) {
 				t.Fatalf("incomplete = %#v, want %#v", got, want)
 			}
 			assertQueryTestStringSliceEqual(t, coverage["incomplete_repo_ids"], []string{"repo-consumer", "repo-other", "repo-zzz"})
+			wantSummary := "3 repositories cannot be judged yet: 1 of them will clear on their own, 2 will not. " +
+				"Name the repositories you care about with `consumer_repo_ids`."
+			if got := coverage["coverage_summary"]; got != wantSummary {
+				t.Fatalf("coverage_summary = %q, want %q", got, wantSummary)
+			}
 			if got := coverage["retryable"]; got != false {
 				t.Fatalf("consumer_coverage.retryable = %v, want false: one gap is truncated", got)
 			}
@@ -135,5 +152,8 @@ func TestCrossRepoDeadCodeCompleteCoverageHasEmptyIncompleteArray(t *testing.T) 
 	}
 	if got := coverage["retryable"]; got != false {
 		t.Fatalf("consumer_coverage.retryable = %v, want false", got)
+	}
+	if got, want := coverage["coverage_summary"], "No repository checked has a coverage gap."; got != want {
+		t.Fatalf("coverage_summary = %q, want %q", got, want)
 	}
 }

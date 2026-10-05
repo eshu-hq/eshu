@@ -121,15 +121,23 @@ type CrossRepoDeadCodeCoverageGap struct {
 	Retryable    bool
 }
 
+// CrossRepoDeadCodeCoverageStates lists every gap state the coverage statements
+// are written to return. A state added to the constants above belongs here too,
+// and the plain-language reason and next step for it must be written (#7594).
+var CrossRepoDeadCodeCoverageStates = []string{
+	CrossRepoDeadCodeCoverageStateNoSnapshotYet,
+	CrossRepoDeadCodeCoverageStateTruncated,
+	CrossRepoDeadCodeCoverageStateOlderEpoch,
+	CrossRepoDeadCodeCoverageStateNoActiveScope,
+}
+
 // KnownState reports whether the gap's state is one the coverage statements
 // are written to return.
 func (g CrossRepoDeadCodeCoverageGap) KnownState() bool {
-	switch g.State {
-	case CrossRepoDeadCodeCoverageStateNoSnapshotYet,
-		CrossRepoDeadCodeCoverageStateTruncated,
-		CrossRepoDeadCodeCoverageStateOlderEpoch,
-		CrossRepoDeadCodeCoverageStateNoActiveScope:
-		return true
+	for _, state := range CrossRepoDeadCodeCoverageStates {
+		if g.State == state {
+			return true
+		}
 	}
 	return false
 }
