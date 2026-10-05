@@ -68,7 +68,7 @@ repos:
         name: shared agent canon and skill contract
         entry: scripts/verify-agent-canon.sh
         language: script
-        files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/(skills|agents|hooks)/.*|\.claude/settings\.json|\.codex/(skills|agents)/.*|\.codex/config\.toml|\.codex/hooks\.json|\.muse/hooks/.*|\.muse/hooks\.json|\.opencode/agent/.*|\.cursor/agents/.*|scripts/(agent-roles\.py|test-agent-roles\.py|guard-codex-spawn\.py|test-codex-spawn-guard\.py|goal-role-router\.py|test-goal-role-router\.py|verify-agent-canon\.sh|test-verify-agent-hygiene\.sh|cursor-hook\.py|test-cursor-hooks\.sh)|\.cursor/hooks\.json)$'
+        files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/(skills|agents|hooks)/.*|\.claude/settings\.json|\.codex/(skills|agents)/.*|\.codex/config\.toml|\.codex/hooks\.json|\.muse/hooks/.*|\.muse/hooks\.json|\.opencode/agent/.*|\.cursor/agents/.*|scripts/(agent-roles\.py|test-agent-roles\.py|guard-codex-spawn\.py|test-codex-spawn-guard\.py|goal-role-router\.py|test-goal-role-router\.py|verify-agent-canon\.sh|test-verify-agent-hygiene\.sh|cursor-hook\.py|cursor_hook_family\.py|test-cursor-hooks\.sh|test-cursor-hooks-helper-cases\.sh)|\.cursor/hooks\.json)$'
         pass_filenames: false
 
       - id: codex-spawn-guard

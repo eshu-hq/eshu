@@ -27,16 +27,25 @@ HOOKS_JSON="${repo_root}/.cursor/hooks.json"
 work="$(mktemp -d)"
 sid="cursorport$$"
 sid12="$(printf '%s' "${sid}" | cut -c1-12)"
-cleanup() {
-  rm -f "/tmp/claude-skill-loaded-${sid12}-"* "/tmp/claude-skill-override-${sid12}"
-  rm -rf "${work}"
+# Helper-agent ids for section I. Each differs from the others in its first 12
+# characters (the markers' key) and ends in -r$$ so its link files can be swept.
+H="hlp-r$$" F="frs-r$$" U="unr-r$$" C="cnv-r$$" S="shs-r$$" A="cya-r$$" B="cyb-r$$"
+GU8="gu8-r$$" GFI="gfi-r$$" GSL="gsl-r$$" GRT="grt-r$$" GRS="grs-r$$" GDP="gdp-r$$"
+cleanup_markers() {
+  local i
+  for i in "${sid}" "${H}" "${F}" "${U}" "${C}" "${S}" "${A}" "${B}" "${GU8}" "${GFI}" "${GSL}" \
+    "${GRT}" "${GRS}" "${GDP}" "e0-r$$" "e16-r$$" "f0-r$$" "f17-r$$"; do
+    rm -f "/tmp/claude-skill-loaded-${i:0:12}-"* "/tmp/claude-skill-override-${i:0:12}"
+  done
 }
+cleanup_links() { rm -f /tmp/eshu-cursor-link-*-r$$* /tmp/eshu-cursor-root-*-r$$* "/tmp/eshu-cursor-link-${sid}" "/tmp/eshu-cursor-root-${sid}"; }
+cleanup() { cleanup_markers; cleanup_links; rm -rf "${work}"; }
 trap cleanup EXIT
-cleanup_markers() { rm -f "/tmp/claude-skill-loaded-${sid12}-"* "/tmp/claude-skill-override-${sid12}"; }
 cleanup_markers
+cleanup_links
 mkdir -p "${work}/proj/.claude" "${work}/proj/scripts" "${work}/tmp" "${work}/stub"
 export TMPDIR="${work}/tmp"
-unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_MAX_NUDGES CLAUDE_PROJECT_DIR
+unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_MAX_NUDGES CLAUDE_PROJECT_DIR ESHU_CURSOR_HOOK_LOG
 export CURSOR_PROJECT_DIR="${repo_root}"
 
 passed=0
@@ -126,6 +135,10 @@ do
   if printf '%s\n' "${wiring}" | rg -qxF "${line}"; then ok "wired: ${ev} ${m:-*} failClosed=${fc} -> ${script##*/}"; else no "wired: ${line}"; fi
   [[ -f "${repo_root}/${script}" ]] || no "wired script exists: ${script}"
 done
+# subagentStart runs no Claude hook: the adapter only records the helper link.
+if printf '%s\n' "${wiring}" | rg -qxF 'subagentStart||False|python3 scripts/cursor-hook.py subagentStart'; then
+  ok "wired: subagentStart * failClosed=False -> the adapter's helper link"
+else no "wired: subagentStart||False|python3 scripts/cursor-hook.py subagentStart"; fi
 if printf '%s\n' "${wiring}" | rg -q '[$`;&]'; then
   no "hook commands are plain argv (no shell expansion, so they run with or without a shell)"
 else
@@ -211,6 +224,7 @@ done
 check "deny names the missing skill" '[[ "$(jget user_message)" == *golang-engineering* ]]'
 check "deny tells a Cursor agent how to load a skill" '[[ "$(jget agent_message)" == *SKILL.md* ]]'
 check "deny names the project's own skill path (not a guess at a checkout)" '[[ "$(jget agent_message)" == *"'"${repo_root}"'/.agents/skills/<id>/SKILL.md"* ]]'
+check "deny says the copy in the worktree being edited counts too" '[[ "$(jget agent_message)" == *"git worktree you are editing"* ]]'
 run preToolUse .claude/hooks/skill-nudge.sh "$(pretool_in Write '{"path":"go/internal/cursorprobe/rel.go"}' "${repo_root}")"
 check "a relative path resolves against cwd and is denied" '[[ "$(jget permission)" == deny ]]'
 run preToolUse .claude/hooks/skill-nudge.sh \
@@ -290,6 +304,7 @@ run preCompact .claude/hooks/on-compact.sh "$(compact_in)"
 check "preCompact clears this conversation's skill markers" '[[ ! -f /tmp/claude-skill-loaded-'"${sid12}"'-golang-engineering ]]'
 check "preCompact shows the re-grounding note" '[[ ${rc} -eq 0 && "$(jget user_message)" == *eshu-session-lifecycle* ]] && one_json'
 check "the compaction note tells Cursor to read the SKILL.md" '[[ "$(jget user_message)" == *"'"${repo_root}"'/.agents/skills/<id>/SKILL.md"* ]]'
+check "the compaction note says a worktree's copy counts too" '[[ "$(jget user_message)" == *"git worktree you are editing"* ]]'
 
 # ── H. goal round trip: beforeSubmitPrompt writes, stop enforces ──────────────
 
@@ -330,6 +345,16 @@ printf 'SESSION: %s\nDONE\n' "${sid}" >"${goal}"
 gen="turn-c"
 run stop .claude/hooks/goal-continue.sh "$(stop_in completed 0)"
 check "a DONE goal lets the stop through" '[[ ${rc} -eq 0 && "${out}" == "{}" ]]'
+
+# ── I-K. helper agents, worktrees, payload log (sourced companion) ──────────
+
+# shellcheck source=scripts/test-cursor-hooks-helper-cases.sh
+. "${repo_root}/scripts/test-cursor-hooks-helper-cases.sh"
+if [[ "${cursor_helper_cases_loaded:-0}" == "1" ]]; then
+  ok "the sourced helper-case file loaded"
+else
+  no "the sourced helper-case file did NOT load -- the helper, worktree and log cases did not run"
+fi
 
 printf '\ncursor hooks mirror: %s passed, %s failed, %s skipped\n' "${passed}" "${failed}" "${skipped}"
 [[ "${failed}" -eq 0 ]]

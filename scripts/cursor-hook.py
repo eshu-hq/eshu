@@ -9,7 +9,8 @@ Cursor and Claude Code send different JSON to a hook and read different JSON
 back. This adapter is the only Cursor-specific code: it turns the Cursor
 payload into the Claude shape, runs the unchanged script under .claude/hooks/,
 and turns the Claude answer back into the Cursor shape. The hook scripts stay
-the single copy of the logic. Mapping and limits are documented in
+the single copy of the logic. Helper-agent links and worktree roots live in
+scripts/cursor_hook_family.py. Mapping and limits are documented in
 docs/internal/agent-hooks-cursor.md; scripts/test-cursor-hooks.sh pins them.
 
 Rules that matter (from https://cursor.com/docs/hooks):
@@ -34,8 +35,25 @@ from typing import List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Helper-agent links and worktree roots live in a sibling module. If it cannot
+# load (missing, or broken: a syntax error or a raise at import), main() fails
+# closed for a guard and open for anything else.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import cursor_hook_family as family
+    FAMILY_ERROR = ""
+except Exception as _exc:  # noqa: BLE001 - any import failure must reach main()
+    family = None  # type: ignore[assignment]
+    FAMILY_ERROR = "cannot import cursor_hook_family: %s" % _exc
+
 # Events whose output is a permission decision. Every one is a guard.
-PERMISSION_EVENTS = {"beforeShellExecution", "preToolUse", "subagentStart"}
+PERMISSION_EVENTS = {"beforeShellExecution", "preToolUse"}
+# subagentStart runs no hook script. The adapter records the helper link and
+# always answers allow: it is advisory and must never block a helper.
+SUBAGENT_START = "subagentStart"
+# Only these events use the helper-family key (Claude shares a subagent's
+# loaded skills with its parent, but fires no goal or SessionStart hook for it).
+FAMILY_EVENTS = {"preToolUse", "postToolUse"}
 ADVISORY_EVENTS = {
     "afterFileEdit",
     "postToolUse",
@@ -52,7 +70,7 @@ ADVISORY_EVENTS = {
 PATH_KEYS = ("file_path", "path", "target_file", "filePath", "file")
 
 # A skill is loaded in Cursor by reading its SKILL.md (there is no Skill tool).
-# Only the project's own skill folders count, after symlinks are resolved.
+# Only the project's skill folders (or a git worktree's of the same repo) count.
 SKILL_DIRS = (".agents/skills", ".claude/skills", ".codex/skills", ".cursor/skills")
 SKILL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -60,13 +78,12 @@ SKILL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 MESSAGE_LIMIT = 20000
 
 def cursor_skill_note() -> str:
-    """How a Cursor agent loads a skill. Names this project's own copy, since
-    only a read under the project dir counts (a worktree's or another
-    checkout's copy does not)."""
+    """How a Cursor agent loads a skill; a git worktree's copy counts too."""
     path = os.path.join(project_dir(), ".agents", "skills", "<id>", "SKILL.md")
     return (
         "In Cursor there is no Skill tool: load a skill by reading "
-        + path + " with the Read tool. The postToolUse hook records that read."
+        + path + " with the Read tool (the copy in the git worktree you are"
+        " editing counts too). The postToolUse hook records that read."
     )
 
 
@@ -100,6 +117,8 @@ def deny(msg: str) -> dict:
 def fail(event: str, msg: str) -> None:
     """Fail closed for a guard, open for anything else."""
     note(msg)
+    if event == SUBAGENT_START:
+        emit({"permission": "allow"})
     if event == "beforeSubmitPrompt":
         emit({"continue": True})
     if event in ADVISORY_EVENTS:
@@ -147,8 +166,9 @@ def find_path(p: dict, cwd: str) -> Optional[str]:
 def skill_id(path: str) -> Optional[str]:
     """The project skill a Read of this SKILL.md loads, or None.
 
-    The real path (symlinks and ../ resolved) must sit directly in one of the
-    project's skill folders, and the id must be a skill under .agents/skills.
+    The real path (symlinks and ../ resolved) must sit directly in a skill
+    folder of the project, or of another git worktree of the same repository,
+    and the id must be a skill under that same tree's .agents/skills.
     """
     real = os.path.realpath(path)
     if os.path.basename(real) != "SKILL.md":
@@ -157,19 +177,25 @@ def skill_id(path: str) -> Optional[str]:
     sid = os.path.basename(folder)
     if not SKILL_ID.fullmatch(sid):
         return None
-    project = os.path.realpath(project_dir())
-    if not any(os.path.dirname(folder) == os.path.realpath(os.path.join(project, d)) for d in SKILL_DIRS):
-        return None
-    if not os.path.isfile(os.path.join(project, ".agents", "skills", sid, "SKILL.md")):
+
+    def holds(root: str) -> bool:
+        return any(os.path.dirname(folder) == os.path.realpath(os.path.join(root, d)) for d in SKILL_DIRS)
+
+    root = os.path.realpath(project_dir())
+    if not holds(root):
+        root = next((w for w in family.worktree_roots(root) if holds(w)), "")
+        if not root:
+            return None
+    if not os.path.isfile(os.path.join(root, ".agents", "skills", sid, "SKILL.md")):
         return None
     return sid
 
 
-def translate(event: str, p: dict) -> Tuple[Optional[dict], Optional[dict]]:
+def translate(event: str, p: dict, key: object) -> Tuple[Optional[dict], Optional[dict]]:
     """Return (claude_payload, early_answer). One of the two is None."""
     cwd = payload_cwd(p)
     base = {
-        "session_id": p.get("conversation_id") or p.get("session_id") or "",
+        "session_id": key,
         "cwd": cwd,
         "transcript_path": p.get("transcript_path"),
     }
@@ -307,11 +333,13 @@ def answer(event: str, script: str, rc: int, stdout: str, stderr: str) -> Tuple[
 
 
 def main(argv: List[str]) -> None:
-    if len(argv) < 3:
+    event = argv[1] if len(argv) > 1 else ""
+    if len(argv) < 3 and event != SUBAGENT_START:
         fail("", "usage: cursor-hook.py <cursor-event> <hook-script> [args...]")
-    event, script, args = argv[1], argv[2], argv[3:]
-    if event not in PERMISSION_EVENTS and event not in ADVISORY_EVENTS:
+    if event not in PERMISSION_EVENTS and event not in ADVISORY_EVENTS and event != SUBAGENT_START:
         fail(event, "unknown Cursor event %r" % event)
+    if family is None:
+        fail(event, FAMILY_ERROR)
     raw = sys.stdin.read()
     try:
         if not raw.strip():
@@ -325,8 +353,14 @@ def main(argv: List[str]) -> None:
     seen = payload.get("hook_event_name")
     if seen and seen != event:
         note("payload says %s but hooks.json wired %s; using %s" % (seen, event, event))
+    key = family.family_key(payload) if event in FAMILY_EVENTS else family.chat_key(payload)
+    family.log_event(event, payload, key)
+    if event == SUBAGENT_START:
+        family.record_links(payload)
+        emit({"permission": "allow"})
+    script, args = argv[2], argv[3:]
     try:
-        claude_payload, early = translate(event, payload)
+        claude_payload, early = translate(event, payload, key)
     except BadPayload as exc:
         fail(event, "malformed %s payload: %s" % (event, exc))
         return

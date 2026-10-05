@@ -388,6 +388,11 @@ gates:
       - ".cursor/hooks.json"
       - "scripts/cursor-hook.py"
       - "scripts/test-cursor-hooks.sh"
+      # The adapter's helper-link and worktree module, and the mirror's sourced
+      # companion (split out at the 500-line cap): trigger paths in their own
+      # right, so editing either alone selects the gate that runs them.
+      - "scripts/cursor_hook_family.py"
+      - "scripts/test-cursor-hooks-helper-cases.sh"
       - "specs/ci-gates.v1.yaml"
     self_test_triggers:
       - ".agents/**"
@@ -428,6 +433,8 @@ gates:
       - ".cursor/hooks.json"
       - "scripts/cursor-hook.py"
       - "scripts/test-cursor-hooks.sh"
+      - "scripts/cursor_hook_family.py"
+      - "scripts/test-cursor-hooks-helper-cases.sh"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-agent-canon.sh"

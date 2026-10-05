@@ -23,6 +23,12 @@
         "timeout": 10
       }
     ],
+    "subagentStart": [
+      {
+        "command": "python3 scripts/cursor-hook.py subagentStart",
+        "timeout": 10
+      }
+    ],
     "afterFileEdit": [
       {
         "command": "python3 scripts/cursor-hook.py afterFileEdit .claude/hooks/eshu-doc-staleness.sh",
