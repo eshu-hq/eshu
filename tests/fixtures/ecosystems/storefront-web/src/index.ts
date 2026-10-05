@@ -15,8 +15,10 @@ export function balance(amount: Money, ledger: Ledger): number {
   return roundCents(amount.cents) + ledger.entries.length;
 }
 
-// main is the package entry point. Its formatPrice call is the cross-repository
-// edge; formatDate comes through a subpath import and stays unkeyed.
-export function main(cents: number): string {
+// renderCheckout is a package export (package.json "exports"), so it is a
+// reachability root. Its formatPrice call is the cross-repository edge;
+// formatDate comes through a subpath import and stays unkeyed. The name avoids
+// "main", which other golden query shapes search for.
+export function renderCheckout(cents: number): string {
   return `${formatPrice(roundCents(cents))} ${formatDate(new Date(0))}`;
 }
