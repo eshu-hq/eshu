@@ -311,7 +311,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgre
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/identity_epoch_cache.go:44
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion.go:281
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion.go:282
-LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion_backfill.go:103
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion_backfill_partition_memo_gate.go:178
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion_backfill_per_commit.go:118
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/ingestion_backfill_pool.go:216
