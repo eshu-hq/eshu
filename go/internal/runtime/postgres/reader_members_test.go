@@ -72,7 +72,8 @@ func TestLoadConfigReaderMembersAreCredentialFreeAndBounded(t *testing.T) {
 		{"duplicate ID", `[{"id":"a","host":"reader-a","port":5432},{"id":"a","host":"reader-b","port":5432}]`, false},
 		{"duplicate endpoint", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-a","port":5432}]`, false},
 		{"credentials", `[{"id":"a","host":"proof:secret@reader-a","port":5432}]`, false},
-		{"single member", `[{"id":"a","host":"reader-a","port":5432}]`, false},
+		{"single member", `[{"id":"a","host":"reader-a","port":5432}]`, true},
+		{"empty inventory", `[]`, false},
 		{"insufficient budget", `[{"id":"a","host":"reader-a","port":5432},{"id":"b","host":"reader-b","port":5432},{"id":"c","host":"reader-c","port":5432},{"id":"d","host":"reader-d","port":5432}]`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,7 +95,7 @@ func TestLoadConfigReaderMembersAreCredentialFreeAndBounded(t *testing.T) {
 			if err != nil && strings.Contains(err.Error(), "secret") {
 				t.Fatalf("credential leaked: %v", err)
 			}
-			if tc.valid && (len(cfg.ReadMembers) != 2 || cfg.ReadMembers[0].ID != "a" || cfg.ReadMaxOpenConns+cfg.WriterMaxOpenConns != 30) {
+			if tc.valid && (len(cfg.ReadMembers) == 0 || cfg.ReadMembers[0].ID != "a" || cfg.ReadMaxOpenConns+cfg.WriterMaxOpenConns != 30) {
 				t.Fatalf("member config or pool cap: %+v", cfg)
 			}
 		})

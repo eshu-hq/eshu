@@ -159,8 +159,8 @@ func parseReaderMembers(raw string) ([]ReaderMember, error) {
 	var members []ReaderMember
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&members); err != nil || len(members) < 2 {
-		return nil, fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS must be a JSON array of at least two direct members")
+	if err := decoder.Decode(&members); err != nil || len(members) == 0 {
+		return nil, fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS must be a nonempty JSON array of direct members")
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
@@ -173,8 +173,8 @@ func parseReaderMembers(raw string) ([]ReaderMember, error) {
 }
 
 func validateReaderMembers(members []ReaderMember) error {
-	if len(members) < 2 {
-		return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS needs at least two direct members")
+	if len(members) == 0 {
+		return fmt.Errorf("ESHU_POSTGRES_READ_MEMBERS needs at least one direct member")
 	}
 	ids, endpoints := map[string]bool{}, map[string]bool{}
 	for _, member := range members {

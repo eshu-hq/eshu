@@ -20,7 +20,7 @@ flowchart LR
 | --- | --- |
 | `ESHU_POSTGRES_DSN` | Writer DSN; `ESHU_CONTENT_STORE_DSN` is the legacy fallback. |
 | `ESHU_POSTGRES_READ_DSN` | Optional reader DSN. Omitted means the exact writer DSN. |
-| `ESHU_POSTGRES_READ_MEMBERS` | Optional credential-free JSON inventory of at least two direct physical readers (`id`, `host`, `port`). Omit for the legacy reader Service path. |
+| `ESHU_POSTGRES_READ_MEMBERS` | Optional nonempty credential-free JSON inventory of direct physical readers (`id`, `host`, `port`). One member has no reader redundancy. Omit for the legacy reader Service path. |
 | `ESHU_POSTGRES_MAX_OPEN_CONNS` | Total open connections across both pools per API/MCP process; default 30, minimum 2. |
 | `ESHU_POSTGRES_MAX_IDLE_CONNS` | Total idle connections across both pools; default 10. |
 | `ESHU_POSTGRES_READ_MAX_OPEN_CONNS` | Reader allocation, default half the total; writer gets the remainder. |
@@ -54,7 +54,7 @@ array such as:
 ]
 ```
 
-These hosts must reach distinct physical standbys directly, not a
+Each host must reach its physical standby directly, not a
 load-balanced Service or proxy. The `host` field accepts a DNS name, IPv4
 address, or bare IPv6 literal (including a zone when needed); do not include
 IPv6 brackets or a port in `host`. The numeric `port` field is separate. The
@@ -73,7 +73,9 @@ Membership is fixed at startup. An unreachable member is ineligible; a role,
 cluster, database, or direct-address mismatch fails startup. One qualified
 member can continue serving reads if another is unavailable, but adding or
 readmitting a member requires a reviewed API/MCP restart. A four-connection
-snapshot set is pinned to one member from reservation through cleanup. When a
+snapshot set is pinned to one member from reservation through cleanup. A
+one-member inventory has no reader redundancy: if its standby is lost,
+guarded reads fail closed instead of switching to the writer. When a
 qualified fleet connection is lost during an unscoped code-topic investigation,
 Eshu retries that *whole* read once on a fresh snapshot while the request
 deadline allows it. Selection uses shared round-robin ordering and available
@@ -181,6 +183,11 @@ valid independent OTEL samples and reports
 `eshu_runtime_status_snapshot_available 0`; unavailable status families are
 omitted. Reader stage durations and pool usage/wait signals identify lag and
 pool pressure without exposing DSNs or SQL.
+For fleet mode, `eshu_dp_postgres_reader_member_qualified` emits one
+`member_ordinal` series per configured member. One series with value `1`
+means one standby qualified at startup, not that a second standby is ready or
+that the first remains healthy. Alert on a configured singleton as a lack of
+read redundancy; `/readyz` and reader-stage failures report a later loss.
 
 Startup freezes the primary's physical identity and postmaster incarnation.
 After a primary restart, old runtime access fails its checks. Recovery requires

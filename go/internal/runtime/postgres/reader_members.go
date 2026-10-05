@@ -32,7 +32,7 @@ type physicalReaderMember struct {
 }
 
 func openReaderMembers(ctx context.Context, stageBudget time.Duration, cfg Config, template *pgx.ConnConfig, writer physicalIdentity) ([]physicalReaderMember, error) {
-	if len(cfg.ReadMembers) < 2 || cfg.SamePrimary || len(template.Fallbacks) != 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 {
+	if len(cfg.ReadMembers) == 0 || cfg.SamePrimary || len(template.Fallbacks) != 0 || cfg.ReadMaxOpenConns/len(cfg.ReadMembers) < 4 {
 		return nil, errors.New("invalid physical reader member configuration")
 	}
 	return qualifyReaderCandidates(ctx, cfg.ReadMembers, stageBudget, func(memberCtx context.Context, index int, member ReaderMember) (physicalReaderMember, error) {
