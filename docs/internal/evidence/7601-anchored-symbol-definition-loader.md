@@ -45,7 +45,8 @@ OpenAPI, or MCP change.
 | No producer manifest | Manifest read only; no definition scan | `TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer`, `TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer` |
 | Malformed key (`package:#X`, `package:foo`) | Every key that starts with `package:` takes the anchored path. One with no `#`, or an empty name on either side, names no package, so it resolves no producer, issues no scan, and stays unresolved. Today the corpus-wide scan would still look it up by literal value. Nothing emits such keys, so this is a latent coupling: a future emitter of `package:` values in another shape must also change `codeCallPackageSymbolKeyPackageName` | `TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer` |
 | Two repositories publish one name | Both scopes load; the reducer's unique-or-unresolved rule keeps the key unresolved | `TestLoadActiveCodeCallSymbolDefinitionFactsKeepsDuplicateNameProducers`, live `AnchorsPackageKeys` |
-| Monorepo with nested workspace manifests | Every manifest counts, whatever its directory; each name maps to its repository. The nearest-manifest rule applies when the parser stamps `package_id`, not here | unit `KeepsDuplicateNameProducers`, live `AnchorsPackageKeys` (`packages/format/package.json`) |
+| Monorepo with nested workspace manifests | Every manifest counts, whatever its directory, except one under a path segment that begins with `node_modules` (see "Vendored manifests" below); each name maps to its repository. The nearest-manifest rule applies when the parser stamps `package_id`, not here | unit `KeepsDuplicateNameProducers`, live `AnchorsPackageKeys` (`packages/format/package.json`) |
+| Manifest under a vendored `node_modules`-prefixed directory | Ignored; it is not a producer | live `IgnoresVendoredManifests`, `SkipsScanForVendoredOnlyPackage` |
 | Manifest with no name, a blank name, or a non-string name | Skipped | `TestLoadActiveCodeCallSymbolDefinitionFactsSkipsUnusableManifests` |
 | Invalid JSON, or a non-object document | Skipped; the load never fails | unit `SkipsUnusableManifests`, live `AnchorsPackageKeys` (`broken/package.json`) |
 | `\u0000` escape in a manifest | Parsed by Go, not cast in SQL, so it cannot abort the statement | unit `SkipsUnusableManifests` |
@@ -169,3 +170,80 @@ cost at 3 AM, and the loader signature is unchanged.
 
 Concurrency: none needed. Both statements are plain reads. The change touches
 no lease, claim, queue, lock, or write path.
+
+## Vendored manifests
+
+A repository can commit a backup of `node_modules` under a renamed directory,
+such as `node_modules.bak/`. Discovery already prunes the exact name
+`node_modules`, so the fleet has 470 stored `package.json` manifests and none
+sits under an exact `node_modules/` segment. Seven sit under a segment that
+begins with `node_modules`. One repository holds all seven: async, faketoe,
+lodash, mysql, request, xml2js, and yargs.
+
+The loader counted those as package publishers. Every consumer that imports one
+of those names then anchored a scan of that repository's roughly 1,708 active
+file facts, and a vendored ESM copy could have produced false edges. A vendored
+copy is not the publisher of the package.
+
+The fix changes one predicate in `listActiveCodeCallPackageManifestsQuery`. The
+manifest read now ignores any manifest under a path segment that begins with
+`node_modules`, case-insensitive, anchored at a segment boundary:
+
+```sql
+WHERE (relative_path = 'package.json' OR relative_path LIKE '%/package.json')
+  AND relative_path !~* '(^|/)node_modules[^/]*/'
+```
+
+The `(^|/)` anchor keeps lookalikes such as `my_node_modules/x/package.json`
+as producers. A real nested workspace manifest such as
+`packages/format/package.json` is also still a producer. The change adds no
+DDL, no index, and no API, OpenAPI, or MCP change. The Go and SCIP definition
+statement `listActiveCodeCallSymbolDefinitionFactsQuery` is untouched.
+
+Correctness proof (live, throwaway `postgres:18` container, run with
+`ESHU_POSTGRES_DSN` set to it):
+`go test ./internal/storage/postgres/ -run 'Vendored|^TestReducerContentionGateActiveCodeCallSymbolLoader' -count=1 -v`.
+
+- Before the predicate, `IgnoresVendoredManifests` loaded `fact-backup-lodash`
+  and `fact-backup-async` next to the two control facts, and
+  `SkipsScanForVendoredOnlyPackage` loaded `fact-backup-lodash`.
+- After the predicate, only the control facts load, the anchored scan's `$5`
+  producer array is exactly `scope:control` and `scope:control-prefixed` (one
+  scope per control manifest, so each manifest is tested alone), and a request
+  whose only package is vendored runs the manifest read and no definition scan.
+- The case variant `Node_Modules-old/async/package.json` is excluded, and
+  `my_node_modules/x/package.json` stays a producer.
+
+Performance Evidence: measured 2026-10-05 on the ops-qa read replica
+(PostgreSQL 18.3), read-only, three interleaved `EXPLAIN ANALYZE` pairs of the
+shipped manifest CTE and the CTE with the predicate.
+
+| Statement | Runs (ms) | Rows | Plan |
+| --- | --- | --- | --- |
+| Shipped manifest CTE | 24.5, 17.7, 17.7 | 470 | `BitmapOr` on `content_files_relative_path_trgm_idx`, bitmap heap, hash join to `ingestion_scopes`, `scope_generations_active_scope_idx` |
+| With the predicate | 18.4, 18.2, 18.1 | 463 | Same plan class. The new line is `Filter: (relative_path !~* '(^|/)node_modules[^/]*/')`, with Rows Removed by Filter 7 |
+
+The predicate costs nothing measurable: the manifest read stays near 18 ms and
+the plan class does not change. The seven removed rows are the vendored
+manifests.
+
+The scan the change avoids is the anchored definition scan for the vendored
+scope alone: 950.7 ms cold, then 246.1 ms and 225.0 ms warm. Every consumer of
+one of those seven names paid that on each load.
+
+Observability Evidence: no new signal. The existing `code call materialization
+completed` log fields `load_symbol_definitions_duration_seconds` and
+`symbol_definition_fact_count` show the effect: a consumer of a vendored name
+stops paying the extra scan and loads fewer definition facts.
+
+Concurrency: none needed. The statement is a plain read and touches no lease,
+claim, queue, lock, or write path.
+
+NOT_CHECKED:
+
+- Post-deploy numbers on the consumers of the vendored names. Before this
+  change, three consumers measured 0.35 to 0.56 s (worst 0.559 s against the
+  0.5 s line) in the reducer's `code call materialization completed` log
+  lines on the shared QA environment, build `sha-5d77d69`. The same lines are
+  the proof after the change.
+- Primary-side cache state. The replica numbers above are the only timings.

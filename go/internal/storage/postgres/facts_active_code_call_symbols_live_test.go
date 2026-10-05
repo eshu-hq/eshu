@@ -218,6 +218,84 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 	}
 }
 
+// seedVendoredManifestScopes seeds a repository that committed a backup of
+// node_modules (manifests under a segment that BEGINS with node_modules, one in
+// a case variant) plus two control repositories whose manifests sit under paths
+// that only resemble it. The control manifests must stay producers.
+func seedVendoredManifestScopes(t *testing.T, ctx context.Context, database db.Executor, now time.Time) {
+	t.Helper()
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:backup", "repository:r_backup", "generation-backup", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_backup", "tools/node_modules.bak/lodash/package.json", `{"name":"lodash"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_backup", "Node_Modules-old/async/package.json", `{"name":"async"}`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-backup-lodash", "scope:backup", "generation-backup", "tools/node_modules.bak/lodash/index.js", "lodash", "map", now.Add(time.Second))
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-backup-async", "scope:backup", "generation-backup", "Node_Modules-old/async/index.js", "async", "each", now.Add(2*time.Second))
+
+	// Controls: a real nested workspace package, and a segment that only
+	// resembles node_modules. Each lives in its OWN scope, because the manifest
+	// read decides which scopes are scanned: sharing a scope would keep it a
+	// producer through the other manifest and hide a predicate that wrongly
+	// excludes one of them.
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:control", "repository:r_control", "generation-control", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_control", "packages/format/package.json", `{"name":"ctl-format"}`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-control-format", "scope:control", "generation-control", "packages/format/index.js", "ctl-format", "format", now.Add(3*time.Second))
+	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:control-prefixed", "repository:r_control_prefixed", "generation-control-prefixed", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_control_prefixed", "my_node_modules/x/package.json", `{"name":"ctl-prefixed"}`, now)
+	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-control-prefixed", "scope:control-prefixed", "generation-control-prefixed", "my_node_modules/x/index.js", "ctl-prefixed", "run", now.Add(4*time.Second))
+}
+
+// TestReducerContentionGateActiveCodeCallSymbolLoaderIgnoresVendoredManifests
+// proves on real Postgres that a package.json under a path segment that begins
+// with node_modules (case-insensitive) is not a package producer (#7601): a
+// backup copy of node_modules must not anchor a scan or mint a candidate
+// scope, while lookalike segments such as my_node_modules and a real nested
+// workspace manifest stay producers.
+func TestReducerContentionGateActiveCodeCallSymbolLoaderIgnoresVendoredManifests(t *testing.T) {
+	ctx, database := openActiveCodeCallSymbolContentSchema(t)
+	now := time.Now().UTC()
+	seedVendoredManifestScopes(t, ctx, database, now)
+
+	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
+	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
+		"package:lodash#map",
+		"package:async#each",
+		"package:ctl-prefixed#run",
+		"package:ctl-format#format",
+	})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	if got, want := factIDs(loaded), []string{"fact-control-format", "fact-control-prefixed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded fact ids = %#v, want %#v (vendored copies must not load, lookalike controls must)", got, want)
+	}
+	if len(queryer.args) != 2 {
+		t.Fatalf("issued %d queries, want the manifest read then the anchored scan", len(queryer.args))
+	}
+	if got, want := queryer.args[1][4], []string{"scope:control", "scope:control-prefixed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, want)
+	}
+}
+
+// TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForVendoredOnlyPackage
+// proves a request whose only package is published by a vendored manifest runs
+// the manifest read and never the definition scan.
+func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForVendoredOnlyPackage(t *testing.T) {
+	ctx, database := openActiveCodeCallSymbolContentSchema(t)
+	now := time.Now().UTC()
+	seedVendoredManifestScopes(t, ctx, database, now)
+
+	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
+	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{"package:lodash#map"})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	if len(loaded) != 0 {
+		t.Fatalf("loaded fact ids = %#v, want none", factIDs(loaded))
+	}
+	if got, want := queryer.queries, []string{listActiveCodeCallPackageManifestsQuery}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("issued %d queries, want the manifest read only", len(got))
+	}
+}
+
 func openActiveCodeCallSymbolContentSchema(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
 	dsn := reducerDomainFairnessDSN()
