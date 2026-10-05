@@ -91,6 +91,29 @@ Postgres outage every business request logs one record, because its freshness
 checkpoint runs on the writer pool before any business read; the volume is the
 request rate and is not sampled.
 
+`auth.identity_store.unavailable` is a record for a credential the API could not
+evaluate because the identity store was unreachable (#7586). The identity
+resolver emits one per affected request, and the request answers a retryable
+`503` instead of a `401`. It carries only `failure_class`: `unavailable` and
+`timeout` log at WARN, and `topology` logs at ERROR because the writer pool was
+refused for a replaced primary (a promotion or a restore) and the condition does
+not clear until the process restarts. It never carries the credential, a
+subject, or driver text. When the failure came through the bounded pool, the
+`postgres.store.error` record for the same call carries the driver detail; a
+bare deadline or a `database/sql` connection sentinel has no paired record.
+Count the same events with `eshu_dp_auth_identity_store_unavailable_total`.
+
+`postgres.writer.lineage` is a record of the pool's decision about a changed
+primary incarnation (#7586). `outcome=accepted` (INFO) means the primary
+restarted on the same lineage and the new identity was published for every pool;
+it carries the previous and observed incarnation, the timeline, and the observed
+flushed LSN. `outcome=raced` (INFO) means another dial published a different
+incarnation first, so this dial connects again. `outcome=latched` (ERROR) means
+the primary was refused and the `Access` now answers `ErrWrongTopology` until the
+process restarts; `reason` is `timeline` or `flush_below_watermark`, and the
+record carries the previous and observed timeline, the watermark LSN, and the
+observed flushed LSN.
+
 See [Graph-read safety](graph-read-safety.md) for the shared deadline and
 operator triage contract.
 

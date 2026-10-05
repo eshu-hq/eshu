@@ -69,6 +69,24 @@ func TestWriterLineageRejectsAndLatches(t *testing.T) {
 	}
 }
 
+// TestWriterLineageLatchWinsOverAnAlreadyPublishedIncarnation covers a dial that
+// took its base before a restart was accepted and finishes after a divergent
+// primary latched the Access: it matches the published incarnation, but a
+// latched Access serves no connection at all.
+func TestWriterLineageLatchWinsOverAnAlreadyPublishedIncarnation(t *testing.T) {
+	lineage, staleBase := testLineage(t)
+	if err := lineage.admit(staleBase, restarted("200"), lineageObservation{timeline: testTimeline, flush: 1000}); err != nil {
+		t.Fatalf("restart rejected: %v", err)
+	}
+	published := lineage.identity()
+	if err := lineage.admit(published, restarted("300"), lineageObservation{timeline: "00000002", flush: 5000}); !errors.Is(err, ErrWrongTopology) {
+		t.Fatalf("divergent primary admit = %v, want ErrWrongTopology", err)
+	}
+	if err := lineage.admit(staleBase, restarted("200"), lineageObservation{timeline: testTimeline, flush: 1000}); !errors.Is(err, ErrWrongTopology) {
+		t.Fatalf("stale dial after the latch = %v, want ErrWrongTopology", err)
+	}
+}
+
 func TestWriterLineageForeignSystemIsNotLatched(t *testing.T) {
 	lineage, base := testLineage(t)
 	foreign := physicalIdentity{systemID: "8", database: "eshu", incarnation: "200"}

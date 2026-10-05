@@ -118,6 +118,11 @@ func (l *writerLineage) validate(ctx context.Context, conn *pgconn.PgConn, base 
 func (l *writerLineage) admit(base *writerIdentity, id physicalIdentity, observed lineageObservation) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// A latched Access serves no connection, including a dial that took its base
+	// before the latch and now matches the published incarnation.
+	if l.isLatched() {
+		return ErrWrongTopology
+	}
 	current := l.current.Load()
 	if current != base {
 		if current.incarnation == id.incarnation {
@@ -125,9 +130,6 @@ func (l *writerLineage) admit(base *writerIdentity, id physicalIdentity, observe
 		}
 		l.logger.Info("postgres writer identity raced", slog.String("event_name", "postgres.writer.lineage"), slog.String("outcome", "raced"))
 		return errLineageRaced
-	}
-	if l.isLatched() {
-		return ErrWrongTopology
 	}
 	watermark := l.watermark.Load()
 	if observed.timeline != base.timeline || observed.flush < watermark {

@@ -167,7 +167,8 @@ answers a bare `401`. An operator sees the failure on the
 `eshu_dp_auth_identity_store_unavailable_total` counter, labeled by
 `failure_class`: `unavailable` and `timeout` are transient, and `topology` means
 the writer was refused because the primary it was bootstrapped against was
-replaced (a promotion or a restore), which does not clear until the API process
+replaced (a promotion or a restore). That answer still carries `Retry-After`, as
+the checkpoint step does, but a retry will not help until the API process
 restarts.
 
 A failed Postgres call on the API and MCP server answers `500`, `503`, or `504`

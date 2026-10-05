@@ -181,9 +181,11 @@ func TestPostgresIdentityResolverEmitsAttributableSignals(t *testing.T) {
 func TestPostgresIdentityResolverClassifiesTopologyDivergenceSeparately(t *testing.T) {
 	t.Parallel()
 
-	// A dial refused by the writer validator reaches the resolver as a network
-	// error wrapping db.ErrWrongTopology, which boundederr classifies as
-	// unavailable; the shared sentinel must still win.
+	// A dial refused by the writer validator reaches the resolver as a connect
+	// error (a *pgconn.ConnectError, which cannot be built outside pgconn)
+	// carrying db.ErrWrongTopology, which boundederr classifies as unavailable. A
+	// net.OpError stands in for it: both are network errors that unwrap to the
+	// sentinel, and the shared sentinel must still win.
 	cause := boundederr.Wrap(&net.OpError{Op: "dial", Err: db.ErrWrongTopology})
 	var bounded *boundederr.Error
 	if !errors.As(cause, &bounded) || bounded.Kind() != boundederr.KindUnavailable {

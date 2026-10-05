@@ -434,14 +434,19 @@ than the difference). The lineage statement, run only on a changed
 incarnation, had a median of 0.000022 s.
 
 Observability Evidence: The plain, pre-checkpoint, crash, and double restart
-tests logged `postgres.writer.lineage outcome=accepted` with the previous and
-new incarnation. The promoted copy logged `outcome=latched reason=timeline`;
-its flushed LSN (0/2000000) was past the watermark (0/17A4000), so only the
-timeline refused it. The restored copy logged `reason=flush_below_watermark`
-(0/17A4000 below 0/180A1E0). With the watermark switched to the insert LSN,
-the crash test latched (watermark 0/2AE200F8, recovered flush 0/2ADDA0C0) and
-never recovered. With the timeline check removed, the promoted copy was
-accepted. Standby-shape restart and deployed behavior are not checked.
+tests log `postgres.writer.lineage outcome=accepted` with the previous and new
+incarnation. In the promotion test the promoted copy logs `outcome=latched
+reason=timeline` (timeline 00000001 to 00000002); the test asserts that the
+copy's flushed LSN is at or past the watermark first, so only the timeline can
+refuse it. The restore test logs `reason=flush_below_watermark`. LSN values vary
+per run, so none are recorded here. The crash test retries up to three times
+until recovery ends below the last checkpoint's insert LSN and then requires the
+same Access to recover; it needed one attempt in one run and three in another.
+Two mutation runs during development (not part of the suite) showed the
+sensitivity: with the watermark taken from the insert LSN the crash test latched
+and never recovered, and with the timeline check removed the promoted copy was
+accepted. The pgbench figures above are likewise development measurements, not
+a test assertion. Standby-shape restart and deployed behavior are not checked.
 
 ## Request and admin boundaries
 

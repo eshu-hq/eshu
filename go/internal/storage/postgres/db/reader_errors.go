@@ -33,9 +33,11 @@ var (
 	// ErrWrongTopology reports that a PostgreSQL role, database, system
 	// identity, or primary history differs from the one the access was
 	// bootstrapped against: a promotion, a restore, or a different cluster. It is
-	// permanent until the process restarts, so a caller must not tell a client to
-	// retry shortly on its account alone. The runtime package re-exports this same
-	// value so errors.Is matches in either direction (#7586).
+	// permanent until the process restarts. The API still answers it with a 503,
+	// like the checkpoint path, but a retry will not help, so the identity
+	// resolver labels it failure_class=topology to keep it apart from a blip. The
+	// runtime package re-exports this same value so errors.Is matches in either
+	// direction (#7586).
 	ErrWrongTopology = errors.New("PostgreSQL reader topology mismatch")
 )
 
