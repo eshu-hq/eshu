@@ -188,6 +188,7 @@ func TestSpanNames(t *testing.T) {
 		"query.cloud_inventory_readback",
 		"query.cloud_runtime_drift_findings",
 		"query.code_topic_investigation",
+		"query.code_topic_partition",
 		"query.hardcoded_secret_investigation",
 		"query.dead_code_investigation",
 		"query.call_graph_metrics",

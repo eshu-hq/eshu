@@ -106,6 +106,7 @@ const (
 
 // Prompt-facing investigation route spans (from contract/query_spans.go).
 const (
+	SpanQueryCodeTopicPartition            = contract.SpanQueryCodeTopicPartition
 	SpanQueryHardcodedSecretInvestigation  = contract.SpanQueryHardcodedSecretInvestigation
 	SpanQueryImportDependencyInvestigation = contract.SpanQueryImportDependencyInvestigation
 	SpanQueryCallGraphMetrics              = contract.SpanQueryCallGraphMetrics
