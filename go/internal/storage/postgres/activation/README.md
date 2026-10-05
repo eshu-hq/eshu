@@ -67,3 +67,40 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
   `activation_obligation_matrix_live_test.go`,
   `activation_obligation_recovery_live_test.go` — the consumer protocol.
 - `activation_obligation_retention_live_test.go` — FK cascade and prune.
+
+## Performance and observability evidence
+
+No-Regression Evidence: NOT MEASURED. This slice ran on a shared host where
+timing runs were not allowed, so it carries no before/after numbers and makes
+no speed claim. What is proven is correctness on PostgreSQL 18 (disposable
+`postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
+test functions listed above plus the quiet-generation proof (18 in all), and
+26 of 28 distinct semantic mutations killed. The two survivors flip only
+the CTE copy of a predicate that the statement repeats on the locked row (wake
+failure class, prune state); flipping both copies is killed. The structural
+bounds are as
+follows. `Ack` gains one primary-key insert (`ON CONFLICT DO NOTHING`, no read)
+inside its existing transaction, after the scope lock it already holds.
+`Claim` locks one row through the open partial index. `Finalize` locks one
+scope row and one obligation row and wakes at most 32 rows through the
+existing `fact_work_items` scope/generation indexes. `CatchUp` reads at most
+`pageSize` scope rows per call. `Prune` deletes at most `limit` rows through
+the finished partial index. The retention cascade seeks the
+generation-leading primary key. Ack latency at fleet scale, consumer
+throughput, and the cost of the real (targeted) maintenance callback are
+NOT_CHECKED; the #7584 D3 slice owns them, and they gate the PR.
+
+Observability Evidence: `eshu_dp_activation_obligations{status}`,
+`eshu_dp_activation_obligation_oldest_open_age_seconds`,
+`eshu_dp_activation_obligation_claim_age_seconds`,
+`eshu_dp_activation_obligation_finalize_total{outcome}`,
+`eshu_dp_activation_obligation_woken_total`,
+`eshu_dp_activation_obligation_maintenance_duration_seconds{outcome}`,
+`eshu_dp_activation_obligation_catch_up_inserted_total`,
+`eshu_dp_activation_obligation_pruned_total` and
+`eshu_dp_activation_obligation_failures_total{reason}`, asserted in
+`reducer/maintenance/activation_obligation_runner_test.go`; per-obligation
+logs `activation obligation finalized` and `activation obligation step failed`
+carry `scope_id` and `generation_id`. The Ack insert adds no metric: it is one
+statement of the existing Ack transaction, which the existing Ack instruments
+already cover.
