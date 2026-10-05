@@ -320,7 +320,9 @@ if rg -Fq '\.agents/' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'test-verify-agent-hygiene\.sh' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq '\.cursor/hooks\.json' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'cursor-hook\.py' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'test-cursor-hooks\.sh' "$repo_root/.pre-commit-config.yaml"; then
+  && rg -Fq 'test-cursor-hooks\.sh' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'cursor_hook_family\.py' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'test-cursor-hooks-helper-cases\.sh' "$repo_root/.pre-commit-config.yaml"; then
   ok "agent-canon pre-commit hook watches its skill and verifier inputs"
 else
   no "agent-canon pre-commit hook must watch its skill and verifier inputs"
@@ -345,6 +347,8 @@ muse_n="$(rg -cF '".muse/hooks.json"' "$repo_root/specs/ci-gates.v1.yaml")"
 if [ "$(rg -cF '".cursor/hooks.json"' "$repo_root/specs/ci-gates.v1.yaml")" = "$muse_n" ] \
   && [ "$(rg -cF '"scripts/cursor-hook.py"' "$repo_root/specs/ci-gates.v1.yaml")" = "$muse_n" ] \
   && [ "$(rg -cF '"scripts/test-cursor-hooks.sh"' "$repo_root/specs/ci-gates.v1.yaml")" = "$muse_n" ] \
+  && [ "$(rg -cF '"scripts/cursor_hook_family.py"' "$repo_root/specs/ci-gates.v1.yaml")" = "$muse_n" ] \
+  && [ "$(rg -cF '"scripts/test-cursor-hooks-helper-cases.sh"' "$repo_root/specs/ci-gates.v1.yaml")" = "$muse_n" ] \
   && rg -q 'test_command:.*bash scripts/test-cursor-hooks\.sh' "$repo_root/specs/ci-gates.v1.yaml" \
   && rg -q 'run: scripts/test-cursor-hooks\.sh' "$repo_root/.github/workflows/verify-agent-hygiene.yml"; then
   ok "agent-canon registry and workflow carry the Cursor hooks port like the Muse port"
