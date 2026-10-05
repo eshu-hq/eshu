@@ -11,6 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflowimage"
 )
 
+// candidatePoolUnknownAtLimit is the only candidate_pool_status value the
+// workflow evidence defines: the path-ordered file page reached its limit, so
+// files beyond it may or may not exist. It matches the OpenAPI enum.
+const candidatePoolUnknownAtLimit = "unknown_at_limit"
+
 // StaticWorkflowArtifactEvidence lists one bounded repository file page and
 // reports observed workflow evidence with explicit candidate coverage.
 func StaticWorkflowArtifactEvidence(
@@ -70,7 +75,7 @@ func StaticWorkflowArtifactEvidenceFromFiles(
 
 	candidatePoolStatus := ""
 	if len(files) >= querycontract.RepositorySemanticEntityLimit {
-		candidatePoolStatus = "unknown_at_limit"
+		candidatePoolStatus = candidatePoolUnknownAtLimit
 	}
 	count := 0
 	paths := make([]string, 0, len(files))

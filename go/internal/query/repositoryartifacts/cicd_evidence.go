@@ -120,7 +120,7 @@ func cicdSummaryMissingEvidence(
 	artifact CicdRunArtifactEvidence,
 ) []string {
 	var missing []string
-	if static.CandidatePoolStatus != "" {
+	if static.CandidatePoolStatus == candidatePoolUnknownAtLimit {
 		missing = append(missing, "static_workflow_coverage_unknown")
 	}
 	switch live.State {
@@ -308,7 +308,7 @@ func cicdRunCorrelationEvidenceSummaryMap(summary CicdRunCorrelationEvidenceSumm
 		"live_run_correlations":     cicdLiveRunCorrelationEvidenceMap(summary.LiveRunCorrelations),
 		"run_artifact_evidence":     cicdRunArtifactEvidenceMap(summary.RunArtifactEvidence),
 	}
-	if summary.StaticWorkflowArtifacts.CandidatePoolStatus != "" {
+	if summary.StaticWorkflowArtifacts.CandidatePoolStatus == candidatePoolUnknownAtLimit {
 		out["missing_evidence"] = []string{"static_workflow_coverage_unknown"}
 	}
 	if summary.Reason != "" {

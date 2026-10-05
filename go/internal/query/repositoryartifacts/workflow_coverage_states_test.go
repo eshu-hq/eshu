@@ -112,3 +112,29 @@ func TestWorkflowCoveragePreservesDisplayAndHydrationLimits(t *testing.T) {
 		t.Fatalf("paths are not sorted: %v", got.Paths)
 	}
 }
+
+// TestWorkflowCoverageClassificationIsExactMatch pins that only the defined
+// unknown_at_limit status earns the coverage-unknown class, so a status added
+// later falls to review instead of silently inheriting it.
+func TestWorkflowCoverageClassificationIsExactMatch(t *testing.T) {
+	t.Parallel()
+	static := CicdStaticWorkflowArtifactEvidence{
+		State:               "present",
+		Count:               1,
+		Paths:               []string{".github/workflows/ci.yml"},
+		CandidatePoolStatus: "future_status",
+	}
+	summary := BuildCICDRunCorrelationEvidenceSummary(static, nil, false, false)
+	if slices.Contains(summary.MissingEvidence, "static_workflow_coverage_unknown") {
+		t.Fatalf("missing evidence = %v, undefined status inherited the coverage class", summary.MissingEvidence)
+	}
+	if story := cicdRunCorrelationEvidenceSummaryMap(summary); story["missing_evidence"] != nil {
+		t.Fatalf("story missing evidence = %#v, undefined status inherited the coverage class", story["missing_evidence"])
+	}
+	known := static
+	known.CandidatePoolStatus = candidatePoolUnknownAtLimit
+	summary = BuildCICDRunCorrelationEvidenceSummary(known, nil, false, false)
+	if !slices.Contains(summary.MissingEvidence, "static_workflow_coverage_unknown") {
+		t.Fatalf("missing evidence = %v, want the coverage class for %q", summary.MissingEvidence, known.CandidatePoolStatus)
+	}
+}
