@@ -312,3 +312,35 @@ func TestActivationObligationRetireInapplicableIsFencedLive(t *testing.T) {
 		t.Fatalf("obligation state = %q, want obsolete", got)
 	}
 }
+
+// TestActivationObligationInapplicableRetireIsLeaseFencedLive: the
+// inapplicable write itself is fenced on the database clock. A
+// statement-level pg_sleep trigger on activation_obligations (isolated schema
+// only, installed after the claim) makes the lease expire between Finalize's
+// ownership check and its retire; the retire must then write nothing.
+func TestActivationObligationInapplicableRetireIsLeaseFencedLive(t *testing.T) {
+	f := newActivationMatrix(t, "activation_retire_expiry", true)
+	// The Flux source generation has only a file fact: it can never get a phase.
+	source := claimActivationObligation(t, f.ctx, f.oblig, "retire-expiry-owner", 600*time.Millisecond,
+		f.source, "gen-consumer-source")
+	for _, ddl := range []string{
+		`CREATE FUNCTION slow_obligation_write() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(1.2); RETURN NULL; END $$`,
+		`CREATE TRIGGER slow_obligation_write BEFORE UPDATE ON activation_obligations FOR EACH STATEMENT EXECUTE FUNCTION slow_obligation_write()`,
+	} {
+		if _, err := f.db.ExecContext(f.ctx, ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := f.oblig.Finalize(f.ctx, *source)
+	if err != nil || result.Outcome != activation.OutcomeNotOwner {
+		t.Fatalf("retire across lease expiry = %+v err=%v, want not_owner with nothing written", result, err)
+	}
+	var state string
+	if err := f.db.QueryRowContext(f.ctx, `SELECT state FROM activation_obligations
+WHERE scope_id = $1 AND generation_id = 'gen-consumer-source'`, f.source).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "leased" {
+		t.Fatalf("source obligation state = %q, want leased (unchanged)", state)
+	}
+}

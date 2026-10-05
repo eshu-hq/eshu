@@ -54,6 +54,7 @@ PACKAGES = {
             "TestActivationObligationCatalogChangedIsHeldLive",
             "TestActivationObligationNullActivePointerIsObsoleteLive",
             "TestActivationObligationRetireInapplicableIsFencedLive",
+            "TestActivationObligationInapplicableRetireIsLeaseFencedLive",
         ),
         "go/internal/storage/postgres/activation_obligation_consumer_live_test.go": (
             "TestActivationObligationConsumerOrderingLive",
