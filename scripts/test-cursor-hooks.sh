@@ -34,7 +34,7 @@ GU8="gu8-r$$" GFI="gfi-r$$" GSL="gsl-r$$" GRT="grt-r$$" GRS="grs-r$$" GDP="gdp-r
 cleanup_markers() {
   local i
   for i in "${sid}" "${H}" "${F}" "${U}" "${C}" "${S}" "${A}" "${B}" "${GU8}" "${GFI}" "${GSL}" \
-    "${GRT}" "${GRS}" "${GDP}" "e0-r$$" "e16-r$$" "f0-r$$" "f17-r$$"; do
+    "${GRT}" "${GRS}" "${GDP}" "e0-r$$" "e16-r$$" "f0-r$$" "f17-r$$" "pss-r$$" "fr2-r$$"; do
     rm -f "/tmp/claude-skill-loaded-${i:0:12}-"* "/tmp/claude-skill-override-${i:0:12}"
   done
 }

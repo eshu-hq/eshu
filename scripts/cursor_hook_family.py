@@ -150,13 +150,16 @@ def write_link(child: str, parent: str) -> None:
 
 
 def record_links(p: dict) -> None:
-    """subagentStart: link subagent_id, and a conversation_id that differs
-    from the parent, to parent_conversation_id. Never raises OSError."""
+    """subagentStart: link subagent_id, and a conversation_id or session_id
+    that differs from the parent, to parent_conversation_id. In
+    cursor-agent 2026.10.01 a session id belongs to one conversation, so
+    linking the start's session_id cannot reach an unrelated chat (the
+    Cursor IDE is not checked). Never raises OSError."""
     parent = p.get("parent_conversation_id")
     if not valid_id(parent):
         note("subagentStart has no usable parent_conversation_id; no link recorded")
         return
-    for child in (p.get("subagent_id"), p.get("conversation_id")):
+    for child in (p.get("subagent_id"), p.get("conversation_id"), p.get("session_id")):
         try:
             if valid_id(child) and child != parent:
                 write_link(child, parent)

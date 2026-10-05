@@ -165,8 +165,11 @@ meet. The adapter matches Claude for loaded skills only. The logic is in
 `scripts/cursor_hook_family.py`.
 
 - `subagentStart` records `subagent_id -> parent_conversation_id`, and
-  `conversation_id -> parent_conversation_id` when the start payload's
-  `conversation_id` differs from the parent. Each link is one small file,
+  `conversation_id -> parent_conversation_id` and
+  `session_id -> parent_conversation_id` when the start payload's id differs
+  from the parent (in cursor-agent 2026.10.01 a session id belongs to one
+  conversation, so this cannot reach an unrelated chat; the Cursor IDE is
+  NOT_CHECKED). Each link is one small file,
   `/tmp/eshu-cursor-link-<id>`, written atomically next to the markers. The
   parent is also marked as a family root (`/tmp/eshu-cursor-root-<id>`). Ids
   must match `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}` with no `..`; anything else
@@ -175,8 +178,10 @@ meet. The adapter matches Claude for loaded skills only. The logic is in
 - The skill events (`preToolUse`, `postToolUse`) follow the links from the
   payload's `conversation_id`, `session_id` and `subagent_id`, in that order,
   and use the root of the first linked one. Failing that, an id that is a
-  family root is used, which covers a helper that carries the parent's
-  `session_id` beside a new `conversation_id`. A chain of up to 16 links
+  family root (a parent's `conversation_id`) is used, which covers a helper
+  that carries that id as its `session_id` beside a new `conversation_id`. A
+  parent session id that differs from the parent conversation is covered by
+  the start's `session_id` link instead. A chain of up to 16 links
   resolves; a loop or a 17th link is ignored (the id is used unlinked). With
   no links the key is `conversation_id`, as before.
 - Goals and compaction stay per chat. Claude fires no Stop,

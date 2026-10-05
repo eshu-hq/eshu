@@ -53,6 +53,15 @@ done
 run_start "$(start_in "${C}" "" "${sid}")"
 pair "$(ids "${C}")" "$(ids "${sid}")" "a start whose conversation_id differs from the parent links that id too" allowed
 pair "$(ids "${S}" "${sid}")" "$(ids "${sid}")" "a helper with a fresh conversation_id but the parent's session_id shares markers" allowed
+# A start whose session_id differs from parent_conversation_id: that session id
+# must be linked too, so a helper event carrying it (with a fresh
+# conversation_id) joins the family. Cursor keeps session ids per conversation,
+# so the link cannot reach an unrelated chat.
+PS="pss-r$$" F2="fr2-r$$"
+printf '%s' "$(start_in "${sid}" "${H}" "${sid}" | sed 's/"subagentStart",/"subagentStart","session_id":"'"${PS}"'",/')" >"${work}/start-ps.json"
+run_start "$(cat "${work}/start-ps.json")"
+pair "$(ids "${F2}" "${PS}")" "$(ids "${sid}")" "a start's own session_id (distinct from the parent conversation) is linked: the helper's read unlocks the parent's edit" allowed
+pair "$(ids "${sid}")" "$(ids "${F2}" "${PS}")" "a start's own session_id is linked: the parent's read unlocks the helper's edit" allowed
 pair "$(ids "${U}")" "$(ids "${sid}")" "an unlinked conversation's read does not unlock the parent's edit" denied
 pair "$(ids "${sid}")" "$(ids "${U}")" "the parent's read does not unlock an unlinked conversation's edit" denied
 
