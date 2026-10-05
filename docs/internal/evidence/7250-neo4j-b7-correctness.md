@@ -78,6 +78,8 @@ the full file custody manifest and executed assertion census.
 This establishes full-corpus functional proof for the correctness patch. It
 establishes no latency fix, deployed response parity, representative write-cost
 comparison, independent cold/warm endpoint p95, hosted CI or issue closure.
-Publication still requires final review, attestation and the local push floor;
-PR creation and PostgreSQL scale CI remain subject to the current hold.
+At the time of this run, PR creation and PostgreSQL scale CI were on hold.
+Under the resumed seven-issue goal, normal publication and required hosted CI
+are authorized. Final review, attestation and the local push floor remain
+required.
 #7250 stays open until its measured latency fix and deployed acceptance pass.
