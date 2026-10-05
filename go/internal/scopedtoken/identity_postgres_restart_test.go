@@ -5,14 +5,18 @@ package scopedtoken
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -29,10 +33,12 @@ import (
 // still 401 against the recovered store.
 //
 // It needs an owned disposable PostgreSQL container it may stop, so it skips
-// unless the fixture is named, like the primary-restart test in
+// unless the fixture is named, like the restart tests in
 // go/internal/runtime/postgres. Set ESHU_IDENTITY_RESTART_TEST=1,
-// ESHU_IDENTITY_RESTART_TEST_DSN to the container's DSN, and
-// ESHU_IDENTITY_RESTART_TEST_CONTAINER to its name.
+// ESHU_IDENTITY_RESTART_TEST_DSN to the container's DSN (a role that can create
+// databases), and ESHU_IDENTITY_RESTART_TEST_CONTAINER to its name. Each run
+// creates and drops its own database, because a local identity bootstrap can
+// complete only once per database.
 func TestIdentityTokenRecoversAfterPostgresRestart(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_IDENTITY_RESTART_TEST_DSN"))
 	container := strings.TrimSpace(os.Getenv("ESHU_IDENTITY_RESTART_TEST_CONTAINER"))
@@ -40,9 +46,10 @@ func TestIdentityTokenRecoversAfterPostgresRestart(t *testing.T) {
 		t.Skip("owned PostgreSQL restart needs ESHU_IDENTITY_RESTART_TEST=1, _DSN, and _CONTAINER")
 	}
 
+	runDSN := createRunDatabase(t, dsn)
 	cfg, err := pgaccess.LoadConfig(func(key string) string {
 		if key == "ESHU_POSTGRES_DSN" || key == "ESHU_POSTGRES_READ_DSN" {
-			return dsn
+			return runDSN
 		}
 		return ""
 	})
@@ -122,9 +129,40 @@ func TestIdentityTokenRecoversAfterPostgresRestart(t *testing.T) {
 	}
 }
 
+// createRunDatabase creates a uniquely named database on the fixture, drops it
+// when the test ends, and returns the DSN that targets it.
+func createRunDatabase(t *testing.T, dsn string) string {
+	t.Helper()
+	name := "restart_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	admin, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open fixture admin connection: %v", err)
+	}
+	defer func() { _ = admin.Close() }()
+	if _, err := admin.ExecContext(context.Background(), "CREATE DATABASE "+name); err != nil {
+		t.Fatalf("create run database: %v", err)
+	}
+	t.Cleanup(func() {
+		cleaner, err := sql.Open("pgx", dsn)
+		if err != nil {
+			t.Errorf("open fixture cleanup connection: %v", err)
+			return
+		}
+		defer func() { _ = cleaner.Close() }()
+		if _, err := cleaner.ExecContext(context.Background(), "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)"); err != nil {
+			t.Errorf("drop run database %s: %v", name, err)
+		}
+	})
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("parse fixture DSN: %v", err)
+	}
+	parsed.Path = "/" + name
+	return parsed.String()
+}
+
 // seedIdentityToken bootstraps a local owner identity and returns a personal API
-// token credential the identity resolver accepts. Ids are unique per run so the
-// test can be re-run against the same database.
+// token credential the identity resolver accepts.
 func seedIdentityToken(ctx context.Context, t *testing.T, writer pgstatus.SQLDB) string {
 	t.Helper()
 	suffix := strconv.FormatInt(time.Now().UnixNano(), 36)
