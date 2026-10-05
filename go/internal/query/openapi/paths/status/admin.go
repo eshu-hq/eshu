@@ -24,11 +24,47 @@ const Admin = `
     "/api/v0/admin/reindex": {
       "post": {
         "tags": ["admin"],
-        "summary": "Request a reindex",
+        "summary": "Request a fleet-wide reindex",
+        "description": "Records a fleet reindex watermark: the stored requested_at, stamped by Postgres and never moved backward. On each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at, sharing the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. The request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read the watermark. Unknown body fields are rejected.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ingester": {"type": "string", "enum": ["repository"], "default": "repository", "description": "Only the git repository ingesters honor reindex requests."},
+                  "scope": {"type": "string", "enum": ["workspace"], "default": "workspace", "description": "Every repository the git ingesters own. Per-repository reindex is not supported."},
+                  "force": {"type": "boolean", "enum": [true], "default": true, "description": "A reindex always forces a full re-parse; false is rejected."}
+                }
+              }
+            }
+          }
+        },
         "responses": {
-          "202": {"description": "Reindex request accepted"},
+          "202": {
+            "description": "Reindex watermark recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status", "ingester", "scope", "force", "requested_at", "detail"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["accepted"]},
+                    "ingester": {"type": "string", "enum": ["repository"]},
+                    "scope": {"type": "string", "enum": ["workspace"]},
+                    "force": {"type": "boolean", "enum": [true]},
+                    "requested_at": {"type": "string", "format": "date-time", "description": "The stored fleet reindex watermark in UTC. A request never lowers it."},
+                    "detail": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"description": "Reindex requests are not configured on this API instance."}
         }
       }
     },

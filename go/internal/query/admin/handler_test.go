@@ -27,8 +27,9 @@ type stubRecoveryHandler struct {
 }
 
 type stubReindexRequester struct {
-	ingesters []string
-	err       error
+	ingesters   []string
+	requestedAt time.Time
+	err         error
 }
 
 func (s *stubRecoveryHandler) Refinalize(_ context.Context, filter recovery.RefinalizeFilter) (recovery.RefinalizeResult, error) {
@@ -40,9 +41,9 @@ func (s *stubRecoveryHandler) ReplayFailed(_ context.Context, _ recovery.ReplayF
 	return s.replayResult, s.replayErr
 }
 
-func (s *stubReindexRequester) RequestReindex(_ context.Context, ingester string) error {
+func (s *stubReindexRequester) RequestReindex(_ context.Context, ingester string) (time.Time, error) {
 	s.ingesters = append(s.ingesters, ingester)
-	return s.err
+	return s.requestedAt, s.err
 }
 
 type stubAdminStore struct {

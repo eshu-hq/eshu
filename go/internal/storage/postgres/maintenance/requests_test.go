@@ -94,21 +94,52 @@ func TestStatusRequestStoreCompleteScanExecutesUpdate(t *testing.T) {
 	}
 }
 
-func TestStatusRequestStoreRequestReindexExecutesUpsert(t *testing.T) {
+func TestStatusRequestStoreRequestReindexReturnsMonotonicDBWatermark(t *testing.T) {
 	t.Parallel()
 
-	database := &fake.ExecQueryer{}
+	stored := time.Date(2026, 4, 13, 12, 0, 0, 0, time.FixedZone("EDT", -4*3600))
+	database := &fake.ExecQueryer{
+		QueryResponses: []fake.Rows{{Data: [][]any{{stored}}}},
+	}
 	store := maintenancestore.NewStatusRequestStore(database)
-	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
 
-	if err := store.RequestReindex(context.Background(), "ingester-1", now); err != nil {
+	requestedAt, err := store.RequestReindex(context.Background(), "repository")
+	if err != nil {
 		t.Fatalf("RequestReindex() error = %v, want nil", err)
 	}
-	if got, want := len(database.Execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	if !requestedAt.Equal(stored) || requestedAt.Location() != time.UTC {
+		t.Fatalf("RequestReindex() = %v, want %v in UTC", requestedAt, stored.UTC())
 	}
-	if !strings.Contains(database.Execs[0].Query, "reindex_request_status = 'pending'") {
-		t.Fatalf("query missing pending transition: %s", database.Execs[0].Query)
+	if got, want := len(database.Queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if got := len(database.Execs); got != 0 {
+		t.Fatalf("exec count = %d, want 0 (the watermark must be read back)", got)
+	}
+	query := database.Queries[0].Query
+	for _, want := range []string{
+		"reindex_request_status = 'pending'",
+		"GREATEST(",
+		"now()",
+		"RETURNING reindex_request_requested_at",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("request reindex query missing %q: %s", want, query)
+		}
+	}
+	if got, want := len(database.Queries[0].Args), 1; got != want {
+		t.Fatalf("query args = %d, want %d (the timestamp must come from the database clock)", got, want)
+	}
+}
+
+func TestStatusRequestStoreRequestReindexErrorsWhenNoRowReturned(t *testing.T) {
+	t.Parallel()
+
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{}}}}
+	store := maintenancestore.NewStatusRequestStore(database)
+
+	if _, err := store.RequestReindex(context.Background(), "repository"); err == nil {
+		t.Fatal("RequestReindex() error = nil, want non-nil when RETURNING yields no row")
 	}
 }
 
@@ -204,7 +235,7 @@ func TestStatusRequestStoreRequiresDB(t *testing.T) {
 	if err := store.RequestScan(context.Background(), "ingester-1", time.Now()); err == nil {
 		t.Fatal("RequestScan() error = nil, want non-nil")
 	}
-	if err := store.RequestReindex(context.Background(), "ingester-1", time.Now()); err == nil {
+	if _, err := store.RequestReindex(context.Background(), "ingester-1"); err == nil {
 		t.Fatal("RequestReindex() error = nil, want non-nil")
 	}
 }

@@ -213,6 +213,11 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
   `ClaimReindex`, `CompleteReindex`
 - `RequestState` — `idle`, `pending`, `running`, `completed`, `failed`
 - `ScanRequest` / `ReindexRequest` — lifecycle state structs
+- `ReindexIngesterRepository` — the only ingester name the reindex route
+  accepts. `RequestReindex` returns the stored fleet reindex watermark (#7620):
+  git ingester shards force a full re-parse of every scope whose newest
+  activated full predates it. Nothing claims or completes a reindex request; it
+  is satisfied scope by scope.
 
 ## Dependencies
 

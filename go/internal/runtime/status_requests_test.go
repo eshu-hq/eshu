@@ -87,17 +87,38 @@ func TestStatusRequestHandlerCompleteScanDelegatesToStore(t *testing.T) {
 func TestStatusRequestHandlerRequestReindexDelegatesToStore(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingStatusRequestStore{}
+	watermark := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
+	store := &recordingStatusRequestStore{reindexWatermark: watermark}
 	handler, err := NewStatusRequestHandler(store)
 	if err != nil {
 		t.Fatalf("NewStatusRequestHandler() error = %v, want nil", err)
 	}
 
-	if err := handler.RequestReindex(context.Background(), "ingester-1"); err != nil {
+	requestedAt, err := handler.RequestReindex(context.Background(), "ingester-1")
+	if err != nil {
 		t.Fatalf("RequestReindex() error = %v, want nil", err)
+	}
+	if !requestedAt.Equal(watermark) {
+		t.Fatalf("RequestReindex() = %v, want stored watermark %v", requestedAt, watermark)
 	}
 	if got, want := len(store.reindexRequests), 1; got != want {
 		t.Fatalf("reindex request count = %d, want %d", got, want)
+	}
+}
+
+func TestStatusRequestHandlerRequestReindexRequiresIngester(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingStatusRequestStore{}
+	handler, err := NewStatusRequestHandler(store)
+	if err != nil {
+		t.Fatalf("NewStatusRequestHandler() error = %v, want nil", err)
+	}
+	if _, err := handler.RequestReindex(context.Background(), ""); err == nil {
+		t.Fatal("RequestReindex(\"\") error = nil, want non-nil")
+	}
+	if got := len(store.reindexRequests); got != 0 {
+		t.Fatalf("reindex request count = %d, want 0", got)
 	}
 }
 
@@ -212,6 +233,7 @@ type recordingStatusRequestStore struct {
 	completeReindexCalls []completeReindexCall
 	claimScanResult      ScanRequest
 	claimReindexResult   ReindexRequest
+	reindexWatermark     time.Time
 	scanErr              error
 }
 
@@ -229,9 +251,9 @@ func (s *recordingStatusRequestStore) CompleteScanRequest(_ context.Context, ing
 	return s.scanErr
 }
 
-func (s *recordingStatusRequestStore) RequestReindex(_ context.Context, ingester string, _ time.Time) error {
+func (s *recordingStatusRequestStore) RequestReindex(_ context.Context, ingester string) (time.Time, error) {
 	s.reindexRequests = append(s.reindexRequests, ingester)
-	return s.scanErr
+	return s.reindexWatermark, s.scanErr
 }
 
 func (s *recordingStatusRequestStore) ClaimReindexRequest(_ context.Context, _ string, _ time.Time) (ReindexRequest, error) {

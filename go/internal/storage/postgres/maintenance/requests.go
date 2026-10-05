@@ -63,16 +63,20 @@ WHERE ingester = $1
   AND scan_request_status = 'running'
 `
 
+// requestReindexQuery stamps the reindex watermark from the database clock and
+// never moves it backward, so concurrent requests and API replicas with skewed
+// clocks cannot lower a watermark ingesters may already have acted on.
 const requestReindexQuery = `
-INSERT INTO runtime_ingester_control (ingester, reindex_request_status, reindex_request_requested_at, updated_at)
-VALUES ($1, 'pending', $2, $2)
+INSERT INTO runtime_ingester_control AS control (ingester, reindex_request_status, reindex_request_requested_at, updated_at)
+VALUES ($1, 'pending', now(), now())
 ON CONFLICT (ingester) DO UPDATE
 SET reindex_request_status = 'pending',
-    reindex_request_requested_at = $2,
+    reindex_request_requested_at = GREATEST(COALESCE(control.reindex_request_requested_at, '-infinity'::timestamptz), now()),
     reindex_request_claimed_at = NULL,
     reindex_request_completed_at = NULL,
     reindex_request_error = NULL,
-    updated_at = $2
+    updated_at = now()
+RETURNING reindex_request_requested_at
 `
 
 const claimReindexQuery = `
@@ -176,16 +180,31 @@ func (s StatusRequestStore) CompleteScanRequest(ctx context.Context, ingester st
 	return nil
 }
 
-// RequestReindex transitions a reindex request from idle to pending.
-func (s StatusRequestStore) RequestReindex(ctx context.Context, ingester string, now time.Time) error {
+// RequestReindex marks the ingester's reindex request pending and returns the
+// stored reindex watermark in UTC. The watermark is stamped from the database
+// clock and is monotonic: a request never returns or stores a value earlier
+// than one already stored.
+func (s StatusRequestStore) RequestReindex(ctx context.Context, ingester string) (time.Time, error) {
 	if s.database == nil {
-		return fmt.Errorf("status request store database is required")
+		return time.Time{}, fmt.Errorf("status request store database is required")
 	}
-	_, err := s.database.ExecContext(ctx, requestReindexQuery, ingester, now.UTC())
+	rows, err := s.database.QueryContext(ctx, requestReindexQuery, ingester)
 	if err != nil {
-		return fmt.Errorf("request reindex: %w", err)
+		return time.Time{}, fmt.Errorf("request reindex: %w", err)
 	}
-	return nil
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return time.Time{}, fmt.Errorf("request reindex: %w", err)
+		}
+		return time.Time{}, fmt.Errorf("request reindex: no watermark returned for ingester %q", ingester)
+	}
+	var requestedAt time.Time
+	if err := rows.Scan(&requestedAt); err != nil {
+		return time.Time{}, fmt.Errorf("request reindex: %w", err)
+	}
+	return requestedAt.UTC(), nil
 }
 
 // ClaimReindexRequest transitions a pending reindex to running.

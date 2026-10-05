@@ -109,9 +109,6 @@ the local default URL:
 - `eshu list`
 - `eshu stats`
 - `eshu query`
-- `eshu workspace plan`
-- `eshu workspace sync`
-- `eshu workspace index`
 
 ## Local Runtime Commands
 
@@ -141,6 +138,14 @@ guidance instead of doing old Python-era work:
 - `eshu watching`
 - `eshu ecosystem index`
 - `eshu ecosystem status`
+- `eshu workspace plan`
+- `eshu workspace sync`
+- `eshu workspace index`
+
+The three workspace commands used to post a path-scoped body that
+`POST /api/v0/admin/reindex` accepted and ignored. Use `eshu index <path>` for a
+local directory tree, or `eshu admin reindex` to force every git ingester to
+re-parse all repositories.
 
 Use the Go admin/status flows, supported indexing commands, or `eshu component`
 for optional collector and runtime component packages.

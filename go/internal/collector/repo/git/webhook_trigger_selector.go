@@ -48,6 +48,10 @@ type WebhookTriggerRepositorySelector struct {
 	BaselineResolver DeltaBaselineResolver
 	// Instruments records the delta-baseline fallback rate. Optional.
 	Instruments *telemetry.Instruments
+	// ReindexWatermark reads the fleet reindex watermark once per cycle that
+	// claimed triggers (#7620). It reaches only the triggered repositories;
+	// nil disables reindex requests for this selector.
+	ReindexWatermark ReindexWatermarkReader
 }
 
 // SelectRepositories claims queued webhook triggers, syncs only the referenced
@@ -95,12 +99,14 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 
 	syncGitFn := s.SyncGit
 	if syncGitFn == nil {
+		reindexRequestedAt := resolveReindexWatermark(ctx, s.ReindexWatermark, observedAt, s.Config, s.Logger)
 		syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
 			return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
-				Resolver:    s.BaselineResolver,
-				Instruments: s.Instruments,
-				Reconcile:   reconcilePolicyFromConfig(config),
-				Now:         s.Now,
+				Resolver:           s.BaselineResolver,
+				Instruments:        s.Instruments,
+				Reconcile:          reconcilePolicyFromConfig(config),
+				ReindexRequestedAt: reindexRequestedAt,
+				Now:                s.Now,
 			})
 		}
 	}

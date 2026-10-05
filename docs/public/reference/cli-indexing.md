@@ -79,9 +79,11 @@ the same service URL resolution order as other API-backed CLI reads:
 service for the resolved workspace, bootstraps missing index state, then
 debounces filesystem events into the same repo-level indexing path.
 
-For multi-repository local indexing, use `eshu workspace index`. The Go CLI
-keeps ecosystem-wide indexing on workspace and admin flows rather than separate
-ecosystem indexing commands.
+For multi-repository local indexing, point `eshu index <path>` or `eshu watch`
+at the directory that holds the repositories. To force every git ingester to
+re-parse all repositories, use `eshu admin reindex` (see
+[Status And Admin](http-api/status-admin.md)). The Go CLI has no separate
+workspace or ecosystem indexing commands.
 
 ## Compatibility Stubs
 
@@ -93,6 +95,9 @@ directed replacement guidance instead of silent behavior changes:
 - `eshu add-package`
 - `eshu ecosystem index`
 - `eshu ecosystem status`
+- `eshu workspace plan`
+- `eshu workspace sync`
+- `eshu workspace index`
 
 Deletion, cleanup, and recovery are owned by Go admin/runtime surfaces.
 Optional runtime components use `eshu component`; `eshu add-package` does not

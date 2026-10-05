@@ -69,6 +69,17 @@ bash scripts/dev/precommit-go.sh dirgate-digest internal/collector/repo/git
 bash scripts/generate-dirgate-grandfather-go.sh
 ```
 
+## Reindex watermark
+
+`NativeRepositorySelector` and `WebhookTriggerRepositorySelector` read the fleet
+reindex watermark once per git cycle through `ReindexWatermarkReader` (#7620).
+`decideForScope` checks a scope the sweep leaves `fresh` against it and forces
+reason `reindex_requested` when the newest activated full predates it. Forcing
+shares the sweep's per-cycle budget and throttle. A watermark later than the
+cycle's `observedAt` is deferred, because generations are ingested at
+`observedAt`. The reader is read-only: the request is never claimed. See
+`docs/public/reference/reconciliation-sweep.md#reindex-requests`.
+
 ## Two-phase content
 
 Snapshotting collects content file *metadata* first (bodies are temporary), then

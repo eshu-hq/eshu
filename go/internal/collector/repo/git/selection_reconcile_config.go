@@ -4,11 +4,14 @@
 package git
 
 import (
+	"context"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Default reconciliation knobs (epic #2340). Reconciliation is on by default so
@@ -73,7 +76,69 @@ const (
 	// reconcileReasonGraphDirty (#7389): a generation wrote the graph, never
 	// activated, and no later activated full covers it.
 	reconcileReasonGraphDirty = "graph_dirty"
+	// reconcileReasonReindexRequested (#7620): an operator requested a reindex
+	// after the scope's newest activated full generation was ingested.
+	reconcileReasonReindexRequested = "reindex_requested"
 )
+
+// ReindexWatermarkReader reads the fleet reindex watermark: the time of the
+// newest POST /api/v0/admin/reindex request, stamped by Postgres and never
+// moved backward. A zero time means no reindex was ever requested. The reader
+// only reads; the collector never claims or completes the request, because
+// the watermark is satisfied scope by scope as forced fulls activate.
+type ReindexWatermarkReader interface {
+	ReindexWatermark(ctx context.Context) (time.Time, error)
+}
+
+// resolveReindexWatermark reads the fleet reindex watermark once per selection
+// cycle and returns it in UTC when it is active for this cycle, or a zero time.
+//
+// A watermark later than the cycle's observedAt is deferred: every generation
+// the cycle produces is ingested at observedAt, so a full forced now would be
+// stamped before the watermark it answers and be forced again next cycle. The
+// shard honors the watermark once its own clock passes it. A read failure is
+// logged and ignored for the cycle: an outage must not force a fleet of fulls,
+// and the request is read again next cycle.
+func resolveReindexWatermark(
+	ctx context.Context,
+	reader ReindexWatermarkReader,
+	observedAt time.Time,
+	config RepoSyncConfig,
+	logger *slog.Logger,
+) time.Time {
+	if reader == nil {
+		return time.Time{}
+	}
+	watermark, err := reader.ReindexWatermark(ctx)
+	if err != nil {
+		if logger != nil {
+			logger.WarnContext(ctx, "git_reindex_watermark_read_failed",
+				slog.Int("repo_shard_index", config.RepoShardIndex), log.Err(err))
+		}
+		return time.Time{}
+	}
+	if watermark.IsZero() {
+		return time.Time{}
+	}
+	watermark = watermark.UTC()
+	observedAt = observedAt.UTC()
+	if watermark.After(observedAt) {
+		if logger != nil {
+			logger.InfoContext(ctx, "git_reindex_watermark_deferred",
+				slog.Int("repo_shard_index", config.RepoShardIndex),
+				slog.Time("reindex_requested_at", watermark),
+				slog.Time("observed_at", observedAt))
+		}
+		return time.Time{}
+	}
+	if logger != nil {
+		logger.InfoContext(ctx, "git_reindex_watermark_active",
+			slog.Int("repo_shard_index", config.RepoShardIndex),
+			slog.Int("repo_shard_count", config.RepoShardCount),
+			slog.Time("reindex_requested_at", watermark))
+	}
+	return watermark
+}
 
 // decide reports whether a scope in state s is due for a forced full
 // reconciliation snapshot at now, and the bounded reason. It is pure: no clock
@@ -140,6 +205,28 @@ func (p reconcilePolicy) decideGraphDirty(now time.Time, s scope.FullReconcileSt
 		return false, reason
 	}
 	return true, reconcileReasonGraphDirty
+}
+
+// decideReindex is decide for an active reindex watermark (#7620). A scope
+// whose newest activated full was ingested at or after the watermark already
+// reflects the request and stays fresh. Any other scope, including one with no
+// activated full, is forced with reason reindex_requested unless the shared
+// throttle holds it off. With reconciliation disabled (Interval 0) the
+// throttle uses the default interval's bounds, so a disabled sweep still
+// cannot stack fulls on one in flight or retry a failing scope every cycle.
+// It is pure.
+func (p reconcilePolicy) decideReindex(now, watermark time.Time, s scope.FullReconcileState) (bool, string) {
+	if s.HasProjectedFull && !s.LastProjectedFullAt.Before(watermark) {
+		return false, reconcileReasonFresh
+	}
+	bounds := p
+	if !bounds.enabled() {
+		bounds.Interval = defaultReconcileIntervalHours * time.Hour
+	}
+	if suppressed, reason := bounds.throttle(now, s); suppressed {
+		return false, reason
+	}
+	return true, reconcileReasonReindexRequested
 }
 
 func (p reconcilePolicy) enabled() bool {

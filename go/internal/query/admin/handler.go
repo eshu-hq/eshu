@@ -20,9 +20,10 @@ type RecoveryService interface {
 	ReplayFailed(ctx context.Context, filter recovery.ReplayFilter) (recovery.ReplayResult, error)
 }
 
-// ReindexRequester is the subset of the reindex surface used by admin routes.
+// ReindexRequester records a fleet-wide reindex request for the admin reindex
+// route and returns the stored reindex watermark (#7620).
 type ReindexRequester interface {
-	RequestReindex(ctx context.Context, ingester string) error
+	RequestReindex(ctx context.Context, ingester string) (time.Time, error)
 }
 
 // DecisionRow is a query-layer view of a projection decision row,
@@ -408,42 +409,5 @@ func (h *Handler) tuningReport(w http.ResponseWriter, _ *http.Request) {
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"status": "not_applicable",
 		"detail": "Shared-projection tuning is managed internally by the Go projector pipeline.",
-	})
-}
-
-// reindex accepts a reindex request and acknowledges it.
-// POST /api/v0/admin/reindex
-func (h *Handler) reindex(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Ingester string `json:"ingester"`
-		Scope    string `json:"scope"`
-		Force    bool   `json:"force"`
-	}
-	if err := querycontract.ReadJSON(r, &req); err != nil {
-		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	if req.Ingester == "" {
-		req.Ingester = "repository"
-	}
-	if req.Scope == "" {
-		req.Scope = "workspace"
-	}
-	if h.Reindexer == nil {
-		querycontract.WriteError(w, http.StatusServiceUnavailable, "reindex handler not configured")
-		return
-	}
-	if err := h.Reindexer.RequestReindex(r.Context(), req.Ingester); err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	querycontract.WriteJSON(w, http.StatusAccepted, map[string]any{
-		"status":   "accepted",
-		"ingester": req.Ingester,
-		"scope":    req.Scope,
-		"force":    req.Force,
-		"detail":   "Reindex request accepted. The ingester will process this on its next cycle.",
 	})
 }
