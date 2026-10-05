@@ -141,6 +141,43 @@ func typeScriptCallResolutionGoldens() []callResolutionGolden {
 			},
 		},
 
+		// A named import of another repository's package resolves through the
+		// package key (#7601): the parser stamps package_export_symbol on the
+		// call and package_id/export_name on the producer's export. The
+		// consumer's own same-named helper is not the target.
+		{
+			name:           "package_import_resolves_across_repositories",
+			category:       categoryMissingDependency,
+			wantCallee:     "uid:format-formatPrice",
+			wantMethod:     codeprovenance.MethodImportBinding,
+			wantConfidence: 0.90,
+			forbidCallees:  []string{"uid:app-formatPrice"},
+			envelopes:      packageKeyGoldenEnvelopes("ts-format"),
+		},
+
+		// Two repositories publish the same package name, so the key names two
+		// definitions and stays unresolved rather than picking one.
+		{
+			name:          "package_import_published_twice_unresolved",
+			category:      categoryMissingDependency,
+			forbidCallees: []string{"uid:format-formatPrice", "uid:fork-formatPrice"},
+			envelopes:     packageKeyGoldenEnvelopes("ts-format", "ts-fork"),
+		},
+
+		// When the package key resolves to nothing (no producer, or two), the
+		// call still falls through to the repo-unique-name fallback and links
+		// to the consumer's own same-named function in another file. That is
+		// wrong: the call is bound to the package import. It predates #7601
+		// (the same call without a key resolves the same way on main) and the
+		// key never makes it worse, because a resolved key wins first.
+		{
+			name:             "package_import_unresolved_falls_back_to_local_name",
+			category:         categoryMissingDependency,
+			forbidCallees:    []string{"uid:app-formatPrice"},
+			falsePositiveGap: "#7601 follow-up: repo-unique fallback for calls bound to a bare package import",
+			envelopes:        packageKeyGoldenEnvelopes(),
+		},
+
 		// A dynamically computed import target (require of a non-literal) gives
 		// no static binding; the call must not fabricate a match.
 		{
@@ -170,4 +207,50 @@ func typeScriptCallResolutionGoldens() []callResolutionGolden {
 			},
 		},
 	}
+}
+
+// packageKeyGoldenEnvelopes builds a consumer repository whose call is bound to
+// the bare import "@acme/format", plus one producer repository per id that
+// publishes formatPrice under that package name. The consumer also defines a
+// formatPrice of its own in another file.
+func packageKeyGoldenEnvelopes(producerRepoIDs ...string) []facts.Envelope {
+	envelopes := []facts.Envelope{
+		{FactKind: "repository", Payload: map[string]any{"repo_id": "ts-app"}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id": "ts-app", "relative_path": "src/page.ts",
+			"parsed_file_data": map[string]any{
+				"path":      "src/page.ts",
+				"functions": []any{map[string]any{"name": "render", "line_number": 3, "end_line": 5, "uid": "uid:app-render"}},
+				"imports":   []any{map[string]any{"name": "formatPrice", "alias": "", "source": "@acme/format", "lang": "typescript"}},
+				"function_calls": []any{map[string]any{
+					"name": "formatPrice", "full_name": "formatPrice", "call_kind": "function_call",
+					"line_number": 4, "lang": "typescript", "package_export_symbol": "package:@acme/format#formatPrice",
+				}},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id": "ts-app", "relative_path": "src/money.ts",
+			"parsed_file_data": map[string]any{
+				"path":      "src/money.ts",
+				"functions": []any{map[string]any{"name": "formatPrice", "line_number": 1, "end_line": 2, "uid": "uid:app-formatPrice"}},
+			},
+		}},
+	}
+	for _, repoID := range producerRepoIDs {
+		uid := "uid:format-formatPrice"
+		if repoID != "ts-format" {
+			uid = "uid:fork-formatPrice"
+		}
+		envelopes = append(envelopes, facts.Envelope{FactKind: "file", Payload: map[string]any{
+			"repo_id": repoID, "relative_path": "src/index.ts",
+			"parsed_file_data": map[string]any{
+				"path": "src/index.ts",
+				"functions": []any{map[string]any{
+					"name": "formatPrice", "line_number": 1, "end_line": 3, "uid": uid,
+					"package_id": "@acme/format", "export_name": "formatPrice",
+				}},
+			},
+		}})
+	}
+	return envelopes
 }

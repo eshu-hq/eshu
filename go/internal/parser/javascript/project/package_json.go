@@ -13,6 +13,9 @@ import (
 )
 
 type packageManifest struct {
+	// Name stays untyped so a malformed non-string name cannot fail the
+	// whole manifest decode that the dead-code root rules also depend on.
+	Name    any               `json:"name"`
 	Main    string            `json:"main"`
 	Module  string            `json:"module"`
 	Types   string            `json:"types"`
@@ -66,6 +69,19 @@ func PackageFileRootKinds(repoRoot string, path string) []string {
 func NearestPackageRoot(repoRoot string, path string) (string, bool) {
 	_, packageRoot, ok := nearestPackageJSON(repoRoot, path)
 	return packageRoot, ok
+}
+
+// NearestPackageName returns the trimmed "name" of the nearest package.json
+// that owns path, bounded by repoRoot. It returns "" when no manifest owns the
+// path or the nearest one has no usable string name; an outer manifest is not
+// consulted, because the nearest manifest is the package that publishes path.
+func NearestPackageName(repoRoot string, path string) string {
+	manifest, _, ok := nearestPackageManifest(repoRoot, path)
+	if !ok {
+		return ""
+	}
+	name, _ := manifest.Name.(string)
+	return strings.TrimSpace(name)
 }
 
 // PackagePublicSourcePaths returns absolute source paths exposed through the
