@@ -68,6 +68,11 @@ type TargetedMaintenanceResult struct {
 	// SkipSetUnavailable is true when the memo gate failed and every
 	// relationship-domain candidate was reopened.
 	SkipSetUnavailable bool
+	// SuppressedRefusal is the catalog guard's refusal reason when every
+	// active owed partition was inapplicable: the pass returned nil, but the
+	// evidence work their relations would have written was not done and
+	// waits for the next whole pass.
+	SuppressedRefusal string
 }
 
 // RunDeferredRelationshipMaintenanceForPartitions runs deferred relationship
@@ -118,11 +123,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	}
 
 	start := time.Now()
-	span := trace.SpanFromContext(ctx)
-	if tracer != nil {
-		ctx, span = tracer.Start(ctx, "relationship.backfill_deferred_targeted")
-		defer span.End()
-	}
+	ctx, span, endSpan := startTargetedMaintenanceSpan(ctx, tracer)
+	defer endSpan()
 	outcomes := make(map[scopeGenerationPartition]TargetedMaintenanceOutcomeKind, len(requested))
 	defer func() {
 		result.Outcomes = orderedOutcomes(requested, outcomes)
@@ -168,7 +170,13 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 	case errors.Is(refusal, ErrTargetedMaintenanceCatalogChanged), errors.Is(refusal, ErrTargetedMaintenanceNoMemoBaseline):
 		if len(applicable) == 0 {
 			// Every active owed partition is inapplicable: no phase is owed,
-			// so there is nothing to refuse and nothing worth writing.
+			// so there is nothing to refuse. The refusal still suppressed the
+			// evidence work these partitions' relations would have written
+			// for other repositories; that waits for the next whole pass
+			// (review N1), so say so.
+			result.SuppressedRefusal = TargetedMaintenanceReason(refusal)
+			log.Printf("deferred_backfill_targeted_suppressed reason=%q inapplicable=%d",
+				result.SuppressedRefusal, len(active))
 			return result, nil
 		}
 		for _, partition := range sortedPartitions(applicable) {
@@ -276,6 +284,18 @@ func (s IngestionStore) targetedCatalogRefusal(ctx context.Context, fingerprint 
 
 // recordTargetedMaintenance emits the pass's metrics, span status and
 // completion log. The pass outcome is "completed" or the error's reason.
+// startTargetedMaintenanceSpan opens the pass span. Without a tracer it
+// installs a non-recording span, so the pass never writes status or
+// attributes onto a span its caller's context carries (review N2).
+func startTargetedMaintenanceSpan(ctx context.Context, tracer trace.Tracer) (context.Context, trace.Span, func()) {
+	if tracer == nil {
+		span := trace.SpanFromContext(context.Background())
+		return trace.ContextWithSpan(ctx, span), span, func() {}
+	}
+	ctx, span := tracer.Start(ctx, "relationship.backfill_deferred_targeted")
+	return ctx, span, func() { span.End() }
+}
+
 func recordTargetedMaintenance(
 	ctx context.Context,
 	span trace.Span,
@@ -287,22 +307,32 @@ func recordTargetedMaintenance(
 ) {
 	duration := time.Since(start).Seconds()
 	passOutcome := "completed"
-	if err != nil {
+	switch {
+	case err != nil:
 		passOutcome = TargetedMaintenanceReason(err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, passOutcome)
+		// A typed refusal is a designed hold the consumer retries, not a
+		// trace error (review N2); only an untyped failure is.
+		if passOutcome == "error" {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, passOutcome)
+		}
+	case result.SuppressedRefusal != "":
+		passOutcome = "suppressed"
 	}
 	counts := make(map[TargetedMaintenanceOutcomeKind]int)
 	for _, outcome := range result.Outcomes {
+		if err != nil && outcome.Kind == TargetedMaintenanceRetry {
+			// A refused pass holds its applicable owed partitions; they are
+			// not retries of a pass that ran (review N3).
+			continue
+		}
 		counts[outcome.Kind]++
 	}
 	if instruments != nil {
+		// The duration histogram carries the pass outcome (its count is the
+		// pass count); outcomes_total counts owed partitions only (review N3).
 		instruments.DeferredBackfillTargetedDuration.Record(ctx, duration,
 			metric.WithAttributes(telemetry.AttrOutcome(passOutcome)))
-		if err != nil {
-			instruments.DeferredBackfillTargetedOutcomes.Add(ctx, 1,
-				metric.WithAttributes(telemetry.AttrOutcome(passOutcome)))
-		}
 		for kind, count := range counts {
 			instruments.DeferredBackfillTargetedOutcomes.Add(ctx, int64(count),
 				metric.WithAttributes(telemetry.AttrOutcome(string(kind))))

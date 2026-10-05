@@ -138,6 +138,44 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 		})
 	})
 
+	t.Run("all_inapplicable_under_refusal_signals_suppression", func(t *testing.T) {
+		// Review N1: every owed partition is inapplicable while the catalog
+		// guard would refuse. The pass still returns nil (no phase is owed),
+		// but it must say that its refusal suppressed the evidence work.
+		p := newTargetedDiffPair(t)
+		seedTargetedCorpus(p)
+		p.prepass()
+		p.scope(targetedGCPScope)
+		p.generation(targetedGCPScope, "gcp-1", 0, true)
+		p.gcpRelation("gcp-1-edge", "gcp-1", "order-gateway", "payments-service")
+		p.workItems(targetedGCPScope, "gcp-1")
+		p.exec(`INSERT INTO deferred_backfill_partition_memo (scope_id, generation_id, catalog_fingerprint, committed_at)
+VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, generation_id) DO UPDATE SET catalog_fingerprint = EXCLUDED.catalog_fingerprint`, targetedDiffBase)
+		reader := sdkmetric.NewManualReader()
+		instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("tgt7584-suppressed"))
+		if err != nil {
+			t.Fatalf("NewInstruments: %v", err)
+		}
+		result, err := targetedDiffStore(p.targeted, targetedDiffArmsAt).RunDeferredRelationshipMaintenanceForPartitions(
+			p.ctx, nil, instruments, owedPartitions(targetedGCPScope, "gcp-1"))
+		if err != nil {
+			t.Fatalf("all-inapplicable pass: error = %v, want nil", err)
+		}
+		if result.SuppressedRefusal != "catalog_changed" {
+			t.Fatalf("SuppressedRefusal = %q, want catalog_changed", result.SuppressedRefusal)
+		}
+		var rm metricdata.ResourceMetrics
+		if err := reader.Collect(context.Background(), &rm); err != nil {
+			t.Fatalf("collect: %v", err)
+		}
+		if got := targetedHistogramCountByOutcome(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", "suppressed"); got != 1 {
+			t.Fatalf("duration{outcome=suppressed} samples = %d, want 1", got)
+		}
+		if got := targetedCounter(rm, "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", "inapplicable"); got != 1 {
+			t.Fatalf("outcomes_total{outcome=inapplicable} = %d, want 1", got)
+		}
+	})
+
 	t.Run("telemetry_counts_targeted_only", func(t *testing.T) {
 		p := newTargetedDiffPair(t)
 		seedTargetedCorpus(p)
@@ -161,9 +199,17 @@ VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, gene
 		if err := reader.Collect(context.Background(), &rm); err != nil {
 			t.Fatalf("collect: %v", err)
 		}
-		for outcome, want := range map[string]int64{"published": 1, "catalog_changed": 1, "retry": 1} {
+		// outcomes_total counts owed partitions only (review N3): the refused
+		// pass adds no pass-level sample and does not count its held owed
+		// partition as retry. Pass outcomes live on the duration histogram.
+		for outcome, want := range map[string]int64{"published": 1, "catalog_changed": 0, "retry": 0} {
 			if got := targetedCounter(rm, "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", outcome); got != want {
 				t.Fatalf("outcomes_total{outcome=%s} = %d, want %d", outcome, got, want)
+			}
+		}
+		for outcome, want := range map[string]uint64{"completed": 1, "catalog_changed": 1} {
+			if got := targetedHistogramCountByOutcome(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", outcome); got != want {
+				t.Fatalf("duration{outcome=%s} samples = %d, want %d", outcome, got, want)
 			}
 		}
 		if got := targetedCounter(rm, "eshu_dp_deferred_backfill_targeted_reopened_total", "domain", "deployment_mapping"); got != 1 {
@@ -244,6 +290,26 @@ func targetedCounter(rm metricdata.ResourceMetrics, name, key, value string) int
 }
 
 // targetedHistogramCount counts a float64 histogram's samples.
+// targetedHistogramCountByOutcome counts histogram samples with outcome.
+func targetedHistogramCountByOutcome(rm metricdata.ResourceMetrics, name, outcome string) uint64 {
+	var total uint64
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name != name {
+				continue
+			}
+			if histogram, ok := m.Data.(metricdata.Histogram[float64]); ok {
+				for _, dp := range histogram.DataPoints {
+					if value, ok := dp.Attributes.Value("outcome"); ok && value.AsString() == outcome {
+						total += dp.Count
+					}
+				}
+			}
+		}
+	}
+	return total
+}
+
 func targetedHistogramCount(rm metricdata.ResourceMetrics, name string) uint64 {
 	var total uint64
 	for _, scopeMetrics := range rm.ScopeMetrics {

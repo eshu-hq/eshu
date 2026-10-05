@@ -18,8 +18,13 @@ Each owed partition gets one typed outcome in `TargetedMaintenanceResult.Outcome
 - `inapplicable`: the partition is active but maps to no repository in the
   shipped active-repository read (a scope without a repository fact, or the
   scope that loses a repo_id `DISTINCT ON` collision). No pass can publish its
-  phase. Its evidence work still runs, because a cloud scope's relations attach
-  evidence to other repositories.
+  phase. When the catalog guard admits the pass, its evidence work still runs,
+  because a cloud scope's relations attach evidence to other repositories. When
+  every active owed partition is inapplicable and the guard would refuse, the
+  pass returns nil and writes nothing; that evidence work waits for the next
+  whole pass, and the pass reports it (`SuppressedRefusal`, the
+  `deferred_backfill_targeted_suppressed` log line and
+  `duration_seconds{outcome="suppressed"}`).
 - `retry`: an applicable active partition whose phase this pass did not
   publish (its generation advanced, or a guard skipped it).
 
@@ -28,8 +33,10 @@ Pass-level refusals return a typed error and write nothing:
 catalog fingerprint) and `ErrTargetedMaintenanceNoMemoBaseline` (no active
 partition holds a memo row, so a catalog change cannot be detected; a fresh
 install before its first whole pass, or an all-ArgoCD install). Both are held
-by the consumer until the epoch whole pass, which the same ingestion commit
-triggers, writes the memos and the phase. `ErrTargetedMaintenanceClosureTooDeep`
+by the consumer until the next epoch whole pass writes the memos and the phase.
+For `catalog_changed` that pass is triggered by the ingestion commit that
+changed the catalog. For `no_memo_baseline` there may be no such commit: the
+hold lasts until any committed drain runs the whole pass. `ErrTargetedMaintenanceClosureTooDeep`
 reports a closure that did not settle in 8 promotion rounds. Every
 `TargetedMaintenanceError` has a stable `Reason()` used as the telemetry label.
 
@@ -123,10 +130,15 @@ measured; that is D3 step 3, and no claim is made here.
 Observability Evidence: the pass records
 `eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}`,
 `eshu_dp_deferred_backfill_targeted_outcomes_total{outcome}` (one per owed
-partition and one per refused or failed pass) and
-`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`. It opens a
-`relationship.backfill_deferred_targeted` span that records the error and sets
-an error status on every failed or refused pass, logs one
+partition, never per pass; a refused pass does not count its held owed
+partitions as `retry`) and
+`eshu_dp_deferred_backfill_targeted_reopened_total{domain}`. The pass outcome
+(`completed`, `suppressed`, a refusal reason, or `error`) is the duration
+histogram's `outcome` label, so its count is the pass count. It opens a
+`relationship.backfill_deferred_targeted` span only when it is given a tracer
+(without one it never writes onto the caller's span). Typed refusals are
+designed holds and leave the span status unset; only an untyped failure records
+the error and sets an error status. It logs one
 `deferred_backfill_targeted_completed` line per pass, and logs one
 `deferred_backfill_targeted_refused` line per applicable owed partition on a
 refusal. The shared loader, memo gate, batch and fan-in code run with
@@ -157,3 +169,19 @@ asserts both halves.
   the same (kind, source, target, path, matched value) key with different
   details, one loaded and one not, could make the two passes write different
   evidence ids. No fixture covers it.
+
+## Shared log events and refused-retry cost
+
+The shared memo gate, batch writer, fan-in and scoped fact loader still emit
+`deferred_backfill_partition_memo_gate_completed`,
+`deferred_backfill_batch_committed`, `deferred_backfill_fanin_completed` and
+the fact-load completion line with no path label, for both passes (review N4).
+Metrics are already split; for logs, attribute a shared line by the pass line
+that follows it: `deferred_backfill_targeted_completed` for the targeted pass,
+`deferred_backfill_completed` for the whole pass. The memo-gate failure line
+alone carries `path=targeted`.
+
+A refused retry is not two corpus-sized reads but three (review N6): the
+classification read (the wrapped `DISTINCT ON` over every repository fact,
+moved ahead of the guard for review F3), then the catalog scan, then the stale
+memo `EXISTS`. D3 step 3 must report the refused-retry line with all three.

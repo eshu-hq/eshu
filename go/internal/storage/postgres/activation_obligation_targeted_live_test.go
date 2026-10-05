@@ -119,8 +119,8 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	if got := targetedHistogramCount(rm, "eshu_dp_deferred_backfill_duration_seconds"); got != 0 {
 		t.Fatalf("whole-corpus passes on the consumer's instruments = %d, want 0", got)
 	}
-	if got := targetedCounter(rm, "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", reason); got != 2 {
-		t.Fatalf("targeted %s refusals = %d, want 2", reason, got)
+	if got := targetedHistogramCountByOutcome(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != 2 {
+		t.Fatalf("targeted %s refused passes = %d, want 2", reason, got)
 	}
 }
 

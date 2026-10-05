@@ -167,7 +167,7 @@ results are derived from the inputs rather than written by hand. See
 - `read-api-latency-gate` (blocking): Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets.
 - `read-api-work-budget-mirror` (blocking): Self-tests the script that regenerates read-API work budgets: its formulas and its no-regression ratchet.
 - `backend-latency-compare-mirror` (blocking): Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed.
-- `live-postgres-readiness` (advisory): Runs twenty-two PostgreSQL readiness, dead-code incoming, and status-selection plan and truth proofs with pass-event accounting; skips and missing tests fail.
+- `live-postgres-readiness` (advisory): Runs the PostgreSQL proofs listed in live_postgres_readiness_results.py with explicit pass-event accounting; skips and missing tests fail.
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 

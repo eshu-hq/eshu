@@ -1,7 +1,7 @@
 name: Live PostgreSQL Readiness
 
 # The readiness, dead-code incoming, status route-selection, quiet-generation,
-# and activation obligation proofs listed in
+# activation obligation and targeted-maintenance proofs listed in
 # scripts/lib/live_postgres_readiness_results.py
 # use EXPLAIN and correctness assertions against separately created disposable
 # databases. The merge queue always runs this job; PR and main-push events
