@@ -98,8 +98,10 @@ WHERE obligation.generation_id = doomed.generation_id
 `
 
 // statsQuery counts obligations per state and reads the age of the oldest
-// open obligation on the database clock. Open rows are bounded by the open
-// partial index; finished rows by the prune.
+// open obligation on the database clock. GROUP BY state reads the whole
+// table. Its size is the open rows, plus completed and obsolete rows inside
+// the prune's retention window, plus inapplicable rows, which are never
+// pruned and live until retention deletes their (superseded) generation.
 const statsQuery = `
 SELECT state, count(*),
     COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - min(created_at)

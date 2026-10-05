@@ -16,8 +16,10 @@ import (
 // State is the lifecycle state of one activation obligation row.
 type State string
 
-// Obligation states. pending and leased are open; completed and obsolete are
-// terminal and wait only for Prune.
+// Obligation states. pending and leased are open. completed and obsolete are
+// terminal and Prune deletes them after the retention window; an obsolete
+// row is owed again if its generation is re-activated. inapplicable is
+// terminal and never pruned: only its generation's cascade removes it.
 const (
 	StatePending   State = "pending"
 	StateLeased    State = "leased"

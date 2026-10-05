@@ -228,6 +228,14 @@ reason. While the consumer is off, obligations stay `pending`, one per activated
 generation, and generation retention deletes them with their generation
 (`ON DELETE CASCADE`).
 
+The wake writes `visible_at` on the database clock, while the reducer's claim
+compares it with the reducer host's clock. A database clock running ahead of
+the host by δ delays a woken row by δ, and the claim-age histogram is off by
+the same δ. Both are bounded by NTP sync. Migration 160 must be applied
+(`eshu-bootstrap-data-plane`) before projector, ingester or bootstrap-index
+binaries that write obligations start; see the activation package README
+"Rollout order".
+
 ## Domains And Projection
 
 The default runtime processes workload identity, deployable-unit correlation,

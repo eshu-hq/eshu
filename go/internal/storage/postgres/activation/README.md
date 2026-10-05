@@ -57,6 +57,39 @@ partition-scoped pass for the obligation's own partition and maps
 (Finalize wakes and completes), and `retry` or any other error to a
 maintenance failure.
 
+## Clock skew
+
+Every obligation timestamp and lease comparison uses the database clock
+(`clock_timestamp()`), and so does the wake (`visible_at = clock_timestamp()`).
+`ReducerQueue.Claim` admits `visible_at <= $1`, where `$1` is the reducer
+process clock. When the database clock runs ahead of the reducer host by δ, a
+woken row becomes claimable δ later. The claim-age histogram
+(`eshu_dp_activation_obligation_claim_age_seconds`) subtracts the database's
+`created_at` from the process clock and is off by the same δ. Both are bounded
+by NTP sync and are not correctness defects. The live fixtures read the database
+clock (`activationDatabaseClock`) because a disposable container ran 32–79 ms
+ahead of its host. The maintenance deadline's margin (a fifth of the lease) also
+absorbs this skew.
+
+## Rollout order
+
+Migration 160 must exist before any binary that Acks runs
+(`eshu-projector`, `eshu-ingester`, `eshu-bootstrap-index`): every accepted Ack
+writes `activation_obligations`. This follows the existing convention:
+`eshu-bootstrap-data-plane` applies Postgres migrations and exits before the
+services start (`docs/public/deployment/service-runtimes-bootstrap.md`), and the
+Helm chart runs it as a `pre-install,pre-upgrade` hook
+(`deploy/helm/eshu/templates/job-schema-bootstrap.yaml`). If a new binary Acks
+before the migration, the Ack fails with SQLSTATE 42P01 (`relation
+"activation_obligations" does not exist`) and the transaction rolls back, so no
+partial activation is written. That error is not a lock wait, so it is not
+`ErrWorkAckDeferred`: the projector service returns it from
+`processWork` (`ack projector work: ...`), `Service.Run` ends, the process
+restarts, and the claim is reclaimed after its lease. Rolling back to an older
+binary is safe, because older binaries ignore the table. The idle cost of the
+consumer's catch-up page, prune and census per poll is a D3 step-3 measurement
+line and is NOT_CHECKED here.
+
 ## Foreign key policy
 
 One foreign key, `generation_id -> scope_generations ON DELETE CASCADE`, like
@@ -102,8 +135,11 @@ which is equivalent because a NULL pointer scans as an empty string that
 never equals a generation id; the mutant that treats NULL as current is
 killed. The structural
 bounds are as
-follows. `Ack` gains one primary-key insert (`ON CONFLICT DO NOTHING`, no read)
-inside its existing transaction, after the scope lock it already holds.
+follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
+'obsolete'`) inside its existing transaction, after the scope lock it already
+holds. It costs a primary-key probe, the foreign-key check's KEY SHARE probe on
+`scope_generations`, and maintenance of the primary key and the open partial
+index; on a conflict it locks the existing obligation row.
 `Claim` locks one row through the open partial index. `Finalize` locks one
 scope row and one obligation row, seeks one repository fact on the
 `(scope_id, generation_id, fact_kind, ...)` index when the phase is absent,

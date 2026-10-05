@@ -19,8 +19,9 @@
 // order): it retires the obligation as obsolete when the scope's pointer
 // moved to another generation or is NULL, retires it as inapplicable when the
 // exact generation's phase is absent and it has no repository fact (no pass
-// can ever publish one), refuses when the phase is absent otherwise, wakes up to WakeBatchLimit waiting deployment_mapping rows of that
-// exact generation, keeps the obligation open while a handler for the
+// can ever publish one), refuses when the phase is absent otherwise, wakes
+// up to WakeBatchLimit waiting deployment_mapping rows of that exact
+// generation, keeps the obligation open while a handler for the
 // generation is still claimed or running or more waiting rows remain, and
 // completes it under the lease fence otherwise. Finalize never publishes a
 // phase and never runs maintenance; the caller runs maintenance between
