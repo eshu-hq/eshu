@@ -174,7 +174,7 @@ func typeScriptCallResolutionGoldens() []callResolutionGolden {
 			name:             "package_import_unresolved_falls_back_to_local_name",
 			category:         categoryMissingDependency,
 			forbidCallees:    []string{"uid:app-formatPrice"},
-			falsePositiveGap: "#7601 follow-up: repo-unique fallback for calls bound to a bare package import",
+			falsePositiveGap: "#7610: repo-unique fallback for calls bound to a bare package import",
 			envelopes:        packageKeyGoldenEnvelopes(),
 		},
 
@@ -212,7 +212,10 @@ func typeScriptCallResolutionGoldens() []callResolutionGolden {
 // packageKeyGoldenEnvelopes builds a consumer repository whose call is bound to
 // the bare import "@acme/format", plus one producer repository per id that
 // publishes formatPrice under that package name. The consumer also defines a
-// formatPrice of its own in another file.
+// formatPrice of its own in another file. The envelopes are hand-built, so the
+// consumer's package.json is not parsed here; the parser stamps this call's
+// package_export_symbol only when that manifest declares "@acme/format", which
+// cross_repo_package_keys_test.go proves from real parser output.
 func packageKeyGoldenEnvelopes(producerRepoIDs ...string) []facts.Envelope {
 	envelopes := []facts.Envelope{
 		{FactKind: "repository", Payload: map[string]any{"repo_id": "ts-app"}},

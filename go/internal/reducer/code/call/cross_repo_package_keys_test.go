@@ -91,7 +91,7 @@ export function renderPage(amount: Money) {
 func packageKeyConsumer(t *testing.T) packageKeyRepo {
 	t.Helper()
 	return parsePackageKeyRepo(t, "repo-app", map[string]string{
-		"package.json":   `{"name": "acme-app"}`,
+		"package.json":   `{"name": "acme-app", "dependencies": {"@acme/format": "1.0.0"}}`,
 		"src/page.ts":    packageKeyConsumerPage,
 		"src/helpers.ts": "export function round(value: number) { return value; }\n",
 	})

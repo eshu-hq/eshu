@@ -56,6 +56,9 @@
   further check, so a new keyed shape needs a negative test for every way it
   could bind the wrong symbol (`engine_package_export_keys_test.go`). Type
   references stay unkeyed, and a name the file declares again is never keyed.
+  A bare import is keyed only when a package.json on the path to the repo root
+  declares it (`engine_package_import_dependencies_test.go`); do not replace
+  that rule with a built-in or alias list.
 
 - Production dependency direction stays one way: parent parser code may import
   this package, but production files here must not import internal/parser. An

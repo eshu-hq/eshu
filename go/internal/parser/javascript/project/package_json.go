@@ -15,13 +15,19 @@ import (
 type packageManifest struct {
 	// Name stays untyped so a malformed non-string name cannot fail the
 	// whole manifest decode that the dead-code root rules also depend on.
-	Name    any               `json:"name"`
-	Main    string            `json:"main"`
-	Module  string            `json:"module"`
-	Types   string            `json:"types"`
-	Exports any               `json:"exports"`
-	Bin     any               `json:"bin"`
-	Scripts map[string]string `json:"scripts"`
+	Name any `json:"name"`
+	// The dependency fields stay untyped for the same reason; only an object
+	// value counts as a declaration (DeclaredDependencies).
+	Dependencies         any               `json:"dependencies"`
+	DevDependencies      any               `json:"devDependencies"`
+	PeerDependencies     any               `json:"peerDependencies"`
+	OptionalDependencies any               `json:"optionalDependencies"`
+	Main                 string            `json:"main"`
+	Module               string            `json:"module"`
+	Types                string            `json:"types"`
+	Exports              any               `json:"exports"`
+	Bin                  any               `json:"bin"`
+	Scripts              map[string]string `json:"scripts"`
 }
 
 // PackageFileRootKinds returns package-level dead-code root evidence for one
@@ -82,6 +88,47 @@ func NearestPackageName(repoRoot string, path string) string {
 	}
 	name, _ := manifest.Name.(string)
 	return strings.TrimSpace(name)
+}
+
+// DeclaredDependencies returns the package names declared in the
+// dependencies, devDependencies, peerDependencies, or optionalDependencies
+// object of any package.json on the path from path's directory up to repoRoot.
+// It is a union, so a workspace package sees dependencies hoisted to the
+// repository root as well as its own. A field that is not an object declares
+// nothing, and an unreadable manifest is skipped. Each manifest is read through
+// the (path, stat) cache.
+func DeclaredDependencies(repoRoot string, path string) map[string]struct{} {
+	declared := map[string]struct{}{}
+	repoRoot = CleanPath(repoRoot)
+	path = CleanPath(path)
+	if repoRoot == "" || path == "" {
+		return declared
+	}
+	dir := path
+	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		dir = filepath.Dir(path)
+	}
+	for PathWithin(repoRoot, dir) {
+		if manifest, ok := cachedPackageManifest(filepath.Join(dir, "package.json")); ok {
+			for _, field := range []any{
+				manifest.Dependencies,
+				manifest.DevDependencies,
+				manifest.PeerDependencies,
+				manifest.OptionalDependencies,
+			} {
+				dependencies, _ := field.(map[string]any)
+				for name := range dependencies {
+					declared[strings.TrimSpace(name)] = struct{}{}
+				}
+			}
+		}
+		parent := filepath.Dir(dir)
+		if dir == repoRoot || parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return declared
 }
 
 // PackagePublicSourcePaths returns absolute source paths exposed through the

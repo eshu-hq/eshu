@@ -369,7 +369,7 @@ func Parse(
 		}
 	})
 
-	annotatePackageImportCalls(payload, root, source, parents)
+	annotatePackageImportCalls(payload, root, source, parents, repoRoot, path)
 	syntax.AppendTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")

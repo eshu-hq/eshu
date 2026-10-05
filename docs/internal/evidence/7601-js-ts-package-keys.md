@@ -28,7 +28,10 @@ schema, API, MCP, or telemetry code changed.
   file's `imports` rows. A call gets
   `package_export_symbol = package:<source>#<imported name>` only when the import is
   a bare package specifier (`pkg` or `@scope/pkg`) with no `resolved_source`,
-  not type-only, and not a re-export. Two shapes are keyed: `local(`,
+  not type-only, not a re-export, and declared in the `dependencies`,
+  `devDependencies`, `peerDependencies`, or `optionalDependencies` object of a
+  `package.json` on the path from the file up to the repository root
+  (`project.DeclaredDependencies`, a union over those manifests). Two shapes are keyed: `local(`,
   `new Local(`, `<Local />` for a named or default import, and `ns.member(` (also
   `new ns.Member(` and `<ns.Member />`) for a namespace import
   (`import * as ns`, `const ns = require("pkg")`, `import ns = require("pkg")`).
@@ -41,7 +44,11 @@ schema, API, MCP, or telemetry code changed.
 | `import type { X }`, `import { type X }` | Binding dropped; no key | same test |
 | Relative, absolute, `#internal`, `node:` specifier | Not bare; no key | same test (`./rel`) and `isBarePackageSpecifier` |
 | Subpath (`pkg/sub`, `@scope/pkg/sub`) | No key: a miss, never a false link | same test |
-| In-repo alias with `resolved_source` (tsconfig `baseUrl` or `paths`) | No key | same test (`shared`) |
+| In-repo alias with `resolved_source` (tsconfig `baseUrl` or `paths`) | No key, even when the name is also declared | same test (`shared`), `TestDefaultEngineParsePathTypeScriptKeysOnlyDeclaredDependencies` (`utils`) |
+| jsconfig or bundler alias that looks bare (`api`), Node.js built-in (`fs`, `util`), undeclared package (`lodash`) | No key: no manifest declares it | `TestDefaultEngineParsePathJavaScriptSkipsUndeclaredBareImports` |
+| `@/x`, `~/x`, `node:fs` | Not a package specifier; no key | `TestDefaultEngineParsePathTypeScriptKeysOnlyDeclaredDependencies` |
+| Dependency declared only in the root manifest (hoisted), only in the nearest workspace manifest, or as a dev, peer, or optional dependency | Keyed | same test, plus the test-file `@acme/dev` case |
+| Dependency field that is not an object (array, string) | Declares nothing; other fields still count | `TestDefaultEngineParsePathTypeScriptToleratesMalformedDependencyFields` |
 | `a.b.c()` deep chain, `obj.member()` on a non-import | No key | same test |
 | `D.member()` on a default import | No key. A default export is often an instance or a class, so the member is a method, not a named export (`import logger from "pkg"; logger.info()`) | same test (`render.member`) |
 | Name declared again in the file (parameter, variable, destructuring, catch, function or class name) | No key for that name anywhere in the file | same test (`shadowed`, `dup`, `destructured`, `caught`) |
@@ -195,7 +202,7 @@ none of the 78 resolved calls, and no producer definition in that run, used a
 A JSX call (`<Local />`) that resolves projects as a `REFERENCES` edge, not
 `CALLS`, through the existing code-call writer.
 
-One residual risk for ops-qa: a bundler alias that looks bare and has no
-`resolved_source` (`import { x } from "api"`) can match an unscoped corpus
-manifest with the same name. A replica query listing unscoped manifest names
-would size it.
+A bare-looking alias with no `resolved_source` (`import { x } from "api"`
+through a jsconfig `baseUrl` or a bundler alias) and a Node.js built-in no
+longer get a key: a consumer key now needs a declared dependency (see the
+edge-case table). Removing that check makes the three dependency tests fail.

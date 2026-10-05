@@ -118,11 +118,21 @@ type packageImportBinding struct {
 }
 
 // annotatePackageImportCalls sets package_export_symbol on each real call bound
-// to a bare package import. Two shapes are keyed: `local(`, `new Local(`,
+// to a bare package import that a package.json between the file and repoRoot
+// declares as a dependency (project.DeclaredDependencies). An undeclared bare
+// name may be a bundler or jsconfig alias or a Node.js built-in that resolves
+// inside the repository, so it is never keyed. Two shapes are keyed: `local(`, `new Local(`,
 // `<Local />` for a named or default import, and `ns.member(` (also with new
 // or JSX) for a namespace import. A deeper chain, a member of a non-namespace
 // binding, and any name the file declares again are left unkeyed.
-func annotatePackageImportCalls(payload map[string]any, root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) {
+func annotatePackageImportCalls(
+	payload map[string]any,
+	root *tree_sitter.Node,
+	source []byte,
+	parents *syntax.ParentLookup,
+	repoRoot string,
+	path string,
+) {
 	calls, _ := payload["function_calls"].([]map[string]any)
 	if len(calls) == 0 {
 		return
@@ -138,6 +148,7 @@ func annotatePackageImportCalls(payload map[string]any, root *tree_sitter.Node, 
 		key       string
 	}
 	var keyed []keyedCall
+	var declared map[string]struct{} // read once, at the first candidate
 	usedNames := map[string]packageImportBinding{}
 	for _, call := range calls {
 		callKind, _ := call["call_kind"].(string)
@@ -160,6 +171,12 @@ func annotatePackageImportCalls(payload map[string]any, root *tree_sitter.Node, 
 			continue
 		}
 		binding := bindings[localName]
+		if declared == nil {
+			declared = project.DeclaredDependencies(repoRoot, path)
+		}
+		if _, ok := declared[binding.source]; !ok {
+			continue
+		}
 		usedNames[localName] = binding
 		keyed = append(keyed, keyedCall{call: call, localName: localName, key: "package:" + binding.source + "#" + exportName})
 	}

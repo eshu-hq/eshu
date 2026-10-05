@@ -200,7 +200,12 @@ func TestDefaultEngineParsePathTSXStampsConsumerPackageExportSymbols(t *testing.
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": "consumer-app"}`)
+	// Every package is declared, so each negative below is unkeyed by its own
+	// rule, not by the declared-dependency rule. "shared" is declared too, so
+	// only its tsconfig resolution keeps it unkeyed.
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": "consumer-app", "dependencies": {
+  "@acme/format": "1", "@acme/ui": "1", "@acme/util": "1", "@acme/shadow": "1", "@acme/dup": "1",
+  "@acme/destructured": "1", "@acme/caught": "1", "shared": "1"}}`)
 	writeTestFile(t, filepath.Join(repoRoot, "tsconfig.json"), `{"compilerOptions": {"baseUrl": "src"}}`)
 	writeTestFile(t, filepath.Join(repoRoot, "src", "shared.ts"), "export function local() {}\n")
 	filePath := filepath.Join(repoRoot, "src", "page.tsx")
@@ -307,6 +312,7 @@ func TestDefaultEngineParsePathTypeScriptKeysTestFileCalls(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": "consumer-app", "devDependencies": {"@acme/format": "1"}}`)
 	filePath := filepath.Join(repoRoot, "src", "page.test.ts")
 	writeTestFile(t, filePath, `import { formatPrice } from "@acme/format";
 
