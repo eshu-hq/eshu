@@ -42,6 +42,24 @@ func claimActivationObligation(t *testing.T, ctx context.Context, store activati
 	return nil
 }
 
+// activationDatabaseClock makes a test reducer queue read the database clock.
+// The wake writes visible_at = clock_timestamp() while ReducerQueue.Claim
+// admits visible_at <= its own Now; a disposable container whose clock runs
+// tens of milliseconds ahead of the host otherwise leaves a just-woken row
+// invisible to an immediate Claim (13 of 25 runs failed that way). In
+// production the same skew only delays a woken row by the skew.
+func activationDatabaseClock(t *testing.T, ctx context.Context, database *sql.DB) func() time.Time {
+	t.Helper()
+	return func() time.Time {
+		var now time.Time
+		if err := database.QueryRowContext(ctx, "SELECT clock_timestamp()").Scan(&now); err != nil {
+			t.Errorf("read database clock: %v", err)
+			return time.Now()
+		}
+		return now.UTC()
+	}
+}
+
 // finalizeActivation reports whether Finalize completed the obligation.
 func finalizeActivation(ctx context.Context, store activation.Store, work *activation.Obligation) (bool, error) {
 	result, err := store.Finalize(ctx, *work)
@@ -77,6 +95,7 @@ func newActivationMatrix(t *testing.T, prefix string, ackTarget bool) activation
 		}
 	}
 	rq := NewReducerQueue(SQLDB{DB: database}, "7584-matrix-reducer", time.Minute)
+	rq.Now = activationDatabaseClock(t, ctx, database)
 	rq.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
 	rq.RetryDelay = time.Minute
 	return activationMatrix{

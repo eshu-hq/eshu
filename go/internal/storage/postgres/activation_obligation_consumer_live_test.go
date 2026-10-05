@@ -44,6 +44,7 @@ func TestActivationObligationConsumerOrderingLive(t *testing.T) {
 				"accepted target Ack did not create obligation")
 			reducerQueue := NewReducerQueue(SQLDB{DB: database}, "7584-consumer-reducer", time.Minute)
 			reducerQueue.RetryDelay = time.Minute
+			reducerQueue.Now = activationDatabaseClock(t, ctx, database)
 			reducerQueue.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
 			if _, err := reducerQueue.Enqueue(ctx, []projectorruntime.ReducerIntent{{
 				ScopeID: targetWork.Scope.ScopeID, GenerationID: targetWork.Generation.GenerationID,
