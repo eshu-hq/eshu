@@ -75,8 +75,11 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   request through the optional `crossRepoDeadCodeRootPathStore`
   (`CrossRepoDeadCodeConsumerRootPathsQuery`: one keyed `content_entities` read,
   no `source_cache`); `bucketCrossRepoDeadCodeResults` only consumes the result.
-  It fires only where a test method is a reachability root (C#, Java, Kotlin,
-  Scala, Rust, Swift). The same-repository routes are deferred: a candidate with
+  A test method is a reachability root only for C#, Java, Kotlin, Scala, Rust and
+  Swift, so there a test-only consumer is flagged; in Go, Python, JavaScript and
+  TypeScript a test function is never a root, so the flag appears only when
+  another root, such as a main or script entry point, sits in a test path. The
+  same-repository routes are deferred: a candidate with
   a strong caller never becomes a result row there.
 - **Investigation coverage never reads `content_entities`.** The `coverage`
   block takes `file_count` and `languages` from the narrow

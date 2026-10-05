@@ -185,11 +185,14 @@ caller. Rules:
   Do not read `source_cache` (`GetEntityContents` does) and do not read
   `code_reachability_rows` for a file: it has none. A read error fails the
   request through `WriteGraphReadError`, never "not test only".
-- Language scope: the flag fires only where a test method is a reachability
-  root (`dead_code_root_kinds` such as `java.junit_test_method`,
-  `csharp.test_method`, `rust.test_function`: C#, Java, Kotlin, Scala, Rust,
-  Swift). A Go, Python, JavaScript or TypeScript test is not a root, so it is
-  never a consumer and never sets the flag. Do not claim a test-only consumer
+- Language scope: the rule is "the consumer root is in a test path by
+  `DeadCodeIsTestFile`", not "the root is a test method". A test method is a
+  reachability root only for C#, Java, Kotlin, Scala, Rust and Swift
+  (`java.junit_test_method`, `csharp.test_method`, `rust.test_function`), so
+  there a test-only consumer is flagged. In Go, Python, JavaScript and
+  TypeScript a test function is never a root, so the flag appears only when
+  another root (`go.main`, `python.script_main_guard`,
+  `javascript.node_package_script`, ...) sits in a test path. Do not claim a test-only consumer
   "already yields dead": the cross-repo read filters on neither root kind nor
   file, so it yields `live_by_consumer`.
 - The same-repository routes are deferred: they project only `(entity, method)`

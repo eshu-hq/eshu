@@ -94,10 +94,11 @@ recent shipped work grouped by feature area.
   root entity is in a test file (the existing `DeadCodeIsTestFile` rule), so an
   admin sees that removing the symbol also means removing or rewriting its tests.
   The key is omitted otherwise. Liveness, buckets and every other field are
-  unchanged: a test that calls a function is still a caller. It can fire only for
-  languages where a test method is a reachability root (C#, Java, Kotlin, Scala,
-  Rust, Swift); a Go, Python, JavaScript or TypeScript test is not a root, so it
-  is never a consumer. The same-repository
+  unchanged: a test that calls a function is still a caller. A test method is a
+  reachability root only for C#, Java, Kotlin, Scala, Rust and Swift, so there a
+  test-only consumer is flagged; in Go, Python, JavaScript and TypeScript a test
+  function is never a root, so the flag appears only when another root, such as
+  a main or script entry point, sits in a test path. The same-repository
   dead-code routes do not carry it. It costs one batched primary-key read of
   `content_entities` per request, skipped when no row has a consumer root.
 
