@@ -54,7 +54,11 @@ func TestSingleReaderMemberKeepsSnapshotAndFailsClosed(t *testing.T) {
 			err, errors.Is(err, ErrReaderStale), errors.Is(err, ErrReaderUnavailable),
 			errors.Is(err, ErrWrongTopology), errors.Is(err, context.DeadlineExceeded))
 	}
-	t.Cleanup(func() { _ = access.Close() })
+	t.Cleanup(func() {
+		if closeErr := access.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
 	if len(access.readerMembers) != 1 || access.readerInventoryCount != 1 {
 		t.Fatalf("qualified readers=%d inventory=%d, want 1/1", len(access.readerMembers), access.readerInventoryCount)
 	}
@@ -70,7 +74,11 @@ func TestSingleReaderMemberKeepsSnapshotAndFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer set.Close()
+	defer func() {
+		if closeErr := set.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	}()
 	var snapshot, address string
 	pids := map[int]bool{}
 	for index := range 4 {
@@ -109,11 +117,12 @@ func TestSingleReaderMemberKeepsSnapshotAndFailsClosed(t *testing.T) {
 		t.Fatalf("singleton set leaked %d reader connections", stats.InUse)
 	}
 	access.readerMembers[0].incarnation = "stale-epoch"
-	if err := access.Ping(ctx); err == nil {
-		t.Fatal("readiness accepted a replaced only member")
+	var localTopology memberLocalTopology
+	if err := access.Ping(ctx); !errors.As(err, &localTopology) {
+		t.Fatalf("readiness did not reject replaced member identity: %v", err)
 	}
-	if _, err := beginner.BeginReadOnlySnapshotSet(checked, 4); err == nil {
-		t.Fatal("snapshot set escaped to another reader or writer")
+	if _, err := beginner.BeginReadOnlySnapshotSet(checked, 4); !errors.As(err, &localTopology) {
+		t.Fatalf("snapshot set did not reject replaced member identity: %v", err)
 	}
 	if _, stats := access.Stats(); stats.InUse != 0 {
 		t.Fatalf("failed singleton set leaked %d reader connections", stats.InUse)
@@ -125,7 +134,9 @@ func TestSingleReaderMemberKeepsSnapshotAndFailsClosed(t *testing.T) {
 	cfg.ReadMembers[0].Host, cfg.ReadMembers[0].Port = primaryEndpoint.Host, primaryEndpoint.Port
 	wrong, err := Open(ctx, cfg, nil)
 	if wrong != nil {
-		_ = wrong.Close()
+		if closeErr := wrong.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
 	}
 	if !errors.Is(err, ErrWrongTopology) {
 		t.Fatalf("primary admitted as reader: %v", err)
@@ -161,13 +172,21 @@ func TestSingleReaderMemberSnapshotSetupCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = legacy.Close() })
+	t.Cleanup(func() {
+		if closeErr := legacy.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
 	cfg.ReadMembers = []ReaderMember{{ID: "read-0", Host: endpoint.Host, Port: endpoint.Port}}
 	fleet, err := Open(ctx, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = fleet.Close() })
+	t.Cleanup(func() {
+		if closeErr := fleet.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
 	legacyCtx, err := legacy.ContextWithCheckpoint(ctx)
 	if err != nil {
 		t.Fatal(err)

@@ -38,16 +38,17 @@ setup correction is not a production performance or correctness finding.
 
 ## Narrow performance proof
 
-Performance Evidence: The same disposable PostgreSQL 18.3 primary and standby
-served both production snapshot-set paths. After two warmups per path, eight
+Performance Evidence: A disposable PostgreSQL 18.3 primary and physical standby
+served both production snapshot-set paths after the review-fix rerun. After two
+warmups per path, eight
 interleaved `legacy, singleton, singleton, legacy` blocks measured the time
 from snapshot-set begin through close. Every call succeeded, and the primary
-WAL insert LSN stayed `0/30000F8` throughout. Each path had 16 samples:
+WAL insert LSN was unchanged throughout the run. Each path had 16 samples:
 
 | Path | Ordered samples in milliseconds | Median |
 | --- | --- | ---: |
-| Legacy single-host | 1.399430, 1.018448, 1.028038, 1.096544, 1.000322, 1.184030, 1.100203, 1.165076, 1.111490, 1.086760, 1.007528, 1.058540, 0.989453, 1.067335, 0.974685, 1.019726 | 1.062937 ms |
-| Singleton fleet | 1.369228, 1.126572, 1.187357, 0.968240, 1.140675, 1.033578, 1.172678, 0.962602, 1.574848, 0.946283, 0.859312, 0.840673, 0.843782, 0.852062, 0.954810, 0.889839 | 0.965421 ms |
+| Legacy single-host | 1.400626, 1.200217, 1.429155, 1.002394, 1.032934, 1.139294, 1.080103, 0.905636, 0.892361, 0.883223, 0.939467, 0.934582, 0.969793, 0.914718, 0.941089, 0.910252 | 0.955441 ms |
+| Singleton fleet | 1.101569, 1.060982, 1.459773, 0.988358, 0.949068, 0.938183, 0.921917, 1.016417, 0.940203, 0.924424, 0.925538, 0.902237, 0.900421, 0.903316, 0.904765, 0.916011 | 0.931860 ms |
 
 This is a tiny, empty-database setup microbenchmark. It checks for a gross
 singleton routing overhead and is **not** a 16-term endpoint comparison, a
@@ -56,13 +57,15 @@ ops-qa single-reader canary had a 0.6740565 s descriptive median, but its
 streaming corpus and unequal live/canary traffic prevent a causal speedup
 claim. The deployed Service's last recorded median remained 1.184 s.
 
-The fixture used the `postgres:18.3` image, with primary and standby on
-loopback ports and a dedicated replication slot. Its one-off runner had
-SHA-256 `f1cf425fd77fb182546cfaffd09e074e2cd2e9459eb33cd09cd847debe3cdc31`;
-the runner and both labeled containers and volumes were removed after proof.
+The review-fix fixture used `postgres:18.3` with direct Docker bridge addresses,
+a dedicated replication slot, and primary and standby on one host. The earlier
+one-off runner had SHA-256 `f1cf425fd77fb182546cfaffd09e074e2cd2e9459eb33cd09cd847debe3cdc31`;
+that runner and its containers and volumes were removed. The review-fix fixture
+was created with bounded Docker commands and is removed after rerunning gates.
 The relevant code SHA-256 values are `21cc87eb03a3ef51815f3ac8a1c2f26f72b2ff7cb133ab781b70299b6d805a54`
 for `config.go`, `617832ce95a37b8f7c48b05b28bc0e9d2adf3a1b927af3657aab166bd92c5d1e`
-for `reader_members.go`, and `bf641607daae037bdd2a111efa9d6ca7725803bbe2b49088225439002d2f8817`
+for `reader_members.go`, and
+`39b95e670ec4b1259c1c1b1fa8e4131de8d86fc7059cfbbf73e5e35df470b156`
 for `singleton_test.go`.
 
 ## Deployment gate
