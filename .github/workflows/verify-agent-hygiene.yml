@@ -71,6 +71,9 @@ jobs:
       - name: Run Muse hooks port test mirror
         run: scripts/test-muse-hooks.sh
 
+      - name: Run Cursor hooks port test mirror
+        run: scripts/test-cursor-hooks.sh
+
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10

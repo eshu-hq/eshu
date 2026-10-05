@@ -34,6 +34,7 @@ rebuilding the whole snapshot, which only works for a hook that needs no path.
 
 Muse Code runs the same files through envelope-translating wrappers in
 `.muse/hooks/` (wired by `.muse/hooks.json`): see [Muse Hooks](agent-hooks-muse.md).
+Cursor runs them through `scripts/cursor-hook.py`: see [Cursor Hooks](agent-hooks-cursor.md).
 
 ## Why the nudge blocks instead of suggesting
 
