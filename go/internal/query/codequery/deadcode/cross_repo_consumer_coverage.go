@@ -34,6 +34,10 @@ type crossRepoDeadCodeCoverageStore interface {
 type crossRepoDeadCodeConsumerCoverageResult struct {
 	Checked     bool
 	Unavailable bool
+	// Named is true when the request named its own consumer_repo_ids, so the
+	// gaps are the repositories the caller named and the advice must not tell
+	// them to name repositories again (#7594).
+	Named bool
 	code.CrossRepoDeadCodeCoverage
 }
 
@@ -51,7 +55,9 @@ func (c crossRepoDeadCodeConsumerCoverageResult) incomplete() bool {
 // retryable); incomplete_repo_ids is the same list's ids, kept for callers that
 // read it before the detail existed. retryable is a hint, true only when a
 // snapshot is expected for every gap without action: see code.CrossRepoDeadCodeCoverage.Retryable. generation_id
-// is left out for a repository with no active scope, which has none.
+// is left out for a repository with no active scope, which has none. reason and
+// next_step are plain-language text derived from state, and coverage_summary is
+// one sentence over the listed gaps (#7594).
 func (c crossRepoDeadCodeConsumerCoverageResult) summary() map[string]any {
 	if !c.Checked || c.Unavailable {
 		return nil
@@ -66,10 +72,15 @@ func (c crossRepoDeadCodeConsumerCoverageResult) summary() map[string]any {
 		if gap.GenerationID != "" {
 			entry["generation_id"] = gap.GenerationID
 		}
+		if reason, nextStep := coverageGapText(gap.State, c.Named); reason != "" {
+			entry["reason"] = reason
+			entry["next_step"] = nextStep
+		}
 		incomplete = append(incomplete, entry)
 	}
 	return map[string]any{
 		"complete":             c.Complete(),
+		"coverage_summary":     coverageSummary(c.CrossRepoDeadCodeCoverage, c.Named),
 		"retryable":            c.Retryable(),
 		"incomplete":           incomplete,
 		"incomplete_repo_ids":  c.IncompleteRepositoryIDs(),
@@ -130,6 +141,7 @@ func (a *Analyzer) crossRepoDeadCodeConsumerCoverage(
 	}
 	return crossRepoDeadCodeConsumerCoverageResult{
 		Checked:                   true,
+		Named:                     len(consumerRepoIDs) > 0,
 		CrossRepoDeadCodeCoverage: coverage,
 	}, nil
 }

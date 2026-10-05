@@ -92,5 +92,9 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `consumer_coverage_incomplete`; the response's `consumer_coverage` object
   names the incomplete repositories, each with a `state` (`no_snapshot_yet`,
   `older_epoch`, `truncated`, `no_active_scope`), the `generation_id` and a
-  `retryable` hint (a snapshot is expected without action; not a promise). See
-  `docs/public/reference/dead-code-reachability-spec.md`.
+  `retryable` hint (a snapshot is expected without action; not a promise). Each
+  entry also carries a plain-language `reason` and `next_step`, and
+  `consumer_coverage` a `coverage_summary` sentence (#7594); all three are text
+  derived in memory from `state` and whether the request named its own
+  `consumer_repo_ids` (`cross_repo_consumer_coverage_text.go`), with no
+  query. See `docs/public/reference/dead-code-reachability-spec.md`.

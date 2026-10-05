@@ -73,13 +73,14 @@ calls stays `live_by_consumer`. A store that cannot answer the check yields
 `cross_repo_evidence_unavailable`, never `dead`.
 
 The response carries `consumer_coverage`: `complete`, `retryable`, `incomplete`,
-`incomplete_repo_ids` (at most 25) and `incomplete_truncated`. It is omitted when
+`incomplete_repo_ids` (at most 25), `incomplete_truncated` and `coverage_summary`. It is omitted when
 the check did not produce an answer: no candidate needed classifying, the
 evidence read was unavailable, or the store cannot answer the check.
 
 `incomplete` says why each repository is a gap and whether a snapshot is expected
 without action.
-Each entry has `repository_id`, `state`, `generation_id` and `retryable`:
+Each entry has `repository_id`, `state`, `generation_id`, `retryable`, and a
+plain-language `reason` and `next_step` (#7594):
 
 | `state` | Meaning | `retryable` |
 | --- | --- | --- |
@@ -87,6 +88,29 @@ Each entry has `repository_id`, `state`, `generation_id` and `retryable`:
 | `older_epoch` | The snapshot was built under an older verdict schema epoch and is expected to refresh. | `true` |
 | `truncated` | The snapshot is current but cannot prove a symbol is not called (no roots, or a depth cutoff). | `false` |
 | `no_active_scope` | A repository the request named has no active repository scope, so nothing is being built. | `false` |
+
+`reason` and `next_step` are fixed text per `state`, derived from the state
+alone, with no extra query. For `truncated` the reason says Eshu cannot tell
+which cause applies: the watermark stores only a boolean, so "no entry points
+found" and "the walk hit its depth or size limit" look the same. They are left
+out for a state this version does not know. The advice for a snapshot that
+should clear by itself is a hint, like `retryable`, not a promise.
+
+A request that named its own `consumer_repo_ids` is not told to name them
+again: the gaps are the repositories it named. For `truncated` its `next_step`
+is `Waiting will not clear this. Check whether this repository's framework
+entry points are modeled.`, and `coverage_summary` ends with `Check whether
+their framework entry points are modeled.`
+
+`coverage_summary` is one sentence for the whole list, such as `12 repositories
+cannot be judged yet: 3 of them should clear on their own, 9 will not. Name the
+repositories you care about with consumer_repo_ids.` It counts only the listed
+gaps, because the check never counts the repositories it checked. When the list
+is cut it says `At least N repositories` and `the list was cut`, with no cap
+quoted, because the cut list can hold fewer than the cap. When every listed gap
+is an id that is not indexed, it ends with `Check the ids, or index the
+repositories.` A complete answer
+says `No repository checked has a coverage gap.`
 
 `generation_id` is the repository scope's active generation, the snapshot
 expected. It is left out for `no_active_scope`. One watermark that is both
