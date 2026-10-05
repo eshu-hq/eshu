@@ -324,6 +324,10 @@ parent parser engine and runtime instrumentation. It emits two structured
 
 ## Gotchas / invariants
 
+Cross-repository call keys (`package_keys.go`, #7601) must never name a symbol
+they cannot prove; a bare import is keyed only when a manifest declares it. See
+`doc.go` for the stamped fields and unkeyed shapes; the `engine_package_*` tests pin each.
+
 `Parse` accepts a `ParserFactory` instead of a parent Engine so the child
 package cannot depend on `internal/parser`.
 

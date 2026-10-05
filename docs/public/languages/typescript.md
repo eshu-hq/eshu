@@ -21,6 +21,7 @@ This page describes the current Go parser and query contract for TypeScript.
 | Type metadata | Type parameters, mapped and conditional type aliases, decorators, type references, and declaration-merge metadata. |
 | Framework and package roots | JavaScript-family Node package, React, Next.js, Express, Koa, Fastify, NestJS, Hapi, AWS SDK, and GCP SDK packs. |
 | Query surfacing | `code/language-query`, `code/search`, entity resolve/context, relationships, complexity, and dead-code responses preserve TypeScript metadata when graph or content rows carry it. |
+| Cross-repository package calls | A real call bound to a bare package import that a `package.json` between the file and the repository root declares as a dependency (`local()`, `new Local()`, `<Local />`, `ns.member()` on a namespace import) carries `package_export_symbol`; an exported top-level function or class carries `package_id` (nearest `package.json` name) and `export_name`. The reducer links the call only when exactly one indexed definition carries the key. Type references, type-only imports, subpaths, default-import members, static or instance method calls, export clauses, and CommonJS producers are not linked yet (#7601). |
 
 ## Capability Claim Ledger
 

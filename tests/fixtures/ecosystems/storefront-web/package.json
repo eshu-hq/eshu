@@ -1,0 +1,10 @@
+{
+  "name": "@acme/storefront-web",
+  "version": "1.0.0",
+  "description": "Checkout page that consumes @acme/format-kit (#7601 cross-repository JS call keys).",
+  "license": "MIT",
+  "exports": "./dist/index.js",
+  "dependencies": {
+    "@acme/format-kit": "^1.0.0"
+  }
+}

@@ -32,6 +32,11 @@ one. It is a leaf package: nothing here may import `javascript`.
   root evidence (entrypoint, bin, script, export) for one source file.
 - `NearestPackageRoot(repoRoot, path) (string, bool)` — closest owning
   `package.json` directory for a source path.
+- `NearestPackageName(repoRoot, path) string` — the trimmed `name` of the
+  nearest `package.json`, or `""` when it has none (#7601 `package_id`).
+- `DeclaredDependencies(repoRoot, path) map[string]struct{}` — union of the
+  dependency, dev, peer, and optional dependency names of every `package.json`
+  from the file up to the repo root (#7601 consumer keys).
 - `PackagePublicSourcePaths(repoRoot, path) []string` — absolute source paths
   exposed through the nearest `package.json`'s `exports`/`types` fields.
 - `RelativeSlashPath(repoRoot, path) (string, bool)`, `CleanPath(path) string`,

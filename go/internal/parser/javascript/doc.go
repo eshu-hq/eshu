@@ -29,6 +29,18 @@
 // source file sharing the same nearest config reuses one read and one parse
 // instead of repeating both per file.
 //
+// Cross-repository call keys (#7601, package_keys.go): an exported top-level
+// function or class carries package_id (the nearest package.json name) and
+// export_name; a default export is keyed only in the main or module entry
+// file. A real call (function_call, constructor_call, jsx_component) bound to a
+// bare package import carries package_export_symbol =
+// "package:<source>#<imported name>", but only when a package.json between the
+// file and the repository root declares that package in a dependency field
+// (project.DeclaredDependencies). An undeclared bare name (a jsconfig or
+// bundler alias, a Node.js built-in) stays unkeyed, as do type references,
+// type-only imports, subpaths, in-repo imports, deep chains, default-import
+// members, and names the file declares again.
+//
 // Three leaf subpackages carry work that does not need the parse lifecycle,
 // and none of them may import this package back (issue #6771):
 // project resolves a file's tsconfig.json/package.json context from the

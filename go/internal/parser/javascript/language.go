@@ -83,6 +83,7 @@ func Parse(
 	commonJSModuleAliases := rootIndexes.commonJSModuleAliases
 	tsConfigImports := project.NewTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := rootIndexes.newExpressionTypes
+	packageExports := newPackageExportStamper(repoRoot, path, deadCodeRoots.FileRootKinds, parents)
 	fastifyBases := rootIndexes.fastifyBases
 
 	// Gate the gather on framework presence. Non-framework files (the
@@ -106,11 +107,11 @@ func Parse(
 		switch node.Kind() {
 		case "function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
+			packageExports.stamp(appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats), node)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "generator_function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
+			packageExports.stamp(appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats), node)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
@@ -140,6 +141,7 @@ func Parse(
 			if rootKinds := deadcode.RootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 				classItem["dead_code_root_kinds"] = rootKinds
 			}
+			packageExports.stamp(classItem, node)
 			appendBucket(payload, "classes", classItem)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "interface_declaration":
@@ -201,7 +203,7 @@ func Parse(
 			}
 			valueNode := node.ChildByFieldName("value")
 			if syntax.IsFunctionValue(valueNode) {
-				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
+				packageExports.stamp(appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats), node)
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 				return
 			}
@@ -367,6 +369,7 @@ func Parse(
 		}
 	})
 
+	annotatePackageImportCalls(payload, root, source, parents, repoRoot, path)
 	syntax.AppendTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")
@@ -407,6 +410,8 @@ func PreScan(
 	return preScanNames(parserFactory, parserReturner, path, runtimeLanguage, outputLanguage)
 }
 
+// appendFunctionDeclaration appends one functions item and returns it, or
+// returns nil when the declaration has no name.
 func appendFunctionDeclaration(
 	payload map[string]any,
 	path string,
@@ -418,10 +423,10 @@ func appendFunctionDeclaration(
 	deadCodeRoots deadcode.Evidence,
 	fpHasError bool,
 	fpStats *fingerprint.Stats,
-) {
+) map[string]any {
 	name := syntax.FunctionName(nameNode, source)
 	if strings.TrimSpace(name) == "" {
-		return
+		return nil
 	}
 
 	declarationNode := node
@@ -479,4 +484,5 @@ func appendFunctionDeclaration(
 		fpStats.Record(fingerprint.ReasonNoBody, 0)
 	}
 	appendBucket(payload, "functions", item)
+	return item
 }
