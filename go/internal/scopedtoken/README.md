@@ -32,6 +32,14 @@ per-team token reads only its onboarded scope.
   service-principal API tokens from `identity_token_metadata`, active identity
   subjects, active role assignments, and active repository/scope targets. It
   records `last_used_at` after a successful lookup.
+  A transient store failure (a lost or refused connection, a timeout, or a writer
+  refused for a topology mismatch) returns an error wrapping
+  `querycontract.ErrIdentityStoreUnavailable` so the auth middleware answers a
+  retryable `503` instead of a `401` (#7586); every other store error is returned
+  unchanged and stays a bare `401`. `WithTelemetry(logger, instruments)` attaches
+  the `auth.identity_store.unavailable` log event and the
+  `eshu_dp_auth_identity_store_unavailable_total` counter (labeled by
+  `failure_class`: `unavailable`, `timeout`, `topology`); call it during wiring.
 - `ChainResolvers(...)` composes generated identity tokens, the optional file
   registry, and any future scoped resolver without changing shared-token
   compatibility fallback.

@@ -36,6 +36,11 @@
 // unavailable reader that also hit a deadline (a pool-wait, dial, or
 // identity-check timeout inside the replay window), to a retryable 503 without importing each other (#7523).
 //
+// ErrWrongTopology is the shared identity for a PostgreSQL role, database,
+// system identity, or primary history that differs from the one the access was
+// bootstrapped against. runtime/postgres returns it and the identity resolver
+// matches it, without importing each other (#7586).
+//
 // ReaderStage, StageTimings, WithStageTimings, and StageTimingsFrom are the
 // per-request accounting of guarded-reader stage time (#7545): the query layer
 // attaches an accumulator to the context of one read, runtime/postgres adds the

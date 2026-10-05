@@ -60,6 +60,12 @@ transaction, or a raw connection.
 - `SearchIndexTermCopyUnsupportedError` -- typed error a driver-capability
   check returns; satisfies `UnsupportedSearchIndexTermCopy() bool` for
   `errors.As` callers.
+- `ErrWrongTopology` -- the shared sentinel for a PostgreSQL role, database,
+  system identity, or primary history that differs from the one the access was
+  bootstrapped against (#7586). It is permanent until the process restarts.
+  `internal/runtime/postgres` re-exports the same value, and the identity
+  resolver matches it to report `failure_class=topology` without importing the
+  pool.
 - `ErrReaderStale` / `ErrReaderUnavailable` / `ReaderRetryAfterSeconds` --
   shared guarded-reader failure sentinels and the retry hint the query layer
   sends with the resulting 503 (#7523); `runtime/postgres` re-exports the

@@ -323,6 +323,14 @@ canceled context and a live-context error keep their own mapping, and an error
 that already carries `ErrGraphUnavailable` stays a 503, so the handler's
 `failure_class` log and its response agree.
 
+`ErrIdentityStoreUnavailable`, `IdentityStoreUnavailableEnvelope`, and
+`WriteIdentityStoreUnavailable` are the auth-side sibling (#7586): a credential
+the identity store could not evaluate answers the same retryable `503`
+`backend_unavailable` with `Retry-After`, the fixed
+`identity store temporarily unavailable; retry shortly` message, and no
+`WWW-Authenticate` challenge. The verdict is marked retryable per envelope, like
+the reader fence below.
+
 `WriteGraphReadError` and `GraphReadErrorEnvelope` also map a guarded
 PostgreSQL reader that was stale (`db.ErrReaderStale`) or whose connection
 acquisition (pool wait or dial) or identity check timed out inside the replay

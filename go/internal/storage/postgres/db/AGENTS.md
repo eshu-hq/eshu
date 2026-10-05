@@ -41,8 +41,10 @@
   importing each other (#7523). `ErrReaderUnavailable` is a classification
   marker, not a transience promise: only with `context.DeadlineExceeded` (a
   pool-wait, dial, or identity-check timeout inside the replay window) does the
-  query layer answer a retryable 503. Add no other
-  error or policy here.
+  query layer answer a retryable 503. `ErrWrongTopology` joins them for the same
+  reason (#7586): `runtime/postgres` returns it and the identity resolver
+  matches it to label a permanent writer refusal `failure_class=topology`
+  without importing the pool. Add no other error or policy here.
 - Standard library only (`context`, `database/sql`, `fmt`, `strings`, `sync/atomic`, `time`). No
   I/O, no SQL text, no migration state, no telemetry, no Eshu import --
   importing the postgres root (directly or transitively) would recreate the

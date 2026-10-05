@@ -153,6 +153,23 @@ dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and
 still answer `500` until they are routed through the shared helper.
 
+A bearer credential is checked against the PostgreSQL identity store. When that
+store cannot answer (a lost or refused connection, or a statement timeout), the
+credential is not judged either way, so the API does not answer `401`. It
+answers `503` `backend_unavailable` with `Retry-After: 2`, the fixed message
+`identity store temporarily unavailable; retry shortly`, and no
+`WWW-Authenticate` challenge, and it records a governance-audit decision of
+`unavailable` with reason `identity_store_unavailable` instead of a denial. The
+handler never runs, so an unevaluated credential is never admitted. Every other
+resolver failure, such as a rejected statement or a client disconnect, still
+answers a bare `401`. An operator sees the failure on the
+`auth.identity_store.unavailable` log event and the
+`eshu_dp_auth_identity_store_unavailable_total` counter, labeled by
+`failure_class`: `unavailable` and `timeout` are transient, and `topology` means
+the writer was refused because the primary it was bootstrapped against was
+replaced (a promotion or a restore), which does not clear until the API process
+restarts.
+
 A failed Postgres call on the API and MCP server answers `500`, `503`, or `504`
 per the handler, and its detail never carries the driver's own message, which
 names the database user, the database, and the dialed address on a connection
