@@ -450,6 +450,8 @@ func (cr *ContentReader) ListRepoEntities(ctx context.Context, repoID string, li
 
 // scopedCodeTopicFileBranch preserves the measured explicit-repository
 // single-statement file probe. The caller must supply the repository filter.
+// Keep path/content pool accounting in sync with codetopicparallel.FileBranch;
+// only the term binding differs.
 func scopedCodeTopicFileBranch(termArg int, where string, candidateCap int) string {
 	termParam := fmt.Sprintf("term_param AS MATERIALIZED (SELECT $%d::text AS term),\n\t\t  ", termArg)
 	contentTerm := "(SELECT term FROM term_param)"
