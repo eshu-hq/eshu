@@ -36,8 +36,9 @@ schema, API, MCP, or telemetry code changed.
   `new ns.Member(` and `<ns.Member />`) for a namespace import
   (`import * as ns`, `const ns = require("pkg")`, `import ns = require("pkg")`).
   `TestDefaultEngineParsePathTSXStampsConsumerPackageExportSymbols` covers all
-  three spellings (`fmt`, `util`, `pm`); `pm2`, an import-equals of an
-  undeclared package, stays unkeyed.
+  three spellings (`fmt`, `util`, `pm`) and the three namespace call kinds
+  (`fmt.formatPrice(`, `new fmt.PriceFormatter(`, `<fmt.Badge />`); `pm2`, an
+  import-equals of an undeclared package, stays unkeyed.
 
 ## Edge cases
 
@@ -57,7 +58,7 @@ schema, API, MCP, or telemetry code changed.
 | `D.member()` on a default import | No key. `render()` on a default import is keyed as `#default`, but `render.member()` is not: a default export is often an instance or a class, so the member is a method, not a named export (`import logger from "pkg"; logger.info()` keyed as `package:pkg#info` could resolve to an unrelated named export). The earlier ruling's wording, "`ns.member(` when ns is a namespace or default import", was wrong for default imports (arbiter ruling on #7601). Default-import members and static and instance method calls come together in the next shape pull request | same test (`render`, `render.member`) |
 | Name declared again in the file (parameter, variable, destructuring, catch, function or class name) | No key for that name anywhere in the file | same test (`shadowed`, `dup`, `destructured`, `caught`) |
 | Name in a comment or a string | Ignored; the real call is still keyed | same test (`formatPrice`) |
-| Same local name bound twice to different targets | No key | `packageImportBindings` |
+| Same local name bound twice to different targets (two static imports of `twice` from two declared packages) | No key. A real toolchain rejects the duplicate import, but tree-sitter parses it | `TestDefaultEngineParsePathTSXStampsConsumerPackageExportSymbols` (`twice`) |
 | Non-exported helper with an exported name elsewhere | Helper gets no key | `TestDefaultEngineParsePathTypeScriptStampsProducerPackageExportKeys` (`inner`) |
 | Default export of an internal module | No key | `TestDefaultEngineParsePathTypeScriptKeepsDefaultExportKeysToPackageEntryFiles` |
 | Default export of a file matched by a subpath `exports` pattern | No key; a package with only `exports` and no `main` or `module` gets no default key (a miss) | `TestDefaultEngineParsePathTypeScriptKeepsDefaultExportKeysOffSubpathExports` |

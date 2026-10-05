@@ -222,6 +222,8 @@ import { shadowed } from "@acme/shadow";
 import { dup } from "@acme/dup";
 import { destructured } from "@acme/destructured";
 import { caught } from "@acme/caught";
+import { twice } from "@acme/dup";
+import { twice } from "@acme/destructured";
 const util = require("@acme/util");
 const { pick } = require("@acme/util");
 import pm = require("@acme/format");
@@ -251,7 +253,13 @@ export function Page(amount: Money, formatter: PF) {
   caught();
   // formatPrice in a comment and "formatPrice" in a string bind nothing.
   const label = "formatPrice";
-  return <Button />;
+  twice();
+  return (
+    <div>
+      <Button />
+      <fmt.Badge />
+    </div>
+  );
 }
 
 function withPattern({ destructured }: { destructured: number }) {
@@ -287,6 +295,7 @@ function withLocal() {
 		{"pm.formatPrice", "function_call", "package:@acme/format#formatPrice"},
 		{"pm2.x", "function_call", ""}, // import-equals of an undeclared package
 		{"fmt.PriceFormatter", "constructor_call", "package:@acme/format#PriceFormatter"},
+		{"fmt.Badge", "jsx_component", "package:@acme/format#Badge"},
 		{"util.pick", "function_call", "package:@acme/util#pick"},
 		{"pick", "function_call", "package:@acme/util#pick"},
 		{"Button", "jsx_component", "package:@acme/ui#Button"},
@@ -303,6 +312,11 @@ function withLocal() {
 		{"local", "function_call", ""},
 		{"shadowed", "function_call", ""},
 		{"dup", "function_call", ""},
+		// twice is imported twice from two declared packages. A real toolchain
+		// rejects the duplicate import as a SyntaxError, but tree-sitter parses
+		// it, and the double-binding guard exists for such messy inputs: a name
+		// bound to two different targets is never keyed.
+		{"twice", "function_call", ""},
 		{"destructured", "function_call", ""},
 		{"caught", "function_call", ""},
 		// Type references stay emitted for type liveness and carry no key.
