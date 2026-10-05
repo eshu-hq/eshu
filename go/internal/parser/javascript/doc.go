@@ -31,7 +31,8 @@
 //
 // Cross-repository call keys (#7601, package_keys.go): an exported top-level
 // function or class carries package_id (the nearest package.json name) and
-// export_name; a default export is keyed only in a package entry file. A real
+// export_name; a default export is keyed only in the main or module entry
+// file. A real
 // call (function_call, constructor_call, jsx_component) bound to a bare package
 // import carries package_export_symbol = "package:<source>#<imported name>".
 // Type references, type-only imports, subpaths, in-repo imports, deep chains,

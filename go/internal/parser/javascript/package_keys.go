@@ -35,9 +35,10 @@ var packageKeyCallKinds = map[string]struct{}{
 // top-level declarations of one file.
 type packageExportStamper struct {
 	packageName string
-	// entryFile is true when the package manifest names this file as an entry
-	// or export target. Only such a file's default export is the package's
-	// default export.
+	// entryFile is true when the manifest's main or module field names this
+	// file. Only such a file's default export is the package's default export.
+	// An exports target is not enough: a subpath pattern ("./plugin/*") marks
+	// files whose default is the default of "pkg/plugin/x", not of "pkg".
 	entryFile bool
 	parents   *syntax.ParentLookup
 }
@@ -45,9 +46,8 @@ type packageExportStamper struct {
 func newPackageExportStamper(repoRoot string, path string, fileRootKinds []string, parents *syntax.ParentLookup) packageExportStamper {
 	return packageExportStamper{
 		packageName: project.NearestPackageName(repoRoot, path),
-		entryFile: slices.Contains(fileRootKinds, "javascript.node_package_entrypoint") ||
-			slices.Contains(fileRootKinds, "javascript.node_package_export"),
-		parents: parents,
+		entryFile:   slices.Contains(fileRootKinds, "javascript.node_package_entrypoint"),
+		parents:     parents,
 	}
 }
 
@@ -68,7 +68,7 @@ func (s packageExportStamper) stamp(item map[string]any, node *tree_sitter.Node)
 
 // exportName returns the name node is exported under, or "" when node is not
 // a top-level export. Accepted shapes are `export function|class X`,
-// `export default function|class X` (entry files only), and
+// `export default function|class X` (main or module entry file only), and
 // `export const|let|var X = <function>`. The export must sit directly under
 // the program, so a member of a TypeScript namespace or `declare module` block
 // is not a package export.

@@ -141,6 +141,32 @@ export function namedHelper() {}
 	}
 }
 
+func TestDefaultEngineParsePathTypeScriptKeepsDefaultExportKeysOffSubpathExports(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "name": "@acme/format",
+  "main": "dist/index.js",
+  "exports": {".": "./dist/index.js", "./plugin/*": "./dist/plugin/*.js"}
+}`)
+	pluginPath := filepath.Join(repoRoot, "src", "plugin", "audit.ts")
+	writeTestFile(t, pluginPath, "export default function audit() {}\n")
+	entryPath := filepath.Join(repoRoot, "src", "index.ts")
+	writeTestFile(t, entryPath, "export default function render() {}\n")
+
+	// The plugin file's default export is the default of "@acme/format/plugin/audit",
+	// not of "@acme/format", so it must not claim package:@acme/format#default.
+	plugin := parsePackageKeyFixture(t, repoRoot, pluginPath)
+	if gotID, gotExport := definitionKeys(t, plugin, "functions", "audit"); gotID != "" || gotExport != "" {
+		t.Errorf("subpath default export keys = (%q, %q), want none", gotID, gotExport)
+	}
+	entry := parsePackageKeyFixture(t, repoRoot, entryPath)
+	if gotID, gotExport := definitionKeys(t, entry, "functions", "render"); gotID != "@acme/format" || gotExport != "default" {
+		t.Errorf("main entry default export keys = (%q, %q), want (@acme/format, default)", gotID, gotExport)
+	}
+}
+
 func TestDefaultEngineParsePathTypeScriptSkipsProducerKeysWithoutNamedManifest(t *testing.T) {
 	t.Parallel()
 

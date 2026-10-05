@@ -19,8 +19,10 @@ schema, API, MCP, or telemetry code changed.
   `project.NearestPackageName`) and `export_name`. The export must sit directly
   under the program, so methods, nested functions, and members of a TypeScript
   `namespace` or `declare module` block get no key. `export default` is keyed
-  as `default`, and only in a file the manifest names as an entry or export
-  target. A file whose nearest manifest has no string name gets no key.
+  as `default`, and only in the file the manifest's `main` or `module` field
+  names. An `exports` target is not enough: a subpath pattern such as
+  `"./plugin/*"` marks files whose default belongs to `pkg/plugin/x`, not to
+  `pkg`. A file whose nearest manifest has no string name gets no key.
 - **Consumer.** After the declaration walk, `annotatePackageImportCalls`
   binds each `function_call`, `constructor_call`, and `jsx_component` to the
   file's `imports` rows. A call gets
@@ -47,6 +49,7 @@ schema, API, MCP, or telemetry code changed.
 | Same local name bound twice to different targets | No key | `packageImportBindings` |
 | Non-exported helper with an exported name elsewhere | Helper gets no key | `TestDefaultEngineParsePathTypeScriptStampsProducerPackageExportKeys` (`inner`) |
 | Default export of an internal module | No key | `TestDefaultEngineParsePathTypeScriptKeepsDefaultExportKeysToPackageEntryFiles` |
+| Default export of a file matched by a subpath `exports` pattern | No key; a package with only `exports` and no `main` or `module` gets no default key (a miss) | `TestDefaultEngineParsePathTypeScriptKeepsDefaultExportKeysOffSubpathExports` |
 | No manifest, unnamed manifest, non-string name | No producer key | `TestDefaultEngineParsePathTypeScriptSkipsProducerKeysWithoutNamedManifest` |
 | Call in a test file | Keyed like any other call (arbiter ruling) | `TestDefaultEngineParsePathTypeScriptKeysTestFileCalls` |
 | Two repositories publish the same name | Two definitions carry the key; the reducer leaves it unresolved | `TestExtractRowsLeavesParsedJavaScriptPackageImportUnresolvedWhenTwoProducersShareTheName`, golden `package_import_published_twice_unresolved` |
@@ -179,3 +182,20 @@ arbiter decision before merge.
 - Live graph and query proof, and the golden-corpus predicate described above.
 - The replica shape split of the investigation's 2,602 strict calls:
   NOT_CHECKED. The split above comes from parser output on 22 repositories.
+
+## Changes after the measurements
+
+Review found that a file matched by a subpath `exports` pattern could claim the
+package's `#default` key. The fix (default keys only for the `main` or `module`
+entry file) landed after the corpus check and the benchmarks, which ran on
+`0392ce9de`. It only removes one membership test from the producer step, and
+none of the 78 resolved calls, and no producer definition in that run, used a
+`#default` key, so those results still hold.
+
+A JSX call (`<Local />`) that resolves projects as a `REFERENCES` edge, not
+`CALLS`, through the existing code-call writer.
+
+One residual risk for ops-qa: a bundler alias that looks bare and has no
+`resolved_source` (`import { x } from "api"`) can match an unscoped corpus
+manifest with the same name. A replica query listing unscoped manifest names
+would size it.
