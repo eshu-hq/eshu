@@ -148,3 +148,39 @@ VALUES ('prune-obligation', 'prune-leased', 'w', 'leased', 'o', clock_timestamp(
 		t.Fatalf("oldest open age = %s, want the five-hour leased row", stats.OldestOpenAge)
 	}
 }
+
+// TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive (D1R-2,
+// kills the CTE-only state-filter mutant M17): inapplicable rows are terminal
+// and never pruned, so when one is older than every completed row the prune
+// must still delete the completed row instead of selecting the inapplicable
+// one first and deleting nothing.
+func TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive(t *testing.T) {
+	ctx, database := openActivationObligationProofDB(t, "activation_prune_starve")
+	seedRetentionSelectionScope(t, ctx, database, "prune-starve")
+	for _, s := range []struct{ generation, state, finished string }{
+		{"prune-starve-inapplicable", "inapplicable", "clock_timestamp() - interval '5 hours'"},
+		{"prune-starve-completed", "completed", "clock_timestamp() - interval '2 hours'"},
+	} {
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, superseded_at)
+VALUES ($1, 'prune-starve', 'snapshot', now(), now(), 'superseded', now())`, s.generation); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO activation_obligations (scope_id, generation_id, work_item_id, state, finished_at)
+VALUES ('prune-starve', $1, 'w', $2, `+s.finished+`)`, s.generation, s.state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deleted, err := activation.NewStore(SQLDB{DB: database}).Prune(ctx, time.Hour, 1)
+	if err != nil || deleted != 1 {
+		t.Fatalf("Prune(limit=1) deleted %d err=%v, want the completed row", deleted, err)
+	}
+	var remaining string
+	if err := database.QueryRowContext(ctx, `SELECT string_agg(generation_id, ',') FROM activation_obligations`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != "prune-starve-inapplicable" {
+		t.Fatalf("remaining obligations = %q, want only the inapplicable row", remaining)
+	}
+}

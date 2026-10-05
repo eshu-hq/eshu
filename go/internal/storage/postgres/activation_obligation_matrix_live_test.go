@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -199,4 +200,36 @@ func TestActivationObligationConsumerSupersessionLive(t *testing.T) {
 	if got := f.obligationRow(t, newer.GenerationID); got == "" {
 		t.Fatal("successor obligation absent")
 	}
+}
+
+// TestActivationObligationWakeIsNotStarvedByOtherClassRowsLive (D1R-2,
+// kills the CTE-only class-filter mutant M12): more than one wake batch of
+// retrying deployment_mapping rows of another failure class sort ahead of the
+// one not-ready row. The wake must still reach the not-ready row and the
+// obligation must complete; a wake whose row selection ignored the class
+// would fill its batch with rows its UPDATE then drops, forever.
+func TestActivationObligationWakeIsNotStarvedByOtherClassRowsLive(t *testing.T) {
+	f := newActivationMatrix(t, "activation_wake_starve", true)
+	for i := 0; i <= activation.WakeBatchLimit; i++ {
+		other := f.enqueueClaim(t, reducer.DomainDeploymentMapping, f.scope, f.gen, fmt.Sprintf("a-other-%02d", i))
+		if err := f.reducerQ.Fail(f.ctx, other, activationRetryable{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wake := f.notReady(t, f.scope, f.gen, "z-wake")
+	var ahead int
+	if err := f.db.QueryRowContext(f.ctx, `SELECT count(*) FROM fact_work_items
+WHERE scope_id = $1 AND generation_id = $2 AND domain = 'deployment_mapping' AND status = 'retrying'
+  AND failure_class <> 'cross_repo_backward_evidence_not_ready' AND work_item_id < $3`,
+		f.scope, f.gen, wake).Scan(&ahead); err != nil || ahead <= activation.WakeBatchLimit {
+		t.Fatalf("fixture needs more than %d other-class rows ahead of the wake row: %d err=%v",
+			activation.WakeBatchLimit, ahead, err)
+	}
+	f.maintenance(t)
+	obligation := f.claimObligation(t, "starve-owner", time.Minute, f.gen)
+	result, err := f.oblig.Finalize(f.ctx, *obligation)
+	if err != nil || result.Outcome != activation.OutcomeCompleted || result.Woken != 1 {
+		t.Fatalf("finalize = %+v err=%v, want completed with the one not-ready row woken", result, err)
+	}
+	f.mustClaimable(t, wake)
 }

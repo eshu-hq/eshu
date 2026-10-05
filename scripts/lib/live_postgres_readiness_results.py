@@ -72,15 +72,18 @@ PACKAGES = {
             "TestActivationObligationConsumerRollbackAndIdentityLive",
             "TestActivationObligationConsumerNoPhaseSubstitutionLive",
             "TestActivationObligationConsumerSupersessionLive",
+            "TestActivationObligationWakeIsNotStarvedByOtherClassRowsLive",
         ),
         "go/internal/storage/postgres/activation_obligation_recovery_live_test.go": (
             "TestActivationObligationConsumerRestartAndDuplicatesLive",
             "TestActivationObligationConsumerWakeBatchCapLive",
             "TestActivationObligationCatchUpLive",
+            "TestActivationObligationCatchUpReowesObsoleteOfActiveLive",
         ),
         "go/internal/storage/postgres/activation_obligation_retention_live_test.go": (
             "TestActivationObligationRetentionCascadeLive",
             "TestActivationObligationPruneLive",
+            "TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive",
         ),
         "go/internal/storage/postgres/package_manifest_consumption_backfill_live_test.go": (
             "TestPackageManifestConsumptionBackfillRepairsOldWriterAfterReadyLive",
