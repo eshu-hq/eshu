@@ -180,7 +180,7 @@ feature supported with deterministic proof.
 | Haskell | `DefaultEngine (haskell)` | supported | supported | derived roots | module exports, typeclasses, instances, `main` | supported | fixture-backed | fixture-backed |
 | Helm | `DefaultEngine (yaml)` | - | - | unsupported | chart/template evidence only | - | - | - |
 | Java | `DefaultEngine (java)` | supported | supported | derived roots plus exact Spring MVC/WebFlux, JAX-RS, and Micronaut route entries | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | real-repo-validated | fixture-backed |
-| JavaScript | `DefaultEngine (javascript)` | supported | supported | derived roots | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence | supported | fixture-backed | fixture-backed |
+| JavaScript | `DefaultEngine (javascript)` | supported | supported | derived roots | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence | supported | supported | supported |
 | JSON Config | `DefaultEngine (json)` | - | - | unsupported | JSON metadata/config evidence only | - | - | - |
 | Kotlin | `DefaultEngine (kotlin)` | supported | supported | derived roots | Spring, Gradle, JUnit, lifecycle callbacks, interfaces, overrides, constructors | supported | fixture-backed | fixture-backed |
 | Kubernetes | `DefaultEngine (yaml)` | - | - | unsupported | workload and resource evidence only | - | - | - |
@@ -195,7 +195,7 @@ feature supported with deterministic proof.
 | Swift | `DefaultEngine (swift)` | supported | supported | derived roots | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols, constructors, overrides | supported | supported | supported |
 | Terraform | `DefaultEngine (hcl)` | supported | supported | non-code evidence | resources, modules, variables, outputs, providers, backend and state evidence | supported | supported | supported |
 | Terragrunt | `DefaultEngine (hcl)` | supported | supported | non-code evidence | includes, dependency blocks, remote state, Terraform source evidence | supported | supported | supported |
-| TypeScript | `DefaultEngine (typescript)` | supported | supported | derived roots | JavaScript-family framework roots plus interface implementations, module-contract exports, public API exports/reexports, type references | supported | fixture-backed | fixture-backed |
+| TypeScript | `DefaultEngine (typescript)` | supported | supported | derived roots | JavaScript-family framework roots plus interface implementations, module-contract exports, public API exports/reexports, type references | supported | supported | supported |
 | TypeScript JSX | `DefaultEngine (tsx)` | supported | supported | derived roots | React component evidence, component wrappers, Next.js routes/app exports, generated/test exclusions | supported | fixture-backed | fixture-backed |
 
 ## Reading The Matrix
