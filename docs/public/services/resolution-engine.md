@@ -187,7 +187,7 @@ the scope's cursor and retried after min(30 min, 30 s × 2^(n-1)). At
 `link_poisoned` chain break: the scope keeps its state, is marked poisoned, and
 links again at its next full generation.
 
-### Activation obligations (#7584, not wired yet)
+### Activation obligations (#7584, off by default)
 
 A quiet repository generation can be activated by `ProjectorQueue.Ack` after
 the ingester's last deferred-maintenance pass already ran. Nothing then
@@ -218,12 +218,15 @@ cadence, no fallback pass runs, and the epoch whole pass triggered by the
 catalog-changing commit publishes the phase). `inapplicable` rows are never
 pruned.
 
-The runner is a nil `Service.ActivationObligationRunner` field today, so no
-`cmd/reducer` environment variable exists for it yet. The shipped maintenance
-callback is still being proven: whole-corpus deferred maintenance is a test
-control arm only and must not be wired. Until the consumer is wired, obligations
-stay `pending`, one per activated generation; generation retention deletes them
-with their generation (`ON DELETE CASCADE`).
+The consumer starts only when `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=true`
+(default `false`). Its maintainer is the partition-scoped deferred maintenance
+pass on the obligation's own (scope, generation)
+(`postgres.ActivationMaintainer`); the whole-corpus pass stays on the ingester's
+drain epoch and is never run by the consumer. A pass refusal of
+`catalog_changed`, `no_memo_baseline` or `closure_too_deep` is a hold under that
+reason. While the consumer is off, obligations stay `pending`, one per activated
+generation, and generation retention deletes them with their generation
+(`ON DELETE CASCADE`).
 
 ## Domains And Projection
 
@@ -437,7 +440,7 @@ Start with:
   (retry reasons: `cursor_locked`, `generation_locked`,
   `generation_lock_timeout`, `slot_busy`; chain-break reason `prior_pruned` is
   a rebase that also counts as a linked root)
-- activation obligations (#7584, consumer not wired yet):
+- activation obligations (#7584, consumer off by default):
   `eshu_dp_activation_obligations{status}`,
   `eshu_dp_activation_obligation_oldest_open_age_seconds`,
   `eshu_dp_activation_obligation_finalize_total{outcome}`,

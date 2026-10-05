@@ -47,7 +47,15 @@ after the wake ran; the transaction rolled back.
 
 `RunnerStore` adapts `Store` to `reducer/maintenance.ActivationObligationStore`,
 the storage port of `maintenance.ActivationObligationRunner`, and maps
-`ErrLeaseLost` to `maintenance.ErrActivationLeaseLost`.
+`ErrLeaseLost` to `maintenance.ErrActivationLeaseLost`. The production
+maintenance port is `postgres.ActivationMaintainer` in the parent package (it
+needs `IngestionStore`, which this package cannot import): it runs the
+partition-scoped pass for the obligation's own partition and maps
+`not_active` to nil (Finalize retires obsolete), `inapplicable` to
+`maintenance.ErrActivationInapplicable`, the typed `catalog_changed`,
+`no_memo_baseline` and `closure_too_deep` refusals to holds, `published` to nil
+(Finalize wakes and completes), and `retry` or any other error to a
+maintenance failure.
 
 ## Foreign key policy
 
@@ -74,6 +82,9 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 - `activation_obligation_retention_live_test.go` — FK cascade and prune.
 - `activation_obligation_terminal_live_test.go` — `inapplicable` (cloud scope,
   collision loser, fenced retire), catalog-changed hold, NULL pointer.
+- `activation_obligation_targeted_live_test.go` — the production maintainer:
+  real `catalog_changed` and `no_memo_baseline` holds that complete after the
+  epoch pass, and a real collision loser retired `inapplicable`.
 
 ## Performance and observability evidence
 
@@ -81,13 +92,15 @@ No-Regression Evidence: NOT MEASURED. This slice ran on a shared host where
 timing runs were not allowed, so it carries no before/after numbers and makes
 no speed claim. What is proven is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
-test functions listed above plus the quiet-generation proof (24 in all), and
-36 of 39 distinct semantic mutations killed. Two survivors flip only the CTE
-copy of a predicate that the statement repeats on the locked row (wake
-failure class, prune state); flipping both copies is killed. The third
-removes `!active.Valid` from Finalize's pointer check, which is equivalent
-because a NULL pointer scans as an empty string that never equals a
-generation id; the mutant that treats NULL as current is killed. The structural
+test functions listed above plus the two quiet-generation proofs (27 in all),
+and 52 of 55 distinct semantic mutations killed, including every branch of
+`postgres.ActivationMaintainer`'s mapping and the wiring flag. Two survivors
+flip only the CTE copy of a predicate that the statement repeats on the
+locked row (wake failure class, prune state); flipping both copies is
+killed. The third removes `!active.Valid` from Finalize's pointer check,
+which is equivalent because a NULL pointer scans as an empty string that
+never equals a generation id; the mutant that treats NULL as current is
+killed. The structural
 bounds are as
 follows. `Ack` gains one primary-key insert (`ON CONFLICT DO NOTHING`, no read)
 inside its existing transaction, after the scope lock it already holds.

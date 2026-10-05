@@ -35,12 +35,14 @@
 // [ActivationMaintainer] port only when the generation's own
 // backward-evidence phase is missing, and finalize; one worker per process
 // also runs a bounded catch-up page, a bounded prune and the census gauges
-// each cycle. The shipped callback is not wired yet: whole-corpus
-// maintenance is a test control arm only. A maintainer answers
-// [ErrActivationInapplicable] when no repository maps to the owed partition
-// (the row retires inapplicable) or [ErrActivationCatalogChanged] when it
-// refused on a changed repository catalog (held at lease cadence, no
-// fallback pass).
+// each cycle. The production maintainer is postgres.ActivationMaintainer,
+// the partition-scoped pass on the obligation's own (scope, generation),
+// wired by cmd/reducer when ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED is
+// true; whole-corpus maintenance is a test control arm only. A maintainer
+// answers [ErrActivationInapplicable] when no repository maps to the owed
+// partition (the row retires inapplicable) or an [ActivationHoldError] built
+// by [HoldActivation] (catalog_changed, no_memo_baseline, closure_too_deep):
+// held at lease cadence, counted under its reason, no fallback pass.
 //
 // AcceptedGenerationLookup, AcceptedGenerationPrefetch, and
 // PartitionLeaseManager are declared locally as mirrors of the identically
@@ -81,6 +83,8 @@
 // [ActivationObligationStore], [ActivationMaintainer],
 // [ActivationObligation], [ActivationFinalizeResult],
 // [ActivationCatchUpPage], [ActivationStats], [ErrActivationLeaseLost],
-// [ErrActivationInapplicable], [ErrActivationCatalogChanged], and
+// [ErrActivationInapplicable], [ErrActivationCatalogChanged],
+// [ActivationHoldError], [HoldActivation], [ActivationHoldReasons], the
+// ActivationHold* reason constants, and
 // the ActivationOutcome* constants.
 package maintenance

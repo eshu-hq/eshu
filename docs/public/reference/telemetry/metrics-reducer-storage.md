@@ -183,15 +183,17 @@ id is ever a label; the per-obligation log line carries them.
 | `eshu_dp_activation_obligation_maintenance_duration_seconds` | histogram | Maintenance callback duration by `outcome` (`success`, `error`); its count is the callback count. |
 | `eshu_dp_activation_obligation_catch_up_inserted_total` | counter | Obligations owed by catch-up to already-active generations missing their phase. |
 | `eshu_dp_activation_obligation_pruned_total` | counter | Finished obligations deleted by the bounded prune. |
-| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `maintenance`, `catalog_changed`, `catch_up`, `prune`, `stats`). `catalog_changed` is a held refusal, logged at Info, not an error. |
+| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `maintenance`, `catalog_changed`, `no_memo_baseline`, `closure_too_deep`, `catch_up`, `prune`, `stats`). The three hold reasons are held refusals, logged at Info, not errors. |
 
 Alert on `eshu_dp_activation_obligation_oldest_open_age_seconds` above one epoch
 whole-pass latency plus one consumer lease (default 2 minutes). A
-`catalog_changed` refusal is expected after any repository-catalog change: the
-consumer holds the lease and retries at lease cadence, runs no fallback pass,
-and the epoch whole pass triggered by the commit that changed the catalog
-republishes the phase, so the obligation completes on the next attempt after
-that pass. Past that bound, the epoch pass is not running or not reaching the
+`catalog_changed` hold is expected after any repository-catalog change and a
+`no_memo_baseline` hold before the first whole pass writes memo rows; for both
+the consumer holds the lease and retries at lease cadence, runs no fallback
+pass, and the epoch whole pass republishes the phase, so the obligation
+completes on the next attempt after that pass. `closure_too_deep` means the
+partition-scoped pass's dependent closure did not settle within its round
+bound; it is also held until a whole pass publishes the phase. Past that bound, the epoch pass is not running or not reaching the
 scope. `inapplicable` rows are expected for cloud and cluster scopes (no
 repository fact) and for a repository whose repo_id another scope owns; they
 are terminal and never reclaimed.
