@@ -1,0 +1,47 @@
+go/cmd/mcp-server/README.md
+  s_b0d7e3abc26c5a::t_a5d1b3f56ec3e6 140-141
+  s_b0d7e3abc26c5a::t_9224b9b7866f4a 147-148
+go/internal/envregistry/entries.go
+  s_b0d7e3abc26c5a::t_9224b9b7866f4a 33
+go/internal/runtime/postgres/config.go
+  s_b0d7e3abc26c5a::t_d4d47b4d68ca93 162-163,176-177
+go/cmd/api/README.md
+  s_b0d7e3abc26c5a::t_a5d1b3f56ec3e6 155-156
+  s_b0d7e3abc26c5a::t_9224b9b7866f4a 162-163
+docs/public/deployment/postgres-read-routing.md
+  s_b0d7e3abc26c5a::t_48d4d6c9db3437 186-190
+  s_b0d7e3abc26c5a::t_9224b9b7866f4a 23,57
+  s_b0d7e3abc26c5a::t_a5d1b3f56ec3e6 76-78
+go/internal/runtime/postgres/reader_members_test.go
+  s_b0d7e3abc26c5a::t_00cddd2badfcb4 75-76,98
+go/internal/runtime/postgres/singleton_test.go
+  s_b0d7e3abc26c5a::t_a834823bf8cf5e 11,133-218
+  s_b0d7e3abc26c5a::t_da3b9132ad4e75 73
+  s_b0d7e3abc26c5a::t_1af1d61c9a1b34 1-10,12-52,56-72,74-132,219
+  s_b0d7e3abc26c5a::t_0e70040a4e5d25 53-55
+docs/internal/evidence/7033-singleton-reader-fleet.md
+  s_b0d7e3abc26c5a::t_593137b705fe80 1-83
+go/internal/runtime/postgres/README.md
+  s_b0d7e3abc26c5a::t_9224b9b7866f4a 44,65-68
+  s_b0d7e3abc26c5a::t_dfa10fec74a570 327-330
+go/internal/runtime/postgres/reader_members.go
+  s_b0d7e3abc26c5a::t_d4d47b4d68ca93 35
+docs/public/reference/env-registry.md
+  s_b0d7e3abc26c5a::t_2f83e129dc905f 356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c3f907ef7b31cc548be1be9047fc1a92dbd03707",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
