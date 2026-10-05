@@ -70,39 +70,84 @@ method calls (`Logger.create()`), members of named imports, export clauses
 
 | Axis | Proof | Status |
 | --- | --- | --- |
-| Positive | `TestExtractRowsResolvesParsedJavaScriptPackageImportAcrossRepositories` parses a producer and a consumer repository through `parser.DefaultEngine` and asserts `CALLS` rows to the producer's function and class with `resolution_method=import_binding` and the consumer's `repo_id`. Golden `package_import_resolves_across_repositories` pins the same with confidence 0.90 | Checked |
+| Positive | `TestExtractRowsResolvesParsedJavaScriptPackageImportAcrossRepositories` parses a producer and a consumer repository (the consumer manifest declares the producer) through `parser.DefaultEngine` and asserts `CALLS` rows to the producer's function and class with `resolution_method=import_binding` and the consumer's `repo_id`. Golden `package_import_resolves_across_repositories` pins the same with confidence 0.90 | Checked |
 | Negative | Every row of the edge-case table above | Checked |
 | Ambiguous | Two producers publishing one name give no cross-repository row (parser-backed test and golden). A mutation that let `uniqueCodeCallSymbolCandidates` keep two candidates made the parser-backed test fail | Checked |
-| Graph | A direct Neo4j read of the cross-repository `CALLS` edge | NOT_CHECKED; needs a live stack |
-| Query | The cross-repository dead-code route showing consumer evidence | NOT_CHECKED; needs a live stack |
+| Query | The golden query shape `POST /api/v0/code/dead-code/cross-repo?golden_scope=format-kit` (see Golden corpus) | Checked live on Neo4j (below) |
+| Graph | A direct Neo4j read of the cross-repository `CALLS` edge | NOT_CHECKED; the query shape reads the reachability rows built from that edge, not the edge itself |
 
 RED: with the parser change disabled, the positive parser-backed reducer test
 found no `renderPage -> formatPrice` row (only the consumer's own `round`).
+After the declared-dependency rule landed, the same test went red again until
+its consumer manifest declared `@acme/format`, which proves the rule is wired
+through the reducer path.
 
-### Known gap that predates this change
+### Known gap that predates this change (#7610)
 
 When a key resolves to nothing (no producer in the corpus, or two producers),
 the call still falls through to the repository-unique-name fallback. If the
 consumer has its own function with that name in another file, the call links
 there. The same call without a key resolves the same way on `origin/main`, so
-this change does not cause it, and a resolved key always wins first. Golden
-`package_import_unresolved_falls_back_to_local_name` records it with
-`falsePositiveGap`. Blocking the fallback for keyed calls would also drop true
-same-repository edges for workspace packages whose exports this parser does not
-key yet, so it needs its own measurement and issue.
+this change does not make it worse, and a resolved key always wins first.
+Golden `package_import_unresolved_falls_back_to_local_name` records it with
+`falsePositiveGap` naming #7610.
 
 ### Golden corpus
 
-No fixture pair or `rc-NN` was added. The snapshot's correlation schema can
-filter only by labels, relationship type, and `evidence_kinds`, and `CALLS`
-edges carry no evidence kinds. A new `CALLS` Function to Function correlation
-would therefore pass on any in-repository call (`rc-11` already asserts that
-shape), which is a false green. A real cross-repository assertion needs a new
-gate predicate (a Cypher read plus its performance evidence) and a live Neo4j
-recalibration run. That is left for a follow-up with the graph and query rows
-above. The `CALLS` tolerance (min 29, max 200000) cannot be crossed by this
-change. Parsing every `tests/fixtures/ecosystems/` repository with this branch
-gives 15 keyed calls and no producer key at all, so no new edge appears.
+The corpus gains a producer and consumer pair, staged from
+`scripts/lib/golden-corpus-fixtures.sh` (31 to 33 repositories):
+
+- `tests/fixtures/ecosystems/format-kit/`: `package.json` named
+  `@acme/format-kit` with no entry fields, so no export is a package root.
+  `src/index.js` exports `formatPrice` (called nowhere in the repository),
+  `formatRounded`, a private `roundCents`, and classes `Money` and `Ledger`;
+  `src/dates.js` exports `formatDate`.
+- `tests/fixtures/ecosystems/storefront-web/`: `package.json` declares
+  `@acme/format-kit` in `dependencies` and names `./dist/index.js` in
+  `exports`, so `src/index.ts`'s exported `renderCheckout` is a package-export
+  root (a function named `main` would have collided with other golden shapes
+  that search for `main`). `renderCheckout` calls `formatPrice`
+  (the keyed edge), its own `roundCents`, and `formatDate` through the
+  `@acme/format-kit/dates` subpath (unkeyed). `Money` (value import) and
+  `Ledger` (`import type`) appear only as type annotations.
+
+Parser output for those files (checked with `parser.DefaultEngine`): the only
+keyed consumer call is `formatPrice` with `package:@acme/format-kit#formatPrice`;
+`Money` and `Ledger` are `typescript.type_reference` rows with no key;
+`formatDate` and `roundCents` carry no key.
+
+No `CALLS` `rc-NN` was added: the correlation schema filters only by labels,
+relationship type, and `evidence_kinds`, so it would pass on any in-repository
+call (`rc-11` already asserts that shape). Instead, query shape
+`POST /api/v0/code/dead-code/cross-repo?golden_scope=format-kit` asks the
+cross-repo dead-code route about `format-kit` with consumer `storefront-web`
+and requires, closed on `(name, classification)`, that `formatPrice` is
+`live_by_consumer`, plus a path for its `consumer_evidence[].citation`.
+Without the cross-repository edge, `formatPrice` has no consumer evidence and
+the route classifies it `dead`, so the object match fails.
+
+Snapshot counts that move: `corpus_composition.git_repos` and the
+`Repository` ceiling go from 31 to 33 (the static test keeps both in lockstep
+with the fixture list). Every other node and edge tolerance is a wide range
+that two small repositories cannot cross; `get_repository_stats` keeps its
+floor of 31.
+
+Live B-7 run, Neo4j, on the remote validation host, 2026-10-05, from a git
+checkout of the committed branch (`ESHU_GRAPH_BACKEND=neo4j bash
+scripts/verify-golden-corpus-gate.sh`). It was not run on the local machine.
+
+- GREEN at `fb02b10cd`: `573 pass, 0 required-fail, 3 advisory-warn` and
+  `PASS: B-7 golden corpus gate green`. The new shape passed, `Repository`
+  counted 33, and `CALLS` counted 33 (29 before the fixtures). The three
+  warnings are the advisory per-phase timing bands, which are calibrated to a
+  different machine.
+- RED: `f685bae44` (no parser keys) plus only the two fixture commits:
+  `572 pass, 1 required-fail`. The one failure is this shape
+  (`live_by_consumer[]` resolved no values), and `CALLS` counted 32: the
+  cross-repository edge is the difference.
+- A first GREEN attempt failed `mcp:resolve_entity` (`count` 3, want 2) because
+  the consumer's entry function was named `main`, which that shape searches
+  for. `fb02b10cd` renamed it and roots it through `exports` instead.
 
 ## Real-corpus check
 
@@ -113,96 +158,104 @@ and the rest). Producer definitions were joined to consumer keys the way the
 loader and reducer do: a key resolves only when exactly one definition carries
 it.
 
-- 25,690 calls carried a key. Most name packages outside the corpus and can
-  never resolve.
-- 78 calls resolved, 1 key was ambiguous (three definitions), the rest had no
-  producer definition. By shape: 48 `new Local(`, 23 `local(`, 4 `ns.member(`
-  in non-test files, and 3 `new Local(` in test files.
-- All 78 resolved calls were hand-checked against consumer and producer
-  source: 78 true, 0 false. Each consumer line calls the binding imported from
-  the package, and each target is that package's exported declaration.
+| Run | Keyed calls | Resolved | Ambiguous | Resolved by shape |
+| --- | --- | --- | --- | --- |
+| `0392ce9de` (before the declared-dependency rule) | 25,690 | 78 | 1 | 48 `new Local(`, 23 `local(`, 4 `ns.member(`, 3 `new Local(` in test files |
+| `d16a06158` (declared-dependency rule) | 25,144 | 60 | 1 | 33 `new Local(`, 23 `local(`, 3 `ns.member(`, 1 `new Local(` in test files |
+
+- All 78 earlier resolved calls were hand-checked against consumer and
+  producer source: 78 true, 0 false. The 60 that still resolve are a subset of
+  those 78 (no call resolves now that did not before).
+- The 18 that dropped all import a package that no `package.json` on their
+  path declares: 15 are codemod fixture inputs in a repository that does not
+  depend on the logging package, 2 are test files importing a transitive
+  dependency, and 1 is a `require` of a transitive dependency. They were true
+  references and are now misses, which is the price of never keying an
+  undeclared bare name.
 
 Test-file hand-check (arbiter requirement): 40 keyed calls sampled from test
-files of the three named consumers (16, 14, and 10), checked against consumer
-source. 40 true, 0 false, 0 undecidable: each is a real call of the imported
-binding (mock-client helpers, assertion and render helpers, a CommonJS
-property import, a whole-module `require` member). None of the 40 resolves,
-because their producers are generated or outside the corpus, so none can
-create an edge. Under this change's shapes, the three named producers publish
-no keyed export these consumers call: one consumer calls only methods of a
-default-imported logger instance, one producer exports `require` objects, and
-one is a CommonJS object. Those pairs stay misses, not false links.
+files of the three named consumers (16, 14, and 10) on `0392ce9de`, checked
+against consumer source. 40 true, 0 false, 0 undecidable: each is a real call
+of the imported binding. The declared-dependency rule only removes keys, so
+the post-fix set is a subset. None of the 40 resolves, because their producers
+are generated or outside the corpus. Under this change's shapes, the three
+named producers publish no keyed export these consumers call: one consumer
+calls only methods of a default-imported logger instance, one producer exports
+`require` objects, and one is a CommonJS object. Those pairs stay misses, not
+false links.
 
 ## Performance
 
 Declared impact. Per file the consumer step is O(imports + calls) map work,
-plus, only when a call is keyed, one byte search per distinct bound name and an
-AST lookup per occurrence (`redeclaredImportNames`). The producer step adds one
-nearest-manifest lookup per file (a stat walk to the repository root; the
-manifest parse is cached) and O(1) parent lookups per declaration. Nothing is
-O(calls x imports).
+plus, only when a call is keyed, one walk up the directory chain reading cached
+manifests for declared dependencies, one byte search per distinct bound name,
+and an AST lookup per occurrence (`redeclaredImportNames`). The producer step
+adds one nearest-manifest lookup per file (a stat walk to the repository root;
+the manifest parse is cached) and O(1) parent lookups per declaration. Nothing
+is O(calls x imports).
 
 Performance Evidence: remote validation host (AWS EC2 r7a.4xlarge, 16 vCPU,
 128 GiB, Linux amd64), 2026-10-05. Before is `f685bae44` plus the benchmark
-commit; after is this branch. Rounds alternate before and after.
+commits; after is `d16a06158` for the corpus and `2dbb6a03d` for the synthetic
+file (same parser code). Rounds alternate before and after.
 
 | Benchmark | Before | After |
 | --- | --- | --- |
-| `BenchmarkParsePathJavaScriptCorpus` (22 repositories, one pass) | 46.71, 46.41, 46.24, 46.44 s (mean 46.45 s) | 46.64, 46.91, 46.92, 47.06 s (mean 46.88 s) |
-| `BenchmarkParsePathTypeScriptPackageImportCalls` (worst case, every call keyed) | 228.0 to 235.4 ms (12 samples) | 243.9 to 250.4 ms (12 samples) |
+| `BenchmarkParsePathJavaScriptCorpus` (22 repositories, one pass) | 46.50, 46.25, 46.30, 46.53 s (mean 46.40 s) | 46.99, 46.99, 47.09, 47.37 s (mean 47.11 s) |
+| `BenchmarkParsePathTypeScriptPackageImportCalls` (worst case, every call keyed) | 230.0 to 239.8 ms (12 samples, median 232.3) | 243.1 to 248.2 ms (12 samples, median 245.7) |
 
-- On the real corpus the change costs about +0.9% of parse time (0.43 s on a
-  46 s pass); after was slower in each of the four paired rounds, by 0.07 to
-  0.68 s. Allocations rose 0.18% and bytes 0.22%. Which of the two steps
-  carries this cost was not profiled: NOT_CHECKED.
+- On the real corpus the change costs about +1.5% of parse wall time (0.71 s on
+  a 46 s pass), slower in all four paired rounds. A CPU profile of one after
+  pass attributes 0.31 s of 53.47 s sampled CPU (0.6%) to the new code:
+  `annotatePackageImportCalls` 0.25 s (of which `redeclaredImportNames`
+  0.15 s and `DeclaredDependencies` 0.08 s), `newPackageExportStamper` 0.05 s,
+  and the stamping itself 0.01 s. Allocations rose 0.2%.
 - The synthetic file is the adversarial case: 400 bound names and 2,200 keyed
-  calls in one file. It costs about 6.5%, roughly 15 ms per parse.
-- A first version walked every named node of every file with a keyed call. It
-  cost +5.6% and +3.5% on the corpus (48.63 s and 48.51 s against 46.04 s and
-  46.86 s). The occurrence lookup replaced it and gives the same results: every
-  shadowing test passes, and a mutation that ignores re-declarations fails them.
+  calls in one file, all declared. It costs about +5.8%, roughly 13 ms per parse.
+- Earlier rounds on superseded commits: `0392ce9de` (before the dependency
+  rule) measured +0.9% on the corpus and +6.5% on the synthetic file; a first
+  version that walked the whole tree measured +5.6% and +3.5% on the corpus.
+  The synthetic numbers for `d16a06158` itself are not comparable: its
+  benchmark manifest declared nothing, so no call was keyed; `62ef19166`
+  declares the packages.
 
 The loader side was measured by #7605 with every bare named import of the worst
-consumer (237 keys, third-party included). Namespace-member keys come on top of
-that; their count on that consumer is NOT_CHECKED.
+consumer (237 keys, third-party included). Keys now need a declared dependency,
+so that is an upper bound; namespace-member keys come on top of it, and their
+count on that consumer is NOT_CHECKED.
 
 Observability Evidence: no new signal. The existing `code call materialization
 completed` log carries `symbol_key_count`, `symbol_definition_fact_count`, and
 `load_symbol_definitions_duration_seconds`, and each `CALLS` row carries
 `resolution_method`.
 
-## Carried forward from #7605
+## Carried forward from #7605 (#7609)
 
-Stored manifests are not generation-tagged. If one of two repositories that
-publish the same name renames its package in a pending generation, the stored
-manifest already shows the new name while its active facts still carry the old
-one. The pair then collapses to one producer, and the key can resolve where the
-active truth is ambiguous, until that generation activates or the next one
-succeeds. Now that the parser emits keys, this case is reachable. It needs an
-arbiter decision before merge.
+Stored manifests are not generation-tagged, so a stored manifest can be ahead
+of the active generation. A manifest that adds a name is harmless: the
+definition scan still matches each definition's own active `package_id`. A
+manifest that drops a name is a miss for a sole producer. It over-resolves only
+when one of two active producers of the same name drops its manifest in a
+generation that wrote content but did not activate: the pair collapses to one
+candidate scope and the key can resolve where the active truth is ambiguous.
+The state heals at that repository's next successful generation. Tracked in
+#7609.
+
+## Other notes
+
+- Review found that a file matched by a subpath `exports` pattern could claim
+  the package's `#default` key. Default keys now come only from the `main` or
+  `module` entry file. No resolved call in either corpus run used `#default`.
+- A JSX call (`<Local />`) that resolves projects as a `REFERENCES` edge, not
+  `CALLS`, through the existing code-call writer.
 
 ## Deferred
 
 - ops-qa, after deploy: re-verify 40 resolved edges against source with 0
-  false, and a before and after of `load_symbol_definitions_duration_seconds`
-  on the same JS/TS scopes with a Go scope unchanged.
-- Live graph and query proof, and the golden-corpus predicate described above.
+  false, on the post-fix candidate set (the 60 above or their ops-qa
+  equivalents), and a before and after of
+  `load_symbol_definitions_duration_seconds` on the same JS/TS scopes with a Go
+  scope unchanged.
+- A direct graph read of the cross-repository edge.
 - The replica shape split of the investigation's 2,602 strict calls:
   NOT_CHECKED. The split above comes from parser output on 22 repositories.
-
-## Changes after the measurements
-
-Review found that a file matched by a subpath `exports` pattern could claim the
-package's `#default` key. The fix (default keys only for the `main` or `module`
-entry file) landed after the corpus check and the benchmarks, which ran on
-`0392ce9de`. It only removes one membership test from the producer step, and
-none of the 78 resolved calls, and no producer definition in that run, used a
-`#default` key, so those results still hold.
-
-A JSX call (`<Local />`) that resolves projects as a `REFERENCES` edge, not
-`CALLS`, through the existing code-call writer.
-
-A bare-looking alias with no `resolved_source` (`import { x } from "api"`
-through a jsconfig `baseUrl` or a bundler alias) and a Node.js built-in no
-longer get a key: a consumer key now needs a declared dependency (see the
-edge-case table). Removing that check makes the three dependency tests fail.
