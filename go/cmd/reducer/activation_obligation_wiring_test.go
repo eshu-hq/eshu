@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -83,4 +84,38 @@ func TestActivationObligationConsumerRefusesANonTransactionalDatabase(t *testing
 	if err == nil || runner != nil {
 		t.Fatalf("non-transactional database: runner=%v err=%v, want a startup error", runner, err)
 	}
+}
+
+// TestBuildReducerServiceStartsTheActivationObligationConsumerOnlyWhenEnabled
+// pins the composition root: the Service carries the consumer only when the
+// flag is true.
+func TestBuildReducerServiceStartsTheActivationObligationConsumerOnlyWhenEnabled(t *testing.T) {
+	t.Parallel()
+	for _, enabled := range []bool{false, true} {
+		db := txFakeReducerDB{fakeReducerDB: &fakeReducerDB{}}
+		getenv := func(key string) string {
+			if enabled && key == activationObligationConsumerEnabledEnv {
+				return "true"
+			}
+			return ""
+		}
+		service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
+			postgres.NewSharedIntentStore(db.fakeReducerDB), stubCypherReader{}, stubCypherReader{}, getenv, nil, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("enabled=%t: buildReducerService() error = %v", enabled, err)
+		}
+		if got := service.ActivationObligationRunner != nil; got != enabled {
+			t.Fatalf("enabled=%t: Service.ActivationObligationRunner set = %t", enabled, got)
+		}
+	}
+}
+
+// txFakeReducerDB is fakeReducerDB with a Begin, the transactional shape the
+// production SQLDB has; building the service never begins a transaction.
+type txFakeReducerDB struct {
+	*fakeReducerDB
+}
+
+func (txFakeReducerDB) Begin(context.Context) (db.Transaction, error) {
+	return nil, errors.New("buildReducerService must not begin a transaction")
 }
