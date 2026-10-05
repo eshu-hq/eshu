@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -157,6 +158,8 @@ type ActivationObligationRunner struct {
 	Config      ActivationObligationRunnerConfig
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+	// Tracer, when set, opens one span per settle. Nil disables tracing.
+	Tracer trace.Tracer
 
 	mu     sync.Mutex
 	cursor string
@@ -237,49 +240,9 @@ func (r *ActivationObligationRunner) drain(ctx context.Context, cfg ActivationOb
 			return processed
 		}
 		processed++
-		r.settle(ctx, *work)
+		r.settle(ctx, cfg, *work)
 	}
 	return processed
-}
-
-func (r *ActivationObligationRunner) settle(ctx context.Context, work ActivationObligation) {
-	if r.Instruments != nil && !work.CreatedAt.IsZero() {
-		r.Instruments.ActivationObligationClaimAge.Record(ctx, time.Since(work.CreatedAt).Seconds())
-	}
-	result, err := r.Store.FinalizeActivation(ctx, work)
-	if err == nil && result.Outcome == ActivationOutcomePhaseNotReady {
-		r.recordOutcome(ctx, work, result)
-		started := time.Now()
-		maintainErr := r.Maintainer.MaintainActivation(ctx, work)
-		var hold *ActivationHoldError
-		r.recordMaintenance(ctx, time.Since(started), maintainErr)
-		switch {
-		case errors.Is(maintainErr, ErrActivationInapplicable):
-			result, err = r.Store.RetireActivationInapplicable(ctx, work)
-		case errors.As(maintainErr, &hold):
-			// Held, not failed: the lease stays and the obligation is retried
-			// at lease cadence; the epoch whole pass republishes the phase.
-			r.recordHeld(ctx, work, hold.Reason(), maintainErr)
-			return
-		case maintainErr != nil:
-			// The lease stays held; the obligation is retried after it expires.
-			r.recordFailure(ctx, "maintenance", maintainErr, &work)
-			return
-		default:
-			result, err = r.Store.FinalizeActivation(ctx, work)
-		}
-	}
-	if err != nil {
-		outcome := activationOutcomeError
-		if errors.Is(err, ErrActivationLeaseLost) {
-			outcome = activationOutcomeLeaseLost
-		} else {
-			r.recordFailure(ctx, "finalize", err, &work)
-		}
-		r.recordOutcome(ctx, work, ActivationFinalizeResult{Outcome: outcome})
-		return
-	}
-	r.recordOutcome(ctx, work, result)
 }
 
 // housekeep runs one catch-up page, one bounded prune and the census.

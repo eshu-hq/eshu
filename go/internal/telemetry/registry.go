@@ -191,6 +191,7 @@ var spanNames = []string{
 	SpanNeo4jExecute,
 	SpanReducerInfraInventoryReconcile,
 	SpanReducerChangedSinceLink,
+	SpanReducerActivationObligationSettle,
 }
 
 var logKeys = []string{

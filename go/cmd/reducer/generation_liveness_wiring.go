@@ -52,6 +52,7 @@ func activationObligationRunnerFor(
 		},
 		Instruments: instruments,
 		Logger:      logger,
+		Tracer:      tracer,
 	}, nil
 }
 

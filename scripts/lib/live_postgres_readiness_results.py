@@ -44,6 +44,7 @@ PACKAGES = {
         "go/internal/storage/postgres/activation_obligation_targeted_live_test.go": (
             "TestActivationObligationRealCatalogChangeIsHeldThenCompletedLive",
             "TestActivationObligationRealCollisionLoserIsInapplicableLive",
+            "TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive",
         ),
         "go/internal/storage/postgres/activation_obligation_ack_live_test.go": (
             "TestActivationObligationAtomicAckLive",

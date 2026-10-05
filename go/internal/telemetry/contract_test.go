@@ -276,6 +276,7 @@ func TestSpanNames(t *testing.T) {
 		"neo4j.execute",
 		"reducer.infra_inventory_reconcile",
 		"reducer.changed_since_link",
+		"reducer.activation_obligation_settle",
 		"bootstrap.collector_cycle",
 		"collector.claimed_run",
 		"collector.snapshot_stage",

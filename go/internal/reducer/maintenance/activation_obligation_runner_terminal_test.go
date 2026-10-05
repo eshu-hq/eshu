@@ -8,10 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // A generation that can never carry a backward-evidence phase (no repository
@@ -136,4 +141,57 @@ func TestActivationRunnerLabelsEachHoldReason(t *testing.T) {
 	var hold *ActivationHoldError
 	require.False(t, errors.As(unknown, &hold), "an unknown reason must not become a hold label")
 	require.ErrorIs(t, HoldActivation("catalog_changed", errors.New("x")), ErrActivationCatalogChanged)
+}
+
+// blockingActivationMaintainer blocks until its context ends and records why.
+type blockingActivationMaintainer struct {
+	mu       sync.Mutex
+	err      error
+	deadline time.Time
+}
+
+func (b *blockingActivationMaintainer) MaintainActivation(ctx context.Context, _ ActivationObligation) error {
+	deadline, _ := ctx.Deadline()
+	<-ctx.Done()
+	b.mu.Lock()
+	b.err, b.deadline = ctx.Err(), deadline
+	b.mu.Unlock()
+	return ctx.Err()
+}
+
+// The maintenance callback must end before the lease does (D1R-3): it runs
+// under a deadline of the lease's expiry minus a margin, a callback still
+// running then is cancelled, the obligation is not finalized again (no false
+// completion; it stays leased until expiry, for any claimer), and the
+// timeout is counted under its own reason.
+func TestActivationRunnerCancelsMaintenanceBeforeTheLeaseEnds(t *testing.T) {
+	t.Parallel()
+	leaseUntil := time.Now().Add(400 * time.Millisecond)
+	store := &fakeActivationStore{
+		queue:     []ActivationObligation{{ScopeID: "git:slow", GenerationID: "g1", LeaseUntil: leaseUntil}},
+		finalizes: map[string][]ActivationFinalizeResult{"g1": {{Outcome: ActivationOutcomePhaseNotReady}}},
+	}
+	maintainer := &blockingActivationMaintainer{}
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	require.NoError(t, err)
+	runner := &ActivationObligationRunner{
+		Store: store, Maintainer: maintainer, Instruments: instruments,
+		Config: ActivationObligationRunnerConfig{Owner: "consumer-1", Lease: 500 * time.Millisecond},
+	}
+	started := time.Now()
+	_, err = runner.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Less(t, time.Since(started), 2*time.Second, "the blocked callback was not cancelled")
+	maintainer.mu.Lock()
+	gotErr, gotDeadline := maintainer.err, maintainer.deadline
+	maintainer.mu.Unlock()
+	require.ErrorIs(t, gotErr, context.DeadlineExceeded)
+	require.False(t, gotDeadline.IsZero())
+	require.True(t, gotDeadline.Before(leaseUntil), "deadline %s must precede the lease end %s", gotDeadline, leaseUntil)
+	require.Equal(t, []string{"claim:consumer-1", "finalize:g1", "claim:consumer-1"}, store.calls,
+		"no second finalize after a cancelled callback")
+	rm := collectActivationMetrics(t, reader)
+	require.EqualValues(t, 1, reducerCounterValue(t, rm, "eshu_dp_activation_obligation_failures_total", map[string]string{"reason": "maintenance_timeout"}))
+	requireNoActivationFailure(t, rm, "maintenance")
 }

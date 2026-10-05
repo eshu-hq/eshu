@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -204,5 +205,42 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 	}
 	if got := port.callsFor("gen-real-winner"); got != 2 {
 		t.Fatalf("callbacks for the held winner = %d, want 2 (one per lease)", got)
+	}
+}
+
+// TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive
+// (D1R-3): a maintenance callback that blocks is cancelled before the lease
+// ends; nothing completes, the obligation stays leased to the first owner
+// until expiry, and then another claimer reclaims it with a higher token.
+func TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive(t *testing.T) {
+	ctx, database := openActivationObligationProofDB(t, "activation_blocked_maintenance")
+	store := NewIngestionStore(SQLDB{DB: database})
+	store.SkipRelationshipBackfill = true
+	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-blocked-projector", time.Minute)
+	commitActivationRepository(t, ctx, store, activationRepositoryFact("fact-blocked", "git:blocked", "gen-blocked",
+		"repo-blocked", "https://github.com/acme/blocked.git"), "repo-blocked")
+	work := claimActivationProjectorWork(t, ctx, queue, "git:blocked", "gen-blocked")
+	if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
+		t.Fatal(err)
+	}
+	var cancelledBy error
+	blocked := &countingActivationMaintainer{decide: func(ctx context.Context, _ maintenance.ActivationObligation) error {
+		<-ctx.Done()
+		cancelledBy = ctx.Err()
+		return ctx.Err()
+	}}
+	runner := newLiveActivationRunner(database, blocked, time.Second)
+	started := time.Now()
+	if _, err := runner.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > 3*time.Second || !errors.Is(cancelledBy, context.DeadlineExceeded) {
+		t.Fatalf("blocked callback ended after %s with %v, want cancelled by its deadline before the 1 s lease", elapsed, cancelledBy)
+	}
+	assertObligationStateToken(t, ctx, database, "git:blocked", "gen-blocked", "leased", 1)
+	time.Sleep(time.Second) // past the lease on any clock
+	reclaimed, err := activation.NewStore(SQLDB{DB: database}).Claim(ctx, "7584-second-claimer", time.Minute)
+	if err != nil || reclaimed == nil || reclaimed.GenerationID != "gen-blocked" || reclaimed.LeaseToken != 2 {
+		t.Fatalf("second claimer = %+v err=%v, want gen-blocked with token 2", reclaimed, err)
 	}
 }
