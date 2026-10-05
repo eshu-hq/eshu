@@ -132,7 +132,8 @@ timing out, or the writer failing its topology check; replay lag is a reader-fen
 condition, not a checkpoint-step one) answers the same `503` and `Retry-After`; a checkpoint source that was never
 configured is a wiring state and carries no hint.
 Clients should retry after the hinted delay. `Retry-After` is set only on these
-transient verdicts and on the graph-unavailable `503` above; any other `503`
+transient verdicts, on the graph-unavailable `503` above, and on the
+identity-store `503` described below; any other `503`
 `backend_unavailable`, such as route-to-caller tracing on a deployment with no
 graph backend configured, is a configuration state and carries no hint. The
 replay and acquisition budget is derived from the request's own context, so a
@@ -167,9 +168,9 @@ answers a bare `401`. An operator sees the failure on the
 `eshu_dp_auth_identity_store_unavailable_total` counter, labeled by
 `failure_class`: `unavailable` and `timeout` are transient, and `topology` means
 the writer was refused because the primary it was bootstrapped against was
-replaced (a promotion or a restore). That answer still carries `Retry-After`, as
-the checkpoint step does, but a retry will not help until the API process
-restarts.
+replaced (a promotion or a restore) or the dial reached a different cluster. That
+answer still carries `Retry-After`, as the checkpoint step does, but a retry will
+not help until the API process restarts or the database target is corrected.
 
 A failed Postgres call on the API and MCP server answers `500`, `503`, or `504`
 per the handler, and its detail never carries the driver's own message, which

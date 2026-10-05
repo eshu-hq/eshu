@@ -96,8 +96,9 @@ evaluate because the identity store was unreachable (#7586). The identity
 resolver emits one per affected request, and the request answers a retryable
 `503` instead of a `401`. It carries only `failure_class`: `unavailable` and
 `timeout` log at WARN, and `topology` logs at ERROR because the writer pool was
-refused for a replaced primary (a promotion or a restore) and the condition does
-not clear until the process restarts. It never carries the credential, a
+refused for a replaced primary (a promotion or a restore), which does not clear
+until the process restarts, or for a different cluster, which is refused on each
+dial without latching. It never carries the credential, a
 subject, or driver text. When the failure came through the bounded pool, the
 `postgres.store.error` record for the same call carries the driver detail; a
 bare deadline or a `database/sql` connection sentinel has no paired record.

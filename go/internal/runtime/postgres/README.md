@@ -424,8 +424,9 @@ after Close, exhaustion, scan error, cancellation, or failed identity.
 
 No-Regression Evidence: Writer re-bootstrap (#7586) on an owned PostgreSQL
 18.6 primary (postgres:18-alpine). The unchanged-incarnation dial runs only
-the existing metadata query: in a two-restart run with eight concurrent
-workers, the server log showed 70 writer/reader dials, 182 checkpoints, and 4
+the existing metadata query (proved by the nil-connection fast-path test); in
+a development two-restart run with eight concurrent workers, not part of the
+suite, the server log showed 70 writer/reader dials, 182 checkpoints, and 4
 lineage queries (1 at bootstrap, 3 concurrent first dials after the second
 startup). With pgbench, 5 interleaved rounds of 5,000 statements each on the
 same container, the median checkpoint statement was 0.000070 s before and

@@ -154,7 +154,8 @@ the Go error text and driver detail never reach the response. The writer
 checkpoint step failure (the writer checkpoint query erroring or timing out, or
 the writer failing its topology check; replay lag appears later, in the reader
 fence) answers the same `503` and `Retry-After`. Retry after the hinted delay. `Retry-After` is set only on
-these transient verdicts; a permanent `503` such as a route that needs an
+these transient verdicts and on the auth path's identity-store `503` (see
+[HTTP API](../reference/http-api.md#postgresql-reader-fence-failures)); a permanent `503` such as a route that needs an
 unconfigured graph backend, or a checkpoint source that was never configured
 (unreachable in the API and MCP binaries, which fail startup first), carries none. The
 reader fence context inherits the request's own deadline, so a parent or handler

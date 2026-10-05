@@ -55,7 +55,9 @@ denied, a client disconnect, a wrong topology, a missing checkpoint) stays a
 the graph-unavailable `503` above and the reader `503`. It is not set by the
 generic envelope writer, so a permanent `503` `backend_unavailable` (for example
 a route that needs a graph backend the deployment did not configure) carries no
-retry hint. The checkpoint middleware's `503` carries it too.
+retry hint. The checkpoint middleware's `503` carries it too, and so does the auth
+middleware's identity-store `503` (#7586), including its `topology` class, where a
+retry will not help until the process restarts.
 
 `POST /api/v0/code/visualize` was a known gap, tracked separately: it followed
 the contract at runtime but had no OpenAPI path entry at all — a gap that
