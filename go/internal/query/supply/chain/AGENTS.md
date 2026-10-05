@@ -44,7 +44,10 @@ Read `doc.go` and `README.md` first.
   sibling branches): a stale or timed-out guarded PostgreSQL reader
   is a retryable 503 with `Retry-After`, not a 500, and the mapped verdict is
   deliberately not logged as `stage_failed`. The readiness read is the
-  exception: its error serves a `readiness_unavailable` envelope.
+  exception: its error serves a `readiness_unavailable` envelope. The
+  security-alert repository selector's catalog match and provider scope
+  lookup (`repository_selector.go`, #7567) MUST call it too before their
+  500; they run before any stage timer, so they have no `failStage`.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.
@@ -137,6 +140,10 @@ or suite-local doubles):
   through the file-local `ensureSiblingAdvisoryCapabilities` helper, and
   their packet branch carries a no-op `PacketResponder` so the read (not
   the nil-responder guard) is what fails;
+- the selector fence suite (`repository_selector_retryable_test.go`): the
+  security-alert selector's catalog match and provider scope lookup answer
+  retryable 503s on fence verdicts and a 500 otherwise, with no
+  `stage_failed` record either way (#7567);
 - the runtime-context suites: context probe, digest bound, environment
   evidence (with two minimal local doubles), the runtime-filter live
   cluster (filter, plan, normalization, precedence, scope, args,

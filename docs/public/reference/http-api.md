@@ -150,7 +150,11 @@ tell the client to retry them. Every supply-chain query route sends its store
 reads through the shared helper first (#7549): a stale or timed-out guarded
 reader answers the retryable `503` with `Retry-After` above, while any other
 store failure stays a handler-owned `500` with a
-`supply_chain_query.stage_failed` log line. Routes outside the dead-code and
+`supply_chain_query.stage_failed` log line. The repository-selector reads on
+the security-alert reconciliation list, count, and inventory routes (the
+catalog match and the provider repository-scope lookup) map the same way
+(#7567); they run before any stage starts, so their other failures answer
+`500` without a `stage_failed` line. Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and
 still answer `500` until they are routed through the shared helper.

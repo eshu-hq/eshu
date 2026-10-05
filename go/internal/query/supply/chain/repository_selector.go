@@ -57,6 +57,9 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 	if h.Content != nil {
 		entries, err := h.Content.MatchRepositories(r.Context(), rawSelector)
 		if err != nil {
+			if querycontract.WriteGraphReadError(w, r, err, capability) {
+				return "", nil, false
+			}
 			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return "", nil, false
 		}
@@ -98,6 +101,9 @@ func (h *Handler) securityAlertRepositoryScopeIDsForCatalog(
 		var err error
 		scopes, err = h.securityAlertRepositoryScopesForNames(r.Context(), repositoryID, entries)
 		if err != nil {
+			if querycontract.WriteGraphReadError(w, r, err, capability) {
+				return nil, false
+			}
 			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return nil, false
 		}
