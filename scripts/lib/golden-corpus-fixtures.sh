@@ -9,6 +9,10 @@
 # github.com/acme/lib-common, and ESHU_GITHUB_ORG=acme makes both fixtures'
 # synthesized remotes match that org.
 #
+# format-kit (publisher of @acme/format-kit) + storefront-web (declares and
+# calls it) prove the #7601 cross-repository JS call keys end to end through
+# the cross-repo dead-code query shape keyed golden_scope=format-kit.
+#
 # cloudformation_comprehensive (#5954) existed on disk for the CloudFormation
 # line-truth tests (go/internal/parser/cloudformation/engine_yaml_cloudformation_lines_test.go,
 # relocated from the parser root in #6062) but
@@ -30,6 +34,8 @@ corpus_fixtures=(
 	helm_argocd_platform
 	lib-common
 	orders-api
+	format-kit
+	storefront-web
 	deployable-source
 	deployable-config
 	kustomize-deployable-overlay
