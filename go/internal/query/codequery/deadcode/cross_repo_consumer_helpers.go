@@ -33,9 +33,9 @@ type crossRepoDeadCodeRootPathStore interface {
 // incomplete. Strong evidence still makes a row live in both cases, because
 // liveness needs one consumer; "only tests call this" needs all of them. The
 // handler skips the root path read and the bucketing pass leaves the flag off.
-// "Named" here is the same rule as crossRepoDeadCodeConsumerCoverageResult.Named
-// (len(consumerRepoIDs) > 0); it is read from the request because the coverage
-// result carries it only when the coverage check ran.
+// "Named" here means len(req.ConsumerRepoIDs) > 0; it is read from the request
+// because the coverage result carries the selector only when the coverage check
+// ran.
 func crossRepoDeadCodeConsumerSetBounded(
 	req CrossRepoDeadCodeRequest,
 	coverage crossRepoDeadCodeConsumerCoverageResult,
