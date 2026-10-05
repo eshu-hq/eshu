@@ -125,17 +125,16 @@ No-Regression Evidence: NOT MEASURED. This slice ran on a shared host where
 timing runs were not allowed, so it carries no before/after numbers and makes
 no speed claim. What is proven is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
-test functions listed above plus the two quiet-generation proofs (27 in all),
-and 52 of 55 distinct semantic mutations killed, including every branch of
-`postgres.ActivationMaintainer`'s mapping and the wiring flag. Two survivors
-flip only the CTE copy of a predicate that the statement repeats on the
-locked row (wake failure class, prune state); flipping both copies is
-killed. The third removes `!active.Valid` from Finalize's pointer check,
-which is equivalent because a NULL pointer scans as an empty string that
-never equals a generation id; the mutant that treats NULL as current is
-killed. The structural
-bounds are as
-follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
+test functions listed above plus the two quiet-generation proofs (31 in all),
+and 63 of 64 distinct semantic mutations killed, including every branch of
+`postgres.ActivationMaintainer`'s mapping, the wiring flag, the re-owe of an
+obsolete row (Ack and catch-up), the maintenance deadline, and the settle
+span. Flipping only the CTE copy of the wake failure-class or prune state
+predicate is killed by the starvation tests in the matrix and retention
+files. The one survivor removes `!active.Valid` from Finalize's pointer
+check, which is equivalent because a NULL pointer scans as an empty string
+that never equals a generation id; the mutant that treats NULL as current is
+killed. The structural bounds are as follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
 'obsolete'`) inside its existing transaction, after the scope lock it already
 holds. It costs a primary-key probe, the foreign-key check's KEY SHARE probe on
 `scope_generations`, and maintenance of the primary key and the open partial

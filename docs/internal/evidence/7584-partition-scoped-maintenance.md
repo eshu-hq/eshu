@@ -116,6 +116,12 @@ commit and from this branch, commits the same 113 evidence, phase, memo and
 work-item rows (set difference 0/0); a build with a mutated whole-pass loader
 differs on 41 rows.
 
+The review N1 to N3 guards are mutation-proven against the live outcomes
+fixture and the span unit tests: not setting `SuppressedRefusal`, counting a
+refused pass's held partitions as `retry`, adding the pass outcome to
+`outcomes_total`, marking a typed refusal as a span error, and writing onto the
+caller's span without a tracer each fail a named test.
+
 ## Performance and observability
 
 No-Regression Evidence: the whole pass is unchanged at runtime. Its batch
@@ -123,9 +129,11 @@ writer now takes the under-lock generation read as a parameter, and the whole
 pass passes `loadAllActiveRepositoryGenerations`, which calls the shipped
 `loadActiveRepositoryGenerations` with the same query. The rest of the batch
 transaction is the same code, and a base-versus-branch output differential of
-the whole pass is 0/0 (see Evidence). The partition-scoped entry has no
-production caller yet, so no runtime path runs it. Its own cost has not been
-measured; that is D3 step 3, and no claim is made here.
+the whole pass is 0/0 (see Evidence). The partition-scoped entry's only
+production caller is the activation obligation consumer, which is off unless
+`ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set, so no default runtime
+path runs it. Its own cost has not been measured; that is D3 step 3, and no
+claim is made here.
 
 Observability Evidence: the pass records
 `eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}`,
