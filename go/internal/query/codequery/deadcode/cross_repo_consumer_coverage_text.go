@@ -12,22 +12,28 @@ import (
 const (
 	// coverageWaitNextStep is the advice for the two states a pipeline run is
 	// expected to clear. It is a hint, as retryable is.
-	coverageWaitNextStep = "Wait and ask again. This clears by itself."
+	coverageWaitNextStep = "Wait and ask again. This should clear by itself."
 
-	// coverageNarrowAdvice is the existing way out of a gap that waiting does
-	// not clear: judge only the repositories the caller cares about.
+	// coverageNarrowAdvice is the way out of a gap that waiting does not clear
+	// when the request did not name its consumers: judge only the repositories
+	// the caller cares about.
 	coverageNarrowAdvice = "Name the repositories you care about with `consumer_repo_ids`."
+
+	// coverageModeledAdvice replaces it for a request that already named its
+	// consumers: the gaps are the repositories it named, so the move left is to
+	// check how their entry points are modeled.
+	coverageModeledAdvice = "Check whether their framework entry points are modeled."
 )
 
 // coverageGapText returns the plain-language reason and next step for one
-// coverage gap state (#7594). It is derived from the state alone: no new data,
-// no query. An unknown state returns empty strings, and the response then
+// coverage gap state (#7594). It is derived from the state and whether the
+// request named its own consumers: no new data, no query. An unknown state returns empty strings, and the response then
 // leaves both fields out.
 //
 // The truncated reason states what Eshu knows and what it does not: the
 // watermark stores only a boolean, so it cannot say whether the cause was a
 // missing root or a depth or size limit.
-func coverageGapText(state string) (reason, nextStep string) {
+func coverageGapText(state string, named bool) (reason, nextStep string) {
 	switch state {
 	case code.CrossRepoDeadCodeCoverageStateNoSnapshotYet:
 		return "Eshu has not finished building the call-graph snapshot for this repository (queued or running).",
@@ -37,7 +43,7 @@ func coverageGapText(state string) (reason, nextStep string) {
 			coverageWaitNextStep
 	case code.CrossRepoDeadCodeCoverageStateTruncated:
 		return "The snapshot is current but Eshu cannot prove it is complete: no entry points (roots) were found for this repository, or the walk hit its depth or size limit.",
-			"Waiting will not clear this. Name the repositories you care about with `consumer_repo_ids`, or check whether this repository's framework entry points are modeled."
+			truncatedNextStep(named)
 	case code.CrossRepoDeadCodeCoverageStateNoActiveScope:
 		return "This repository id is not an indexed repository.",
 			"Check the id, or index the repository."
@@ -51,7 +57,7 @@ func coverageGapText(state string) (reason, nextStep string) {
 // "at least" and the sentence never claims a total or quotes the cap: the
 // statement trims duplicate-hidden repositories after it sets the cut flag, so
 // a cut list can hold fewer than the cap.
-func coverageSummary(coverage code.CrossRepoDeadCodeCoverage) string {
+func coverageSummary(coverage code.CrossRepoDeadCodeCoverage, named bool) string {
 	if coverage.Complete() {
 		return "No repository checked has a coverage gap."
 	}
@@ -72,7 +78,7 @@ func coverageSummary(coverage code.CrossRepoDeadCodeCoverage) string {
 	if coverage.IncompleteTruncated {
 		sentence = "At least " + sentence + " (the list was cut)"
 	}
-	sentence += ": " + strconv.Itoa(clears) + " of them will clear on their own, " +
+	sentence += ": " + strconv.Itoa(clears) + " of them should clear on their own, " +
 		strconv.Itoa(listed-clears) + " will not. "
 	switch {
 	case unindexed == listed:
@@ -81,5 +87,17 @@ func coverageSummary(coverage code.CrossRepoDeadCodeCoverage) string {
 	case clears == listed && !coverage.IncompleteTruncated:
 		return sentence + "Wait and ask again."
 	}
+	if named {
+		return sentence + coverageModeledAdvice
+	}
 	return sentence + coverageNarrowAdvice
+}
+
+// truncatedNextStep is the advice for a snapshot that waiting will not fix. A
+// request that named its consumers is not told to name them again.
+func truncatedNextStep(named bool) string {
+	if named {
+		return "Waiting will not clear this. Check whether this repository's framework entry points are modeled."
+	}
+	return "Waiting will not clear this. Name the repositories you care about with `consumer_repo_ids`, or check whether this repository's framework entry points are modeled."
 }

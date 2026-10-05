@@ -6,7 +6,8 @@
 (and the `find_cross_repo_dead_code` MCP tool) gains text an admin can act on.
 Each `incomplete[]` entry gets `reason` and `next_step`. `consumer_coverage`
 gets `coverage_summary`. All three are fixed text derived in memory from the
-`state` the response already carries, by `coverageGapText` and
+`state` the response already carries and from whether the request named its own
+`consumer_repo_ids`, by `coverageGapText` and
 `coverageSummary` in `go/internal/query/codequery/deadcode`. The change is
 additive: no existing field changes, and there is no new data, schema, or SQL.
 
@@ -34,13 +35,16 @@ as before; abridged to the keys this change touches):
 ```json
 {"repository_id": "repo-a", "state": "no_snapshot_yet", "generation_id": "gen-1", "retryable": true,
  "reason": "Eshu has not finished building the call-graph snapshot for this repository (queued or running).",
- "next_step": "Wait and ask again. This clears by itself."}
+ "next_step": "Wait and ask again. This should clear by itself."}
 {"repository_id": "repo-b", "state": "older_epoch", "generation_id": "gen-2", "retryable": true,
  "reason": "The snapshot was built by an older version of the analysis and is being rebuilt.",
- "next_step": "Wait and ask again. This clears by itself."}
+ "next_step": "Wait and ask again. This should clear by itself."}
 {"repository_id": "repo-c", "state": "truncated", "generation_id": "gen-3", "retryable": false,
  "reason": "The snapshot is current but Eshu cannot prove it is complete: no entry points (roots) were found for this repository, or the walk hit its depth or size limit.",
  "next_step": "Waiting will not clear this. Name the repositories you care about with `consumer_repo_ids`, or check whether this repository's framework entry points are modeled."}
+{"repository_id": "repo-c", "state": "truncated", "generation_id": "gen-3", "retryable": false,
+ "reason": "The snapshot is current but Eshu cannot prove it is complete: no entry points (roots) were found for this repository, or the walk hit its depth or size limit.",
+ "next_step": "Waiting will not clear this. Check whether this repository's framework entry points are modeled."}
 {"repository_id": "repo-d", "state": "no_active_scope", "retryable": false,
  "reason": "This repository id is not an indexed repository.",
  "next_step": "Check the id, or index the repository."}
@@ -50,10 +54,18 @@ as before; abridged to the keys this change touches):
 a cut list, for two ids that are not indexed, and for a complete answer:
 
 ```text
-4 repositories cannot be judged yet: 2 of them will clear on their own, 2 will not. Name the repositories you care about with `consumer_repo_ids`.
-At least 25 repositories cannot be judged yet (the list was cut): 3 of them will clear on their own, 22 will not. Name the repositories you care about with `consumer_repo_ids`.
-2 repositories cannot be judged yet: 0 of them will clear on their own, 2 will not. Check the ids, or index the repositories.
+4 repositories cannot be judged yet: 2 of them should clear on their own, 2 will not. Name the repositories you care about with `consumer_repo_ids`.
+At least 25 repositories cannot be judged yet (the list was cut): 3 of them should clear on their own, 22 will not. Name the repositories you care about with `consumer_repo_ids`.
+2 repositories cannot be judged yet: 0 of them should clear on their own, 2 will not. Check the ids, or index the repositories.
 No repository checked has a coverage gap.
+```
+
+The second `truncated` entry above, and the summary below, are what a
+request that named its own `consumer_repo_ids` gets. It is not told to name
+them again:
+
+```text
+12 repositories cannot be judged yet: 3 of them should clear on their own, 9 will not. Check whether their framework entry points are modeled.
 ```
 
 ## Proof

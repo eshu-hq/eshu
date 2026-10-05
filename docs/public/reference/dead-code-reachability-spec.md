@@ -93,10 +93,17 @@ plain-language `reason` and `next_step` (#7594):
 alone, with no extra query. For `truncated` the reason says Eshu cannot tell
 which cause applies: the watermark stores only a boolean, so "no entry points
 found" and "the walk hit its depth or size limit" look the same. They are left
-out for a state this version does not know.
+out for a state this version does not know. The advice for a snapshot that
+should clear by itself is a hint, like `retryable`, not a promise.
+
+A request that named its own `consumer_repo_ids` is not told to name them
+again: the gaps are the repositories it named. For `truncated` its `next_step`
+is `Waiting will not clear this. Check whether this repository's framework
+entry points are modeled.`, and `coverage_summary` ends with `Check whether
+their framework entry points are modeled.`
 
 `coverage_summary` is one sentence for the whole list, such as `12 repositories
-cannot be judged yet: 3 of them will clear on their own, 9 will not. Name the
+cannot be judged yet: 3 of them should clear on their own, 9 will not. Name the
 repositories you care about with consumer_repo_ids.` It counts only the listed
 gaps, because the check never counts the repositories it checked. When the list
 is cut it says `At least N repositories` and `the list was cut`, with no cap

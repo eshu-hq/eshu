@@ -34,10 +34,11 @@ func TestCrossRepoDeadCodeConsumerCoverageReportsPerRepositoryState(t *testing.T
 	t.Parallel()
 
 	for name, tc := range map[string]struct {
-		body string
-		auth *auth.AuthContext
+		body  string
+		auth  *auth.AuthContext
+		named bool
 	}{
-		"named":    {body: `{"repo_id":"repo-producer","consumer_repo_ids":["repo-consumer","repo-other"],"limit":10}`},
+		"named":    {body: `{"repo_id":"repo-producer","consumer_repo_ids":["repo-consumer","repo-other"],"limit":10}`, named: true},
 		"unscoped": {body: `{"repo_id":"repo-producer","limit":10}`},
 		"grant": {
 			body: `{"repo_id":"repo-producer","limit":10}`,
@@ -58,16 +59,23 @@ func TestCrossRepoDeadCodeConsumerCoverageReportsPerRepositoryState(t *testing.T
 				t.Fatalf("status = %d, want 200", status)
 			}
 			coverage := coverageObject(t, data)
+			// A request that named its consumers is not told to name them again.
+			truncatedNextStep := "Waiting will not clear this. Name the repositories you care about with `consumer_repo_ids`, or check whether this repository's framework entry points are modeled."
+			wantAdvice := "Name the repositories you care about with `consumer_repo_ids`."
+			if tc.named {
+				truncatedNextStep = "Waiting will not clear this. Check whether this repository's framework entry points are modeled."
+				wantAdvice = "Check whether their framework entry points are modeled."
+			}
 			want := []map[string]any{
 				{
 					"repository_id": "repo-consumer", "state": "older_epoch", "generation_id": "gen-9", "retryable": true,
 					"reason":    "The snapshot was built by an older version of the analysis and is being rebuilt.",
-					"next_step": "Wait and ask again. This clears by itself.",
+					"next_step": "Wait and ask again. This should clear by itself.",
 				},
 				{
 					"repository_id": "repo-other", "state": "truncated", "generation_id": "gen-3", "retryable": false,
 					"reason":    "The snapshot is current but Eshu cannot prove it is complete: no entry points (roots) were found for this repository, or the walk hit its depth or size limit.",
-					"next_step": "Waiting will not clear this. Name the repositories you care about with `consumer_repo_ids`, or check whether this repository's framework entry points are modeled.",
+					"next_step": truncatedNextStep,
 				},
 				// No active scope: no generation to wait for, so the key is absent.
 				{
@@ -80,8 +88,8 @@ func TestCrossRepoDeadCodeConsumerCoverageReportsPerRepositoryState(t *testing.T
 				t.Fatalf("incomplete = %#v, want %#v", got, want)
 			}
 			assertQueryTestStringSliceEqual(t, coverage["incomplete_repo_ids"], []string{"repo-consumer", "repo-other", "repo-zzz"})
-			wantSummary := "3 repositories cannot be judged yet: 1 of them will clear on their own, 2 will not. " +
-				"Name the repositories you care about with `consumer_repo_ids`."
+			wantSummary := "3 repositories cannot be judged yet: 1 of them should clear on their own, 2 will not. " +
+				wantAdvice
 			if got := coverage["coverage_summary"]; got != wantSummary {
 				t.Fatalf("coverage_summary = %q, want %q", got, wantSummary)
 			}

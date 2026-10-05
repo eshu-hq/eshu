@@ -95,5 +95,6 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   `retryable` hint (a snapshot is expected without action; not a promise). Each
   entry also carries a plain-language `reason` and `next_step`, and
   `consumer_coverage` a `coverage_summary` sentence (#7594); all three are text
-  derived in memory from `state` (`cross_repo_consumer_coverage_text.go`), with no
+  derived in memory from `state` and whether the request named its own
+  `consumer_repo_ids` (`cross_repo_consumer_coverage_text.go`), with no
   query. See `docs/public/reference/dead-code-reachability-spec.md`.

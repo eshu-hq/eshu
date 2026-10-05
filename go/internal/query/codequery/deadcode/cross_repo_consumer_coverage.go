@@ -34,6 +34,10 @@ type crossRepoDeadCodeCoverageStore interface {
 type crossRepoDeadCodeConsumerCoverageResult struct {
 	Checked     bool
 	Unavailable bool
+	// Named is true when the request named its own consumer_repo_ids, so the
+	// gaps are the repositories the caller named and the advice must not tell
+	// them to name repositories again (#7594).
+	Named bool
 	code.CrossRepoDeadCodeCoverage
 }
 
@@ -68,7 +72,7 @@ func (c crossRepoDeadCodeConsumerCoverageResult) summary() map[string]any {
 		if gap.GenerationID != "" {
 			entry["generation_id"] = gap.GenerationID
 		}
-		if reason, nextStep := coverageGapText(gap.State); reason != "" {
+		if reason, nextStep := coverageGapText(gap.State, c.Named); reason != "" {
 			entry["reason"] = reason
 			entry["next_step"] = nextStep
 		}
@@ -76,7 +80,7 @@ func (c crossRepoDeadCodeConsumerCoverageResult) summary() map[string]any {
 	}
 	return map[string]any{
 		"complete":             c.Complete(),
-		"coverage_summary":     coverageSummary(c.CrossRepoDeadCodeCoverage),
+		"coverage_summary":     coverageSummary(c.CrossRepoDeadCodeCoverage, c.Named),
 		"retryable":            c.Retryable(),
 		"incomplete":           incomplete,
 		"incomplete_repo_ids":  c.IncompleteRepositoryIDs(),
@@ -137,6 +141,7 @@ func (a *Analyzer) crossRepoDeadCodeConsumerCoverage(
 	}
 	return crossRepoDeadCodeConsumerCoverageResult{
 		Checked:                   true,
+		Named:                     len(consumerRepoIDs) > 0,
 		CrossRepoDeadCodeCoverage: coverage,
 	}, nil
 }

@@ -37,7 +37,9 @@ recent shipped work grouped by feature area.
   Each `incomplete` entry also carries a plain-language `reason` and `next_step`,
   and `consumer_coverage` a `coverage_summary` sentence
   ([#7594](https://github.com/eshu-hq/eshu/issues/7594)). All three are fixed text
-  derived from `state`: no new data and no new query.
+  derived from `state` and whether the request named `consumer_repo_ids` (a
+  request that named them is not told to name them again): no new data and no
+  new query. The wait advice is a hint, so it says "should clear", not "will".
 
 ### Cross-repo dead-code returns repository-boundary evidence once
 
