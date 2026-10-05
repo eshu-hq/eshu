@@ -39,6 +39,11 @@ PACKAGES = {
     STORAGE_PACKAGE: {
         "go/internal/storage/postgres/quiet_generation_maintenance_live_test.go": (
             "TestQuietGenerationActivatesAfterMaintenanceSnapshotLive",
+            "TestQuietGenerationActivatesWithControlArmMaintenanceLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_targeted_live_test.go": (
+            "TestActivationObligationRealCatalogChangeIsHeldThenCompletedLive",
+            "TestActivationObligationRealCollisionLoserIsInapplicableLive",
         ),
         "go/internal/storage/postgres/activation_obligation_ack_live_test.go": (
             "TestActivationObligationAtomicAckLive",

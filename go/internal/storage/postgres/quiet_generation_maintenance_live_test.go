@@ -24,8 +24,23 @@ import (
 // TestQuietGenerationActivatesAfterMaintenanceSnapshotLive drives the collector
 // loop across one update commit, its normal maintenance callback, a later real
 // projector Ack, and quiet polls. The update facts exist before maintenance
-// reads the old active generation. No ingestion commit occurs after Ack.
+// reads the old active generation. No ingestion commit occurs after Ack. The
+// activation obligation consumer runs with the production partition-scoped
+// maintainer (#7584).
 func TestQuietGenerationActivatesAfterMaintenanceSnapshotLive(t *testing.T) {
+	runQuietGenerationActivation(t, false)
+}
+
+// TestQuietGenerationActivatesWithControlArmMaintenanceLive is the LABELLED
+// CONTROL ARM: the same flow with the whole native deferred maintenance as
+// the consumer's callback. It exists only as a comparison; ruling D2 forbids
+// it as the shipped callback.
+func TestQuietGenerationActivatesWithControlArmMaintenanceLive(t *testing.T) {
+	runQuietGenerationActivation(t, true)
+}
+
+func runQuietGenerationActivation(t *testing.T, controlArm bool) {
+	t.Helper()
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
@@ -183,7 +198,7 @@ WHERE ingestion_scopes.scope_id = $1 AND scope_generations.generation_id = $2
 	// #7584: the Ack wrote the exact-generation obligation; the resolution
 	// engine's consumer settles it. The callback here is the labelled
 	// whole-maintenance control arm, never the shipped callback.
-	consumerMaintenance := startQuietActivationConsumer(t, ctx, database, store)
+	consumer := startQuietActivationConsumer(t, ctx, database, store, controlArm)
 
 	// The same collector process now polls empty. It has committed once, so
 	// the existing Service.Run contract sends no further drain callback.
@@ -242,9 +257,7 @@ WHERE generation_id = $1 AND source_repo_id = 'repo-source'
 		t.Fatal("quiet update published a phase without its same-generation relationship evidence")
 	}
 	awaitQuietObligationCompleted(t, ctx, database, sourceScope, newID)
-	if got := consumerMaintenance.Load(); got < 1 {
-		t.Fatalf("consumer control-arm maintenance calls = %d, want at least one", got)
-	}
+	consumer.assertSettledQuietGeneration(t, ctx, database, sourceScope, newID)
 	if got := drainCalls.Load(); got != 1 {
 		t.Fatalf("ingester maintenance callbacks after consumer = %d, want 1", got)
 	}

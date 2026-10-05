@@ -2300,6 +2300,11 @@ tests:
     class: postgres_ci
     reason: "#7584 activation obligation claim never waits on a held row and never leases or starves on finished rows, and a lease lost inside finalize rolls back the wake and the completion (statement-level pg_sleep trigger in an isolated disposable PostgreSQL schema)"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation_obligation_targeted_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation consumer with the production partition-scoped maintainer on the full bootstrap schema in an isolated disposable PostgreSQL schema: real catalog_changed and no_memo_baseline refusals are held one callback per lease and complete after the epoch whole pass with no consumer pass; a real repo_id collision loser retires inapplicable after one callback"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/activation_obligation_terminal_live_test.go
     tag: ~
     class: postgres_ci
