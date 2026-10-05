@@ -374,6 +374,14 @@ type crossRepoDeadCodeContentStore struct {
 	coverageErr error
 	// coverageRequests records each request the handler sent, in order.
 	coverageRequests []code.CrossRepoDeadCodeCoverageRequest
+	// rootPaths stands in for the consumer-root path read (#7603): the file of
+	// each consumer root entity. A root it does not list is a missing row.
+	rootPaths map[string]string
+	// rootPathCalls records the root entity ids and consumer repository ids of
+	// each root path read the handler sent, in order.
+	rootPathCalls []rootPathCall
+	// rootPathsErr fails the root path read.
+	rootPathsErr error
 }
 
 func (s *crossRepoDeadCodeContentStore) DeadCodeCandidateRows(

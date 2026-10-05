@@ -349,6 +349,22 @@ WHERE walk.hidden
 LIMIT $4
 `
 
+// CrossRepoDeadCodeConsumerRootPathsQuery reads the file of each consumer root
+// entity a cross-repo dead-code page names, so a row can say that only tests
+// consume it (#7603). $1 is the page's distinct consumer root entity ids (at
+// most maxCrossRepoDeadCodeConsumerEvidenceRows, the evidence page's own cap)
+// and $2 the consumer repositories those roots belong to. It is a primary-key
+// lookup on content_entities.entity_id; the repository bound only keeps a row
+// of another repository out. It carries no source_cache, which
+// GetEntityContents would read. A root with no row is simply absent from the
+// result, and the handler reads that as "not proven a test".
+const CrossRepoDeadCodeConsumerRootPathsQuery = `
+SELECT entity_id, relative_path
+FROM content_entities
+WHERE entity_id = ANY($1)
+  AND repo_id = ANY($2)
+`
+
 // crossRepoDeadCodeUngrantedConsumers moved to
 // content_reader_dead_code_cross_repo.go (#6060): its receiver, ContentReader,
 // is declared in content_reader.go, which stays in root when this file's

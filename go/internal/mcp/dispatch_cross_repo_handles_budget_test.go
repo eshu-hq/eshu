@@ -42,6 +42,26 @@ const (
 type crossRepoHandlesStore struct {
 	*deadCodeBudgetStore
 	evidenceFor func(entityID string) []deadcode.CrossRepoDeadCodeEvidence
+	// rootPathFor stands in for the consumer-root path read (#7603); nil means
+	// no root has a path, so no row carries test_only_consumers.
+	rootPathFor func(rootEntityID string) (string, bool)
+}
+
+func (s *crossRepoHandlesStore) CrossRepoDeadCodeConsumerRootPaths(
+	_ context.Context,
+	rootEntityIDs []string,
+	_ []string,
+) (map[string]string, error) {
+	paths := make(map[string]string, len(rootEntityIDs))
+	for _, id := range rootEntityIDs {
+		if s.rootPathFor == nil {
+			break
+		}
+		if path, ok := s.rootPathFor(id); ok {
+			paths[id] = path
+		}
+	}
+	return paths, nil
 }
 
 func (s *crossRepoHandlesStore) CrossRepoDeadCodeConsumerEvidence(

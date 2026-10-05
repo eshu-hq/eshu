@@ -144,6 +144,15 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	var rootPaths map[string]string
+	if !crossRepoDeadCodeConsumerSetBounded(req, coverage) {
+		rootPaths, err = a.crossRepoDeadCodeConsumerRootPaths(r.Context(), evidence)
+		if err != nil {
+			a.writeStoreError(w, r, err, crossRepoDeadCodeCapability)
+			return
+		}
+	}
+
 	boundaryEvidence := a.crossRepoDeadCodeRepositoryBoundaryEvidence(r.Context(), req.RepoID)
 	buckets, boundaryVisible := a.bucketCrossRepoDeadCodeResults(r.Context(), req, scan, crossRepoDeadCodeConsumerEvidenceSet{
 		Evidence:        evidence,
@@ -151,6 +160,7 @@ func (a *Analyzer) HandleCrossRepoDeadCode(w http.ResponseWriter, r *http.Reques
 		Boundary:        boundaryEvidence,
 		Available:       evidenceAvailable,
 		Coverage:        coverage,
+		RootPaths:       rootPaths,
 	})
 	// Counts and analysis read the classified buckets; shaping only changes what
 	// ships, so they are identical in full and handles (#7129).
@@ -316,6 +326,9 @@ type crossRepoDeadCodeConsumerEvidenceSet struct {
 	// watermark for its active generation, a truncated one, or an older-epoch one. A symbol with no
 	// consumer row is only dead when none does.
 	Coverage crossRepoDeadCodeConsumerCoverageResult
+	// RootPaths is the relative path of each consumer root entity, read once
+	// per request (#7603). A row is flagged test_only_consumers only from it.
+	RootPaths map[string]string
 }
 
 func (a *Analyzer) crossRepoDeadCodeConsumerEvidence(
@@ -427,6 +440,16 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 		if strongLiveEvidence {
 			row["classification"] = "live_by_consumer"
 			row["confidence_label"] = crossRepoDeadCodeStrongestConfidenceLabel(visible)
+			// "Only tests call this" needs the whole consumer set, where liveness
+			// needs one consumer. Only entity-level evidence names consumer
+			// roots, and the flag stays off when a consumer may be unseen: a
+			// hidden one, or a bounded consumer set (see
+			// crossRepoDeadCodeConsumerSetBounded).
+			// Liveness is untouched (#7603).
+			consumerSetSeen := hiddenCount == 0 && !crossRepoDeadCodeConsumerSetBounded(req, consumers.Coverage)
+			if !usedBoundary && consumerSetSeen && crossRepoDeadCodeTestOnlyConsumers(visible, consumers.RootPaths) {
+				row["test_only_consumers"] = true
+			}
 			buckets["live_by_consumer"] = append(buckets["live_by_consumer"].([]any), row)
 			continue
 		}

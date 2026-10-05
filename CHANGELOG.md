@@ -86,6 +86,22 @@ recent shipped work grouped by feature area.
   `handles` (both wire copies, budget 262,144), against 164,116 with no
   evidence.
 
+### Cross-repo dead-code says when only tests call a symbol
+
+- **`find_cross_repo_dead_code` / `POST /api/v0/code/dead-code/cross-repo` rows
+  gain `test_only_consumers`** ([#7603](https://github.com/eshu-hq/eshu/issues/7603)).
+  A `live_by_consumer` row carries `test_only_consumers: true` when every consumer's
+  root entity is in a test file (the existing `DeadCodeIsTestFile` rule), so an
+  admin sees that removing the symbol also means removing or rewriting its tests.
+  The key is omitted otherwise. Liveness, buckets and every other field are
+  unchanged: a test that calls a function is still a caller. A test method is a
+  reachability root only for C#, Java, Kotlin, Scala, Rust and Swift, so there a
+  test-only consumer is flagged; in Go, Python, JavaScript and TypeScript a test
+  function is never a root, so the flag appears only when another root, such as
+  a main or script entry point, sits in a test path. The same-repository
+  dead-code routes do not carry it. It costs one batched primary-key read of
+  `content_entities` per request, skipped when no row has a consumer root.
+
 ### Dead-code investigation coverage skips the entity scan
 
 - **`investigate_dead_code` / `POST /api/v0/code/dead-code/investigate` no

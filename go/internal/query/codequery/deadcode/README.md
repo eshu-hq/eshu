@@ -65,6 +65,22 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
   with at most 5 group objects and caps the boundary list at 25, with counts,
   `*_truncated` markers and `truth.omissions` (#7129). `bucket_counts` and
   `analysis` are computed before shaping, so both modes agree.
+- **`test_only_consumers` is a fact beside liveness, never an input to it
+  (#7603).** A `live_by_consumer` row gets `test_only_consumers: true` when it has
+  consumers and every consumer's root entity file is a test file by
+  `codemodel.DeadCodeIsTestFile` (reused, never copied). The key is absent
+  otherwise, including on dead, unknown, hidden-consumer, boundary-fallback,
+  missing-root, incomplete-coverage and `consumer_repo_ids`-selector rows (the
+  last two can hide a non-test consumer). `crossRepoDeadCodeConsumerRootPaths` reads the roots once per
+  request through the optional `crossRepoDeadCodeRootPathStore`
+  (`CrossRepoDeadCodeConsumerRootPathsQuery`: one keyed `content_entities` read,
+  no `source_cache`); `bucketCrossRepoDeadCodeResults` only consumes the result.
+  A test method is a reachability root only for C#, Java, Kotlin, Scala, Rust and
+  Swift, so there a test-only consumer is flagged; in Go, Python, JavaScript and
+  TypeScript a test function is never a root, so the flag appears only when
+  another root, such as a main or script entry point, sits in a test path. The
+  same-repository routes are deferred: a candidate with
+  a strong caller never becomes a result row there.
 - **Investigation coverage never reads `content_entities`.** The `coverage`
   block takes `file_count` and `languages` from the narrow
   `RepositoryContextCoverage` read and `content_last_indexed_at` from the files

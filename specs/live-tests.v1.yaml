@@ -440,6 +440,11 @@ tests:
     class: postgres_ci
     reason: "#7591 disposable PostgreSQL 18 proof that both cross-repo consumer-coverage statements ignore a refresh intent on a full generation, keep it on a delta generation, and count a legacy action-less row as an edge"
     runner: live-postgres-readiness
+  - file: go/internal/query/content_reader_dead_code_root_paths_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7603 disposable PostgreSQL 18 proof that the cross-repo consumer-root path read returns one path per named root, leaves out a missing root and a root in another repository, and plans as a keyed entity_id lookup"
+    runner: live-postgres-readiness
   - file: go/internal/query/content_reader_entity_search_plan_live_test.go
     tag: ~
     class: scheduled
