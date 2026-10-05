@@ -45,9 +45,15 @@ Read `doc.go` and `README.md` first.
   is a retryable 503 with `Retry-After`, not a 500, and the mapped verdict is
   deliberately not logged as `stage_failed`. The readiness read is the
   exception: its error serves a `readiness_unavailable` envelope. The
-  security-alert repository selector's catalog match and provider scope
-  lookup (`repository_selector.go`, #7567) MUST call it too before their
-  500; they run before any stage timer, so they have no `failStage`.
+  security-alert repository selector's reads (`repository_selector.go`,
+  #7567) follow the same order as stages `repository_catalog_match` and
+  `provider_repository_scope_lookup`, reporting against the calling route's
+  span and operation through `securityAlertSelectorRoute`. Keep the
+  capability a plain string parameter: root's
+  `TestWriteGraphReadErrorCapabilitiesExistInMatrix` resolves a parameter
+  through its callers but not a struct field. Their `repo_id`
+  MUST NOT be the raw selector (unbounded caller input): the catalog match
+  logs `""`, the scope lookup the resolved canonical id.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.
@@ -140,10 +146,11 @@ or suite-local doubles):
   through the file-local `ensureSiblingAdvisoryCapabilities` helper, and
   their packet branch carries a no-op `PacketResponder` so the read (not
   the nil-responder guard) is what fails;
-- the selector fence suite (`repository_selector_retryable_test.go`): the
+- the selector suite (`repository_selector_retryable_test.go`): the
   security-alert selector's catalog match and provider scope lookup answer
-  retryable 503s on fence verdicts and a 500 otherwise, with no
-  `stage_failed` record either way (#7567);
+  retryable 503s with no record on fence verdicts, and otherwise a 500 with
+  exactly one `stage_failed` record, an Error handler span, and no raw
+  selector in any log attribute (#7567);
 - the runtime-context suites: context probe, digest bound, environment
   evidence (with two minimal local doubles), the runtime-filter live
   cluster (filter, plan, normalization, precedence, scope, args,

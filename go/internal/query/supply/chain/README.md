@@ -173,12 +173,17 @@ still answers `500` with the `stage_failed` line, where `error_site` and
 siblings, `TestSiblingStoreReadsAnswerRetryable503`.
 
 The security-alert repository selector (`repository_selector.go`) follows the
-same rule for its two guarded reads (#7567): the catalog match
-(`Content.MatchRepositories`) and the provider repository-scope lookup
-(`SecurityAlertProviderRepositoryScopes`). Both run before the route starts a
-stage timer, so a non-fence failure answers `500` with no `stage_failed` line;
-do not add a stage just to log it. Pinned by
-`TestRepositorySelectorReadsAnswerRetryable503`.
+same rule for its two guarded reads on the list, count, and inventory routes
+(#7567). Each read is its own stage under the calling route's operation:
+`repository_catalog_match` (`Content.MatchRepositories`, logged with an empty
+`repo_id` because the raw selector is unbounded caller input and is never
+logged) and `provider_repository_scope_lookup`
+(`SecurityAlertProviderRepositoryScopes`, logged with the resolved canonical
+repository id). A fence verdict answers the retryable `503` with no
+`stage_failed` line; any other failure answers `500` with exactly one
+`stage_failed` line and the handler span set to Error. Pinned by
+`TestRepositorySelectorReadsAnswerRetryable503` and
+`TestRepositorySelectorHandlerOwned500RecordsSpanError`.
 
 ## Move evidence (#6060)
 

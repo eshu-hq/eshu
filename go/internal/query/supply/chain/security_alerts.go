@@ -54,7 +54,10 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 		h.writeEmptySecurityAlertReconciliationPage(w, r, limit)
 		return
 	}
-	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), SecurityAlertReconciliationsCapability)
+	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(
+		w, r, querycontract.QueryParam(r, "repository_id"), SecurityAlertReconciliationsCapability,
+		securityAlertSelectorRoute{span: span, operation: supplyChainSecurityAlertReconciliationOperation},
+	)
 	if !ok {
 		return
 	}
