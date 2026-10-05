@@ -309,6 +309,7 @@ Pool Split By Class (#4448)" for the full design note and evidence.
 | `ESHU_GENERATION_RETENTION_POLL_INTERVAL` | `1h` | Delay between empty or failed cleanup cycles |
 | `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS` | `24` | Minimum superseded generations retained per scope after the active one |
 | `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` | `168h` | Superseded generations newer than this remain retained |
+| `ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE` | `2160h` | Hard history ceiling (#7585): ordinary superseded history older than this is eligible even when the retained count would keep it; must not be below `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`; unset keeps 90 days |
 | `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT` | `100` | Maximum candidate generations selected per cleanup transaction |
 | `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT` | `100000` | Maximum estimated dependent rows, including content cleanup rows and changed-since ledger rows, pruned per cleanup transaction of two or more generations; a transaction of one generation may exceed it by that generation's ledger rows only (#7127) |
 | `ESHU_GENERATION_RETENTION_POLICY_SCOPE` | `global` | Safe policy source recorded in retention events |

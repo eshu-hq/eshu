@@ -20,10 +20,15 @@ import (
 const (
 	defaultGenerationRetentionMinSuperseded = 24
 	defaultGenerationRetentionMaxAge        = 7 * 24 * time.Hour
-	defaultGenerationRetentionBatchLimit    = 100
-	defaultGenerationRetentionRowLimit      = 100000
-	defaultGenerationRetentionPolicyScope   = "global"
-	defaultGenerationRetentionPolicyRev     = "global-default-v1"
+	// defaultGenerationRetentionHardMaxAge is the #7585 hard history
+	// ceiling: ordinary superseded history older than this is eligible even
+	// when the count window would retain it. 90 days preserves observable
+	// behavior on current data (ops-qa census found nothing older).
+	defaultGenerationRetentionHardMaxAge  = 90 * 24 * time.Hour
+	defaultGenerationRetentionBatchLimit  = 100
+	defaultGenerationRetentionRowLimit    = 100000
+	defaultGenerationRetentionPolicyScope = "global"
+	defaultGenerationRetentionPolicyRev   = "global-default-v1"
 )
 
 // generationRetentionWorkMemStatement raises work_mem for the retention
@@ -43,23 +48,32 @@ const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 
 // GenerationRetentionPolicy bounds automated cleanup of superseded source-local
 // generations. The active generation and the newest superseded generations
-// inside the count or age window are never candidates.
+// inside the count or age window are never candidates, except past the hard
+// history ceiling (#7585): ordinary superseded history older than
+// HardMaxSupersededAge is eligible even when the count window would retain
+// it. Active, live-work, and dependency-pinned generations stay protected.
 type GenerationRetentionPolicy struct {
 	MinSupersededGenerations int
 	MaxSupersededAge         time.Duration
-	BatchGenerationLimit     int
-	BatchRowLimit            int
-	PolicyScope              string
-	PolicyRevision           string
+	// HardMaxSupersededAge caps the count preference: superseded history
+	// older than this is eligible regardless of rank. Measured from the
+	// original superseded_at like MaxSupersededAge.
+	HardMaxSupersededAge time.Duration
+	BatchGenerationLimit int
+	BatchRowLimit        int
+	PolicyScope          string
+	PolicyRevision       string
 }
 
 // DefaultGenerationRetentionPolicy returns the ADR #2248 default retention
 // window: keep the active generation plus the last 24 superseded generations or
-// any superseded generation newer than seven days, whichever keeps more.
+// any superseded generation newer than seven days, whichever keeps more,
+// bounded by the 90-day hard history ceiling (#7585).
 func DefaultGenerationRetentionPolicy() GenerationRetentionPolicy {
 	return GenerationRetentionPolicy{
 		MinSupersededGenerations: defaultGenerationRetentionMinSuperseded,
 		MaxSupersededAge:         defaultGenerationRetentionMaxAge,
+		HardMaxSupersededAge:     defaultGenerationRetentionHardMaxAge,
 		BatchGenerationLimit:     defaultGenerationRetentionBatchLimit,
 		BatchRowLimit:            defaultGenerationRetentionRowLimit,
 		PolicyScope:              defaultGenerationRetentionPolicyScope,
@@ -74,6 +88,9 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 	}
 	if p.MaxSupersededAge <= 0 {
 		p.MaxSupersededAge = defaults.MaxSupersededAge
+	}
+	if p.HardMaxSupersededAge <= 0 {
+		p.HardMaxSupersededAge = defaults.HardMaxSupersededAge
 	}
 	if p.BatchGenerationLimit <= 0 {
 		p.BatchGenerationLimit = defaults.BatchGenerationLimit
@@ -166,6 +183,14 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 
 	policy = policy.normalize()
+	// A hard ceiling below the soft keep window promises retention the
+	// ceiling denies (#7585); fail closed before locking anything, mirroring
+	// the reducer startup validation for programmatic callers.
+	if policy.HardMaxSupersededAge < policy.MaxSupersededAge {
+		return GenerationRetentionResult{}, fmt.Errorf(
+			"generation retention: hard max superseded age (%v) must not be below max superseded age (%v)",
+			policy.HardMaxSupersededAge, policy.MaxSupersededAge)
+	}
 	start := time.Now()
 	now := s.now()
 	tx, err := beginner.Begin(ctx)
@@ -315,6 +340,7 @@ func (s GenerationRetentionStore) selectCandidates(
 		now.Add(-policy.MaxSupersededAge),
 		policy.MinSupersededGenerations,
 		policy.BatchGenerationLimit,
+		now.Add(-policy.HardMaxSupersededAge),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("generation retention: select candidates: %w", err)

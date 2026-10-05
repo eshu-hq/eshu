@@ -38,6 +38,7 @@ const (
 	generationRetentionPollIntervalEnv             = "ESHU_GENERATION_RETENTION_POLL_INTERVAL"
 	generationRetentionMinSupersededGenerationsEnv = "ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS"
 	generationRetentionMaxSupersededAgeEnv         = "ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE"
+	generationRetentionHardMaxSupersededAgeEnv     = "ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE"
 	generationRetentionBatchGenerationLimitEnv     = "ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT"
 	generationRetentionBatchRowLimitEnv            = "ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT"
 	generationRetentionPolicyScopeEnv              = "ESHU_GENERATION_RETENTION_POLICY_SCOPE"
@@ -277,6 +278,7 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 			Policy: maintenance.GenerationRetentionPolicy{
 				MinSupersededGenerations: loadPositiveIntOrDefault(getenv, generationRetentionMinSupersededGenerationsEnv, defaults.MinSupersededGenerations),
 				MaxSupersededAge:         loadDurationOrDefault(getenv, generationRetentionMaxSupersededAgeEnv, defaults.MaxSupersededAge),
+				HardMaxSupersededAge:     loadDurationOrDefault(getenv, generationRetentionHardMaxSupersededAgeEnv, defaults.HardMaxSupersededAge),
 				BatchGenerationLimit:     loadPositiveIntOrDefault(getenv, generationRetentionBatchGenerationLimitEnv, defaults.BatchGenerationLimit),
 				BatchRowLimit:            loadPositiveIntOrDefault(getenv, generationRetentionBatchRowLimitEnv, defaults.BatchRowLimit),
 				PolicyScope:              loadStringOrDefault(getenv, generationRetentionPolicyScopeEnv, defaults.PolicyScope),
@@ -306,6 +308,15 @@ func validateGenerationRetentionConfig(
 	getenv func(string) string,
 	cfg generationRetentionConfig,
 ) error {
+	// The hard history ceiling (#7585) caps the soft keep window: a hard
+	// ceiling below the soft age promises retention the ceiling denies, so
+	// that combination fails closed instead of silently deleting what the
+	// soft window says to keep.
+	if cfg.Runner.Policy.HardMaxSupersededAge < cfg.Runner.Policy.MaxSupersededAge {
+		return fmt.Errorf("%s (%v) must not be below %s (%v): the hard history ceiling caps the soft keep window",
+			generationRetentionHardMaxSupersededAgeEnv, cfg.Runner.Policy.HardMaxSupersededAge,
+			generationRetentionMaxSupersededAgeEnv, cfg.Runner.Policy.MaxSupersededAge)
+	}
 	if cfg.Enabled {
 		return nil
 	}

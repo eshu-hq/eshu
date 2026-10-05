@@ -17,10 +17,12 @@ func TestLoadGenerationRetentionConfigDefaults(t *testing.T) {
 	require.Equal(t, time.Hour, cfg.Runner.PollInterval)
 	require.Equal(t, 24, cfg.Runner.Policy.MinSupersededGenerations)
 	require.Equal(t, 7*24*time.Hour, cfg.Runner.Policy.MaxSupersededAge)
+	require.Equal(t, 90*24*time.Hour, cfg.Runner.Policy.HardMaxSupersededAge)
 	require.Equal(t, 100, cfg.Runner.Policy.BatchGenerationLimit)
 	require.Equal(t, 100_000, cfg.Runner.Policy.BatchRowLimit)
 	require.Equal(t, "global", cfg.Runner.Policy.PolicyScope)
 	require.Equal(t, "global-default-v1", cfg.Runner.Policy.PolicyRevision)
+	require.NoError(t, validateGenerationRetentionConfig(func(string) string { return "" }, cfg))
 }
 
 func TestLoadGenerationRetentionConfigOverrides(t *testing.T) {
@@ -29,6 +31,7 @@ func TestLoadGenerationRetentionConfigOverrides(t *testing.T) {
 		generationRetentionPollIntervalEnv:             "15m",
 		generationRetentionMinSupersededGenerationsEnv: "12",
 		generationRetentionMaxSupersededAgeEnv:         "72h",
+		generationRetentionHardMaxSupersededAgeEnv:     "720h",
 		generationRetentionBatchGenerationLimitEnv:     "25",
 		generationRetentionBatchRowLimitEnv:            "5000",
 		generationRetentionPolicyScopeEnv:              "collector-kind",
@@ -40,10 +43,24 @@ func TestLoadGenerationRetentionConfigOverrides(t *testing.T) {
 	require.Equal(t, 15*time.Minute, cfg.Runner.PollInterval)
 	require.Equal(t, 12, cfg.Runner.Policy.MinSupersededGenerations)
 	require.Equal(t, 72*time.Hour, cfg.Runner.Policy.MaxSupersededAge)
+	require.Equal(t, 720*time.Hour, cfg.Runner.Policy.HardMaxSupersededAge)
 	require.Equal(t, 25, cfg.Runner.Policy.BatchGenerationLimit)
 	require.Equal(t, 5000, cfg.Runner.Policy.BatchRowLimit)
 	require.Equal(t, "collector-kind", cfg.Runner.Policy.PolicyScope)
 	require.Equal(t, "revision-2", cfg.Runner.Policy.PolicyRevision)
+	require.NoError(t, validateGenerationRetentionConfig(func(key string) string { return env[key] }, cfg))
+}
+
+func TestLoadGenerationRetentionConfigRejectsHardCeilingBelowSoftAge(t *testing.T) {
+	env := map[string]string{
+		generationRetentionMaxSupersededAgeEnv:     "168h",
+		generationRetentionHardMaxSupersededAgeEnv: "24h",
+	}
+	cfg := loadGenerationRetentionConfig(func(key string) string { return env[key] })
+
+	require.ErrorContains(t,
+		validateGenerationRetentionConfig(func(key string) string { return env[key] }, cfg),
+		"ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE")
 }
 
 func TestLoadGenerationRetentionConfigAllowsLocalDisable(t *testing.T) {

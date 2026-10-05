@@ -241,7 +241,8 @@ func (s GenerationRetentionStore) narrowOverLimitBatch(
 	// count_rows, so the #7279 phase set stays closed.
 	phaseStart := time.Now()
 	rows, err := tx.QueryContext(ctx, generationRetentionTargetedCandidateQuery,
-		now.Add(-policy.MaxSupersededAge), policy.MinSupersededGenerations, []string{}, only.scopeID, only.generationID)
+		now.Add(-policy.MaxSupersededAge), policy.MinSupersededGenerations, []string{}, only.scopeID, only.generationID,
+		now.Add(-policy.HardMaxSupersededAge))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("generation retention: lock candidate: %w", err)
 	}

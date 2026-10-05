@@ -46,6 +46,7 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 	result, err := p.store.PruneSupersededGenerations(ctx, postgres.GenerationRetentionPolicy{
 		MinSupersededGenerations: policy.MinSupersededGenerations,
 		MaxSupersededAge:         policy.MaxSupersededAge,
+		HardMaxSupersededAge:     policy.HardMaxSupersededAge,
 		BatchGenerationLimit:     policy.BatchGenerationLimit,
 		BatchRowLimit:            policy.BatchRowLimit,
 		PolicyScope:              policy.PolicyScope,
