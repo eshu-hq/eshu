@@ -1,0 +1,26 @@
+docs/internal/evidence/7033-code-topic-partition-tracing.md
+  s_b0d7e3abc26c5a::t_0b3ca088e91b4e 29-40,52,54
+docs/public/observability/telemetry-coverage.md
+  s_b0d7e3abc26c5a::t_7fe325575fb19f 803
+docs/public/reference/telemetry/code-topic-probes.md
+  s_b0d7e3abc26c5a::t_f71e9378a40315 3
+  s_b0d7e3abc26c5a::t_dfe78334d6f28b 7
+  s_b0d7e3abc26c5a::t_2fb650e9267804 17-18
+  s_b0d7e3abc26c5a::t_16f68fb9e25ee7 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ad7597997d9be8f60f69e04aff8c111d9c16357",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
