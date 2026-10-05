@@ -316,7 +316,7 @@ Important env vars:
 - `ESHU_GENERATION_RETENTION_POLL_INTERVAL`
 - `ESHU_GENERATION_RETENTION_MIN_SUPERSEDED_GENERATIONS`
 - `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`
-- `ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE` (default `2160h`; hard history ceiling — ordinary superseded history older than this is eligible even within the retained count)
+- `ESHU_GENERATION_RETENTION_HARD_MAX_SUPERSEDED_AGE` (default `2160h`; hard history ceiling — ordinary superseded history older than this is eligible even within the retained count; unset resolves to `2160h`, or to `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE` when that is longer; an explicit value below the soft window is rejected at startup)
 - `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT`
 - `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`
 - `ESHU_CHANGED_SINCE_LINK_ENABLED` (default `false`; dark domain, see

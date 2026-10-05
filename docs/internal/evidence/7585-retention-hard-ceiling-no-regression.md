@@ -54,3 +54,53 @@ retention event per pruned generation carrying policy scope and revision.
 Contradictory settings (hard ceiling below the soft age) fail closed at
 reducer startup and in the storage prune, surfacing through the existing
 startup-error and retention-failure channels.
+
+## #7611: unset hard ceiling follows a longer soft window
+
+Classification: correctness win. This section makes no latency or throughput
+claim.
+
+### No-Regression Evidence: derived hard ceiling default
+
+- Change: an unset (or unparsable, or non-positive) hard ceiling resolves to
+  `postgres.DefaultGenerationRetentionHardMaxAge(MaxSupersededAge)`, which is
+  `max(2160h, MaxSupersededAge)`. Before, it was a flat 2160h, so a soft
+  window above 90 days with the hard ceiling unset failed reducer startup
+  and the storage prune. An explicit hard ceiling below the soft window
+  still fails closed.
+- Baseline: `origin/main` `0b3588b43`. RED on that tree:
+  `TestLoadGenerationRetentionConfigDerivesHardCeilingFromLongSoftAge`
+  (loader returned `2160h`, want `87600h`),
+  `TestGenerationRetentionPolicyNormalizeDerivesHardCeilingFromLongSoftAge`
+  (normalized `2160h`, want `87600h`), and
+  `TestGenerationRetentionStoreAcceptsUnsetHardCeilingWithLongSoftAge`
+  (the prune refused `2160h` below `87600h`).
+- After: those tests pass. The default path is unchanged: with no env set
+  the ceiling is still `2160h` (`TestLoadGenerationRetentionConfigDefaults`,
+  `TestGenerationRetentionPolicyNormalizeHardCeilingDefaults`). The explicit
+  contradiction is still rejected
+  (`TestLoadGenerationRetentionConfigKeepsExplicitHardCeilingBelowSoftAgeFatal`,
+  `TestGenerationRetentionStoreRejectsHardCeilingBelowSoftAge`). Unit proof
+  ran on Go 1.27.1, darwin/arm64: `go test ./cmd/reducer/ -count=1` (294
+  passed) and `go test ./internal/storage/postgres/ -count=1` (non-live).
+  Reverting the derivation in `normalize()`, and separately in the loader,
+  turned each layer's tests red.
+- Why safe: the candidate and targeted SQL text, lock order, savepoint
+  path, batch limits, and row-limit counting are unchanged. Only the bound
+  value of the hard-cutoff parameter changes, and only when the ceiling is
+  unset and the soft window is longer than 2160h. Then the hard cutoff
+  equals the soft cutoff, so history older than the soft window becomes
+  eligible regardless of rank. Every other guard (active generation,
+  live work, dependency pins) still applies. The derivation is one `max`
+  per config load and per prune call, not per row.
+
+### Observability Evidence: hard ceiling lift startup log
+
+When the derived default lifts the ceiling above 2160h, the reducer logs
+one INFO record at startup, `generation retention hard ceiling raised to the
+soft keep window`, with `hard_env`, `soft_env`,
+`effective_hard_max_superseded_age`, `max_superseded_age`, and
+`default_hard_max_superseded_age`. It is silent for the defaults, for an
+explicit hard ceiling, and for a soft window at or below 2160h
+(`TestLogGenerationRetentionHardCeilingLiftOnlyWhenDerivedAboveDefault`).
+The existing retention metrics and events above cover the prune path.

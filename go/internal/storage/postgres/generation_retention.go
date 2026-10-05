@@ -20,10 +20,9 @@ import (
 const (
 	defaultGenerationRetentionMinSuperseded = 24
 	defaultGenerationRetentionMaxAge        = 7 * 24 * time.Hour
-	// defaultGenerationRetentionHardMaxAge is the #7585 hard history
-	// ceiling: ordinary superseded history older than this is eligible even
-	// when the count window would retain it. 90 days preserves observable
-	// behavior on current data (ops-qa census found nothing older).
+	// defaultGenerationRetentionHardMaxAge is the #7585 hard history ceiling
+	// floor; see DefaultGenerationRetentionHardMaxAge. 90 days preserves
+	// observable behavior (ops-qa census found nothing older).
 	defaultGenerationRetentionHardMaxAge  = 90 * 24 * time.Hour
 	defaultGenerationRetentionBatchLimit  = 100
 	defaultGenerationRetentionRowLimit    = 100000
@@ -49,15 +48,14 @@ const generationRetentionWorkMemStatement = "SET LOCAL work_mem = '64MB'"
 // GenerationRetentionPolicy bounds automated cleanup of superseded source-local
 // generations. The active generation and the newest superseded generations
 // inside the count or age window are never candidates, except past the hard
-// history ceiling (#7585): ordinary superseded history older than
-// HardMaxSupersededAge is eligible even when the count window would retain
-// it. Active, live-work, and dependency-pinned generations stay protected.
+// history ceiling (#7585), which never frees active, live-work, or
+// dependency-pinned generations.
 type GenerationRetentionPolicy struct {
 	MinSupersededGenerations int
 	MaxSupersededAge         time.Duration
-	// HardMaxSupersededAge caps the count preference: superseded history
-	// older than this is eligible regardless of rank. Measured from the
-	// original superseded_at like MaxSupersededAge.
+	// HardMaxSupersededAge: superseded history older than this (from the
+	// original superseded_at) is eligible regardless of rank. Unset resolves
+	// to DefaultGenerationRetentionHardMaxAge(MaxSupersededAge).
 	HardMaxSupersededAge time.Duration
 	BatchGenerationLimit int
 	BatchRowLimit        int
@@ -81,6 +79,13 @@ func DefaultGenerationRetentionPolicy() GenerationRetentionPolicy {
 	}
 }
 
+// DefaultGenerationRetentionHardMaxAge returns the hard history ceiling for a
+// policy that sets none: 90 days, or maxSupersededAge when that is longer
+// (#7611). An explicit ceiling below the soft window is still rejected.
+func DefaultGenerationRetentionHardMaxAge(maxSupersededAge time.Duration) time.Duration {
+	return max(defaultGenerationRetentionHardMaxAge, maxSupersededAge)
+}
+
 func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 	defaults := DefaultGenerationRetentionPolicy()
 	if p.MinSupersededGenerations < 0 {
@@ -90,7 +95,7 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 		p.MaxSupersededAge = defaults.MaxSupersededAge
 	}
 	if p.HardMaxSupersededAge <= 0 {
-		p.HardMaxSupersededAge = defaults.HardMaxSupersededAge
+		p.HardMaxSupersededAge = DefaultGenerationRetentionHardMaxAge(p.MaxSupersededAge)
 	}
 	if p.BatchGenerationLimit <= 0 {
 		p.BatchGenerationLimit = defaults.BatchGenerationLimit
@@ -183,9 +188,8 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 
 	policy = policy.normalize()
-	// A hard ceiling below the soft keep window promises retention the
-	// ceiling denies (#7585); fail closed before locking anything, mirroring
-	// the reducer startup validation for programmatic callers.
+	// An explicit hard ceiling below the soft window promises retention the
+	// ceiling denies (#7585): fail closed before locking anything.
 	if policy.HardMaxSupersededAge < policy.MaxSupersededAge {
 		return GenerationRetentionResult{}, fmt.Errorf(
 			"generation retention: hard max superseded age (%v) must not be below max superseded age (%v)",

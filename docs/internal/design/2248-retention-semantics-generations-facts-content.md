@@ -99,7 +99,7 @@ Each source scope has an effective retention policy:
 | --- | --- | --- |
 | `min_superseded_generations` | Minimum superseded generations to keep after the active one. | `24` |
 | `max_superseded_age` | Age since `superseded_at` below which a superseded generation is still retained. | `168h` |
-| `hard_max_superseded_age` | Hard history ceiling (#7585): age since the original `superseded_at` above which ordinary superseded history is eligible even when the count bound would retain it. Configurable, finite, default `2160h` (90 days); must not be set below `max_superseded_age` (rejected as contradictory). | `2160h` |
+| `hard_max_superseded_age` | Hard history ceiling (#7585): age since the original `superseded_at` above which ordinary superseded history is eligible even when the count bound would retain it. Configurable and finite. Unset resolves to `2160h` (90 days), or to `max_superseded_age` when that is longer (#7611); an explicit value below `max_superseded_age` is rejected as contradictory. | `2160h` |
 | `batch_generation_limit` | Maximum candidate generations deleted in one transaction. | `100` |
 | `batch_row_limit` | Maximum estimated dependent rows deleted in one transaction of two or more generations. A transaction of one generation may exceed it by that generation's changed-since ledger rows only (#7127, arbiter ruling arb-7127-3d-b); a generation whose other rows exceed it is skipped. | implementation-defined conservative cap |
 | `policy_scope` | Policy source: global default, source-system override, collector-kind override, or exact scope override. | global default |
