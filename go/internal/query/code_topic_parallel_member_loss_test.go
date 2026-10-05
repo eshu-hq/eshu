@@ -20,9 +20,13 @@ import (
 	runtimepostgres "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type codeTopicTestMemberLost struct{}
@@ -109,12 +113,16 @@ func TestInvestigateCodeTopicDoesNotRetryMemberLossAfterCancellation(t *testing.
 }
 
 func TestInvestigateCodeTopicRetriesAllProbesAfterMemberLoss(t *testing.T) {
+	spans := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	recorder := &codeTopicParallelRecorder{probeFailureOnce: codeTopicTestMemberLost{}}
 	pool := openCodeTopicParallelDB(t, recorder)
 	store := &codeTopicRetryTestStore{codeTopicTestSnapshotStore: codeTopicTestSnapshotStore{
 		ReadStore: postgres.NewSQLReadStore(pool), handle: pool,
 	}}
 	reader := NewContentReaderWithReadStore(store)
+	reader.tracer = provider.Tracer(telemetry.DefaultSignalName)
 	terms := []string{"same", "other", "same", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
 	result, err := reader.InvestigateCodeTopic(t.Context(), codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 1})
 	if err != nil || len(result) != 1 {
@@ -127,6 +135,35 @@ func TestInvestigateCodeTopicRetriesAllProbesAfterMemberLoss(t *testing.T) {
 	defer recorder.mu.Unlock()
 	if recorder.probes < 5 || recorder.imports != 6 || recorder.active != 0 || recorder.assemblyJSON == "" {
 		t.Fatalf("retry probes=%d imports=%d active=%d assembly=%q", recorder.probes, recorder.imports, recorder.active, recorder.assemblyJSON)
+	}
+	partitionAttempts := map[int64]map[int64]bool{}
+	for _, child := range spans.Ended() {
+		if child.Name() != telemetry.SpanQueryCodeTopicPartition {
+			continue
+		}
+		attrs := map[attribute.Key]attribute.Value{}
+		for _, kv := range child.Attributes() {
+			attrs[kv.Key] = kv.Value
+		}
+		attemptAttr, ok := attrs["code_topic.attempt"]
+		if !ok {
+			t.Fatal("partition span has no retry attempt")
+		}
+		attempt := attemptAttr.AsInt64()
+		ordinal := attrs["code_topic.partition"].AsInt64()
+		if attempt < 0 || attempt > 1 || ordinal < 0 || ordinal >= 4 {
+			t.Fatalf("invalid attempt=%d partition=%d", attempt, ordinal)
+		}
+		if partitionAttempts[attempt] == nil {
+			partitionAttempts[attempt] = map[int64]bool{}
+		}
+		if partitionAttempts[attempt][ordinal] {
+			t.Fatalf("duplicate attempt=%d partition=%d", attempt, ordinal)
+		}
+		partitionAttempts[attempt][ordinal] = true
+	}
+	if len(partitionAttempts[0]) == 0 || len(partitionAttempts[1]) != 4 {
+		t.Fatalf("partition attempts=%v, want failed first and complete second", partitionAttempts)
 	}
 }
 

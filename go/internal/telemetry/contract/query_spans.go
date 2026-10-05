@@ -3,6 +3,9 @@
 
 package contract
 
+// SpanQueryCodeTopicPartition measures one SQL probe partition of a code-topic investigation.
+const SpanQueryCodeTopicPartition = "query.code_topic_partition"
+
 // SpanQueryHardcodedSecretInvestigation wraps the prompt-facing hardcoded
 // secret investigation route.
 const SpanQueryHardcodedSecretInvestigation = "query.hardcoded_secret_investigation"

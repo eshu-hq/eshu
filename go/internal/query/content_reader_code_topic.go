@@ -83,7 +83,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		var results []codequery.CodeTopicEvidenceRow
 		var err error
 		for attempt := 0; attempt < 2; attempt++ {
-			results, err = codetopicparallel.Investigate(ctx, parallelStore, span, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
+			results, err = codetopicparallel.Investigate(ctx, parallelStore, span, attempt, req, candidateCap, filters, args, scanCodeTopicEvidenceRows)
 			if err == nil || ctx.Err() != nil || attempt > 0 || !isReaderMemberLoss(err) {
 				break
 			}

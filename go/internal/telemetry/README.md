@@ -28,7 +28,7 @@ files (issue #6777):
 - `contract/` — most families: admission decisions, Azure relationships,
   bootstrap ingestion, CI/CD, collector runs and snapshot stages, graph-read
   outcomes, Kubernetes, language and language-query, package registry,
-  prompt-facing query spans, S3 external-principal grants, scanner-worker,
+  prompt-facing query and code-topic partition spans, S3 external-principal grants, scanner-worker,
   security alerts, semantic extraction, service catalog, source-tool
   provenance, supply-chain/vulnerability findings, vulnerability
   intelligence, incident context, observability coverage, secrets/IAM,

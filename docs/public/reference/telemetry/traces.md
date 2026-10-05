@@ -60,6 +60,10 @@ For a slow repository-context read, inspect the child `postgres.query` span with
 separates the workload-name SQL from the other read-model statements without
 putting repository or scope identifiers in span attributes.
 
+For a parallel code-topic read, `query.code_topic_partition` children identify
+each bounded PostgreSQL probe. See [Code-topic probe traces](code-topic-probes.md)
+for the parent, duration, and privacy contract.
+
 Keep high-cardinality or sensitive values out of span attributes. Raw bucket
 names, object keys, local paths, delivery IDs, commit SHAs, full state
 locators, package versions, and cloud resource identifiers belong in controlled

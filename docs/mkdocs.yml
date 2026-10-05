@@ -317,6 +317,7 @@ nav:
       - Graph-read Safety: reference/telemetry/graph-read-safety.md
       - Graph-Backed Gauge Snapshots: reference/telemetry/graph-gauge-snapshots.md
       - Traces: reference/telemetry/traces.md
+      - Code-Topic Probe Traces: reference/telemetry/code-topic-probes.md
       - Logs: reference/telemetry/logs.md
       - Producer-Grant Decisions: reference/telemetry/producer-grant-decisions.md
       - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md

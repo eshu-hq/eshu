@@ -64,12 +64,24 @@ var registrationSteps = []func(){
 	registerChangedSince,
 	registerServiceChangedSince,
 	registerProducerGrant,
+	registerCodeTopicPartition,
 }
 
 func init() {
 	for _, step := range registrationSteps {
 		step()
 	}
+}
+
+// registerCodeTopicPartition places the probe span after its parent query span.
+func registerCodeTopicPartition() {
+	for idx, name := range spanNames {
+		if name == SpanQueryCodeTopicInvestigation {
+			spanNames = slices.Insert(spanNames, idx+1, contract.SpanQueryCodeTopicPartition)
+			return
+		}
+	}
+	spanNames = append(spanNames, contract.SpanQueryCodeTopicPartition)
 }
 
 // registerAdmissionDecisions inserts the admission-decisions query span

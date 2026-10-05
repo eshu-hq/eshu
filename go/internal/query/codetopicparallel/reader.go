@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -183,36 +184,62 @@ func RunPartitions(ctx context.Context, count int, run func(context.Context, int
 	return results, nil
 }
 
-func scanCodeTopicProbeRows(rows db.Rows) ([]ProbeRow, error) {
+func scanCodeTopicProbeRows(rows db.Rows) ([]ProbeRow, int, error) {
 	var results []ProbeRow
 	for rows.Next() {
 		var row ProbeRow
 		if err := rows.Scan(&row.SourceKind, &row.MatchedTerm, &row.RepoID, &row.RelativePath,
 			&row.EntityID, &row.EntityName, &row.EntityType, &row.Language,
 			&row.StartLine, &row.EndLine); err != nil {
-			return nil, fmt.Errorf("scan code topic probe: %w", err)
+			return nil, len(results), fmt.Errorf("scan code topic probe: %w", err)
 		}
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("read code topic probe: %w", err)
+		return nil, len(results), fmt.Errorf("read code topic probe: %w", err)
 	}
-	return results, nil
+	return results, len(results), nil
 }
 
-func readCodeTopicProbe(ctx context.Context, reader db.Queryer, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any) ([]ProbeRow, error) {
+func readCodeTopicProbe(ctx context.Context, parent trace.Span, attempt, partition int, reader db.Queryer, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any) (result []ProbeRow, err error) {
 	query, args := ProbeSQL(req, cap, filters, baseArgs)
+	ctx, span := parent.TracerProvider().Tracer(telemetry.DefaultSignalName).Start(
+		trace.ContextWithSpan(ctx, parent), telemetry.SpanQueryCodeTopicPartition,
+		trace.WithAttributes(
+			attribute.Int("code_topic.attempt", attempt),
+			attribute.Int("code_topic.partition", partition),
+		),
+	)
+	var successfulRows int
+	var closeFailed bool
+	defer func() {
+		outcome := "ok"
+		switch {
+		case errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded):
+			outcome = "deadline"
+		case errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled):
+			outcome = "canceled"
+		case err != nil || closeFailed:
+			outcome = "error"
+		}
+		span.SetAttributes(
+			attribute.Int("code_topic.partition_rows", successfulRows),
+			attribute.String("code_topic.partition_outcome", outcome),
+		)
+		span.End()
+	}()
 	rows, err := reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("code topic probe: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-	return scanCodeTopicProbeRows(rows)
+	defer func() { closeFailed = rows.Close() != nil }()
+	result, successfulRows, err = scanCodeTopicProbeRows(rows)
+	return result, err
 }
 
 // Investigate reads four per-term partitions on one exported snapshot, then
 // asks PostgreSQL to assemble the ordered page with the original SQL rules.
-func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span trace.Span, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) (result []codequery.CodeTopicEvidenceRow, err error) {
+func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span trace.Span, attempt int, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) (result []codequery.CodeTopicEvidenceRow, err error) {
 	reservationStarted := time.Now()
 	set, err := store.BeginReadOnlySnapshotSet(ctx, Partitions)
 	span.SetAttributes(
@@ -245,7 +272,7 @@ func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span tra
 		if readErr != nil {
 			return nil, fmt.Errorf("read code topic worker %d: %w", index, readErr)
 		}
-		return readCodeTopicProbe(workerCtx, reader, group, cap, filters, baseArgs)
+		return readCodeTopicProbe(workerCtx, span, attempt, index, reader, group, cap, filters, baseArgs)
 	})
 	if err != nil {
 		return nil, err
