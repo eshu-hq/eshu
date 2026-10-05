@@ -167,7 +167,8 @@ func boundedErrorText(err error, maxBytes int) string {
 // site is one of reader_stale, reader_unavailable, other. The writer-side and
 // topology sentinels (ErrWriterUnavailable, ErrMissingCheckpoint,
 // ErrWrongTopology) live in internal/runtime/postgres, which the query layer
-// must not import, so they report as other.
+// must not import, so they report as other. ErrWrongTopology is also the shared
+// db.ErrWrongTopology, but this classifier deliberately leaves it as other.
 //
 // cause is one of deadline_exceeded, canceled, conn_done, eof, conn_refused,
 // conn_reset, net_timeout, sqlstate_<two-character class>, unknown.

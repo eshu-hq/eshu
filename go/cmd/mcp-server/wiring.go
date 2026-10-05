@@ -187,6 +187,9 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("register query instruments: %w", err)
 	}
+	// An identity-store outage is reported on the logger and counter, and the
+	// middleware answers it with a retryable 503 instead of a 401 (#7586).
+	identityResolver.WithTelemetry(logger, instruments)
 
 	// IdP bearer-token resolver (#5162): see cmd/api's identical wiring
 	// comment. Returns (nil, nil) when ESHU_AUTH_RESOURCE_URI is unset.

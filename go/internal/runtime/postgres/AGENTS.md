@@ -20,11 +20,26 @@ error path that is genuinely transient must carry a deadline (or a new sentinel
 the query layer matches); a permanent one must not wrap `context.DeadlineExceeded`.
 
 The current scope allows native host candidates behind one writer pool and one
-reader pool. Writer candidates must resolve to the frozen physical primary
-incarnation; reader candidates must resolve to its streaming standbys, or to
-the same primary when the DSNs are exactly equal. A new Access bootstrap is
-required after writer restart. Promotion, proxies, Aurora, and split-brain
-handling need separate proof. `ReadTransaction` owns its borrowed connection
+reader pool. Writer candidates must resolve to the published physical primary
+identity in `writerLineage` (`writer_lineage.go`); reader candidates must
+resolve to its streaming standbys, or to the same primary when the DSNs are
+exactly equal. The writer validator, the same-primary reader validator, and the
+checkpoint read that one shared identity; never copy it into a field or a
+closure. A same-cluster restart is re-bootstrapped in place: a changed
+incarnation is published before `ValidateConnect` returns only when system ID,
+database, and insert timeline (`pg_walfile_name`, not
+`pg_control_checkpoint()`) match and `pg_current_wal_flush_lsn()` is at or past
+the flushed-LSN watermark. Keep the watermark on the flushed LSN: crash
+recovery can end below an observed insert LSN. Keep the insert LSN for the
+replay fence. `writerLineageSQL` errors during recovery, so it stays out of the
+shared `physicalMetadataSQL` that standbys run. A timeline or watermark failure
+latches the Access to `ErrWrongTopology` until restart. A dial whose
+observation went stale during its round trip returns `errLineageRaced`
+(`driver.ErrBadConn`) and never latches. Hold `writerLineage.mu` only for
+in-memory work, never across a query. An unchanged incarnation must cost no
+extra query. Direct reader members keep their frozen incarnation: a restarted
+member stays ineligible until process restart. Promotion, proxies, Aurora, and
+split-brain handling need separate proof. `ReadTransaction` owns its borrowed connection
 until Commit, Rollback, or cancellation; a cursor only closes its own rows.
 Snapshot sets reserve all requested reader connections behind a per-Access
 context-cancelable gate, fence every connection before any transaction, and
@@ -47,10 +62,15 @@ point write tests at ops-qa. Coordinate fixture use with other agents. Run the
 package tests with and without `-race`; classify a new `*_live_test.go` in the
 live-test ledger in the same change.
 
-Live candidate and restart tests require explicit owned fixture environment
-variables documented in README.md. Never hardcode a session host, port, or
-container target in committed tests. A restart test must first prove a fresh
-Access is ready, then require the old Access to reject the new incarnation.
+Live candidate, restart, and lineage-swap tests require explicit owned fixture
+environment variables documented in README.md. Never hardcode a session host,
+port, or container target in committed tests. They are env-gated plain
+`*_test.go` files (`restart_test.go`, `crash_restart_test.go`,
+`lineage_change_test.go`), outside the live-test ledger like `access_test.go`;
+do not add `scheduled` ledger rows. A restart test must prove the same Access
+recovers; a promotion or restore test must assert a precondition that isolates
+the predicate it claims to exercise, then require `ErrWrongTopology` and the
+latch on later dials.
 
 `Observer` stays the legacy, request-less contract and must not change.
 `ContextObserver` is the optional extension: `Access.observe` takes the request

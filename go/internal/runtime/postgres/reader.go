@@ -121,7 +121,8 @@ func (a *Access) checkReader(ctx context.Context, conn *sql.Conn, point checkpoi
 	} else {
 		err = conn.QueryRowContext(ctx, `SELECT current_setting('default_transaction_read_only'), pg_is_in_recovery(), system_identifier::text, current_database(), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text, host(inet_server_addr()) FROM pg_control_system()`).Scan(&readOnly, &recovery, &systemID, &database, &incarnation, &serverAddress)
 	}
-	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || systemID != a.identity.systemID || database != a.identity.database || recovery == a.samePrimary) {
+	writer := a.lineage.identity()
+	if err == nil && (readOnly != "on" || systemID != point.systemID || database != point.database || systemID != writer.systemID || database != writer.database || recovery == a.samePrimary) {
 		err = ErrWrongTopology
 	}
 	if err == nil && member != nil && (incarnation != member.incarnation || !addressMatches(serverAddress, member.addresses)) {

@@ -34,68 +34,122 @@ func readPhysicalRaw(ctx context.Context, conn *pgconn.PgConn) (physicalIdentity
 	return physicalIdentity{string(row[0]), string(row[1]), string(row[2]), string(row[3]), string(row[4]), string(row[5])}, nil
 }
 
-func writerValidator(expected physicalIdentity) pgconn.ValidateConnectFunc {
+// readWriterIdentity proves a writable primary session and reads its shared
+// physical metadata.
+func readWriterIdentity(ctx context.Context, conn *pgconn.PgConn) (physicalIdentity, error) {
+	if err := pgconn.ValidateConnectTargetSessionAttrsPrimary(ctx, conn); err != nil {
+		return physicalIdentity{}, fmt.Errorf("writer physical role: %w", err)
+	}
+	if err := pgconn.ValidateConnectTargetSessionAttrsReadWrite(ctx, conn); err != nil {
+		return physicalIdentity{}, fmt.Errorf("writer writable session: %w", err)
+	}
+	id, err := readPhysicalRaw(ctx, conn)
+	if err != nil {
+		return physicalIdentity{}, fmt.Errorf("writer metadata: %w", err)
+	}
+	if id.recovery != "false" || id.readOnly != "off" || id.defaultReadOnly != "off" {
+		return physicalIdentity{}, ErrWrongTopology
+	}
+	return id, nil
+}
+
+// bootstrapWriterValidator accepts the first writer before any identity is
+// published: a writable primary with the expected system and database.
+func bootstrapWriterValidator(systemID, database string) pgconn.ValidateConnectFunc {
 	return func(ctx context.Context, conn *pgconn.PgConn) error {
-		if err := pgconn.ValidateConnectTargetSessionAttrsPrimary(ctx, conn); err != nil {
-			return fmt.Errorf("writer physical role: %w", err)
-		}
-		if err := pgconn.ValidateConnectTargetSessionAttrsReadWrite(ctx, conn); err != nil {
-			return fmt.Errorf("writer writable session: %w", err)
-		}
-		id, err := readPhysicalRaw(ctx, conn)
+		id, err := readWriterIdentity(ctx, conn)
 		if err != nil {
-			return fmt.Errorf("writer metadata: %w", err)
+			return err
 		}
-		if id.recovery != "false" || id.readOnly != "off" || id.defaultReadOnly != "off" || (expected.systemID != "" && id.systemID != expected.systemID) || (expected.database != "" && id.database != expected.database) || (expected.incarnation != "" && id.incarnation != expected.incarnation) {
+		if (systemID != "" && id.systemID != systemID) || (database != "" && id.database != database) {
 			return ErrWrongTopology
 		}
 		return nil
 	}
 }
 
-func readerValidator(expected physicalIdentity, samePrimary bool) pgconn.ValidateConnectFunc {
+// writerValidator accepts a writer connection on the published identity with
+// one metadata query, and re-bootstraps a same-lineage primary restart.
+func writerValidator(lineage *writerLineage) pgconn.ValidateConnectFunc {
 	return func(ctx context.Context, conn *pgconn.PgConn) error {
-		if samePrimary {
-			if err := pgconn.ValidateConnectTargetSessionAttrsPrimary(ctx, conn); err != nil {
-				return fmt.Errorf("reader physical role: %w", err)
-			}
-		} else {
-			if err := pgconn.ValidateConnectTargetSessionAttrsStandby(ctx, conn); err != nil {
-				return fmt.Errorf("reader physical role: %w", err)
-			}
+		if lineage.isLatched() {
+			return ErrWrongTopology
+		}
+		base := lineage.identity()
+		id, err := readWriterIdentity(ctx, conn)
+		if err != nil {
+			return err
+		}
+		return lineage.validate(ctx, conn, base, id)
+	}
+}
+
+// samePrimaryReaderValidator guards the read-only session pool that shares the
+// writer's primary. It shares the writer lineage, so a same-cluster restart
+// observed first by a reader dial is published for the writer as well.
+func samePrimaryReaderValidator(lineage *writerLineage) pgconn.ValidateConnectFunc {
+	return func(ctx context.Context, conn *pgconn.PgConn) error {
+		if lineage.isLatched() {
+			return ErrWrongTopology
+		}
+		base := lineage.identity()
+		if err := pgconn.ValidateConnectTargetSessionAttrsPrimary(ctx, conn); err != nil {
+			return fmt.Errorf("reader physical role: %w", err)
 		}
 		id, err := readPhysicalRaw(ctx, conn)
 		if err != nil {
 			return fmt.Errorf("reader metadata: %w", err)
 		}
-		expectedRecovery := "true"
-		if samePrimary {
-			expectedRecovery = "false"
+		if id.recovery != "false" || id.defaultReadOnly != "on" {
+			return ErrWrongTopology
 		}
-		if id.recovery != expectedRecovery || id.defaultReadOnly != "on" || id.systemID != expected.systemID || id.database != expected.database || (samePrimary && id.incarnation != expected.incarnation) {
+		return lineage.validate(ctx, conn, base, id)
+	}
+}
+
+// readerValidator guards a physical streaming standby and is the base check for
+// each direct reader member. It compares no incarnation: a standby keeps its own
+// postmaster through a primary restart, and the same-primary reader pool shares
+// the writer lineage through samePrimaryReaderValidator instead.
+func readerValidator(expected physicalIdentity) pgconn.ValidateConnectFunc {
+	return func(ctx context.Context, conn *pgconn.PgConn) error {
+		if err := pgconn.ValidateConnectTargetSessionAttrsStandby(ctx, conn); err != nil {
+			return fmt.Errorf("reader physical role: %w", err)
+		}
+		id, err := readPhysicalRaw(ctx, conn)
+		if err != nil {
+			return fmt.Errorf("reader metadata: %w", err)
+		}
+		if id.recovery != "true" || id.defaultReadOnly != "on" || id.systemID != expected.systemID || id.database != expected.database {
 			return ErrWrongTopology
 		}
 		return nil
 	}
 }
 
-func bootstrapPhysicalWriter(ctx context.Context, cfg *pgx.ConnConfig, expectedSystemID string) (physicalIdentity, error) {
-	expected := physicalIdentity{systemID: expectedSystemID, database: cfg.Database}
-	cfg.ValidateConnect = writerValidator(expected)
+// bootstrapPhysicalWriter validates the first writer and reads its identity,
+// insert timeline, and flushed WAL position on one connection. The flushed
+// position seeds the restart watermark before any checkpoint runs.
+func bootstrapPhysicalWriter(ctx context.Context, cfg *pgx.ConnConfig, expectedSystemID string) (physicalIdentity, lineageObservation, error) {
+	cfg.ValidateConnect = bootstrapWriterValidator(expectedSystemID, cfg.Database)
 	conn, err := pgx.ConnectConfig(ctx, cfg)
 	if err != nil {
-		return physicalIdentity{}, fmt.Errorf("writer bootstrap: %w", err)
+		return physicalIdentity{}, lineageObservation{}, fmt.Errorf("writer bootstrap: %w", err)
 	}
 	id, readErr := readPhysicalPGX(ctx, conn)
+	var observed lineageObservation
+	if readErr == nil {
+		observed, readErr = readLineagePGX(ctx, conn)
+	}
 	closeErr := conn.Close(ctx)
 	if readErr != nil {
-		return physicalIdentity{}, fmt.Errorf("writer bootstrap metadata: %w", readErr)
+		return physicalIdentity{}, lineageObservation{}, fmt.Errorf("writer bootstrap metadata: %w", readErr)
 	}
 	if closeErr != nil {
-		return physicalIdentity{}, fmt.Errorf("writer bootstrap close: %w", closeErr)
+		return physicalIdentity{}, lineageObservation{}, fmt.Errorf("writer bootstrap close: %w", closeErr)
 	}
 	if id.recovery != "false" || id.readOnly != "off" || id.defaultReadOnly != "off" || id.systemID == "" || id.database != cfg.Database || id.incarnation == "" || (expectedSystemID != "" && id.systemID != expectedSystemID) {
-		return physicalIdentity{}, ErrWrongTopology
+		return physicalIdentity{}, lineageObservation{}, ErrWrongTopology
 	}
-	return id, nil
+	return id, observed, nil
 }

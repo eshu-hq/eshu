@@ -283,7 +283,7 @@ func readerFailureClass(err error) readerFailureKind {
 }
 
 func memberValidator(writer physicalIdentity, incarnation string, addresses []net.IP) pgconn.ValidateConnectFunc {
-	base := readerValidator(writer, false)
+	base := readerValidator(writer)
 	return func(ctx context.Context, conn *pgconn.PgConn) error {
 		if err := base(ctx, conn); err != nil {
 			return err

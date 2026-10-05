@@ -83,7 +83,8 @@ func fleetCheckpoint(ctx context.Context, access *Access) (checkpoint, error) {
 	if !ok || point.owner != access {
 		return checkpoint{}, ErrMissingCheckpoint
 	}
-	if point.lsn == "" || point.systemID != access.identity.systemID || point.database != access.identity.database || point.incarnation != access.identity.incarnation {
+	writer := access.lineage.identity()
+	if point.lsn == "" || point.systemID != writer.systemID || point.database != writer.database || point.incarnation != writer.incarnation {
 		return checkpoint{}, ErrWrongTopology
 	}
 	return point, nil

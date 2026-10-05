@@ -5,10 +5,15 @@
 // writer and fenced reader pools. Native host candidates share each pool's
 // total connection cap; an opt-in direct-member inventory instead splits that
 // reader cap across individually qualified physical standby pools. Writer
-// candidates must reach one frozen physical
-// primary incarnation; reader candidates must be its streaming standbys, or
-// the same primary when both DSNs are exactly equal. Startup and every new
-// physical connection validate role and identity before use.
+// candidates must reach the published physical primary identity; reader
+// candidates must be its streaming standbys, or the same primary when both
+// DSNs are exactly equal. Startup and every new physical connection validate
+// role and identity before use. A same-cluster primary restart is
+// re-bootstrapped in place: a new postmaster incarnation is published only
+// when the system identifier, database, and insert timeline match and the
+// flushed WAL position is at or past the highest flushed position this Access
+// observed. A timeline or watermark failure latches the Access to
+// ErrWrongTopology until the process restarts.
 //
 // After caller authorization, ContextWithCheckpoint captures a writer WAL
 // insertion point. Each cursor or row read checks freshness on its own
@@ -28,6 +33,7 @@
 // No failed fence falls back to the writer or executes business SQL.
 //
 // This package does not qualify promotion, timeline forks, split brain,
-// Aurora, proxy routing, or automatic writer restart acceptance. Recreate
-// Access explicitly after a primary restart.
+// Aurora, or proxy routing; a promoted or restored primary is refused by
+// design. A restarted direct reader member stays ineligible until the process
+// restarts.
 package postgres

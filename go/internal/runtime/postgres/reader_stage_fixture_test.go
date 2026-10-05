@@ -67,7 +67,7 @@ func newDelayedStageFixtureAccess(tb testing.TB, observer Observer, delays stage
 	tb.Cleanup(func() { _ = pool.Close() })
 	access := &Access{
 		reader: pool, observer: observer, replayTimeout: time.Second,
-		identity: physicalIdentity{systemID: "7", database: "eshu"},
+		lineage: newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
 	}
 	ctx := context.WithValue(context.Background(), checkpointKey{}, checkpoint{owner: access, systemID: "7", database: "eshu", lsn: "0/10"})
 	return access, ctx

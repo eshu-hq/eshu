@@ -38,7 +38,7 @@ func TestFleetMemberAttemptSignalsKeepOriginalOrdinal(t *testing.T) {
 	access := &Access{
 		readerMembers: []physicalReaderMember{{ordinal: 1, maxOpen: 4}, {ordinal: 2, maxOpen: 4}},
 		allocator:     newReaderAllocator([]int{4, 4}, 8), replayTimeout: time.Second,
-		observer: recorder, identity: physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"},
+		observer: recorder, lineage: newWriterLineage(physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"}, lineageObservation{}, nil),
 	}
 	ctx := context.WithValue(context.Background(), checkpointKey{}, checkpoint{
 		owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",

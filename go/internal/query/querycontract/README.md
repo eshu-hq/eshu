@@ -323,6 +323,14 @@ canceled context and a live-context error keep their own mapping, and an error
 that already carries `ErrGraphUnavailable` stays a 503, so the handler's
 `failure_class` log and its response agree.
 
+`ErrIdentityStoreUnavailable`, `IdentityStoreUnavailableEnvelope`, and
+`WriteIdentityStoreUnavailable` are the auth-side sibling (#7586): a credential
+the identity store could not evaluate answers the same retryable `503`
+`backend_unavailable` with `Retry-After`, the fixed
+`identity store temporarily unavailable; retry shortly` message, and no
+`WWW-Authenticate` challenge. The verdict is marked retryable per envelope, like
+the reader fence below.
+
 `WriteGraphReadError` and `GraphReadErrorEnvelope` also map a guarded
 PostgreSQL reader that was stale (`db.ErrReaderStale`) or whose connection
 acquisition (pool wait or dial) or identity check timed out inside the replay
@@ -335,8 +343,8 @@ failure that is not a timeout (authentication, TLS, connection refused,
 permission denied, client cancel) also carries `db.ErrReaderUnavailable` but is
 not transient, so it is not claimed and stays the caller's 500.
 Each mapped verdict carries its own retryable marker (#7536): only graph
-unavailable and the stale or timed-out reader are marked, never a verdict merely
-because its status is `503`. `GraphReadErrorEnvelope` copies the marker onto the
+unavailable, the stale or timed-out reader, and the identity-store `503` above
+are marked, never a verdict merely because its status is `503`. `GraphReadErrorEnvelope` copies the marker onto the
 envelope as an unexported flag, and
 `WriteErrorEnvelope` sets `Retry-After` (`BackendUnavailableRetryAfterSeconds`,
 a fixed constant, no clock read) only for a marked envelope, so every seam that

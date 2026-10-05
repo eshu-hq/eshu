@@ -176,8 +176,8 @@ checkpoint. Every business SQL operation fences its actual reader connection
 against that checkpoint. Lag, unavailable readers, and topology mismatches
 return errors without switching business reads to the writer. Trusted runtime
 status, metrics, and readiness capture their own checkpoints; health remains
-independent of the database. Primary restart requires an explicit, verified
-runtime recovery rather than automatic acceptance of a new incarnation.
+independent of the database. A same-cluster primary restart recovers in place; a
+promoted or restored primary is refused and needs a deliberate process restart.
 
 See [PostgreSQL read routing](../../../docs/public/deployment/postgres-read-routing.md)
 for consistency, permissions, multiple hosts, and qualification limits.

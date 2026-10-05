@@ -41,8 +41,9 @@ var (
 
 // BackendUnavailableRetryAfterSeconds is the Retry-After value, in seconds,
 // sent with the transient 503 backend_unavailable graph-read verdicts (graph
-// unavailable, stale or timed-out PostgreSQL reader) and the WithCheckpoint 503;
-// a permanent 503 such as an unconfigured graph backend carries no hint. It is
+// unavailable, stale or timed-out PostgreSQL reader), the WithCheckpoint 503, and
+// the identity-store 503 (#7586); a permanent 503 such as an unconfigured graph
+// backend carries no hint. It is
 // a fixed hint sized to the reader replay window (2 s by default), so a retry
 // lands after the replica has had one full catch-up window; the server reads
 // no clock to derive it.

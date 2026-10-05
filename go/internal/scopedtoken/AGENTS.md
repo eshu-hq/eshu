@@ -33,3 +33,15 @@ Read `README.md` and `doc.go` before editing.
 `registry_test.go` covers resolve, unknown/empty credential, all-scopes admin,
 every load-validation failure, and the no-leak error contract. Add a case for
 any new field or validation rule.
+
+`PostgresIdentityResolver` classifies a store failure as an identity-store outage
+only from the bounded Postgres error's `Kind` (`unavailable`, `timeout`), the
+`driver.ErrBadConn` and `sql.ErrConnDone` sentinels, a resource-limit SQLSTATE
+(class 53, such as too many connections, which `boundederr` classes as failed
+because it checks a server error before a connect error), a bare
+`context.DeadlineExceeded` that `database/sql` returns before the driver sees it
+(class `timeout`; a bare cancel stays unclaimed), and `db.ErrWrongTopology`
+(class `topology`, logged at error level because it does not clear on its own);
+never from error text. A failed statement and a caller cancel
+must stay unclaimed so the middleware keeps its bare `401` (#7586). The log line
+and counter carry only the closed `failure_class`, never the credential.

@@ -154,7 +154,8 @@ the Go error text and driver detail never reach the response. The writer
 checkpoint step failure (the writer checkpoint query erroring or timing out, or
 the writer failing its topology check; replay lag appears later, in the reader
 fence) answers the same `503` and `Retry-After`. Retry after the hinted delay. `Retry-After` is set only on
-these transient verdicts; a permanent `503` such as a route that needs an
+these transient verdicts and on the auth path's identity-store `503` (see
+[HTTP API](../reference/http-api.md#postgresql-reader-fence-failures)); a permanent `503` such as a route that needs an
 unconfigured graph backend, or a checkpoint source that was never configured
 (unreachable in the API and MCP binaries, which fail startup first), carries none. The
 reader fence context inherits the request's own deadline, so a parent or handler
@@ -189,12 +190,26 @@ means one standby qualified at startup, not that a second standby is ready or
 that the first remains healthy. Alert on a configured singleton as a lack of
 read redundancy; `/readyz` and reader-stage failures report a later loss.
 
-Startup freezes the primary's physical identity and postmaster incarnation.
-After a primary restart, old runtime access fails its checks. Recovery requires
-independent verification of the intended database and replication lineage,
-then a deliberate runtime restart/bootstrap and a fresh readiness check. Do
-not automatically accept a new incarnation, replay writes, or promote readers
-in response to a transient request failure.
+Startup records the primary's physical identity, postmaster incarnation, WAL
+timeline, and flushed WAL position. A same-cluster primary restart (stop and
+start, or a crash and recovery) recovers in place: the next connection that
+sees the new incarnation checks that the system identifier, database, and
+timeline are unchanged and that the primary's flushed WAL is at or past the
+highest flushed position the API/MCP process has seen, then accepts it for
+every pool. No API/MCP restart is needed, and `/readyz` turns ready again. This
+was exercised with the default same-primary reader pool and with a reader pool
+on a streaming standby, whose validator never compared the primary's
+incarnation.
+
+A promoted primary (new timeline) or a primary restored from an older
+snapshot (flushed WAL behind what the process saw) is refused by design. The
+process latches to the topology refusal until it restarts: the auth path
+answers `503` and counts it as `failure_class=topology`, checkpoints fail, and `/readyz`
+fails. Verify the intended database and replication lineage, then restart
+the API/MCP deliberately. The log event `postgres.writer.lineage` reports
+`outcome=accepted` or `outcome=latched` with its `reason`. A restarted
+standby listed in `ESHU_POSTGRES_READ_MEMBERS` stays ineligible until the
+process restarts; that is a known limitation.
 
 ## Aurora and scaling limits
 
