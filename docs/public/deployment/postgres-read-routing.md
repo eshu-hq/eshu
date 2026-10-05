@@ -196,12 +196,15 @@ start, or a crash and recovery) recovers in place: the next connection that
 sees the new incarnation checks that the system identifier, database, and
 timeline are unchanged and that the primary's flushed WAL is at or past the
 highest flushed position the API/MCP process has seen, then accepts it for
-every pool. No API/MCP restart is needed, and `/readyz` turns ready again.
+every pool. No API/MCP restart is needed, and `/readyz` turns ready again. This
+was exercised with the default same-primary reader pool; a streaming-standby
+reader pool was not exercised, although its validator never compared the
+primary's incarnation.
 
 A promoted primary (new timeline) or a primary restored from an older
 snapshot (flushed WAL behind what the process saw) is refused by design. The
 process latches to the topology refusal until it restarts: the auth path
-answers `503` with `failure_class=topology`, checkpoints fail, and `/readyz`
+answers `503` and counts it as `failure_class=topology`, checkpoints fail, and `/readyz`
 fails. Verify the intended database and replication lineage, then restart
 the API/MCP deliberately. The log event `postgres.writer.lineage` reports
 `outcome=accepted` or `outcome=latched` with its `reason`. A restarted

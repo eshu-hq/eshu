@@ -4,9 +4,12 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql/driver"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -84,6 +87,28 @@ func TestWriterLineageLatchWinsOverAnAlreadyPublishedIncarnation(t *testing.T) {
 	}
 	if err := lineage.admit(staleBase, restarted("200"), lineageObservation{timeline: testTimeline, flush: 1000}); !errors.Is(err, ErrWrongTopology) {
 		t.Fatalf("stale dial after the latch = %v, want ErrWrongTopology", err)
+	}
+}
+
+// TestWriterLineageRacedLogNamesBothIncarnations proves the raced record says
+// which incarnation lost. A restart storm produces several raced dials at once,
+// and an operator correlating them needs the observed and the published value.
+func TestWriterLineageRacedLogNamesBothIncarnations(t *testing.T) {
+	var logs bytes.Buffer
+	lineage := newWriterLineage(physicalIdentity{systemID: "7", database: "eshu", incarnation: "100"}, lineageObservation{timeline: testTimeline, flush: 1000}, slog.New(slog.NewJSONHandler(&logs, nil)))
+	staleBase := lineage.identity()
+	if err := lineage.admit(staleBase, restarted("200"), lineageObservation{timeline: testTimeline, flush: 1000}); err != nil {
+		t.Fatalf("restart rejected: %v", err)
+	}
+	logs.Reset()
+	if err := lineage.admit(staleBase, restarted("300"), lineageObservation{timeline: testTimeline, flush: 1000}); !errors.Is(err, errLineageRaced) {
+		t.Fatalf("raced admit = %v, want errLineageRaced", err)
+	}
+	line := logs.String()
+	for _, want := range []string{`"outcome":"raced"`, `"observed_incarnation":"300"`, `"published_incarnation":"200"`} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("raced log = %s, want it to contain %s", line, want)
+		}
 	}
 }
 

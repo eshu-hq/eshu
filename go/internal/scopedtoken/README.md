@@ -32,7 +32,8 @@ per-team token reads only its onboarded scope.
   service-principal API tokens from `identity_token_metadata`, active identity
   subjects, active role assignments, and active repository/scope targets. It
   records `last_used_at` after a successful lookup.
-  A transient store failure (a lost or refused connection, a timeout, or a writer
+  A transient store failure (a lost or refused connection, a resource-limit
+  refusal such as too many connections, a timeout, or a writer
   refused for a topology mismatch) returns an error wrapping
   `querycontract.ErrIdentityStoreUnavailable` so the auth middleware answers a
   retryable `503` instead of a `401` (#7586); every other store error is returned

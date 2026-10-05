@@ -155,7 +155,8 @@ store error straight into a `500` do not yet map a reader fence failure and
 still answer `500` until they are routed through the shared helper.
 
 A bearer credential is checked against the PostgreSQL identity store. When that
-store cannot answer (a lost or refused connection, or a statement timeout), the
+store cannot answer (a lost or refused connection, a refusal for lack of
+resources such as too many connections, or a statement timeout), the
 credential is not judged either way, so the API does not answer `401`. It
 answers `503` `backend_unavailable` with `Retry-After: 2`, the fixed message
 `identity store temporarily unavailable; retry shortly`, and no

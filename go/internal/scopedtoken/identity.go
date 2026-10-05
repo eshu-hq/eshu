@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -181,9 +182,9 @@ const identityStoreClassTopology = "topology"
 // identityStoreOutageClass reports whether err means the identity store could
 // not be reached and, if so, its closed failure class: unavailable or timeout
 // (transient) or topology (permanent until restart). It reads the shared
-// topology sentinel, the bounded Postgres error's Kind, a bare deadline, and the
-// two database/sql connection sentinels the pool can surface unbounded; it never
-// reads error text. A caller cancel and a failed statement are not outages.
+// topology sentinel, a resource-limit SQLSTATE (class 53), the bounded Postgres
+// error's Kind, a bare deadline, and the two database/sql connection sentinels
+// the pool can surface unbounded; it never reads error text. A caller cancel and a failed statement are not outages.
 func identityStoreOutageClass(err error) (string, bool) {
 	// A writer refused for a topology mismatch reaches here as a connect error,
 	// which boundederr classes as unavailable. It is permanent until restart, so
@@ -191,6 +192,14 @@ func identityStoreOutageClass(err error) (string, bool) {
 	// operator to retry shortly forever.
 	if errors.Is(err, db.ErrWrongTopology) {
 		return identityStoreClassTopology, true
+	}
+	// PostgreSQL refusing work for lack of resources (SQLSTATE class 53: too many
+	// connections, out of memory, disk full) is the connection-limit blip the
+	// issue names. boundederr classes a server error as failed, because it checks
+	// a PgError before a connect error, so the class is read here from the code.
+	var serverErr *pgconn.PgError
+	if errors.As(err, &serverErr) && strings.HasPrefix(serverErr.Code, "53") {
+		return string(boundederr.KindUnavailable), true
 	}
 	var bounded *boundederr.Error
 	if errors.As(err, &bounded) {

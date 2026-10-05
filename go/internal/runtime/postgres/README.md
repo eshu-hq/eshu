@@ -213,7 +213,7 @@ A promoted primary (new timeline) or a restored snapshot (same timeline, flushed
 WAL behind the watermark) is refused by design: the Access latches to
 `ErrWrongTopology` until the process restarts. Every later writer or
 same-primary reader dial, every checkpoint, and `Ping` then fail with it, and
-the API auth path answers 503 with `failure_class=topology`. `Writer()` hands
+the API auth path answers 503 and counts it as `failure_class=topology`. `Writer()` hands
 out the raw pool, so an already-established connection is not gated by the
 latch; new dials, checkpoints, and readiness are. A dial whose observation went
 stale while another dial published a different incarnation neither publishes
@@ -225,8 +225,10 @@ limitation.
 
 Each accepted, raced, or latched decision logs `event_name=postgres.writer.lineage`
 on `Config.Logger` with `outcome` (`accepted`, `raced`, `latched`), the
-latch `reason` (`timeline`, `flush_below_watermark`), the previous and
-observed incarnations and timelines, and the LSNs. The `writer_checkpoint`
+latch `reason` (`timeline`, `flush_below_watermark`), and the incarnations,
+timelines, and LSNs the decision rested on: `accepted` and `latched` carry the
+previous and observed incarnation, `raced` carries the observed and published
+incarnation. The `writer_checkpoint`
 stage reports `outcome=error` while latched.
 
 The writer checkpoint reads `pg_current_wal_insert_lsn()`, PostgreSQL system

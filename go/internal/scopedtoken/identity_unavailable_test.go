@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -61,6 +62,12 @@ func TestPostgresIdentityResolverClassifiesStoreOutageAsUnavailable(t *testing.T
 		// bounded connector see it, when a pool wait or the request deadline runs
 		// out. It is transient and, like a reader timeout (#7523), retryable.
 		{"pool wait deadline surfaced raw", context.DeadlineExceeded, "timeout"},
+		// PostgreSQL refusing a connection for lack of resources reaches the
+		// resolver as a *pgconn.PgError, which boundederr classes as failed (it
+		// checks a server error before a connect error). The issue names a
+		// connection-limit blip, so the resource-limit class is claimed here.
+		{"too many connections", boundederr.Wrap(&pgconn.PgError{Code: "53300"}), "unavailable"},
+		{"out of memory on the server", boundederr.Wrap(&pgconn.PgError{Code: "53200"}), "unavailable"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -93,6 +100,8 @@ func TestPostgresIdentityResolverDoesNotClaimOtherFailures(t *testing.T) {
 		cause error
 	}{
 		{"statement failed", boundederr.Wrap(errors.New("syntax error"))},
+		{"server rejected the statement", boundederr.Wrap(&pgconn.PgError{Code: "42601"})},
+		{"integrity violation", boundederr.Wrap(&pgconn.PgError{Code: "23505"})},
 		{"caller canceled", boundederr.Wrap(context.Canceled)},
 		{"caller canceled before the pool answered", context.Canceled},
 		{"unclassified error", errors.New("something else")},

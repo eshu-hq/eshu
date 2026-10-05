@@ -128,7 +128,9 @@ func (l *writerLineage) admit(base *writerIdentity, id physicalIdentity, observe
 		if current.incarnation == id.incarnation {
 			return nil
 		}
-		l.logger.Info("postgres writer identity raced", slog.String("event_name", "postgres.writer.lineage"), slog.String("outcome", "raced"))
+		l.logger.Info("postgres writer identity raced",
+			slog.String("event_name", "postgres.writer.lineage"), slog.String("outcome", "raced"),
+			slog.String("observed_incarnation", id.incarnation), slog.String("published_incarnation", current.incarnation))
 		return errLineageRaced
 	}
 	watermark := l.watermark.Load()
@@ -193,7 +195,7 @@ func readLineagePGX(ctx context.Context, conn *pgx.Conn) (lineageObservation, er
 }
 
 // parseLineage takes the timeline from the first eight hexadecimal digits of a
-// WAL segment file name. pg_split_walfile_name needs PostgreSQL 15 or newer.
+// WAL segment file name. pg_split_walfile_name needs PostgreSQL 16 or newer.
 func parseLineage(walFile, flush string) (lineageObservation, error) {
 	if len(walFile) != 24 || !isHex(walFile) {
 		return lineageObservation{}, errors.New("invalid PostgreSQL WAL file name")
