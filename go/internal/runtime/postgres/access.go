@@ -152,7 +152,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if cfg.SamePrimary {
 		readCfg.ValidateConnect = samePrimaryReaderValidator(lineage)
 	} else {
-		readCfg.ValidateConnect = readerValidator(identity, false)
+		readCfg.ValidateConnect = readerValidator(identity)
 	}
 	var reader *sql.DB
 	var members []physicalReaderMember

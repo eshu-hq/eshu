@@ -107,30 +107,20 @@ func samePrimaryReaderValidator(lineage *writerLineage) pgconn.ValidateConnectFu
 	}
 }
 
-// readerValidator guards a physical streaming standby (samePrimary false) and
-// is the base check for each direct reader member. Access does not use its
-// samePrimary form, which compares a frozen incarnation; the same-primary
-// reader pool shares the writer lineage through samePrimaryReaderValidator.
-func readerValidator(expected physicalIdentity, samePrimary bool) pgconn.ValidateConnectFunc {
+// readerValidator guards a physical streaming standby and is the base check for
+// each direct reader member. It compares no incarnation: a standby keeps its own
+// postmaster through a primary restart, and the same-primary reader pool shares
+// the writer lineage through samePrimaryReaderValidator instead.
+func readerValidator(expected physicalIdentity) pgconn.ValidateConnectFunc {
 	return func(ctx context.Context, conn *pgconn.PgConn) error {
-		if samePrimary {
-			if err := pgconn.ValidateConnectTargetSessionAttrsPrimary(ctx, conn); err != nil {
-				return fmt.Errorf("reader physical role: %w", err)
-			}
-		} else {
-			if err := pgconn.ValidateConnectTargetSessionAttrsStandby(ctx, conn); err != nil {
-				return fmt.Errorf("reader physical role: %w", err)
-			}
+		if err := pgconn.ValidateConnectTargetSessionAttrsStandby(ctx, conn); err != nil {
+			return fmt.Errorf("reader physical role: %w", err)
 		}
 		id, err := readPhysicalRaw(ctx, conn)
 		if err != nil {
 			return fmt.Errorf("reader metadata: %w", err)
 		}
-		expectedRecovery := "true"
-		if samePrimary {
-			expectedRecovery = "false"
-		}
-		if id.recovery != expectedRecovery || id.defaultReadOnly != "on" || id.systemID != expected.systemID || id.database != expected.database || (samePrimary && id.incarnation != expected.incarnation) {
+		if id.recovery != "true" || id.defaultReadOnly != "on" || id.systemID != expected.systemID || id.database != expected.database {
 			return ErrWrongTopology
 		}
 		return nil
