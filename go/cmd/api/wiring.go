@@ -158,6 +158,9 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("register query instruments: %w", err)
 	}
+	// An identity-store outage is reported on the logger and counter, and the
+	// middleware answers it with a retryable 503 instead of a 401 (#7586).
+	identityResolver.WithTelemetry(logger, instruments)
 	graphReader, err := openGraphReader(ctx, rawDB, driver, neo4jDB, logger, instruments, captureSession)
 	if err != nil {
 		return nil, nil, nil, err

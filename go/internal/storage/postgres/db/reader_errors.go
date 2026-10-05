@@ -30,6 +30,13 @@ var (
 	// TLS failure, connection refused, permission denied, a client disconnect)
 	// as a plain failure.
 	ErrReaderUnavailable = errors.New("PostgreSQL reader unavailable")
+	// ErrWrongTopology reports that a PostgreSQL role, database, system
+	// identity, or primary history differs from the one the access was
+	// bootstrapped against: a promotion, a restore, or a different cluster. It is
+	// permanent until the process restarts, so a caller must not tell a client to
+	// retry shortly on its account alone. The runtime package re-exports this same
+	// value so errors.Is matches in either direction (#7586).
+	ErrWrongTopology = errors.New("PostgreSQL reader topology mismatch")
 )
 
 // ReaderRetryAfterSeconds is the Retry-After hint, in seconds, that every

@@ -23,8 +23,10 @@ type checkpointKey struct{}
 var (
 	// ErrMissingCheckpoint means business SQL was refused before borrowing a reader.
 	ErrMissingCheckpoint = errors.New("PostgreSQL reader requires writer checkpoint")
-	// ErrWrongTopology means a role, database, or system identity differs.
-	ErrWrongTopology = errors.New("PostgreSQL reader topology mismatch")
+	// ErrWrongTopology means a role, database, system identity, or primary
+	// history differs. It is the shared db.ErrWrongTopology so the query layer and
+	// the identity resolver can classify it without importing this package.
+	ErrWrongTopology = db.ErrWrongTopology
 	// ErrReaderStale means replay did not reach the writer checkpoint in time.
 	// It is the shared db.ErrReaderStale so the query layer can classify it
 	// without importing this package.

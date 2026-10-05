@@ -267,3 +267,6 @@ const (
 	ServiceChangedSinceGrantRefusalEmptyGrant = contract.ServiceChangedSinceGrantRefusalEmptyGrant
 	ServiceChangedSinceGrantRefusalNotGranted = contract.ServiceChangedSinceGrantRefusalNotGranted
 )
+
+// Auth identity-store outage log record (from contract/auth_identity.go).
+const EventAuthIdentityStoreUnavailable = contract.EventAuthIdentityStoreUnavailable

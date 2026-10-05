@@ -229,6 +229,16 @@ func authMiddlewareWithRoutePolicy(
 				// bare: that credential WAS understood, so pointing it at
 				// discovery is noise, and a bare 401 on an infra error is the
 				// fail-safe against anthropics/claude-code#59467.
+				if errors.Is(err, querycontract.ErrIdentityStoreUnavailable) {
+					// #7586: the identity store could not answer, so the
+					// credential was never judged. Say so with a retryable 503
+					// instead of a 401 that reads as a credential problem. No
+					// OAuth challenge: nothing about the credential is wrong,
+					// and the handler never runs, so this fails closed.
+					recordReadAuthorizationUnavailable(r, audit, identityStoreUnavailableReason)
+					querycontract.WriteIdentityStoreUnavailable(w, r)
+					return
+				}
 				recordBearerResolutionDenied(r, audit, err)
 				if errors.Is(err, ErrBearerCredentialUnrecognized) {
 					r = requestWithOAuthChallenge(r, oauthChallenge)

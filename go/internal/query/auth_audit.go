@@ -130,6 +130,12 @@ var auditableBearerDenialReasons = map[string]struct{}{
 	"grant_resolution_unavailable": {},
 }
 
+// identityStoreUnavailableReason is the governance_audit_events.reason_code for a
+// credential the identity store could not evaluate because PostgreSQL was
+// unreachable (#7586). It records DecisionUnavailable, never a denial: an outage
+// makes no claim about the credential.
+const identityStoreUnavailableReason = "identity_store_unavailable"
+
 // unavailableBearerDenialReasons are the outcomes that mean a dependency could
 // not answer, rather than a verdict about the credential. They record
 // DecisionUnavailable, matching what the interactive OIDC and GitHub login

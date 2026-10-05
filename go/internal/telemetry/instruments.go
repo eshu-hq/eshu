@@ -1596,6 +1596,12 @@ type Instruments struct {
 	RelationshipBreakdownQueued             metric.Int64UpDownCounter
 	RelationshipBreakdownInFlight           metric.Int64UpDownCounter
 	OIDCLoginThrottled                      metric.Int64Counter
+	// AuthIdentityStoreUnavailable counts credentials the API could not
+	// evaluate because the identity store (PostgreSQL) was unreachable or timed
+	// out, by failure_class (unavailable, timeout, topology) (#7586). Each is answered with
+	// a retryable 503, not a 401, so a rising count points an operator at
+	// PostgreSQL instead of at credentials.
+	AuthIdentityStoreUnavailable metric.Int64Counter
 	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
 	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
 	// governance-audit drop-observability triad. The mcp-server transport auth
@@ -4733,6 +4739,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerCanonicalRepositoryRetirements(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {
 		return nil, err
 	}
 

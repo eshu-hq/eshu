@@ -196,6 +196,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.DependencyListDuration, "DependencyListDuration histogram should be registered")
 	assert.NotNil(t, inst.DependencyListErrors, "DependencyListErrors counter should be registered")
 	assert.NotNil(t, inst.OIDCLoginThrottled, "OIDCLoginThrottled counter should be registered")
+	assert.NotNil(t, inst.AuthIdentityStoreUnavailable, "AuthIdentityStoreUnavailable counter should be registered")
 	assert.NotNil(t, inst.GovernanceAuditAllowedEmitted, "GovernanceAuditAllowedEmitted counter should be registered")
 	assert.NotNil(t, inst.GovernanceAuditAllowedDropped, "GovernanceAuditAllowedDropped counter should be registered")
 	assert.NotNil(t, inst.GovernanceAuditAllowedPersistFailures, "GovernanceAuditAllowedPersistFailures counter should be registered")
