@@ -112,7 +112,7 @@ it carries the previous and observed incarnation, the timeline, and the observed
 flushed LSN. `outcome=raced` (INFO) means another dial published a different
 incarnation first, so this dial connects again; it carries `observed_incarnation`
 and `published_incarnation`, and the pool also logs one `postgres.store.error`
-for the redialed connection, which is expected during a restart. `outcome=latched` (ERROR) means
+for the raced dial that failed, which is expected during a restart. `outcome=latched` (ERROR) means
 the primary was refused and the `Access` now answers `ErrWrongTopology` until the
 process restarts; `reason` is `timeline` or `flush_below_watermark`, and the
 record carries the previous and observed timeline, the watermark LSN, and the
