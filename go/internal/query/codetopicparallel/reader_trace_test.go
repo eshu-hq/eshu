@@ -123,7 +123,7 @@ func probeTraceRunInto(t *testing.T, ctx context.Context, set *probeTraceSet, re
 	for i := range terms {
 		terms[i] = fmt.Sprintf("term-%d", i)
 	}
-	_, err := Investigate(ctx, probeTraceStore{set}, parent,
+	_, err := Investigate(ctx, probeTraceStore{set}, parent, 0,
 		codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 25}, 250, nil, nil,
 		func(rows db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) { return nil, false, nil })
 	parent.End()
@@ -304,7 +304,7 @@ func TestInvestigatePartitionSpansDoNotMixConcurrentRequestParents(t *testing.T)
 			for i := range terms {
 				terms[i] = "term"
 			}
-			_, err := Investigate(ctx, probeTraceStore{set}, parent,
+			_, err := Investigate(ctx, probeTraceStore{set}, parent, 0,
 				codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 25}, 250, nil, nil,
 				func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) { return nil, false, nil })
 			requestErrors <- err
@@ -367,7 +367,7 @@ func TestInvestigatePartitionTraceFullBatchQueueDoesNotBlockRequest(t *testing.T
 		for i := range terms {
 			terms[i] = "term"
 		}
-		_, err := Investigate(ctx, probeTraceStore{set}, parent,
+		_, err := Investigate(ctx, probeTraceStore{set}, parent, 0,
 			codequery.CodeTopicInvestigationRequest{Terms: terms, Limit: 25}, 250, nil, nil,
 			func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error) { return nil, false, nil })
 		return err
@@ -449,9 +449,6 @@ func TestInvestigatePartitionSpanIncludesQueryThroughCloseFailures(t *testing.T)
 				}
 				foundTarget = true
 				wantOutcome := "error"
-				if phase == "close" {
-					wantOutcome = "ok"
-				}
 				if attrs["code_topic.partition_outcome"].AsString() != wantOutcome {
 					t.Errorf("outcome = %v", attrs["code_topic.partition_outcome"])
 				}

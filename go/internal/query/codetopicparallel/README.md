@@ -40,6 +40,13 @@ bytes, phase durations, reservation cancellation, and pool-cap status to the
 caller's `postgres.query` span. The caller records errors and the chosen
 execution mode on that span.
 
+Each executed partition starts a `query.code_topic_partition` child of that
+parent. Its bounded `code_topic.attempt` (0 or 1) separates a whole-read retry;
+`code_topic.partition` (0 through 3), successfully scanned row count, and
+closed outcome describe that attempt. A cursor Close failure sets child outcome
+`error` but retains the prior API behavior of ignoring that Close error.
+Sampling or a full exporter queue can omit a child from exported traces.
+
 ## Measured scope
 
 Performance Evidence: A read-only SQL assembly shim on an isolated PostgreSQL

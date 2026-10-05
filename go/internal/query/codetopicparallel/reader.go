@@ -201,13 +201,17 @@ func scanCodeTopicProbeRows(rows db.Rows) ([]ProbeRow, int, error) {
 	return results, len(results), nil
 }
 
-func readCodeTopicProbe(ctx context.Context, parent trace.Span, partition int, reader db.Queryer, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any) (result []ProbeRow, err error) {
+func readCodeTopicProbe(ctx context.Context, parent trace.Span, attempt, partition int, reader db.Queryer, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any) (result []ProbeRow, err error) {
 	query, args := ProbeSQL(req, cap, filters, baseArgs)
 	ctx, span := parent.TracerProvider().Tracer(telemetry.DefaultSignalName).Start(
 		trace.ContextWithSpan(ctx, parent), telemetry.SpanQueryCodeTopicPartition,
-		trace.WithAttributes(attribute.Int("code_topic.partition", partition)),
+		trace.WithAttributes(
+			attribute.Int("code_topic.attempt", attempt),
+			attribute.Int("code_topic.partition", partition),
+		),
 	)
 	var successfulRows int
+	var closeFailed bool
 	defer func() {
 		outcome := "ok"
 		switch {
@@ -215,7 +219,7 @@ func readCodeTopicProbe(ctx context.Context, parent trace.Span, partition int, r
 			outcome = "deadline"
 		case errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled):
 			outcome = "canceled"
-		case err != nil:
+		case err != nil || closeFailed:
 			outcome = "error"
 		}
 		span.SetAttributes(
@@ -228,14 +232,14 @@ func readCodeTopicProbe(ctx context.Context, parent trace.Span, partition int, r
 	if err != nil {
 		return nil, fmt.Errorf("code topic probe: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() { closeFailed = rows.Close() != nil }()
 	result, successfulRows, err = scanCodeTopicProbeRows(rows)
 	return result, err
 }
 
 // Investigate reads four per-term partitions on one exported snapshot, then
 // asks PostgreSQL to assemble the ordered page with the original SQL rules.
-func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span trace.Span, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) (result []codequery.CodeTopicEvidenceRow, err error) {
+func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span trace.Span, attempt int, req codequery.CodeTopicInvestigationRequest, cap int, filters []string, baseArgs []any, scan func(db.Rows) ([]codequery.CodeTopicEvidenceRow, bool, error)) (result []codequery.CodeTopicEvidenceRow, err error) {
 	reservationStarted := time.Now()
 	set, err := store.BeginReadOnlySnapshotSet(ctx, Partitions)
 	span.SetAttributes(
@@ -268,7 +272,7 @@ func Investigate(ctx context.Context, store db.ReadSnapshotSetBeginner, span tra
 		if readErr != nil {
 			return nil, fmt.Errorf("read code topic worker %d: %w", index, readErr)
 		}
-		return readCodeTopicProbe(workerCtx, span, index, reader, group, cap, filters, baseArgs)
+		return readCodeTopicProbe(workerCtx, span, attempt, index, reader, group, cap, filters, baseArgs)
 	})
 	if err != nil {
 		return nil, err
