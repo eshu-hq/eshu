@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // supplyChainSecurityAlertAggregateOperation names the log.Operation attribute
@@ -75,7 +76,7 @@ func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *ht
 		h.writeEmptySecurityAlertReconciliationCount(w, r)
 		return
 	}
-	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, access)
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, span, access)
 	if !ok {
 		return
 	}
@@ -172,7 +173,7 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 		h.writeEmptySecurityAlertReconciliationInventory(w, r, dimension, limit, offset)
 		return
 	}
-	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, access)
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, span, access)
 	if !ok {
 		return
 	}
@@ -216,9 +217,13 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 func (h *Handler) securityAlertReconciliationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
+	span trace.Span,
 	access querycontract.RepositoryAccessFilter,
 ) (SecurityAlertReconciliationAggregateFilter, bool) {
-	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), SecurityAlertReconciliationAggregateCapability)
+	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(
+		w, r, querycontract.QueryParam(r, "repository_id"), SecurityAlertReconciliationAggregateCapability,
+		securityAlertSelectorRoute{span: span, operation: supplyChainSecurityAlertAggregateOperation},
+	)
 	if !ok {
 		return SecurityAlertReconciliationAggregateFilter{}, false
 	}

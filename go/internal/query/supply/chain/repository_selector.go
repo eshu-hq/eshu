@@ -6,12 +6,14 @@ package chain
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type securityAlertProviderRepositoryScopeStore interface {
@@ -43,11 +45,21 @@ func (h *Handler) resolveSupplyChainRepositorySelector(
 	return repoID, true
 }
 
+// securityAlertSelectorRoute names the route that owns a security-alert
+// selector read: the handler span and stage-log operation failStage reports
+// against. The capability stays a plain string parameter so the root
+// WriteGraphReadError capability sweep can resolve it through the callers.
+type securityAlertSelectorRoute struct {
+	span      trace.Span
+	operation string
+}
+
 func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	rawSelector string,
 	capability string,
+	route securityAlertSelectorRoute,
 ) (string, []string, bool) {
 	rawSelector = strings.TrimSpace(rawSelector)
 	if rawSelector == "" {
@@ -55,8 +67,16 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 	}
 
 	if h.Content != nil {
+		// repo_id stays empty: the selector is unbounded caller input and
+		// nothing is resolved yet.
+		matchTimer := startSupplyChainQueryStage(r.Context(), h.Logger, route.operation, "", "repository_catalog_match")
 		entries, err := h.Content.MatchRepositories(r.Context(), rawSelector)
+		matchTimer.Done(r.Context(), slog.Bool("error", err != nil))
 		if err != nil {
+			if querycontract.WriteGraphReadError(w, r, err, capability) {
+				return "", nil, false
+			}
+			failStage(r.Context(), route.span, matchTimer, err)
 			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return "", nil, false
 		}
@@ -64,7 +84,7 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 		switch len(matches) {
 		case 0:
 		case 1:
-			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, rawSelector, matches[0], entries, capability)
+			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, rawSelector, matches[0], entries, capability, route)
 			if !ok {
 				return "", nil, false
 			}
@@ -92,12 +112,19 @@ func (h *Handler) securityAlertRepositoryScopeIDsForCatalog(
 	repositoryID string,
 	entries []querycontract.RepositoryCatalogEntry,
 	capability string,
+	route securityAlertSelectorRoute,
 ) ([]string, bool) {
 	scopes := securityAlertRepositoryScopesForCatalog(repositoryID, entries)
-	if len(scopes) == 0 {
+	if store := h.securityAlertProviderScopeStore(); len(scopes) == 0 && store != nil {
+		lookupTimer := startSupplyChainQueryStage(r.Context(), h.Logger, route.operation, repositoryID, "provider_repository_scope_lookup")
 		var err error
-		scopes, err = h.securityAlertRepositoryScopesForNames(r.Context(), repositoryID, entries)
+		scopes, err = securityAlertRepositoryScopesForNames(r.Context(), store, repositoryID, entries)
+		lookupTimer.Done(r.Context(), slog.Bool("error", err != nil))
 		if err != nil {
+			if querycontract.WriteGraphReadError(w, r, err, capability) {
+				return nil, false
+			}
+			failStage(r.Context(), route.span, lookupTimer, err)
 			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return nil, false
 		}
@@ -113,15 +140,12 @@ func (h *Handler) securityAlertRepositoryScopeIDsForCatalog(
 	return SecurityAlertRepositoryScopeIDs(repositoryID, scopes), true
 }
 
-func (h *Handler) securityAlertRepositoryScopesForNames(
+func securityAlertRepositoryScopesForNames(
 	ctx context.Context,
+	store securityAlertProviderRepositoryScopeStore,
 	repositoryID string,
 	entries []querycontract.RepositoryCatalogEntry,
 ) ([]string, error) {
-	store := h.securityAlertProviderScopeStore()
-	if store == nil {
-		return nil, nil
-	}
 	names := securityAlertRepositoryNamesForCatalog(repositoryID, entries)
 	scopes := make([]string, 0, len(names))
 	for _, name := range names {
