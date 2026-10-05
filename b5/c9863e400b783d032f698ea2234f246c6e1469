@@ -1,0 +1,27 @@
+go/internal/query/codetopicparallel/reader_trace_test.go
+  s_b0d7e3abc26c5a::t_0bef0dda50fe3e 126,307,370
+go/internal/query/codetopicparallel/README.md
+  s_b0d7e3abc26c5a::t_0474c876fd3c5a 43-49
+go/internal/query/codetopicparallel/reader.go
+  s_b0d7e3abc26c5a::t_0bef0dda50fe3e 204,208-211,214,222,235,242,275
+go/internal/query/code_topic_parallel_member_loss_test.go
+  s_b0d7e3abc26c5a::t_906e58d3a057eb 23,27-29,116-118,125,139-167
+go/internal/query/content_reader_code_topic.go
+  s_b0d7e3abc26c5a::t_0bef0dda50fe3e 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5c9863e400b783d032f698ea2234f246c6e1469",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
