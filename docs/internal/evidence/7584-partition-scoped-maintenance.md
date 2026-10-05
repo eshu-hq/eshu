@@ -62,6 +62,28 @@ memo hit and miss, a generation advance before the evidence commit and before
 the phase, successor activation, a failed sibling batch and its retry, an
 unprocessed inbound source, and a catalog change.
 
+## Performance and observability
+
+No-Regression Evidence: the whole pass is unchanged at runtime. Its batch
+writer now takes the under-lock generation read as a parameter, and the whole
+pass passes `loadAllActiveRepositoryGenerations`, which calls the shipped
+`loadActiveRepositoryGenerations` with the same query. The rest of the batch
+transaction is the same code. `go test -p 2 -count=1 ./internal/storage/postgres`
+passed on this branch (hermetic tests; live tests skip without a DSN). The
+partition-scoped entry has no production caller yet, so no runtime path runs
+it. Its own cost has not been measured; that is D3 step 3, and no claim is made
+here.
+
+Observability Evidence: the entry opens a `relationship.backfill_deferred_targeted`
+span with owed, not-active, promoted, loaded, affected, evidence and published
+counts. It logs one `deferred_backfill_targeted_completed` line with the same
+counts, the relationship-domain reopen counts and the duration; the live
+differential run emitted 15 of these lines. The reopen step records the existing
+`DeploymentMappingReopened`, `CodeImportRepoEdgeReopened` and
+`CorrelationReopened{domain}` counters, and the shared loader, batch and fan-in
+code keep their existing `deferred_backfill_*` metrics and logs. No new
+instrument was registered.
+
 ## Not covered
 
 - Cost. No timing or row-count comparison at 900 scopes has run (D3 step 3).
