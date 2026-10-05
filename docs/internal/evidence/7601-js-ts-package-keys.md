@@ -49,8 +49,9 @@ schema, API, MCP, or telemetry code changed.
 | `@/x`, `~/x`, `node:fs` | Not a package specifier; no key | `TestDefaultEngineParsePathTypeScriptKeysOnlyDeclaredDependencies` |
 | Dependency declared only in the root manifest (hoisted), only in the nearest workspace manifest, or as a dev, peer, or optional dependency | Keyed | same test, plus the test-file `@acme/dev` case |
 | Dependency field that is not an object (array, string) | Declares nothing; other fields still count | `TestDefaultEngineParsePathTypeScriptToleratesMalformedDependencyFields` |
+| Known limit (#7613): a name both declared as a dependency and used as a `jsconfig.json` alias; an npm alias (`"foo": "npm:bar@1"`) | Still keyed. `nearestTSConfig` in `project/tsconfig.go` reads only `tsconfig.json`, so a jsconfig alias sets no `resolved_source`; an npm alias keys `foo` while the producer publishes `bar`. Bounded by the reducer's unique-or-unresolved rule, and none of the 60 hand-checked resolved calls hits it. A fix changes `resolved_source` for every JS import and needs its own proof | Not tested here; tracked in #7613 |
 | `a.b.c()` deep chain, `obj.member()` on a non-import | No key | same test |
-| `D.member()` on a default import | No key. A default export is often an instance or a class, so the member is a method, not a named export (`import logger from "pkg"; logger.info()`) | same test (`render.member`) |
+| `D.member()` on a default import | No key. `render()` on a default import is keyed as `#default`, but `render.member()` is not: a default export is often an instance or a class, so the member is a method, not a named export (`import logger from "pkg"; logger.info()` keyed as `package:pkg#info` could resolve to an unrelated named export). The earlier ruling's wording, "`ns.member(` when ns is a namespace or default import", was wrong for default imports (arbiter ruling on #7601). Default-import members and static and instance method calls come together in the next shape pull request | same test (`render`, `render.member`) |
 | Name declared again in the file (parameter, variable, destructuring, catch, function or class name) | No key for that name anywhere in the file | same test (`shadowed`, `dup`, `destructured`, `caught`) |
 | Name in a comment or a string | Ignored; the real call is still keyed | same test (`formatPrice`) |
 | Same local name bound twice to different targets | No key | `packageImportBindings` |
@@ -166,12 +167,13 @@ it.
 - All 78 earlier resolved calls were hand-checked against consumer and
   producer source: 78 true, 0 false. The 60 that still resolve are a subset of
   those 78 (no call resolves now that did not before).
-- The 18 that dropped all import a package that no `package.json` on their
-  path declares: 15 are codemod fixture inputs in a repository that does not
-  depend on the logging package, 2 are test files importing a transitive
-  dependency, and 1 is a `require` of a transitive dependency. They were true
-  references and are now misses, which is the price of never keying an
-  undeclared bare name.
+- 18 of the 78 (23% of that sample) were true references and are now misses,
+  because no `package.json` on their path declares the package: 15 are
+  codemod fixture inputs in a repository that does not depend on the logging
+  package, 2 are test files importing a transitive dependency, and 1 is a
+  `require` of a transitive dependency. This is accuracy over recall: a parser
+  cannot see transitive dependencies without a lockfile, and an undeclared bare
+  name may be an alias or a built-in.
 
 Test-file hand-check (arbiter requirement): 40 keyed calls sampled from test
 files of the three named consumers (16, 14, and 10) on `0392ce9de`, checked
@@ -249,13 +251,19 @@ The state heals at that repository's next successful generation. Tracked in
 - A JSX call (`<Local />`) that resolves projects as a `REFERENCES` edge, not
   `CALLS`, through the existing code-call writer.
 
-## Deferred
+## Deferred and NOT_CHECKED
 
-- ops-qa, after deploy: re-verify 40 resolved edges against source with 0
-  false, on the post-fix candidate set (the 60 above or their ops-qa
-  equivalents), and a before and after of
-  `load_symbol_definitions_duration_seconds` on the same JS/TS scopes with a Go
-  scope unchanged.
-- A direct graph read of the cross-repository edge.
-- The replica shape split of the investigation's 2,602 strict calls:
-  NOT_CHECKED. The split above comes from parser output on 22 repositories.
+The arbiter ruling on #7601 (2026-10-05) accepted each of these deviations.
+
+- Direct graph read of the cross-repository edge: NOT_CHECKED, deferred to the
+  ops-qa read after deploy. B-7 counted `CALLS` going 32 to 33 with only this
+  edge as the difference, and the route classified `formatPrice` as
+  `live_by_consumer`.
+- Loader before and after, after deploy: `load_symbol_definitions_duration_seconds`
+  on the same JS/TS scopes, with one Go scope unchanged. Rollback trigger: the
+  worst consumer above 500 ms, or above 2.1 s absolute. NOT_CHECKED until then.
+- ops-qa 40-edge recheck, after deploy, on the post-fix candidate set: the bar
+  is 0 false among at least 40 resolved edges. NOT_CHECKED until then.
+- Replica shape split of the investigation's 2,602 strict calls: NOT_CHECKED.
+  The split above, from parser output on 22 repositories, stands in for it.
+- Namespace-member key count on the worst consumer: NOT_CHECKED.
