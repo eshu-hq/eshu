@@ -95,3 +95,15 @@ three, and the Muse tool names differ (`write_file`, `edit_file`, `bash`,
 `read_skill` -- a Claude `Write` matcher under Muse is present, silent,
 and easy to mistake for absent). The envelope, output protocol, and limits
 are in [Muse Hooks](agent-hooks-muse.md).
+
+## Cursor activation
+
+The Cursor port is project-level: `.cursor/hooks.json` plus the adapter
+`scripts/cursor-hook.py`. Cursor reads the file from the project root, so a
+worktree opened as its own Cursor project uses its own copy. Cursor needs
+`python3` on its PATH; without it the two guards block every shell command
+and edit (`failClosed`), which is deliberate. Turn off Cursor's "Include
+third-party Plugins, Skills, and other configs" setting once this is in your
+checkout, or the Claude hooks fire a second time through Cursor's Claude
+compatibility. `scripts/test-cursor-hooks.sh` asserts the wiring. The
+mapping, envelope, and limits are in [Cursor Hooks](agent-hooks-cursor.md).

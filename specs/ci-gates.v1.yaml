@@ -382,6 +382,12 @@ gates:
       - ".github/workflows/verify-agent-hygiene.yml"
       - ".pre-commit-config.yaml"
       - "scripts/verify-no-ai-attribution.sh"
+      # The Cursor port: .cursor/hooks.json routes Cursor events through
+      # scripts/cursor-hook.py onto the same .claude/hooks files, asserted by
+      # test-cursor-hooks.sh. Trigger paths for the same reason as Muse's.
+      - ".cursor/hooks.json"
+      - "scripts/cursor-hook.py"
+      - "scripts/test-cursor-hooks.sh"
       - "specs/ci-gates.v1.yaml"
     self_test_triggers:
       - ".agents/**"
@@ -419,6 +425,9 @@ gates:
       - ".github/workflows/verify-agent-hygiene.yml"
       - ".pre-commit-config.yaml"
       - "scripts/verify-no-ai-attribution.sh"
+      - ".cursor/hooks.json"
+      - "scripts/cursor-hook.py"
+      - "scripts/test-cursor-hooks.sh"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-agent-canon.sh"
@@ -427,7 +436,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-agent-roles.py && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"
