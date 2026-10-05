@@ -59,7 +59,7 @@ func TestCoverageSummary(t *testing.T) {
 
 	wait := code.CrossRepoDeadCodeCoverageGap{State: code.CrossRepoDeadCodeCoverageStateOlderEpoch, Retryable: true}
 	stuck := code.CrossRepoDeadCodeCoverageGap{State: code.CrossRepoDeadCodeCoverageStateTruncated}
-	unknown := code.CrossRepoDeadCodeCoverageGap{State: code.CrossRepoDeadCodeCoverageStateNoActiveScope}
+	unindexed := code.CrossRepoDeadCodeCoverageGap{State: code.CrossRepoDeadCodeCoverageStateNoActiveScope}
 	repeat := func(g code.CrossRepoDeadCodeCoverageGap, n int) []code.CrossRepoDeadCodeCoverageGap {
 		out := make([]code.CrossRepoDeadCodeCoverageGap, n)
 		for i := range out {
@@ -101,8 +101,14 @@ func TestCoverageSummary(t *testing.T) {
 		},
 		// The caller already named these ids, so naming them again is no advice.
 		"every gap is an id that is not indexed": {
-			coverage: code.CrossRepoDeadCodeCoverage{Gaps: repeat(unknown, 2)},
+			coverage: code.CrossRepoDeadCodeCoverage{Gaps: repeat(unindexed, 2)},
 			want:     "2 repositories cannot be judged yet: 0 of them will clear on their own, 2 will not. Check the ids, or index the repositories.",
+		},
+		// A list that mixes unindexed ids with real gaps still needs the advice to
+		// name the repositories, because the other gaps are repositories.
+		"some ids not indexed and some other gaps": {
+			coverage: code.CrossRepoDeadCodeCoverage{Gaps: append(repeat(unindexed, 1), repeat(stuck, 2)...)},
+			want:     "3 repositories cannot be judged yet: 0 of them will clear on their own, 3 will not. Name the repositories you care about with `consumer_repo_ids`.",
 		},
 		"capped and all clearing": {
 			coverage: code.CrossRepoDeadCodeCoverage{Gaps: repeat(wait, 25), IncompleteTruncated: true},

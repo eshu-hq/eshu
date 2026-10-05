@@ -59,7 +59,8 @@ No repository checked has a coverage gap.
 ## Proof
 
 `TestCoverageGapTextCoversEveryKnownState`, `TestCoverageGapTextWording`,
-`TestCoverageSummary` (complete, singular, mixed, capped, capped and all
+`TestCoverageSummary` (complete, singular, mixed, capped, cut with fewer than
+the cap, every gap unindexed, unindexed beside other gaps, capped and all
 clearing), and the handler tests
 `TestCrossRepoDeadCodeConsumerCoverageReportsPerRepositoryState` and
 `TestCrossRepoDeadCodeCompleteCoverageHasEmptyIncompleteArray` pin the wording
