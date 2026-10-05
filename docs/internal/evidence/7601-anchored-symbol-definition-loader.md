@@ -144,7 +144,7 @@ because default and namespace imports are included here.
   three runs of 50 iterations). The replica population is 469 manifests,
   859,635 bytes in total, 14,353 bytes at most.
 - **Worst consumer, end to end:** manifest read plus anchored scan is 388 to
-  403 ms warm, with both plan modes inside that range. The one cold first run
+  396 ms warm, with both plan modes inside that range. The one cold first run
   was 502 ms: 20.5 ms plus 481.9 ms, with 1,985 disk reads.
 - **Old statement:** it cannot finish inside 5 s. The per-file cost measured
   here is 0.18 ms (warm, 2,101 files) to 0.30 ms (7,096 files). Extrapolated,
@@ -153,7 +153,7 @@ because default and namespace imports are included here.
 
 Budget: the loader sub-step must stay at or under 500 ms on the worst consumer.
 
-- It holds warm (388 to 403 ms).
+- It holds warm (388 to 396 ms).
 - The single cold first touch came to 502 ms, 2 ms over.
 - It does not hold for a consumer that depends on a producer the size of
   `r_957cd853`: about 2.1 s. That repository publishes WordPress theme and
