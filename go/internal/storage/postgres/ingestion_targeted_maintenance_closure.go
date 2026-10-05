@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -187,12 +186,16 @@ func (s IngestionStore) resolveTargetedMaintenanceClosure(
 // evidence in sourceRepoIDs.
 //
 // Each group's evidence is discovered from the group plus the external ArgoCD
-// config files its own ApplicationSets reference, minus the evidence those
-// config files produce on their own, so evidence is attributed to the group
-// whose fact produced it. An owed external config repository needs no rule of
-// its own: every ApplicationSet evidence kind targets the config repository
-// (relationships appendDiscoveryEvidence and appendDeploySourceEvidence), so
-// the control repository's group touches it.
+// config files its own ApplicationSets reference, because the ApplicationSet
+// renders its deploy edges from those files. Evidence the config files would
+// produce on their own is attributed to the group too; that can only widen the
+// affected set, and a wider set still equals the whole pass on every partition
+// it holds (the whole pass touches all of them).
+//
+// An owed external config repository needs no rule of its own: every
+// ApplicationSet evidence kind targets the config repository (relationships
+// appendDiscoveryEvidence and appendDeploySourceEvidence), so the control
+// repository's group touches it.
 func (s IngestionStore) addInboundTargetedMaintenanceSources(
 	ctx context.Context,
 	catalog []relationships.CatalogEntry,
@@ -228,15 +231,11 @@ func (s IngestionStore) addInboundTargetedMaintenanceSources(
 				return fmt.Errorf("load argocd config facts for closure group %q: %w", partition.ScopeID, err)
 			}
 		}
-		configOnly := evidenceKeys(relationships.DiscoverEvidence(configFacts, catalog))
 		groupEvidence := relationships.DedupeEvidenceFacts(
 			relationships.DiscoverEvidence(mergeRelationshipFacts(group, configFacts), catalog))
 		touched := false
 		for _, evidence := range groupEvidence {
 			if evidence.SourceRepoID == "" || evidence.TargetRepoID == "" {
-				continue
-			}
-			if _, fromConfig := configOnly[evidenceKey(evidence)]; fromConfig {
 				continue
 			}
 			_, sourceOwed := owedRepoIDs[evidence.SourceRepoID]
@@ -273,25 +272,6 @@ func backwardEvidencePhaseCommitted(
 		return false, fmt.Errorf("read backward evidence phase for %q/%q: %w", partition.ScopeID, partition.GenerationID, err)
 	}
 	return found && ready, nil
-}
-
-// evidenceKey is a stable identity for one evidence fact, used only to
-// attribute evidence between a closure group and its ArgoCD config files.
-func evidenceKey(evidence relationships.EvidenceFact) string {
-	encoded, err := json.Marshal(evidence)
-	if err != nil {
-		return fmt.Sprintf("%#v", evidence)
-	}
-	return string(encoded)
-}
-
-// evidenceKeys returns the evidenceKey set of evidence.
-func evidenceKeys(evidence []relationships.EvidenceFact) map[string]struct{} {
-	keys := make(map[string]struct{}, len(evidence))
-	for _, item := range evidence {
-		keys[evidenceKey(item)] = struct{}{}
-	}
-	return keys
 }
 
 // sortedPartitionsOf returns the keys of groups in (scope_id, generation_id)

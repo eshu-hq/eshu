@@ -411,4 +411,11 @@
 // corpus-completeness fence and the by-repos resolved read into one statement
 // (a MATERIALIZED fence CTE LEFT JOINed to the read), so the verdict and the
 // rows share one READ COMMITTED snapshot (#6740).
+//
+// runDeferredRelationshipMaintenanceForPartitions (#7584) is the
+// partition-scoped form of RunDeferredRelationshipMaintenance: for every
+// partition it touches it commits the same evidence, phase, memo and reopen
+// rows as the whole pass, and it changes nothing outside them. Its queries are
+// derived from the whole pass's shipped queries. See
+// docs/internal/evidence/7584-partition-scoped-maintenance.md.
 package postgres
