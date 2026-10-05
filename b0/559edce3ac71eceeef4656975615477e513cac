@@ -1,0 +1,32 @@
+go/internal/query/codetopicparallel/reader.go
+  s_b0d7e3abc26c5a::t_7db1cda1dea0f8 17,205
+  s_b0d7e3abc26c5a::t_3a98632d00e164 185,192,197,199,202,204,206-224,230-231,269
+go/internal/query/codetopicparallel/reader_trace_test.go
+  s_b0d7e3abc26c5a::t_fed3590047b28f 32,49-50,395,415-417,455-457
+  s_b0d7e3abc26c5a::t_1f886c456dc928 1-10,12-29,38-48,51-57,66-84,101-111,118-128,130-164,166-168,170-185,391-394,396-414,418-426,432-436,438,440-442,444-445,452-454,458-464,466-468,472-481
+  s_b0d7e3abc26c5a::t_1a6020751ee651 331
+  s_b0d7e3abc26c5a::t_4efaedfcd29d59 427-431,447-451
+  s_b0d7e3abc26c5a::t_2ac9a0a1326481 165,169,439,443
+  s_b0d7e3abc26c5a::t_1590281c60d5ba 59-65,112-117,129,186-194,196,198-234,238-275
+  s_b0d7e3abc26c5a::t_44824fc4a14ce6 30-31,33-37,58,235-237,286,303,306,312-317,437,446,469-471
+  s_b0d7e3abc26c5a::t_b7ff8f1789e44a 85-100,335-386,388-390
+  s_b0d7e3abc26c5a::t_71ba792b22aa09 195,197
+  s_b0d7e3abc26c5a::t_7ccb7c36076ff3 465
+  s_b0d7e3abc26c5a::t_d12ae128d2df7a 11,276-285,287-302,304-305,307-311,318-330,332-334,387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b0559edce3ac71eceeef4656975615477e513cac",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
