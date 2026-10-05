@@ -11,9 +11,13 @@ import (
 )
 
 // catchUpQuery owes an obligation to each active generation, in one bounded
-// keyset page of ingestion_scopes, that has neither an obligation nor its own
-// backward-evidence phase yet and that carries a repository fact (only those
-// generations can ever publish the phase). It covers generations activated
+// keyset page of ingestion_scopes, that has neither an open or terminal
+// obligation (an obsolete row of the active generation counts as none: it
+// was retired while the scope pointer was NULL and the generation was
+// re-activated, D1R-1) nor its own backward-evidence phase yet, and that
+// carries a repository fact (only those generations can ever publish the
+// phase). The insert takes rows in scope order, so overlapping catch-up pages
+// on two replicas lock conflicting rows in the same order. It covers generations activated
 // before the Ack insert shipped, or while the insert's migration was absent.
 // The page is bounded by scope count, not by matches, so a pass never scans
 // the whole scope table. The returned cursor is the last scope id the page
@@ -39,6 +43,7 @@ owed AS (
         SELECT 1 FROM activation_obligations AS obligation
         WHERE obligation.generation_id = page.generation_id
           AND obligation.scope_id = page.scope_id
+          AND obligation.state <> 'obsolete'
     )
       AND NOT EXISTS (
         SELECT 1 FROM graph_projection_phase_state AS phase
@@ -53,9 +58,16 @@ owed AS (
 inserted AS (
     INSERT INTO activation_obligations (scope_id, generation_id, work_item_id)
     SELECT owed.scope_id, owed.generation_id,
+        -- Same format as projectorWorkItemID in the parent package; the
+        -- column is informational (no FK), and TestActivationObligationCatchUpLive
+        -- asserts the two agree.
         'projector_' || owed.scope_id || '_' || owed.generation_id
     FROM owed
-    ON CONFLICT (scope_id, generation_id) DO NOTHING
+    ORDER BY owed.scope_id
+    ON CONFLICT (scope_id, generation_id) DO UPDATE
+    SET state = 'pending', finished_at = NULL, lease_owner = NULL, lease_until = NULL,
+        created_at = clock_timestamp()
+    WHERE activation_obligations.state = 'obsolete'
     RETURNING 1
 )
 SELECT

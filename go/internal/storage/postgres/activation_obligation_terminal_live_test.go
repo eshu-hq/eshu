@@ -212,6 +212,40 @@ func TestActivationObligationNullActivePointerIsObsoleteLive(t *testing.T) {
 	if got := maintainer.callsFor(f.gen); got != 0 {
 		t.Fatalf("maintenance callbacks for the failed generation = %d, want 0", got)
 	}
+
+	// D1R-1: the operator refinalizes the failed scope (#7116), which
+	// re-enqueues its newest non-superseded generation, G; the real Ack
+	// re-activates G. The obsolete obligation must be owed again, and the
+	// consumer completes it without a callback (G's cross_repo_evidence phase
+	// survives the refinalize) and wakes the waiting row.
+	if _, err := NewRecoveryStore(SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
+		recovery.RefinalizeFilter{ScopeIDs: []string{f.scope}}, time.Now().UTC()); err != nil {
+		t.Fatalf("refinalize the failed scope: %v", err)
+	}
+	reactivate := claimActivationProjectorWork(t, f.ctx, pq, f.scope, f.gen)
+	if err := pq.Ack(f.ctx, reactivate, projectorruntime.Result{}); err != nil {
+		t.Fatalf("re-activating Ack: %v", err)
+	}
+	assertActivationActivePointer(t, f.ctx, f.db, f.scope, f.gen)
+	var state string
+	var finished, leased bool
+	if err := f.db.QueryRowContext(f.ctx, `SELECT state, finished_at IS NOT NULL, lease_owner IS NOT NULL OR lease_until IS NOT NULL
+FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, f.scope, f.gen).Scan(&state, &finished, &leased); err != nil {
+		t.Fatal(err)
+	}
+	if state != "pending" || finished || leased {
+		t.Fatalf("re-activated generation's obligation = state %q finished %t leased %t, want pending again", state, finished, leased)
+	}
+	if _, err := runner.RunOnce(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.obligationState(t, f.gen); got != "completed" {
+		t.Fatalf("re-owed obligation after one cycle = %q, want completed", got)
+	}
+	if got := maintainer.callsFor(f.gen); got != 0 {
+		t.Fatalf("maintenance callbacks after re-activation = %d, want 0 (the phase survived)", got)
+	}
+	f.mustClaimable(t, wake)
 }
 
 type countingActivationMaintainer struct {

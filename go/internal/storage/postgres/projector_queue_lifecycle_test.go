@@ -104,7 +104,8 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 			query: db.execs[6].query,
 			want: []string{
 				"INSERT INTO activation_obligations (scope_id, generation_id, work_item_id)",
-				"ON CONFLICT (scope_id, generation_id) DO NOTHING",
+				"ON CONFLICT (scope_id, generation_id) DO UPDATE",
+				"WHERE activation_obligations.state = 'obsolete'",
 			},
 		},
 	}

@@ -215,3 +215,56 @@ FROM activation_obligations ORDER BY scope_id`)
 		t.Fatalf("repeated catch-up = %+v err=%v, want 5 scanned, 0 inserted, end cursor", again, err)
 	}
 }
+
+// TestActivationObligationCatchUpReowesObsoleteOfActiveLive (D1R-1): an
+// obsolete row whose generation is the scope's active generation again (it
+// was retired while the pointer was NULL and later re-activated) is owed
+// again by catch-up; an obsolete row of a superseded generation stays
+// obsolete.
+func TestActivationObligationCatchUpReowesObsoleteOfActiveLive(t *testing.T) {
+	ctx, database := openActivationObligationProofDB(t, "activation_catchup_obsolete")
+	store := NewIngestionStore(SQLDB{DB: database})
+	store.SkipRelationshipBackfill = true
+	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-catchup-obsolete-projector", time.Minute)
+	activate := func(scopeID, generationID, repoID string, later time.Duration) {
+		t.Helper()
+		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID, "https://github.com/acme/"+repoID+".git")
+		fact.ObservedAt = fact.ObservedAt.Add(later)
+		commitActivationRepository(t, ctx, store, fact, repoID)
+		work := claimActivationProjectorWork(t, ctx, queue, scopeID, generationID)
+		if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	activate("git:reowe-active", "gen-reowe-active", "repo-reowe-active", 0)
+	activate("git:reowe-moved", "gen-reowe-old", "repo-reowe-moved", 0)
+	activate("git:reowe-moved", "gen-reowe-new", "repo-reowe-moved", time.Hour)
+	// Fixture: both obligations were retired obsolete earlier (the first while
+	// its scope pointer was NULL, the second when its scope moved on).
+	if _, err := database.ExecContext(ctx, `UPDATE activation_obligations
+SET state = 'obsolete', finished_at = clock_timestamp()
+WHERE generation_id IN ('gen-reowe-active', 'gen-reowe-old')`); err != nil {
+		t.Fatal(err)
+	}
+	page, err := activation.NewStore(SQLDB{DB: database}).CatchUp(ctx, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Inserted != 1 {
+		t.Fatalf("catch-up owed %d obligations, want 1 (the re-activated obsolete row)", page.Inserted)
+	}
+	for _, want := range []struct{ generation, state string }{
+		{"gen-reowe-active", "pending"},
+		{"gen-reowe-old", "obsolete"},
+	} {
+		var state string
+		var finished bool
+		if err := database.QueryRowContext(ctx, `SELECT state, finished_at IS NOT NULL FROM activation_obligations
+WHERE generation_id = $1`, want.generation).Scan(&state, &finished); err != nil {
+			t.Fatal(err)
+		}
+		if state != want.state || finished != (want.state != "pending") {
+			t.Fatalf("%s obligation = %q finished %t, want %q", want.generation, state, finished, want.state)
+		}
+	}
+}

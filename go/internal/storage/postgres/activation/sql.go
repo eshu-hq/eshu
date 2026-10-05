@@ -3,13 +3,29 @@
 
 package activation
 
-// insertObligationQuery is the one-row idempotent insert ProjectorQueue.Ack
+// insertObligationQuery is the one-row idempotent write ProjectorQueue.Ack
 // runs inside its transaction, after the generation is activated and before
-// commit. A duplicate Ack of the same generation inserts nothing.
+// commit. A first activation inserts a pending row. A re-activation of a
+// generation whose row is obsolete (it was retired while its scope pointer
+// was NULL after a failed re-projection, and the #7116 failed-scope
+// refinalize re-activated it) owes it again (D1R-1). completed stays
+// terminal: the refinalize spares the cross_repo_evidence phase, so a
+// completed generation still has its phase. inapplicable stays terminal: the
+// generation's facts are unchanged.
+//
+// Lock order: Ack already holds the scope row (updateProjectorScopeGenerationQuery)
+// when this statement locks the conflicting obligation row, which ON
+// CONFLICT DO UPDATE does even when its WHERE skips the update. Finalize and
+// RetireInapplicable take the same scope-then-obligation order, Claim and
+// Prune skip locked rows, and catch-up holds no scope lock, so this adds no
+// wait cycle.
 const insertObligationQuery = `
 INSERT INTO activation_obligations (scope_id, generation_id, work_item_id)
 VALUES ($1, $2, $3)
-ON CONFLICT (scope_id, generation_id) DO NOTHING
+ON CONFLICT (scope_id, generation_id) DO UPDATE
+SET state = 'pending', finished_at = NULL, lease_owner = NULL, lease_until = NULL,
+    created_at = clock_timestamp(), work_item_id = EXCLUDED.work_item_id
+WHERE activation_obligations.state = 'obsolete'
 `
 
 // claimObligationQuery leases the oldest open obligation. It locks only the

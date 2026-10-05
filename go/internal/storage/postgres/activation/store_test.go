@@ -70,7 +70,8 @@ func TestInsertWritesOneIdempotentRowForTheExactGeneration(t *testing.T) {
 	}
 	for _, want := range []string{
 		"INSERT INTO activation_obligations (scope_id, generation_id, work_item_id)",
-		"ON CONFLICT (scope_id, generation_id) DO NOTHING",
+		"ON CONFLICT (scope_id, generation_id) DO UPDATE",
+		"WHERE activation_obligations.state = 'obsolete'",
 	} {
 		if !strings.Contains(exec.query, want) {
 			t.Fatalf("Insert query missing %q:\n%s", want, exec.query)

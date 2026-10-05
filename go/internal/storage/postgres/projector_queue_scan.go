@@ -68,6 +68,10 @@ func scanProjectorWork(rows db.Rows) (projector.ScopeGenerationWork, error) {
 	return work, nil
 }
 
+// projectorWorkItemID is the projector work item id of a scope generation.
+// activation/backlog.go's catchUpQuery builds the same string in SQL
+// ('projector_' || scope_id || '_' || generation_id) for owed obligations;
+// change both together (TestActivationObligationCatchUpLive asserts they agree).
 func projectorWorkItemID(scopeID string, generationID string) string {
 	return fmt.Sprintf("projector_%s_%s", scopeID, generationID)
 }
