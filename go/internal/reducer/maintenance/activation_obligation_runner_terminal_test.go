@@ -5,6 +5,7 @@ package maintenance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -107,4 +108,32 @@ func requireNoActivationFailure(t *testing.T, rm metricdata.ResourceMetrics, rea
 			}
 		}
 	}
+}
+
+// Every maintainer hold carries its own closed reason label; the runner
+// treats each as a held refusal (lease kept, no second finalize, Info log),
+// and an unknown reason is not a hold at all.
+func TestActivationRunnerLabelsEachHoldReason(t *testing.T) {
+	t.Parallel()
+	for _, reason := range []string{"catalog_changed", "no_memo_baseline", "closure_too_deep"} {
+		store := &fakeActivationStore{
+			queue:     []ActivationObligation{{ScopeID: "git:owed", GenerationID: "g1"}},
+			finalizes: map[string][]ActivationFinalizeResult{"g1": {{Outcome: ActivationOutcomePhaseNotReady}}},
+		}
+		maintainer := &fakeActivationMaintainer{err: HoldActivation(reason, fmt.Errorf("targeted pass refused: %s", reason))}
+		runner, reader, logs := newActivationRunnerForTest(t, store, maintainer)
+		_, err := runner.RunOnce(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, []string{"claim:consumer-1", "finalize:g1", "claim:consumer-1"}, store.calls, reason)
+		rm := collectActivationMetrics(t, reader)
+		require.EqualValues(t, 1, reducerCounterValue(t, rm, "eshu_dp_activation_obligation_failures_total", map[string]string{"reason": reason}), reason)
+		requireNoActivationFailure(t, rm, "maintenance")
+		require.Contains(t, logs.String(), `"reason":"`+reason+`"`)
+		require.Contains(t, logs.String(), `"level":"INFO"`)
+	}
+	require.Equal(t, []string{"catalog_changed", "closure_too_deep", "no_memo_baseline"}, ActivationHoldReasons())
+	unknown := HoldActivation("made_up", errors.New("boom"))
+	var hold *ActivationHoldError
+	require.False(t, errors.As(unknown, &hold), "an unknown reason must not become a hold label")
+	require.ErrorIs(t, HoldActivation("catalog_changed", errors.New("x")), ErrActivationCatalogChanged)
 }

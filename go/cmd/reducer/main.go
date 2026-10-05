@@ -144,6 +144,10 @@ func buildReducerService(
 		generationLivenessRunner.Instruments = instruments
 		generationLivenessRunner.Logger = logger
 	}
+	activationObligationRunner, err := activationObligationRunnerFor(getenv, database, tracer, instruments, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 	poisonLivenessRunner := poisonLivenessRunnerFor(database, poisonLivenessCfg)
 	if poisonLivenessRunner != nil {
 		poisonLivenessRunner.Instruments = instruments
@@ -472,6 +476,7 @@ func buildReducerService(
 		InfraInventoryReconcileRunner:   infraInventoryReconcileRunnerFor(getenv, database, tracer, instruments, logger),
 		GenerationLivenessRunner:        generationLivenessRunner,
 		PoisonLivenessRunner:            poisonLivenessRunner,
+		ActivationObligationRunner:      activationObligationRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,
