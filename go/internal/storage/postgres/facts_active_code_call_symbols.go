@@ -287,10 +287,16 @@ func appendUniqueFactEnvelopes(loaded, extra []facts.Envelope) []facts.Envelope 
 const codeCallPackageSymbolKeyPrefix = "package:"
 
 // listActiveCodeCallPackageManifestsQuery reads every stored package.json
-// manifest of a repository scope that has an active generation. It reads all
-// manifests, nested workspace packages included, because a package name maps
-// to its repository wherever its manifest sits; the nearest-manifest rule
-// applies when the parser stamps package_id on a definition, not here.
+// manifest of a repository scope that has an active generation. It reads every
+// manifest except one under a path segment that begins with node_modules
+// (case-insensitive, so node_modules.bak and Node_Modules-old count too).
+// Nested workspace packages are included, because a package name maps to its
+// repository wherever its manifest sits; the nearest-manifest rule applies when
+// the parser stamps package_id on a definition, not here. A vendored copy of a
+// dependency is not a publisher: counting it would anchor a scan of the whole
+// backup repository for every consumer of that name and could mint false edges.
+// Discovery already prunes the exact node_modules directory; this covers the
+// renamed backups it does not.
 //
 // content_files holds the latest projected content of each repository and has
 // no generation column. The definition scan that follows reads only active
@@ -309,8 +315,8 @@ const listActiveCodeCallPackageManifestsQuery = `
 WITH manifest AS MATERIALIZED (
     SELECT repo_id, content
     FROM content_files
-    WHERE relative_path = 'package.json'
-       OR relative_path LIKE '%/package.json'
+    WHERE (relative_path = 'package.json' OR relative_path LIKE '%/package.json')
+      AND relative_path !~* '(^|/)node_modules[^/]*/'
 )
 SELECT
     scope.scope_id,
