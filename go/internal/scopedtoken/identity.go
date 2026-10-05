@@ -156,7 +156,13 @@ func (r *PostgresIdentityResolver) classifyStoreError(ctx context.Context, err e
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger.WarnContext(ctx, "identity store unavailable; credential not evaluated, answering retryable 503",
+	// A topology refusal does not clear on its own, so it logs at error level;
+	// unavailable and timeout are blips that usually clear in seconds.
+	level := slog.LevelWarn
+	if class == identityStoreClassTopology {
+		level = slog.LevelError
+	}
+	logger.Log(ctx, level, "identity store unavailable; credential not evaluated, answering retryable 503",
 		telemetry.EventAttr(telemetry.EventAuthIdentityStoreUnavailable),
 		slog.String(telemetry.LogKeyFailureClass, class),
 	)
@@ -175,8 +181,8 @@ const identityStoreClassTopology = "topology"
 // identityStoreOutageClass reports whether err means the identity store could
 // not be reached and, if so, its closed failure class: unavailable or timeout
 // (transient) or topology (permanent until restart). It reads the shared
-// topology sentinel, the bounded Postgres error's Kind, and the two
-// database/sql connection sentinels the pool can surface unbounded; it never
+// topology sentinel, the bounded Postgres error's Kind, a bare deadline, and the
+// two database/sql connection sentinels the pool can surface unbounded; it never
 // reads error text. A caller cancel and a failed statement are not outages.
 func identityStoreOutageClass(err error) (string, bool) {
 	// A writer refused for a topology mismatch reaches here as a connect error,
@@ -192,6 +198,13 @@ func identityStoreOutageClass(err error) (string, bool) {
 			return string(kind), true
 		}
 		return "", false
+	}
+	// database/sql returns the context error itself, before the driver and the
+	// bounded connector see it, when a pool wait or the request deadline runs out.
+	// It is transient, like a reader timeout (#7523). A bare cancel is a client
+	// disconnect and stays unclaimed.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return string(boundederr.KindTimeout), true
 	}
 	if errors.Is(err, driver.ErrBadConn) || errors.Is(err, sql.ErrConnDone) {
 		return string(boundederr.KindUnavailable), true

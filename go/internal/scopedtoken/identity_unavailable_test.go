@@ -57,6 +57,10 @@ func TestPostgresIdentityResolverClassifiesStoreOutageAsUnavailable(t *testing.T
 		{"statement timeout", boundederr.Wrap(context.DeadlineExceeded), "timeout"},
 		{"bad connection surfaced by database/sql", driver.ErrBadConn, "unavailable"},
 		{"connection already closed", sql.ErrConnDone, "unavailable"},
+		// database/sql returns the context error itself, before the driver and the
+		// bounded connector see it, when a pool wait or the request deadline runs
+		// out. It is transient and, like a reader timeout (#7523), retryable.
+		{"pool wait deadline surfaced raw", context.DeadlineExceeded, "timeout"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,6 +94,7 @@ func TestPostgresIdentityResolverDoesNotClaimOtherFailures(t *testing.T) {
 	}{
 		{"statement failed", boundederr.Wrap(errors.New("syntax error"))},
 		{"caller canceled", boundederr.Wrap(context.Canceled)},
+		{"caller canceled before the pool answered", context.Canceled},
 		{"unclassified error", errors.New("something else")},
 	}
 	for _, tt := range tests {
@@ -202,6 +207,9 @@ func TestPostgresIdentityResolverClassifiesTopologyDivergenceSeparately(t *testi
 	}
 	if !strings.Contains(logs.String(), `"failure_class":"topology"`) {
 		t.Fatalf("log = %s, want failure_class topology", logs.String())
+	}
+	if !strings.Contains(logs.String(), `"level":"ERROR"`) {
+		t.Fatalf("log = %s, want level ERROR: a topology refusal does not clear on its own", logs.String())
 	}
 
 	var rm metricdata.ResourceMetrics

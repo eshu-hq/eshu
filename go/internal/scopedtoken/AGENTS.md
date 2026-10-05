@@ -36,7 +36,10 @@ any new field or validation rule.
 
 `PostgresIdentityResolver` classifies a store failure as an identity-store outage
 only from the bounded Postgres error's `Kind` (`unavailable`, `timeout`), the
-`driver.ErrBadConn` and `sql.ErrConnDone` sentinels, and `db.ErrWrongTopology`
-(class `topology`); never from error text. A failed statement and a caller cancel
+`driver.ErrBadConn` and `sql.ErrConnDone` sentinels, a bare
+`context.DeadlineExceeded` that `database/sql` returns before the driver sees it
+(class `timeout`; a bare cancel stays unclaimed), and `db.ErrWrongTopology`
+(class `topology`, logged at error level because it does not clear on its own);
+never from error text. A failed statement and a caller cancel
 must stay unclaimed so the middleware keeps its bare `401` (#7586). The log line
 and counter carry only the closed `failure_class`, never the credential.
