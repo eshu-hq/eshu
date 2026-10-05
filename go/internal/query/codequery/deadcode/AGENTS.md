@@ -162,6 +162,44 @@ incomplete answer into `consumer_coverage_incomplete`. The rules:
 - The test doubles that predate this carry a coverage method that reports
   complete; a new double that wants `dead` needs one too.
 
+## Test-only consumers (#7603)
+
+`test_only_consumers` (a boolean, present only when true) rides on a
+`live_by_consumer` cross-repo row whose every consumer root is in a test file. It
+never changes liveness, a bucket, a count or any other field: a test caller is a
+caller. Rules:
+
+- The test-path rule is `codemodel.DeadCodeIsTestFile`, called with the root's
+  `content_entities.relative_path`. Never copy or extend it here.
+- It is set only in the `live_by_consumer` branch, only for entity-level
+  evidence (not the boundary fallback), and only when every consumer can be
+  seen: no hidden consumer, no incomplete consumer snapshot
+  (`consumers.Coverage.incomplete()`, which strong evidence outranks for
+  liveness but not for this flag) and no `consumer_repo_ids` selector (the
+  hidden probe does not run for one). Liveness needs one consumer; "only tests"
+  needs all of them. A consumer with no root id, or a root with no
+  `content_entities` row, keeps it off: the flag is proven, never defaulted.
+- The paths come from one batched read per request
+  (`crossRepoDeadCodeConsumerRootPaths`, `CrossRepoDeadCodeConsumerRootPathsQuery`),
+  skipped when no candidate has a consumer root, never one read per candidate.
+  Do not read `source_cache` (`GetEntityContents` does) and do not read
+  `code_reachability_rows` for a file: it has none. A read error fails the
+  request through `WriteGraphReadError`, never "not test only".
+- Language scope: the flag fires only where a test method is a reachability
+  root (`dead_code_root_kinds` such as `java.junit_test_method`,
+  `csharp.test_method`, `rust.test_function`: C#, Java, Kotlin, Scala, Rust,
+  Swift). A Go, Python, JavaScript or TypeScript test is not a root, so it is
+  never a consumer and never sets the flag. Do not claim a test-only consumer
+  "already yields dead": the cross-repo read filters on neither root kind nor
+  file, so it yields `live_by_consumer`.
+- The same-repository routes are deferred: they project only `(entity, method)`
+  and `ApplyDeadCodeIncomingEdges` drops a strong-caller candidate before a result
+  row exists, so there is no row for the field.
+- The byte bar is `TestFindCrossRepoDeadCodeTestOnlyConsumersCalibratedBaseBar`
+  in `internal/mcp` (every evidence row live and flagged; at most 80 est2x bytes
+  per row). The statement's plan is pinned on PostgreSQL by
+  `TestCrossRepoDeadCodeConsumerRootPathsLive`.
+
 ## Postgres reader failures (#7523)
 
 Every store or scan error in the three handlers goes through

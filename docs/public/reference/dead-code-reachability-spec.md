@@ -424,6 +424,52 @@ The cross-repo route has no `offset`; it is limit-only. To see more of a large
 producer repository, narrow it with a `language` or `consumer_repo_ids`
 selector instead of paging.
 
+### Test-only consumers
+
+A `live_by_consumer` row on the cross-repo route carries `test_only_consumers:
+true` when it has consumers and every consumer's root entity is in a test file,
+by the single test-path rule dead-code uses on every route
+(`codemodel.DeadCodeIsTestFile`). The key is present only when true; it is
+never `false`. It adds one fact and changes nothing else: a test that calls a
+function is a real dependency, so the row stays `live_by_consumer`, its
+`confidence_label`, evidence and the bucket counts are the same. What it tells
+an admin is that removing the symbol also means removing or rewriting its tests.
+
+The flag is absent on `dead` and `unknown_needs_evidence` rows, when any
+consumer root is not a test file, when a root has no `content_entities` row,
+when a consumer is hidden from the caller, when a consumer repository's
+reachability snapshot is incomplete (`consumer_coverage.complete` is `false`),
+when the request named `consumer_repo_ids`, and on a row that used the
+repository-boundary fallback. A hidden consumer, an incomplete snapshot and a
+named selector each mean the answer may not see every consumer, and "only tests
+call this" needs all of them where liveness needs one. The boundary fallback is
+absent because it has no entity-level consumer to inspect.
+
+Language scope. A consumer snapshot is rooted at the entities whose parser
+metadata carries `dead_code_root_kinds` (`listCodeReachabilityRootsSQL`), and
+the cross-repo evidence read (`CrossRepoDeadCodeConsumerEvidence`) filters on
+neither the root kind nor the root's file. Test methods carry a root kind only
+for C# (`csharp.test_method`), Java (`java.junit_test_method`), Kotlin
+(`kotlin.junit_test_method`), Scala (`scala.junit_test_method`,
+`scala.scalatest_suite_class`), Rust (`rust.test_function`) and Swift
+(`swift.xctest_method`, `swift.swift_testing_method`). For those languages a
+test that calls a producer symbol yields a consumer row rooted at the test
+method, so the symbol is `live_by_consumer` and, when every consumer root is a
+test file, carries `test_only_consumers: true`. Go, Python, JavaScript and
+TypeScript have no test root kind: a test that calls a symbol is not a root, so
+it appears as no consumer at all, the symbol reads `dead` (or unknown when
+consumer coverage is incomplete) and the flag never fires from that test. In
+those languages the flag can appear only when some other root, such as a script
+entry point, sits in a test path.
+
+Cost: one batched primary-key read of `content_entities` per request (at most
+1,000 consumer root ids, no `source_cache`), skipped when no candidate has a
+consumer root, a named consumer selector or an incomplete consumer snapshot, and
+27 bytes per flagged row on the wire. The same-repository
+routes (`/api/v0/code/dead-code`, `/investigation`) do not carry the flag: a
+candidate with a strong caller never becomes a result row there, so there is no
+row to put it on.
+
 ## Fixture Contract
 
 Dead-code exactness is language scoped. Parser fixtures prove syntax

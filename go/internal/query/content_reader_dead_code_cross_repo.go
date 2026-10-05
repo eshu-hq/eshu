@@ -101,6 +101,57 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	return result, hidden, nil
 }
 
+// CrossRepoDeadCodeConsumerRootPaths returns the relative path of each consumer
+// root entity with one primary-key read, bounded to the consumer repositories
+// the roots belong to (#7603). A root without a content_entities row is absent
+// from the result. At most maxCrossRepoDeadCodeConsumerEvidenceRows ids are read:
+// the evidence page cannot name more distinct roots, and a longer list would
+// only be a caller bug.
+func (cr *ContentReader) CrossRepoDeadCodeConsumerRootPaths(
+	ctx context.Context,
+	rootEntityIDs []string,
+	consumerRepoIDs []string,
+) (map[string]string, error) {
+	rootEntityIDs = cleanDeadCodeIncomingEntityIDs(rootEntityIDs)
+	consumerRepoIDs = cleanDeadCodeIncomingEntityIDs(consumerRepoIDs)
+	if cr == nil || cr.db == nil || len(rootEntityIDs) == 0 || len(consumerRepoIDs) == 0 {
+		return map[string]string{}, nil
+	}
+	if len(rootEntityIDs) > maxCrossRepoDeadCodeConsumerEvidenceRows {
+		rootEntityIDs = rootEntityIDs[:maxCrossRepoDeadCodeConsumerEvidenceRows]
+	}
+	ctx, span := cr.tracer.Start(ctx, "postgres.query", trace.WithAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "cross_repo_dead_code_consumer_root_paths"),
+		attribute.String("db.sql.table", "content_entities"),
+		attribute.Int("db.request.consumer_root_ids", len(rootEntityIDs)),
+	))
+	defer span.End()
+
+	rows, err := cr.db.QueryContext(ctx, deadcode.CrossRepoDeadCodeConsumerRootPathsQuery,
+		array.Of(rootEntityIDs), array.Of(consumerRepoIDs))
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("cross-repo dead code consumer root paths: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	paths := make(map[string]string, len(rootEntityIDs))
+	for rows.Next() {
+		var entityID, relativePath string
+		if err := rows.Scan(&entityID, &relativePath); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan cross-repo dead code consumer root path: %w", err)
+		}
+		paths[entityID] = relativePath
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("db.rows.consumer_root_paths", len(paths)))
+	return paths, nil
+}
+
 // crossRepoDeadCodeConsumerCoverage says which producer entities one bounded
 // consumer read is proven to have read in full.
 //
