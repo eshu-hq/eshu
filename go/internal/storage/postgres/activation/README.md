@@ -38,6 +38,12 @@ resolution engine:     Claim (SKIP LOCKED, lease + token)
 labels. `ErrLeaseLost` means the lease expired inside the Finalize transaction
 after the wake ran; the transaction rolled back.
 
+## Consumer port
+
+`RunnerStore` adapts `Store` to `reducer/maintenance.ActivationObligationStore`,
+the storage port of `maintenance.ActivationObligationRunner`, and maps
+`ErrLeaseLost` to `maintenance.ErrActivationLeaseLost`.
+
 ## Foreign key policy
 
 One foreign key, `generation_id -> scope_generations ON DELETE CASCADE`, like

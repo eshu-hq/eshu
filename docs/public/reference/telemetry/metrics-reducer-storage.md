@@ -166,6 +166,36 @@ separate self-healing from a backlog the sweep cannot clear; a rising
 `eshu_dp_generation_liveness_failures_total` means the sweep itself is failing,
 and the bounded failure reason lives in reducer logs.
 
+## Activation Obligations
+
+The activation obligation consumer (#7584,
+`go/internal/reducer/maintenance/activation_obligation_runner.go`) settles the
+exact-generation obligations `ProjectorQueue.Ack` writes. No scope or generation
+id is ever a label; the per-obligation log line carries them.
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_activation_obligations` | gauge | Obligation rows by `status` (`pending`, `leased`, `completed`, `obsolete`), sampled once per consumer cycle. |
+| `eshu_dp_activation_obligation_oldest_open_age_seconds` | gauge | Age of the oldest pending or leased obligation, sampled once per cycle. |
+| `eshu_dp_activation_obligation_claim_age_seconds` | histogram | Obligation age when a consumer claimed it. |
+| `eshu_dp_activation_obligation_finalize_total` | counter | Finalize attempts by `outcome` (`completed`, `phase_not_ready`, `work_pending`, `obsolete`, `not_owner`, `missing`, `lease_lost`, `error`). |
+| `eshu_dp_activation_obligation_woken_total` | counter | `deployment_mapping` rows made visible by committed wakes. |
+| `eshu_dp_activation_obligation_maintenance_duration_seconds` | histogram | Maintenance callback duration by `outcome` (`success`, `error`); its count is the callback count. |
+| `eshu_dp_activation_obligation_catch_up_inserted_total` | counter | Obligations owed by catch-up to already-active generations missing their phase. |
+| `eshu_dp_activation_obligation_pruned_total` | counter | Finished obligations deleted by the bounded prune. |
+| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `maintenance`, `catch_up`, `prune`, `stats`). |
+
+A rising `oldest_open_age_seconds` with a flat `finalize_total{outcome="completed"}`
+means obligations are owed but not settling: read
+`finalize_total{outcome="phase_not_ready"}` (the callback ran but the phase is
+still absent) against `failures_total{reason="maintenance"}` (the callback
+failed). `work_pending` counts obligations held open while a handler for the
+generation is still claimed or running, or while more than one wake batch (32
+rows) waits. Each finalize logs `activation obligation finalized` at Info with
+`scope_id`, `generation_id`, `outcome`, `woken` and `claim_token`; failures log
+`activation obligation step failed` with
+`failure_class=activation_obligation_<reason>`.
+
 ## Graph Orphan Sweep
 
 | Metric | Type | Use |

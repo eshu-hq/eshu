@@ -1602,6 +1602,21 @@ type Instruments struct {
 	// a retryable 503, not a 401, so a rising count points an operator at
 	// PostgreSQL instead of at credentials.
 	AuthIdentityStoreUnavailable metric.Int64Counter
+	// Activation obligation consumer (#7584, reducer/maintenance and
+	// storage/postgres/activation): per-status row gauge and oldest open age
+	// sampled each cycle, claim age, finalize outcomes, woken rows,
+	// maintenance callback duration, catch-up inserts, prune deletes and
+	// step failures by reason. Registered in
+	// instruments_activation_obligation.go.
+	ActivationObligations                   metric.Int64Gauge
+	ActivationObligationOldestOpenAge       metric.Float64Gauge
+	ActivationObligationClaimAge            metric.Float64Histogram
+	ActivationObligationFinalizes           metric.Int64Counter
+	ActivationObligationWoken               metric.Int64Counter
+	ActivationObligationMaintenanceDuration metric.Float64Histogram
+	ActivationObligationCatchUpInserted     metric.Int64Counter
+	ActivationObligationPruned              metric.Int64Counter
+	ActivationObligationFailures            metric.Int64Counter
 	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
 	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
 	// governance-audit drop-observability triad. The mcp-server transport auth
@@ -4742,6 +4757,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerActivationObligationInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

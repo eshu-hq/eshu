@@ -2298,7 +2298,7 @@ tests:
   - file: go/internal/storage/postgres/quiet_generation_maintenance_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7584 single-commit quiet-generation phase liveness against isolated disposable PostgreSQL; collector drain completes before real projector Ack, and subsequent empty polls cannot substitute for activation maintenance"
+    reason: "#7584 single-commit quiet-generation phase liveness against isolated disposable PostgreSQL; collector drain completes before real projector Ack, subsequent empty polls cannot substitute for activation maintenance, and the activation obligation consumer (control-arm callback) publishes the exact phase, wakes the exact row and completes the obligation"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/readiness/wait/store_clear_fence_live_test.go
     tag: ~

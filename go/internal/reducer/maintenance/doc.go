@@ -29,6 +29,14 @@
 // cycles from a persisted cursor and re-derives the infra read model rows (#6793)
 // of any repository whose rows differ from content_entities on two
 // consecutive cycles.
+// [ActivationObligationRunner] settles the exact-generation activation
+// obligations ProjectorQueue.Ack writes (#7584): workers claim one obligation
+// at a time through [ActivationObligationStore], call the
+// [ActivationMaintainer] port only when the generation's own
+// backward-evidence phase is missing, and finalize; one worker per process
+// also runs a bounded catch-up page, a bounded prune and the census gauges
+// each cycle. The shipped callback is not wired yet: whole-corpus
+// maintenance is a test control arm only.
 //
 // AcceptedGenerationLookup, AcceptedGenerationPrefetch, and
 // PartitionLeaseManager are declared locally as mirrors of the identically
@@ -64,5 +72,10 @@
 // [CollectorEvidenceSummaryDomain], [InfraInventoryReconcileRunner],
 // [InfraInventoryReconcileRunnerConfig], [InfraInventoryReconciler],
 // [InfraInventoryReconcileRequest],
-// [InfraInventoryReconcileBatch], and [InfraInventoryReconcileRepo].
+// [InfraInventoryReconcileBatch], [InfraInventoryReconcileRepo],
+// [ActivationObligationRunner], [ActivationObligationRunnerConfig],
+// [ActivationObligationStore], [ActivationMaintainer],
+// [ActivationObligation], [ActivationFinalizeResult],
+// [ActivationCatchUpPage], [ActivationStats], [ErrActivationLeaseLost], and
+// the ActivationOutcome* constants.
 package maintenance

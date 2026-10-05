@@ -4,7 +4,7 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../AGENTS.md`, especially the Ack atomicity and lock-order invariants.
-3. `sql.go` (every statement), `finalize.go`, `backlog.go`.
+3. `sql.go` (every statement), `finalize.go`, `backlog.go`, `port.go`.
 4. `../migrations/160_activation_obligations.sql`.
 
 ## Invariants

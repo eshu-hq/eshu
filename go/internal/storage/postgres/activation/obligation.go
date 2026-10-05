@@ -77,6 +77,8 @@ type Obligation struct {
 	LeaseOwner   string
 	LeaseToken   int64
 	LeaseUntil   time.Time
+	// CreatedAt is when the obligation was owed (Ack or catch-up time).
+	CreatedAt time.Time
 }
 
 // FinalizeResult reports one Finalize call.
@@ -136,7 +138,7 @@ func (s Store) Claim(ctx context.Context, owner string, lease time.Duration) (*O
 	}
 	var work Obligation
 	if err := rows.Scan(&work.ScopeID, &work.GenerationID, &work.LeaseOwner,
-		&work.LeaseToken, &work.LeaseUntil); err != nil {
+		&work.LeaseToken, &work.LeaseUntil, &work.CreatedAt); err != nil {
 		return nil, fmt.Errorf("claim activation obligation: scan: %w", err)
 	}
 	if err := rows.Err(); err != nil {

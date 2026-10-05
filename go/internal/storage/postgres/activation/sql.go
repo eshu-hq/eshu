@@ -38,7 +38,7 @@ WHERE obligation.scope_id = eligible.scope_id
   AND (obligation.state = 'pending'
        OR (obligation.state = 'leased' AND obligation.lease_until <= clock_timestamp()))
 RETURNING obligation.scope_id, obligation.generation_id, obligation.lease_owner,
-    obligation.claim_token, obligation.lease_until
+    obligation.claim_token, obligation.lease_until, obligation.created_at
 `
 
 // finalizeLockTimeoutQuery bounds every lock wait inside Finalize. A scope

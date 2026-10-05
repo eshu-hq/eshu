@@ -31,6 +31,9 @@
 // retention window, oldest first, bounded per call. Store.Stats reads the
 // per-state census and the oldest open obligation's age for gauges.
 //
-// The package imports only the db contracts, never the parent postgres
-// package, so ProjectorQueue.Ack can call Insert.
+// RunnerStore adapts Store to the resolution engine's consumer port,
+// reducer/maintenance.ActivationObligationStore.
+//
+// The package imports the db contracts and reducer/maintenance, never the
+// parent postgres package, so ProjectorQueue.Ack can call Insert.
 package activation
