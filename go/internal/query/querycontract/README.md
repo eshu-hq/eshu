@@ -343,8 +343,8 @@ failure that is not a timeout (authentication, TLS, connection refused,
 permission denied, client cancel) also carries `db.ErrReaderUnavailable` but is
 not transient, so it is not claimed and stays the caller's 500.
 Each mapped verdict carries its own retryable marker (#7536): only graph
-unavailable and the stale or timed-out reader are marked, never a verdict merely
-because its status is `503`. `GraphReadErrorEnvelope` copies the marker onto the
+unavailable, the stale or timed-out reader, and the identity-store `503` above
+are marked, never a verdict merely because its status is `503`. `GraphReadErrorEnvelope` copies the marker onto the
 envelope as an unexported flag, and
 `WriteErrorEnvelope` sets `Retry-After` (`BackendUnavailableRetryAfterSeconds`,
 a fixed constant, no clock read) only for a marked envelope, so every seam that

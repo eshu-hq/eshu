@@ -133,12 +133,13 @@ type ErrorEnvelope struct {
 	Profiles      *ErrorProfiles `json:"profiles,omitempty"`
 	Details       map[string]any `json:"details,omitempty"`
 
-	// retryable marks an envelope the shared graph-read mapping produced for a
-	// verdict it marked transient (set per verdict, not derived from the status
-	// code, #7536). WriteErrorEnvelope sets Retry-After only
-	// for a marked 503, so a permanent 503 backend_unavailable (an unconfigured
-	// graph backend) never tells a client to retry (#7523). It is unexported, so
-	// it is never serialized and only GraphReadErrorEnvelope can set it.
+	// retryable marks an envelope for a verdict marked transient (set per
+	// verdict, not derived from the status code, #7536). WriteErrorEnvelope sets
+	// Retry-After only for a marked 503, so a permanent 503 backend_unavailable (an
+	// unconfigured graph backend) never tells a client to retry (#7523). It is
+	// unexported, so it is never serialized and only this package sets it:
+	// GraphReadErrorEnvelope for the graph-read verdicts, and
+	// IdentityStoreUnavailableEnvelope for an unreachable identity store (#7586).
 	retryable bool
 }
 
