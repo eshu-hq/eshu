@@ -197,9 +197,9 @@ sees the new incarnation checks that the system identifier, database, and
 timeline are unchanged and that the primary's flushed WAL is at or past the
 highest flushed position the API/MCP process has seen, then accepts it for
 every pool. No API/MCP restart is needed, and `/readyz` turns ready again. This
-was exercised with the default same-primary reader pool; a streaming-standby
-reader pool was not exercised, although its validator never compared the
-primary's incarnation.
+was exercised with the default same-primary reader pool and with a reader pool
+on a streaming standby, whose validator never compared the primary's
+incarnation.
 
 A promoted primary (new timeline) or a primary restored from an older
 snapshot (flushed WAL behind what the process saw) is refused by design. The

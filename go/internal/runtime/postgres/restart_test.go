@@ -96,6 +96,31 @@ func TestAccessSameClusterRestartRecoversInPlace(t *testing.T) {
 	requireRecovered(t, access)
 }
 
+// TestAccessSameClusterRestartRecoversWithStandbyReader runs the same primary
+// restart with the reader pool on a streaming standby, the shape the removed
+// primary-restart test used. A standby keeps its own postmaster through a
+// primary restart and its validator never compared the primary's incarnation, so
+// the fenced read must resume once replication reconnects and the standby
+// replays to the writer checkpoint. It needs ESHU_READER_TEST_READER_DSN to name
+// a standby of the owned primary.
+func TestAccessSameClusterRestartRecoversWithStandbyReader(t *testing.T) {
+	container := restartContainer(t)
+	reader := strings.TrimSpace(os.Getenv("ESHU_READER_TEST_READER_DSN"))
+	if reader == "" || reader == strings.TrimSpace(os.Getenv("ESHU_READER_TEST_WRITER_DSN")) {
+		t.Skip("streaming standby restart requires ESHU_READER_TEST_READER_DSN naming a standby of the owned primary")
+	}
+	access := testAccess(t, reader)
+	if access.samePrimary {
+		t.Fatal("reader DSN resolved to the primary, not a standby")
+	}
+	if _, err := access.ContextWithCheckpoint(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	docker(t, "stop", container)
+	docker(t, "start", container)
+	requireRecovered(t, access)
+}
+
 // TestAccessRestartBeforeAnyCheckpointRecovers covers the watermark seeded by
 // bootstrap alone: no checkpoint or request ran before the restart.
 func TestAccessRestartBeforeAnyCheckpointRecovers(t *testing.T) {

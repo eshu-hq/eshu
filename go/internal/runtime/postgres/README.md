@@ -370,7 +370,9 @@ changes. Candidate tests additionally take complete
 `ESHU_READER_TEST_EXPECTED_SYSTEM_ID`. The restart tests (`restart_test.go`,
 `crash_restart_test.go`) run only with `ESHU_READER_TEST_RESTART_PRIMARY=1`
 and an explicit disposable `ESHU_READER_TEST_PRIMARY_CONTAINER` target; they
-stop, start, and SIGKILL it and require the same Access to recover. The crash
+stop, start, and SIGKILL it and require the same Access to recover. The
+standby variant additionally needs `ESHU_READER_TEST_READER_DSN` to name a
+streaming standby of that primary. The crash
 test sets `wal_writer_delay` with `ALTER SYSTEM` and resets it on cleanup. The
 lineage-swap tests (`lineage_change_test.go`) also need
 `ESHU_READER_TEST_LINEAGE_SWAP=1` and
@@ -449,7 +451,9 @@ Two mutation runs during development (not part of the suite) showed the
 sensitivity: with the watermark taken from the insert LSN the crash test latched
 and never recovered, and with the timeline check removed the promoted copy was
 accepted. The pgbench figures above are likewise development measurements, not
-a test assertion. Standby-shape restart and deployed behavior are not checked.
+a test assertion. `TestAccessSameClusterRestartRecoversWithStandbyReader` runs the
+plain restart with the reader pool on a streaming standby and passes. Deployed
+behavior is not checked.
 
 ## Request and admin boundaries
 
