@@ -187,6 +187,35 @@ the scope's cursor and retried after min(30 min, 30 s × 2^(n-1)). At
 `link_poisoned` chain break: the scope keeps its state, is marked poisoned, and
 links again at its next full generation.
 
+### Activation obligations (#7584, not wired yet)
+
+A quiet repository generation can be activated by `ProjectorQueue.Ack` after
+the ingester's last deferred-maintenance pass already ran. Nothing then
+publishes that generation's own `backward_evidence_committed` phase, and its
+`deployment_mapping` rows wait on the not-ready retry schedule. `Ack` now writes
+one `activation_obligations` row for the generation it activates, inside the Ack
+transaction (migration 160; `go/internal/storage/postgres/activation`).
+
+`maintenance.ActivationObligationRunner` is the consumer. Each worker claims
+one obligation (`FOR NO KEY UPDATE SKIP LOCKED`, lease owner and a claim token
+on the database clock), finalizes it, calls the `ActivationMaintainer` port only
+when the exact generation's phase is missing, and finalizes again. Finalize
+locks the scope row before the obligation row (the Ack lock order), retires the
+obligation as `obsolete` when the scope moved to another generation, wakes at
+most 32 waiting `deployment_mapping` rows of that exact generation per call,
+keeps the obligation open while a handler for the generation is claimed or
+running, and completes it under the lease fence. One worker per process also
+runs a bounded catch-up page (active repository generations with neither an
+obligation nor their phase), a bounded prune of finished rows and the census
+gauges each cycle. Replicas and workers never share an obligation.
+
+The runner is a nil `Service.ActivationObligationRunner` field today, so no
+`cmd/reducer` environment variable exists for it yet. The shipped maintenance
+callback is still being proven: whole-corpus deferred maintenance is a test
+control arm only and must not be wired. Until the consumer is wired, obligations
+stay `pending`, one per activated generation; generation retention deletes them
+with their generation (`ON DELETE CASCADE`).
+
 ## Domains And Projection
 
 The default runtime processes workload identity, deployable-unit correlation,
@@ -399,6 +428,14 @@ Start with:
   (retry reasons: `cursor_locked`, `generation_locked`,
   `generation_lock_timeout`, `slot_busy`; chain-break reason `prior_pruned` is
   a rebase that also counts as a linked root)
+- activation obligations (#7584, consumer not wired yet):
+  `eshu_dp_activation_obligations{status}`,
+  `eshu_dp_activation_obligation_oldest_open_age_seconds`,
+  `eshu_dp_activation_obligation_finalize_total{outcome}`,
+  `eshu_dp_activation_obligation_woken_total`,
+  `eshu_dp_activation_obligation_maintenance_duration_seconds{outcome}`,
+  `eshu_dp_activation_obligation_failures_total{reason}`; see the
+  [reducer/storage metric catalog](../reference/telemetry/metrics-reducer-storage.md)
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - graph-backed gauge snapshot health: `eshu_dp_gauge_snapshot_refreshes_total`,
   `eshu_dp_gauge_snapshot_refresh_duration_seconds`,

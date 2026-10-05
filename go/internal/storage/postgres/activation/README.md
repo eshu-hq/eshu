@@ -61,6 +61,8 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 `live-postgres-readiness` runner:
 
 - `activation_obligation_ack_live_test.go` — atomic Ack insert.
+- `activation_obligation_claim_live_test.go` — claim never blocks on a held
+  row or starves on finished rows; a lease lost inside Finalize rolls back.
 - `activation_obligation_consumer_live_test.go`,
   `activation_obligation_matrix_live_test.go`,
   `activation_obligation_recovery_live_test.go` — the consumer protocol.

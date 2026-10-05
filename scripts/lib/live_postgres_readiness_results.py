@@ -43,6 +43,11 @@ PACKAGES = {
         "go/internal/storage/postgres/activation_obligation_ack_live_test.go": (
             "TestActivationObligationAtomicAckLive",
         ),
+        "go/internal/storage/postgres/activation_obligation_claim_live_test.go": (
+            "TestActivationObligationClaimSkipsLockedRowsLive",
+            "TestActivationObligationClaimIgnoresFinishedRowsLive",
+            "TestActivationObligationFinalizeLeaseExpiryRollsBackLive",
+        ),
         "go/internal/storage/postgres/activation_obligation_consumer_live_test.go": (
             "TestActivationObligationConsumerOrderingLive",
             "TestActivationObligationConsumerLateFailureLive",

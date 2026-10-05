@@ -2275,6 +2275,11 @@ tests:
     class: postgres_ci
     reason: "#7584 atomic activation obligation insert inside real ProjectorQueue.Ack on the full bootstrap schema in an isolated disposable PostgreSQL schema; accepted Ack writes one row, rejected/stale/duplicate/superseded Ack writes none, injected insert failure rolls Ack back"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation_obligation_claim_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation claim never waits on a held row and never leases or starves on finished rows, and a lease lost inside finalize rolls back the wake and the completion (statement-level pg_sleep trigger in an isolated disposable PostgreSQL schema)"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/activation_obligation_consumer_live_test.go
     tag: ~
     class: postgres_ci
