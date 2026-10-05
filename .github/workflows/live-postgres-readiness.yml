@@ -122,4 +122,6 @@ jobs:
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
           ESHU_DEFERRED_PARTITION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE: '1'
+          ESHU_TARGETED_MAINTENANCE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

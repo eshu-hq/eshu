@@ -90,6 +90,21 @@ PACKAGES = {
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
+        "go/internal/storage/postgres/ingestion_targeted_maintenance_differential_live_test.go": (
+            "TestTargetedMaintenanceMatchesWholePass",
+        ),
+        "go/internal/storage/postgres/ingestion_targeted_maintenance_interleave_live_test.go": (
+            "TestTargetedMaintenanceInterleavingsMatchWholePass",
+        ),
+        "go/internal/storage/postgres/ingestion_targeted_maintenance_outcomes_live_test.go": (
+            "TestTargetedMaintenanceOutcomesMatchWholePass",
+        ),
+        "go/internal/storage/postgres/ingestion_targeted_maintenance_sql_live_test.go": (
+            "TestBoundedRepositoryGenerationReadsMatchShippedRead",
+        ),
+        "go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go": (
+            "TestTheoryExactPartitionEvidenceClosure",
+        ),
     },
     REDUCER_PACKAGE: {
         "go/cmd/reducer/package_manifest_backfill_live_test.go": (

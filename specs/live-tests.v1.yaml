@@ -2028,6 +2028,26 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_differential_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 write-side differential of the partition-scoped deferred maintenance pass against the whole pass on two identically seeded bootstrapped schemas (outgoing, inbound, GCP, ArgoCD, shared partition, empty, unrelated quiet scope, memo hit and miss); enrolled in the live-postgres-readiness runner; local run passed in 15.07s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 differential of the partition-scoped pass against the whole pass under a generation advance before the evidence commit and before the phase, successor activation, a failed sibling batch and its retry, promotion of an unprocessed source, and the catalog-change refusal; enrolled in the live-postgres-readiness runner; local run passed in 11.84s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_outcomes_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 per-owed outcomes of the partition-scoped pass (not_active before the catalog guard, no_memo_baseline, NULL active pointer from the real projector Fail path, repo_id collision loser, empty catalog) and its targeted-only metric series; enrolled in the live-postgres-readiness runner; local run passed in 11.99s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_sql_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 proof that the repo-bounded and partition-bounded repository-generation reads equal the shipped corpus-wide read filtered in Go, including a repo_id DISTINCT ON collision; enrolled in the live-postgres-readiness runner; local run passed in 1.04s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/issue7033_scoped_rollout_legacy_live_test.go
     tag: issue7033_rollout
     class: scheduled
@@ -2566,6 +2586,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 disposable PostgreSQL 18 read-side parity proof that the target-catalog inbound load plus the exact owed partition load equals the full deferred loader for evidence touching the owed repository (D3 step 1); enrolled in the live-postgres-readiness runner; local run passed in 0.30s of test time on the pinned postgres:18 image (2 CPUs, 1 GiB) on 2026-10-05; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/tfstate_drift_evidence_prior_config_ordering_live_test.go
     tag: ~
     class: scheduled
