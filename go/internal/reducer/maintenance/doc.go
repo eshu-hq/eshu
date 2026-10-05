@@ -36,7 +36,11 @@
 // backward-evidence phase is missing, and finalize; one worker per process
 // also runs a bounded catch-up page, a bounded prune and the census gauges
 // each cycle. The shipped callback is not wired yet: whole-corpus
-// maintenance is a test control arm only.
+// maintenance is a test control arm only. A maintainer answers
+// [ErrActivationInapplicable] when no repository maps to the owed partition
+// (the row retires inapplicable) or [ErrActivationCatalogChanged] when it
+// refused on a changed repository catalog (held at lease cadence, no
+// fallback pass).
 //
 // AcceptedGenerationLookup, AcceptedGenerationPrefetch, and
 // PartitionLeaseManager are declared locally as mirrors of the identically
@@ -76,6 +80,7 @@
 // [ActivationObligationRunner], [ActivationObligationRunnerConfig],
 // [ActivationObligationStore], [ActivationMaintainer],
 // [ActivationObligation], [ActivationFinalizeResult],
-// [ActivationCatchUpPage], [ActivationStats], [ErrActivationLeaseLost], and
+// [ActivationCatchUpPage], [ActivationStats], [ErrActivationLeaseLost],
+// [ErrActivationInapplicable], [ErrActivationCatalogChanged], and
 // the ActivationOutcome* constants.
 package maintenance

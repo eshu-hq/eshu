@@ -16,14 +16,17 @@
 // LOCKED, database clock, lease owner plus a claim_token that increases on
 // every claim). Store.Finalize settles a claimed obligation in one
 // transaction, taking the scope row before the obligation row (the Ack lock
-// order): it retires the obligation as obsolete when the scope moved to
-// another generation, refuses when the exact generation's own phase is
-// absent, wakes up to WakeBatchLimit waiting deployment_mapping rows of that
+// order): it retires the obligation as obsolete when the scope's pointer
+// moved to another generation or is NULL, retires it as inapplicable when the
+// exact generation's phase is absent and it has no repository fact (no pass
+// can ever publish one), refuses when the phase is absent otherwise, wakes up to WakeBatchLimit waiting deployment_mapping rows of that
 // exact generation, keeps the obligation open while a handler for the
 // generation is still claimed or running or more waiting rows remain, and
 // completes it under the lease fence otherwise. Finalize never publishes a
 // phase and never runs maintenance; the caller runs maintenance between
-// Claim and Finalize through its own port.
+// Claim and Finalize through its own port. Store.RetireInapplicable retires a
+// claimed obligation as inapplicable under the same locks and fence when the
+// maintainer reports that no repository maps to the owed partition.
 //
 // Store.CatchUp owes obligations, one bounded keyset page of scopes at a
 // time, to active repository generations that have neither an obligation

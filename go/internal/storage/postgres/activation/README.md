@@ -18,10 +18,14 @@ Ack transaction itself, so it cannot be lost.
 ```text
 ProjectorQueue.Ack tx: scope lock -> work -> generations -> activate -> Insert(obligation) -> commit
 resolution engine:     Claim (SKIP LOCKED, lease + token)
-                       -> maintenance port (publishes the phase)
                        -> Finalize tx: scope lock -> obligation lock
-                            -> obsolete | phase_not_ready | wake <=32 rows -> work_pending | completed
-                       CatchUp (bounded scope pages) and Prune (bounded, finished rows)
+                            -> obsolete (pointer moved or NULL)
+                            -> inapplicable (no phase and no repository fact)
+                            -> phase_not_ready -> maintenance port -> Finalize again
+                                 port ErrActivationInapplicable -> RetireInapplicable
+                                 port ErrActivationCatalogChanged -> hold lease, retry at lease cadence
+                            -> wake <=32 rows -> work_pending | completed
+                       CatchUp (bounded scope pages) and Prune (bounded, completed/obsolete rows)
 ```
 
 ## States and outcomes
@@ -31,10 +35,11 @@ resolution engine:     Claim (SKIP LOCKED, lease + token)
 | `pending` | Owed, not leased. |
 | `leased` | A consumer holds the lease (`lease_owner`, `lease_until`, `claim_token`). An expired lease is claimable again. |
 | `completed` | Phase existed, every waiting row was woken, no handler in flight. |
-| `obsolete` | The scope moved to another generation before completion. |
+| `obsolete` | The scope's active pointer moved to another generation, or is NULL because the generation failed, before completion. |
+| `inapplicable` | The generation can never carry a backward-evidence phase: it has no repository fact (Finalize decides with one index seek), or the maintainer found no repository maps to it in the shipped active-repository read (`RetireInapplicable`, repo_id collision loser). Never pruned; only the generation cascade removes it, so CatchUp cannot owe it again. |
 
 `Finalize` outcomes: `completed`, `phase_not_ready`, `work_pending`,
-`obsolete`, `not_owner`, `missing`. They are a closed set and safe as metric
+`obsolete`, `inapplicable`, `not_owner`, `missing`. They are a closed set and safe as metric
 labels. `ErrLeaseLost` means the lease expired inside the Finalize transaction
 after the wake ran; the transaction rolled back.
 
@@ -67,6 +72,8 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
   `activation_obligation_matrix_live_test.go`,
   `activation_obligation_recovery_live_test.go` — the consumer protocol.
 - `activation_obligation_retention_live_test.go` — FK cascade and prune.
+- `activation_obligation_terminal_live_test.go` — `inapplicable` (cloud scope,
+  collision loser, fenced retire), catalog-changed hold, NULL pointer.
 
 ## Performance and observability evidence
 
@@ -74,15 +81,20 @@ No-Regression Evidence: NOT MEASURED. This slice ran on a shared host where
 timing runs were not allowed, so it carries no before/after numbers and makes
 no speed claim. What is proven is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
-test functions listed above plus the quiet-generation proof (18 in all), and
-26 of 28 distinct semantic mutations killed. The two survivors flip only
-the CTE copy of a predicate that the statement repeats on the locked row (wake
-failure class, prune state); flipping both copies is killed. The structural
+test functions listed above plus the quiet-generation proof (24 in all), and
+36 of 39 distinct semantic mutations killed. Two survivors flip only the CTE
+copy of a predicate that the statement repeats on the locked row (wake
+failure class, prune state); flipping both copies is killed. The third
+removes `!active.Valid` from Finalize's pointer check, which is equivalent
+because a NULL pointer scans as an empty string that never equals a
+generation id; the mutant that treats NULL as current is killed. The structural
 bounds are as
 follows. `Ack` gains one primary-key insert (`ON CONFLICT DO NOTHING`, no read)
 inside its existing transaction, after the scope lock it already holds.
 `Claim` locks one row through the open partial index. `Finalize` locks one
-scope row and one obligation row and wakes at most 32 rows through the
+scope row and one obligation row, seeks one repository fact on the
+`(scope_id, generation_id, fact_kind, ...)` index when the phase is absent,
+and wakes at most 32 rows through the
 existing `fact_work_items` scope/generation indexes. `CatchUp` reads at most
 `pageSize` scope rows per call. `Prune` deletes at most `limit` rows through
 the finished partial index. The retention cascade seeks the

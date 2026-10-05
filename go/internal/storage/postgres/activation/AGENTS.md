@@ -24,7 +24,13 @@
   `next_attempt_at` and `updated_at`. Keep the row-self predicates repeated in
   the UPDATE for the EvalPlanQual recheck, and keep the cap at
   `WakeBatchLimit`.
-- Every completion and obsolete write is fenced on `state = 'leased'`,
+- `obsolete` is only for a moved or NULL active pointer; `inapplicable` is
+  only for a generation that can never carry a phase (no repository fact, or
+  the maintainer's `ErrActivationInapplicable`). Prune MUST NOT delete
+  `inapplicable` rows: CatchUp skips any generation with a row, so pruning
+  one would let CatchUp owe it again. Never add an attempt cap that marks a
+  row terminal: it would drop an owed phase silently (#7584 ruling D2).
+- Every completion, obsolete and inapplicable write is fenced on `state = 'leased'`,
   `claim_token`, `lease_owner` and `lease_until > clock_timestamp()`. Use the
   database clock for every lease comparison.
 - A partial wake commits only after `stillOwnedQuery` confirms the lease.

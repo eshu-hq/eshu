@@ -201,13 +201,22 @@ one obligation (`FOR NO KEY UPDATE SKIP LOCKED`, lease owner and a claim token
 on the database clock), finalizes it, calls the `ActivationMaintainer` port only
 when the exact generation's phase is missing, and finalizes again. Finalize
 locks the scope row before the obligation row (the Ack lock order), retires the
-obligation as `obsolete` when the scope moved to another generation, wakes at
+obligation as `obsolete` when the scope's pointer moved to another generation
+or is NULL (the generation failed), retires it as `inapplicable` with one index
+seek when the phase is absent and the generation has no repository fact (cloud
+and cluster scopes), wakes at
 most 32 waiting `deployment_mapping` rows of that exact generation per call,
 keeps the obligation open while a handler for the generation is claimed or
 running, and completes it under the lease fence. One worker per process also
 runs a bounded catch-up page (active repository generations with neither an
 obligation nor their phase), a bounded prune of finished rows and the census
-gauges each cycle. Replicas and workers never share an obligation.
+gauges each cycle. Replicas and workers never share an obligation. The
+maintenance port can answer `ErrActivationInapplicable` (no repository maps to
+the owed partition: the row retires `inapplicable` after one callback) or
+`ErrActivationCatalogChanged` (held: the lease stays, the retry comes at lease
+cadence, no fallback pass runs, and the epoch whole pass triggered by the
+catalog-changing commit publishes the phase). `inapplicable` rows are never
+pruned.
 
 The runner is a nil `Service.ActivationObligationRunner` field today, so no
 `cmd/reducer` environment variable exists for it yet. The shipped maintenance

@@ -175,15 +175,26 @@ id is ever a label; the per-obligation log line carries them.
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_activation_obligations` | gauge | Obligation rows by `status` (`pending`, `leased`, `completed`, `obsolete`), sampled once per consumer cycle. |
+| `eshu_dp_activation_obligations` | gauge | Obligation rows by `status` (`pending`, `leased`, `completed`, `obsolete`, `inapplicable`), sampled once per consumer cycle. |
 | `eshu_dp_activation_obligation_oldest_open_age_seconds` | gauge | Age of the oldest pending or leased obligation, sampled once per cycle. |
 | `eshu_dp_activation_obligation_claim_age_seconds` | histogram | Obligation age when a consumer claimed it. |
-| `eshu_dp_activation_obligation_finalize_total` | counter | Finalize attempts by `outcome` (`completed`, `phase_not_ready`, `work_pending`, `obsolete`, `not_owner`, `missing`, `lease_lost`, `error`). |
+| `eshu_dp_activation_obligation_finalize_total` | counter | Finalize attempts by `outcome` (`completed`, `phase_not_ready`, `work_pending`, `obsolete`, `inapplicable`, `not_owner`, `missing`, `lease_lost`, `error`). |
 | `eshu_dp_activation_obligation_woken_total` | counter | `deployment_mapping` rows made visible by committed wakes. |
 | `eshu_dp_activation_obligation_maintenance_duration_seconds` | histogram | Maintenance callback duration by `outcome` (`success`, `error`); its count is the callback count. |
 | `eshu_dp_activation_obligation_catch_up_inserted_total` | counter | Obligations owed by catch-up to already-active generations missing their phase. |
 | `eshu_dp_activation_obligation_pruned_total` | counter | Finished obligations deleted by the bounded prune. |
-| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `maintenance`, `catch_up`, `prune`, `stats`). |
+| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `maintenance`, `catalog_changed`, `catch_up`, `prune`, `stats`). `catalog_changed` is a held refusal, logged at Info, not an error. |
+
+Alert on `eshu_dp_activation_obligation_oldest_open_age_seconds` above one epoch
+whole-pass latency plus one consumer lease (default 2 minutes). A
+`catalog_changed` refusal is expected after any repository-catalog change: the
+consumer holds the lease and retries at lease cadence, runs no fallback pass,
+and the epoch whole pass triggered by the commit that changed the catalog
+republishes the phase, so the obligation completes on the next attempt after
+that pass. Past that bound, the epoch pass is not running or not reaching the
+scope. `inapplicable` rows are expected for cloud and cluster scopes (no
+repository fact) and for a repository whose repo_id another scope owns; they
+are terminal and never reclaimed.
 
 A rising `oldest_open_age_seconds` with a flat `finalize_total{outcome="completed"}`
 means obligations are owed but not settling: read
