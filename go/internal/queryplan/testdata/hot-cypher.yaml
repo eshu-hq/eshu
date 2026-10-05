@@ -511,8 +511,8 @@ entries:
     source:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceOutgoing
-      source_sha256: 504d66ba126625abfb537493b87b2e1fb29cdfad8cd3ba9f5b0c1afb3d2c2774
-      line_hint: 99
+      source_sha256: e087c635001e978dbe2a82f8e77577b9894d9c70f4bc48106fae212cb3317101
+      line_hint: 106
     required_anchors:
       - label: Workload
         property: id
@@ -540,8 +540,8 @@ entries:
     source:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceOutgoing
-      source_sha256: 504d66ba126625abfb537493b87b2e1fb29cdfad8cd3ba9f5b0c1afb3d2c2774
-      line_hint: 99
+      source_sha256: e087c635001e978dbe2a82f8e77577b9894d9c70f4bc48106fae212cb3317101
+      line_hint: 106
     required_anchors:
       - label: Workload
         property: id
@@ -570,7 +570,7 @@ entries:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceRepositoryConsumers
       source_sha256: 6bbfe251f9fd783d3402aeb50e264efa98e740e6ce2fdecf3d45a73ef1a6772c
-      line_hint: 133
+      line_hint: 140
     required_anchors:
       - label: Repository
         property: id
@@ -599,7 +599,7 @@ entries:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceRepositoryConsumers
       source_sha256: 6bbfe251f9fd783d3402aeb50e264efa98e740e6ce2fdecf3d45a73ef1a6772c
-      line_hint: 133
+      line_hint: 140
     required_anchors:
       - label: Repository
         property: id

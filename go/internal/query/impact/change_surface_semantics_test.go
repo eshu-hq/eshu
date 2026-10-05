@@ -5,6 +5,7 @@ package impact
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
+	testgraph "github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
 const (
@@ -196,5 +198,43 @@ func assertSemanticChangeSurfaceQueries(t *testing.T, calls []changeSurfaceRunCa
 	if !strings.Contains(calls[1].cypher, "(start:Repository") ||
 		!strings.Contains(calls[1].cypher, "<-[:DEPENDS_ON") {
 		t.Fatalf("consumer query must use an incoming typed repository dependency traversal: %s", calls[1].cypher)
+	}
+}
+
+// TestChangeSurfaceOutgoingTraversalIsNamedForGraphReadTelemetry pins the
+// graph_query_name the outgoing traversal logs under (#7246). That read is the
+// expensive one: without a name its slow-read warning says "unnamed" and an
+// operator needs the statement fingerprint to find the stage. The consumer
+// read stays unnamed here; it is bounded and was not part of the finding.
+func TestChangeSurfaceOutgoingTraversalIsNamedForGraphReadTelemetry(t *testing.T) {
+	t.Parallel()
+
+	for name, access := range map[string]querycontract.RepositoryAccessFilter{
+		"unscoped": {AllScopes: true},
+		"scoped": {
+			AllowedRepositoryIDs: []string{"repository:owner"},
+			Allowed:              map[string]struct{}{"repository:owner": {}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var outgoingName string
+			handler := &Handler{Neo4j: testgraph.FakeGraphReader{RunFn: func(
+				ctx context.Context, cypher string, _ map[string]any,
+			) ([]map[string]any, error) {
+				if strings.Contains(cypher, "RETURN impacted.id as id") || strings.Contains(cypher, "RETURN id, name") {
+					outgoingName = querycontract.GraphQueryNameFromContext(ctx)
+				}
+				return nil, nil
+			}}}
+			_, _, err := handler.changeSurfaceTraversalRows(t.Context(),
+				ChangeSurfaceTargetCandidate{ID: "workload:changed", Labels: []string{"Workload"}}, "", 4, 10, access)
+			if err != nil {
+				t.Fatalf("changeSurfaceTraversalRows() error = %v", err)
+			}
+			if want := "platform_impact.change_surface.outgoing"; outgoingName != want {
+				t.Fatalf("outgoing graph_query_name = %q, want %q", outgoingName, want)
+			}
+		})
 	}
 }

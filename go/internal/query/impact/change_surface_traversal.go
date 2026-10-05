@@ -93,6 +93,13 @@ func (h *Handler) changeSurfaceTraversalRows(
 	return rows, rawTruncated, nil
 }
 
+// changeSurfaceOutgoingQueryName is the graph_query_name the outgoing
+// traversal reports in graph-read telemetry (the query.graph_read.warning log
+// and the eshu.graph_read.query_name span attribute). It follows the
+// capability-prefixed naming of the other route reads and names the one stage
+// of the change-surface routes that can run long (#7246).
+const changeSurfaceOutgoingQueryName = "platform_impact.change_surface.outgoing"
+
 // RunChangeSurfaceOutgoing runs the outgoing change-surface traversal for
 // one anchored start pattern. Exported because the root live-backend proof
 // test calls it; the home stays this package. See #6060.
@@ -124,7 +131,7 @@ func (h *Handler) RunChangeSurfaceOutgoing(
 	}
 	queryParams["limit"] = limit + 1
 	queryParams = access.GraphParams(queryParams)
-	return h.Neo4j.Run(ctx, cypher, queryParams)
+	return h.Neo4j.Run(querycontract.WithGraphQueryName(ctx, changeSurfaceOutgoingQueryName), cypher, queryParams)
 }
 
 // RunChangeSurfaceRepositoryConsumers runs the repository-consumers

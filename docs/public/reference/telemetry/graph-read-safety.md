@@ -236,7 +236,8 @@ exceeds that bound).
 `eshu.graph_read.query_name` (and the `graph_query_name` log field) is a
 bounded, low-cardinality caller-supplied name for the route/handler that issued
 the read (e.g. `code_quality.complexity`, `code_quality.refactoring`,
-`entity.context`, `platform_impact.deployment_chain`), set via
+`entity.context`, `platform_impact.deployment_chain`,
+`platform_impact.change_surface.outgoing`), set via
 `querycontract.WithGraphQueryName` and defaulting to `unnamed` when a caller
 sets none, so the attribute is never silently absent. It makes a bounded-read
 timeout or slow read attributable to a specific route without reading Cypher
