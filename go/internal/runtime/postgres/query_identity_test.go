@@ -181,7 +181,7 @@ func TestGuardedReaderEmitsStartBeforeUnchangedBusinessSQL(t *testing.T) {
 			spy := &queryStartSpy{}
 			pool := sql.OpenDB(queryIdentityConnector{spy: spy})
 			defer pool.Close()
-			access := &Access{reader: pool, observer: spy, samePrimary: true, replayTimeout: time.Second, identity: physicalIdentity{systemID: "7", database: "eshu"}}
+			access := &Access{reader: pool, observer: spy, samePrimary: true, replayTimeout: time.Second, lineage: newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil)}
 			ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{owner: access, systemID: "7", database: "eshu"})
 			var rows db.Rows
 			var err error

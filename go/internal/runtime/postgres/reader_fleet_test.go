@@ -36,7 +36,7 @@ func TestFleetWholeReadRetryMayRevisitMember(t *testing.T) {
 		readerMembers: []physicalReaderMember{{ordinal: 0, maxOpen: 4}, {ordinal: 1, maxOpen: 4}},
 		allocator:     newReaderAllocator([]int{4, 4}, 8),
 		replayTimeout: time.Second,
-		identity:      physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"},
+		lineage:       newWriterLineage(physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"}, lineageObservation{}, nil),
 	}
 	ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{
 		owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",
@@ -91,7 +91,7 @@ func TestFleetHealthySetupGetsFairShareOfReplayWindow(t *testing.T) {
 				readerMembers: []physicalReaderMember{{ordinal: 0, maxOpen: 4}, {ordinal: 1, maxOpen: 4}},
 				allocator:     newReaderAllocator([]int{4, 4}, 8),
 				replayTimeout: 450 * time.Millisecond,
-				identity:      physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"},
+				lineage:       newWriterLineage(physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"}, lineageObservation{}, nil),
 			}
 			ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{
 				owner: access, lsn: "0/1", systemID: "1", database: "postgres", incarnation: "1",

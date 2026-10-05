@@ -75,7 +75,7 @@ type Access struct {
 	replayTimeout        time.Duration
 	pingTimeout          time.Duration
 	observer             Observer
-	identity             physicalIdentity
+	lineage              *writerLineage
 	snapshotSetGate      chan struct{}
 	readerPermits        chan struct{}
 	querySequence        atomic.Int64
@@ -130,13 +130,16 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if len(cfg.ReadMembers) > 0 {
 		writerCtx, cancelWriter = context.WithTimeout(pingCtx, stageBudget)
 	}
-	identity, err := bootstrapPhysicalWriter(writerCtx, writerCfg, cfg.ExpectedSystemID)
+	identity, observed, err := bootstrapPhysicalWriter(writerCtx, writerCfg, cfg.ExpectedSystemID)
 	cancelWriter()
 	if err != nil {
 		return nil, privateFailure(failureWriterIdentity, err)
 	}
-	// The bootstrap connection is closed before either pool is exposed.
-	writerCfg.ValidateConnect = writerValidator(identity)
+	// The bootstrap connection is closed before either pool is exposed. Both
+	// primary-facing validators share one lineage so a restart observed by
+	// either pool is published for both and for the checkpoint.
+	lineage := newWriterLineage(identity, observed, cfg.Logger)
+	writerCfg.ValidateConnect = writerValidator(lineage)
 	writer := openWriterPool(writerCfg, cfg.Logger)
 	writer.SetMaxOpenConns(cfg.WriterMaxOpenConns)
 	writer.SetMaxIdleConns(cfg.WriterMaxIdleConns)
@@ -146,7 +149,11 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		readCfg.RuntimeParams = map[string]string{}
 	}
 	readCfg.RuntimeParams["default_transaction_read_only"] = "on"
-	readCfg.ValidateConnect = readerValidator(identity, cfg.SamePrimary)
+	if cfg.SamePrimary {
+		readCfg.ValidateConnect = samePrimaryReaderValidator(lineage)
+	} else {
+		readCfg.ValidateConnect = readerValidator(identity, false)
+	}
 	var reader *sql.DB
 	var members []physicalReaderMember
 	if len(cfg.ReadMembers) > 0 {
@@ -163,7 +170,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 		reader.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 		reader.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	}
-	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, identity: identity, snapshotSetGate: make(chan struct{}, 1)}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1)}
 	access.snapshotSetGate <- struct{}{}
 	if len(members) > 0 {
 		caps := make([]int, len(members))
@@ -217,8 +224,13 @@ func (a *Access) Stats() (writer, reader sql.DBStats) {
 	return a.writer.Stats(), a.aggregateReaderStats()
 }
 
-// Ping checks the writer and at least one qualified reader for readiness.
+// Ping checks the writer and at least one qualified reader for readiness. An
+// Access latched to a promoted or restored primary is never ready, even while
+// an already-established pooled connection still answers.
 func (a *Access) Ping(ctx context.Context) error {
+	if a.lineage.isLatched() {
+		return privateFailure(failureWriterPing, ErrWrongTopology)
+	}
 	if len(a.readerMembers) > 0 {
 		bounded, cancel := context.WithTimeout(ctx, a.pingTimeout)
 		defer cancel()

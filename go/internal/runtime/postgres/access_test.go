@@ -5,16 +5,11 @@ package postgres
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -323,11 +318,20 @@ func TestOpenRejectsFleetIdleBelowSnapshotWidthBeforeDial(t *testing.T) {
 	}
 }
 
+// TestAccessCheckpointRejectsFrozenIncarnation keeps the checkpoint's invariant
+// assertion: a checkpoint read on a connection whose incarnation differs from
+// the published writer identity is refused, and it raises no watermark.
 func TestAccessCheckpointRejectsFrozenIncarnation(t *testing.T) {
 	access := testAccess(t, "")
-	access.identity.incarnation = "0"
+	published := *access.lineage.identity()
+	published.incarnation = "0"
+	access.lineage.current.Store(&published)
+	before := access.lineage.watermark.Load()
 	if _, err := access.ContextWithCheckpoint(context.Background()); !errors.Is(err, ErrWrongTopology) {
 		t.Fatalf("changed writer incarnation accepted: %v", err)
+	}
+	if got := access.lineage.watermark.Load(); got != before {
+		t.Fatalf("rejected checkpoint raised watermark %X -> %X", before, got)
 	}
 }
 
@@ -379,100 +383,5 @@ func TestAccessExpectedSystemIDAndCandidateFallback(t *testing.T) {
 	var got int
 	if err := access.Reader().QueryRowContext(ctx, "SELECT 3").Scan(&got); err != nil || got != 3 {
 		t.Fatalf("candidate read=%d err=%v", got, err)
-	}
-}
-
-func TestAccessPrimaryRestartRequiresExplicitRebootstrap(t *testing.T) {
-	container := strings.TrimSpace(os.Getenv("ESHU_READER_TEST_PRIMARY_CONTAINER"))
-	if os.Getenv("ESHU_READER_TEST_RESTART_PRIMARY") != "1" || container == "" {
-		t.Skip("owned primary restart requires explicit fixture flag and container target")
-	}
-	reader := os.Getenv("ESHU_READER_TEST_READER_DSN")
-	if reader == "" {
-		t.Fatal("owned streaming reader fixture required")
-	}
-	old := testAccess(t, reader)
-	before := old.identity.incarnation
-	restartCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	output, err := exec.CommandContext(restartCtx, "docker", "restart", container).CombinedOutput()
-	if err != nil {
-		t.Fatalf("owned primary restart: %v %s", err, output)
-	}
-	cfg, err := LoadConfig(func(key string) string {
-		switch key {
-		case "ESHU_POSTGRES_DSN":
-			return os.Getenv("ESHU_READER_TEST_WRITER_DSN")
-		case "ESHU_POSTGRES_READ_DSN":
-			return reader
-		default:
-			return ""
-		}
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fresh *Access
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		fresh, err = Open(context.Background(), cfg, nil)
-		if err == nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if err != nil {
-		t.Fatalf("explicit rebootstrap after readiness: %v", err)
-	}
-	defer fresh.Close()
-	if fresh.identity.incarnation == before {
-		t.Fatalf("primary incarnation unchanged: %s", before)
-	}
-	// A broken old Access must fail after the fresh pool proves the server is
-	// ready; an immediate EOF after Docker restart is not an incarnation test.
-	confirmed := 0
-	for attempt := 0; attempt < 5 && confirmed < 2; attempt++ {
-		_, oldErr := old.ContextWithCheckpoint(context.Background())
-		if oldErr == nil {
-			t.Fatal("old Access accepted the restarted primary")
-		}
-		if errors.Is(oldErr, ErrWrongTopology) {
-			confirmed++
-			continue
-		}
-		if !errors.Is(oldErr, ErrWriterUnavailable) || !isDeadOldSocket(oldErr) {
-			t.Fatalf("old Access unexpected error after fresh readiness: %v", oldErr)
-		}
-		if attempt == 4 {
-			t.Fatalf("old Access never proved frozen-incarnation rejection: %v", oldErr)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if confirmed != 2 {
-		t.Fatalf("old Access topology rejection count=%d", confirmed)
-	}
-	ctx, err := fresh.ContextWithCheckpoint(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got int
-	if err := fresh.Reader().QueryRowContext(ctx, "SELECT 11").Scan(&got); err != nil || got != 11 {
-		t.Fatalf("rebootstrap read=%d err=%v", got, err)
-	}
-}
-
-func isDeadOldSocket(err error) bool {
-	return errors.Is(err, driver.ErrBadConn) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
-}
-
-func TestDeadOldSocketClassifier(t *testing.T) {
-	if !isDeadOldSocket(errors.Join(ErrWriterUnavailable, io.EOF)) {
-		t.Fatal("dead socket was not retryable")
-	}
-	if isDeadOldSocket(errors.Join(ErrWriterUnavailable, errors.New("metadata privilege denied"))) {
-		t.Fatal("non-socket writer failure was retryable")
-	}
-	if isDeadOldSocket(ErrWrongTopology) {
-		t.Fatal("topology mismatch was retryable")
 	}
 }

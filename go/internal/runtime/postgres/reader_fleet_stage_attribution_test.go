@@ -75,7 +75,7 @@ func newFleetStageFixtureAccess(tb testing.TB, observer Observer) (*Access, cont
 	access := &Access{
 		observer: observer, reader: members[0].pool, readerMembers: members, allocator: newReaderAllocator([]int{4, 4}, 8),
 		replayTimeout: time.Second,
-		identity:      physicalIdentity{systemID: "7", database: "eshu", incarnation: "inc-1"},
+		lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu", incarnation: "inc-1"}, lineageObservation{}, nil),
 	}
 	ctx := context.WithValue(context.Background(), checkpointKey{}, checkpoint{
 		owner: access, systemID: "7", database: "eshu", incarnation: "inc-1", lsn: "0/10",

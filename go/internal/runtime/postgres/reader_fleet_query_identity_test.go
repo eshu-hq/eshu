@@ -179,7 +179,7 @@ func TestFleetSnapshotSetControlStatementsDoNotEmitBusinessStart(t *testing.T) {
 			allocator := newReaderAllocator([]int{2}, 2)
 			access := &Access{
 				observer: spy, replayTimeout: time.Second,
-				identity:      physicalIdentity{systemID: "7", database: "eshu"},
+				lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
 				readerMembers: []physicalReaderMember{{pool: pool, incarnation: "123", addresses: []net.IP{net.ParseIP("127.0.0.1")}}},
 				allocator:     allocator,
 			}

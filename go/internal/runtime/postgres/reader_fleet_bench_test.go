@@ -97,7 +97,7 @@ func BenchmarkFleetStalledFirstMember(b *testing.B) {
 	}
 	member := &access.readerMembers[0]
 	config.RuntimeParams["default_transaction_read_only"] = "on"
-	config.ValidateConnect = memberValidator(access.identity, member.incarnation, member.addresses)
+	config.ValidateConnect = memberValidator(access.lineage.identity().physicalIdentity, member.incarnation, member.addresses)
 	baseDial := config.DialFunc
 	if baseDial == nil {
 		baseDial = (&net.Dialer{}).DialContext

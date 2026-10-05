@@ -38,25 +38,45 @@ var (
 	ErrWriterUnavailable = errors.New("PostgreSQL writer unavailable")
 )
 
+// checkpointSQL reads the insert LSN for the reader replay fence and the
+// flushed LSN that raises the writer restart watermark, with the identity the
+// checkpoint asserts against the published writer lineage.
+const checkpointSQL = `SELECT pg_current_wal_insert_lsn()::text, pg_current_wal_flush_lsn()::text, system_identifier::text, current_database(), pg_is_in_recovery(), current_setting('transaction_read_only'), current_setting('default_transaction_read_only'), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text FROM pg_control_system()`
+
 // ContextWithCheckpoint captures one acknowledged writer insertion point after
 // caller authorization. The returned context carries an immutable private
 // checkpoint bound to this Access. The writer connection is released first.
+// The checkpoint must come from the currently published writer identity; a
+// matching checkpoint raises the flushed-LSN restart watermark. A latched
+// Access answers ErrWrongTopology without querying the writer.
 func (a *Access) ContextWithCheckpoint(ctx context.Context) (context.Context, error) {
 	started := time.Now()
+	if a.lineage.isLatched() {
+		a.observe(ctx, "writer", StageWriterCheckpoint, started, ErrWrongTopology)
+		return nil, privateFailure(failureWriterCheckpoint, ErrWrongTopology)
+	}
 	checkpointCtx, cancel := context.WithTimeout(ctx, a.replayTimeout)
 	defer cancel()
 	var point checkpoint
+	var flush string
 	var recovery bool
 	var readOnly string
 	var defaultReadOnly string
-	err := a.writer.QueryRowContext(checkpointCtx, `SELECT pg_current_wal_insert_lsn()::text, system_identifier::text, current_database(), pg_is_in_recovery(), current_setting('transaction_read_only'), current_setting('default_transaction_read_only'), (extract(epoch from pg_postmaster_start_time())*1000000)::bigint::text FROM pg_control_system()`).Scan(&point.lsn, &point.systemID, &point.database, &recovery, &readOnly, &defaultReadOnly, &point.incarnation)
+	err := a.writer.QueryRowContext(checkpointCtx, checkpointSQL).Scan(&point.lsn, &flush, &point.systemID, &point.database, &recovery, &readOnly, &defaultReadOnly, &point.incarnation)
 	if err != nil {
 		a.observe(ctx, "writer", StageWriterCheckpoint, started, err)
 		return nil, privateFailure(failureWriterCheckpoint, errors.Join(ErrWriterUnavailable, err))
 	}
-	if recovery || readOnly != "off" || defaultReadOnly != "off" || point.lsn == "" || point.systemID != a.identity.systemID || point.database != a.identity.database || point.incarnation != a.identity.incarnation {
+	if recovery || readOnly != "off" || defaultReadOnly != "off" || point.lsn == "" {
 		err = ErrWrongTopology
+	} else {
+		err = a.lineage.checkpointTopology(point, flush)
+	}
+	if err != nil {
 		a.observe(ctx, "writer", StageWriterCheckpoint, started, err)
+		if !errors.Is(err, ErrWrongTopology) {
+			err = errors.Join(ErrWriterUnavailable, err)
+		}
 		return nil, privateFailure(failureWriterCheckpoint, err)
 	}
 	point.owner = a

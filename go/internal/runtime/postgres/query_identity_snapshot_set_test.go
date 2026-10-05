@@ -79,7 +79,7 @@ func TestSnapshotSetControlStatementsDoNotEmitBusinessStart(t *testing.T) {
 			pool.SetMaxOpenConns(2)
 			access := &Access{
 				reader: pool, observer: spy, samePrimary: true, replayTimeout: time.Second,
-				identity:        physicalIdentity{systemID: "7", database: "eshu"},
+				lineage:         newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
 				snapshotSetGate: make(chan struct{}, 1), readerPermits: make(chan struct{}, 2),
 			}
 			access.snapshotSetGate <- struct{}{}
