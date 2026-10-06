@@ -132,8 +132,20 @@ func (h *Handler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
 // WITH-attached label test would also be evaluated but breaks the
 // single-clause contract TestChangeSurfaceTraversalQueriesAreNornicDBSafe
 // holds this read to (#5287).
+//
+// A cheap `impacted:Label` conjunct sits in front of that disjunction (#7246).
+// On Neo4j 2026.08.1 (SLOTTED) the planner evaluates the label test first
+// (PROFILE: identical DB hits for the label-test-only and combined forms), so
+// it discards every non-whitelisted path before the six labels() calls run: for
+// a repository with 263,186 four-hop paths the labels() Filter was 1.84M of
+// 2.25M DB hits for a 0-row answer. The `IN labels()` terms stay as the NornicDB guard: that
+// backend ignores a label test in this clause position, so the conjunct is a
+// no-op there and the IN labels() terms still enforce the whitelist.
+// TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest pins the shape.
 const changeSurfaceLegacyCypher = `MATCH path = %s-[*1..%d]->(impacted)
 WHERE impacted.id <> $target_id
+  AND (impacted:Repository OR impacted:Workload OR impacted:WorkloadInstance
+    OR impacted:CloudResource OR impacted:TerraformModule OR impacted:DataAsset)
   AND ('Repository' IN labels(impacted) OR 'Workload' IN labels(impacted) OR 'WorkloadInstance' IN labels(impacted)
     OR 'CloudResource' IN labels(impacted) OR 'TerraformModule' IN labels(impacted) OR 'DataAsset' IN labels(impacted))%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,

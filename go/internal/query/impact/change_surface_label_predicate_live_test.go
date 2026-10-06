@@ -12,9 +12,16 @@
 // attached to WITH, which v1.3.3 does evaluate; it is driven here as the
 // not-affected control.
 //
+// TestLiveChangeSurfaceLabelConjunctDeepTraversal (#7246) drives the
+// `impacted:Label` conjunct that sits beside the IN labels() whitelist over a
+// multi-hop graph, on both backends.
+//
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:28020 ESHU_LIVE_GRAPH_BACKEND=nornicdb \
 //	  go test ./internal/query/impact -tags live_nornicdb_label_predicates \
-//	  -run TestLiveChangeSurfaceLabelPredicate -count=1 -v
+//	  -run 'TestLiveChangeSurfaceLabelPredicate|TestLiveChangeSurfaceLabelConjunctDeepTraversal' -count=1 -v
+//
+// Both seeds use CREATE without cleanup, so run against a fresh store: a rerun
+// on the same store duplicates the seed nodes and fails the row-count checks.
 package impact
 
 import (
@@ -94,6 +101,85 @@ func TestLiveChangeSurfaceLabelPredicate(t *testing.T) {
 			t.Logf("backend=%s access=%s impacted=%v truncated=%v elapsed=%s", backend, tc.name, got, truncated, elapsed)
 			if want := []string{"x11-cs:workload"}; !reflect.DeepEqual(got, want) || truncated {
 				t.Fatalf("impacted = %v truncated=%v, want %v truncated=false", got, truncated, want)
+			}
+		})
+	}
+}
+
+// changeSurfaceDeepSeed is the #7246 control for the `impacted:Label`
+// conjunct ahead of the IN labels() whitelist. The depth-1 seed above cannot
+// show a traversal being emptied, because its only whitelisted node is one hop
+// out. This graph reaches whitelisted nodes at one, two and three hops, through
+// non-whitelisted File and Function nodes, with two environments.
+var changeSurfaceDeepSeed = []string{
+	`CREATE (:Repository {id: 'x7246:repo', name: 'x7246-repo', repo_id: 'x7246:repo'})`,
+	`CREATE (:File {id: 'x7246:file-1', name: 'a-file-1', repo_id: 'x7246:repo'})`,
+	`CREATE (:File {id: 'x7246:file-2', name: 'a-file-2', repo_id: 'x7246:repo'})`,
+	`CREATE (:Function {id: 'x7246:fn', name: 'a-fn', repo_id: 'x7246:repo'})`,
+	`CREATE (:TerraformModule {id: 'x7246:module', name: 'y-module', repo_id: 'x7246:repo'})`,
+	`CREATE (:Workload {id: 'x7246:deep', name: 'z-deep', environment: 'prod', repo_id: 'x7246:repo'})`,
+	`CREATE (:Workload {id: 'x7246:dev', name: 'z-dev', environment: 'dev', repo_id: 'x7246:repo'})`,
+	changeSurfaceDeepRel("Repository", "x7246:repo", "REPO_CONTAINS", "File", "x7246:file-1"),
+	changeSurfaceDeepRel("Repository", "x7246:repo", "REPO_CONTAINS", "File", "x7246:file-2"),
+	changeSurfaceDeepRel("File", "x7246:file-1", "CONTAINS", "Function", "x7246:fn"),
+	changeSurfaceDeepRel("File", "x7246:file-2", "CONTAINS", "TerraformModule", "x7246:module"),
+	changeSurfaceDeepRel("Function", "x7246:fn", "RUNS_IN", "Workload", "x7246:deep"),
+	changeSurfaceDeepRel("Repository", "x7246:repo", "DEFINES", "Workload", "x7246:dev"),
+}
+
+func changeSurfaceDeepRel(fromLabel, fromID, rel, toLabel, toID string) string {
+	return `MATCH (a:` + fromLabel + ` {id: '` + fromID + `'}) MATCH (b:` + toLabel + ` {id: '` + toID + `'}) CREATE (a)-[:` + rel + `]->(b)`
+}
+
+// TestLiveChangeSurfaceLabelConjunctDeepTraversal drives the unscoped read
+// the way production does (depth 4) over a graph with whitelisted nodes at
+// several hops. On NornicDB v1.3.3 the `impacted:Label` conjunct is ignored in
+// this clause position and the IN labels() terms enforce the whitelist; on
+// Neo4j both run. The conjunct must neither empty the traversal nor leak
+// non-whitelisted nodes into the server-side LIMIT, so the page is checked at
+// a limit that truncates the whitelisted set.
+func TestLiveChangeSurfaceLabelConjunctDeepTraversal(t *testing.T) {
+	reader := openChangeSurfaceLabelReader(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	for _, stmt := range changeSurfaceDeepSeed {
+		if err := reader.ExecuteCypher(ctx, graph.CypherStatement{Cypher: stmt}); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+	}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	target := ChangeSurfaceTargetCandidate{ID: "x7246:repo", Name: "x7246-repo", Labels: []string{"Repository"}}
+	all := querycontract.RepositoryAccessFilter{AllScopes: true}
+
+	cases := []struct {
+		name      string
+		env       string
+		limit     int
+		want      []string
+		truncated bool
+	}{
+		{name: "every whitelisted node", limit: 50, want: []string{"x7246:deep", "x7246:dev", "x7246:module"}},
+		{name: "environment prod keeps unlabelled-environment nodes", env: "prod", limit: 50, want: []string{"x7246:deep", "x7246:module"}},
+		{name: "limit truncates the whitelisted set", limit: 2, want: []string{"x7246:dev", "x7246:module"}, truncated: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, truncated, err := handler.FindChangeSurfaceImpactRows(ctx, target, tc.env, 4, tc.limit, all)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids := map[string]struct{}{}
+			for _, row := range rows {
+				ids[querycontract.StringVal(row, "id")] = struct{}{}
+			}
+			got := make([]string, 0, len(ids))
+			for id := range ids {
+				got = append(got, id)
+			}
+			sort.Strings(got)
+			t.Logf("backend=%s impacted=%v truncated=%v", os.Getenv("ESHU_LIVE_GRAPH_BACKEND"), got, truncated)
+			if !reflect.DeepEqual(got, tc.want) || truncated != tc.truncated {
+				t.Fatalf("impacted = %v truncated=%v, want %v truncated=%v", got, truncated, tc.want, tc.truncated)
 			}
 		})
 	}
