@@ -118,6 +118,11 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 - `activation_obligation_targeted_live_test.go` — the production maintainer:
   real `catalog_changed` and `no_memo_baseline` holds that complete after the
   epoch pass, and a real collision loser retired `inapplicable`.
+- `quiet_generation_maintenance_live_test.go` (in the parent package) — the
+  quiet-generation proof: a source generation committed, maintained and Acked
+  through the production commit, Claim and Ack, then quiet polls; the consumer
+  publishes the exact phase with the production maintainer, and a labelled
+  control arm uses the whole pass.
 - `activation_obligation_composed_live_test.go`,
   `activation_obligation_scope_lock_live_test.go`,
   `activation_obligation_lease_restart_live_test.go`,
@@ -133,9 +138,12 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 
 ## Performance and observability evidence
 
-No-Regression Evidence: NOT MEASURED. This slice ran on a shared host where
-timing runs were not allowed, so it carries no before/after numbers and makes
-no speed claim. What is proven is correctness on PostgreSQL 18 (disposable
+No-Regression Evidence: the Ack path is NOT MEASURED yet. Its before/after
+harness (base binary against this branch, at least 500 accepted Acks per arm)
+runs in a quiet-host window before the PR opens; until then this note makes no
+speed claim about the Ack. The partition-scoped callback's cost is in
+`docs/internal/evidence/7584-partition-scoped-maintenance.md` (D3 step 3, a
+tiny-facts fixture). What is proven here is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
 test functions listed above plus the two quiet-generation proofs (38 in all),
 and 70 of 72 distinct semantic mutations killed, including every branch of
@@ -163,9 +171,9 @@ and wakes at most 32 rows through the
 existing `fact_work_items` scope/generation indexes. `CatchUp` reads at most
 `pageSize` scope rows per call. `Prune` deletes at most `limit` rows through
 the finished partial index. The retention cascade seeks the
-generation-leading primary key. Ack latency at fleet scale, consumer
-throughput, and the cost of the real (targeted) maintenance callback are
-NOT_CHECKED; the #7584 D3 slice owns them, and they gate the PR.
+generation-leading primary key. Consumer throughput at fleet scale and the
+lease against a representative maintenance p99 are NOT_CHECKED; they gate the
+consumer's default-on change, not this slice.
 
 Observability Evidence: `eshu_dp_activation_obligations{status}`,
 `eshu_dp_activation_obligation_oldest_open_age_seconds`,

@@ -4,8 +4,9 @@ Proof-branch note for the D3 slice of #7584. The entry point
 `IngestionStore.RunDeferredRelationshipMaintenanceForPartitions`
 (`go/internal/storage/postgres/ingestion_targeted_maintenance.go`) runs deferred
 relationship maintenance for owed `(scope_id, generation_id)` partitions only.
-Nothing calls it yet; the activation-obligation consumer
-(`go/internal/reducer/maintenance`) will reach it through a port.
+Its only production caller is the activation-obligation consumer
+(`go/internal/reducer/maintenance`) through `postgres.ActivationMaintainer`,
+which runs only when `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set.
 
 ## Outcomes and refusals
 
@@ -132,8 +133,62 @@ transaction is the same code, and a base-versus-branch output differential of
 the whole pass is 0/0 (see Evidence). The partition-scoped entry's only
 production caller is the activation obligation consumer, which is off unless
 `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set, so no default runtime
-path runs it. Its own cost has not been measured; that is D3 step 3, and no
-claim is made here.
+path runs it.
+
+Performance Evidence: D3 step 3 measured the pass against the whole pass on a
+restored template state (PostgreSQL 18, 4 CPU / 4 GiB, 25 generations per
+scope, three samples per arm, arms interleaved with the first mover
+alternating, 189 of 189 equality checks passing). Medians, variant k0 (one
+quiet owed generation, no inbound source):
+
+| Scopes | Whole pass wall | Partition-scoped wall | Ratio | Whole pass buffers | Partition-scoped buffers |
+| --- | --- | --- | --- | --- | --- |
+| 300 | 0.4034 s | 0.0917 s | 0.2272 | 62,563 | 6,652 |
+| 600 | 0.8867 s | 0.1570 s | 0.1771 | 166,033 | 13,477 |
+| 900 | 1.2365 s | 0.2114 s | 0.1710 | 378,716 | 20,283 |
+
+At 900 scopes the ratio is 0.1727 with three inbound sources (k3) and 0.1892
+with an ArgoCD ApplicationSet and an external config repository (argo). The
+argo variant is marginal: its three pairs are 0.1843, 0.1849 and 0.2581 (whole
+pass 1.178, 1.442 and 1.475 s; partition-scoped 0.304, 0.266 and 0.273 s).
+The pass writes the same rows at every size: one evidence row (two for argo),
+one phase and one memo row (four with three inbound sources), one reopened
+item per correlation domain plus one `code_import_repo_edge` item, and it
+wakes exactly the waiting row. The whole pass writes a memo and a phase row
+per active scope and reopens about one item per scope per correlation domain.
+
+The pass is NOT bounded by the owed partition's size. Its wall time and
+buffers grow linearly with the number of scopes times retained generations:
+0.20 ms of wall and 22.7 shared blocks per scope, against 1.39 ms and 527
+blocks per scope for the whole pass, so 7.0 times flatter in wall time and 23
+times flatter in buffers. Besides the catalog scan, the stale-memo check, the
+phase-one anchor load and the wrapped partition read, two statements scale
+with the corpus. (a) The derived correlation reopen listing
+(`listSucceededReducerWorkItemsByDomainForPartitionsQuery`, opening with the
+materialized `scope_replay_floor` CTE) is about 45% of the pass's buffers at
+900 scopes. (b) A repository-bounded `latest_generations` `DISTINCT ON` read,
+by its shape `activeRepositoryGenerationsForReposQuery`, is about 18%. Both
+inherit a CTE over `scope_generations` and `ingestion_scopes` (and the
+repository facts) that runs before the appended partition predicate. Moving
+that predicate inside the CTE is a new theory that needs its own proof; it is
+tracked with the consumer's default-on gate.
+
+Separate lines at 900 scopes: a refused retry (catalog changed) takes 0.0519 s
+and 3,338 blocks with exactly one catalog scan, and grows with the corpus
+(1,064, 2,143 and 3,338 blocks at 300, 600 and 900 scopes). An inapplicable
+obligation is retired in 0.0105 s and 46 blocks with no catalog scan. An idle
+consumer poll takes 0.0106 s and 124 blocks. The whole pass is unchanged: its
+output digest is identical at this branch and at the base at 900 scopes, and
+its wall time was 1.2387 s against 1.2578 s (n = 1 per arm).
+
+Limits of these numbers: the fixture has tiny facts (the whole pass takes
+1.2 s at 900 scopes, far from a representative corpus); only three sizes ran;
+the harness's own load1 guard was disabled because its template restores
+pushed the one-minute load above its bound, while the host load stayed at
+3.3 to 5.2 and the CPU canary guard stayed on. The consumer's lease is fixed
+at 2 minutes (a maintenance deadline of 96 s) and is unmeasured on
+representative facts; the slowest partition-scoped sample here, 0.30 s,
+comes from the same tiny-facts fixture.
 
 Observability Evidence: the pass records
 `eshu_dp_deferred_backfill_targeted_duration_seconds{outcome}`,
@@ -169,9 +224,11 @@ asserts both halves.
 
 ## Not covered
 
-- Cost. No timing or row-count comparison at 900 scopes has run (D3 step 3).
-- Concurrency of this entry against an ingester pass, consumer replicas, or
-  lease expiry (D3 step 4).
+- Cost on a representative corpus. D3 step 3 ran on a tiny-facts fixture
+  (see Performance and observability).
+- Concurrency at fleet scale. D3 step 4's composed proofs (an ingester pass,
+  consumer replicas, lease expiry, scope-lock races, a crash before the phase)
+  run on small fixtures in the activation live tests.
 - Graph and API truth after the reducer replays the reopened items.
 - The first-wins dedupe case in `DiscoverEvidence`: two envelopes that yield
   the same (kind, source, target, path, matched value) key with different
@@ -192,4 +249,5 @@ alone carries `path=targeted`.
 A refused retry is not two corpus-sized reads but three (review N6): the
 classification read (the wrapped `DISTINCT ON` over every repository fact,
 moved ahead of the guard for review F3), then the catalog scan, then the stale
-memo `EXISTS`. D3 step 3 must report the refused-retry line with all three.
+memo `EXISTS`. D3 step 3 measured that line with all three (Performance and
+observability).
