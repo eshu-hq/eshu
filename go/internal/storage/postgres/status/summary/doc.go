@@ -33,8 +33,9 @@
 // decoding hold and its age (database clock minus as_of) is within the configured
 // limit. AddAge advances the stored ages by that age. Anything else is a
 // SourceLiveFallback with a typed Reason, and the caller runs the live statement
-// for the whole answer. Flight shares one live statement per process among
-// concurrent fallbacks, LoadReadConfig reads the reader's two environment
+// for the whole answer. ModelReader runs that decision for a status store, with
+// the store's decode and live statement as hooks. Flight shares one live
+// statement per process among concurrent fallbacks, LoadReadConfig reads the reader's two environment
 // settings, and Observe records the read counter, the served-age histogram, the
 // span attributes, and a rate-limited fallback warning.
 //

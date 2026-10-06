@@ -363,5 +363,6 @@ func ageGuardEntries() []summarystore.Entry {
 		{Section: "blockage", Ordinal: 1, JSON: `{"stage":"reducer","domain":"d","conflict_domain":"c","conflict_key":"k","blocked_count":1,"oldest_blocked_age_seconds":3}`},
 		{Section: "queue", Ordinal: 1, JSON: `{"total_count":4,"outstanding_count":2,"pending_count":2,"in_flight_count":0,"retrying_count":0,"succeeded_count":2,"dead_letter_count":0,"failed_count":0,"provenance_edge_identity_upgrade_applied":false,"provenance_edge_identity_upgrade_required":0,"oldest_outstanding_age_seconds":5,"overdue_claim_count":0}`},
 		{Section: "stage", Ordinal: 1, JSON: `{"stage":"reducer","status":"pending","count":2}`},
+		{Section: "mode", Ordinal: 1, JSON: `{"mode":"grouped","estimate":0.25}`},
 	}
 }

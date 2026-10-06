@@ -84,6 +84,11 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
 - `LoadReadConfig`, `ReadConfig`: `ESHU_STATUS_SUMMARY_READ_ENABLED` (default
   off) and `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`, minimum `10s`,
   validated only while the reader is on).
+- `ModelReader[T]`, `Hooks[T]`, `Result[T]`: the process-wide reader of one
+  model. `Read` runs the hooks the status store supplies (select, decode, live,
+  clone, observe) and returns the decoded model with its source, reason, and
+  the clock it is true at; the store (`status_read_telemetry.go`) owns only the
+  glue. The settings and the `Flight` live in the `ModelReader`.
 - `Flight`: shares one in-flight live statement per process among concurrent
   fallbacks; a follower stops waiting when its own context ends, and runs its
   own call when the leader fails. The process builds one reader (and so one
