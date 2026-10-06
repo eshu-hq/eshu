@@ -229,6 +229,9 @@ func TestSelectClampsAFutureAsOfToZeroAge(t *testing.T) {
 	if got.Source != SourceModel || got.Age != 0 {
 		t.Fatalf("source/age = %s/%v, want model/0", got.Source, got.Age)
 	}
+	if got.SignedAge != -2*time.Second {
+		t.Fatalf("signed age = %v, want -2s so a reader clock running behind is visible", got.SignedAge)
+	}
 }
 
 func TestSelectFailsClosedOnDatabaseErrors(t *testing.T) {

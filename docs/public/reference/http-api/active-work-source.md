@@ -1,9 +1,9 @@
 # Active Work Source
 
-Status routes that render queue, stage, backlog, blockage, or latest-failure
-data carry an `active_work_source` object (#7009). It says whether those
-sections came from the stored summary row or from the live statement, and how
-old they are. The routes are `GET /api/v0/status/pipeline`,
+The status routes below carry an `active_work_source` object (#7009). It says
+whether the queue, stage, backlog, blockage, and latest-failure data on that
+route came from the stored summary row or from the live statement, and how old
+that data is. The routes are `GET /api/v0/status/pipeline`,
 `GET /api/v0/status/index` (and `GET /api/v0/index-status`),
 `GET /api/v0/status/ingesters`, `GET /api/v0/status/ingesters/{ingester}`,
 `GET /api/v0/ingesters` and its `{ingester}` alias,
@@ -11,6 +11,12 @@ old they are. The routes are `GET /api/v0/status/pipeline`,
 plus the runtime `/admin/status` JSON. A scoped caller of the index and
 operations routes does not read the status snapshot, so the object is absent
 there. A reader that reports no source adds no key.
+
+Not every route that renders this data carries the object yet. The live evidence
+bundle and the freshness-causality route read the same report and have no
+`active_work_source`, so with the reader on they serve stored counts without the
+marker; a follow-up covers them before the reader's default changes (see the
+evidence note for #7009).
 
 ```json
 {

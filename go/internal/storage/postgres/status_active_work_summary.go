@@ -393,7 +393,7 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (active
 func (s StatusStore) observeActiveWork(ctx context.Context, selection summary.Selection) {
 	summary.Observe(ctx, s.Instruments, summary.Observation{
 		ModelKey: summary.ModelActiveWorkSummary, Source: selection.Source, Reason: selection.Reason,
-		AsOf: selection.AsOf, Age: selection.Age,
+		AsOf: selection.AsOf, Age: selection.Age, SignedAge: selection.SignedAge,
 	})
 }
 

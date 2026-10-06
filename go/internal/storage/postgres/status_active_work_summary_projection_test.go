@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -312,4 +313,55 @@ func (q *recordingSummaryQueryer) QueryContext(_ context.Context, query string, 
 	q.query = query
 	q.args = args
 	return &fakeRows{rows: q.rows}, nil
+}
+
+// TestAgeAdvanceReachesEveryDecodedDuration proves the summary package's age
+// key table names the keys this package's decoder reads as durations: the
+// aged entries, decoded by the production decoder, differ from the unaged
+// decode by exactly the age in the three duration fields and nowhere else.
+func TestAgeAdvanceReachesEveryDecodedDuration(t *testing.T) {
+	t.Parallel()
+
+	decode := func(entries []summarystore.Entry) activeWorkSummary {
+		var out activeWorkSummary
+		for _, entry := range entries {
+			if err := out.add(entry.Section, entry.JSON); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return out
+	}
+	base := ageGuardEntries()
+	aged, err := summarystore.AddAge(base, 20*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, after := decode(base), decode(aged)
+	if got := after.Queue.OldestOutstandingAge - before.Queue.OldestOutstandingAge; got != 20*time.Second {
+		t.Fatalf("queue age moved %v, want 20s", got)
+	}
+	if got := after.DomainBacklogs[0].OldestAge - before.DomainBacklogs[0].OldestAge; got != 20*time.Second {
+		t.Fatalf("backlog age moved %v, want 20s", got)
+	}
+	if got := after.Blockages[0].OldestAge - before.Blockages[0].OldestAge; got != 20*time.Second {
+		t.Fatalf("blockage age moved %v, want 20s", got)
+	}
+	after.Queue.OldestOutstandingAge = before.Queue.OldestOutstandingAge
+	after.DomainBacklogs[0].OldestAge = before.DomainBacklogs[0].OldestAge
+	after.Blockages[0].OldestAge = before.Blockages[0].OldestAge
+	b1, _ := json.Marshal(before)
+	b2, _ := json.Marshal(after)
+	if string(b1) != string(b2) {
+		t.Fatalf("aging changed something other than the three durations:\n%s\n%s", b1, b2)
+	}
+}
+
+// ageGuardEntries is one realistic row of each section that carries a duration.
+func ageGuardEntries() []summarystore.Entry {
+	return []summarystore.Entry{
+		{Section: "backlog", Ordinal: 1, JSON: `{"domain":"repo_dependency","outstanding_count":2,"in_flight_count":0,"retrying_count":0,"dead_letter_count":0,"failed_count":0,"oldest_outstanding_age_seconds":7.5}`},
+		{Section: "blockage", Ordinal: 1, JSON: `{"stage":"reducer","domain":"d","conflict_domain":"c","conflict_key":"k","blocked_count":1,"oldest_blocked_age_seconds":3}`},
+		{Section: "queue", Ordinal: 1, JSON: `{"total_count":4,"outstanding_count":2,"pending_count":2,"in_flight_count":0,"retrying_count":0,"succeeded_count":2,"dead_letter_count":0,"failed_count":0,"provenance_edge_identity_upgrade_applied":false,"provenance_edge_identity_upgrade_required":0,"oldest_outstanding_age_seconds":5,"overdue_claim_count":0}`},
+		{Section: "stage", Ordinal: 1, JSON: `{"stage":"reducer","status":"pending","count":2}`},
+	}
 }

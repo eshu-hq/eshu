@@ -22,6 +22,7 @@ const (
 	spanAttrSource      = "status.active_work.source"
 	spanAttrAgeSeconds  = "status.active_work.as_of_age_seconds"
 	spanAttrFallbackWhy = "status.active_work.fallback_reason"
+	spanAttrSignedAge   = "status.active_work.as_of_age_signed_seconds"
 )
 
 // fallbackWarnEvery bounds how often one process logs a fallback of one reason.
@@ -39,6 +40,9 @@ type Observation struct {
 	AsOf time.Time
 	// Age is the stored row's age at the read; zero when no row was read.
 	Age time.Duration
+	// SignedAge is Age before the clamp at zero; negative when the writer's
+	// clock is ahead of the reader's. Span only.
+	SignedAge time.Duration
 }
 
 // Observe records one read decision: the read counter, the served-age
@@ -63,7 +67,10 @@ func Observe(ctx context.Context, instruments *telemetry.Instruments, o Observat
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(attribute.String(spanAttrSource, source))
 	if !o.AsOf.IsZero() {
-		span.SetAttributes(attribute.Float64(spanAttrAgeSeconds, o.Age.Seconds()))
+		span.SetAttributes(
+			attribute.Float64(spanAttrAgeSeconds, o.Age.Seconds()),
+			attribute.Float64(spanAttrSignedAge, o.SignedAge.Seconds()),
+		)
 	}
 	if o.Source == SourceLiveFallback {
 		span.SetAttributes(attribute.String(spanAttrFallbackWhy, reason))

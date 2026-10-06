@@ -79,8 +79,12 @@ type Selection struct {
 	// AsOf is the stored row's as_of; zero when no row was read.
 	AsOf time.Time
 	// Age is the database clock minus AsOf, never negative; zero when no row
-	// was read. For a stale fallback it is the age that was rejected.
+	// was read. For a rejected row it is the age that was rejected.
 	Age time.Duration
+	// SignedAge is the same difference before the clamp: negative when the
+	// writer's clock is ahead of the reader's. It is for the span only, so a
+	// reader clock running behind is visible.
+	SignedAge time.Duration
 	// Entries is the stored result with its age keys advanced by Age. It is
 	// set only when Source is SourceModel.
 	Entries []Entry
@@ -113,39 +117,37 @@ func Select(ctx context.Context, queryer db.Queryer, cfg SelectConfig) (Selectio
 		return Selection{}, err
 	}
 	if !installed {
-		return fallback(ReasonNotInstalled, Row{}, 0), nil
+		return fallback(ReasonNotInstalled, Row{}, 0, 0), nil
 	}
 	row, payload, err := readRaw(ctx, queryer, cfg.ModelKey)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		return fallback(ReasonMissing, Row{}, 0), nil
+		return fallback(ReasonMissing, Row{}, 0, 0), nil
 	case err != nil:
 		return Selection{}, err
 	}
-	age := now.Sub(row.AsOf)
-	if age < 0 {
-		age = 0
-	}
+	signedAge := now.Sub(row.AsOf)
+	age := max(signedAge, 0)
 	if row.SchemaVersion != SchemaVersion || row.SourceSHA256 != cfg.SourceSHA256 {
-		return fallback(ReasonVersion, row, age), nil
+		return fallback(ReasonVersion, row, age, signedAge), nil
 	}
 	if count, countable := payloadLength(payload); countable && count != row.RowCount {
-		return fallback(ReasonRowCount, row, age), nil
+		return fallback(ReasonRowCount, row, age, signedAge), nil
 	}
 	if age > cfg.StaleAfter {
-		return fallback(ReasonStale, row, age), nil
+		return fallback(ReasonStale, row, age, signedAge), nil
 	}
 	if row.Entries, err = DecodeEntries(payload); err != nil {
-		return fallback(ReasonDecode, row, age), nil
+		return fallback(ReasonDecode, row, age, signedAge), nil
 	}
 	if row.RowCount != len(row.Entries) {
-		return fallback(ReasonRowCount, row, age), nil
+		return fallback(ReasonRowCount, row, age, signedAge), nil
 	}
 	entries, err := AddAge(row.Entries, age)
 	if err != nil {
-		return fallback(ReasonDecode, row, age), nil
+		return fallback(ReasonDecode, row, age, signedAge), nil
 	}
-	return Selection{Source: SourceModel, Reason: ReasonFresh, AsOf: row.AsOf, Age: age, Entries: entries}, nil
+	return Selection{Source: SourceModel, Reason: ReasonFresh, AsOf: row.AsOf, Age: age, Entries: entries, SignedAge: signedAge}, nil
 }
 
 // readRaw reads the row with the same keyed statement as Read but returns the
@@ -189,8 +191,8 @@ func payloadLength(payload []byte) (int, bool) {
 	return len(elements), true
 }
 
-func fallback(reason Reason, row Row, age time.Duration) Selection {
-	return Selection{Source: SourceLiveFallback, Reason: reason, AsOf: row.AsOf, Age: age}
+func fallback(reason Reason, row Row, age, signedAge time.Duration) Selection {
+	return Selection{Source: SourceLiveFallback, Reason: reason, AsOf: row.AsOf, Age: age, SignedAge: signedAge}
 }
 
 func readClock(ctx context.Context, queryer db.Queryer) (time.Time, bool, error) {

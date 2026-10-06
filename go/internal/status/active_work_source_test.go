@@ -84,7 +84,7 @@ func TestRenderJSONEmitsTheActiveWorkSource(t *testing.T) {
 	if decoded.Source == nil {
 		t.Fatalf("active_work_source missing from %s", payload)
 	}
-	if got := *decoded.Source; got.Source != "model" || got.Reason != "fresh" || got.Age != 4.5 || got.Stale || got.AsOf != "2026-10-06T11:59:55Z" {
+	if got := *decoded.Source; got.Source != "model" || got.Reason != "fresh" || got.Age != 4.5 || got.Stale || got.AsOf != "2026-10-06T11:59:55.5Z" {
 		t.Fatalf("active_work_source = %+v", got)
 	}
 }

@@ -102,7 +102,7 @@ func TestObserveSetsSpanAttributes(t *testing.T) {
 	asOf := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
 	Observe(ctx, nil, Observation{
 		ModelKey: ModelActiveWorkSummary, Source: SourceLiveFallback, Reason: ReasonStale,
-		AsOf: asOf, Age: 41500 * time.Millisecond,
+		AsOf: asOf, Age: 41500 * time.Millisecond, SignedAge: 41500 * time.Millisecond,
 	})
 	span.End()
 
@@ -115,6 +115,9 @@ func TestObserveSetsSpanAttributes(t *testing.T) {
 	}
 	if attrs["status.active_work.fallback_reason"].AsString() != "stale" {
 		t.Fatalf("fallback_reason attr = %v", attrs["status.active_work.fallback_reason"])
+	}
+	if attrs["status.active_work.as_of_age_signed_seconds"].AsFloat64() != 41.5 {
+		t.Fatalf("as_of_age_signed_seconds attr = %v", attrs["status.active_work.as_of_age_signed_seconds"])
 	}
 	if attrs["status.active_work.as_of_age_seconds"].AsFloat64() != 41.5 {
 		t.Fatalf("as_of_age_seconds attr = %v", attrs["status.active_work.as_of_age_seconds"])

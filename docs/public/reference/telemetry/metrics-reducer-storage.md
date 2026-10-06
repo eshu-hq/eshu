@@ -151,7 +151,8 @@ hosted runtimes. With the flag off, each read counts once as `source=live`,
 | `eshu_dp_status_summary_read_age_seconds` | histogram | Age of the stored row, from the database clock, at each read that served it (`source=model` only). Compare its upper buckets with `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`): a p95 near the limit predicts fallbacks. |
 
 The `postgres.status_snapshot` span carries `status.active_work.source`,
-`status.active_work.as_of_age_seconds`, and, on a fallback,
+`status.active_work.as_of_age_seconds`, `status.active_work.as_of_age_signed_seconds`
+(the age before the clamp at zero), and, on a fallback,
 `status.active_work.fallback_reason`. A fallback logs
 `status summary row not served; running the live active-work statement` at Warn,
 at most once a minute per reason per process, with `model_key`, `source`,

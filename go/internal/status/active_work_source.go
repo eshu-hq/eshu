@@ -75,7 +75,7 @@ func (s ActiveWorkSource) JSON() *ActiveWorkSourceJSON {
 	return &ActiveWorkSourceJSON{
 		Source:     s.Source,
 		Reason:     s.Reason,
-		AsOf:       s.AsOf.UTC().Format(time.RFC3339),
+		AsOf:       s.AsOf.UTC().Format(time.RFC3339Nano),
 		AgeSeconds: s.Age.Seconds(),
 		Stale:      s.Stale,
 	}
