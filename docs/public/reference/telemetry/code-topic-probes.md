@@ -8,6 +8,7 @@ The unscoped 16-term `investigate_code_topic` read can split its PostgreSQL cand
 | `code_topic.partition` | Closed ordinal `0` through `3` for the executed partition. It is not a repository or reader identity. |
 | `code_topic.partition_rows` | Successfully scanned probe rows in that partition, bounded by the existing per-term candidate caps. |
 | `code_topic.partition_outcome` | Closed result category: `ok`, `error`, `canceled`, or `deadline`. |
+| `code_topic.scoped_one_term` | Boolean on the parent `postgres.query` span. `true` when the single statement ran the repository-scoped one-term shape (one repository, one term, no language filter), which hides the term from the entity probe with a `MATERIALIZED` terms CTE (#7246). `false` for every other shape. It carries no term, repository, or SQL text. |
 
 The child duration starts before the partition's `QueryContext` and ends after row iteration, scan, error check, and cursor close. Compare the four child durations within each attempt. The parent's reservation fields reflect its last attempt, while probe and assembly durations appear only for a completed attempt; parent wall time can also include a failed first attempt. A member-loss retry can produce up to eight children under one parent. The slowest child in an attempt—not the sum of four concurrent children—is the relevant probe wait. A cursor-close failure marks the child `error` without changing the existing API response rule. No term, SQL text, parameter, repository ID, host, DSN, credential, or raw error is added to the child attributes.
 
