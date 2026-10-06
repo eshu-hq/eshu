@@ -65,7 +65,7 @@ func TestActivationRunnerTracesEachSettle(t *testing.T) {
 }
 
 // With no tracer the runner must not write onto whatever span its context
-// already carries (the D3 N2 failure class).
+// already carries.
 func TestActivationRunnerWithoutATracerLeavesTheCallerSpanAlone(t *testing.T) {
 	t.Parallel()
 	recorder := tracetest.NewSpanRecorder()

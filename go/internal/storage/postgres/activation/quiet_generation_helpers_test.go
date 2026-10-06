@@ -22,8 +22,8 @@ import (
 
 // wholeMaintenanceControlArm is the LABELLED CONTROL ARM of #7584:
 // the activation maintenance port backed by the whole native deferred
-// relationship maintenance. It exists only in test code. Ruling D2 forbids it
-// as the shipped callback (it is corpus work per activation); production
+// relationship maintenance. It exists only in test code and must never be
+// the shipped callback (it is corpus work per activation); production
 // wires postgres.ActivationMaintainer, the partition-scoped pass.
 type wholeMaintenanceControlArm struct {
 	store postgres.IngestionStore

@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// TestTargetedMaintenanceInterleavingsMatchWholePass extends the #7584 D3
-// step 2 differential to the fixtures where state moves under the pass or a
+// TestTargetedMaintenanceInterleavingsMatchWholePass extends the #7584
+// write-side differential to the fixtures where state moves under the pass or a
 // write fails: each acts at the same semantic point in both arms through a
 // hookBeginner, so the arms stay comparable.
 func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {

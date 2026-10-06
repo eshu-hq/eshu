@@ -1,6 +1,6 @@
 # Partition-Scoped Deferred Relationship Maintenance (#7584)
 
-Proof-branch note for the D3 slice of #7584. The entry point
+Proof-branch note for the partition-scoped maintenance pass of #7584. The entry point
 `IngestionStore.RunDeferredRelationshipMaintenanceForPartitions`
 (`go/internal/storage/postgres/ingestion_targeted_maintenance.go`) runs deferred
 relationship maintenance for owed `(scope_id, generation_id)` partitions only.

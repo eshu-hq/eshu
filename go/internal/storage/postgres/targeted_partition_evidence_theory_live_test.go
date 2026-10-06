@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Read-side parity proof for partition-scoped deferred maintenance (#7584 D3
-// step 1). It runs only against the disposable PostgreSQL named by
+// Read-side parity proof for partition-scoped deferred maintenance
+// (#7584). It runs only against the disposable PostgreSQL named by
 // ESHU_TARGETED_MAINTENANCE_PROOF_DSN with
 // ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE=1.
 package postgres

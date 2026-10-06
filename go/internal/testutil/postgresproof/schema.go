@@ -67,7 +67,9 @@ func InstallTrigramExtension(ctx context.Context, t testing.TB, admin *sql.DB) {
 // installed there first by InstallTrigramExtension, still resolves its
 // operator classes for the schema apply creates. A live proof that drives a
 // queue claim or an all-scopes recovery needs its own schema, or it acts on
-// rows other tests left behind.
+// rows other tests left behind. Unlike OpenDisposableDatabase it does not
+// validate dsn or require an opt-in, and its connections do not run the infra
+// writer SET; point it only at a disposable server.
 func OpenIsolatedSchema(t testing.TB, dsn, prefix string, apply func(context.Context, *sql.DB) error) *sql.DB {
 	t.Helper()
 	admin, err := sql.Open("pgx", dsn)

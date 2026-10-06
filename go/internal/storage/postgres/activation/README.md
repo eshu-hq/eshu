@@ -165,7 +165,7 @@ the base range. On the re-owe path it was 2.974 to 3.780 ms for the base (4
 samples) and 2.541 to 4.415 ms for this branch (5 samples, one of them
 unpaired), and two of those five exceed the base maximum. The pooled re-owe
 p99, 3.620 ms against 3.984 ms (linear interpolation over every Ack of the 4
-complete pairs; the ruling's 3.674 and 3.955 ms were not reproduced), is one
+complete pairs; an earlier pooled pair, 3.674 and 3.955 ms, did not reproduce), is one
 pooled figure; the per-sample spread is wider. The base arm's spread across
 its samples was 51%, so the server cost is the gate and the wall delta is
 not. The scope-row hold, measured on
@@ -191,8 +191,8 @@ and a PostgreSQL container between 03:30 and 04:05 EDT, overlapping this run
 higher or lower; the deterministic server cost above is unaffected and is
 the gate. An earlier run was discarded (its first
 mover did not alternate), and the load guard stopped 3 arms of the counted
-run. The gate and this wording come from the #7584 Ack bound ruling
-(2026-10-06), which accepts this run as the pre-PR Ack line. The scope-update
+run. The gate for the Ack is the deterministic server cost above, not the
+wall delta, and this run is the pre-PR Ack measurement. The scope-update
 statement's own `pg_stat_statements` line is empty in every receipt (the
 harness compared the raw constant to the normalized text), so the hold figure
 is the client-side measurement only. The partition-scoped callback's cost is in
@@ -220,7 +220,8 @@ today's callers, which both sort the repository ids before batching
 holds. It costs a primary-key probe, the foreign-key check's KEY SHARE probe on
 `scope_generations`, and maintenance of the primary key and the open partial
 index; on a conflict it locks the existing obligation row.
-`Claim` locks one row through the open partial index. `Finalize` locks one
+`Claim` locks one row; it can use the open partial index, but no plan is
+attached here. `Finalize` locks one
 scope row and one obligation row, seeks one repository fact on the
 `(scope_id, generation_id, fact_kind, ...)` index when the phase is absent,
 and wakes at most 32 rows through the

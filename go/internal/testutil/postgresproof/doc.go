@@ -9,10 +9,12 @@
 // rejects application database DSNs before connecting, and force-drops only
 // the generated database during cleanup.
 //
-// OpenIsolatedSchema gives one test its own schema in a shared disposable
-// database: it installs pg_trgm in public under TrigramExtensionLockKey,
-// creates prefix_<unix nanos>, runs the caller's schema setup on a pool whose
-// search_path puts that schema first, and drops it when the test ends.
+// OpenIsolatedSchema gives one test its own schema in the database its DSN
+// names: it installs pg_trgm in public under TrigramExtensionLockKey, creates
+// prefix_<unix nanos>, runs the caller's schema setup on a pool whose
+// search_path puts that schema first, and drops it when the test ends. It
+// does not validate the DSN or require an opt-in; the live-postgres-readiness
+// runner checks the proof DSNs it passes.
 // DeferredPartitionProofDSN reads the DSN the deferred-partition and
 // activation-obligation proofs share, or skips.
 package postgresproof
