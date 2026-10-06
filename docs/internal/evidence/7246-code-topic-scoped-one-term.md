@@ -8,8 +8,11 @@ term on a large repository the entity probe could pick a plan that skips
 `content_entities_repo_idx` and reads about 22,000 heap blocks for 1,680 rows,
 1.25 to 1.27 s inside Postgres. This change marks the statement's `terms` CTE
 `MATERIALIZED` for that one shape, so the planner estimates the probe without the
-literal. It changes no returned row. It is a statement-level change, and it does
-not by itself close #7246.
+literal. It changes no query semantics (same predicates, candidate cap, ordering,
+limit and hydration); rows were byte-identical in the 13 measured cases, three of
+which return no rows and one of which is capped. Which candidates fill a capped
+pool was already plan dependent and stays so. It is a statement-level change, and
+it does not by itself close #7246.
 
 Performance Evidence: statement `scoped_one_term` (`$1` repository id, `$2` term,
 limit, offset), backend PostgreSQL on the ops-qa physical reader, run as
@@ -33,15 +36,20 @@ repository id or SQL text is added.
 
 ## Why the plan flips
 
-With a literal term, Postgres estimates `source_cache ILIKE '%term%'` from the
-sampled histogram bounds (about 99 usable bounds, so roughly 1% of 2.67 million
-rows per bound). `decode` matches 1.0% of rows, so each ANALYZE of
-`content_entities` either keeps a matching bound or not. Without one the estimate
-is about 1,400 rows, the planner skips the repository bitmap and the read takes
-1.25 s. With one the planner ANDs the repository bitmap and the read takes 0.3 to
-0.6 s. Neither fresh nor stale statistics decide it. A hidden term gets the
-planner's default match selectivity, so the plan no longer depends on that
-estimate. The statistics refresh settings on the table are not changed here.
+With a literal term, Postgres estimates each trigram predicate from the sampled
+histogram bounds (about 99 usable bounds, so roughly 1% of 2.67 million rows per
+bound). `decode` matches 1.0% of rows, so each ANALYZE of `content_entities` can
+land the estimate on either side of the planner's cost threshold for ANDing the
+repository bitmap. In the bad regime the entity probe is estimated at about 90 to
+230 rows, the planner skips the repository bitmap and the read takes 1.25 s. In
+the good regime the planner ANDs the repository bitmap and the read takes 0.3 to
+0.6 s. In the good regime measured here the `source_cache` trigram scan is still
+estimated at 1,232 rows (1,504 in the bad regime); what differs is the
+`name_trgm` scan, estimated at 23,074 rows against about 230, which pushes the
+combined estimate over the threshold. Neither fresh nor stale statistics decide
+it. A hidden term gets the planner's default match selectivity for both
+predicates, so the plan no longer depends on those estimates. The statistics
+refresh settings on the table are not changed here.
 
 ## Baseline regimes seen
 
@@ -51,8 +59,8 @@ estimate. The statistics refresh settings on the table are not changed here.
 | 10:25 | 10:22 | 2,633 (outlier) and 1,265 ms | 601 and 613 ms | 2 each, ad hoc |
 | about 10:50 | 10:34 | median 317 ms (302 to 567) | median 322 ms (305 to 563) | 6 interleaved |
 
-The first two rows are the bad regime (base skips the repository bitmap, estimate
-about 1,500 on `content_entities_source_trgm_idx`). The third is the good regime
+The first two rows are the bad regime (base skips the repository bitmap; the
+entity-heap scan is estimated at 85 to 97 rows). The third is the good regime
 (base uses the repository bitmap on its own). The fix is about 2x faster in the
 bad regime and neutral in the good one. The bad regime has only two observations
 per variant, not six, because the regime cannot be forced from a read-only
