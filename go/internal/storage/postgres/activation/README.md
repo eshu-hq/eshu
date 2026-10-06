@@ -138,19 +138,30 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 
 ## Performance and observability evidence
 
-No-Regression Evidence: the Ack path is NOT MEASURED yet. Its before/after
-harness (base binary against this branch, at least 500 accepted Acks per arm)
-runs in a quiet-host window before the PR opens; until then this note makes no
-speed claim about the Ack. The partition-scoped callback's cost is in
+No-Regression Evidence: the Ack path was measured before and after
+(2026-10-06; base `5c4e03613` and this branch as two test binaries on the
+same restored 900-scope state with a completed obligation per prior
+generation; 600 accepted Acks per arm; PostgreSQL 18 in a 4 CPU / 4 GiB
+container on Docker for macOS; first mover alternating; host load1 under 9).
+With no prior row (6 pairs) the median Ack went from 1.218 ms to 1.329 ms,
++0.111 ms: +9.1% as the median of the per-sample medians and +13.2% as the
+median of the paired deltas, which ranged from -19% to +22%. Re-owing an
+obsolete row (4 complete pairs; the load guard stopped 2) went from 1.289 ms
+to 1.395 ms, +8.2%. The insert's own server time is 0.040 ms per Ack
+(0.034 ms on the re-owe path); the rest of the delta is unprofiled. The
+result sits at the PR ruling's 10% bound and is with the arbiter; this note
+makes no claim beyond those numbers. The partition-scoped callback's cost is in
 `docs/internal/evidence/7584-partition-scoped-maintenance.md` (D3 step 3, a
 tiny-facts fixture). What is proven here is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
 test functions listed above plus the two quiet-generation proofs (38 in all),
-and 70 of 72 distinct semantic mutations killed, including every branch of
+and 74 of 76 distinct semantic mutations killed, including every branch of
 `postgres.ActivationMaintainer`'s mapping, the wiring flag, the re-owe of an
 obsolete row (Ack and catch-up, including a catch-up that waited on another
 catch-up's re-owe), the maintenance deadline, the settle span, Finalize's
-scope lock (dropped, `NOWAIT`) and lock timeout, an Ack insert without `ON
+scope lock (dropped, `NOWAIT`) and lock timeout, the `finalize_lock_timeout`
+mapping (55P03 not mapped, cause dropped, reason ignored, logged at Error),
+an Ack insert without `ON
 CONFLICT`, and the maintenance passes' exclusive repository locks. Flipping
 only the CTE copy of the wake failure-class or prune state predicate is
 killed by the starvation tests in the matrix and retention files. Two
