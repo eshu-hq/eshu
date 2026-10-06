@@ -130,7 +130,10 @@ func BenchmarkStatusActiveFactWorkItemsCTEGrowth(b *testing.B) {
 // was the load-bearing
 // proof for this issue; this test only guards against a full-scan
 // regression, which would be a genuine correctness/performance bug
-// regardless of which index resolves it.
+// regardless of which index resolves it. That literal rule covers
+// stageCountsQuery only: the activeWorkSummaryQuery half accepts one hashed,
+// sorted, or gathered full scope_generations scan per CTE
+// (checkSummaryGenerationScans, #7009).
 //
 // Skipped unless a live Postgres DSN is provided.
 func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {

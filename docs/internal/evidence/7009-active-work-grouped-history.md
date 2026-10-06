@@ -142,9 +142,13 @@ LOCAL FIXTURE evidence only, from the S5 shim run 2 (2026-10-06 00:51-01:40
 EDT). Not ops-qa, no endpoint p95. PostgreSQL 18.3 primary and streaming hot
 standby, `--cpus 2 --memory 1536m`, ops-qa row counts, statements on the
 standby with `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)`, rotating first mover,
-CPU canary before every sample, load1 3.2-8.2 on 18 CPUs. Every cell was
-valid twice (5 then 7 repetitions). Equality 105/105. All variant arms ran
-with `jit=off`.
+CPU canary before every sample, load1 3.2-8.8 on 18 CPUs (the 8.8 maximum in
+cell C35r). Every cell was valid twice (5 then 7 repetitions). Equality
+105/105. All variant arms ran with `jit=off`. The per-cell medians with
+min-max in ms, the buffers and costs of every arm, and the full T-selection
+table are in the shim report, 7009-s5-shim-report-20261005.md (sections R2.1
+and R2.4), in the latency kit named above; the table below keeps the ratios
+the acceptance verdict uses.
 
 `a2v` / base (jit=off; jit=on), runs a and b, branch from the gate estimate:
 
@@ -187,7 +191,7 @@ runs (the jit=on split there is identical-plan noise, ruling D2).
   re-read was one InitPlan of 0.130 ms with 93 catalog buffer hits (one
   EXPLAIN ANALYZE sample, host load1 about 20; not a timing claim).
 
-JIT dependency. The gated statement costs 112-254k on the fixture, above the
+JIT dependency. The a2v statement costs 114-249k on the fixture, above the
 default `jit_above_cost` of 100,000. The ops-qa reader inventory (run
 c5544da49fcd5c68) reads `jit=on`, `jit_above_cost=100000`, `work_mem=64MB`,
 and costs the current `active_work_summary` at 62,530, below the JIT
