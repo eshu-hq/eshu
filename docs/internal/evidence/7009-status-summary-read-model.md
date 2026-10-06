@@ -122,12 +122,15 @@ in any order.
   conflict), and the writer must bind `as_of` from the database clock inside the
   locked transaction so all replicas share one clock domain; both are rules for
   the writer slice.
-- Decoder round trip: the ruling asked PR-A to round-trip the payload through
-  `activeWorkSummary.add`. That decoder is private to the parent `postgres`
-  package, and a test of it there would add a root-level file beside the legacy
-  `status_*.go` family the naming rules reject. The round trip moves to the reader
-  slice's equality proof (PR-C, the live comparison with `readActiveWorkSummary`),
-  and the package docs say the tuples are shaped for the decoder until then.
+- Decoder round trip: `TestActiveWorkSummaryDecodesStoredSummaryRowsUnchanged`,
+  added to the existing `status_active_work_summary_projection_test.go` in the
+  parent `postgres` package (no new root file; the summary package imports only
+  `storage/postgres/db`, so there is no cycle), encodes one row of every section,
+  decodes the payload, and feeds the tuples in order to the production
+  `activeWorkSummary.add`. The result equals feeding the source rows directly, and
+  reversing the stored order changes it, so the comparison can fail. Breaking the
+  encoder's tuple order made it fail. The reader slice proves the same round trip
+  against the live read (`readActiveWorkSummary`).
 - Rolling upgrade: `source_sha256` and `schema_version` let a reader refuse rows
   it did not produce the statement for. The reader slice enforces them.
 

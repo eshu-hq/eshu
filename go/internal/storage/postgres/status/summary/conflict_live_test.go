@@ -59,7 +59,10 @@ func TestStatusSummaryConflictWaitLive(t *testing.T) {
 			}
 
 			holderConn, holderTx := beginConnTx(ctx, t, database)
-			defer func() { _ = holderConn.Close() }()
+			defer func() {
+				_ = holderTx.Rollback() // a failed assertion must still release the holder
+				_ = holderConn.Close()
+			}()
 			if advanced, err := summary.Upsert(ctx, txStore{holderTx}, tc.held); err != nil || !advanced {
 				t.Fatalf("holder Upsert() = %v, %v, want true, nil", advanced, err)
 			}
@@ -68,7 +71,6 @@ func TestStatusSummaryConflictWaitLive(t *testing.T) {
 			if err != nil {
 				t.Fatalf("waiter Conn(): %v", err)
 			}
-			defer func() { _ = waiterConn.Close() }()
 			var waiterPID int
 			if err := waiterConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&waiterPID); err != nil {
 				t.Fatalf("waiter pg_backend_pid(): %v", err)
@@ -83,9 +85,24 @@ func TestStatusSummaryConflictWaitLive(t *testing.T) {
 				done <- outcome{advanced, err}
 			}()
 
+			// Release the holder first so a failed assertion cannot leave the waiter
+			// blocked, drain the waiter, and only then close its connection.
+			waiterFinished := false
+			defer func() {
+				_ = holderTx.Rollback()
+				if !waiterFinished {
+					select {
+					case <-done:
+					case <-time.After(10 * time.Second):
+					}
+				}
+				_ = waiterConn.Close()
+			}()
+
 			waitUntilBlockedOnLock(ctx, t, database, waiterPID)
 			select {
 			case got := <-done:
+				waiterFinished = true
 				t.Fatalf("waiter finished while the holder was uncommitted: %+v (it did not wait)", got)
 			default:
 			}
@@ -99,6 +116,7 @@ func TestStatusSummaryConflictWaitLive(t *testing.T) {
 			}
 			select {
 			case got := <-done:
+				waiterFinished = true
 				if got.err != nil {
 					t.Fatalf("waiter Upsert() error = %v", got.err)
 				}

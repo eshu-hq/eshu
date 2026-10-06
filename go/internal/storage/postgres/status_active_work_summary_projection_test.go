@@ -7,11 +7,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	summarystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 )
 
 // TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers guards the measured
@@ -38,6 +42,62 @@ func TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers(t *testing.T) {
 	}
 	if err := checkActiveWorkSummaryProjection(appended); err == nil {
 		t.Fatal("trailing wildcard positive control passed the projection guard")
+	}
+}
+
+// TestActiveWorkSummaryDecodesStoredSummaryRowsUnchanged proves the status
+// summary read model stores rows the production decoder reads unchanged (#7009):
+// section rows encoded into the stored payload, decoded again, and fed in order
+// to activeWorkSummary.add produce the same summary as feeding the source rows
+// directly. Reversing the stored order changes the summary, so the comparison
+// can fail. The live comparison with readActiveWorkSummary is the reader slice's.
+func TestActiveWorkSummaryDecodesStoredSummaryRowsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	source := []summarystore.Entry{
+		{Section: activeWorkSectionStage, Ordinal: 0, JSON: `{"stage":"reducer","status":"pending","count":4}`},
+		{Section: activeWorkSectionStage, Ordinal: 1, JSON: `{"stage":"projector","status":"claimed","count":2}`},
+		{Section: activeWorkSectionBacklog, Ordinal: 0, JSON: `{"domain":"workload","outstanding_count":5,"in_flight_count":1,"retrying_count":0,"dead_letter_count":0,"failed_count":0,"oldest_outstanding_age_seconds":12.5}`},
+		{Section: activeWorkSectionQueue, Ordinal: 0, JSON: `{"total_count":9,"outstanding_count":6,"pending_count":4,"in_flight_count":2,"retrying_count":0,"succeeded_count":3,"dead_letter_count":0,"failed_count":0,"provenance_edge_identity_upgrade_applied":true,"provenance_edge_identity_upgrade_required":0,"oldest_outstanding_age_seconds":12.5,"overdue_claim_count":1}`},
+		{Section: activeWorkSectionBlockage, Ordinal: 0, JSON: `{"stage":"reducer","domain":"workload","conflict_domain":"repo","conflict_key":"r1","blocked_count":3,"oldest_blocked_age_seconds":7}`},
+		{Section: activeWorkSectionFailure, Ordinal: 0, JSON: `{"stage":"reducer","domain":"workload","status":"dead_letter","work_item_id":"w-1","scope_id":"s-1","generation_id":"g-1","failure_class":"boom","failure_message":"m","failure_details":"d","updated_at":"2026-10-06T12:00:00Z"}`},
+	}
+	build := func(entries []summarystore.Entry) activeWorkSummary {
+		built := activeWorkSummary{
+			StageCounts:    []statuspkg.StageStatusCount{},
+			DomainBacklogs: []statuspkg.DomainBacklog{},
+			Blockages:      []statuspkg.QueueBlockage{},
+		}
+		for _, entry := range entries {
+			if err := built.add(entry.Section, entry.JSON); err != nil {
+				t.Fatalf("add(%s): %v", entry.Section, err)
+			}
+		}
+		return built
+	}
+	want := build(source)
+	if len(want.StageCounts) != 2 || want.Queue.Total != 9 || want.LatestFailure == nil || len(want.Blockages) != 1 {
+		t.Fatalf("source summary is not populated: %+v", want)
+	}
+
+	payload, err := summarystore.EncodeEntries(source)
+	if err != nil {
+		t.Fatalf("EncodeEntries(): %v", err)
+	}
+	stored, err := summarystore.DecodeEntries(payload)
+	if err != nil {
+		t.Fatalf("DecodeEntries(): %v", err)
+	}
+	if got := build(stored); !reflect.DeepEqual(got, want) {
+		t.Fatalf("stored summary = %+v, want %+v", got, want)
+	}
+
+	reversed := append([]summarystore.Entry(nil), stored...)
+	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
+		reversed[i], reversed[j] = reversed[j], reversed[i]
+	}
+	if got := build(reversed); reflect.DeepEqual(got, want) {
+		t.Fatal("reversing the stored order did not change the summary: the comparison cannot fail")
 	}
 }
 

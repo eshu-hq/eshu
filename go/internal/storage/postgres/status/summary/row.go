@@ -60,8 +60,9 @@ type Row struct {
 
 // Validate reports whether the row can be written or served: it needs a model
 // key, a positive schema version, a source digest, a non-zero as_of, a
-// non-negative pass duration and row count, and a row count equal to the number of entries. A count mismatch returns an
-// error that satisfies errors.Is(err, ErrRowCountMismatch).
+// non-negative pass duration and row count, and a row count equal to the number
+// of entries. A count mismatch returns an error that satisfies
+// errors.Is(err, ErrRowCountMismatch).
 func (r Row) Validate() error {
 	switch {
 	case strings.TrimSpace(r.ModelKey) == "":
