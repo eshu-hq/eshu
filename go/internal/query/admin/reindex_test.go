@@ -22,7 +22,8 @@ func postRawReindex(h *Handler, body string) *httptest.ResponseRecorder {
 
 // TestAdminHandler_ReindexAcceptsWatermarkRequest pins the #7620 202 body: the
 // stored watermark comes back as requested_at and the detail states what the
-// ingesters do with it. An empty object takes the defaults.
+// ingesters do with it. An empty object takes the defaults, and whitespace
+// after the object (a curl or json.Encoder body) is not trailing data.
 func TestAdminHandler_ReindexAcceptsWatermarkRequest(t *testing.T) {
 	t.Parallel()
 
@@ -30,6 +31,8 @@ func TestAdminHandler_ReindexAcceptsWatermarkRequest(t *testing.T) {
 	for _, body := range []string{
 		`{"ingester":"repository","scope":"workspace","force":true}`,
 		`{}`,
+		"{}\n",
+		" {} \r\n ",
 	} {
 		requester := &stubReindexRequester{requestedAt: stored}
 		w := postRawReindex(&Handler{Reindexer: requester}, body)
