@@ -20,11 +20,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// This file uses only symbols that exist on origin/main, so the same flow
-// re-runs RED there with a stub for the consumer hooks it calls
-// (startQuietActivationConsumer, assertSettledQuietGeneration,
-// awaitQuietObligationCompleted); on this branch those hooks live in
-// quiet_generation_consumer_helpers_test.go.
+// The consumer hooks this flow calls (startQuietActivationConsumer,
+// assertSettledQuietGeneration, awaitQuietObligationCompleted) live in
+// quiet_generation_helpers_test.go; the flow itself uses only the store,
+// queue and collector surfaces, so it also reproduces the gap RED with those
+// hooks stubbed out.
 
 // TestQuietGenerationActivatesAfterMaintenanceSnapshotLive drives the collector
 // loop across one update commit, its normal maintenance callback, a later real

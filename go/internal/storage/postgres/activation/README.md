@@ -104,37 +104,42 @@ superseded generations and their obligations go with them
 Live proofs run on the full bootstrap schema in an isolated schema of a
 disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 `ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1`), enrolled in the
-`live-postgres-readiness` runner:
+`live-postgres-readiness` runner. They are this package's external tests
+(`package activation_test`):
 
-- `activation_obligation_ack_live_test.go` — atomic Ack insert.
-- `activation_obligation_claim_live_test.go` — claim never blocks on a held
-  row or starves on finished rows; a lease lost inside Finalize rolls back.
-- `activation_obligation_consumer_live_test.go`,
-  `activation_obligation_matrix_live_test.go`,
-  `activation_obligation_recovery_live_test.go` — the consumer protocol.
-- `activation_obligation_retention_live_test.go` — FK cascade and prune.
-- `activation_obligation_terminal_live_test.go` — `inapplicable` (cloud scope,
-  collision loser, fenced retire), catalog-changed hold, NULL pointer.
-- `activation_obligation_targeted_live_test.go` — the production maintainer:
-  real `catalog_changed` and `no_memo_baseline` holds that complete after the
-  epoch pass, and a real collision loser retired `inapplicable`.
-- `quiet_generation_maintenance_live_test.go` (in the parent package) — the
-  quiet-generation proof: a source generation committed, maintained and Acked
-  through the production commit, Claim and Ack, then quiet polls; the consumer
-  publishes the exact phase with the production maintainer, and a labelled
-  control arm uses the whole pass.
-- `activation_obligation_composed_live_test.go`,
-  `activation_obligation_scope_lock_live_test.go`,
-  `activation_obligation_lease_restart_live_test.go`,
-  `activation_obligation_redelivery_live_test.go` — composed concurrency
-  (D3 step 4) with the production maintainer: a consumer cycle racing the
-  epoch pass on overlapping repositories (forced lock-holder interleavings
-  and a 20-iteration barrier race), two replicas, an ingestion commit and a
-  projector Ack racing Finalize's scope lock (including its lock timeout),
-  lease expiry mid-maintenance, a crash between the evidence commit and the
-  phase, Ack redelivery and catch-up re-owe races, and supersession between
-  claim and finalize. Each asserts the final obligation, phase, evidence and
-  queue rows.
+- `ack_live_test.go` — atomic Ack insert.
+- `claim_live_test.go` — claim never blocks on a held row or starves on
+  finished rows; a lease lost inside Finalize rolls back.
+- `consumer_live_test.go`, `matrix_live_test.go`, `recovery_live_test.go` —
+  the consumer protocol.
+- `retention_live_test.go` — FK cascade and prune.
+- `terminal_live_test.go` — `inapplicable` (cloud scope, fenced retire),
+  catalog-changed hold, NULL pointer. The repo_id collision-loser proof stays
+  in the parent package (`ingestion_targeted_maintenance_terminal_live_test.go`)
+  because it asserts the shipped active-repository read, which is unexported
+  there.
+- `targeted_live_test.go` — the production maintainer: real `catalog_changed`
+  and `no_memo_baseline` holds that complete after the epoch pass, and a real
+  collision loser retired `inapplicable`.
+- `quiet_generation_live_test.go` — the quiet-generation proof: a source
+  generation committed, maintained and Acked through the production commit,
+  Claim and Ack, then quiet polls; the consumer publishes the exact phase with
+  the production maintainer, and a labelled control arm uses the whole pass.
+- `composed_live_test.go`, `scope_lock_live_test.go`,
+  `lease_restart_live_test.go`, `redelivery_live_test.go` — composed
+  concurrency (D3 step 4) with the production maintainer: a consumer cycle
+  racing the epoch pass on overlapping repositories (forced lock-holder
+  interleavings and a 20-iteration barrier race), two replicas, an ingestion
+  commit and a projector Ack racing Finalize's scope lock (including its lock
+  timeout), lease expiry mid-maintenance, a crash between the evidence commit
+  and the phase, Ack redelivery and catch-up re-owe races, and supersession
+  between claim and finalize. Each asserts the final obligation, phase,
+  evidence and queue rows.
+
+They reach the parent package through its exported surface and
+`testutil/postgresproof` (the isolated-schema opener and the proof DSN);
+`fixtures_test.go` and `corpus_helpers_test.go` hold the small fixtures they
+copy from the parent's test files.
 
 ## Performance and observability evidence
 

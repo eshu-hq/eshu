@@ -2290,67 +2290,72 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/activation_obligation_ack_live_test.go
+  - file: go/internal/storage/postgres/activation/ack_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 atomic activation obligation insert inside real ProjectorQueue.Ack on the full bootstrap schema in an isolated disposable PostgreSQL schema; accepted Ack writes one row, rejected/stale/duplicate/superseded Ack writes none, injected insert failure rolls Ack back"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_claim_live_test.go
+  - file: go/internal/storage/postgres/activation/claim_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation claim never waits on a held row and never leases or starves on finished rows, and a lease lost inside finalize rolls back the wake and the completion (statement-level pg_sleep trigger in an isolated disposable PostgreSQL schema)"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_targeted_live_test.go
+  - file: go/internal/storage/postgres/activation/targeted_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation consumer with the production partition-scoped maintainer on the full bootstrap schema in an isolated disposable PostgreSQL schema: real catalog_changed and no_memo_baseline refusals are held one callback per lease and complete after the epoch whole pass with no consumer pass; a real repo_id collision loser retires inapplicable after one callback"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_terminal_live_test.go
+  - file: go/internal/storage/postgres/activation/terminal_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation terminal states on the full bootstrap schema in an isolated disposable PostgreSQL schema: cloud scope retires inapplicable with no callback and no reclaim, repo_id collision loser retires inapplicable after one callback, catalog-changed refusal is held at lease cadence with no consumer pass, and a NULL active pointer from the real projector Fail retires obsolete with no wake"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_consumer_live_test.go
+  - file: go/internal/storage/postgres/ingestion_targeted_maintenance_terminal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7584 activation obligation repo_id collision loser retired inapplicable against the shipped active-repository read (kept in the root package because that read is unexported) on the full bootstrap schema in an isolated disposable PostgreSQL schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/consumer_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation consumer protocol (ordering, late failure, parallel claim and lease recovery) on the full bootstrap schema in an isolated disposable PostgreSQL schema; real Ack, reducer Fail/Claim and control-arm maintenance"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_matrix_live_test.go
+  - file: go/internal/storage/postgres/activation/matrix_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation finalize matrix (queue isolation incl. other-domain row, terminal preservation, forged identity and injected completion rollback, no phase substitution, supersession) on the full bootstrap schema in an isolated disposable PostgreSQL schema"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_recovery_live_test.go
+  - file: go/internal/storage/postgres/activation/recovery_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation restart/duplicate fencing, >32-row wake batch cap and bounded catch-up pages on the full bootstrap schema in an isolated disposable PostgreSQL schema"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_composed_live_test.go
+  - file: go/internal/storage/postgres/activation/composed_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 D3 step 4 composed concurrency: consumer cycle with the production partition-scoped maintainer racing the ingester epoch pass through the deferred barrier (forced lock-holder interleavings plus a 20-iteration barrier race) and two consumer replicas on one and on distinct obligations, on the full bootstrap schema in isolated disposable PostgreSQL schemas"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_lease_restart_live_test.go
+  - file: go/internal/storage/postgres/activation/lease_restart_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 D3 step 4: lease expiry mid-maintenance with a second claimer (one completion, one wake, late Finalize not_owner) and a consumer crash between the evidence commit and the phase publication, on the full bootstrap schema in isolated disposable PostgreSQL schemas"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_redelivery_live_test.go
+  - file: go/internal/storage/postgres/activation/redelivery_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 D3 step 4: duplicate projector Ack redelivery, a re-activating Ack racing catch-up, and two catch-ups re-owing one obsolete row (free and held-lock races), plus supersession between claim and finalize through the real projector path, on the full bootstrap schema in isolated disposable PostgreSQL schemas"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_scope_lock_live_test.go
+  - file: go/internal/storage/postgres/activation/scope_lock_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 D3 step 4: a held real ingestion commit and a held projector Ack racing Finalize's scope lock (wait then re-read the pointer; lock_timeout leaves durable state unchanged and the next claimer completes), on the full bootstrap schema in isolated disposable PostgreSQL schemas"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/activation_obligation_retention_live_test.go
+  - file: go/internal/storage/postgres/activation/retention_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 activation obligation FK cascade under the real generation-retention prune, bounded finished-row prune and state census on the full bootstrap schema in an isolated disposable PostgreSQL schema"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/quiet_generation_maintenance_live_test.go
+  - file: go/internal/storage/postgres/activation/quiet_generation_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7584 single-commit quiet-generation phase liveness against isolated disposable PostgreSQL; collector drain completes before real projector Ack, subsequent empty polls cannot substitute for activation maintenance, and the activation obligation consumer (control-arm callback) publishes the exact phase, wakes the exact row and completes the obligation"
