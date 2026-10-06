@@ -132,7 +132,7 @@ func resolveReindexWatermark(
 		return time.Time{}
 	}
 	if logger != nil {
-		logger.InfoContext(ctx, "git_reindex_watermark_active",
+		logger.DebugContext(ctx, "git_reindex_watermark_active",
 			slog.Int("repo_shard_index", config.RepoShardIndex),
 			slog.Int("repo_shard_count", config.RepoShardCount),
 			slog.Time("reindex_requested_at", watermark))

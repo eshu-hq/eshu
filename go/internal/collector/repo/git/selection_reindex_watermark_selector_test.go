@@ -47,7 +47,8 @@ func writeFreshScopesFakeGit(t *testing.T, reposDir string, repos []string) {
 }
 
 // TestResolveReindexWatermark pins the per-cycle read: an active watermark is
-// returned in UTC and logged once; a watermark later than the cycle's
+// returned in UTC and logged at DEBUG, since the watermark persists and the
+// read repeats every cycle; a watermark later than the cycle's
 // observedAt is deferred, so a forced full is never stamped before the
 // watermark it answers; a read failure is ignored for the cycle with a WARN; an
 // unset watermark or a nil reader is inactive.
@@ -65,11 +66,11 @@ func TestResolveReindexWatermark(t *testing.T) {
 		{
 			"active", &fakeReindexWatermark{at: observedAt.Add(-time.Minute).In(time.FixedZone("EDT", -4*3600))},
 			observedAt.Add(-time.Minute),
-			[]string{`"msg":"git_reindex_watermark_active"`, `"reindex_requested_at":"2026-10-05T11:59:00Z"`, `"repo_shard_index":1`, `"repo_shard_count":2`},
+			[]string{`"level":"DEBUG"`, `"msg":"git_reindex_watermark_active"`, `"reindex_requested_at":"2026-10-05T11:59:00Z"`, `"repo_shard_index":1`, `"repo_shard_count":2`},
 		},
 		{
 			"equal to observedAt is active", &fakeReindexWatermark{at: observedAt}, observedAt,
-			[]string{`"msg":"git_reindex_watermark_active"`},
+			[]string{`"level":"DEBUG"`, `"msg":"git_reindex_watermark_active"`},
 		},
 		{
 			"later than observedAt is deferred", &fakeReindexWatermark{at: observedAt.Add(time.Second)},
@@ -89,7 +90,7 @@ func TestResolveReindexWatermark(t *testing.T) {
 			t.Parallel()
 			var logs bytes.Buffer
 			got := resolveReindexWatermark(context.Background(), tc.reader, observedAt, config,
-				slog.New(slog.NewJSONHandler(&logs, nil)))
+				slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 			if !got.Equal(tc.want) || (!got.IsZero() && got.Location() != time.UTC) {
 				t.Fatalf("resolveReindexWatermark() = %v, want %v in UTC", got, tc.want)
 			}

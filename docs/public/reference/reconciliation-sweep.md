@@ -128,9 +128,11 @@ a new pass.
   before the watermark and be forced again.
 - A failed read is ignored for that cycle and logs WARN
   `git_reindex_watermark_read_failed`.
-- Each cycle with an active watermark logs INFO
+- Each cycle with an active watermark logs DEBUG
   `git_reindex_watermark_active` with `repo_shard_index`, `repo_shard_count`,
-  and `reindex_requested_at`.
+  and `reindex_requested_at`. It is DEBUG because the watermark persists
+  after the pass completes. Each forced scope logs INFO `git_reconcile_forced`
+  with `reason=reindex_requested`.
 - With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` the watermark is still honored,
   with the throttle bounds of the 24-hour default. The interval reasons and
   `graph_dirty` stay off. While a watermark is set, each cycle reads the
