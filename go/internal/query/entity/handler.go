@@ -174,6 +174,9 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 			if querycontract.WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
 				return
 			}
+			if selector.WriteLookupFailure(w, r, err) {
+				return
+			}
 			status := http.StatusBadRequest
 			if selector.IsNotFound(err) {
 				status = http.StatusNotFound

@@ -32,7 +32,10 @@ shaping behind the entity reads. The `*ContentReader` target-support seam
 stays in the query root: Go requires methods to live with their receiver
 type, and `ContentReader` is a later lane's family. Shared read-model
 loaders, row decoders, bounds, ports, envelopes, and the authorization seam
-live in `querycontract`; selector resolution lives in `selector`;
+live in `querycontract`; selector resolution lives in `selector` (a
+`POST /api/v0/entities/resolve` selector whose backing read fails answers
+500 through `selector.WriteLookupFailure`, after the 503/504 graph-read
+verdicts and before the 404/400 selector answers, #7626);
 service tech fingerprints and repo infrastructure reads live in
 `repository`; service query-stage timing and evidence shaping live in
 `service`; image/SBOM read models live in `supplychain`. This package
@@ -99,6 +102,32 @@ The handler records count-only ID-hit, key-hit, miss, and ambiguity attributes
 on the request trace. `ContentReader` records separate Postgres query spans
 for the ID and exact-key batches. The public content entity search still uses
 substring semantics and its own bounded, explicitly truncated pages.
+
+## Selector lookup failures (#7626)
+
+`ResolveEntity` and `codequery.ApplyRepositorySelectorForAccess` each gained
+one `selector.WriteLookupFailure` branch, reached only after the selector
+resolve already returned an error and `WriteGraphReadError` declined it.
+
+No-Regression Evidence (#7626): the success path runs no new code and the
+`ResolveEntity` string literals hash identically before and after (40
+literals, `go/parser` digest unchanged), so no query text or plan changed. A
+throwaway benchmark of `ApplyRepositorySelectorForAccess` against in-memory
+fakes (darwin/arm64 Apple M5 Max, test binaries built from ac9f03359 and this
+change, run interleaved 10 times each, `benchstat`) measured: catalog hit
+207.1ns to 205.0ns (p=0.353, not significant), 5 allocs and 288B unchanged;
+lookup failure 1.623µs to 1.665µs (p=0.280, not significant), 26 allocs
+unchanged, 1.764KiB to 1.686KiB. A first sequential run (baseline then change)
+showed +13% on both paths; interleaving removed it, so it was run-order noise.
+The entity branch has the same shape and was not benchmarked separately.
+
+Observability Evidence (#7626): a lookup failure on these routes now sets the
+request span to Error with the fixed description
+`repository selector lookup failed` and an `exception` event, where it
+previously answered 400 with no span signal. Pinned by
+`TestResolveEntitySelectorLookupFailureAnswers500`,
+`TestCodeRouteSelectorLookupFailureAnswers500`, and
+`TestLanguageQuerySelectorLookupFailureAnswers500`.
 
 ## Exported surface
 

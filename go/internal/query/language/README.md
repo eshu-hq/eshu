@@ -14,7 +14,9 @@ Owns the `Handler` struct, its HTTP dispatch and both Cypher builders and
 content-store reads it calls, the language name/spelling registry, and the
 truth-basis-to-reason and truth-basis-to-source_backend mappings this route
 reports. Does not own the repository-selector resolution or the language-query
-grant type (`codequery`), the content-model types or capability registry
+grant type (`codequery`; `codequery.ApplyRepositorySelectorForAccess` also owns
+the selector's 503/504, 500 lookup-failure, and 400 answers for this route,
+#7626), the content-model types or capability registry
 (`querycontract`), the semantic-summary attachment
 (`entitysemantics`), or the shared semantic-metadata Cypher fragment
 (`rows`) -- those are separate leaves this package calls into.
