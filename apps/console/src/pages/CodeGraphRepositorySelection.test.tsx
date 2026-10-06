@@ -110,8 +110,10 @@ describe("CodeGraphPage repository selection", () => {
 
     expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r2");
     expect(screen.getByRole("combobox", { name: "Repository" })).toHaveTextContent("service-two");
-    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveValue(
-      "content-entity:r2-entry",
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveValue(
+        "content-entity:r2-entry",
+      ),
     );
     expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("serviceTwoEntry");
     expect(await screen.findByRole("link", { name: "Open source" })).toHaveAttribute(

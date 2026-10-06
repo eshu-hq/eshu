@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { vi } from "vitest";
+import { vi, type MockInstance } from "vitest";
 
 import { ServiceSpotlightPanel } from "./ServiceSpotlightPanel";
 import type { ServiceSpotlight } from "../api/serviceSpotlight";
 
 describe("ServiceSpotlightPanel", () => {
-  let consoleError: ReturnType<typeof vi.spyOn>;
+  let consoleError: MockInstance<typeof console.error>;
 
   beforeEach(() => {
     consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
