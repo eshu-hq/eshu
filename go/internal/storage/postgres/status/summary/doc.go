@@ -27,6 +27,17 @@
 // releases with its backend. Store, Reader, and Writer are the small interfaces
 // the periodic writer and the status reader use.
 //
+// Select is the status reader's decision. On the status snapshot transaction it
+// reads the database clock and whether the table exists, then the keyed row,
+// and serves the row only when its schema version, source digest, row count, and
+// decoding hold and its age (database clock minus as_of) is within the configured
+// limit. AddAge advances the stored ages by that age. Anything else is a
+// SourceLiveFallback with a typed Reason, and the caller runs the live statement
+// for the whole answer. Flight shares one live statement per process among
+// concurrent fallbacks, LoadReadConfig reads the reader's two environment
+// settings, and Observe records the read counter, the served-age histogram, the
+// span attributes, and a rate-limited fallback warning.
+//
 // The package depends only on the storage db contracts, never on the parent
 // postgres package, so the status store can import it without a cycle.
 package summary

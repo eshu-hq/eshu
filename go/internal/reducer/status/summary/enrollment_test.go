@@ -54,8 +54,8 @@ func TestWriterLiveProofsRunInTheReducerContentionGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	proofs := declaredLiveProofs(t)
-	if len(proofs) < 8 {
-		t.Fatalf("found %d live proofs %v, want at least the 8 the README lists", len(proofs), proofs)
+	if len(proofs) < 10 {
+		t.Fatalf("found %d live proofs %v, want at least the 10 the README lists", len(proofs), proofs)
 	}
 	if missing := proofsMissingFromFilter(filter, proofs); len(missing) > 0 {
 		t.Fatalf("the reducer contention gate's -run filter %q does not select %v", filter, missing)

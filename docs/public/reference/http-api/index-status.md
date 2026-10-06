@@ -2,7 +2,9 @@
 
 `GET /api/v0/status/index` and its legacy alias `GET /api/v0/index-status`
 share one handler. See [Status And Admin](status-admin.md#index-status) for the
-rest of the status routes.
+rest of the status routes. The full report also carries an
+[`active_work_source`](active-work-source.md) object that says whether the
+queue came from the stored summary or the live statement.
 
 A shared-key caller receives the full deployment-wide report: `status`,
 `reasons`, `repository_count`, `queue`, `queue_blockages`, `coordinator`,

@@ -65,6 +65,10 @@ branch the summary gate took, and `status.active_work.summary_estimate` is the
 `pg_stats` live-share estimate it compared with the 0.4 threshold. A `grouped`
 mode with a high true live share means the table statistics lag the table
 (#7009).
+With the stored-summary reader on, `status.active_work.source` (`model`, `live`, or
+`live_fallback`), `status.active_work.as_of_age_seconds`, and on a fallback
+`status.active_work.fallback_reason` say which path answered the active-work
+part of the read.
 
 For a slow repository-context read, inspect the child `postgres.query` span with
 `db.operation=repository_context_counts`. It covers the scope, platform, and

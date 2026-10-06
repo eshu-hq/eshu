@@ -12,10 +12,13 @@ instead of re-running the statement.
 ## Ownership boundary
 
 The package owns the table's SQL, the row type, the payload codec, the guarded
-upsert, the keyed read, and the writer advisory lock key. It does not own the
-statement that fills the row, the writer loop, the reader's fences (schema
-version, source digest, age), or any telemetry. The periodic writer (reducer)
-and the status reader call this package; neither is part of it.
+upsert, the keyed read, the writer advisory lock key, and the reader's decision
+about whether a stored row can be served (`Select`: schema version, source
+digest, row count, age, and decode), the age advance, the reader setting, the
+shared live-fallback call, and the reader's read telemetry. It does not own the
+statement that fills the row or the writer loop; the reducer's writer owns
+those and the status store owns the live statement and the decoder. The writer
+and the status store call this package; neither is part of it.
 
 The package imports only `storage/postgres/db`. It must never import the parent
 `postgres` package: the status store will import this package, and importing
@@ -59,6 +62,26 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
   It is transaction scoped, so a crashed holder frees it with its backend.
 - `Store`, `Reader`, `Writer`, `NewStore`: small interfaces for the writer and
   reader callers.
+- `Select(ctx, queryer, SelectConfig) (Selection, error)`: the reader's
+  decision, run on the status snapshot transaction. It reads the database clock
+  and the table's existence in one statement with no relation access (so a
+  missing table does not abort the snapshot transaction), then the keyed row.
+  It returns `SourceModel` with the entries aged by `now - as_of`, or
+  `SourceLiveFallback` with a typed `Reason` (`missing`, `not_installed`,
+  `version`, `row_count`, `stale`, `decode`). A database error is returned, not
+  turned into a fallback. A row exactly `StaleAfter` old is served; older falls
+  back.
+- `AddAge(entries, age)`: advances the age keys the production decoder reads
+  as durations (`oldest_outstanding_age_seconds` in `queue` and `backlog`,
+  `oldest_blocked_age_seconds` in `blockage`) by the row's age. Zero ages stay
+  zero because the statement clamps an empty set to zero.
+- `LoadReadConfig`, `ReadConfig`: `ESHU_STATUS_SUMMARY_READ_ENABLED` (default
+  off) and `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`, minimum `10s`,
+  validated only while the reader is on).
+- `Flight`: shares one in-flight live statement per process among concurrent
+  fallbacks; followers run their own call when the leader fails.
+- `Observe`: the read counter, the served-age histogram, the
+  `status.active_work.*` span attributes, and the rate-limited fallback Warn.
 
 ## Writer contract
 

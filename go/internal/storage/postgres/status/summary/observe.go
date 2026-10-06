@@ -73,7 +73,7 @@ func Observe(ctx context.Context, instruments *telemetry.Instruments, o Observat
 				slog.String("source", source),
 				slog.String("reason", reason),
 				slog.Float64("age_seconds", o.Age.Seconds()),
-				slog.String("failure_class", "status_summary_fallback"),
+				telemetry.FailureClassAttr("status_summary_fallback"),
 			)
 		}
 	}

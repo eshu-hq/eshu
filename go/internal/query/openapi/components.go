@@ -76,7 +76,7 @@ const components = `  "components": {
           "refusal": {"type": "string"}
         }
       },
-` + componentsReplatforming + componentsProviderConfigs + componentsSignInPolicy + `      "CollectorReadinessEnvelope": {
+` + componentsReplatforming + componentsProviderConfigs + componentsSignInPolicy + componentsActiveWorkSource + `      "CollectorReadinessEnvelope": {
         "type": "object",
         "description": "Per-collector readiness signal for a gated supply-chain list response. It distinguishes an empty page produced by an unconfigured feeding collector (not_configured) from a genuinely empty page produced by a configured-but-zero collector (ready_zero_results), so an empty page is never ambiguous. readiness_unavailable means the configured probe itself failed; the page is still returned but its emptiness cannot be classified.",
         "properties": {

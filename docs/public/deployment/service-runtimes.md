@@ -191,6 +191,14 @@ configuration.
   `eshu_dp_status_summary_writer_passes_total{outcome}` and
   `eshu_dp_status_summary_writer_overrun_total`. The API, MCP server, and
   ingester do not run the writer.
+- Every runtime that builds a status store reads the stored summary only when
+  `ESHU_STATUS_SUMMARY_READ_ENABLED=true` (default `false`), inside the status
+  snapshot transaction. A row older than `ESHU_STATUS_SUMMARY_STALE_AFTER`
+  (default `33s`), a missing row or table, or a row from another statement
+  version runs the live statement for the whole answer; the status payload's
+  `active_work_source` object and `eshu_dp_status_summary_read_total{source,reason}`
+  report which path answered. See
+  [Active Work Source](../reference/http-api/active-work-source.md).
 
 ## Route Map
 
