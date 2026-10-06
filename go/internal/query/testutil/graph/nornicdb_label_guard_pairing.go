@@ -38,9 +38,10 @@ var pairedVarLengthRelationship = regexp.MustCompile(`\[[^\[\]]*\*[^\[\]]*\]`)
 //     shape TestLiveChangeSurfaceLabelPredicate and
 //     TestLiveChangeSurfaceLabelConjunctDeepTraversal run on NornicDB and Neo4j.
 //
-// Rows A02 through I01 measure a positive label test as ignored only for a
-// single-relationship MATCH that opens its frame, which is why the rule above
-// is not widened to any WHERE.
+// Rows A02 through I01 measure a positive label test as ignored, or evaluated
+// correctly, only in a relationship MATCH that opens its frame, which is why
+// the rule above is not widened to any WHERE. The gate is stricter than those
+// rows: the top-level frame, one relationship token and no second pattern.
 func labelTestPairExempt(governing, governingBody, original string, opensFrame bool) bool {
 	if governing != "MATCH" || !opensFrame {
 		return false
@@ -48,7 +49,38 @@ func labelTestPairExempt(governing, governingBody, original string, opensFrame b
 	if len(pairedVarLengthRelationship.FindAllString(governingBody, -1)) != 1 || strings.Count(governingBody, "[") != 1 {
 		return false
 	}
+	// The bracket count misses a bracketless second relationship (`<--`, `--`)
+	// and a comma pattern (`MATCH (b), (a)-[*..]->(x)`), neither of which has a
+	// measured row, so each is outside the live-proven shape.
+	if len(pairedRelationshipToken.FindAllString(governingBody, -1)) != 1 || hasTopLevelComma(governingBody) {
+		return false
+	}
 	return labelTestsPairedWithInLabels(original)
+}
+
+// pairedRelationshipToken matches one relationship arrow with or without a
+// bracketed detail: `-[*1..4]->`, `<-[:R]-`, `-->`, `--`.
+var pairedRelationshipToken = regexp.MustCompile(`(?:<-|-)(?:\[[^\[\]]*\])?(?:->|-)`)
+
+// hasTopLevelComma reports whether s has a comma outside every parenthesis,
+// brace and bracket, which is how a MATCH lists a second pattern.
+func hasTopLevelComma(s string) bool {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(', '{', '[':
+			depth++
+		case ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // labelTestsPairedWithInLabels reports whether the label tests in a WHERE are

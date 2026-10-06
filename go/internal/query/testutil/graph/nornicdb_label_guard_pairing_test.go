@@ -68,6 +68,19 @@ func TestAssertCypherHasNoIgnoredLabelPredicatePairedConjunct(t *testing.T) {
 			tests + guards + pairedTail,
 		"two relationships": "MATCH (a:Repository {id: $id})-[*1..4]->(impacted)-[:OWNS]->(c)\nWHERE impacted.id <> $id\n" +
 			tests + guards + pairedTail,
+		// Shapes the bracket count alone missed: a bracketless second relationship,
+		// a leading relationship, a comma pattern, and MATCH frames inside a
+		// correlated subquery over an already bound variable (the H02 situation).
+		"bracketless second relationship": "MATCH (a:Repository {id: $id})-[*1..4]->(impacted)<--(c)\nWHERE impacted.id <> $id\n" +
+			tests + guards + pairedTail,
+		"leading relationship": "MATCH (c)-->(a:Repository {id: $id})-[*1..4]->(impacted)\nWHERE impacted.id <> $id\n" +
+			tests + guards + pairedTail,
+		"comma pattern": "MATCH (b:Repository), (a:Repository {id: $id})-[*1..4]->(impacted)\nWHERE impacted.id <> $id\n" +
+			tests + guards + pairedTail,
+		"CALL subquery over a bound variable": "MATCH (a:Repository {id: $id})\nCALL (a) {\n  MATCH (a)-[*1..4]->(impacted)\n  WHERE impacted.id <> $id\n" +
+			tests + guards + "\n  RETURN impacted\n}\nRETURN impacted.id",
+		"EXISTS subquery over a bound variable": "MATCH (a:Repository {id: $id})\nWHERE EXISTS {\n  MATCH (a)-[*1..4]->(impacted)\n  WHERE impacted.id <> $id\n" +
+			tests + guards + "\n}\nRETURN a.id",
 		"two tested variables, each paired":  "MATCH (a:Repository {id: $id})-[*1..4]->(impacted)\nWHERE (a:Repository) AND (impacted:Workload) AND ('Repository' IN labels(a)) AND ('Workload' IN labels(impacted))\nRETURN impacted.id",
 		"label test with no guard":           pairedHead + tests + pairedTail,
 		"guard narrower than the label test": pairedHead + tests + "\n  AND ('Repository' IN labels(impacted))" + pairedTail,

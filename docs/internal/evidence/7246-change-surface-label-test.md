@@ -56,20 +56,23 @@ is not enforced and the IN labels() terms still enforce the whitelist.
 
 The #6786 label-predicate guard rejected any label test in that position, so it
 now accepts one only in the exact shape proven live on NornicDB and Neo4j
-(`labelTestPairExempt`): a plain MATCH that opens its frame, with one
-variable-length relationship, one tested variable, and the label test AND-ed
+(`labelTestPairExempt`): a plain MATCH that opens the top-level frame (not a
+CALL or EXISTS subquery), with one variable-length relationship, no second
+relationship token and no comma pattern, one tested variable, and the label test AND-ed
 beside an IN labels() disjunction over the same label set, with no top-level
 OR and no other label test. Other positions stay rejected because
 [6786](6786-nornicdb-label-predicates.md) measures the label test as
 evaluated there: the WHERE of a second MATCH returns 0 rows (row H02), an
 OPTIONAL MATCH nulls the row (row H05), and a negated test returns 0 rows
-(row D04). A positive label test is ignored only in the single-relationship
-rows (A02 through I01). The seeded RED/GREEN pair is
-`TestAssertCypherHasNoIgnoredLabelPredicatePairedConjunct`: 16 RED cases
+(row D04). A positive label test is ignored, or evaluated correctly, only in
+a relationship MATCH that opens its frame (rows A02 through I01). The seeded RED/GREEN pair is
+`TestAssertCypherHasNoIgnoredLabelPredicatePairedConjunct`: 21 RED cases
 (including H02, a MATCH after a WITH, H05, a fixed-length relationship, two
-relationships and two tested variables) and 2 GREEN cases, both the production
-statement text that the live tests run. With the exemption forced true all 16
-RED cases fail. With the position and shape gate removed (the earlier,
+relationships, a bracketless second relationship, a leading relationship, a
+comma pattern, a CALL subquery and an EXISTS subquery over a bound variable,
+and two tested variables) and 2 GREEN cases, both the production statement
+text that the live tests run. With the exemption forced true all 21 RED cases
+fail. With the position and shape gate removed (the earlier,
 wider exemption) the H02, H05, WITH-preceded, fixed-length and
 two-relationship cases fail.
 
@@ -155,7 +158,7 @@ path-set equivalence (fixed, base, fixed, base) and one `PROFILE` per variant.
 Anchors were the highest path counts found on the corpus for each class.
 Instance, resource and workload ids are not recorded here.
 
-| Anchor | Paths (pre-LIMIT) | Whitelisted | Before ms med (range) | After ms med (range) | Before DB hits | After DB hits | Rows |
+| Anchor | All paths (pre-LIMIT) | Whitelisted paths | Before ms med (range) | After ms med (range) | Before DB hits | After DB hits | Rows |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | WorkloadInstance wi_1 | 401,726 | 19,744 | 1580.5 (1567-1670) | 352.0 (342-452) | 7,585,201 | 2,027,663 | 11 |
 | WorkloadInstance wi_2 | 386,324 | 19,171 | 1943.0 (1540-2351) | 498.5 (335-553) | 7,328,877 | 1,956,322 | 11 |

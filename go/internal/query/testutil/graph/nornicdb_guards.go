@@ -141,9 +141,11 @@ func IgnoredLabelPredicate(cypher string) string {
 				continue
 			}
 			original := sameFrameText(cypher, frame, id, c.end, bodyEnd)
-			// The paired-conjunct exemption needs the MATCH to open its frame:
-			// clauses[0] is that MATCH and this WHERE is clauses[1] (#7246).
-			opensFrame := i == 1
+			// The paired-conjunct exemption needs the MATCH to open the TOP-LEVEL
+			// frame: clauses[0] is that MATCH and this WHERE is clauses[1]. A
+			// MATCH inside a CALL or EXISTS brace frame may run over an already
+			// bound variable, the H02 situation, so id must be the top level (-1).
+			opensFrame := i == 1 && id == -1
 			if problem := labelPredicateProblem(governing, governingBody, body, original, opensFrame); problem != "" {
 				return problem + ": " + strings.TrimSpace(cypher[c.start:bodyEnd])
 			}
