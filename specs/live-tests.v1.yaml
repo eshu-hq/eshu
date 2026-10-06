@@ -828,6 +828,11 @@ tests:
     tag: ~
     class: scheduled
     reason: "#5167 live row-membership proof for the grant-filtered index-status repository count (seven grant shapes, empty grant makes no graph call); env-gated by ESHU_INDEX_STATUS_NORNICDB_LIVE — promote to blocking with repeated timing evidence"
+  - file: go/internal/query/status_terraform_selection_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
     tag: ~
     class: postgres_ci

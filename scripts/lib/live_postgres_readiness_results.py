@@ -68,6 +68,9 @@ PACKAGES = {
         "go/internal/query/content_reader_dead_code_root_paths_live_test.go": (
             "TestCrossRepoDeadCodeConsumerRootPathsLive",
         ),
+        "go/internal/query/status_terraform_selection_live_test.go": (
+            "TestStatusRoutesTerraformSelectionLive",
+        ),
     },
 }
 EXPECTED = {

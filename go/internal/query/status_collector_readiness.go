@@ -118,7 +118,7 @@ func (h *StatusHandler) getCollectorReadiness(w http.ResponseWriter, r *http.Req
 	h.readinessCache.mu.Unlock()
 
 	asOf := time.Now()
-	report, err := status.LoadReport(r.Context(), h.StatusReader, asOf, status.DefaultOptions())
+	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, asOf, status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return

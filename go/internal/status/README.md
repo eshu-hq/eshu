@@ -57,14 +57,19 @@ See `doc.go` for the godoc contract. Key types and functions:
   `ReadStatusSnapshot` is equivalent to `ReadStatusSnapshotFiltered` with
   `FullSnapshotSelection()`, so surfaces that never render those sections (e.g.
   the index status endpoint) skip the full-table aggregates at repository scale
-- `SkipTerraformStateEvidence` — repository ingester detail and the live
-  evidence bundle omit Terraform-state serial and warning reads because neither
-  response exposes that section. The bundle still requests collector fact and
-  registry evidence. The zero value, full status, index status, and ingester
-  list retain Terraform reads and propagate their failures. Bundle requests
-  no longer fail on errors confined to the omitted Terraform reads; failures
-  in retained status reads still fail the request. Other snapshot sections and
-  health evaluation are unchanged.
+- `SkipTerraformStateEvidence` — routes that never read
+  `Report.TerraformState` omit the Terraform-state serial and warning reads:
+  the ingester list and detail, collectors, collector readiness, operations,
+  hosted readiness, operator control plane, freshness causality, governance,
+  answer narration, runtime `/metrics`, and the live evidence bundle (#7009).
+  `WithoutTerraformStateEvidence()` sets only this flag on a copy of a
+  selection, so those surfaces keep their other section requests. The zero
+  value, full pipeline status, index status, runtime `/admin/status` (JSON and
+  text), and `cmd/admin-status` retain the Terraform reads and propagate their
+  failures. A skipping surface no longer fails on errors confined to the
+  omitted reads; failures in retained status reads still fail it. Other
+  snapshot sections and health evaluation are unchanged. `LoadReportWithSelection` reads a selected snapshot and builds the
+  report for callers outside the query package.
 - `SemanticOnlySnapshotSelection()` — explicit opt-in for the semantic
   extraction status route. It reads only semantic queue, budget, and audit
   aggregates through the existing SQL and decoder; it cannot be combined with

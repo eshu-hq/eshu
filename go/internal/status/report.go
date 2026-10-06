@@ -76,10 +76,24 @@ type SnapshotSelection struct {
 	// reads registry collector status from fact_records.
 	IncludeRegistryCollectors bool
 	// SkipTerraformStateEvidence omits the Terraform-only serial and warning
-	// reads for callers that do not render them, including repository ingester
-	// detail and the live evidence bundle. Full and index status retain these
-	// reads and their errors by default.
+	// reads for callers that do not render them, including the ingester,
+	// collector, readiness, operations, control-plane, freshness, governance,
+	// and answer-narration status routes, runtime /metrics, and the live
+	// evidence bundle. Full pipeline and index status, runtime /admin/status
+	// (JSON and text), and cmd/admin-status retain these reads and their errors
+	// by default.
 	SkipTerraformStateEvidence bool
+}
+
+// WithoutTerraformStateEvidence returns a copy of s that omits the
+// Terraform-state serial and warning reads and keeps every other section
+// request unchanged. Use it only for callers that never read
+// Report.TerraformState. It applies to the standard mode only: a semantic-only
+// selection issues no Terraform statement, so the copy it returns for
+// SemanticOnlySnapshotSelection fails Validate rather than widening that mode.
+func (s SnapshotSelection) WithoutTerraformStateEvidence() SnapshotSelection {
+	s.SkipTerraformStateEvidence = true
+	return s
 }
 
 // SnapshotMode identifies the status read shape. The zero value preserves
@@ -117,7 +131,9 @@ func (s SnapshotSelection) Validate() error {
 
 // FullSnapshotSelection returns the selection that includes every optional
 // section. It is the back-compatible default used by full status-report
-// surfaces (CLI status, admin status, collector readiness).
+// surfaces (CLI status, runtime admin status, pipeline status). Surfaces that
+// never render Terraform-state evidence use
+// FullSnapshotSelection().WithoutTerraformStateEvidence().
 func FullSnapshotSelection() SnapshotSelection {
 	return SnapshotSelection{
 		IncludeCollectorFactEvidence: true,

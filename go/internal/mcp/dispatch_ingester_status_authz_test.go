@@ -79,9 +79,12 @@ func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
 		t.Fatalf("dispatchTool(list_ingesters) error = %v, want nil", err)
 	}
 	assertIngesterDispatchResultRedacted(t, list, privateInstanceID, privateDisplayName, privateConflictKey)
-	if selected.SkipTerraformStateEvidence {
-		t.Fatal("list_ingesters omitted Terraform evidence")
+	// list_ingesters renders no Terraform-state section, so it skips those
+	// reads (#7009). Reset the recorder so the detail call proves its own read.
+	if !selected.SkipTerraformStateEvidence {
+		t.Fatal("list_ingesters read Terraform evidence it never renders")
 	}
+	selected = statuspkg.SnapshotSelection{}
 
 	detail, err := dispatchTool(
 		context.Background(),

@@ -2986,12 +2986,14 @@ gates:
     name: Live PostgreSQL Readiness (disposable PostgreSQL 18)
     category: exactness
     layer: performance
-    purpose: "Runs twenty PostgreSQL readiness and dead-code incoming plan and truth proofs with explicit pass-event accounting; skips and missing tests fail."
+    purpose: "Runs twenty-two PostgreSQL readiness, dead-code incoming, and status-selection plan and truth proofs with pass-event accounting; skips and missing tests fail."
     tier: ci-heavy
     blocking: false
     triggers:
       - "go/internal/query/supply/chain/impact/**"
       - "go/internal/query/content_reader_dead_code*.go"
+      - "go/internal/query/status*.go"
+      - "go/internal/status/**"
       - "go/internal/storage/postgres/**"
       - "go/cmd/reducer/**"
       - "go/internal/testutil/postgresproof/**"

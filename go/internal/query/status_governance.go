@@ -48,7 +48,7 @@ type GovernanceAuditSummaryReader interface {
 func (h *StatusHandler) getGovernanceStatus(w http.ResponseWriter, r *http.Request) {
 	report := status.BuildReport(status.RawSnapshot{}, status.DefaultOptions())
 	if h != nil && h.StatusReader != nil {
-		loaded, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+		_, loaded, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 			return
