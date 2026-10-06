@@ -24,21 +24,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// runDeferredBackfillBatches executes the partitioned per-repository batches with
-// a bounded worker pool and accumulates, per (scope, generation) partition, the
-// repositories whose evidence committed. The batches are independent (disjoint
-// repository sets, idempotent ON CONFLICT writes, per-batch transaction scope),
-// so the only shared mutable state is the contribution map and the first-error
-// latch, both guarded. The first failing batch cancels the remaining work through
-// ctx so a partial pass stops promptly; the deferred maintenance pass is
-// idempotent and re-runs converge.
-//
-// The returned map is the input to publishDeferredBackfillPartitions. On error it
-// is not returned at all: the caller must not publish readiness or a memo row for
-// any partition once a batch has failed, because a partition's repositories are
-// spread across batches and a survivor's contribution says nothing about whether
-// the rest of that partition committed.
-func (s IngestionStore) runDeferredBackfillBatches(
+// runDeferredBackfillBatchesWith is runDeferredBackfillBatches with the
+// per-batch under-lock generation read supplied by the caller; see
+// writeDeferredBackfillBatchWith.
+func (s IngestionStore) runDeferredBackfillBatchesWith(
 	ctx context.Context,
 	repoIDs []string,
 	bounds [][2]int,
@@ -46,6 +35,7 @@ func (s IngestionStore) runDeferredBackfillBatches(
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
 	instruments *telemetry.Instruments,
+	loadGenerations repositoryGenerationLoader,
 ) (map[scopeGenerationPartition][]string, error) {
 	totalBatches := len(bounds)
 	groupCtx, cancel := context.WithCancel(ctx)
@@ -74,7 +64,9 @@ func (s IngestionStore) runDeferredBackfillBatches(
 			defer func() { <-sem }()
 
 			batchStart := time.Now()
-			batchContributions, err := s.writeDeferredBackfillBatch(groupCtx, repoIDs[lo:hi], evidenceBySourceRepo, snapshotGenerations)
+			batchContributions, err := s.writeDeferredBackfillBatchWith(
+				groupCtx, repoIDs[lo:hi], evidenceBySourceRepo, snapshotGenerations, loadGenerations,
+			)
 			batchDuration := time.Since(batchStart).Seconds()
 
 			mu.Lock()

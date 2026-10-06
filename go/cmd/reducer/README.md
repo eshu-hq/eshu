@@ -180,6 +180,12 @@ rows stuck in `dead_letter` with no strictly-newer generation). The bounded
 | `ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS` | `1` | Per-item recovery budget; at the ceiling the row is left `dead_letter` for the operator while the gauge keeps alarming |
 | `ESHU_POISON_LIVENESS_BATCH_LIMIT` | `200` | Max poison work items re-driven per sweep |
 
+The #7584 activation obligation consumer is **off by default**:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` | `false` | Start `maintenance.ActivationObligationRunner` with the partition-scoped `postgres.ActivationMaintainer` (`activation_obligation_wiring.go`). Requires a transactional database. |
+
 ### Shared projection
 
 Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.

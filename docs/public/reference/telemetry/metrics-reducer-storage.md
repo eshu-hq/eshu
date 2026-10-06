@@ -166,6 +166,57 @@ separate self-healing from a backlog the sweep cannot clear; a rising
 `eshu_dp_generation_liveness_failures_total` means the sweep itself is failing,
 and the bounded failure reason lives in reducer logs.
 
+## Activation Obligations
+
+The activation obligation consumer (#7584,
+`go/internal/reducer/maintenance/activation_obligation_runner.go`) settles the
+exact-generation obligations `ProjectorQueue.Ack` writes. No scope or generation
+id is ever a label; the per-obligation log line carries them.
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_activation_obligations` | gauge | Obligation rows by `status` (`pending`, `leased`, `completed`, `obsolete`, `inapplicable`), sampled once per consumer cycle. |
+| `eshu_dp_activation_obligation_oldest_open_age_seconds` | gauge | Age of the oldest pending or leased obligation, sampled once per cycle. |
+| `eshu_dp_activation_obligation_claim_age_seconds` | histogram | Obligation age when a consumer claimed it. |
+| `eshu_dp_activation_obligation_finalize_total` | counter | Finalize attempts by `outcome` (`completed`, `phase_not_ready`, `work_pending`, `obsolete`, `inapplicable`, `not_owner`, `missing`, `lease_lost`, `error`). |
+| `eshu_dp_activation_obligation_woken_total` | counter | `deployment_mapping` rows made visible by committed wakes. |
+| `eshu_dp_activation_obligation_maintenance_duration_seconds` | histogram | Maintenance callback duration by `outcome` (`success`, `error`); its count is the callback count. |
+| `eshu_dp_activation_obligation_catch_up_inserted_total` | counter | Obligations owed by catch-up to already-active generations missing their phase. |
+| `eshu_dp_activation_obligation_pruned_total` | counter | Finished obligations deleted by the bounded prune. |
+| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `finalize_lock_timeout`, `maintenance`, `maintenance_timeout`, `catalog_changed`, `no_memo_baseline`, `closure_too_deep`, `catch_up`, `prune`, `stats`). The three hold reasons are held refusals, logged at Info, not errors. |
+
+Alert on `eshu_dp_activation_obligation_oldest_open_age_seconds` above one epoch
+whole-pass latency plus one consumer lease (default 2 minutes). A
+`catalog_changed` hold is expected after any repository-catalog change and a
+`no_memo_baseline` hold when no currently active partition holds a memo row
+(before the first whole pass, or when the only memo-bearing scopes advanced
+past their memos); for both
+the consumer holds the lease and retries at lease cadence, runs no fallback
+pass, and the epoch whole pass republishes the phase, so the obligation
+completes on the next attempt after that pass. `closure_too_deep` means the
+partition-scoped pass's dependent closure did not settle within its round
+bound; it is also held until a whole pass publishes the phase. Past that bound, the epoch pass is not running or not reaching the
+scope. `inapplicable` rows are expected for cloud and cluster scopes (no
+repository fact) and for a repository whose repo_id another scope owns; they
+are terminal and never reclaimed.
+
+A rising `oldest_open_age_seconds` with a flat `finalize_total{outcome="completed"}`
+means obligations are owed but not settling: read
+`finalize_total{outcome="phase_not_ready"}` (the callback ran but the phase is
+still absent) against `failures_total{reason="maintenance"}` (the callback
+failed). `failures_total{reason="finalize_lock_timeout"}` (logged at Warn)
+counts a Finalize that waited past its 1 s lock timeout behind a long
+ingestion commit or Ack holding the same scope row: expected contention,
+nothing is written, and the next claimer settles the obligation after its
+lease. `reason="finalize"` (logged at Error) is every other Finalize failure.
+A `no_memo_baseline` hold ages until the next commit triggers an epoch whole
+pass: no partition-scoped retry can publish the phase before then. `work_pending` counts obligations held open while a handler for the
+generation is still claimed or running, or while more than one wake batch (32
+rows) waits. Each finalize logs `activation obligation finalized` at Info with
+`scope_id`, `generation_id`, `outcome`, `woken` and `claim_token`; failures log
+`activation obligation step failed` with
+`failure_class=activation_obligation_<reason>`.
+
 ## Graph Orphan Sweep
 
 | Metric | Type | Use |
@@ -270,6 +321,9 @@ before assuming the whole write path is bottlenecked.
 | `eshu_dp_cross_repo_edges_dropped_total` | counter | Cross-repo edges withheld at the ownership partition by `relationship_type` and bounded `reason` (`foreign_owned`). |
 | `eshu_dp_deferred_backfill_batch_duration_seconds` | histogram | Wall time of each per-repository batch transaction inside the deferred backward-evidence backfill. Watch batch-by-batch progress instead of waiting for the whole pass. |
 | `eshu_dp_deferred_backfill_batches_completed_total` | counter | Committed per-repository batches in the deferred backward-evidence backfill. Rising during a pass is the operator-visible backfill progress signal. |
+| `eshu_dp_deferred_backfill_targeted_duration_seconds` | histogram | Wall time of one partition-scoped deferred maintenance pass (#7584) by pass `outcome`: `completed`, `suppressed` (every owed partition was inapplicable while the catalog guard would refuse, so the pass wrote nothing), a refusal (`catalog_changed`, `no_memo_baseline`, `closure_too_deep`), or `error`. Its sample count is the pass count. The pass reuses the whole pass's loader, batch and fan-in code with instruments off, so the whole pass's `eshu_dp_deferred_backfill_*` series do not count it. |
+| `eshu_dp_deferred_backfill_targeted_outcomes_total` | counter | Owed-partition results of the partition-scoped pass by `outcome` (`published`, `not_active`, `inapplicable`, `retry`), one per owed partition and never per pass. A refused pass does not count its held owed partitions as `retry`; read refusals from the duration histogram's `outcome` (a rising `catalog_changed` or `no_memo_baseline` count means obligations wait for the next epoch whole pass). |
+| `eshu_dp_deferred_backfill_targeted_reopened_total` | counter | Succeeded reducer work items the partition-scoped pass reopened, by `domain`. Correlation domains are reopened only in the affected partitions; the fleet-wide correlation replay stays on the epoch whole pass. |
 | `eshu_dp_evidence_facts_discovered_total` | counter | Evidence facts discovered during ingestion. |
 | `eshu_dp_iam_can_perform_edges_total` | counter | IAM CAN_PERFORM edges committed by bounded resolution mode. |
 | `eshu_dp_iam_can_perform_skipped_total` | counter | IAM CAN_PERFORM catalog-action evaluations withheld by bounded skip reason. |

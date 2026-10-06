@@ -72,6 +72,12 @@ func projectorWorkItemID(scopeID string, generationID string) string {
 	return fmt.Sprintf("projector_%s_%s", scopeID, generationID)
 }
 
+// ProjectorWorkItemID is the id the Ack passes to activation.Insert; activation's
+// catchUpQuery builds it in SQL too (TestActivationObligationCatchUpLive pins both).
+func ProjectorWorkItemID(scopeID, generationID string) string {
+	return projectorWorkItemID(scopeID, generationID)
+}
+
 func projectorScopeMetadata(rawPayload []byte) map[string]string {
 	payload, err := payloadstore.UnmarshalPayload(rawPayload)
 	if err != nil || len(payload) == 0 {

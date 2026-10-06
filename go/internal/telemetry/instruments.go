@@ -1602,6 +1602,21 @@ type Instruments struct {
 	// a retryable 503, not a 401, so a rising count points an operator at
 	// PostgreSQL instead of at credentials.
 	AuthIdentityStoreUnavailable metric.Int64Counter
+	// Activation obligation consumer (#7584, reducer/maintenance and
+	// storage/postgres/activation): per-status row gauge and oldest open age
+	// sampled each cycle, claim age, finalize outcomes, woken rows,
+	// maintenance callback duration, catch-up inserts, prune deletes and
+	// step failures by reason. Registered in
+	// instruments_activation_obligation.go.
+	ActivationObligations                   metric.Int64Gauge
+	ActivationObligationOldestOpenAge       metric.Float64Gauge
+	ActivationObligationClaimAge            metric.Float64Histogram
+	ActivationObligationFinalizes           metric.Int64Counter
+	ActivationObligationWoken               metric.Int64Counter
+	ActivationObligationMaintenanceDuration metric.Float64Histogram
+	ActivationObligationCatchUpInserted     metric.Int64Counter
+	ActivationObligationPruned              metric.Int64Counter
+	ActivationObligationFailures            metric.Int64Counter
 	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
 	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
 	// governance-audit drop-observability triad. The mcp-server transport auth
@@ -1890,6 +1905,16 @@ type Instruments struct {
 	DeferredBackfillFanInDuration  metric.Float64Histogram
 	DeferredBackfillFanInPublished metric.Int64Counter
 	DeferredBackfillFanInSkipped   metric.Int64Counter
+
+	// DeferredBackfillTargetedDuration, DeferredBackfillTargetedOutcomes and
+	// DeferredBackfillTargetedReopened instrument the partition-scoped deferred
+	// maintenance pass (#7584). It reuses the whole pass's loader, batch and
+	// fan-in code with instruments off, so the whole pass's
+	// eshu_dp_deferred_backfill_* series keep measuring only the whole pass.
+	// See registerDeferredBackfillTargeted.
+	DeferredBackfillTargetedDuration metric.Float64Histogram
+	DeferredBackfillTargetedOutcomes metric.Int64Counter
+	DeferredBackfillTargetedReopened metric.Int64Counter
 
 	// ReopenSkippedByPartitionMemo counts succeeded deployment_mapping and
 	// code_import_repo_edge reducer work items whose replay was skipped because
@@ -4734,6 +4759,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 
+	if err := registerDeferredBackfillTargeted(meter, inst); err != nil {
+		return nil, err
+	}
+
 	if err := registerSearchDocumentGenerationSuperseded(meter, inst); err != nil {
 		return nil, err
 	}
@@ -4742,6 +4771,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerActivationObligationInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

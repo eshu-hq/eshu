@@ -129,6 +129,13 @@ type Service struct {
 	// the stuck-gauge remains active independently of this field.
 	PoisonLivenessRunner *maintenance.PoisonLivenessRunner
 
+	// ActivationObligationRunner settles the exact-generation activation
+	// obligations ProjectorQueue.Ack writes (#7584): it runs the activation
+	// maintenance port when the generation's backward-evidence phase is
+	// missing and wakes the deployment_mapping rows waiting on it. Nil
+	// disables the consumer.
+	ActivationObligationRunner *maintenance.ActivationObligationRunner
+
 	// GraphOrphanSweepRunner marks and deletes aged zero-relationship graph
 	// nodes in bounded batches. Nil disables automated cleanup.
 	GraphOrphanSweepRunner *maintenance.GraphOrphanSweepRunner

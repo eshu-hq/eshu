@@ -2986,7 +2986,7 @@ gates:
     name: Live PostgreSQL Readiness (disposable PostgreSQL 18)
     category: exactness
     layer: performance
-    purpose: "Runs twenty-two PostgreSQL readiness, dead-code incoming, and status-selection plan and truth proofs with pass-event accounting; skips and missing tests fail."
+    purpose: "Runs the PostgreSQL proofs listed in live_postgres_readiness_results.py with explicit pass-event accounting; skips and missing tests fail."
     tier: ci-heavy
     blocking: false
     triggers:
@@ -2996,6 +2996,7 @@ gates:
       - "go/internal/status/**"
       - "go/internal/storage/postgres/**"
       - "go/cmd/reducer/**"
+      - "go/internal/reducer/maintenance/**"
       - "go/internal/testutil/postgresproof/**"
       - "go/go.mod"
       - "go/go.sum"

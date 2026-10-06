@@ -369,6 +369,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` | bool | `false` | Run the #7584 activation obligation consumer in the resolution engine. It settles the exact-generation obligations ProjectorQueue.Ack writes by running the partition-scoped deferred maintenance pass on the owed (scope, generation) only when its backward-evidence phase is missing, then waking the deployment_mapping rows waiting on it. Off by default; while off, obligations stay pending until generation retention removes their generation. |
 | `ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE` | int | `10` | Scopes with no activation journal row whose retained generation chain one changed-since cycle backfills. |
 | `ESHU_CHANGED_SINCE_LINK_ENABLED` | bool | `false` | Run the dark changed_since_link reducer domain (#7127), which journals generation activations and links each one into the changed-since ledger tables. Off by default; with it off the domain issues no SQL. Nothing reads the ledger yet. Enable only after generation retention cleans the ledger tables (PR-3d). |
 | `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS` | int | `5` | Counting failures (statement_timeout, connection_lost, sql_error, internal) of one activation before it becomes a link_poisoned chain break: the cursor advances, the scope keeps its state, and the next full generation links from it. Retries back off min(30m, 30s*2^(n-1)); lock misses and busy slots never count. |

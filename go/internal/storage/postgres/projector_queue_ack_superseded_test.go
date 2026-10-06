@@ -145,7 +145,7 @@ func TestProjectorAckActivatedGenerationCommits(t *testing.T) {
 	if err := queue.Ack(context.Background(), ackRefusalWork(), runtime.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
-	if fake.commits != 1 || len(fake.execs) != 6 {
-		t.Fatalf("commits=%d execs=%d, want one commit and no superseded mark", fake.commits, len(fake.execs))
+	if fake.commits != 1 || len(fake.execs) != 7 {
+		t.Fatalf("commits=%d execs=%d, want one commit, no superseded mark, and one activation obligation", fake.commits, len(fake.execs))
 	}
 }

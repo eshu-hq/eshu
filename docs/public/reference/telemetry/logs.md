@@ -43,6 +43,24 @@ Older examples such as `resolution.work_item.completed` and
 `graph.batch.commit.started` are not universal Go event families in the current
 code.
 
+The partition-scoped deferred maintenance pass (#7584) logs one
+`deferred_backfill_targeted_completed` line per pass with `outcome`, per-owed
+counts (`published_owed`, `not_active`, `inapplicable`, `retry`), closure sizes
+and `duration_s`, and one `deferred_backfill_targeted_refused` line per
+applicable owed partition (`reason`, `scope_id`, `generation_id`) when the
+catalog guard refuses, and one `deferred_backfill_targeted_suppressed` line
+(`reason`, `inapplicable`) when every owed partition was inapplicable while the
+guard would refuse. Its trace span is `relationship.backfill_deferred_targeted`,
+opened only when the caller passes a tracer, with the reopen child
+`bootstrap.reopen_targeted_work_items`; the span records the error and sets an
+error status only on an untyped failure, never on a designed refusal. The shared
+memo-gate, batch, fan-in and fact-load lines carry no path label; attribute them
+by the pass line that follows (`deferred_backfill_targeted_completed` or
+`deferred_backfill_completed`). The activation obligation consumer's span is
+`reducer.activation_obligation_settle`, one per settle, with `scope_id`,
+`generation_id`, `claim_token`, `outcome` and any `hold_reason` or
+`failure_reason`.
+
 `graph.write_timeout.unbounded` is a startup WARN from the ingester, reducer,
 projector, and bootstrap-index when the graph backend is Neo4j and
 `ESHU_CANONICAL_WRITE_TIMEOUT` is unset or invalid. It carries `graph_backend`

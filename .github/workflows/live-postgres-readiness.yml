@@ -1,8 +1,11 @@
 name: Live PostgreSQL Readiness
 
-# The twenty-two readiness, dead-code incoming, and status route-selection proofs use EXPLAIN and correctness assertions against
-# separately created disposable databases. The merge queue always runs this
-# job; PR and main-push events select the paths that can change the proof.
+# The readiness, dead-code incoming, status route-selection, quiet-generation,
+# activation obligation and targeted-maintenance proofs listed in
+# scripts/lib/live_postgres_readiness_results.py
+# use EXPLAIN and correctness assertions against separately created disposable
+# databases. The merge queue always runs this job; PR and main-push events
+# select the paths that can change the proof.
 on:
   merge_group:
     types: [checks_requested]
@@ -15,6 +18,7 @@ on:
       - 'go/internal/status/**'
       - 'go/internal/storage/postgres/**'
       - 'go/cmd/reducer/**'
+      - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/go.mod'
       - 'go/go.sum'
@@ -38,6 +42,7 @@ on:
       - 'go/internal/status/**'
       - 'go/internal/storage/postgres/**'
       - 'go/cmd/reducer/**'
+      - 'go/internal/reducer/maintenance/**'
       - 'go/internal/testutil/postgresproof/**'
       - 'go/go.mod'
       - 'go/go.sum'
@@ -115,4 +120,8 @@ jobs:
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
+          ESHU_DEFERRED_PARTITION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE: '1'
+          ESHU_TARGETED_MAINTENANCE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

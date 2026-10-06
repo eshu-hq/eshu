@@ -76,6 +76,17 @@ fighting the type system here).
   `PoisonLivenessRunnerConfig.AutoRetryEnabled` is true. The stuck-gauge
   reporting the poison class size is wired independently in `cmd/reducer` and
   MUST remain active regardless of this flag.
+- `ActivationObligationRunner` MUST call the maintenance port only after a
+  Finalize returned `phase_not_ready`, MUST NOT finalize again after a failed
+  callback (the lease stays held and the obligation retries after it
+  expires), and MUST keep each cycle bounded by `MaxPerCycle`. Whole-corpus
+  deferred maintenance is a test control arm only; never wire it as the
+  shipped `ActivationMaintainer` (#7584).
+- On `ErrActivationInapplicable` the runner MUST retire the row through
+  `RetireActivationInapplicable` and MUST NOT count a maintenance failure.
+  On `ErrActivationCatalogChanged` it MUST keep the lease, MUST NOT finalize
+  again or run any fallback pass, and MUST count
+  `failures_total{reason="catalog_changed"}` with an Info log (#7584).
 - `GateAcceptedGenerationOnActive`'s activation fence MUST apply only to
   source runs carrying a relationship generation ID
   (`repo_dependency`/`repo_dependency:<scope>`, see

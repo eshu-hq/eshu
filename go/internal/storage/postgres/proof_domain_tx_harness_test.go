@@ -144,6 +144,10 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		return proofResult{}, nil
 	case strings.Contains(query, "DELETE FROM relationship_reference_candidate_keys"):
 		return proofResult{}, nil
+	case strings.Contains(query, "INSERT INTO activation_obligations"):
+		// #7584: Ack's one-row obligation insert; the proof-domain flows do
+		// not consume obligations.
+		return proofResult{}, nil
 	case strings.Contains(query, "set_config('lock_timeout'"):
 		return proofResult{}, nil
 	case strings.Contains(query, "set_config('eshu.package_manifest_consumption_keys_writer'"):

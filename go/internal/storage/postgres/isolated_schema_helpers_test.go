@@ -7,10 +7,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // openIsolatedBootstrapSchema applies the real bootstrap migrations to a fresh
@@ -29,45 +30,12 @@ import (
 // still resolves its operator classes for the bootstrap.
 func openIsolatedBootstrapSchema(t *testing.T, dsn, prefix string) *sql.DB {
 	t.Helper()
-
-	admin, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	admin.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = admin.Close() })
-
-	schemaCtx, cancelSchema := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancelSchema()
-	installGenerationRetentionTrigramExtension(schemaCtx, t, admin)
-	schema := fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
-	if _, err := admin.ExecContext(schemaCtx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
-		t.Fatalf("create isolated schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cleanupCancel()
-		if _, err := admin.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
-			t.Errorf("drop isolated schema: %v", err)
+	return postgresproof.OpenIsolatedSchema(t, dsn, prefix, func(ctx context.Context, database *sql.DB) error {
+		if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
+			return fmt.Errorf("apply bootstrap schema: %w", err)
 		}
+		return nil
 	})
-
-	parsed, err := url.Parse(dsn)
-	if err != nil {
-		t.Fatalf("parse Postgres DSN: %v", err)
-	}
-	query := parsed.Query()
-	query.Set("search_path", schema+",public")
-	parsed.RawQuery = query.Encode()
-	database, err := sql.Open("pgx", parsed.String())
-	if err != nil {
-		t.Fatalf("open isolated schema: %v", err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
-	if err := ApplyBootstrap(schemaCtx, SQLDB{DB: database}); err != nil {
-		t.Fatalf("apply bootstrap schema: %v", err)
-	}
-	return database
 }
 
 // openIsolatedLiveDB is openIsolatedBootstrapSchema for the DSN in

@@ -234,7 +234,36 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 	return s.publishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers, instruments)
 }
 
-// writeDeferredBackfillBatch processes one bounded batch of source repositories
+// runDeferredBackfillBatches executes the partitioned per-repository batches with
+// a bounded worker pool and accumulates, per (scope, generation) partition, the
+// repositories whose evidence committed. The batches are independent (disjoint
+// repository sets, idempotent ON CONFLICT writes, per-batch transaction scope),
+// so the only shared mutable state is the contribution map and the first-error
+// latch, both guarded. The first failing batch cancels the remaining work through
+// ctx so a partial pass stops promptly; the deferred maintenance pass is
+// idempotent and re-runs converge.
+//
+// The returned map is the input to publishDeferredBackfillPartitions. On error it
+// is not returned at all: the caller must not publish readiness or a memo row for
+// any partition once a batch has failed, because a partition's repositories are
+// spread across batches and a survivor's contribution says nothing about whether
+// the rest of that partition committed.
+func (s IngestionStore) runDeferredBackfillBatches(
+	ctx context.Context,
+	repoIDs []string,
+	bounds [][2]int,
+	workers int,
+	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
+	snapshotGenerations map[string]string,
+	instruments *telemetry.Instruments,
+) (map[scopeGenerationPartition][]string, error) {
+	return s.runDeferredBackfillBatchesWith(
+		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments,
+		loadAllActiveRepositoryGenerations,
+	)
+}
+
+// writeDeferredBackfillBatchWith processes one bounded batch of source repositories
 // in its own transaction. It acquires the batch's exclusive maintenance locks in
 // sorted order, re-reads the active generations under the lock so evidence
 // attaches to the generation current at lock time, persists each repository's
@@ -249,11 +278,18 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 // a contiguous slice of the repo-ID-sorted corpus, so it generally holds only
 // SOME of a partition's repositories; publishing a partition-wide claim from
 // here would assert completion on behalf of sibling batches that may still fail.
-func (s IngestionStore) writeDeferredBackfillBatch(
+//
+// The under-lock generation read is supplied by the caller. The whole pass supplies
+// loadAllActiveRepositoryGenerations, the shipped corpus-wide read; the
+// partition-scoped pass (#7584) supplies loadActiveRepositoryGenerationsForRepos,
+// which returns the same rows for batchRepoIDs and nothing else. Every other
+// step -- lock order, generation guard, evidence upsert, commit -- is shared.
+func (s IngestionStore) writeDeferredBackfillBatchWith(
 	ctx context.Context,
 	batchRepoIDs []string,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
+	loadGenerations repositoryGenerationLoader,
 ) (map[scopeGenerationPartition][]string, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
@@ -274,7 +310,7 @@ func (s IngestionStore) writeDeferredBackfillBatch(
 		return nil, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
 	}
 
-	currentGenerations, err := loadActiveRepositoryGenerations(ctx, tx)
+	currentGenerations, err := loadGenerations(ctx, tx, batchRepoIDs)
 	if err != nil {
 		return nil, fmt.Errorf("reload active repository generations under batch lock: %w", err)
 	}

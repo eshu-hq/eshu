@@ -167,6 +167,11 @@ configuration.
   only after an operator has reviewed the wedge, and tune the poll/attempt/batch
   budget via the `ESHU_POISON_LIVENESS_*` knobs documented in
   `go/cmd/reducer/README.md` "Poison dead-letter liveness".
+- The #7584 activation obligation consumer is **off by default**
+  (`ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED=false`). When enabled it settles
+  the obligations `ProjectorQueue.Ack` writes by running the partition-scoped
+  deferred maintenance pass on the owed generation only; see
+  [Resolution Engine](../services/resolution-engine.md) "Activation obligations".
 - The reducer's graph-backed gauges (`eshu_dp_edges_by_source_tool`,
   `eshu_dp_files_by_language`, `eshu_dp_graph_orphan_nodes`) are served from a
   background snapshot, so a slow graph read can never stall `/metrics` (#7062).
