@@ -170,7 +170,7 @@ accepted normalization rows do not imply collector failure. The payload also
 includes bounded `terraform_state.recent_warnings[]` rows with `source_handle`,
 `safe_locator_hash`, source class, reason, severity, and actionability for
 source-level triage. Raw state locators, bucket names, object keys, and local
-paths are not included in the public status payload. Only pipeline status, index status, and runtime `/admin/status?format=json` read this Terraform-state evidence. Collectors, ingesters, operations, hosted readiness, operator control plane, freshness causality, collector readiness, governance, answer narration, and runtime `/metrics` skip those two reads (#7009), so a Terraform-only read failure does not fail them.
+paths are not included in the public status payload. Only pipeline status, index status, runtime `/admin/status` (JSON and text formats), and `cmd/admin-status` read this Terraform-state evidence. Collectors, ingesters, operations, hosted readiness, operator control plane, freshness causality, collector readiness, governance, answer narration, and runtime `/metrics` skip those two reads (#7009), so a Terraform-only read failure does not fail them.
 
 The payload also includes `semantic_extraction`. This mirrors
 `/api/v0/status/semantic-extraction` so index-status consumers can tell that

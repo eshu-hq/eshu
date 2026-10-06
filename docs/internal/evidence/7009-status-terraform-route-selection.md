@@ -29,7 +29,8 @@ request is unchanged.
 | Runtime `/metrics` (`serveStatusMetrics`) | full minus Terraform |
 
 Repository ingester detail and the live evidence bundle already skipped these
-reads. Pipeline, index, and admin JSON status keep both reads and still fail
+reads. Pipeline, index, runtime `/admin/status` (JSON and text), and
+`cmd/admin-status` keep both reads and still fail
 when either one fails. No API or MCP payload changes. A failure confined to the
 Terraform reads no longer fails a skipping route. A failure in a retained read
 still does. The statement text, the repeatable-read transaction, the timeouts,
@@ -91,7 +92,8 @@ separate change.
 
 The existing `eshu_dp_status_snapshot_read_duration_seconds` histogram and its
 bounded read labels stay as they are. A skipping route emits no
-`terraform_state` phase sample. Pipeline, index, and admin JSON status keep
+`terraform_state` phase sample. Pipeline, index, runtime `/admin/status`, and
+`cmd/admin-status` keep
 that sample and propagate its errors. The `status_snapshot` span and the
 database query summary labels still attribute each retained statement. No
 metric, span, or log key is added.

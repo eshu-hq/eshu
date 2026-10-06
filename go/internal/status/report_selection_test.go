@@ -61,3 +61,18 @@ func TestLoadReportWithSelectionPassesSelectionAndWrapsErrors(t *testing.T) {
 		t.Fatal("LoadReportWithSelection(nil reader) error = nil, want non-nil")
 	}
 }
+
+// TestWithoutTerraformStateEvidenceKeepsSemanticOnlyInvalid pins the documented
+// standard-mode-only contract: a semantic-only read issues no Terraform
+// statement, so adding the skip flag yields a selection Validate rejects.
+func TestWithoutTerraformStateEvidenceKeepsSemanticOnlyInvalid(t *testing.T) {
+	t.Parallel()
+
+	selection := status.SemanticOnlySnapshotSelection().WithoutTerraformStateEvidence()
+	if err := selection.Validate(); err == nil {
+		t.Fatalf("Validate(%+v) = nil, want semantic-only rejection", selection)
+	}
+	if err := status.FullSnapshotSelection().WithoutTerraformStateEvidence().Validate(); err != nil {
+		t.Fatalf("standard selection without Terraform evidence: Validate() = %v, want nil", err)
+	}
+}

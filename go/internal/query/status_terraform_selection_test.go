@@ -5,6 +5,7 @@ package query
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -120,7 +121,7 @@ func TestTerraformFreeStatusRoutesSkipTerraformEvidence(t *testing.T) {
 			if baseline.returnedTerraformRows != 3 || selected.returnedTerraformRows != 0 {
 				t.Fatalf("Terraform rows baseline=%d selected=%d, want 3/0", baseline.returnedTerraformRows, selected.returnedTerraformRows)
 			}
-			if !bytes.Equal(got, want) {
+			if !statusBodiesEqual(t, route.path, got, want) {
 				t.Fatalf("response changed when Terraform evidence was omitted:\nfull=%s\nomitted=%s", want, got)
 			}
 		})
@@ -157,5 +158,65 @@ func TestTerraformRenderingStatusRoutesKeepTerraformEvidence(t *testing.T) {
 				t.Fatalf("byte-equality probe cannot see a lost terraform_state section on %s", route.path)
 			}
 		})
+	}
+}
+
+// handlerClockFields names the top-level response fields a route stamps from
+// its own time.Now() rather than from the snapshot clock. Collector readiness
+// writes generated_at at second precision, so two renders can straddle a
+// second boundary; the probe drops only these fields before comparing.
+var handlerClockFields = map[string][]string{
+	"/api/v0/status/collector-readiness": {"generated_at"},
+	"/api/v0/collector-readiness":        {"generated_at"},
+}
+
+// statusBodiesEqual reports whether two bodies of one route are identical,
+// ignoring only that route's handler-clock fields. Each ignored field must be
+// present in both bodies, so a renamed field cannot make the probe vacuous.
+func statusBodiesEqual(t *testing.T, path string, a, b []byte) bool {
+	t.Helper()
+	fields := handlerClockFields[path]
+	if len(fields) == 0 {
+		return bytes.Equal(a, b)
+	}
+	normalize := func(body []byte) []byte {
+		t.Helper()
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("%s: decode body: %v: %s", path, err, body)
+		}
+		for _, field := range fields {
+			if _, ok := payload[field]; !ok {
+				t.Fatalf("%s: body has no handler-clock field %q: %s", path, field, body)
+			}
+			delete(payload, field)
+		}
+		out, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("%s: encode body: %v", path, err)
+		}
+		return out
+	}
+	return bytes.Equal(normalize(a), normalize(b))
+}
+
+// TestStatusBodiesEqualIgnoresOnlyHandlerClock proves the equality probe
+// tolerates a second-boundary difference in the readiness handler's own
+// wall-clock stamp and nothing else.
+func TestStatusBodiesEqualIgnoresOnlyHandlerClock(t *testing.T) {
+	t.Parallel()
+	first := []byte(`{"count":1,"generated_at":"2026-10-06T08:27:37Z","readiness":[]}`)
+	nextSecond := []byte(`{"count":1,"generated_at":"2026-10-06T08:27:38Z","readiness":[]}`)
+	otherCount := []byte(`{"count":2,"generated_at":"2026-10-06T08:27:37Z","readiness":[]}`)
+	for _, path := range []string{"/api/v0/status/collector-readiness", "/api/v0/collector-readiness"} {
+		if !statusBodiesEqual(t, path, first, nextSecond) {
+			t.Fatalf("%s: a generated_at second boundary failed the probe", path)
+		}
+		if statusBodiesEqual(t, path, first, otherCount) {
+			t.Fatalf("%s: a changed count passed the probe", path)
+		}
+	}
+	if statusBodiesEqual(t, "/api/v0/status/operations", first, nextSecond) {
+		t.Fatal("a route without a handler clock ignored a changed field")
 	}
 }

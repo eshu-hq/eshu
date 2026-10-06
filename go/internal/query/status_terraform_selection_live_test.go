@@ -18,7 +18,8 @@ import (
 )
 
 // terraformLiveSelectionReader wraps the production status store. It pins the
-// snapshot clock so two reads render identical timestamps, records how many
+// snapshot clock so two reads render identical snapshot timestamps (a route's
+// own handler-clock fields are dropped by statusBodiesEqual), records how many
 // Terraform rows each read returned, and can override the route's Terraform
 // choice to build the full-read baseline (forceRead) or a seeded violation
 // (forceSkip).
@@ -88,7 +89,7 @@ func TestStatusRoutesTerraformSelectionLive(t *testing.T) {
 		if baseline.terraformRows != seededTerraformRows || selected.terraformRows != 0 {
 			t.Fatalf("%s: Terraform rows baseline=%d selected=%d, want %d/0", route.path, baseline.terraformRows, selected.terraformRows, seededTerraformRows)
 		}
-		if !bytes.Equal(got, want) {
+		if !statusBodiesEqual(t, route.path, got, want) {
 			t.Fatalf("%s: response changed without Terraform evidence:\nfull=%s\nskipped=%s", route.path, want, got)
 		}
 	}

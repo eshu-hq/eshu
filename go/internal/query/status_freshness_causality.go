@@ -24,8 +24,9 @@ func scopedFreshnessCausalityRoute(r *http.Request) bool {
 // are stale (by closed cause), the generation lifecycle including retired
 // generations, and pending projection work. It loads one status snapshot (the
 // /api/v0/status/pipeline read path without the Terraform-state reads it never
-// renders) and projects it in memory, adding no database cost. Scoped tokens receive the same aggregate counts and cause
-// observations with raw scope/generation identifiers withheld from transitions.
+// renders) and projects it in memory, adding no database cost. Scoped tokens
+// receive the same aggregate counts and cause observations with raw
+// scope/generation identifiers withheld from transitions.
 func (h *StatusHandler) getFreshnessCausality(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")

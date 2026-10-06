@@ -64,11 +64,11 @@ See `doc.go` for the godoc contract. Key types and functions:
   answer narration, runtime `/metrics`, and the live evidence bundle (#7009).
   `WithoutTerraformStateEvidence()` sets only this flag on a copy of a
   selection, so those surfaces keep their other section requests. The zero
-  value, full pipeline status, index status, and admin JSON status retain the
-  Terraform reads and propagate their failures. A skipping surface no longer
-  fails on errors confined to the omitted reads; failures in retained status
-  reads still fail it. Other snapshot sections and health evaluation are
-  unchanged. `LoadReportWithSelection` reads a selected snapshot and builds the
+  value, full pipeline status, index status, runtime `/admin/status` (JSON and
+  text), and `cmd/admin-status` retain the Terraform reads and propagate their
+  failures. A skipping surface no longer fails on errors confined to the
+  omitted reads; failures in retained status reads still fail it. Other
+  snapshot sections and health evaluation are unchanged. `LoadReportWithSelection` reads a selected snapshot and builds the
   report for callers outside the query package.
 - `SemanticOnlySnapshotSelection()` — explicit opt-in for the semantic
   extraction status route. It reads only semantic queue, budget, and audit
