@@ -16,14 +16,53 @@ var (
 	pairedFormatVerb    = regexp.MustCompile(`%[sd]`)
 )
 
-// labelTestsPairedWithInLabels reports whether every label test in a WHERE
-// attached to a relationship MATCH is a defence-in-depth conjunct that sits
-// beside the `'Label' IN labels(x)` form NornicDB v1.3.3 does evaluate there
-// (#6786 X11, #7246).
+// pairedVarLengthRelationship matches a single variable-length relationship
+// bracket such as `[*1..4]` or `[:R*1..%d]`.
+var pairedVarLengthRelationship = regexp.MustCompile(`\[[^\[\]]*\*[^\[\]]*\]`)
+
+// labelTestPairExempt reports whether a label test in the WHERE of a
+// relationship MATCH is the one shape #7246 proved harmless: a defence-in-depth
+// conjunct beside the `'Label' IN labels(x)` form NornicDB v1.3.3 evaluates.
+// It is the exemption's position gate plus labelTestsPairedWithInLabels.
 //
-// A positive label test in that position is ignored by NornicDB, not
-// evaluated, and the rest of the WHERE still is (probes D03 and J05 in
-// docs/internal/evidence/6786-nornicdb-label-predicates.md). So
+// The position is exactly the live-proven one, because the label test is only
+// inert on NornicDB where it is ignored, and 6786-nornicdb-label-predicates.md
+// shows it is ignored in some positions and evaluated in others:
+//
+//   - governing must be a plain MATCH. An OPTIONAL MATCH evaluates the label
+//     test and nulls the row (row H05).
+//   - the MATCH must open its frame (opensFrame): no MATCH, WITH or other
+//     clause before it. A label test in the WHERE of a second MATCH returns
+//     zero rows (row H02), and a negated one returns zero rows (row D04).
+//   - the MATCH holds exactly one relationship, and it is variable-length, the
+//     shape TestLiveChangeSurfaceLabelPredicate and
+//     TestLiveChangeSurfaceLabelConjunctDeepTraversal run on NornicDB and Neo4j.
+//
+// Rows A02 through I01 measure a positive label test as ignored only for a
+// single-relationship MATCH that opens its frame, which is why the rule above
+// is not widened to any WHERE.
+func labelTestPairExempt(governing, governingBody, original string, opensFrame bool) bool {
+	if governing != "MATCH" || !opensFrame {
+		return false
+	}
+	if len(pairedVarLengthRelationship.FindAllString(governingBody, -1)) != 1 || strings.Count(governingBody, "[") != 1 {
+		return false
+	}
+	return labelTestsPairedWithInLabels(original)
+}
+
+// labelTestsPairedWithInLabels reports whether the label tests in a WHERE are
+// one `x:A OR x:B` defence-in-depth conjunct for a single variable, beside an
+// `'A' IN labels(x) OR 'B' IN labels(x)` guard over the same label set (#7246).
+// Position is decided by labelTestPairExempt, not here.
+//
+// On NornicDB v1.3.3 a positive label test in the WHERE of a single
+// variable-length MATCH that opens its frame is ignored and the IN labels()
+// terms are evaluated (probes D03 and J05 in
+// docs/internal/evidence/6786-nornicdb-label-predicates.md, and the live tests
+// named on labelTestPairExempt). That holds only for those rows: in the
+// WHERE of a second MATCH (H02), of an OPTIONAL MATCH (H05) or with a negation
+// (D04) the label test is evaluated and drops rows. So
 // `(x:A OR x:B) AND ('A' IN labels(x) OR 'B' IN labels(x))` returns what the
 // IN labels() terms alone return on NornicDB, while Neo4j runs the cheap label
 // test before the labels() calls. The shape is accepted only when all of this
@@ -31,10 +70,10 @@ var (
 // could stop being a no-op:
 //
 //   - the WHERE has no top-level OR, so the conjunct cannot widen the filter;
-//   - for each variable it tests, exactly one conjunct is a positive
-//     `x:A OR x:B` disjunction and exactly one is an `'A' IN labels(x) OR ...`
-//     disjunction, over the same label set, so Neo4j and NornicDB admit the
-//     same rows;
+//   - exactly one variable carries a label test: exactly one conjunct is a
+//     positive `x:A OR x:B` disjunction and exactly one is an
+//     `'A' IN labels(x) OR ...` disjunction, over the same label set, so Neo4j
+//     and NornicDB admit the same rows;
 //   - no other conjunct carries a label test.
 //
 // where must be the original clause text, string literals included. A Sprintf
@@ -69,7 +108,7 @@ func labelTestsPairedWithInLabels(where string) bool {
 			return false
 		}
 	}
-	if len(tests) == 0 || len(tests) != len(guards) {
+	if len(tests) != 1 || len(guards) != 1 {
 		return false
 	}
 	for variable, labels := range tests {

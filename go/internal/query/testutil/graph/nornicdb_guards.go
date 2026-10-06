@@ -141,7 +141,10 @@ func IgnoredLabelPredicate(cypher string) string {
 				continue
 			}
 			original := sameFrameText(cypher, frame, id, c.end, bodyEnd)
-			if problem := labelPredicateProblem(governing, governingBody, body, original); problem != "" {
+			// The paired-conjunct exemption needs the MATCH to open its frame:
+			// clauses[0] is that MATCH and this WHERE is clauses[1] (#7246).
+			opensFrame := i == 1
+			if problem := labelPredicateProblem(governing, governingBody, body, original, opensFrame); problem != "" {
 				return problem + ": " + strings.TrimSpace(cypher[c.start:bodyEnd])
 			}
 		}
@@ -150,8 +153,9 @@ func IgnoredLabelPredicate(cypher string) string {
 }
 
 // labelPredicateProblem classifies one WHERE. original is the same clause with
-// its string literals intact, which where has blanked.
-func labelPredicateProblem(governing, governingBody, where, original string) string {
+// its string literals intact, which where has blanked. opensFrame is true when
+// the governing clause is the first clause of its frame, with nothing before it.
+func labelPredicateProblem(governing, governingBody, where, original string, opensFrame bool) string {
 	if quantifiesOverLabels(where) {
 		return "quantifier or list comprehension over labels() is never evaluated correctly"
 	}
@@ -161,7 +165,7 @@ func labelPredicateProblem(governing, governingBody, where, original string) str
 			return ""
 		}
 		if labelPredicateLabelTest.MatchString(blankRelationshipNodePatterns(where)) {
-			if labelTestsPairedWithInLabels(original) {
+			if labelTestPairExempt(governing, governingBody, original, opensFrame) {
 				return ""
 			}
 			return "label test in a WHERE attached to a relationship MATCH is ignored; use 'Label' IN labels(x)"

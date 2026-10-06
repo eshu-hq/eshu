@@ -12,9 +12,16 @@
 // attached to WITH, which v1.3.3 does evaluate; it is driven here as the
 // not-affected control.
 //
+// TestLiveChangeSurfaceLabelConjunctDeepTraversal (#7246) drives the
+// `impacted:Label` conjunct that sits beside the IN labels() whitelist over a
+// multi-hop graph, on both backends.
+//
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:28020 ESHU_LIVE_GRAPH_BACKEND=nornicdb \
 //	  go test ./internal/query/impact -tags live_nornicdb_label_predicates \
-//	  -run TestLiveChangeSurfaceLabelPredicate -count=1 -v
+//	  -run 'TestLiveChangeSurfaceLabelPredicate|TestLiveChangeSurfaceLabelConjunctDeepTraversal' -count=1 -v
+//
+// Both seeds use CREATE without cleanup, so run against a fresh store: a rerun
+// on the same store duplicates the seed nodes and fails the row-count checks.
 package impact
 
 import (
