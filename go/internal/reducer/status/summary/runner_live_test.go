@@ -20,7 +20,7 @@ import (
 // after a pass, the stored row equals the live statement at the row's as_of,
 // read in one snapshot, at 0.2 %, 50 %, and 100 % live work, and the
 // comparison is shown able to differ. Item 9 (empty state) is the last case:
-// with every input deleted the row holds only the queue section.
+// with every input deleted the row holds only the mode and queue sections.
 func TestWriterRowEqualsLiveStatementLive(t *testing.T) {
 	ctx, database := openWriterDatabase(t)
 	writer := newLiveWriter(database)
@@ -68,8 +68,14 @@ func TestWriterRowEqualsLiveStatementLive(t *testing.T) {
 			t.Fatalf("RunOnce() = %+v, want ok", pass)
 		}
 		row := assertRowEqualsLive(ctx, t, database)
-		if row.RowCount != 1 || row.Entries[0].Section != "queue" {
-			t.Fatalf("empty-state row = %+v, want one queue entry", row.Entries)
+		// With no work the statement returns only the always-present
+		// sections: the gate's mode row (#7647) and the queue totals.
+		sections := make([]string, 0, len(row.Entries))
+		for _, entry := range row.Entries {
+			sections = append(sections, entry.Section)
+		}
+		if !reflect.DeepEqual(sections, []string{"mode", "queue"}) {
+			t.Fatalf("empty-state row sections = %v, want [mode queue]: %+v", sections, row.Entries)
 		}
 	})
 }
