@@ -60,6 +60,14 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
 - `Store`, `Reader`, `Writer`, `NewStore`: small interfaces for the writer and
   reader callers.
 
+## Rollout order
+
+Migration 160 belongs to PR #7645 (`160_activation_obligations.sql`), so the PR
+that adds migration 161 must merge after #7645. Migration 161 only creates a new
+table, so no other ordering applies: the migration, then a writer, then a reader
+is safe in every order. A reader that finds no table falls back to the live
+statement, and a writer that finds no table skips and keeps looping.
+
 ## Proof
 
 Hermetic tests cover the codec round trip and its rejections, the SQL text pins

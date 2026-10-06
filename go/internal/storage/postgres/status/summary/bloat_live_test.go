@@ -212,6 +212,7 @@ func explainReadBuffers(ctx context.Context, t *testing.T, database *sql.DB) (hi
 	var plans []struct {
 		Plan struct {
 			NodeType string `json:"Node Type"`
+			Relation string `json:"Relation Name"`
 			Hit      int64  `json:"Shared Hit Blocks"`
 			Read     int64  `json:"Shared Read Blocks"`
 		} `json:"Plan"`
@@ -223,6 +224,13 @@ func explainReadBuffers(ctx context.Context, t *testing.T, database *sql.DB) (hi
 	if err := json.Unmarshal(document, &plans); err != nil || len(plans) != 1 {
 		t.Fatalf("decode EXPLAIN output: %v (%d plans) in %s", err, len(plans), document)
 	}
-	t.Logf("model read plan root node: %s", plans[0].Plan.NodeType)
+	t.Logf("model read plan root node: %s on %s", plans[0].Plan.NodeType, plans[0].Plan.Relation)
+	// The plan node type is not part of the contract: on a one-page table the
+	// planner reads the heap with a sequential scan, not the primary key index.
+	// The contract is that the read touches only this table, in a handful of
+	// buffers (asserted by the caller), never the work-item queue.
+	if plans[0].Plan.Relation != "status_summary_snapshots" {
+		t.Errorf("model read plan root reads %q, want only status_summary_snapshots", plans[0].Plan.Relation)
+	}
 	return plans[0].Plan.Hit, plans[0].Plan.Read, plans[0].Serialization.Hit, plans[0].Serialization.Read
 }

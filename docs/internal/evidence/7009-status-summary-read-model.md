@@ -86,6 +86,15 @@ The store returns classified errors (`ErrNotInstalled`, `ErrNotFound`,
 `ErrDecode`, `ErrRowCountMismatch`) and keeps the SQLSTATE reachable through
 `errors.As`, so those callers can label outcomes and log the SQLSTATE.
 
+## Rollout
+
+Merge order: this PR must merge after #7645, which holds
+`160_activation_obligations.sql`; re-check `ls migrations | tail -3` and the open
+PR file lists before merging, and renumber (updating the checksum manifest and the
+embed invariant digest) if another migration lands first. After that the order is
+free: the migration only adds a table, so migration, writer, and reader can ship
+in any order.
+
 ## Safety
 
 - Additive and reversible: one new table, no change to an existing table, and no
