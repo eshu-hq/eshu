@@ -160,10 +160,20 @@ deployment.
   percent).
 - Noise floor: the null pairs moved by 19.8 percent standard deviation (range
   -18.4 to +45.0 percent), because other jobs shared the host.
-- Reading: the change is inside the noise floor, so this run cannot separate the
-  cost of the module from host noise. It does not show a loss, and it does not
-  prove there is none. A select-only run sends one statement shape at a high
-  rate, which is a worst case for the module.
+- Reading: the estimate is inside the noise floor of the harness. It is not
+  evidence of zero cost, and it is not a confirmed loss. The point estimates are
+  a drop of 2 to 4 percent. A select-only run sends one statement shape at a high
+  rate, so every transaction updates the same statistics entry. Eshu expects that
+  to be a hard case for the module, but it did not compare a mixed workload.
+- Raw rounds, harness, and caveats: `docs/internal/evidence/7596-pg-stat-statements-overhead.md`.
+  Ledger rows: `7596-ab-delta-median-pct`, `7596-ab-delta-mean-pct`,
+  `7596-ab-delta-sd-pct`, `7596-null-delta-sd-pct`, and `7596-null-delta-mean-pct`.
+
+Three more Compose stacks get these settings through `extends` of the base
+postgres service: `docker-compose.e2e.yaml`, `docker-compose.demo.corpus.yaml`,
+and `docker-compose.remote-e2e.foundation.yaml`. The first run on those stacks
+after this change is a run with a new Postgres configuration. Keep that in mind
+when you compare it with a baseline from before the change.
 
 Measure again on your own hardware before you rely on the figure: start two
 servers with the same data, one with the [server settings](#server-settings),

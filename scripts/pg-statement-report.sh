@@ -103,14 +103,16 @@ read_only() {
 
 # 1. The module must be preloaded. This needs a server restart, so say so.
 preload="$(read_only "SHOW shared_preload_libraries;" | run_sql value | tail -n 1)" || exit 1
+# Exact list-element match without an array, so an empty value works under the
+# bash 3.2 that macOS ships. Strip spaces, quotes, and a $libdir/ prefix first.
+preload_list=",${preload//[[:space:]]/},"
+preload_list="${preload_list//\'/}"
+preload_list="${preload_list//\"/}"
+preload_list="${preload_list//,\$libdir\//,}"
 preloaded=false
-IFS=',' read -r -a preload_items <<<"$preload"
-for item in "${preload_items[@]}"; do
-  item="${item//[[:space:]]/}"
-  if [ "$item" = "pg_stat_statements" ]; then
-    preloaded=true
-  fi
-done
+case "$preload_list" in
+  *,pg_stat_statements,*) preloaded=true ;;
+esac
 case "$preloaded" in
   true) ;;
   *)
@@ -167,7 +169,7 @@ SELECT s.calls,
   FROM pg_stat_statements s
  WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
    AND s.query ~* '^\s*(select|insert|update|delete|merge|with)\M'
-   AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension'
+   AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|current_setting'
    $2
  ORDER BY $1 DESC
  LIMIT ${TOP_N};

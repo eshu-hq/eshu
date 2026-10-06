@@ -22,6 +22,8 @@
 #  11. block read time is selected only when track_io_timing is on, with the
 #      Postgres 17 column name or the older one.
 #  12. a psql failure -> exit 1.
+#  14. an empty, blank, or lookalike preload value exits 3; $libdir/ and quoted
+#      entries count; the test runs the script with the bash that runs the test.
 #  13. --no-buffers skips the residency section and never touches pg_buffercache.
 set -euo pipefail
 
@@ -78,7 +80,9 @@ run_case() {
   : >"${log_file}"
   export STUB_LOG="${log_file}"
   rc=0
-  PATH="${tmp_root}/bin:${PATH}" bash "${script}" "$@" >"${out_file}" 2>&1 || rc=$?
+  PATH="${tmp_root}/bin:${PATH}" "${BASH}" "${script}" "$@" >"${out_file}" 2>&1 || rc=$?
+  # Reset the per-call knobs: bash 3.2 keeps `VAR=x function` assignments.
+  unset STUB_IO STUB_FAIL
 }
 
 has() { rg -q --fixed-strings -- "$1" "$2"; }
@@ -175,7 +179,7 @@ if has "s.query ~* '^\\s*(select|insert|update|delete|merge|with)\\M'" "${log_fi
 else
   record_fail "SQL filters to normalized statement kinds"
 fi
-if has "s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension'" "${log_file}"; then
+if has "s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|current_setting'" "${log_file}"; then
   record_pass "SQL excludes the report's own queries"
 else
   record_fail "SQL excludes the report's own queries"
@@ -228,6 +232,23 @@ if [ "${rc}" -eq 0 ] && has "stub-mean-row" "${out_file}" && ! has "Shared-buffe
 else
   record_fail "--no-buffers skips residency and never queries pg_buffercache (rc=${rc})"
 fi
+
+# 14. Empty, blank, and lookalike preload values; $libdir/ and quoted entries.
+for blank in "" "   "; do
+  run_case "${blank}" "1.12" 1
+  if [ "${rc}" -eq 3 ] && has "shared_preload_libraries" "${out_file}" &&
+    [ "$(wc -l <"${out_file}" | tr -d ' ')" = "1" ]; then
+    record_pass "blank preload value exits 3 with one line"
+  else
+    record_fail "blank preload value exits 3 with one line (rc=${rc})"
+  fi
+done
+run_case "xpg_stat_statements,pg_stat_statements_foo" "1.12" 1
+if [ "${rc}" -eq 3 ]; then record_pass "lookalike preload names do not count"; else record_fail "lookalike preload names do not count (rc=${rc})"; fi
+run_case "\$libdir/pg_stat_statements" "1.12" 1
+if [ "${rc}" -eq 0 ]; then record_pass "\$libdir/ prefixed preload counts"; else record_fail "\$libdir/ prefixed preload counts (rc=${rc})"; fi
+run_case "pg_cron, '\$libdir/pg_stat_statements'" "1.12" 1
+if [ "${rc}" -eq 0 ]; then record_pass "quoted \$libdir/ entry in a list counts"; else record_fail "quoted \$libdir/ entry in a list counts (rc=${rc})"; fi
 
 printf '%s passed, %s failed\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" -eq 0 ]
