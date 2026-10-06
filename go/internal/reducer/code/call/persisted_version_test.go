@@ -113,7 +113,7 @@ func TestExtractCodeCallRowsProducesRowsForPersistedVersionlessFacts(t *testing.
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
-	_, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	_, rows, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 
 	if len(quarantined) != 0 {
 		t.Fatalf("len(quarantined) = %d, want 0; a valid persisted-version file fact must NOT be quarantined (the corpus P0 was every valid file quarantining): %+v", len(quarantined), quarantined)

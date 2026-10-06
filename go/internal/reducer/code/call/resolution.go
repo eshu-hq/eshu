@@ -57,10 +57,10 @@ func resolveGenericCallee(
 	}
 
 	callLine := shared.PayloadInt(call["line_number"], call["ref_line"])
-	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {
+	if entityID := resolveSameFileScopedCalleeEntityID(index, repositoryID, rawPath, relativePath, call, callLine); entityID != "" {
 		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
 	}
-	if entityID := javascript.ResolveDynamicCallee(index, rawPath, relativePath, fileData, call); entityID != "" {
+	if entityID := javascript.ResolveDynamicCallee(index, repositoryID, rawPath, relativePath, fileData, call); entityID != "" {
 		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodTypeInferred
 	}
 	if entityID := shared.ResolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {

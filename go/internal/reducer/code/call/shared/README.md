@@ -26,9 +26,9 @@ wiring stay in `code/call`.
 | `index.go`, `index_types.go`, `index_helpers.go` | `EntityIndex`, `BuildEntityIndex`, `FunctionSpan` |
 | `context.go` | `Phase`, `Resolver`, `ResolveContext` |
 | `names.go` | `ExactCandidateNames`, `BroadCandidateNames`, candidate-name derivation |
-| `paths.go` | `PathKeys`, `PayloadInt`, `NormalizePath`, `CallLanguage`, `HasQualifiedScope` |
+| `paths.go` | `PathKeys` (bare-name keys included, for name lookups), `PayloadInt`, `NormalizePath`, `CallLanguage`, `HasQualifiedScope` |
 | `arity.go` | `AppendArityNames`, `AppendTypedSignatureNames`, `MetadataInt`, `MetadataStringSlice` |
-| `containment.go` | `ResolveContainingEntityID` |
+| `containment.go` | `ResolveContainingEntityID`, `FileKeys`, `NarrowestContainingSpan` (repository- and file-scoped span lookup, #7640) |
 | `endpoint_types.go` | `EndpointEntityType` |
 | `imports.go`, `import_targets.go`, `import_guards.go` | Repository-import caching, import-target derivation, Python import-binding barriers |
 | `reexports.go` | `ReexportIndex`, `BuildReexportIndex` |
@@ -45,13 +45,36 @@ wiring stay in `code/call`.
 survives the package boundary. A language leaf reads them through:
 `EntityFileByID`, `UniqueNameByPath`, `UniqueNameByRepo`, `UniqueNameByRepoDir`,
 `GoMethodReturnTypes`, `GoExportByImportPath`, `HasGoExports`,
-`JavaScriptAliasesByPath`, `PythonClassBasesByRepo`, `RustTraitMethodsByRepo`,
-`SpansByPath`, `TypeScriptInterfaceMethodsByRepo`, and (for tests)
+`JavaScriptAliasesByFile`, `PythonClassBasesByRepo`, `RustTraitMethodsByRepo`,
+`SpansByFile`, `TypeScriptInterfaceMethodsByRepo`, and (for tests)
 `RepositoryImportPathsByRepo`. Every accessor call inlines
 (`go build -gcflags=-m` reports `inlining call to shared.EntityIndex.<Accessor>`
 at every call site), so the accessor indirection costs nothing on the
 resolution hot path — verified by a before/after benchmark on
 `BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls`.
+
+## Containment is file-scoped (#7640)
+
+A call's containing function comes only from the call file's own identity:
+(repository, normalized full path) and (repository, normalized relative path).
+`spansByFile`, `containersByFile`, and `javaScriptAliasesByFile` are nested
+`repository -> file key -> spans` maps written only under the two
+`FileKeys` values, and `ResolveContainingEntityID`, `SpansByFile`, and
+`JavaScriptAliasesByFile` take a repository ID. Before this, spans were also
+stored under the bare file name from `PathKeys`, so a top-level call (no
+enclosing span in its own file) picked the narrowest span over that line in
+any same-named file, including files of other repositories. The probe builds no
+composite `repo+path` string: it normalizes the two paths (no allocation on an
+already-clean path) and does at most two nested map lookups, with no slice
+allocation where `PathKeys` built one.
+
+Consequences: a top-level call now has a caller only when a fallback supplies
+one (a JavaScript/TypeScript package-root file, a JavaScript reference or
+same-file top-level call, or a Java metadata root, as before). Any other
+top-level call, in any language, has no caller and emits no `CALLS` row. PHP in-function calls also drop until the PHP parser
+reports real `end_line` values, because today a PHP function span is zero-width.
+`PathKeys` still includes bare names for the name lookups (`ResolveEntityID`,
+`uniqueNameByPath`) that this change did not touch.
 
 ## Dependency rule
 

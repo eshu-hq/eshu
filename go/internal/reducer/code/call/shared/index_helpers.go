@@ -9,12 +9,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// SpanWidth returns the line-count width of span (EndLine - StartLine),
-// used to prefer the narrowest containing span when several overlap.
-func SpanWidth(span FunctionSpan) int {
-	return span.EndLine - span.StartLine
-}
-
 // SpanMatchesAnyName reports whether span's candidate names include any of
 // names.
 func SpanMatchesAnyName(span FunctionSpan, names []string) bool {

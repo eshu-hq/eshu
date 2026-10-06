@@ -21,7 +21,7 @@ var (
 
 // JavaScriptAliasSet is the cached result of scanning a JavaScript/TypeScript
 // function's source for static local-name aliases and string-literal
-// variables. It is obtained through [EntityIndex.JavaScriptAliasesByPath] or
+// variables. It is obtained through [EntityIndex.JavaScriptAliasesByFile] or
 // [JavaScriptStaticAliases]; the javascript leaf's dynamic-call resolver
 // reads it to normalize otherwise-dynamic call expressions.
 type JavaScriptAliasSet struct {
@@ -48,32 +48,35 @@ func codeCallJavaScriptSourceFile(fileData map[string]any, rawPath string, relat
 
 func cacheJavaScriptStaticAliasSpan(
 	index EntityIndex,
-	pathKeys []string,
+	repositoryID string,
+	fullKey string,
+	relativeKey string,
 	startLine int,
 	endLine int,
 	source string,
 ) {
-	if len(pathKeys) == 0 || startLine <= 0 || strings.TrimSpace(source) == "" {
+	if (fullKey == "" && relativeKey == "") || startLine <= 0 || strings.TrimSpace(source) == "" {
 		return
 	}
 	aliases, staticStrings := JavaScriptStaticAliases(source)
-	aliasSet := JavaScriptAliasSet{
-		Aliases:       aliases,
-		StaticStrings: staticStrings,
-		Scanned:       true,
+	span := javaScriptStaticAliasSpan{
+		StartLine: startLine,
+		EndLine:   endLine,
+		Aliases: JavaScriptAliasSet{
+			Aliases:       aliases,
+			StaticStrings: staticStrings,
+			Scanned:       true,
+		},
 	}
-	for _, pathKey := range pathKeys {
-		if pathKey == "" {
-			continue
+	files := index.javaScriptAliasesByFile[repositoryID]
+	if files == nil {
+		files = make(map[string][]javaScriptStaticAliasSpan)
+		index.javaScriptAliasesByFile[repositoryID] = files
+	}
+	for _, key := range [2]string{fullKey, relativeKey} {
+		if key != "" {
+			files[key] = append(files[key], span)
 		}
-		index.javaScriptAliasesByPath[pathKey] = append(
-			index.javaScriptAliasesByPath[pathKey],
-			javaScriptStaticAliasSpan{
-				StartLine: startLine,
-				EndLine:   endLine,
-				Aliases:   aliasSet,
-			},
-		)
 	}
 }
 

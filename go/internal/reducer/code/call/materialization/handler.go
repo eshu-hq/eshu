@@ -135,7 +135,11 @@ func (h Handler) Handle(
 	symbolLoadDuration := time.Since(symbolLoadStart)
 
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows, entityIndex, quarantinedFiles := codecall.ExtractAllRelationshipRowsWithIndex(relationshipEnvelopes)
+	extraction := codecall.ExtractRelationships(relationshipEnvelopes)
+	codeCallRows := extraction.CodeCallRows
+	metaclassRows := extraction.MetaclassRows
+	entityIndex := extraction.EntityIndex
+	quarantinedFiles := extraction.Quarantined
 	extractDuration := time.Since(extractStart)
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeCallMaterialization, intent.ScopeID, intent.GenerationID, quarantinedFiles)
 	createdAt := intent.EnqueuedAt
@@ -172,36 +176,40 @@ func (h Handler) Handle(
 	// paired in the same pass with a whole-scope refresh intent that owns the
 	// single repo-wide retract, so the worker can fence per-edge writes behind it
 	// and stop partitions wiping each other's edges (#2898/#2910).
-	intentRows = append(
-		intentRows,
-		BuildIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)...,
+	runtimeIntentRows, unresolvedCloudActionCallers := buildIntentRowsCounted(
+		envelopes, entityIndex, contextByRepoID, createdAt,
 	)
+	intentRows = append(intentRows, runtimeIntentRows...)
 	intentBuildDuration := time.Since(intentBuildStart)
 
 	if len(intentRows) == 0 {
 		totalDuration := time.Since(totalStart)
 		logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
-			intent:              intent,
-			factCount:           len(envelopes),
-			symbolKeyCount:      len(symbolKeys),
-			symbolFactCount:     len(symbolDefinitionEnvelopes),
-			repoCount:           len(contextByRepoID),
-			codeCallRowCount:    len(codeCallRows),
-			metaclassRowCount:   len(metaclassRows),
-			intentRowCount:      0,
-			fileScopedRepoCount: len(fileScopesByRepoID),
-			fullRefreshScoped:   fileScopeResult.FullRefreshScopedRepos,
-			fullRefreshFallback: fileScopeResult.FullRefreshFallbackRepos,
-			loadDuration:        loadDuration,
-			contextDuration:     contextDuration,
-			symbolLoadDuration:  symbolLoadDuration,
-			extractDuration:     extractDuration,
-			intentBuildDuration: intentBuildDuration,
-			totalDuration:       totalDuration,
+			intent:                       intent,
+			factCount:                    len(envelopes),
+			symbolKeyCount:               len(symbolKeys),
+			symbolFactCount:              len(symbolDefinitionEnvelopes),
+			repoCount:                    len(contextByRepoID),
+			codeCallRowCount:             len(codeCallRows),
+			unresolvedCallers:            extraction.UnresolvedCallerCount,
+			unresolvedCloudActionCallers: unresolvedCloudActionCallers,
+			metaclassRowCount:            len(metaclassRows),
+			intentRowCount:               0,
+			fileScopedRepoCount:          len(fileScopesByRepoID),
+			fullRefreshScoped:            fileScopeResult.FullRefreshScopedRepos,
+			fullRefreshFallback:          fileScopeResult.FullRefreshFallbackRepos,
+			loadDuration:                 loadDuration,
+			contextDuration:              contextDuration,
+			symbolLoadDuration:           symbolLoadDuration,
+			extractDuration:              extractDuration,
+			intentBuildDuration:          intentBuildDuration,
+			totalDuration:                totalDuration,
 		})
 		// Projection context was built (input present) but extraction produced no
 		// edges: genuine empty work, signaled by input_ready=1 and written_rows=0.
 		emptySubSignals := reducercontract.MaterializationDiagnosticSignals(true, 0)
+		emptySubSignals[SubSignalUnresolvedCallerCalls] = float64(extraction.UnresolvedCallerCount)
+		emptySubSignals[SubSignalUnresolvedCloudActionCallers] = float64(unresolvedCloudActionCallers)
 		for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 			emptySubSignals[key] = value
 		}
@@ -240,28 +248,32 @@ func (h Handler) Handle(
 	}
 
 	logCodeCallMaterializationCompleted(ctx, codeCallMaterializationTiming{
-		intent:              intent,
-		factCount:           len(envelopes),
-		symbolKeyCount:      len(symbolKeys),
-		symbolFactCount:     len(symbolDefinitionEnvelopes),
-		repoCount:           len(contextByRepoID),
-		codeCallRowCount:    len(codeCallRows),
-		metaclassRowCount:   len(metaclassRows),
-		intentRowCount:      len(intentRows),
-		fileScopedRepoCount: len(fileScopesByRepoID),
-		fullRefreshScoped:   fileScopeResult.FullRefreshScopedRepos,
-		fullRefreshFallback: fileScopeResult.FullRefreshFallbackRepos,
-		loadDuration:        loadDuration,
-		contextDuration:     contextDuration,
-		symbolLoadDuration:  symbolLoadDuration,
-		extractDuration:     extractDuration,
-		intentBuildDuration: intentBuildDuration,
-		upsertDuration:      upsertDuration,
-		totalDuration:       totalDuration,
+		intent:                       intent,
+		factCount:                    len(envelopes),
+		symbolKeyCount:               len(symbolKeys),
+		symbolFactCount:              len(symbolDefinitionEnvelopes),
+		repoCount:                    len(contextByRepoID),
+		codeCallRowCount:             len(codeCallRows),
+		unresolvedCallers:            extraction.UnresolvedCallerCount,
+		unresolvedCloudActionCallers: unresolvedCloudActionCallers,
+		metaclassRowCount:            len(metaclassRows),
+		intentRowCount:               len(intentRows),
+		fileScopedRepoCount:          len(fileScopesByRepoID),
+		fullRefreshScoped:            fileScopeResult.FullRefreshScopedRepos,
+		fullRefreshFallback:          fileScopeResult.FullRefreshFallbackRepos,
+		loadDuration:                 loadDuration,
+		contextDuration:              contextDuration,
+		symbolLoadDuration:           symbolLoadDuration,
+		extractDuration:              extractDuration,
+		intentBuildDuration:          intentBuildDuration,
+		upsertDuration:               upsertDuration,
+		totalDuration:                totalDuration,
 	})
 
 	// Projection context was built (input present) and intents were emitted.
 	subSignals := reducercontract.MaterializationDiagnosticSignals(true, len(intentRows))
+	subSignals[SubSignalUnresolvedCallerCalls] = float64(extraction.UnresolvedCallerCount)
+	subSignals[SubSignalUnresolvedCloudActionCallers] = float64(unresolvedCloudActionCallers)
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}
@@ -319,25 +331,42 @@ func loadActiveCodeCallSymbolDefinitionFacts(
 	return envelopes, nil
 }
 
+// SubSignalUnresolvedCallerCalls is the Result.SubSignals key (logged as
+// sub_signal_unresolved_caller_calls) carrying how many calls resolved a
+// callee but no caller in their own file, so emitted no CALLS row. A drop in
+// code_call_row_count with a matching rise here is the expected #7640
+// containment effect, not lost input.
+const SubSignalUnresolvedCallerCalls = "unresolved_caller_calls"
+
+// SubSignalUnresolvedCloudActionCallers is the Result.SubSignals key (logged
+// as sub_signal_unresolved_cloud_action_callers) carrying
+// how many SDK calls mapped to a cataloged cloud action but had no containing
+// function in their own repository and file, so emitted no INVOKES_CLOUD_ACTION
+// intent (#7640). It is the INVOKES_CLOUD_ACTION counterpart of
+// [SubSignalUnresolvedCallerCalls], which counts the CALLS path only.
+const SubSignalUnresolvedCloudActionCallers = "unresolved_cloud_action_callers"
+
 type codeCallMaterializationTiming struct {
-	intent              reducercontract.Intent
-	factCount           int
-	symbolKeyCount      int
-	symbolFactCount     int
-	repoCount           int
-	codeCallRowCount    int
-	metaclassRowCount   int
-	intentRowCount      int
-	fileScopedRepoCount int
-	fullRefreshScoped   int
-	fullRefreshFallback int
-	loadDuration        time.Duration
-	contextDuration     time.Duration
-	symbolLoadDuration  time.Duration
-	extractDuration     time.Duration
-	intentBuildDuration time.Duration
-	upsertDuration      time.Duration
-	totalDuration       time.Duration
+	intent                       reducercontract.Intent
+	factCount                    int
+	symbolKeyCount               int
+	symbolFactCount              int
+	repoCount                    int
+	codeCallRowCount             int
+	unresolvedCallers            int
+	unresolvedCloudActionCallers int
+	metaclassRowCount            int
+	intentRowCount               int
+	fileScopedRepoCount          int
+	fullRefreshScoped            int
+	fullRefreshFallback          int
+	loadDuration                 time.Duration
+	contextDuration              time.Duration
+	symbolLoadDuration           time.Duration
+	extractDuration              time.Duration
+	intentBuildDuration          time.Duration
+	upsertDuration               time.Duration
+	totalDuration                time.Duration
 }
 
 func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMaterializationTiming) {
@@ -351,6 +380,8 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Int("symbol_definition_fact_count", timing.symbolFactCount),
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("code_call_row_count", timing.codeCallRowCount),
+		slog.Int("code_call_unresolved_caller_count", timing.unresolvedCallers),
+		slog.Int("code_call_unresolved_cloud_action_caller_count", timing.unresolvedCloudActionCallers),
 		slog.Int("metaclass_row_count", timing.metaclassRowCount),
 		slog.Int("intent_row_count", timing.intentRowCount),
 		slog.Int("file_scoped_repo_count", timing.fileScopedRepoCount),

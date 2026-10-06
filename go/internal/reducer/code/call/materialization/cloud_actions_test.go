@@ -61,6 +61,14 @@ func invokesCloudActionFileEnvelope(
 
 func buildInvokesCloudActionIntentsForTest(t *testing.T, envelopes []facts.Envelope) []sharedintent.Row {
 	t.Helper()
+	rows, _ := buildInvokesCloudActionIntentsWithCountForTest(t, envelopes)
+	return rows
+}
+
+// buildInvokesCloudActionIntentsWithCountForTest also returns how many
+// resolved SDK calls had no containing function in their own repository.
+func buildInvokesCloudActionIntentsWithCountForTest(t *testing.T, envelopes []facts.Envelope) ([]sharedintent.Row, int) {
+	t.Helper()
 	generationID := "gen-1"
 	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
 	index := shared.BuildEntityIndex(envelopes)

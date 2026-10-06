@@ -12,9 +12,16 @@
 // language-specific lookup fields stay unexported; callers outside this
 // package read them through the accessor methods on EntityIndex
 // (EntityFileByID, UniqueNameByRepoDir, GoMethodReturnTypes,
-// GoExportByImportPath, JavaScriptAliasesByPath, PythonClassBasesByRepo,
-// RustTraitMethodsByRepo, SpansByPath, TypeScriptInterfaceMethodsByRepo) so
-// the read-only invariant survives the package boundary. Do not add mutation
+// GoExportByImportPath, JavaScriptAliasesByFile, PythonClassBasesByRepo,
+// RustTraitMethodsByRepo, SpansByFile, TypeScriptInterfaceMethodsByRepo) so
+// the read-only invariant survives the package boundary.
+//
+// Span lookups are repository- and file-scoped (#7640): function and type
+// spans and the JavaScript alias cache are stored per repository under only
+// the file's own [FileKeys] (normalized full path and normalized relative
+// path), never under a bare file name. [ResolveContainingEntityID] therefore
+// returns "" for a call with no enclosing span in its own file instead of
+// borrowing a span from a same-named file elsewhere. Do not add mutation
 // methods; the symbol-runtime builders in the reducer root share the same
 // instance.
 //

@@ -14,8 +14,16 @@ package shared
 // reads them through the accessor methods below instead of the raw fields.
 type EntityIndex struct {
 	entitiesByPathLine map[string]string
-	spansByPath        map[string][]FunctionSpan
-	containersByPath   map[string][]FunctionSpan
+	// spansByFile maps repositoryID -> file key -> function spans in that
+	// file. A file is keyed only by its own normalized full path and
+	// normalized relative path (see [FileKeys]); never by a bare file name,
+	// so a span lookup cannot cross into a same-named file of another
+	// directory or another repository (#7640).
+	spansByFile map[string]map[string][]FunctionSpan
+	// containersByFile has the same repository and file keying as
+	// spansByFile and holds function plus class/struct/interface/type-alias
+	// spans, the candidates for a call's containing entity.
+	containersByFile map[string]map[string][]FunctionSpan
 	// uniqueNameByPath maps a normalized file path key to the function/type
 	// names that resolve to exactly one entity within that path. A name absent
 	// from the inner map was ambiguous (declared more than once) in that file
@@ -25,16 +33,19 @@ type EntityIndex struct {
 	// resolve to exactly one entity across the whole repository. A name absent
 	// from the inner map was ambiguous repository-wide and must not be
 	// resolved from it.
-	uniqueNameByRepo                 map[string]map[string]string
-	uniqueNameByRepoDir              map[string]map[string]map[string]string
-	constructorByPath                map[string]map[string]string
-	goMethodReturnTypes              map[string]map[string]string
-	rustTraitMethodsByRepo           map[string]map[string]string
-	pythonClassBasesByRepo           map[string]map[string][]string
-	entityFileByID                   map[string]string
-	entityTypeByID                   map[string]string
-	entityByStableSymbolKey          map[string]codeCallSymbolResolution
-	javaScriptAliasesByPath          map[string][]javaScriptStaticAliasSpan
+	uniqueNameByRepo        map[string]map[string]string
+	uniqueNameByRepoDir     map[string]map[string]map[string]string
+	constructorByPath       map[string]map[string]string
+	goMethodReturnTypes     map[string]map[string]string
+	rustTraitMethodsByRepo  map[string]map[string]string
+	pythonClassBasesByRepo  map[string]map[string][]string
+	entityFileByID          map[string]string
+	entityTypeByID          map[string]string
+	entityByStableSymbolKey map[string]codeCallSymbolResolution
+	// javaScriptAliasesByFile has the same repository and file keying as
+	// spansByFile and holds the cached static-alias set of each JavaScript
+	// function body.
+	javaScriptAliasesByFile          map[string]map[string][]javaScriptStaticAliasSpan
 	typeScriptInterfaceMethodsByRepo map[string]map[string]map[string]string
 	// receiverMethodsByRepo maps repositoryID -> receiver type -> method name ->
 	// the single entity declaring that method on the type. It backs receiver-type
@@ -77,7 +88,7 @@ type FunctionSpan struct {
 
 // javaScriptStaticAliasSpan associates a cached JavaScriptAliasSet with the
 // line range of the function source it was scanned from. The type stays
-// unexported (obtained only through [EntityIndex.JavaScriptAliasesByPath]);
+// unexported (obtained only through [EntityIndex.JavaScriptAliasesByFile]);
 // its fields are exported so the javascript leaf can read a returned value's
 // fields.
 type javaScriptStaticAliasSpan struct {
@@ -120,10 +131,11 @@ func (idx EntityIndex) HasGoExports() bool {
 	return len(idx.goExportByImportPath) > 0
 }
 
-// JavaScriptAliasesByPath returns the cached static-alias spans recorded for
-// pathKey, in ascending line order.
-func (idx EntityIndex) JavaScriptAliasesByPath(pathKey string) []javaScriptStaticAliasSpan {
-	return idx.javaScriptAliasesByPath[pathKey]
+// JavaScriptAliasesByFile returns the cached static-alias spans recorded for
+// the file whose own key (one of the [FileKeys] values) is fileKey within
+// repositoryID, in ascending line order. A bare file name never matches.
+func (idx EntityIndex) JavaScriptAliasesByFile(repositoryID, fileKey string) []javaScriptStaticAliasSpan {
+	return idx.javaScriptAliasesByFile[repositoryID][fileKey]
 }
 
 // PythonClassBasesByRepo returns the declared base-class names for className
@@ -140,10 +152,11 @@ func (idx EntityIndex) RustTraitMethodsByRepo(repositoryID, traitMethodKey strin
 	return idx.rustTraitMethodsByRepo[repositoryID][traitMethodKey]
 }
 
-// SpansByPath returns the function/type declaration spans recorded for
-// pathKey, sorted by start line.
-func (idx EntityIndex) SpansByPath(pathKey string) []FunctionSpan {
-	return idx.spansByPath[pathKey]
+// SpansByFile returns the function declaration spans recorded for the file
+// whose own key (one of the [FileKeys] values) is fileKey within
+// repositoryID, sorted by start line. A bare file name never matches.
+func (idx EntityIndex) SpansByFile(repositoryID, fileKey string) []FunctionSpan {
+	return idx.spansByFile[repositoryID][fileKey]
 }
 
 // TypeScriptInterfaceMethodsByRepo returns the entity id declaring methodName

@@ -51,8 +51,8 @@ func newEntityIndexCandidates() entityIndexCandidates {
 func BuildEntityIndex(envelopes []facts.Envelope) EntityIndex {
 	index := EntityIndex{
 		entitiesByPathLine:      make(map[string]string),
-		spansByPath:             make(map[string][]FunctionSpan),
-		containersByPath:        make(map[string][]FunctionSpan),
+		spansByFile:             make(map[string]map[string][]FunctionSpan),
+		containersByFile:        make(map[string]map[string][]FunctionSpan),
 		uniqueNameByPath:        make(map[string]map[string]string),
 		uniqueNameByRepo:        make(map[string]map[string]string),
 		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
@@ -63,7 +63,7 @@ func BuildEntityIndex(envelopes []facts.Envelope) EntityIndex {
 		entityFileByID:          make(map[string]string),
 		entityTypeByID:          make(map[string]string),
 		entityByStableSymbolKey: make(map[string]codeCallSymbolResolution),
-		javaScriptAliasesByPath: make(map[string][]javaScriptStaticAliasSpan),
+		javaScriptAliasesByFile: make(map[string]map[string][]javaScriptStaticAliasSpan),
 	}
 	index.repositoryImportPathsByRepo = make(map[string][]string)
 	candidates := newEntityIndexCandidates()
@@ -119,10 +119,13 @@ func addFunctionEntityCandidates(
 		if endLine < startLine {
 			endLine = startLine
 		}
+		fullKey, relativeKey := FileKeys(rawPath, relativePath)
 		if shouldCacheJavaScriptAliases {
 			cacheJavaScriptStaticAliasSpan(
 				*index,
-				PathKeys(rawPath, relativePath),
+				repositoryID,
+				fullKey,
+				relativeKey,
 				startLine,
 				endLine,
 				payloadcore.AnyToString(item["source"]),
@@ -136,16 +139,16 @@ func addFunctionEntityCandidates(
 			index.entityFileByID[entityID] = preferredPath
 		}
 		index.entityTypeByID[entityID] = "Function"
+		span := FunctionSpan{
+			StartLine: startLine,
+			EndLine:   endLine,
+			EntityID:  entityID,
+			names:     codeCallFunctionCandidateNames(item),
+		}
+		addFileSpan(index.spansByFile, repositoryID, fullKey, relativeKey, span)
+		addFileSpan(index.containersByFile, repositoryID, fullKey, relativeKey, span)
 		for _, pathKey := range PathKeys(rawPath, relativePath) {
 			index.entitiesByPathLine[codeCallPathLineKey(pathKey, startLine)] = entityID
-			span := FunctionSpan{
-				StartLine: startLine,
-				EndLine:   endLine,
-				EntityID:  entityID,
-				names:     codeCallFunctionCandidateNames(item),
-			}
-			index.spansByPath[pathKey] = append(index.spansByPath[pathKey], span)
-			index.containersByPath[pathKey] = append(index.containersByPath[pathKey], span)
 			if name := payloadcore.AnyToString(item["name"]); name == "constructor" || name == "__init__" {
 				classContext := strings.TrimSpace(payloadcore.AnyToString(item["class_context"]))
 				if classContext != "" {
@@ -193,20 +196,20 @@ func addTypeEntityCandidates(
 				index.entityFileByID[entityID] = preferredPath
 			}
 			index.entityTypeByID[entityID] = codeCallEntityTypeForBucket(bucket)
-			for _, pathKey := range PathKeys(rawPath, relativePath) {
-				startLine := PayloadInt(item["line_number"], item["start_line"])
+			if startLine := PayloadInt(item["line_number"], item["start_line"]); startLine > 0 {
 				endLine := PayloadInt(item["end_line"])
-				if startLine > 0 {
-					if endLine < startLine {
-						endLine = startLine
-					}
-					index.containersByPath[pathKey] = append(index.containersByPath[pathKey], FunctionSpan{
-						StartLine: startLine,
-						EndLine:   endLine,
-						EntityID:  entityID,
-						names:     codeCallTypeCandidateNames(item),
-					})
+				if endLine < startLine {
+					endLine = startLine
 				}
+				fullKey, relativeKey := FileKeys(rawPath, relativePath)
+				addFileSpan(index.containersByFile, repositoryID, fullKey, relativeKey, FunctionSpan{
+					StartLine: startLine,
+					EndLine:   endLine,
+					EntityID:  entityID,
+					names:     codeCallTypeCandidateNames(item),
+				})
+			}
+			for _, pathKey := range PathKeys(rawPath, relativePath) {
 				for _, candidateName := range codeCallTypeCandidateNames(item) {
 					addNameCandidate(candidates.nameCandidates, pathKey, candidateName, entityID)
 					if repositoryID != "" {
@@ -245,16 +248,17 @@ func addNameCandidate(
 // collapses each ambiguity-tracking candidate map in candidates to its
 // unique-only result on index.
 func finalizeEntityIndex(index *EntityIndex, candidates *entityIndexCandidates, envelopes []facts.Envelope) {
-	sortSpansByPath(index.spansByPath)
-	sortSpansByPath(index.containersByPath)
-	for pathKey, spans := range index.javaScriptAliasesByPath {
-		sort.Slice(spans, func(i, j int) bool {
-			if spans[i].StartLine == spans[j].StartLine {
-				return spans[i].EndLine < spans[j].EndLine
-			}
-			return spans[i].StartLine < spans[j].StartLine
-		})
-		index.javaScriptAliasesByPath[pathKey] = spans
+	sortSpansByFile(index.spansByFile)
+	sortSpansByFile(index.containersByFile)
+	for _, files := range index.javaScriptAliasesByFile {
+		for _, spans := range files {
+			sort.Slice(spans, func(i, j int) bool {
+				if spans[i].StartLine == spans[j].StartLine {
+					return spans[i].EndLine < spans[j].EndLine
+				}
+				return spans[i].StartLine < spans[j].StartLine
+			})
+		}
 	}
 
 	for pathKey, names := range candidates.nameCandidates {
@@ -301,15 +305,16 @@ func finalizeEntityIndex(index *EntityIndex, candidates *entityIndexCandidates, 
 	index.goExportByImportPath = buildGoCrossRepoExportIndex(envelopes)
 }
 
-func sortSpansByPath(spansByPath map[string][]FunctionSpan) {
-	for pathKey, spans := range spansByPath {
-		sort.Slice(spans, func(i, j int) bool {
-			if spans[i].StartLine == spans[j].StartLine {
-				return spans[i].EndLine < spans[j].EndLine
-			}
-			return spans[i].StartLine < spans[j].StartLine
-		})
-		spansByPath[pathKey] = spans
+func sortSpansByFile(spansByFile map[string]map[string][]FunctionSpan) {
+	for _, files := range spansByFile {
+		for _, spans := range files {
+			sort.Slice(spans, func(i, j int) bool {
+				if spans[i].StartLine == spans[j].StartLine {
+					return spans[i].EndLine < spans[j].EndLine
+				}
+				return spans[i].StartLine < spans[j].StartLine
+			})
+		}
 	}
 }
 
