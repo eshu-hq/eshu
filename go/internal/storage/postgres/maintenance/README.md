@@ -18,7 +18,8 @@ register against. `internal/runtime` owns the `StatusRequestStore` interface,
 the `ScanRequest`/`ReindexRequest` domain types, and the
 `StatusRequestHandler` that drives this store. `cmd/api` owns the write
 wiring: it constructs the store and passes it to the handler. `cmd/ingester`
-constructs a read-only store to read the reindex watermark each sync cycle.
+constructs the store and reads it only through `GetReindexState`, once per
+sync cycle, for the reindex watermark.
 
 ## Exported surface
 
