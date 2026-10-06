@@ -131,15 +131,20 @@ func resolveCloudAction(
 //
 // Otherwise the call is skipped. Multiple call sites that resolve to the same
 // (Function, action) collapse to one intent.
+//
+// The second return value counts SDK calls that mapped to a cataloged action
+// but had no containing entity in their own repository and file, so emitted no
+// intent (#7640). It counts every such call site, not the deduplicated
+// intents.
 func buildInvokesCloudActionIntentRows(
 	envelopes []facts.Envelope,
 	index shared.EntityIndex,
 	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
 	evidenceSource string,
-) []sharedintent.Row {
+) ([]sharedintent.Row, int) {
 	if len(envelopes) == 0 || len(contextByRepoID) == 0 {
-		return nil
+		return nil, 0
 	}
 	if evidenceSource == "" {
 		evidenceSource = invokesCloudActionEvidenceSource
@@ -148,6 +153,7 @@ func buildInvokesCloudActionIntentRows(
 
 	intents := make([]sharedintent.Row, 0)
 	seen := make(map[string]struct{})
+	unresolvedCallers := 0
 	for _, env := range envelopes {
 		if env.FactKind != factload.FactKindFile {
 			continue
@@ -180,6 +186,7 @@ func buildInvokesCloudActionIntentRows(
 			}
 			functionID := shared.ResolveContainingEntityID(index, repositoryID, rawPath, relativePath, callLine)
 			if functionID == "" {
+				unresolvedCallers++
 				continue
 			}
 			if shared.EndpointEntityType(index, repositoryID, functionID) != "Function" {
@@ -229,5 +236,5 @@ func buildInvokesCloudActionIntentRows(
 		}
 		return intents[i].IntentID < intents[j].IntentID
 	})
-	return intents
+	return intents, unresolvedCallers
 }

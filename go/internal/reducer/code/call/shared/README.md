@@ -68,9 +68,10 @@ composite `repo+path` string: it normalizes the two paths (no allocation on an
 already-clean path) and does at most two nested map lookups, with no slice
 allocation where `PathKeys` built one.
 
-Consequences: a top-level call in a non-JavaScript file now has no caller and
-emits no `CALLS` row (JavaScript/TypeScript file-root and Java metadata roots
-still apply, as before). PHP in-function calls also drop until the PHP parser
+Consequences: a top-level call now has a caller only when a fallback supplies
+one (a JavaScript/TypeScript package-root file, a JavaScript reference or
+same-file top-level call, or a Java metadata root, as before). Any other
+top-level call, in any language, has no caller and emits no `CALLS` row. PHP in-function calls also drop until the PHP parser
 reports real `end_line` values, because today a PHP function span is zero-width.
 `PathKeys` still includes bare names for the name lookups (`ResolveEntityID`,
 `uniqueNameByPath`) that this change did not touch.

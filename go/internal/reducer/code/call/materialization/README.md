@@ -78,7 +78,10 @@ carries the same number as `code_call_unresolved_caller_count`: calls whose
 callee resolved but whose caller has no containing entity in the call file's
 own repository and path (#7640), so they emitted no `CALLS` row. A drop in
 `code_call_row_count` with a matching rise here is that containment rule
-working, not lost input.
+working, not lost input. `unresolved_cloud_action_callers`
+(`SubSignalUnresolvedCloudActionCallers`, log field
+`code_call_unresolved_cloud_action_caller_count`) is the same count for SDK
+calls that would have emitted an `INVOKES_CLOUD_ACTION` intent.
 
 ## Gotchas / invariants
 

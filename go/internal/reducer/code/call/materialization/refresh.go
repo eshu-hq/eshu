@@ -65,15 +65,30 @@ func BuildIntentRows(
 	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
 ) []sharedintent.Row {
+	rows, _ := buildIntentRowsCounted(envelopes, entityIndex, contextByRepoID, createdAt)
+	return rows
+}
+
+// buildIntentRowsCounted is BuildIntentRows plus the number of
+// INVOKES_CLOUD_ACTION calls dropped for want of a containing function in
+// their own repository and file (#7640), which the handler reports as an
+// operator signal.
+func buildIntentRowsCounted(
+	envelopes []facts.Envelope,
+	entityIndex shared.EntityIndex,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
+	createdAt time.Time,
+) ([]sharedintent.Row, int) {
 	handlesRouteRows := sharedintent.MarkRowsRetractViaRefresh(buildHandlesRouteIntentRows(
 		envelopes, entityIndex, contextByRepoID, createdAt, HandlesRouteEvidenceSource,
 	))
 	runsInRows := sharedintent.MarkRowsRetractViaRefresh(buildRunsInIntentRows(
 		envelopes, entityIndex, contextByRepoID, createdAt, RunsInEvidenceSource,
 	))
-	invokesCloudActionRows := sharedintent.MarkRowsRetractViaRefresh(buildInvokesCloudActionIntentRows(
+	cloudActionRows, unresolvedCloudActionCallers := buildInvokesCloudActionIntentRows(
 		envelopes, entityIndex, contextByRepoID, createdAt, invokesCloudActionEvidenceSource,
-	))
+	)
+	invokesCloudActionRows := sharedintent.MarkRowsRetractViaRefresh(cloudActionRows)
 
 	rows := make([]sharedintent.Row, 0,
 		len(handlesRouteRows)+len(runsInRows)+len(invokesCloudActionRows))
@@ -89,7 +104,7 @@ func BuildIntentRows(
 		reducercontract.DomainInvokesCloudAction, invokesCloudActionRows, contextByRepoID, createdAt, invokesCloudActionEvidenceSource,
 	)...)
 	rows = append(rows, invokesCloudActionRows...)
-	return rows
+	return rows, unresolvedCloudActionCallers
 }
 
 // buildRepoWideRetractRefreshIntents emits one whole-scope refresh intent per

@@ -36,10 +36,37 @@ func TestBuildInvokesCloudActionIntentRowsIgnoresSameNamedFileInAnotherRepo(t *t
 				}),
 			}
 
-			intents := buildInvokesCloudActionIntentsForTest(t, envelopes)
+			intents, unresolved := buildInvokesCloudActionIntentsWithCountForTest(t, envelopes)
 			if len(intents) != 0 {
 				t.Fatalf("expected no INVOKES_CLOUD_ACTION intent for a top-level call, got %d: %v", len(intents), intents[0].Payload)
 			}
+			// The dropped call is counted, so an operator watching the
+			// INVOKES_CLOUD_ACTION edge sees the drop (#7640).
+			if unresolved != 1 {
+				t.Fatalf("unresolved cloud-action callers = %d, want 1", unresolved)
+			}
 		})
+	}
+}
+
+// TestBuildInvokesCloudActionIntentRowsDoesNotCountResolvedCallers keeps the
+// counter honest: a call inside a function of its own file resolves, emits an
+// intent, and adds nothing to the unresolved count.
+func TestBuildInvokesCloudActionIntentRowsDoesNotCountResolvedCallers(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		invokesCloudActionRepoEnvelope("repo-a"),
+		invokesCloudActionFileEnvelope("repo-a", "cmd/main.go", callerFunction("repo-a:handler"), []map[string]any{
+			{"name": "PutObject", "receiver_sdk_service": "s3", "line_number": 10},
+		}),
+	}
+
+	intents, unresolved := buildInvokesCloudActionIntentsWithCountForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected one INVOKES_CLOUD_ACTION intent, got %d", len(intents))
+	}
+	if unresolved != 0 {
+		t.Fatalf("unresolved cloud-action callers = %d, want 0", unresolved)
 	}
 }
