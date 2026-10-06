@@ -34,6 +34,8 @@ tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 
 mkdir -p "${tmp_root}/bin"
+# The stub is written in three pieces: Homebrew bash 5.1 and newer can deadlock on
+# a large here-document body (heredoc-budget gate).
 cat >"${tmp_root}/bin/psql" <<'STUB'
 #!/usr/bin/env bash
 # Stub psql: log the arguments and the SQL, then answer by SQL text.
@@ -47,12 +49,16 @@ fi
   printf '%s\n' "$sql"
   printf -- '-----\n'
 } >>"${STUB_LOG}"
+STUB
+cat >>"${tmp_root}/bin/psql" <<'STUB'
 case "$sql" in
   *"SHOW shared_preload_libraries"*) echo "${STUB_PRELOAD}" ;;
   *"CREATE EXTENSION"*) echo "CREATE EXTENSION" ;;
   *"extname = 'pg_stat_statements'"*) echo "${STUB_PGSS_EXT}" ;;
   *"server_version_num"*) echo "${STUB_IO}" ;;
   *"extname = 'pg_buffercache'"*) echo "${STUB_BUF_EXT}" ;;
+STUB
+cat >>"${tmp_root}/bin/psql" <<'STUB'
   *"pg_stat_statements_info"*) echo "stub-window-row" ;;
   *"ORDER BY s.total_exec_time"*) echo "stub-total-row" ;;
   *"ORDER BY s.mean_exec_time"*) echo "stub-mean-row" ;;
@@ -129,6 +135,11 @@ if has "left(regexp_replace(s.query" "${log_file}" && has ", 200) AS query" "${l
   record_pass "query text cut to 200 characters"
 else
   record_fail "query text cut to 200 characters"
+fi
+if [ "$(rg -c --fixed-strings 'LIMIT 20;' "${log_file}")" = "2" ]; then
+  record_pass "both statement lists stop at 20 rows"
+else
+  record_fail "both statement lists stop at 20 rows"
 fi
 # Every SQL script sent to psql, except the DDL, must be READ ONLY with a timeout.
 calls="$(rg -c '^ARGS:' "${log_file}")"

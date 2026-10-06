@@ -150,9 +150,13 @@ case "$io_probe" in
 esac
 
 # statement_sql prints the top-N query. $1 is the ORDER BY column, $2 an extra
-# WHERE clause. Only SELECT, INSERT, UPDATE, DELETE, MERGE, and WITH statements
-# are listed: Postgres normalizes those, while a utility command can keep
-# literal values in its stored text.
+# WHERE clause. The query is written in three short pieces: Homebrew bash 5.1
+# and newer can deadlock on a large here-document body (heredoc-budget gate).
+#
+# Only SELECT, INSERT, UPDATE, DELETE, MERGE, and WITH statements are listed:
+# Postgres normalizes those, while a utility command can keep literal values in
+# its stored text. A statement that starts with an opening parenthesis, VALUES,
+# or TABLE does not match the filter and is left out of the lists.
 statement_sql() {
   cat <<SQL
 SELECT s.calls,
@@ -162,11 +166,15 @@ SELECT s.calls,
        s.rows,
        s.shared_blks_hit                     AS shared_hit,
        s.shared_blks_read                    AS shared_read,
+SQL
+  cat <<SQL
        round(100.0 * s.shared_blks_hit
              / nullif(s.shared_blks_hit + s.shared_blks_read, 0), 1) AS hit_pct,
        s.temp_blks_read + s.temp_blks_written AS temp_blks${read_col},
        left(regexp_replace(s.query, '\s+', ' ', 'g'), ${QUERY_CHARS}) AS query
   FROM pg_stat_statements s
+SQL
+  cat <<SQL
  WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
    AND s.query ~* '^\s*(select|insert|update|delete|merge|with)\M'
    AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|current_setting'

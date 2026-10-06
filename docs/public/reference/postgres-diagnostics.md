@@ -133,7 +133,9 @@ How to tell the cause:
   one.
 
 The report lists `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`, and `WITH`
-statements. Postgres replaces their constants with `$1`, `$2`, and so on.
+statements. Postgres replaces their constants with `$1`, `$2`, and so on. A
+statement that starts with an opening parenthesis, `VALUES`, or `TABLE` does not
+match the filter and is left out of the lists.
 
 ## Privacy
 
