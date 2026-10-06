@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Run the twenty-one readiness, dead-code incoming, and status route-selection
+# Run the twenty-two readiness, dead-code incoming, and status route-selection
 # plan/correctness proofs on disposable PostgreSQL 18 (eight in the impact
-# package, seven in storage/postgres, two in cmd/reducer, four in
+# package, seven in storage/postgres, two in cmd/reducer, five in
 # internal/query), one go test per package.
 set -euo pipefail
 
