@@ -31,8 +31,11 @@ Hermetic tests in `go/internal/storage/postgres/status/summary`:
 - `WriterLockKey` differs from every advisory key constant in `go/` (an AST scan
   of non-test sources, with a seeded collision showing the scan can fail).
 
-Live tests on PostgreSQL 18.6 (`TestStatusSummary*Live`, enrolled in
-`live-postgres-readiness`):
+Live tests on PostgreSQL 18.6 (`TestStatusSummary*Live`). They run as a blocking
+step of the reducer contention gate (fail-closed through
+`ESHU_REQUIRE_STATUS_SUMMARY_PROOF`, kept in step with the workflow by
+`TestStatusSummaryProofsRunInTheReducerContentionGate`) and in the
+`live-postgres-readiness` lane that the live-test ledger requires:
 
 - missing table: `Read` and `Upsert` return `ErrNotInstalled`;
 - migration applied twice without error, the table is empty after it, `Read`

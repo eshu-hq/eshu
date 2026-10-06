@@ -23,9 +23,10 @@ import (
 //	ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE=1 \
 //	go test ./internal/storage/postgres/status/summary -run 'Live$' -count=1
 //
-// Every test creates and drops its own database. With no DSN they skip; the
-// live-postgres-readiness job sets the DSN and fails if an expected test did
-// not run.
+// Every test creates and drops its own database. With no DSN they skip, unless
+// ESHU_REQUIRE_STATUS_SUMMARY_PROOF=1, which the blocking reducer contention gate
+// sets so a missing DSN fails there. The live-postgres-readiness job also sets
+// the DSN and fails if an expected test did not run.
 
 // TestStatusSummaryMissingTableLive proves that, before migration 161 has been
 // applied, both Read and Upsert classify the undefined table as ErrNotInstalled

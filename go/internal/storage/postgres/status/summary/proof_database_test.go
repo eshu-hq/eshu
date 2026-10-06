@@ -18,11 +18,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
+// requiredProofEnv makes an unset DSN a failure, not a skip.
+const requiredProofEnv = "ESHU_REQUIRE_STATUS_SUMMARY_PROOF"
+
 // openProofDatabase returns a disposable PostgreSQL database that is empty:
 // the summary migration is NOT applied. The live tests need an administrative
 // DSN for a disposable server; see the header of store_live_test.go.
 func openProofDatabase(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
+	// The reducer contention gate sets ESHU_REQUIRE_STATUS_SUMMARY_PROOF=1 so a
+	// renamed or dropped DSN variable fails the proof there instead of skipping.
+	if os.Getenv(requiredProofEnv) == "1" && strings.TrimSpace(os.Getenv("ESHU_STATUS_SUMMARY_PROOF_DSN")) == "" {
+		t.Fatalf("%s=1 but ESHU_STATUS_SUMMARY_PROOF_DSN is unset: the status summary proof would skip", requiredProofEnv)
+	}
 	return postgresproof.OpenDisposableDatabase(
 		t,
 		os.Getenv("ESHU_STATUS_SUMMARY_PROOF_DSN"),
