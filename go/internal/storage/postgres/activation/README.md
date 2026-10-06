@@ -118,6 +118,18 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 - `activation_obligation_targeted_live_test.go` — the production maintainer:
   real `catalog_changed` and `no_memo_baseline` holds that complete after the
   epoch pass, and a real collision loser retired `inapplicable`.
+- `activation_obligation_composed_live_test.go`,
+  `activation_obligation_scope_lock_live_test.go`,
+  `activation_obligation_lease_restart_live_test.go`,
+  `activation_obligation_redelivery_live_test.go` — composed concurrency
+  (D3 step 4) with the production maintainer: a consumer cycle racing the
+  epoch pass on overlapping repositories (forced lock-holder interleavings
+  and a 20-iteration barrier race), two replicas, an ingestion commit and a
+  projector Ack racing Finalize's scope lock (including its lock timeout),
+  lease expiry mid-maintenance, a crash between the evidence commit and the
+  phase, Ack redelivery and catch-up re-owe races, and supersession between
+  claim and finalize. Each asserts the final obligation, phase, evidence and
+  queue rows.
 
 ## Performance and observability evidence
 
@@ -125,16 +137,21 @@ No-Regression Evidence: NOT MEASURED. This slice ran on a shared host where
 timing runs were not allowed, so it carries no before/after numbers and makes
 no speed claim. What is proven is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
-test functions listed above plus the two quiet-generation proofs (31 in all),
-and 63 of 64 distinct semantic mutations killed, including every branch of
+test functions listed above plus the two quiet-generation proofs (38 in all),
+and 70 of 72 distinct semantic mutations killed, including every branch of
 `postgres.ActivationMaintainer`'s mapping, the wiring flag, the re-owe of an
-obsolete row (Ack and catch-up), the maintenance deadline, and the settle
-span. Flipping only the CTE copy of the wake failure-class or prune state
-predicate is killed by the starvation tests in the matrix and retention
-files. The one survivor removes `!active.Valid` from Finalize's pointer
-check, which is equivalent because a NULL pointer scans as an empty string
-that never equals a generation id; the mutant that treats NULL as current is
-killed. The structural bounds are as follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
+obsolete row (Ack and catch-up, including a catch-up that waited on another
+catch-up's re-owe), the maintenance deadline, the settle span, Finalize's
+scope lock (dropped, `NOWAIT`) and lock timeout, an Ack insert without `ON
+CONFLICT`, and the maintenance passes' exclusive repository locks. Flipping
+only the CTE copy of the wake failure-class or prune state predicate is
+killed by the starvation tests in the matrix and retention files. Two
+survivors are equivalent. Removing `!active.Valid` from Finalize's pointer
+check changes nothing because a NULL pointer scans as an empty string that
+never equals a generation id; the mutant that treats NULL as current is
+killed. Taking the exclusive repository locks unsorted changes nothing for
+today's callers, which both sort the repository ids before batching
+(`ingestion_backfill.go` and `ingestion_targeted_maintenance_write.go`). The structural bounds are as follows. `Ack` gains one insert (`ON CONFLICT ... DO UPDATE ... WHERE state =
 'obsolete'`) inside its existing transaction, after the scope lock it already
 holds. It costs a primary-key probe, the foreign-key check's KEY SHARE probe on
 `scope_generations`, and maintenance of the primary key and the open partial

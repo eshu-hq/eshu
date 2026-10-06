@@ -202,7 +202,10 @@ A rising `oldest_open_age_seconds` with a flat `finalize_total{outcome="complete
 means obligations are owed but not settling: read
 `finalize_total{outcome="phase_not_ready"}` (the callback ran but the phase is
 still absent) against `failures_total{reason="maintenance"}` (the callback
-failed). `work_pending` counts obligations held open while a handler for the
+failed). `failures_total{reason="finalize"}` also counts a Finalize that waited
+past its 1 s lock timeout behind a long ingestion commit or Ack holding the
+same scope row: nothing is written, and the obligation is settled by the next
+claimer after its lease. `work_pending` counts obligations held open while a handler for the
 generation is still claimed or running, or while more than one wake batch (32
 rows) waits. Each finalize logs `activation obligation finalized` at Info with
 `scope_id`, `generation_id`, `outcome`, `woken` and `claim_token`; failures log
