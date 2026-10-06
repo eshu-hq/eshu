@@ -53,15 +53,21 @@ const activeWorkSummaryColumns = `CASE WHEN work.status IN ('pending', 'claimed'
 // total_count (#7009).
 const activeWorkDetailStatuses = `('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')`
 
-// activeWorkSummaryFromWhere fences the status-only work input before the
-// shared generation join and keeps only activeWorkDetailStatuses rows; the
-// grouped history CTEs count the rest. The other active-work observers retain
-// their original FROM shape; all use the same generation predicate.
+// activeWorkSummaryFromWhere fences the work input before the shared
+// generation join. In the grouped branch it keeps only
+// activeWorkDetailStatuses rows and the grouped history CTEs count the rest;
+// in the detail branch it keeps every row and the history CTEs are empty.
+// The other active-work observers retain their original FROM shape; all use
+// the same generation predicate.
 const activeWorkSummaryFromWhere = activeWorkSummaryWorkInput + activeFactWorkItemsScopeJoinWhere
 
-// activeWorkSummaryWorkInput is the fenced, status-filtered work input of
-// activeWorkSummaryFromWhere.
-const activeWorkSummaryWorkInput = "FROM (SELECT * FROM fact_work_items WHERE status IN " + activeWorkDetailStatuses + " OFFSET 0) AS work"
+// activeWorkSummaryWorkInput is the fenced work input of
+// activeWorkSummaryFromWhere: the six detail statuses when the gate groups
+// history, every row otherwise (#7009 S5 variant a2v).
+const activeWorkSummaryWorkInput = "FROM ((SELECT * FROM fact_work_items WHERE status IN " + activeWorkDetailStatuses + " AND " + activeWorkSummaryGrouped + ")\n" +
+	"        UNION ALL\n" +
+	"        (SELECT * FROM fact_work_items WHERE NOT " + activeWorkSummaryGrouped + ")\n" +
+	"        OFFSET 0) AS work"
 
 // activeWorkSummaryHistoryCTEs count every work row in one narrow pass and
 // apply the generation identity join to the (scope_id, generation_id, stage,
@@ -72,10 +78,12 @@ const activeWorkSummaryWorkInput = "FROM (SELECT * FROM fact_work_items WHERE st
 // duplicated. The stale-generation predicate touches only
 // activeWorkDetailStatuses, so history rows need the joins and nothing else.
 // fact_work_status_groups also yields total_count, which counts every row
-// with no join, from the same pass and the same snapshot.
+// with no join, from the same pass and the same snapshot. Both CTEs are
+// empty in the detail branch.
 const activeWorkSummaryHistoryCTEs = `fact_work_status_groups AS MATERIALIZED (
   SELECT scope_id, generation_id, stage, status, COUNT(*) AS row_count
   FROM fact_work_items
+  WHERE ` + activeWorkSummaryGrouped + `
   GROUP BY scope_id, generation_id, stage, status
 ),
 fact_work_history_counts AS MATERIALIZED (
@@ -101,10 +109,15 @@ FROM (
 GROUP BY stage, status`
 
 // activeWorkSummaryQueueSelect is queueSnapshotSelect with total_count read
-// from the grouped pass and succeeded_count from grouped history; every
-// other column reads only activeWorkDetailStatuses rows.
-const activeWorkSummaryQueueSelect = `SELECT (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_status_groups) AS total_count,
-` + queueSnapshotLiveCounts + `       (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_history_counts WHERE status = 'succeeded') AS succeeded_count,
+// from the grouped pass in the grouped branch and from one count of
+// fact_work_items in the detail branch, and succeeded_count summed over
+// grouped history and the detail rows (one of the two is empty); every other
+// column reads only activeWorkDetailStatuses rows.
+const activeWorkSummaryQueueSelect = `SELECT CASE WHEN ` + activeWorkSummaryGrouped + `
+            THEN (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_status_groups)
+            ELSE (SELECT COUNT(*) FROM fact_work_items) END AS total_count,
+` + queueSnapshotLiveCounts + `       (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_history_counts WHERE status = 'succeeded')
+         + COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
 ` + queueSnapshotTail
 
 // latestQueueFailureSelect lists active work items that are retrying, failed,
@@ -137,7 +150,27 @@ const (
 	activeWorkSectionQueue    = "queue"
 	activeWorkSectionBlockage = "blockage"
 	activeWorkSectionFailure  = "failure"
+	activeWorkSectionMode     = "mode"
 )
+
+// Gate branch values of the mode section: the closed value set of the
+// status.active_work.summary_mode span attribute.
+const (
+	activeWorkModeGrouped = "grouped"
+	activeWorkModeDetail  = "detail"
+)
+
+// activeWorkSummaryModeSection reports the branch the gate took and the
+// estimate it read (#7009 S5 ruling D5.2). The branch comes from the gate
+// itself; the estimate is the same expression read again in the same
+// statement.
+const activeWorkSummaryModeSection = `active_work_mode AS (
+  SELECT 1::BIGINT AS ordinal, to_jsonb(section_row) AS section_json
+  FROM (
+SELECT CASE WHEN ` + activeWorkSummaryGrouped + ` THEN '` + activeWorkModeGrouped + `' ELSE '` + activeWorkModeDetail + `' END AS mode,
+       ` + activeWorkLiveFractionEstimate + ` AS estimate
+  ) AS section_row
+)`
 
 // activeWorkSummaryQuery evaluates active_fact_work_items once and derives the
 // status snapshot's stage counts, domain backlog, queue snapshot, conflict
@@ -154,7 +187,8 @@ const (
 // snapshot. Rows are returned as (section, ordinal, to_jsonb(row)). $1 is the
 // snapshot asOf.
 var activeWorkSummaryQuery = `
-WITH ` + activeFactWorkItemsScopeStateCTE + `,
+WITH ` + activeWorkSummaryModeCTE + `,
+` + activeFactWorkItemsScopeStateCTE + `,
 active_fact_work_items AS MATERIALIZED (
   SELECT ` + activeWorkSummaryColumns + `
   ` + activeWorkSummaryFromWhere + `
@@ -199,7 +233,8 @@ active_work_failure AS (
     ) AS section_row
   ) AS ranked
   WHERE ordinal = 1
-)
+),
+` + activeWorkSummaryModeSection + `
 SELECT '` + activeWorkSectionStage + `' AS section, ordinal, section_json::text FROM active_work_stage
 UNION ALL
 SELECT '` + activeWorkSectionBacklog + `', ordinal, section_json::text FROM active_work_backlog
@@ -209,6 +244,8 @@ UNION ALL
 SELECT '` + activeWorkSectionBlockage + `', ordinal, section_json::text FROM active_work_blockage
 UNION ALL
 SELECT '` + activeWorkSectionFailure + `', ordinal, section_json::text FROM active_work_failure
+UNION ALL
+SELECT '` + activeWorkSectionMode + `', ordinal, section_json::text FROM active_work_mode
 ORDER BY section, ordinal
 `
 
@@ -220,6 +257,11 @@ type activeWorkSummary struct {
 	Queue          statuspkg.QueueSnapshot
 	Blockages      []statuspkg.QueueBlockage
 	LatestFailure  *statuspkg.QueueFailureSnapshot
+	// Mode is the gate branch the statement took (activeWorkModeGrouped or
+	// activeWorkModeDetail) and Estimate the live-share estimate it read.
+	// They feed telemetry only; the status snapshot does not carry them.
+	Mode     string
+	Estimate float64
 }
 
 // readActiveWorkSummary runs activeWorkSummaryQuery and decodes each section
@@ -277,7 +319,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			Retrying:    r.count("retrying_count"),
 			DeadLetter:  r.count("dead_letter_count"),
 			Failed:      r.count("failed_count"),
-			OldestAge:   scalars.DurationFromSeconds(r.seconds("oldest_outstanding_age_seconds")),
+			OldestAge:   scalars.DurationFromSeconds(r.float("oldest_outstanding_age_seconds")),
 		})
 	case activeWorkSectionQueue:
 		s.Queue = statuspkg.QueueSnapshot{
@@ -291,7 +333,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			Failed:                                r.count("failed_count"),
 			ProvenanceEdgeIdentityUpgradeApplied:  r.flag("provenance_edge_identity_upgrade_applied"),
 			ProvenanceEdgeIdentityUpgradeRequired: r.count("provenance_edge_identity_upgrade_required"),
-			OldestOutstandingAge:                  scalars.DurationFromSeconds(r.seconds("oldest_outstanding_age_seconds")),
+			OldestOutstandingAge:                  scalars.DurationFromSeconds(r.float("oldest_outstanding_age_seconds")),
 			OverdueClaims:                         r.count("overdue_claim_count"),
 		}
 	case activeWorkSectionBlockage:
@@ -301,7 +343,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			ConflictDomain: r.text("conflict_domain"),
 			ConflictKey:    r.text("conflict_key"),
 			Blocked:        r.count("blocked_count"),
-			OldestAge:      scalars.DurationFromSeconds(r.seconds("oldest_blocked_age_seconds")),
+			OldestAge:      scalars.DurationFromSeconds(r.float("oldest_blocked_age_seconds")),
 		})
 	case activeWorkSectionFailure:
 		failure := statuspkg.QueueFailureSnapshot{
@@ -321,6 +363,12 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 		}
 		failure.UpdatedAt = updatedAt
 		s.LatestFailure = &failure
+	case activeWorkSectionMode:
+		s.Mode = r.text("mode")
+		if r.err == nil && s.Mode != activeWorkModeGrouped && s.Mode != activeWorkModeDetail {
+			return fmt.Errorf("mode: want %q or %q, got %q", activeWorkModeGrouped, activeWorkModeDetail, s.Mode)
+		}
+		s.Estimate = r.float("estimate")
 	default:
 		return fmt.Errorf("unknown section %q", section)
 	}
@@ -390,10 +438,11 @@ func (r *activeWorkRow) count(key string) int {
 	return int(value)
 }
 
-// seconds reads an age in seconds. The standalone reads scanned the numeric
-// into float64, which pgx converts with strconv.ParseFloat on the decimal
-// text; parsing the jsonb number text the same way yields the same float.
-func (r *activeWorkRow) seconds(key string) float64 {
+// float reads a JSON number as float64: ages in seconds and the gate
+// estimate. The standalone reads scanned age numerics into float64, which pgx
+// converts with strconv.ParseFloat on the decimal text; parsing the jsonb
+// number text the same way yields the same float.
+func (r *activeWorkRow) float(key string) float64 {
 	number := r.number(key)
 	if number == "" {
 		return 0

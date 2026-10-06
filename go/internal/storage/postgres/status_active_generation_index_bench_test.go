@@ -213,17 +213,8 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 			t.Fatalf("extend proof schema for activeWorkSummaryQuery: %v", err)
 		}
 	}
-	summaryPlan, err := statusActiveGenerationExplainAnalyze(ctx, conn, activeWorkSummaryQuery, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
-	if err != nil {
-		t.Fatalf("explain analyze activeWorkSummaryQuery: %v", err)
-	}
-	// The loops rule (R2) needs actuals; never let it pass vacuously.
-	if !strings.Contains(summaryPlan, "actual time") {
-		t.Fatalf("activeWorkSummaryQuery plan has no actuals, so the loops rule cannot run:\n%s", summaryPlan)
-	}
-	if err := checkSummaryGenerationScans(summaryPlan); err != nil {
-		t.Fatalf("activeWorkSummaryQuery: %v\nplan:\n%s", err, summaryPlan)
-	}
+	// Both gate branches (#7009 S5 ruling D5.5), then a forced generic plan.
+	checkSummaryPlanInGateStates(ctx, t, conn, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
 	// Seeded violation: with index, hash, merge, materialize, and memoize
 	// paths off, the only generation join left is a nested loop that
 	// rescans scope_generations per outer row, the hazard #4446 guards

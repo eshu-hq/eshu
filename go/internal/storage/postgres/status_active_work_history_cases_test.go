@@ -23,6 +23,12 @@ type historyCase struct {
 	asOf   time.Time
 	seed   func(ctx context.Context, t *testing.T, conn *sql.Conn)
 	expect []historyExpectation
+	// wantMode is the gate branch the shipped threshold must take on this
+	// state ("" when the case leaves pg_stats unanalyzed, so the branch is
+	// whatever earlier statistics say); analyzed cases also check the gate
+	// estimate against the true live fraction.
+	wantMode string
+	analyzed bool
 }
 
 // historyExpectation is one value read from the shipped query's result:
@@ -266,14 +272,16 @@ ANALYZE`
 // historyFixtureCases are the equality-only cases: the busy shape and the
 // #6794 status semantics fixture with its differential extras.
 func historyFixtureCases() []historyCase {
-	return []historyCase{
+	return append(historyLiveShareCases(), []historyCase{
 		{
 			name: "busy_20pct_live",
 			asOf: historyEdgeAsOf,
 			seed: func(ctx context.Context, t *testing.T, conn *sql.Conn) {
 				historyExec(ctx, t, conn, historyBusyWorkSQL)
 			},
-			expect: []historyExpectation{{"queue", 1, "total_count", "3000"}},
+			expect:   []historyExpectation{{"queue", 1, "total_count", "3000"}},
+			wantMode: activeWorkModeGrouped,
+			analyzed: true,
 		},
 		{
 			name: "status_semantics_fixture",
@@ -283,5 +291,5 @@ func historyFixtureCases() []historyCase {
 				seedActiveWorkDifferentialExtras(ctx, t, conn)
 			},
 		},
-	}
+	}...)
 }

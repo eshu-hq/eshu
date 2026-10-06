@@ -281,10 +281,12 @@ FROM fact_work_history_counts`
 
 // TestActiveWorkSummaryMatchesPreHistoryGroupsOracle is the #7009 grouped
 // history differential: on every edge case ported from the C3 shim fixture,
-// the busy 20%-live shape, and the #6794 semantics fixture, the shipped
-// summary query and the pre-change oracle (rendered from origin/main
-// 9bcca588f) run in one statement and must return identical section rows.
-// Each edge case also checks hand-derived values on the shipped query.
+// the S5 live-share states (0.1%, 20%, 50%, 80%, 100%, and 80% behind stale
+// statistics), and the #6794 semantics fixture, the shipped summary query,
+// its forced-grouped render, and its forced-detail render each run in one
+// statement with the pre-change oracle (rendered from origin/main 9bcca588f)
+// and must return identical section rows. Each case also checks the mode row
+// and hand-derived values on the shipped query.
 func TestActiveWorkSummaryMatchesPreHistoryGroupsOracle(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
@@ -299,11 +301,7 @@ func TestActiveWorkSummaryMatchesPreHistoryGroupsOracle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resetHistoryCase(ctx, t, conn)
 			tc.seed(ctx, t, conn)
-			diff := diffAgainstOracle(ctx, t, conn, activeWorkSummaryQuery, tc.asOf)
-			if !diff.equal() || diff.oracleRows == 0 {
-				t.Fatalf("summary differs from the pre-change oracle: %+v", diff)
-			}
-			t.Logf("%d equal section rows", diff.oracleRows)
+			checkGateBranches(ctx, t, conn, tc)
 			checkHistoryExpectations(ctx, t, conn, tc.asOf, tc.expect)
 		})
 	}
@@ -311,7 +309,8 @@ func TestActiveWorkSummaryMatchesPreHistoryGroupsOracle(t *testing.T) {
 
 // TestActiveWorkSummaryOracleCatchesSeededHistoryMutations is the positive
 // control for that differential: each seeded violation of a grouped-history
-// guard must differ from the oracle on at least one case.
+// guard, applied to the forced-grouped render so the grouped path runs on
+// every case, must differ from the oracle on at least one case.
 func TestActiveWorkSummaryOracleCatchesSeededHistoryMutations(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
@@ -320,10 +319,14 @@ func TestActiveWorkSummaryOracleCatchesSeededHistoryMutations(t *testing.T) {
 		}
 		t.Skip("set ESHU_POSTGRES_DSN to run the #7009 grouped history mutation controls")
 	}
+	grouped, err := activeWorkSummaryForcedGate(activeWorkSummaryQuery, activeWorkForceGrouped)
+	if err != nil {
+		t.Fatalf("forced grouped render: %v", err)
+	}
 	mutants := historySummaryMutants()
 	mutated := make([]string, len(mutants))
 	for i, m := range mutants {
-		mutated[i] = m.apply(t, activeWorkSummaryQuery)
+		mutated[i] = m.apply(t, grouped)
 	}
 	ctx := context.Background()
 	conn := openStatusSemanticsSchema(ctx, t, dsn)
@@ -343,5 +346,88 @@ func TestActiveWorkSummaryOracleCatchesSeededHistoryMutations(t *testing.T) {
 			continue
 		}
 		t.Logf("%s: caught by %s", m.name, strings.Join(caught[m.name], ", "))
+	}
+}
+
+// TestActiveWorkSummaryGateMutationsAgainstOracle runs the S5 gate mutations
+// (ruling D5.6) on the shipped render across every differential case:
+// dropping the history NOT IN (six) predicate and a NULL grouped flag must
+// differ from the oracle somewhere, and a NULL stats subquery (which the
+// COALESCE turns into the grouped branch) must equal it everywhere.
+func TestActiveWorkSummaryGateMutationsAgainstOracle(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_POSTGRES_DSN is required for the #7009 gate mutation proof")
+		}
+		t.Skip("set ESHU_POSTGRES_DSN to run the #7009 gate mutation controls")
+	}
+	mutants := activeWorkGateMutants()
+	mutated := make([]string, len(mutants))
+	for i, m := range mutants {
+		query, err := replaceOnce(activeWorkSummaryQuery, m.old, m.replacement)
+		if err != nil {
+			t.Fatalf("%s: %v", m.name, err)
+		}
+		mutated[i] = query
+	}
+	ctx := context.Background()
+	conn := openStatusSemanticsSchema(ctx, t, dsn)
+	differ := make(map[string][]string, len(mutants))
+	for _, tc := range append(historyEdgeCases(), historyFixtureCases()...) {
+		resetHistoryCase(ctx, t, conn)
+		tc.seed(ctx, t, conn)
+		for i, m := range mutants {
+			if diff := diffAgainstOracle(ctx, t, conn, mutated[i], tc.asOf); !diff.equal() {
+				differ[m.name] = append(differ[m.name], tc.name)
+			}
+		}
+	}
+	for _, m := range mutants {
+		switch {
+		case m.wantEqual && len(differ[m.name]) > 0:
+			t.Errorf("%s: want equal everywhere, differs on %s", m.name, strings.Join(differ[m.name], ", "))
+		case !m.wantEqual && len(differ[m.name]) == 0:
+			t.Errorf("%s: matched the oracle on every case", m.name)
+		default:
+			t.Logf("%s: differs on [%s]", m.name, strings.Join(differ[m.name], ", "))
+		}
+	}
+}
+
+// TestActiveWorkSummaryGateResolvesTableByRegclass proves the gate reads the
+// statistics of the fact_work_items the statement scans, not of
+// current_schema(): with pg_catalog first on the search_path, the gate still
+// estimates the analyzed 20%-live fixture, while the current_schema() control
+// finds no statistics and estimates 0, the always-grouped vacuous gate.
+func TestActiveWorkSummaryGateResolvesTableByRegclass(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	if dsn == "" {
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_POSTGRES_DSN is required for the #7009 gate regclass proof")
+		}
+		t.Skip("set ESHU_POSTGRES_DSN to run the #7009 gate regclass proof")
+	}
+	ctx := context.Background()
+	conn := openStatusSemanticsSchema(ctx, t, dsn)
+	historyExec(ctx, t, conn, historyBusyWorkSQL)
+	var schema string
+	if err := conn.QueryRowContext(ctx, "SELECT current_schema()").Scan(&schema); err != nil {
+		t.Fatalf("fixture schema: %v", err)
+	}
+	historyExec(ctx, t, conn, "SET search_path TO pg_catalog, "+schema)
+	defer historyExec(ctx, t, conn, "SET search_path TO "+schema+", public")
+	estimate := func(expr string) float64 {
+		var value float64
+		if err := conn.QueryRowContext(ctx, "SELECT "+expr).Scan(&value); err != nil {
+			t.Fatalf("gate estimate: %v", err)
+		}
+		return value
+	}
+	if got := estimate(activeWorkLiveFractionEstimate); got < 0.15 || got > 0.25 {
+		t.Fatalf("regclass gate estimate = %v with pg_catalog first on the search_path, want the fixture's 0.2", got)
+	}
+	if got := estimate(gateRegclassControl(t)); got != 0 {
+		t.Fatalf("current_schema() control estimate = %v, want 0 (no statistics in pg_catalog)", got)
 	}
 }

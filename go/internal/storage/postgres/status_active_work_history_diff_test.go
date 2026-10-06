@@ -26,11 +26,13 @@ func (d historyDiff) equal() bool {
 }
 
 // diffAgainstOracle runs the oracle and candidate as two CTEs of one
-// statement, so both read the same snapshot, and compares their rows.
+// statement, so both read the same snapshot, and compares their rows. The
+// candidate's mode section is excluded: the pre-change oracle has none, and
+// checkGateBranches checks it against the gate estimate instead.
 func diffAgainstOracle(ctx context.Context, t *testing.T, conn *sql.Conn, candidate string, asOf time.Time) historyDiff {
 	t.Helper()
 	query := `WITH oracle AS MATERIALIZED (` + activeWorkSummaryPreHistoryGroupsOracle + `),
-candidate AS MATERIALIZED (` + candidate + `)
+candidate AS MATERIALIZED (SELECT * FROM (` + candidate + `) AS candidate_rows WHERE section <> '` + activeWorkSectionMode + `')
 SELECT (SELECT COUNT(*) FROM oracle),
        (SELECT COUNT(*) FROM candidate),
        (SELECT COUNT(*) FROM (SELECT * FROM oracle EXCEPT ALL SELECT * FROM candidate) AS oracle_only),
@@ -94,10 +96,11 @@ type historySummaryMutant struct {
 }
 
 const (
-	historyDetailSix       = "status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') OFFSET 0"
+	historyDetailSix       = "status IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter') AND (SELECT grouped FROM fact_work_summary_mode))"
 	historyHistorySix      = "status_group.status NOT IN ('pending', 'claimed', 'running', 'retrying', 'failed', 'dead_letter')"
-	historyGroupsTotal     = "(SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_status_groups) AS total_count"
+	historyGroupsTotal     = "THEN (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_status_groups)\n"
 	historySucceededSource = "FROM fact_work_history_counts WHERE status = 'succeeded'"
+	historySucceededDetail = "+ COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count"
 	historyJoinKey         = "    ON stale_generation.scope_id = status_group.scope_id\n   AND stale_generation.generation_id = status_group.generation_id"
 )
 
@@ -125,7 +128,7 @@ func historySummaryMutants() []historySummaryMutant {
 			{historyJoinKey, "    ON stale_generation.generation_id = status_group.generation_id"},
 		}},
 		{name: "count total_count from the joined rows", replacements: [][2]string{
-			{historyGroupsTotal, "((SELECT COUNT(*) FROM active_fact_work_items) + (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_history_counts)) AS total_count"},
+			{historyGroupsTotal, "THEN ((SELECT COUNT(*) FROM active_fact_work_items) + (SELECT COALESCE(SUM(row_count), 0)::BIGINT FROM fact_work_history_counts))\n"},
 		}},
 		{name: "count succeeded from the unjoined groups", replacements: [][2]string{
 			{historySucceededSource, "FROM fact_work_status_groups WHERE status = 'succeeded'"},

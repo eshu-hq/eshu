@@ -23,12 +23,14 @@ func TestActiveWorkSummaryOracleIsThePinnedBaseline(t *testing.T) {
 	}
 }
 
-// activeWorkSummaryQuerySHA256 pins the shipped #7009 grouped-history
-// summary text, byte-identical to the C3 shim candidate cand_a2.sql. The
-// ops-qa same-snapshot compare packet refuses to run when its A2 text hashes
-// differently (#7009 arbiter ruling D3 C1). Any edit to the statement must
-// re-pin this with the re-rendered SHA-256 and rerun the oracle differential.
-const activeWorkSummaryQuerySHA256 = "bcd5846afddbe540f09b61ad50911a19fe9baf3360c5e0d314c33c8ab17aae40"
+// activeWorkSummaryQuerySHA256 pins the shipped #7009 gated summary text
+// (S5 variant a2v plus the mode section). Without the mode section it is the
+// S5 shim's s5_a2v_T.sql byte for byte
+// (TestActiveWorkSummaryIsTheMeasuredA2vRender). The ops-qa same-snapshot
+// compare packet refuses to run when its text hashes differently (#7009
+// arbiter ruling S4 D3 C1, S5 D5.4). Any edit to the statement must re-pin
+// this with the re-rendered SHA-256 and rerun the oracle differential.
+const activeWorkSummaryQuerySHA256 = "9d833808212a48859e1d5a26a9fd1c378f4bc366e6521876d7938834ccc96cae"
 
 // TestActiveWorkSummaryQueryIsThePinnedRender keeps activeWorkSummaryQuery
 // equal to the text the shim measured and the compare packet runs.
@@ -42,17 +44,18 @@ func TestActiveWorkSummaryQueryIsThePinnedRender(t *testing.T) {
 }
 
 // TestActiveWorkSummaryGroupsHistoryBeforeTheGenerationJoin pins the #7009
-// grouped-history shape: the wide detail CTE reads only the six statuses a
-// section reads in detail, every other row is counted by one narrow
-// (scope_id, generation_id, stage, status) pass joined to generation identity
-// per group, and total_count comes from that same pass.
+// grouped-history shape: in the grouped branch the wide detail CTE reads only
+// the six statuses a section reads in detail, every other row is counted by
+// one narrow (scope_id, generation_id, stage, status) pass joined to
+// generation identity per group, and total_count comes from that same pass;
+// only the detail branch counts fact_work_items for total_count.
 func TestActiveWorkSummaryGroupsHistoryBeforeTheGenerationJoin(t *testing.T) {
 	t.Parallel()
 
 	query := activeWorkSummaryQuery
 	for name, want := range map[string]string{
-		"detail statuses": "FROM (SELECT * FROM fact_work_items WHERE " + historyDetailSix + ") AS work",
-		"grouped pass":    "fact_work_status_groups AS MATERIALIZED (\n  SELECT scope_id, generation_id, stage, status, COUNT(*) AS row_count\n  FROM fact_work_items\n  GROUP BY scope_id, generation_id, stage, status\n)",
+		"detail statuses": "FROM ((SELECT * FROM fact_work_items WHERE " + historyDetailSix + "\n",
+		"grouped pass":    "fact_work_status_groups AS MATERIALIZED (\n  SELECT scope_id, generation_id, stage, status, COUNT(*) AS row_count\n  FROM fact_work_items\n  WHERE (SELECT grouped FROM fact_work_summary_mode)\n  GROUP BY scope_id, generation_id, stage, status\n)",
 		"history fence":   historyJoinKey + "\n  WHERE " + historyHistorySix,
 		"total pass":      historyGroupsTotal,
 		"succeeded":       historySucceededSource,
@@ -62,10 +65,12 @@ func TestActiveWorkSummaryGroupsHistoryBeforeTheGenerationJoin(t *testing.T) {
 			t.Errorf("%s: want exactly one %q in the summary query", name, want)
 		}
 	}
-	if strings.Contains(query, "(SELECT COUNT(*) FROM fact_work_items)") {
-		t.Errorf("summary query still counts fact_work_items in a second pass")
+	if n := strings.Count(query, "(SELECT COUNT(*) FROM fact_work_items)"); n != 1 ||
+		!strings.Contains(query, "ELSE (SELECT COUNT(*) FROM fact_work_items) END AS total_count") {
+		t.Errorf("summary query counts fact_work_items %d times; want one count, in the detail branch's total_count", n)
 	}
 	order := []string{
+		"\nWITH fact_work_summary_mode AS MATERIALIZED (",
 		"\nactive_fact_work_items AS MATERIALIZED (",
 		"\nfact_work_status_groups AS MATERIALIZED (",
 		"\nfact_work_history_counts AS MATERIALIZED (",
@@ -82,14 +87,18 @@ func TestActiveWorkSummaryGroupsHistoryBeforeTheGenerationJoin(t *testing.T) {
 }
 
 // TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups proves the #7009
-// rewrite changed nothing but the grouped-history pieces: undoing exactly
-// those pieces, with the still-shipped standalone selects, must reproduce the
-// pre-change oracle byte for byte.
+// rewrite changed nothing but the gate, the mode section, and the
+// grouped-history pieces: undoing exactly those pieces, with the
+// still-shipped standalone selects, must reproduce the pre-change oracle byte
+// for byte.
 func TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups(t *testing.T) {
 	t.Parallel()
 
 	query := activeWorkSummaryQuery
 	for _, pair := range [][2]string{
+		{activeWorkSummaryModeCTE + ",\n", ""},
+		{",\n" + activeWorkSummaryModeSection, ""},
+		{activeWorkSummaryModeUnion, ""},
 		{activeWorkSummaryHistoryCTEs + ",\n", ""},
 		{activeWorkSummaryStageCountsSelect, stageCountsSelect},
 		{activeWorkSummaryQueueSelect, queueSnapshotSelect},
@@ -110,14 +119,16 @@ func TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups(t *testing.T) {
 var activeWorkStatusPredicate = regexp.MustCompile(`\bstatus\s*(NOT\s+IN|IN|=|<>|!=)\s*(\([^)]*\)|'[^']*')`)
 
 // checkSectionStatusesWithinDetail requires every status predicate a summary
-// section applies, outside the grouped history CTEs and the succeeded_count
-// read of them, to name only activeWorkDetailStatuses with IN or =. A
+// section applies, outside the grouped history CTEs and succeeded_count, to
+// name only activeWorkDetailStatuses with IN or =. In the grouped branch a
 // section that read any other status from active_fact_work_items would see
-// no rows since #7009, because only grouped history counts them. It returns
-// the number of predicates checked.
+// no rows since #7009, because only grouped history counts them.
+// succeeded_count is exempt: it sums grouped history and the detail branch's
+// succeeded rows, one of which is empty. It returns the number of predicates
+// checked.
 func checkSectionStatusesWithinDetail(query string) (int, error) {
 	sections := query
-	for _, history := range []string{activeWorkSummaryHistoryCTEs, historySucceededSource} {
+	for _, history := range []string{activeWorkSummaryHistoryCTEs, historySucceededSource, historySucceededDetail} {
 		if n := strings.Count(sections, history); n != 1 {
 			return 0, fmt.Errorf("summary query contains %d copies of %q, want 1", n, history)
 		}

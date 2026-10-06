@@ -193,3 +193,80 @@ func stripActuals(plan string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// planA2vDetailBranch is the PostgreSQL 18.3 EXPLAIN ANALYZE of the a2v
+// summary in its detail branch on the #4446 fixture (78% live), trimmed of
+// Buffers, Storage, and condition lines. The gate CTE leads, each detail arm
+// carries a one-time filter over a gate InitPlan, the grouped-only arm and
+// the grouped pass never execute, and both scope_generations scans are
+// single hashed passes.
+const planA2vDetailBranch = `Sort  (cost=37561.48..37561.67 rows=75 width=72) (actual time=94.614..94.639 rows=9.00 loops=1)
+  CTE fact_work_summary_mode
+    ->  Result  (cost=32.77..32.78 rows=1 width=1) (actual time=0.117..0.120 rows=1.00 loops=1)
+          InitPlan 2
+            ->  Aggregate  (cost=32.76..32.77 rows=1 width=4) (actual time=0.115..0.118 rows=1.00 loops=1)
+  CTE active_fact_work_items
+    ->  Hash Join  (cost=5561.02..13958.75 rows=18 width=369) (actual time=25.184..58.839 rows=20000.00 loops=1)
+          ->  Hash Join  (cost=5496.02..13892.04 rows=18 width=505) (actual time=18.577..38.594 rows=20000.00 loops=1)
+                ->  Subquery Scan on work  (cost=0.02..2982.04 rows=36000 width=443) (actual time=0.127..6.759 rows=20000.00 loops=1)
+                      ->  Append  (cost=0.02..2622.04 rows=36000 width=515) (actual time=0.126..5.614 rows=20000.00 loops=1)
+                            ->  Result  (cost=0.02..1296.02 rows=16000 width=515) (actual time=0.120..0.120 rows=0.00 loops=1)
+                                  One-Time Filter: (InitPlan 5).col1
+                                  InitPlan 5
+                                    ->  CTE Scan on fact_work_summary_mode  (cost=0.00..0.02 rows=1 width=1) (actual time=0.117..0.118 rows=1.00 loops=1)
+                                  ->  Seq Scan on fact_work_items  (cost=0.02..1296.02 rows=16000 width=515) (never executed)
+                            ->  Result  (cost=0.02..1146.02 rows=20000 width=515) (actual time=0.006..4.682 rows=20000.00 loops=1)
+                                  One-Time Filter: (NOT (InitPlan 6).col1)
+                                  InitPlan 6
+                                    ->  CTE Scan on fact_work_summary_mode fact_work_summary_mode_1  (cost=0.00..0.02 rows=1 width=1) (actual time=0.000..0.000 rows=1.00 loops=1)
+                                  ->  Seq Scan on fact_work_items fact_work_items_1  (cost=0.02..1146.02 rows=20000 width=515) (actual time=0.004..3.247 rows=20000.00 loops=1)
+                ->  Hash  (cost=2921.00..2921.00 rows=100000 width=62) (actual time=18.355..18.355 rows=100000.00 loops=1)
+                      ->  Seq Scan on scope_generations stale_generation  (cost=0.00..2921.00 rows=100000 width=62) (actual time=0.004..6.265 rows=100000.00 loops=1)
+          ->  Hash  (cost=40.00..40.00 rows=2000 width=104) (actual time=6.592..6.592 rows=2000.00 loops=1)
+                ->  CTE Scan on active_fact_work_items_scope_state scope_state  (cost=0.00..40.00 rows=2000 width=104) (actual time=0.045..6.236 rows=2000.00 loops=1)
+  CTE fact_work_status_groups
+    ->  HashAggregate  (cost=1396.02..1416.02 rows=2000 width=78) (actual time=0.014..0.015 rows=0.00 loops=1)
+          InitPlan 8
+            ->  CTE Scan on fact_work_summary_mode fact_work_summary_mode_2  (cost=0.00..0.02 rows=1 width=1) (actual time=0.001..0.001 rows=1.00 loops=1)
+          ->  Result  (cost=0.00..1146.00 rows=20000 width=70) (actual time=0.002..0.003 rows=0.00 loops=1)
+                One-Time Filter: (InitPlan 8).col1
+                ->  Seq Scan on fact_work_items fact_work_items_2  (cost=0.00..1146.00 rows=20000 width=70) (never executed)
+  CTE fact_work_history_counts
+    ->  GroupAggregate  (cost=3846.80..3846.82 rows=1 width=72) (actual time=0.057..0.058 rows=0.00 loops=1)
+          ->  Sort  (cost=3846.80..3846.80 rows=1 width=72) (actual time=0.056..0.058 rows=0.00 loops=1)
+                ->  Hash Join  (cost=175.78..3846.79 rows=1 width=72) (actual time=0.032..0.034 rows=0.00 loops=1)
+                      ->  Seq Scan on scope_generations stale_generation_1  (cost=0.00..2921.00 rows=100000 width=54) (actual time=0.015..0.015 rows=1.00 loops=1)
+                      ->  Hash  (cost=146.68..146.68 rows=1940 width=168) (actual time=0.015..0.015 rows=0.00 loops=1)
+                            ->  Hash Join  (cost=65.00..146.68 rows=1940 width=168) (actual time=0.014..0.015 rows=0.00 loops=1)
+                                  ->  CTE Scan on fact_work_status_groups status_group  (cost=0.00..55.00 rows=1940 width=136) (actual time=0.014..0.014 rows=0.00 loops=1)
+                                  ->  Hash  (cost=40.00..40.00 rows=2000 width=32) (never executed)
+                                        ->  CTE Scan on active_fact_work_items_scope_state scope_state_1  (cost=0.00..40.00 rows=2000 width=32) (never executed)
+  ->  Append  (cost=0.00..5.00 rows=40 width=96) (actual time=0.100..8.000 rows=9.00 loops=1)
+Planning Time: 9.000 ms
+Execution Time: 95.000 ms`
+
+// TestCheckSummaryGenerationScansAcceptsTheGatedDetailPlan proves the
+// CTE-subtree extractor does not mis-scope the leading gate CTE or the gate
+// InitPlans (#7009 S5 ruling D5.5), and that the gate-runs-once check reads
+// the gate node: a gate re-run per row (loops=2000) is rejected.
+func TestCheckSummaryGenerationScansAcceptsTheGatedDetailPlan(t *testing.T) {
+	t.Parallel()
+
+	if err := checkSummaryGenerationScans(planA2vDetailBranch); err != nil {
+		t.Fatalf("gated detail plan rejected: %v", err)
+	}
+	if err := checkSummaryGateRunsOnce(planA2vDetailBranch); err != nil {
+		t.Fatalf("gated detail plan gate check: %v", err)
+	}
+	gate := "    ->  Result  (cost=32.77..32.78 rows=1 width=1) (actual time=0.117..0.120 rows=1.00 loops=1)"
+	if strings.Count(planA2vDetailBranch, gate) != 1 {
+		t.Fatalf("gate node anchor matched %d times", strings.Count(planA2vDetailBranch, gate))
+	}
+	rescanned := strings.Replace(planA2vDetailBranch, gate, strings.Replace(gate, "loops=1)", "loops=2000)", 1), 1)
+	if err := checkSummaryGateRunsOnce(rescanned); err == nil || !strings.Contains(err.Error(), "want actual loops=1") {
+		t.Fatalf("gate re-run per row accepted: err = %v", err)
+	}
+	if err := checkSummaryGateRunsOnce(strings.Replace(planA2vDetailBranch, "  CTE fact_work_summary_mode\n", "", 1)); err == nil {
+		t.Fatal("plan without the gate CTE accepted")
+	}
+}
