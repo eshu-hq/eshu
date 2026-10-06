@@ -170,11 +170,16 @@ times flatter in buffers. Besides the catalog scan, the stale-memo check, the
 phase-one anchor load and the wrapped partition read, two statements scale
 with the corpus. (a) The derived correlation reopen listing
 (`listSucceededReducerWorkItemsByDomainForPartitionsQuery`, opening with the
-materialized `scope_replay_floor` CTE) is about 45% of the pass's buffers at
-900 scopes. (b) A repository-bounded `latest_generations` `DISTINCT ON` read,
-by its shape `activeRepositoryGenerationsForReposQuery`, is about 18%. Both
-inherit a CTE over `scope_generations` and `ingestion_scopes` (and the
-repository facts) that runs before the appended partition predicate. Moving
+materialized `scope_replay_floor` CTE) runs 4 calls and reads 2,976, 6,392
+and 9,164 shared blocks at 300, 600 and 900 scopes, about 45% of the pass's
+20,283 at 900. (b) A repository-bounded `latest_generations` `DISTINCT ON`
+read, by its shape `activeRepositoryGenerationsForReposQuery` (the receipt
+truncates the text, so that identity is NOT_CHECKED), runs 2 calls and reads
+1,104, 2,254 and 3,676 blocks, about 18% at 900. The wrapped partition read
+reads the same counts as (b). All counts are variant k0 and identical in each
+of the three samples. Both inherit a CTE over `scope_generations` and
+`ingestion_scopes` (and the repository facts) that runs before the appended
+partition predicate. Moving
 that predicate inside the CTE is a new theory that needs its own proof; it is
 tracked with the consumer's default-on gate.
 
