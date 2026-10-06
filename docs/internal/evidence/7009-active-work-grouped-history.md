@@ -194,12 +194,22 @@ runs (the jit=on split there is identical-plan noise, ruling D2).
 JIT dependency. The a2v statement costs 114-249k on the fixture, above the
 default `jit_above_cost` of 100,000. The ops-qa reader inventory (run
 c5544da49fcd5c68) reads `jit=on`, `jit_above_cost=100000`, `work_mem=64MB`,
-and costs the current `active_work_summary` at 62,530, below the JIT
-threshold. Every a2v number above is at `jit=off`. This change assumes the
-status read runs with JIT off (PR-1, branch `perf/7009-status-snapshot-jit-off`)
-and must be rebased onto PR-1's merge before it is marked ready (S5 ruling
-D4). The hermetic test that binds the `SET LOCAL jit = off` call site (ruling
-D4.4) is not in this branch yet; it lands with that rebase.
+and costs the pre-#7009 `active_work_summary` at 62,530, below the JIT
+threshold. Every a2v number above is at `jit=off`. PR-1 (#7639), merged as
+`3c0de54e5`, issues `SET LOCAL jit = off` once at the start of the status
+snapshot transaction (see 7009-status-snapshot-jit-off.md). Its measured
+wrapper overhead: the semantic-only read (one statement, N=201 per arm) was
++0.259 ms (paired +0.285 ms), with a direct `SET LOCAL jit = off` median of
+0.176 ms. Its caveats, quoted from that note: host load1 was 13 to 23 on 18
+CPUs, so those runs "report interleaved relative deltas, plan costs, and JIT
+function counts, and make no absolute-latency claim"; the full-read deltas
+"change sign between runs (+55.6, -48.3 ms) and are unresolved at this load";
+and the SET changed no plan's JIT decision in those runs.
+`TestStatusSnapshotDisablesJITBeforeTheGatedActiveWorkSummary` (runtime
+postgres package) binds the dependency in code (S5 ruling D4.4): a full
+status snapshot through the real `StatusStore` must issue the SET once, as
+its first statement, before the gated summary. Removing the SET, or moving
+it after the status read, fails the test.
 
 ## Observability Evidence:
 
