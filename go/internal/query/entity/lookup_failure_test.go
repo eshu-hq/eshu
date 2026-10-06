@@ -65,6 +65,7 @@ func TestResolveEntitySelectorLookupFailureAnswers500(t *testing.T) {
 		wantSpanError bool
 	}{
 		{"store plain sql error", nil, lookupFailureCatalog{err: errors.New(`private pq: relation "repositories" does not exist`)}, http.StatusInternalServerError, true},
+		{"store bare reader unavailable", nil, lookupFailureCatalog{err: fmt.Errorf("private read store: %w", db.ErrReaderUnavailable)}, http.StatusInternalServerError, true},
 		{"graph plain driver error on ordered read", runFails(errors.New("private neo4j: connection reset")), nil, http.StatusInternalServerError, true},
 		{"graph plain driver error on fallback read", fallbackFails, nil, http.StatusInternalServerError, true},
 		{"store reader stale", nil, lookupFailureCatalog{err: fmt.Errorf("private read store: %w", db.ErrReaderStale)}, http.StatusServiceUnavailable, false},

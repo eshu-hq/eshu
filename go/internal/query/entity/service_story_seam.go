@@ -10,6 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 
@@ -54,7 +57,7 @@ func (h *Handler) BuildServiceStoryEnvelope(
 
 	workloadCtx, err := h.fetchServiceWorkloadContextWithSelector(ctx, ServiceWorkloadSelector(selector), operation)
 	if err != nil {
-		status, errEnv := serviceStoryResolutionError(err)
+		status, errEnv := serviceStoryResolutionError(ctx, err)
 		return nil, nil, status, errEnv
 	}
 	if workloadCtx == nil {
@@ -113,7 +116,13 @@ func (h *Handler) BuildServiceStoryEnvelope(
 // serviceStoryResolutionError maps a workload-resolution error to a status and
 // error envelope, preserving the ambiguity candidate details and not-found
 // classification the HTTP handler returns.
-func serviceStoryResolutionError(err error) (int, *querycontract.ErrorEnvelope) {
+//
+// A repo-selector lookup failure that is not a fence or graph verdict answers
+// 500 with the fixed selector.LookupFailureMessage, never the LookupError text,
+// which carries the backend error (#7626). This seam returns an envelope rather
+// than writing a response, so it records the error on ctx's span itself; every
+// caller, HTTP or in-process, gets the same signal.
+func serviceStoryResolutionError(ctx context.Context, err error) (int, *querycontract.ErrorEnvelope) {
 	var ambiguous serviceWorkloadAmbiguousError
 	if errors.As(err, &ambiguous) {
 		return http.StatusConflict, &querycontract.ErrorEnvelope{
@@ -151,6 +160,16 @@ func serviceStoryResolutionError(err error) (int, *querycontract.ErrorEnvelope) 
 	}
 	if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
 		return status, errEnv
+	}
+	if selector.IsLookupFailure(err) {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, selector.LookupFailureMessage)
+		return http.StatusInternalServerError, &querycontract.ErrorEnvelope{
+			Code:       querycontract.ErrorCodeInternalError,
+			Message:    selector.LookupFailureMessage,
+			Capability: "platform_impact.context_overview",
+		}
 	}
 	return http.StatusInternalServerError, serviceStoryInternalError("query failed", err)
 }

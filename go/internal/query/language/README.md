@@ -107,7 +107,9 @@ tracer var (mirroring `incidentHandlerTracer` in
 `go/internal/query/incident/handler.go`), seeded from
 `tracing.HandlerTracer()`; `span_test.go` (moved with the family, since the
 tracer it swaps is now package-local) proves the handler still emits exactly
-one span with those attributes.
+one span with those attributes. Since #7626 that span is also set to Error,
+with an `exception` event, when the repo_id selector's backing read fails
+(`TestLanguageQuerySelectorLookupFailureAnswers500`).
 
 ## Related docs
 

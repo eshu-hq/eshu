@@ -168,7 +168,11 @@ The graph-backed `repo_id` selectors map the same lookup failure to the same
 `500`: every `/api/v0/code/*` route that takes `repo_id` (including
 `POST /api/v0/code/language-query`), where an unmatched or ambiguous selector
 stays `400`, and `POST /api/v0/entities/resolve`, where an unmatched selector
-stays `404` and an ambiguous one `400`.
+stays `404` and an ambiguous one `400`. The optional `repo` selector on
+`GET /api/v0/investigations/services/{service_name}` and
+`GET /api/v0/services/{service_name}/story` answers the same fixed `500`
+instead of a `500` that carried the backend error text; an unmatched selector
+there stays `404` and an ambiguous one `409`.
 Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and

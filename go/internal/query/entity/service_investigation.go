@@ -95,6 +95,9 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
+		if selector.WriteLookupFailure(w, r, err) {
+			return
+		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}

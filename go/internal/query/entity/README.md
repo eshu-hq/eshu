@@ -108,6 +108,14 @@ substring semantics and its own bounded, explicitly truncated pages.
 `ResolveEntity` and `codequery.ApplyRepositorySelectorForAccess` each gained
 one `selector.WriteLookupFailure` branch, reached only after the selector
 resolve already returned an error and `WriteGraphReadError` declined it.
+`GET /api/v0/investigations/services/{service_name}` and
+`GET /api/v0/services/{service_name}/story` resolve an optional `repo`
+selector; a backing-read failure there already answered 500, but with
+`query failed: ` plus the backend error text. It now answers the fixed
+`repository selector lookup failed` body, through `selector.WriteLookupFailure`
+on the investigation route and through `serviceStoryResolutionError` on the
+story seam, which records the span error itself because it returns an
+envelope rather than writing a response.
 
 No-Regression Evidence (#7626): the success path runs no new code and the
 `ResolveEntity` string literals hash identically before and after (40
@@ -124,10 +132,12 @@ The entity branch has the same shape and was not benchmarked separately.
 Observability Evidence (#7626): a lookup failure on these routes now sets the
 request span to Error with the fixed description
 `repository selector lookup failed` and an `exception` event, where it
-previously answered 400 with no span signal. Pinned by
-`TestResolveEntitySelectorLookupFailureAnswers500`,
-`TestCodeRouteSelectorLookupFailureAnswers500`, and
-`TestLanguageQuerySelectorLookupFailureAnswers500`.
+previously answered 400 (500 on the two service routes) with no span signal.
+Pinned by `TestResolveEntitySelectorLookupFailureAnswers500`,
+`TestCodeRouteSelectorLookupFailureAnswers500`,
+`TestLanguageQuerySelectorLookupFailureAnswers500`,
+`TestServiceRoutesSelectorLookupFailureAnswers500`, and
+`TestBuildServiceStoryEnvelopeSelectorLookupFailure`.
 
 ## Exported surface
 
