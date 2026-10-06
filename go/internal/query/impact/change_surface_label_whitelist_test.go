@@ -346,3 +346,31 @@ func TestChangeSurfaceNonLegacyCypherIsPinned(t *testing.T) {
 		}
 	}
 }
+
+// TestChangeSurfaceEnvironmentScopedCypherKeepsLabelTestFirst pins the same
+// conjunct order on the statement an environment-scoped request actually runs
+// (#7246). The no-environment test above sees three conjuncts; with the
+// environment clause appended there are four, and a later reorder or a change
+// to that clause must not move the label test behind the IN labels() terms, or
+// the paths they are meant to prune would pay for them again.
+func TestChangeSurfaceEnvironmentScopedCypherKeepsLabelTestFirst(t *testing.T) {
+	t.Parallel()
+
+	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, changeSurfaceEnvironmentClause("prod"))
+	conjuncts := changeSurfaceWhereConjuncts(t, rendered)
+	if len(conjuncts) != 4 {
+		t.Fatalf("environment-scoped WHERE has %d conjuncts, want 4 (id guard, label test, IN labels() guard, environment): %q", len(conjuncts), conjuncts)
+	}
+	if conjuncts[0] != "impacted.id <> $target_id" {
+		t.Errorf("first conjunct = %q, want the target id guard", conjuncts[0])
+	}
+	if !regexp.MustCompile(`^\(impacted:\w+(?:\s+OR\s+impacted:\w+)*\)$`).MatchString(conjuncts[1]) {
+		t.Errorf("second conjunct = %q, want the `impacted:Label OR ...` label test ahead of the IN labels() guard", conjuncts[1])
+	}
+	if !strings.Contains(conjuncts[2], "IN labels(impacted)") || strings.Contains(conjuncts[2], "impacted:") {
+		t.Errorf("third conjunct = %q, want the IN labels() guard", conjuncts[2])
+	}
+	if !strings.Contains(conjuncts[3], "impacted.environment = $environment") {
+		t.Errorf("fourth conjunct = %q, want the environment predicate last", conjuncts[3])
+	}
+}

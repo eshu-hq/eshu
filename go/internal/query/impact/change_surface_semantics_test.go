@@ -238,3 +238,44 @@ func TestChangeSurfaceOutgoingTraversalIsNamedForGraphReadTelemetry(t *testing.T
 		})
 	}
 }
+
+// TestChangeSurfaceRepositoryTargetNamesOnlyTheOutgoingTraversal pins the other
+// half of the naming contract (#7246). A Repository target also runs the
+// dependency-consumer read, and that read stays unnamed: it is bounded and was
+// not part of the finding. The Workload-target test above never reaches the
+// consumer branch, so a later change that names the consumer context would pass
+// it. Split the two statements by direction: the consumer read is the only one
+// that walks incoming typed DEPENDS_ON edges.
+func TestChangeSurfaceRepositoryTargetNamesOnlyTheOutgoingTraversal(t *testing.T) {
+	t.Parallel()
+
+	var outgoingName, consumerName string
+	var outgoingCalls, consumerCalls int
+	handler := &Handler{Neo4j: testgraph.FakeGraphReader{RunFn: func(
+		ctx context.Context, cypher string, _ map[string]any,
+	) ([]map[string]any, error) {
+		if strings.Contains(cypher, "<-[:DEPENDS_ON") {
+			consumerCalls++
+			consumerName = querycontract.GraphQueryNameFromContext(ctx)
+			return nil, nil
+		}
+		outgoingCalls++
+		outgoingName = querycontract.GraphQueryNameFromContext(ctx)
+		return nil, nil
+	}}}
+	_, _, err := handler.changeSurfaceTraversalRows(t.Context(),
+		ChangeSurfaceTargetCandidate{ID: "repository:changed", Labels: []string{"Repository"}},
+		"", 4, 10, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if err != nil {
+		t.Fatalf("changeSurfaceTraversalRows() error = %v", err)
+	}
+	if outgoingCalls != 1 || consumerCalls != 1 {
+		t.Fatalf("graph reads = %d outgoing, %d consumer, want one of each for a Repository target", outgoingCalls, consumerCalls)
+	}
+	if want := "platform_impact.change_surface.outgoing"; outgoingName != want {
+		t.Errorf("outgoing graph_query_name = %q, want %q", outgoingName, want)
+	}
+	if consumerName != querycontract.DefaultGraphQueryName {
+		t.Errorf("consumer graph_query_name = %q, want the unnamed default %q", consumerName, querycontract.DefaultGraphQueryName)
+	}
+}
