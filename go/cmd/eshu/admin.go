@@ -41,12 +41,12 @@ func init() {
 	// admin reindex
 	reindexCmd := &cobra.Command{
 		Use:   "reindex",
-		Short: "Queue a reindex request for the ingester",
+		Short: "Force a fleet-wide re-parse of every git repository",
 		RunE:  runAdminReindex,
 	}
-	reindexCmd.Flags().String("ingester", "repository", "Ingester type")
-	reindexCmd.Flags().String("scope", "workspace", "Reindex scope")
-	reindexCmd.Flags().Bool("force", true, "Force reindex")
+	reindexCmd.Flags().String("ingester", "repository", "Ingester type (only repository is accepted)")
+	reindexCmd.Flags().String("scope", "workspace", "Reindex scope (only workspace is accepted)")
+	reindexCmd.Flags().Bool("force", true, "Force a full re-parse (false is rejected)")
 	addRemoteFlags(reindexCmd)
 	adminCmd.AddCommand(reindexCmd)
 

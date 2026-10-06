@@ -86,7 +86,7 @@ func decodeReindexRequest(r *http.Request) (reindexRequest, error) {
 		req.Scope = reindexScopeWorkspace
 	}
 	if req.Scope != reindexScopeWorkspace {
-		return req, fmt.Errorf("scope must be %q: this route forces a fleet-wide re-parse; per-repository reindex is not supported yet (tracked in #7620)", reindexScopeWorkspace)
+		return req, fmt.Errorf("scope must be %q: this route forces a fleet-wide re-parse; per-repository reindex is not supported", reindexScopeWorkspace)
 	}
 	if req.Force != nil && !*req.Force {
 		return req, errors.New("force must be true or omitted: a reindex always forces a full re-parse")

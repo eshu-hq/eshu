@@ -122,6 +122,14 @@ the cycle's start time, which is at or after the watermark, so once it activates
 the scope stays `fresh`. A later request moves the watermark forward and starts
 a new pass.
 
+Send the request only after every git ingester runs the new binary. The
+watermark records when a full generation was ingested, not which parser
+produced it. During a rolling upgrade, a shard still on the old binary can
+produce fulls after the watermark, and those scopes then count as `fresh` with
+the old parser output. An ingester clock that runs ahead of Postgres widens
+this window by the skew. If that happens, send another request once the rollout
+completes.
+
 - A shard whose cycle started before the watermark (clock skew between the
   ingester and Postgres) skips it that cycle and logs INFO
   `git_reindex_watermark_deferred`. Otherwise every forced full would land
@@ -135,8 +143,13 @@ a new pass.
   with `reason=reindex_requested`.
 - With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` the watermark is still honored,
   with the throttle bounds of the 24-hour default. The interval reasons and
-  `graph_dirty` stay off. While a watermark is set, each cycle reads the
-  per-scope state the default sweep reads.
+  `graph_dirty` stay off. The watermark is never cleared, so after the first
+  request each cycle reads the per-scope state the default sweep reads, and a
+  scope whose fulls keep failing is retried on the throttle bounds.
+- A watermark stamped in the future (for example after the Postgres clock
+  jumped forward) defers every shard until clocks pass it. To recover, set
+  `reindex_request_requested_at` for `ingester = 'repository'` in
+  `runtime_ingester_control` back to the intended time.
 - A webhook-only ingester reaches only the repositories it is triggered for.
   Filesystem source mode does not read the watermark.
 

@@ -12,12 +12,13 @@ import (
 
 // ReindexInput carries the operator-supplied selectors for Reindex.
 type ReindexInput struct {
-	// Ingester names the ingester type to reindex.
+	// Ingester names the ingester type to reindex; the API accepts only
+	// "repository".
 	Ingester string
-	// Scope names the reindex scope.
+	// Scope names the reindex scope; the API accepts only "workspace".
 	Scope string
-	// Force requests a reindex even when the ingester considers the scope
-	// already current.
+	// Force must be true: a reindex always forces a full re-parse, and the API
+	// rejects false with 400.
 	Force bool
 }
 

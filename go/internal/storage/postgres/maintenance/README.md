@@ -16,8 +16,9 @@ type. The parent `postgres` package keeps the schema bootstrap registry
 (`BootstrapDefinitions`) that other domains, including this one's migration,
 register against. `internal/runtime` owns the `StatusRequestStore` interface,
 the `ScanRequest`/`ReindexRequest` domain types, and the
-`StatusRequestHandler` that drives this store. `cmd/api` owns wiring: it
-constructs the store and passes it to the handler.
+`StatusRequestHandler` that drives this store. `cmd/api` owns the write
+wiring: it constructs the store and passes it to the handler. `cmd/ingester`
+constructs a read-only store to read the reindex watermark each sync cycle.
 
 ## Exported surface
 
@@ -37,9 +38,9 @@ See `doc.go` for the godoc contract.
 ## Telemetry
 
 None. This package executes bounded SQL through the injected database
-handle; the caller (`cmd/api`, which wires it into `internal/runtime`'s
-`StatusRequestHandler`) owns any
-operator-facing signal.
+handle; the callers own any operator-facing signal: `cmd/api`, which wires it
+into `internal/runtime`'s `StatusRequestHandler`, and the git collector, which
+logs the watermark read through `cmd/ingester`'s reader.
 
 ## Gotchas / invariants
 

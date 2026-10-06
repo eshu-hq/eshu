@@ -74,7 +74,7 @@ func TestAdminHandler_ReindexRejectsUnsupportedRequests(t *testing.T) {
 		want string
 	}{
 		{"unknown ingester", `{"ingester":"terraform"}`, `ingester must be "repository"`},
-		{"narrow scope", `{"scope":"repository"}`, "#7620"},
+		{"narrow scope", `{"scope":"repository"}`, "per-repository reindex is not supported"},
 		{"force false", `{"force":false}`, "force"},
 		{"workspace path", `{"scope":"workspace","path":"/src/app"}`, `unknown field "path"`},
 		{"workspace action", `{"scope":"workspace","action":"sync"}`, `unknown field "action"`},
