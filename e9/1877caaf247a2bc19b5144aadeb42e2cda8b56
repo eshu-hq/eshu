@@ -1,0 +1,27 @@
+go/.scratch7033eight/README.md
+  s_b0d7e3abc26c5a::t_0e78610bb3c38f 1-28
+go/.scratch7033eight/main_test.go
+  s_b0d7e3abc26c5a::t_2c4c5d7e81549c 31-41
+go/.scratch7033eight/doc.go
+  s_b0d7e3abc26c5a::t_0e78610bb3c38f 1-5
+go/.scratch7033eight/AGENTS.md
+  s_b0d7e3abc26c5a::t_0e78610bb3c38f 1-10
+go/.scratch7033eight/main.go
+  s_b0d7e3abc26c5a::t_1184cd2ed01b5b 137-143,146,149-151,168,172-173,176-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e91877caaf247a2bc19b5144aadeb42e2cda8b56",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
