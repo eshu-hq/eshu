@@ -139,6 +139,11 @@ func BenchmarkStatusActiveFactWorkItemsCTEGrowth(b *testing.B) {
 func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	dsn := statusActiveGenerationBenchDSN()
 	if dsn == "" {
+		// The reducer-contention gate enrolls this proof (#7009); there an
+		// unset DSN must fail, not skip.
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_STATUS_ACTIVE_GENERATION_BENCH_DSN or ESHU_POSTGRES_DSN is required for the #4446/#7009 summary plan guard")
+		}
 		t.Skip("set ESHU_STATUS_ACTIVE_GENERATION_BENCH_DSN or ESHU_POSTGRES_DSN to run the status active-generation CTE index proof")
 	}
 
