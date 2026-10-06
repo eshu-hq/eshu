@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -45,7 +46,7 @@ FOR NO KEY UPDATE`).Scan(&heldScope, &heldGeneration); err != nil {
 // older than every open one must neither be leased nor hide the open one.
 func TestActivationObligationClaimIgnoresFinishedRowsLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_finished_claim")
-	seedRetentionSelectionScope(t, ctx, database, "claim-finished")
+	seedScope(t, ctx, database, "claim-finished")
 	for _, row := range []struct{ generation, state, finished, created string }{
 		{"claim-finished-completed", "completed", "clock_timestamp()", "clock_timestamp() - interval '2 hours'"},
 		{"claim-finished-obsolete", "obsolete", "clock_timestamp()", "clock_timestamp() - interval '90 minutes'"},
@@ -62,7 +63,7 @@ VALUES ('claim-finished', $1, 'w', $2, `+row.finished+`, `+row.created+`)`, row.
 			t.Fatal(err)
 		}
 	}
-	store := activation.NewStore(SQLDB{DB: database})
+	store := activation.NewStore(postgres.SQLDB{DB: database})
 	work, err := store.Claim(ctx, "finished-owner", time.Minute)
 	if err != nil || work == nil || work.GenerationID != "claim-finished-pending" {
 		t.Fatalf("Claim = %+v err=%v, want the pending obligation behind two older finished rows", work, err)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	lockstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -37,10 +38,13 @@ func composedWaitingID(generationID string) string {
 // (one inbound source), each with one succeeded item per reopen domain, then
 // the real corpus-wide backfill so every active partition has evidence, a
 // phase and a memo at the current catalog.
-func seedComposedCorpus(t *testing.T, ctx context.Context, database *sql.DB) *targetedDiffPair {
+func seedComposedCorpus(t *testing.T, ctx context.Context, database *sql.DB) *corpus {
 	t.Helper()
-	p := &targetedDiffPair{t: t, ctx: ctx, whole: database}
-	seedTargetedCorpus(p)
+	p := &corpus{t: t, ctx: ctx, db: database}
+	p.gitRepo("git:tgt", "tgt-1", "repo-tgt", "payments-service")
+	p.workItems("git:tgt", "tgt-1")
+	p.gitRepo("git:dep", "dep-1", "repo-dep", "orders-api")
+	p.workItems("git:dep", "dep-1")
 	p.gitRepo("git:solo", "solo-1", "repo-solo", "ledger-svc")
 	p.workItems("git:solo", "solo-1")
 	p.gitRepo("git:in", "in-1", "repo-in", "billing-ui")
@@ -55,19 +59,19 @@ func seedComposedCorpus(t *testing.T, ctx context.Context, database *sql.DB) *ta
 // Terraform reference to alias, one succeeded item per reopen domain except
 // deployment_mapping, and that domain's row waiting (retrying, not-ready
 // class, visible in an hour) on the generation's backward-evidence phase.
-func quietOwed(p *targetedDiffPair, scopeID, generationID, repoID, name, alias string) {
+func quietOwed(p *corpus, scopeID, generationID, repoID, name, alias string) {
 	p.t.Helper()
 	p.generation(scopeID, generationID, 90*time.Minute, true)
 	p.repo(scopeID, generationID, repoID, name)
 	p.terraformRef(generationID+"-ref-"+alias, scopeID, generationID, repoID, "main.tf", alias)
-	for _, domain := range targetedDiffReopenDomains() {
+	for _, domain := range reopenDomains() {
 		if domain == "deployment_mapping" {
 			continue
 		}
 		p.exec(`INSERT INTO fact_work_items
   (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, created_at, updated_at)
 VALUES ($1, $2, $3, 'reducer', $4, 'succeeded', 1, $5, $5)`,
-			generationID+"/"+domain, scopeID, generationID, domain, targetedDiffBase)
+			generationID+"/"+domain, scopeID, generationID, domain, corpusBase)
 	}
 	p.exec(`INSERT INTO fact_work_items
   (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count,
@@ -75,7 +79,7 @@ VALUES ($1, $2, $3, 'reducer', $4, 'succeeded', 1, $5, $5)`,
 VALUES ($1, $2, $3, 'reducer', 'deployment_mapping', 'retrying', 1,
    clock_timestamp() + interval '1 hour', clock_timestamp() + interval '1 hour',
    'cross_repo_backward_evidence_not_ready', 'backward evidence not ready', '{}'::jsonb, $4, $4)`,
-		composedWaitingID(generationID), scopeID, generationID, targetedDiffBase)
+		composedWaitingID(generationID), scopeID, generationID, corpusBase)
 }
 
 // owePending runs the production catch-up so every active generation with a
@@ -83,7 +87,7 @@ VALUES ($1, $2, $3, 'reducer', 'deployment_mapping', 'retrying', 1,
 // were inserted.
 func owePending(t *testing.T, ctx context.Context, database *sql.DB) int {
 	t.Helper()
-	page, err := activation.NewStore(SQLDB{DB: database}).CatchUp(ctx, "", 500)
+	page, err := activation.NewStore(postgres.SQLDB{DB: database}).CatchUp(ctx, "", 500)
 	if err != nil {
 		t.Fatalf("activation catch-up: %v", err)
 	}
@@ -196,11 +200,20 @@ func (tx lockWaitTransaction) ExecContext(ctx context.Context, query string, arg
 	return result, err
 }
 
-// withLockWait returns the store with its beginner wrapped.
-func withLockWait(store IngestionStore) (IngestionStore, *lockWaitBeginner) {
-	wrapped := &lockWaitBeginner{inner: store.beginner}
-	store.beginner = wrapped
-	return store, wrapped
+// lockWaitDB is SQLDB whose transactions go through a lockWaitBeginner.
+type lockWaitDB struct {
+	postgres.SQLDB
+	beginner *lockWaitBeginner
+}
+
+// Begin implements db.Beginner through the wrapper.
+func (d lockWaitDB) Begin(ctx context.Context) (db.Transaction, error) { return d.beginner.Begin(ctx) }
+
+// newLockWaitStore returns an ingestion store on database whose transactions
+// go through a lockWaitBeginner, and that beginner.
+func newLockWaitStore(database *sql.DB) (postgres.IngestionStore, *lockWaitBeginner) {
+	wrapped := &lockWaitBeginner{inner: postgres.SQLDB{DB: database}}
+	return postgres.NewIngestionStore(lockWaitDB{SQLDB: postgres.SQLDB{DB: database}, beginner: wrapped}), wrapped
 }
 
 // composedConsumer is one consumer replica: the production runner with the
@@ -273,11 +286,11 @@ func newComposedConsumer(t *testing.T, database *sql.DB, owner string, lease tim
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, locks := withLockWait(NewIngestionStore(SQLDB{DB: database}))
-	port := &composedPort{inner: NewActivationMaintainer(store, nil, instruments)}
+	store, locks := newLockWaitStore(database)
+	port := &composedPort{inner: postgres.NewActivationMaintainer(store, nil, instruments)}
 	return &composedConsumer{
 		runner: &maintenance.ActivationObligationRunner{
-			Store:       activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
+			Store:       activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 			Maintainer:  port,
 			Config:      maintenance.ActivationObligationRunnerConfig{Owner: owner, Lease: lease, MaxPerCycle: maxPerCycle},
 			Instruments: instruments,
@@ -302,7 +315,7 @@ func (c *composedConsumer) failures(t *testing.T, ctx context.Context, reason st
 	if reason != "" {
 		key = "reason"
 	}
-	return targetedCounter(c.metrics(t, ctx), "eshu_dp_activation_obligation_failures_total", key, reason)
+	return counterValue(c.metrics(t, ctx), "eshu_dp_activation_obligation_failures_total", key, reason)
 }
 
 // requireNoFailures fails when the replica recorded any failure (claim,

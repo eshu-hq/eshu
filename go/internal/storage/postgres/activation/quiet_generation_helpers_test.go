@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -25,7 +26,7 @@ import (
 // as the shipped callback (it is corpus work per activation); production
 // wires postgres.ActivationMaintainer, the partition-scoped pass.
 type wholeMaintenanceControlArm struct {
-	store IngestionStore
+	store postgres.IngestionStore
 }
 
 func (c wholeMaintenanceControlArm) MaintainActivation(ctx context.Context, _ maintenance.ActivationObligation) error {
@@ -56,20 +57,20 @@ type quietConsumer struct {
 // callback is the production partition-scoped maintainer, or the labelled
 // whole-maintenance control arm when controlArm is set. The maintainer gets
 // its own instruments so the proof can see which pass the consumer ran.
-func startQuietActivationConsumer(t *testing.T, ctx context.Context, database *sql.DB, store IngestionStore, controlArm bool) *quietConsumer {
+func startQuietActivationConsumer(t *testing.T, ctx context.Context, database *sql.DB, store postgres.IngestionStore, controlArm bool) *quietConsumer {
 	t.Helper()
 	reader := sdkmetric.NewManualReader()
 	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("quiet-consumer"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var inner maintenance.ActivationMaintainer = NewActivationMaintainer(store, nil, instruments)
+	var inner maintenance.ActivationMaintainer = postgres.NewActivationMaintainer(store, nil, instruments)
 	if controlArm {
 		inner = wholeMaintenanceControlArm{store: store}
 	}
 	consumer := &quietConsumer{controlArm: controlArm, port: &countingActivationPort{inner: inner}, reader: reader}
 	runner := &maintenance.ActivationObligationRunner{
-		Store:      activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
+		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: consumer.port,
 		Config: maintenance.ActivationObligationRunnerConfig{
 			Owner: "quiet-activation-consumer", Lease: time.Minute,
@@ -108,14 +109,14 @@ func (c *quietConsumer) assertSettledQuietGeneration(t *testing.T, ctx context.C
 		if err := c.reader.Collect(ctx, &rm); err != nil {
 			t.Fatal(err)
 		}
-		if got := targetedCounter(rm, "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", "published"); got != 1 {
+		if got := counterValue(rm, "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", "published"); got != 1 {
 			t.Fatalf("partition-scoped passes published = %d, want 1", got)
 		}
-		if got := targetedHistogramCount(rm, "eshu_dp_deferred_backfill_duration_seconds"); got != 0 {
+		if got := histogramCount(rm, "eshu_dp_deferred_backfill_duration_seconds", ""); got != 0 {
 			t.Fatalf("whole-corpus passes on the consumer's instruments = %d, want 0", got)
 		}
 	}
-	queue := NewReducerQueue(SQLDB{DB: database}, "quiet-reducer", time.Minute)
+	queue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "quiet-reducer", time.Minute)
 	queue.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
 	queue.Now = activationDatabaseClock(t, ctx, database)
 	intent, ok, err := queue.Claim(ctx)

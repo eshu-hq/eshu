@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"errors"
@@ -14,6 +14,7 @@ import (
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -34,7 +35,7 @@ func TestActivationObligationConsumerQueueIsolationLive(t *testing.T) {
 	f.requireOtherClassRetrying(t, other.IntentID)
 	otherDomain := f.notReadyDomain(t, reducer.DomainCodeImportRepoEdge, f.scope, f.gen, "other-domain")
 	wrongScope := f.notReady(t, f.source, "gen-consumer-source", "wrong-scope")
-	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
 	if err := pq.Ack(f.ctx, f.target, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ WHERE scope_id=$1 AND generation_id=$2 AND keyspace='cross_repo_evidence' AND ph
 		f.scope, f.oldGen).Scan(&otherPhases); err != nil || otherPhases == 0 {
 		t.Fatalf("fixture needs an old-generation backward phase: count=%d err=%v", otherPhases, err)
 	}
-	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
 	if err := pq.Ack(f.ctx, f.target, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +184,7 @@ func TestActivationObligationConsumerSupersessionLive(t *testing.T) {
 		"repo-consumer-target", "https://github.com/acme/payments-deploy.git")
 	newer.ObservedAt = newer.ObservedAt.Add(2 * time.Hour)
 	commitActivationRepository(t, f.ctx, f.store, newer, "repo-consumer-target")
-	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
 	if err := pq.Ack(f.ctx, claimActivationProjectorWork(t, f.ctx, pq, f.scope, newer.GenerationID),
 		projectorruntime.Result{}); err != nil {
 		t.Fatal(err)

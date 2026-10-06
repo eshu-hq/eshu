@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -137,9 +138,9 @@ WHERE scope_id=$1 AND generation_id=$2 AND domain='deployment_mapping'
 // repository fact, pages by scope count, and is idempotent.
 func TestActivationObligationCatchUpLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_catchup")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-catchup-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-catchup-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string) {
 		t.Helper()
 		commitActivationRepository(t, ctx, store, activationRepositoryFact("fact-"+generationID,
@@ -162,7 +163,7 @@ func TestActivationObligationCatchUpLive(t *testing.T) {
 	if _, err := database.ExecContext(ctx, `DELETE FROM activation_obligations`); err != nil {
 		t.Fatal(err)
 	}
-	maintenance := NewIngestionStore(SQLDB{DB: database})
+	maintenance := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	if err := maintenance.RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestActivationObligationCatchUpLive(t *testing.T) {
 WHERE scope_id IN ('git:catchup-a', 'git:catchup-c')`); err != nil {
 		t.Fatal(err)
 	}
-	obligations := activation.NewStore(SQLDB{DB: database})
+	obligations := activation.NewStore(postgres.SQLDB{DB: database})
 	var pages []activation.CatchUpPage
 	cursor := ""
 	for n := 0; n < 10; n++ {
@@ -202,7 +203,7 @@ FROM activation_obligations ORDER BY scope_id`)
 		if err := rows.Scan(&scopeID, &generationID, &workItemID, &state); err != nil {
 			t.Fatal(err)
 		}
-		if workItemID != projectorWorkItemID(scopeID, generationID) || state != "pending" {
+		if workItemID != postgres.ProjectorWorkItemID(scopeID, generationID) || state != "pending" {
 			t.Fatalf("catch-up row %s/%s work=%q state=%q", scopeID, generationID, workItemID, state)
 		}
 		got = append(got, scopeID+"/"+generationID)
@@ -223,9 +224,9 @@ FROM activation_obligations ORDER BY scope_id`)
 // obsolete.
 func TestActivationObligationCatchUpReowesObsoleteOfActiveLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_catchup_obsolete")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-catchup-obsolete-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-catchup-obsolete-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string, later time.Duration) {
 		t.Helper()
 		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID, "https://github.com/acme/"+repoID+".git")
@@ -246,7 +247,7 @@ SET state = 'obsolete', finished_at = clock_timestamp()
 WHERE generation_id IN ('gen-reowe-active', 'gen-reowe-old')`); err != nil {
 		t.Fatal(err)
 	}
-	page, err := activation.NewStore(SQLDB{DB: database}).CatchUp(ctx, "", 100)
+	page, err := activation.NewStore(postgres.SQLDB{DB: database}).CatchUp(ctx, "", 100)
 	if err != nil {
 		t.Fatal(err)
 	}

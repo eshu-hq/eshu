@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -51,17 +52,17 @@ func TestActivationObligationLeaseExpiresMidMaintenanceLive(t *testing.T) {
 	requireWoken(t, ctx, database, "tgt-2", true)
 
 	before := composedState(t, ctx, database)
-	result, err := activation.NewStore(SQLDB{DB: database}).Finalize(ctx, firstWork)
+	result, err := activation.NewStore(postgres.SQLDB{DB: database}).Finalize(ctx, firstWork)
 	if err != nil || result.Outcome != activation.OutcomeNotOwner {
 		t.Fatalf("first owner's late Finalize = %+v err=%v, want not_owner", result, err)
 	}
 	requireComposedState(t, "after the first owner's late Finalize", composedState(t, ctx, database), before)
 
 	firstRM, secondRM := first.metrics(t, ctx), second.metrics(t, ctx)
-	completed := targetedCounter(firstRM, "eshu_dp_activation_obligation_finalize_total", "outcome", "completed") +
-		targetedCounter(secondRM, "eshu_dp_activation_obligation_finalize_total", "outcome", "completed")
-	woken := targetedCounter(firstRM, "eshu_dp_activation_obligation_woken_total", "", "") +
-		targetedCounter(secondRM, "eshu_dp_activation_obligation_woken_total", "", "")
+	completed := counterValue(firstRM, "eshu_dp_activation_obligation_finalize_total", "outcome", "completed") +
+		counterValue(secondRM, "eshu_dp_activation_obligation_finalize_total", "outcome", "completed")
+	woken := counterValue(firstRM, "eshu_dp_activation_obligation_woken_total", "", "") +
+		counterValue(secondRM, "eshu_dp_activation_obligation_woken_total", "", "")
 	if completed != 1 || woken != 1 {
 		t.Fatalf("completions = %d, wakes = %d across both owners, want exactly 1 and 1", completed, woken)
 	}

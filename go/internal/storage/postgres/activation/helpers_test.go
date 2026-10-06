@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replay/parserfixture"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // activationFluxSourceYAML is one Flux GitRepository whose remote names the
@@ -50,7 +51,7 @@ func openActivationObligationProofDB(t *testing.T, prefix string) (context.Conte
 // commitFluxSourceGeneration parses the Flux YAML with the real parser and
 // commits it as one source generation through the real ingestion store.
 func commitFluxSourceGeneration(
-	t *testing.T, ctx context.Context, store IngestionStore, scopeID, repoID, generationID string,
+	t *testing.T, ctx context.Context, store postgres.IngestionStore, scopeID, repoID, generationID string,
 ) {
 	t.Helper()
 	root := t.TempDir()
@@ -100,7 +101,7 @@ func activationRepositoryFact(factID, scopeID, generationID, repoID, remote stri
 	}
 }
 
-func commitActivationRepository(t *testing.T, ctx context.Context, store IngestionStore,
+func commitActivationRepository(t *testing.T, ctx context.Context, store postgres.IngestionStore,
 	envelope facts.Envelope, repoID string,
 ) {
 	t.Helper()
@@ -115,7 +116,7 @@ func commitActivationRepository(t *testing.T, ctx context.Context, store Ingesti
 
 // claimActivationProjectorWork claims through the same queue (and therefore
 // the same lease owner) the caller later Acks with; Ack fences on the owner.
-func claimActivationProjectorWork(t *testing.T, ctx context.Context, queue ProjectorQueue,
+func claimActivationProjectorWork(t *testing.T, ctx context.Context, queue postgres.ProjectorQueue,
 	wantScope, wantGeneration string,
 ) projector.ScopeGenerationWork {
 	t.Helper()
@@ -144,7 +145,7 @@ WHERE scope_id = $1 AND generation_id = $2`,
 	if err != nil || count != 1 {
 		t.Fatalf("%s: count=%d err=%v", absentMessage, count, err)
 	}
-	wantID := projectorWorkItemID(work.Scope.ScopeID, work.Generation.GenerationID)
+	wantID := postgres.ProjectorWorkItemID(work.Scope.ScopeID, work.Generation.GenerationID)
 	if workID != wantID || state != "pending" {
 		t.Fatalf("obligation work/state = %q/%q, want %q/pending", workID, state, wantID)
 	}
@@ -170,7 +171,7 @@ func activationWorkStatus(t *testing.T, ctx context.Context, database *sql.DB,
 	var status string
 	if err := database.QueryRowContext(ctx, `SELECT status FROM fact_work_items
 WHERE work_item_id = $1 AND scope_id = $2 AND generation_id = $3`,
-		projectorWorkItemID(work.Scope.ScopeID, work.Generation.GenerationID),
+		postgres.ProjectorWorkItemID(work.Scope.ScopeID, work.Generation.GenerationID),
 		work.Scope.ScopeID, work.Generation.GenerationID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
@@ -208,15 +209,15 @@ WHERE scope_id = $1`, scopeID).Scan(&active); err != nil {
 // target generation and the source are claimed but not yet Acked. Every
 // Claim and Ack uses the one "7584-consumer-projector" lease owner.
 func setupActivationConsumer(t *testing.T, prefix string) (
-	context.Context, *sql.DB, IngestionStore,
+	context.Context, *sql.DB, postgres.IngestionStore,
 	projector.ScopeGenerationWork, projector.ScopeGenerationWork,
 ) {
 	t.Helper()
 	ctx, database := openActivationObligationProofDB(t, prefix)
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
 	commitFluxSourceGeneration(t, ctx, store, "git:consumer-source", "repo-consumer-source", "gen-consumer-source")
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
 	sourceWork := claimActivationProjectorWork(t, ctx, queue, "git:consumer-source", "gen-consumer-source")
 
 	oldTarget := activationRepositoryFact("fact-consumer-target-old", "git:consumer-target",
@@ -236,7 +237,7 @@ func setupActivationConsumer(t *testing.T, prefix string) (
 
 // claimTargetReducerIntent claims reducer work until the exact target
 // deployment_mapping row is returned, recording every other claim.
-func claimTargetReducerIntent(t *testing.T, ctx context.Context, queue ReducerQueue,
+func claimTargetReducerIntent(t *testing.T, ctx context.Context, queue postgres.ReducerQueue,
 	scopeID, generationID string,
 ) reducer.Intent {
 	t.Helper()

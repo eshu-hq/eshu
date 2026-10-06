@@ -71,14 +71,10 @@ func newTargetedDiffPair(t *testing.T) *targetedDiffPair {
 	return pair
 }
 
-// exec applies one statement to both arms. A nil arm is skipped, so a
-// single-schema fixture (only whole set) reuses the same seeders.
+// exec applies one statement to both arms.
 func (p *targetedDiffPair) exec(query string, args ...any) {
 	p.t.Helper()
 	for _, database := range []*sql.DB{p.whole, p.targeted} {
-		if database == nil {
-			continue
-		}
 		if _, err := database.ExecContext(p.ctx, query, args...); err != nil {
 			p.t.Fatalf("seed %q: %v", firstLine(query), err)
 		}
@@ -162,9 +158,6 @@ VALUES ($1, $2, $3, 'reducer', $4, 'succeeded', 1, $5, $5)`,
 func (p *targetedDiffPair) prepass() {
 	p.t.Helper()
 	for _, database := range []*sql.DB{p.whole, p.targeted} {
-		if database == nil {
-			continue
-		}
 		store := targetedDiffStore(database, targetedDiffBase.Add(time.Hour))
 		if err := store.BackfillAllRelationshipEvidence(p.ctx, nil, nil); err != nil {
 			p.t.Fatalf("pre-pass BackfillAllRelationshipEvidence() error = %v", err)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // This file uses only symbols that exist on origin/main, so the same flow
@@ -86,7 +87,7 @@ func quietRepositoryFacts(scopeID, generationID, repoID, name, alias string, at 
 
 // claimAckQuiet claims the next projector work through queue, requires it to
 // be the wanted generation, and acknowledges it (the real projector Ack).
-func claimAckQuiet(t *testing.T, ctx context.Context, queue ProjectorQueue, scopeID, generationID string) {
+func claimAckQuiet(t *testing.T, ctx context.Context, queue postgres.ProjectorQueue, scopeID, generationID string) {
 	t.Helper()
 	work, ok, err := queue.Claim(ctx)
 	if err != nil || !ok {
@@ -103,7 +104,7 @@ func claimAckQuiet(t *testing.T, ctx context.Context, queue ProjectorQueue, scop
 
 // countingQuietCommitter is the production ingestion commit with a counter.
 type countingQuietCommitter struct {
-	store IngestionStore
+	store postgres.IngestionStore
 	calls atomic.Int32
 }
 
@@ -123,9 +124,9 @@ func runQuietGenerationActivation(t *testing.T, controlArm bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	base := time.Now().UTC().Add(-4 * time.Minute).Truncate(time.Second)
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.Now = func() time.Time { return base.Add(2 * time.Minute) }
-	queue := NewProjectorQueue(SQLDB{DB: database}, "quiet-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "quiet-projector", time.Minute)
 	queue.Now = func() time.Time { return base.Add(3 * time.Minute) }
 
 	// The initial generations of both repositories are committed and
@@ -168,7 +169,7 @@ func runQuietGenerationActivation(t *testing.T, controlArm bool) {
 		AfterBatchDrained: func(ctx context.Context, hasCommitted bool) error {
 			err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
 				ctx,
-				DeferredMaintenanceBarrierConfig{
+				postgres.DeferredMaintenanceBarrierConfig{
 					ShardCount: 1, ShardIndex: 0, HasCommitted: hasCommitted,
 				},
 				nil, nil,
@@ -208,7 +209,7 @@ func runQuietGenerationActivation(t *testing.T, controlArm bool) {
 		t.Fatalf("maintenance callbacks before Ack = %d, want 1", got)
 	}
 
-	phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: database})
+	phaseStore := postgres.NewGraphProjectionPhaseStateStore(postgres.SQLDB{DB: database})
 	assertQuietBackwardPhase(t, ctx, phaseStore, quietSourceScope, quietOldID, true)
 	assertQuietBackwardPhase(t, ctx, phaseStore, quietTargetScope, quietTargetID, true)
 	assertQuietBackwardPhase(t, ctx, phaseStore, quietSourceScope, quietNewID, false)
@@ -225,7 +226,7 @@ JOIN scope_generations ON scope_generations.scope_id = ingestion_scopes.scope_id
 JOIN fact_work_items ON fact_work_items.generation_id = scope_generations.generation_id
 WHERE ingestion_scopes.scope_id = $1 AND scope_generations.generation_id = $2
   AND fact_work_items.work_item_id = $3`, quietSourceScope, quietNewID,
-		projectorWorkItemID(quietSourceScope, quietNewID),
+		postgres.ProjectorWorkItemID(quietSourceScope, quietNewID),
 	).Scan(&activeID, &generationStatus, &projectorStatus); err != nil {
 		t.Fatalf("read activation state: %v", err)
 	}
@@ -280,7 +281,7 @@ WHERE generation_id = $1 AND source_repo_id = 'repo-source'
 
 // awaitQuietExactPhase waits up to 2 s for the update generation's
 // same-generation backward phase; without a consumer it never appears.
-func awaitQuietExactPhase(t *testing.T, ctx context.Context, phaseStore *GraphProjectionPhaseStateStore,
+func awaitQuietExactPhase(t *testing.T, ctx context.Context, phaseStore *postgres.GraphProjectionPhaseStateStore,
 	serviceDone <-chan struct{}, serviceErr func() error, counts func() string,
 ) {
 	t.Helper()
@@ -334,7 +335,7 @@ VALUES ('quiet-new-deployment-mapping', $1, $2, 'reducer', 'deployment_mapping',
 func assertQuietBackwardPhase(
 	t *testing.T,
 	ctx context.Context,
-	store *GraphProjectionPhaseStateStore,
+	store *postgres.GraphProjectionPhaseStateStore,
 	scopeID, generationID string,
 	want bool,
 ) {

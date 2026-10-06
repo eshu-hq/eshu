@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -46,9 +47,9 @@ func TestActivationObligationRealCatalogChangeIsHeldThenCompletedLive(t *testing
 func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	t.Helper()
 	ctx, database := openActivationObligationProofDB(t, "activation_real_catalog")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-real-catalog-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-real-catalog-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string, later time.Duration) {
 		t.Helper()
 		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID,
@@ -68,7 +69,7 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	}
 	// The epoch whole pass writes every active partition's memo at the
 	// current catalog fingerprint: the baseline the targeted pass needs.
-	if err := NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
+	if err := postgres.NewIngestionStore(postgres.SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	activate("git:catalog-x", "gen-x-2", "repo-x", time.Hour) // quiet generation, owed
@@ -79,9 +80,9 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	port := &countingRealMaintainer{inner: NewActivationMaintainer(NewIngestionStore(SQLDB{DB: database}), nil, instruments)}
+	port := &countingRealMaintainer{inner: postgres.NewActivationMaintainer(postgres.NewIngestionStore(postgres.SQLDB{DB: database}), nil, instruments)}
 	runner := &maintenance.ActivationObligationRunner{
-		Store:       activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
+		Store:       activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer:  port,
 		Config:      maintenance.ActivationObligationRunnerConfig{Owner: "7584-real-catalog-consumer", Lease: 500 * time.Millisecond},
 		Instruments: instruments,
@@ -97,13 +98,13 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 		t.Fatalf("callbacks inside one lease = %d, want 2 (one per owed generation)", got)
 	}
 	rm := collectRealCatalogMetrics(t, ctx, reader)
-	if got := targetedCounter(rm, "eshu_dp_activation_obligation_failures_total", "reason", reason); got != 2 {
+	if got := counterValue(rm, "eshu_dp_activation_obligation_failures_total", "reason", reason); got != 2 {
 		t.Fatalf("%s holds = %d, want 2", reason, got)
 	}
-	if got := targetedCounter(rm, "eshu_dp_activation_obligation_failures_total", "reason", "maintenance"); got != 0 {
+	if got := counterValue(rm, "eshu_dp_activation_obligation_failures_total", "reason", "maintenance"); got != 0 {
 		t.Fatalf("maintenance failures = %d, want 0 (a refusal is a hold)", got)
 	}
-	if err := NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
+	if err := postgres.NewIngestionStore(postgres.SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
 		t.Fatal(err) // the epoch pass the onboarding commit triggers
 	}
 	time.Sleep(700 * time.Millisecond)
@@ -116,10 +117,10 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 		t.Fatalf("callbacks after the epoch pass = %d, want still 2", got)
 	}
 	rm = collectRealCatalogMetrics(t, ctx, reader)
-	if got := targetedHistogramCount(rm, "eshu_dp_deferred_backfill_duration_seconds"); got != 0 {
+	if got := histogramCount(rm, "eshu_dp_deferred_backfill_duration_seconds", ""); got != 0 {
 		t.Fatalf("whole-corpus passes on the consumer's instruments = %d, want 0", got)
 	}
-	if got := targetedHistogramCountByOutcome(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != 2 {
+	if got := histogramCount(rm, "eshu_dp_deferred_backfill_targeted_duration_seconds", reason); got != 2 {
 		t.Fatalf("targeted %s refused passes = %d, want 2", reason, got)
 	}
 }
@@ -164,9 +165,9 @@ func collectRealCatalogMetrics(t *testing.T, ctx context.Context, reader *sdkmet
 // one callback; it is never reclaimed.
 func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_real_collision")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-real-collision-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-real-collision-projector", time.Minute)
 	for _, r := range []struct {
 		scope, generation string
 		later             time.Duration
@@ -180,9 +181,9 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	port := &countingRealMaintainer{inner: NewActivationMaintainer(NewIngestionStore(SQLDB{DB: database}), nil, nil)}
+	port := &countingRealMaintainer{inner: postgres.NewActivationMaintainer(postgres.NewIngestionStore(postgres.SQLDB{DB: database}), nil, nil)}
 	runner := &maintenance.ActivationObligationRunner{
-		Store:      activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
+		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: port,
 		Config:     maintenance.ActivationObligationRunnerConfig{Owner: "7584-real-collision-consumer", Lease: 300 * time.Millisecond},
 	}
@@ -214,9 +215,9 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 // until expiry, and then another claimer reclaims it with a higher token.
 func TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_blocked_maintenance")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-blocked-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-blocked-projector", time.Minute)
 	commitActivationRepository(t, ctx, store, activationRepositoryFact("fact-blocked", "git:blocked", "gen-blocked",
 		"repo-blocked", "https://github.com/acme/blocked.git"), "repo-blocked")
 	work := claimActivationProjectorWork(t, ctx, queue, "git:blocked", "gen-blocked")
@@ -239,7 +240,7 @@ func TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive(t *
 	}
 	assertObligationStateToken(t, ctx, database, "git:blocked", "gen-blocked", "leased", 1)
 	time.Sleep(time.Second) // past the lease on any clock
-	reclaimed, err := activation.NewStore(SQLDB{DB: database}).Claim(ctx, "7584-second-claimer", time.Minute)
+	reclaimed, err := activation.NewStore(postgres.SQLDB{DB: database}).Claim(ctx, "7584-second-claimer", time.Minute)
 	if err != nil || reclaimed == nil || reclaimed.GenerationID != "gen-blocked" || reclaimed.LeaseToken != 2 {
 		t.Fatalf("second claimer = %+v err=%v, want gen-blocked with token 2", reclaimed, err)
 	}

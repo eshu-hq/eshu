@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"sync"
@@ -11,6 +11,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -27,7 +28,7 @@ func TestActivationObligationConsumerOrderingLive(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, database, store, sourceWork, targetWork := setupActivationConsumer(t, "activation_order")
-			queue := NewProjectorQueue(SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
+			queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
 			if err := queue.Ack(ctx, sourceWork, projectorruntime.Result{}); err != nil {
 				t.Fatalf("source Ack: %v", err)
 			}
@@ -42,7 +43,7 @@ func TestActivationObligationConsumerOrderingLive(t *testing.T) {
 			}
 			assertExactActivationObligation(t, ctx, database, targetWork,
 				"accepted target Ack did not create obligation")
-			reducerQueue := NewReducerQueue(SQLDB{DB: database}, "7584-consumer-reducer", time.Minute)
+			reducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "7584-consumer-reducer", time.Minute)
 			reducerQueue.RetryDelay = time.Minute
 			reducerQueue.Now = activationDatabaseClock(t, ctx, database)
 			reducerQueue.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
@@ -69,7 +70,7 @@ func TestActivationObligationConsumerOrderingLive(t *testing.T) {
 				}
 				assertActivationBackwardPhase(t, ctx, database, targetWork, true)
 			}
-			obligations := activation.NewStore(SQLDB{DB: database})
+			obligations := activation.NewStore(postgres.SQLDB{DB: database})
 			target := claimActivationObligation(t, ctx, obligations, "7584-consumer-owner", time.Minute,
 				targetWork.Scope.ScopeID, targetWork.Generation.GenerationID)
 			if tc.maintenanceBeforeActivation {

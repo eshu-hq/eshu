@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -17,18 +18,18 @@ import (
 func TestActivationObligationRetentionCascadeLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_retention")
 	now := time.Now().UTC()
-	seedRetentionSelectionScope(t, ctx, database, "retention-obligation")
-	seedRetentionSelectionSupersededGeneration(t, ctx, database,
+	seedScope(t, ctx, database, "retention-obligation")
+	seedSupersededGeneration(t, ctx, database,
 		"retention-obligation", "retention-obligation-old", now.Add(-100*24*time.Hour))
 	for _, generationID := range []string{"retention-obligation-old", "retention-obligation-active"} {
-		if err := activation.Insert(ctx, SQLDB{DB: database}, "retention-obligation", generationID,
-			projectorWorkItemID("retention-obligation", generationID)); err != nil {
+		if err := activation.Insert(ctx, postgres.SQLDB{DB: database}, "retention-obligation", generationID,
+			postgres.ProjectorWorkItemID("retention-obligation", generationID)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	retention := NewGenerationRetentionStore(SQLDB{DB: database})
+	retention := postgres.NewGenerationRetentionStore(postgres.SQLDB{DB: database})
 	retention.Now = func() time.Time { return now }
-	result, err := retention.PruneSupersededGenerations(ctx, GenerationRetentionPolicy{
+	result, err := retention.PruneSupersededGenerations(ctx, postgres.GenerationRetentionPolicy{
 		MinSupersededGenerations: 24,
 		MaxSupersededAge:         7 * 24 * time.Hour,
 		HardMaxSupersededAge:     90 * 24 * time.Hour,
@@ -66,7 +67,7 @@ func TestActivationObligationRetentionCascadeLive(t *testing.T) {
 // never an open row.
 func TestActivationObligationPruneLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_prune")
-	seedRetentionSelectionScope(t, ctx, database, "prune-obligation")
+	seedScope(t, ctx, database, "prune-obligation")
 	type seed struct {
 		generation string
 		state      string
@@ -98,7 +99,7 @@ VALUES ('prune-obligation', 'prune-leased', 'w', 'leased', 'o', clock_timestamp(
     clock_timestamp() - interval '5 hours')`); err != nil {
 		t.Fatal(err)
 	}
-	store := activation.NewStore(SQLDB{DB: database})
+	store := activation.NewStore(postgres.SQLDB{DB: database})
 	remaining := func() map[string]bool {
 		t.Helper()
 		rows, err := database.QueryContext(ctx, `SELECT generation_id FROM activation_obligations`)
@@ -156,7 +157,7 @@ VALUES ('prune-obligation', 'prune-leased', 'w', 'leased', 'o', clock_timestamp(
 // one first and deleting nothing.
 func TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_prune_starve")
-	seedRetentionSelectionScope(t, ctx, database, "prune-starve")
+	seedScope(t, ctx, database, "prune-starve")
 	for _, s := range []struct{ generation, state, finished string }{
 		{"prune-starve-inapplicable", "inapplicable", "clock_timestamp() - interval '5 hours'"},
 		{"prune-starve-completed", "completed", "clock_timestamp() - interval '2 hours'"},
@@ -172,7 +173,7 @@ VALUES ('prune-starve', $1, 'w', $2, `+s.finished+`)`, s.generation, s.state); e
 			t.Fatal(err)
 		}
 	}
-	deleted, err := activation.NewStore(SQLDB{DB: database}).Prune(ctx, time.Hour, 1)
+	deleted, err := activation.NewStore(postgres.SQLDB{DB: database}).Prune(ctx, time.Hour, 1)
 	if err != nil || deleted != 1 {
 		t.Fatalf("Prune(limit=1) deleted %d err=%v, want the completed row", deleted, err)
 	}

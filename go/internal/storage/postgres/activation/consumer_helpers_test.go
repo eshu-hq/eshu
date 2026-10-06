@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -72,20 +73,20 @@ func finalizeActivation(ctx context.Context, store activation.Store, work *activ
 type activationMatrix struct {
 	ctx      context.Context
 	db       *sql.DB
-	store    IngestionStore
+	store    postgres.IngestionStore
 	oblig    activation.Store
 	source   string
 	scope    string
 	gen      string
 	oldGen   string
-	reducerQ ReducerQueue
+	reducerQ postgres.ReducerQueue
 	target   projector.ScopeGenerationWork
 }
 
 func newActivationMatrix(t *testing.T, prefix string, ackTarget bool) activationMatrix {
 	t.Helper()
 	ctx, database, store, sourceWork, targetWork := setupActivationConsumer(t, prefix)
-	pq := NewProjectorQueue(SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
 	if err := pq.Ack(ctx, sourceWork, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
 	}
@@ -94,12 +95,12 @@ func newActivationMatrix(t *testing.T, prefix string, ackTarget bool) activation
 			t.Fatal(err)
 		}
 	}
-	rq := NewReducerQueue(SQLDB{DB: database}, "7584-matrix-reducer", time.Minute)
+	rq := postgres.NewReducerQueue(postgres.SQLDB{DB: database}, "7584-matrix-reducer", time.Minute)
 	rq.Now = activationDatabaseClock(t, ctx, database)
 	rq.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
 	rq.RetryDelay = time.Minute
 	return activationMatrix{
-		ctx: ctx, db: database, store: store, oblig: activation.NewStore(SQLDB{DB: database}),
+		ctx: ctx, db: database, store: store, oblig: activation.NewStore(postgres.SQLDB{DB: database}),
 		source: sourceWork.Scope.ScopeID, scope: targetWork.Scope.ScopeID,
 		gen: targetWork.Generation.GenerationID, oldGen: "gen-consumer-target-old",
 		reducerQ: rq, target: targetWork,

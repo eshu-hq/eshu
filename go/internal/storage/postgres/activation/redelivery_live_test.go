@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -28,7 +29,7 @@ func TestActivationObligationRedeliveryAndCatchUpRacesLive(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		t.Run(fmt.Sprintf("duplicate_ack_%d", i), func(t *testing.T) {
 			ctx, database, _, _, targetWork := setupActivationConsumer(t, "act_dup_ack")
-			pq := NewProjectorQueue(SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
+			pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
 			ack := func() error { return pq.Ack(ctx, targetWork, projectorruntime.Result{}) }
 			errs := releaseTogether(ack, ack)
 			accepted, rejected := 0, 0
@@ -36,7 +37,7 @@ func TestActivationObligationRedeliveryAndCatchUpRacesLive(t *testing.T) {
 				switch {
 				case err == nil:
 					accepted++
-				case errors.Is(err, ErrProjectorClaimRejected):
+				case errors.Is(err, postgres.ErrProjectorClaimRejected):
 					rejected++
 				default:
 					t.Fatalf("Ack redelivery: %v (sqlstate %q)", err, sqlState(err))
@@ -82,7 +83,7 @@ func TestActivationObligationRedeliveryAndCatchUpRacesLive(t *testing.T) {
 	t.Run("held_catch_up_then_second_rechecks", func(t *testing.T) {
 		f := newActivationMatrix(t, "act_catchup_held", true)
 		obsoleteActiveObligation(t, f)
-		tx, err := SQLDB{DB: f.db}.Begin(f.ctx)
+		tx, err := postgres.SQLDB{DB: f.db}.Begin(f.ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -143,13 +144,13 @@ func runReactivationRace(t *testing.T) {
 	f := newActivationMatrix(t, "act_reowe_race", true)
 	refinalize := func() {
 		t.Helper()
-		if _, err := NewRecoveryStore(SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
+		if _, err := postgres.NewRecoveryStore(postgres.SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
 			recovery.RefinalizeFilter{ScopeIDs: []string{f.scope}}, time.Now().UTC()); err != nil {
 			t.Fatalf("refinalize: %v", err)
 		}
 	}
 	refinalize()
-	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-reowe-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: f.db}, "7584-reowe-projector", time.Minute)
 	redrive := claimActivationProjectorWork(t, f.ctx, pq, f.scope, f.gen)
 	if err := epochPass(f.ctx, f.store); err != nil {
 		t.Fatal(err)
@@ -206,9 +207,9 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, scopeID
 // obligation (written by that Ack) completes in the same cycle.
 func TestActivationObligationSupersessionBetweenClaimAndFinalizeLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "act_supersede_real")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-supersede-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-supersede-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string, later time.Duration) {
 		t.Helper()
 		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID,
@@ -222,7 +223,7 @@ func TestActivationObligationSupersessionBetweenClaimAndFinalizeLive(t *testing.
 	}
 	activate("git:sup-x", "sup-x-1", "repo-sup-x", 0)
 	activate("git:sup-z", "sup-z-1", "repo-sup-z", 0)
-	if err := epochPass(ctx, NewIngestionStore(SQLDB{DB: database})); err != nil {
+	if err := epochPass(ctx, postgres.NewIngestionStore(postgres.SQLDB{DB: database})); err != nil {
 		t.Fatal(err)
 	}
 	activate("git:sup-x", "sup-x-2", "repo-sup-x", time.Hour) // the owed quiet generation
@@ -272,7 +273,7 @@ WHERE scope_id = 'git:sup-x' AND generation_id = $1 AND keyspace = 'cross_repo_e
 	}
 	assertActivationActivePointer(t, ctx, database, "git:sup-x", "sup-x-3")
 	requireWoken(t, ctx, database, "sup-x-2", false)
-	if got := targetedCounter(consumer.metrics(t, ctx), "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", "not_active"); got != 1 {
+	if got := counterValue(consumer.metrics(t, ctx), "eshu_dp_deferred_backfill_targeted_outcomes_total", "outcome", "not_active"); got != 1 {
 		t.Fatalf("targeted not_active outcomes = %d, want 1 (the superseded claim)", got)
 	}
 }

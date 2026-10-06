@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // composedGen is one quiet owed generation of the step-4 corpus.
@@ -39,9 +41,9 @@ func setupComposed(t *testing.T, ctx context.Context, database *sql.DB, gens ...
 // epochPass is the ingester's maintenance through the deferred barrier path:
 // a single-shard fleet that committed runs the whole pass, which takes
 // AcquireDeferredMaintenanceRepoExclusiveLocks per batch and per publish.
-func epochPass(ctx context.Context, store IngestionStore) error {
+func epochPass(ctx context.Context, store postgres.IngestionStore) error {
 	return store.RunDeferredRelationshipMaintenanceAfterShardDrain(ctx,
-		DeferredMaintenanceBarrierConfig{ShardCount: 1, ShardIndex: 0, HasCommitted: true}, nil, nil)
+		postgres.DeferredMaintenanceBarrierConfig{ShardCount: 1, ShardIndex: 0, HasCommitted: true}, nil, nil)
 }
 
 // composedIterations is how many times the overlap race repeats (default 20).
@@ -73,7 +75,7 @@ func TestActivationObligationConsumerAndEpochPassOverlapLive(t *testing.T) {
 		setupComposed(t, ctx, database, composedTgt2)
 		consumer := newComposedConsumer(t, database, "compose-reference", time.Minute, 0)
 		steps := []func() error{
-			func() error { return epochPass(ctx, NewIngestionStore(SQLDB{DB: database})) },
+			func() error { return epochPass(ctx, postgres.NewIngestionStore(postgres.SQLDB{DB: database})) },
 			func() error { _, err := consumer.runner.RunOnce(ctx); return err },
 		}
 		if order == "consumer_first" {
@@ -107,7 +109,7 @@ func TestActivationObligationConsumerAndEpochPassOverlapLive(t *testing.T) {
 			ctx, database := openActivationObligationProofDB(t, "act_compose_epoch")
 			setupComposed(t, ctx, database, composedTgt2)
 			consumer := newComposedConsumer(t, database, "compose-consumer", time.Minute, 0)
-			epochStore, epochLocks := withLockWait(NewIngestionStore(SQLDB{DB: database}))
+			epochStore, epochLocks := newLockWaitStore(database)
 			errs := releaseTogether(
 				func() error { return epochPass(ctx, epochStore) },
 				func() error { _, err := consumer.runner.RunOnce(ctx); return err },
@@ -147,7 +149,7 @@ func runForcedLockOverlap(t *testing.T, holder string, references map[string][]s
 	ctx, database := openActivationObligationProofDB(t, "act_compose_forced")
 	setupComposed(t, ctx, database, composedTgt2)
 	consumer := newComposedConsumer(t, database, "compose-forced", time.Minute, 0)
-	epochStore, epochLocks := withLockWait(NewIngestionStore(SQLDB{DB: database}))
+	epochStore, epochLocks := newLockWaitStore(database)
 	held, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	hold := func(ctx context.Context, repoKey string) {

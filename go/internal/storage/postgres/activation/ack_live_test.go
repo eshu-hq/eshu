@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // TestActivationObligationAtomicAckLive proves the #7584 Ack boundary on the
@@ -21,10 +22,10 @@ import (
 // obligation insert rolls the whole Ack back.
 func TestActivationObligationAtomicAckLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_ack")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
 	commitFluxSourceGeneration(t, ctx, store, "git:scope-config-obligation", "repo-config", "gen-config-obligation")
-	queue := NewProjectorQueue(SQLDB{DB: database}, "eshu-7584-obligation", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "eshu-7584-obligation", time.Minute)
 	sourceWork := claimActivationProjectorWork(t, ctx, queue,
 		"git:scope-config-obligation", "gen-config-obligation")
 	if err := queue.Ack(ctx, sourceWork, projectorruntime.Result{}); err != nil {
@@ -39,8 +40,8 @@ func TestActivationObligationAtomicAckLive(t *testing.T) {
 	commitActivationRepository(t, ctx, store, target, "repo-deploy")
 	targetWork := claimActivationProjectorWork(t, ctx, queue, target.ScopeID, target.GenerationID)
 	targetWorkStatus := activationWorkStatus(t, ctx, database, targetWork)
-	wrongOwner := NewProjectorQueue(SQLDB{DB: database}, "wrong-owner", time.Minute)
-	if err := wrongOwner.Ack(ctx, targetWork, projectorruntime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+	wrongOwner := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "wrong-owner", time.Minute)
+	if err := wrongOwner.Ack(ctx, targetWork, projectorruntime.Result{}); !errors.Is(err, postgres.ErrProjectorClaimRejected) {
 		t.Fatalf("wrong-owner Ack error = %v, want claim rejection", err)
 	}
 	assertActivationActivePointer(t, ctx, database, targetScope, "")
@@ -50,7 +51,7 @@ func TestActivationObligationAtomicAckLive(t *testing.T) {
 	}
 	staleAttempt := targetWork
 	staleAttempt.AttemptCount++
-	if err := queue.Ack(ctx, staleAttempt, projectorruntime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+	if err := queue.Ack(ctx, staleAttempt, projectorruntime.Result{}); !errors.Is(err, postgres.ErrProjectorClaimRejected) {
 		t.Fatalf("stale-attempt Ack error = %v, want claim rejection", err)
 	}
 	assertActivationActivePointer(t, ctx, database, targetScope, "")
@@ -62,7 +63,7 @@ func TestActivationObligationAtomicAckLive(t *testing.T) {
 		t.Fatalf("target Ack: %v", err)
 	}
 	assertExactActivationObligation(t, ctx, database, targetWork, "target activation obligation absent")
-	if err := queue.Ack(ctx, targetWork, projectorruntime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+	if err := queue.Ack(ctx, targetWork, projectorruntime.Result{}); !errors.Is(err, postgres.ErrProjectorClaimRejected) {
 		t.Fatalf("duplicate Ack error = %v, want claim rejection", err)
 	}
 	assertExactActivationObligation(t, ctx, database, targetWork, "duplicate Ack changed obligation")
@@ -86,7 +87,7 @@ func TestActivationObligationAtomicAckLive(t *testing.T) {
 		t.Fatalf("new generation Ack: %v", err)
 	}
 	assertExactActivationObligation(t, ctx, database, newWork, "new active generation obligation absent")
-	if err := queue.Ack(ctx, oldWork, projectorruntime.Result{}); !errors.Is(err, ErrProjectorClaimRejected) {
+	if err := queue.Ack(ctx, oldWork, projectorruntime.Result{}); !errors.Is(err, postgres.ErrProjectorClaimRejected) {
 		t.Fatalf("old generation Ack error = %v, want claim rejected", err)
 	}
 	assertNoActivationObligation(t, ctx, database, oldWork)

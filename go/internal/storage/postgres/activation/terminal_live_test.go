@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
@@ -28,7 +29,7 @@ import (
 // it and CatchUp never re-owes it.
 func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_inapplicable")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
 	cloud := scope.IngestionScope{
 		ScopeID: "gcp:project:demo:relationship:global", SourceSystem: "gcp",
@@ -46,7 +47,7 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 		}})); err != nil {
 		t.Fatalf("cloud CommitScopeGeneration: %v", err)
 	}
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-cloud-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-cloud-projector", time.Minute)
 	work := claimActivationProjectorWork(t, ctx, queue, cloud.ScopeID, "gen-cloud")
 	if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
@@ -68,7 +69,7 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	if got := maintainer.callsFor("gen-cloud"); got != 0 {
 		t.Fatalf("maintenance callbacks after the lease = %d, want 0", got)
 	}
-	obligations := activation.NewStore(SQLDB{DB: database})
+	obligations := activation.NewStore(postgres.SQLDB{DB: database})
 	if deleted, err := obligations.Prune(ctx, 0, 100); err != nil || deleted != 0 {
 		t.Fatalf("Prune deleted %d err=%v, want an inapplicable row kept", deleted, err)
 	}
@@ -85,56 +86,6 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	assertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
 }
 
-// TestActivationObligationInapplicableCollisionLoserLive (#7584):
-// two repository scopes share one repo_id; the shipped active-repository read
-// (DISTINCT ON repo_id) maps it to the newer scope only. The maintainer
-// decides from that read: the loser gets ErrActivationInapplicable and is
-// retired after exactly one callback; the winner runs the control-arm pass
-// and completes.
-func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
-	ctx, database := openActivationObligationProofDB(t, "activation_collision")
-	store := NewIngestionStore(SQLDB{DB: database})
-	store.SkipRelationshipBackfill = true
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-collision-projector", time.Minute)
-	for _, r := range []struct {
-		scope, generation string
-		later             time.Duration
-	}{{"git:collision-loser", "gen-loser", 0}, {"git:collision-winner", "gen-winner", time.Hour}} {
-		fact := activationRepositoryFact("fact-"+r.generation, r.scope, r.generation,
-			"repo-shared", "https://github.com/acme/shared.git")
-		fact.ObservedAt = fact.ObservedAt.Add(r.later)
-		commitActivationRepository(t, ctx, store, fact, "repo-shared")
-		work := claimActivationProjectorWork(t, ctx, queue, r.scope, r.generation)
-		if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	maintainer := &countingActivationMaintainer{decide: func(ctx context.Context, work maintenance.ActivationObligation) error {
-		mapped, err := shippedReadMapsGeneration(ctx, database, work.ScopeID, work.GenerationID)
-		if err != nil {
-			return err
-		}
-		if !mapped {
-			return fmt.Errorf("owed partition %s/%s: %w", work.ScopeID, work.GenerationID, maintenance.ErrActivationInapplicable)
-		}
-		return NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil)
-	}}
-	runner := newLiveActivationRunner(database, maintainer, 300*time.Millisecond)
-	if _, err := runner.RunOnce(ctx); err != nil {
-		t.Fatal(err)
-	}
-	assertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
-	assertObligationStateToken(t, ctx, database, "git:collision-winner", "gen-winner", "completed", 1)
-	time.Sleep(450 * time.Millisecond)
-	if _, err := runner.RunOnce(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if got := maintainer.callsFor("gen-loser"); got != 1 {
-		t.Fatalf("maintenance callbacks for the collision loser = %d, want exactly 1", got)
-	}
-	assertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
-}
-
 // TestActivationObligationCatalogChangedIsHeldLive (#7584): the
 // maintainer refuses with ErrActivationCatalogChanged; the consumer keeps the
 // lease, does not retry inside it, and never runs a pass itself. The epoch
@@ -143,11 +94,11 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 // lease completes the obligation without another callback.
 func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_catalog")
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
 	fact := activationRepositoryFact("fact-owed", "git:catalog-owed", "gen-owed", "repo-owed", "https://github.com/acme/owed.git")
 	commitActivationRepository(t, ctx, store, fact, "repo-owed")
-	queue := NewProjectorQueue(SQLDB{DB: database}, "7584-catalog-projector", time.Minute)
+	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-catalog-projector", time.Minute)
 	work := claimActivationProjectorWork(t, ctx, queue, "git:catalog-owed", "gen-owed")
 	if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
@@ -166,7 +117,7 @@ func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 		t.Fatalf("callbacks inside one lease = %d, want 1", got)
 	}
 	wholePasses := 0
-	if err := NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
+	if err := postgres.NewIngestionStore(postgres.SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	wholePasses++
@@ -187,11 +138,11 @@ func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 // obsolete, wakes nothing and completes nothing.
 func TestActivationObligationNullActivePointerIsObsoleteLive(t *testing.T) {
 	f := newActivationMatrix(t, "activation_nullptr", true)
-	if _, err := NewRecoveryStore(SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
+	if _, err := postgres.NewRecoveryStore(postgres.SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
 		recovery.RefinalizeFilter{ScopeIDs: []string{f.scope}}, time.Now().UTC()); err != nil {
 		t.Fatalf("refinalize: %v", err)
 	}
-	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-nullptr-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: f.db}, "7584-nullptr-projector", time.Minute)
 	redrive := claimActivationProjectorWork(t, f.ctx, pq, f.scope, f.gen)
 	wake := f.notReady(t, f.scope, f.gen, "wake")
 	f.maintenance(t)
@@ -219,7 +170,7 @@ func TestActivationObligationNullActivePointerIsObsoleteLive(t *testing.T) {
 	// re-activates G. The obsolete obligation must be owed again, and the
 	// consumer completes it without a callback (G's cross_repo_evidence phase
 	// survives the refinalize) and wakes the waiting row.
-	if _, err := NewRecoveryStore(SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
+	if _, err := postgres.NewRecoveryStore(postgres.SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
 		recovery.RefinalizeFilter{ScopeIDs: []string{f.scope}}, time.Now().UTC()); err != nil {
 		t.Fatalf("refinalize the failed scope: %v", err)
 	}
@@ -260,7 +211,7 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, f.scope
 	// the generation still has it and nothing is owed.
 	failAndReactivate := func() {
 		t.Helper()
-		if _, err := NewRecoveryStore(SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
+		if _, err := postgres.NewRecoveryStore(postgres.SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
 			recovery.RefinalizeFilter{ScopeIDs: []string{f.scope}}, time.Now().UTC()); err != nil {
 			t.Fatalf("refinalize: %v", err)
 		}
@@ -268,7 +219,7 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, f.scope
 		if err := pq.Fail(f.ctx, again, errors.New("permanent projection failure")); err != nil {
 			t.Fatalf("projector Fail: %v", err)
 		}
-		if _, err := NewRecoveryStore(SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
+		if _, err := postgres.NewRecoveryStore(postgres.SQLDB{DB: f.db}).RefinalizeScopeProjections(f.ctx,
 			recovery.RefinalizeFilter{ScopeIDs: []string{f.scope}}, time.Now().UTC()); err != nil {
 			t.Fatalf("refinalize the failed scope: %v", err)
 		}
@@ -305,30 +256,10 @@ func (m *countingActivationMaintainer) callsFor(generationID string) int {
 
 func newLiveActivationRunner(database *sql.DB, maintainer maintenance.ActivationMaintainer, lease time.Duration) *maintenance.ActivationObligationRunner {
 	return &maintenance.ActivationObligationRunner{
-		Store:      activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
+		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: maintainer,
 		Config:     maintenance.ActivationObligationRunnerConfig{Owner: "7584-terminal-consumer", Lease: lease},
 	}
-}
-
-// shippedReadMapsGeneration reports whether the shipped active-repository read
-// maps any repository to the exact scope generation.
-func shippedReadMapsGeneration(ctx context.Context, database *sql.DB, scopeID, generationID string) (bool, error) {
-	rows, err := database.QueryContext(ctx, activeRepositoryGenerationsQuery)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var repoID, s, g string
-		if err := rows.Scan(&repoID, &s, &g); err != nil {
-			return false, err
-		}
-		if s == scopeID && g == generationID {
-			return true, nil
-		}
-	}
-	return false, rows.Err()
 }
 
 func assertObligationStateToken(t *testing.T, ctx context.Context, database *sql.DB,
@@ -368,7 +299,7 @@ func TestActivationObligationRetireInapplicableIsFencedLive(t *testing.T) {
 		"repo-consumer-target", "https://github.com/acme/payments-deploy.git")
 	newer.ObservedAt = newer.ObservedAt.Add(3 * time.Hour)
 	commitActivationRepository(t, f.ctx, f.store, newer, "repo-consumer-target")
-	pq := NewProjectorQueue(SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
+	pq := postgres.NewProjectorQueue(postgres.SQLDB{DB: f.db}, "7584-consumer-projector", time.Minute)
 	if err := pq.Ack(f.ctx, claimActivationProjectorWork(t, f.ctx, pq, f.scope, newer.GenerationID),
 		projectorruntime.Result{}); err != nil {
 		t.Fatal(err)

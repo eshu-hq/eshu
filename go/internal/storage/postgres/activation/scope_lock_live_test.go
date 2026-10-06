@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package activation_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -33,7 +34,7 @@ type heldTgtCommit struct {
 
 func holdTgtCommit(t *testing.T, ctx context.Context, database *sql.DB, generationID string) *heldTgtCommit {
 	t.Helper()
-	store := NewIngestionStore(SQLDB{DB: database})
+	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
 	held := &heldTgtCommit{facts: make(chan facts.Envelope), done: make(chan error, 1), gen: generationID}
 	go func() {
@@ -66,12 +67,12 @@ func (h *heldTgtCommit) release(t *testing.T) {
 // production partition-scoped maintainer, so the next Finalize completes.
 func claimPublished(t *testing.T, ctx context.Context, database *sql.DB, lease time.Duration) *activation.Obligation {
 	t.Helper()
-	store := activation.NewStore(SQLDB{DB: database})
+	store := activation.NewStore(postgres.SQLDB{DB: database})
 	work := claimActivationObligation(t, ctx, store, "7584-scope-lock", lease, "git:tgt", "tgt-2")
 	if result, err := store.Finalize(ctx, *work); err != nil || result.Outcome != activation.OutcomePhaseNotReady {
 		t.Fatalf("first Finalize = %+v err=%v, want phase_not_ready", result, err)
 	}
-	if err := NewActivationMaintainer(NewIngestionStore(SQLDB{DB: database}), nil, nil).MaintainActivation(ctx,
+	if err := postgres.NewActivationMaintainer(postgres.NewIngestionStore(postgres.SQLDB{DB: database}), nil, nil).MaintainActivation(ctx,
 		maintenance.ActivationObligation{ScopeID: work.ScopeID, GenerationID: work.GenerationID}); err != nil {
 		t.Fatalf("partition-scoped maintenance: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		var result activation.FinalizeResult
 		go func() {
 			var err error
-			result, err = activation.NewStore(SQLDB{DB: database}).Finalize(ctx, *work)
+			result, err = activation.NewStore(postgres.SQLDB{DB: database}).Finalize(ctx, *work)
 			finalized <- err
 		}()
 		awaitLockWaiter(t, ctx, database, finalizeScopeLockLike)
@@ -121,7 +122,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		held := holdTgtCommit(t, ctx, database, "tgt-3")
 		held.release(t)
 		parked, release := make(chan struct{}), make(chan struct{})
-		gate := &lockWaitBeginner{inner: SQLDB{DB: database}, onExec: func(ctx context.Context, query string) error {
+		gate := &lockWaitBeginner{inner: postgres.SQLDB{DB: database}, onExec: func(ctx context.Context, query string) error {
 			if strings.Contains(query, "INSERT INTO activation_obligations") {
 				close(parked)
 				select {
@@ -132,7 +133,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 			}
 			return nil
 		}}
-		pq := NewProjectorQueue(gatedSQLDB{SQLDB: SQLDB{DB: database}, beginner: gate}, "7584-scope-ack", time.Minute)
+		pq := postgres.NewProjectorQueue(gatedSQLDB{SQLDB: postgres.SQLDB{DB: database}, beginner: gate}, "7584-scope-ack", time.Minute)
 		next := claimActivationProjectorWork(t, ctx, pq, "git:tgt", "tgt-3")
 		acked := make(chan error, 1)
 		go func() { acked <- pq.Ack(ctx, next, projectorruntime.Result{}) }()
@@ -141,7 +142,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		var result activation.FinalizeResult
 		go func() {
 			var err error
-			result, err = activation.NewStore(SQLDB{DB: database}).Finalize(ctx, *work)
+			result, err = activation.NewStore(postgres.SQLDB{DB: database}).Finalize(ctx, *work)
 			finalized <- err
 		}()
 		awaitLockWaiter(t, ctx, database, finalizeScopeLockLike)
@@ -168,8 +169,8 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		setupComposed(t, ctx, database, composedTgt2)
 		// The phase is published before any claim, so the consumer's first
 		// Finalize would complete; the held commit makes it time out.
-		if _, err := NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenanceForPartitions(ctx, nil, nil,
-			[]OwedPartition{{ScopeID: "git:tgt", GenerationID: "tgt-2"}}); err != nil {
+		if _, err := postgres.NewIngestionStore(postgres.SQLDB{DB: database}).RunDeferredRelationshipMaintenanceForPartitions(ctx, nil, nil,
+			[]postgres.OwedPartition{{ScopeID: "git:tgt", GenerationID: "tgt-2"}}); err != nil {
 			t.Fatal(err)
 		}
 		consumer := newComposedConsumer(t, database, "7584-scope-timeout", 2*time.Second, 0)
@@ -204,7 +205,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 
 // gatedSQLDB is SQLDB whose transactions go through a statement gate.
 type gatedSQLDB struct {
-	SQLDB
+	postgres.SQLDB
 	beginner *lockWaitBeginner
 }
 
