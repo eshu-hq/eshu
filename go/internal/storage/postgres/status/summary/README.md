@@ -68,7 +68,7 @@ classification, and the advisory key's uniqueness against every other advisory
 key constant in `go/`. Live PostgreSQL 18 tests (`store_live_test.go`,
 `bloat_live_test.go`) cover the guard going back never, concurrent writers,
 single-row crash safety, the empty and missing-table reads, migration
-idempotency, the applied reloptions, and 2,000-upsert bloat. They run as a blocking step of the reducer contention gate, fail-closed through
+idempotency, the applied reloptions, and 4,000-upsert bloat (compressible and TOASTed payloads). They run as a blocking step of the reducer contention gate, fail-closed through
 `ESHU_REQUIRE_STATUS_SUMMARY_PROOF`, and in the `live-postgres-readiness` lane the
 live-test ledger requires. `gate_enrollment_test.go` keeps the workflow step in
 step with the tests. The environment names are in the test headers.
