@@ -62,6 +62,16 @@ reruns the oracle differential.
 
 ## Proof
 
+Commit binding: the live PostgreSQL 18.3 results in this section (the
+differential, the mutations, the regclass proof, and the guard; the final
+live set was 41 PASS) ran at `2f0057d8e` on base `5c4e03613`. They were not
+rerun after the rebase onto `3c0de54e5` (PR-1). `go/internal/storage` is
+tree-identical across the rebase (`a423c1b0`), the storage and CI diff has
+the same patch-id before and after (`6111e373`), and the base delta changes
+no storage file and no `go.mod` or `go.sum`; PR-1 touched only
+`go/internal/runtime/postgres` and docs. CI's reducer-contention gate is
+therefore the first live run on the rebased tree.
+
 - Oracle: `activeWorkSummaryPreHistoryGroupsOracle` is the pre-#7009 query,
   rendered from origin/main `9bcca588f` and pinned to the shim baseline
   SHA-256 `bef1078e2f5b971f6f35f576403b5c7197b59b6e37ccf13974d3240e4d432e2e`.
@@ -209,7 +219,11 @@ and the SET changed no plan's JIT decision in those runs.
 postgres package) binds the dependency in code (S5 ruling D4.4): a full
 status snapshot through the real `StatusStore` must issue the SET once, as
 its first statement, before the gated summary. Removing the SET, or moving
-it after the status read, fails the test.
+it after the status read, fails the test. That test drives the status
+reader's fallback path, where the SET goes through `QueryContext`; the
+guarded reader's `execControl` path is covered by PR-1's
+`TestGuardedStatusSnapshotJITSettingIsControlSQL`, and both paths share the
+SET-before-read ordering in `snapshotStatusReader.read`.
 
 ## Observability Evidence:
 
@@ -224,6 +238,8 @@ is no status read log line, so no log key was added.
 
 ## Not proven
 
+- The live PostgreSQL set on the rebased tree: it last ran at `2f0057d8e`,
+  before the rebase onto `3c0de54e5` (see Commit binding under Proof).
 - The ops-qa plan shape and timing of `a2v`, and the ops-qa compare packet
   (S5 ruling D5.8) against the new pin.
 - Endpoint or bundle p95, and the API/MCP transport time.
