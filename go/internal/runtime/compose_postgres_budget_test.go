@@ -175,16 +175,16 @@ func composePostgresMaxConnections(doc composeDocument) (int, error) {
 // requiredPostgresDiagnosticFlags are the server settings every default
 // compose stack must start Postgres with so slow statements are never hidden
 // again (#7596): pg_stat_statements needs shared_preload_libraries at server
-// start, compute_query_id for stable statement ids, and track_io_timing so the
-// report can tell cold reads from cached ones. pg_stat_statements.track stays
-// "top" in the default stacks; the read-api latency gate override raises it to
-// "all" on its own.
+// start and compute_query_id for stable statement ids. pg_stat_statements.track
+// stays "top" in the default stacks; the read-api latency gate override raises
+// it to "all" on its own. track_io_timing is deliberately NOT a default: it
+// adds a clock read to every block read and is an operator opt-in (see
+// docs/public/reference/postgres-diagnostics.md).
 var requiredPostgresDiagnosticFlags = []string{
 	"shared_preload_libraries=pg_stat_statements",
 	"compute_query_id=on",
 	"pg_stat_statements.max=10000",
 	"pg_stat_statements.track=top",
-	"track_io_timing=on",
 }
 
 // TestComposePostgresPreloadsStatementStats fails when a default compose

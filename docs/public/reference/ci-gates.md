@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 129 gates. Local execution runs the primary
+The registry currently defines 130 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -91,7 +91,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (48 gates)
+### Contract: Do declared or generated artifacts match the code? (49 gates)
 
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `route-coverage` (blocking): Fails when a registered HTTP route has no test that actually references it.
@@ -139,6 +139,7 @@ results are derived from the inputs rather than written by hand. See
 - `authz-scoped-route-tests` (blocking): Confirms scoped-token route authorization in code matches the declared authorization-catalog and replay-coverage specs.
 - `docker-image-reproducibility` (blocking): Builds the Docker image twice and checks the two outputs are identical, proving the build is reproducible.
 - `apk-floors` (blocking): Fails when an apk add version floor in the Dockerfile's final stage is below the version the Alpine repository serves.
+- `pg-statement-report` (blocking): Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
 - `ci-gate-registry` (blocking): Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes.
 
@@ -298,6 +299,7 @@ results are derived from the inputs rather than written by hand. See
 | `docker-publish` | Docker image and Helm publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `macos-build` | macOS build verification (nightly) | build | ci-heavy | false | — (CI-only: requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)) | macos.yml / macos | 2 path(s): go/**, scripts/ci/go-mod-download-retry.sh |
 | `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh`<br>then self-test: `bash scripts/test-verify-root-cause-evidence.sh` | static-contract-gates.yml / Verify root-cause-evidence gate | 4 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |
+| `pg-statement-report` | Postgres statement report script contract | exactness | pre-pr | true | `bash scripts/test-pg-statement-report.sh` | static-contract-gates.yml / Verify pg-statement-report gate | 4 path(s): docs/public/reference/postgres-diagnostics.md, scripts/pg-statement-report.sh, scripts/test-pg-statement-report.sh, … |
 | `tagged-builds` | Build-tag compile sweep | exactness | pre-pr | true | `bash scripts/verify-tagged-builds.sh --all`<br>then self-test: `bash scripts/test-verify-tagged-builds.sh` | static-contract-gates.yml / Verify tagged-builds gate | 7 path(s): go/**, scripts/verify-tagged-builds.sh, scripts/test-verify-tagged-builds.sh, … |
 | `perf-evidence` | Hot-path performance evidence | telemetry | pre-push | true | `bash scripts/dev/precommit-go.sh perf-evidence`<br>then self-test: `bash scripts/test-verify-performance-evidence.sh` | test.yml / verify-contracts | 15 path(s): go/internal/storage/**, go/internal/reducer/**, go/internal/collector/**, … |
 | `product-claim-ledger` | Product Claim Ledger (deterministic verify) | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode product-claims` | product-claim-ledger.yml / Verify product claim ledger | 5 path(s): specs/product-claims.v1.yaml, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |

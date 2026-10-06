@@ -65,8 +65,6 @@ services:
       - "pg_stat_statements.max=10000"
       - "-c"
       - "pg_stat_statements.track=top"
-      - "-c"
-      - "track_io_timing=on"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:

@@ -47,8 +47,6 @@ services:
       - "pg_stat_statements.max=10000"
       - "-c"
       - "pg_stat_statements.track=top"
-      - "-c"
-      - "track_io_timing=on"
       # The meter flags below repeat settings the base command already sets.
       # Postgres keeps the LAST value of a repeated -c flag, so track=all wins.
       - "-c"

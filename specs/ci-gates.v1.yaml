@@ -5061,6 +5061,28 @@ gates:
     ci_only_reason: ""
     hook_id: ""
 
+  - id: pg-statement-report
+    name: Postgres statement report script contract
+    category: exactness
+    layer: contract
+    purpose: "Checks the pg-statement-report script keeps its read-only, no-DDL-without-install, privacy-filter, and not-preloaded contract against a stub psql."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/reference/postgres-diagnostics.md"
+      - "scripts/pg-statement-report.sh"
+      - "scripts/test-pg-statement-report.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/test-pg-statement-report.sh"
+      test_command: ""
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify pg-statement-report gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
   - id: tagged-builds
     name: Build-tag compile sweep
     category: exactness
