@@ -36,6 +36,9 @@ type fakeDatabase struct {
 	committed  int
 	rolledBack int
 	statements []string
+	// txOf records which transaction (1-based Begin order) ran each
+	// statement, so a test can prove the lock and the upsert share one.
+	txOf       map[string][]int
 	upsertArgs []any
 	lockArgs   []any
 }
@@ -51,7 +54,7 @@ func (d *fakeDatabase) Begin(context.Context) (db.Transaction, error) {
 		return nil, d.beginErr
 	}
 	d.begun++
-	return &fakeTx{db: d}, nil
+	return &fakeTx{db: d, id: d.begun}, nil
 }
 
 func (d *fakeDatabase) record(kind string) {
@@ -69,6 +72,7 @@ func (d *fakeDatabase) snapshot() []string {
 // fakeTx is one pass transaction on fakeDatabase.
 type fakeTx struct {
 	db   *fakeDatabase
+	id   int
 	done bool
 }
 
@@ -78,13 +82,13 @@ func (t *fakeTx) ExecContext(ctx context.Context, query string, args ...any) (sq
 	}
 	switch {
 	case strings.Contains(query, "SET TRANSACTION ISOLATION LEVEL READ COMMITTED"):
-		t.db.record("read_committed")
+		t.record("read_committed")
 		return driverResult(0), nil
 	case strings.Contains(query, "SET LOCAL jit = off"):
-		t.db.record("set_jit_off")
+		t.record("set_jit_off")
 		return driverResult(0), t.db.execErr
 	case strings.Contains(query, "INSERT INTO status_summary_snapshots"):
-		t.db.record("upsert")
+		t.record("upsert")
 		t.db.mu.Lock()
 		t.db.upsertArgs = args
 		t.db.mu.Unlock()
@@ -102,13 +106,13 @@ func (t *fakeTx) QueryContext(ctx context.Context, query string, args ...any) (d
 	}
 	switch {
 	case strings.Contains(query, "pg_try_advisory_xact_lock"):
-		t.db.record("try_lock")
+		t.record("try_lock")
 		t.db.mu.Lock()
 		t.db.lockArgs = args
 		t.db.mu.Unlock()
 		return &fakeRows{rows: [][]any{{t.db.lockAcquired}}}, nil
 	case strings.Contains(query, "clock_timestamp()"):
-		t.db.record("clock")
+		t.record("clock")
 		return &fakeRows{rows: [][]any{{t.db.clock, t.db.tableInstalled}}}, nil
 	}
 	return nil, fmt.Errorf("fake tx: unexpected query %q", query)
@@ -119,7 +123,7 @@ func (t *fakeTx) Commit() error {
 		return sql.ErrTxDone
 	}
 	t.done = true
-	t.db.record("commit")
+	t.record("commit")
 	t.db.mu.Lock()
 	defer t.db.mu.Unlock()
 	if t.db.commitErr != nil {
@@ -134,7 +138,7 @@ func (t *fakeTx) Rollback() error {
 		return sql.ErrTxDone
 	}
 	t.done = true
-	t.db.record("rollback")
+	t.record("rollback")
 	t.db.mu.Lock()
 	defer t.db.mu.Unlock()
 	t.db.rolledBack++
@@ -281,4 +285,15 @@ func sampleEntries() []store.Entry {
 		{Section: "stage", Ordinal: 1, JSON: `{"stage":"reducer","status":"pending","count":2}`},
 		{Section: "stage", Ordinal: 2, JSON: `{"stage":"reducer","status":"succeeded","count":1}`},
 	}
+}
+
+// record notes a statement on the database log and on this transaction.
+func (t *fakeTx) record(kind string) {
+	t.db.record(kind)
+	t.db.mu.Lock()
+	defer t.db.mu.Unlock()
+	if t.db.txOf == nil {
+		t.db.txOf = map[string][]int{}
+	}
+	t.db.txOf[kind] = append(t.db.txOf[kind], t.id)
 }

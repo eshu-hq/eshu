@@ -86,6 +86,30 @@ func TestRunOnceWritesTheRowInOneTransaction(t *testing.T) {
 	}
 }
 
+// TestRunOnceTakesTheLockOnThePassTransaction pins the PR-A review's R5:
+// pg_try_advisory_xact_lock holds only for the transaction that ran it, so the
+// lock must run on the same transaction as the upsert and the commit. On a
+// pool connection in autocommit it would be released at once and guard
+// nothing. Runner.DB is a db.Beginner with no query method, and this test
+// proves the lock, the statement clock, the upsert, and the commit all ran on
+// the one transaction the pass began.
+func TestRunOnceTakesTheLockOnThePassTransaction(t *testing.T) {
+	t.Parallel()
+	runner, database, _, _ := newPassRunner(t)
+
+	if pass := runner.RunOnce(context.Background()); pass.Outcome != OutcomeOK {
+		t.Fatalf("RunOnce() = %+v, want ok", pass)
+	}
+	if database.begun != 1 {
+		t.Fatalf("transactions begun = %d, want 1", database.begun)
+	}
+	for _, kind := range []string{"read_committed", "try_lock", "clock", "upsert", "commit"} {
+		if got := database.txOf[kind]; len(got) != 1 || got[0] != 1 {
+			t.Fatalf("%s ran on transactions %v, want only the pass transaction [1]", kind, got)
+		}
+	}
+}
+
 // TestRunOnceBoundsThePassByTwoIntervals proves the pass carries the
 // ruling's Go-side deadline of two intervals.
 func TestRunOnceBoundsThePassByTwoIntervals(t *testing.T) {
