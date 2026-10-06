@@ -44,8 +44,10 @@ one second. A fixed-corpus same-state comparison remains required before any
 performance claim. This package is not deployed, so product-path latency is
 unchanged by adding the harness.
 
-Observability Evidence: The command prints `dynamic_case` row counts and
-differences, `dynamic_timing_round` samples, route medians, and `fixed_exit`.
-Errors include phase, subject, and elapsed time. All changes are confined to
-this internal proof package; no product metric, span, log, or status contract
-changes.
+Observability Evidence: The command prints `dynamic_case` row counts,
+differences and snapshot age, `dynamic_timing_round` samples, and route
+medians. The historical `fixed_exit=0` was recorded by the invoking shell,
+not emitted by the command. Probe and assembly failures include phase,
+subject, and elapsed time; guard and validation failures report direct errors.
+All changes are confined to this internal proof package; no product metric,
+span, log, or status contract changes.
