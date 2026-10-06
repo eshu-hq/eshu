@@ -62,15 +62,20 @@ reruns the oracle differential.
 
 ## Proof
 
-Commit binding: the live PostgreSQL 18.3 results in this section (the
+Commit binding: the local live PostgreSQL 18.3 results in this section (the
 differential, the mutations, the regclass proof, and the guard; the final
-live set was 41 PASS) ran at `2f0057d8e` on base `5c4e03613`. They were not
-rerun after the rebase onto `3c0de54e5` (PR-1). `go/internal/storage` is
-tree-identical across the rebase (`a423c1b0`), the storage and CI diff has
-the same patch-id before and after (`6111e373`), and the base delta changes
-no storage file and no `go.mod` or `go.sum`; PR-1 touched only
-`go/internal/runtime/postgres` and docs. CI's reducer-contention gate is
-therefore the first live run on the rebased tree.
+local live set was 41 PASS) ran at `2f0057d8e` on base `5c4e03613`. From
+`2f0057d8e` to the pre-rebase tip `9f87bcd82` the only storage change is a
+comment in `status_active_generation_index_bench_test.go` (4 lines added, 1
+removed). `go/internal/storage` is tree-identical between `9f87bcd82` and the
+rebased branch (`a423c1b0`), and the storage and CI diff has the same
+patch-id on both sides of the rebase (`6111e373`). The base delta to
+`3c0de54e5` (PR-1) changes no storage file and no `go.mod` or `go.sum`; PR-1
+touched only `go/internal/runtime/postgres` and docs. The reducer-contention
+gate then ran every #7009 live proof on the rebased head `78d178ecf` (CI run
+37454693298, Reducer Contention Gate, success): the oracle differential, both
+mutation controls, the regclass proof, the terminal-text proof, and the
+plan guard all PASS, with the same section-row counts as the table below.
 
 - Oracle: `activeWorkSummaryPreHistoryGroupsOracle` is the pre-#7009 query,
   rendered from origin/main `9bcca588f` and pinned to the shim baseline
@@ -94,7 +99,7 @@ therefore the first live run on the rebased tree.
 | case | rows | shipped mode | estimate |
 | --- | ---: | --- | ---: |
 | 8 edge cases: 7 shim ports and the history fence (no statistics) | 1-12 | grouped | 0 |
-| 0.1% live, analyzed | 23 | grouped | 0 |
+| 0.1% live, analyzed | 11 | grouped | 0 |
 | 20% live (busy shape), analyzed | 28 | grouped | 0.2 |
 | 50% live, analyzed | 31 | detail | 0.5 |
 | 80% live, analyzed | 31 | detail | 0.8 |
@@ -182,9 +187,10 @@ ruling D3). Buffers at C0.1: base 45,933, A2 45,242, a2v 45,127; at C100: base
 
 Threshold: A2 is at or below 1.00x the baseline through 50% live and crosses
 over between 50% and 60%, so T = 0.4. The gate estimate tracked the true live
-share within 0.45 points. At C40 the estimate sits on T; both branches pass
-there. The informational C45r cell passes against the jit=off baseline in both
-runs (the jit=on split there is identical-plan noise, ruling D2).
+share within 0.45 percentage points. At C40 the estimate sits on T; both
+branches pass there. The informational C45r cell passes against the jit=off
+baseline in both runs (the jit=on split there is identical-plan noise, ruling
+D2).
 
 - 0.1% live: a2v is A2 + 3-10 ms (1.04-1.10x A2), -65 to -68% vs base.
 - Forced-grouped inside the stats window: <= A2 + 24 ms measured, 1.55x base
@@ -238,8 +244,6 @@ is no status read log line, so no log key was added.
 
 ## Not proven
 
-- The live PostgreSQL set on the rebased tree: it last ran at `2f0057d8e`,
-  before the rebase onto `3c0de54e5` (see Commit binding under Proof).
 - The ops-qa plan shape and timing of `a2v`, and the ops-qa compare packet
   (S5 ruling D5.8) against the new pin.
 - Endpoint or bundle p95, and the API/MCP transport time.
