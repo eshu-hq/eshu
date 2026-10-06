@@ -168,7 +168,12 @@ loopback; base `5c4e03613` against `19a36bda9` (test binaries `d4863fb1…` and
 `083a4888…`; the Ack path is unchanged after `19a36bda9`); 900 restored scopes
 with a completed obligation per prior generation; 600 Acks per arm; first
 mover alternating; load1 6.7 to 8.4 at each arm, load5 and load15 10 to 14,
-and no 1-second in-run load sampling. An earlier run was discarded (its first
+and no 1-second in-run load sampling. The host was not proven quiet: another
+executor in the same session ran a mutation sweep, static gates, race tests
+and a PostgreSQL container between 03:30 and 04:05 EDT, overlapping this run
+(03:41 to 03:44), so the wall delta is a noisy figure whose true value may be
+higher or lower; the deterministic server cost above is unaffected and is
+the gate. An earlier run was discarded (its first
 mover did not alternate), and the load guard stopped 3 arms of the counted
 run. The gate and this wording come from the #7584 Ack bound ruling
 (2026-10-06), which accepts this run as the pre-PR Ack line. The scope-update
