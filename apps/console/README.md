@@ -92,7 +92,7 @@ npm run console:bundle-report
 `console:typecheck` builds two projects over `src`. `tsconfig.app.json` checks
 shipped code with no Node, Vitest, or jest-dom globals, so `process.env` or
 `Buffer` in shipped code fails it. It excludes `src/test/`, `*.test.ts(x)`,
-`*.testSupport.ts(x)`, `*TestSupport.ts(x)`, and `*TestFixtures.ts`.
+`*.testSupport.ts(x)`, `*TestSupport.ts(x)`, and `*TestFixtures.ts(x)`.
 `tsconfig.test.json` checks all of `src` with those test and Node types. Name
 any new test-only helper to match one of those patterns.
 `console:build` runs the Vite build and then enforces the documented bundle

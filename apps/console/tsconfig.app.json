@@ -25,6 +25,7 @@
     "src/**/*.testSupport.tsx",
     "src/**/*TestSupport.ts",
     "src/**/*TestSupport.tsx",
-    "src/**/*TestFixtures.ts"
+    "src/**/*TestFixtures.ts",
+    "src/**/*TestFixtures.tsx"
   ]
 }
