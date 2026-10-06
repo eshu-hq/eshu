@@ -671,6 +671,7 @@ gates:
     triggers:
       - "scripts/ci/go-install-retry.sh"
       - "scripts/test-ci-go-install-retry.sh"
+      - "scripts/lib/test-ci-go-install-retry-fake-go.sh"
       # Every workflow is a trigger: the mirror rejects a bare `go install`
       # in any of them, so a workflow-only edit that adds one must still
       # select this gate.

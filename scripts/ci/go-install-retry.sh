@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 eshu-hq
 #
-# Install pinned Go CI tools, retrying transient proxy failures.
+# Install versioned Go CI tools, retrying transient proxy failures.
 #
 # Why this exists. A `bench script contract` run died installing benchstat:
 #
@@ -32,10 +32,12 @@
 #
 #   Every argument MUST carry a version suffix. `go install pkg@version` runs
 #   in module-aware mode and ignores any go.mod in or above the current
-#   directory, so the install is pinned to exactly that version wherever it
-#   runs. An unversioned `go install pkg` inside a module resolves through that
-#   module's go.mod instead (or fails outside one), silently changing which
-#   tool version CI uses -- so it is refused rather than passed through.
+#   directory, so the version comes only from the argument: a fixed tag such
+#   as @v2.27.1 is pinned, while @latest still resolves to whatever is newest
+#   at run time, as it did before this wrapper. An unversioned
+#   `go install pkg` inside a module resolves through that module's go.mod
+#   instead (or fails outside one), silently changing which tool version CI
+#   uses -- so it is refused rather than passed through.
 #
 #   Runs from the caller's current directory. The workflows call it from the
 #   repo root, which has no go.mod, matching the bare `go install` it replaced.
