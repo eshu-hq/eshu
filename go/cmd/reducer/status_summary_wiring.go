@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -53,6 +54,26 @@ func loadStatusSummaryWriterConfig(getenv func(string) string) (statusSummaryWri
 	}
 	cfg.Interval = interval
 	return cfg, nil
+}
+
+// withStatusSummaryWriter returns service with its StatusSummaryWriter set
+// from the environment (nil when the writer is disabled), or the startup
+// error for an invalid interval. buildObservedReducerService calls it after
+// buildReducerService, which is at the 500-line file budget.
+func withStatusSummaryWriter(
+	service reducer.Service,
+	getenv func(string) string,
+	database db.ExecQueryer,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (reducer.Service, error) {
+	writer, err := statusSummaryWriterFor(getenv, database, tracer, instruments, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
+	service.StatusSummaryWriter = writer
+	return service, nil
 }
 
 // statusSummaryWriterFor builds the active-work summary writer, or returns

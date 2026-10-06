@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -103,26 +104,27 @@ func TestStatusSummaryWriterNeedsTransactions(t *testing.T) {
 	}
 }
 
-// TestBuildReducerServiceLeavesStatusSummaryWriterOffByDefault proves the
-// reducer's default service has no writer, and a bad interval fails startup.
-func TestBuildReducerServiceLeavesStatusSummaryWriterOffByDefault(t *testing.T) {
-	t.Parallel()
-	build := func(env map[string]string) error {
-		database := &fakeReducerDB{}
-		service, err := buildReducerService(
-			context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
-			postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
-			envMap(env), nil, nil, nil, nil,
-		)
-		if err == nil && service.StatusSummaryWriter != nil {
-			t.Fatalf("buildReducerService(%v) built a status summary writer", env)
-		}
-		return err
+// TestWithStatusSummaryWriterSetsOnlyTheWriter proves the helper that
+// buildObservedReducerService calls leaves the writer nil by default, sets it
+// when enabled without touching the rest of the service, and turns a bad
+// interval into the startup error.
+func TestWithStatusSummaryWriterSetsOnlyTheWriter(t *testing.T) {
+	base := reducer.Service{PollInterval: 3 * time.Second, Workers: 7}
+
+	off, err := withStatusSummaryWriter(base, envMap(nil), refusingDatabase{t}, nil, nil, nil)
+	if err != nil || off.StatusSummaryWriter != nil {
+		t.Fatalf("default = writer %v, err %v; want no writer and no error", off.StatusSummaryWriter, err)
 	}
-	if err := build(nil); err != nil {
-		t.Fatalf("buildReducerService() error = %v", err)
+	on, err := withStatusSummaryWriter(base, envMap(map[string]string{statusSummaryWriterEnabledEnv: "true"}),
+		refusingDatabase{t}, nil, nil, nil)
+	if err != nil || on.StatusSummaryWriter == nil {
+		t.Fatalf("enabled = writer %v, err %v; want a writer", on.StatusSummaryWriter, err)
 	}
-	if err := build(map[string]string{statusSummaryWriterIntervalEnv: "1s"}); err == nil {
-		t.Fatal("buildReducerService() accepted a 1s status summary writer interval")
+	if on.PollInterval != base.PollInterval || on.Workers != base.Workers {
+		t.Fatalf("enabled service = %+v; the helper changed fields other than the writer", on)
+	}
+	if _, err := withStatusSummaryWriter(base, envMap(map[string]string{statusSummaryWriterIntervalEnv: "1s"}),
+		refusingDatabase{t}, nil, nil, nil); err == nil {
+		t.Fatal("a 1s interval did not fail startup")
 	}
 }

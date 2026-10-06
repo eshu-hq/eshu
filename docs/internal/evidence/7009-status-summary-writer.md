@@ -57,7 +57,8 @@ Wiring, `go test ./cmd/reducer/ -run StatusSummary`: off by default (no
 runner for unset, false, or unparsable switch), built with the storage
 statement and digest when enabled, 10 s default, 2 s / 4999 ms / 0 / negative /
 unparsable intervals rejected, a database without transactions refused, and
-`buildReducerService` builds no writer by default. `go test ./internal/reducer/
+`withStatusSummaryWriter` (called by `buildObservedReducerService`) sets only
+the writer field, nil by default. `go test ./internal/reducer/
 -run StatusSummary` proves `Service` starts the writer as a side runner and an
 empty `Service` starts nothing.
 
@@ -68,8 +69,8 @@ and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`: 38 tests passed, rc=0.
 
 - the stored row equals the live statement at its `as_of`, read in one
   `REPEATABLE READ` snapshot, at 1/600, 300/600 and 600/600 live rows (every
-  section present at 50 and 100 percent) and with every input deleted (one
-  `queue` entry); a changed work item makes the same comparison fail;
+  section present at 50 and 100 percent) and with every input deleted (the
+  `mode` and `queue` entries only); a changed work item makes the same comparison fail;
 - a backend terminated between the statement and the upsert leaves the stored
   `as_of` unchanged and the row still equal to live; the next pass replaces it;
 - a stored row one hour newer is kept and the pass reports `rejected_guard`;
