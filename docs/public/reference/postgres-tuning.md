@@ -242,9 +242,11 @@ Capture these facts for every tuning run so before/after comparisons survive:
 
 PostgreSQL's `pg_stat_statements` module tracks planning and execution
 statistics for normalized SQL statements:
-<https://www.postgresql.org/docs/current/pgstatstatements.html>. Enable it in
-performance environments when allowed, then reset statistics immediately before
-a bounded proof run.
+<https://www.postgresql.org/docs/current/pgstatstatements.html>. The default
+Compose stacks enable it. Enable it in every other performance environment, then
+reset statistics immediately before a bounded proof run. For the server
+settings, the report script, and a 24 hour capture recipe, see
+[Postgres Diagnostics](postgres-diagnostics.md).
 
 ## Eshu Metrics To Watch
 
