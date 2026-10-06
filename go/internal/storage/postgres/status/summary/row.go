@@ -60,9 +60,10 @@ type Row struct {
 
 // Validate reports whether the row can be written or served: it needs a model
 // key, a positive schema version, a source digest, a non-zero as_of, a
-// non-negative pass duration and row count, and a row count equal to the number
-// of entries. A count mismatch returns an error that satisfies
-// errors.Is(err, ErrRowCountMismatch).
+// non-negative pass duration and row count, a row count equal to the number of
+// entries, and a non-empty section in every entry (the exact rule DecodeEntries
+// applies, so Upsert never stores a row that Read cannot return). A count
+// mismatch returns an error that satisfies errors.Is(err, ErrRowCountMismatch).
 func (r Row) Validate() error {
 	switch {
 	case strings.TrimSpace(r.ModelKey) == "":
@@ -80,6 +81,15 @@ func (r Row) Validate() error {
 	case r.RowCount != len(r.Entries):
 		return fmt.Errorf("%w: model %q stores row_count %d for %d entries",
 			ErrRowCountMismatch, r.ModelKey, r.RowCount, len(r.Entries))
+	}
+	// decodeTuple rejects Section == "" (and nothing else about an entry), so
+	// Validate rejects exactly that. Keep the two rules identical: a section of
+	// one space is valid to both. TestValidateAndDecodeAgreeOnEverySection fails
+	// if they drift.
+	for i, entry := range r.Entries {
+		if entry.Section == "" {
+			return fmt.Errorf("status summary row %q: entry %d has an empty section", r.ModelKey, i)
+		}
 	}
 	return nil
 }
@@ -136,6 +146,7 @@ func decodeTuple(raw json.RawMessage) (Entry, error) {
 		return Entry{}, fmt.Errorf("has %d elements, want 3", len(fields))
 	}
 	var entry Entry
+	// Row.Validate applies the same Section == "" rule; keep them identical.
 	if err := json.Unmarshal(fields[0], &entry.Section); err != nil || entry.Section == "" {
 		return Entry{}, errors.New("section is not a non-empty string")
 	}

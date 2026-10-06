@@ -107,6 +107,14 @@ func TestRowValidate(t *testing.T) {
 		t.Fatalf("Validate(valid) = %v, want nil", err)
 	}
 
+	// A one-space section is accepted by both Validate and the decoder, so it
+	// stays valid; only the empty section is rejected.
+	spaced := valid
+	spaced.Entries = []Entry{{Section: " ", Ordinal: 0, JSON: `{}`}}
+	if err := spaced.Validate(); err != nil {
+		t.Fatalf("Validate(one-space section) = %v, want nil", err)
+	}
+
 	mismatch := valid
 	mismatch.RowCount = 2
 	if err := mismatch.Validate(); !errors.Is(err, ErrRowCountMismatch) {
@@ -120,11 +128,52 @@ func TestRowValidate(t *testing.T) {
 		"negative count":   func(r *Row) { r.RowCount = -1 },
 		"zero as_of":       func(r *Row) { r.AsOf = time.Time{} },
 		"negative pass":    func(r *Row) { r.PassDuration = -time.Millisecond },
+		"blank section":    func(r *Row) { r.Entries = []Entry{{Section: "", Ordinal: 0, JSON: `{}`}} },
+		"second blank": func(r *Row) {
+			r.RowCount = 2
+			r.Entries = append(r.Entries, Entry{Section: "", Ordinal: 1, JSON: `{}`})
+		},
 	} {
 		bad := valid
 		mutate(&bad)
 		if err := bad.Validate(); err == nil || errors.Is(err, ErrRowCountMismatch) {
 			t.Fatalf("Validate(%s) = %v, want a non-mismatch error", name, err)
+		}
+	}
+}
+
+// TestValidateAndDecodeAgreeOnEverySection keeps Row.Validate and decodeTuple
+// from drifting apart: Upsert stores only what Validate accepts, and Read
+// returns only what DecodeEntries accepts, so a row Validate passes but the
+// decoder rejects can be written and never read back. For every section value
+// both must accept it or both must reject it, and a validated row must survive
+// EncodeEntries then DecodeEntries unchanged.
+func TestValidateAndDecodeAgreeOnEverySection(t *testing.T) {
+	t.Parallel()
+
+	for _, section := range []string{
+		"", " ", "\t", "queue", "backlog", "é", "a b", strings.Repeat("s", 4096),
+	} {
+		row := Row{
+			ModelKey:      ModelActiveWorkSummary,
+			SchemaVersion: SchemaVersion,
+			SourceSHA256:  strings.Repeat("a", 64),
+			AsOf:          time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC),
+			RowCount:      1,
+			Entries:       []Entry{{Section: section, Ordinal: 3, JSON: `{"k":1}`}},
+		}
+		encoded, err := EncodeEntries(row.Entries)
+		if err != nil {
+			t.Fatalf("EncodeEntries(section %q) error = %v", section, err)
+		}
+		decoded, decodeErr := DecodeEntries(encoded)
+		validateErr := row.Validate()
+		if (validateErr == nil) != (decodeErr == nil) {
+			t.Fatalf("section %q: Validate error = %v, DecodeEntries error = %v; they must accept and reject the same rows",
+				section, validateErr, decodeErr)
+		}
+		if validateErr == nil && !reflect.DeepEqual(decoded, row.Entries) {
+			t.Fatalf("section %q: round trip = %#v, want %#v", section, decoded, row.Entries)
 		}
 	}
 }
