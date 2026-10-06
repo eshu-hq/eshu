@@ -4,19 +4,14 @@
 package maintenancestore_test
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestStatusRequestStoreRequestReindexWatermarkMonotonicLive proves the
@@ -29,33 +24,22 @@ import (
 //     value equals the largest value any of them returned.
 //  3. A stored value ahead of the database clock is never moved backward.
 //
-// Run with:
+// It runs in the live-postgres-readiness runner, which provisions the storage
+// proofs' administrative DSN. Run locally with a disposable PostgreSQL 18
+// administrative database:
 //
-//	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
+//	ESHU_GENERATION_RETENTION_PROOF_DSN=postgresql://postgres:postgres@localhost:<port>/postgres?sslmode=disable \
+//	ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1 \
 //	  go test ./internal/storage/postgres/maintenance -run WatermarkMonotonicLive -count=1
 func TestStatusRequestStoreRequestReindexWatermarkMonotonicLive(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres reindex watermark proof")
-	}
-
-	sqlDB, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	defer func() { _ = sqlDB.Close() }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
+	dsn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")
+	optIn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE")
+	ctx, sqlDB := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
 	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: sqlDB}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 
-	ingester := fmt.Sprintf("reindex-watermark-live-%d", time.Now().UnixNano())
-	t.Cleanup(func() {
-		_, _ = sqlDB.ExecContext(context.Background(),
-			`DELETE FROM runtime_ingester_control WHERE ingester = $1`, ingester)
-	})
+	const ingester = "repository"
 	store := maintenancestore.NewStatusRequestStore(postgres.SQLDB{DB: sqlDB})
 
 	first, err := store.RequestReindex(ctx, ingester)

@@ -36,7 +36,7 @@ const Admin = `
                 "properties": {
                   "ingester": {"type": "string", "enum": ["repository"], "default": "repository", "description": "Only the git repository ingesters honor reindex requests."},
                   "scope": {"type": "string", "enum": ["workspace"], "default": "workspace", "description": "Every repository the git ingesters own. Per-repository reindex is not supported."},
-                  "force": {"type": "boolean", "enum": [true], "default": true, "description": "A reindex always forces a full re-parse; false is rejected."}
+                  "force": {"type": "boolean", "default": true, "description": "Must be true or omitted: a reindex always forces a full re-parse, and false is rejected with 400."}
                 }
               }
             }
