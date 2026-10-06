@@ -221,10 +221,11 @@ func TestActiveFactWorkItemsFormsSelectTheSameRows(t *testing.T) {
 }
 
 // TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows exercises the
-// production summary CTE against the status fixture. Terminal rows still
-// contribute to counts through the grouped history CTEs (#7009), but never
-// enter the materialized detail CTE; were the status filter widened, the
-// conditional projection would still keep their consumer-only text out.
+// production summary CTE against the status fixture. In the grouped branch
+// terminal rows contribute to counts through the grouped history CTEs
+// (#7009) but never enter the materialized detail CTE; in the detail branch,
+// or were the status filter widened, they enter it and the conditional
+// projection still keeps their consumer-only text out.
 func TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
@@ -237,10 +238,23 @@ func TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows(t *testing.T) {
 	conn := openStatusSemanticsSchema(ctx, t, dsn)
 	seedStatusSemanticsFixture(ctx, t, conn)
 
-	prefix, _, ok := strings.Cut(activeWorkSummaryQuery, "\n),\nfact_work_status_groups AS MATERIALIZED (")
-	if !ok || !strings.HasPrefix(prefix, "\nWITH "+activeFactWorkItemsScopeStateCTE) {
-		t.Fatal("could not derive active work CTE from production summary query")
+	grouped, err := activeWorkSummaryForcedGate(activeWorkSummaryQuery, activeWorkForceGrouped)
+	if err != nil {
+		t.Fatalf("forced grouped render: %v", err)
 	}
+	detail, err := activeWorkSummaryForcedGate(activeWorkSummaryQuery, activeWorkForceDetail)
+	if err != nil {
+		t.Fatalf("forced detail render: %v", err)
+	}
+	derive := func(query string) string {
+		prefix, _, ok := strings.Cut(query, "\n),\nfact_work_status_groups AS MATERIALIZED (")
+		if !ok || !strings.HasPrefix(prefix, "\nWITH fact_work_summary_mode AS MATERIALIZED (") ||
+			!strings.Contains(prefix, activeFactWorkItemsScopeStateCTE) {
+			t.Fatal("could not derive active work CTE from production summary query")
+		}
+		return prefix
+	}
+	prefix, detailPrefix := derive(grouped), derive(detail)
 	tail := `
 )
 SELECT COUNT(*) FILTER (WHERE status = 'succeeded'),
@@ -251,7 +265,10 @@ SELECT COUNT(*) FILTER (WHERE status = 'succeeded'),
            OR conflict_domain IS NOT NULL OR conflict_key IS NOT NULL))
 FROM active_fact_work_items`
 	if rows := statusSemanticsRows(ctx, t, conn, prefix+tail); len(rows) != 1 || rows[0] != "0|0|0" {
-		t.Fatalf("succeeded, superseded, and wide terminal rows = %v, want [0|0|0]", rows)
+		t.Fatalf("grouped branch: succeeded, superseded, and wide terminal rows = %v, want [0|0|0]", rows)
+	}
+	if rows := statusSemanticsRows(ctx, t, conn, detailPrefix+tail); len(rows) != 1 || rows[0] != "2|1|0" {
+		t.Fatalf("detail branch: succeeded, superseded, and wide terminal rows = %v, want [2|1|0]", rows)
 	}
 	historyTail := `
 ),
