@@ -20,19 +20,34 @@ type securityAlertProviderRepositoryScopeStore interface {
 	SecurityAlertProviderRepositoryScopes(context.Context, string) ([]string, error)
 }
 
+// resolveSupplyChainRepositorySelector resolves rawSelector exactly once the
+// catalog has no match. The resolution reruns the catalog read and issues the
+// graph reads, so it runs as the repository_selector_resolve stage: a fence or
+// graph-availability verdict maps to 503/504 first, and any other lookup
+// failure is a handler-owned 500 with one stage_failed record (#7626).
 func (h *Handler) resolveSupplyChainRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	rawSelector string,
 	capability string,
+	route securityAlertSelectorRoute,
 ) (string, bool) {
 	rawSelector = strings.TrimSpace(rawSelector)
 	if rawSelector == "" {
 		return "", true
 	}
+	// repo_id stays empty: the selector is unbounded caller input and
+	// nothing is resolved yet.
+	resolveTimer := startSupplyChainQueryStage(r.Context(), h.Logger, route.operation, "", "repository_selector_resolve")
 	repoID, err := selector.ResolveExact(r.Context(), h.Neo4j, h.Content, rawSelector)
+	resolveTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, capability) {
+			return "", false
+		}
+		if selector.IsLookupFailure(err) {
+			failStage(r.Context(), route.span, resolveTimer, err)
+			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return "", false
 		}
 		status := http.StatusBadRequest
@@ -98,7 +113,7 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 	if selector.LooksCanonicalRepositoryID(rawSelector) {
 		return rawSelector, SecurityAlertRepositoryScopeIDs(rawSelector, nil), true
 	}
-	repoID, ok := h.resolveSupplyChainRepositorySelector(w, r, rawSelector, capability)
+	repoID, ok := h.resolveSupplyChainRepositorySelector(w, r, rawSelector, capability, route)
 	if !ok {
 		return "", nil, false
 	}

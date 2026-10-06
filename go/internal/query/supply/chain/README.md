@@ -185,6 +185,16 @@ repository id). A fence verdict answers the retryable `503` with no
 `TestRepositorySelectorReadsAnswerRetryable503` and
 `TestRepositorySelectorHandlerOwned500RecordsSpanError`.
 
+When the catalog has no match and the selector is not canonical, the exact
+`selector.ResolveExact` fallback (which reruns the catalog read and issues the
+graph reads) runs as a third stage, `repository_selector_resolve`, also logged
+with an empty `repo_id` (#7626). A fence or graph-availability verdict answers
+`503`/`504` with no `stage_failed` line; a `selector.LookupError` that is not
+one answers `500` with exactly one `stage_failed` line and the handler span set
+to Error; an unmatched selector stays `404` and an ambiguous one `400`. Pinned
+by `TestRepositorySelectorResolveLookupFailureAnswers500` and
+`TestRepositorySelectorResolveLookupFailureRecordsSpanError`.
+
 ## Move evidence (#6060)
 
 This package was created by moving twenty-five files out of root package

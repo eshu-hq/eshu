@@ -698,7 +698,7 @@ source_coverage:
       - {symbol: "QueryRepositoryNamesByID", count: 1, non_hot: {class: keyed_support, source_sha256: 96b1fc38b8307772a7b6b848451158dcef14131d5f3838472fb4a845e002686c, key_bound: bounded_key_batch, max_keys: 100, max_results: 100}}
   - file: selector/selector.go
     calls:
-      - {symbol: "ResolveExactForAccess", count: 2, non_hot: {class: keyed_support, source_sha256: 32ca35a98c2720a5017f32627c28d7d3a9d3e474ec482afedf840d1bb90472b6, key_bound: single_key, max_results: 51}}
+      - {symbol: "ResolveExactForAccess", count: 2, non_hot: {class: keyed_support, source_sha256: 93d5fbf09ee7beb3b55d6ee55f3edd12b718d53b9cd2551c374d1206c8177ae9, key_bound: single_key, max_results: 51}}
   - file: repository/stats.go
     calls:
       - {symbol: "(*Handler).repositoryStatsRepositoryRef", count: 1, non_hot: {class: keyed_support, source_sha256: 983994f5e6b02adae742e1feb76d62aaea83cc6059e2f40f78d9c1a63a3ca368, key_bound: single_key, max_results: 1}}

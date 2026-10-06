@@ -154,7 +154,15 @@ store failure stays a handler-owned `500` with a
 the security-alert reconciliation list, count, and inventory routes (the
 catalog match and the provider repository-scope lookup) map the same way
 (#7567), and their other failures answer `500` with a `stage_failed` line for
-stage `repository_catalog_match` or `provider_repository_scope_lookup`.
+stage `repository_catalog_match` or `provider_repository_scope_lookup`. When
+the catalog has no match, the exact selector resolution on those routes runs
+as stage `repository_selector_resolve` and maps the same way (#7626).
+Repository-selector resolution through the shared request helper (the
+package-registry, service-catalog, CI/CD, advisory-evidence, container-image,
+SBOM-attachment, and impact routes) answers a catalog or graph failure that is
+not a fence or graph-availability verdict with `500` and the fixed message
+`repository selector lookup failed`, recorded on the request span, rather than
+`400`. An unmatched selector stays `404` and an ambiguous one `400`.
 Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and
