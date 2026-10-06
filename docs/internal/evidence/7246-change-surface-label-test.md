@@ -37,9 +37,11 @@ WHERE impacted.id <> $target_id
   AND ('Repository' IN labels(impacted) OR 'Workload' IN labels(impacted) ... )
 ```
 
-Neo4j reads the conjunction left to right: the node-label check discards every
-non-whitelisted path before the six labels() calls run, so those calls see no
-rows when nothing survives. The scoped traversal
+On Neo4j 2026.08.1 (SLOTTED) the planner evaluates the label test first
+(PROFILE: identical DB hits for the label-test-only and combined forms), so
+the node-label check discards every non-whitelisted path before the six
+labels() calls run and those calls see no rows when nothing survives. This is
+an observation on that version, not a claim about the planner's mechanism. The scoped traversal
 (`changeSurfaceScopedOutgoingCypher`) and the repository-consumers read are
 byte-unchanged; `TestChangeSurfaceNonLegacyCypherIsPinned` holds their
 digests. `changeSurfaceRowLabelAdmitted` and the Go-side filters are
@@ -51,11 +53,23 @@ WHERE of a relationship MATCH and evaluates only `'Label' IN labels(x)` there
 is not enforced and the IN labels() terms still enforce the whitelist.
 
 The #6786 label-predicate guard rejected any label test in that position, so it
-now accepts one only beside an IN labels() disjunction over the same variable
-and label set, with no top-level OR and no other label test
-(`labelTestsPairedWithInLabels`). The seeded RED/GREEN pair is
-`TestAssertCypherHasNoIgnoredLabelPredicatePairedConjunct`; with the pairing
-check forced to true, all 11 RED cases fail.
+now accepts one only in the exact shape proven live on NornicDB and Neo4j
+(`labelTestPairExempt`): a plain MATCH that opens its frame, with one
+variable-length relationship, one tested variable, and the label test AND-ed
+beside an IN labels() disjunction over the same label set, with no top-level
+OR and no other label test. Other positions stay rejected because
+[6786](6786-nornicdb-label-predicates.md) measures the label test as
+evaluated there: the WHERE of a second MATCH returns 0 rows (row H02), an
+OPTIONAL MATCH nulls the row (row H05), and a negated test returns 0 rows
+(row D04). A positive label test is ignored only in the single-relationship
+rows (A02 through I01). The seeded RED/GREEN pair is
+`TestAssertCypherHasNoIgnoredLabelPredicatePairedConjunct`: 16 RED cases
+(including H02, a MATCH after a WITH, H05, a fixed-length relationship, two
+relationships and two tested variables) and 2 GREEN cases, both the production
+statement text that the live tests run. With the exemption forced true all 16
+RED cases fail. With the position and shape gate removed (the earlier,
+wider exemption) the H02, H05, WITH-preceded, fixed-length and
+two-relationship cases fail.
 
 ## Failing test first
 
@@ -138,8 +152,11 @@ was run locally with the live tag
 ```bash
 cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:<port> ESHU_LIVE_GRAPH_BACKEND=nornicdb \
   go test ./internal/query/impact -tags live_nornicdb_label_predicates \
-  -run TestLiveChangeSurfaceLabel -count=1 -v
+  -run 'TestLiveChangeSurfaceLabelPredicate|TestLiveChangeSurfaceLabelConjunctDeepTraversal' -count=1 -v
 ```
+
+The live seeds use CREATE without cleanup, so each run needs a fresh store
+(a unique container, removed afterwards).
 
 `TestLiveChangeSurfaceLabelPredicate` (unscoped and scoped) and the new
 `TestLiveChangeSurfaceLabelConjunctDeepTraversal` (whitelisted nodes at one,
@@ -152,6 +169,13 @@ same rows.
 
 ## Not claimed
 
+- Only Repository anchors were timed. The same statement also serves
+  Workload, WorkloadInstance, CloudResource, TerraformModule and DataAsset
+  anchors, and none of those were timed in the table above. A path set that is
+  fully whitelisted pays about one extra label check per path (the label test is
+  one DB hit per path in the PROFILE) and gains nothing, so such an anchor is
+  expected to get slightly slower, not faster. That bound is reasoning from
+  the PROFILE, not a measurement.
 - No deployed latency. The request-time effect needs a rebuilt image replayed
   against the same corpus; only statement server time is measured here.
 - The expansion cost is unchanged: every path of up to four hops is still
