@@ -173,6 +173,11 @@ closed-cardinality operator signals; no new log key was added.
 Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
 callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
 adapter scan contracts remain unchanged.
+Every status snapshot transaction runs `SET LOCAL jit = off` (#7009) as control
+SQL right after it begins: no reader query-start event, no `business_query`
+observation; the `transaction_control` stage times it. `phase=jit` names a
+failed SET; `jit=off` on the span confirms it.
+See [the JIT evidence](../../../../docs/internal/evidence/7009-status-snapshot-jit-off.md).
 The semantic extraction status route requests only its semantic status section
 inside this same fenced, read-only repeatable-read transaction. Selection does
 not bypass replay checks, deadlines, transaction cleanup, or reader telemetry.

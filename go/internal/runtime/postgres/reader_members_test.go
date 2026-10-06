@@ -361,6 +361,13 @@ func TestReaderMembersRejectPrimaryAsStandby(t *testing.T) {
 // standbys. It does not create or mutate database state.
 func openFleetRegressionAccess(t *testing.T, replayTimeout time.Duration) *Access {
 	t.Helper()
+	return openFleetAccess(t, replayTimeout, 8)
+}
+
+// openFleetAccess is openFleetRegressionAccess with an explicit aggregate
+// reader connection cap.
+func openFleetAccess(t *testing.T, replayTimeout time.Duration, maxConns int) *Access {
+	t.Helper()
 	writer := os.Getenv("ESHU_READER_TEST_WRITER_DSN")
 	first := os.Getenv("ESHU_READER_TEST_READER_DSN")
 	second := os.Getenv("ESHU_READER_TEST_SECOND_READER_DSN")
@@ -392,8 +399,8 @@ func openFleetRegressionAccess(t *testing.T, replayTimeout time.Duration) *Acces
 		{ID: "a", Host: firstEndpoint.Host, Port: firstEndpoint.Port},
 		{ID: "b", Host: secondEndpoint.Host, Port: secondEndpoint.Port},
 	}
-	cfg.ReadMaxOpenConns = 8
-	cfg.ReadMaxIdleConns = 8
+	cfg.ReadMaxOpenConns = maxConns
+	cfg.ReadMaxIdleConns = maxConns
 	cfg.ReplayTimeout = replayTimeout
 	access, err := Open(context.Background(), cfg, nil)
 	if err != nil {

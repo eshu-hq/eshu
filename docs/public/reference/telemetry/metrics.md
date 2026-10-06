@@ -28,12 +28,17 @@ Current metric sources:
 
 When an API or MCP process wires the reader access observer, use
 `eshu_dp_postgres_reader_stage_duration_seconds` to separate writer checkpoint,
-reader borrow, identity, replay, and business-query duration. Its only labels
-are `role` (`writer` or `reader`), `stage` (the five named stages), and `outcome`
+reader borrow, identity, replay, business-query, and transaction-control
+duration. Its only labels are `role` (`writer` or `reader`), `stage`
+(`writer_checkpoint`, `reader_borrow`, `reader_identity`, `reader_replay`,
+`business_query`, or `transaction_control`), and `outcome`
 (`ok`, `error`, `deadline`, or `canceled`). Unexpected values collapse to
 `unknown`; no endpoint, SQL, user, or credential is a label. The duration
 histogram uses explicit seconds boundaries from 5 ms to 10 s, plus zero;
 use stage spans for comparisons finer than the histogram buckets.
+`transaction_control` times control SQL inside a guarded read transaction,
+today only the status snapshot's `SET LOCAL jit = off` (#7009); it is not a
+business query and is not in the per-request stage seconds.
 
 The reader access pool callback exposes
 `eshu_dp_postgres_reader_pool_connections` (`role` and `state`: `max_open`,

@@ -304,6 +304,20 @@ func (r *readTransaction) queryControlRowContext(ctx context.Context, statement 
 	return &fencedRow{rows: rows, err: err}
 }
 
+// execControl runs transaction-scoped control SQL, such as SET LOCAL, on the
+// owned transaction. It emits no reader query-start event and no
+// business_query observation, so a request's business counts stay unchanged;
+// the transaction_control stage records its duration and outcome instead.
+func (r *readTransaction) execControl(ctx context.Context, statement string) error {
+	started := time.Now()
+	_, err := r.tx.ExecContext(ctx, statement)
+	r.access.observe(ctx, "reader", StageTransactionControl, started, err)
+	if err != nil {
+		return privateFailure(failureReaderQuery, memberQueryFailure(err, r.fleet))
+	}
+	return nil
+}
+
 func (r *readTransaction) finish(commit bool) error {
 	executed := false
 	r.once.Do(func() {

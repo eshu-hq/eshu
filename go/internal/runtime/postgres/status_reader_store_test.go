@@ -29,7 +29,12 @@ type emptyStatusTx struct {
 	faultErr  error
 }
 
-func (s *emptyStatusTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+// QueryContext counts only status statements; the transaction's
+// SET LOCAL jit = off goes to the embedded stub, which records it.
+func (s *emptyStatusTx) QueryContext(ctx context.Context, statement string, args ...any) (db.Rows, error) {
+	if statement == statusSnapshotJITOffSQL {
+		return s.snapshotTxStub.QueryContext(ctx, statement, args...)
+	}
 	s.queries++
 	if s.commits != 0 {
 		return nil, errors.New("query after commit")
@@ -56,6 +61,9 @@ func TestSnapshotStatusReaderRunsRealEmptyStatusStoreOnOneTransaction(t *testing
 	}
 	if !raw.AsOf.Equal(asOf) || tx.queries < 5 || tx.commits != 1 || tx.rollbacks != 0 {
 		t.Fatalf("raw.AsOf=%v queries=%d commit=%d rollback=%d", raw.AsOf, tx.queries, tx.commits, tx.rollbacks)
+	}
+	if len(tx.statements) != 1 || tx.statements[0] != statusSnapshotJITOffSQL {
+		t.Fatalf("control statements=%q, want one %q", tx.statements, statusSnapshotJITOffSQL)
 	}
 }
 

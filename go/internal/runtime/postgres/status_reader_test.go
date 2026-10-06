@@ -27,7 +27,27 @@ type snapshotTxStub struct {
 	db.ReadTransaction
 	commits, rollbacks     int
 	commitErr, rollbackErr error
+	// statements records each statement sent through QueryContext, which is
+	// how the status reader applies SET LOCAL jit = off to a non-guarded
+	// transaction; queryErr fails every such statement.
+	statements []string
+	queryErr   error
 }
+
+func (s *snapshotTxStub) QueryContext(_ context.Context, statement string, _ ...any) (db.Rows, error) {
+	s.statements = append(s.statements, statement)
+	if s.queryErr != nil {
+		return nil, s.queryErr
+	}
+	return snapshotEmptyRows{}, nil
+}
+
+type snapshotEmptyRows struct{}
+
+func (snapshotEmptyRows) Next() bool        { return false }
+func (snapshotEmptyRows) Scan(...any) error { return errors.New("no rows") }
+func (snapshotEmptyRows) Err() error        { return nil }
+func (snapshotEmptyRows) Close() error      { return nil }
 
 func (s *snapshotTxStub) Commit() error   { s.commits++; return s.commitErr }
 func (s *snapshotTxStub) Rollback() error { s.rollbacks++; return s.rollbackErr }

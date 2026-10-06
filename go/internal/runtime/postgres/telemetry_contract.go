@@ -39,4 +39,13 @@ const StatusSnapshotSpanName = "postgres.status_snapshot"
 const (
 	statusSnapshotPhaseKey   = "phase"
 	statusSnapshotOutcomeKey = "outcome"
+	// statusSnapshotJITKey reports the PostgreSQL JIT setting the status
+	// transaction ran with. It is set only after SET LOCAL jit = off succeeds,
+	// so an operator can tell a JIT-free status read from one that failed
+	// before the read phase (#7009).
+	statusSnapshotJITKey = "jit"
+	// statusSnapshotJITOff is the only value of statusSnapshotJITKey.
+	statusSnapshotJITOff = "off"
+	// statusSnapshotPhaseJIT is the phase value while the JIT setting is applied.
+	statusSnapshotPhaseJIT = "jit"
 )
