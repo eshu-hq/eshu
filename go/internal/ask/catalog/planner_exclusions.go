@@ -46,7 +46,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"POST /api/v0/admin/dead-letter":                                                {}, // DeadLetterWorkItems dead-letters queued work
 		"POST /api/v0/admin/recover-generations":                                        {}, // re-drives wedged generation scopes through recovery
 		"POST /api/v0/admin/refinalize":                                                 {}, // re-enqueues projector work for the given scope
-		"POST /api/v0/admin/reindex":                                                    {}, // RequestReindex enqueues ingester reindex work
+		"POST /api/v0/admin/reindex":                                                    {}, // RequestReindex records the fleet reindex watermark
 		"POST /api/v0/admin/replay":                                                     {}, // ReplayFailed re-processes failed work items
 		"POST /api/v0/admin/skip":                                                       {}, // skips queued work items
 		"POST /api/v0/supply-chain/impact/suppressions":                                 {}, // creates operator-wide suppression policy evidence

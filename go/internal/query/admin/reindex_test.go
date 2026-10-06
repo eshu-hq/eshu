@@ -79,6 +79,7 @@ func TestAdminHandler_ReindexRejectsUnsupportedRequests(t *testing.T) {
 		{"workspace path", `{"scope":"workspace","path":"/src/app"}`, `unknown field "path"`},
 		{"workspace action", `{"scope":"workspace","action":"sync"}`, `unknown field "action"`},
 		{"empty body", ``, "invalid JSON"},
+		{"trailing value", `{} {"ingester":"terraform"}`, "unexpected trailing data"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

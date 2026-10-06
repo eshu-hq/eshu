@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -63,8 +64,9 @@ func (h *Handler) reindex(w http.ResponseWriter, r *http.Request) {
 }
 
 // decodeReindexRequest decodes and validates the reindex body, filling the
-// defaults. Unknown fields are rejected so the retired workspace
-// {scope, path, action} body fails instead of being accepted and ignored.
+// defaults. Unknown fields and trailing values are rejected so the retired
+// workspace {scope, path, action} body fails instead of being accepted and
+// ignored.
 func decodeReindexRequest(r *http.Request) (reindexRequest, error) {
 	var req reindexRequest
 	if r.Body == nil {
@@ -75,6 +77,9 @@ func decodeReindexRequest(r *http.Request) (reindexRequest, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		return req, fmt.Errorf("invalid JSON: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return req, errors.New("invalid JSON: unexpected trailing data after the request object")
 	}
 	if req.Ingester == "" {
 		req.Ingester = runtime.ReindexIngesterRepository
