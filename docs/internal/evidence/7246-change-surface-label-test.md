@@ -74,7 +74,9 @@ and two tested variables) and 2 GREEN cases, both the production statement
 text that the live tests run. With the exemption forced true all 21 RED cases
 fail. With the position and shape gate removed (the earlier,
 wider exemption) the H02, H05, WITH-preceded, fixed-length and
-two-relationship cases fail.
+two-relationship cases fail. With the top-level-frame, relationship-token and
+comma checks removed, the bracketless second relationship, leading
+relationship, comma pattern, CALL and EXISTS cases fail.
 
 ## Failing test first
 
