@@ -448,6 +448,19 @@ func (cr *ContentReader) ListRepoEntities(ctx context.Context, repoID string, li
 	return scanEntityContentRows(rows, span, "scan repo entity")
 }
 
+// codeTopicTermsMaterialization returns the terms CTE materialization marker.
+// #7246: the scoped one-term statement plans with the literal (custom plan). A
+// plain VALUES list lets the entity probe's trigram estimate for a
+// corpus-common term skip the repo bitmap; MATERIALIZED hides the parameter so
+// the planner ANDs content_entities_repo_idx. Every other shape keeps the
+// plain CTE.
+func codeTopicTermsMaterialization(scopedOneTerm bool) string {
+	if scopedOneTerm {
+		return "MATERIALIZED "
+	}
+	return ""
+}
+
 // scopedCodeTopicFileBranch preserves the measured explicit-repository
 // single-statement file probe. The caller must supply the repository filter.
 // Keep path/content pool accounting in sync with codetopicparallel.FileBranch;

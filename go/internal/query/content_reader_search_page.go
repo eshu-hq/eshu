@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -186,4 +187,20 @@ func appendRepositoryGrantFilter(filters []string, args []any, nextArg int, allo
 	filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
 	args = append(args, array.Of(allowedRepositoryIDs))
 	return filters, args, nextArg + 1
+}
+
+// recordCodeTopicFallbackReason records on span why a 16-term code-topic read
+// took the single-statement path instead of the four-partition shared-snapshot
+// path. Only the 16-term shape can run in parallel, so any other term count
+// records nothing. The reservation-timeout reason is recorded by the caller,
+// which is the only place that sees the reservation error.
+func recordCodeTopicFallbackReason(span trace.Span, termCount int, supportsSnapshotSet bool, maxOpenConns int) {
+	if termCount != 16 {
+		return
+	}
+	if !supportsSnapshotSet {
+		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "snapshot_set_unavailable"))
+	} else if maxOpenConns < codetopicparallel.Partitions {
+		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
+	}
 }
