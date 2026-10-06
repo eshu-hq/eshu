@@ -81,6 +81,21 @@ PACKAGES = {
             "TestActivationObligationCatchUpLive",
             "TestActivationObligationCatchUpReowesObsoleteOfActiveLive",
         ),
+        "go/internal/storage/postgres/activation_obligation_composed_live_test.go": (
+            "TestActivationObligationConsumerAndEpochPassOverlapLive",
+            "TestActivationObligationReplicasLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_lease_restart_live_test.go": (
+            "TestActivationObligationLeaseExpiresMidMaintenanceLive",
+            "TestActivationObligationRestartBeforePhasePublicationLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_redelivery_live_test.go": (
+            "TestActivationObligationRedeliveryAndCatchUpRacesLive",
+            "TestActivationObligationSupersessionBetweenClaimAndFinalizeLive",
+        ),
+        "go/internal/storage/postgres/activation_obligation_scope_lock_live_test.go": (
+            "TestActivationObligationIngestionCommitRacesFinalizeLive",
+        ),
         "go/internal/storage/postgres/activation_obligation_retention_live_test.go": (
             "TestActivationObligationRetentionCascadeLive",
             "TestActivationObligationPruneLive",
