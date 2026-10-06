@@ -205,6 +205,9 @@ the attribute and the stage.
 - The JIT cost of statement #25 on ops-qa: NOT measured. The fixture showed
   no benefit from JIT (1.002x at cost 212,206); if JIT is available on
   ops-qa, that statement would compile at its 1.58M cost whenever it runs.
+  The fixture cost sits below `jit_inline_above_cost` and
+  `jit_optimize_above_cost` (500,000), so the fixture ratio does not cover
+  the inlining and optimization work JIT would do at the ops-qa cost.
 - JIT on/off timing of any statement on ops-qa: NOT measured (the inventory
   plans only).
 - The reader DSN `options=` on ops-qa: NOT_CHECKED. The inventory session
