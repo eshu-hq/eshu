@@ -172,8 +172,10 @@ describe("CodeGraphPage repository state isolation", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveValue(
-      "content-entity:explicit",
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveValue(
+        "content-entity:explicit",
+      ),
     );
     await waitFor(() =>
       expect(document.querySelector(".gcanvas-svg")).toHaveTextContent("content-entity:explicit"),
@@ -272,8 +274,10 @@ describe("CodeGraphPage repository state isolation", () => {
 
     await waitFor(() => expect(inventoryCalls).toEqual(["repository:r2"]));
     expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r2");
-    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveValue(
-      "content-entity:repository:r2:betaSymbol",
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveValue(
+        "content-entity:repository:r2:betaSymbol",
+      ),
     );
   });
 

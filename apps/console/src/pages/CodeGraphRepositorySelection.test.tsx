@@ -110,10 +110,11 @@ describe("CodeGraphPage repository selection", () => {
 
     expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r2");
     expect(screen.getByRole("combobox", { name: "Repository" })).toHaveTextContent("service-two");
-    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveValue(
-      "content-entity:r2-entry",
-    );
-    expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("serviceTwoEntry");
+    await waitFor(() => {
+      const symbol = screen.getByRole("combobox", { name: "Symbol" });
+      expect(symbol).toHaveValue("content-entity:r2-entry");
+      expect(symbol).toHaveTextContent("serviceTwoEntry");
+    });
     expect(await screen.findByRole("link", { name: "Open source" })).toHaveAttribute(
       "href",
       "/repositories/repository%3Ar2/source?path=src%2Fservice-two.ts&lineStart=12&lineEnd=18",
