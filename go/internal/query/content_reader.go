@@ -89,11 +89,14 @@ var (
 // on a large repository (#7525) -- when either is missing. A fake-backed test
 // cannot see *ContentReader lose one of them, so these assertions fail `go build`
 // the moment a signature drift would silently route production back to the
-// expensive read. They sit in their own block so the 14 above keep their
+// expensive read. The repository-context count port is the same class: without
+// it, context would silently fall back to the full summary and its workload-name
+// read (#7542). They sit in their own block so the 14 above keep their
 // alignment.
 var (
 	_ querycontract.RepositoryContextCoverageReadModelStore = (*ContentReader)(nil)
 	_ querycontract.RepositoryFilesIndexedAtReadModelStore  = (*ContentReader)(nil)
+	_ querycontract.RepositoryReadModelCountsStore          = (*ContentReader)(nil)
 )
 
 // EntityContent is one indexed entity and its content metadata.

@@ -33,9 +33,12 @@ and dependency counts. It does not load workload names. A missing or failed
 count read falls back to the existing graph counts without retrying the full
 summary. Legacy content stores can still use the full summary port. A workload
 name read failure alone no longer changes context counts; story and entity
-responses still use names. The context `summary_counts` stage and the bounded
-`postgres.query` span named `repository_context_counts` expose read timing and
-errors without repository IDs in span attributes.
+responses still use names. The count read runs before the `summary_counts`
+stage starts, so that stage times only the count assembly (graph counts and any
+read-model scalars already loaded) and does not see a Postgres count error or
+the fallback. The read's timing and errors are on the bounded `postgres.query`
+span with `db.operation=repository_context_counts`, which carries no repository
+or scope identifier.
 
 ## Story file list
 

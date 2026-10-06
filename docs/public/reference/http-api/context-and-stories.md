@@ -48,8 +48,8 @@ Context routes are canonical-ID oriented:
   `requested_as=service`
 
 Repository context `workload_count` counts distinct materialized `Workload` nodes linked by `DEFINES`.
-Read-model workload names convey identity and display intent without increasing it; a graph read failure
-returns an error, not a count inferred from those names.
+The count never comes from read-model workload names (repository context does not load them); a graph read
+failure returns an error, not an inferred count.
 
 When a repository has workload identity facts but no materialized `Workload` node,
 service context can fall back to the repository read model. Responses use

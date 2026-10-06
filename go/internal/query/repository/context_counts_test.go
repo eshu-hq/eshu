@@ -16,12 +16,11 @@ import (
 func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name         string
-		graphCount   int64
-		summaryNames []string
+		name       string
+		graphCount int64
 	}{
-		{name: "retained identity without materialization", graphCount: 0, summaryNames: []string{"retained-intent"}},
-		{name: "multiple materialized workloads", graphCount: 2, summaryNames: []string{"single-summary-name"}},
+		{name: "retained identity without materialization", graphCount: 0},
+		{name: "multiple materialized workloads", graphCount: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reader := graph.FakeRepoGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
