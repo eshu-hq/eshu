@@ -76,10 +76,21 @@ type SnapshotSelection struct {
 	// reads registry collector status from fact_records.
 	IncludeRegistryCollectors bool
 	// SkipTerraformStateEvidence omits the Terraform-only serial and warning
-	// reads for callers that do not render them, including repository ingester
-	// detail and the live evidence bundle. Full and index status retain these
+	// reads for callers that do not render them, including the ingester,
+	// collector, readiness, operations, control-plane, freshness, governance,
+	// and answer-narration status routes, runtime /metrics, and the live
+	// evidence bundle. Full pipeline, index, and admin JSON status retain these
 	// reads and their errors by default.
 	SkipTerraformStateEvidence bool
+}
+
+// WithoutTerraformStateEvidence returns a copy of s that omits the
+// Terraform-state serial and warning reads and keeps every other section
+// request unchanged. Use it only for callers that never read
+// Report.TerraformState.
+func (s SnapshotSelection) WithoutTerraformStateEvidence() SnapshotSelection {
+	s.SkipTerraformStateEvidence = true
+	return s
 }
 
 // SnapshotMode identifies the status read shape. The zero value preserves

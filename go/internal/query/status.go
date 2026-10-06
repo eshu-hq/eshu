@@ -85,7 +85,7 @@ func (h *StatusHandler) listCollectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return
@@ -118,14 +118,15 @@ func (h *StatusHandler) listIngesters(w http.ResponseWriter, r *http.Request) {
 
 	// Enrich with live status if available. The ingester surface renders only
 	// health, queue, and coordinator-instance counts, so it loads a filtered
-	// snapshot that skips the fact_records aggregates (see issue #3368).
+	// snapshot that skips the fact_records aggregates (see issue #3368) and the
+	// Terraform-state reads (#7009).
 	if h.StatusReader != nil {
 		_, report, err := loadStatusReportFiltered(
 			r.Context(),
 			h.StatusReader,
 			time.Now(),
 			status.DefaultOptions(),
-			status.SnapshotSelection{IncludeCollectorFactEvidence: false, IncludeRegistryCollectors: false},
+			ingesterStatusSelection(),
 		)
 		if err == nil {
 			ingesters[0]["health"] = report.Health.State
@@ -168,11 +169,7 @@ func (h *StatusHandler) getIngesterStatus(w http.ResponseWriter, r *http.Request
 		h.StatusReader,
 		time.Now(),
 		status.DefaultOptions(),
-		status.SnapshotSelection{
-			IncludeCollectorFactEvidence: false,
-			IncludeRegistryCollectors:    false,
-			SkipTerraformStateEvidence:   true,
-		},
+		ingesterStatusSelection(),
 	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))

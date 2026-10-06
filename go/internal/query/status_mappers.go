@@ -39,6 +39,25 @@ func loadStatusReportFiltered(
 	return raw, status.BuildReport(raw, opts), nil
 }
 
+// operatorStatusSelection is the snapshot selection for status routes that
+// render collector, queue, health, readiness, or governance sections from the
+// full report but never read Report.TerraformState: operations, hosted
+// readiness, operator control plane, freshness causality, collectors,
+// collector readiness, governance, and answer narration. It omits only the
+// Terraform-state serial and warning reads (#7009), so a failure in those reads
+// no longer fails these routes and they skip the warning scan over fact_records.
+func operatorStatusSelection() status.SnapshotSelection {
+	return status.FullSnapshotSelection().WithoutTerraformStateEvidence()
+}
+
+// ingesterStatusSelection is the snapshot selection for the ingester list and
+// repository ingester detail routes. They render health, queue, coordinator,
+// scope, stage, and backlog sections only, so they skip the fact_records
+// aggregates (#3368) and the Terraform-state reads (#7009).
+func ingesterStatusSelection() status.SnapshotSelection {
+	return status.SnapshotSelection{}.WithoutTerraformStateEvidence()
+}
+
 // statusReportToMap converts a status.Report to a JSON-friendly map.
 func statusReportToMap(r status.Report) map[string]any {
 	return statusReportToMapWithAWS(r, r.DomainBacklogs, r.QueueBlockages)

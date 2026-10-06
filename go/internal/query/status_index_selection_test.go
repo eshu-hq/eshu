@@ -154,23 +154,26 @@ func TestGetSemanticExtractionStatusRequestsSemanticOnlySelection(t *testing.T) 
 	}
 }
 
-func TestRepositoryDetailAndListChooseDistinctStatusSelections(t *testing.T) {
+// TestIngesterRoutesSkipTerraformWhileIndexAndPipelineKeepIt pins that the
+// ingester list and detail routes omit the Terraform-state reads they never
+// render (#7009) while index and pipeline status keep them.
+func TestIngesterRoutesSkipTerraformWhileIndexAndPipelineKeepIt(t *testing.T) {
 	reader := &selectionRecordingReader{snapshot: statuspkg.RawSnapshot{AsOf: time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)}}
 	h := &StatusHandler{StatusReader: reader}
 	mux := http.NewServeMux()
 	h.Mount(mux)
-	for _, route := range []string{"/api/v0/status/ingesters/repository", "/api/v0/ingesters/repository"} {
+	for _, route := range []string{"/api/v0/status/ingesters/repository", "/api/v0/ingesters/repository", "/api/v0/status/ingesters", "/api/v0/ingesters"} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
 		if rec.Code != http.StatusOK || !reader.lastSelection.SkipTerraformStateEvidence {
-			t.Fatalf("detail %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
+			t.Fatalf("ingester %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
 		}
 	}
-	for _, route := range []string{"/api/v0/status/ingesters", "/api/v0/status/index", "/api/v0/status/pipeline"} {
+	for _, route := range []string{"/api/v0/status/index", "/api/v0/index-status", "/api/v0/status/pipeline"} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, route, nil))
 		if rec.Code != http.StatusOK || reader.lastSelection.SkipTerraformStateEvidence {
-			t.Fatalf("non-detail %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
+			t.Fatalf("Terraform-rendering %s: status=%d selection=%+v", route, rec.Code, reader.lastSelection)
 		}
 	}
 }

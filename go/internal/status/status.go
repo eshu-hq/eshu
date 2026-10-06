@@ -92,6 +92,29 @@ func LoadReport(ctx context.Context, reader Reader, asOf time.Time, opts Options
 	return BuildReport(raw, opts), nil
 }
 
+// LoadReportWithSelection reads one snapshot limited to selection and
+// projects it into an operator-facing report. Sections the selection omits
+// stay at their zero value, so callers must render only the sections they
+// requested.
+func LoadReportWithSelection(
+	ctx context.Context,
+	reader Reader,
+	asOf time.Time,
+	opts Options,
+	selection SnapshotSelection,
+) (Report, error) {
+	if reader == nil {
+		return Report{}, fmt.Errorf("status reader is required")
+	}
+
+	raw, err := reader.ReadStatusSnapshotFiltered(ctx, asOf.UTC(), selection)
+	if err != nil {
+		return Report{}, fmt.Errorf("read status snapshot: %w", err)
+	}
+
+	return BuildReport(raw, opts), nil
+}
+
 // LoadSemanticExtractionStatus reads only the semantic section. It never
 // projects a partial RawSnapshot as a full operator health report.
 func LoadSemanticExtractionStatus(ctx context.Context, reader Reader, asOf time.Time) (SemanticExtractionStatus, error) {

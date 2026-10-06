@@ -99,7 +99,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	report, err := status.LoadReport(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions())
+	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load status: %v", err))
 		return

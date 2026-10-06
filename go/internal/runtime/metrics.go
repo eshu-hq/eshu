@@ -41,7 +41,15 @@ func serveStatusMetrics(w http.ResponseWriter, r *http.Request, serviceName stri
 		return
 	}
 
-	report, err := statuspkg.LoadReport(r.Context(), reader, time.Now().UTC(), statuspkg.DefaultOptions())
+	// The metrics surface renders no Terraform-state gauge, so it skips the
+	// Terraform serial and warning reads (#7009).
+	report, err := statuspkg.LoadReportWithSelection(
+		r.Context(),
+		reader,
+		time.Now().UTC(),
+		statuspkg.DefaultOptions(),
+		statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence(),
+	)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("load runtime metrics: %v", err), http.StatusInternalServerError)
 		return
