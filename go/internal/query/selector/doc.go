@@ -7,9 +7,20 @@
 // A selector is whatever a client typed: an id, a name, a path, a local path, a
 // remote URL, or a slug. ResolveExactForAccess matches it against the graph and
 // the content catalog, filters by the supplied access bounds, and returns
-// exactly one id or a typed NotFoundError or AmbiguousError.
+// exactly one id or a typed NotFoundError or AmbiguousError. When a backing
+// read fails instead (the catalog read or either graph read), it returns a
+// LookupError that wraps the backend error, so errors.Is still reaches the
+// reader-fence and graph-availability sentinels; IsLookupFailure matches it.
+// LookupError text never carries the selector.
+//
 // ResolveForRequestWithAccess wraps that for HTTP handlers, writing the stable
-// error contract and reporting whether the caller should continue.
+// error contract and reporting whether the caller should continue: a fence or
+// graph-availability verdict answers 503/504 through
+// querycontract.WriteGraphReadError, any other LookupError answers 500 with the
+// fixed LookupFailureMessage body and records the error on the request span,
+// NotFoundError answers 404, and anything else answers 400. A caller that
+// answers a lookup failure itself writes LookupFailureMessage too, never the
+// error text, which carries backend detail.
 //
 // HydrateResolvedEntityRepoIdentity hydrates an already-resolved entity's own
 // canonical repository identity (repo_id, repo_name) under the same access

@@ -12,7 +12,15 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// LookupFailureMessage is the fixed text a lookup failure answers with, as
+// the LookupError prefix, the 500 body, and the span status description. It
+// never carries the selector or the backend's error text, so a caller that
+// answers a lookup failure itself writes this, never err.Error(), as the body.
+const LookupFailureMessage = "repository selector lookup failed"
 
 // NotFoundError is the errors.As target for a repository selector that
 // matched nothing: no catalog entry, no graph row, and (for a scoped caller)
@@ -38,6 +46,34 @@ type AmbiguousError struct {
 
 func (e AmbiguousError) Error() string {
 	return fmt.Sprintf("repository selector %q matched multiple repositories: %s", e.Selector, strings.Join(e.Matches, ", "))
+}
+
+// LookupError is the errors.As target for a selector resolution that failed
+// because a backing read failed (the catalog read or either graph read), not
+// because of the selector itself. Err is the backend failure; Unwrap exposes
+// it, so errors.Is still reaches the db and graph sentinels and
+// querycontract.WriteGraphReadError still maps a fence or graph-availability
+// verdict first. Anything left is a server fault, never a client error. The
+// selector is deliberately not a field, and Error never includes it. Match it
+// with IsLookupFailure.
+type LookupError struct {
+	Err error
+}
+
+// Error renders LookupFailureMessage followed by the backend error text, or
+// LookupFailureMessage alone when Err is nil. The text is for logs and spans,
+// never a response body.
+func (e LookupError) Error() string {
+	if e.Err == nil {
+		return LookupFailureMessage
+	}
+	return LookupFailureMessage + ": " + e.Err.Error()
+}
+
+// Unwrap returns the backend failure so errors.Is and errors.As see through
+// LookupError.
+func (e LookupError) Unwrap() error {
+	return e.Err
 }
 
 // ResolveExact resolves selector against every indexed repository, ignoring
@@ -83,7 +119,7 @@ func ResolveExactForAccess(
 	if content != nil {
 		entries, err := content.MatchRepositories(ctx, selector)
 		if err != nil {
-			return "", fmt.Errorf("match repositories: %w", err)
+			return "", LookupError{Err: fmt.Errorf("match repositories: %w", err)}
 		}
 		entries = access.FilterCatalogEntries(entries)
 		matches := CatalogMatches(entries, selector)
@@ -115,7 +151,7 @@ func ResolveExactForAccess(
 			ORDER BY r.id
 		`, access.GraphParams(map[string]any{"repo_selector": selector}))
 		if err != nil {
-			return "", fmt.Errorf("query graph repository selector: %w", err)
+			return "", LookupError{Err: fmt.Errorf("query graph repository selector: %w", err)}
 		}
 		switch len(rows) {
 		case 0:
@@ -133,7 +169,7 @@ func ResolveExactForAccess(
 				RETURN r.id as id
 			`, access.GraphParams(map[string]any{"repo_selector": selector}))
 			if err != nil {
-				return "", fmt.Errorf("query graph repository selector: %w", err)
+				return "", LookupError{Err: fmt.Errorf("query graph repository selector: %w", err)}
 			}
 			if row != nil {
 				return querycontract.StringVal(row, "id"), nil
@@ -166,6 +202,12 @@ func ResolveExactForAccess(
 // graph-backed read uses. Without that mapping it fell through to the generic
 // branch below and reported HTTP 400, telling the client its request was
 // malformed when nothing was wrong with the request at all.
+//
+// A LookupError that is not one of those verdicts (a bare reader failure, a
+// SQL error, a driver error) answers 500 with a fixed body and records the
+// error on the request span, the only operator signal this helper can reach:
+// it has no logger and every caller owns its own span (#7626). An unmatched
+// selector answers 404 and anything else, such as an ambiguous match, 400.
 func ResolveForRequestWithAccess(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -178,6 +220,13 @@ func ResolveForRequestWithAccess(
 	repoID, err := ResolveExactForAccess(r.Context(), graph, content, selector, access)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, capability) {
+			return "", false
+		}
+		if IsLookupFailure(err) {
+			span := trace.SpanFromContext(r.Context())
+			span.RecordError(err)
+			span.SetStatus(codes.Error, LookupFailureMessage)
+			querycontract.WriteError(w, http.StatusInternalServerError, LookupFailureMessage)
 			return "", false
 		}
 		status := http.StatusBadRequest
@@ -195,6 +244,16 @@ func ResolveForRequestWithAccess(
 // error's concrete type.
 func IsNotFound(err error) bool {
 	var target NotFoundError
+	return errors.As(err, &target)
+}
+
+// IsLookupFailure reports whether err is (or wraps) a LookupError: a backing
+// read failed during resolution. Check it after
+// querycontract.WriteGraphReadError, which owns the fence and
+// graph-availability verdicts that also wrap a LookupError; what remains is a
+// server fault to answer with 500, never 400.
+func IsLookupFailure(err error) bool {
+	var target LookupError
 	return errors.As(err, &target)
 }
 

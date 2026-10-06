@@ -126,7 +126,15 @@ one scope; the findings read runs them one after another, so they cannot.
 
 A handler-owned HTTP 500 on any sibling route additionally emits ONE ERROR-level
 `supply_chain_query.stage_failed` event, because `querycontract.WriteError`
-never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
+never logs. The exception is a selector lookup failure on the routes that
+resolve their repository through the shared `selector.ResolveForRequestWithAccess`
+helper (advisory evidence, container-image identity, SBOM attestation
+attachments, and the impact findings, aggregate, explanation and
+investigation-packet routes through
+`resolveSupplyChainImpactRepositorySelector`): that 500 is
+recorded on the handler span only, with no `stage_failed` line, until those
+routes add their own stage record (#7626). The security-alert selector path does
+emit `stage_failed` for its `repository_selector_resolve` stage. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
 
 - `error`: the error text, cut to 256 bytes on a UTF-8 boundary. The guarded
   PostgreSQL reader's errors already carry a fixed site string such as
@@ -184,6 +192,18 @@ repository id). A fence verdict answers the retryable `503` with no
 `stage_failed` line and the handler span set to Error. Pinned by
 `TestRepositorySelectorReadsAnswerRetryable503` and
 `TestRepositorySelectorHandlerOwned500RecordsSpanError`.
+
+When the catalog has no match and the selector is not canonical, the exact
+`selector.ResolveExact` fallback (which reruns the catalog read and issues the
+graph reads) runs as a third stage, `repository_selector_resolve`, also logged
+with an empty `repo_id` (#7626). A fence or graph-availability verdict answers
+`503`/`504` with no `stage_failed` line; a `selector.LookupError` that is not
+one answers `500` with exactly one `stage_failed` line and the handler span set
+to Error; its body is the fixed `selector.LookupFailureMessage`, never the
+backend error text or the selector. An unmatched selector stays `404` and an
+ambiguous one `400`. Pinned
+by `TestRepositorySelectorResolveLookupFailureAnswers500` and
+`TestRepositorySelectorResolveLookupFailureRecordsSpanError`.
 
 ## Move evidence (#6060)
 

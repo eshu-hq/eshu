@@ -47,13 +47,17 @@ Read `doc.go` and `README.md` first.
   exception: its error serves a `readiness_unavailable` envelope. The
   security-alert repository selector's reads (`repository_selector.go`,
   #7567) follow the same order as stages `repository_catalog_match` and
-  `provider_repository_scope_lookup`, reporting against the calling route's
+  `provider_repository_scope_lookup`, and its exact-resolution fallback as
+  `repository_selector_resolve` (#7626: `failStage` only when
+  `selector.IsLookupFailure`, so 404/400 selector answers emit no
+  `stage_failed` record; their completion still carries `error=true`),
+  reporting against the calling route's
   span and operation through `securityAlertSelectorRoute`. Keep the
   capability a plain string parameter: root's
   `TestWriteGraphReadErrorCapabilitiesExistInMatrix` resolves a parameter
   through its callers but not a struct field. Their `repo_id`
   MUST NOT be the raw selector (unbounded caller input): the catalog match
-  logs `""`, the scope lookup the resolved canonical id.
+  and the resolve stage log `""`, the scope lookup the resolved canonical id.
 - Files must stay under 500 lines. Watch
   `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.
@@ -150,7 +154,9 @@ or suite-local doubles):
   security-alert selector's catalog match and provider scope lookup answer
   retryable 503s with no record on fence verdicts, and otherwise a 500 with
   exactly one `stage_failed` record, an Error handler span, and no raw
-  selector in any log attribute (#7567);
+  selector in any log attribute (#7567); `repository_selector_lookup_test.go`
+  pins the same contract for the `repository_selector_resolve` stage, plus
+  404/400 for unmatched and ambiguous selectors (#7626);
 - the runtime-context suites: context probe, digest bound, environment
   evidence (with two minimal local doubles), the runtime-filter live
   cluster (filter, plan, normalization, precedence, scope, args,

@@ -14,6 +14,17 @@ against the graph under authorization bounds, so treat changes as security work.
 - Both reads MUST stay parameterised (`$repo_selector`). The selector is
   client-supplied; interpolating it into the Cypher is an injection.
 - The ordered-then-fallback pair is deliberate. Do not collapse it.
+- Every backing-read failure in `ResolveExactForAccess` (the catalog read and
+  both graph reads) MUST return a `LookupError` that wraps the backend error
+  with `%w`. The wrap is what lets callers tell a server fault (500) from a
+  selector answer (404/400), and `Unwrap` is what lets
+  `querycontract.WriteGraphReadError` still map fence and graph-availability
+  verdicts to 503/504 first. Do not add the selector to `LookupError` or its
+  text, and do not return a `LookupError` for a not-found or ambiguous answer
+  (#7626).
+- `ResolveForRequestWithAccess` MUST keep the order: `WriteGraphReadError`,
+  then `IsLookupFailure` (500, fixed body, span error), then `IsNotFound`
+  (404), then 400.
 - `HydrateResolvedEntityRepoIdentity` MUST call
   `entity.ClearResolvedEntityRepoProjectionPlaceholders` on every
   entity before any other hydration path runs (#6408). Skipping it lets a
@@ -26,15 +37,18 @@ against the graph under authorization bounds, so treat changes as security work.
 
 ## When you change the query text
 
-This callsite is pinned in `go/internal/queryplan/testdata/query-source-coverage.yaml`
-by a SHA256 of its source text, and it is currently carried in
-`grandfathered_non_hot.go` with an inherited non-hot disposition rather than a
-modern typed one, because the query has no LIMIT and no bound has been audited.
+`ResolveExactForAccess` is pinned in
+`go/internal/queryplan/testdata/query-source-coverage.yaml` with a typed
+`non_hot` disposition (`class: keyed_support`, `key_bound: single_key`,
+`max_results: 51`) and a `source_sha256` over the function source from the
+`func` keyword to its closing brace. It is not in `grandfathered_non_hot.go`.
 
-Any edit fails the coverage gate. Before re-pinning, prove the Cypher itself did
-not change (extract string literals per function with `go/parser` before and
-after and compare). If the query DID change, the disposition needs a real audit,
-not a re-pin.
+Any edit to that function body, not only to the query text, fails the coverage
+gate; a doc-comment edit does not. There is no regenerator: re-pin by hand-editing
+`source_sha256` to the production digest the failing gate prints. Before
+re-pinning, prove the Cypher itself did not change (extract the Cypher string
+literals with `go/parser` before and after and compare their digest). If the
+query DID change, the disposition needs a real audit, not a re-pin.
 
 ## Verification
 
