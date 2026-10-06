@@ -19,6 +19,11 @@ import (
 
 const statusSnapshotLimit = 5 * time.Second
 
+// statusSnapshotJITOffSQL disables PostgreSQL JIT for the rest of one status
+// snapshot transaction (#7009). SET LOCAL ends with the transaction on both
+// Commit and Rollback, so no pooled connection keeps the setting.
+const statusSnapshotJITOffSQL = "SET LOCAL jit = off"
+
 type snapshotStatusReader struct {
 	store   db.ReadStore
 	factory func(db.Queryer) status.Reader
@@ -101,6 +106,12 @@ func (r snapshotStatusReader) read(ctx context.Context, asOf time.Time, selectio
 		}
 	}()
 
+	phase = statusSnapshotPhaseJIT
+	if err = disableStatusSnapshotJIT(bounded, tx); err != nil {
+		return status.RawSnapshot{}, err
+	}
+	span.SetAttributes(attribute.String(statusSnapshotJITKey, statusSnapshotJITOff))
+
 	phase = "read"
 	reader := r.factory(tx)
 	if reader == nil {
@@ -123,6 +134,27 @@ func (r snapshotStatusReader) read(ctx context.Context, asOf time.Time, selectio
 		return status.RawSnapshot{}, err
 	}
 	return raw, nil
+}
+
+// readTransactionControl is implemented only by this package's guarded
+// readTransaction. It runs transaction control SQL without a reader
+// query-start event or a business_query stage observation.
+type readTransactionControl interface {
+	execControl(ctx context.Context, statement string) error
+}
+
+// disableStatusSnapshotJIT applies statusSnapshotJITOffSQL to tx. The guarded
+// reader sends it as control SQL so per-request business query counts stay
+// unchanged; any other ReadTransaction receives it through QueryContext.
+func disableStatusSnapshotJIT(ctx context.Context, tx db.ReadTransaction) error {
+	if control, ok := tx.(readTransactionControl); ok {
+		return control.execControl(ctx, statusSnapshotJITOffSQL)
+	}
+	rows, err := tx.QueryContext(ctx, statusSnapshotJITOffSQL)
+	if err != nil {
+		return err
+	}
+	return errors.Join(rows.Err(), rows.Close())
 }
 
 // CheckStatusReadiness uses one guarded query without holding a status snapshot.
