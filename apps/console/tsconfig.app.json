@@ -14,7 +14,18 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/test",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.testSupport.ts",
+    "src/**/*.testSupport.tsx",
+    "src/**/*TestSupport.ts",
+    "src/**/*TestSupport.tsx",
+    "src/**/*TestFixtures.ts",
+    "src/**/*TestFixtures.tsx"
+  ]
 }
