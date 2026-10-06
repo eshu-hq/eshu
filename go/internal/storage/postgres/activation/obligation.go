@@ -117,7 +117,8 @@ func NewStore(database Database) Store {
 // Insert records the activation obligation for one scope generation. Callers
 // run it inside the transaction that activates the generation, so the
 // obligation commits or rolls back with the activation. A repeated insert for
-// the same generation is a no-op.
+// the same generation is a no-op, except that re-activating a generation
+// whose row is obsolete owes it again (see insertObligationQuery).
 func Insert(ctx context.Context, executor db.Executor, scopeID, generationID, workItemID string) error {
 	if _, err := executor.ExecContext(ctx, insertObligationQuery, scopeID, generationID, workItemID); err != nil {
 		return fmt.Errorf("insert exact activation obligation: %w", err)
