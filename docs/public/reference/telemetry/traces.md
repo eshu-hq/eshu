@@ -55,6 +55,10 @@ queries filtering by scope `eshu-api` should update the filter to
 | Jira collector | `jira.observe` and `jira.fetch`; fetch spans carry bounded page, emitted-fact, rejected-link, unsupported-provider, and Retry-After counters. |
 | Scanner worker | `scanner_worker.claim.process`, `scanner_worker.analyze`, and `scanner_worker.fact.emit_batch`. |
 
+For a slow status read, inspect `postgres.status_snapshot`: `phase` names where
+a failed read stopped, and `jit=off` confirms the transaction ran with
+PostgreSQL JIT disabled (#7009). Its children time each status statement.
+
 For a slow repository-context read, inspect the child `postgres.query` span with
 `db.operation=repository_workload_names` and `db.sql.table=fact_records`. It
 separates the workload-name SQL from the other read-model statements without

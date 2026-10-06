@@ -147,6 +147,10 @@ func (c *jitControlConn) QueryContext(_ context.Context, statement string, _ []d
 		return &queryIdentityRows{columns: []string{"read_only", "recovery", "system_id", "database"}, values: []driver.Value{"on", false, "7", "eshu"}}, nil
 	case statement == "SELECT $1::int":
 		return &queryIdentityRows{columns: []string{"value"}, values: []driver.Value{int64(42)}}, nil
+	case statement == statusSnapshotJITOffSQL:
+		// Answer the SET on the business path too, so a regression that
+		// skips the control path fails on the counts below, not here.
+		return &queryIdentityRows{columns: []string{}}, nil
 	}
 	return nil, fmt.Errorf("unexpected query %q", statement)
 }

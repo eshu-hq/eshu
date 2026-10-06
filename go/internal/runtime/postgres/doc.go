@@ -32,6 +32,11 @@
 // exported snapshots are server-local.
 // No failed fence falls back to the writer or executes business SQL.
 //
+// NewSnapshotStatusReader confines each status read to one such snapshot and
+// runs SET LOCAL jit = off in it before any status statement, as control SQL
+// that adds no business query event. The setting ends with the transaction;
+// BeginReadOnlySnapshot itself never changes session settings.
+//
 // This package does not qualify promotion, timeline forks, split brain,
 // Aurora, or proxy routing; a promoted or restored primary is refused by
 // design. A restarted direct reader member stays ineligible until the process

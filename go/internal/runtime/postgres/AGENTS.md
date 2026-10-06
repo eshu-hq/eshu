@@ -41,6 +41,13 @@ extra query. Direct reader members keep their frozen incarnation: a restarted
 member stays ineligible until process restart. Promotion, proxies, Aurora, and
 split-brain handling need separate proof. `ReadTransaction` owns its borrowed connection
 until Commit, Rollback, or cancellation; a cursor only closes its own rows.
+`snapshotStatusReader.read` issues `SET LOCAL jit = off` once, after
+`BeginReadOnlySnapshot` and before the read phase (#7009). Keep it there: the
+shared `BeginReadOnlySnapshot` paths serve other readers, `SET LOCAL` (not
+`SET`) is what keeps a pooled connection clean after Commit and Rollback, and
+the guarded transaction sends it through `execControl` so it never counts as a
+business query. The live containment tests in
+`status_reader_jit_containment_test.go` prove all three.
 Snapshot sets reserve all requested reader connections behind a per-Access
 context-cancelable gate, fence every connection before any transaction, and
 retain the exporter through assembly. Failure and cancellation release every
