@@ -5,6 +5,8 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"slices"
 	"testing"
@@ -298,4 +300,110 @@ func TestSkippedTerraformStatusReadEmitsNoTerraformPhase(t *testing.T) {
 	if active != 1 {
 		t.Fatalf("active work read metric count = %d, want 1", active)
 	}
+}
+
+// TestReadActiveWorkSummaryEntriesKeepsStatementRows proves the read model
+// writer's pass (#7009) runs the live active-work statement byte for byte at
+// the given asOf and returns every row as an entry, in statement order, with
+// the section JSON text untouched.
+func TestReadActiveWorkSummaryEntriesKeepsStatementRows(t *testing.T) {
+	t.Parallel()
+
+	queueJSON := `{"total_count":3,"outstanding_count":2,"pending_count":2,"in_flight_count":0,"retrying_count":0,"succeeded_count":1,"dead_letter_count":0,"failed_count":0,"provenance_edge_identity_upgrade_applied":false,"provenance_edge_identity_upgrade_required":0,"oldest_outstanding_age_seconds":12.5,"overdue_claim_count":0}`
+	queryer := &recordingSummaryQueryer{rows: [][]any{
+		{"backlog", int64(1), `{"domain":"d1","outstanding_count":2,"in_flight_count":0,"retrying_count":0,"dead_letter_count":0,"failed_count":0,"oldest_outstanding_age_seconds":12.5}`},
+		{"queue", int64(1), queueJSON},
+		{"stage", int64(1), `{"stage":"reducer","status":"pending","count":2}`},
+		{"stage", int64(2), `{"stage":"reducer","status":"succeeded","count":1}`},
+	}}
+	asOf := time.Date(2026, 10, 6, 12, 0, 0, 0, time.FixedZone("EDT", -4*60*60))
+
+	entries, err := ReadActiveWorkSummaryEntries(context.Background(), queryer, asOf)
+	if err != nil {
+		t.Fatalf("ReadActiveWorkSummaryEntries() error = %v", err)
+	}
+	if queryer.query != activeWorkSummaryQuery {
+		t.Fatal("ReadActiveWorkSummaryEntries() did not run activeWorkSummaryQuery byte for byte")
+	}
+	if len(queryer.args) != 1 {
+		t.Fatalf("statement args = %#v, want one asOf argument", queryer.args)
+	}
+	if bound, ok := queryer.args[0].(time.Time); !ok || !bound.Equal(asOf) || bound.Location() != time.UTC {
+		t.Fatalf("statement $1 = %#v, want %v in UTC", queryer.args[0], asOf.UTC())
+	}
+	if len(entries) != len(queryer.rows) {
+		t.Fatalf("entries = %d, want %d", len(entries), len(queryer.rows))
+	}
+	for i, row := range queryer.rows {
+		got := entries[i]
+		if got.Section != row[0] || got.Ordinal != row[1] || got.JSON != row[2] {
+			t.Fatalf("entry %d = %#v, want %v", i, got, row)
+		}
+	}
+}
+
+// TestReadActiveWorkSummaryEntriesRejectsUndecodableRows proves a row the
+// live decoder would reject is never handed to the writer, so the model can
+// never store an answer the reader cannot decode.
+func TestReadActiveWorkSummaryEntriesRejectsUndecodableRows(t *testing.T) {
+	t.Parallel()
+
+	for name, row := range map[string][]any{
+		"invalid json":    {"stage", int64(1), `{not json`},
+		"unknown section": {"surprise", int64(1), `{}`},
+		"bad count":       {"stage", int64(1), `{"stage":"reducer","status":"pending","count":"many"}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			queryer := &recordingSummaryQueryer{rows: [][]any{row}}
+			entries, err := ReadActiveWorkSummaryEntries(context.Background(), queryer, time.Now())
+			if err == nil {
+				t.Fatalf("ReadActiveWorkSummaryEntries() = %#v, nil; want a decode error", entries)
+			}
+		})
+	}
+}
+
+// TestReadActiveWorkSummaryEntriesEmptyResult proves an empty statement
+// result is an empty, non-nil entry list, which encodes as [] and not null.
+func TestReadActiveWorkSummaryEntriesEmptyResult(t *testing.T) {
+	t.Parallel()
+
+	entries, err := ReadActiveWorkSummaryEntries(context.Background(), &recordingSummaryQueryer{}, time.Now())
+	if err != nil {
+		t.Fatalf("ReadActiveWorkSummaryEntries() error = %v", err)
+	}
+	if entries == nil || len(entries) != 0 {
+		t.Fatalf("entries = %#v, want an empty non-nil slice", entries)
+	}
+}
+
+// TestActiveWorkSummarySourceSHA256PinsStatementText proves the rolling
+// upgrade fence digests the exact statement text, so any change to the
+// statement changes the digest the reader compares.
+func TestActiveWorkSummarySourceSHA256PinsStatementText(t *testing.T) {
+	t.Parallel()
+
+	sum := sha256.Sum256([]byte(activeWorkSummaryQuery))
+	if got, want := ActiveWorkSummarySourceSHA256(), hex.EncodeToString(sum[:]); got != want {
+		t.Fatalf("ActiveWorkSummarySourceSHA256() = %q, want %q", got, want)
+	}
+	other := sha256.Sum256([]byte(activeWorkSummaryQuery + " "))
+	if ActiveWorkSummarySourceSHA256() == hex.EncodeToString(other[:]) {
+		t.Fatal("digest does not change with the statement text")
+	}
+}
+
+// recordingSummaryQueryer answers any query with rows and records the last
+// statement text and arguments.
+type recordingSummaryQueryer struct {
+	rows  [][]any
+	query string
+	args  []any
+}
+
+func (q *recordingSummaryQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	q.query = query
+	q.args = args
+	return &fakeRows{rows: q.rows}, nil
 }

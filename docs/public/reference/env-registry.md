@@ -413,6 +413,8 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_REDUCER_RETRY_DELAY` | duration | `30s` | Delay between reducer work-item retries. |
 | `ESHU_REDUCER_WORKERS` | int | — | Concurrent reducer workers (default derived from CPU count and backend). |
 | `ESHU_SHARED_PROJECTION_LEASE_OWNER` | string | `shared-projection-runner` | Prefix for the shared-projection partition lease owner. The reducer appends hostname, PID, and a boot nonce so replicas and restarted processes never share one active owner identity. |
+| `ESHU_STATUS_SUMMARY_WRITER_ENABLED` | bool | `false` | Run the reducer's periodic status summary writer (#7009), which stores the active-work summary in status_summary_snapshots every ESHU_STATUS_SUMMARY_WRITER_INTERVAL. One replica computes per tick under a transaction advisory lock; the others skip. Off by default; with it off the reducer starts no writer and issues no writer SQL. Nothing reads the row until the status reader flag ships. |
+| `ESHU_STATUS_SUMMARY_WRITER_INTERVAL` | duration | `10s` | Cadence of the status summary writer. The 10s default follows the 1.0s median active-work pass measured on the ops-qa read replica. Values below 5s, or unparsable values, fail reducer startup: a 2s cadence measurably raised reducer claim latency. A pass longer than the interval is counted in eshu_dp_status_summary_writer_overrun_total and the next pass starts on the following interval boundary; passes never overlap. |
 
 ## runtime
 

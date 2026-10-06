@@ -124,6 +124,19 @@ no event count. The `infra_resource_entities` delete also removes mirror rows
 that were already orphaned before the batch, so the counter can exceed the event
 sum for that table.
 
+## Status Summary Writer
+
+The reducer's periodic writer of the `status_summary_snapshots` read model
+(#7009), on only when `ESHU_STATUS_SUMMARY_WRITER_ENABLED=true`. Every metric
+carries `model_key` (`active_work_summary`).
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_status_summary_writer_passes_total` | counter | Writer passes by `outcome`: `ok` (row advanced), `skipped_lock` (another replica held the advisory lock this tick; expected on every replica but one), `skipped_missing_table` (migration 161 not applied yet), `rejected_guard` (a stored row was as new or newer; nothing changed), `error` (rolled back; the next tick retries). |
+| `eshu_dp_status_summary_writer_pass_duration_seconds` | histogram | Duration of one pass transaction, by `outcome`. The `ok` samples are the cost the writer adds to the primary every interval. |
+| `eshu_dp_status_summary_writer_overrun_total` | counter | Passes longer than `ESHU_STATUS_SUMMARY_WRITER_INTERVAL`. The next pass then starts on the following interval boundary, so a steady rise means the stored row ages past one interval. |
+| `eshu_dp_status_summary_writer_up` | gauge | 1 while this reducer's writer loop runs, 0 after it stops. Absent when the writer is disabled. |
+
 ## Infra Read Model Reconcile
 
 | Metric | Type | Use |

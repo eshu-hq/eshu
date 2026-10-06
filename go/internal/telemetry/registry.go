@@ -83,6 +83,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionLinkKind,
 	MetricDimensionPhase,
 	MetricDimensionWriter,
+	MetricDimensionModelKey,
 }
 
 var spanNames = []string{
@@ -192,6 +193,7 @@ var spanNames = []string{
 	SpanReducerInfraInventoryReconcile,
 	SpanReducerChangedSinceLink,
 	SpanReducerActivationObligationSettle,
+	SpanReducerStatusSummaryPass,
 }
 
 var logKeys = []string{

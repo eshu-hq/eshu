@@ -14,6 +14,7 @@ MAINTENANCE_PACKAGE = "./internal/storage/postgres/maintenance"
 REDUCER_PACKAGE = "./cmd/reducer"
 QUERY_PACKAGE = "./internal/query"
 SUMMARY_PACKAGE = "./internal/storage/postgres/status/summary"
+WRITER_PACKAGE = "./internal/reducer/status/summary"
 
 # Expected files and tests per Go package (relative to the go/ module root).
 # The runner invokes one go test per package, each with its own events file
@@ -178,6 +179,19 @@ PACKAGES = {
         "go/internal/storage/postgres/status/summary/bloat_live_test.go": (
             "TestStatusSummaryBloatLive",
             "TestStatusSummaryBloatIncompressibleLive",
+        ),
+    },
+    WRITER_PACKAGE: {
+        "go/internal/reducer/status/summary/runner_live_test.go": (
+            "TestWriterRowEqualsLiveStatementLive",
+            "TestWriterKilledMidPassKeepsTheOldRowLive",
+            "TestWriterCountsAGuardRejectionLive",
+            "TestWriterSkipsAMissingTableLive",
+            "TestWriterReplacesARowFromAnotherStatementLive",
+            "TestSecondWriterSkipsWhileTheFirstHoldsTheLockLive",
+        ),
+        "go/internal/reducer/status/summary/contention_live_test.go": (
+            "TestWritersBesideTheProductionClaimLoopLive",
         ),
     },
 }

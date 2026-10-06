@@ -60,6 +60,10 @@ func buildReducerService(
 	poisonLivenessCfg := loadPoisonLivenessConfig(getenv)
 	graphOrphanSweepCfg := loadGraphOrphanSweepConfig(getenv)
 	codeValueFlowStaleCleanupCfg := loadCodeValueFlowStaleCleanupConfig(getenv)
+	statusSummaryWriter, err := statusSummaryWriterFor(getenv, database, tracer, instruments, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
 	searchVectorBuildRunner, err := searchVectorBuildRunnerFor(database, getenv, logger, instruments)
 	if err != nil {
 		return reducer.Service{}, err
@@ -474,6 +478,7 @@ func buildReducerService(
 		GenerationRetentionRunner:       generationRetentionRunner,
 		ChangedSinceLinkRunner:          changedSinceLinkRunnerFor(getenv, database, tracer, instruments, logger),
 		InfraInventoryReconcileRunner:   infraInventoryReconcileRunnerFor(getenv, database, tracer, instruments, logger),
+		StatusSummaryWriter:             statusSummaryWriter,
 		GenerationLivenessRunner:        generationLivenessRunner,
 		PoisonLivenessRunner:            poisonLivenessRunner,
 		ActivationObligationRunner:      activationObligationRunner,

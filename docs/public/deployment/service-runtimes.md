@@ -181,6 +181,16 @@ configuration.
   to one interval plus one read; if they keep failing, the gauges stop
   reporting once the snapshot is three intervals old. Watch `eshu_dp_gauge_snapshot_age_seconds` and
   `eshu_dp_gauge_snapshot_refreshes_total{outcome}` for staleness.
+- The reducer owns the status summary writer (#7009), off by default
+  (`ESHU_STATUS_SUMMARY_WRITER_ENABLED=false`). When enabled, every reducer
+  replica runs the loop, but a transaction advisory lock lets exactly one
+  replica compute per tick (`ESHU_STATUS_SUMMARY_WRITER_INTERVAL`, default `10s`,
+  minimum `5s`) and the others count `skipped_lock`. A pass runs the status
+  active-work statement on the primary and stores the result as one row in
+  `status_summary_snapshots`. Watch
+  `eshu_dp_status_summary_writer_passes_total{outcome}` and
+  `eshu_dp_status_summary_writer_overrun_total`. The API, MCP server, and
+  ingester do not run the writer.
 
 ## Route Map
 
