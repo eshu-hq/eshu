@@ -222,11 +222,7 @@ func ResolveForRequestWithAccess(
 		if querycontract.WriteGraphReadError(w, r, err, capability) {
 			return "", false
 		}
-		if IsLookupFailure(err) {
-			span := trace.SpanFromContext(r.Context())
-			span.RecordError(err)
-			span.SetStatus(codes.Error, LookupFailureMessage)
-			querycontract.WriteError(w, http.StatusInternalServerError, LookupFailureMessage)
+		if WriteLookupFailure(w, r, err) {
 			return "", false
 		}
 		status := http.StatusBadRequest
@@ -255,6 +251,24 @@ func IsNotFound(err error) bool {
 func IsLookupFailure(err error) bool {
 	var target LookupError
 	return errors.As(err, &target)
+}
+
+// WriteLookupFailure answers a lookup failure for a caller that maps selector
+// errors itself: when IsLookupFailure(err) holds it records err on the request
+// span, writes 500 with LookupFailureMessage as the body, and reports true.
+// Any other error writes nothing and reports false, so the caller's own
+// not-found and 400 mapping runs next. Call it after
+// querycontract.WriteGraphReadError, which owns the fence and
+// graph-availability verdicts that also wrap a LookupError.
+func WriteLookupFailure(w http.ResponseWriter, r *http.Request, err error) bool {
+	if !IsLookupFailure(err) {
+		return false
+	}
+	span := trace.SpanFromContext(r.Context())
+	span.RecordError(err)
+	span.SetStatus(codes.Error, LookupFailureMessage)
+	querycontract.WriteError(w, http.StatusInternalServerError, LookupFailureMessage)
+	return true
 }
 
 // LooksCanonicalRepositoryID reports whether a selector already has the shape

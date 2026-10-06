@@ -22,7 +22,8 @@ access filter and answers its questions from those.
 ## Exported surface
 
 `ResolveExact`, `ResolveExactForAccess`, `ResolveForRequestWithAccess`,
-`IsNotFound`, `IsLookupFailure`, `LookupFailureMessage`, `LooksCanonicalRepositoryID`,
+`IsNotFound`, `IsLookupFailure`, `WriteLookupFailure`, `LookupFailureMessage`,
+`LooksCanonicalRepositoryID`,
 `CatalogMatches`, the `NotFoundError` / `AmbiguousError` / `LookupError`
 types, `HydrateResolvedEntityRepoIdentity`, `EntityString`, and
 `EntityLabelStrings`. See [doc.go](doc.go).
@@ -33,7 +34,10 @@ first (a stale or timed-out guarded reader, or a graph outage or deadline,
 answers 503/504) and then answers 500 for whatever `IsLookupFailure` still
 reports, with the fixed `LookupFailureMessage` body, never `err.Error()`, which
 carries backend text. Only `NotFoundError` is a 404 and only the remaining
-selector answers (an ambiguous match) are a 400 (#7626).
+selector answers (an ambiguous match) are a 400 (#7626). A caller that maps
+selector errors itself calls `WriteLookupFailure` for that 500 step; it writes
+the body and the span error and reports false for anything that is not a
+lookup failure.
 
 ## Dependencies
 
