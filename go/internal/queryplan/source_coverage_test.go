@@ -221,28 +221,30 @@ func TestValidateSourceCoverageAcceptsFrozenLegacyDisposition(t *testing.T) {
 	// This fixture exercises the grandfather MECHANISM, not this particular
 	// symbol. It used listCatalogRepositoriesFromGraph until that entry earned a
 	// typed non_hot disposition and left the ledger, then getEntityContext
-	// until lane B B5 converted that entry too; it now uses one of the entries
-	// that genuinely stays, so the test keeps proving the same thing. If
-	// getIndexStatus is ever converted too, repoint this again rather than
-	// re-adding a ledger entry to keep a test green.
-	const key = "status.go:(*StatusHandler).getIndexStatus"
+	// until lane B B5 converted that entry too, then getIndexStatus until #7009
+	// gave it a typed label_inventory disposition when it began reporting the
+	// active work source; it now uses one of the entries that genuinely stays, so
+	// the test keeps proving the same thing. If runComplexityQuery is ever
+	// converted too, repoint this again rather than re-adding a ledger entry to
+	// keep a test green.
+	const key = "codequery/handler.go:(*CodeHandler).runComplexityQuery"
 	digest := grandfatheredNonHotSourceDigests[key]
 	manifest := Manifest{
 		Version:                     1,
 		GrandfatheredNonHotBaseline: grandfatheredNonHotBaseline,
 		SourceCoverage: []SourceCoverage{{
-			File: "status.go",
+			File: "codequery/handler.go",
 			Calls: []QueryCallsite{{
-				Symbol: "(*StatusHandler).getIndexStatus",
+				Symbol: "(*CodeHandler).runComplexityQuery",
 				Count:  1,
 				Reason: "frozen legacy disposition",
 			}},
 		}},
 	}
 	discovered := []SourceCoverage{{
-		File: "status.go",
+		File: "codequery/handler.go",
 		Calls: []QueryCallsite{{
-			Symbol:       "(*StatusHandler).getIndexStatus",
+			Symbol:       "(*CodeHandler).runComplexityQuery",
 			Count:        1,
 			SourceDigest: digest,
 		}},

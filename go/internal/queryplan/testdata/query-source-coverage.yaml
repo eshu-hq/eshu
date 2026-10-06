@@ -731,7 +731,13 @@ source_coverage:
       - {symbol: "(*Handler).serviceWorkloadCandidatesFromQuery", count: 1, source_sha256: af43d69938947cda01f775854aa65cb9e2c29a4cb4ec6c915bef9b665ba681f4, entry_ids: [QP-SVC-RESOLVE]}
   - file: status.go
     calls:
-      - {symbol: "(*StatusHandler).getIndexStatus", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*StatusHandler).getIndexStatus"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 75d1c2d5ea14ecd496a79d25cd2579f5b00502970f9d4d3dd9101e46426a8e86
+          label: "Repository"
+          max_results: 1
   - file: status_hosted_readiness.go
     calls:
       - {symbol: "(*StatusHandler).readHostedRepositoryCount", count: 1, source_sha256: add2e56e1ca154fc60b94390bf6e55b5d9768ea3c895a9502c710be90ad2371e, entry_ids: [QP-READINESS-HOSTED]}
