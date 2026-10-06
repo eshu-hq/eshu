@@ -5,6 +5,7 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -153,6 +154,63 @@ func TestValidateMeasuredRoundRejectsReusedPoolWithDifferentPage(t *testing.T) {
 	second[3].pageHash = "second"
 	if err := validateMeasuredRound(second, witness, workload, 1); err == nil {
 		t.Fatal("a repeated capped pool changed page across rounds")
+	}
+}
+
+func TestValidateMeasuredRoundRejectsCrossRouteReusedPoolWithDifferentPage(t *testing.T) {
+	rows := func(entity string) []codetopicparallel.ProbeRow {
+		return []codetopicparallel.ProbeRow{probe("entity", "topic", entity)}
+	}
+	witness := timingWitnessFor(t,
+		measuredRequest{rows: rows("baseline-warmup"), pageHash: "baseline-warmup"},
+		measuredRequest{rows: rows("candidate-warmup"), pageHash: "candidate-warmup"})
+	block := [4]measuredRequest{
+		{rows: rows("reused"), pageHash: "first-page"},
+		{rows: rows("candidate-one"), pageHash: "candidate-one"},
+		{rows: rows("reused"), pageHash: "different-page"},
+		{rows: rows("baseline-two"), pageHash: "baseline-two"},
+	}
+	if err := validateMeasuredRound(block, witness, dynamicWorkload{terms: []string{"topic"}}, 1); err == nil || !strings.Contains(err.Error(), "reused probe rows") {
+		t.Fatalf("cross-route reuse must fail through the shared page witness: %v", err)
+	}
+}
+
+func TestValidateMeasuredRoundRejectsCrossRoundCrossRoutePageDrift(t *testing.T) {
+	rows := func(entity string) []codetopicparallel.ProbeRow {
+		return []codetopicparallel.ProbeRow{probe("entity", "topic", entity)}
+	}
+	witness := timingWitnessFor(t,
+		measuredRequest{rows: rows("baseline-warmup"), pageHash: "baseline-warmup"},
+		measuredRequest{rows: rows("candidate-warmup"), pageHash: "candidate-warmup"})
+	first := [4]measuredRequest{
+		{rows: rows("reused"), pageHash: "first-page"},
+		{rows: rows("candidate-one"), pageHash: "candidate-one"},
+		{rows: rows("candidate-two"), pageHash: "candidate-two"},
+		{rows: rows("baseline-two"), pageHash: "baseline-two"},
+	}
+	workload := dynamicWorkload{terms: []string{"topic"}}
+	if err := validateMeasuredRound(first, witness, workload, 1); err != nil {
+		t.Fatalf("first capped round failed: %v", err)
+	}
+	second := [4]measuredRequest{
+		{rows: rows("baseline-three"), pageHash: "baseline-three"},
+		{rows: rows("reused"), pageHash: "different-page"},
+		{rows: rows("candidate-four"), pageHash: "candidate-four"},
+		{rows: rows("baseline-four"), pageHash: "baseline-four"},
+	}
+	if err := validateMeasuredRound(second, witness, workload, 1); err == nil || !strings.Contains(err.Error(), "reused probe rows") {
+		t.Fatalf("cross-round opposite-route reuse must fail through the shared page witness: %v", err)
+	}
+}
+
+func TestValidateMeasuredRoundRejectsConflictingWarmupPages(t *testing.T) {
+	row := probe("entity", "topic", "same")
+	baseline := measuredRequest{rows: []codetopicparallel.ProbeRow{row}, pageHash: "first-page"}
+	candidate := measuredRequest{rows: []codetopicparallel.ProbeRow{row}, pageHash: "different-page"}
+	witness := timingWitnessFor(t, baseline, candidate)
+	block := [4]measuredRequest{baseline, candidate, candidate, baseline}
+	if err := validateMeasuredRound(block, witness, dynamicWorkload{terms: []string{"topic"}}, 1); err == nil || !strings.Contains(err.Error(), "warmup") {
+		t.Fatalf("identical warmup rows must not witness two pages: %v", err)
 	}
 }
 

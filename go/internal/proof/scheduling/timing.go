@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -20,14 +21,18 @@ type measuredRequest struct {
 }
 
 type timingWitness struct {
-	warmup      [2]measuredRequest
-	pagesByRows [2]map[string]string
+	warmup         [2]measuredRequest
+	pagesByRows    map[string]string
+	warmupConflict bool
 }
 
 func newTimingWitness(warmup [2]measuredRequest, rowHashes [2]string) *timingWitness {
-	witness := &timingWitness{warmup: warmup}
-	for route := range witness.pagesByRows {
-		witness.pagesByRows[route] = map[string]string{rowHashes[route]: warmup[route].pageHash}
+	witness := &timingWitness{warmup: warmup, pagesByRows: make(map[string]string)}
+	for route, rowHash := range rowHashes {
+		if page, seen := witness.pagesByRows[rowHash]; seen && page != warmup[route].pageHash {
+			witness.warmupConflict = true
+		}
+		witness.pagesByRows[rowHash] = warmup[route].pageHash
 	}
 	return witness
 }
@@ -107,7 +112,11 @@ func validateMeasuredRound(block [4]measuredRequest, witness *timingWitness, wor
 	if witness == nil {
 		return fmt.Errorf("timing witness is missing")
 	}
+	if witness.warmupConflict {
+		return fmt.Errorf("warmup assembled different pages from the same probe rows")
+	}
 	var rowHashes [4]string
+	pagesByRows := maps.Clone(witness.pagesByRows)
 	for index, result := range block {
 		route := 0
 		if index == 1 || index == 2 {
@@ -124,9 +133,10 @@ func validateMeasuredRound(block [4]measuredRequest, witness *timingWitness, wor
 			return fmt.Errorf("request %d row fingerprint: %w", index, err)
 		}
 		rowHashes[index] = rowHash
-		if page, seen := witness.pagesByRows[route][rowHash]; seen && page != result.pageHash {
-			return fmt.Errorf("request %d reused %s probe rows with a different page", index, []string{"baseline", "candidate"}[route])
+		if page, seen := pagesByRows[rowHash]; seen && page != result.pageHash {
+			return fmt.Errorf("request %d reused probe rows with a different page", index)
 		}
+		pagesByRows[rowHash] = result.pageHash
 		if !hasCappedPool(witness.warmup[route].rows, cap) && witness.warmup[route].pageHash != result.pageHash {
 			return fmt.Errorf("request %d changed uncapped %s page from warmup", index, []string{"baseline", "candidate"}[route])
 		}
@@ -148,12 +158,6 @@ func validateMeasuredRound(block [4]measuredRequest, witness *timingWitness, wor
 			return fmt.Errorf("uncapped round pair %d/%d changed assembled page", pair[0], pair[1])
 		}
 	}
-	for index, result := range block {
-		route := 0
-		if index == 1 || index == 2 {
-			route = 1
-		}
-		witness.pagesByRows[route][rowHashes[index]] = result.pageHash
-	}
+	witness.pagesByRows = pagesByRows
 	return nil
 }
