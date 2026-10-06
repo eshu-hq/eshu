@@ -134,3 +134,25 @@ four counts and graph errors. The new `postgres.query` span records the
 `repository_context_counts` operation and required Postgres errors with
 bounded attributes; the focused span test proves the operation and error
 event without a repository ID attribute. No queue or write path runs here.
+
+## Deployed route and statement timings on `sha-2f0388b` (2026-10-06)
+
+Performance Evidence: before this change, a replay of the original saved
+argument sets (cold on set 0, then ten warm, concurrency 1, 22 calls, all HTTP
+200) on the ops-qa image `sha-2f0388b` measured `GET /api/v0/repositories/{repo_id}/context`
+at cold 2.828 s and warm p95 5.109 s, and MCP `get_repo_context` at cold 1.139 s and
+warm p95 4.150 s. The slow sets were the 7,097-file repository (4.0 to 5.1 s) and
+the 12,403-file repository (1.1 to 2.8 s); the other six sets were 0.15 to 0.50 s.
+The two slowest request traces spent 3,741 ms of 3,896 ms and 4,008 ms of 4,988 ms
+in one Postgres query, `repository_workload_names` on `fact_records`.
+
+Statement timings on the ops-qa physical reader (read-only session, 15 s statement
+timeout, `PREPARE` plus `EXPLAIN (ANALYZE, BUFFERS)`, one warm-up round then four
+rounds with alternating order): the names read this change removes from context took
+a median 842.4 ms (834.5 to 850.7) on the 12,403-file repository and 3,805.3 ms
+(3,794.6 to 3,837.7) on the 7,097-file repository; the retained count reads took
+1.3 and 1.8 ms (platform) and 0.1 ms (dependency). The reader's cache had warmed
+since its restart at 19:58Z, so these are warm-cache figures; planner statistics for
+`fact_records` were not recorded. The statement times add up to the trace cost but
+are not endpoint latency: the endpoint figure for the image that carries this
+change stays NOT_CHECKED until it is deployed and replayed.
