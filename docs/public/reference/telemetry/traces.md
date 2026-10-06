@@ -58,6 +58,13 @@ queries filtering by scope `eshu-api` should update the filter to
 For a slow status read, inspect `postgres.status_snapshot`: `phase` names where
 a failed read stopped, and `jit=off` confirms the transaction ran with
 PostgreSQL JIT disabled (#7009). Its children time each status statement.
+When the `active_work_summary` sample of
+`eshu_dp_status_snapshot_read_duration_seconds` is slow, the same span's
+`status.active_work.summary_mode` attribute (`grouped` or `detail`) says which
+branch the summary gate took, and `status.active_work.summary_estimate` is the
+`pg_stats` live-share estimate it compared with the 0.4 threshold. A `grouped`
+mode with a high true live share means the table statistics lag the table
+(#7009).
 
 For a slow repository-context read, inspect the child `postgres.query` span with
 `db.operation=repository_workload_names` and `db.sql.table=fact_records`. It
