@@ -138,19 +138,43 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 
 ## Performance and observability evidence
 
-No-Regression Evidence: the Ack path was measured before and after
-(2026-10-06; base `5c4e03613` and this branch as two test binaries on the
-same restored 900-scope state with a completed obligation per prior
-generation; 600 accepted Acks per arm; PostgreSQL 18 in a 4 CPU / 4 GiB
-container on Docker for macOS; first mover alternating; host load1 under 9).
-With no prior row (6 pairs) the median Ack went from 1.218 ms to 1.329 ms,
-+0.111 ms: +9.1% as the median of the per-sample medians and +13.2% as the
-median of the paired deltas, which ranged from -19% to +22%. Re-owing an
-obsolete row (4 complete pairs; the load guard stopped 2) went from 1.289 ms
-to 1.395 ms, +8.2%. The insert's own server time is 0.040 ms per Ack
-(0.034 ms on the re-owe path); the rest of the delta is unprofiled. The
-result sits at the PR ruling's 10% bound and is with the arbiter; this note
-makes no claim beyond those numbers. The partition-scoped callback's cost is in
+No-Regression Evidence: the Ack transaction runs one more statement,
+`insertObligationQuery`, with the consumer flag off or on
+(`projector_queue.go`, the `activation.Insert` call before the commit): 8
+statements between BEGIN and COMMIT instead of 7. Its deterministic cost, from
+`pg_stat_statements` reset per sample, is 12.8 shared blocks and 0.038 to
+0.044 ms of server time per Ack for the insert, plus about 4 blocks per Ack
+that no named line carries and that by shape are its foreign-key probe on
+`scope_generations` (identity NOT_CHECKED); the re-owe path (an `obsolete`
+row, `ON CONFLICT DO UPDATE`) costs 10.8 blocks and 0.031 to 0.044 ms with no
+probe. The counts are identical in every sample, and 0.038 to 0.044 ms is the
+insert line only, not the whole server cost. Wall time, which is reported and
+not gated: the median Ack went from 1.218 ms to 1.329 ms, +0.111 ms (+9.1% as
+the median of the per-sample medians; the paired deltas ranged from -19% to
++22%, mean +6.2%, standard deviation 14.6 points; the pooled 3,600-Ack median
+moved +0.100 ms, +8.0%), and on the re-owe path from 1.289 ms to 1.395 ms,
++0.106 ms (+8.2%) over 4 pairs. The p99 stayed within the base arm's own
+range, and the base arm's spread across its samples was 51%, so the server
+cost is the gate and the wall delta is not. The scope-row hold, measured on
+the client from the scope update to the commit, grows by the same amount
+(+0.119 ms median); Finalize bounds its wait for that row at 1 s
+(`activation/sql.go`, `finalizeLockTimeoutQuery`). The residual above the
+server cost is, as a hypothesis, the size of one loopback round trip; the
+round trip was not measured. In a cluster the delta would be one network
+round trip plus about 0.05 ms per activated generation, so about 0.1 s per
+1,000 activated generations at the measured delta. Environment: PostgreSQL 18
+`postgres@sha256:54451ecb…`, 4 CPU / 4 GiB Docker Desktop on macOS over
+loopback; base `5c4e03613` against `19a36bda9` (test binaries `d4863fb1…` and
+`083a4888…`; the Ack path is unchanged after `19a36bda9`); 900 restored scopes
+with a completed obligation per prior generation; 600 Acks per arm; first
+mover alternating; load1 6.7 to 8.4 at each arm, load5 and load15 10 to 14,
+and no 1-second in-run load sampling. An earlier run was discarded (its first
+mover did not alternate), and the load guard stopped 3 arms of the counted
+run. The gate and this wording come from the #7584 Ack bound ruling
+(2026-10-06), which accepts this run as the pre-PR Ack line. The scope-update
+statement's own `pg_stat_statements` line is empty in every receipt (the
+harness compared the raw constant to the normalized text), so the hold figure
+is the client-side measurement only. The partition-scoped callback's cost is in
 `docs/internal/evidence/7584-partition-scoped-maintenance.md` (D3 step 3, a
 tiny-facts fixture). What is proven here is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
