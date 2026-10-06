@@ -2,8 +2,6 @@ package main
 
 import (
 	"reflect"
-	"slices"
-	"strings"
 	"testing"
 )
 
@@ -21,30 +19,23 @@ func TestHashStringsPreservesOrder(t *testing.T) {
 	}
 }
 
-func TestBalancedGroupsCoverTermsOnce(t *testing.T) {
-	groups := balancedGroups()
-	if len(groups) != 4 {
-		t.Fatalf("got %d groups, want 4", len(groups))
-	}
-	var got []string
-	for _, group := range groups {
-		if len(group) != 4 {
-			t.Fatalf("group has %d terms, want 4", len(group))
-		}
-		got = append(got, group...)
-	}
-	slices.Sort(got)
-	if !reflect.DeepEqual(got, terms) {
-		t.Fatalf("groups do not cover canonical terms exactly once: %v", got)
-	}
-}
-
 func TestSnapshotIDValidation(t *testing.T) {
 	if !validSnapshotID("00000004-00000A1B-1") {
 		t.Fatal("valid exported snapshot ID rejected")
 	}
 	if validSnapshotID("a'; DROP TABLE content_entities; --") {
 		t.Fatal("unsafe snapshot ID accepted")
+	}
+}
+
+func TestValidateProofMode(t *testing.T) {
+	if err := validateProofMode("fixed_canonical"); err != nil {
+		t.Fatalf("fixed mode rejected: %v", err)
+	}
+	for _, mode := range []string{"", "parallel", "parallel8", "balanced", "deterministic", "diagnostic_punctuation", "timing_canonical", "explain_p1"} {
+		if err := validateProofMode(mode); err == nil {
+			t.Errorf("unsupported mode %q accepted", mode)
+		}
 	}
 }
 
@@ -58,14 +49,5 @@ func TestDynamicWorkloadsPreselected(t *testing.T) {
 		if workload.name != want[i] || len(workload.terms) != 16 {
 			t.Fatalf("workload %d: name=%q terms=%d", i, workload.name, len(workload.terms))
 		}
-	}
-}
-
-func TestDeterministicProbeBindsTerm(t *testing.T) {
-	query := deterministicProbeSQL(false)
-	if !strings.Contains(query, "ORDER BY e.entity_id LIMIT 250") ||
-		!strings.Contains(query, "ORDER BY f.repo_id, f.relative_path LIMIT 250") ||
-		!strings.Contains(query, "$1") {
-		t.Fatalf("deterministic probe is missing a bound term or total candidate order")
 	}
 }
