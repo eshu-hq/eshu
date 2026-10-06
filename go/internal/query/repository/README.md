@@ -54,6 +54,25 @@ when the selector read runs out its 2s route budget
 (`context.DeadlineExceeded`). Coverage re-resolves the selector and answers
 that second resolution the same way.
 
+No-Regression Evidence (#7626): for the content-backed selector routes in
+this package, `iac` dead-IaC, and `contentread`, the new
+`selector.WriteLookupFailure` calls run only after
+`selector.ResolveExactForAccess` has already returned an error, so the success
+path issues the same catalog and graph reads in the same order, and no Cypher
+text, read count, or bound changed (`selector.go`'s Cypher literals are
+untouched; `hot-cypher-source-coverage` passes). Proven by
+`go test ./internal/query/... ./internal/queryplan/... -count=1` (74 packages
+ok) with the route regressions in `selector_lookup_test.go`,
+`../iac/dead_selector_lookup_test.go`, and
+`../contentread/content_handler_selector_lookup_test.go`.
+
+Observability Evidence (#7626): a lookup failure on these routes now records
+the error and an `exception` event on the request span (the iac
+`SpanQueryDeadIaC` handler span for dead-IaC) with status description
+`repository selector lookup failed`; a reader-fence `503`, a graph `503`/`504`,
+the stats budget `504`, not-found, and ambiguous answers leave the span
+untouched. The route tests assert both halves with an SDK span recorder.
+
 ## Story file list
 
 `getRepositoryStory` reads the repository file list once, in the
