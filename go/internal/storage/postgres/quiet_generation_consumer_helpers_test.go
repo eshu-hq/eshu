@@ -115,14 +115,6 @@ func (c *quietConsumer) assertSettledQuietGeneration(t *testing.T, ctx context.C
 			t.Fatalf("whole-corpus passes on the consumer's instruments = %d, want 0", got)
 		}
 	}
-	// The proof schema carries only the columns the collector, maintenance and
-	// Ack paths read; the reducer claim reads more. Add exactly those, from the
-	// shipped migration and the shared minimal-claim fixture columns.
-	for _, ddl := range []string{reducerClaimCapabilityColumnsSchemaSQL, MigrationSQL("reducer_work_item_reopened_at")} {
-		if _, err := database.ExecContext(ctx, ddl); err != nil {
-			t.Fatalf("extend proof schema for the reducer claim: %v", err)
-		}
-	}
 	queue := NewReducerQueue(SQLDB{DB: database}, "quiet-reducer", time.Minute)
 	queue.ClaimDomains = []reducer.Domain{reducer.DomainDeploymentMapping}
 	queue.Now = activationDatabaseClock(t, ctx, database)
@@ -133,27 +125,6 @@ func (c *quietConsumer) assertSettledQuietGeneration(t *testing.T, ctx context.C
 	if intent.IntentID != "quiet-new-deployment-mapping" || intent.ScopeID != scopeID || intent.GenerationID != generationID {
 		t.Fatalf("native Claim = %s (%s/%s), want the woken quiet-new-deployment-mapping row",
 			intent.IntentID, intent.ScopeID, intent.GenerationID)
-	}
-}
-
-// seedQuietWaitingDeploymentMapping inserts the row shape the reducer's
-// real Fail leaves for a deployment_mapping handler that found the
-// backward-evidence phase missing (proven on the full schema by
-// TestActivationObligationConsumerOrderingLive): retrying, the not-ready
-// class, no lease, visible an hour from now.
-func seedQuietWaitingDeploymentMapping(t *testing.T, ctx context.Context, database *sql.DB,
-	scopeID, generationID string, now time.Time,
-) {
-	t.Helper()
-	if _, err := database.ExecContext(ctx, `
-INSERT INTO fact_work_items
-    (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count,
-     visible_at, next_attempt_at, failure_class, failure_message, payload, created_at, updated_at)
-VALUES ('quiet-new-deployment-mapping', $1, $2, 'reducer', 'deployment_mapping', 'retrying', 1,
-     clock_timestamp() + interval '1 hour', clock_timestamp() + interval '1 hour',
-     'cross_repo_backward_evidence_not_ready', 'backward evidence not ready', '{}'::jsonb, $3, $3)`,
-		scopeID, generationID, now); err != nil {
-		t.Fatalf("seed waiting deployment_mapping row: %v", err)
 	}
 }
 
