@@ -60,6 +60,9 @@ type LookupError struct {
 	Err error
 }
 
+// Error renders LookupFailureMessage followed by the backend error text, or
+// LookupFailureMessage alone when Err is nil. The text is for logs and spans,
+// never a response body.
 func (e LookupError) Error() string {
 	if e.Err == nil {
 		return LookupFailureMessage

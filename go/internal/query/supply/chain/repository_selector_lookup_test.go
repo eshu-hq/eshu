@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -105,6 +106,9 @@ func TestRepositorySelectorResolveLookupFailureAnswers500(t *testing.T) {
 				}
 				if strings.Contains(body, selectorTestSelector) {
 					t.Fatalf("500 body carries the raw selector: %s", body)
+				}
+				if !strings.Contains(body, selector.LookupFailureMessage) {
+					t.Fatalf("500 body = %s, want the fixed %q message", body, selector.LookupFailureMessage)
 				}
 				if len(failed) != 1 {
 					t.Fatalf("stage_failed records = %d, want 1; log=%s", len(failed), logBuf.String())
