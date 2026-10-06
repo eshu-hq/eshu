@@ -25,6 +25,12 @@
   path.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,
   never Cypher text or queue/projection behavior.
+- Selector errors keep the shared order (#7626):
+  `querycontract.WriteGraphReadError` (503/504), then (stats only) the 504
+  for a `context.DeadlineExceeded` route-budget expiry, then
+  `selector.WriteLookupFailure` (500, fixed body, span error), then 404 for
+  not-found and 400 otherwise. Never write a `selector.LookupError`'s
+  `err.Error()` to a body; it carries backend text.
 
 ## Verification
 

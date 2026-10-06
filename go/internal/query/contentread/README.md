@@ -53,8 +53,9 @@ The Go standard library, `database/sql` via the store port, and these
   `RepositoryAccessFilter` + `RepositoryAccessFilterFromContext`,
   response/truth envelopes, `WriteContentSubstringIndexUnavailable`,
   `ErrContentSubstringIndexesNotReady`, `PagedContentSearcher`.
-- `selector` -- `ResolveExactForAccess` + `IsNotFound`, the
-  repository-selector resolution the search/file/entity paths use.
+- `selector` -- `ResolveExactForAccess`, `WriteLookupFailure`, and
+  `IsNotFound`, the repository-selector resolution and its error mapping the
+  search/file/entity paths use.
 - `codemodel` -- `EntityIDFromDocument`, the document-ID recovery the
   entity re-rank passes as its rank function (a direct leaf call; root's
   same-named shim in lane-A code stays untouched).
@@ -70,6 +71,18 @@ No new metrics or logs were added by the move itself. The handler emits the
 same `WriteSuccess`/`WriteError` envelopes (now via `querycontract`) under
 the unchanged `code_search.content_search` capability and
 `content_index` truth basis, so existing dashboards are unaffected.
+
+## Selector errors
+
+The file read, file lines, and file/entity search routes answer a
+repository-selector failure through `writeContentSelectorError`
+(`selector_error.go`) in the shared order: a reader fence on the catalog read
+answers a retryable 503 through `querycontract.WriteGraphReadError`; any other
+failed catalog read answers 500 with the fixed `repository selector lookup
+failed` body and an error on the request span (`selector.WriteLookupFailure`);
+an unmatched selector answers 404 and an ambiguous one 400 (#7626). Before
+#7626 a fence or a failed catalog read answered 400 with the backend error
+text in the body.
 
 ## Gotchas / invariants
 

@@ -107,6 +107,14 @@ inside the replay window (a reader failure that is not a timeout stays a 500),
 answers a retryable 503 `backend_unavailable` with `Retry-After`. The other handlers in this package still write store errors as
 500 and have not been moved to the helper.
 
+The dead-IaC selector branch keeps the shared selector order (#7626):
+`querycontract.WriteGraphReadError` (fence, 503), then
+`selector.WriteLookupFailure` (any other failed catalog read: 500, fixed
+`selector.LookupFailureMessage` body, error on the handler span), then 400
+for an unmatched or ambiguous selector. The 400 for not-found is this route's
+existing contract; do not change it here. Never write a `LookupError`'s
+`err.Error()` to a body: it carries backend text.
+
 ## What NOT to change without an ADR
 
 - The two Part C capability-string mirrors' values

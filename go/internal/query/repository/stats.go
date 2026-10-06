@@ -96,16 +96,22 @@ func (h *Handler) resolveRepositoryStatsPathSelector(
 	if err != nil {
 		// Selector resolution issues its own graph read, so a bounded backend
 		// timeout/outage must map to 503/504 rather than being downgraded to
-		// 400 by the generic branch below. repositoryStatsErrorStatus only
-		// recognizes context.DeadlineExceeded, not the ErrGraphReadDeadline/
-		// ErrGraphUnavailable sentinels, which never wrap it.
+		// 400 by the generic branch below. repositoryStatsErrIsTimeout only
+		// recognizes context.DeadlineExceeded (this route's own read budget),
+		// not the ErrGraphReadDeadline/ErrGraphUnavailable sentinels, which
+		// never wrap it; it keeps its 504 ahead of the lookup-failure 500. Both
+		// answer a fixed body: a LookupError's text carries backend detail.
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return "", false
 		}
-		status := repositoryStatsErrorStatus(err)
-		if status == http.StatusInternalServerError {
-			status = http.StatusBadRequest
+		if repositoryStatsErrIsTimeout(err) {
+			querycontract.WriteError(w, http.StatusGatewayTimeout, selector.LookupFailureMessage)
+			return "", false
 		}
+		if selector.WriteLookupFailure(w, r, err) {
+			return "", false
+		}
+		status := http.StatusBadRequest
 		if selector.IsNotFound(err) {
 			status = http.StatusNotFound
 		}

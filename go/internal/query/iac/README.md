@@ -181,3 +181,13 @@ IDs and the two capability-string mirrors carry the identical string values
 root registered before the move.
 
 Inventory, reachability, and AWS management readers expose `WithReadStore` constructors that accept guarded query-only connections. The existing constructors retain legacy SQL callers.
+
+## Dead-IaC selector errors
+
+`POST /api/v0/iac/dead` resolves each `repo_id`/`repo_ids` selector against
+the content catalog before reading findings. A reader fence on that catalog
+read answers a retryable 503; any other failed catalog read is a server fault
+and answers 500 with the fixed `repository selector lookup failed` body and an
+error recorded on the `SpanQueryDeadIaC` handler span (#7626). An unmatched or
+ambiguous selector keeps the route's 400. Before #7626 a failed catalog read
+also answered 400 and echoed the backend error text.

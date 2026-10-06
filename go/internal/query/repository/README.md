@@ -40,6 +40,20 @@ the fallback. The read's timing and errors are on the bounded `postgres.query`
 span with `db.operation=repository_context_counts`, which carries no repository
 or scope identifier.
 
+## Selector errors
+
+Every `{repo_id}` route resolves its path selector through
+`resolveRepositoryPathSelector` (stats through
+`resolveRepositoryStatsPathSelector`). A graph-availability or reader-fence
+verdict answers 503/504 through `querycontract.WriteGraphReadError`; any other
+failed catalog or graph read answers 500 with the fixed `repository selector
+lookup failed` body and an error on the request span
+(`selector.WriteLookupFailure`, #7626); an unmatched selector answers 404 and
+an ambiguous one 400. The stats route answers 504 with the same fixed body
+when the selector read runs out its 2s route budget
+(`context.DeadlineExceeded`). Coverage re-resolves the selector and answers
+that second resolution the same way.
+
 ## Story file list
 
 `getRepositoryStory` reads the repository file list once, in the

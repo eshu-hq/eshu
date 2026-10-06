@@ -38,6 +38,13 @@ Read `doc.go` and `README.md` first.
   Changing the constant without updating the emitted schema fails
   `TestOpenAPISpec_ContentEntitySchemasExposeMetadata` in root -- update
   both or neither.
+- Every selector-resolution error goes through `writeContentSelectorError`,
+  which keeps the shared order (#7626): `querycontract.WriteGraphReadError`
+  (503), then `selector.WriteLookupFailure` (500, fixed body, span error), then
+  404 for not-found and 400 otherwise. Pass the capability as a plain string
+  argument at each call site: root's `TestWriteGraphReadErrorCapabilitiesExistInMatrix`
+  resolves it through callers, not through a struct field. Never write a
+  `selector.LookupError`'s `err.Error()` to a body.
 
 ## Test doubles that cannot be shared with root
 

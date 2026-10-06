@@ -24,6 +24,9 @@ func (h *Handler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) 
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
+		if selector.WriteLookupFailure(w, r, err) {
+			return
+		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -60,7 +63,9 @@ func (h *Handler) resolveRepositorySelector(ctx context.Context, rawSelector str
 // capability names the caller's capability for the bounded graph-read envelope
 // so a backend timeout or outage during selector resolution surfaces as the
 // same 503/504 contract every other graph-backed read uses, rather than
-// falling through to the generic 400/404 branch below.
+// falling through to the generic 400/404 branch below. Any other failed
+// backing read is a server fault and answers 500 with the fixed
+// selector.LookupFailureMessage body (#7626).
 func (h *Handler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request, capability string) (string, bool) {
 	repoSelector := querycontract.PathParam(r, "repo_id")
 	if repoSelector == "" {
@@ -70,6 +75,9 @@ func (h *Handler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.R
 	repoID, err := h.resolveRepositorySelector(r.Context(), repoSelector)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, capability) {
+			return "", false
+		}
+		if selector.WriteLookupFailure(w, r, err) {
 			return "", false
 		}
 		status := http.StatusBadRequest

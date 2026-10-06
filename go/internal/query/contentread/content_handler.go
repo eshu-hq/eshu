@@ -81,7 +81,7 @@ func (h *ContentHandler) readFile(w http.ResponseWriter, r *http.Request) {
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 	req.RepoID = resolvedRepoID
@@ -125,7 +125,7 @@ func (h *ContentHandler) readFileLines(w http.ResponseWriter, r *http.Request) {
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 	req.RepoID = resolvedRepoID
@@ -193,7 +193,7 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 
@@ -230,7 +230,7 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 
@@ -449,14 +449,6 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 	}
 	results, err := h.Content.SearchEntityContentAnyRepo(ctx, req.pattern(), probeLimit)
 	return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
-}
-
-func writeContentSelectorError(w http.ResponseWriter, err error) {
-	status := http.StatusBadRequest
-	if selector.IsNotFound(err) {
-		status = http.StatusNotFound
-	}
-	querycontract.WriteError(w, status, err.Error())
 }
 
 func contentSearchResponse(results any, req contentSearchRequest, truncated bool) map[string]any {
