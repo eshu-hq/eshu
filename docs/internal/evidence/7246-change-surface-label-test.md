@@ -19,7 +19,9 @@ shared QA graph, anchor `NodeUniqueIndexSeek` on `Repository.id`, the
 (the same six IN labels() terms)`. Nine repositories from 70 to 12,402 files,
 all with the same row output and the same full path set (table below). The
 fixed form was faster on all nine, 3.4x to 4.8x on the median server time and
-3.2x to 3.7x on DB hits. No case got slower.
+3.2x to 3.7x on DB hits. No Repository case got slower. Other anchor classes are
+in a separate section: WorkloadInstance anchors gain about 4x, and a fully
+whitelisted CloudResource anchor does about 7% more DB hits.
 
 Observability Evidence: the outgoing traversal now reports
 `graph_query_name=platform_impact.change_surface.outgoing` (it logged
@@ -142,6 +144,45 @@ hit the bounded-read deadline for it. After the change it is 2.6 s. The
 remaining cost there is the expansion itself, which this change does not
 touch.
 
+## Other anchor classes
+
+The same statement serves Workload, WorkloadInstance, CloudResource,
+TerraformModule and DataAsset anchors. The table above is Repository only, so
+these were run afterwards with the same method: the Go-builder text at base and
+at the branch with only the anchor pattern replaced, one discarded warm-up and
+six interleaved sessions per case with the first mover alternating, four-read
+path-set equivalence (fixed, base, fixed, base) and one `PROFILE` per variant.
+Anchors were the highest path counts found on the corpus for each class.
+Instance, resource and workload ids are not recorded here.
+
+| Anchor | Paths (pre-LIMIT) | Whitelisted | Before ms med (range) | After ms med (range) | Before DB hits | After DB hits | Rows |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| WorkloadInstance wi_1 | 401,726 | 19,744 | 1580.5 (1567-1670) | 352.0 (342-452) | 7,585,201 | 2,027,663 | 11 |
+| WorkloadInstance wi_2 | 386,324 | 19,171 | 1943.0 (1540-2351) | 498.5 (335-553) | 7,328,877 | 1,956,322 | 11 |
+| CloudResource cr_1 | 76 | 76 | 1 (0-2) | 1 (0-1) | 1,045 | 1,126 | 11 |
+| CloudResource cr_2 | 61 | 61 | 1 (0-1) | 1 (0-1) | 946 | 1,011 | 11 |
+| Workload wk_1 | 137 | 0 | 1 (0-1) | 0 (0-1) | 1,236 | 414 | 0 |
+
+- WorkloadInstance: 4.5x and 3.9x faster on median server time, 3.7x fewer DB
+  hits. The before and after ranges do not overlap in either case (slowest
+  after 553 ms, fastest before 1540 ms).
+- CloudResource, every path whitelisted: the label test removes nothing and
+  adds one check per path. DB hits rose by 81 (7.8%) and 65 (6.9%) for 76 and
+  61 paths. The time is under the 1 ms timer resolution in both variants, so
+  no time difference is measured; the cost is about one DB hit per path. This
+  is the class that gets slightly slower in work done, and on this corpus the
+  absolute size is tiny.
+- Workload: 3.0x fewer hits on 137 paths, none whitelisted; time is under
+  resolution.
+- Path-set equivalence held for all five anchors, both directions, four reads.
+  The first pass on wi_2 showed 215 paths differing in both directions
+  including between two reads of the same variant, with the same path count:
+  graph churn (relationship ids rewritten by ingestion), not the change. Two
+  repeat passes were identical and equal across variants. The 11-row (or 0-row)
+  output was identical and in the same order in every read.
+- Host load average on the driving machine was 11 to 21 at the start of the
+  timing run and 15 at the end.
+
 ## NornicDB
 
 The pinned image (`ghcr.io/eshu-hq/nornicdb-amd64-cpu` at
@@ -169,13 +210,12 @@ same rows.
 
 ## Not claimed
 
-- Only Repository anchors were timed. The same statement also serves
-  Workload, WorkloadInstance, CloudResource, TerraformModule and DataAsset
-  anchors, and none of those were timed in the table above. A path set that is
-  fully whitelisted pays about one extra label check per path (the label test is
-  one DB hit per path in the PROFILE) and gains nothing, so such an anchor is
-  expected to get slightly slower, not faster. That bound is reasoning from
-  the PROFILE, not a measurement.
+- The anchor classes were timed unevenly. Repository anchors have nine
+  cases above. Workload, WorkloadInstance and CloudResource have the few cases in
+  the next section. TerraformModule and DataAsset anchors were not timed: no
+  such node on this corpus has an outgoing relationship, so there is nothing to
+  traverse. CloudResource timings sit below the 1 ms resolution of the timer, so
+  that class rests on PROFILE DB hits.
 - No deployed latency. The request-time effect needs a rebuilt image replayed
   against the same corpus; only statement server time is measured here.
 - The expansion cost is unchanged: every path of up to four hops is still
