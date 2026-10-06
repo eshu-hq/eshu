@@ -101,13 +101,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "reservation_acquire_timeout"))
 	}
 	span.SetAttributes(attribute.String("code_topic.execution_mode", "single_statement"))
-	if len(req.Terms) == 16 {
-		if !supportsSnapshotSet {
-			span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "snapshot_set_unavailable"))
-		} else if maxOpenConns < codetopicparallel.Partitions {
-			span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
-		}
-	}
+	recordCodeTopicFallbackReason(span, len(req.Terms), supportsSnapshotSet, maxOpenConns)
 	filters, args, nextArg := codeTopicFilters(req)
 	where := ""
 	if len(filters) > 0 {
@@ -116,6 +110,9 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	termValues := make([]string, len(req.Terms))
 	fileBranches := make([]string, len(req.Terms))
 	measuredScopedOneTerm := strings.TrimSpace(req.RepoID) != "" && len(req.Terms) == 1 && strings.TrimSpace(req.Language) == ""
+	span.SetAttributes(attribute.Bool("code_topic.scoped_one_term", measuredScopedOneTerm))
+	hideTerm := measuredScopedOneTerm && codeTopicTermHasTrigram(req.Terms[0])
+	span.SetAttributes(attribute.Bool("code_topic.terms_materialized", hideTerm))
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
 		if measuredScopedOneTerm {
@@ -132,7 +129,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	// per-term UNION branches above, which contain only $N placeholders
 	// and static SQL; no user data concatenated
 	query := fmt.Sprintf(`
-		WITH terms(term) AS (
+		WITH terms(term) AS %[7]s(
 		  VALUES %[1]s
 		),
 		entity_probe AS (
@@ -191,7 +188,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		CROSS JOIN pool_status
 		ORDER BY score DESC, repo_id, relative_path, entity_name, source_kind
 		LIMIT $%[5]d OFFSET $%[6]d
-	`, strings.Join(termValues, ", "), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg)
+	`, strings.Join(termValues, ", "), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg, codeTopicTermsMaterialization(hideTerm))
 
 	// CacheDescribe keeps the measured one-term repo query off a generic
 	// named plan while retaining parameter types and SQL placeholders.
