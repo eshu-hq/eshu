@@ -130,12 +130,20 @@ func BenchmarkStatusActiveFactWorkItemsCTEGrowth(b *testing.B) {
 // was the load-bearing
 // proof for this issue; this test only guards against a full-scan
 // regression, which would be a genuine correctness/performance bug
-// regardless of which index resolves it.
+// regardless of which index resolves it. That literal rule covers
+// stageCountsQuery only: the activeWorkSummaryQuery half accepts one hashed,
+// sorted, or gathered full scope_generations scan per CTE
+// (checkSummaryGenerationScans, #7009).
 //
 // Skipped unless a live Postgres DSN is provided.
 func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	dsn := statusActiveGenerationBenchDSN()
 	if dsn == "" {
+		// The reducer-contention gate enrolls this proof (#7009); there an
+		// unset DSN must fail, not skip.
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_STATUS_ACTIVE_GENERATION_BENCH_DSN or ESHU_POSTGRES_DSN is required for the #4446/#7009 summary plan guard")
+		}
 		t.Skip("set ESHU_STATUS_ACTIVE_GENERATION_BENCH_DSN or ESHU_POSTGRES_DSN to run the status active-generation CTE index proof")
 	}
 
@@ -198,7 +206,10 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	}
 
 	// The status snapshot runs these reads through activeWorkSummaryQuery
-	// (#6794); it must keep the same no-full-scan property. The summary also
+	// (#6794). checkSummaryGenerationScans binds it to the single-pass cost
+	// class (#7009 arbiter ruling D1): any full scope_generations scan must be
+	// one hashed, sorted, or gathered pass per CTE, never a per-row rescan.
+	// The summary also
 	// reads the shared-projection backlog and the provenance upgrade columns,
 	// which the claim-benchmark schema does not create.
 	for _, stmt := range []string{
@@ -210,13 +221,36 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 			t.Fatalf("extend proof schema for activeWorkSummaryQuery: %v", err)
 		}
 	}
-	summaryPlan, err := statusActiveGenerationExplainAnalyze(ctx, conn, activeWorkSummaryQuery, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+	// Both gate branches (#7009 S5 ruling D5.5), then a forced generic plan.
+	checkSummaryPlanInGateStates(ctx, t, conn, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+	// Seeded violation: with index, hash, merge, materialize, and memoize
+	// paths off, the only generation join left is a nested loop that
+	// rescans scope_generations per outer row, the hazard #4446 guards
+	// against; the check must reject it in both CTEs. The seed is planned
+	// with plain EXPLAIN: executing it rescans 100,000 generations per outer
+	// row (about 3 minutes locally), and R1 rejects the Nested Loop parent
+	// without actuals.
+	const seedOff = "SET enable_indexscan = off; SET enable_indexonlyscan = off; SET enable_bitmapscan = off; " +
+		"SET enable_hashjoin = off; SET enable_mergejoin = off; SET enable_material = off; SET enable_memoize = off"
+	const seedReset = "RESET enable_indexscan; RESET enable_indexonlyscan; RESET enable_bitmapscan; " +
+		"RESET enable_hashjoin; RESET enable_mergejoin; RESET enable_material; RESET enable_memoize"
+	if _, err := conn.ExecContext(ctx, seedOff); err != nil {
+		t.Fatalf("plant the nested-loop seed: %v", err)
+	}
+	seededPlan, err := statusActiveGenerationExplainText(ctx, conn, "EXPLAIN ", activeWorkSummaryQuery, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+	if _, resetErr := conn.ExecContext(ctx, seedReset); resetErr != nil {
+		t.Fatalf("reset the nested-loop seed: %v", resetErr)
+	}
 	if err != nil {
-		t.Fatalf("explain analyze activeWorkSummaryQuery: %v", err)
+		t.Fatalf("explain seeded activeWorkSummaryQuery: %v", err)
 	}
-	if strings.Contains(summaryPlan, "Seq Scan on scope_generations") {
-		t.Fatalf("activeWorkSummaryQuery plans a sequential scan on scope_generations:\n%s", summaryPlan)
+	seededErr := checkSummaryGenerationScans(seededPlan)
+	for _, want := range []string{`active_fact_work_items: full scope_generations scan under "Nested Loop`, `fact_work_history_counts: full scope_generations scan under "Nested Loop`} {
+		if seededErr == nil || !strings.Contains(seededErr.Error(), want) {
+			t.Fatalf("seeded nested-loop plan was not rejected with %q (err = %v):\n%s", want, seededErr, seededPlan)
+		}
 	}
+	t.Logf("seeded nested-loop plan rejected: %v", seededErr)
 }
 
 func benchmarkStatusActiveFactWorkItemsCTE(b *testing.B, dsn string, benchCase statusActiveGenerationBenchCase) {
@@ -419,11 +453,16 @@ CROSS JOIN work_series`,
 // picks an index scan on scope_generations instead of a sequential scan once
 // scope_generations_scope_generation_idx exists.
 func statusActiveGenerationExplainAnalyze(ctx context.Context, database db.Executor, query string, args ...any) (string, error) {
+	return statusActiveGenerationExplainText(ctx, database, "EXPLAIN (ANALYZE, BUFFERS) ", query, args...)
+}
+
+// statusActiveGenerationExplainText returns the text plan of explain+query.
+func statusActiveGenerationExplainText(ctx context.Context, database db.Executor, explain, query string, args ...any) (string, error) {
 	queryer, ok := database.(db.Queryer)
 	if !ok {
 		return "", fmt.Errorf("executor does not support QueryContext")
 	}
-	rows, err := queryer.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+query, args...)
+	rows, err := queryer.QueryContext(ctx, explain+query, args...)
 	if err != nil {
 		return "", fmt.Errorf("explain analyze: %w", err)
 	}

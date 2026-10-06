@@ -152,14 +152,15 @@ GROUP BY domain
 HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM(dead_letter_count) + SUM(failed_count) > 0`
 	// domainBacklogOrder is domainBacklogSelect's result order.
 	domainBacklogOrder = `outstanding_count DESC, oldest_outstanding_age_seconds DESC, domain ASC`
-	// queueSnapshotSelect aggregates the active work-item queue into one row.
-	queueSnapshotSelect = `SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
-       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
+	// queueSnapshotLiveCounts are the queue snapshot's live-status counts;
+	// queueSnapshotSelect and activeWorkSummaryQueueSelect share them.
+	queueSnapshotLiveCounts = `       COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
        COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
        COUNT(*) FILTER (WHERE status IN ('claimed', 'running')) AS in_flight_count,
        COUNT(*) FILTER (WHERE status = 'retrying') AS retrying_count,
-       COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
-       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
+`
+	// queueSnapshotTail is the rest of the queue snapshot after succeeded_count.
+	queueSnapshotTail = `       COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
        COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
 	   EXISTS (
 	     SELECT 1
@@ -192,6 +193,10 @@ HAVING SUM(outstanding_count) + SUM(in_flight_count) + SUM(retrying_count) + SUM
            AND claim_until < $1
        ) AS overdue_claim_count
 FROM active_fact_work_items`
+	// queueSnapshotSelect aggregates the active work-item queue into one row.
+	queueSnapshotSelect = `SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
+` + queueSnapshotLiveCounts + `       COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
+` + queueSnapshotTail
 )
 
 const statusReadinessSchemaQuery = `
@@ -270,3 +275,39 @@ func (s StatusStore) CheckStatusReadiness(ctx context.Context) error {
 	}
 	return nil
 }
+
+// activeWorkSummaryGrouped reads the gate's branch flag. As an uncorrelated
+// scalar subquery it is a one-time filter evaluated per execution, so the
+// arm of the branch not taken reads no rows.
+const activeWorkSummaryGrouped = "(SELECT grouped FROM fact_work_summary_mode)"
+
+// activeWorkGroupedThreshold is the gate threshold T: the summary groups
+// history when the estimated share of activeWorkDetailStatuses rows is below
+// it. T = 0.4 is the #7009 S5 measurement (R2.4: the grouped pass is at or
+// below 1.00x the baseline through 50% live, crossing over between 50% and
+// 60%). T is re-measured with the S5 shim when the statement or the workload
+// shape changes; it is never tuned in place.
+const activeWorkGroupedThreshold = "0.4"
+
+// activeWorkLiveFractionEstimate is the planner's estimate of the share of
+// fact_work_items rows in activeWorkDetailStatuses: the summed most-common-
+// value frequencies of those statuses in pg_stats. The schema is the one
+// 'fact_work_items'::regclass resolves to, the table the statement scans,
+// never current_schema(). A table without statistics, or statuses outside
+// the MCV list, estimate 0; the COALESCE keeps the gate non-nullable, since a
+// NULL gate would drop both detail arms.
+const activeWorkLiveFractionEstimate = `COALESCE((SELECT SUM(m.f) FROM pg_stats AS s CROSS JOIN LATERAL unnest(s.most_common_vals::text::text[], s.most_common_freqs) AS m(v, f)
+           WHERE s.schemaname = (SELECT n.nspname FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+                           WHERE c.oid = 'fact_work_items'::regclass)
+             AND s.tablename = 'fact_work_items' AND s.attname = 'status'
+             AND m.v IN ` + activeWorkDetailStatuses + `), 0)`
+
+// activeWorkSummaryModeCTE is the gate (#7009 S5 ruling D5.1): grouped is
+// true when the estimate is below activeWorkGroupedThreshold. Absent
+// statistics select the grouped branch. Statistics lag the table by up to
+// two autovacuum naptimes plus the autovacuum VACUUM and ANALYZE; inside
+// that window the gate can take the wrong branch, which stays correct and
+// costs at most the measured wrong-branch bound.
+const activeWorkSummaryModeCTE = `fact_work_summary_mode AS MATERIALIZED (
+  SELECT ` + activeWorkLiveFractionEstimate + ` < ` + activeWorkGroupedThreshold + ` AS grouped
+)`
