@@ -2996,6 +2996,7 @@ gates:
       - "go/internal/status/**"
       - "go/internal/storage/postgres/**"
       - "go/cmd/reducer/**"
+      - "go/internal/reducer/maintenance/**"
       - "go/internal/testutil/postgresproof/**"
       - "go/go.mod"
       - "go/go.sum"
