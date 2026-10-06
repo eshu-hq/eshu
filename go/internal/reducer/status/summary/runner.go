@@ -50,6 +50,13 @@ const (
 	OutcomeError = "error"
 )
 
+// setReadCommittedSQL pins the pass to READ COMMITTED whatever the cluster's
+// default_transaction_isolation is. Under REPEATABLE READ the guarded upsert
+// raises 40001 when another writer committed the row after the pass's
+// snapshot; READ COMMITTED re-checks the guard against the committed row.
+// It must be the transaction's first statement.
+const setReadCommittedSQL = `SET TRANSACTION ISOLATION LEVEL READ COMMITTED`
+
 // setJITOffSQL turns JIT off for the pass, as the live status read does
 // (#7639): the statement is cheaper to plan than to compile.
 const setJITOffSQL = `SET LOCAL jit = off`
@@ -183,6 +190,9 @@ func (r *Runner) pass(ctx context.Context) (result Pass) {
 			_ = tx.Rollback()
 		}
 	}()
+	if _, err := tx.ExecContext(ctx, setReadCommittedSQL); err != nil {
+		return failed(fmt.Errorf("set status summary pass isolation: %w", err))
+	}
 	if _, err := tx.ExecContext(ctx, setJITOffSQL); err != nil {
 		return failed(fmt.Errorf("disable jit for status summary pass: %w", err))
 	}

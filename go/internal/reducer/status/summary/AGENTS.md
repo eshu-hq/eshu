@@ -11,9 +11,12 @@
 
 ## Invariants
 
-- One pass is one transaction: jit off, try-lock, clock, statement, upsert,
+- One pass is one transaction: READ COMMITTED, jit off, try-lock, clock, statement, upsert,
   commit. Never split the lock and the upsert across transactions: the lock is
   transaction scoped and the single-writer guarantee ends with it.
+- Keep the pass at READ COMMITTED (`setReadCommittedSQL`, the first
+  statement). Under REPEATABLE READ the guarded upsert raises 40001 when
+  another writer committed the row after the pass's snapshot.
 - Read `as_of` from the database clock after the lock, never from the host
   clock: replicas' host clocks differ and the upsert guard orders rows by
   `as_of`.

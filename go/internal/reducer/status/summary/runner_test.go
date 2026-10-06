@@ -41,7 +41,7 @@ func newPassRunner(t *testing.T) (*Runner, *fakeDatabase, *fakeStatement, *bytes
 }
 
 // TestRunOnceWritesTheRowInOneTransaction proves one pass is one transaction
-// in the ruling's order: jit off, the advisory try-lock, the database clock,
+// in the ruling's order: READ COMMITTED pinned first, jit off, the advisory try-lock, the database clock,
 // the statement at that clock, one guarded upsert, commit.
 func TestRunOnceWritesTheRowInOneTransaction(t *testing.T) {
 	t.Parallel()
@@ -52,7 +52,7 @@ func TestRunOnceWritesTheRowInOneTransaction(t *testing.T) {
 	if pass.Outcome != OutcomeOK || pass.Err != nil {
 		t.Fatalf("RunOnce() = %+v, want outcome ok", pass)
 	}
-	want := []string{"set_jit_off", "try_lock", "clock", "upsert", "commit"}
+	want := []string{"read_committed", "set_jit_off", "try_lock", "clock", "upsert", "commit"}
 	if got := database.snapshot(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("pass statements = %v, want %v", got, want)
 	}
@@ -117,7 +117,7 @@ func TestRunOnceSkipsWhenAnotherWriterHoldsTheLock(t *testing.T) {
 	if statement.callCount() != 0 {
 		t.Fatalf("statement ran %d times while the lock was held elsewhere", statement.callCount())
 	}
-	if got, want := database.snapshot(), []string{"set_jit_off", "try_lock", "rollback"}; !reflect.DeepEqual(got, want) {
+	if got, want := database.snapshot(), []string{"read_committed", "set_jit_off", "try_lock", "rollback"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("pass statements = %v, want %v", got, want)
 	}
 }

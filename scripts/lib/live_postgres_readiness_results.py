@@ -188,6 +188,7 @@ PACKAGES = {
             "TestWriterCountsAGuardRejectionLive",
             "TestWriterSkipsAMissingTableLive",
             "TestWriterReplacesARowFromAnotherStatementLive",
+            "TestWriterPassRunsReadCommittedLive",
             "TestSecondWriterSkipsWhileTheFirstHoldsTheLockLive",
         ),
         "go/internal/reducer/status/summary/contention_live_test.go": (

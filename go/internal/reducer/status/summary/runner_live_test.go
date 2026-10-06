@@ -187,6 +187,45 @@ func TestWriterReplacesARowFromAnotherStatementLive(t *testing.T) {
 	assertRowEqualsLive(ctx, t, database) // also asserts the current digest
 }
 
+// TestWriterPassRunsReadCommittedLive proves the pass pins READ COMMITTED
+// even when the database default is REPEATABLE READ, where the guarded upsert
+// would raise 40001 after another writer's commit.
+func TestWriterPassRunsReadCommittedLive(t *testing.T) {
+	ctx, database := openWriterDatabase(t)
+	seedWork(ctx, t, database, 60, 30)
+	mustExec(ctx, t, database, `DO $$ BEGIN EXECUTE format(
+		'ALTER DATABASE %I SET default_transaction_isolation = ''repeatable read''', current_database()); END $$`)
+	database.SetMaxIdleConns(0) // new sessions pick up the database default
+	var seen string
+	writer := newLiveWriter(database)
+	writer.Statement.Compute = func(ctx context.Context, q db.Queryer, asOf time.Time) ([]store.Entry, error) {
+		rows, err := q.QueryContext(ctx, `SHOW transaction_isolation`)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			if err := rows.Scan(&seen); err != nil {
+				return nil, err
+			}
+		}
+		_ = rows.Close()
+		return postgres.ReadActiveWorkSummaryEntries(ctx, q, asOf)
+	}
+	var defaultLevel string
+	if err := database.QueryRowContext(ctx, `SHOW default_transaction_isolation`).Scan(&defaultLevel); err != nil {
+		t.Fatalf("read the session default: %v", err)
+	}
+	if defaultLevel != "repeatable read" {
+		t.Fatalf("session default isolation = %q; the proof needs repeatable read", defaultLevel)
+	}
+	if pass := writer.RunOnce(ctx); pass.Outcome != statussummary.OutcomeOK {
+		t.Fatalf("RunOnce() = %+v, want ok", pass)
+	}
+	if seen != "read committed" {
+		t.Fatalf("pass transaction isolation = %q, want read committed", seen)
+	}
+}
+
 // TestSecondWriterSkipsWhileTheFirstHoldsTheLockLive proves the advisory lock
 // makes exactly one writer compute: a second writer that ticks while the
 // first is mid-pass skips without running the statement.

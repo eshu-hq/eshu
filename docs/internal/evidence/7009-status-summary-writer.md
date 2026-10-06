@@ -19,7 +19,9 @@ switch is PR-C. The table and store are PR-A
 
 ## Design as built
 
-One pass is one transaction on the primary: `SET LOCAL jit = off`,
+One pass is one READ COMMITTED transaction on the primary, pinned with
+`SET TRANSACTION ISOLATION LEVEL READ COMMITTED` whatever the cluster default
+(REPEATABLE READ would raise 40001 on the upsert), then `SET LOCAL jit = off`,
 `pg_try_advisory_xact_lock(WriterLockKey)` (skip when held), one round trip for
 `clock_timestamp()` and `to_regclass('status_summary_snapshots')`, the
 statement with that clock as `$1`, and one guarded single-row upsert. The pass
@@ -62,7 +64,7 @@ empty `Service` starts nothing.
 Live on PostgreSQL 18.6 (Homebrew, native, loopback), every test creating its
 own database and applying all 179 migrations, `go test -race -count=1
 ./internal/reducer/status/summary/` with the proof DSN, the disposable opt-in,
-and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`: 37 tests passed, rc=0.
+and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`: 38 tests passed, rc=0.
 
 - the stored row equals the live statement at its `as_of`, read in one
   `REPEATABLE READ` snapshot, at 1/600, 300/600 and 600/600 live rows (every
@@ -75,6 +77,8 @@ and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`: 37 tests passed, rc=0.
   migration 161 is reapplied the next pass writes an equal row;
 - a row written under another statement digest is replaced by the next
   production pass;
+- with the database default set to REPEATABLE READ, the pass still runs
+  READ COMMITTED (`SHOW transaction_isolation` inside the pass);
 - a second writer that ticks while the first holds the lock reports
   `skipped_lock` without running the statement;
 - two writers at the 5 s minimum for 30 s beside two workers that claim and Ack
@@ -86,8 +90,10 @@ and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`: 37 tests passed, rc=0.
   seeded writer-held lock wait first proves the sampler can count one (its
   first version could not: the waiter ran `LOCK TABLE` outside a transaction).
 
-With `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1` and no DSN, all seven live
-proofs fail (rc=1) instead of skipping.
+With `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1` and no DSN, the live proofs
+fail (rc=1) instead of skipping. Replacing the READ COMMITTED pin with a no-op
+makes `TestWriterPassRunsReadCommittedLive` fail with `pass transaction
+isolation = "repeatable read"`.
 
 Performance Evidence: no before figure exists, because the writer is new and
 off by default; enabling it adds one active-work pass per interval on the

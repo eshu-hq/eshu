@@ -29,6 +29,7 @@ sequenceDiagram
     participant R as Runner (any replica)
     participant P as Postgres primary
     R->>P: BEGIN
+    R->>P: SET TRANSACTION ISOLATION LEVEL READ COMMITTED
     R->>P: SET LOCAL jit = off
     R->>P: pg_try_advisory_xact_lock(WriterLockKey)
     alt lock held by another replica
@@ -86,7 +87,8 @@ The age of the stored row is a reader-side signal and is not exported here.
 - `runner_live_test.go`: on PostgreSQL 18, the stored row equals the live
   statement at its `as_of` at several live fractions and when empty, a killed
   pass keeps the old row, guard rejection, missing table, digest replacement,
-  and a second writer skipping while the first holds the lock.
+  a pass pinned to READ COMMITTED under a REPEATABLE READ database
+  default, and a second writer skipping while the first holds the lock.
 - `contention_live_test.go`: two writers at the 5 s minimum for 30 s beside the
   production claim and Ack loop with a backlog spike. A seeded wait first
   proves the lock sampler can see a writer-caused wait.

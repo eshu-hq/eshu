@@ -77,6 +77,9 @@ func (t *fakeTx) ExecContext(ctx context.Context, query string, args ...any) (sq
 		return nil, err
 	}
 	switch {
+	case strings.Contains(query, "SET TRANSACTION ISOLATION LEVEL READ COMMITTED"):
+		t.db.record("read_committed")
+		return driverResult(0), nil
 	case strings.Contains(query, "SET LOCAL jit = off"):
 		t.db.record("set_jit_off")
 		return driverResult(0), t.db.execErr
