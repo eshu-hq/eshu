@@ -87,6 +87,19 @@ guard. On the unchanged code it failed with `unscoped outgoing WHERE has 2
 conjuncts, want 3`. `TestChangeSurfaceOutgoingTraversalIsNamedForGraphReadTelemetry`
 failed with `outgoing graph_query_name = "unnamed"`.
 
+Two further pins close review threads on the PR.
+`TestChangeSurfaceRepositoryTargetNamesOnlyTheOutgoingTraversal` runs a
+Repository target, which is the only target that also runs the
+dependency-consumer read, splits the two reads by direction
+(`<-[:DEPENDS_ON`), and asserts the outgoing read carries
+`platform_impact.change_surface.outgoing` while the consumer read keeps the
+unnamed default. Naming the consumer context in a mutation run fails it.
+`TestChangeSurfaceEnvironmentScopedCypherKeepsLabelTestFirst` renders the
+statement with the environment clause appended and requires four conjuncts in
+order: the id guard, the label test, the IN labels() guard, then the
+environment predicate. Moving the environment clause ahead of the label test
+in a mutation run fails it.
+
 ## Method
 
 - Statements are the text the Go builder renders, recorded from a throwaway
