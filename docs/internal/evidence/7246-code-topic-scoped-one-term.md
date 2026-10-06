@@ -8,7 +8,7 @@ term on a large repository the entity probe could pick a plan that skips
 `content_entities_repo_idx` and reads about 22,000 heap blocks for 1,680 rows,
 1.25 to 1.27 s inside Postgres. This change marks the statement's `terms` CTE
 `MATERIALIZED` for that one shape, and only when the term has a run of three
-letters or digits for the trigram indexes to filter on, so the planner estimates
+ASCII letters or digits for the trigram indexes to filter on, so the planner estimates
 the probe without the literal. It changes no query semantics (same predicates, candidate cap, ordering,
 limit and hydration); rows were byte-identical in the 13 measured cases, three of
 which return no rows and one of which is capped. Which candidates fill a capped
@@ -104,9 +104,13 @@ about 0.14 ms per 1,000 repository entities.
 
 ## Terms with no trigram keep the plain statement
 
-A term with no run of three letters or digits (`db_`, `pg_`, `a_b`, `a%b`,
-`ab-cd`, a single non-Latin character) has no trigram for pg_trgm to extract, so
-both GIN scans return every row. Hiding such a term from the planner is a large
+A term with no run of three ASCII letters or digits (`db_`, `pg_`, `a_b`, `a%b`,
+a single non-Latin character) has no trigram for pg_trgm to extract, so
+both GIN scans return every row. Non-ASCII characters count as word characters
+only when the database ctype is not C, and Eshu pins no locale (ops-qa runs
+`en_US.UTF-8`), so a purely non-ASCII term is treated as having none. A term such
+as `ab-cd` does have trigrams (pg_trgm pads a word next to punctuation); the guard
+over-rejects it, which is safe because the plain statement is the base. Hiding such a term from the planner is a large
 regression, and an independent replacement review found it. Measured read-only on
 the ops-qa reader, `PREPARE` plus `force_custom_plan`, 25 s statement timeout,
 interleaved base, fixed, base (the fixed text is this change without the guard):
