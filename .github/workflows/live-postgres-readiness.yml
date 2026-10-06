@@ -1,6 +1,6 @@
 name: Live PostgreSQL Readiness
 
-# The twenty readiness and dead-code incoming proofs use EXPLAIN and correctness assertions against
+# The twenty-one readiness, dead-code incoming, and status route-selection proofs use EXPLAIN and correctness assertions against
 # separately created disposable databases. The merge queue always runs this
 # job; PR and main-push events select the paths that can change the proof.
 on:
@@ -11,6 +11,8 @@ on:
     paths:
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/content_reader_dead_code*.go'
+      - 'go/internal/query/status*.go'
+      - 'go/internal/status/**'
       - 'go/internal/storage/postgres/**'
       - 'go/cmd/reducer/**'
       - 'go/internal/testutil/postgresproof/**'
@@ -32,6 +34,8 @@ on:
     paths:
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/content_reader_dead_code*.go'
+      - 'go/internal/query/status*.go'
+      - 'go/internal/status/**'
       - 'go/internal/storage/postgres/**'
       - 'go/cmd/reducer/**'
       - 'go/internal/testutil/postgresproof/**'
@@ -109,4 +113,6 @@ jobs:
           ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE: '1'
           ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
+          ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

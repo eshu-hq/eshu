@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Run the twenty readiness and dead-code incoming plan/correctness proofs on
-# disposable PostgreSQL 18 (eight in the impact package, seven in storage/postgres,
-# two in cmd/reducer, three in internal/query), one go test per package.
+# Run the twenty-one readiness, dead-code incoming, and status route-selection
+# plan/correctness proofs on disposable PostgreSQL 18 (eight in the impact
+# package, seven in storage/postgres, two in cmd/reducer, four in
+# internal/query), one go test per package.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,7 +22,8 @@ for name in \
   ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN \
   ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DSN \
   ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DSN \
-  ESHU_GENERATION_RETENTION_PROOF_DSN; do
+  ESHU_GENERATION_RETENTION_PROOF_DSN \
+  ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
@@ -33,7 +35,8 @@ for name in \
   ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE \
   ESHU_SCAN_TIER_READINESS_EXPLAIN_PROOF_DISPOSABLE \
   ESHU_DEAD_CODE_INCOMING_BOUND_PROOF_DISPOSABLE \
-  ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE; do
+  ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE \
+  ESHU_STATUS_TERRAFORM_SELECTION_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 
