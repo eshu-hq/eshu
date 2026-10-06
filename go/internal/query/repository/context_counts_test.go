@@ -30,9 +30,9 @@ func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing
 				}
 				return []map[string]any{{"count": tc.graphCount}}, nil
 			}}
-			summary := &querycontract.RepositoryReadModelCounts{Available: true}
+			readModelCounts := &querycontract.RepositoryReadModelCounts{Available: true}
 			counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
-				&querycontract.RepositoryContentCoverage{Available: true}, summary)
+				&querycontract.RepositoryContentCoverage{Available: true}, readModelCounts)
 			got := counts.workloadCount
 			if err != nil || got != int(tc.graphCount) {
 				t.Fatalf("workload count = %d, %v; want %d, nil", got, err, tc.graphCount)

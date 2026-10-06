@@ -22,9 +22,9 @@ assembly already references them.
 ## Context workload count
 
 `getRepositoryContext` counts distinct graph `Workload` nodes reached through
-`Repository` `DEFINES`, even when the repository read-model summary is
-available. The summary workload names remain available for identity and story
-display; they do not establish materialization. A failed graph count aborts the
+`Repository` `DEFINES`. Repository context does not load the read-model
+workload names (story and entity still do, for identity and display); names do
+not establish materialization. A failed graph count aborts the
 context response rather than reporting an inferred zero or name count. File,
 platform, and dependency counts retain their existing read-model paths.
 

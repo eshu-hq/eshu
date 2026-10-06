@@ -69,15 +69,43 @@ func TestRepositoryContextUsesCountPortAndPreservesGraphWorkloadTruth(t *testing
 	}
 }
 
+// The shared content-reader fake answers an unqueued workload-identity query with an
+// empty default, so a queue-shaped fixture cannot prove the names read never runs.
+// The names read always opens a postgres.query span with
+// db.operation=repository_workload_names once a scope id is known, so this test
+// records spans on the success path and fails if that span (or any other
+// unexpected statement span) appears (#7542).
 func TestContentReaderRepositoryReadModelCountsSkipsNames(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{columns: []string{"scope_id"}, rows: [][]driver.Value{{"scope-one"}}, queryContains: []string{"FROM ingestion_scopes"}, wantArgs: []driver.Value{"repo-one"}},
 		{columns: []string{"count"}, rows: [][]driver.Value{{int64(11)}}, queryContains: []string{"reducer_platform_materialization"}, wantArgs: []driver.Value{"scope-one"}},
 		{columns: []string{"count"}, rows: [][]driver.Value{{int64(0)}}, queryContains: []string{"FROM resolved_relationships"}, wantArgs: []driver.Value{"repo-one"}},
 	})
-	got, err := NewContentReader(db).RepositoryReadModelCounts(t.Context(), "repo-one")
+	reader := NewContentReader(db)
+	reader.tracer = provider.Tracer("repository-counts-test")
+	got, err := reader.RepositoryReadModelCounts(t.Context(), "repo-one")
 	if err != nil || !got.Available || got.PlatformCount != 11 || got.DependencyCount != 0 {
 		t.Fatalf("counts = %+v, error = %v", got, err)
+	}
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want exactly the one repository_context_counts span", len(spans))
+	}
+	for _, span := range spans {
+		for _, attr := range span.Attributes() {
+			if string(attr.Key) == "db.operation" && attr.Value.AsString() == "repository_workload_names" {
+				t.Fatal("names read issued: repository context must not read workload names")
+			}
+			if v := attr.Value.AsString(); v == "repo-one" || v == "scope-one" {
+				t.Fatalf("identifier leaked into span attribute %q", attr.Key)
+			}
+		}
+	}
+	if string(spans[0].Attributes()[1].Key) != "db.operation" || spans[0].Attributes()[1].Value.AsString() != "repository_context_counts" {
+		t.Fatalf("span attributes = %+v, want db.operation=repository_context_counts", spans[0].Attributes())
 	}
 }
 
@@ -245,8 +273,10 @@ func TestContentReaderRepositoryReadModelCountsRecordsBoundedSpan(t *testing.T) 
 	if attrs["db.system"] != "postgresql" || attrs["db.operation"] != "repository_context_counts" {
 		t.Fatalf("span attributes = %+v", attrs)
 	}
-	if _, leaked := attrs["repo_id"]; leaked {
-		t.Fatal("repository ID leaked into span attributes")
+	for key, value := range attrs {
+		if value == "private-repo-id" {
+			t.Fatalf("repository ID leaked into span attribute %q", key)
+		}
 	}
 	if events := spans[0].Events(); len(events) != 1 || events[0].Name != "exception" {
 		t.Fatalf("span events = %+v, want one error event", events)

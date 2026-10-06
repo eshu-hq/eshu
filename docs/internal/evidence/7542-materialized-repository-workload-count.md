@@ -124,8 +124,8 @@ proof.
 
 The finished `ContentReader` methods were also run through the repository's
 FIFO SQL fixture driver in alternating order, 100 calls each. The full
-summary made 400 SQL calls in 1.523085 ms of local method time; the count
-method made 300 calls in 0.672120 ms. Both returned platform count 11 and
+summary consumed 400 queued fixture results in 1.523085 ms of local method time; the count
+method consumed 300 in 0.672120 ms. Both returned platform count 11 and
 dependency count 0. The fixture has no PostgreSQL server work, so these
 times only check local call-path cost and cannot be combined with the
 read-only snapshot times or used as endpoint latency evidence.
@@ -141,7 +141,7 @@ event without a repository ID attribute. No queue or write path runs here.
 Performance Evidence: before this change, a replay of the original saved
 argument sets (cold on set 0, then ten warm, concurrency 1, 22 calls, all HTTP
 200) on the ops-qa image `sha-2f0388b` measured `GET /api/v0/repositories/{repo_id}/context`
-at cold 2.828 s and warm p95 5.109 s, and MCP `get_repo_context` at cold 1.139 s and
+at cold 2.828 s and warm p95 (max of ten samples) 5.109 s, and MCP `get_repo_context` at cold 1.139 s and
 warm p95 4.150 s. The slow sets were the 7,097-file repository (4.0 to 5.1 s) and
 the 12,403-file repository (1.1 to 2.8 s); the other seven sets were 0.15 to 0.50 s.
 The two slowest `eshu-api` request traces (Tempo trace ids beginning `4af8bc35` and
