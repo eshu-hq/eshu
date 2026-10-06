@@ -20,7 +20,13 @@ import (
 // has no extractable trigram, so both GIN scans return every row. Measured on a
 // 1M-row PostgreSQL 18.6 shim: 4.5 to 137 ms with the literal visible against
 // 3.8 to 5.8 s hidden. Such a term must keep the plain CTE. In a LIKE pattern
-// "_" and "%" are wildcards and break a word, as does any non-alphanumeric.
+// "_" and "%" are wildcards and break a word, as does any other character that
+// is not an ASCII letter or digit. Only ASCII counts: under a C-ctype database
+// PostgreSQL treats multibyte characters as non-alphanumeric for trigram
+// extraction, so a purely non-ASCII term has none there; ops-qa runs en_US.UTF-8
+// but the guard cannot assume it. "ab-cd" does have trigrams (pg_trgm pads a
+// word next to punctuation); the guard is conservative for it and costs nothing,
+// because the plain statement is the base.
 var termsMaterializedCases = []struct {
 	term string
 	want bool
@@ -36,7 +42,14 @@ var termsMaterializedCases = []struct {
 	{"ab-cd", false},
 	{"__", false},
 	{"字", false},
-	{"字符串", true},
+	{"字符串", false},
+	{"данные", false},
+	{"ab字cd", false},
+	{"foo字", true},
+	{"café", true},
+	{"äöü", false},
+	{"αβγ", false},
+	{"über", true},
 }
 
 func TestInvestigateCodeTopicHidesOnlyTermsTheTrigramIndexCanFilter(t *testing.T) {
