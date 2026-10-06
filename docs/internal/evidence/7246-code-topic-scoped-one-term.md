@@ -7,8 +7,9 @@ feeds the `/api/v0/impact/pre-change`, `/developer-change-plan` and the MCP
 term on a large repository the entity probe could pick a plan that skips
 `content_entities_repo_idx` and reads about 22,000 heap blocks for 1,680 rows,
 1.25 to 1.27 s inside Postgres. This change marks the statement's `terms` CTE
-`MATERIALIZED` for that one shape, so the planner estimates the probe without the
-literal. It changes no query semantics (same predicates, candidate cap, ordering,
+`MATERIALIZED` for that one shape, and only when the term has a run of three
+letters or digits for the trigram indexes to filter on, so the planner estimates
+the probe without the literal. It changes no query semantics (same predicates, candidate cap, ordering,
 limit and hydration); rows were byte-identical in the 13 measured cases, three of
 which return no rows and one of which is capped. Which candidates fill a capped
 pool was already plan dependent and stays so. It is a statement-level change, and
@@ -100,6 +101,31 @@ Each delta equals its repository-bitmap node time within 10 ms, and every fixed
 median is below the 100 ms ceiling set for this trade. Repositories larger than
 the 241,726-entity one are extrapolated, not measured: the node cost scales at
 about 0.14 ms per 1,000 repository entities.
+
+## Terms with no trigram keep the plain statement
+
+A term with no run of three letters or digits (`db_`, `pg_`, `a_b`, `a%b`,
+`ab-cd`, a single non-Latin character) has no trigram for pg_trgm to extract, so
+both GIN scans return every row. Hiding such a term from the planner is a large
+regression, and an independent replacement review found it. Measured read-only on
+the ops-qa reader, `PREPARE` plus `force_custom_plan`, 25 s statement timeout,
+interleaved base, fixed, base (the fixed text is this change without the guard):
+
+| Term, repository (entities) | Base | Fixed (unguarded) |
+| --- | --- | --- |
+| `db_`, r_8946df89 (241,726) | 4,577 ms and 4,133 ms | 16,722 ms |
+| `pg_`, r_957cd853 (132,715) | 3,837 ms and 3,292 ms | 14,908 ms |
+
+That is about 3.6 to 4 times slower, one fixed run per case. On a 1M-row local
+PostgreSQL 18.6 shim the reviewer measured 4.5 to 137 ms plain against 3.8 to 5.8 s
+hidden. The base is already over 1 s on ops-qa for these terms, which this change
+does not address. The guard (`codeTopicTermHasTrigram`) keeps the plain statement
+for them, so their SQL is byte-identical to the base; the test table
+`TestInvestigateCodeTopicHidesOnlyTermsTheTrigramIndexCanFilter` pins which terms
+hide. The span attribute `code_topic.terms_materialized` records which shape ran.
+The earlier 13-case measurements all used terms with a trigram and are unchanged.
+An earlier unbounded run of the unguarded statement on `db_` was cancelled by a
+standby recovery conflict after about 58 s, which is consistent with the table.
 
 ## What this does not show
 
