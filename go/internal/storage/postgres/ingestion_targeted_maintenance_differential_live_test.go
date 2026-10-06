@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// TestTargetedMaintenanceMatchesWholePass is the #7584 D3 step 2 write-side
+// TestTargetedMaintenanceMatchesWholePass is the #7584 write-side
 // differential. Each subtest seeds two fully bootstrapped schemas
 // identically, runs the real corpus-wide pre-pass to reach steady state,
 // activates the owed generation without a maintenance pass (the quiet Ack),

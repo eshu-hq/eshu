@@ -36,12 +36,20 @@
 - A partial wake commits only after `stillOwnedQuery` confirms the lease.
 - `CatchUp` reads a bounded page of `ingestion_scopes` by scope count, not by
   matches, and only owes repository generations (a repository fact exists).
-- Never import the parent `postgres` package from here.
+- Non-test files never import the parent `postgres` package: `ProjectorQueue.Ack`
+  imports this one, so the reverse import is a cycle. The external
+  `activation_test` package does import the parent, through its exported
+  surface and `testutil/postgresproof`.
 
 ## Verification
 
 ```bash
 cd go && go test ./internal/storage/postgres/activation -count=1
+# The live proofs: all 37 in this package, then the one that stays in the
+# parent (the repo_id collision loser).
 ESHU_DEFERRED_PARTITION_PROOF_DSN=<admin dsn> ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 \
-  go test ./internal/storage/postgres -run '^TestActivationObligation' -count=1
+  go test ./internal/storage/postgres/activation -count=1
+ESHU_DEFERRED_PARTITION_PROOF_DSN=<admin dsn> ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 \
+  go test ./internal/storage/postgres \
+  -run '^TestActivationObligationInapplicableCollisionLoserLive$' -count=1
 ```

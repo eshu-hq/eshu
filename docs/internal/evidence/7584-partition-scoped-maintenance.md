@@ -72,7 +72,7 @@ The touched set is computed, not assumed:
   and the active partitions of the sources of evidence whose source or target is
   R.
 - Sources are found with the target-catalog inbound loader
-  (`loadAnchorScopedRelationshipFacts`, proven a superset in D3 step 1), grouped
+  (`loadAnchorScopedRelationshipFacts`, proven a superset by the read-side parity proof), grouped
   by fact partition. This finds other git repositories, GCP cloud scopes without
   a repository fact, and ArgoCD control repositories whose ApplicationSet reads
   an owed config repository.
@@ -140,7 +140,7 @@ production caller is the activation obligation consumer, which is off unless
 `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` is set, so no default runtime
 path runs it.
 
-Performance Evidence: D3 step 3 measured the pass against the whole pass on a
+Performance Evidence: the cost harness measured the pass against the whole pass on a
 restored template state (PostgreSQL 18, 4 CPU / 4 GiB, 25 generations per
 scope, three samples per arm, arms interleaved with the first mover
 alternating, 189 of 189 equality checks passing). Medians, variant k0 (one
@@ -229,9 +229,9 @@ asserts both halves.
 
 ## Not covered
 
-- Cost on a representative corpus. D3 step 3 ran on a tiny-facts fixture
+- Cost on a representative corpus. The cost harness ran on a tiny-facts fixture
   (see Performance and observability).
-- Concurrency at fleet scale. D3 step 4's composed proofs (an ingester pass,
+- Concurrency at fleet scale. The composed proofs (an ingester pass,
   consumer replicas, lease expiry, scope-lock races, a crash before the phase)
   run on small fixtures in the activation live tests.
 - Graph and API truth after the reducer replays the reopened items.
@@ -254,5 +254,5 @@ alone carries `path=targeted`.
 A refused retry is not two corpus-sized reads but three: the
 classification read (the wrapped `DISTINCT ON` over every repository fact,
 moved ahead of the guard), then the catalog scan, then the stale
-memo `EXISTS`. D3 step 3 measured that line with all three (Performance and
+memo `EXISTS`. The cost harness measured that line with all three (Performance and
 observability).

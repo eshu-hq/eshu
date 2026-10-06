@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// composedGen is one quiet owed generation of the step-4 corpus.
+// composedGen is one quiet owed generation of the composed corpus.
 type composedGen struct{ scope, gen, repo, name, alias string }
 
 var (
@@ -60,8 +60,8 @@ func composedIterations(t *testing.T) int {
 	return n
 }
 
-// TestActivationObligationConsumerAndEpochPassOverlapLive (#7584 D3 step 4,
-// item 1): a consumer cycle with the production partition-scoped maintainer
+// TestActivationObligationConsumerAndEpochPassOverlapLive (#7584 composed
+// case 1): a consumer cycle with the production partition-scoped maintainer
 // and an ingester epoch pass through the deferred barrier run on overlapping
 // repositories, released together from a channel barrier. Both take the
 // per-repository exclusive maintenance locks. Every iteration must end with
@@ -199,7 +199,7 @@ func runForcedLockOverlap(t *testing.T, holder string, references map[string][]s
 		holder, consumer.port.total(), epochLocks.waited.Load(), consumer.locks.waited.Load())
 }
 
-// TestActivationObligationReplicasLive (#7584 D3 step 4, item 2): two
+// TestActivationObligationReplicasLive (#7584 composed case 2): two
 // consumer replicas released together. On one obligation, SKIP LOCKED gives
 // it to exactly one replica, which maintains it once. On two distinct
 // obligations (one cycle each), both progress: each replica settles a

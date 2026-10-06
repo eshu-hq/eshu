@@ -62,7 +62,7 @@ func (c targetedMaintenanceClosure) affectedPartitions() map[scopeGenerationPart
 // resolves to some source repository, or an ArgoCD ApplicationSet whose git
 // generator reads an owed repository as its external config repo. The
 // target-catalog inbound loader (loadAnchorScopedRelationshipFacts) is a proven
-// superset of the facts that can match R (the #7584 D3 step 1 parity proof), so
+// superset of the facts that can match R (the #7584 read-side parity proof), so
 // grouping its facts by partition and discovering each group's evidence finds
 // every such source.
 //

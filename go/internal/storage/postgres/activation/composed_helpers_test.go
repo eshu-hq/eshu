@@ -32,7 +32,7 @@ func composedWaitingID(generationID string) string {
 	return generationID + "/deployment_mapping"
 }
 
-// seedComposedCorpus seeds the #7584 step-4 corpus on one fully bootstrapped
+// seedComposedCorpus seeds the #7584 composed-concurrency corpus on one fully bootstrapped
 // schema: payments-service (git:tgt), orders-api (git:dep), an unrelated
 // ledger-svc (git:solo), and billing-ui (git:in) referencing payments-service
 // (one inbound source), each with one succeeded item per reopen domain, then
@@ -94,7 +94,7 @@ func owePending(t *testing.T, ctx context.Context, database *sql.DB) int {
 	return page.Inserted
 }
 
-// composedState is the durable state the step-4 proofs compare, as sorted
+// composedState is the durable state the composed proofs compare, as sorted
 // tuples with no timestamps or transaction ids: every obligation, every
 // backward-evidence phase, evidence counts per generation and repository
 // pair, and every reducer work item's status, class, visibility and lease.

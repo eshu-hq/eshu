@@ -87,7 +87,7 @@ partial activation is written. That error is not a lock wait, so it is not
 `processWork` (`ack projector work: ...`), `Service.Run` ends, the process
 restarts, and the claim is reclaimed after its lease. Rolling back to an older
 binary is safe, because older binaries ignore the table. The idle cost of the
-consumer's catch-up page, prune and census per poll is a D3 step-3 measurement
+consumer's catch-up page, prune and census per poll is a cost-harness measurement
 line and is NOT_CHECKED here.
 
 ## Foreign key policy
@@ -127,7 +127,7 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
   the production maintainer, and a labelled control arm uses the whole pass.
 - `composed_live_test.go`, `scope_lock_live_test.go`,
   `lease_restart_live_test.go`, `redelivery_live_test.go` — composed
-  concurrency (D3 step 4) with the production maintainer: a consumer cycle
+  concurrency with the production maintainer: a consumer cycle
   racing the epoch pass on overlapping repositories (forced lock-holder
   interleavings and a 20-iteration barrier race), two replicas, an ingestion
   commit and a projector Ack racing Finalize's scope lock (including its lock
@@ -177,8 +177,11 @@ round trip was not measured. In a cluster the delta would be one network
 round trip plus about 0.05 ms per activated generation, so about 0.1 s per
 1,000 activated generations at the measured delta. Environment: PostgreSQL 18
 `postgres@sha256:54451ecb…`, 4 CPU / 4 GiB Docker Desktop on macOS over
-loopback; base `5c4e03613` against `19a36bda9` (test binaries `d4863fb1…` and
-`083a4888…`; the Ack path is unchanged after `19a36bda9`); 900 restored scopes
+loopback; base `5c4e03613` against `19a36bda9` (pre-rebase; the same patch is
+`0b115503d` on this branch; test binaries `d4863fb1…` and `083a4888…`). Since
+then `projector_queue.go`, `projector_queue_sql.go` and the non-test
+`activation/*.go` files changed only in comments, and the rebases left them
+byte-identical; 900 restored scopes
 with a completed obligation per prior generation; 600 Acks per arm; first
 mover alternating; load1 6.7 to 8.4 at each arm, load5 and load15 10 to 14,
 and no 1-second in-run load sampling. The host was not proven quiet: another
@@ -193,7 +196,7 @@ run. The gate and this wording come from the #7584 Ack bound ruling
 statement's own `pg_stat_statements` line is empty in every receipt (the
 harness compared the raw constant to the normalized text), so the hold figure
 is the client-side measurement only. The partition-scoped callback's cost is in
-`docs/internal/evidence/7584-partition-scoped-maintenance.md` (D3 step 3, a
+`docs/internal/evidence/7584-partition-scoped-maintenance.md` (a cost harness on a
 tiny-facts fixture). What is proven here is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, isolated schema, full bootstrap): the live
 test functions listed above plus the two quiet-generation proofs (38 in all),

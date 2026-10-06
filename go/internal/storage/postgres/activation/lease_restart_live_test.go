@@ -14,8 +14,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
-// TestActivationObligationLeaseExpiresMidMaintenanceLive (#7584 D3 step 4,
-// item 4): the first owner's maintenance outlives its lease. The deadline
+// TestActivationObligationLeaseExpiresMidMaintenanceLive (#7584 composed
+// case 4): the first owner's maintenance outlives its lease. The deadline
 // guard cancels it before the lease ends and nothing is finalized; after
 // expiry a second replica claims with token 2 and completes with the
 // production maintainer; the first owner's late Finalize is not_owner and
@@ -68,8 +68,8 @@ func TestActivationObligationLeaseExpiresMidMaintenanceLive(t *testing.T) {
 	}
 }
 
-// TestActivationObligationRestartBeforePhasePublicationLive (#7584 D3 step 4,
-// item 5): the consumer process dies after the partition-scoped pass
+// TestActivationObligationRestartBeforePhasePublicationLive (#7584 composed
+// case 5): the consumer process dies after the partition-scoped pass
 // committed its evidence and before the phase publication (the context is
 // cancelled at the phase write through a statement hook). The pass fails
 // closed: the evidence is durable, no phase or memo, nothing reopened,

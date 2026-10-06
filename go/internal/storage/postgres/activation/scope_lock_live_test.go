@@ -79,8 +79,8 @@ func claimPublished(t *testing.T, ctx context.Context, database *sql.DB, lease t
 	return work
 }
 
-// TestActivationObligationIngestionCommitRacesFinalizeLive (#7584 D3 step 4,
-// item 3): an ingestion commit holding the scope row makes Finalize wait on
+// TestActivationObligationIngestionCommitRacesFinalizeLive (#7584 composed
+// case 3): an ingestion commit holding the scope row makes Finalize wait on
 // its scope lock; Finalize then re-reads the active pointer. A commit that
 // leaves the pointer alone lets Finalize complete; a projector Ack that moves
 // it makes Finalize retire the obligation obsolete; a lock held past

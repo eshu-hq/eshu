@@ -19,8 +19,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// TestActivationObligationRedeliveryAndCatchUpRacesLive (#7584 D3 step 4,
-// item 6): a duplicate Ack redelivery released together with the first Ack,
+// TestActivationObligationRedeliveryAndCatchUpRacesLive (#7584 composed
+// case 6): a duplicate Ack redelivery released together with the first Ack,
 // a re-activating Ack (the re-owe path) released together with catch-up, and
 // two catch-up replicas re-owing the same obsolete row of the active
 // generation. Each ends with exactly one open obligation and no unique
@@ -198,8 +198,8 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, scopeID
 	}
 }
 
-// TestActivationObligationSupersessionBetweenClaimAndFinalizeLive (#7584 D3
-// step 4, item 7): after the consumer claimed an owed generation and found
+// TestActivationObligationSupersessionBetweenClaimAndFinalizeLive (#7584
+// composed case 7): after the consumer claimed an owed generation and found
 // its phase missing, a newer generation of the same scope is committed and
 // activated through the real projector Claim and Ack. The production
 // maintainer then reports not_active, Finalize retires the claimed
