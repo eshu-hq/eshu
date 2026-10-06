@@ -117,7 +117,7 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
   catalog-changed hold, NULL pointer. The repo_id collision-loser proof stays
   in the parent package (`ingestion_targeted_maintenance_terminal_live_test.go`)
   because it asserts the shipped active-repository read, which is unexported
-  there.
+  there. #7648 moves it with the targeted-maintenance family.
 - `targeted_live_test.go` — the production maintainer: real `catalog_changed`
   and `no_memo_baseline` holds that complete after the epoch pass, and a real
   collision loser retired `inapplicable`.
@@ -139,7 +139,8 @@ disposable PostgreSQL (`ESHU_DEFERRED_PARTITION_PROOF_DSN`,
 They reach the parent package through its exported surface and
 `testutil/postgresproof` (the isolated-schema opener and the proof DSN);
 `fixtures_test.go` and `corpus_helpers_test.go` hold the small fixtures they
-copy from the parent's test files.
+copy from the parent's test files. #7648 replaces the copies with one shared
+live-fixture package.
 
 ## Performance and observability evidence
 
