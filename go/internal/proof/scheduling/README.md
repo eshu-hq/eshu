@@ -1,10 +1,10 @@
 # #7033 fixed-corpus proof harness
 
-This hidden Go package compares the current four fixed term groups with four
+This non-deployed Go command compares the current four fixed term groups with four
 workers that draw one term at a time. Both routes use Eshu's unchanged probe
 and page-assembly SQL. It is a read-only experiment, not an API replacement.
 
-Run `go test ./.scratch7033eight -count=1` explicitly. The fixed-corpus command
+Run `go test ./internal/proof/scheduling -count=1` from `go/`. The fixed-corpus command
 accepts only `ESHU7033_MODE=fixed_canonical`. It reads a PostgreSQL connection
 string from standard input, forces loopback TCP (or an absolute socket path),
 requires an explicit database name and PostgreSQL system ID, and rejects a
