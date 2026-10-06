@@ -153,9 +153,16 @@ not gated: the median Ack went from 1.218 ms to 1.329 ms, +0.111 ms (+9.1% as
 the median of the per-sample medians; the paired deltas ranged from -19% to
 +22%, mean +6.2%, standard deviation 14.6 points; the pooled 3,600-Ack median
 moved +0.100 ms, +8.0%), and on the re-owe path from 1.289 ms to 1.395 ms,
-+0.106 ms (+8.2%) over 4 pairs. The p99 stayed within the base arm's own
-range, and the base arm's spread across its samples was 51%, so the server
-cost is the gate and the wall delta is not. The scope-row hold, measured on
++0.106 ms (+8.2%) over 4 pairs. Per-sample p99 without a prior row was
+1.917 to 3.080 ms for the base and 2.087 to 2.642 ms for this branch, inside
+the base range. On the re-owe path it was 2.974 to 3.780 ms for the base (4
+samples) and 2.541 to 4.415 ms for this branch (5 samples, one of them
+unpaired), and two of those five exceed the base maximum. The pooled re-owe
+p99, 3.620 ms against 3.984 ms (linear interpolation over every Ack of the 4
+complete pairs; the ruling's 3.674 and 3.955 ms were not reproduced), is one
+pooled figure; the per-sample spread is wider. The base arm's spread across
+its samples was 51%, so the server cost is the gate and the wall delta is
+not. The scope-row hold, measured on
 the client from the scope update to the commit, grows by the same amount
 (+0.119 ms median); Finalize bounds its wait for that row at 1 s
 (`activation/sql.go`, `finalizeLockTimeoutQuery`). The residual above the
