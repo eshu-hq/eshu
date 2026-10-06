@@ -9,9 +9,20 @@ package postgres
 // commit's constants by a temporary package test, not retyped, and its
 // SHA-256 is the measured shim baseline
 // (activeWorkSummaryPreHistoryGroupsOracleSHA256). The live differential in
-// status_active_work_history_live_test.go runs it next to the shipped query
-// on one snapshot and requires identical section rows. Never edit it: a
+// status_active_work_semantics_live_test.go runs it next to the shipped query
+// on one snapshot and requires identical section rows. Never hand-edit it: a
 // changed oracle could agree with a wrong query.
+//
+// Lifecycle: the oracle is bound to 9bcca588f and to the #7009
+// transformation only. When a shared fragment changes (stageCountsSelect,
+// domainBacklogCTEs, reducerConflictBlockageCTEs, the scope join, or
+// latestQueueFailureSelect), TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups
+// fails, and the live differential may fail on sections #7009 never touched.
+// Then do one of two things. Either re-derive the oracle from the new query
+// by the reverse substitutions in that test, render it by a temporary
+// package test, and re-pin its SHA-256 with review sign-off; or retire the
+// oracle tests and keep TestActiveWorkSummaryMatchesStandaloneReads as the
+// surviving equivalence oracle.
 const activeWorkSummaryPreHistoryGroupsOracle = `
 WITH active_fact_work_items_scope_state AS MATERIALIZED (
   SELECT scope.scope_id,

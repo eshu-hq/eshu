@@ -6,6 +6,8 @@ package postgres
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -18,6 +20,24 @@ func TestActiveWorkSummaryOracleIsThePinnedBaseline(t *testing.T) {
 	sum := sha256.Sum256([]byte(activeWorkSummaryPreHistoryGroupsOracle))
 	if got := hex.EncodeToString(sum[:]); got != activeWorkSummaryPreHistoryGroupsOracleSHA256 {
 		t.Fatalf("oracle sha256 = %s, want %s", got, activeWorkSummaryPreHistoryGroupsOracleSHA256)
+	}
+}
+
+// activeWorkSummaryQuerySHA256 pins the shipped #7009 grouped-history
+// summary text, byte-identical to the C3 shim candidate cand_a2.sql. The
+// ops-qa same-snapshot compare packet refuses to run when its A2 text hashes
+// differently (#7009 arbiter ruling D3 C1). Any edit to the statement must
+// re-pin this with the re-rendered SHA-256 and rerun the oracle differential.
+const activeWorkSummaryQuerySHA256 = "bcd5846afddbe540f09b61ad50911a19fe9baf3360c5e0d314c33c8ab17aae40"
+
+// TestActiveWorkSummaryQueryIsThePinnedRender keeps activeWorkSummaryQuery
+// equal to the text the shim measured and the compare packet runs.
+func TestActiveWorkSummaryQueryIsThePinnedRender(t *testing.T) {
+	t.Parallel()
+
+	sum := sha256.Sum256([]byte(activeWorkSummaryQuery))
+	if got := hex.EncodeToString(sum[:]); got != activeWorkSummaryQuerySHA256 {
+		t.Fatalf("activeWorkSummaryQuery sha256 = %s, want %s", got, activeWorkSummaryQuerySHA256)
 	}
 }
 
@@ -82,5 +102,77 @@ func TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups(t *testing.T) {
 	}
 	if query != activeWorkSummaryPreHistoryGroupsOracle {
 		t.Fatalf("undoing the grouped history pieces does not reproduce the oracle:\n%s", query)
+	}
+}
+
+// activeWorkStatusPredicate matches one status predicate on a column named
+// exactly status: its operator and its literal or literal list.
+var activeWorkStatusPredicate = regexp.MustCompile(`\bstatus\s*(NOT\s+IN|IN|=|<>|!=)\s*(\([^)]*\)|'[^']*')`)
+
+// checkSectionStatusesWithinDetail requires every status predicate a summary
+// section applies, outside the grouped history CTEs and the succeeded_count
+// read of them, to name only activeWorkDetailStatuses with IN or =. A
+// section that read any other status from active_fact_work_items would see
+// no rows since #7009, because only grouped history counts them. It returns
+// the number of predicates checked.
+func checkSectionStatusesWithinDetail(query string) (int, error) {
+	sections := query
+	for _, history := range []string{activeWorkSummaryHistoryCTEs, historySucceededSource} {
+		if n := strings.Count(sections, history); n != 1 {
+			return 0, fmt.Errorf("summary query contains %d copies of %q, want 1", n, history)
+		}
+		sections = strings.Replace(sections, history, "", 1)
+	}
+	detail := map[string]bool{}
+	for _, status := range regexp.MustCompile(`'([^']*)'`).FindAllStringSubmatch(activeWorkDetailStatuses, -1) {
+		detail[status[1]] = true
+	}
+	matches := activeWorkStatusPredicate.FindAllStringSubmatch(sections, -1)
+	for _, m := range matches {
+		if op := strings.Join(strings.Fields(m[1]), " "); op != "IN" && op != "=" {
+			return 0, fmt.Errorf("section predicate %q excludes statuses; it can read history rows the detail CTE no longer holds", m[0])
+		}
+		for _, status := range regexp.MustCompile(`'([^']*)'`).FindAllStringSubmatch(m[2], -1) {
+			if !detail[status[1]] {
+				return 0, fmt.Errorf("section predicate %q reads status %q outside activeWorkDetailStatuses %s", m[0], status[1], activeWorkDetailStatuses)
+			}
+		}
+	}
+	return len(matches), nil
+}
+
+// TestActiveWorkSummarySectionStatusesStayWithinDetailStatuses is the
+// hermetic guard that every section's status filter is a subset of
+// activeWorkDetailStatuses, with seeded violations that must be rejected.
+func TestActiveWorkSummarySectionStatusesStayWithinDetailStatuses(t *testing.T) {
+	t.Parallel()
+
+	n, err := checkSectionStatusesWithinDetail(activeWorkSummaryQuery)
+	if err != nil {
+		t.Fatalf("shipped summary query: %v", err)
+	}
+	if n < 20 {
+		t.Fatalf("checked %d status predicates, want at least 20 (the guard is not reading the sections)", n)
+	}
+	for name, seed := range map[string][2]string{
+		"backlog widened to quarantined": {
+			"\n  WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')\n",
+			"\n  WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed', 'quarantined')\n",
+		},
+		"failure reads succeeded rows": {
+			"WHERE status IN ('retrying', 'failed', 'dead_letter')\n  AND (",
+			"WHERE status = 'succeeded'\n  AND (",
+		},
+		"blockage excludes instead of includes": {
+			"AND status IN ('pending', 'retrying', 'claimed', 'running')\n      AND (visible_at",
+			"AND status NOT IN ('failed', 'dead_letter')\n      AND (visible_at",
+		},
+	} {
+		if c := strings.Count(activeWorkSummaryQuery, seed[0]); c != 1 {
+			t.Fatalf("%s: anchor matched %d times, want 1", name, c)
+		}
+		if _, err := checkSectionStatusesWithinDetail(strings.Replace(activeWorkSummaryQuery, seed[0], seed[1], 1)); err == nil {
+			t.Errorf("%s: seeded violation was accepted", name)
+		}
 	}
 }

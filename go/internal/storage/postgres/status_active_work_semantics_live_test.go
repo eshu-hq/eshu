@@ -288,6 +288,9 @@ FROM fact_work_history_counts`
 func TestActiveWorkSummaryMatchesPreHistoryGroupsOracle(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_POSTGRES_DSN is required for the #7009 grouped history proof")
+		}
 		t.Skip("set ESHU_POSTGRES_DSN to run the #7009 grouped history differential")
 	}
 	ctx := context.Background()
@@ -312,6 +315,9 @@ func TestActiveWorkSummaryMatchesPreHistoryGroupsOracle(t *testing.T) {
 func TestActiveWorkSummaryOracleCatchesSeededHistoryMutations(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	if dsn == "" {
+		if os.Getenv("ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF") == "1" {
+			t.Fatal("ESHU_POSTGRES_DSN is required for the #7009 grouped history proof")
+		}
 		t.Skip("set ESHU_POSTGRES_DSN to run the #7009 grouped history mutation controls")
 	}
 	mutants := historySummaryMutants()
