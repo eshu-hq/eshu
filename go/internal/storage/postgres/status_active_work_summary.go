@@ -7,12 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -293,6 +295,96 @@ func readActiveWorkSummary(ctx context.Context, queryer db.Queryer, asOf time.Ti
 		return activeWorkSummary{}, fmt.Errorf("read active work summary: %w", err)
 	}
 	return summary, nil
+}
+
+// readActiveWork returns the active-work summary and where it came from
+// (#7009). With the reader flag off it runs the live statement, as before.
+// With it on, it reads the stored summary row inside the same snapshot
+// transaction and serves it only when every fence passes; otherwise it runs
+// the live statement for the whole answer and labels the fallback with a
+// typed reason. One answer is never a mix of the two. A database error
+// reading the row is returned, not hidden behind a fallback.
+func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
+	if s.summaryReadErr != nil {
+		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.summaryReadErr
+	}
+	selection := summary.Selection{Source: summary.SourceLive, Reason: summary.ReasonFlagOff}
+	if s.summaryRead.Enabled {
+		q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
+		var err error
+		selection, err = summary.Select(ctx, q, summary.SelectConfig{
+			ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(), StaleAfter: s.summaryRead.StaleAfter,
+		})
+		if err = done(err); err != nil {
+			return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, err
+		}
+		if selection.Source == summary.SourceModel {
+			if work, decodeErr := decodeActiveWorkEntries(selection.Entries); decodeErr == nil {
+				s.observeActiveWork(ctx, selection)
+				return work, statuspkg.ActiveWorkSource{
+					Source: statuspkg.ActiveWorkSourceModel, Reason: statuspkg.ActiveWorkReasonFresh,
+					AsOf: selection.AsOf.UTC(), Age: selection.Age,
+				}, nil
+			}
+			selection.Source, selection.Reason, selection.Entries = summary.SourceLiveFallback, summary.ReasonDecode, nil
+		}
+	}
+	s.observeActiveWork(ctx, selection)
+	source := statuspkg.ActiveWorkSource{
+		Source: string(selection.Source), Reason: string(selection.Reason), AsOf: asOf,
+		Stale: selection.Reason == summary.ReasonStale,
+	}
+	live := func() (activeWorkSummary, error) {
+		q, done := s.read(ctx, statusReadActiveWorkSummary)
+		work, err := readActiveWorkSummary(ctx, q, asOf)
+		return work, done(err)
+	}
+	if selection.Source != summary.SourceLiveFallback || s.liveFlight == nil {
+		work, err := live()
+		return work, source, err
+	}
+	work, shared, err := s.liveFlight.Do(summary.ModelActiveWorkSummary, live)
+	if shared {
+		work = work.clone()
+	}
+	return work, source, err
+}
+
+// observeActiveWork records one read decision for operators.
+func (s StatusStore) observeActiveWork(ctx context.Context, selection summary.Selection) {
+	summary.Observe(ctx, s.Instruments, summary.Observation{
+		ModelKey: summary.ModelActiveWorkSummary, Source: selection.Source, Reason: selection.Reason,
+		AsOf: selection.AsOf, Age: selection.Age,
+	})
+}
+
+// decodeActiveWorkEntries decodes stored summary entries with the same
+// decoder the live read uses.
+func decodeActiveWorkEntries(entries []summary.Entry) (activeWorkSummary, error) {
+	work := activeWorkSummary{
+		StageCounts:    []statuspkg.StageStatusCount{},
+		DomainBacklogs: []statuspkg.DomainBacklog{},
+		Blockages:      []statuspkg.QueueBlockage{},
+	}
+	for _, entry := range entries {
+		if err := work.add(entry.Section, entry.JSON); err != nil {
+			return activeWorkSummary{}, fmt.Errorf("decode stored active work summary %s row %d: %w", entry.Section, entry.Ordinal, err)
+		}
+	}
+	return work, nil
+}
+
+// clone returns a copy that shares no slice or pointer with s, so requests
+// that shared one live statement cannot see each other's later changes.
+func (s activeWorkSummary) clone() activeWorkSummary {
+	s.StageCounts = slices.Clone(s.StageCounts)
+	s.DomainBacklogs = slices.Clone(s.DomainBacklogs)
+	s.Blockages = slices.Clone(s.Blockages)
+	if s.LatestFailure != nil {
+		failure := *s.LatestFailure
+		s.LatestFailure = &failure
+	}
+	return s
 }
 
 // add decodes one section row into the summary.

@@ -2093,6 +2093,12 @@ type Instruments struct {
 	StatusSummaryWriterPassDuration metric.Float64Histogram
 	StatusSummaryWriterOverruns     metric.Int64Counter
 	StatusSummaryWriterUp           metric.Int64Gauge
+	// StatusSummaryReads and StatusSummaryReadAge are the status reader's
+	// stored-summary signals (#7009), registered by
+	// registerStatusSummaryReadInstruments: one count per read by model_key,
+	// source, and reason, and the age of each stored row actually served.
+	StatusSummaryReads   metric.Int64Counter
+	StatusSummaryReadAge metric.Float64Histogram
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -4765,6 +4771,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerStatusSummaryWriterInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerStatusSummaryReadInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

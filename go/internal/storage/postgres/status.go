@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -44,11 +45,33 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 type StatusStore struct {
 	queryer     db.Queryer
 	Instruments *telemetry.Instruments
+	// summaryRead is the stored-summary reader setting (#7009), loaded from
+	// the environment by NewStatusStore; summaryReadErr is its validation
+	// error, returned by every snapshot read while the reader is on.
+	summaryRead    summary.ReadConfig
+	summaryReadErr error
+	// liveFlight shares one live active-work statement per process among
+	// concurrent reads that fell back from the stored summary.
+	liveFlight *summary.Flight[activeWorkSummary]
 }
 
-// NewStatusStore constructs a read-only status store.
+// NewStatusStore constructs a read-only status store. It reads
+// ESHU_STATUS_SUMMARY_READ_ENABLED and ESHU_STATUS_SUMMARY_STALE_AFTER, so
+// every runtime that builds a status store honors the reader flag without a
+// change at its call site; the flag is off by default.
 func NewStatusStore(queryer db.Queryer) StatusStore {
-	return StatusStore{queryer: queryer}
+	cfg, err := summary.LoadReadConfig(os.Getenv)
+	return StatusStore{
+		queryer: queryer, summaryRead: cfg, summaryReadErr: err,
+		liveFlight: &summary.Flight[activeWorkSummary]{},
+	}
+}
+
+// WithSummaryRead returns a copy of the store with an explicit stored-summary
+// reader setting in place of the environment's.
+func (s StatusStore) WithSummaryRead(cfg summary.ReadConfig) StatusStore {
+	s.summaryRead, s.summaryReadErr = cfg, nil
+	return s
 }
 
 // NewInstrumentedStatusStore constructs a read-only status store with the
@@ -128,9 +151,8 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	// Stage counts, domain backlog, queue snapshot, conflict blockages, and the
 	// latest queue failure all come from one evaluation of
 	// active_fact_work_items in a single round trip (#6794).
-	q, done = s.read(ctx, statusReadActiveWorkSummary)
-	activeWork, err := readActiveWorkSummary(ctx, q, asOf.UTC())
-	if err = done(err); err != nil {
+	activeWork, activeWorkSource, err := s.readActiveWork(ctx, asOf.UTC())
+	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	recordActiveWorkSummaryMode(ctx, activeWork)
@@ -231,6 +253,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		TerraformStateLastSerials:      terraformStateEvidence.LastSerials,
 		TerraformStateRecentWarnings:   terraformStateEvidence.RecentWarnings,
 		SemanticExtraction:             semanticExtraction,
+		ActiveWorkSource:               activeWorkSource,
 	}, nil
 }
 

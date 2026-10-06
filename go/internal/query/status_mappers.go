@@ -96,8 +96,21 @@ func statusReportToMapWithAWS(
 		"retry_policies":                    retryPoliciesToSlice(r.RetryPolicies),
 	}
 	result["terraform_state"] = terraformStateStatusToMap(r.TerraformState)
+	withActiveWorkSource(result, r.ActiveWorkSource)
 
 	return result
+}
+
+// withActiveWorkSource adds the active_work_source object (#7009) that says
+// whether the queue, stage, backlog, blockage, and failure sections came from
+// the stored summary or the live statement and how old they are. It adds no key
+// when the status reader reports no source, so a reader that predates the
+// marker leaves the payload unchanged. It returns payload for chaining.
+func withActiveWorkSource(payload map[string]any, source status.ActiveWorkSource) map[string]any {
+	if view := source.JSON(); view != nil {
+		payload["active_work_source"] = view
+	}
+	return payload
 }
 
 // healthToMap converts a HealthSummary to a map.

@@ -18,11 +18,14 @@ import (
 // Status snapshot read labels: the closed value set of the `read` attribute on
 // eshu_dp_status_snapshot_read_duration_seconds and of db.query.summary on the
 // postgres.query span. One label per reader in ReadStatusSnapshotFiltered.
+// active_work_summary_model labels the stored-summary row read (#7009), so a
+// before and after of the reader flag is separable from the live statement.
 const (
 	statusReadScopeCounts                    = "scope_counts"
 	statusReadGenerationCounts               = "generation_counts"
 	statusReadGenerationTransitions          = "generation_transitions"
 	statusReadActiveWorkSummary              = "active_work_summary"
+	statusReadActiveWorkSummaryModel         = "active_work_summary_model"
 	statusReadProducerActivity               = "producer_activity"
 	statusReadCollectorGenerationDeadLetters = "collector_generation_dead_letters"
 	statusReadCoordinator                    = "coordinator"

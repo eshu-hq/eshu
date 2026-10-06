@@ -182,6 +182,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		VulnerabilitySources:           collector.CloneVulnerabilitySourceStates(raw.VulnerabilitySources),
 		SemanticExtraction:             semantic.NormalizeExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
+		ActiveWorkSource:               raw.ActiveWorkSource,
 		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
 		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,

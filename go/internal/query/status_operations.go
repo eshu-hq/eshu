@@ -198,7 +198,7 @@ func operationsToMap(ops status.OperationsReport, scoped bool) map[string]any {
 	result["stage_summaries"] = stageSummariesToSlice(ops.StageSummaries)
 	result["domain_backlogs"] = domainBacklogsToSlice(ops.DomainBacklogs, nil)
 	result["queue"] = queueToMap(ops.Queue)
-	return result
+	return withActiveWorkSource(result, ops.ActiveWorkSource)
 }
 
 // liveActivityRowsToSlice converts []status.LiveActivityRow to the wire

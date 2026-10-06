@@ -64,3 +64,42 @@ func registerStatusSummaryWriterInstruments(meter metric.Meter, inst *Instrument
 	}
 	return nil
 }
+
+// statusSummaryReadAgeBuckets cover a fresh row (the writer interval, 10 s by
+// default) up to the stale_after bound (33 s by default) and past it, so a
+// row served near the bound is visible before it starts falling back.
+var statusSummaryReadAgeBuckets = []float64{0.5, 1, 2, 5, 10, 15, 20, 25, 33, 45, 60}
+
+// AttrSummarySource returns a source attribute naming where a status
+// summary answer came from: model, live, or live_fallback.
+func AttrSummarySource(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSource, v)
+}
+
+// AttrSummaryReason returns a reason attribute from the closed set that
+// explains a status summary source: fresh, flag_off, missing, not_installed,
+// version, row_count, stale, decode.
+func AttrSummaryReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionReason, v)
+}
+
+// registerStatusSummaryReadInstruments registers the status reader's read
+// counter and served-age histogram on inst.
+func registerStatusSummaryReadInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.StatusSummaryReads, err = meter.Int64Counter(
+		"eshu_dp_status_summary_read_total",
+		metric.WithDescription("Status snapshot reads of the active-work summary by model_key, source (model, live, live_fallback), and reason (fresh, flag_off, missing, not_installed, version, row_count, stale, decode)"),
+	); err != nil {
+		return fmt.Errorf("register StatusSummaryReads counter: %w", err)
+	}
+	if inst.StatusSummaryReadAge, err = meter.Float64Histogram(
+		"eshu_dp_status_summary_read_age_seconds",
+		metric.WithDescription("Age of the stored status summary row at the moment a status read served it, by model_key; recorded only when source is model"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(statusSummaryReadAgeBuckets...),
+	); err != nil {
+		return fmt.Errorf("register StatusSummaryReadAge histogram: %w", err)
+	}
+	return nil
+}
