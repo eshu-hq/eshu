@@ -40,8 +40,8 @@ With a literal term, Postgres estimates each trigram predicate from the sampled
 histogram bounds (about 99 usable bounds, so roughly 1% of 2.67 million rows per
 bound). `decode` matches 1.0% of rows, so each ANALYZE of `content_entities` can
 land the estimate on either side of the planner's cost threshold for ANDing the
-repository bitmap. In the bad regime the entity probe is estimated at about 90 to
-230 rows, the planner skips the repository bitmap and the read takes 1.25 s. In
+repository bitmap. In the bad regime the entity probe is estimated at 85 to
+97 rows, the planner skips the repository bitmap and the read takes 1.25 s. In
 the good regime the planner ANDs the repository bitmap and the read takes 0.3 to
 0.6 s. In the good regime measured here the `source_cache` trigram scan is still
 estimated at 1,232 rows (1,504 in the bad regime); what differs is the
