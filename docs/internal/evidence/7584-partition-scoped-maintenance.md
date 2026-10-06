@@ -37,7 +37,10 @@ install before its first whole pass, or an all-ArgoCD install). Both are held
 by the consumer until the next epoch whole pass writes the memos and the phase.
 For `catalog_changed` that pass is triggered by the ingestion commit that
 changed the catalog. For `no_memo_baseline` there may be no such commit: the
-hold lasts until any committed drain runs the whole pass. `ErrTargetedMaintenanceClosureTooDeep`
+hold lasts until any committed drain runs the whole pass. The same hold occurs
+after the first whole pass whenever every memo-bearing scope advanced past its
+memo, including a single-repository install's quiet generation; see #7638
+item 9. `ErrTargetedMaintenanceClosureTooDeep`
 reports a closure that did not settle in 8 promotion rounds. Every
 `TargetedMaintenanceError` has a stable `Reason()` used as the telemetry label.
 
@@ -45,7 +48,7 @@ reports a closure that did not settle in 8 promotion rounds. Every
 
 The pass reopens the cross-scope correlation domains only in the affected
 partitions. The fleet-wide replay of those domains stays on the epoch whole
-pass, unchanged, and is not part of the activation obligation (#7584 ruling D1):
+pass, unchanged, and is not part of the activation obligation (#7584):
 the obligation owes the backward-evidence phase, while the correlation domains
 wait on producer activation. A correlation consumer whose dependency on the
 owed scope is not relationship evidence (for example a workload correlation
@@ -117,7 +120,9 @@ commit and from this branch, commits the same 113 evidence, phase, memo and
 work-item rows (set difference 0/0); a build with a mutated whole-pass loader
 differs on 41 rows.
 
-The review N1 to N3 guards are mutation-proven against the live outcomes
+The three review guards (reporting a suppressed refusal, counting refused
+partitions separately from retries, and a non-recording span without a
+tracer) are mutation-proven against the live outcomes
 fixture and the span unit tests: not setting `SuppressedRefusal`, counting a
 refused pass's held partitions as `retry`, adding the pass outcome to
 `outcomes_total`, marking a typed refusal as a span error, and writing onto the
@@ -240,14 +245,14 @@ asserts both halves.
 The shared memo gate, batch writer, fan-in and scoped fact loader still emit
 `deferred_backfill_partition_memo_gate_completed`,
 `deferred_backfill_batch_committed`, `deferred_backfill_fanin_completed` and
-the fact-load completion line with no path label, for both passes (review N4).
+the fact-load completion line with no path label, for both passes.
 Metrics are already split; for logs, attribute a shared line by the pass line
 that follows it: `deferred_backfill_targeted_completed` for the targeted pass,
 `deferred_backfill_completed` for the whole pass. The memo-gate failure line
 alone carries `path=targeted`.
 
-A refused retry is not two corpus-sized reads but three (review N6): the
+A refused retry is not two corpus-sized reads but three: the
 classification read (the wrapped `DISTINCT ON` over every repository fact,
-moved ahead of the guard for review F3), then the catalog scan, then the stale
+moved ahead of the guard), then the catalog scan, then the stale
 memo `EXISTS`. D3 step 3 measured that line with all three (Performance and
 observability).

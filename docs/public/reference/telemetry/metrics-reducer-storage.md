@@ -188,7 +188,9 @@ id is ever a label; the per-obligation log line carries them.
 Alert on `eshu_dp_activation_obligation_oldest_open_age_seconds` above one epoch
 whole-pass latency plus one consumer lease (default 2 minutes). A
 `catalog_changed` hold is expected after any repository-catalog change and a
-`no_memo_baseline` hold before the first whole pass writes memo rows; for both
+`no_memo_baseline` hold when no currently active partition holds a memo row
+(before the first whole pass, or when the only memo-bearing scopes advanced
+past their memos); for both
 the consumer holds the lease and retries at lease cadence, runs no fallback
 pass, and the epoch whole pass republishes the phase, so the obligation
 completes on the next attempt after that pass. `closure_too_deep` means the
