@@ -833,6 +833,16 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/bloat_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 bloat proof of the one-row status summary table: 4,000 upserts at the production row size, with a compressible and an incompressible (TOASTed) payload, then VACUUM, leave a one-page heap, a bounded TOAST relation, HOT updates, and a read of a handful of buffers; about 1 s each on PostgreSQL 18.6"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/store_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 proofs of the status summary store: missing-table and empty-table reads, migration 161 applied twice with its storage parameters, the as_of guard (with a guard-stripped RED comparator), two concurrent writers with a polling reader, single-row crash safety, and the writer advisory lock; under 1 s each on PostgreSQL 18.6"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_container_identity_live_test.go
     tag: ~
     class: postgres_ci
