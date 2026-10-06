@@ -110,7 +110,7 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 //
 // The correlation reopen is partition-scoped on purpose: the fleet-wide replay
 // of those domains stays on the epoch whole pass and is not part of the
-// activation obligation (#7584 ruling D1).
+// activation obligation (#7584).
 func (s IngestionStore) reopenTargetedMaintenanceWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,

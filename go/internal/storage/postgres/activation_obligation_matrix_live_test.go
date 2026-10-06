@@ -202,7 +202,7 @@ func TestActivationObligationConsumerSupersessionLive(t *testing.T) {
 	}
 }
 
-// TestActivationObligationWakeIsNotStarvedByOtherClassRowsLive (D1R-2,
+// TestActivationObligationWakeIsNotStarvedByOtherClassRowsLive (it
 // kills the CTE-only class-filter mutant M12): more than one wake batch of
 // retrying deployment_mapping rows of another failure class sort ahead of the
 // one not-ready row. The wake must still reach the not-ready row and the

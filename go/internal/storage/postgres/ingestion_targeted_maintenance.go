@@ -99,7 +99,7 @@ type TargetedMaintenanceResult struct {
 //   - reopen: reopenTargetedMaintenanceWorkItems over the exact affected
 //     partitions. Correlation reopen is partition-scoped here: the fleet-wide
 //     replay of the cross-scope correlation domains stays on the epoch whole
-//     pass, and is not part of the activation obligation (#7584 ruling D1).
+//     pass, and is not part of the activation obligation (#7584).
 //
 // Partitions outside the affected set are not written, published or reopened.
 // Per-owed results are in TargetedMaintenanceResult.Outcomes; the returned
@@ -172,8 +172,8 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 			// Every active owed partition is inapplicable: no phase is owed,
 			// so there is nothing to refuse. The refusal still suppressed the
 			// evidence work these partitions' relations would have written
-			// for other repositories; that waits for the next whole pass
-			// (review N1), so say so.
+			// for other repositories; that waits for the next whole pass,
+			// so say so.
 			result.SuppressedRefusal = TargetedMaintenanceReason(refusal)
 			log.Printf("deferred_backfill_targeted_suppressed reason=%q inapplicable=%d",
 				result.SuppressedRefusal, len(active))
@@ -286,7 +286,7 @@ func (s IngestionStore) targetedCatalogRefusal(ctx context.Context, fingerprint 
 // completion log. The pass outcome is "completed" or the error's reason.
 // startTargetedMaintenanceSpan opens the pass span. Without a tracer it
 // installs a non-recording span, so the pass never writes status or
-// attributes onto a span its caller's context carries (review N2).
+// attributes onto a span its caller's context carries.
 func startTargetedMaintenanceSpan(ctx context.Context, tracer trace.Tracer) (context.Context, trace.Span, func()) {
 	if tracer == nil {
 		span := trace.SpanFromContext(context.Background())
@@ -311,7 +311,7 @@ func recordTargetedMaintenance(
 	case err != nil:
 		passOutcome = TargetedMaintenanceReason(err)
 		// A typed refusal is a designed hold the consumer retries, not a
-		// trace error (review N2); only an untyped failure is.
+		// trace error; only an untyped failure is.
 		if passOutcome == "error" {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, passOutcome)
@@ -323,14 +323,14 @@ func recordTargetedMaintenance(
 	for _, outcome := range result.Outcomes {
 		if err != nil && outcome.Kind == TargetedMaintenanceRetry {
 			// A refused pass holds its applicable owed partitions; they are
-			// not retries of a pass that ran (review N3).
+			// not retries of a pass that ran.
 			continue
 		}
 		counts[outcome.Kind]++
 	}
 	if instruments != nil {
 		// The duration histogram carries the pass outcome (its count is the
-		// pass count); outcomes_total counts owed partitions only (review N3).
+		// pass count); outcomes_total counts owed partitions only.
 		instruments.DeferredBackfillTargetedDuration.Record(ctx, duration,
 			metric.WithAttributes(telemetry.AttrOutcome(passOutcome)))
 		for kind, count := range counts {

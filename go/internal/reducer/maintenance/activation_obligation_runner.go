@@ -91,7 +91,7 @@ type ActivationObligationStore interface {
 // generation's backward-evidence phase (and its evidence) when the
 // generation can have one. The runner calls it only after a Finalize found
 // the phase missing. Whole-corpus maintenance is a test control arm only; it
-// is not an admissible shipped implementation (#7584 ruling D2).
+// is not an admissible shipped implementation (#7584).
 type ActivationMaintainer interface {
 	MaintainActivation(ctx context.Context, work ActivationObligation) error
 }

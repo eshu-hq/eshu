@@ -81,13 +81,12 @@ fighting the type system here).
   callback (the lease stays held and the obligation retries after it
   expires), and MUST keep each cycle bounded by `MaxPerCycle`. Whole-corpus
   deferred maintenance is a test control arm only; never wire it as the
-  shipped `ActivationMaintainer` (#7584 ruling D2).
+  shipped `ActivationMaintainer` (#7584).
 - On `ErrActivationInapplicable` the runner MUST retire the row through
   `RetireActivationInapplicable` and MUST NOT count a maintenance failure.
   On `ErrActivationCatalogChanged` it MUST keep the lease, MUST NOT finalize
   again or run any fallback pass, and MUST count
-  `failures_total{reason="catalog_changed"}` with an Info log (#7584 D3
-  findings ruling D2, D3).
+  `failures_total{reason="catalog_changed"}` with an Info log (#7584).
 - `GateAcceptedGenerationOnActive`'s activation fence MUST apply only to
   source runs carrying a relationship generation ID
   (`repo_dependency`/`repo_dependency:<scope>`, see

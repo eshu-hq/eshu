@@ -14,7 +14,7 @@ import (
 // keyset page of ingestion_scopes, that has neither an open or terminal
 // obligation (an obsolete row of the active generation counts as none: it
 // was retired while the scope pointer was NULL and the generation was
-// re-activated, D1R-1) nor its own backward-evidence phase yet, and that
+// re-activated) nor its own backward-evidence phase yet, and that
 // carries a repository fact (only those generations can ever publish the
 // phase). The insert takes rows in scope order, so overlapping catch-up pages
 // on two replicas lock conflicting rows in the same order. It covers generations activated

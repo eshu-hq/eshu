@@ -102,7 +102,7 @@ func TestDeriveQueryAtMarkerRefusesMissingOrRepeatedMarker(t *testing.T) {
 }
 
 // TestTargetedMaintenanceMarkersOpenAnAndOnlyWhereClause pins predicate
-// semantics, not bytes (review F7): each derived query appends "AND <bound>"
+// semantics, not bytes: each derived query appends "AND <bound>"
 // right after its marker, which narrows the shipped rows only while the
 // shipped WHERE clause the marker opens is a pure conjunction. A top-level OR
 // anywhere in that clause would make the inserted AND bind to one disjunct and

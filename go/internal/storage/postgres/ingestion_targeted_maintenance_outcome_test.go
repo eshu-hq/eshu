@@ -73,7 +73,7 @@ func TestTargetedMaintenanceOutcomeErr(t *testing.T) {
 }
 
 // TestTargetedMaintenanceSnapshotDropsConflictingScopes pins the snapshot
-// union invariant (review F9): the batch and fan-in guard compare each
+// union invariant: the batch and fan-in guard compare each
 // repository's generation under lock with ONE generation per scope. When the
 // load set and the affected set disagree about a scope's generation (it
 // advanced between the two reads), the scope is left out of the snapshot so

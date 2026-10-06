@@ -94,7 +94,7 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			// Both passes resolve the scope through COALESCE(pointer, latest),
-			// so both publish for the failed latest generation (ruling D4: the
+			// so both publish for the failed latest generation (the
 			// consumer's finalize reads the raw pointer and retires it).
 			published: partitionSet("git:tgt", "tgt-2"),
 			// The correlation listing excludes failed generations in both arms.
@@ -199,7 +199,7 @@ VALUES ('git:dep', 'dep-1', 'stale-fingerprint', $1) ON CONFLICT (scope_id, gene
 		if err := reader.Collect(context.Background(), &rm); err != nil {
 			t.Fatalf("collect: %v", err)
 		}
-		// outcomes_total counts owed partitions only (review N3): the refused
+		// outcomes_total counts owed partitions only: the refused
 		// pass adds no pass-level sample and does not count its held owed
 		// partition as retry. Pass outcomes live on the duration histogram.
 		for outcome, want := range map[string]int64{"published": 1, "catalog_changed": 0, "retry": 0} {

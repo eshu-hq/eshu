@@ -179,7 +179,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A real SQLSTATE 55P03 from Finalize is counted under its own
-		// reason (ruling P2-F), never as a finalize failure.
+		// reason, never as a finalize failure.
 		if got := consumer.failures(t, ctx, "finalize_lock_timeout"); got != 1 {
 			t.Fatalf("finalize_lock_timeout failures = %d, want 1 (the lock timeout)", got)
 		}

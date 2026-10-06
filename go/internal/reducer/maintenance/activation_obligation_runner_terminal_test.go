@@ -21,7 +21,7 @@ import (
 
 // A generation that can never carry a backward-evidence phase (no repository
 // fact) is retired by Finalize itself; the runner must not spend a
-// maintenance callback on it (#7584 ruling D3(d)).
+// maintenance callback on it (#7584).
 func TestActivationRunnerNeverMaintainsAnInapplicableObligation(t *testing.T) {
 	t.Parallel()
 	store := &fakeActivationStore{
@@ -42,7 +42,7 @@ func TestActivationRunnerNeverMaintainsAnInapplicableObligation(t *testing.T) {
 // A maintainer that finds the owed partition maps to no repository in the
 // shipped read (repo_id collision loser) returns ErrActivationInapplicable;
 // the runner retires the row through the token-fenced store method and does
-// not count a maintenance failure (#7584 ruling D3(c)).
+// not count a maintenance failure (#7584).
 func TestActivationRunnerRetiresWhenTheMaintainerReportsInapplicable(t *testing.T) {
 	t.Parallel()
 	store := &fakeActivationStore{
@@ -64,7 +64,7 @@ func TestActivationRunnerRetiresWhenTheMaintainerReportsInapplicable(t *testing.
 
 // A catalog-changed refusal is held: the lease stays, the next attempt comes
 // at lease cadence, no fallback pass runs, and it is counted under its own
-// reason and logged at INFO, not ERROR (#7584 ruling D2).
+// reason and logged at INFO, not ERROR (#7584).
 func TestActivationRunnerHoldsACatalogChangedRefusal(t *testing.T) {
 	t.Parallel()
 	store := &fakeActivationStore{
@@ -159,7 +159,7 @@ func (b *blockingActivationMaintainer) MaintainActivation(ctx context.Context, _
 	return ctx.Err()
 }
 
-// The maintenance callback must end before the lease does (D1R-3): it runs
+// The maintenance callback must end before the lease does: it runs
 // under a deadline of the lease's expiry minus a margin, a callback still
 // running then is cancelled, the obligation is not finalized again (no false
 // completion; it stays leased until expiry, for any claimer), and the

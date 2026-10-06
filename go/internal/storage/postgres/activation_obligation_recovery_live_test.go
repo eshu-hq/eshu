@@ -216,7 +216,7 @@ FROM activation_obligations ORDER BY scope_id`)
 	}
 }
 
-// TestActivationObligationCatchUpReowesObsoleteOfActiveLive (D1R-1): an
+// TestActivationObligationCatchUpReowesObsoleteOfActiveLive: an
 // obsolete row whose generation is the scope's active generation again (it
 // was retired while the pointer was NULL and later re-activated) is owed
 // again by catch-up; an obsolete row of a superseded generation stays

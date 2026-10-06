@@ -20,8 +20,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 )
 
-// TestActivationObligationInapplicableWithoutRepositoryFactLive (#7584 ruling
-// D3(d)): a cloud scope's accepted Ack owes an obligation, but its generation
+// TestActivationObligationInapplicableWithoutRepositoryFactLive (#7584): a
+// cloud scope's accepted Ack owes an obligation, but its generation
 // has no repository fact and can never carry a backward-evidence phase. One
 // consumer cycle retires it as inapplicable with no maintenance callback; a
 // later cycle after the short lease does not reclaim it; Prune never deletes
@@ -85,7 +85,7 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	assertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
 }
 
-// TestActivationObligationInapplicableCollisionLoserLive (#7584 ruling D3(c)):
+// TestActivationObligationInapplicableCollisionLoserLive (#7584):
 // two repository scopes share one repo_id; the shipped active-repository read
 // (DISTINCT ON repo_id) maps it to the newer scope only. The maintainer
 // decides from that read: the loser gets ErrActivationInapplicable and is
@@ -135,7 +135,7 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 	assertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
 }
 
-// TestActivationObligationCatalogChangedIsHeldLive (#7584 ruling D2): the
+// TestActivationObligationCatalogChangedIsHeldLive (#7584): the
 // maintainer refuses with ErrActivationCatalogChanged; the consumer keeps the
 // lease, does not retry inside it, and never runs a pass itself. The epoch
 // whole pass (run here by the test, as the ingester would after the commit
@@ -180,7 +180,7 @@ func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 	}
 }
 
-// TestActivationObligationNullActivePointerIsObsoleteLive (#7584 ruling D4):
+// TestActivationObligationNullActivePointerIsObsoleteLive (#7584):
 // the active generation G fails through the real projector Fail path after a
 // refinalize re-drive, which nulls the scope's pointer. G already has its
 // phase and a waiting row. One consumer cycle retires G's obligation as
@@ -214,7 +214,7 @@ func TestActivationObligationNullActivePointerIsObsoleteLive(t *testing.T) {
 		t.Fatalf("maintenance callbacks for the failed generation = %d, want 0", got)
 	}
 
-	// D1R-1: the operator refinalizes the failed scope (#7116), which
+	// The operator refinalizes the failed scope (#7116), which
 	// re-enqueues its newest non-superseded generation, G; the real Ack
 	// re-activates G. The obsolete obligation must be owed again, and the
 	// consumer completes it without a callback (G's cross_repo_evidence phase

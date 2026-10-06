@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 )
 
-// TestFinalizeErrorMapsTheConsumerSentinels (#7584 ruling P2-F): SQLSTATE
+// TestFinalizeErrorMapsTheConsumerSentinels (#7584): SQLSTATE
 // 55P03 from Finalize's lock_timeout maps to
 // maintenance.ErrActivationFinalizeLockTimeout with the PostgreSQL error kept
 // in the chain; a lease lost inside the transaction maps to

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestActivationRunnerSeparatesFinalizeLockTimeouts (#7584 ruling P2-F): a
+// TestActivationRunnerSeparatesFinalizeLockTimeouts (#7584): a
 // Finalize that waited past its lock_timeout (the store adapter reports
 // ErrActivationFinalizeLockTimeout) is expected contention, not a broken
 // statement. It is counted under reason finalize_lock_timeout and logged at

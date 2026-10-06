@@ -20,8 +20,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// TestActivationObligationRealCatalogChangeIsHeldThenCompletedLive (#7584
-// D3-findings ruling D2.4) drives the production partition-scoped maintainer
+// TestActivationObligationRealCatalogChangeIsHeldThenCompletedLive (#7584)
+// drives the production partition-scoped maintainer
 // through real refusals: a quiet generation of an existing repository is owed
 // while a new repository scope is onboarded. With a stable repository holding
 // a memo, the targeted pass refuses with catalog_changed; without one it
@@ -208,8 +208,8 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 	}
 }
 
-// TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive
-// (D1R-3): a maintenance callback that blocks is cancelled before the lease
+// TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive:
+// a maintenance callback that blocks is cancelled before the lease
 // ends; nothing completes, the obligation stays leased to the first owner
 // until expiry, and then another claimer reclaims it with a higher token.
 func TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive(t *testing.T) {

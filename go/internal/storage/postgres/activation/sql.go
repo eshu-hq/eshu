@@ -8,7 +8,7 @@ package activation
 // commit. A first activation inserts a pending row. A re-activation of a
 // generation whose row is obsolete (it was retired while its scope pointer
 // was NULL after a failed re-projection, and the #7116 failed-scope
-// refinalize re-activated it) owes it again (D1R-1). completed stays
+// refinalize re-activated it) owes it again. completed stays
 // terminal: the refinalize spares the cross_repo_evidence phase, so a
 // completed generation still has its phase. inapplicable stays terminal: the
 // generation's facts are unchanged.

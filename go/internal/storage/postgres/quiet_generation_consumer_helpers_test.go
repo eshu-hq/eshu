@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// wholeMaintenanceControlArm is the LABELLED CONTROL ARM of #7584 ruling D1:
+// wholeMaintenanceControlArm is the LABELLED CONTROL ARM of #7584:
 // the activation maintenance port backed by the whole native deferred
 // relationship maintenance. It exists only in test code. Ruling D2 forbids it
 // as the shipped callback (it is corpus work per activation); production

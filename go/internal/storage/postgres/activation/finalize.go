@@ -24,7 +24,7 @@ import (
 //
 // When the phase is absent and the generation has no repository fact, no
 // pass can ever publish it, so Finalize retires the obligation as
-// inapplicable instead of returning phase_not_ready (#7584 ruling D3(d)).
+// inapplicable instead of returning phase_not_ready (#7584).
 //
 // A wake commits only while the caller still owns the lease on the database
 // clock; when the lease expired mid-transaction Finalize rolls back and
@@ -83,8 +83,8 @@ func (s Store) Finalize(ctx context.Context, work Obligation) (FinalizeResult, e
 
 // RetireInapplicable retires one claimed obligation as inapplicable after the
 // maintainer reported that the owed partition maps to no repository in the
-// shipped active-repository read (a repo_id collision loser, #7584 ruling
-// D3(c)). It takes the same locks and lease fence as Finalize; a scope that
+// shipped active-repository read (a repo_id collision loser, #7584).
+// It takes the same locks and lease fence as Finalize; a scope that
 // moved to another generation retires as obsolete instead.
 func (s Store) RetireInapplicable(ctx context.Context, work Obligation) (FinalizeResult, error) {
 	owned, result, err := s.openOwned(ctx, work, "retire inapplicable")

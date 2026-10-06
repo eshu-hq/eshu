@@ -119,7 +119,7 @@ func endSettleSpan(span trace.Span, verdict settleVerdict) {
 }
 
 // maintenanceContext bounds one maintenance callback by the obligation's
-// lease (D1R-3): the callback is cancelled a margin (a fifth of the lease)
+// lease: the callback is cancelled a margin (a fifth of the lease)
 // before the lease ends, so it cannot still be running when another replica
 // reclaims the obligation and starts the same maintenance. The margin also
 // absorbs clock skew between the database clock that stamped lease_until and

@@ -167,7 +167,7 @@ func (f activationMatrix) finalize(work *activation.Obligation) (bool, error) {
 
 // maintenance is the labelled control arm: the whole native deferred
 // relationship maintenance. It is a test fixture only, never the shipped
-// consumer callback (#7584 ruling D2).
+// consumer callback (#7584).
 func (f activationMatrix) maintenance(t *testing.T) {
 	t.Helper()
 	if err := f.store.RunDeferredRelationshipMaintenance(f.ctx, nil, nil); err != nil {

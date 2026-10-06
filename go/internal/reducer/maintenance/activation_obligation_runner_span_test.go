@@ -39,7 +39,7 @@ func spanAttr(span sdktrace.ReadOnlySpan, key string) string {
 	return ""
 }
 
-// D1R-9: one span per settle, scope and generation as span attributes (never
+// One span per settle, scope and generation as span attributes (never
 // metric labels); a designed hold is not a trace error, a failed callback is.
 func TestActivationRunnerTracesEachSettle(t *testing.T) {
 	t.Parallel()

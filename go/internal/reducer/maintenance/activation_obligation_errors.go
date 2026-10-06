@@ -15,8 +15,8 @@ var ErrActivationLeaseLost = errors.New("activation obligation lease lost")
 // the same scope. The transaction rolled back and wrote nothing; the
 // obligation stays leased and the next claimer settles it after the lease.
 // The runner counts it under its own reason, finalize_lock_timeout, at Warn,
-// so expected contention is not read as a broken statement (#7584 ruling
-// P2-F). The store adapter returns it wrapped around the database error.
+// so expected contention is not read as a broken statement (#7584). The
+// store adapter returns it wrapped around the database error.
 var ErrActivationFinalizeLockTimeout = errors.New("activation obligation finalize lock timeout")
 
 // ErrActivationInapplicable is returned (wrapped) by an ActivationMaintainer
@@ -29,7 +29,7 @@ var ErrActivationInapplicable = errors.New("activation obligation is inapplicabl
 // ActivationHoldError is a maintainer refusal that holds the obligation: the
 // runner keeps the lease, retries at lease cadence, never runs a fallback
 // pass, and counts it under its closed reason. Every hold reason clears on
-// the epoch whole pass (#7584 D3-findings ruling D2). Build one with
+// the epoch whole pass (#7584). Build one with
 // HoldActivation; match one with errors.As or with errors.Is against
 // ErrActivationCatalogChanged.
 type ActivationHoldError struct {

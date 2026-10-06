@@ -29,7 +29,7 @@
   the maintainer's `ErrActivationInapplicable`). Prune MUST NOT delete
   `inapplicable` rows: CatchUp skips any generation with a row, so pruning
   one would let CatchUp owe it again. Never add an attempt cap that marks a
-  row terminal: it would drop an owed phase silently (#7584 ruling D2).
+  row terminal: it would drop an owed phase silently (#7584).
 - Every completion, obsolete and inapplicable write is fenced on `state = 'leased'`,
   `claim_token`, `lease_owner` and `lease_until > clock_timestamp()`. Use the
   database clock for every lease comparison.

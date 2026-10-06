@@ -38,8 +38,8 @@ func TestQuietGenerationActivatesAfterMaintenanceSnapshotLive(t *testing.T) {
 
 // TestQuietGenerationActivatesWithControlArmMaintenanceLive is the LABELLED
 // CONTROL ARM: the same flow with the whole native deferred maintenance as
-// the consumer's callback. It exists only as a comparison; ruling D2 forbids
-// it as the shipped callback.
+// the consumer's callback. It exists only as a comparison; it is never the
+// shipped callback.
 func TestQuietGenerationActivatesWithControlArmMaintenanceLive(t *testing.T) {
 	runQuietGenerationActivation(t, true)
 }

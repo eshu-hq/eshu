@@ -149,7 +149,7 @@ VALUES ('prune-obligation', 'prune-leased', 'w', 'leased', 'o', clock_timestamp(
 	}
 }
 
-// TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive (D1R-2,
+// TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive (it
 // kills the CTE-only state-filter mutant M17): inapplicable rows are terminal
 // and never pruned, so when one is older than every completed row the prune
 // must still delete the completed row instead of selecting the inapplicable
