@@ -178,7 +178,7 @@ func buildInvokesCloudActionIntentRows(
 			if callLine <= 0 {
 				continue
 			}
-			functionID := shared.ResolveContainingEntityID(index, rawPath, relativePath, callLine)
+			functionID := shared.ResolveContainingEntityID(index, repositoryID, rawPath, relativePath, callLine)
 			if functionID == "" {
 				continue
 			}

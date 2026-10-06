@@ -1,13 +1,14 @@
 # javascript — agent instructions (issue #6061)
 
-Read `code/call/shared/AGENTS.md` first, especially the `JavaScriptAliasesByPath`
+Read `code/call/shared/AGENTS.md` first, especially the `JavaScriptAliasesByFile`
 and `JavaScriptAliasSet` accessors this package's `dynamic.go` depends on.
 
 ## Invariants
 
 - Never import `code/call` or a sibling language leaf.
 - `ResolveDynamicCallee` must try the index-cached alias set
-  (`shared.EntityIndex.JavaScriptAliasesByPath`) before falling back to
+  (`shared.EntityIndex.JavaScriptAliasesByFile`, keyed by the call's own
+  repository and file, never a bare file name, #7640) before falling back to
   re-scanning the containing function's source — the fallback exists only
   for direct helper tests that bypass index construction; do not make it the
   primary path (it would silently drop the caching win `BuildEntityIndex`

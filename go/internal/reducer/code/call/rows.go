@@ -70,6 +70,10 @@ func extractSCIPCodeCallRows(
 	return rows
 }
 
+// extractGenericCodeCallRows builds the CALLS (and related) rows for one
+// file's function_calls. It also returns how many calls resolved a callee but
+// no caller (no containing entity in the call file and no JavaScript/Java
+// file-root fallback); those calls emit no row.
 func extractGenericCodeCallRows(
 	repositoryID string,
 	relativePath string,
@@ -79,15 +83,16 @@ func extractGenericCodeCallRows(
 	reexportIndex shared.ReexportIndex,
 	seenRows map[string]struct{},
 	fileData map[string]any,
-) []map[string]any {
+) ([]map[string]any, int) {
 	rows := make([]map[string]any, 0)
+	unresolvedCallers := 0
 	callerFilePath := shared.PreferredPath(rawPath, relativePath)
 	for _, edge := range payloadcore.MapSlice(fileData["function_calls"]) {
 		callLine := shared.PayloadInt(edge["line_number"], edge["ref_line"])
 		if callLine <= 0 {
 			continue
 		}
-		callerID := shared.ResolveContainingEntityID(entityIndex, rawPath, relativePath, callLine)
+		callerID := shared.ResolveContainingEntityID(entityIndex, repositoryID, rawPath, relativePath, callLine)
 		if callerID == "" {
 			callerID = javascript.FileRootCallerID(repositoryID, relativePath, fileData)
 		}
@@ -119,6 +124,7 @@ func extractGenericCodeCallRows(
 			)
 		}
 		if callerID == "" {
+			unresolvedCallers++
 			continue
 		}
 
@@ -128,11 +134,17 @@ func extractGenericCodeCallRows(
 			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, edge)
 		}
 	}
-	return rows
+	return rows, unresolvedCallers
 }
 
+// resolveSameFileScopedCalleeEntityID resolves a call to the single
+// same-named function nested inside the call's narrowest enclosing function.
+// Both the caller span and the callee candidates come only from the call
+// file's own (repositoryID, full path) or (repositoryID, relative path) keys,
+// never from a same-named file elsewhere (#7640).
 func resolveSameFileScopedCalleeEntityID(
 	index shared.EntityIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	call map[string]any,
@@ -146,20 +158,19 @@ func resolveSameFileScopedCalleeEntityID(
 	if !shared.PrefersImportedQualifiedTarget(call, language) {
 		callNames = append(callNames, shared.BroadCandidateNames(call, language)...)
 	}
-	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
-		caller := shared.FunctionSpan{}
-		for _, span := range index.SpansByPath(pathKey) {
-			if line >= span.StartLine && line <= span.EndLine &&
-				(caller.EntityID == "" || shared.SpanWidth(span) < shared.SpanWidth(caller)) {
-				caller = span
-			}
+	fullKey, relativeKey := shared.FileKeys(rawPath, relativePath)
+	for _, fileKey := range [2]string{fullKey, relativeKey} {
+		if fileKey == "" {
+			continue
 		}
+		spans := index.SpansByFile(repositoryID, fileKey)
+		caller := shared.NarrowestContainingSpan(spans, line)
 		if caller.EntityID == "" {
 			continue
 		}
 
 		match := ""
-		for _, span := range index.SpansByPath(pathKey) {
+		for _, span := range spans {
 			if span.EntityID == caller.EntityID ||
 				span.StartLine < caller.StartLine ||
 				span.EndLine > caller.EndLine ||

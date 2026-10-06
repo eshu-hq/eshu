@@ -116,6 +116,7 @@ func BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource(b *testing.B
 	for i := 0; i < b.N; i++ {
 		entityID := javascript.ResolveDynamicCallee(
 			index,
+			"repo-js",
 			"bundle.js",
 			"bundle.js",
 			fileData,
@@ -137,6 +138,7 @@ func BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource(b *testing.B) 
 	for i := 0; i < b.N; i++ {
 		entityID := javascript.ResolveDynamicCallee(
 			index,
+			"repo-js",
 			"bundle.js",
 			"bundle.js",
 			fileData,

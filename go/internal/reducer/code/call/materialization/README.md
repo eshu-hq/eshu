@@ -72,7 +72,13 @@ structured log, "code call materialization completed", with `scope_id`,
 `generation_id`, `domain`, fact/row/repo counts, and a per-phase duration
 breakdown. `Result.SubDurations` carries the same phase timings as
 `sub_duration_<key>_seconds`; `Result.SubSignals` carries `input_ready`/
-`written_rows` diagnostic signals plus any `input_invalid_facts` count.
+`written_rows` diagnostic signals plus any `input_invalid_facts` count, and
+`unresolved_caller_calls` (`SubSignalUnresolvedCallerCalls`). The completion log
+carries the same number as `code_call_unresolved_caller_count`: calls whose
+callee resolved but whose caller has no containing entity in the call file's
+own repository and path (#7640), so they emitted no `CALLS` row. A drop in
+`code_call_row_count` with a matching rise here is that containment rule
+working, not lost input.
 
 ## Gotchas / invariants
 

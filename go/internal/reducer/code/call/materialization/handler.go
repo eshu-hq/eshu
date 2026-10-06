@@ -135,7 +135,11 @@ func (h Handler) Handle(
 	symbolLoadDuration := time.Since(symbolLoadStart)
 
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows, entityIndex, quarantinedFiles := codecall.ExtractAllRelationshipRowsWithIndex(relationshipEnvelopes)
+	extraction := codecall.ExtractRelationships(relationshipEnvelopes)
+	codeCallRows := extraction.CodeCallRows
+	metaclassRows := extraction.MetaclassRows
+	entityIndex := extraction.EntityIndex
+	quarantinedFiles := extraction.Quarantined
 	extractDuration := time.Since(extractStart)
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeCallMaterialization, intent.ScopeID, intent.GenerationID, quarantinedFiles)
 	createdAt := intent.EnqueuedAt
@@ -187,6 +191,7 @@ func (h Handler) Handle(
 			symbolFactCount:     len(symbolDefinitionEnvelopes),
 			repoCount:           len(contextByRepoID),
 			codeCallRowCount:    len(codeCallRows),
+			unresolvedCallers:   extraction.UnresolvedCallerCount,
 			metaclassRowCount:   len(metaclassRows),
 			intentRowCount:      0,
 			fileScopedRepoCount: len(fileScopesByRepoID),
@@ -202,6 +207,7 @@ func (h Handler) Handle(
 		// Projection context was built (input present) but extraction produced no
 		// edges: genuine empty work, signaled by input_ready=1 and written_rows=0.
 		emptySubSignals := reducercontract.MaterializationDiagnosticSignals(true, 0)
+		emptySubSignals[SubSignalUnresolvedCallerCalls] = float64(extraction.UnresolvedCallerCount)
 		for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 			emptySubSignals[key] = value
 		}
@@ -246,6 +252,7 @@ func (h Handler) Handle(
 		symbolFactCount:     len(symbolDefinitionEnvelopes),
 		repoCount:           len(contextByRepoID),
 		codeCallRowCount:    len(codeCallRows),
+		unresolvedCallers:   extraction.UnresolvedCallerCount,
 		metaclassRowCount:   len(metaclassRows),
 		intentRowCount:      len(intentRows),
 		fileScopedRepoCount: len(fileScopesByRepoID),
@@ -262,6 +269,7 @@ func (h Handler) Handle(
 
 	// Projection context was built (input present) and intents were emitted.
 	subSignals := reducercontract.MaterializationDiagnosticSignals(true, len(intentRows))
+	subSignals[SubSignalUnresolvedCallerCalls] = float64(extraction.UnresolvedCallerCount)
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}
@@ -319,6 +327,13 @@ func loadActiveCodeCallSymbolDefinitionFacts(
 	return envelopes, nil
 }
 
+// SubSignalUnresolvedCallerCalls is the Result.SubSignals key (logged as
+// sub_signal_unresolved_caller_calls) carrying how many calls resolved a
+// callee but no caller in their own file, so emitted no CALLS row. A drop in
+// code_call_row_count with a matching rise here is the expected #7640
+// containment effect, not lost input.
+const SubSignalUnresolvedCallerCalls = "unresolved_caller_calls"
+
 type codeCallMaterializationTiming struct {
 	intent              reducercontract.Intent
 	factCount           int
@@ -326,6 +341,7 @@ type codeCallMaterializationTiming struct {
 	symbolFactCount     int
 	repoCount           int
 	codeCallRowCount    int
+	unresolvedCallers   int
 	metaclassRowCount   int
 	intentRowCount      int
 	fileScopedRepoCount int
@@ -351,6 +367,7 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Int("symbol_definition_fact_count", timing.symbolFactCount),
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("code_call_row_count", timing.codeCallRowCount),
+		slog.Int("code_call_unresolved_caller_count", timing.unresolvedCallers),
 		slog.Int("metaclass_row_count", timing.metaclassRowCount),
 		slog.Int("intent_row_count", timing.intentRowCount),
 		slog.Int("file_scoped_repo_count", timing.fileScopedRepoCount),

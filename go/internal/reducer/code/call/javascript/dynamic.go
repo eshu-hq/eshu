@@ -17,9 +17,12 @@ var (
 )
 
 // ResolveDynamicCallee handles static JavaScript patterns that look dynamic
-// in call metadata but have a literal same-file target.
+// in call metadata but have a literal same-file target. The cached alias set
+// it reads comes only from a function in the call file's own repository and
+// path (repositoryID plus [shared.FileKeys]).
 func ResolveDynamicCallee(
 	index shared.EntityIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
@@ -35,7 +38,7 @@ func ResolveDynamicCallee(
 
 	// JavaScript alias metadata should normally come from the index; the
 	// fallback preserves direct helper tests that bypass index construction.
-	aliasSet, ok := javaScriptStaticAliasesForCall(index, rawPath, relativePath, callLine)
+	aliasSet, ok := javaScriptStaticAliasesForCall(index, repositoryID, rawPath, relativePath, callLine)
 	if !ok {
 		source := shared.JavaScriptContainingFunctionSource(fileData, callLine)
 		if strings.TrimSpace(source) == "" {
@@ -63,8 +66,13 @@ func ResolveDynamicCallee(
 	return ""
 }
 
+// javaScriptStaticAliasesForCall returns the alias set of the narrowest
+// cached function span containing line in the call file's own
+// (repositoryID, full path) or (repositoryID, relative path) entry. It never
+// consults a bare file name or another repository (#7640).
 func javaScriptStaticAliasesForCall(
 	index shared.EntityIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	line int,
@@ -73,8 +81,12 @@ func javaScriptStaticAliasesForCall(
 		bestAlias shared.JavaScriptAliasSet
 		bestWidth int
 	)
-	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
-		for _, span := range index.JavaScriptAliasesByPath(pathKey) {
+	fullKey, relativeKey := shared.FileKeys(rawPath, relativePath)
+	for _, fileKey := range [2]string{fullKey, relativeKey} {
+		if fileKey == "" {
+			continue
+		}
+		for _, span := range index.JavaScriptAliasesByFile(repositoryID, fileKey) {
 			if line < span.StartLine || line > span.EndLine {
 				continue
 			}

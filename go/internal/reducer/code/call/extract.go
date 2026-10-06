@@ -31,6 +31,25 @@ func ExtractAllRelationshipRows(envelopes []facts.Envelope) (
 	return ccRepoIDs, ccRows, mcRepoIDs, mcRows
 }
 
+// RelationshipExtraction is the full result of one code-relationship
+// extraction pass: the code-call and metaclass rows, the shared EntityIndex
+// the pass built, the quarantined "file" facts, and extraction counters an
+// operator needs to explain the row counts.
+type RelationshipExtraction struct {
+	CodeCallRepoIDs  []string
+	CodeCallRows     []map[string]any
+	MetaclassRepoIDs []string
+	MetaclassRows    []map[string]any
+	EntityIndex      shared.EntityIndex
+	Quarantined      []factdecode.QuarantinedFact
+	// UnresolvedCallerCount counts calls whose callee resolved but whose
+	// caller did not: no function or type in the call file's own repository
+	// and path contains the call line, and no file-root fallback applied.
+	// Those calls emit no CALLS row, so this count explains a drop in
+	// CodeCallRows (#7640).
+	UnresolvedCallerCount int
+}
+
 // ExtractAllRelationshipRowsWithIndex builds code-call and metaclass edge
 // rows and also returns the shared EntityIndex it built, so callers that
 // need the index for an additional resolution pass (for example HANDLES_ROUTE
@@ -55,24 +74,41 @@ func ExtractAllRelationshipRowsWithIndex(envelopes []facts.Envelope) (
 	entityIndex shared.EntityIndex,
 	quarantined []factdecode.QuarantinedFact,
 ) {
+	result := ExtractRelationships(envelopes)
+	return result.CodeCallRepoIDs, result.CodeCallRows, result.MetaclassRepoIDs, result.MetaclassRows,
+		result.EntityIndex, result.Quarantined
+}
+
+// ExtractRelationships is [ExtractAllRelationshipRowsWithIndex] returning a
+// [RelationshipExtraction], which also carries the extraction counters the
+// code-call materialization handler logs.
+func ExtractRelationships(envelopes []facts.Envelope) RelationshipExtraction {
 	if len(envelopes) == 0 {
-		return nil, nil, nil, nil, shared.EntityIndex{}, nil
+		return RelationshipExtraction{}
 	}
 
 	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
 
 	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
 	if len(repositoryIDs) == 0 {
-		return nil, nil, nil, nil, shared.EntityIndex{}, quarantined
+		return RelationshipExtraction{Quarantined: quarantined}
 	}
 
-	entityIndex = shared.BuildEntityIndex(validEnvelopes)
+	entityIndex := shared.BuildEntityIndex(validEnvelopes)
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
-	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	ccRepoIDs, ccRows, unresolvedCallers := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	mcRepoIDs, mcRows := python.ExtractMetaclassRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports)
-	return ccRepoIDs, ccRows, mcRepoIDs, mcRows, entityIndex, quarantined
+	return RelationshipExtraction{
+		CodeCallRepoIDs:       ccRepoIDs,
+		CodeCallRows:          ccRows,
+		MetaclassRepoIDs:      mcRepoIDs,
+		MetaclassRows:         mcRows,
+		EntityIndex:           entityIndex,
+		Quarantined:           quarantined,
+		UnresolvedCallerCount: unresolvedCallers,
+	}
 }
 
 // ExtractRows builds canonical caller/callee edge rows from repository
@@ -95,7 +131,7 @@ func ExtractRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	entityIndex := shared.BuildEntityIndex(validEnvelopes)
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
-	repoIDs, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	repoIDs, rows, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	return repoIDs, rows
 }
 
@@ -163,17 +199,20 @@ func partitionCodegraphFileFacts(envelopes []facts.Envelope) ([]facts.Envelope, 
 // authoritative quarantine happened upstream in partitionCodegraphFileFacts).
 //
 // ParsedFileData stays untyped: the returned struct's inner AST keys are read
-// exactly as before this conversion (issue #4750 defers typing them).
+// exactly as before this conversion (issue #4750 defers typing them). The
+// third result is the total unresolved-caller count across every file (see
+// [RelationshipExtraction.UnresolvedCallerCount]).
 func extractCodeCallRowsWithIndex(
 	envelopes []facts.Envelope,
 	repositoryIDs []string,
 	entityIndex shared.EntityIndex,
 	repositoryImports map[string]map[string][]string,
 	reexportIndex shared.ReexportIndex,
-) ([]string, []map[string]any) {
+) ([]string, []map[string]any, int) {
 	shared.CacheRepositoryImportPaths(&entityIndex, repositoryImports)
 	seenRows := make(map[string]struct{})
 	rows := make([]map[string]any, 0)
+	unresolvedCallers := 0
 
 	for _, env := range envelopes {
 		if env.FactKind != factload.FactKindFile {
@@ -194,19 +233,18 @@ func extractCodeCallRowsWithIndex(
 		relativePath := file.RelativePath
 
 		rows = append(rows, extractSCIPCodeCallRows(repositoryID, entityIndex, seenRows, fileData)...)
-		rows = append(
-			rows,
-			extractGenericCodeCallRows(
-				repositoryID,
-				relativePath,
-				payloadcore.AnyToString(fileData["path"]),
-				entityIndex,
-				repositoryImports[repositoryID],
-				reexportIndex,
-				seenRows,
-				fileData,
-			)...,
+		genericRows, fileUnresolved := extractGenericCodeCallRows(
+			repositoryID,
+			relativePath,
+			payloadcore.AnyToString(fileData["path"]),
+			entityIndex,
+			repositoryImports[repositoryID],
+			reexportIndex,
+			seenRows,
+			fileData,
 		)
+		rows = append(rows, genericRows...)
+		unresolvedCallers += fileUnresolved
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
@@ -219,7 +257,7 @@ func extractCodeCallRowsWithIndex(
 	})
 
 	recordCodeCallSelfLoopWritten(rows)
-	return repositoryIDs, rows
+	return repositoryIDs, rows, unresolvedCallers
 }
 
 // recordCodeCallSelfLoopWritten observes a materialized code-call row whose

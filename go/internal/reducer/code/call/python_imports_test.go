@@ -108,7 +108,7 @@ func TestExtractCodeCallRowsResolvesPythonModuleAndFromImports(t *testing.T) {
 
 	entityIndex := shared.BuildEntityIndex(envelopes)
 	repositoryImports := shared.CollectRepositoryImports(envelopes)
-	callerID := shared.ResolveContainingEntityID(entityIndex, callerPath, "module_a.py", 6)
+	callerID := shared.ResolveContainingEntityID(entityIndex, "repo-python", callerPath, "module_a.py", 6)
 	if callerID == "" {
 		t.Fatal("callerID = \"\", want non-empty")
 	}

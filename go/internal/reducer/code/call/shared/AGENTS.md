@@ -32,6 +32,12 @@ helpers every language leaf depends on.
   `MatchImportedPath`): they exist because `code/call`'s test suite
   (T-a: dispatcher tests stay in `code/call`) needs them, not because
   production code does.
+- Span and alias lookups stay repository- and file-scoped (#7640). Store and
+  probe `spansByFile`, `containersByFile`, and `javaScriptAliasesByFile`
+  only by repository ID plus the `FileKeys` values. Never key a containment
+  lookup by a bare file name (`PathKeys` includes one) or by a path from
+  another repository, and never build a `repo+path` string per probe on this
+  hot path. `containment_test.go` holds the regression table.
 - Prove changes with `go test ./internal/reducer/code/call/... -count=1`
   (recursive covers every leaf) plus the resolution goldens in `code/call`
   when row shapes could change.

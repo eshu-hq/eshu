@@ -129,7 +129,8 @@ that type or class references are invocations.
 
 `CodeCallMaterializationHandler` logs `code call materialization completed`
 with fact count, stable symbol key count, active symbol-definition fact count,
-repository count, row counts, and timing for scoped fact load, context build,
+repository count, row counts, the unresolved-caller call count
+(`code_call_unresolved_caller_count`, #7640), and timing for scoped fact load, context build,
 active symbol-definition load, extraction, intent build, intent upsert, and
 total duration. Keep that signal when changing the handler; it is the first
 split used to tell parser extraction cost from Postgres lookup and intent-write
@@ -182,6 +183,39 @@ and observability evidence for this change is recorded in `README.md`.
 No-Regression Evidence: `go test ./internal/reducer/code/call ./internal/reducer/code/call/materialization ./internal/reducer/code/call/shared -run 'TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions|TestExtractCodeCallRowsResolvesCrossRepo|TestCodeCallDefinitionSymbolKeysIgnoreGenerationFields' -count=1` failed before the production handler loaded active cross-scope definition facts, then passed after definition rows supplied stable symbol keys and calls matched those keys before repo-unique fallback. `go test ./internal/storage/postgres -run TestFactStoreLoadActiveCodeCallSymbolDefinitionFacts -count=1` proves the Postgres loader is active-generation, non-tombstone, file-kind, symbol-allowlist, and keyset-page bounded. Ambiguous symbol keys with more than one target are deliberately not indexed, preserving the existing unique-or-unresolved rule.
 
 Observability Evidence: the existing `code call materialization completed` log now includes stable symbol key count, active definition fact count, and active symbol-definition load duration beside the existing fact count, repository count, row counts, and load/extract/intent/upsert timings. The change adds no metric instrument, metric label, span, route, runtime knob, queue table, or graph backend branch.
+
+## Repository-scoped call containment (issue #7640)
+
+A call's containing function (its caller) comes only from the call file's own
+identity: (repository, normalized full path) and (repository, normalized
+relative path). The entity index used to store function and type spans under
+every `PathKeys` key, bare file name included, and the containment lookup took
+the first key with any span over the call line. A top-level call, which has no
+span in its own file, fell through to the bare name and picked the narrowest
+span over that line in any same-named file, including files in other
+repositories loaded by cross-repo symbol resolution. That wrote `CALLS` and
+`INVOKES_CLOUD_ACTION` edges from functions that never made the call. The same
+bare-name fallthrough also fed the same-file scoped callee lookup (it found the
+caller span in a foreign file) and the JavaScript dynamic-call alias cache (it
+took the alias set of a foreign function).
+
+Spans and alias sets are now stored per repository under only the two own-file
+keys, and `ResolveContainingEntityID`, the scoped callee lookup, and the alias
+lookup take the repository ID. What changes for operators:
+
+- A top-level call in a non-JavaScript file has no caller and emits no row.
+  That matches the existing contract: only JavaScript/TypeScript file roots and
+  Java metadata roots give a top-level call a caller.
+- PHP in-function calls also drop for now. The PHP parser reports `end_line`
+  equal to the start line, so a PHP function span covers only its declaration
+  line. Before this fix those calls were attached through other same-named
+  files; a separate parser change restores them.
+- Callee-side name lookups (`uniqueNameByPath`, `ResolveEntityID`) still
+  include bare-name keys and are out of scope here.
+
+No-Regression Evidence: `go test ./internal/reducer/code/call/... ./internal/resolutionparity/... -count=1` passes with the repository-scoped index; the new `TestResolveContainingEntityIDStaysInsideTheCallFile`, `TestSameFileScopedCalleeStaysInsideTheCallFile`, `TestJavaScriptStaticAliasesStayInsideTheCallFile`, `TestExtractRowsDropsCallerFromAnotherRepositorysSameNamedFile`, and `TestBuildInvokesCloudActionIntentRowsIgnoresSameNamedFileInAnotherRepo` failed at the base commit with a foreign entity as the caller and pass after the change. The probe builds no composite `repo+path` string: it normalizes the call file's two paths and does at most two nested map lookups, with no key slice where `PathKeys` built one, and the index writes each span under at most two keys instead of up to four. Benchmark on the remote host pending.
+
+Observability Evidence: the existing `code call materialization completed` log now carries `code_call_unresolved_caller_count`, and `Result.SubSignals` carries `unresolved_caller_calls` (rendered as `sub_signal_unresolved_caller_calls`): calls whose callee resolved but whose caller has no containing entity in the call file's own repository and path, so they emitted no row. A drop in `code_call_row_count` with a matching rise here is this rule working. The change adds no metric instrument, metric label, span, route, runtime knob, queue table, or graph backend branch.
 
 ## Producer-anchored package keys (issue #7601)
 
