@@ -15,13 +15,13 @@ non-default loopback port; it is valid only in fixed mode. Set
 `ESHU7033_EXPECTED_DATABASE` and `ESHU7033_EXPECTED_SYSTEM_ID` from a separate
 read-only preflight, not from the connection string alone.
 
-The run uses a shared repeatable-read snapshot, a 50-second case deadline,
+Both modes use a shared repeatable-read snapshot, a 50-second case deadline,
 five-second SQL statement limit, and bounded rollback and connection cleanup.
-It checks persisted eligibility, path-first caps, pool agreement, and page
-stability before and during interleaved timing rounds. The database container,
-host resource gates, source commit, and corpus/index fingerprints must be
-verified separately. Stop and clean up any task-owned container or claim after
-the run; do not delete preserved volumes.
+Only `fixed_canonical` checks persisted eligibility, path-first caps, pool
+agreement, and page stability before and during interleaved timing rounds.
+The database container, host resource gates, source commit, and corpus/index
+fingerprints must be verified separately. Stop and clean up any task-owned
+container or claim after the run; do not delete preserved volumes.
 
 The diagnostic mode runs baseline, candidate, candidate, baseline in one shared
 read-only snapshot. Each route retains the full probe-row order and prints a
@@ -57,11 +57,13 @@ one second. A fixed-corpus same-state comparison remains required before any
 performance claim. This package is not deployed, so product-path latency is
 unchanged by adding the harness.
 
-Observability Evidence: The command prints `dynamic_case` row counts,
+Observability Evidence: `fixed_canonical` prints `dynamic_case` row counts,
 differences and snapshot age, `dynamic_timing_round` samples, and route
-medians. The historical `fixed_exit=0` was recorded by the invoking shell,
-not emitted by the command. Some initial-screen failures include phase,
-subject, and elapsed time; other failures report contextual errors without
-all three fields.
+medians. `fixed_diagnostic` prints probe-pool and direct-assembly hashes,
+redacted rank differences, snapshot age, and `timing=not_run`; it does not
+print timing samples. The historical `fixed_exit=0` was recorded by the
+invoking shell, not emitted by the command. Some initial-screen failures
+include phase, subject, and elapsed time; other failures report contextual
+errors without all three fields.
 All changes are confined to this internal proof package; no product metric,
 span, log, or status contract changes.
