@@ -22,9 +22,9 @@ func TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers(t *testing.T) {
 	if err := checkActiveWorkSummaryProjection(activeWorkSummaryQuery); err != nil {
 		t.Fatal(err)
 	}
-	original := "SELECT " + activeWorkSummaryColumns + "\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work"
+	original := "SELECT " + activeWorkSummaryColumns + "\n  " + activeWorkSummaryWorkInput
 	widened := strings.Replace(activeWorkSummaryQuery, original,
-		"SELECT work.*\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work", 1)
+		"SELECT work.*\n  "+activeWorkSummaryWorkInput, 1)
 	if widened == activeWorkSummaryQuery {
 		t.Fatal("wildcard positive control did not change the production CTE")
 	}
@@ -32,7 +32,7 @@ func TestActiveWorkSummaryProjectsWideFieldsOnlyForConsumers(t *testing.T) {
 		t.Fatal("wildcard positive control passed the projection guard")
 	}
 	appended := strings.Replace(activeWorkSummaryQuery, original,
-		"SELECT "+activeWorkSummaryColumns+",\n         *\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work", 1)
+		"SELECT "+activeWorkSummaryColumns+",\n         *\n  "+activeWorkSummaryWorkInput, 1)
 	if appended == activeWorkSummaryQuery {
 		t.Fatal("trailing wildcard positive control did not change the production CTE")
 	}
@@ -50,7 +50,7 @@ func checkActiveWorkSummaryProjection(query string) error {
 	if !ok {
 		return fmt.Errorf("summary has no materialized active work CTE boundary")
 	}
-	projection, _, ok := strings.Cut(cte, "\n  FROM (SELECT * FROM fact_work_items OFFSET 0) AS work")
+	projection, _, ok := strings.Cut(cte, "\n  "+activeWorkSummaryWorkInput)
 	if !ok {
 		return fmt.Errorf("summary has no active work projection boundary")
 	}

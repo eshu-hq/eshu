@@ -130,6 +130,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	recordActiveWorkSummaryMode(ctx, activeWork)
 	stageCounts := activeWork.StageCounts
 	q, done = s.read(ctx, statusReadProducerActivity)
 	producerActivity, err := readProducerActivitySnapshot(ctx, q, asOf.UTC())

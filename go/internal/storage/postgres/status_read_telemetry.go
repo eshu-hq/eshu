@@ -7,7 +7,9 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -77,4 +79,27 @@ type statusReadQueryer struct {
 // QueryContext runs the query with the read label on ctx.
 func (q statusReadQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return q.inner.QueryContext(db.WithQuerySummary(ctx, q.read), query, args...)
+}
+
+// Span attributes recording which branch the active-work summary gate took
+// (#7009 S5 ruling D5.3): summary_mode is grouped or detail, summary_estimate
+// the pg_stats live-share estimate the gate compared with the threshold.
+const (
+	statusActiveWorkSummaryModeKey     = attribute.Key("status.active_work.summary_mode")
+	statusActiveWorkSummaryEstimateKey = attribute.Key("status.active_work.summary_estimate")
+)
+
+// recordActiveWorkSummaryMode sets the gate branch and estimate on the span
+// active on ctx: the postgres.status_snapshot span when the snapshot reader
+// wraps the read. A slow active_work_summary sample on
+// eshu_dp_status_snapshot_read_duration_seconds is then attributable to its
+// branch. A summary without a mode row records nothing.
+func recordActiveWorkSummaryMode(ctx context.Context, summary activeWorkSummary) {
+	if summary.Mode == "" {
+		return
+	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		statusActiveWorkSummaryModeKey.String(summary.Mode),
+		statusActiveWorkSummaryEstimateKey.Float64(summary.Estimate),
+	)
 }

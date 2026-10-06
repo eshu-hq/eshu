@@ -111,6 +111,14 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		// stale-generation/backlog contract is pinned on real Postgres.
 		"TestActiveWorkSummaryMatchesStandaloneReads",
 		"TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows",
+		// #7009: the gated summary's oracle differential, its mutation
+		// controls, the gate's regclass proof, and the plan guard in both
+		// gate branches.
+		"TestActiveWorkSummaryMatchesPreHistoryGroupsOracle",
+		"TestActiveWorkSummaryOracleCatchesSeededHistoryMutations",
+		"TestActiveWorkSummaryGateMutationsAgainstOracle",
+		"TestActiveWorkSummaryGateResolvesTableByRegclass",
+		"TestStatusActiveFactWorkItemsCTEUsesGenerationIndex",
 		"TestStatusActiveWorkQueriesPreserveSemantics",
 		"TestActiveFactWorkItemsFormsSelectTheSameRows",
 		"TestProjectorHeartbeatSupersessionPreservesActivePointer",

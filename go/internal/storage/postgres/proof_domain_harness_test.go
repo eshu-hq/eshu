@@ -169,6 +169,18 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 
 func (database *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
+	// Exact query matches come before the substring matches below: the
+	// summary's grouped history CTE contains "GROUP BY status" and
+	// "FROM scope_generations" too (#7009).
+	case query == activeWorkSummaryQuery:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("active work summary args = %d, want 1", len(args))
+		}
+		rows, err := proofActiveWorkSummaryRows(database.state.workItems, args[0].(time.Time))
+		if err != nil {
+			return nil, err
+		}
+		return newProofRows(rows), nil
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(database.state, args)), nil
 	case strings.Contains(query, "SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')"):
@@ -198,15 +210,6 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows(
 			proofGenerationTransitionRows(database.state.generations, database.state.activeGenerations, database.now),
 		), nil
-	case query == activeWorkSummaryQuery:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("active work summary args = %d, want 1", len(args))
-		}
-		rows, err := proofActiveWorkSummaryRows(database.state.workItems, args[0].(time.Time))
-		if err != nil {
-			return nil, err
-		}
-		return newProofRows(rows), nil
 	case strings.Contains(query, "FROM fact_work_items") && strings.Contains(query, "GROUP BY stage, status"):
 		return newProofRows(proofStageCountRows(database.state.workItems)), nil
 	case strings.Contains(query, "GROUP BY domain") && strings.Contains(query, "oldest_outstanding_age_seconds"):
