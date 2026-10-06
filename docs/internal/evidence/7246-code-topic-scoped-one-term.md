@@ -46,8 +46,10 @@ the good regime the planner ANDs the repository bitmap and the read takes 0.3 to
 0.6 s. In the good regime measured here the `source_cache` trigram scan is still
 estimated at 1,232 rows (1,504 in the bad regime); what differs is the
 `name_trgm` scan, estimated at 23,074 rows against about 230, which pushes the
-combined estimate over the threshold. Neither fresh nor stale statistics decide
-it. A hidden term gets the planner's default match selectivity for both
+combined estimate over the threshold. An earlier good-regime plan reached it the
+other way: `name_trgm` estimated at 229 rows and `source_trgm` at 25,526 (604.8 ms
+statement), so either estimate can flip the plan. Neither fresh nor stale
+statistics decide it. A hidden term gets the planner's default match selectivity for both
 predicates, so the plan no longer depends on those estimates. The statistics
 refresh settings on the table are not changed here.
 
