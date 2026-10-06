@@ -4,91 +4,173 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
-	"testing"
 )
 
-// explainCTESubtree returns the text EXPLAIN lines of the named CTE: its
-// "CTE <name>" header and every following line indented deeper than it.
-func explainCTESubtree(plan, name string) (string, bool) {
-	lines := strings.Split(plan, "\n")
+// explainCTERange returns the half-open line range [lo, hi) of the named
+// CTE's header and subtree.
+func explainCTERange(lines []string, name string) (int, int, bool) {
 	for i, line := range lines {
 		if strings.TrimSpace(line) != "CTE "+name {
 			continue
 		}
-		indent := len(line) - len(strings.TrimLeft(line, " "))
 		end := i + 1
-		for end < len(lines) && len(lines[end])-len(strings.TrimLeft(lines[end], " ")) > indent {
+		for end < len(lines) && explainIndent(lines[end]) > explainIndent(line) {
 			end++
 		}
-		return strings.Join(lines[i:end], "\n"), true
+		return i, end, true
 	}
-	return "", false
+	return 0, 0, false
+}
+
+// explainIndent is the column where a text EXPLAIN line's content starts.
+func explainIndent(line string) int {
+	return len(line) - len(strings.TrimLeft(line, " "))
+}
+
+// explainNodeName returns the node name of a text EXPLAIN node line, such as
+// "Hash" for "->  Hash  (cost=...)" or "Sort" for a root "Sort  (cost=...)".
+func explainNodeName(line string) string {
+	body := strings.TrimPrefix(strings.TrimSpace(line), "->  ")
+	name, _, _ := strings.Cut(body, "  (")
+	return strings.TrimSpace(name)
+}
+
+// explainParent returns the index of the nearest shallower line above line
+// i (its parent node, or a CTE/InitPlan header), or -1 at the plan root.
+func explainParent(lines []string, i int) int {
+	for j := i - 1; j >= 0; j-- {
+		if strings.TrimSpace(lines[j]) != "" && explainIndent(lines[j]) < explainIndent(lines[i]) {
+			return j
+		}
+	}
+	return -1
+}
+
+var (
+	explainLoopsPattern   = regexp.MustCompile(`\(actual [^)]*\bloops=(\d+)\)`)
+	explainWorkersPattern = regexp.MustCompile(`^Workers Launched: (\d+)$`)
+)
+
+// explainLoops returns the actual loops of a node line, if it has actuals.
+func explainLoops(line string) (int, bool) {
+	m := explainLoopsPattern.FindStringSubmatch(line)
+	if m == nil {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	return n, err == nil
+}
+
+// explainLoopLimit is Workers Launched + 1 of the nearest Gather or Gather
+// Merge enclosing line i, and 1 when no Gather encloses it (or the Gather
+// reports no launched workers).
+func explainLoopLimit(lines []string, i int) int {
+	for j := explainParent(lines, i); j >= 0; j = explainParent(lines, j) {
+		if name := explainNodeName(lines[j]); name != "Gather" && name != "Gather Merge" {
+			continue
+		}
+		for k := j + 1; k < len(lines) && explainIndent(lines[k]) > explainIndent(lines[j]); k++ {
+			detail := strings.TrimSpace(lines[k])
+			if strings.HasPrefix(detail, "->") {
+				break
+			}
+			if m := explainWorkersPattern.FindStringSubmatch(detail); m != nil {
+				if n, err := strconv.Atoi(m[1]); err == nil {
+					return n + 1
+				}
+			}
+		}
+		return 1
+	}
+	return 1
+}
+
+// explainSinglePassParent reports whether a full scan under this parent runs
+// once per process: a hash build (Hash, Parallel Hash), either side of a hash
+// join, a Sort, or a Gather/Gather Merge. Nested Loop, Materialize, Memoize,
+// and every other parent can rescan it per outer row.
+func explainSinglePassParent(name string) bool {
+	base := strings.TrimPrefix(name, "Parallel ")
+	switch {
+	case base == "Hash", name == "Sort", name == "Gather", name == "Gather Merge":
+		return true
+	default:
+		return strings.HasPrefix(base, "Hash ") && strings.HasSuffix(base, " Join")
+	}
 }
 
 // checkSummaryGenerationScans is the activeWorkSummaryQuery half of the
-// #4446 no-full-scan guard. The per-work-row generation join in
-// active_fact_work_items must never scan scope_generations in full: that
-// cost grows with work rows times generations. Since #7009 the grouped
-// history join (fact_work_history_counts) joins once per (scope, generation,
-// stage, status) group, and the planner may hash it against one pass over
-// scope_generations; that pass is allowed there and nowhere else.
+// #4446 guard, bound to the cost class #4446 and #6794 guard against (a
+// per-row or per-group rescan of scope_generations), not to the scan type
+// (#7009 arbiter ruling D1). For every "Seq Scan on scope_generations" line
+// (Parallel Seq Scan included):
+//
+//   - R1: the nearest shallower plan line must be Hash, Parallel Hash, a hash
+//     join (either side), Sort, Gather, or Gather Merge;
+//   - R2: when actuals are present, loops on the scan and on that parent must
+//     be at most Workers Launched + 1 of the nearest enclosing Gather, or 1;
+//   - R3: at most one such scan inside active_fact_work_items, at most one
+//     inside fact_work_history_counts, and none anywhere else (which keeps
+//     the #6794 LATERAL LIMIT 1 scope-state probe); a plan with no
+//     active_fact_work_items CTE fails closed;
+//   - R4: every violation is reported, joined with errors.Join.
 func checkSummaryGenerationScans(plan string) error {
-	const fullScan = "Seq Scan on scope_generations"
-	detail, ok := explainCTESubtree(plan, "active_fact_work_items")
-	if !ok {
-		return fmt.Errorf("plan has no active_fact_work_items CTE")
-	}
-	if strings.Contains(detail, fullScan) {
-		return fmt.Errorf("active_fact_work_items scans scope_generations in full:\n%s", detail)
-	}
-	history, _ := explainCTESubtree(plan, "fact_work_history_counts")
-	if outside := strings.Count(plan, fullScan) - strings.Count(history, fullScan); outside > 0 {
-		return fmt.Errorf("%d full scope_generations scans outside fact_work_history_counts", outside)
-	}
-	if strings.Count(history, fullScan) > 1 {
-		return fmt.Errorf("fact_work_history_counts scans scope_generations more than once:\n%s", history)
-	}
-	return nil
-}
-
-// TestCheckSummaryGenerationScansRejectsDetailFullScan is the seeded
-// RED/GREEN pair for checkSummaryGenerationScans on fixed plan text.
-func TestCheckSummaryGenerationScansRejectsDetailFullScan(t *testing.T) {
-	t.Parallel()
-
-	plan := func(detailScan, historyScan, tailScan string) string {
-		return strings.Join([]string{
-			"Sort",
-			"  CTE active_fact_work_items",
-			"    ->  Hash Join",
-			"          ->  " + detailScan,
-			"  CTE fact_work_history_counts",
-			"    ->  Hash Join",
-			"          ->  " + historyScan,
-			"  ->  Append",
-			"        ->  " + tailScan,
-		}, "\n")
-	}
 	const (
-		full  = "Seq Scan on scope_generations stale_generation"
-		probe = "Index Scan using scope_generations_pkey on scope_generations stale_generation"
-		other = "Seq Scan on ingestion_scopes scope"
+		fullScan = "Seq Scan on scope_generations"
+		detail   = "active_fact_work_items"
+		history  = "fact_work_history_counts"
+		outside  = "outside active_fact_work_items and fact_work_history_counts"
 	)
-	for name, tc := range map[string]struct {
-		plan    string
-		wantErr bool
-	}{
-		"probes everywhere":          {plan(probe, probe, other), false},
-		"history hashes one pass":    {plan(probe, full, other), false},
-		"detail scans in full":       {plan(full, probe, other), true},
-		"scan outside both CTEs":     {plan(probe, probe, full), true},
-		"detail and history in full": {plan(full, full, other), true},
-		"no detail CTE in the plan":  {"Sort\n  ->  " + full, true},
-	} {
-		if err := checkSummaryGenerationScans(tc.plan); (err != nil) != tc.wantErr {
-			t.Errorf("%s: err = %v, wantErr %v", name, err, tc.wantErr)
+	lines := strings.Split(plan, "\n")
+	detailLo, detailHi, ok := explainCTERange(lines, detail)
+	if !ok {
+		return fmt.Errorf("plan has no %s CTE", detail)
+	}
+	historyLo, historyHi, _ := explainCTERange(lines, history)
+	var errs []error
+	counts := map[string]int{}
+	for i, line := range lines {
+		if !strings.Contains(line, fullScan) {
+			continue
+		}
+		where := outside
+		switch {
+		case i > detailLo && i < detailHi:
+			where = detail
+		case i > historyLo && i < historyHi:
+			where = history
+		}
+		counts[where]++
+		parent, parentName := explainParent(lines, i), "plan root"
+		if parent >= 0 {
+			parentName = explainNodeName(lines[parent])
+		}
+		if !explainSinglePassParent(parentName) {
+			errs = append(errs, fmt.Errorf("%s: full scope_generations scan under %q, want Hash, Parallel Hash, a hash join, Sort, Gather, or Gather Merge: %s",
+				where, parentName, strings.TrimSpace(line)))
+		}
+		limit := explainLoopLimit(lines, i)
+		if loops, ok := explainLoops(line); ok && loops > limit {
+			errs = append(errs, fmt.Errorf("%s: full scope_generations scan loops=%d, want at most %d (Workers Launched + 1)", where, loops, limit))
+		}
+		if parent >= 0 {
+			if loops, ok := explainLoops(lines[parent]); ok && loops > limit {
+				errs = append(errs, fmt.Errorf("%s: full scope_generations scan parent %q loops=%d, want at most %d (Workers Launched + 1)", where, parentName, loops, limit))
+			}
 		}
 	}
+	for _, where := range []string{detail, history} {
+		if counts[where] > 1 {
+			errs = append(errs, fmt.Errorf("%s: %d full scope_generations scans, want at most 1", where, counts[where]))
+		}
+	}
+	if counts[outside] > 0 {
+		errs = append(errs, fmt.Errorf("%d full scope_generations scans %s", counts[outside], outside))
+	}
+	return errors.Join(errs...)
 }
