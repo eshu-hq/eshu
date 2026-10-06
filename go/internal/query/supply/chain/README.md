@@ -126,7 +126,15 @@ one scope; the findings read runs them one after another, so they cannot.
 
 A handler-owned HTTP 500 on any sibling route additionally emits ONE ERROR-level
 `supply_chain_query.stage_failed` event, because `querycontract.WriteError`
-never logs. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
+never logs. The exception is a selector lookup failure on the routes that
+resolve their repository through the shared `selector.ResolveForRequestWithAccess`
+helper (advisory evidence, container-image identity, SBOM attestation
+attachments, and the impact findings, aggregate, explanation and
+investigation-packet routes through
+`resolveSupplyChainImpactRepositorySelector`): that 500 is
+recorded on the handler span only, with no `stage_failed` line, until those
+routes add their own stage record (#7626). The security-alert selector path does
+emit `stage_failed` for its `repository_selector_resolve` stage. It carries `operation`, `stage`, `repo_id`, `duration_seconds`, and:
 
 - `error`: the error text, cut to 256 bytes on a UTF-8 boundary. The guarded
   PostgreSQL reader's errors already carry a fixed site string such as

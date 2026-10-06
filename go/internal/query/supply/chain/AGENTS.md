@@ -49,7 +49,8 @@ Read `doc.go` and `README.md` first.
   #7567) follow the same order as stages `repository_catalog_match` and
   `provider_repository_scope_lookup`, and its exact-resolution fallback as
   `repository_selector_resolve` (#7626: `failStage` only when
-  `selector.IsLookupFailure`, so 404/400 selector answers log nothing),
+  `selector.IsLookupFailure`, so 404/400 selector answers emit no
+  `stage_failed` record; their completion still carries `error=true`),
   reporting against the calling route's
   span and operation through `securityAlertSelectorRoute`. Keep the
   capability a plain string parameter: root's
