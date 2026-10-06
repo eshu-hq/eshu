@@ -166,6 +166,9 @@ PACKAGES = {
             "TestStatusSummaryCrashSafetyLive",
             "TestStatusSummaryWriterLockLive",
         ),
+        "go/internal/storage/postgres/status/summary/conflict_live_test.go": (
+            "TestStatusSummaryConflictWaitLive",
+        ),
         "go/internal/storage/postgres/status/summary/bloat_live_test.go": (
             "TestStatusSummaryBloatLive",
             "TestStatusSummaryBloatIncompressibleLive",

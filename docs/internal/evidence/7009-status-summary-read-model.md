@@ -28,7 +28,7 @@ Hermetic tests in `go/internal/storage/postgres/status/summary`:
   primary key and no backfill, and every column the statements name is declared;
 - SQLSTATE 42P01 is classified as `ErrNotInstalled` on `Upsert` and `Read` while
   other errors keep their SQLSTATE reachable;
-- `WriterLockKey` differs from every advisory key constant in `go/` (an AST scan
+- `WriterLockKey` differs from every integer lock or advisory constant in `go/` (an AST scan
   of non-test sources, with a seeded collision showing the scan can fail).
 
 Live tests on PostgreSQL 18.6 (`TestStatusSummary*Live`). They run as a blocking
@@ -46,11 +46,19 @@ step of the reducer contention gate (fail-closed through
   the production statement with its `WHERE` guard cut off moves `as_of` back, so
   the guard is what holds it. Mutating the production guard to `<=` fails the
   equal-`as_of` case, and deleting it fails the guard and the concurrent test;
-- two concurrent unlocked guarded writers for 30 rounds, alternating which one
-  starts first, beside a polling reader: the final `as_of` is the newer one in
-  every round, the reader never saw `as_of` go backwards, and both outcome orders
-  occurred (in one run, 14 rounds with only the newer row upserted and 16 with
-  both upserted);
+- two unlocked guarded writers for 30 rounds beside a polling reader: the final
+  `as_of` is the newer one in every round and the reader never saw `as_of` go
+  backwards. This alternates which writer starts first, so it does not prove the
+  writers overlapped; it is a monotonicity check, not a contention proof;
+- contention: `TestStatusSummaryConflictWaitLive` holds one writer's transaction
+  open and shows from `pg_stat_activity` that the other writer is waiting on a
+  lock before releasing the holder. It covers a newer holder with an older
+  waiter (rejected), an older holder with a newer waiter (advances), the same two
+  cases as the first insert into an empty table, and a holder that rolls back (the
+  waiter advances, over the base row and over an empty table). The property is
+  that `INSERT ... ON CONFLICT DO UPDATE ... WHERE` under READ COMMITTED waits for
+  the in-flight transaction, locks the newest committed version, and evaluates the
+  `WHERE` against that version, not the statement snapshot;
 - crash safety: a backend terminated after the upsert statement and before commit
   leaves the stored row exactly as it was, and the next pass replaces it;
 - writer lock: a second transaction cannot take the lock while the first holds it,
@@ -88,10 +96,13 @@ The store returns classified errors (`ErrNotInstalled`, `ErrNotFound`,
 
 ## Rollout
 
-Merge order: this PR must merge after #7645, which holds
-`160_activation_obligations.sql`; re-check `ls migrations | tail -3` and the open
-PR file lists before merging, and renumber (updating the checksum manifest and the
-embed invariant digest) if another migration lands first. After that the order is
+Merge order: merge after #7645, which holds `160_activation_obligations.sql`, as
+a coordination choice (the tracker applies any unapplied file in path order and
+gaps are allowed, so either order is safe at runtime). Both PRs edit
+`embed_invariant_test.go`, `migration_checksum_manifest_test.go`, and
+`schema_order_test.go`, so whichever merges second rebases and re-pins them.
+Re-check `ls migrations | tail -3` and the open PR file lists before merging, and
+renumber if another migration lands first. After that the order is
 free: the migration only adds a table, so migration, writer, and reader can ship
 in any order.
 
@@ -105,7 +116,18 @@ in any order.
   the same transaction as the upsert, so one replica writes per tick and a crashed
   holder frees the lock with its backend. The upsert claims no work items and
   uses no `FOR UPDATE SKIP LOCKED`, so queue lease and EvalPlanQual proofs do not
-  apply; the only row it touches is its own model row.
+  apply; the only row it touches is its own model row. Its guard rests on the
+  `ON CONFLICT DO UPDATE` lock-and-recheck path, proved by the conflict-wait test
+  above. That path needs READ COMMITTED (REPEATABLE READ raises 40001 on the
+  conflict), and the writer must bind `as_of` from the database clock inside the
+  locked transaction so all replicas share one clock domain; both are rules for
+  the writer slice.
+- Decoder round trip: the ruling asked PR-A to round-trip the payload through
+  `activeWorkSummary.add`. That decoder is private to the parent `postgres`
+  package, and a test of it there would add a root-level file beside the legacy
+  `status_*.go` family the naming rules reject. The round trip moves to the reader
+  slice's equality proof (PR-C, the live comparison with `readActiveWorkSummary`),
+  and the package docs say the tuples are shaped for the decoder until then.
 - Rolling upgrade: `source_sha256` and `schema_version` let a reader refuse rows
   it did not produce the statement for. The reader slice enforces them.
 

@@ -838,6 +838,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 bloat proof of the one-row status summary table (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts at the production row size, with a compressible and an incompressible (TOASTed) payload, then VACUUM, leave a one-page heap, a bounded TOAST relation, HOT updates, and a read of a handful of buffers; about 1 s each on PostgreSQL 18.6"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/status/summary/conflict_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7009 disposable PostgreSQL 18 contention proof of the status summary as_of guard (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): one writer's transaction is held open, pg_stat_activity shows the other blocked on a lock, and the release decides whether the waiter advances (newer over older, older rejected, first insert, holder rollback); about 1 s on PostgreSQL 18.6"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/status/summary/store_live_test.go
     tag: ~
     class: postgres_ci

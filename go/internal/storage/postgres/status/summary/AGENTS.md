@@ -19,7 +19,8 @@
 - Keep the write one statement on one row. A multi-row model exposes a torn
   answer after a partial write.
 - Keep the read a primary-key lookup with no `as_of` filter, ordering, or
-  limit. A live test pins the plan.
+  limit. A live test pins the read to this table and a handful of buffers, not
+  the plan node: the planner seq-scans a one-page table.
 - `computed_at` is the database clock; `Upsert` ignores `Row.ComputedAt`.
 - Never edit `migrations/161_status_summary_snapshots.sql` after it merges: the
   migration ledger pins its checksum. Change storage parameters with a new
@@ -32,5 +33,8 @@
   `lock_key_test.go` scans the module for collisions. Add a new advisory key
   elsewhere only with a name that contains `lock` or `advisory`, so the scan
   sees it.
+- Do not add a `.go` file directly in `go/internal/storage/postgres/status/`: it
+  has none today, so dirgate does not treat it as a package, and a file there
+  would make every legacy root `status_*.go` file trip the naming gate.
 - This package adds no telemetry: the writer and reader callers own the
   metrics, spans, and logs the ruling lists.

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEncodeDecodeEntriesRoundTrip(t *testing.T) {
@@ -98,6 +99,7 @@ func TestRowValidate(t *testing.T) {
 		ModelKey:      ModelActiveWorkSummary,
 		SchemaVersion: SchemaVersion,
 		SourceSHA256:  strings.Repeat("a", 64),
+		AsOf:          time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC),
 		RowCount:      1,
 		Entries:       []Entry{{Section: "queue", Ordinal: 0, JSON: `{}`}},
 	}
@@ -116,6 +118,8 @@ func TestRowValidate(t *testing.T) {
 		"zero version":     func(r *Row) { r.SchemaVersion = 0 },
 		"blank source sha": func(r *Row) { r.SourceSHA256 = "" },
 		"negative count":   func(r *Row) { r.RowCount = -1 },
+		"zero as_of":       func(r *Row) { r.AsOf = time.Time{} },
+		"negative pass":    func(r *Row) { r.PassDuration = -time.Millisecond },
 	} {
 		bad := valid
 		mutate(&bad)

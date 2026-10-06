@@ -60,10 +60,26 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
 - `Store`, `Reader`, `Writer`, `NewStore`: small interfaces for the writer and
   reader callers.
 
+## Writer contract
+
+The store trusts the `as_of` it is given, so the caller owns two rules. The writer
+pass must run at READ COMMITTED: `INSERT ... ON CONFLICT DO UPDATE ... WHERE`
+waits for an in-flight conflicting transaction and rechecks the guard on the
+newest committed row, but under REPEATABLE READ or SERIALIZABLE the same conflict
+raises SQLSTATE 40001. And the writer must bind `as_of` from the database clock
+inside the transaction that holds the advisory lock, so every replica shares one
+clock domain: a replica with a fast Go clock would otherwise write an `as_of`
+ahead of its data, get a correct later pass rejected, and make the reader's
+`now - as_of` understate staleness.
+
 ## Rollout order
 
-Migration 160 belongs to PR #7645 (`160_activation_obligations.sql`), so the PR
-that adds migration 161 must merge after #7645. Migration 161 only creates a new
+Migration 160 belongs to PR #7645 (`160_activation_obligations.sql`). Merging
+this PR after #7645 is a coordination choice, not a runtime requirement: the
+migration tracker applies any unapplied file in path order and gaps are allowed.
+The real coupling is a textual conflict in `embed_invariant_test.go`,
+`migration_checksum_manifest_test.go`, and `schema_order_test.go`, so whichever
+PR merges second rebases and re-pins them. Migration 161 only creates a new
 table, so no other ordering applies: the migration, then a writer, then a reader
 is safe in every order. A reader that finds no table falls back to the live
 statement, and a writer that finds no table skips and keeps looping.
@@ -72,10 +88,12 @@ statement, and a writer that finds no table skips and keeps looping.
 
 Hermetic tests cover the codec round trip and its rejections, the SQL text pins
 (strict guard, keyed read), the migration embed and DDL, the error
-classification, and the advisory key's uniqueness against every other advisory
-key constant in `go/`. Live PostgreSQL 18 tests (`store_live_test.go`,
-`bloat_live_test.go`) cover the guard going back never, concurrent writers,
-single-row crash safety, the empty and missing-table reads, migration
+classification, and the advisory key's uniqueness against every other integer
+lock or advisory constant in `go/` (an AST scan; keys written as SQL literals or
+hashed from data are not covered). Live PostgreSQL 18 tests (`store_live_test.go`,
+`conflict_live_test.go`, `bloat_live_test.go`) cover the guard going back never,
+two writers that genuinely overlap (one waits on the other's uncommitted row,
+proved from `pg_stat_activity`), single-row crash safety, the empty and missing-table reads, migration
 idempotency, the applied reloptions, and 4,000-upsert bloat (compressible and TOASTed payloads). They run as a blocking step of the reducer contention gate, fail-closed through
 `ESHU_REQUIRE_STATUS_SUMMARY_PROOF`, and in the `live-postgres-readiness` lane the
 live-test ledger requires. `gate_enrollment_test.go` keeps the workflow step in

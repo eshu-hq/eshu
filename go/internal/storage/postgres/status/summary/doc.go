@@ -7,8 +7,8 @@
 // The table holds one row per model key. The row's rows payload is the whole
 // result of a status statement, encoded as
 // [[section, ordinal, section_json_text], ...] in live order (see Entry and
-// EncodeEntries), so a reader can feed the tuples to the production decoder
-// unchanged. The writer replaces the whole row with Upsert, one guarded
+// EncodeEntries). The tuples are shaped to feed the production decoder
+// unchanged; the status reader slice proves the round trip through it. The writer replaces the whole row with Upsert, one guarded
 // single-row statement: the conflict branch applies only when the stored as_of
 // is strictly older than the incoming one, so an older pass can never overwrite
 // a newer one, a replay with an equal as_of rewrites nothing, and a reader sees

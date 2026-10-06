@@ -105,3 +105,14 @@ func proofRow(asOf time.Time, tag string, entries int) summary.Row {
 	}
 	return row
 }
+
+// connStore adapts a dedicated *sql.Conn to the storage db contracts.
+type connStore struct{ conn *sql.Conn }
+
+func (c connStore) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return c.conn.ExecContext(ctx, query, args...)
+}
+
+func (c connStore) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return c.conn.QueryContext(ctx, query, args...)
+}

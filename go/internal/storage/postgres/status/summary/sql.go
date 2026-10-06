@@ -27,8 +27,10 @@ ON CONFLICT (model_key) DO UPDATE
 `
 
 // readSQL reads one model row by its primary key. It carries no as_of filter,
-// ordering, or limit: the key alone selects the row, so the plan is one index
-// scan on the primary key.
+// ordering, or limit: the key alone selects the row. On a one-page table the
+// planner may read the heap with a sequential scan instead of the primary key
+// index, so the live proofs pin the relation and the buffers touched, not the
+// plan node.
 const readSQL = `
 SELECT model_key, schema_version, source_sha256, as_of,
        computed_at, pass_duration_ms, row_count, rows
