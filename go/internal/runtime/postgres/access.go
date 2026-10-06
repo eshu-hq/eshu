@@ -30,6 +30,10 @@ const (
 	StageReaderIdentity   Stage = "reader_identity"
 	StageReaderReplay     Stage = "reader_replay"
 	StageBusinessQuery    Stage = "business_query"
+	// StageTransactionControl times control SQL inside a guarded read
+	// transaction, such as the status snapshot's SET LOCAL jit = off. It is
+	// not a business query and never enters the per-request stage timings.
+	StageTransactionControl Stage = "transaction_control"
 )
 
 // Reader access outcomes classify each observed stage without exposing an
@@ -336,7 +340,8 @@ func readerOutcome(err error) Outcome {
 
 // requestReaderStage maps the four guarded-reader stages to the per-request
 // accumulator's closed set. The writer checkpoint stage has no accumulator
-// slot: it runs before the reader fence and is not reader time.
+// slot: it runs before the reader fence and is not reader time. The
+// transaction control stage has none either: it is not a business query.
 func requestReaderStage(stage Stage) (db.ReaderStage, bool) {
 	switch stage {
 	case StageReaderBorrow:

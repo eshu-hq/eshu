@@ -98,19 +98,26 @@ func TestSnapshotStatusReaderFailsClosedWhenJITCannotBeDisabled(t *testing.T) {
 	}
 }
 
-// jitControlSpy counts reader query-start events and business_query stage
-// observations on the guarded reader.
+// jitControlSpy counts reader query-start events, business_query stage
+// observations, and transaction_control outcomes on the guarded reader.
 type jitControlSpy struct {
 	mu       sync.Mutex
 	starts   int
 	business int
+	control  map[Outcome]int
 }
 
-func (s *jitControlSpy) Observe(_ string, stage Stage, _ Outcome, _ time.Duration) {
+func (s *jitControlSpy) Observe(_ string, stage Stage, outcome Outcome, _ time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if stage == StageBusinessQuery {
+	switch stage {
+	case StageBusinessQuery:
 		s.business++
+	case StageTransactionControl:
+		if s.control == nil {
+			s.control = map[Outcome]int{}
+		}
+		s.control[outcome]++
 	}
 }
 func (*jitControlSpy) recordsReaderQueryStart(context.Context) bool { return true }
@@ -120,14 +127,20 @@ func (s *jitControlSpy) recordReaderQueryStart(context.Context, int64, readerBac
 	s.starts++
 }
 
-type jitControlConnector struct{ execs *[]string }
+type jitControlConnector struct {
+	execs   *[]string
+	execErr error
+}
 
 func (c jitControlConnector) Connect(context.Context) (driver.Conn, error) {
-	return &jitControlConn{execs: c.execs}, nil
+	return &jitControlConn{execs: c.execs, execErr: c.execErr}, nil
 }
 func (jitControlConnector) Driver() driver.Driver { return terminalErrorDriver{} }
 
-type jitControlConn struct{ execs *[]string }
+type jitControlConn struct {
+	execs   *[]string
+	execErr error
+}
 
 func (*jitControlConn) Prepare(string) (driver.Stmt, error) { return nil, errors.New("unused") }
 func (*jitControlConn) Close() error                        { return nil }
@@ -138,6 +151,9 @@ func (*jitControlConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, er
 
 func (c *jitControlConn) ExecContext(_ context.Context, statement string, _ []driver.NamedValue) (driver.Result, error) {
 	*c.execs = append(*c.execs, statement)
+	if c.execErr != nil {
+		return nil, c.execErr
+	}
 	return driver.ResultNoRows, nil
 }
 
@@ -177,8 +193,8 @@ func TestGuardedStatusSnapshotJITSettingIsControlSQL(t *testing.T) {
 	if err := plain.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-	if len(execs) != 0 {
-		t.Fatalf("plain guarded snapshot executed %q; the SET belongs to the status reader only", execs)
+	if len(execs) != 0 || len(spy.control) != 0 {
+		t.Fatalf("plain guarded snapshot executed %q (control=%v); the SET belongs to the status reader only", execs, spy.control)
 	}
 	spy.business, spy.starts = 0, 0
 
@@ -197,11 +213,51 @@ func TestGuardedStatusSnapshotJITSettingIsControlSQL(t *testing.T) {
 	if len(execs) != 1 || execs[0] != statusSnapshotJITOffSQL {
 		t.Fatalf("control statements=%q, want one %q", execs, statusSnapshotJITOffSQL)
 	}
-	// One BeginTx observation plus one business query; the SET adds neither.
+	// One BeginTx observation plus one business query; the SET adds neither
+	// and is observed once as transaction_control.
 	if spy.starts != 1 || spy.business != 2 {
 		t.Fatalf("query starts=%d business observations=%d, want 1 and 2", spy.starts, spy.business)
 	}
+	if len(spy.control) != 1 || spy.control[OutcomeOK] != 1 {
+		t.Fatalf("transaction_control observations=%v, want one ok", spy.control)
+	}
 	if got := pool.Stats().InUse; got != 0 {
 		t.Fatalf("status snapshot leaked %d connections", got)
+	}
+}
+
+// TestGuardedStatusSnapshotJITFailureIsAMetricsSignal proves a failed SET is
+// visible without traces: one transaction_control observation with
+// outcome=error, the read fails and releases its connection, and the
+// per-request business accumulator does not count the control statement.
+func TestGuardedStatusSnapshotJITFailureIsAMetricsSignal(t *testing.T) {
+	var execs []string
+	spy := &jitControlSpy{}
+	pool := sql.OpenDB(jitControlConnector{execs: &execs, execErr: errors.New("seeded SET failure")})
+	defer pool.Close()
+	access := &Access{
+		reader: pool, observer: spy, samePrimary: true, replayTimeout: time.Second,
+		lineage: newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
+	}
+	ctx := context.WithValue(t.Context(), checkpointKey{}, checkpoint{owner: access, systemID: "7", database: "eshu"})
+	ctx, timings := db.WithStageTimings(ctx)
+	reader := NewSnapshotStatusReader(access.Reader(), func(db.Queryer) status.Reader {
+		t.Fatal("factory called after the JIT setting failed")
+		return nil
+	}, nil)
+	if _, err := reader.ReadStatusSnapshot(ctx, time.Now()); err == nil {
+		t.Fatal("status read succeeded after the SET failed")
+	}
+	if len(spy.control) != 1 || spy.control[OutcomeError] != 1 {
+		t.Fatalf("transaction_control observations=%v, want one error", spy.control)
+	}
+	if got := timings.Count(db.ReaderStageBusinessQuery); got != 1 {
+		t.Fatalf("request business_query count=%d, want 1 (BeginTx only)", got)
+	}
+	if got := pool.Stats().InUse; got != 0 {
+		t.Fatalf("failed status snapshot leaked %d connections", got)
+	}
+	if got := closedReaderStage(StageTransactionControl); got != string(StageTransactionControl) {
+		t.Fatalf("closed stage=%q, want %q", got, StageTransactionControl)
 	}
 }

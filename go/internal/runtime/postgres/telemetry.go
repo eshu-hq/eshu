@@ -134,7 +134,7 @@ func closedReaderRole(role string) string {
 
 func closedReaderStage(stage Stage) string {
 	switch stage {
-	case StageWriterCheckpoint, StageReaderBorrow, StageReaderIdentity, StageReaderReplay, StageBusinessQuery:
+	case StageWriterCheckpoint, StageReaderBorrow, StageReaderIdentity, StageReaderReplay, StageBusinessQuery, StageTransactionControl:
 		return string(stage)
 	default:
 		return readerUnknown

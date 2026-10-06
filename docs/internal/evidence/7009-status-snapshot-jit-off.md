@@ -5,15 +5,18 @@
 `snapshotStatusReader.read` (`go/internal/runtime/postgres/status_reader.go`)
 issues `SET LOCAL jit = off` once, right after `BeginReadOnlySnapshot`
 succeeds and before the read phase. Every status statement of the full,
-filtered, and semantic-only reads runs in that one transaction, so none of
-them pays a PostgreSQL JIT compile. `SET LOCAL` ends with the transaction on
+filtered, and semantic-only reads runs in that one transaction, so no
+statement in the status snapshot transaction pays a PostgreSQL JIT compile.
+Live activity and response assembly run after that transaction ends, with
+the server's `jit` setting; they are outside this change and its inventory. `SET LOCAL` ends with the transaction on
 Commit and on Rollback, so no pooled reader connection keeps the setting.
 
 The SET is not in `BeginReadOnlySnapshot`. Other readers share that method
 and keep the server's `jit` setting. The `db` leaf forbids SQL text and an
 `Exec` method on `db.ReadTransaction`, so the interface did not grow. The
 guarded `readTransaction` gets an unexported `execControl` (ExecContext with
-no reader query-start event and no `business_query` stage observation). Any
+no reader query-start event and no `business_query` stage observation; it
+records the closed `transaction_control` reader stage instead). Any
 other `ReadTransaction` gets the SET through `QueryContext`. A failed SET
 fails the read and rolls back. The read never runs with an unknown JIT
 setting.
@@ -38,7 +41,10 @@ JIT function counts, and makes no absolute-latency claim.
 
 Round trip, built code: `NewSnapshotStatusReader` (with the SET) against
 the same read minus the SET, interleaved with a rotating first mover, after
-three warm pairs.
+three warm pairs. All three runs used the S4z state with 2,047,500
+`fact_records` (row 2 of the inventory table below): clean visibility map, no
+statement above `jit_above_cost`, so the SET changed no plan's JIT decision in
+these runs.
 
 | read | N per arm | with SET median | without SET median | median delta | direct `SET LOCAL jit = off` median |
 |---|---:|---:|---:|---:|---:|
@@ -48,9 +54,9 @@ three warm pairs.
 
 The gate is at most 2 ms or 1% of the read, whichever is larger. The
 semantic-only read resolves the cost: 0.26 ms, one extra round trip. The
-full-read deltas change sign between runs (+55.6, -48.3 ms). That is host
-noise at load1 15 to 20, not the SET. The full-read cell needs a quiet host to
-resolve 1%.
+full-read deltas change sign between runs (+55.6, -48.3 ms) and are
+unresolved at this load (load1 15 to 20). The full-read cell needs a quiet
+host to resolve 1%.
 
 Statement inventory: plain `EXPLAIN` (no ANALYZE) of every statement the
 real `StatusStore` issued for a full read. The harness captured them with
@@ -89,7 +95,11 @@ statements pass, so the transaction-wide form stays. The bracketed form
   records `phase=jit` with no `jit` attribute. On the guarded path, a plain
   `BeginReadOnlySnapshot` sends no SET. The status read sends it as control
   SQL: one reader query-start event and two `business_query` observations
-  (BeginTx plus the one business query), the same as without the SET.
+  (BeginTx plus the one business query), the same as without the SET, plus
+  one `transaction_control` observation with outcome `ok`. A seeded SET
+  failure records one `transaction_control` observation with outcome `error`,
+  fails the read, releases the connection, and leaves the request's
+  `business_query` accumulator at 1 (BeginTx only).
 - Live (`status_reader_jit_containment_test.go`, env-gated): the probe reads
   `current_setting('jit')`, the value `SHOW jit` prints, and the backend
   PID@address. It first checks that the server default is `on`, so the probe
@@ -100,6 +110,13 @@ statements pass, so the transaction-wide form stays. The bracketed form
   is allowed in recovery), and on the direct-member reader fleet over two
   standbys. The fleet test runs in a container on the fixture network,
   because members must be direct server addresses.
+- CI reach: the live tests skip unless `ESHU_READER_TEST_*` DSNs are set, and
+  no workflow sets them, like this package's other env-gated tests. In CI the
+  unit set guards the contract: the statement pin, the guarded control-path
+  test (kills the QueryContext route), and the plain-snapshot no-SET
+  assertion (kills a move into `BeginReadOnlySnapshot`). Session `SET` is
+  caught in CI only by the statement pin; the live post-Commit probe is the
+  behavioral check and runs only on an owned fixture.
 
 Mutation proof (each mutation applied, tests run, then the file restored):
 
@@ -117,8 +134,11 @@ The `postgres.status_snapshot` span gains `jit=off` once the SET succeeds and
 `outcome=error` with no `jit` attribute. The child `postgres.query` spans and
 `eshu_dp_status_snapshot_read_duration_seconds{read}` still time each
 statement. The SET adds no reader query-start event and no `business_query`
-stage sample. The telemetry coverage row, the traces reference, and the read
-routing page describe the attribute.
+stage sample. It is timed by `eshu_dp_postgres_reader_stage_duration_seconds`
+with `stage="transaction_control"`, so a failed SET is visible in metrics as
+`outcome!="ok"` on that stage, not only in traces. The telemetry coverage
+row, the metrics and traces references, and the read routing page describe
+the attribute and the stage.
 
 ## Not proven
 
@@ -133,7 +153,8 @@ routing page describe the attribute.
   `fact_records`. Its `shared_projection_intents` table holds 1.0M rows, not
   ops-qa's ~6.8M. Other collector tables are empty, so their statements cost
   under 130 here.
-- The full-read round trip at 1% resolution: not resolved at load1 15 to 20.
+- The full-read round trip at 1% resolution: unresolved at this load (load1
+  15 to 20).
   The single-statement read and the direct SET bound it at about 0.3 ms.
 - Observation: `terraform_state` #25 (`terraformStateRecentWarningsQuery`)
   has no `terraform_state_warning` index and no active-generation filter. It

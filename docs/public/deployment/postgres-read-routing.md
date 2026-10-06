@@ -112,11 +112,14 @@ Status full and filtered reads use one five-second bounded snapshot after the
 request checkpoint. They release the reader transaction before collecting
 live activity and serializing the response. Read and transaction failures
 return an error rather than a partial status snapshot. Each status snapshot
-transaction first runs `SET LOCAL jit = off`, so no status statement pays a
-PostgreSQL JIT compile; the setting ends with that transaction on commit and
-rollback, and other reader transactions keep the server's `jit` setting. A
-failed `SET` fails the read. The `postgres.status_snapshot` span carries
-`jit=off` when the setting applied. Readiness uses one guarded status query
+transaction first runs `SET LOCAL jit = off`, so no statement in the status
+snapshot transaction pays a PostgreSQL JIT compile; live activity runs after
+the transaction with the server setting. The setting ends with that
+transaction on commit and rollback, and other reader transactions keep the
+server's `jit` setting. A failed `SET` fails the read and records
+`stage="transaction_control"` with a non-`ok` outcome on
+`eshu_dp_postgres_reader_stage_duration_seconds`. The
+`postgres.status_snapshot` span carries `jit=off` when the setting applied. Readiness uses one guarded status query
 without opening a snapshot transaction.
 
 Streaming replication is asynchronous. The guard promises visibility through
