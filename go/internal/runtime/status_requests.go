@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+// ReindexIngesterRepository is the only ingester name POST
+// /api/v0/admin/reindex accepts and the row every git ingester shard reads
+// its reindex watermark from (#7620).
+const ReindexIngesterRepository = "repository"
+
 // RequestState represents the lifecycle state of a scan or reindex request.
 type RequestState string
 
@@ -68,8 +73,11 @@ type StatusRequestStore interface {
 	// CompleteScanRequest transitions a running scan to completed or failed.
 	CompleteScanRequest(ctx context.Context, ingester string, now time.Time, scanErr string) error
 
-	// RequestReindex transitions a reindex request from idle to pending.
-	RequestReindex(ctx context.Context, ingester string, now time.Time) error
+	// RequestReindex marks the reindex request pending and returns the stored
+	// reindex watermark. The store stamps the watermark from its own clock and
+	// never moves it backward; git ingester shards force a full re-parse of
+	// every scope whose newest activated full generation is older than it.
+	RequestReindex(ctx context.Context, ingester string) (time.Time, error)
 
 	// ClaimReindexRequest transitions a pending reindex to running.
 	ClaimReindexRequest(ctx context.Context, ingester string, now time.Time) (ReindexRequest, error)
@@ -121,12 +129,13 @@ func (h *StatusRequestHandler) CompleteScan(ctx context.Context, ingester string
 	return h.store.CompleteScanRequest(ctx, ingester, time.Now().UTC(), scanErr)
 }
 
-// RequestReindex initiates a reindex request for the given ingester.
-func (h *StatusRequestHandler) RequestReindex(ctx context.Context, ingester string) error {
+// RequestReindex records a reindex request for the given ingester and returns
+// the stored reindex watermark that ingesters compare full generations against.
+func (h *StatusRequestHandler) RequestReindex(ctx context.Context, ingester string) (time.Time, error) {
 	if ingester == "" {
-		return errors.New("ingester name is required")
+		return time.Time{}, errors.New("ingester name is required")
 	}
-	return h.store.RequestReindex(ctx, ingester, time.Now().UTC())
+	return h.store.RequestReindex(ctx, ingester)
 }
 
 // ClaimReindex claims a pending reindex request for the given ingester.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the readiness, dead-code incoming, status route-selection,
-# quiet-generation, activation obligation and #7584 targeted-maintenance
-# plan/correctness proofs listed in
+# quiet-generation, activation obligation, #7584 targeted-maintenance and
+# reindex watermark plan/correctness proofs listed in
 # scripts/lib/live_postgres_readiness_results.py on disposable PostgreSQL 18,
 # one go test per package.
 set -euo pipefail

@@ -22,6 +22,7 @@ import (
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
@@ -166,11 +167,16 @@ func buildIngesterCollectorService(
 	// projected commit per scope from scope_generations so git delta syncs
 	// baseline on a durable commit instead of the local working-copy HEAD
 	// (epic #2340).
+	// Every git selector reads the fleet reindex watermark once per cycle, so
+	// POST /api/v0/admin/reindex forces a full re-parse of each scope whose
+	// newest activated full predates it (#7620).
+	reindexWatermark := reindexWatermarkReader{store: maintenancestore.NewStatusRequestStore(database)}
 	nativeSelector := git.NativeRepositorySelector{
 		Config:           config,
 		Logger:           logger,
 		BaselineResolver: committer,
 		Instruments:      instruments,
+		ReindexWatermark: reindexWatermark,
 	}
 	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("ingester", getenv)
@@ -186,6 +192,7 @@ func buildIngesterCollectorService(
 			Logger:           logger,
 			BaselineResolver: committer,
 			Instruments:      instruments,
+			ReindexWatermark: reindexWatermark,
 		}
 		if scheduledSyncConfig.Enabled {
 			selector = git.PriorityRepositorySelector{Selectors: []git.RepositorySelector{

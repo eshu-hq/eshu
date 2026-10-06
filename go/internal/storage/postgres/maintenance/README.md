@@ -16,8 +16,10 @@ type. The parent `postgres` package keeps the schema bootstrap registry
 (`BootstrapDefinitions`) that other domains, including this one's migration,
 register against. `internal/runtime` owns the `StatusRequestStore` interface,
 the `ScanRequest`/`ReindexRequest` domain types, and the
-`StatusRequestHandler` that drives this store. `cmd/api` owns wiring: it
-constructs the store and passes it to the handler.
+`StatusRequestHandler` that drives this store. `cmd/api` owns the write
+wiring: it constructs the store and passes it to the handler. `cmd/ingester`
+constructs the store and reads it only through `GetReindexState`, once per
+sync cycle, for the reindex watermark.
 
 ## Exported surface
 
@@ -37,9 +39,9 @@ See `doc.go` for the godoc contract.
 ## Telemetry
 
 None. This package executes bounded SQL through the injected database
-handle; the caller (`cmd/api`, which wires it into `internal/runtime`'s
-`StatusRequestHandler`) owns any
-operator-facing signal.
+handle; the callers own any operator-facing signal: `cmd/api`, which wires it
+into `internal/runtime`'s `StatusRequestHandler`, and the git collector, which
+logs the watermark read through `cmd/ingester`'s reader.
 
 ## Gotchas / invariants
 
@@ -54,19 +56,33 @@ operator-facing signal.
   empty, `failed` otherwise.
 - `GetScanState`/`GetReindexState` return an idle, zero-value request rather
   than an error when no row exists yet for the ingester.
+- `RequestReindex` is the fleet reindex watermark (#7620). It stamps
+  `reindex_request_requested_at` from the database clock (`now()`), never moves
+  it backward (`GREATEST` over the stored value, so a transaction that started
+  earlier but commits later cannot lower it), and returns the stored value with
+  `RETURNING`. The git ingesters read it through `GetReindexState` and never
+  claim or complete it; `ClaimReindexRequest`/`CompleteReindexRequest` have no
+  production caller.
+
+Performance Evidence (#7620): the request is one primary-key upsert
+(`Conflict Arbiter Indexes: runtime_ingester_control_pkey`, about 0.5 ms on
+Postgres 18) and the per-cycle read touches one buffer. The live test
+`TestStatusRequestStoreRequestReindexWatermarkMonotonicLive` proves the
+watermark stays monotonic under 16 concurrent requests. With `GREATEST`
+removed, that test fails.
 - Non-test code does not import the parent `postgres` package, so root can
   import this leaf later without a cycle. The test imports root only to check
   `BootstrapDefinitions`.
 
-No-Observability-Change: this extraction moves only the maintenance-request
-store, its SQL text, and its DDL constant. The request, claim, and complete
-statements are byte-identical, `cmd/api` constructs the same store type
-through the new import path, and no metric, span, or log name changes.
+No-Observability-Change: the store emits no signal of its own. The watermark's
+operator signals live in the git collector (`git_reindex_watermark_*` logs and
+the `reindex_requested` reason on
+`eshu_dp_collector_reconciliation_full_snapshots_total`).
 
 No-Regression Evidence: focused package tests cover every transition
 (request, claim success/failure, complete, idle read) against the shared
-`fake.ExecQueryer` double; the SQL text is unchanged so no query-plan proof
-is re-owed.
+`fake.ExecQueryer` double, and the live test above covers the reindex request
+against real Postgres.
 
 ## Related docs
 

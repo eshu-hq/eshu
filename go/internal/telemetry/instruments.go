@@ -330,7 +330,7 @@ type Instruments struct {
 	// ReconciliationFullSnapshots counts git scopes the periodic sweep forced
 	// to a full reconciliation snapshot. Labels: reason (bounded:
 	// never_reconciled, interval_elapsed, in_flight_expired,
-	// retry_after_unprojected).
+	// retry_after_unprojected, graph_dirty, reindex_requested).
 	ReconciliationFullSnapshots metric.Int64Counter
 	// ReconciliationSuppressed counts sweep evaluations that held a scope off
 	// because a full generation is still in flight or recently failed to

@@ -440,7 +440,7 @@ func (h *overlayHarness) freshnessHint(ctx context.Context, gen overlayGen) stri
 	if gen.delta {
 		return hint
 	}
-	due, reason := gitcollector.ReconcileSweepDecision(ctx, h.store, 24*time.Hour, time.Now().UTC(), h.scope.ScopeID, nil)
+	due, reason := gitcollector.ReconcileSweepDecision(ctx, h.store, 24*time.Hour, time.Time{}, time.Now().UTC(), h.scope.ScopeID, nil)
 	h.t.Logf("reconcile decision for full %s: due=%t reason=%s", gen.id, due, reason)
 	return gitcollector.GenerationFreshnessHint(hint, due)
 }

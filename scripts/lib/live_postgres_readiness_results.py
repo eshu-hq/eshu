@@ -10,6 +10,7 @@ import sys
 IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
 STORAGE_PACKAGE = "./internal/storage/postgres"
 ACTIVATION_PACKAGE = "./internal/storage/postgres/activation"
+MAINTENANCE_PACKAGE = "./internal/storage/postgres/maintenance"
 REDUCER_PACKAGE = "./cmd/reducer"
 QUERY_PACKAGE = "./internal/query"
 
@@ -133,6 +134,11 @@ PACKAGES = {
         "go/internal/storage/postgres/activation/quiet_generation_live_test.go": (
             "TestQuietGenerationActivatesAfterMaintenanceSnapshotLive",
             "TestQuietGenerationActivatesWithControlArmMaintenanceLive",
+        ),
+    },
+    MAINTENANCE_PACKAGE: {
+        "go/internal/storage/postgres/maintenance/requests_live_test.go": (
+            "TestStatusRequestStoreRequestReindexWatermarkMonotonicLive",
         ),
     },
     REDUCER_PACKAGE: {

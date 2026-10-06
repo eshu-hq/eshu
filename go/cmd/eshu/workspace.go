@@ -4,8 +4,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +17,7 @@ func init() {
 
 	planCmd := &cobra.Command{
 		Use:   "plan <path>",
-		Short: "Plan workspace indexing for a directory tree",
+		Short: "Removed: use eshu index <path> or eshu admin reindex instead",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runWorkspacePlan,
 	}
@@ -27,7 +25,7 @@ func init() {
 
 	syncCmd := &cobra.Command{
 		Use:   "sync <path>",
-		Short: "Sync a workspace directory tree",
+		Short: "Removed: use eshu index <path> or eshu admin reindex instead",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runWorkspaceSync,
 	}
@@ -35,7 +33,7 @@ func init() {
 
 	wsIndexCmd := &cobra.Command{
 		Use:   "index <path>",
-		Short: "Index all repositories in a workspace",
+		Short: "Removed: use eshu index <path> or eshu admin reindex instead",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runWorkspaceIndex,
 	}
@@ -60,49 +58,21 @@ func init() {
 	workspaceCmd.AddCommand(watchCmd)
 }
 
+// workspaceIndexingGuidance replaces the workspace plan, sync, and index
+// commands, which posted a path-scoped body the reindex API never honored.
+const workspaceIndexingGuidance = "Use `eshu index <path>` to index a local directory tree, or " +
+	"`eshu admin reindex` to force every git ingester to re-parse all repositories."
+
 func runWorkspacePlan(cmd *cobra.Command, args []string) error {
-	fmt.Printf("Planning workspace indexing for: %s\n", args[0])
-	client := NewAPIClient("", "", "")
-	var result any
-	if err := client.Post("/api/v0/admin/reindex", map[string]any{
-		"scope":  "workspace",
-		"path":   args[0],
-		"action": "plan",
-	}, &result); err != nil {
-		return err
-	}
-	printJSON(result)
-	return nil
+	return removedCommandError("eshu workspace plan", workspaceIndexingGuidance)
 }
 
 func runWorkspaceSync(cmd *cobra.Command, args []string) error {
-	fmt.Printf("Syncing workspace: %s\n", args[0])
-	client := NewAPIClient("", "", "")
-	var result any
-	if err := client.Post("/api/v0/admin/reindex", map[string]any{
-		"scope":  "workspace",
-		"path":   args[0],
-		"action": "sync",
-	}, &result); err != nil {
-		return err
-	}
-	printJSON(result)
-	return nil
+	return removedCommandError("eshu workspace sync", workspaceIndexingGuidance)
 }
 
 func runWorkspaceIndex(cmd *cobra.Command, args []string) error {
-	fmt.Printf("Indexing workspace: %s\n", args[0])
-	client := NewAPIClient("", "", "")
-	var result any
-	if err := client.Post("/api/v0/admin/reindex", map[string]any{
-		"scope":  "workspace",
-		"path":   args[0],
-		"action": "index",
-	}, &result); err != nil {
-		return err
-	}
-	printJSON(result)
-	return nil
+	return removedCommandError("eshu workspace index", workspaceIndexingGuidance)
 }
 
 func runWorkspaceStatus(cmd *cobra.Command, args []string) error {

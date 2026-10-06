@@ -68,14 +68,16 @@ The sweep is bounded and scheduled, not a full re-index:
   many overdue scopes one selection cycle may force to full, so a fleet that all
   comes due together does not stampede into simultaneous full snapshots. The
   remainder are picked up on later cycles.
-- **Disable**: set `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0`.
+- **Disable**: set `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0`. A
+  [reindex request](#reindex-requests) is still honored.
 
 Cost is one full re-observation and projection per scope per interval — the same
 cost as a first sync, paid on a documented cadence. Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `reason` (`never_reconciled`, `interval_elapsed`, `in_flight_expired`,
-`retry_after_unprojected`, `graph_dirty`), and logs `git_reconcile_forced` with `scope_id`,
-`reason`, `last_projected_full_at`, `latest_full_at`, and `latest_full_status`.
+`retry_after_unprojected`, `graph_dirty`, `reindex_requested`), and logs `git_reconcile_forced` with `scope_id`,
+`reason`, `last_projected_full_at`, `latest_full_at`, and `latest_full_status`
+(plus `reindex_requested_at` for `reindex_requested`).
 The log is WARN for `in_flight_expired` and `retry_after_unprojected`: repeats of
 either mean projection is not keeping up with the sweep. Each evaluation the
 sweep holds off increments `eshu_dp_collector_reconciliation_suppressed_total`,
@@ -92,6 +94,70 @@ retraction counter answers "did it actually delete stale graph state?" Alert on
 sustained nonzero retractions after the first reconciliation window, and use
 projector logs/spans keyed by `scope_id`, `repo_id`, and `generation_id` for the
 specific source. Those identifiers are intentionally not metric labels.
+
+## Reindex requests
+
+`POST /api/v0/admin/reindex` (or `eshu admin reindex`) forces a full re-parse
+of every git repository, for example after an upgrade that changes what the
+parsers emit (#7620). It records a fleet **reindex watermark**:
+`runtime_ingester_control.reindex_request_requested_at` for the `repository`
+ingester, stamped by Postgres and never moved backward. The response returns it
+as `requested_at`.
+
+Every git ingester shard reads the watermark once per sync cycle, one
+primary-key read. A scope the sweep leaves `fresh`, with no `graph_dirty`
+writer, is then checked against it:
+
+| Scope state | Decision | Reason |
+| --- | --- | --- |
+| newest activated full generation ingested at or after the watermark | hold | `fresh` |
+| in-flight or recently failed full (the throttle rows above) | hold | `reconcile_in_flight` or `reconcile_retry_backoff` |
+| otherwise, including a scope with no activated full | force | `reindex_requested` |
+
+A forced reindex takes the same path as any reconciliation: an empty freshness
+hint, no delta, and a slot in `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`, so a large
+fleet re-parses over several cycles. The request is never claimed and has no
+completion status. It is satisfied scope by scope: a forced full is ingested at
+the cycle's start time, which is at or after the watermark, so once it activates
+the scope stays `fresh`. A later request moves the watermark forward and starts
+a new pass.
+
+Send the request only after every git ingester runs the new binary. The
+watermark records when a full generation was ingested, not which parser
+produced it. During a rolling upgrade, a shard still on the old binary can
+produce fulls after the watermark, and those scopes then count as `fresh` with
+the old parser output. An ingester clock that runs ahead of Postgres widens
+this window by the skew. If that happens, send another request once the rollout
+completes.
+
+- A shard whose cycle started before the watermark (clock skew between the
+  ingester and Postgres) skips it that cycle and logs INFO
+  `git_reindex_watermark_deferred`. Otherwise every forced full would land
+  before the watermark and be forced again.
+- A failed read is ignored for that cycle and logs WARN
+  `git_reindex_watermark_read_failed`.
+- Each cycle with an active watermark logs DEBUG
+  `git_reindex_watermark_active` with `repo_shard_index`, `repo_shard_count`,
+  and `reindex_requested_at`. It is DEBUG because the watermark persists
+  after the pass completes. Each forced scope logs INFO `git_reconcile_forced`
+  with `reason=reindex_requested`.
+- With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` the watermark is still honored,
+  with the throttle bounds of the 24-hour default. The interval reasons and
+  `graph_dirty` stay off. The watermark is never cleared, so after the first
+  request each cycle reads the per-scope state the default sweep reads, and a
+  scope whose fulls keep failing is retried on the throttle bounds.
+- A watermark stamped in the future (for example after the Postgres clock
+  jumped forward) defers every shard until clocks pass it. To recover, set
+  `reindex_request_requested_at` for `ingester = 'repository'` in
+  `runtime_ingester_control` back to the intended time.
+- A webhook-only ingester reaches only the repositories it is triggered for.
+  Filesystem source mode does not read the watermark.
+
+Watch progress with
+`eshu_dp_collector_reconciliation_full_snapshots_total{reason="reindex_requested"}`
+and the `git_reconcile_forced` log. When that counter stops rising while the
+suppression counter is flat, no scope the sync visits is still due. A scope the
+sync never visits is not covered (#7625).
 
 ## Delta baseline fence
 

@@ -10,6 +10,11 @@ Layout:
   `deadletters.go`, `inputinvalid.go`, `safety.go` — the `Handler` type,
   its routes, the `Store` port, the shared row/filter models, and the
   replay-safety set.
+- `reindex.go` — `POST /api/v0/admin/reindex`. It records the fleet reindex
+  watermark through `ReindexRequester` and returns it as `requested_at`
+  (#7620). It accepts only `ingester=repository`, `scope=workspace`, and
+  `force` true or omitted, and rejects unknown fields so the retired
+  workspace `path`/`action` body fails instead of being ignored.
 - `identity/` — tenant identity reads and mutations.
 - `provider/config/` — identity provider-config reads and mutations.
 - `store/` — the Postgres `Store` implementation and replay ledger.
