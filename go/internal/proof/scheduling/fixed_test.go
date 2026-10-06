@@ -45,6 +45,7 @@ func TestConfigureProofTargetSocketOnlyForFixedCanonical(t *testing.T) {
 		wantErr   bool
 	}{
 		{mode: "fixed_canonical", socketDir: "/tmp/eshu7033-fixture/socket", wantHost: "/tmp/eshu7033-fixture/socket", wantPort: 5432},
+		{mode: "fixed_diagnostic", socketDir: "/tmp/eshu7033-fixture/socket", wantHost: "/tmp/eshu7033-fixture/socket", wantPort: 5432},
 		{mode: "fixed_canonical", socketDir: "relative/socket", wantErr: true},
 		{mode: "parallel8", socketDir: "/tmp/eshu7033-fixture/socket", wantErr: true},
 		{mode: "parallel8", wantHost: "127.0.0.1", wantPort: 15433},
@@ -73,6 +74,7 @@ func TestConfigureProofTargetFixedPort(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "remote fixed proof", mode: "fixed_canonical", port: "25433", want: 25433},
+		{name: "remote fixed diagnostic", mode: "fixed_diagnostic", port: "25433", want: 25433},
 		{name: "reject other mode", mode: "parallel8", port: "25433", wantErr: true},
 		{name: "reject zero", mode: "fixed_canonical", port: "0", wantErr: true},
 		{name: "reject overflow", mode: "fixed_canonical", port: "65536", wantErr: true},
@@ -186,6 +188,24 @@ func TestFixedCanonicalRejectsTargetBeforeConnect(t *testing.T) {
 	config.Database = "eshu7033"
 	t.Setenv("ESHU7033_EXPECTED_SYSTEM_ID", "")
 	if err := runFixedCanonical(context.Background(), config, "eshu7033"); err == nil {
+		t.Fatal("missing system identifier accepted")
+	}
+}
+
+func TestFixedDiagnosticRejectsTargetBeforeConnect(t *testing.T) {
+	if err := runFixedDiagnostic(context.Background(), nil, "eshu7033"); err == nil {
+		t.Fatal("nil config accepted")
+	}
+	config, err := pgx.ParseConfig("postgres://eshu7033@localhost/postgres")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runFixedDiagnostic(context.Background(), config, "eshu7033"); err == nil {
+		t.Fatal("mismatched database accepted")
+	}
+	config.Database = "eshu7033"
+	t.Setenv("ESHU7033_EXPECTED_SYSTEM_ID", "")
+	if err := runFixedDiagnostic(context.Background(), config, "eshu7033"); err == nil {
 		t.Fatal("missing system identifier accepted")
 	}
 }

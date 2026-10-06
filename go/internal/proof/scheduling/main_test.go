@@ -35,6 +35,9 @@ func TestValidateProofMode(t *testing.T) {
 	if err := validateProofMode("fixed_canonical"); err != nil {
 		t.Fatalf("fixed mode rejected: %v", err)
 	}
+	if err := validateProofMode("fixed_diagnostic"); err != nil {
+		t.Fatalf("read-only fixed diagnostic rejected: %v", err)
+	}
 	for _, mode := range []string{"", "parallel", "parallel8", "balanced", "deterministic", "diagnostic_punctuation", "timing_canonical", "explain_p1"} {
 		if err := validateProofMode(mode); err == nil {
 			t.Errorf("unsupported mode %q accepted", mode)

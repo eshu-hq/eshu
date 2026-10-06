@@ -45,8 +45,8 @@ func configureProofTarget(config *pgx.ConnConfig, mode, socketDir string) error 
 		return fmt.Errorf("proof connection config is missing")
 	}
 	if socketDir != "" {
-		if mode != "fixed_canonical" || !filepath.IsAbs(socketDir) {
-			return fmt.Errorf("socket directory requires fixed_canonical mode and an absolute path")
+		if !fixedProofMode(mode) || !filepath.IsAbs(socketDir) {
+			return fmt.Errorf("socket directory requires a fixed proof mode and an absolute path")
 		}
 		config.Host = socketDir
 		config.Port = 5432
@@ -60,8 +60,8 @@ func configureProofTarget(config *pgx.ConnConfig, mode, socketDir string) error 
 }
 
 func configureProofTargetPort(config *pgx.ConnConfig, mode, socketDir, fixedPort string) error {
-	if fixedPort != "" && (mode != "fixed_canonical" || socketDir != "") {
-		return fmt.Errorf("fixed proof port requires fixed_canonical mode without a socket directory")
+	if fixedPort != "" && (!fixedProofMode(mode) || socketDir != "") {
+		return fmt.Errorf("fixed proof port requires a fixed mode without a socket directory")
 	}
 	if err := configureProofTarget(config, mode, socketDir); err != nil {
 		return err
@@ -75,6 +75,10 @@ func configureProofTargetPort(config *pgx.ConnConfig, mode, socketDir, fixedPort
 	}
 	config.Port = uint16(port)
 	return nil
+}
+
+func fixedProofMode(mode string) bool {
+	return mode == "fixed_canonical" || mode == "fixed_diagnostic"
 }
 
 func validateFixedDatabase(expected, configured string) error {
@@ -108,7 +112,15 @@ func requireFixedPrimary(expectedDatabase, actualDatabase, expectedSystemID, act
 	return nil
 }
 
-func runFixedCanonical(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string) (resultErr error) {
+func runFixedCanonical(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string) error {
+	return runFixedProof(ctx, config, expectedDatabase, false)
+}
+
+func runFixedDiagnostic(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string) error {
+	return runFixedProof(ctx, config, expectedDatabase, true)
+}
+
+func runFixedProof(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string, diagnostic bool) (resultErr error) {
 	if config == nil {
 		return fmt.Errorf("fixed proof connection config is missing")
 	}
@@ -150,5 +162,8 @@ func runFixedCanonical(ctx context.Context, config *pgx.ConnConfig, expectedData
 	}
 	caseCtx, cancel := fixedCaseContext(ctx)
 	defer cancel()
+	if diagnostic {
+		return runFixedDiagnosticCase(caseCtx, connections, workload, os.Stdout)
+	}
 	return runDynamicCase(caseCtx, connections, workload, true)
 }

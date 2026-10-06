@@ -5,7 +5,9 @@ workers that draw one term at a time. Both routes use Eshu's unchanged probe
 and page-assembly SQL. It is a read-only experiment, not an API replacement.
 
 Run `go test ./internal/proof/scheduling -count=1` from `go/`. The fixed-corpus command
-accepts only `ESHU7033_MODE=fixed_canonical`. It reads a PostgreSQL connection
+accepts `ESHU7033_MODE=fixed_canonical` for the existing assertion and timing
+run, or `ESHU7033_MODE=fixed_diagnostic` for a separate correctness diagnosis.
+It reads a PostgreSQL connection
 string from standard input, forces loopback TCP (or an absolute socket path),
 requires an explicit database name and PostgreSQL system ID, and rejects a
 standby or a session that is not read-only. `ESHU7033_FIXED_PORT` selects a
@@ -21,7 +23,18 @@ host resource gates, source commit, and corpus/index fingerprints must be
 verified separately. Stop and clean up any task-owned container or claim after
 the run; do not delete preserved volumes.
 
-The measured duration covers warmed probe scheduling and page assembly after
+The diagnostic mode runs baseline, candidate, candidate, baseline in one shared
+read-only snapshot. Each route retains the full probe-row order and prints a
+per-term/source row count, cap state, full-row multiset hash, and arrival-order
+hash. It submits each exact captured payload twice to the unchanged assembly
+SQL, then reports full 26-row, first-25 visible, and 26th lookahead hashes.
+For the first differing rank it reports score, NULL flags and hashes of text
+sort keys, plus the database collation provider and locale. It does not print
+raw repository, path, or entity identifiers. This mode does not run timing
+rounds or establish a performance improvement; a differing capped pool can be
+legitimate, while a same-route difference needs diagnosis before optimization.
+
+The measured duration in `fixed_canonical` covers warmed probe scheduling and page assembly after
 connections and the snapshot exist. It does **not** establish the deployed
 endpoint's one-second budget. Report raw interleaved samples, corpus/backend
 identity, and any capped-page differences; never infer endpoint performance
