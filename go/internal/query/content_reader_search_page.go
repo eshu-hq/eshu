@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
@@ -203,4 +204,27 @@ func recordCodeTopicFallbackReason(span trace.Span, termCount int, supportsSnaps
 	} else if maxOpenConns < codetopicparallel.Partitions {
 		span.SetAttributes(attribute.String("code_topic.parallel_fallback_reason", "pool_capacity"))
 	}
+}
+
+// codeTopicTermHasTrigram reports whether an ILIKE '%term%' pattern has a run
+// of three letters or digits, the shortest word pg_trgm can extract a trigram
+// from. In a LIKE pattern "_" and "%" are wildcards and any other non-letter,
+// non-digit breaks a word, so "db_" and "a_b" carry no trigram: both trigram
+// GIN scans then return every row. The scoped one-term statement hides the
+// term from the planner (#7246) only when this holds; a term without a trigram
+// keeps the plain CTE so the planner can see it and avoid the full index scans
+// (measured 3.3 to 4.6 s plain against 14.9 to 16.7 s hidden on ops-qa).
+func codeTopicTermHasTrigram(term string) bool {
+	run := 0
+	for _, r := range term {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			run++
+			if run >= 3 {
+				return true
+			}
+			continue
+		}
+		run = 0
+	}
+	return false
 }

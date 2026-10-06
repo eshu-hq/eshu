@@ -111,6 +111,8 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	fileBranches := make([]string, len(req.Terms))
 	measuredScopedOneTerm := strings.TrimSpace(req.RepoID) != "" && len(req.Terms) == 1 && strings.TrimSpace(req.Language) == ""
 	span.SetAttributes(attribute.Bool("code_topic.scoped_one_term", measuredScopedOneTerm))
+	hideTerm := measuredScopedOneTerm && codeTopicTermHasTrigram(req.Terms[0])
+	span.SetAttributes(attribute.Bool("code_topic.terms_materialized", hideTerm))
 	for i, term := range req.Terms {
 		termValues[i] = fmt.Sprintf("($%d)", nextArg)
 		if measuredScopedOneTerm {
@@ -186,7 +188,7 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		CROSS JOIN pool_status
 		ORDER BY score DESC, repo_id, relative_path, entity_name, source_kind
 		LIMIT $%[5]d OFFSET $%[6]d
-	`, strings.Join(termValues, ", "), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg, codeTopicTermsMaterialization(measuredScopedOneTerm))
+	`, strings.Join(termValues, ", "), where, candidateCap, strings.Join(fileBranches, "\n\t\t  UNION ALL\n"), limitArg, offsetArg, codeTopicTermsMaterialization(hideTerm))
 
 	// CacheDescribe keeps the measured one-term repo query off a generic
 	// named plan while retaining parameter types and SQL placeholders.
