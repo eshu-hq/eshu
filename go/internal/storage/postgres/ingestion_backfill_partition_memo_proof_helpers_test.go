@@ -7,11 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // deferredPartitionMemoProofSchemaSQL extends deferredPartitionProofSchemaSQL
@@ -63,14 +64,7 @@ CREATE TABLE deferred_backfill_partition_memo (
 // #3710 partition-source proof so one configured Postgres serves both gates.
 func dsnForDeferredPartitionMemoProof(t *testing.T) string {
 	t.Helper()
-	if dsn := os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DSN"); dsn != "" {
-		return dsn
-	}
-	if dsn := os.Getenv("ESHU_LATEST_GENERATION_PROOF_DSN"); dsn != "" {
-		return dsn
-	}
-	t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DSN (or ESHU_LATEST_GENERATION_PROOF_DSN) to run the deferred backfill partition-memo Postgres proof")
-	return ""
+	return postgresproof.DeferredPartitionProofDSN(t)
 }
 
 func openDeferredPartitionMemoProofDB(t *testing.T, dsn string) *sql.DB {

@@ -15,6 +15,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // generationRetentionMigratedSchemaRequiredEnv turns a missing DSN into a
@@ -71,11 +73,6 @@ func generationRetentionMigratedSchemaName(testName string) string {
 	return name[:generationRetentionSchemaMaxBytes-len(suffix)] + suffix
 }
 
-// generationRetentionExtensionLockKey is the advisory-lock key that serializes
-// the database-wide pg_trgm install across concurrently starting retention
-// tests. It is a fixed literal, unrelated to any production lock key.
-const generationRetentionExtensionLockKey int64 = 7260006809
-
 // installGenerationRetentionTrigramExtension installs pg_trgm into public, the
 // same pin the sibling live helpers use. The bootstrap's own CREATE EXTENSION
 // would otherwise land in the first schema on the search_path and vanish with
@@ -87,20 +84,7 @@ const generationRetentionExtensionLockKey int64 = 7260006809
 // installs run one at a time and the lock releases at COMMIT.
 func installGenerationRetentionTrigramExtension(ctx context.Context, t *testing.T, admin *sql.DB) {
 	t.Helper()
-	tx, err := admin.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatalf("begin pg_trgm install: %v", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", generationRetentionExtensionLockKey); err != nil {
-		t.Fatalf("lock pg_trgm install: %v", err)
-	}
-	if _, err := tx.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"); err != nil {
-		t.Fatalf("install pg_trgm in public: %v", err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatalf("commit pg_trgm install: %v", err)
-	}
+	postgresproof.InstallTrigramExtension(ctx, t, admin)
 }
 
 // openGenerationRetentionMigratedSchema applies the real bootstrap migrations

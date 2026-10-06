@@ -13,8 +13,17 @@ owns those steps after it receives the isolated connection.
 
 ## Exported surface
 
-`OpenDisposableDatabase` is the only exported function. Its godoc contract is
-in [doc.go](doc.go).
+- `OpenDisposableDatabase` creates and drops a random database (database.go).
+- `OpenIsolatedSchema` creates and drops a random schema in a shared
+  disposable database and runs the caller's schema setup on it; storage
+  packages pass their own bootstrap, so this package still owns no Eshu
+  schema (schema.go).
+- `InstallTrigramExtension` and `TrigramExtensionLockKey` serialize the
+  pg_trgm install across concurrent proofs on one server.
+- `DeferredPartitionProofDSN` reads `ESHU_DEFERRED_PARTITION_PROOF_DSN`, then
+  `ESHU_LATEST_GENERATION_PROOF_DSN`, or skips.
+
+The godoc contract is in [doc.go](doc.go).
 
 ## Dependencies
 

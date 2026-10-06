@@ -6,6 +6,8 @@
 - `doc.go`
 - `database.go`
 - `database_test.go`
+- `schema.go`
+- `schema_test.go`
 
 ## Invariants
 
@@ -22,6 +24,10 @@
 - Add validation cases to `database_test.go` before changing DSN rules.
 - Keep generated database names inside the fixed `eshu_content_index_proof_`
   namespace.
+- `OpenIsolatedSchema` takes the schema setup as a function; never import a
+  storage package here (storage/postgres tests import this package).
+- Keep `TrigramExtensionLockKey` equal to the key storage/postgres live helpers
+  use; they reference this constant.
 - Verify cleanup through a disposable PostgreSQL instance, never a retained
   Eshu database.
 

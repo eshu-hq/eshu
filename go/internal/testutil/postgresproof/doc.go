@@ -8,4 +8,11 @@
 // administrative postgres database. It creates a random database for one test,
 // rejects application database DSNs before connecting, and force-drops only
 // the generated database during cleanup.
+//
+// OpenIsolatedSchema gives one test its own schema in a shared disposable
+// database: it installs pg_trgm in public under TrigramExtensionLockKey,
+// creates prefix_<unix nanos>, runs the caller's schema setup on a pool whose
+// search_path puts that schema first, and drops it when the test ends.
+// DeferredPartitionProofDSN reads the DSN the deferred-partition and
+// activation-obligation proofs share, or skips.
 package postgresproof
