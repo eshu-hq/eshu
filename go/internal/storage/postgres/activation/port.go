@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 )
 
 // RunnerStore adapts Store to maintenance.ActivationObligationStore, the
@@ -34,24 +35,23 @@ func (r RunnerStore) ClaimActivation(ctx context.Context, owner string, lease ti
 }
 
 // FinalizeActivation settles one claimed obligation. A lease lost inside the
-// transaction is reported as maintenance.ErrActivationLeaseLost.
+// transaction is reported as maintenance.ErrActivationLeaseLost and a lock
+// timeout as maintenance.ErrActivationFinalizeLockTimeout (finalizeError).
 func (r RunnerStore) FinalizeActivation(ctx context.Context, work maintenance.ActivationObligation) (maintenance.ActivationFinalizeResult, error) {
 	result, err := r.Store.Finalize(ctx, Obligation{
 		ScopeID: work.ScopeID, GenerationID: work.GenerationID,
 		LeaseOwner: work.LeaseOwner, LeaseToken: work.LeaseToken,
 		LeaseUntil: work.LeaseUntil, CreatedAt: work.CreatedAt,
 	})
-	if errors.Is(err, ErrLeaseLost) {
-		return maintenance.ActivationFinalizeResult{}, fmt.Errorf("%w: %w", maintenance.ErrActivationLeaseLost, err)
-	}
 	if err != nil {
-		return maintenance.ActivationFinalizeResult{}, err
+		return maintenance.ActivationFinalizeResult{}, finalizeError(err)
 	}
 	return maintenance.ActivationFinalizeResult{Outcome: string(result.Outcome), Woken: result.Woken}, nil
 }
 
 // RetireActivationInapplicable retires one claimed obligation as
-// inapplicable under the lease fence.
+// inapplicable under the lease fence. It takes Finalize's locks, so its
+// errors map the same way.
 func (r RunnerStore) RetireActivationInapplicable(ctx context.Context, work maintenance.ActivationObligation) (maintenance.ActivationFinalizeResult, error) {
 	result, err := r.Store.RetireInapplicable(ctx, Obligation{
 		ScopeID: work.ScopeID, GenerationID: work.GenerationID,
@@ -59,9 +59,28 @@ func (r RunnerStore) RetireActivationInapplicable(ctx context.Context, work main
 		LeaseUntil: work.LeaseUntil, CreatedAt: work.CreatedAt,
 	})
 	if err != nil {
-		return maintenance.ActivationFinalizeResult{}, err
+		return maintenance.ActivationFinalizeResult{}, finalizeError(err)
 	}
 	return maintenance.ActivationFinalizeResult{Outcome: string(result.Outcome)}, nil
+}
+
+// finalizeError maps a Finalize or RetireInapplicable error to the consumer
+// port's sentinels, keeping the cause in the chain: a lease lost inside the
+// transaction to maintenance.ErrActivationLeaseLost, and SQLSTATE 55P03
+// (Finalize's lock_timeout expired while it waited for the scope or
+// obligation row) to maintenance.ErrActivationFinalizeLockTimeout. Every
+// other error is returned unchanged.
+func finalizeError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, ErrLeaseLost):
+		return fmt.Errorf("%w: %w", maintenance.ErrActivationLeaseLost, err)
+	case coordination.IsLockNotAvailable(err):
+		return fmt.Errorf("%w: %w", maintenance.ErrActivationFinalizeLockTimeout, err)
+	default:
+		return err
+	}
 }
 
 // CatchUpActivations owes obligations to one bounded page of scopes.

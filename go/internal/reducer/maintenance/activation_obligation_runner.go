@@ -342,7 +342,17 @@ func (r *ActivationObligationRunner) recordHeld(ctx context.Context, work Activa
 	r.Logger.LogAttrs(ctx, slog.LevelInfo, "activation obligation held: maintenance refused", attrs...)
 }
 
+// activationFailureFinalizeLockTimeout is the failure reason of a Finalize
+// whose lock_timeout expired (ErrActivationFinalizeLockTimeout).
+const activationFailureFinalizeLockTimeout = "finalize_lock_timeout"
+
 func (r *ActivationObligationRunner) recordFailure(ctx context.Context, reason string, err error, work *ActivationObligation) {
+	r.recordFailureAt(ctx, slog.LevelError, reason, err, work)
+}
+
+// recordFailureAt counts one consumer step failure under reason and logs it
+// at level.
+func (r *ActivationObligationRunner) recordFailureAt(ctx context.Context, level slog.Level, reason string, err error, work *ActivationObligation) {
 	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 		return // shutdown, not a failure
 	}
@@ -361,5 +371,5 @@ func (r *ActivationObligationRunner) recordFailure(ctx context.Context, reason s
 	if work != nil {
 		attrs = append(attrs, telemetry.ScopeAttrs(work.ScopeID, work.GenerationID, "")...)
 	}
-	r.Logger.LogAttrs(ctx, slog.LevelError, "activation obligation step failed", attrs...)
+	r.Logger.LogAttrs(ctx, level, "activation obligation step failed", attrs...)
 }

@@ -6,6 +6,7 @@ package maintenance
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -68,6 +69,14 @@ func (r *ActivationObligationRunner) settleObligation(ctx context.Context, cfg A
 		if errors.Is(err, ErrActivationLeaseLost) {
 			r.recordOutcome(ctx, work, ActivationFinalizeResult{Outcome: activationOutcomeLeaseLost})
 			return settleVerdict{outcome: activationOutcomeLeaseLost}
+		}
+		if errors.Is(err, ErrActivationFinalizeLockTimeout) {
+			// Expected contention (an ingestion commit or Ack held the scope
+			// row past the lock timeout); nothing was written and the next
+			// claimer settles it. Its own reason, at Warn, and no span error.
+			r.recordFailureAt(ctx, slog.LevelWarn, activationFailureFinalizeLockTimeout, err, &work)
+			r.recordOutcome(ctx, work, ActivationFinalizeResult{Outcome: activationOutcomeError})
+			return settleVerdict{outcome: activationOutcomeError, failure: activationFailureFinalizeLockTimeout}
 		}
 		r.recordFailure(ctx, "finalize", err, &work)
 		r.recordOutcome(ctx, work, ActivationFinalizeResult{Outcome: activationOutcomeError})

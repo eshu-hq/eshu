@@ -183,7 +183,7 @@ id is ever a label; the per-obligation log line carries them.
 | `eshu_dp_activation_obligation_maintenance_duration_seconds` | histogram | Maintenance callback duration by `outcome` (`success`, `error`); its count is the callback count. |
 | `eshu_dp_activation_obligation_catch_up_inserted_total` | counter | Obligations owed by catch-up to already-active generations missing their phase. |
 | `eshu_dp_activation_obligation_pruned_total` | counter | Finished obligations deleted by the bounded prune. |
-| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `maintenance`, `maintenance_timeout`, `catalog_changed`, `no_memo_baseline`, `closure_too_deep`, `catch_up`, `prune`, `stats`). The three hold reasons are held refusals, logged at Info, not errors. |
+| `eshu_dp_activation_obligation_failures_total` | counter | Consumer step failures by `reason` (`claim`, `finalize`, `finalize_lock_timeout`, `maintenance`, `maintenance_timeout`, `catalog_changed`, `no_memo_baseline`, `closure_too_deep`, `catch_up`, `prune`, `stats`). The three hold reasons are held refusals, logged at Info, not errors. |
 
 Alert on `eshu_dp_activation_obligation_oldest_open_age_seconds` above one epoch
 whole-pass latency plus one consumer lease (default 2 minutes). A
@@ -202,10 +202,13 @@ A rising `oldest_open_age_seconds` with a flat `finalize_total{outcome="complete
 means obligations are owed but not settling: read
 `finalize_total{outcome="phase_not_ready"}` (the callback ran but the phase is
 still absent) against `failures_total{reason="maintenance"}` (the callback
-failed). `failures_total{reason="finalize"}` also counts a Finalize that waited
-past its 1 s lock timeout behind a long ingestion commit or Ack holding the
-same scope row: nothing is written, and the obligation is settled by the next
-claimer after its lease. `work_pending` counts obligations held open while a handler for the
+failed). `failures_total{reason="finalize_lock_timeout"}` (logged at Warn)
+counts a Finalize that waited past its 1 s lock timeout behind a long
+ingestion commit or Ack holding the same scope row: expected contention,
+nothing is written, and the next claimer settles the obligation after its
+lease. `reason="finalize"` (logged at Error) is every other Finalize failure.
+A `no_memo_baseline` hold ages until the next commit triggers an epoch whole
+pass: no partition-scoped retry can publish the phase before then. `work_pending` counts obligations held open while a handler for the
 generation is still claimed or running, or while more than one wake batch (32
 rows) waits. Each finalize logs `activation obligation finalized` at Info with
 `scope_id`, `generation_id`, `outcome`, `woken` and `claim_token`; failures log

@@ -78,7 +78,7 @@ func registerActivationObligationInstruments(meter metric.Meter, inst *Instrumen
 	}
 	if inst.ActivationObligationFailures, err = meter.Int64Counter(
 		"eshu_dp_activation_obligation_failures_total",
-		metric.WithDescription("Activation obligation consumer step failures by reason (claim, finalize, maintenance, maintenance_timeout, catalog_changed, no_memo_baseline, closure_too_deep, catch_up, prune, stats); the three hold reasons are held refusals, not errors"),
+		metric.WithDescription("Activation obligation consumer step failures by reason (claim, finalize, finalize_lock_timeout, maintenance, maintenance_timeout, catalog_changed, no_memo_baseline, closure_too_deep, catch_up, prune, stats); the three hold reasons are held refusals, not errors, and finalize_lock_timeout is lock contention logged at Warn"),
 	); err != nil {
 		return fmt.Errorf("register ActivationObligationFailures counter: %w", err)
 	}

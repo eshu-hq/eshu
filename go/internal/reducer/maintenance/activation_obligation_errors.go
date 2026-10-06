@@ -9,6 +9,16 @@ import "errors"
 // transaction after the wake ran; the store rolled it back.
 var ErrActivationLeaseLost = errors.New("activation obligation lease lost")
 
+// ErrActivationFinalizeLockTimeout marks a Finalize (or an inapplicable
+// retire) that waited longer than its lock_timeout for the scope or
+// obligation row, typically behind an ingestion commit or a projector Ack on
+// the same scope. The transaction rolled back and wrote nothing; the
+// obligation stays leased and the next claimer settles it after the lease.
+// The runner counts it under its own reason, finalize_lock_timeout, at Warn,
+// so expected contention is not read as a broken statement (#7584 ruling
+// P2-F). The store adapter returns it wrapped around the database error.
+var ErrActivationFinalizeLockTimeout = errors.New("activation obligation finalize lock timeout")
+
 // ErrActivationInapplicable is returned (wrapped) by an ActivationMaintainer
 // when the owed partition is active but maps to no repository in the shipped
 // active-repository read, so no pass can ever publish its phase (a repo_id
