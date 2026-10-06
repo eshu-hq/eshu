@@ -64,7 +64,7 @@ refresh settings on the table are not changed here.
 
 The first two rows are the bad regime (base skips the repository bitmap; the
 entity-heap scan is estimated at 85 to 97 rows). The third is the good regime
-(base uses the repository bitmap on its own). The fix is about 2x faster in the
+(base uses the repository bitmap on its own). The fix is about 1.4 to 2.1x faster in the
 bad regime and neutral in the good one. The bad regime has only two observations
 per variant, not six, because the regime cannot be forced from a read-only
 session.
@@ -84,7 +84,9 @@ session.
 | r_957cd853 `array` L13 | neutral, capped | 497.9 ms | 502.0 ms | 13, `pool_truncated` true on both |
 | r_8946df89 `user` L13 | neutral | 812.2 ms | 815.2 ms | 13 |
 
-Sets 2, 3 and 7 are excluded: they are not the scoped one-term shape.
+Saved argument sets 2, 3 and 7 are excluded: they are not the scoped one-term shape.
+A common three-letter term such as `set` has trigrams and takes the same hidden-plan
+path as `decode`; it was not measured individually.
 
 ## The cost: rare terms on large repositories
 
@@ -104,23 +106,28 @@ about 0.14 ms per 1,000 repository entities.
 
 ## Terms with no trigram keep the plain statement
 
-A term with no run of three ASCII letters or digits (`db_`, `pg_`, `a_b`, `a%b`,
-a single non-Latin character) has no trigram for pg_trgm to extract, so
-both GIN scans return every row. Non-ASCII characters count as word characters
-only when the database ctype is not C, and Eshu pins no locale (ops-qa runs
-`en_US.UTF-8`), so a purely non-ASCII term is treated as having none. A term such
-as `ab-cd` does have trigrams (pg_trgm pads a word next to punctuation); the guard
-over-rejects it, which is safe because the plain statement is the base. Hiding such a term from the planner is a large
-regression, and an independent replacement review found it. Measured read-only on
-the ops-qa reader, `PREPARE` plus `force_custom_plan`, 25 s statement timeout,
-interleaved base, fixed, base (the fixed text is this change without the guard):
+The guard treats a term with no run of three ASCII letters or digits as having no
+trigram. `db_`, `pg_`, `a_b`, `a%b` and a single character really have none, so
+pg_trgm has nothing to extract and both GIN scans return every row; hiding such a
+term from the planner is a large regression, and an independent replacement review
+found it. Measured read-only on the ops-qa reader, `PREPARE` plus
+`force_custom_plan`, 25 s statement timeout, interleaved base, fixed, base (the
+fixed text is this change without the guard):
 
 | Term, repository (entities) | Base | Fixed (unguarded) |
 | --- | --- | --- |
 | `db_`, r_8946df89 (241,726) | 4,577 ms and 4,133 ms | 16,722 ms |
 | `pg_`, r_957cd853 (132,715) | 3,837 ms and 3,292 ms | 14,908 ms |
 
-That is about 3.6 to 4 times slower, one fixed run per case. On a 1M-row local
+That is about 3.6 to 4 times slower, one fixed run per case.
+
+The guard is conservative for two more classes, which keep the plain statement
+(the base) at no cost. Non-ASCII characters count as word characters only when the
+database ctype is not C, and Eshu pins no locale (ops-qa runs `en_US.UTF-8`), so a
+purely non-ASCII term is treated as having none. A term such as `ab-cd` does have
+trigrams (pg_trgm pads a word next to punctuation); the guard over-rejects it,
+which is safe because the plain statement is the base. The 14.9 to 16.7 s figures
+were measured on `db_` and `pg_` only. On a 1M-row local
 PostgreSQL 18.6 shim the reviewer measured 4.5 to 137 ms plain against 3.8 to 5.8 s
 hidden. The base is already over 1 s on ops-qa for these terms, which this change
 does not address. The guard (`codeTopicTermHasTrigram`) keeps the plain statement
