@@ -369,4 +369,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// obligations that ProjectorQueue.Ack writes and the resolution engine's
 	// leased consumer settles.
 	"activation_obligations",
+	// Migration 161 (#7009) adds status_summary_snapshots, the one-row-per-model
+	// read model behind the status routes' active-work summary.
+	"status_summary_snapshots",
 }

@@ -337,3 +337,20 @@ jobs:
         # observed_at tie order and the source-only rollup match the pre-change
         # statements. The parity lives in SQL, so it needs real Postgres.
         run: go test ./internal/query/ -run '^TestServiceStoryTargetSupportSQLSemanticsLive$' -race -count=1 -timeout 180s -v
+      - name: Run status summary store proofs
+        working-directory: go
+        env:
+          ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE: "1"
+          ESHU_REQUIRE_STATUS_SUMMARY_PROOF: "1"
+        # The #7009 status summary store proofs run the guarded single-row upsert,
+        # the writer advisory lock, migration 161 and its storage parameters, and
+        # the one-row bloat bound against real PostgreSQL: the as_of guard that
+        # keeps an older pass from overwriting a newer one, two concurrent
+        # writers, crash safety, and HOT updates only reproduce on a real server.
+        # Each test creates its own disposable database through the
+        # administrative postgres database. ESHU_REQUIRE_STATUS_SUMMARY_PROOF
+        # makes an unset DSN fail these tests here instead of skipping them, and
+        # TestStatusSummaryProofsRunInTheReducerContentionGate keeps this filter
+        # and these variables in step with the proofs declared in the package.
+        run: go test ./internal/storage/postgres/status/summary/ -run 'Live$' -race -count=1 -timeout 300s -v

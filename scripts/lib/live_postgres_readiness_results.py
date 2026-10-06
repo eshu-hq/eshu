@@ -13,6 +13,7 @@ ACTIVATION_PACKAGE = "./internal/storage/postgres/activation"
 MAINTENANCE_PACKAGE = "./internal/storage/postgres/maintenance"
 REDUCER_PACKAGE = "./cmd/reducer"
 QUERY_PACKAGE = "./internal/query"
+SUMMARY_PACKAGE = "./internal/storage/postgres/status/summary"
 
 # Expected files and tests per Go package (relative to the go/ module root).
 # The runner invokes one go test per package, each with its own events file
@@ -160,6 +161,23 @@ PACKAGES = {
         ),
         "go/internal/query/status_terraform_selection_live_test.go": (
             "TestStatusRoutesTerraformSelectionLive",
+        ),
+    },
+    SUMMARY_PACKAGE: {
+        "go/internal/storage/postgres/status/summary/store_live_test.go": (
+            "TestStatusSummaryMissingTableLive",
+            "TestStatusSummaryMigrationLive",
+            "TestStatusSummaryGuardLive",
+            "TestStatusSummaryConcurrentWritersLive",
+            "TestStatusSummaryCrashSafetyLive",
+            "TestStatusSummaryWriterLockLive",
+        ),
+        "go/internal/storage/postgres/status/summary/conflict_live_test.go": (
+            "TestStatusSummaryConflictWaitLive",
+        ),
+        "go/internal/storage/postgres/status/summary/bloat_live_test.go": (
+            "TestStatusSummaryBloatLive",
+            "TestStatusSummaryBloatIncompressibleLive",
         ),
     },
 }
