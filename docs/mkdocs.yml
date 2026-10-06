@@ -143,6 +143,7 @@ nav:
       - Environment Variable Registry (generated): reference/env-registry.md
       - Runtime And Storage Environment: reference/environment-runtime-storage.md
       - Postgres Tuning: reference/postgres-tuning.md
+      - Postgres Diagnostics: reference/postgres-diagnostics.md
       - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
       - Collector Environment: reference/environment-collectors.md
       - Compose And Test Environment: reference/environment-compose-tests.md

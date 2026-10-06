@@ -52,6 +52,21 @@ services:
       # and TestComposePostgresMaxConnectionsCoversPoolBudget.
       - "-c"
       - "max_connections=${ESHU_PG_MAX_CONNECTIONS:-640}"
+      # Statement statistics for latency diagnosis (#7596). shared_preload_libraries
+      # needs a server restart; the extension itself is created by an operator
+      # (scripts/pg-statement-report.sh --install). See
+      # docs/public/reference/postgres-diagnostics.md.
+      # Guarded by TestComposePostgresPreloadsStatementStats.
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "compute_query_id=on"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=top"
+      - "-c"
+      - "track_io_timing=on"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:

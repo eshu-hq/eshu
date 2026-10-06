@@ -171,3 +171,49 @@ func composePostgresMaxConnections(doc composeDocument) (int, error) {
 	}
 	return 0, fmt.Errorf("postgres command does not set max_connections")
 }
+
+// requiredPostgresDiagnosticFlags are the server settings every default
+// compose stack must start Postgres with so slow statements are never hidden
+// again (#7596): pg_stat_statements needs shared_preload_libraries at server
+// start, compute_query_id for stable statement ids, and track_io_timing so the
+// report can tell cold reads from cached ones. pg_stat_statements.track stays
+// "top" in the default stacks; the read-api latency gate override raises it to
+// "all" on its own.
+var requiredPostgresDiagnosticFlags = []string{
+	"shared_preload_libraries=pg_stat_statements",
+	"compute_query_id=on",
+	"pg_stat_statements.max=10000",
+	"pg_stat_statements.track=top",
+	"track_io_timing=on",
+}
+
+// TestComposePostgresPreloadsStatementStats fails when a default compose
+// stack's postgres service lacks one of the diagnostic settings. Without the
+// preload the extension cannot be created and a slow statement leaves no trace
+// (#7596).
+func TestComposePostgresPreloadsStatementStats(t *testing.T) {
+	t.Parallel()
+
+	for _, fileName := range []string{"docker-compose.yaml", "docker-compose.neo4j.yml"} {
+		doc := readComposeDocument(t, fileName)
+		pg, ok := doc.Services["postgres"]
+		if !ok {
+			t.Fatalf("%s: no postgres service defined", fileName)
+		}
+		args, ok := pg.Command.([]any)
+		if !ok {
+			t.Fatalf("%s: postgres command is not a list", fileName)
+		}
+		have := map[string]bool{}
+		for _, raw := range args {
+			if token, ok := raw.(string); ok {
+				have[token] = true
+			}
+		}
+		for _, flag := range requiredPostgresDiagnosticFlags {
+			if !have[flag] {
+				t.Errorf("%s: postgres command is missing -c %s; without it a slow statement stays invisible (see docs/public/reference/postgres-diagnostics.md)", fileName, flag)
+			}
+		}
+	}
+}
