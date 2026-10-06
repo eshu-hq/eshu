@@ -178,8 +178,13 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		if _, err := consumer.runner.RunOnce(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if got := consumer.failures(t, ctx, "finalize"); got != 1 {
-			t.Fatalf("finalize failures = %d, want 1 (the lock timeout)", got)
+		// A real SQLSTATE 55P03 from Finalize is counted under its own
+		// reason (ruling P2-F), never as a finalize failure.
+		if got := consumer.failures(t, ctx, "finalize_lock_timeout"); got != 1 {
+			t.Fatalf("finalize_lock_timeout failures = %d, want 1 (the lock timeout)", got)
+		}
+		if got := consumer.failures(t, ctx, "finalize"); got != 0 {
+			t.Fatalf("finalize failures = %d, want 0 (a lock timeout is not one)", got)
 		}
 		after := composedState(t, ctx, database)
 		want := replaceTuple(before, "obligation|git:tgt|tgt-2|pending", "obligation|git:tgt|tgt-2|leased")
