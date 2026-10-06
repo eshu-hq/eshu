@@ -19,6 +19,19 @@ type measuredRequest struct {
 	duration time.Duration
 }
 
+type timingWitness struct {
+	warmup      [2]measuredRequest
+	pagesByRows [2]map[string]string
+}
+
+func newTimingWitness(warmup [2]measuredRequest, rowHashes [2]string) *timingWitness {
+	witness := &timingWitness{warmup: warmup}
+	for route := range witness.pagesByRows {
+		witness.pagesByRows[route] = map[string]string{rowHashes[route]: warmup[route].pageHash}
+	}
+	return witness
+}
+
 func timedProbeFingerprint(rows []codetopicparallel.ProbeRow, validatedHash string) (bool, error) {
 	currentHash, err := hashRows(rows)
 	if err != nil {
@@ -78,36 +91,69 @@ func selectTimingWorkload(name, repoID string) (dynamicWorkload, error) {
 	return dynamicWorkload{}, fmt.Errorf("timing workload %q missing", name)
 }
 
-func validateMeasuredRound(block [4]measuredRequest, workload dynamicWorkload, cap int) error {
-	if block[0].pageHash != block[3].pageHash || block[1].pageHash != block[2].pageHash {
-		return fmt.Errorf("same-route page changed within timing round")
+func hasCappedPool(rows []codetopicparallel.ProbeRow, cap int) bool {
+	counts := make(map[poolKey]int)
+	for _, row := range rows {
+		key := poolKey{kind: row.SourceKind, term: row.MatchedTerm}
+		counts[key]++
+		if counts[key] == cap {
+			return true
+		}
+	}
+	return false
+}
+
+func validateMeasuredRound(block [4]measuredRequest, witness *timingWitness, workload dynamicWorkload, cap int) error {
+	if witness == nil {
+		return fmt.Errorf("timing witness is missing")
+	}
+	var rowHashes [4]string
+	for index, result := range block {
+		route := 0
+		if index == 1 || index == 2 {
+			route = 1
+		}
+		if err := validateConditionalPools(witness.warmup[route].rows, result.rows, workload.terms, cap); err != nil {
+			return fmt.Errorf("request %d changed %s pools from warmup: %w", index, []string{"baseline", "candidate"}[route], err)
+		}
+		if err := validateScope(result.rows, workload.allowedRepos, workload.language); err != nil {
+			return fmt.Errorf("request %d scope: %w", index, err)
+		}
+		rowHash, err := hashRows(result.rows)
+		if err != nil {
+			return fmt.Errorf("request %d row fingerprint: %w", index, err)
+		}
+		rowHashes[index] = rowHash
+		if page, seen := witness.pagesByRows[route][rowHash]; seen && page != result.pageHash {
+			return fmt.Errorf("request %d reused %s probe rows with a different page", index, []string{"baseline", "candidate"}[route])
+		}
+		if !hasCappedPool(witness.warmup[route].rows, cap) && witness.warmup[route].pageHash != result.pageHash {
+			return fmt.Errorf("request %d changed uncapped %s page from warmup", index, []string{"baseline", "candidate"}[route])
+		}
+	}
+	for _, pair := range [][2]int{{0, 3}, {1, 2}} {
+		if rowHashes[pair[0]] == rowHashes[pair[1]] && block[pair[0]].pageHash != block[pair[1]].pageHash {
+			return fmt.Errorf("same-route requests %d/%d assembled different pages from the same probe rows", pair[0], pair[1])
+		}
 	}
 	for _, pair := range [][2]int{{0, 1}, {3, 2}} {
 		baseline, candidate := block[pair[0]], block[pair[1]]
 		if err := validateConditionalPools(baseline.rows, candidate.rows, workload.terms, cap); err != nil {
 			return fmt.Errorf("round pair %d/%d: %w", pair[0], pair[1], err)
 		}
-		if err := validateScope(candidate.rows, workload.allowedRepos, workload.language); err != nil {
-			return fmt.Errorf("round candidate %d: %w", pair[1], err)
+		if rowHashes[pair[0]] == rowHashes[pair[1]] && baseline.pageHash != candidate.pageHash {
+			return fmt.Errorf("round pair %d/%d assembled different pages from the same probe rows", pair[0], pair[1])
 		}
-		allowed := make(map[string]struct{}, len(workload.terms))
-		for _, term := range workload.terms {
-			allowed[term] = struct{}{}
-		}
-		pools, err := indexPools(baseline.rows, allowed, cap)
-		if err != nil {
-			return err
-		}
-		uncapped := true
-		for _, rows := range pools {
-			if len(rows) == cap {
-				uncapped = false
-				break
-			}
-		}
-		if uncapped && baseline.pageHash != candidate.pageHash {
+		if !hasCappedPool(baseline.rows, cap) && baseline.pageHash != candidate.pageHash {
 			return fmt.Errorf("uncapped round pair %d/%d changed assembled page", pair[0], pair[1])
 		}
+	}
+	for index, result := range block {
+		route := 0
+		if index == 1 || index == 2 {
+			route = 1
+		}
+		witness.pagesByRows[route][rowHashes[index]] = result.pageHash
 	}
 	return nil
 }

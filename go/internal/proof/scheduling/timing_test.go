@@ -50,19 +50,135 @@ func TestValidateMeasuredRoundEnforcesUncappedPageParity(t *testing.T) {
 		{rows: []codetopicparallel.ProbeRow{row}, pageHash: "same"},
 	}
 	workload := dynamicWorkload{terms: []string{"topic"}}
-	if err := validateMeasuredRound(block, workload, 2); err != nil {
+	if err := validateMeasuredRound(block, timingWitnessFor(t, block[0], block[1]), workload, 2); err != nil {
 		t.Fatalf("matching uncapped round failed: %v", err)
 	}
 	block[1].pageHash = "different"
-	if err := validateMeasuredRound(block, workload, 2); err == nil {
+	if err := validateMeasuredRound(block, timingWitnessFor(t, block[0], block[0]), workload, 2); err == nil {
 		t.Fatal("uncapped page difference must fail")
 	}
-	if err := validateMeasuredRound(block, workload, 1); err == nil {
+	if err := validateMeasuredRound(block, timingWitnessFor(t, block[0], block[0]), workload, 1); err == nil {
 		t.Fatal("same-route page instability must fail")
 	}
 	block[2].pageHash = "different"
-	if err := validateMeasuredRound(block, workload, 1); err != nil {
-		t.Fatalf("capped page difference may differ: %v", err)
+	if err := validateMeasuredRound(block, timingWitnessFor(t, block[0], block[0]), workload, 1); err == nil {
+		t.Fatal("same capped rows must keep the same page")
+	}
+}
+
+func timingWitnessFor(t *testing.T, baseline, candidate measuredRequest) *timingWitness {
+	t.Helper()
+	baselineHash, err := hashRows(baseline.rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateHash, err := hashRows(candidate.rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newTimingWitness([2]measuredRequest{baseline, candidate}, [2]string{baselineHash, candidateHash})
+}
+
+func TestValidateMeasuredRoundAllowsCappedSameRouteMembershipDrift(t *testing.T) {
+	rows := func(first, second string) []codetopicparallel.ProbeRow {
+		return []codetopicparallel.ProbeRow{
+			probe("entity", "topic", first),
+			probe("entity", "topic", second),
+		}
+	}
+	block := [4]measuredRequest{
+		{rows: rows("one", "four"), pageHash: "baseline-one"},
+		{rows: rows("one", "five"), pageHash: "candidate-one"},
+		{rows: rows("one", "six"), pageHash: "candidate-two"},
+		{rows: rows("one", "seven"), pageHash: "baseline-two"},
+	}
+	witness := timingWitnessFor(t,
+		measuredRequest{rows: rows("one", "two"), pageHash: "baseline-warmup"},
+		measuredRequest{rows: rows("one", "three"), pageHash: "candidate-warmup"})
+	if err := validateMeasuredRound(block, witness, dynamicWorkload{terms: []string{"topic"}}, 2); err != nil {
+		t.Fatalf("valid capped selections should not force page equality: %v", err)
+	}
+}
+
+func TestValidateMeasuredRoundChecksEveryRequestAgainstWarmup(t *testing.T) {
+	rows := func(entity string) []codetopicparallel.ProbeRow {
+		return []codetopicparallel.ProbeRow{probe("entity", "topic", entity)}
+	}
+	workload := dynamicWorkload{terms: []string{"topic"}}
+	warmup := measuredRequest{rows: rows("one"), pageHash: "warmup"}
+	block := [4]measuredRequest{
+		{rows: rows("two"), pageHash: "same"},
+		{rows: rows("two"), pageHash: "same"},
+		{rows: rows("two"), pageHash: "same"},
+		{rows: rows("two"), pageHash: "same"},
+	}
+	if err := validateMeasuredRound(block, timingWitnessFor(t, warmup, warmup), workload, 2); err == nil {
+		t.Fatal("uncapped membership drift from warmup was accepted")
+	}
+
+	warmup = measuredRequest{rows: rows("one"), pageHash: "warmup"}
+	block = [4]measuredRequest{
+		{rows: rows("one"), pageHash: "warmup"},
+		{rows: rows("one"), pageHash: "warmup"},
+		{rows: rows("two"), pageHash: "new"},
+		{rows: rows("one"), pageHash: "warmup"},
+	}
+	if err := validateMeasuredRound(block, timingWitnessFor(t, warmup, warmup), workload, 1); err != nil {
+		t.Fatalf("changed capped membership on a later request should pass: %v", err)
+	}
+	block[2].rows = rows("one")
+	if err := validateMeasuredRound(block, timingWitnessFor(t, warmup, warmup), workload, 1); err == nil {
+		t.Fatal("later request kept warmup rows but changed page")
+	}
+}
+
+func TestValidateMeasuredRoundRejectsReusedPoolWithDifferentPage(t *testing.T) {
+	rows := func(entity string) []codetopicparallel.ProbeRow {
+		return []codetopicparallel.ProbeRow{probe("entity", "topic", entity)}
+	}
+	warmup := measuredRequest{rows: rows("one"), pageHash: "warmup"}
+	witness := timingWitnessFor(t, warmup, warmup)
+	first := [4]measuredRequest{
+		{rows: rows("two"), pageHash: "first"},
+		{rows: rows("one"), pageHash: "warmup"},
+		{rows: rows("one"), pageHash: "warmup"},
+		{rows: rows("two"), pageHash: "first"},
+	}
+	workload := dynamicWorkload{terms: []string{"topic"}}
+	if err := validateMeasuredRound(first, witness, workload, 1); err != nil {
+		t.Fatalf("first capped round failed: %v", err)
+	}
+	second := first
+	second[0].pageHash = "second"
+	second[3].pageHash = "second"
+	if err := validateMeasuredRound(second, witness, workload, 1); err == nil {
+		t.Fatal("a repeated capped pool changed page across rounds")
+	}
+}
+
+func TestValidateMeasuredRoundRetainsCardinalityAndScopeChecks(t *testing.T) {
+	repo := "allowed"
+	outside := "outside"
+	row := probe("entity", "topic", "one")
+	row.RepoID = &repo
+	warmup := measuredRequest{rows: []codetopicparallel.ProbeRow{row}, pageHash: "warmup"}
+	workload := dynamicWorkload{terms: []string{"topic"}, allowedRepos: []string{repo}}
+	block := [4]measuredRequest{
+		{rows: warmup.rows, pageHash: "warmup"},
+		{rows: warmup.rows, pageHash: "warmup"},
+		{rows: warmup.rows, pageHash: "warmup"},
+		{rows: warmup.rows, pageHash: "warmup"},
+	}
+	block[3].rows = nil
+	if err := validateMeasuredRound(block, timingWitnessFor(t, warmup, warmup), workload, 1); err == nil {
+		t.Fatal("timed pool cardinality changed from warmup")
+	}
+	block[3] = warmup
+	bad := row
+	bad.RepoID = &outside
+	block[2].rows = []codetopicparallel.ProbeRow{bad}
+	if err := validateMeasuredRound(block, timingWitnessFor(t, warmup, warmup), workload, 1); err == nil {
+		t.Fatal("timed row escaped repository scope")
 	}
 }
 

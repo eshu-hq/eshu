@@ -116,25 +116,15 @@ func assemblyHash(ctx context.Context, tx pgx.Tx, rows []codetopicparallel.Probe
 	if err != nil {
 		return "", fmt.Errorf("marshal rows for assembly: %w", err)
 	}
-	query := "SELECT to_jsonb(t)::text FROM (" +
-		codetopicparallel.AssemblySQL(candidateCap) + ") t"
-	result, err := tx.Query(ctx, query, string(payload), 26, 0)
+	assembled, err := queryAssembledRows(ctx, tx.Query, payload)
 	if err != nil {
 		return "", fmt.Errorf("query assembled page: %w", err)
 	}
-	defer result.Close()
-	page := make([]string, 0, 26)
-	for result.Next() {
-		var row string
-		if err := result.Scan(&row); err != nil {
-			return "", fmt.Errorf("scan assembled page row: %w", err)
-		}
-		page = append(page, row)
+	page, err := summarizeDiagnosticPage(assembled)
+	if err != nil {
+		return "", fmt.Errorf("summarize assembled page: %w", err)
 	}
-	if err := result.Err(); err != nil {
-		return "", fmt.Errorf("iterate assembled page rows: %w", err)
-	}
-	return hashStrings(page), nil
+	return page.fullHash, nil
 }
 
 func validSnapshotID(id string) bool {

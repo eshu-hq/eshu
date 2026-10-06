@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -132,16 +133,26 @@ func runDynamicRequest(ctx context.Context, txs []pgx.Tx, workload dynamicWorklo
 	if err != nil {
 		return measuredRequest{}, err
 	}
-	pageHash, err := assemblyHash(ctx, txs[0], rows)
+	payload, err := json.Marshal(rows)
 	if err != nil {
-		return measuredRequest{}, err
+		return measuredRequest{}, fmt.Errorf("encode timed probe rows: %w", err)
 	}
-	return measuredRequest{rows: rows, pageHash: pageHash, duration: time.Since(started)}, nil
+	assembled, err := queryAssembledRows(ctx, txs[0].Query, payload)
+	if err != nil {
+		return measuredRequest{}, fmt.Errorf("assemble timed page: %w", err)
+	}
+	measuredDuration := time.Since(started)
+	page, err := summarizeDiagnosticPage(assembled)
+	if err != nil {
+		return measuredRequest{}, fmt.Errorf("fingerprint timed page: %w", err)
+	}
+	return measuredRequest{rows: rows, pageHash: page.fullHash, duration: measuredDuration}, nil
 }
 
-func runTimingRounds(ctx context.Context, txs []pgx.Tx, workload dynamicWorkload, baselinePage, candidatePage, baselineHash, candidateHash string) error {
+func runTimingRounds(ctx context.Context, txs []pgx.Tx, workload dynamicWorkload, warmup [2]measuredRequest, warmupHashes [2]string) error {
 	baselineSamples := make([]time.Duration, 0, 6)
 	candidateSamples := make([]time.Duration, 0, 6)
+	witness := newTimingWitness(warmup, warmupHashes)
 	for round := range 3 {
 		var block [4]measuredRequest
 		for index, candidate := range timingOrder(1) {
@@ -151,20 +162,17 @@ func runTimingRounds(ctx context.Context, txs []pgx.Tx, workload dynamicWorkload
 			}
 			block[index] = result
 		}
-		if err := validateMeasuredRound(block, workload, candidateCap); err != nil {
+		if err := validateMeasuredRound(block, witness, workload, candidateCap); err != nil {
 			return fmt.Errorf("timing round %d invalid: %w", round, err)
 		}
 		for index, result := range block {
-			validatedHash := baselineHash
+			validatedHash := warmupHashes[0]
 			if index == 1 || index == 2 {
-				validatedHash = candidateHash
+				validatedHash = warmupHashes[1]
 			}
 			if err := validateTimedRows(ctx, txs[0], result.rows, workload, validatedHash); err != nil {
 				return fmt.Errorf("timing round %d request %d persisted eligibility: %w", round, index, err)
 			}
-		}
-		if block[0].pageHash != baselinePage || block[1].pageHash != candidatePage {
-			return fmt.Errorf("same-route page changed from semantic warmup")
 		}
 		baselineSamples = append(baselineSamples, block[0].duration, block[3].duration)
 		candidateSamples = append(candidateSamples, block[1].duration, block[2].duration)
@@ -289,7 +297,8 @@ func runDynamicCase(ctx context.Context, connections []*pgx.Conn, workload dynam
 	fmt.Printf("dynamic_case=%s conditional_pools=pass persisted_eligibility=pass timing=%s\n", workload.name, timingStatus)
 	fmt.Printf("dynamic_case=%s snapshot_age_ms=%d\n", workload.name, time.Since(started).Milliseconds())
 	if timing {
-		if err := runTimingRounds(ctx, txs, workload, baselinePage, candidatePage, baselineHash, candidateHash); err != nil {
+		warmup := [2]measuredRequest{{rows: baselineRows, pageHash: baselinePage}, {rows: candidateRows, pageHash: candidatePage}}
+		if err := runTimingRounds(ctx, txs, workload, warmup, [2]string{baselineHash, candidateHash}); err != nil {
 			return err
 		}
 		fmt.Printf("dynamic_case=%s timing=completed snapshot_age_ms=%d\n", workload.name, time.Since(started).Milliseconds())

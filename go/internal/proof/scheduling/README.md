@@ -19,6 +19,12 @@ Both modes use a shared repeatable-read snapshot, a 50-second case deadline,
 five-second SQL statement limit, and bounded rollback and connection cleanup.
 Only `fixed_canonical` checks persisted eligibility, path-first caps, pool
 agreement, and page stability before and during interleaved timing rounds.
+When a pool reaches its cap, selected rows and their page may differ between
+requests; each timed request must still match the warmup's pool cardinalities,
+keep uncapped pools exact, and pass the persisted eligibility check. Reusing
+the same probe-row multiset with a different page fails, including across
+rounds. Every timed request is checked against its route's warmup, not only
+the first request in a round.
 The database container, host resource gates, source commit, and corpus/index
 fingerprints must be verified separately. Stop and clean up any task-owned
 container or claim after the run; do not delete preserved volumes.
@@ -34,8 +40,14 @@ raw repository, path, or entity identifiers. This mode does not run timing
 rounds or establish a performance improvement; a differing capped pool can be
 legitimate, while a same-route difference needs diagnosis before optimization.
 
-The measured duration in `fixed_canonical` covers warmed probe scheduling and page assembly after
-connections and the snapshot exist. It does **not** establish the deployed
+The measured duration in `fixed_canonical` covers warmed probe scheduling,
+payload encoding, and consumption of all direct typed assembly rows after
+connections and the snapshot exist. Both arms run the unchanged production
+`AssemblySQL`; page hashing and correctness checks are outside the measured
+duration. The earlier proof command wrapped assembly in an outer JSON SELECT,
+so its timings are a different harness epoch and must not be combined with
+direct-assembly timings. This change does not establish which shape is faster
+or why an earlier run stopped. It does **not** establish the deployed
 endpoint's one-second budget. Report raw interleaved samples, corpus/backend
 identity, and any capped-page differences; never infer endpoint performance
 from this harness alone.
@@ -47,7 +59,8 @@ with 2 CPU and 1 GiB limits, 263 entities, and 753 files. The canonical
 workload used three ABBA rounds (six samples per route). Baseline round samples
 in milliseconds were `15.233,16.564`; `17.451,13.141`; `17.778,12.859`.
 Candidate samples were `17.239,16.268`; `14.694,15.252`; `14.451,14.196`.
-Medians were 15.899 ms baseline and 14.973 ms candidate. Both routes returned
+Medians were 15.899 ms baseline and 14.973 ms candidate in the earlier
+JSON-wrapper epoch. Both routes returned
 1,014 rows; left-only and right-only differences were zero, pages were equal,
 persisted eligibility passed, and the command exited zero. The database had
 no queue work. The full historical invocation argv and exact binary hash were

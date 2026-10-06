@@ -54,26 +54,37 @@ func replayDiagnosticAssembly(ctx context.Context, payload []byte, assemble func
 	return pages, nil
 }
 
-func assembleDiagnosticPage(ctx context.Context, tx pgx.Tx, payload []byte) (diagnosticPage, error) {
-	// Query the unchanged production assembly directly; no to_jsonb wrapper or
-	// alternate ORDER BY may change how PostgreSQL resolves ties or NULLs.
-	result, err := tx.Query(ctx, codetopicparallel.AssemblySQL(candidateCap), string(payload), 26, 0)
+func queryAssembledRows(ctx context.Context, query func(context.Context, string, ...any) (pgx.Rows, error), payload []byte) ([]assembledDiagnosticRow, error) {
+	// Both proof modes use the unchanged production SQL and typed row scan.
+	result, err := query(ctx, codetopicparallel.AssemblySQL(candidateCap), string(payload), 26, 0)
 	if err != nil {
-		return diagnosticPage{}, fmt.Errorf("query direct diagnostic assembly: %w", diagnosticDatabaseFailure(err))
+		return nil, fmt.Errorf("query direct assembly: %w", diagnosticDatabaseFailure(err))
 	}
 	defer result.Close()
 	rows := make([]assembledDiagnosticRow, 0, 26)
 	for result.Next() {
+		if len(rows) == 26 {
+			return nil, fmt.Errorf("direct assembly exceeded 26-row page bound")
+		}
 		var row assembledDiagnosticRow
 		if err := result.Scan(&row.SourceKind, &row.RepoID, &row.RelativePath, &row.EntityID,
 			&row.EntityName, &row.EntityType, &row.Language, &row.StartLine,
 			&row.EndLine, &row.MatchedTerms, &row.Score, &row.PoolTruncated); err != nil {
-			return diagnosticPage{}, fmt.Errorf("scan direct diagnostic assembly: %w", diagnosticDatabaseFailure(err))
+			return nil, fmt.Errorf("scan direct assembly: %w", diagnosticDatabaseFailure(err))
 		}
 		rows = append(rows, row)
 	}
+	result.Close()
 	if err := result.Err(); err != nil {
-		return diagnosticPage{}, fmt.Errorf("iterate direct diagnostic assembly: %w", diagnosticDatabaseFailure(err))
+		return nil, fmt.Errorf("iterate direct assembly: %w", diagnosticDatabaseFailure(err))
+	}
+	return rows, nil
+}
+
+func assembleDiagnosticPage(ctx context.Context, tx pgx.Tx, payload []byte) (diagnosticPage, error) {
+	rows, err := queryAssembledRows(ctx, tx.Query, payload)
+	if err != nil {
+		return diagnosticPage{}, err
 	}
 	return summarizeDiagnosticPage(rows)
 }
