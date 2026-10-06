@@ -8,11 +8,12 @@ parsed by the gate and must remain present.
 
 ## Version pin
 
-The config is pinned to golangci-lint v2.11.4 — the exact version
+The config is pinned to golangci-lint v2.12.2 — the exact version
 `.github/workflows/test.yml` installs via
-`go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4`.
+`scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2`
+(a `go install` that retries transient Go proxy failures).
 The 500-line-cap Go plugin in `tools/golangci-lint-filelength/` is pinned
-to `golang.org/x/tools v0.43.0` (the revision v2.11.4 vendors) for the
+to `golang.org/x/tools v0.44.0` (the revision v2.12.2 vendors) for the
 same reason: a Go plugin loaded via `plugin.Open` must be built against
 the same `golang.org/x/tools` revision the host binary uses.
 

@@ -70,9 +70,9 @@ new_repo() {
 	mkdir -p "${repo_dir}/scripts/dev" "${repo_dir}/.github/workflows"
 	cp "${script_src}" "${repo_dir}/scripts/dev/precommit-go.sh"
 	chmod +x "${repo_dir}/scripts/dev/precommit-go.sh"
-	printf 'run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2\n' \
+	printf 'run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2\n' \
 		>"${repo_dir}/.github/workflows/test.yml"
-	printf 'run: go install github.com/securego/gosec/v2/cmd/gosec@v2.27.1\n' \
+	printf 'run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1\n' \
 		>"${repo_dir}/.github/workflows/security-scan.yml"
 	git_in "${repo_dir}" init -q -b main
 	git_in "${repo_dir}" config user.email "test@example.invalid"

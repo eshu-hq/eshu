@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (40 gates)
+### Hygiene: Is the change well-formed? (41 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -57,6 +57,7 @@ results are derived from the inputs rather than written by hand. See
 - `license-header` (blocking): Checks every .go file in the repo carries the required license header.
 - `ci-install-apt-packages` (blocking): Self-tests the CI ripgrep/apt installer script's checksum and fallback logic, with no network or Docker.
 - `ci-go-mod-download-retry` (blocking): Self-tests the go-mod-download retry wrapper: it must retry failed downloads and record each attempt.
+- `ci-go-install-retry` (blocking): Self-tests the go-install retry wrapper and fails if any workflow runs a bare go install instead of it.
 - `main-health-watcher` (blocking): Self-tests the post-merge main-health watcher's logic for opening and closing its tracking issue.
 - `pre-enqueue-check` (blocking): Self-tests the pre-enqueue check, which confirms the reviewed head, merge cleanliness, checks and review threads before a PR joins the queue.
 - `heredoc-budget` (blocking): Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock.
@@ -201,6 +202,7 @@ results are derived from the inputs rather than written by hand. See
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh`<br>then self-test: `bash scripts/test-verify-license-header.sh` | test.yml / verify-contracts | 4 path(s): **/*.go, scripts/test-verify-license-header.sh, scripts/verify-license-header.sh, … |
 | `ci-install-apt-packages` | CI apt/ripgrep installer test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-install-apt-packages.sh` | test.yml / go-core | 5 path(s): scripts/ci/install-apt-packages.sh, scripts/test-ci-install-apt-packages.sh, scripts/lib/test-ci-install-apt-packages-fixtures.sh, … |
 | `ci-go-mod-download-retry` | CI Go module pre-warm retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-mod-download-retry.sh` | test.yml / go-core | 4 path(s): scripts/ci/go-mod-download-retry.sh, scripts/test-ci-go-mod-download-retry.sh, .github/workflows/test.yml, … |
+| `ci-go-install-retry` | CI Go tool install retry-script test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-go-install-retry.sh` | test.yml / go-core | 4 path(s): scripts/ci/go-install-retry.sh, scripts/test-ci-go-install-retry.sh, .github/workflows/**, … |
 | `main-health-watcher` | Post-merge main-health watcher test mirror | hygiene | pre-pr | true | `bash scripts/test-main-health.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 9 path(s): scripts/ci/main-health.sh, scripts/lib/main-health-policy.sh, scripts/test-main-health.sh, … |
 | `pre-enqueue-check` | Pre-enqueue merge-queue check test mirror | hygiene | pre-pr | true | `bash scripts/dev/test-pre-enqueue-check.sh` | verify-ci-gate-registry.yml / Verify ci-gate registry test mirror | 4 path(s): scripts/dev/pre-enqueue-check.sh, scripts/dev/test-pre-enqueue-check.sh, scripts/lib/test-pre-enqueue-check-*, … |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh`<br>then self-test: `bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh` | static-contract-gates.yml / Verify OpenAPI gate | 11 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/serviceintelhttp/**, … |
@@ -257,9 +259,9 @@ results are derived from the inputs rather than written by hand. See
 | `console-a11y` | Console a11y audit (axe-core, critical+serious block) | frontend | pre-push | true | `npm run console:a11y` | frontend.yml / Console a11y audit (axe-core) | 1 path(s): apps/console/** |
 | `frontend-eslint` | ESLint flat config (src + apps/console/src) | frontend | pre-push | true | `bash scripts/verify-eslint-config.sh`<br>then self-test: `bash scripts/test-eslint-config.sh` | frontend.yml / ESLint flat config (issue #3763) | 7 path(s): src/**, apps/console/src/**, eslint.config.js, … |
 | `npm-audit` | npm audit (fail on high/critical) | frontend | pre-push | true | `npm audit --audit-level=high` | frontend.yml / npm audit (fail on high/critical) | 2 path(s): package.json, package-lock.json |
-| `gosec-changed` | gosec static analysis (whole module) | security | pre-push | true | `bash scripts/dev/precommit-go.sh gosec-all` | security-scan.yml / gosec (Go static analysis) | 3 path(s): go/**, scripts/dev/precommit-go.sh, scripts/ci/go-mod-download-retry.sh |
-| `govulncheck` | govulncheck (Go vulnerability database) | security | pre-push | true | `bash scripts/dev/precommit-go.sh govulncheck`<br>then self-test: `bash scripts/test-precommit-go-toolchain-isolation.sh` | security-scan.yml / govulncheck (Go vulnerability database) | 6 path(s): go/go.mod, go/go.sum, go/**/*.go, … |
-| `nancy` | nancy (Sonatype dep CVE + license scan) | security | pre-push | false | `bash scripts/dev/precommit-go.sh nancy`<br>then self-test: `bash scripts/test-nancy-local.sh` | security-scan.yml / nancy (Sonatype dep CVE + license scan) | 6 path(s): go/go.mod, go/go.sum, scripts/dev/precommit-go.sh, … |
+| `gosec-changed` | gosec static analysis (whole module) | security | pre-push | true | `bash scripts/dev/precommit-go.sh gosec-all` | security-scan.yml / gosec (Go static analysis) | 4 path(s): go/**, scripts/dev/precommit-go.sh, scripts/ci/go-mod-download-retry.sh, … |
+| `govulncheck` | govulncheck (Go vulnerability database) | security | pre-push | true | `bash scripts/dev/precommit-go.sh govulncheck`<br>then self-test: `bash scripts/test-precommit-go-toolchain-isolation.sh` | security-scan.yml / govulncheck (Go vulnerability database) | 7 path(s): go/go.mod, go/go.sum, go/**/*.go, … |
+| `nancy` | nancy (Sonatype dep CVE + license scan) | security | pre-push | false | `bash scripts/dev/precommit-go.sh nancy`<br>then self-test: `bash scripts/test-nancy-local.sh` | security-scan.yml / nancy (Sonatype dep CVE + license scan) | 7 path(s): go/go.mod, go/go.sum, scripts/dev/precommit-go.sh, … |
 | `trivy-fs` | Trivy filesystem scan (vuln + secret + config) | security | pre-push | false | `bash scripts/dev/trivy-fs-local.sh` | security-scan.yml / Trivy filesystem scan (vuln + secret + config) | 9 path(s): Dockerfile, deploy/**, go/go.mod, … |
 | `golden-corpus-mirror` | Golden corpus gate mirror (static) | hygiene | pre-pr | true | `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / static mirror | 6 path(s): scripts/verify-golden-corpus-gate.sh, scripts/test-verify-golden-corpus-gate.sh, scripts/lib/golden-corpus-*.sh, … |
 | `golden-corpus-gate` | Golden Corpus Gate on NornicDB (Docker) | exactness | ci-heavy | false | `bash scripts/verify-golden-corpus-gate.sh`<br>then self-test: `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / corpus-gate (nornicdb) | 89 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/projector/**, … |

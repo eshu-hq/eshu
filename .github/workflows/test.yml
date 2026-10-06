@@ -285,6 +285,15 @@ jobs:
         if: ${{ !cancelled() }}
         run: bash scripts/test-ci-go-mod-download-retry.sh
 
+      # Same shape for go-install-retry.sh, the retry wrapper every CI tool
+      # install (golangci-lint below, benchstat, govulncheck, gosec, nancy)
+      # goes through. Its mirror also fails if any workflow reintroduces a
+      # bare `go install`. See specs/ci-gates.v1.yaml's ci-go-install-retry
+      # entry, which declares this job as its `ci.job`.
+      - name: Verify go-install-retry test mirror
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-ci-go-install-retry.sh
+
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a build/lint
       # failure that never compiled anything -- this job runs the whole-module
@@ -298,7 +307,7 @@ jobs:
 
       - name: Install golangci-lint
         if: ${{ !cancelled() }}
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+        run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
       # tools/golangci-lint-filelength is its own module (own go.mod), so the
       # go/ pre-warm above does not touch its cache -- warm it separately.
