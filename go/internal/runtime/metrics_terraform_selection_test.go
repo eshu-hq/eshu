@@ -79,7 +79,11 @@ func TestStatusMetricsSkipsTerraformEvidence(t *testing.T) {
 	selected := &terraformSelectionReader{snapshot: terraformMetricsSnapshot(), omitOnSkip: true}
 	want := scrape(baseline)
 	got := scrape(selected)
-	wantSelection := statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence()
+	wantSelection := statuspkg.SnapshotSelection{
+		IncludeCollectorFactEvidence: true,
+		IncludeRegistryCollectors:    true,
+		SkipTerraformStateEvidence:   true,
+	}
 	if len(selected.selections) != 1 || selected.selections[0] != wantSelection || selected.unfilteredHit != 0 {
 		t.Fatalf("selections = %+v (unfiltered %d), want [%+v]", selected.selections, selected.unfilteredHit, wantSelection)
 	}
