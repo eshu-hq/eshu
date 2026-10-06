@@ -186,6 +186,7 @@ export default tseslint.config(
           project: [
             "./tsconfig.app.json",
             "./apps/console/tsconfig.app.json",
+            "./apps/console/tsconfig.test.json",
             "./apps/console/tsconfig.node.json",
           ],
         },
