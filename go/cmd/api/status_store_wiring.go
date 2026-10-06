@@ -6,6 +6,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel"
@@ -33,10 +34,36 @@ import (
 // store.Instruments assignment would otherwise leave the metric
 // contract-complete but silent on the API path with no test to catch the
 // regression. instruments may be nil; recording is a no-op in that case.
-func newStatusStore(queryer db.Queryer, instruments *telemetry.Instruments) pgstatus.StatusStore {
-	store := pgstatus.NewStatusStore(queryer)
+func newStatusStore(queryer db.Queryer, instruments *telemetry.Instruments, summaryReader *pgstatus.StatusSummaryReader) pgstatus.StatusStore {
+	store := pgstatus.NewStatusStore(queryer).WithSummaryReader(summaryReader)
 	store.Instruments = instruments
 	return store
+}
+
+// newStatusSummaryReader resolves the stored-summary reader (#7009) once for
+// the process. Every status snapshot transaction builds its own StatusStore
+// through newStatusStore, so the settings and the shared live statement live
+// here, not in the per-transaction store. An invalid
+// ESHU_STATUS_SUMMARY_STALE_AFTER while the reader is on fails startup.
+func newStatusSummaryReader(getenv func(string) string) (*pgstatus.StatusSummaryReader, error) {
+	reader, err := pgstatus.NewStatusSummaryReader(getenv)
+	if err != nil {
+		return nil, fmt.Errorf("configure status summary reader: %w", err)
+	}
+	return reader, nil
+}
+
+// newSnapshotStatusReader confines each status read to one guarded snapshot
+// transaction and builds a StatusStore for it that shares the process-wide
+// summaryReader.
+func newSnapshotStatusReader(
+	readStore db.ReadStore,
+	instruments *telemetry.Instruments,
+	summaryReader *pgstatus.StatusSummaryReader,
+) status.Reader {
+	return pgaccess.NewSnapshotStatusReader(readStore, func(reader db.Queryer) status.Reader {
+		return newStatusStore(reader, instruments, summaryReader)
+	}, otel.Tracer(telemetry.DefaultSignalName))
 }
 
 // statusSnapshotStoreName labels the status snapshot reads on the shared

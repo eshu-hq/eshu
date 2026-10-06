@@ -27,13 +27,13 @@ func TestActiveWorkSourceJSONNamesTheContract(t *testing.T) {
 
 	asOf := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
 	view := ActiveWorkSource{
-		Source: ActiveWorkSourceLiveFallback, Reason: ActiveWorkReasonStale, AsOf: asOf, Age: 0, Stale: true,
+		Source: ActiveWorkSourceLiveFallback, Reason: ActiveWorkReasonStale, AsOf: asOf, Age: 0,
 	}.JSON()
 	encoded, err := json.Marshal(view)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"source":"live_fallback","reason":"stale","as_of":"2026-10-06T12:00:00Z","age_seconds":0,"stale":true}`
+	want := `{"source":"live_fallback","reason":"stale","as_of":"2026-10-06T12:00:00Z","age_seconds":0,"stale":false}`
 	if string(encoded) != want {
 		t.Fatalf("json = %s, want %s", encoded, want)
 	}

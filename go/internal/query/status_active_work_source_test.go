@@ -19,7 +19,7 @@ func sourcedSnapshot() statuspkg.RawSnapshot {
 		AsOf: asOf,
 		ActiveWorkSource: statuspkg.ActiveWorkSource{
 			Source: statuspkg.ActiveWorkSourceLiveFallback, Reason: statuspkg.ActiveWorkReasonStale,
-			AsOf: asOf, Stale: true,
+			AsOf: asOf,
 		},
 	}
 }
@@ -56,7 +56,7 @@ func TestStatusRoutesCarryTheActiveWorkSource(t *testing.T) {
 			if !ok {
 				t.Fatalf("GET %s has no active_work_source object: %#v", path, payload)
 			}
-			if source["source"] != "live_fallback" || source["reason"] != "stale" || source["stale"] != true ||
+			if source["source"] != "live_fallback" || source["reason"] != "stale" || source["stale"] != false ||
 				source["as_of"] != "2026-10-06T12:00:00Z" || source["age_seconds"] != float64(0) {
 				t.Fatalf("GET %s active_work_source = %#v", path, source)
 			}

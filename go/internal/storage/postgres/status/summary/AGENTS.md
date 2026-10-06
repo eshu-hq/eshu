@@ -42,6 +42,9 @@
   The writer loop's telemetry stays in `reducer/status/summary`.
 - Age is the reader's database clock minus `as_of`, never a caller clock. Keep
   the clock read in `Select` on the same transaction as the row read.
+- Keep the fence order in `Select` (version, row count, stale, decode). `Read`
+  decodes before the caller can judge the version columns, so `Select` uses
+  `readRaw`; do not switch it back to `Read`.
 - A fallback is whole. `Select` returns no entries on a fallback, so a caller
   cannot mix a stored row with the live statement. A database error is an error,
   not a fallback.

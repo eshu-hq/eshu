@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -297,23 +296,64 @@ func readActiveWorkSummary(ctx context.Context, queryer db.Queryer, asOf time.Ti
 	return summary, nil
 }
 
-// readActiveWork returns the active-work summary and where it came from
-// (#7009). With the reader flag off it runs the live statement, as before.
-// With it on, it reads the stored summary row inside the same snapshot
-// transaction and serves it only when every fence passes; otherwise it runs
-// the live statement for the whole answer and labels the fallback with a
-// typed reason. One answer is never a mix of the two. A database error
-// reading the row is returned, not hidden behind a fallback.
-func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
-	if s.summaryReadErr != nil {
-		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.summaryReadErr
+// StatusSummaryReader is the process-wide reader of the stored active-work
+// summary (#7009): its settings and the Flight that shares one live statement
+// among concurrent fallbacks. Build it once at startup, attach it to every
+// status store with StatusStore.WithSummaryReader; the API and MCP server build
+// a store per snapshot transaction, so a store-owned Flight would never share.
+type StatusSummaryReader struct {
+	config summary.ReadConfig
+	flight summary.Flight[liveActiveWork]
+}
+
+// liveActiveWork is a live result and the clock it was evaluated at, which a
+// follower of a shared call reports as its as_of.
+type liveActiveWork struct {
+	summary activeWorkSummary
+	asOf    time.Time
+}
+
+// NewStatusSummaryReader loads ESHU_STATUS_SUMMARY_READ_ENABLED (default off)
+// and ESHU_STATUS_SUMMARY_STALE_AFTER; an invalid value while the reader is on
+// is an error the caller returns at startup.
+func NewStatusSummaryReader(getenv func(string) string) (*StatusSummaryReader, error) {
+	cfg, err := summary.LoadReadConfig(getenv)
+	if err != nil {
+		return nil, err
 	}
+	return NewStatusSummaryReaderWithConfig(cfg), nil
+}
+
+// NewStatusSummaryReaderWithConfig builds a reader from explicit settings.
+func NewStatusSummaryReaderWithConfig(cfg summary.ReadConfig) *StatusSummaryReader {
+	return &StatusSummaryReader{config: cfg}
+}
+
+// Waiting reports how many reads wait on the in-flight shared live statement,
+// or -1 when none is in flight. Tests use it to hold the leader until every
+// follower has joined.
+func (r *StatusSummaryReader) Waiting() int {
+	return r.flight.Waiting(summary.ModelActiveWorkSummary)
+}
+
+// readActiveWork returns the active-work summary and where it came from
+// (#7009). With the reader off it runs the live statement, as before. With it
+// on, it reads the stored summary row, serves it only when every fence passes,
+// and otherwise runs the live statement for the whole answer and labels the
+// fallback with a typed reason; one answer is never a mix of the two. A
+// database error reading the row is returned, not hidden behind a fallback.
+// Concurrent fallbacks share one live statement through the reader's Flight.
+func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
+	if s.startupErr != nil {
+		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.startupErr
+	}
+	reader := s.summaryReader
 	selection := summary.Selection{Source: summary.SourceLive, Reason: summary.ReasonFlagOff}
-	if s.summaryRead.Enabled {
+	if reader != nil && reader.config.Enabled {
 		q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
 		var err error
 		selection, err = summary.Select(ctx, q, summary.SelectConfig{
-			ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(), StaleAfter: s.summaryRead.StaleAfter,
+			ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(), StaleAfter: reader.config.StaleAfter,
 		})
 		if err = done(err); err != nil {
 			return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, err
@@ -330,24 +370,23 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (active
 		}
 	}
 	s.observeActiveWork(ctx, selection)
-	source := statuspkg.ActiveWorkSource{
-		Source: string(selection.Source), Reason: string(selection.Reason), AsOf: asOf,
-		Stale: selection.Reason == summary.ReasonStale,
-	}
-	live := func() (activeWorkSummary, error) {
+	// Stale stays false: the served data is live; reason names the rejected row.
+	source := statuspkg.ActiveWorkSource{Source: string(selection.Source), Reason: string(selection.Reason), AsOf: asOf}
+	live := func() (liveActiveWork, error) {
 		q, done := s.read(ctx, statusReadActiveWorkSummary)
 		work, err := readActiveWorkSummary(ctx, q, asOf)
-		return work, done(err)
+		return liveActiveWork{summary: work, asOf: asOf}, done(err)
 	}
-	if selection.Source != summary.SourceLiveFallback || s.liveFlight == nil {
-		work, err := live()
-		return work, source, err
+	if selection.Source != summary.SourceLiveFallback || reader == nil {
+		result, err := live()
+		return result.summary, source, err
 	}
-	work, shared, err := s.liveFlight.Do(summary.ModelActiveWorkSummary, live)
+	result, shared, err := reader.flight.Do(ctx, summary.ModelActiveWorkSummary, live)
 	if shared {
-		work = work.clone()
+		result.summary = result.summary.clone()
+		source.AsOf = result.asOf
 	}
-	return work, source, err
+	return result.summary, source, err
 }
 
 // observeActiveWork records one read decision for operators.
@@ -356,35 +395,6 @@ func (s StatusStore) observeActiveWork(ctx context.Context, selection summary.Se
 		ModelKey: summary.ModelActiveWorkSummary, Source: selection.Source, Reason: selection.Reason,
 		AsOf: selection.AsOf, Age: selection.Age,
 	})
-}
-
-// decodeActiveWorkEntries decodes stored summary entries with the same
-// decoder the live read uses.
-func decodeActiveWorkEntries(entries []summary.Entry) (activeWorkSummary, error) {
-	work := activeWorkSummary{
-		StageCounts:    []statuspkg.StageStatusCount{},
-		DomainBacklogs: []statuspkg.DomainBacklog{},
-		Blockages:      []statuspkg.QueueBlockage{},
-	}
-	for _, entry := range entries {
-		if err := work.add(entry.Section, entry.JSON); err != nil {
-			return activeWorkSummary{}, fmt.Errorf("decode stored active work summary %s row %d: %w", entry.Section, entry.Ordinal, err)
-		}
-	}
-	return work, nil
-}
-
-// clone returns a copy that shares no slice or pointer with s, so requests
-// that shared one live statement cannot see each other's later changes.
-func (s activeWorkSummary) clone() activeWorkSummary {
-	s.StageCounts = slices.Clone(s.StageCounts)
-	s.DomainBacklogs = slices.Clone(s.DomainBacklogs)
-	s.Blockages = slices.Clone(s.Blockages)
-	if s.LatestFailure != nil {
-		failure := *s.LatestFailure
-		s.LatestFailure = &failure
-	}
-	return s
 }
 
 // add decodes one section row into the summary.

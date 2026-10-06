@@ -112,7 +112,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	readImpactFromWinners bool, cookieSecureMode query.CookieSecureMode,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
-		statusReader = newStatusStore(reader, instruments)
+		statusReader = newStatusStore(reader, instruments, nil)
 	}
 	if governanceAudit == nil && writer != nil {
 		governanceAudit = newGovernanceAuditStore(writer, instruments, logger)

@@ -170,6 +170,32 @@ func TestNewHostedWithStatusServerRejectsNilReader(t *testing.T) {
 	}
 }
 
+// startupFailingReader is a status reader that reports an invalid
+// configuration at startup, as postgres.StatusStore does for an invalid
+// ESHU_STATUS_SUMMARY_STALE_AFTER.
+type startupFailingReader struct {
+	fakeStatusReader
+	startupErr error
+}
+
+func (r *startupFailingReader) StartupError() error { return r.startupErr }
+
+func TestMountStatusServerFailsStartupWhenTheReaderIsMisconfigured(t *testing.T) {
+	t.Setenv("ESHU_LISTEN_ADDR", "127.0.0.1:0")
+
+	base, err := NewHosted("collector-git", runtime.ContextRunner{})
+	if err != nil {
+		t.Fatalf("NewHosted() error = %v, want nil", err)
+	}
+	boom := errors.New("ESHU_STATUS_SUMMARY_STALE_AFTER=\"soon\": invalid")
+	if _, err := MountStatusServer(base, &startupFailingReader{startupErr: boom}); !errors.Is(err, boom) {
+		t.Fatalf("MountStatusServer() error = %v, want the reader's startup error", err)
+	}
+	if _, err := MountStatusServer(base, &startupFailingReader{}); err != nil {
+		t.Fatalf("MountStatusServer() with a healthy reader error = %v, want nil", err)
+	}
+}
+
 func TestMountStatusServerComposesRuntimeLifecycle(t *testing.T) {
 	t.Setenv("ESHU_LISTEN_ADDR", "127.0.0.1:0")
 

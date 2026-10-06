@@ -4,6 +4,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -12,7 +13,16 @@ import (
 
 // MountStatusServer composes the shared mounted runtime admin surface into an
 // existing hosted application.
+//
+// A reader that implements StartupError() error and reports a configuration
+// problem fails the mount, so a misconfigured process fails at startup instead
+// of serving status routes that all error (#7009).
 func MountStatusServer(app Application, reader statuspkg.Reader, opts ...runtimecfg.StatusAdminOption) (Application, error) {
+	if checker, ok := reader.(interface{ StartupError() error }); ok {
+		if err := checker.StartupError(); err != nil {
+			return Application{}, fmt.Errorf("status reader configuration: %w", err)
+		}
+	}
 	adminServer, err := runtimecfg.NewStatusAdminServer(app.Config, reader, opts...)
 	if err != nil {
 		return Application{}, err

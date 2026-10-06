@@ -4,6 +4,7 @@
 package summary
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -39,7 +40,7 @@ func TestFlightSharesOneCallAcrossConcurrentCallers(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			value, wasShared, err := f.Do("active_work_summary", func() (int, error) {
+			value, wasShared, err := f.Do(context.Background(), "active_work_summary", func() (int, error) {
 				runs.Add(1)
 				<-release
 				return 42, nil
@@ -78,7 +79,7 @@ func TestFlightRunsAgainAfterTheCallFinishes(t *testing.T) {
 		runs atomic.Int32
 	)
 	for i := 0; i < 3; i++ {
-		value, shared, err := f.Do("k", func() (int, error) { return int(runs.Add(1)), nil })
+		value, shared, err := f.Do(context.Background(), "k", func() (int, error) { return int(runs.Add(1)), nil })
 		if err != nil || shared || value != i+1 {
 			t.Fatalf("call %d = %d shared=%v err=%v; sequential calls never share", i, value, shared, err)
 		}
@@ -92,11 +93,11 @@ func TestFlightKeysDoNotShare(t *testing.T) {
 	release := make(chan struct{})
 	done := make(chan string, 1)
 	go func() {
-		v, _, _ := f.Do("a", func() (string, error) { <-release; return "a", nil })
+		v, _, _ := f.Do(context.Background(), "a", func() (string, error) { <-release; return "a", nil })
 		done <- v
 	}()
 	waitForWaiters(t, &f, "a", 0)
-	got, shared, err := f.Do("b", func() (string, error) { return "b", nil })
+	got, shared, err := f.Do(context.Background(), "b", func() (string, error) { return "b", nil })
 	close(release)
 	if err != nil || shared || got != "b" {
 		t.Fatalf("Do(b) = %q shared=%v err=%v, want its own call", got, shared, err)
@@ -120,7 +121,7 @@ func TestFlightFollowersRunTheirOwnCallWhenTheLeaderFails(t *testing.T) {
 	boom := errors.New("leader failed")
 	leaderDone := make(chan error, 1)
 	go func() {
-		_, _, err := f.Do("k", func() (int, error) {
+		_, _, err := f.Do(context.Background(), "k", func() (int, error) {
 			runs.Add(1)
 			<-release
 			return 0, boom
@@ -133,7 +134,7 @@ func TestFlightFollowersRunTheirOwnCallWhenTheLeaderFails(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		followerValue, _, followerErr = f.Do("k", func() (int, error) {
+		followerValue, _, followerErr = f.Do(context.Background(), "k", func() (int, error) {
 			runs.Add(1)
 			return 7, nil
 		})
@@ -160,12 +161,12 @@ func TestFlightReleasesFollowersWhenTheLeaderPanics(t *testing.T) {
 	leaderDone := make(chan any, 1)
 	go func() {
 		defer func() { leaderDone <- recover() }()
-		_, _, _ = f.Do("k", func() (int, error) { <-release; panic("boom") })
+		_, _, _ = f.Do(context.Background(), "k", func() (int, error) { <-release; panic("boom") })
 	}()
 	waitForWaiters(t, &f, "k", 0)
 	followerDone := make(chan int, 1)
 	go func() {
-		v, _, _ := f.Do("k", func() (int, error) { return 9, nil })
+		v, _, _ := f.Do(context.Background(), "k", func() (int, error) { return 9, nil })
 		followerDone <- v
 	}()
 	waitForWaiters(t, &f, "k", 1)
@@ -180,5 +181,54 @@ func TestFlightReleasesFollowersWhenTheLeaderPanics(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("a follower hung after the leader panicked")
+	}
+}
+
+func TestFlightFollowerStopsWaitingWhenItsOwnContextEnds(t *testing.T) {
+	t.Parallel()
+
+	// A follower whose request is cancelled must not hold its transaction
+	// until the leader finishes; the leader keeps running for the others.
+	var (
+		f       Flight[int]
+		runs    atomic.Int32
+		release = make(chan struct{})
+	)
+	leaderDone := make(chan int, 1)
+	go func() {
+		v, _, _ := f.Do(context.Background(), "k", func() (int, error) {
+			runs.Add(1)
+			<-release
+			return 5, nil
+		})
+		leaderDone <- v
+	}()
+	waitForWaiters(t, &f, "k", 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	followerErr := make(chan error, 1)
+	go func() {
+		_, shared, err := f.Do(ctx, "k", func() (int, error) { runs.Add(1); return 99, nil })
+		if shared {
+			t.Error("a cancelled follower reported a shared result")
+		}
+		followerErr <- err
+	}()
+	waitForWaiters(t, &f, "k", 1)
+	cancel()
+	select {
+	case err := <-followerErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("follower error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a cancelled follower kept waiting for the leader")
+	}
+	if got := runs.Load(); got != 1 {
+		t.Fatalf("calls = %d, want only the leader's: a cancelled follower runs nothing", got)
+	}
+	close(release)
+	if v := <-leaderDone; v != 5 {
+		t.Fatalf("leader = %d, want 5", v)
 	}
 }

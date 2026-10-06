@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -114,7 +115,8 @@ func goodEntries() []summary.Entry {
 }
 
 func readerStore(q db.Queryer, enabled bool) StatusStore {
-	return NewStatusStore(q).WithSummaryRead(summary.ReadConfig{Enabled: enabled, StaleAfter: 33 * time.Second})
+	return NewStatusStore(q).WithSummaryReader(
+		NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: enabled, StaleAfter: 33 * time.Second}))
 }
 
 func readSnapshot(t *testing.T, store StatusStore) statuspkg.RawSnapshot {
@@ -187,19 +189,18 @@ func TestReaderOnFallsBackToTheLiveStatementWithATypedReason(t *testing.T) {
 	good := encodedEntries(t, goodEntries()...)
 	badSection := encodedEntries(t, summary.Entry{Section: "mystery", Ordinal: 1, JSON: `{}`})
 	for _, tc := range []struct {
-		name      string
-		q         *sourceQueryer
-		reason    string
-		wantStale bool
+		name   string
+		q      *sourceQueryer
+		reason string
 	}{
-		{"table not installed", &sourceQueryer{installed: false}, "not_installed", false},
-		{"row missing", &sourceQueryer{installed: true}, "missing", false},
-		{"schema version", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion+1, sha, 4, good)}, "version", false},
-		{"source digest", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, "other", 4, good)}, "version", false},
-		{"row count", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 9, good)}, "row_count", false},
-		{"stale", &sourceQueryer{installed: true, row: storedRow(sourceTestNow.Add(-34*time.Second), summary.SchemaVersion, sha, 4, good)}, "stale", true},
-		{"payload not decodable", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 1, `{"x":1}`)}, "decode", false},
-		{"section the production decoder rejects", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 1, badSection)}, "decode", false},
+		{"table not installed", &sourceQueryer{installed: false}, "not_installed"},
+		{"row missing", &sourceQueryer{installed: true}, "missing"},
+		{"schema version", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion+1, sha, 4, good)}, "version"},
+		{"source digest", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, "other", 4, good)}, "version"},
+		{"row count", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 9, good)}, "row_count"},
+		{"stale", &sourceQueryer{installed: true, row: storedRow(sourceTestNow.Add(-34*time.Second), summary.SchemaVersion, sha, 4, good)}, "stale"},
+		{"payload not decodable", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 1, `{"x":1}`)}, "decode"},
+		{"section the production decoder rejects", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 1, badSection)}, "decode"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -208,8 +209,8 @@ func TestReaderOnFallsBackToTheLiveStatementWithATypedReason(t *testing.T) {
 				t.Fatalf("live statement ran %d times, want 1", tc.q.liveRuns.Load())
 			}
 			got := snapshot.ActiveWorkSource
-			if got.Source != statuspkg.ActiveWorkSourceLiveFallback || got.Reason != tc.reason || got.Stale != tc.wantStale {
-				t.Fatalf("source = %+v, want live_fallback/%s stale=%v", got, tc.reason, tc.wantStale)
+			if got.Source != statuspkg.ActiveWorkSourceLiveFallback || got.Reason != tc.reason || got.Stale {
+				t.Fatalf("source = %+v, want live_fallback/%s with stale=false: the served data is live", got, tc.reason)
 			}
 			// The answer is entirely the live one: nothing from the stored row.
 			if len(snapshot.StageCounts) != 1 || snapshot.StageCounts[0].Count != 100 || len(snapshot.QueueBlockages) != 0 || len(snapshot.DomainBacklogs) != 0 {
@@ -236,56 +237,80 @@ func TestReaderOnFailsClosedOnADatabaseErrorReadingTheRow(t *testing.T) {
 	}
 }
 
-func TestReaderConfigErrorFailsReadsNamingTheVariable(t *testing.T) {
+func TestInstrumentedStatusStoreReportsAnInvalidReaderConfigAtStartup(t *testing.T) {
 	t.Setenv(summary.ReadEnabledEnv, "true")
 	t.Setenv(summary.StaleAfterEnv, "soon")
 	q := &sourceQueryer{installed: true}
-	store := NewStatusStore(q)
+	store := NewInstrumentedStatusStore(q, nil)
+	if err := store.StartupError(); err == nil || !strings.Contains(err.Error(), summary.StaleAfterEnv) {
+		t.Fatalf("StartupError() = %v, want an error naming %s so the runtime fails at startup", err, summary.StaleAfterEnv)
+	}
 	_, err := store.ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, statuspkg.FullSnapshotSelection())
 	if err == nil || !strings.Contains(err.Error(), summary.StaleAfterEnv) {
-		t.Fatalf("error = %v, want a startup-style error naming %s", err, summary.StaleAfterEnv)
+		t.Fatalf("read error = %v, want the same error: a misconfigured reader never serves", err)
 	}
 	if q.liveRuns.Load() != 0 || q.clockReads.Load() != 0 {
 		t.Fatal("a misconfigured reader issued statements")
 	}
 }
 
-func TestNewStatusStoreReadsTheEnvironmentFlag(t *testing.T) {
+func TestInstrumentedStatusStoreReadsTheEnvironmentOnce(t *testing.T) {
 	t.Setenv(summary.ReadEnabledEnv, "true")
 	t.Setenv(summary.StaleAfterEnv, "45s")
 	storedAt := sourceTestNow.Add(-40 * time.Second)
 	q := &sourceQueryer{installed: true, row: storedRow(storedAt, summary.SchemaVersion, ActiveWorkSummarySourceSHA256(), 4, encodedEntries(t, goodEntries()...))}
-	snapshot := readSnapshot(t, NewStatusStore(q))
+	store := NewInstrumentedStatusStore(q, nil)
+	// A later environment change does not change a running process.
+	t.Setenv(summary.ReadEnabledEnv, "false")
+	snapshot := readSnapshot(t, store)
 	if got := snapshot.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceModel || got.Age != 40*time.Second {
-		t.Fatalf("source = %+v, want a 40s old row served under the 45s limit from the environment", got)
+		t.Fatalf("source = %+v, want a 40s old row served under the 45s limit resolved at construction", got)
 	}
 }
 
-func TestReaderSharesOneLiveStatementAcrossConcurrentFallbacks(t *testing.T) {
+func TestNewStatusStoreReadsNoEnvironment(t *testing.T) {
+	t.Setenv(summary.ReadEnabledEnv, "true")
+	q := &sourceQueryer{installed: true}
+	snapshot := readSnapshot(t, NewStatusStore(q))
+	if got := snapshot.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLive || got.Reason != statuspkg.ActiveWorkReasonFlagOff {
+		t.Fatalf("source = %+v: NewStatusStore is pure and the reader is off until one is attached", got)
+	}
+	if q.clockReads.Load() != 0 {
+		t.Fatal("a store without a reader issued summary statements")
+	}
+}
+
+// TestReaderSharesOneLiveStatementAcrossPerTransactionStores builds a new
+// store for every request, as the API and MCP snapshot factories do, over one
+// process-wide reader: 50 concurrent fallbacks run the live statement once, and
+// every request reports the leader's clock as its as_of.
+func TestReaderSharesOneLiveStatementAcrossPerTransactionStores(t *testing.T) {
 	t.Parallel()
 
 	const requests = 50
 	q := &sourceQueryer{installed: true, liveGate: make(chan struct{}), liveStarted: make(chan struct{}, 1)}
-	store := readerStore(q, true)
+	reader := NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second})
 	var wg sync.WaitGroup
-	sources := make([]statuspkg.ActiveWorkSource, requests)
+	snapshots := make([]statuspkg.RawSnapshot, requests)
 	for i := 0; i < requests; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			snapshot, err := store.ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, statuspkg.FullSnapshotSelection())
+			store := NewStatusStore(q).WithSummaryReader(reader) // one store per transaction
+			asOf := sourceTestNow.Add(time.Duration(i) * time.Millisecond)
+			snapshot, err := store.ReadStatusSnapshotFiltered(context.Background(), asOf, statuspkg.FullSnapshotSelection())
 			if err != nil {
 				t.Errorf("request %d: %v", i, err)
 				return
 			}
-			sources[i] = snapshot.ActiveWorkSource
+			snapshots[i] = snapshot
 		}()
 	}
 	<-q.liveStarted
 	deadline := time.Now().Add(10 * time.Second)
-	for store.liveFlight.Waiting(summary.ModelActiveWorkSummary) < requests-1 {
+	for reader.flight.Waiting(summary.ModelActiveWorkSummary) < requests-1 {
 		if time.Now().After(deadline) {
-			t.Fatalf("only %d of %d requests joined the in-flight live statement", store.liveFlight.Waiting(summary.ModelActiveWorkSummary), requests-1)
+			t.Fatalf("only %d of %d requests joined the in-flight live statement", reader.flight.Waiting(summary.ModelActiveWorkSummary), requests-1)
 		}
 		time.Sleep(time.Millisecond)
 	}
@@ -293,12 +318,64 @@ func TestReaderSharesOneLiveStatementAcrossConcurrentFallbacks(t *testing.T) {
 	wg.Wait()
 
 	if got := q.liveRuns.Load(); got != 1 {
-		t.Fatalf("live statement ran %d times for %d concurrent fallbacks, want exactly 1 per process", got, requests)
+		t.Fatalf("live statement ran %d times for %d concurrent fallbacks across per-transaction stores, want exactly 1 per process", got, requests)
 	}
-	for i, source := range sources {
-		if source.Source != statuspkg.ActiveWorkSourceLiveFallback || source.Reason != statuspkg.ActiveWorkReasonMissing {
-			t.Fatalf("request %d source = %+v, want live_fallback/missing", i, source)
+	leaderAsOf := snapshots[0].ActiveWorkSource.AsOf
+	for i, snapshot := range snapshots {
+		source := snapshot.ActiveWorkSource
+		if source.Source != statuspkg.ActiveWorkSourceLiveFallback || source.Reason != statuspkg.ActiveWorkReasonMissing || source.Stale {
+			t.Fatalf("request %d source = %+v, want live_fallback/missing, stale=false", i, source)
 		}
+		if len(snapshot.StageCounts) != 1 || snapshot.StageCounts[0].Count != 100 {
+			t.Fatalf("request %d stage counts = %+v, want the shared live answer", i, snapshot.StageCounts)
+		}
+	}
+	// Followers report the leader's clock: the one as_of the live statement ran at.
+	for i, snapshot := range snapshots {
+		if !snapshot.ActiveWorkSource.AsOf.Equal(leaderAsOf) {
+			t.Fatalf("request %d as_of = %v, want the leader's %v", i, snapshot.ActiveWorkSource.AsOf, leaderAsOf)
+		}
+	}
+}
+
+func TestReaderFollowerStopsWhenItsRequestContextEnds(t *testing.T) {
+	t.Parallel()
+
+	q := &sourceQueryer{installed: true, liveGate: make(chan struct{}), liveStarted: make(chan struct{}, 1)}
+	reader := NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second})
+	leaderDone := make(chan error, 1)
+	go func() {
+		_, err := NewStatusStore(q).WithSummaryReader(reader).
+			ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, statuspkg.FullSnapshotSelection())
+		leaderDone <- err
+	}()
+	<-q.liveStarted
+
+	ctx, cancel := context.WithCancel(context.Background())
+	followerDone := make(chan error, 1)
+	go func() {
+		_, err := NewStatusStore(q).WithSummaryReader(reader).
+			ReadStatusSnapshotFiltered(ctx, sourceTestNow, statuspkg.FullSnapshotSelection())
+		followerDone <- err
+	}()
+	for reader.flight.Waiting(summary.ModelActiveWorkSummary) < 1 {
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-followerDone:
+		if err == nil || !errors.Is(err, context.Canceled) {
+			t.Fatalf("follower error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a cancelled follower kept its transaction waiting for the leader")
+	}
+	if q.liveRuns.Load() != 1 {
+		t.Fatalf("live statement ran %d times, want only the leader's", q.liveRuns.Load())
+	}
+	close(q.liveGate)
+	if err := <-leaderDone; err != nil {
+		t.Fatalf("leader error = %v", err)
 	}
 }
 
@@ -306,18 +383,19 @@ func TestReaderSharedLiveResultsAreIndependentCopies(t *testing.T) {
 	t.Parallel()
 
 	q := &sourceQueryer{installed: true, liveGate: make(chan struct{}), liveStarted: make(chan struct{}, 1)}
-	store := readerStore(q, true)
+	reader := NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second})
 	results := make([]statuspkg.RawSnapshot, 2)
 	var wg sync.WaitGroup
 	for i := range results {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results[i], _ = store.ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, statuspkg.FullSnapshotSelection())
+			results[i], _ = NewStatusStore(q).WithSummaryReader(reader).
+				ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, statuspkg.FullSnapshotSelection())
 		}()
 	}
 	<-q.liveStarted
-	for store.liveFlight.Waiting(summary.ModelActiveWorkSummary) < 1 {
+	for reader.flight.Waiting(summary.ModelActiveWorkSummary) < 1 {
 		time.Sleep(time.Millisecond)
 	}
 	close(q.liveGate)
@@ -325,6 +403,24 @@ func TestReaderSharedLiveResultsAreIndependentCopies(t *testing.T) {
 	results[0].StageCounts[0].Count = -1
 	if results[1].StageCounts[0].Count == -1 {
 		t.Fatal("two requests share one StageCounts backing array; a mutation by one changes the other")
+	}
+}
+
+// TestReaderRollingUpgradeFlipsBackToTheModel: a row written by another
+// statement version is a version fallback and is never decoded; once the
+// writer replaces it with this binary's digest, the next read serves the model.
+func TestReaderRollingUpgradeFlipsBackToTheModel(t *testing.T) {
+	t.Parallel()
+
+	storedAt := sourceTestNow.Add(-5 * time.Second)
+	q := &sourceQueryer{installed: true, row: storedRow(storedAt, summary.SchemaVersion, "old-binary-digest", 1, `{"future":"encoding"}`)}
+	store := readerStore(q, true)
+	if got := readSnapshot(t, store).ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLiveFallback || got.Reason != statuspkg.ActiveWorkReasonVersion {
+		t.Fatalf("first read source = %+v, want live_fallback/version", got)
+	}
+	q.row = storedRow(storedAt.Add(time.Second), summary.SchemaVersion, ActiveWorkSummarySourceSHA256(), 4, encodedEntries(t, goodEntries()...))
+	if got := readSnapshot(t, store).ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceModel || got.Reason != statuspkg.ActiveWorkReasonFresh {
+		t.Fatalf("second read source = %+v, want model/fresh after the writer flipped the digest", got)
 	}
 }
 

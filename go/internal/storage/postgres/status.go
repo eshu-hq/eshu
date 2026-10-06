@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -45,33 +46,36 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 type StatusStore struct {
 	queryer     db.Queryer
 	Instruments *telemetry.Instruments
-	// summaryRead is the stored-summary reader setting (#7009), loaded from
-	// the environment by NewStatusStore; summaryReadErr is its validation
-	// error, returned by every snapshot read while the reader is on.
-	summaryRead    summary.ReadConfig
-	summaryReadErr error
-	// liveFlight shares one live active-work statement per process among
-	// concurrent reads that fell back from the stored summary.
-	liveFlight *summary.Flight[activeWorkSummary]
+	// summaryReader is the process-wide stored-summary reader (#7009), shared
+	// by every store built for one process; nil means the reader is off.
+	summaryReader *StatusSummaryReader
+	// startupErr is the invalid-configuration error NewInstrumentedStatusStore
+	// found; StartupError reports it so the runtime fails at startup, and
+	// every snapshot read returns it so a misconfigured reader never serves.
+	startupErr error
 }
 
-// NewStatusStore constructs a read-only status store. It reads
-// ESHU_STATUS_SUMMARY_READ_ENABLED and ESHU_STATUS_SUMMARY_STALE_AFTER, so
-// every runtime that builds a status store honors the reader flag without a
-// change at its call site; the flag is off by default.
+// NewStatusStore constructs a read-only status store with the stored-summary
+// reader off. It reads no environment. The API and MCP server build one store
+// per snapshot transaction, so they resolve the reader once at startup with
+// NewStatusSummaryReader and attach it with WithSummaryReader.
 func NewStatusStore(queryer db.Queryer) StatusStore {
-	cfg, err := summary.LoadReadConfig(os.Getenv)
-	return StatusStore{
-		queryer: queryer, summaryRead: cfg, summaryReadErr: err,
-		liveFlight: &summary.Flight[activeWorkSummary]{},
-	}
+	return StatusStore{queryer: queryer}
 }
 
-// WithSummaryRead returns a copy of the store with an explicit stored-summary
-// reader setting in place of the environment's.
-func (s StatusStore) WithSummaryRead(cfg summary.ReadConfig) StatusStore {
-	s.summaryRead, s.summaryReadErr = cfg, nil
+// WithSummaryReader returns a copy of the store that reads the stored summary
+// through reader, which must be the one process-wide reader so its shared live
+// statement spans every store. A nil reader leaves the stored summary off.
+func (s StatusStore) WithSummaryReader(reader *StatusSummaryReader) StatusStore {
+	s.summaryReader = reader
 	return s
+}
+
+// StartupError reports an invalid stored-summary reader configuration found
+// when the store was built from the environment, or nil. A runtime that mounts
+// the store checks it at startup, like the writer's invalid interval.
+func (s StatusStore) StartupError() error {
+	return s.startupErr
 }
 
 // NewInstrumentedStatusStore constructs a read-only status store with the
@@ -85,6 +89,9 @@ func (s StatusStore) WithSummaryRead(cfg summary.ReadConfig) StatusStore {
 func NewInstrumentedStatusStore(queryer db.Queryer, instruments *telemetry.Instruments) StatusStore {
 	store := NewStatusStore(queryer)
 	store.Instruments = instruments
+	// Hosted runtimes build this store once at startup, so reading the
+	// stored-summary settings here is once per process.
+	store.summaryReader, store.startupErr = NewStatusSummaryReader(os.Getenv)
 	return store
 }
 
@@ -454,4 +461,31 @@ func ReadActiveWorkSummaryEntries(ctx context.Context, queryer db.Queryer, asOf 
 		return nil, fmt.Errorf("read active work summary entries: %w", err)
 	}
 	return entries, nil
+}
+
+// decodeActiveWorkEntries decodes stored entries with the live read's decoder.
+func decodeActiveWorkEntries(entries []summary.Entry) (activeWorkSummary, error) {
+	work := activeWorkSummary{
+		StageCounts:    []statuspkg.StageStatusCount{},
+		DomainBacklogs: []statuspkg.DomainBacklog{},
+		Blockages:      []statuspkg.QueueBlockage{},
+	}
+	for _, entry := range entries {
+		if err := work.add(entry.Section, entry.JSON); err != nil {
+			return activeWorkSummary{}, fmt.Errorf("decode stored active work summary %s row %d: %w", entry.Section, entry.Ordinal, err)
+		}
+	}
+	return work, nil
+}
+
+// clone returns a copy that shares no slice or pointer with s.
+func (s activeWorkSummary) clone() activeWorkSummary {
+	s.StageCounts = slices.Clone(s.StageCounts)
+	s.DomainBacklogs = slices.Clone(s.DomainBacklogs)
+	s.Blockages = slices.Clone(s.Blockages)
+	if s.LatestFailure != nil {
+		failure := *s.LatestFailure
+		s.LatestFailure = &failure
+	}
+	return s
 }

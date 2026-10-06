@@ -22,7 +22,7 @@ import (
 func TestNewStatusStoreWiresInstruments(t *testing.T) {
 	instruments := &telemetry.Instruments{}
 
-	store := newStatusStore(pgstatus.SQLQueryer{}, instruments)
+	store := newStatusStore(pgstatus.SQLQueryer{}, instruments, nil)
 
 	if store.Instruments != instruments {
 		t.Fatalf("store.Instruments = %p, want the same instance passed in (%p) — the production wiring must assign it, not leave it nil", store.Instruments, instruments)
@@ -34,7 +34,7 @@ func TestNewStatusStoreWiresInstruments(t *testing.T) {
 // treats a nil Instruments as a no-op (never a panic), so a caller without a
 // wired meter provider is unaffected.
 func TestNewStatusStoreAllowsNilInstruments(t *testing.T) {
-	store := newStatusStore(pgstatus.SQLQueryer{}, nil)
+	store := newStatusStore(pgstatus.SQLQueryer{}, nil, nil)
 
 	if store.Instruments != nil {
 		t.Fatalf("store.Instruments = %v, want nil when the caller passes nil", store.Instruments)

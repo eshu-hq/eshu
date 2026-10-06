@@ -3,7 +3,10 @@
 
 package summary
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 // Flight shares one in-flight call per key among concurrent callers, so a
 // stale or missing stored row costs one live statement per process instead of
@@ -26,11 +29,14 @@ type flightCall[T any] struct {
 
 // Do runs fn once for concurrent callers of the same key. The first caller
 // runs fn; callers that arrive while it runs wait and receive its value with
-// shared = true. When the leader fails or panics, each waiting caller runs fn
-// itself and returns its own result, so the leader's error (a cancelled
-// request context, for one) never becomes another request's answer. Callers
-// that arrive after the call finishes start a new one.
-func (f *Flight[T]) Do(key string, fn func() (T, error)) (value T, shared bool, err error) {
+// shared = true. A waiting caller stops when its own ctx ends and returns
+// ctx.Err() without running anything, so a cancelled request does not hold its
+// transaction until the leader finishes; the leader keeps running for the
+// others. When the leader fails or panics, each waiting caller runs fn itself
+// and returns its own result, so the leader's error (a cancelled request
+// context, for one) never becomes another request's answer. Callers that
+// arrive after the call finishes start a new one.
+func (f *Flight[T]) Do(ctx context.Context, key string, fn func() (T, error)) (value T, shared bool, err error) {
 	f.mu.Lock()
 	if f.calls == nil {
 		f.calls = make(map[string]*flightCall[T])
@@ -38,7 +44,12 @@ func (f *Flight[T]) Do(key string, fn func() (T, error)) (value T, shared bool, 
 	if call, running := f.calls[key]; running {
 		call.waiting++
 		f.mu.Unlock()
-		<-call.done
+		select {
+		case <-call.done:
+		case <-ctx.Done():
+			var zero T
+			return zero, false, ctx.Err()
+		}
 		if call.ok && call.err == nil {
 			return call.value, true, nil
 		}

@@ -48,8 +48,12 @@ type ActiveWorkSource struct {
 	// Age is how old the served active-work data was at the read; zero for a
 	// live read.
 	Age time.Duration
-	// Stale reports that a stored row existed but was older than the
-	// configured limit, so the live statement answered instead.
+	// Stale reports that the served active-work data is older than the
+	// configured limit. A stored row that is too old is never served: the live
+	// statement answers and Reason says "stale", so Stale is false on every
+	// route that reads through the stored-summary reader. It is reserved for a
+	// consumer that must serve its last decoded row (the runtime /metrics
+	// scrape, #7009 PR-D).
 	Stale bool
 }
 

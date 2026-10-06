@@ -36,7 +36,7 @@ func snapshotPair(ctx context.Context, t *testing.T, database *sql.DB) (model, l
 	queryer := txQueryer{tx}
 	selection := statuspkg.SnapshotSelection{}.WithoutTerraformStateEvidence()
 
-	reader := postgres.NewStatusStore(queryer).WithSummaryRead(store.ReadConfig{Enabled: true, StaleAfter: time.Hour})
+	reader := postgres.NewStatusStore(queryer).WithSummaryReader(postgres.NewStatusSummaryReaderWithConfig(store.ReadConfig{Enabled: true, StaleAfter: time.Hour}))
 	model, err = reader.ReadStatusSnapshotFiltered(ctx, time.Now(), selection)
 	if err != nil {
 		t.Fatalf("read through the stored summary: %v", err)
@@ -45,7 +45,7 @@ func snapshotPair(ctx context.Context, t *testing.T, database *sql.DB) (model, l
 	if source.Source != statuspkg.ActiveWorkSourceModel || source.Reason != statuspkg.ActiveWorkReasonFresh {
 		t.Fatalf("active_work_source = %+v, want model/fresh (the row must be served for the comparison to mean anything)", source)
 	}
-	off := postgres.NewStatusStore(queryer).WithSummaryRead(store.ReadConfig{})
+	off := postgres.NewStatusStore(queryer).WithSummaryReader(postgres.NewStatusSummaryReaderWithConfig(store.ReadConfig{}))
 	live, err = off.ReadStatusSnapshotFiltered(ctx, source.AsOf.Add(source.Age), selection)
 	if err != nil {
 		t.Fatalf("read live: %v", err)
@@ -185,7 +185,7 @@ func TestReaderFallsBackAndNeverMixesWhenTheRowIsStaleLive(t *testing.T) {
 		}
 		defer func() { _ = tx.Rollback() }()
 		snapshot, err := postgres.NewStatusStore(txQueryer{tx}).
-			WithSummaryRead(store.ReadConfig{Enabled: true, StaleAfter: staleAfter}).
+			WithSummaryReader(postgres.NewStatusSummaryReaderWithConfig(store.ReadConfig{Enabled: true, StaleAfter: staleAfter})).
 			ReadStatusSnapshotFiltered(ctx, time.Now(), selection)
 		if err != nil {
 			t.Fatalf("ReadStatusSnapshotFiltered() error = %v", err)
@@ -202,8 +202,8 @@ func TestReaderFallsBackAndNeverMixesWhenTheRowIsStaleLive(t *testing.T) {
 		t.Fatalf("source = %+v, want the stored row served under a one hour limit", served.ActiveWorkSource)
 	}
 	rejected := readWith(10 * time.Millisecond)
-	if got := rejected.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLiveFallback || got.Reason != statuspkg.ActiveWorkReasonStale || !got.Stale {
-		t.Fatalf("source = %+v, want live_fallback/stale", got)
+	if got := rejected.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLiveFallback || got.Reason != statuspkg.ActiveWorkReasonStale || got.Stale {
+		t.Fatalf("source = %+v, want live_fallback/stale with stale=false (the served data is live)", got)
 	}
 	// The fallback is the live answer, not the stored one: three items finished.
 	if rejected.Queue.Outstanding != served.Queue.Outstanding-3 {

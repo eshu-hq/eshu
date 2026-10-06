@@ -108,7 +108,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 	governanceAudit query.GovernanceAuditSummaryReader, readImpactFromWinners bool,
 ) *query.APIRouter {
 	if statusReader == nil {
-		statusReader = newStatusStore(reader, instruments)
+		statusReader = newStatusStore(reader, instruments, nil)
 	}
 	auditRead := governanceAudit
 	if reader != nil {

@@ -65,12 +65,18 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
 - `Select(ctx, queryer, SelectConfig) (Selection, error)`: the reader's
   decision, run on the status snapshot transaction. It reads the database clock
   and the table's existence in one statement with no relation access (so a
-  missing table does not abort the snapshot transaction), then the keyed row.
-  It returns `SourceModel` with the entries aged by `now - as_of`, or
-  `SourceLiveFallback` with a typed `Reason` (`missing`, `not_installed`,
-  `version`, `row_count`, `stale`, `decode`). A database error is returned, not
-  turned into a fallback. A row exactly `StaleAfter` old is served; older falls
-  back.
+  missing table does not abort the snapshot transaction), then the keyed row
+  with its payload undecoded. The fences run cheapest first: missing,
+  not installed, version (schema version, then statement digest), row count,
+  stale, decode, so a row from another statement version is a `version`
+  fallback and is never decoded or counted as corrupt. It returns `SourceModel`
+  with the entries aged by `now - as_of`, or `SourceLiveFallback` with a typed
+  `Reason` (`missing`, `not_installed`, `version`, `row_count`, `stale`,
+  `decode`) and the rejected row's `AsOf` and `Age` when a row was read. A
+  database error is returned, not turned into a fallback. A row exactly
+  `StaleAfter` old is served; older falls back. `Select` reads the row with its
+  own scan of `readSQL` (`readRaw`) because `Read` decodes the payload before
+  the caller can judge the version columns.
 - `AddAge(entries, age)`: advances the age keys the production decoder reads
   as durations (`oldest_outstanding_age_seconds` in `queue` and `backlog`,
   `oldest_blocked_age_seconds` in `blockage`) by the row's age. Zero ages stay
@@ -79,7 +85,9 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
   off) and `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`, minimum `10s`,
   validated only while the reader is on).
 - `Flight`: shares one in-flight live statement per process among concurrent
-  fallbacks; followers run their own call when the leader fails.
+  fallbacks; a follower stops waiting when its own context ends, and runs its
+  own call when the leader fails. The process builds one reader (and so one
+  `Flight`) at startup; a store built per transaction must not own one.
 - `Observe`: the read counter, the served-age histogram, the
   `status.active_work.*` span attributes, and the rate-limited fallback Warn.
 

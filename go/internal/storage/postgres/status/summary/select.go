@@ -5,6 +5,7 @@ package summary
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -88,11 +89,21 @@ type Selection struct {
 // Select reads the stored row for cfg.ModelKey and decides whether it can be
 // served. It never returns a stale, foreign, or undecodable row: each of
 // those is a typed fallback and the caller runs the live statement instead,
-// so one answer never mixes a stored row with a live read. A database error
-// is returned, not turned into a fallback: inside a snapshot transaction a
-// failed statement aborts the transaction, and a wrong answer must not hide
-// behind a quiet fallback. Both statements must run on the status snapshot
-// transaction so the row is the newest version that snapshot can see.
+// so one answer never mixes a stored row with a live read. The fences run in
+// this order, from the cheapest scalar check to the payload decode: missing,
+// not installed, version (schema version, then statement digest), row count,
+// stale, decode. A row from another statement version is therefore never
+// decoded and never counted as corrupt. A database error is returned, not
+// turned into a fallback: inside a snapshot transaction a failed statement
+// aborts the transaction, and a wrong answer must not hide behind a quiet
+// fallback.
+//
+// Both statements must run on one transaction for the row to be the newest
+// version that snapshot can see. The API and MCP server run them on the status
+// snapshot transaction (REPEATABLE READ READ ONLY). Hosted runtimes build the
+// status store once at startup and run each statement in autocommit, so the
+// clock and the row come from separate statements there; a writer commit
+// between them can only make the age negative, which clamps to zero.
 func Select(ctx context.Context, queryer db.Queryer, cfg SelectConfig) (Selection, error) {
 	if strings.TrimSpace(cfg.ModelKey) == "" || strings.TrimSpace(cfg.SourceSHA256) == "" || cfg.StaleAfter <= 0 {
 		return Selection{}, errors.New("select status summary: model key, source digest, and a positive stale_after are required")
@@ -104,14 +115,10 @@ func Select(ctx context.Context, queryer db.Queryer, cfg SelectConfig) (Selectio
 	if !installed {
 		return fallback(ReasonNotInstalled, Row{}, 0), nil
 	}
-	row, err := Read(ctx, queryer, cfg.ModelKey)
+	row, payload, err := readRaw(ctx, queryer, cfg.ModelKey)
 	switch {
 	case errors.Is(err, ErrNotFound):
 		return fallback(ReasonMissing, Row{}, 0), nil
-	case errors.Is(err, ErrRowCountMismatch):
-		return fallback(ReasonRowCount, Row{}, 0), nil
-	case errors.Is(err, ErrDecode):
-		return fallback(ReasonDecode, Row{}, 0), nil
 	case err != nil:
 		return Selection{}, err
 	}
@@ -122,14 +129,64 @@ func Select(ctx context.Context, queryer db.Queryer, cfg SelectConfig) (Selectio
 	if row.SchemaVersion != SchemaVersion || row.SourceSHA256 != cfg.SourceSHA256 {
 		return fallback(ReasonVersion, row, age), nil
 	}
+	if count, countable := payloadLength(payload); countable && count != row.RowCount {
+		return fallback(ReasonRowCount, row, age), nil
+	}
 	if age > cfg.StaleAfter {
 		return fallback(ReasonStale, row, age), nil
+	}
+	if row.Entries, err = DecodeEntries(payload); err != nil {
+		return fallback(ReasonDecode, row, age), nil
+	}
+	if row.RowCount != len(row.Entries) {
+		return fallback(ReasonRowCount, row, age), nil
 	}
 	entries, err := AddAge(row.Entries, age)
 	if err != nil {
 		return fallback(ReasonDecode, row, age), nil
 	}
 	return Selection{Source: SourceModel, Reason: ReasonFresh, AsOf: row.AsOf, Age: age, Entries: entries}, nil
+}
+
+// readRaw reads the row with the same keyed statement as Read but returns the
+// payload undecoded, so Select can judge the scalar columns first. A missing
+// table, a missing row, and other failures are classified like Read's.
+func readRaw(ctx context.Context, queryer db.Queryer, modelKey string) (Row, []byte, error) {
+	rows, err := queryer.QueryContext(ctx, readSQL, modelKey)
+	if err != nil {
+		return Row{}, nil, classify(fmt.Errorf("read status summary %q: %w", modelKey, err))
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return Row{}, nil, classify(fmt.Errorf("read status summary %q: %w", modelKey, err))
+		}
+		return Row{}, nil, fmt.Errorf("%w: model %q", ErrNotFound, modelKey)
+	}
+	var (
+		row        Row
+		durationMs float64
+		payload    []byte
+	)
+	if err := rows.Scan(
+		&row.ModelKey, &row.SchemaVersion, &row.SourceSHA256, &row.AsOf,
+		&row.ComputedAt, &durationMs, &row.RowCount, &payload,
+	); err != nil {
+		return Row{}, nil, classify(fmt.Errorf("scan status summary %q: %w", modelKey, err))
+	}
+	row.PassDuration = time.Duration(durationMs * float64(time.Millisecond))
+	return row, payload, nil
+}
+
+// payloadLength counts the top-level elements of a stored payload without
+// decoding them. It reports false when the payload is not a JSON array, which
+// is a decode problem, not a row count problem.
+func payloadLength(payload []byte) (int, bool) {
+	var elements []json.RawMessage
+	if err := json.Unmarshal(payload, &elements); err != nil || elements == nil {
+		return 0, false
+	}
+	return len(elements), true
 }
 
 func fallback(reason Reason, row Row, age time.Duration) Selection {

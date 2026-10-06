@@ -138,6 +138,12 @@ func TestSelectFallbackMatrix(t *testing.T) {
 	otherSHA.SourceSHA256 = "0ther"
 	badCount := freshStoredRow()
 	badCount.RowCount = 5
+	otherSHAWrongCount := freshStoredRow()
+	otherSHAWrongCount.SourceSHA256 = "0ther"
+	otherSHAWrongCount.RowCount = 5
+	staleWrongCount := freshStoredRow()
+	staleWrongCount.AsOf = testNow.Add(-34 * time.Second)
+	staleWrongCount.RowCount = 5
 
 	for _, tc := range []struct {
 		name       string
@@ -151,9 +157,13 @@ func TestSelectFallbackMatrix(t *testing.T) {
 		{name: "row missing", q: &scriptQueryer{clock: clockRows(true), row: &fakeRows{}}, want: ReasonMissing, wantRead: true},
 		{name: "schema version", q: &scriptQueryer{clock: clockRows(true), row: rowRows(otherVersion, payloadOf(t, otherVersion))}, want: ReasonVersion, wantRead: true, wantAsOf: otherVersion.AsOf, wantAgeSec: 10},
 		{name: "source digest", q: &scriptQueryer{clock: clockRows(true), row: rowRows(otherSHA, payloadOf(t, otherSHA))}, want: ReasonVersion, wantRead: true, wantAsOf: otherSHA.AsOf, wantAgeSec: 10},
-		{name: "row count", q: &scriptQueryer{clock: clockRows(true), row: rowRows(badCount, payloadOf(t, badCount))}, want: ReasonRowCount, wantRead: true},
+		{name: "row count", q: &scriptQueryer{clock: clockRows(true), row: rowRows(badCount, payloadOf(t, badCount))}, want: ReasonRowCount, wantRead: true, wantAsOf: badCount.AsOf, wantAgeSec: 10},
+		{name: "foreign version beats an undecodable payload", q: &scriptQueryer{clock: clockRows(true), row: rowRows(otherVersion, `{"future":"encoding"}`)}, want: ReasonVersion, wantRead: true, wantAsOf: otherVersion.AsOf, wantAgeSec: 10},
+		{name: "foreign digest beats a row count mismatch", q: &scriptQueryer{clock: clockRows(true), row: rowRows(otherSHAWrongCount, payloadOf(t, otherSHAWrongCount))}, want: ReasonVersion, wantRead: true, wantAsOf: otherSHAWrongCount.AsOf, wantAgeSec: 10},
+		{name: "row count beats stale", q: &scriptQueryer{clock: clockRows(true), row: rowRows(staleWrongCount, payloadOf(t, staleWrongCount))}, want: ReasonRowCount, wantRead: true, wantAsOf: staleWrongCount.AsOf, wantAgeSec: 34},
+		{name: "stale beats an undecodable payload", q: &scriptQueryer{clock: clockRows(true), row: rowRows(stale, `{"not":"tuples"}`)}, want: ReasonStale, wantRead: true, wantAsOf: stale.AsOf, wantAgeSec: 34},
 		{name: "stale", q: &scriptQueryer{clock: clockRows(true), row: rowRows(stale, payloadOf(t, stale))}, want: ReasonStale, wantRead: true, wantAsOf: stale.AsOf, wantAgeSec: 34},
-		{name: "payload decode", q: &scriptQueryer{clock: clockRows(true), row: rowRows(freshStoredRow(), `{"not":"tuples"}`)}, want: ReasonDecode, wantRead: true},
+		{name: "payload decode", q: &scriptQueryer{clock: clockRows(true), row: rowRows(freshStoredRow(), `{"not":"tuples"}`)}, want: ReasonDecode, wantRead: true, wantAsOf: freshStoredRow().AsOf, wantAgeSec: 10},
 		{name: "age key not a number", q: &scriptQueryer{clock: clockRows(true), row: rowRows(freshStoredRow(), `[["queue",1,"{\"oldest_outstanding_age_seconds\":\"x\"}"]]`)}, want: ReasonDecode, wantRead: true, wantAsOf: freshStoredRow().AsOf, wantAgeSec: 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -262,5 +272,34 @@ func TestSelectRejectsABlankConfig(t *testing.T) {
 		if _, err := Select(context.Background(), &scriptQueryer{}, cfg); err == nil {
 			t.Fatalf("Select(%+v) error = nil, want a config error", cfg)
 		}
+	}
+}
+
+// TestSelectRollingUpgradeFlipsBackToTheModel is design ruling D3.2 item 11,
+// second half: a row written by another statement version is a version
+// fallback and is never decoded, and the next read after the writer has
+// replaced it with this binary's digest is served from the model.
+func TestSelectRollingUpgradeFlipsBackToTheModel(t *testing.T) {
+	t.Parallel()
+
+	foreign := freshStoredRow()
+	foreign.SourceSHA256 = "old-binary"
+	q := &scriptQueryer{clock: clockRows(true), row: rowRows(foreign, `{"foreign":"payload nobody decodes"}`)}
+	got, err := Select(context.Background(), q, selectConfig())
+	if err != nil {
+		t.Fatalf("Select() error = %v", err)
+	}
+	if got.Source != SourceLiveFallback || got.Reason != ReasonVersion {
+		t.Fatalf("first read = %s/%s, want live_fallback/version", got.Source, got.Reason)
+	}
+
+	current := freshStoredRow()
+	q = &scriptQueryer{clock: clockRows(true), row: rowRows(current, payloadOf(t, current))}
+	got, err = Select(context.Background(), q, selectConfig())
+	if err != nil {
+		t.Fatalf("Select() error = %v", err)
+	}
+	if got.Source != SourceModel || got.Reason != ReasonFresh {
+		t.Fatalf("second read = %s/%s, want model/fresh once the row carries this binary's digest", got.Source, got.Reason)
 	}
 }
