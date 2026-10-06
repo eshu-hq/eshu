@@ -26,3 +26,26 @@ connections and the snapshot exist. It does **not** establish the deployed
 endpoint's one-second budget. Report raw interleaved samples, corpus/backend
 identity, and any capped-page differences; never infer endpoint performance
 from this harness alone.
+
+Benchmark Evidence: A historical, isolated PostgreSQL 18.3 fixture run checked
+the harness mechanics before this package was relocated. The PostgreSQL image
+was `sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db`
+with 2 CPU and 1 GiB limits, 263 entities, and 753 files. The canonical
+workload used three ABBA rounds (six samples per route). Baseline round samples
+in milliseconds were `15.233,16.564`; `17.451,13.141`; `17.778,12.859`.
+Candidate samples were `17.239,16.268`; `14.694,15.252`; `14.451,14.196`.
+Medians were 15.899 ms baseline and 14.973 ms candidate. Both routes returned
+1,014 rows; left-only and right-only differences were zero, pages were equal,
+persisted eligibility passed, and the command exited zero. The database had
+no queue work. The full historical invocation argv and exact binary hash were
+not retained. This small synthetic run is not a representative speedup, a
+current-HEAD backend proof, or evidence that the deployed endpoint is under
+one second. A fixed-corpus same-state comparison remains required before any
+performance claim. This package is not deployed, so product-path latency is
+unchanged by adding the harness.
+
+Observability Evidence: The command prints `dynamic_case` row counts and
+differences, `dynamic_timing_round` samples, route medians, and `fixed_exit`.
+Errors include phase, subject, and elapsed time. All changes are confined to
+this internal proof package; no product metric, span, log, or status contract
+changes.
