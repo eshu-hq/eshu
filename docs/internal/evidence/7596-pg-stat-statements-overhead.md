@@ -99,3 +99,14 @@ The A/B delta is `(tps on - tps off) / tps off`. The null delta is
   transaction would be less sensitive to other jobs. It was not run.
 - Not measured: a quiet host, repo-scale data that does not fit in shared
   buffers, a replica, and `track_io_timing`.
+
+## Evidence markers
+
+The performance-evidence gate requires these markers in a tracked note when a
+Compose default changes. The figures are the ones above and in the ledger.
+
+No-Regression Evidence: not conclusive. Baseline is the server without the module and the after run is the server with the four default settings, both PostgreSQL 18.6 on a loaded laptop, pgbench select-only at scale 10 (1,000,000 accounts rows, no Eshu queue involved), 7 interleaved A/B rounds plus 7 null rounds, A/B median -2.2 percent against a null-pair standard deviation of 19.8 percent, so the estimate is inside the noise floor. A quiet-host remeasure by CPU seconds per transaction is tracked in #7650.
+
+Why the change is safe: the settings are the stock `pg_stat_statements` defaults with `track = top`, `track_io_timing` stays off, the default stacks are local development stacks, the latency-gate override keeps its own `track = all`, and a Go guard test plus the `pg-statement-report` gate fail if a default stack loses a setting.
+
+No-Observability-Change: the change adds no metric, span or log line. The new operator signal is the `pg_stat_statements` view, read through `scripts/pg-statement-report.sh`.
