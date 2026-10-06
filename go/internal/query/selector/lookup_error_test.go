@@ -53,8 +53,8 @@ func TestResolveExactForAccessWrapsBackendFailureInLookupError(t *testing.T) {
 			if IsNotFound(err) {
 				t.Fatalf("IsNotFound(%v) = true for a backend failure", err)
 			}
-			if !strings.HasPrefix(err.Error(), lookupFailureMessage+": ") {
-				t.Fatalf("Error() = %q, want the %q prefix", err.Error(), lookupFailureMessage)
+			if !strings.HasPrefix(err.Error(), LookupFailureMessage+": ") {
+				t.Fatalf("Error() = %q, want the %q prefix", err.Error(), LookupFailureMessage)
 			}
 			if strings.Contains(err.Error(), requestTestSelector) {
 				t.Fatalf("Error() = %q carries the raw selector", err.Error())
@@ -105,5 +105,20 @@ func TestSelectorAnswersAreNotLookupFailures(t *testing.T) {
 	}
 	if IsLookupFailure(NotFoundError{Selector: requestTestSelector}) {
 		t.Fatal("IsLookupFailure(NotFoundError) = true")
+	}
+}
+
+// TestLookupErrorZeroValueDoesNotPanic proves a LookupError with no backend
+// error still renders the fixed message, since IsLookupFailure matches it and
+// a caller may log or write it.
+func TestLookupErrorZeroValueDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	var zero LookupError
+	if got := zero.Error(); got != LookupFailureMessage {
+		t.Fatalf("LookupError{}.Error() = %q, want the bare %q", got, LookupFailureMessage)
+	}
+	if !IsLookupFailure(zero) {
+		t.Fatal("IsLookupFailure(LookupError{}) = false")
 	}
 }

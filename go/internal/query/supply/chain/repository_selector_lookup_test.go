@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -97,6 +98,13 @@ func TestRepositorySelectorResolveLookupFailureAnswers500(t *testing.T) {
 						t.Fatalf("stage_failed records = %d on a %d, want 0; log=%s", len(failed), tc.wantStatus, logBuf.String())
 					}
 					return
+				}
+				body := rec.Body.String()
+				if strings.Contains(body, "read store") || strings.Contains(body, "neo4j") {
+					t.Fatalf("500 body leaked the backend error text: %s", body)
+				}
+				if strings.Contains(body, selectorTestSelector) {
+					t.Fatalf("500 body carries the raw selector: %s", body)
 				}
 				if len(failed) != 1 {
 					t.Fatalf("stage_failed records = %d, want 1; log=%s", len(failed), logBuf.String())

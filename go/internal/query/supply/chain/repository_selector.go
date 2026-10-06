@@ -47,7 +47,7 @@ func (h *Handler) resolveSupplyChainRepositorySelector(
 		}
 		if selector.IsLookupFailure(err) {
 			failStage(r.Context(), route.span, resolveTimer, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			querycontract.WriteError(w, http.StatusInternalServerError, selector.LookupFailureMessage)
 			return "", false
 		}
 		status := http.StatusBadRequest

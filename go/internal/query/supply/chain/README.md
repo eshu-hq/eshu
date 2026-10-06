@@ -199,7 +199,9 @@ graph reads) runs as a third stage, `repository_selector_resolve`, also logged
 with an empty `repo_id` (#7626). A fence or graph-availability verdict answers
 `503`/`504` with no `stage_failed` line; a `selector.LookupError` that is not
 one answers `500` with exactly one `stage_failed` line and the handler span set
-to Error; an unmatched selector stays `404` and an ambiguous one `400`. Pinned
+to Error; its body is the fixed `selector.LookupFailureMessage`, never the
+backend error text or the selector. An unmatched selector stays `404` and an
+ambiguous one `400`. Pinned
 by `TestRepositorySelectorResolveLookupFailureAnswers500` and
 `TestRepositorySelectorResolveLookupFailureRecordsSpanError`.
 

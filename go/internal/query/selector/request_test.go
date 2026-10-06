@@ -117,8 +117,8 @@ func TestResolveForRequestWithAccessMapsLookupFailureTo500(t *testing.T) {
 				return
 			}
 			body := rec.Body.String()
-			if !strings.Contains(body, lookupFailureMessage) {
-				t.Fatalf("body = %s, want the fixed %q message", body, lookupFailureMessage)
+			if !strings.Contains(body, LookupFailureMessage) {
+				t.Fatalf("body = %s, want the fixed %q message", body, LookupFailureMessage)
 			}
 			if strings.Contains(body, requestTestSelector) || strings.Contains(body, "private") {
 				t.Fatalf("body = %s leaks the raw selector or the backend error text", body)
@@ -140,8 +140,8 @@ func assertRequestSpanError(t *testing.T, span sdktrace.ReadOnlySpan, want bool)
 		t.Fatalf("span status = %v (%q), exception recorded = %v; want error recorded = %v",
 			span.Status().Code, span.Status().Description, hasException, want)
 	}
-	if want && span.Status().Description != lookupFailureMessage {
-		t.Fatalf("span status description = %q, want the fixed %q", span.Status().Description, lookupFailureMessage)
+	if want && span.Status().Description != LookupFailureMessage {
+		t.Fatalf("span status description = %q, want the fixed %q", span.Status().Description, LookupFailureMessage)
 	}
 	if strings.Contains(span.Status().Description, requestTestSelector) {
 		t.Fatalf("span status description %q carries the raw selector", span.Status().Description)

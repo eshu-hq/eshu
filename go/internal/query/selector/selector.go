@@ -16,10 +16,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// lookupFailureMessage is the fixed text a lookup failure answers with, as
+// LookupFailureMessage is the fixed text a lookup failure answers with, as
 // the LookupError prefix, the 500 body, and the span status description. It
-// never carries the selector or the backend's error text.
-const lookupFailureMessage = "repository selector lookup failed"
+// never carries the selector or the backend's error text, so a caller that
+// answers a lookup failure itself writes this, never err.Error(), as the body.
+const LookupFailureMessage = "repository selector lookup failed"
 
 // NotFoundError is the errors.As target for a repository selector that
 // matched nothing: no catalog entry, no graph row, and (for a scoped caller)
@@ -60,7 +61,10 @@ type LookupError struct {
 }
 
 func (e LookupError) Error() string {
-	return lookupFailureMessage + ": " + e.Err.Error()
+	if e.Err == nil {
+		return LookupFailureMessage
+	}
+	return LookupFailureMessage + ": " + e.Err.Error()
 }
 
 // Unwrap returns the backend failure so errors.Is and errors.As see through
@@ -218,8 +222,8 @@ func ResolveForRequestWithAccess(
 		if IsLookupFailure(err) {
 			span := trace.SpanFromContext(r.Context())
 			span.RecordError(err)
-			span.SetStatus(codes.Error, lookupFailureMessage)
-			querycontract.WriteError(w, http.StatusInternalServerError, lookupFailureMessage)
+			span.SetStatus(codes.Error, LookupFailureMessage)
+			querycontract.WriteError(w, http.StatusInternalServerError, LookupFailureMessage)
 			return "", false
 		}
 		status := http.StatusBadRequest

@@ -22,7 +22,7 @@ access filter and answers its questions from those.
 ## Exported surface
 
 `ResolveExact`, `ResolveExactForAccess`, `ResolveForRequestWithAccess`,
-`IsNotFound`, `IsLookupFailure`, `LooksCanonicalRepositoryID`,
+`IsNotFound`, `IsLookupFailure`, `LookupFailureMessage`, `LooksCanonicalRepositoryID`,
 `CatalogMatches`, the `NotFoundError` / `AmbiguousError` / `LookupError`
 types, `HydrateResolvedEntityRepoIdentity`, `EntityString`, and
 `EntityLabelStrings`. See [doc.go](doc.go).
@@ -31,8 +31,9 @@ types, `HydrateResolvedEntityRepoIdentity`, `EntityString`, and
 wraps the backend error, so a caller runs `querycontract.WriteGraphReadError`
 first (a stale or timed-out guarded reader, or a graph outage or deadline,
 answers 503/504) and then answers 500 for whatever `IsLookupFailure` still
-reports. Only `NotFoundError` is a 404 and only the remaining selector answers
-(an ambiguous match) are a 400 (#7626).
+reports, with the fixed `LookupFailureMessage` body, never `err.Error()`, which
+carries backend text. Only `NotFoundError` is a 404 and only the remaining
+selector answers (an ambiguous match) are a 400 (#7626).
 
 ## Dependencies
 

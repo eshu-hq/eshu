@@ -16,9 +16,11 @@
 // ResolveForRequestWithAccess wraps that for HTTP handlers, writing the stable
 // error contract and reporting whether the caller should continue: a fence or
 // graph-availability verdict answers 503/504 through
-// querycontract.WriteGraphReadError, any other LookupError answers 500 with a
-// fixed body and records the error on the request span, NotFoundError answers
-// 404, and anything else answers 400.
+// querycontract.WriteGraphReadError, any other LookupError answers 500 with the
+// fixed LookupFailureMessage body and records the error on the request span,
+// NotFoundError answers 404, and anything else answers 400. A caller that
+// answers a lookup failure itself writes LookupFailureMessage too, never the
+// error text, which carries backend detail.
 //
 // HydrateResolvedEntityRepoIdentity hydrates an already-resolved entity's own
 // canonical repository identity (repo_id, repo_name) under the same access
