@@ -127,6 +127,31 @@ step, `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`, filter guarded by
 live-test ledger requires every `postgres_ci` row to name that runner, in the
 advisory `live-postgres-readiness` job.
 
+## Reducer contention gate budget
+
+The summary proofs add steps to the `reducer-contention-gate.yml` job. The job
+timeout was 25 minutes (1,500 s); an arbiter rule says to split the job or raise
+the timeout when the worst sample plus the new step goes above 20 minutes, so the
+timeout is now 30 minutes. Step times from `gh run view` (seconds; only steps of
+5 s or more listed; the three main runs are push events on main and predate PR-A,
+the two PR-A runs carry its store proofs step):
+
+| run | event | job total | gate step | story proof | store proofs |
+| --- | --- | --- | --- | --- | --- |
+| 37541975907 | main push | 950 | 866 | 39 | none |
+| 37523581703 | main push | 755 | 681 | 31 | none |
+| 37509101393 | main push | 1147 | 1024 | 45 | none |
+| 37545390693 | merge group (PR-A) | 1108 | 1000 | 44 | 13 |
+| 37539664298 | pull request (PR-A) | 1082 | 989 | 44 | 13 |
+
+Setup steps (containers, checkout, Go) add 30-80 s per run and are inside the
+job totals. The writer proofs step has no CI timing yet. Estimate: the package
+took 47 s locally with a warm build cache and a local PostgreSQL (the 30 s
+contention proof plus about a dozen database setups of 180 migrations each), so
+60-90 s on a cold runner. Worst case: 1,147 s (worst main run) + 13 s + 90 s,
+about 1,250 s or 20.8 minutes. The PR-B CI run's real writer-step time replaces
+the estimate.
+
 ## NOT_CHECKED
 
 - Writer pass cost on the ops-qa primary (the probe ran on the read replica).
