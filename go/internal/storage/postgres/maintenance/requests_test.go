@@ -143,49 +143,6 @@ func TestStatusRequestStoreRequestReindexErrorsWhenNoRowReturned(t *testing.T) {
 	}
 }
 
-func TestStatusRequestStoreClaimReindexQueryReturnsReindexRequest(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
-	database := &fake.ExecQueryer{
-		QueryResponses: []fake.Rows{
-			{Data: [][]any{{"ingester-1", "running", now, now}}},
-		},
-	}
-	store := maintenancestore.NewStatusRequestStore(database)
-
-	result, err := store.ClaimReindexRequest(context.Background(), "ingester-1", now)
-	if err != nil {
-		t.Fatalf("ClaimReindexRequest() error = %v, want nil", err)
-	}
-	if got, want := result.Ingester, "ingester-1"; got != want {
-		t.Fatalf("result.Ingester = %q, want %q", got, want)
-	}
-	if got, want := result.State, runtime.RequestStateRunning; got != want {
-		t.Fatalf("result.State = %q, want %q", got, want)
-	}
-}
-
-func TestStatusRequestStoreClaimReindexReturnsErrorWhenNoPending(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC)
-	database := &fake.ExecQueryer{
-		QueryResponses: []fake.Rows{
-			{Data: [][]any{}},
-		},
-	}
-	store := maintenancestore.NewStatusRequestStore(database)
-
-	_, err := store.ClaimReindexRequest(context.Background(), "ingester-1", now)
-	if err == nil {
-		t.Fatal("ClaimReindexRequest() error = nil, want non-nil")
-	}
-	if !strings.Contains(err.Error(), "no pending reindex request") {
-		t.Fatalf("error = %q, want 'no pending reindex request'", err.Error())
-	}
-}
-
 func TestStatusRequestStoreGetScanStateReturnsIdleWhenNotFound(t *testing.T) {
 	t.Parallel()
 

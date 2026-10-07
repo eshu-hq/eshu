@@ -122,49 +122,6 @@ func TestStatusRequestHandlerRequestReindexRequiresIngester(t *testing.T) {
 	}
 }
 
-func TestStatusRequestHandlerClaimReindexDelegatesToStore(t *testing.T) {
-	t.Parallel()
-
-	store := &recordingStatusRequestStore{
-		claimReindexResult: ReindexRequest{
-			Ingester: "ingester-1",
-			State:    RequestStateRunning,
-		},
-	}
-	handler, err := NewStatusRequestHandler(store)
-	if err != nil {
-		t.Fatalf("NewStatusRequestHandler() error = %v, want nil", err)
-	}
-
-	result, err := handler.ClaimReindex(context.Background(), "ingester-1")
-	if err != nil {
-		t.Fatalf("ClaimReindex() error = %v, want nil", err)
-	}
-	if got, want := result.State, RequestStateRunning; got != want {
-		t.Fatalf("ClaimReindex().State = %q, want %q", got, want)
-	}
-}
-
-func TestStatusRequestHandlerCompleteReindexDelegatesToStore(t *testing.T) {
-	t.Parallel()
-
-	store := &recordingStatusRequestStore{}
-	handler, err := NewStatusRequestHandler(store)
-	if err != nil {
-		t.Fatalf("NewStatusRequestHandler() error = %v, want nil", err)
-	}
-
-	if err := handler.CompleteReindex(context.Background(), "ingester-1", "some error"); err != nil {
-		t.Fatalf("CompleteReindex() error = %v, want nil", err)
-	}
-	if got, want := len(store.completeReindexCalls), 1; got != want {
-		t.Fatalf("complete reindex call count = %d, want %d", got, want)
-	}
-	if got, want := store.completeReindexCalls[0].reindexErr, "some error"; got != want {
-		t.Fatalf("complete reindex error = %q, want %q", got, want)
-	}
-}
-
 func TestStatusRequestHandlerRequiresStore(t *testing.T) {
 	t.Parallel()
 
@@ -221,20 +178,14 @@ type completeScanCall struct {
 	scanErr  string
 }
 
-type completeReindexCall struct {
-	ingester   string
-	reindexErr string
-}
-
 type recordingStatusRequestStore struct {
-	scanRequests         []string
-	reindexRequests      []string
-	completeScanCalls    []completeScanCall
-	completeReindexCalls []completeReindexCall
-	claimScanResult      ScanRequest
-	claimReindexResult   ReindexRequest
-	reindexWatermark     time.Time
-	scanErr              error
+	scanRequests      []string
+	reindexRequests   []string
+	completeScanCalls []completeScanCall
+	claimScanResult   ScanRequest
+	reindexState      ReindexRequest
+	reindexWatermark  time.Time
+	scanErr           error
 }
 
 func (s *recordingStatusRequestStore) RequestScan(_ context.Context, ingester string, _ time.Time) error {
@@ -256,19 +207,10 @@ func (s *recordingStatusRequestStore) RequestReindex(_ context.Context, ingester
 	return s.reindexWatermark, s.scanErr
 }
 
-func (s *recordingStatusRequestStore) ClaimReindexRequest(_ context.Context, _ string, _ time.Time) (ReindexRequest, error) {
-	return s.claimReindexResult, s.scanErr
-}
-
-func (s *recordingStatusRequestStore) CompleteReindexRequest(_ context.Context, ingester string, _ time.Time, reindexErr string) error {
-	s.completeReindexCalls = append(s.completeReindexCalls, completeReindexCall{ingester: ingester, reindexErr: reindexErr})
-	return s.scanErr
-}
-
 func (s *recordingStatusRequestStore) GetScanState(_ context.Context, _ string) (ScanRequest, error) {
 	return s.claimScanResult, s.scanErr
 }
 
 func (s *recordingStatusRequestStore) GetReindexState(_ context.Context, _ string) (ReindexRequest, error) {
-	return s.claimReindexResult, s.scanErr
+	return s.reindexState, s.scanErr
 }
