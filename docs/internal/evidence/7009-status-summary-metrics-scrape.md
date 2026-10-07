@@ -58,10 +58,9 @@ reader off is byte-identical to one before this change
 ## What the scrape reads
 
 `renderStatusMetrics` (`go/internal/runtime/metrics.go`) reads only these
-`Report` fields: `ScopeActivity` (lines 115-117), `RetryPolicies` (123),
-`Health.State` (137), `Queue` (146), `CollectorGenerationDeadLetters` (162),
-`GenerationTotals` (184-191), `StageSummaries` (195), `DomainBacklogs` (209),
-`Coordinator` (224), and `ActiveWorkSource` for the summary marker (225).
+`Report` fields: `ScopeActivity`, `RetryPolicies`, `Health.State`, `Queue`,
+`CollectorGenerationDeadLetters`, `GenerationTotals`, `StageSummaries`,
+`DomainBacklogs`, `Coordinator`, and `ActiveWorkSource` for the summary marker.
 `Health` is computed by `evaluateHealth` (`go/internal/status/health.go`),
 called from `BuildReport` (`go/internal/status/status.go`) with exactly the queue snapshot,
 generation totals, domain backlogs, producer activity, coordinator, and
@@ -148,8 +147,9 @@ Live, on PostgreSQL 18.6 (native, private cluster, loopback), enrolled in the
   row written by the production writer is served equal to the live statement at
   the same data and clock; after the row ages past the limit, is deleted, or its
   table is dropped, the process serves its last row stale with a growing age; a
-  a new process serves the stale row itself (age past 10 minutes, its own counts) and, with the table dropped, the zero summary; the live active-work statement runs zero
-  times.
+  new process serves the stale row itself (age past 10 minutes, its own counts)
+  and, with the table dropped, the zero summary; the live active-work statement
+  runs zero times.
 - `TestScrapeStatementInventoryOnAnEmptyStoreLive`: the statement inventory on a
   real empty database, with the selection captured from the production handler
   instead of copied.
