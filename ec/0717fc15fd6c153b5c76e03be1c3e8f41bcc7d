@@ -1,0 +1,26 @@
+go/internal/proof/scheduling/contract.go
+  s_b0d7e3abc26c5a::t_7e52f1d7bb9d22 24,27
+go/internal/proof/scheduling/eligibility.go
+  s_b0d7e3abc26c5a::t_7e52f1d7bb9d22 106
+go/internal/proof/scheduling/contract_test.go
+  s_b0d7e3abc26c5a::t_9b82aa1a8c9061 67-87
+go/internal/proof/scheduling/eligibility_test.go
+  s_b0d7e3abc26c5a::t_33a1c073bcf2e9 172-173
+  s_b0d7e3abc26c5a::t_4f78c6c307053c 153-171,174-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec0717fc15fd6c153b5c76e03be1c3e8f41bcc7d",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
