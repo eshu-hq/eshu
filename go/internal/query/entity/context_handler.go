@@ -23,17 +23,13 @@ import (
 //
 // It records how the request was resolved (anchor, fallback, content, or
 // none) on the server span and the resolution counter once the answer is
-// written (#7212); a request that ends in an error records no resolved_by.
+// written (#7212); a request that ends in an error, or is rejected before the
+// graph read, records no resolved_by. The body stays in this one method so the
+// query-plan callsite pins keep keying on (*Handler).GetEntityContext.
 func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	res := &entityContextResolution{}
-	h.serveEntityContext(w, r, res)
-	h.recordEntityContextResolution(r.Context(), res)
-}
+	defer func() { h.recordEntityContextResolution(r.Context(), res) }()
 
-// serveEntityContext answers GetEntityContext and fills res with the number of
-// graph statements sent and, when the request ends in an answer, how it was
-// resolved.
-func (h *Handler) serveEntityContext(w http.ResponseWriter, r *http.Request, res *entityContextResolution) {
 	entityID := querycontract.PathParam(r, "entity_id")
 	if entityID == "" {
 		querycontract.WriteError(w, http.StatusBadRequest, "entity_id is required")

@@ -71,8 +71,9 @@ statement returned the row), `fallback` (the final unlabeled statement did),
 (404). It lands on the request span as `eshu.entity_context.resolved_by`, with
 `eshu.entity_context.statements_tried`, and on
 `eshu_dp_entity_context_resolution_total{resolved_by}`. A request that ends in
-an error has no `resolved_by`. A graph row that the scoped grant then denies
-still counts as `anchor` or `fallback`: the graph answered. The two existing
+an error has no `resolved_by`, and a request rejected before the graph read
+(400, empty scoped grant) emits no resolution signal. A graph row that the
+scoped grant then denies still counts as `anchor` or `fallback`: the graph answered. The two existing
 warnings carry `statements_tried`; there is no completion log line.
 
 NornicDB: `GetEntityContext` and `FetchWorkloadContextForOperation` no longer
