@@ -304,8 +304,9 @@ states (in priority order):
 - `ReaderStartupError(reader)` — the startup configuration error a reader
   reports through `StartupError() error` (an invalid
   `ESHU_STATUS_SUMMARY_STALE_AFTER` on `postgres.StatusStore`), or nil. Both
-  decorators below forward it, so `app.MountStatusServer` fails a
-  misconfigured process at startup whatever wraps the store (#7009).
+  decorators below forward it, and the runtime status constructors
+  (`NewStatusAdminMux`, `NewStatusMetricsHandler`) fail a misconfigured process
+  at startup whatever wraps the store (#7009).
 - `WithRetryPolicies(reader, policies...)` — decorator that attaches static
   retry metadata to any `Reader` without Postgres persistence
 - `WithSemanticProviderProfiles(reader, profiles...)` — decorator that attaches

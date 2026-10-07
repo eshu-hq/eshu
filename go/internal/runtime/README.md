@@ -116,6 +116,9 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
   `RecoveryHandler`; service name required
 - `HTTPServer` / `HTTPServerConfig` / `NewHTTPServer` — one HTTP server with
   Start/Stop lifecycle; `Addr()` returns the bound address after Start
+- `NewStatusAdminMux` and `NewStatusMetricsHandler` fail when the reader reports
+  a startup error through `StartupError()` (`status.ReaderStartupError`), so a
+  runtime with an invalid reader setting fails at startup (#7009).
 - `NewStatusAdminServer(cfg, reader, opts...)` — admin `HTTPServer` backed by
   the status reader; used by all long-running binaries
 - `NewStatusMetricsServer(cfg, reader, opts...)` — optional dedicated metrics

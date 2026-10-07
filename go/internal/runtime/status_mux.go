@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,6 +13,18 @@ import (
 )
 
 const defaultStatusReadinessTimeout = 3 * time.Second
+
+// checkReaderStartup fails a status constructor when the reader reports an
+// invalid configuration (see statuspkg.ReaderStartupError). Every runtime that
+// serves a status endpoint builds it through NewStatusAdminMux or
+// NewStatusMetricsHandler, directly or through app.MountStatusServer, so the
+// check lives here and a runtime that mounts its own mux cannot skip it (#7009).
+func checkReaderStartup(reader statuspkg.Reader) error {
+	if err := statuspkg.ReaderStartupError(reader); err != nil {
+		return fmt.Errorf("status reader configuration: %w", err)
+	}
+	return nil
+}
 
 // NewStatusAdminMux builds the shared status, metrics, recovery, and optional
 // application routes for a long-running Go runtime.
@@ -21,6 +34,9 @@ func NewStatusAdminMux(
 	appHandler http.Handler,
 	opts ...StatusAdminOption,
 ) (*http.ServeMux, error) {
+	if err := checkReaderStartup(reader); err != nil {
+		return nil, err
+	}
 	checker, ok := reader.(statuspkg.ReadinessChecker)
 	if !ok {
 		return nil, errors.New("status reader must implement status readiness checks")

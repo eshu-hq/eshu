@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,5 +64,51 @@ func TestNewStatusAdminMuxMountsApplicationHandler(t *testing.T) {
 	mux.ServeHTTP(apiRec, apiReq)
 	if got, want := apiRec.Code, http.StatusOK; got != want {
 		t.Fatalf("GET /api/v0/openapi.json status = %d, want %d", got, want)
+	}
+}
+
+// startupFailingStatusReader reports an invalid configuration at startup, as a
+// postgres.StatusStore does for an invalid ESHU_STATUS_SUMMARY_STALE_AFTER.
+type startupFailingStatusReader struct {
+	fakeStatusReader
+	err error
+}
+
+func (r *startupFailingStatusReader) StartupError() error { return r.err }
+
+// TestStatusConstructorsFailOnAReaderStartupError: every runtime that serves a
+// status endpoint builds it through these constructors, so a reader that
+// reports a configuration error fails the process at startup through each one.
+func TestStatusConstructorsFailOnAReaderStartupError(t *testing.T) {
+	t.Parallel()
+
+	boom := errors.New("ESHU_STATUS_SUMMARY_STALE_AFTER=\"soon\": invalid")
+	failing := &startupFailingStatusReader{err: boom}
+	healthy := &startupFailingStatusReader{}
+	cfg := Config{ServiceName: "webhook-listener", ListenAddr: "127.0.0.1:0", MetricsAddr: "127.0.0.1:0"}
+	for name, build := range map[string]func(statuspkg.Reader) error{
+		"admin mux": func(r statuspkg.Reader) error {
+			_, err := NewStatusAdminMux("svc", r, nil)
+			return err
+		},
+		"admin server": func(r statuspkg.Reader) error {
+			_, err := NewStatusAdminServer(cfg, r)
+			return err
+		},
+		"metrics server": func(r statuspkg.Reader) error {
+			_, err := NewStatusMetricsServer(cfg, r)
+			return err
+		},
+		"metrics handler": func(r statuspkg.Reader) error {
+			_, err := NewStatusMetricsHandler("svc", r)
+			return err
+		},
+	} {
+		if err := build(failing); !errors.Is(err, boom) {
+			t.Fatalf("%s: error = %v, want the reader's startup error", name, err)
+		}
+		if err := build(healthy); err != nil {
+			t.Fatalf("%s: healthy reader error = %v, want nil", name, err)
+		}
 	}
 }

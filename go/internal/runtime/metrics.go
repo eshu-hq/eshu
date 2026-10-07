@@ -28,6 +28,9 @@ func NewStatusMetricsHandler(serviceName string, reader statuspkg.Reader) (http.
 	if reader == nil {
 		return nil, fmt.Errorf("status reader is required")
 	}
+	if err := checkReaderStartup(reader); err != nil {
+		return nil, err
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		serveStatusMetrics(w, r, serviceName, reader)

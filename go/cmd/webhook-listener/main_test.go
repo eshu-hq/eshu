@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -71,6 +72,42 @@ func TestNewWebhookApplicationStartsDedicatedMetricsServer(t *testing.T) {
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("GET metrics body = %q, want %q", got, want)
+		}
+	}
+}
+
+// startupFailingReader reports an invalid configuration at startup, as a
+// StatusStore does for an invalid ESHU_STATUS_SUMMARY_STALE_AFTER (#7009).
+type startupFailingReader struct {
+	fakeStatusReader
+	err error
+}
+
+func (r *startupFailingReader) StartupError() error { return r.err }
+
+// TestNewWebhookApplicationFailsStartupOnAReaderConfigurationError: the webhook
+// listener mounts its status endpoints without app.MountStatusServer, so the
+// check must live in the shared runtime constructors it calls.
+func TestNewWebhookApplicationFailsStartupOnAReaderConfigurationError(t *testing.T) {
+	boom := errors.New("ESHU_STATUS_SUMMARY_STALE_AFTER=\"soon\": invalid")
+	for _, dedicatedMetrics := range []bool{false, true} {
+		cfg := runtimecfg.Config{
+			ServiceName: "webhook-listener",
+			Command:     "webhook-listener",
+			ListenAddr:  reserveTCPAddress(t),
+		}
+		cfg.MetricsAddr = cfg.ListenAddr
+		name := "shared listener"
+		if dedicatedMetrics {
+			cfg.MetricsAddr = reserveTCPAddress(t)
+			name = "dedicated metrics port"
+		}
+		_, err := newWebhookApplication(cfg, &startupFailingReader{err: boom}, http.NewServeMux(), http.NotFoundHandler())
+		if !errors.Is(err, boom) {
+			t.Fatalf("%s: newWebhookApplication() error = %v, want the reader's startup error", name, err)
+		}
+		if _, err := newWebhookApplication(cfg, &startupFailingReader{}, http.NewServeMux(), http.NotFoundHandler()); err != nil {
+			t.Fatalf("%s: newWebhookApplication() with a healthy reader error = %v, want nil", name, err)
 		}
 	}
 }
