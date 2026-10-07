@@ -54,6 +54,64 @@ The gauges are rendered only when the reader answered, so a scrape with the
 reader off is byte-identical to one before this change
 (`TestStatusMetricsWithTheReaderOffAreUnchanged`).
 
+## What the scrape reads
+
+`renderStatusMetrics` (`go/internal/runtime/metrics.go`) reads only these
+`Report` fields: `ScopeActivity` (lines 115-117), `RetryPolicies` (123),
+`Health.State` (137), `Queue` (146), `CollectorGenerationDeadLetters` (162),
+`GenerationTotals` (184-191), `StageSummaries` (195), `DomainBacklogs` (209),
+`Coordinator` (224), and `ActiveWorkSource` for the summary marker (225).
+`Health` is computed by `evaluateHealth` (`go/internal/status/health.go:14-22`),
+called at `go/internal/status/status.go:162` with exactly the queue snapshot,
+generation totals, domain backlogs, producer activity, coordinator, and
+collector generation dead letters (plus options). None of the four sections the
+selection omits (`TerraformStateLastSerials`, `TerraformStateRecentWarnings`,
+`CollectorFactEvidence`, `RegistryCollectors`) is an argument or a rendered
+field.
+
+That is also measured, not only read: `TestScrapeReadSetExcludesTheSectionsTheSelectionOmits`
+fills every `RawSnapshot` field, blanks one at a time, and records which blanking
+changes the rendered bytes or the computed health. The set is
+CollectorGenerationDeadLetters, Coordinator, DomainBacklogs, GenerationCounts,
+Queue, RetryPolicies, ScopeActivity, StageCounts; the four omitted sections are
+outside it, and the test requires every section the render reads to be found
+(its non-vacuity list). Health reads producer activity only behind earlier
+decisive checks that the all-populated baseline always trips, so
+`TestScrapeBytesIgnorePopulatedOmittedSections` measures health with only the
+omitted sections populated instead.
+
+## Last row: concurrency model
+
+- One `lastRow` per `ModelReader`, and a hosted runtime has one `ModelReader`
+  for the process (`NewInstrumentedStatusStore`, copied by pointer into every
+  store wrapper). It holds at most one row: the entries as the writer stored
+  them and the row's `as_of`.
+- Writers: any scrape that serves a fresh row calls `remember`. Readers: any
+  scrape that cannot serve a fresh row calls `recall`. Both take one
+  `sync.Mutex` for a few field reads or writes; nothing is held across a
+  database call or a decode.
+- `remember` replaces the held row only for a strictly newer `as_of`, so a slow
+  scrape that finishes late cannot move the row back; a row with the same
+  `as_of` is not copied. `recall` returns the held slice without copying: its
+  `Entry` values are strings and `AddAge` never modifies its input, so a
+  concurrent replacement swaps the slice and cannot change what a reader holds.
+- Allocation: the holder allocates nothing per scrape in steady state
+  (`TestLastRowHolderAddsNoAllocationToAScrape`: 0 allocations for re-remembering
+  the held row and for recalling it); it copies the entries once, when a newer
+  row replaces the held one. A scrape that serves the held row still pays for
+  `AddAge` and the decode of the row's few tuples, as a fresh scrape does for
+  its own `Select` and decode; that cost is proportional to the row (about 35
+  tuples at production shape), not to the number of scrapes or the queue size.
+  No claim is made of zero allocation beyond the holder.
+- `TestScrapeLastRowIsSafeAndWholeUnderParallelScrapes` runs under `-race`: a
+  writer goroutine moves the database clock and replaces the stored row with
+  fresh rows (each carrying its id in the stage count), stale rows, and no row,
+  while 16 scrapers run 300 scrapes each through the production store and one
+  shared reader. Every answer is one whole row, a fresh serve is never stale and
+  a stale one never fresh, the live statement runs zero times, a scraper that has
+  seen a row never gets the zero summary again, and the held `as_of` a scraper
+  sees never goes back. Removing the lock makes the race detector fail it.
+
 ## Proof
 
 Hermetic, `go test -race -count=1` per package:
@@ -87,7 +145,17 @@ Live, on PostgreSQL 18.6 (native, private cluster, loopback), enrolled in the
   new process serves the zero summary; the live active-work statement runs zero
   times.
 - `TestScrapeStatementInventoryOnAnEmptyStoreLive`: the statement inventory on a
-  real empty database.
+  real empty database, with the selection captured from the production handler
+  instead of copied.
+- `TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive`: a real database
+  whose omitted sections are populated (collector evidence summary, registry
+  collector instances, registry work items with retryable and terminal failures
+  that the coordinator section also counts) renders identical `/metrics` bytes
+  through the production handler with the metrics selection and with the broader
+  full-minus-Terraform selection, at one pinned instant with the reader off. The
+  test asserts the broader read returns non-empty evidence, registry failures,
+  and coordinator instances, and plants a violation: finishing three work items
+  must change the bytes.
 
 ## Performance Evidence
 

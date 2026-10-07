@@ -6,12 +6,15 @@ package summary_test
 import (
 	"context"
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
+	"github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -51,9 +54,35 @@ func scrapeStatusStore(pool db.Queryer, enabled bool, staleAfter time.Duration) 
 		postgres.NewStatusSummaryReaderWithConfig(store.ReadConfig{Enabled: enabled, StaleAfter: staleAfter}))
 }
 
-func scrapeSelection() statuspkg.SnapshotSelection {
-	return statuspkg.SnapshotSelection{}.WithoutTerraformStateEvidence().WithStoredActiveWorkOnly()
+// selectionRecorder is a status reader that records the selection it was asked
+// for and answers with an empty snapshot.
+type selectionRecorder struct{ selection statuspkg.SnapshotSelection }
+
+func (r *selectionRecorder) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
+	return r.ReadStatusSnapshotFiltered(ctx, asOf, statuspkg.FullSnapshotSelection())
 }
+
+func (r *selectionRecorder) ReadStatusSnapshotFiltered(_ context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (statuspkg.RawSnapshot, error) {
+	r.selection = selection
+	return statuspkg.RawSnapshot{AsOf: asOf}, nil
+}
+
+// scrapeSelection returns the selection the production /metrics handler
+// requests, captured from the handler itself, so these proofs follow the
+// production definition instead of a copy of it.
+var scrapeSelection = sync.OnceValue(func() statuspkg.SnapshotSelection {
+	recorder := &selectionRecorder{}
+	handler, err := runtime.NewStatusMetricsHandler("selection-probe", recorder)
+	if err != nil {
+		panic(err)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK {
+		panic("selection probe scrape failed: " + rec.Body.String())
+	}
+	return recorder.selection
+})
 
 // TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive runs the scrape
 // path on a real database in autocommit, the shape of every hosted runtime: a
@@ -168,5 +197,110 @@ func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	}
 	if onTotal != 21 || onActive != 0 {
 		t.Fatalf("reader on = %d statements, %d active-work; want 21 (the clock and the row read replace it) and 0", onTotal, onActive)
+	}
+}
+
+// pinnedReader reads through inner at a fixed instant, and with selection set
+// ignores the caller's selection, so the same handler can be driven once with
+// the metrics selection and once with the broader one it used to request.
+type pinnedReader struct {
+	inner     statuspkg.Reader
+	asOf      time.Time
+	selection *statuspkg.SnapshotSelection
+}
+
+func (r pinnedReader) ReadStatusSnapshot(ctx context.Context, _ time.Time) (statuspkg.RawSnapshot, error) {
+	return r.ReadStatusSnapshotFiltered(ctx, r.asOf, statuspkg.FullSnapshotSelection())
+}
+
+func (r pinnedReader) ReadStatusSnapshotFiltered(ctx context.Context, _ time.Time, selection statuspkg.SnapshotSelection) (statuspkg.RawSnapshot, error) {
+	if r.selection != nil {
+		selection = *r.selection
+	}
+	return r.inner.ReadStatusSnapshotFiltered(ctx, r.asOf, selection)
+}
+
+// seedCollectorSections populates what the omitted sections read: a collector
+// evidence summary row on an active scope, a registry collector instance, and
+// registry work items (completed, retryable and terminal failures with
+// classes), which the coordinator section also counts.
+func seedCollectorSections(ctx context.Context, t *testing.T, database *sql.DB) {
+	t.Helper()
+	mustExec(ctx, t, database, `
+INSERT INTO collector_evidence_summary (scope_id, generation_id, collector_kind, evidence_source, source_system,
+  observation_count, last_observed_at, last_ingested_at, materialized_at)
+VALUES ('scope-0', 'gen-0', 'git', 'git_fact', 'git', 5, now() - interval '5 minutes', now() - interval '4 minutes', now())`)
+	mustExec(ctx, t, database, `
+INSERT INTO collector_instances (instance_id, collector_kind, mode, enabled, last_observed_at, created_at, updated_at)
+VALUES ('oci-1', 'oci_registry', 'scheduled', true, now(), now(), now()),
+       ('pkg-1', 'package_registry', 'scheduled', true, now(), now(), now())`)
+	mustExec(ctx, t, database, `
+INSERT INTO workflow_runs (run_id, trigger_kind, status, created_at, updated_at) VALUES ('run-1', 'schedule', 'running', now(), now())`)
+	mustExec(ctx, t, database, `
+INSERT INTO workflow_work_items (work_item_id, run_id, collector_kind, collector_instance_id, source_system, scope_id,
+  acceptance_unit_id, source_run_id, generation_id, fairness_key, status, last_failure_class, created_at, updated_at)
+SELECT 'reg-' || i, 'run-1',
+       CASE WHEN i % 2 = 0 THEN 'oci_registry' ELSE 'package_registry' END,
+       CASE WHEN i % 2 = 0 THEN 'oci-1' ELSE 'pkg-1' END,
+       'registry', 'scope-' || i, 'unit-' || i, 'src-' || i, 'gen-' || i, 'a:b:c:npm',
+       (ARRAY['completed', 'failed_retryable', 'failed_terminal', 'pending'])[1 + i % 4],
+       CASE WHEN i % 4 IN (1, 2) THEN 'registry_rate_limited' END,
+       now() - interval '1 hour', now() - interval '10 minutes'
+FROM generate_series(0, 11) AS i`)
+}
+
+// TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive renders the scrape
+// from a real database whose omitted sections are populated, once with the
+// metrics selection and once with the full-minus-Terraform selection the scrape
+// used before, at one pinned instant and with the reader off, and requires
+// identical bytes. It proves the populated sections exist (the broader read
+// returns them), and plants a violation: changing a section the scrape renders
+// changes the bytes.
+func TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive(t *testing.T) {
+	ctx, database := openWriterDatabase(t)
+	seedWork(ctx, t, database, 200, 100)
+	seedCollectorSections(ctx, t, database)
+	asOf := time.Now().UTC()
+	store := scrapeStatusStore(&recordingPool{database: database}, false, time.Hour)
+
+	broad := statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence()
+	snapshot, err := store.ReadStatusSnapshotFiltered(ctx, asOf, broad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.CollectorFactEvidence) == 0 {
+		t.Fatal("the fixture produced no collector fact evidence; the proof would be vacuous")
+	}
+	var failures int
+	for _, row := range snapshot.RegistryCollectors {
+		failures += row.RetryableFailures + row.TerminalFailures
+	}
+	if failures == 0 || len(snapshot.Coordinator.CollectorInstances) == 0 {
+		t.Fatalf("the fixture produced registry failures=%d, coordinator instances=%d; the proof would be vacuous",
+			failures, len(snapshot.Coordinator.CollectorInstances))
+	}
+
+	scrape := func(selection *statuspkg.SnapshotSelection) string {
+		t.Helper()
+		handler, err := runtime.NewStatusMetricsHandler("collector-git", pinnedReader{inner: store, asOf: asOf, selection: selection})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+	narrowed := scrape(nil)
+	if wide := scrape(&broad); wide != narrowed {
+		t.Fatalf("the narrowed scrape differs from the broad one with the omitted sections populated:\nbroad=%s\nnarrowed=%s", wide, narrowed)
+	}
+
+	// The comparison can differ: change a section the scrape renders.
+	mustExec(ctx, t, database, `UPDATE fact_work_items SET status = 'succeeded' WHERE work_item_id IN ('w-0', 'w-1', 'w-2')`)
+	if changed := scrape(nil); changed == narrowed {
+		t.Fatal("a changed work item did not change the scrape: the byte comparison cannot fail")
 	}
 }

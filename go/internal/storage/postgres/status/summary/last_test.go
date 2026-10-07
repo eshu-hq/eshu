@@ -71,3 +71,20 @@ func TestReadScrapeServesTheLastRowWhenAFreshRowDoesNotDecode(t *testing.T) {
 		t.Fatalf("scrape after an undecodable fresh row = %+v, want last_row/decode at the held as_of, 5s old", res)
 	}
 }
+
+// TestLastRowHolderAddsNoAllocationToAScrape measures what the holder costs a
+// scrape: re-remembering the row already held, and recalling it, allocate
+// nothing. Only a row with a newer as_of is copied, once, when it replaces the
+// held one.
+func TestLastRowHolderAddsNoAllocationToAScrape(t *testing.T) {
+	var held lastRow
+	asOf := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	entries := []Entry{{Section: "queue", Ordinal: 1, JSON: `{"a":1}`}, {Section: "stage", Ordinal: 1, JSON: `{"b":2}`}}
+	held.remember(entries, asOf)
+	if got := testing.AllocsPerRun(100, func() { held.remember(entries, asOf) }); got != 0 {
+		t.Fatalf("remembering the held row again allocated %v times per scrape, want 0", got)
+	}
+	if got := testing.AllocsPerRun(100, func() { _, _, _ = held.recall() }); got != 0 {
+		t.Fatalf("recalling the held row allocated %v times per scrape, want 0", got)
+	}
+}
