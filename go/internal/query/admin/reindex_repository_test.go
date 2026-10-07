@@ -73,8 +73,9 @@ func repositoryCatalogFixture() stubRepositoryCatalog {
 }
 
 // TestAdminHandler_RepositoryReindexAccepted pins the repository-scoped 202:
-// selectors resolve to their git scopes, duplicates collapse by scope, the
-// store is called once, and each repository comes back with its stored time.
+// selectors are trimmed and resolve to their git scopes, duplicates collapse
+// by scope, the store is called once, and each repository comes back with its
+// stored time.
 func TestAdminHandler_RepositoryReindexAccepted(t *testing.T) {
 	t.Parallel()
 
@@ -82,7 +83,7 @@ func TestAdminHandler_RepositoryReindexAccepted(t *testing.T) {
 	reindexer := &stubRepositoryReindexer{requestedAt: stored}
 	fleet := &stubReindexRequester{}
 	h := &Handler{Reindexer: fleet, Repositories: repositoryCatalogFixture(), RepositoryReindexer: reindexer}
-	w := postRawReindex(h, `{"scope":"repository","repositories":["payments","orders","repository:r_payments"]}`)
+	w := postRawReindex(h, `{"scope":"repository","repositories":["payments"," orders ","repository:r_payments"]}`)
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", w.Code, w.Body.String())
 	}

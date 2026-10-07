@@ -145,7 +145,7 @@ func newAdminReindexCmd() *cobra.Command {
 	}
 	reindexCmd.Flags().String("ingester", "repository", "Ingester type (only repository is accepted)")
 	reindexCmd.Flags().String("scope", "workspace", "Reindex scope: workspace, or repository (the default when --repository is set)")
-	reindexCmd.Flags().StringArray("repository", nil, "Repository selector (ID, name, slug, or path) to reindex; repeatable, 1 to 100")
+	reindexCmd.Flags().StringArray("repository", nil, "Repository selector (repository ID, scope ID, name, slug, or path) to reindex; repeatable, 1 to 100")
 	reindexCmd.Flags().Bool("force", true, "Force a full re-parse (false is rejected)")
 	addRemoteFlags(reindexCmd)
 	return reindexCmd

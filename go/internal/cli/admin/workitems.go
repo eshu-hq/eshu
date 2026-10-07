@@ -21,8 +21,9 @@ type ReindexInput struct {
 	// Force must be true: a reindex always forces a full re-parse, and the API
 	// rejects false with 400.
 	Force bool
-	// Repositories holds the repository selectors (ID, name, slug, or path)
-	// of a "repository" scope reindex; it is sent only when not empty.
+	// Repositories holds the repository selectors (repository ID, scope ID,
+	// name, slug, or path) of a "repository" scope reindex; it is sent only
+	// when not empty.
 	Repositories []string
 }
 

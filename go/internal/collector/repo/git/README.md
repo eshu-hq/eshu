@@ -80,8 +80,9 @@ cycle's `observedAt` is deferred, because generations are ingested at
 `observedAt`. The reader is read-only: the request is never claimed. See
 `docs/public/reference/reconciliation-sweep.md#reindex-requests`.
 
-Both selectors also read the per-repository watermarks newer than the fleet
-watermark through `RepositoryReindexWatermarkReader`, once per cycle
+Both selectors also read the per-repository watermarks newer than the cycle's
+active fleet watermark (every row when none is active) through
+`RepositoryReindexWatermarkReader`, once per cycle
 (`resolveRepositoryReindexWatermarks`), and defer each row on its own. A
 scope's effective watermark is the later of the two
 (`gitDeltaBaseline.reindexWatermarkFor`); the reason is

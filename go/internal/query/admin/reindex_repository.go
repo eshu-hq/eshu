@@ -60,7 +60,7 @@ func (h *Handler) reindexRepositories(w http.ResponseWriter, r *http.Request, re
 	repositoryIDByScope := make(map[string]string, len(req.Repositories))
 	var problems []string
 	for _, selector := range req.Repositories {
-		matches, err := h.Repositories.MatchRepositories(r.Context(), selector)
+		matches, err := h.Repositories.MatchRepositories(r.Context(), strings.TrimSpace(selector))
 		if err != nil {
 			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve repository %q: %v", selector, err))
 			return

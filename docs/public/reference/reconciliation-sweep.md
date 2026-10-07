@@ -172,8 +172,10 @@ row per distinct scope into `repository_reindex_requests (scope_id,
 requested_at)`, stamped by Postgres and never moved backward, and returns each
 repository with its `scope_id` and `requested_at`.
 
-Each shard reads the rows newer than the fleet watermark once per sync cycle,
-in the same place it reads the fleet watermark. A scope's effective watermark
+Each shard reads the rows newer than the fleet watermark active for the cycle
+(every row when none is active, including a deferred or unreadable fleet
+watermark) once per sync cycle, right after it reads the fleet watermark. A
+scope's effective watermark
 is the later of the two, so a per-repository row at or before the fleet
 watermark adds nothing. The decision table above applies unchanged; a forced
 scope records reason `repository_reindex_requested` when its own row is the
@@ -181,7 +183,10 @@ later watermark, otherwise `reindex_requested`.
 
 - Requested repositories are synced first in the cycle, so a fleet reindex
   cannot starve a targeted one behind `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`. The
-  budget itself is unchanged.
+  budget itself is unchanged. Because rows are never deleted, a requested
+  repository stays first in the sync order, even once satisfied, until a newer
+  fleet request supersedes its row. Order matters elsewhere only for the
+  `ESHU_PINNED_REF_FLEET_CAP` worktree cap.
 - Each row is deferred on its own when it is later than the cycle start; a
   cycle with deferred rows logs INFO `git_repository_reindex_deferred` with
   `deferred_count`. A cycle with active rows logs DEBUG
