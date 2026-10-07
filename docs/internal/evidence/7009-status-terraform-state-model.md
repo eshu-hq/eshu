@@ -3,151 +3,203 @@
 ## What changed
 
 The periodic status summary writer now writes a second row, `terraform_state`,
-in the same pass as the `active_work_summary` row. The row holds the two
+after the `active_work_summary` row in the same pass. The row holds the two
 statements that fill `Report.TerraformState`: the last observed serial per
 state locator (`terraformStateLastSerialQuery`, statement 24) and the recent
 warnings per locator (`terraformStateRecentWarningsQuery`, statement 25). The
 status reader serves the row behind the same two flags as PR-C
 (`ESHU_STATUS_SUMMARY_READ_ENABLED`, default `false`;
-`ESHU_STATUS_SUMMARY_STALE_AFTER`, default `33s`, floor `10s`). No flag, no
-environment variable, and no public payload field was added.
+`ESHU_STATUS_SUMMARY_STALE_AFTER`, default `33s`, floor `10s`). No flag or
+environment variable was added. The pre-build rulings are in
+`7009-pre-terraform-decisions-ruling-20261007.md`.
 
 Why: on the ops-qa reader, statement 25 measured a median of 412.6 ms (probe
-P1). The ruling made PR-E conditional on P1 above 100 ms. Statement 23 stays
-live (24.2 ms).
+P1). The design ruling made PR-E conditional on P1 above 100 ms. Statement 23
+stays live (24.2 ms).
 
 ## Design
 
-- The writer pass stays one READ COMMITTED transaction. The advisory lock is on
-  the pass transaction and `as_of` is the database clock read after the lock.
-  `Runner.Companions` carries the extra models. Every statement runs before any
-  upsert, so a slow statement never holds an earlier row's lock. A failure in
-  any statement rolls both rows back.
-- Each row has its own `as_of`, guarded upsert (`existing.as_of <
-  EXCLUDED.as_of`), `source_sha256`, and guard outcome.
-- Statements 24 and 25 are unchanged, and so is their decoder. The stored
-  entries are the Go-decoded rows, encoded as `serial` and `warning` sections.
-  Decoding the stored entries returns the same `TerraformStateAdminEvidence`
-  the live read returns, field for field, including a null `observed_at` and
-  empty slices.
-- The digest is sha256 of the encoding tag (`terraform-state-summary/1`), the
+- Each model row is written in its own transaction under the same advisory
+  lock key, the active-work row first. Each transaction is READ COMMITTED with
+  `SET LOCAL jit = off`, takes `pg_try_advisory_xact_lock`, reads its own
+  database clock, computes, runs its own guarded upsert (`existing.as_of <
+  EXCLUDED.as_of`), and commits. A companion that fails, times out, or loses the
+  lock never discards the active-work row. There is no savepoint and no commit
+  of both rows together.
+- A companion runs under `min(remaining pass budget, one interval)`; the first
+  model keeps the full two-interval pass budget.
+- When the first model skips on the lock or the missing table, the companion is
+  not attempted and reports the same outcome with no transaction. When the first
+  model errors or its guard rejects, the companion still runs.
+- Statements 24 and 25 and their decoder are unchanged. The stored entries are
+  the Go-decoded rows (`last_serial` and `recent_warning` sections), so the
+  malformed-serial skip and the NULL `observed_at` rule are inside the model.
+- The digest is SHA-256 over an encoding tag (`terraform-state-summary/1`), the
   text of statement 24, the text of statement 25, and the per-locator limit,
-  with NUL separators. A change to either statement text, the limit, or the
-  encoding makes the reader fall back with reason `version`.
-- The statements take no clock and return no ages, so the reader applies no age
-  correction. The row's age is checked against `StaleAfter` only.
-- The reader keeps the PR-C fence order (missing/not installed, version, row
-  count, stale, decode) and a whole-answer typed fallback to the live
-  statements. Each model has its own `ModelReader` and `Flight`, so one can be
+  with NUL separators. A change to any of these makes a reader fall back with
+  reason `version`.
+- No value in the section is an age, so `AddAge` and the reader apply no age
+  correction. A test pins that Terraform entries come out of `AddAge` byte for
+  byte at a 20 s age.
+- The reader has a second `ModelReader` and `Flight` per process on the one
+  `ReadConfig`, the new read label `terraform_state_model`, and span attributes
+  `status.terraform_state.*`. Each model is decided on its own, so one can be
   served while the other falls back. A route that skips Terraform evidence
   skips the row.
-- `Report.TerraformStateSource` records `model` or `live_fallback`. It is not
-  rendered yet (see Decisions).
+- Public contract: `terraform_state_source`, the same five keys and closed value
+  sets as `active_work_source`, on `GET /api/v0/status/pipeline`,
+  `GET /api/v0/status/index`, `GET /api/v0/index-status`, and the runtime
+  `/admin/status` JSON. It is absent on every route that skips Terraform
+  evidence and for a scoped index caller. With the reader off it reads
+  `live`/`flag_off`. A `TerraformStateSource` OpenAPI component carries the same
+  enums, with a test of the enums and of the exact routes that declare it.
 
 ## Measurements (private native PostgreSQL 18, no ops-qa access)
 
-Fixture: the shared status fixture with 9,800 warning rows over the worst-case
-locator spread. Probes ran before any production code (prove the theory
-first). All on `jit = off`, READ COMMITTED.
+The fixture is the shim recipe (254k work rows, 1M shared-projection intents,
+about 26k generations) with 2.5M filler `fact_records` rows spread over every
+scope and generation (about 1.5 GB for the table and its indexes) and 10,320
+terraform warning rows. The measurement ran through the production
+`Runner.RunOnce` with both models: 3 warm-up passes and 30 timed passes, with the
+per-model transaction taken from Begin to Commit. The host was not quiet (load1
+8.7 to 10 with other agents running), so these are labeled structural figures,
+not a timing-grade proof.
 
-| item | result |
-| --- | --- |
-| statement 24 | 2.4 ms |
-| statement 25 | median 368.1 ms (min 342.7, max 402.4), plan cost 922,656, 74,859 shared buffers hit, planning 8.6 ms, 9,800 rows |
-| statements 24 + 25 | about 433 ms wall |
-| real writer pass at fixture scale (production runner) | median 941 ms total: active-work 575 ms, terraform_state 346 ms |
-| pass vs interval | 0.94 s against the 10 s default interval and 5 s floor; far below the 5 s stop line |
-| guarded upsert of the terraform row | about 28 ms |
-| snapshot read, flag off (live statements) | 910 ms |
-| snapshot read, flag on (row served) | 58 ms |
+Per-model transaction milliseconds, median / p95 / max:
 
-The ops-qa plan cost (1.58M) differs from the fixture cost (922,656) because
-ops-qa has more rows; the measured 412.6 ms there is the figure PR-E rests on.
-The fixture does not reproduce that cost, so the fixture timings above are
-structural, not a claim about ops-qa.
+| work state | terraform fixture | active-work | terraform_state | sum |
+| --- | --- | --- | --- | --- |
+| 100% live backlog | realistic (141 rows) | 275 / 288 / 292 | 50 / 53 / 53 | 327 / 341 / 341 |
+| 100% live backlog | stress (10,360 rows) | 268 / 336 / 461 | 112 / 128 / 244 | 382 / 453 / 705 |
+| idle (0% live) | realistic | 127 / 148 / 151 | 51 / 57 / 60 | 179 / 203 / 208 |
+| idle (0% live) | stress | 133 / 213 / 325 | 194 / 240 / 420 | 326 / 532 / 547 |
 
-### Worst-case payload size
+Decision-16 bounds:
 
-Statement 25 is generation-blind with `rank <= $1` per locator (limit 50), so
-the row holds locators x at most 50 entries. It is not capped by locator count,
-and the live response is unbounded the same way. The fixture worst case:
+- sum of per-model `ok` medians at most 2.5 s: worst 0.38 s. PASS.
+- companion p95 at most interval/2 (5 s): worst 0.24 s. PASS.
+- sum p95 at most the interval (10 s): worst 0.71 s. PASS.
 
-- 9,840 entries (9,800 warnings plus 40 serials)
-- 4.8 to 5.1 MB of JSON text
-- 350 to 373 KB stored after TOAST compression
+The ops-qa P1 medians for the same pair (#4 1.02 s and #25 0.41 s, measured on
+the reader, not the primary) sum to about 1.43 s, still inside the 2.5 s bound;
+the primary-side figures are NOT_CHECKED until PR-F.
 
-The realistic ops-qa figure is about 92 rows. No cap was added: a cap would
-change the response and break equality with the live read.
+Caveat: on this fixture statement 25 takes 126 to 150 ms. Its plan is a bitmap
+index scan with 43 index searches, where ops-qa shows 13,475 skip-scan searches
+on `fact_records_scope_generation_idx` and 83k buffers. The fixture does not
+reproduce that plan, so the fixture timings understate the ops-qa cost. The
+bounds hold with large margin even at P1's 809 ms cold first run.
+
+### Payload size, TOAST, and the read buffers
+
+`TestStatusSummaryBloatTerraformLive` upserts a 141-entry terraform row (30
+serials and 111 warnings, about 69 KB of JSON, TOASTed) 4,000 times with a
+`VACUUM` after each 2,000: one heap page, 100% HOT updates, 0 dead tuples, TOAST
+relation 4,001 pages after round one and 4,447 after round two (+11%, so
+bounded by the write volume between vacuums, not by the number of updates). The
+keyed read touches 1 plan buffer and 13 serialization (TOAST) buffers and only
+`status_summary_snapshots`. The proof pins at most 8 plan buffers and 30 TOAST
+buffers. The `rows = CASE ...` option the ruling allowed was not needed.
+
+`TestStatusSummaryBloatTerraformWorstCaseLive` writes the worst case the
+statement allows on the fixture (9,840 entries, about 5 MB of JSON) 60 times:
+heap 1 page, TOAST 2,894 pages after vacuum, 1 plan buffer and 151
+serialization buffers on read, pinned at most 300. The size is not capped by
+locator count (`rank <= 50` is per locator and git backend warnings are one
+locator per repo and path); the live response is unbounded the same way, so no
+cap was added. The realistic ops-qa figure is 111 rows.
 
 ## Proof
 
-- `go/internal/storage/postgres/terraform/state/summary_test.go`: the round
-  trip equals the live read (including null `observed_at` and empty slices),
-  the malformed-serial skip matches live, a query error propagates, strict
-  decode rejects bad tuples, and the digest covers both statements, the limit,
-  and the concatenation boundary.
-- `go/internal/reducer/status/summary/companions_test.go`: two rows in one
-  transaction with one clock, one lock, one commit; per-row guard outcomes;
-  rollback when the companion fails; compute-before-write ordering; invalid
-  companions rejected; per-model counters and compute time.
-- `go/internal/storage/postgres/status/summary/terraform_reader_test.go`: the
-  fence order, whole-answer fallback, and the per-model flight.
-- `go/internal/reducer/status/summary/terraform_live_test.go`
-  (`TestTerraformModelServedEqualToLiveLive`, PostgreSQL 18): the served model
-  equals the live read at several fixture states, including empty.
-- `reducer-contention-gate.yml`, `enrollment_test.go`,
-  `scripts/lib/live_postgres_readiness_results.py`, and
-  `specs/live-tests.v1.yaml` enroll the new live test.
+- `go/internal/storage/postgres/terraform/state/summary_test.go`: the round trip
+  equals the live read (null `observed_at`, empty slices), the malformed-serial
+  skip matches live, a query error propagates, strict decode rejects bad tuples,
+  the digest covers both statements, the limit, and the concatenation boundary.
+- `go/internal/reducer/status/summary/companions_test.go`: nil `Companions`
+  leaves the single-model statement sequence unchanged; each model's lock,
+  clock, upsert and commit share one transaction and the two models use two;
+  per-row guard outcomes; companion compute, upsert and deadline failures leave
+  the first row committed; the companion still runs after a first-model failure;
+  `skipped_lock` between the two transactions, with the lock never taken, and
+  with the table missing; the one-interval companion budget; invalid companions;
+  per-model `passes_total` and `pass_duration_seconds`; `writer_up` for both
+  models; stored per-model compute time.
+- `status/summary/terraform_reader_test.go`: flag off, a fresh row equal to the
+  live read, the fallback matrix (missing, version, stale, decode, row_count,
+  not_installed, and a foreign version with an undecodable payload is `version`),
+  per-model decisions, and no row read when the route skips the evidence.
+- Live (PostgreSQL 18, in the reducer-contention-gate step):
+  `TestTerraformModelServedEqualToLiveLive` (empty, serials only, a few states,
+  past the per-locator rank cap, git backend warnings plus malformed generations,
+  and a late warning proving the comparison can differ),
+  `TestWriterKilledMidCompanionKeepsThePrimaryRowLive`,
+  `TestWritersBesideTheProductionClaimLoopLive` with both models (monotone
+  `as_of` per `model_key`, closed outcomes, zero claim errors, zero
+  writer-attributable lock waits, at least two `ok` passes per model), and the
+  two terraform bloat tests above.
+- Routes: `status_terraform_source_test.go` (carries, flag-off shape, absent when
+  the reader reports none, every skipped route absent even when the snapshot
+  carries a source), `TestOpenAPIDocumentsTheTerraformStateSource`, the status
+  package tests, and the regenerated render goldens.
 
-Performance Evidence: no before figure exists for the writer's second row. The
-pass at fixture scale takes a median 941 ms (active-work 575 ms, Terraform
-346 ms), within the 10 s interval and the 5 s stop line. With the flag on the
-snapshot read fell from 910 ms to 58 ms on the fixture; with the flag off no
-summary SQL runs and the response is byte-identical. The ops-qa 412.6 ms figure
-for statement 25 is the coordinator's P1 probe; this PR did not touch ops-qa.
-No deployed route p95 is claimed. The deployed A-B-A sweep and the primary-side
+Performance Evidence: the writer pass with both models measured a worst-case
+sum median of 0.38 s and a worst-case sum p95 of 0.71 s on the fixture, against
+the 10 s interval and the ruling's 2.5 s, 5 s and 10 s bounds, with the table in
+the shape and bloat bounds above. With the flag on, the snapshot read replaces
+the two Terraform statements with one keyed read of 1 plan buffer plus 13 TOAST
+buffers at the realistic payload. With the flag off no summary SQL runs and the
+response differs only by the additive `terraform_state_source` key. The ops-qa
+figure for statement 25 is the P1 probe; this PR did not touch ops-qa. No
+deployed route p95 is claimed. The deployed A-B-A sweep and the primary-side
 pass cost are PR-F.
 
 Observability Evidence: `eshu_dp_status_summary_writer_passes_total{model_key,
-outcome}` now has one sample per model per pass.
-`eshu_dp_status_summary_writer_model_compute_seconds{model_key}` is new and
-separates each model's statement time from the pass total.
-`eshu_dp_status_summary_writer_pass_duration_seconds` keeps its labels and is
-labeled with the first model key. `eshu_dp_status_summary_read_total{model_key,
-source, reason}` counts reads with `model_key=terraform_state`.
-`eshu_dp_status_snapshot_read_duration_seconds` has the new
-`read=terraform_state_model` value. The `postgres.status_snapshot` span carries
-`status.terraform_state.source`, `.as_of_age_seconds`, and `.fallback_reason`.
-A fallback logs a Warn at most once a minute per model and reason. At 3 AM,
-`sum by (model_key, source, reason)
-(rate(eshu_dp_status_summary_read_total[5m]))` says which model is being served
-and why a fallback happens. Label sets are closed; coverage rows are in
+outcome}` and `eshu_dp_status_summary_writer_pass_duration_seconds{model_key,
+outcome}` are recorded once per model transaction, with `model_key` gaining the
+closed value `terraform_state`. `eshu_dp_status_summary_writer_up{model_key}` is
+set for every model. `eshu_dp_status_summary_writer_overrun_total` stays one
+event per pass, and its Warn carries every model's milliseconds. The pass span
+carries one `status_summary.model` event per model with `model_key`, `as_of`,
+`pass_ms`, `compute_ms`, `row_count` and `outcome`. `eshu_dp_status_summary_read_total{model_key,
+source,reason}` counts reads with `model_key=terraform_state`.
+`eshu_dp_status_snapshot_read_duration_seconds` has the value
+`read=terraform_state_model`. The `postgres.status_snapshot` span carries
+`status.terraform_state.source`, `.as_of_age_seconds`,
+`.as_of_age_signed_seconds`, and `.fallback_reason`. A fallback logs a Warn at
+most once a minute per model and reason. At 3 AM, `sum by (model_key, source,
+reason) (rate(eshu_dp_status_summary_read_total[5m]))` says which model is served
+and why a fallback happens, and `absent(eshu_dp_status_summary_writer_up{
+model_key="terraform_state"})` says the writer is off or old. Label sets are
+closed and the coverage rows are in
 `docs/public/observability/telemetry-coverage.md`.
 
-## Decisions where the ruling was silent
+## Decisions where the rulings were silent
 
-1. The row stores Go-decoded rows, not SQL-JSON-wrapped statement output. This
-   leaves statements 24 and 25 byte for byte, and the live decoder is the only
-   decoder.
-2. `Runner.Companions []Statement` carries the extra models. The first model
-   keeps its field so PR-A's wiring is unchanged.
-3. `passes_total` gets one sample per model per pass. The pass-duration
-   histogram keeps its labels and uses the first model key.
-4. `Report.TerraformStateSource` reuses the `ActiveWorkSource` type. It is not
-   rendered in any response because the assignment says to ask before adding
-   public fields.
-5. No new flags. The three descriptions in the env registry now name both
-   models.
-6. The stored payload is not capped (see Worst-case payload size).
-7. The warn limiter is keyed by model and reason. The message changed from
-   "live active-work statement" to "live statement".
-8. The writer interval default is unchanged.
+1. A first model that skipped on the lock or the missing table leaves the
+   companion unattempted with the same outcome and no transaction or duration
+   sample. This avoids a second lock probe and the lock-gap duplicate compute.
+2. A first model that errored or was rejected by its guard does not stop the
+   companion.
+3. The pass-level `Pass.Outcome`, `AsOf`, `RowCount` and `Err` are the first
+   model's. `Pass.Models` holds every model's own result.
+4. The per-model detail is span events and structured logs, not child spans, to
+   avoid a new span name.
+5. `Report.TerraformStateSource` reuses the `ActiveWorkSource` Go type (the
+   ruling allowed either).
+6. The render goldens now also carry `active_work_source` (the fixture sets both
+   markers), closing a gap in the PR-C key lock.
+7. The `NULL observed_at` case is proven hermetically only: the live columns
+   are `NOT NULL`.
+8. The worst-case payload is not capped (see above).
 
 ## NOT_CHECKED
 
 - The `postgres:18-alpine` image and a real Actions run, including the
-  contention-gate step time with the new live test.
-- The golden-corpus and B-12 comparator.
-- Deployed or ops-qa behavior and the primary-side pass cost (PR-F).
-- `mkdocs build --strict` and the registry-selected gates on the final tree
-  (the coordinator runs them).
+  contention-gate step time with the new live tests.
+- The golden-corpus and B-12 comparator (the key is additive and the comparator
+  checks required fields).
+- The ops-qa plan for statement 25 and the primary-side pass cost (PR-F).
+- A server `statement_timeout` shorter than the companion budget.
+- `mkdocs build --strict` and the registry-selected gates on the final tree (the
+  coordinator runs them).
+- The #7660 comment: the coordinator posts it.
