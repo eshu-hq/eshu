@@ -34,7 +34,7 @@ evidence note for #7009).
 | --- | --- |
 | `source` | `model`: a stored row that passed every check. `live`: the stored-summary reader is off, so the live statement ran. `live_fallback`: the stored row could not be served, so the live statement answered the whole active-work part of the report. |
 | `reason` | `fresh`, `flag_off`, `missing` (no row yet), `not_installed` (migration 161 not applied), `version` (the row came from another schema or statement version), `row_count`, `stale`, or `decode`. |
-| `as_of` | When the active-work counts are true. For `model` it is the stored row's `as_of`; otherwise it is the snapshot clock. |
+| `as_of` | When the active-work counts are true. For `model` it is the stored row's `as_of`; otherwise it is the snapshot clock, or, for a read that shared another read's live statement, the clock that statement ran at. |
 | `age_seconds` | How old the served data was at the read, from the database clock. `0` for a live read. |
 | `stale` | `true` when the served data is older than the limit. A stored row that is too old is never served, so this is `false` on every route above; `reason: stale` says the live statement answered because the row was too old. It is reserved for the runtime `/metrics` scrape. |
 

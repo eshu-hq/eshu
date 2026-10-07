@@ -64,7 +64,11 @@ per-transaction store. `NewStatusStore` reads no environment and allocates no
 `Flight`. Hosted runtimes build their store once through
 `NewInstrumentedStatusStore`, which reads the environment once; their store
 reports a bad value through `StartupError()` and `MountStatusServer` fails the
-mount. Hosted runtimes run each statement in autocommit, not in one snapshot
+mount. The ingester, reducer and projector wrap the store in
+`WithRetryPolicies`, and the API and MCP path in `WithSemanticProviderProfiles`,
+so both wrappers and the trusted reader forward the error through
+`status.ReaderStartupError`; tests mount a failing reader through each wrapper
+alone and stacked. Hosted runtimes run each statement in autocommit, not in one snapshot
 transaction, so the clock read and the row read are separate statements there;
 a writer commit between them can only make the age negative, which clamps to
 zero.
@@ -182,10 +186,10 @@ The evidence-bundle route (`evidence_bundle_live.go`) and the
 freshness-causality route render queue, stage, backlog, and blockage data from
 the same report and do not carry `active_work_source`, so with the reader on they
 would serve stored data with no marker. Their typed schemas and consumers (the
-evidence bundle CLI) make them a separate change. A follow-up issue (to be
-opened by the coordinator) covers both, plus triage of what the control-plane
-and governance routes render from the report; it must be closed before the
-default of `ESHU_STATUS_SUMMARY_READ_ENABLED` flips to `true` in PR-F.
+evidence bundle CLI) make them a separate change. Follow-up issue #7660 covers
+both, plus triage of what the control-plane and governance routes render from
+the report; it must be closed before the default of
+`ESHU_STATUS_SUMMARY_READ_ENABLED` flips to `true` in PR-F.
 
 ## NOT_CHECKED
 

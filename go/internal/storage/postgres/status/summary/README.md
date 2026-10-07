@@ -91,8 +91,10 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
   glue. The settings and the `Flight` live in the `ModelReader`.
 - `Flight`: shares one in-flight live statement per process among concurrent
   fallbacks; a follower stops waiting when its own context ends, and runs its
-  own call when the leader fails. The process builds one reader (and so one
-  `Flight`) at startup; a store built per transaction must not own one.
+  own call when the leader fails (so a failed leader makes every follower run
+  its own live statement: a stampede by design, bounded by the status read
+  limit). The process builds one reader (and so one `Flight`) at startup; a
+  store built per transaction must not own one.
 - `Observe`: the read counter, the served-age histogram, the
   `status.active_work.*` span attributes, and the rate-limited fallback Warn.
 
