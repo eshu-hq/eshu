@@ -96,7 +96,7 @@ func TestScrapeNeverRunsTheLiveStatementWhenTheRowCannotBeServed(t *testing.T) {
 		{"schema version", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion+1, sha, 4, good)}, "version"},
 		{"source digest", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, "other", 4, good)}, "version"},
 		{"row count", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 9, good)}, "row_count"},
-		{"stale", &sourceQueryer{installed: true, row: storedRow(sourceTestNow.Add(-34*time.Second), summary.SchemaVersion, sha, 4, good)}, "stale"},
+		{"stale and not decodable", &sourceQueryer{installed: true, row: storedRow(sourceTestNow.Add(-34*time.Second), summary.SchemaVersion, sha, 1, `{"x":1}`)}, "stale"},
 		{"payload not decodable", &sourceQueryer{installed: true, row: storedRow(sourceTestAsOf.Add(-time.Second), summary.SchemaVersion, sha, 1, `{"x":1}`)}, "decode"},
 	} {
 		t.Run(tc.name+" with no earlier row serves the zero summary", func(t *testing.T) {
@@ -122,8 +122,8 @@ func TestScrapeNeverRunsTheLiveStatementWhenTheRowCannotBeServed(t *testing.T) {
 
 // TestScrapeServesTheLastDecodedRowWithAnAdvancingAge proves the last row is
 // served as stale, never as fresh: its age comes from the row's as_of and the
-// database clock at each read, so it keeps growing, and no byte of the
-// rejected row reaches the answer.
+// database clock at each read, so it keeps growing, and an older stale row
+// never replaces a newer one the process holds.
 func TestScrapeServesTheLastDecodedRowWithAnAdvancingAge(t *testing.T) {
 	t.Parallel()
 
@@ -138,8 +138,8 @@ func TestScrapeServesTheLastDecodedRowWithAnAdvancingAge(t *testing.T) {
 		t.Fatalf("first scrape = %+v, want model", fresh.ActiveWorkSource)
 	}
 
-	// The writer stops: the stored row is now far older than the limit and
-	// carries a different count that a stale serve would show.
+	// The stored row is replaced by one that is older than the held row, far
+	// past the limit, and carries a count a wrong serve would show.
 	other := []summary.Entry{
 		{Section: "stage", Ordinal: 1, JSON: `{"stage":"reducer","status":"pending","count":999}`},
 		{Section: "queue", Ordinal: 1, JSON: queueEntryJSON},
@@ -163,7 +163,7 @@ func TestScrapeServesTheLastDecodedRowWithAnAdvancingAge(t *testing.T) {
 			t.Fatalf("scrape at +%v queue oldest age = %v, want %v", advance, snapshot.Queue.OldestOutstandingAge, want)
 		}
 		if len(snapshot.StageCounts) != 1 || snapshot.StageCounts[0].Count != 2 {
-			t.Fatalf("scrape at +%v stages = %+v, want the last decoded row's count 2, never the rejected row's 999", advance, snapshot.StageCounts)
+			t.Fatalf("scrape at +%v stages = %+v, want the held row's count 2, never the older stale row's 999", advance, snapshot.StageCounts)
 		}
 	}
 	if inner.liveRuns.Load() != 0 {
@@ -273,5 +273,106 @@ func TestScrapeHoldsOneBoundedLastRowUnderConcurrentScrapes(t *testing.T) {
 	}
 	if inner.liveRuns.Load() != 0 {
 		t.Fatalf("live statement ran %d times, want 0", inner.liveRuns.Load())
+	}
+}
+
+// TestScrapeServesAStaleRowANewProcessNeverServed is the restart case: a
+// process that starts while the writer is down finds only a stale row. The row
+// is the newest it can decode, so it is served as last_row with stale=true, its
+// real age, and its own counts with the ages advanced, never the zero summary.
+// A stale row that cannot be trusted (it does not decode) still serves zero, and
+// the API path on the same row still runs the live statement.
+func TestScrapeServesAStaleRowANewProcessNeverServed(t *testing.T) {
+	t.Parallel()
+
+	sha := pgstatus.ActiveWorkSummarySourceSHA256()
+	storedAt := sourceTestNow.Add(-100 * time.Second)
+	q := &sourceQueryer{installed: true, row: storedRow(storedAt, summary.SchemaVersion, sha, 4, encodedEntries(t, goodEntries()...))}
+	snapshot := scrapeSnapshot(t, readerStore(q, true))
+
+	got := snapshot.ActiveWorkSource
+	if got.Source != statuspkg.ActiveWorkSourceLastRow || got.Reason != statuspkg.ActiveWorkReasonStale || !got.Stale {
+		t.Fatalf("source = %+v, want last_row/stale with stale=true", got)
+	}
+	if !got.AsOf.Equal(storedAt) || got.Age != 100*time.Second {
+		t.Fatalf("as_of/age = %v/%v, want %v/100s", got.AsOf, got.Age, storedAt)
+	}
+	if want := 105 * time.Second; snapshot.Queue.OldestOutstandingAge != want {
+		t.Fatalf("queue oldest age = %v, want 5s stored + 100s age", snapshot.Queue.OldestOutstandingAge)
+	}
+	if snapshot.Queue.Outstanding != 2 || len(snapshot.StageCounts) != 1 || snapshot.StageCounts[0].Count != 2 ||
+		len(snapshot.DomainBacklogs) != 1 || len(snapshot.QueueBlockages) != 1 {
+		t.Fatalf("the stale row's counts were not served: queue=%+v stages=%+v", snapshot.Queue, snapshot.StageCounts)
+	}
+	if q.liveRuns.Load() != 0 {
+		t.Fatalf("live statement ran %d times, want 0", q.liveRuns.Load())
+	}
+
+	// The status route on the same stale row is unchanged: the live statement.
+	api := &sourceQueryer{installed: true, row: storedRow(storedAt, summary.SchemaVersion, sha, 4, encodedEntries(t, goodEntries()...))}
+	apiSnapshot := readSnapshot(t, readerStore(api, true))
+	if a := apiSnapshot.ActiveWorkSource; a.Source != statuspkg.ActiveWorkSourceLiveFallback || a.Reason != statuspkg.ActiveWorkReasonStale || a.Stale || api.liveRuns.Load() != 1 {
+		t.Fatalf("status route on a stale row = %+v with %d live runs, want live_fallback/stale and 1", a, api.liveRuns.Load())
+	}
+}
+
+// TestScrapeKeepsTheNewestStaleRowOverAnOlderHeldRow: a stale row newer than the
+// held one replaces it, so the served age is the newest data's.
+func TestScrapeKeepsTheNewestStaleRowOverAnOlderHeldRow(t *testing.T) {
+	t.Parallel()
+
+	sha := pgstatus.ActiveWorkSummarySourceSHA256()
+	held := sourceTestNow.Add(-5 * time.Second)
+	inner := &sourceQueryer{installed: true, row: storedRow(held, summary.SchemaVersion, sha, 4, encodedEntries(t, goodEntries()...))}
+	q := newClockedQueryer(inner, sourceTestNow)
+	store := readerStore(q, true)
+	scrapeSnapshot(t, store)
+
+	newer := sourceTestNow.Add(10 * time.Second)
+	inner.row = storedRow(newer, summary.SchemaVersion, sha, 4, encodedEntries(t, goodEntries()...))
+	q.set(sourceTestNow.Add(100 * time.Second))
+	got := scrapeSnapshot(t, store).ActiveWorkSource
+	if got.Source != statuspkg.ActiveWorkSourceLastRow || !got.AsOf.Equal(newer) || got.Age != 90*time.Second {
+		t.Fatalf("source = %+v, want last_row at the newer stale row's as_of with age 90s", got)
+	}
+}
+
+// TestSelectDecodesAStaleRowOnlyWhenAsked pins the API path: without
+// DecodeStale a stale row is a plain fallback carrying nothing, and with it the
+// same row carries its stored entries; a foreign or undecodable stale row
+// carries nothing either way.
+func TestSelectDecodesAStaleRowOnlyWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	sha := pgstatus.ActiveWorkSummarySourceSHA256()
+	good := encodedEntries(t, goodEntries()...)
+	staleAt := sourceTestNow.Add(-100 * time.Second)
+	cfg := summary.SelectConfig{ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: sha, StaleAfter: 33 * time.Second}
+	for _, tc := range []struct {
+		name        string
+		row         []any
+		decodeStale bool
+		wantStored  int
+		wantReason  summary.Reason
+	}{
+		{"off", storedRow(staleAt, summary.SchemaVersion, sha, 4, good), false, 0, summary.ReasonStale},
+		{"on", storedRow(staleAt, summary.SchemaVersion, sha, 4, good), true, 4, summary.ReasonStale},
+		{"on but foreign", storedRow(staleAt, summary.SchemaVersion, "other", 4, good), true, 0, summary.ReasonVersion},
+		{"on but not decodable", storedRow(staleAt, summary.SchemaVersion, sha, 1, `{"x":1}`), true, 0, summary.ReasonStale},
+		{"on but an age key is not a number", storedRow(staleAt, summary.SchemaVersion, sha, 1,
+			encodedEntries(t, summary.Entry{Section: "queue", Ordinal: 1, JSON: `{"oldest_outstanding_age_seconds":"soon"}`})), true, 0, summary.ReasonStale},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := cfg
+			c.DecodeStale = tc.decodeStale
+			got, err := summary.Select(context.Background(), &sourceQueryer{installed: true, row: tc.row}, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Source != summary.SourceLiveFallback || got.Reason != tc.wantReason || len(got.Stored) != tc.wantStored || got.Entries != nil {
+				t.Fatalf("selection = %+v, want live_fallback/%s with %d stored entries and no served entries", got, tc.wantReason, tc.wantStored)
+			}
+		})
 	}
 }

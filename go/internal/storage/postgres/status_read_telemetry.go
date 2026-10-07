@@ -167,8 +167,8 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selecti
 }
 
 // readActiveWorkScrape answers the scrape path: a fresh stored row, else the
-// process's last decoded row, else the zero summary, and never the live
-// statement. The marker carries Stale for the last two and the row's age at
+// newest row the process can decode (a stale one included), else the zero
+// summary, and never the live statement. The marker carries Stale for the last two and the row's age at
 // this read. A database error fails the read, like every other status read.
 func (s StatusStore) readActiveWorkScrape(ctx context.Context) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
 	result, err := s.summaryReader.ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
@@ -176,7 +176,7 @@ func (s StatusStore) readActiveWorkScrape(ctx context.Context) (activeWorkSummar
 			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.Config.StaleAfter,
+				StaleAfter: s.summaryReader.Config.StaleAfter, DecodeStale: true,
 			})
 			return selection, done(err)
 		},

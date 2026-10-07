@@ -134,7 +134,7 @@ func newSummaryScrapeQueryer(now time.Time) *summaryScrapeQueryer {
 // TestStatusMetricsExportsTheSummaryMarker drives the handler end to end over
 // the production store: a fresh row exports stale 0 and its age; a stale or
 // missing row after a fresh one serves the last row and exports stale 1 with an
-// age that keeps growing; a process with no row exports stale 1 and age -1. In
+// age that keeps growing; a process with no row exports stale 1 and age NaN. In
 // every case the live active-work statement runs zero times.
 func TestStatusMetricsExportsTheSummaryMarker(t *testing.T) {
 	t.Parallel()
@@ -145,22 +145,22 @@ func TestStatusMetricsExportsTheSummaryMarker(t *testing.T) {
 
 	// No row yet: the zero summary.
 	body := scrapeBody(t, store)
-	assertGauge(t, body, "eshu_runtime_status_summary_stale", "1")
-	assertGauge(t, body, "eshu_runtime_status_summary_age_seconds", "-1")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_age_seconds", "NaN")
 
 	// A fresh row 10 s old.
 	queryer.rows = scrapeRow(t, now.Add(-10*time.Second))
 	body = scrapeBody(t, store)
-	assertGauge(t, body, "eshu_runtime_status_summary_stale", "0")
-	assertGauge(t, body, "eshu_runtime_status_summary_age_seconds", "10")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "0")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_age_seconds", "10")
 	assertLine(t, body, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
 
 	// The writer stops: the row is 100 s old at the next scrape, so the last
 	// row is served stale, 110 s old, with its stored 5 s age advanced.
 	queryer.now = now.Add(100 * time.Second)
 	body = scrapeBody(t, store)
-	assertGauge(t, body, "eshu_runtime_status_summary_stale", "1")
-	assertGauge(t, body, "eshu_runtime_status_summary_age_seconds", "110")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_age_seconds", "110")
 	assertLine(t, body, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 115`)
 	assertLine(t, body, `eshu_runtime_stage_items{service_name="collector-git",stage="reducer",status="pending"} 2`)
 
@@ -168,8 +168,8 @@ func TestStatusMetricsExportsTheSummaryMarker(t *testing.T) {
 	queryer.rows = nil
 	queryer.now = now.Add(200 * time.Second)
 	body = scrapeBody(t, store)
-	assertGauge(t, body, "eshu_runtime_status_summary_stale", "1")
-	assertGauge(t, body, "eshu_runtime_status_summary_age_seconds", "210")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_age_seconds", "210")
 
 	if got := inventoryOf(queryer.Queries).activeWork; got != 0 {
 		t.Fatalf("active-work statements = %d, want 0", got)
@@ -213,7 +213,7 @@ func TestSummaryMarkerRendersOnlyForTheScrapeSources(t *testing.T) {
 	}{
 		{"fresh", statuspkg.ActiveWorkSource{Source: "model", Reason: "fresh", Age: 2500 * time.Millisecond}, "0", "2.5"},
 		{"last row", statuspkg.ActiveWorkSource{Source: "last_row", Reason: "stale", Age: 90 * time.Second, Stale: true}, "1", "90"},
-		{"zero", statuspkg.ActiveWorkSource{Source: "zero", Reason: "missing", Stale: true}, "1", "-1"},
+		{"zero", statuspkg.ActiveWorkSource{Source: "zero", Reason: "missing", Stale: true}, "1", "NaN"},
 		{"live", statuspkg.ActiveWorkSource{Source: "live", Reason: "flag_off"}, "", ""},
 		{"live fallback", statuspkg.ActiveWorkSource{Source: "live_fallback", Reason: "stale"}, "", ""},
 		{"unreported", statuspkg.ActiveWorkSource{}, "", ""},
@@ -228,8 +228,8 @@ func TestSummaryMarkerRendersOnlyForTheScrapeSources(t *testing.T) {
 				}
 				return
 			}
-			assertGauge(t, out, "eshu_runtime_status_summary_stale", tc.stale)
-			assertGauge(t, out, "eshu_runtime_status_summary_age_seconds", tc.age)
+			assertGauge(t, out, "svc", "eshu_runtime_status_summary_stale", tc.stale)
+			assertGauge(t, out, "svc", "eshu_runtime_status_summary_age_seconds", tc.age)
 		})
 	}
 }
@@ -241,9 +241,9 @@ func assertLine(t *testing.T, body, line string) {
 	}
 }
 
-func assertGauge(t *testing.T, body, name, want string) {
+func assertGauge(t *testing.T, body, service, name, want string) {
 	t.Helper()
-	line := name + `{model_key="active_work_summary"} ` + want + "\n"
+	line := name + `{model_key="active_work_summary",service_name="` + service + `"} ` + want + "\n"
 	if !strings.Contains(body, line) {
 		t.Fatalf("scrape lacks %q:\n%s", line, body)
 	}
@@ -294,6 +294,28 @@ func TestStatusMetricsDatabaseErrorFailsTheScrape(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "status_summary") {
 		t.Fatalf("a failed scrape carried a summary gauge: %s", rec.Body.String())
 	}
+	if got := inventoryOf(queryer.Queries).activeWork; got != 0 {
+		t.Fatalf("active-work statements = %d, want 0", got)
+	}
+}
+
+// TestStatusMetricsAfterARestartDuringAWriterOutageServeTheStaleRow is the
+// restart case end to end: a new process finds only a row 100 s old. It must
+// export that row's counts with stale 1 and its real age, not zeros with a
+// healthy state, so a queue alert on the pod keeps seeing the stall.
+func TestStatusMetricsAfterARestartDuringAWriterOutageServeTheStaleRow(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	queryer := newSummaryScrapeQueryer(now)
+	queryer.rows = scrapeRow(t, now.Add(-100*time.Second))
+	store := postgres.NewStatusStore(queryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second}))
+
+	body := scrapeBody(t, store)
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_age_seconds", "100")
+	assertLine(t, body, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 105`)
+	assertLine(t, body, `eshu_runtime_queue_outstanding{service_name="collector-git"} 2`)
 	if got := inventoryOf(queryer.Queries).activeWork; got != 0 {
 		t.Fatalf("active-work statements = %d, want 0", got)
 	}

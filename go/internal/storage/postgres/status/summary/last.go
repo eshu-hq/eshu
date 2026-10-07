@@ -35,6 +35,14 @@ func (l *lastRow) remember(entries []Entry, asOf time.Time) {
 	l.held = true
 }
 
+// newer reports whether a row at asOf would replace the held row, so the caller
+// skips validating a row that remember would refuse.
+func (l *lastRow) newer(asOf time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return !l.held || asOf.After(l.asOf)
+}
+
 // recall returns the held entries and their as_of; ok is false when the
 // process has not served a fresh row yet. Entry values are immutable strings
 // and AddAge never modifies its input, so the slice is shared.

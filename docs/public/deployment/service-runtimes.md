@@ -200,8 +200,9 @@ configuration.
   version runs the live statement for the whole answer; the status payload's
   `active_work_source` object and `eshu_dp_status_summary_read_total{source,reason}`
   report which path answered. A runtime's `/metrics` scrape never falls back
-  to the live statement: a stale or missing row serves the last row that
-  process decoded, or an empty summary when it has none, and exports
+  to the live statement: a stale or missing row serves the newest row that
+  process can decode (a stale one included, with its true age), or an empty
+  summary when it can decode none, and exports
   `eshu_runtime_status_summary_stale 1` and
   `eshu_runtime_status_summary_age_seconds`. The scrape also skips the
   Terraform-state, collector fact-evidence, and registry collector reads it

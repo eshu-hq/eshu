@@ -104,7 +104,7 @@ func registerStatusSummaryReadInstruments(meter metric.Meter, inst *Instruments)
 	}
 	if inst.StatusSummaryScrapes, err = meter.Int64Counter(
 		"eshu_dp_status_summary_scrape_total",
-		metric.WithDescription("Runtime /metrics scrapes of the active-work summary by model_key, source (model: a fresh stored row; last_row: the last row this process served, now stale; zero: the empty summary because the process has served no row), and reason (fresh, missing, not_installed, version, row_count, stale, decode)"),
+		metric.WithDescription("Runtime /metrics scrapes of the active-work summary by model_key, source (model: a fresh stored row; last_row: the newest row this process can decode, now stale; zero: the empty summary because the process can decode no row), and reason (fresh, missing, not_installed, version, row_count, stale, decode)"),
 	); err != nil {
 		return fmt.Errorf("register StatusSummaryScrapes counter: %w", err)
 	}

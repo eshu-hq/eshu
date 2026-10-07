@@ -41,7 +41,8 @@
 //
 // ReadScrape is the same decision for the runtime /metrics scrape, which must
 // never run the live statement: it serves a fresh row and remembers it, and
-// otherwise serves the last row the process served, aged to the read, or the
+// otherwise serves the newest row the process can decode (a fresh row it served,
+// or a stale one Select decoded under DecodeStale), aged to the read, or the
 // zero summary, marked stale (SourceLastRow, SourceZero). ObserveScrape records
 // its counter, span attributes, and rate-limited warning.
 //

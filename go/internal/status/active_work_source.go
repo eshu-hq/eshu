@@ -16,13 +16,14 @@ const (
 	// ActiveWorkSourceLiveFallback is the live statement, run because the
 	// stored row could not be served; ActiveWorkSource.Reason says why.
 	ActiveWorkSourceLiveFallback = "live_fallback"
-	// ActiveWorkSourceLastRow is the last stored row the process decoded,
-	// served because the current row could not be (the runtime /metrics scrape
-	// only, SnapshotSelection.StoredActiveWorkOnly). Its Age is the time since
-	// that row's as_of and Stale is true.
+	// ActiveWorkSourceLastRow is the newest stored row the process can decode (a
+	// fresh row it served earlier, or a stale one), served because the current
+	// row could not be served fresh (the runtime /metrics scrape only,
+	// SnapshotSelection.StoredActiveWorkOnly). Its Age is the time since that
+	// row's as_of and Stale is true.
 	ActiveWorkSourceLastRow = "last_row"
 	// ActiveWorkSourceZero is the empty summary, served on the same scrape path
-	// when the process has decoded no row yet. It has no AsOf, Age is zero, and
+	// when the process has no decodable row. It has no AsOf, Age is zero, and
 	// Stale is true.
 	ActiveWorkSourceZero = "zero"
 )

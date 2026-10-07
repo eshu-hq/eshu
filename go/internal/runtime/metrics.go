@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -222,7 +223,7 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 		)
 	}
 	writeCoordinatorMetrics(writeGauge, serviceName, report.Coordinator)
-	writeSummaryMarker(writeGauge, report.ActiveWorkSource)
+	writeSummaryMarker(writeGauge, serviceName, report.ActiveWorkSource)
 
 	return builder.String()
 }
@@ -232,6 +233,7 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 // scrape with the reader off is byte-identical to one from before the reader.
 func writeSummaryMarker(
 	writeGauge func(name string, labels map[string]string, value string),
+	serviceName string,
 	source statuspkg.ActiveWorkSource,
 ) {
 	switch source.Source {
@@ -239,13 +241,18 @@ func writeSummaryMarker(
 	default:
 		return
 	}
-	labels := map[string]string{telemetry.MetricDimensionModelKey: summary.ModelActiveWorkSummary}
+	labels := map[string]string{
+		"service_name":                    serviceName,
+		telemetry.MetricDimensionModelKey: summary.ModelActiveWorkSummary,
+	}
 	stale, age := "0", strconv.FormatFloat(source.Age.Seconds(), 'f', -1, 64)
 	if source.Stale {
 		stale = "1"
 	}
 	if source.Source == statuspkg.ActiveWorkSourceZero {
-		age = "-1" // no row was ever served, so there is no age to report
+		// No row was ever decodable, so there is no age: NaN is the exposition
+		// format's value for it, and PromQL comparisons drop it.
+		age = strconv.FormatFloat(math.NaN(), 'f', -1, 64)
 	}
 	writeGauge(telemetry.RuntimeStatusSummaryStaleMetric, labels, stale)
 	writeGauge(telemetry.RuntimeStatusSummaryAgeSecondsMetric, labels, age)

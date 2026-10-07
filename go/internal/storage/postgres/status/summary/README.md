@@ -115,9 +115,13 @@ ahead of its data, get a correct later pass rejected, and make the reader's
 
 `ModelReader.ReadScrape` serves the runtime `/metrics` scrape and never runs the
 live statement (`Hooks` has a live step; `ScrapeHooks` has none). It runs
-`Select`, serves a fresh row and remembers its entries as stored, and otherwise
-serves the remembered row with its ages advanced by the database clock minus its
-`as_of` at this read, or the zero summary (`Decode(nil)`) when none is held. The
+`Select` with `DecodeStale` set, serves a fresh row and remembers its entries as
+stored, and otherwise serves the newest row it can decode with its ages advanced by the database clock minus its
+`as_of` at this read, or the zero summary (`Decode(nil)`) when it can decode none.
+The newest row is the remembered one or, on a stale row that passes the version,
+row count, decode, and age-key checks, that stale row itself (`Selection.Stored`),
+so a process that restarts during a writer outage serves the stored counts, not
+zeros. A status route leaves `DecodeStale` off and is unchanged. The
 result is `SourceModel`, `SourceLastRow`, or `SourceZero`, and `Stale` is true for
 the last two. `lastRow` holds one row per `ModelReader`, is safe for concurrent
 scrapes, and never moves back in time. A database error is returned. The

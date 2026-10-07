@@ -126,11 +126,18 @@ func TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive(t *testing.T) {
 	// limit sees it as stale and the process serves its last row instead.
 	mustExec(ctx, t, database, `UPDATE status_summary_snapshots SET as_of = as_of - interval '10 minutes'`)
 	short := scrapeStatusStore(pool, true, time.Minute)
-	if got := scrape(short).ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceZero || got.Reason != statuspkg.ActiveWorkReasonStale || !got.Stale {
-		t.Fatalf("a process with no earlier row scraped %+v, want zero/stale", got)
+	// A process that never served a row (a restart during the outage) serves
+	// the stale row itself, with its real age and its own counts: never zeros.
+	restart := scrape(short)
+	if got := restart.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLastRow || got.Reason != statuspkg.ActiveWorkReasonStale ||
+		!got.Stale || got.Age < 10*time.Minute {
+		t.Fatalf("a process with no earlier row scraped %+v, want last_row/stale at least 10 minutes old", got)
+	}
+	if restart.Queue.Outstanding != fresh.Queue.Outstanding || restart.Queue.OldestOutstandingAge < 10*time.Minute {
+		t.Fatalf("restart queue = %+v, want the stale row's counts (%d outstanding) with ages past 10 minutes", restart.Queue, fresh.Queue.Outstanding)
 	}
 	mustExec(ctx, t, database, `UPDATE status_summary_snapshots SET as_of = as_of + interval '10 minutes'`)
-	scrape(short) // fresh under the one minute limit: this process now holds a row
+	scrape(short) // fresh under the one minute limit: it replaces the older stale row this process held
 	mustExec(ctx, t, database, `UPDATE status_summary_snapshots SET as_of = as_of - interval '10 minutes'`)
 	time.Sleep(30 * time.Millisecond)
 	stale := scrape(short)

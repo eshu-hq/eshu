@@ -85,11 +85,14 @@ down, slow, or running another version.
 A runtime's `/metrics` scrape reads the stored row with the same fences and
 never runs the live statement, because a scrape from every pod would turn a
 stopped writer into a herd of expensive statements. A fresh row is served; a
-stale, missing, foreign, or undecodable row serves the last row that process
-decoded, with its ages advanced to the read, or an empty summary when the process
-has decoded none. `eshu_runtime_status_summary_stale{model_key}` is `0` for a
-fresh row and `1` otherwise, and `eshu_runtime_status_summary_age_seconds{model_key}`
-is the served row's age (`-1` for the empty summary). A database error fails the
+stale or missing row serves the newest row that process can decode, stale
+included, with its ages advanced to the read: a pod that restarts while the
+writer is down serves the stored counts with their true age, not zeros. A
+foreign, miscounted, or undecodable row serves an empty summary when the process
+has no other decodable row. `eshu_runtime_status_summary_stale{service_name,model_key}`
+is `0` for a fresh row and `1` otherwise, and
+`eshu_runtime_status_summary_age_seconds{service_name,model_key}` is the served
+row's age (`NaN` for the empty summary). A database error fails the
 scrape like any other failed status read
 (`eshu_runtime_status_snapshot_available 0`). With the reader off neither gauge
 is rendered and the scrape is unchanged.

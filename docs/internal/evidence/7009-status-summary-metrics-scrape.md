@@ -36,8 +36,9 @@ one, else the zero summary, and in both cases the scrape exports
 | `Select` outcome | Served | `source` | `stale` |
 | --- | --- | --- | --- |
 | fresh row, decodes | the row, ages advanced by its age | `model` | `0` |
+| stale row that passes version, row_count, decode and age-key checks, newer than any held row | that stale row (`Select` with `DecodeStale`), ages advanced by its age at this read | `last_row` | `1` |
 | any other outcome, process holds a row | the held row, ages advanced by the database clock minus its `as_of` at this read | `last_row` | `1` |
-| any other outcome, process holds none | the zero summary | `zero` | `1` |
+| any other outcome, process can decode no row | the zero summary | `zero` | `1` |
 | database error | the scrape fails (HTTP 500, `eshu_runtime_status_snapshot_available 0`) | none | none |
 
 The held row is one row per `ModelReader`: the process-wide reader the hosted
@@ -86,7 +87,8 @@ omitted sections populated instead.
   for the process (`NewInstrumentedStatusStore`, copied by pointer into every
   store wrapper). It holds at most one row: the entries as the writer stored
   them and the row's `as_of`.
-- Writers: any scrape that serves a fresh row calls `remember`. Readers: any
+- Writers: any scrape that serves a fresh row, or finds a newer stale row that
+  decodes, calls `remember`. Readers: any
   scrape that cannot serve a fresh row calls `recall`. Both take one
   `sync.Mutex` for a few field reads or writes; nothing is held across a
   database call or a decode.
@@ -118,8 +120,11 @@ Hermetic, `go test -race -count=1` per package:
 
 - `summary`: fresh row served with no live statement; every reason a status read
   would fall back on (table missing, row missing, schema version, digest, row
-  count, stale, payload) serves the zero summary on a new process with zero live
-  statements; a held row is served with an age that advances with the database
+  count, stale-and-undecodable, payload) serves the zero summary on a new process
+  with zero live statements; a valid stale row on a new process serves that row
+  (`last_row/stale`, its counts, ages advanced, real age) and the API path on it
+  is unchanged; an older stale row never replaces a newer held row and a newer
+  one does; a held row is served with an age that advances with the database
   clock and is never the rejected row's data; a row that goes missing keeps the
   held row; a clock read error fails the read with no live statement; the
   reader off runs the live statement once; 16 goroutines scraping together under
@@ -128,7 +133,8 @@ Hermetic, `go test -race -count=1` per package:
   counter, span attributes, and rate-limited Warn.
 - `internal/runtime`: the statement inventory over the production
   `StatusStore`; the end-to-end scrape over the production store (zero summary,
-  fresh row, last row at +100 s and +200 s, row deleted); the gauge text per
+  fresh row, last row at +100 s and +200 s, row deleted, a restart against a 100 s
+  old row); the gauge text per
   source; a database error is a 500 with no gauge and no live statement; the
   reader-off scrape is byte-identical to the scrape from the selection before
   this change; the selection pin.
@@ -142,7 +148,7 @@ Live, on PostgreSQL 18.6 (native, private cluster, loopback), enrolled in the
   row written by the production writer is served equal to the live statement at
   the same data and clock; after the row ages past the limit, is deleted, or its
   table is dropped, the process serves its last row stale with a growing age; a
-  new process serves the zero summary; the live active-work statement runs zero
+  a new process serves the stale row itself (age past 10 minutes, its own counts) and, with the table dropped, the zero summary; the live active-work statement runs zero
   times.
 - `TestScrapeStatementInventoryOnAnEmptyStoreLive`: the statement inventory on a
   real empty database, with the selection captured from the production handler
@@ -184,9 +190,9 @@ scrape's age gauge.
 
 ## Observability Evidence
 
-- `eshu_runtime_status_summary_stale{model_key}` and
-  `eshu_runtime_status_summary_age_seconds{model_key}` per-scrape gauges, only
-  while the reader is on. Age is `-1` for the zero summary.
+- `eshu_runtime_status_summary_stale{service_name,model_key}` and
+  `eshu_runtime_status_summary_age_seconds{service_name,model_key}` per-scrape
+  gauges, only while the reader is on. Age is `NaN` for the zero summary.
 - `eshu_dp_status_summary_scrape_total{model_key, source, reason}` counter;
   `source` is `model`, `last_row`, or `zero`.
 - The current span carries `status.active_work.source`, `as_of_age_seconds`, and
@@ -201,22 +207,35 @@ stale or empty summary; `sum by (source, reason)
 says for how long. The reducer's `eshu_dp_status_summary_writer_passes_total`
 says whether the writer is the cause.
 
-## Decisions where the ruling was silent
+## Arbiter rulings applied (B/7009-pr-d-decisions-ruling-20261007.md)
 
-- A database error fails the scrape (500), not a stale serve. The other 20
-  statements run on the same connection pool and would fail with it; the
-  composite handler already reports a failed snapshot as
-  `eshu_runtime_status_snapshot_available 0`.
-- The age gauge is `-1` for the zero summary: there is no row and so no age.
-  Alert on the stale gauge, not on this value alone.
-- A stale row that this process never decoded is not served: the process serves
-  the zero summary. The ruling says "the last decoded row"; a valid stale row at
-  process start is therefore reported as zero, not as its own old data.
+- A database error fails the scrape (500, `eshu_runtime_status_snapshot_available 0`),
+  not a stale serve and not a live run. The other statements of the scrape run
+  on the same pool and would fail with it.
+- The age gauge for the zero summary is `NaN`, not a sentinel number: the
+  exposition format's value for "no number", dropped by every PromQL comparison.
+- A valid stale row this process never served is served, not zeroed: `Select`
+  with `DecodeStale` (set by the scrape hook alone) decodes a stale row that
+  passed the version and row_count fences and whose age keys can be advanced, and
+  `ReadScrape` keeps it as the last row when it is newer than the one held and the
+  production decoder accepts it. A pod that restarts during a writer outage
+  therefore exports the stored counts with their true age, so a queue-age alert
+  keeps seeing the stall, and the health gauge is evaluated on real counts. A
+  stale row that is foreign, miscounted, or undecodable still serves the zero
+  summary, with its own reason. Status routes leave `DecodeStale` off: the API
+  path on a stale row is statement- and byte-identical (`live_fallback/stale`).
 - The scrape drops the fact-evidence and registry collector reads with the reader
-  on or off. The ruling asks the executor to verify from `renderStatusMetrics`
-  before narrowing; it is output-neutral, so it is not gated on the flag.
+  on or off, because it renders neither. Hosted runtimes therefore stop
+  emitting `eshu_dp_status_snapshot_read_duration_seconds{read="registry_collectors"}`
+  and `{read="collector_fact_evidence"}`; the API and MCP routes still do.
 - The scrape counter carries `reason` as well as `source`, so a stale serve says
   why (writer down versus a rolling upgrade).
+- The two gauges carry `service_name` as well as `model_key`, like every other
+  gauge the renderer writes, because the shipped alert rules join on
+  `service_name`.
+- The held row is updated only by a fresh serve that decodes or by a newer stale
+  row that decodes; a fresh row that fails decode serves the held row with reason
+  `decode`.
 
 ## Safety
 

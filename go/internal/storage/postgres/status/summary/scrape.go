@@ -53,9 +53,10 @@ func (r *ModelReader[T]) Enabled() bool {
 
 // ReadScrape answers a poll that must never run the live statement (the
 // runtime /metrics scrape). A row that passes every fence is served and
-// remembered. Anything else is served from the last row this process served
-// as fresh, advanced by its age at this read, or from the zero summary when
-// there is none, and is marked stale; the live statement is never an option,
+// remembered. Anything else is served from the newest row this process can
+// decode (a fresh row it served, or a stale row Select decoded under
+// DecodeStale), advanced by its age at this read, or from the zero summary when
+// it has none, and is marked stale; the live statement is never an option,
 // because a scrape from every process would turn a stopped writer into a herd
 // of expensive statements. A database error is returned: it is neither a stale
 // serve nor a live run. Call it only when Enabled; a reader that is off has no
@@ -76,6 +77,15 @@ func (r *ModelReader[T]) ReadScrape(ctx context.Context, h ScrapeHooks[T]) (Scra
 			return result, nil
 		}
 		reason = ReasonDecode
+	}
+	// A stale row this process has not served is still the newest row it can
+	// decode: keep it as the last row when it is newer than the one held and the
+	// production decoder accepts it, so a restart during a writer outage exports
+	// the stored counts with their true age instead of zeros.
+	if selection.Stored != nil && r.last.newer(selection.AsOf.UTC()) {
+		if _, err := h.Decode(selection.Stored); err == nil {
+			r.last.remember(selection.Stored, selection.AsOf.UTC())
+		}
 	}
 	result := r.serveLastRow(h, selection.Now, reason)
 	h.Observe(ctx, scrapeObservation(result))

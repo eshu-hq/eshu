@@ -67,6 +67,11 @@ type SelectConfig struct {
 	SourceSHA256 string
 	// StaleAfter is the oldest age a row may have and still be served.
 	StaleAfter time.Duration
+	// DecodeStale makes a stale row that passes every other fence also decode,
+	// so the caller can keep it as its last row. The result is still a stale
+	// fallback with no Entries; only Stored is set. Only the runtime /metrics
+	// scrape sets it. A status route leaves it off and pays nothing for it.
+	DecodeStale bool
 }
 
 // Selection is the outcome of one Select.
@@ -89,8 +94,10 @@ type Selection struct {
 	// set only when Source is SourceModel.
 	Entries []Entry
 	// Stored is the same result before the age advance, as the writer stored
-	// it at AsOf. It is set only when Source is SourceModel. The scrape path
-	// keeps it as its last decoded row and advances it again at each read.
+	// it at AsOf. It is set when Source is SourceModel, and, only under
+	// SelectConfig.DecodeStale, on a stale fallback whose row decodes and can be
+	// aged. The scrape path keeps it as its last row and advances it again at
+	// each read.
 	Stored []Entry
 	// Now is the database clock the read used; zero only when the clock read
 	// failed.
@@ -142,7 +149,11 @@ func Select(ctx context.Context, queryer db.Queryer, cfg SelectConfig) (Selectio
 		return fallback(now, ReasonRowCount, row, age, signedAge), nil
 	}
 	if age > cfg.StaleAfter {
-		return fallback(now, ReasonStale, row, age, signedAge), nil
+		stale := fallback(now, ReasonStale, row, age, signedAge)
+		if cfg.DecodeStale {
+			stale.Stored = decodableStored(payload, row.RowCount, age)
+		}
+		return stale, nil
 	}
 	if row.Entries, err = DecodeEntries(payload); err != nil {
 		return fallback(now, ReasonDecode, row, age, signedAge), nil
@@ -155,6 +166,21 @@ func Select(ctx context.Context, queryer db.Queryer, cfg SelectConfig) (Selectio
 		return fallback(now, ReasonDecode, row, age, signedAge), nil
 	}
 	return Selection{Source: SourceModel, Reason: ReasonFresh, AsOf: row.AsOf, Age: age, Entries: entries, Stored: row.Entries, SignedAge: signedAge, Now: now}, nil
+}
+
+// decodableStored returns the entries of a row that passed the version and row
+// count fences when they decode, match the stored row_count, and their age keys
+// can be advanced; otherwise nil. It is the part of the fence order after
+// stale, run only for a caller that serves a stale row.
+func decodableStored(payload []byte, rowCount int, age time.Duration) []Entry {
+	entries, err := DecodeEntries(payload)
+	if err != nil || rowCount != len(entries) {
+		return nil
+	}
+	if _, err := AddAge(entries, max(age, time.Second)); err != nil {
+		return nil
+	}
+	return entries
 }
 
 // readRaw reads the row with the same keyed statement as Read but returns the

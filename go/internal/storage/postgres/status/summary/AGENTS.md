@@ -56,6 +56,6 @@
   writer stops. Never add a live hook or a `Flight` to it. It keeps one row per
   `ModelReader` unaged (`last.go`) and derives the age at each read from the
   database clock and the row's `as_of`; storing the aged entries would serve a
-  stale row as fresh. `Select` sets `Now` and `Stored` for it. Its source and
+  stale row as fresh. `Select` sets `Now` and `Stored` for it, and, only under `DecodeStale`, decodes a stale row that passed the other fences so a restarted process serves the newest decodable row; a status route must never set `DecodeStale`. Its source and
   reason values are closed sets matching `eshu_dp_status_summary_scrape_total`
   in the telemetry reference.
