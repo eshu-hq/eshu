@@ -31,8 +31,13 @@ listing entry points (`StaticWorkflowArtifactEvidence`,
 `LoadRepositoryScopedCICDEvidence`) and `...FromFiles` entry points that take
 the file list the caller already read. The repository story uses the latter so
 one `ListRepoFiles` read serves the semantic overview and every later stage
-(#7126); the two forms return identical evidence for the same files. A full 5,000-file
-page carries `candidate_pool_status=unknown_at_limit`: no observed workflows
+(#7126); the two forms return identical evidence for the same files. The listing
+entry points read `RepositorySemanticEntityLimit+1` rows and clip to the limit;
+the `...FromFiles` entry points take the clipped list plus a `filesTruncated`
+flag carrying the caller's sentinel (#7619). The candidate pool is unknown
+exactly when that sentinel row exists, so a repository with exactly 5,000 files
+is a complete scan. A truncated scan carries
+`candidate_pool_status=unknown_at_limit`: no observed workflows
 means `state=unknown`, while positive evidence keeps its observed count. The
 20-path display cap and 50-file image hydration cap remain separate. Stories
 preserve the candidate marker and add `static_workflow_coverage_unknown` to

@@ -74,7 +74,7 @@ const Routes = `
                           "properties": {
                             "state": {"type": "string", "enum": ["present", "absent", "unknown", "not_checked", "unavailable"], "description": "unknown means the bounded candidate file scan cannot establish workflow absence."},
                             "count": {"type": "integer", "description": "Workflow files observed in the candidate page; not a proven repository total when candidate coverage is uncertain."},
-                            "candidate_pool_status": {"type": "string", "enum": ["unknown_at_limit"], "description": "The path-ordered file page reached its 5,000-file limit. Additional files may or may not exist. Omitted for an uncapped page."},
+                            "candidate_pool_status": {"type": "string", "enum": ["unknown_at_limit"], "description": "The path-ordered file read returned a sentinel row past its 5,000-file limit, so files beyond the first 5,000 were not scanned. Omitted when the scan is complete, including a repository with exactly 5,000 files."},
                             "paths": {"type": "array", "items": {"type": "string"}},
                             "truncated": {"type": "boolean", "description": "The displayed workflow paths were shortened to 20. Separate from candidate_pool_status."},
                             "image_ref_count": {"type": "integer"},

@@ -31,6 +31,8 @@ candidate coverage marker.
 
 - A page at the limit carries `candidate_pool_status=unknown_at_limit`.
   Reaching exactly 5,000 rows does not establish that more rows exist.
+  (Superseded by #7619, see the amendment below: the marker now needs a
+  sentinel row past the limit, so an exact 5,000-file repository is complete.)
 - Zero observed workflows at the limit means `state=unknown`, with static
   reason `repository_file_scan_limit_reached`. Positive evidence keeps
   `state=present` and its observed count.
@@ -164,3 +166,38 @@ Offline replay did not waive this gate. The full corpus is uncapped and does
 not replace the boundary regressions above. Final publication review/gates,
 deployed row/value proof, cold/warm p95, owner deployment, and #7250 closure
 remain pending. This correctness change still does not fix latency.
+
+## #7619 amendment: exact-limit sentinel
+
+The #7250 rule above keyed the marker on `len(files) >= 5000`, so a repository
+with exactly 5,000 files, a complete scan, read `unknown_at_limit`. #7619
+replaces that with the cap+1 sentinel the repository story already used
+(#7126). The marker is set exactly when the file read returns a row past the
+limit.
+
+- `StaticWorkflowArtifactEvidence` (CI/CD HTTP, MCP, and
+  `LoadRepositoryScopedCICDEvidence`) reads `ListRepoFiles(..., 5001)`, treats a
+  5,001st row as `filesTruncated`, and clips to 5,000 before classification and
+  image evidence. Its read cost changes by one extra row on the same ordered,
+  repository-scoped read; the SQL is otherwise unchanged.
+- `StaticWorkflowArtifactEvidenceFromFiles` and
+  `LoadRepositoryScopedCICDEvidenceFromFiles` take the clipped list plus
+  `filesTruncated`. The repository story passes the file-read sentinel alone,
+  so an entity-only overflow does not make the workflow pool unknown, and it
+  still issues one `ListRepoFiles` call (limit 5,001).
+- The 4,999, 5,000, and 5,001 boundary is pinned for the direct path, the HTTP
+  and MCP handlers, and the story path. The exact-5,000 empty case reads
+  `absent` with no marker or reason, the exact-5,000 workflow case reads
+  `present` with no marker, and 5,001 files still read `unknown` or `present`
+  with the marker. A 5,001-file repository is never reported `absent`.
+- The shared golden `testdata/golden/capped-workflow-evidence.json` gained
+  `exactly_limit_empty` and `exactly_limit_present`; `capped_present` now uses
+  5,001 files with the workflow at ordinal 5,000.
+
+The benchmark tables above predate this change and describe the old `>=` rule;
+their "capped" rows are now the `exactly_limit` fixtures, which no longer carry
+the marker. They are not re-measured here, and the extra sentinel row on the
+direct path has no measured cost: NOT_CHECKED. Claims in this amendment that
+depend on the Neo4j B-7 golden gate (graph and API truth agreeing on a
+complete exact-5,000 repository) are NOT_CHECKED until the coordinator runs it.
+The offline boundary tests do not replace that gate.

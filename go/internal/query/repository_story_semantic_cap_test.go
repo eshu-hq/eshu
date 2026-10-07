@@ -23,8 +23,10 @@ import (
 type semanticListStore struct {
 	querycontract.ContentStore
 	entityCount, fileCount         int
+	workflowAt                     int // 1-based file ordinal served as a workflow; zero serves none
 	entityLimit, fileLimit         atomic.Int32
 	entityRequested, fileRequested atomic.Bool
+	fileCalls                      atomic.Int32
 }
 
 func (s *semanticListStore) ListRepoEntities(_ context.Context, repoID string, limit int) ([]querycontract.EntityContent, error) {
@@ -42,12 +44,17 @@ func (s *semanticListStore) ListRepoEntities(_ context.Context, repoID string, l
 
 func (s *semanticListStore) ListRepoFiles(_ context.Context, repoID string, limit int) ([]querycontract.FileContent, error) {
 	s.fileRequested.Store(true)
+	s.fileCalls.Add(1)
 	s.fileLimit.Store(int32(limit))
 	rows := make([]querycontract.FileContent, 0, min(limit, s.fileCount))
 	for i := 0; i < s.fileCount && i < limit; i++ {
 		rows = append(rows, querycontract.FileContent{
 			RepoID: repoID, RelativePath: fmt.Sprintf("svc/file%05d.go", i), Language: "go", ContentHash: "h",
 		})
+	}
+	if s.workflowAt > 0 && s.workflowAt <= len(rows) {
+		rows[s.workflowAt-1].ArtifactType = "GitHub_Actions_Workflow"
+		rows[s.workflowAt-1].Content = "name: CI\n" // inline content: no hydration read
 	}
 	return rows, nil
 }
@@ -67,20 +74,28 @@ func TestGetRepositoryStoryDisclosesSemanticReadTruncation(t *testing.T) {
 	for _, tc := range []struct {
 		name                   string
 		entityCount, fileCount int
+		workflowAt             int
 		wantTruncated          bool
+		wantStatic             string // "absent", "present", or "unknown"
+		wantMarker             bool   // candidate_pool_status=unknown_at_limit
 	}{
-		{"entities cap-1", limit - 1, 3, false},
-		{"entities cap", limit, 3, false},
-		{"entities cap+1", limit + 1, 3, true},
-		{"files cap-1", 3, limit - 1, false},
-		{"files cap", 3, limit, false},
-		{"files cap+1", 3, limit + 1, true},
+		{name: "entities cap-1", entityCount: limit - 1, fileCount: 3, wantStatic: "absent"},
+		{name: "entities cap", entityCount: limit, fileCount: 3, wantStatic: "absent"},
+		{name: "entities cap+1", entityCount: limit + 1, fileCount: 3, wantTruncated: true, wantStatic: "absent"},
+		// An entity-only overflow with exactly the file limit's rows is a
+		// complete file scan, so the workflow pool must not be marked unknown.
+		{name: "entities cap+1 files cap", entityCount: limit + 1, fileCount: limit, wantTruncated: true, wantStatic: "absent"},
+		{name: "files cap-1", entityCount: 3, fileCount: limit - 1, wantStatic: "absent"},
+		{name: "files cap", entityCount: 3, fileCount: limit, wantStatic: "absent"},
+		{name: "files cap workflow", entityCount: 3, fileCount: limit, workflowAt: limit, wantStatic: "present"},
+		{name: "files cap+1", entityCount: 3, fileCount: limit + 1, wantTruncated: true, wantStatic: "unknown", wantMarker: true},
+		{name: "files cap+1 workflow", entityCount: 3, fileCount: limit + 1, workflowAt: limit, wantTruncated: true, wantStatic: "present", wantMarker: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			store := &semanticListStore{
 				ContentStore: NewContentReader(openContentReaderTestDB(t, nil)),
-				entityCount:  tc.entityCount, fileCount: tc.fileCount,
+				entityCount:  tc.entityCount, fileCount: tc.fileCount, workflowAt: tc.workflowAt,
 			}
 			body := getSemanticCapStoryBody(t, store)
 
@@ -90,14 +105,20 @@ func TestGetRepositoryStoryDisclosesSemanticReadTruncation(t *testing.T) {
 			if got, want := int(store.fileLimit.Load()), limit+1; got != want {
 				t.Fatalf("ListRepoFiles limit = %d, want %d (cap plus one sentinel row)", got, want)
 			}
+			if got := store.fileCalls.Load(); got != 1 {
+				t.Fatalf("ListRepoFiles calls = %d, want 1 (the story shares one file read)", got)
+			}
 			summary := testutil.MustMapField(t, body, "ci_cd_evidence")
 			static := testutil.MustMapField(t, summary, "static_workflow_artifacts")
-			if tc.fileCount >= limit {
-				if static["state"] != "unknown" || static["candidate_pool_status"] != "unknown_at_limit" {
-					t.Fatalf("capped story static evidence = %#v, want unknown at limit", static)
+			if static["state"] != tc.wantStatic {
+				t.Fatalf("story static state = %#v, want %q (evidence %#v)", static["state"], tc.wantStatic, static)
+			}
+			if tc.wantMarker {
+				if static["candidate_pool_status"] != "unknown_at_limit" {
+					t.Fatalf("story static evidence = %#v, want candidate_pool_status unknown_at_limit", static)
 				}
-			} else if static["state"] != "absent" || static["candidate_pool_status"] != nil {
-				t.Fatalf("uncapped story static evidence = %#v, want absent without coverage marker", static)
+			} else if static["candidate_pool_status"] != nil || static["reason"] != nil {
+				t.Fatalf("story static evidence = %#v, want no coverage marker or reason", static)
 			}
 			limitations, _ := body["limitations"].([]any)
 			metadata, _ := body["answer_metadata"].(map[string]any)
