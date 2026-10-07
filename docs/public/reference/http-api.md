@@ -184,8 +184,9 @@ The content-backed selector routes map the same way (#7626): the
 content routes previously answered `400`), a graph-availability or graph
 deadline verdict on the repository routes answers `503`/`504`, and any other
 failed catalog or graph read answers `500` with the fixed message `repository
-selector lookup failed`, recorded on the request span, instead of `400` with
-the backend error text. The stats route keeps `504`, with the same fixed
+selector lookup failed`, recorded on the request span (on `POST
+/api/v0/iac/dead`, its handler span), instead of `400` with the backend error
+text. The stats route keeps `504`, with the same fixed
 message, when the selector read runs out its 2-second route budget. An
 unmatched selector stays `404`, except on `POST /api/v0/iac/dead`, which keeps
 its `400`; an ambiguous selector stays `400`.
