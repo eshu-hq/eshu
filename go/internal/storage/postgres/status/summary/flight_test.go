@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-// waitForWaiters blocks until a call for key is in flight and n callers wait on it.
+// waitForWaiters blocks until a call for key is in flight and n callers have
+// joined it (Waiting is a join count).
 func waitForWaiters[T any](t *testing.T, f *Flight[T], key string, n int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -230,5 +231,48 @@ func TestFlightFollowerStopsWaitingWhenItsOwnContextEnds(t *testing.T) {
 	close(release)
 	if v := <-leaderDone; v != 5 {
 		t.Fatalf("leader = %d, want 5", v)
+	}
+}
+
+// TestFlightWaitingCountsJoinersUntilTheLeaderEnds pins what Waiting reports: a
+// join count. A follower that cancels after joining has left, but it stays
+// counted until the leader ends. The tests that use Waiting as a barrier rely
+// on it never decreasing, so a decrement on the cancel path must fail here.
+func TestFlightWaitingCountsJoinersUntilTheLeaderEnds(t *testing.T) {
+	t.Parallel()
+
+	var (
+		f       Flight[int]
+		release = make(chan struct{})
+	)
+	leaderDone := make(chan struct{})
+	go func() {
+		defer close(leaderDone)
+		_, _, _ = f.Do(context.Background(), "k", func() (int, error) { <-release; return 1, nil })
+	}()
+	waitForWaiters(t, &f, "k", 0)
+	if got := f.Waiting("k"); got != 0 {
+		t.Fatalf("Waiting() with only the leader = %d, want 0", got)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	followerDone := make(chan error, 1)
+	go func() {
+		_, _, err := f.Do(ctx, "k", func() (int, error) { return 2, nil })
+		followerDone <- err
+	}()
+	waitForWaiters(t, &f, "k", 1)
+	cancel()
+	if err := <-followerDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("follower error = %v, want context.Canceled", err)
+	}
+	if got := f.Waiting("k"); got != 1 {
+		t.Fatalf("Waiting() after the follower left = %d, want 1: it counts joiners until the leader ends", got)
+	}
+
+	close(release)
+	<-leaderDone
+	if got := f.Waiting("k"); got != -1 {
+		t.Fatalf("Waiting() after the leader ended = %d, want -1", got)
 	}
 }

@@ -47,9 +47,11 @@ func NewModelReaderWithConfig[T any](cfg ReadConfig) *ModelReader[T] {
 	return &ModelReader[T]{Config: cfg}
 }
 
-// Waiting reports how many reads wait on the in-flight shared live statement,
-// or -1 when none is in flight. Tests use it to hold the leader until every
-// follower has joined.
+// Waiting reports how many reads have joined the in-flight shared live
+// statement as followers (including any that later left on their own context),
+// or -1 when none is in flight. Tests use it as a join barrier to hold the
+// leader until every follower has joined; it is not a count of reads still
+// blocked.
 func (r *ModelReader[T]) Waiting() int {
 	return r.flight.Waiting(flightKey)
 }

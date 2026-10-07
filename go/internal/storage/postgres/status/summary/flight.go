@@ -20,11 +20,11 @@ type Flight[T any] struct {
 }
 
 type flightCall[T any] struct {
-	done    chan struct{}
-	value   T
-	err     error
-	ok      bool // fn returned (did not panic)
-	waiting int
+	done   chan struct{}
+	value  T
+	err    error
+	ok     bool // fn returned (did not panic)
+	joined int  // callers that joined; never decremented, see Waiting
 }
 
 // Do runs fn once for concurrent callers of the same key. The first caller
@@ -42,7 +42,7 @@ func (f *Flight[T]) Do(ctx context.Context, key string, fn func() (T, error)) (v
 		f.calls = make(map[string]*flightCall[T])
 	}
 	if call, running := f.calls[key]; running {
-		call.waiting++
+		call.joined++
 		f.mu.Unlock()
 		select {
 		case <-call.done:
@@ -71,9 +71,12 @@ func (f *Flight[T]) Do(ctx context.Context, key string, fn func() (T, error)) (v
 	return call.value, false, call.err
 }
 
-// Waiting reports how many callers wait on the in-flight call for key, or -1
-// when none is in flight. Tests use it to release a leader only after every
-// follower has joined, which keeps a concurrency proof deterministic.
+// Waiting reports how many callers have joined the in-flight call for key as
+// followers, including a follower that has since left because its own context
+// ended, or -1 when no call is in flight. It is a join count, not a count of
+// callers still blocked: it never decreases while the call runs. Tests use it as
+// a barrier, to release a leader only after every follower has joined, which
+// keeps a concurrency proof deterministic.
 func (f *Flight[T]) Waiting(key string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -81,5 +84,5 @@ func (f *Flight[T]) Waiting(key string) int {
 	if !running {
 		return -1
 	}
-	return call.waiting
+	return call.joined
 }
