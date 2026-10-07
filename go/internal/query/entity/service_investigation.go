@@ -5,13 +5,13 @@ package entity
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // InvestigateService serves the service-investigation route. Exported so the staying graph-read-error test keeps driving the handler; see #6060.
@@ -98,7 +98,7 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 		if selector.WriteLookupFailure(w, r, err) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceInvestigationQueryFailedMessage)
 		return
 	}
 	if ctx == nil {
@@ -116,7 +116,7 @@ func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service investigation: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceInvestigationEnrichmentFailedMessage)
 		return
 	}
 
