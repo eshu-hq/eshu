@@ -50,6 +50,14 @@ func registerStatusSummaryWriterInstruments(meter metric.Meter, inst *Instrument
 	); err != nil {
 		return fmt.Errorf("register StatusSummaryWriterPassDuration histogram: %w", err)
 	}
+	if inst.StatusSummaryWriterModelCompute, err = meter.Float64Histogram(
+		"eshu_dp_status_summary_writer_model_compute_seconds",
+		metric.WithDescription("Time one model's statement took inside a status summary writer pass, by model_key"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(statusSummaryWriterPassBuckets...),
+	); err != nil {
+		return fmt.Errorf("register StatusSummaryWriterModelCompute histogram: %w", err)
+	}
 	if inst.StatusSummaryWriterOverruns, err = meter.Int64Counter(
 		"eshu_dp_status_summary_writer_overrun_total",
 		metric.WithDescription("Status summary writer passes that took longer than the writer interval, by model_key"),

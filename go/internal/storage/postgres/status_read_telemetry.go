@@ -16,6 +16,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
+	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -40,6 +41,7 @@ const (
 	statusReadVulnerabilitySources           = "vulnerability_sources"
 	statusReadCollectorFactEvidence          = "collector_fact_evidence"
 	statusReadTerraformState                 = "terraform_state"
+	statusReadTerraformStateModel            = "terraform_state_model"
 	statusReadSemanticExtraction             = "semantic_extraction"
 )
 
@@ -111,19 +113,53 @@ func recordActiveWorkSummaryMode(ctx context.Context, summary activeWorkSummary)
 	)
 }
 
-// StatusSummaryReader is the process-wide reader of the stored active-work
-// summary (#7009), built once at startup (see summary.ModelReader).
-type StatusSummaryReader = summary.ModelReader[activeWorkSummary]
+// StatusSummaryReader is the process-wide reader of the stored status summaries
+// (#7009), built once at startup: one summary.ModelReader per model, all under
+// the same settings, each with its own shared live statement.
+type StatusSummaryReader struct {
+	activeWork *summary.ModelReader[activeWorkSummary]
+	terraform  *summary.ModelReader[statestore.TerraformStateAdminEvidence]
+}
 
 // NewStatusSummaryReader loads ESHU_STATUS_SUMMARY_READ_ENABLED and
 // ESHU_STATUS_SUMMARY_STALE_AFTER; an invalid value while on is a startup error.
 func NewStatusSummaryReader(getenv func(string) string) (*StatusSummaryReader, error) {
-	return summary.NewModelReader[activeWorkSummary](getenv)
+	cfg, err := summary.LoadReadConfig(getenv)
+	if err != nil {
+		return nil, err
+	}
+	return NewStatusSummaryReaderWithConfig(cfg), nil
 }
 
 // NewStatusSummaryReaderWithConfig builds a reader from explicit settings.
 func NewStatusSummaryReaderWithConfig(cfg summary.ReadConfig) *StatusSummaryReader {
-	return summary.NewModelReaderWithConfig[activeWorkSummary](cfg)
+	return &StatusSummaryReader{
+		activeWork: summary.NewModelReaderWithConfig[activeWorkSummary](cfg),
+		terraform:  summary.NewModelReaderWithConfig[statestore.TerraformStateAdminEvidence](cfg),
+	}
+}
+
+// Waiting reports how many reads have joined the in-flight shared live
+// active-work statement (see summary.ModelReader.Waiting).
+func (r *StatusSummaryReader) Waiting() int { return r.activeWork.Waiting() }
+
+// TerraformWaiting is Waiting for the shared live Terraform-state statements.
+func (r *StatusSummaryReader) TerraformWaiting() int { return r.terraform.Waiting() }
+
+// active and terraformModel return the per-model readers, nil when there is no
+// process-wide reader (the stored summary is off).
+func (r *StatusSummaryReader) active() *summary.ModelReader[activeWorkSummary] {
+	if r == nil {
+		return nil
+	}
+	return r.activeWork
+}
+
+func (r *StatusSummaryReader) terraformModel() *summary.ModelReader[statestore.TerraformStateAdminEvidence] {
+	if r == nil {
+		return nil
+	}
+	return r.terraform
 }
 
 // readActiveWork returns the active-work summary and where it came from: the
@@ -134,15 +170,15 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selecti
 	if s.startupErr != nil {
 		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.startupErr
 	}
-	if selection.StoredActiveWorkOnly && s.summaryReader.Enabled() {
+	if selection.StoredActiveWorkOnly && s.summaryReader.active().Enabled() {
 		return s.readActiveWorkScrape(ctx)
 	}
-	result, err := s.summaryReader.Read(ctx, asOf, summary.Hooks[activeWorkSummary]{
+	result, err := s.summaryReader.active().Read(ctx, asOf, summary.Hooks[activeWorkSummary]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
 			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.Config.StaleAfter,
+				StaleAfter: s.summaryReader.activeWork.Config.StaleAfter,
 			})
 			return selection, done(err)
 		},
@@ -171,12 +207,12 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selecti
 // summary, and never the live statement. The marker carries Stale for the last two and the row's age at
 // this read. A database error fails the read, like every other status read.
 func (s StatusStore) readActiveWorkScrape(ctx context.Context) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
-	result, err := s.summaryReader.ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
+	result, err := s.summaryReader.active().ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
 			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.Config.StaleAfter, DecodeStale: true,
+				StaleAfter: s.summaryReader.activeWork.Config.StaleAfter, DecodeStale: true,
 			})
 			return selection, done(err)
 		},
@@ -216,4 +252,45 @@ func (s activeWorkSummary) clone() activeWorkSummary {
 		s.LatestFailure = &failure
 	}
 	return s
+}
+
+// readTerraformState returns the Terraform-state admin evidence and where it
+// came from: the stored terraform_state row when every fence passes, otherwise
+// the two live statements. The row has its own as_of and digest, so this
+// decision is independent of the active-work one.
+func (s StatusStore) readTerraformState(ctx context.Context, asOf time.Time) (statestore.TerraformStateAdminEvidence, statuspkg.ActiveWorkSource, error) {
+	if s.startupErr != nil {
+		return statestore.TerraformStateAdminEvidence{}, statuspkg.ActiveWorkSource{}, s.startupErr
+	}
+	result, err := s.summaryReader.terraformModel().Read(ctx, asOf, summary.Hooks[statestore.TerraformStateAdminEvidence]{
+		Select: func(ctx context.Context) (summary.Selection, error) {
+			q, done := s.read(ctx, statusReadTerraformStateModel)
+			selection, err := summary.Select(ctx, q, summary.SelectConfig{
+				ModelKey: summary.ModelTerraformState, SourceSHA256: statestore.SummarySourceSHA256(),
+				StaleAfter: s.summaryReader.terraform.Config.StaleAfter,
+			})
+			return selection, done(err)
+		},
+		Decode: statestore.DecodeSummaryEntries,
+		Live: func(ctx context.Context) (statestore.TerraformStateAdminEvidence, error) {
+			q, done := s.read(ctx, statusReadTerraformState)
+			evidence, err := statestore.ReadTerraformStateAdminEvidence(ctx, q, statuspkg.MaxTerraformStateRecentWarnings, asOf)
+			return evidence, done(err)
+		},
+		Clone: func(e statestore.TerraformStateAdminEvidence) statestore.TerraformStateAdminEvidence {
+			e.LastSerials = slices.Clone(e.LastSerials)
+			e.RecentWarnings = slices.Clone(e.RecentWarnings)
+			return e
+		},
+		Observe: func(ctx context.Context, selection summary.Selection) {
+			summary.Observe(ctx, s.Instruments, summary.Observation{
+				ModelKey: summary.ModelTerraformState, SpanPrefix: "status.terraform_state",
+				Source: selection.Source, Reason: selection.Reason,
+				AsOf: selection.AsOf, Age: selection.Age, SignedAge: selection.SignedAge,
+			})
+		},
+	})
+	return result.Value, statuspkg.ActiveWorkSource{
+		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age,
+	}, err
 }

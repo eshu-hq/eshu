@@ -82,10 +82,28 @@ type Statement struct {
 	Compute func(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]store.Entry, error)
 }
 
+// RowResult is one model's part of a pass that reached the row writes.
+type RowResult struct {
+	// ModelKey is the model's row key.
+	ModelKey string
+	// Outcome is OutcomeOK when the row's upsert advanced the stored as_of and
+	// OutcomeRejectedGuard when the guard kept a row that is as new or newer.
+	Outcome string
+	// RowCount is the number of entries the model's statement returned.
+	RowCount int
+	// Compute is the time the model's statement took inside the pass.
+	Compute time.Duration
+}
+
 // Pass reports one writer pass.
 type Pass struct {
-	// Outcome is one of the Outcome constants.
+	// Outcome is one of the Outcome constants. A pass with several models is
+	// OutcomeOK when any row advanced and OutcomeRejectedGuard when every
+	// row's guard rejected it; Rows has each model's own result.
 	Outcome string
+	// Rows holds one result per model, in statement order, for a pass that
+	// reached the row writes; empty for a pass that skipped or failed before.
+	Rows []RowResult
 	// AsOf is the database clock the pass bound, zero when it skipped before
 	// reading it.
 	AsOf time.Time
@@ -107,8 +125,14 @@ type Pass struct {
 type Runner struct {
 	// DB opens the pass transaction on the primary.
 	DB db.Beginner
-	// Statement is the model the runner writes.
+	// Statement is the first model the runner writes.
 	Statement Statement
+	// Companions are further models written by the same pass: each its own
+	// row with its own key, digest, as_of guard and compute time, under the
+	// pass's one transaction, lock and database clock. Their statements run
+	// after Statement's, and every row is written after every statement has
+	// run, so a slow statement never holds an earlier row's lock.
+	Companions []Statement
 	// Interval is the cadence; zero means DefaultInterval and anything below
 	// MinInterval is refused.
 	Interval time.Duration
@@ -210,28 +234,43 @@ func (r *Runner) pass(ctx context.Context) (result Pass) {
 	if !installed {
 		return Pass{Outcome: OutcomeSkippedMissingTable, AsOf: asOf}
 	}
-	computeStart := r.now()
-	entries, err := r.Statement.Compute(ctx, tx, asOf)
-	if err != nil {
-		return failed(fmt.Errorf("compute status summary %q: %w", r.Statement.ModelKey, err))
+	statements := r.statements()
+	computed := make([]computedRow, 0, len(statements))
+	for _, statement := range statements {
+		computeStart := r.now()
+		entries, err := statement.Compute(ctx, tx, asOf)
+		if err != nil {
+			return failed(fmt.Errorf("compute status summary %q: %w", statement.ModelKey, err))
+		}
+		computed = append(computed, computedRow{statement: statement, entries: entries, took: r.now().Sub(computeStart)})
 	}
-	row := store.Row{
-		ModelKey:      r.Statement.ModelKey,
-		SchemaVersion: store.SchemaVersion,
-		SourceSHA256:  r.Statement.SourceSHA256,
-		AsOf:          asOf,
-		PassDuration:  r.now().Sub(computeStart),
-		RowCount:      len(entries),
-		Entries:       entries,
-	}
-	result = Pass{AsOf: asOf, RowCount: row.RowCount}
-	advanced, err := store.Upsert(ctx, tx, row)
-	if errors.Is(err, store.ErrNotInstalled) {
-		result.Outcome = OutcomeSkippedMissingTable
-		return result
-	}
-	if err != nil {
-		return failed(err)
+	result = Pass{AsOf: asOf, RowCount: len(computed[0].entries)}
+	advancedAny := false
+	for _, c := range computed {
+		advanced, err := store.Upsert(ctx, tx, store.Row{
+			ModelKey:      c.statement.ModelKey,
+			SchemaVersion: store.SchemaVersion,
+			SourceSHA256:  c.statement.SourceSHA256,
+			AsOf:          asOf,
+			PassDuration:  c.took,
+			RowCount:      len(c.entries),
+			Entries:       c.entries,
+		})
+		if errors.Is(err, store.ErrNotInstalled) {
+			result.Rows = nil
+			result.Outcome = OutcomeSkippedMissingTable
+			return result
+		}
+		if err != nil {
+			return failed(err)
+		}
+		outcome := OutcomeRejectedGuard
+		if advanced {
+			outcome, advancedAny = OutcomeOK, true
+		}
+		result.Rows = append(result.Rows, RowResult{
+			ModelKey: c.statement.ModelKey, Outcome: outcome, RowCount: len(c.entries), Compute: c.took,
+		})
 	}
 	if err := tx.Commit(); err != nil {
 		committed = true // the driver ends the transaction on a failed commit
@@ -239,10 +278,23 @@ func (r *Runner) pass(ctx context.Context) (result Pass) {
 	}
 	committed = true
 	result.Outcome = OutcomeOK
-	if !advanced {
+	if !advancedAny {
 		result.Outcome = OutcomeRejectedGuard
 	}
 	return result
+}
+
+// computedRow is one model's statement result inside a pass.
+type computedRow struct {
+	statement Statement
+	entries   []store.Entry
+	took      time.Duration
+}
+
+// statements returns the pass's statements: the first model, then the
+// companions.
+func (r *Runner) statements() []Statement {
+	return append([]Statement{r.Statement}, r.Companions...)
 }
 
 // readPassClock reads the pass's database clock and whether the model table
@@ -294,8 +346,30 @@ func (r *Runner) validate() error {
 		return fmt.Errorf("status summary writer %q: statement source digest is required", r.Statement.ModelKey)
 	case r.Statement.Compute == nil:
 		return fmt.Errorf("status summary writer %q: statement compute is required", r.Statement.ModelKey)
+	case r.validateCompanions() != nil:
+		return r.validateCompanions()
 	case r.Interval != 0 && r.Interval < MinInterval:
 		return fmt.Errorf("status summary writer: interval %s is below the %s floor", r.Interval, MinInterval)
+	}
+	return nil
+}
+
+// validateCompanions checks each companion statement like the first one and
+// refuses a model key used twice, since two rows cannot share a key.
+func (r *Runner) validateCompanions() error {
+	seen := map[string]bool{r.Statement.ModelKey: true}
+	for _, c := range r.Companions {
+		switch {
+		case strings.TrimSpace(c.ModelKey) == "":
+			return errors.New("status summary writer: companion model key is required")
+		case strings.TrimSpace(c.SourceSHA256) == "":
+			return fmt.Errorf("status summary writer %q: companion source digest is required", c.ModelKey)
+		case c.Compute == nil:
+			return fmt.Errorf("status summary writer %q: companion compute is required", c.ModelKey)
+		case seen[c.ModelKey]:
+			return fmt.Errorf("status summary writer: model key %q is used twice", c.ModelKey)
+		}
+		seen[c.ModelKey] = true
 	}
 	return nil
 }

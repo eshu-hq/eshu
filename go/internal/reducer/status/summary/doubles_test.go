@@ -27,10 +27,13 @@ type fakeDatabase struct {
 	tableInstalled bool
 	clock          time.Time
 	upsertAffected int64
-	upsertErr      error
-	beginErr       error
-	commitErr      error
-	execErr        error
+	// upsertAffectedSeq, when set, gives the affected-row count of the nth
+	// upsert in a pass; later upserts use upsertAffected.
+	upsertAffectedSeq []int64
+	upsertErr         error
+	beginErr          error
+	commitErr         error
+	execErr           error
 
 	begun      int
 	committed  int
@@ -40,7 +43,9 @@ type fakeDatabase struct {
 	// statement, so a test can prove the lock and the upsert share one.
 	txOf       map[string][]int
 	upsertArgs []any
-	lockArgs   []any
+	// upsertCalls holds the arguments of every upsert, in order.
+	upsertCalls [][]any
+	lockArgs    []any
 }
 
 func newFakeDatabase(clock time.Time) *fakeDatabase {
@@ -91,9 +96,14 @@ func (t *fakeTx) ExecContext(ctx context.Context, query string, args ...any) (sq
 		t.record("upsert")
 		t.db.mu.Lock()
 		t.db.upsertArgs = args
+		t.db.upsertCalls = append(t.db.upsertCalls, args)
+		nth := len(t.db.upsertCalls) - 1
 		t.db.mu.Unlock()
 		if t.db.upsertErr != nil {
 			return nil, t.db.upsertErr
+		}
+		if nth < len(t.db.upsertAffectedSeq) {
+			return driverResult(t.db.upsertAffectedSeq[nth]), nil
 		}
 		return driverResult(t.db.upsertAffected), nil
 	}

@@ -209,6 +209,9 @@ PACKAGES = {
             "TestScrapeStatementInventoryOnAnEmptyStoreLive",
             "TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive",
         ),
+        "go/internal/reducer/status/summary/terraform_live_test.go": (
+            "TestTerraformModelServedEqualToLiveLive",
+        ),
     },
 }
 EXPECTED = {

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	snapshots "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
+	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
 )
 
 // TestStatusSummaryWriterIsOffByDefault proves the writer is not built, so no
@@ -58,6 +59,19 @@ func TestStatusSummaryWriterBuiltWhenEnabled(t *testing.T) {
 	}
 	if runner.Statement.SourceSHA256 != postgres.ActiveWorkSummarySourceSHA256() {
 		t.Fatalf("source digest = %q, want the storage statement's digest", runner.Statement.SourceSHA256)
+	}
+	if len(runner.Companions) != 1 {
+		t.Fatalf("companions = %d, want the terraform_state model", len(runner.Companions))
+	}
+	companion := runner.Companions[0]
+	if companion.ModelKey != snapshots.ModelTerraformState || companion.Compute == nil {
+		t.Fatalf("companion = %+v, want a wired terraform_state statement", companion)
+	}
+	if companion.SourceSHA256 != statestore.SummarySourceSHA256() {
+		t.Fatalf("companion digest = %q, want the Terraform-state statements' digest", companion.SourceSHA256)
+	}
+	if companion.SourceSHA256 == runner.Statement.SourceSHA256 {
+		t.Fatal("the two models share a digest; each row must carry its own statement's")
 	}
 }
 

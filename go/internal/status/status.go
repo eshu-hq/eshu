@@ -183,6 +183,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		SemanticExtraction:             semantic.NormalizeExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
 		ActiveWorkSource:               raw.ActiveWorkSource,
+		TerraformStateSource:           raw.TerraformStateSource,
 		CollectorGenerationDeadLetters: collector.CloneGenerationDeadLetterSnapshot(raw.CollectorGenerationDeadLetters),
 		CollectorFactEvidence:          collector.CloneFactEvidence(raw.CollectorFactEvidence),
 		AWSCloudScansTruncated:         raw.AWSCloudScansTruncated,

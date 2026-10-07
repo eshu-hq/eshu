@@ -41,16 +41,45 @@ func (r *Runner) record(ctx context.Context, pass Pass) {
 		span.RecordError(pass.Err)
 		span.SetStatus(codes.Error, "status summary writer pass failed")
 	}
-	if r.Instruments != nil {
-		attrs := metric.WithAttributes(telemetry.AttrModelKey(modelKey), telemetry.AttrOutcome(pass.Outcome))
-		if r.Instruments.StatusSummaryWriterPasses != nil {
-			r.Instruments.StatusSummaryWriterPasses.Add(ctx, 1, attrs)
+	for _, row := range pass.Rows {
+		span.AddEvent("status_summary.row", trace.WithAttributes(
+			attribute.String("eshu.status_summary.model_key", row.ModelKey),
+			attribute.String("eshu.status_summary.outcome", row.Outcome),
+			attribute.Int("eshu.status_summary.row_count", row.RowCount),
+			attribute.Float64("eshu.status_summary.compute_ms", milliseconds(row.Compute)),
+		))
+	}
+	r.recordCounters(ctx, pass)
+	r.logPass(ctx, pass)
+}
+
+// recordCounters emits the pass counter once per model with that model's own
+// outcome (a pass that never reached the row writes counts for every model
+// with the pass outcome), the per-model compute histogram for each row, and
+// one pass duration sample under the first model's key.
+func (r *Runner) recordCounters(ctx context.Context, pass Pass) {
+	if r.Instruments == nil {
+		return
+	}
+	passes, compute := r.Instruments.StatusSummaryWriterPasses, r.Instruments.StatusSummaryWriterModelCompute
+	if len(pass.Rows) > 0 {
+		for _, row := range pass.Rows {
+			if passes != nil {
+				passes.Add(ctx, 1, metric.WithAttributes(telemetry.AttrModelKey(row.ModelKey), telemetry.AttrOutcome(row.Outcome)))
+			}
+			if compute != nil {
+				compute.Record(ctx, row.Compute.Seconds(), metric.WithAttributes(telemetry.AttrModelKey(row.ModelKey)))
+			}
 		}
-		if r.Instruments.StatusSummaryWriterPassDuration != nil {
-			r.Instruments.StatusSummaryWriterPassDuration.Record(ctx, pass.Duration.Seconds(), attrs)
+	} else if passes != nil {
+		for _, statement := range r.statements() {
+			passes.Add(ctx, 1, metric.WithAttributes(telemetry.AttrModelKey(statement.ModelKey), telemetry.AttrOutcome(pass.Outcome)))
 		}
 	}
-	r.logPass(ctx, pass)
+	if duration := r.Instruments.StatusSummaryWriterPassDuration; duration != nil {
+		duration.Record(ctx, pass.Duration.Seconds(),
+			metric.WithAttributes(telemetry.AttrModelKey(r.Statement.ModelKey), telemetry.AttrOutcome(pass.Outcome)))
+	}
 }
 
 // logPass writes the pass's structured log line at the level its outcome

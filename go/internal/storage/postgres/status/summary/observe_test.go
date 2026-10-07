@@ -142,16 +142,16 @@ func TestWarnLimiterAllowsOncePerMinutePerReason(t *testing.T) {
 
 	var limiter warnLimiter
 	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
-	if !limiter.allow(ReasonStale, start) {
+	if !limiter.allow(string(ReasonStale), start) {
 		t.Fatal("the first stale fallback must log")
 	}
-	if limiter.allow(ReasonStale, start.Add(59*time.Second)) {
+	if limiter.allow(string(ReasonStale), start.Add(59*time.Second)) {
 		t.Fatal("a second stale fallback inside a minute logged again")
 	}
-	if !limiter.allow(ReasonMissing, start.Add(time.Second)) {
+	if !limiter.allow(string(ReasonMissing), start.Add(time.Second)) {
 		t.Fatal("a different reason shares the stale reason's budget")
 	}
-	if !limiter.allow(ReasonStale, start.Add(time.Minute)) {
+	if !limiter.allow(string(ReasonStale), start.Add(time.Minute)) {
 		t.Fatal("the stale fallback did not log again after a minute")
 	}
 }
