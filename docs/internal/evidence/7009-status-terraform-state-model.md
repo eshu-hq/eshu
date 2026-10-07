@@ -92,14 +92,21 @@ bounds hold with large margin even at P1's 809 ms cold first run.
 
 ### Payload size, TOAST, and the read buffers
 
-`TestStatusSummaryBloatTerraformLive` upserts a 141-entry terraform row (30
-serials and 111 warnings, about 69 KB of JSON, TOASTed) 4,000 times with a
-`VACUUM` after each 2,000: one heap page, 100% HOT updates, 0 dead tuples, TOAST
-relation 4,001 pages after round one and 4,447 after round two (+11%, so
-bounded by the write volume between vacuums, not by the number of updates). The
-keyed read touches 1 plan buffer and 13 serialization (TOAST) buffers and only
-`status_summary_snapshots`. The proof pins at most 8 plan buffers and 30 TOAST
-buffers. The `rows = CASE ...` option the ruling allowed was not needed.
+The realistic size is the ops-qa one: about 111 warning rows, which the
+ruling puts at about 35 KB. This proof's entries are larger than ops-qa's
+(about 490 bytes each with full 64-character hashes and generation ids), so
+two sizes were measured, each with 4,000 upserts and a `VACUUM` after each
+2,000. Both keep one heap page, 100% HOT updates, and 0 dead tuples, and the
+TOAST relation grows by 10-11% in the second round (bounded by the write volume
+between vacuums, not by the number of updates). The keyed read touches only
+`status_summary_snapshots`.
+
+| payload | test | TOAST pages (round 1 / 2) | read buffers (plan / TOAST) | pinned at |
+| --- | --- | --- | --- | --- |
+| 34,583 bytes, 72 entries (the ops-qa size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
+| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 | 1 / 13 | 8 / 30 |
+
+The `rows = CASE ...` option the ruling allowed was not needed.
 
 `TestStatusSummaryBloatTerraformWorstCaseLive` writes the worst case the
 statement allows on the fixture (9,840 entries, about 5 MB of JSON) 60 times:
@@ -136,7 +143,7 @@ cap was added. The realistic ops-qa figure is 111 rows.
   `TestWritersBesideTheProductionClaimLoopLive` with both models (monotone
   `as_of` per `model_key`, closed outcomes, zero claim errors, zero
   writer-attributable lock waits, at least two `ok` passes per model), and the
-  two terraform bloat tests above.
+  three terraform bloat tests above.
 - Routes: `status_terraform_source_test.go` (carries, flag-off shape, absent when
   the reader reports none, every skipped route absent even when the snapshot
   carries a source), `TestOpenAPIDocumentsTheTerraformStateSource`, the status

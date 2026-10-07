@@ -70,6 +70,20 @@ func TestStatusSummaryBloatTerraformLive(t *testing.T) {
 	})
 }
 
+// TestStatusSummaryBloatTerraformOpsQaScaleLive is the same proof at the ops-qa
+// payload: about 111 warning rows at roughly 300 bytes each, about 35 KB. The
+// proof's rows are larger per entry (full 64-character hashes and generation
+// ids), so 20 serials and 52 warnings land at that size.
+func TestStatusSummaryBloatTerraformOpsQaScaleLive(t *testing.T) {
+	random := rand.New(rand.NewSource(7011))
+	runBloatProof(t, func(i int) summary.Row {
+		return terraformBloatRow(random, proofAsOf.Add(time.Duration(i)*time.Second), 20, 52)
+	}, bloatBounds{
+		model: summary.ModelTerraformState, wantToast: true,
+		minPayload: 28000, maxPayload: 45000, maxReadBuffers: 8, maxToastBuffers: 20,
+	})
+}
+
 // TestStatusSummaryBloatTerraformWorstCaseLive measures the worst case the
 // statement allows on the fixture: about 9,800 warning rows, 4.8-5.1 MB of
 // payload. It upserts far fewer times (each write is megabytes) and only

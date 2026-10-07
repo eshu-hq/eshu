@@ -841,7 +841,7 @@ tests:
   - file: go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7009 disposable PostgreSQL 18 bloat and read-buffer proof of the terraform_state status summary row (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts of a 141-entry, about 69 KB TOASTed payload then VACUUM leave a one-page heap, a bounded TOAST relation, HOT updates, and a read that touches only status_summary_snapshots in at most 8 plan buffers and 30 TOAST buffers; a 5 MB worst-case row stays bounded and is read in 151 TOAST buffers"
+    reason: "#7009 disposable PostgreSQL 18 bloat and read-buffer proof of the terraform_state status summary row (also a blocking step of the reducer-contention-gate workflow, fail-closed through ESHU_REQUIRE_STATUS_SUMMARY_PROOF): 4,000 upserts of a 72-entry (about 35 KB, the ops-qa size) and of a 141-entry (about 69 KB) TOASTed payload then VACUUM leave a one-page heap, a bounded TOAST relation, HOT updates, and a read that touches only status_summary_snapshots in at most 8 plan buffers and 30 TOAST buffers; a 5 MB worst-case row stays bounded and is read in 151 TOAST buffers"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/status/summary/conflict_live_test.go
     tag: ~
