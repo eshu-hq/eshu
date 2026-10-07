@@ -2998,6 +2998,7 @@ gates:
       - "go/cmd/reducer/**"
       - "go/internal/reducer/maintenance/**"
       - "go/internal/testutil/postgresproof/**"
+      - "go/internal/reducer/status/**"
       - "go/go.mod"
       - "go/go.sum"
       - "specs/live-tests.v1.yaml"

@@ -5,13 +5,16 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 
@@ -386,4 +389,46 @@ func readInfraInventoryStatus(ctx context.Context, queryer db.Queryer, asOf time
 		DirtyRepos:     state.DirtyRepos,
 		OldestDirtyAge: state.OldestDirtyAge,
 	}, nil
+}
+
+// ActiveWorkSummarySourceSHA256 returns the hex SHA-256 of the exact
+// active-work summary statement text this binary runs. The periodic status
+// summary writer stores it with every model row and the summary reader
+// compares it with its own value: a mismatch means the row came from another
+// statement (a rolling upgrade), so the reader falls back to the live
+// statement instead of decoding rows it did not produce (#7009).
+func ActiveWorkSummarySourceSHA256() string {
+	digest := sha256.Sum256([]byte(activeWorkSummaryQuery))
+	return hex.EncodeToString(digest[:])
+}
+
+// ReadActiveWorkSummaryEntries runs the active-work summary statement, byte
+// for byte the one the live status read runs, with asOf as $1, and returns
+// its rows in statement order as status summary entries for the read model
+// writer (#7009). Every row is first decoded with the live read's own
+// decoder, so a row the reader could not decode is returned as an error and
+// never stored. An empty result is an empty, non-nil slice.
+func ReadActiveWorkSummaryEntries(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]summary.Entry, error) {
+	rows, err := queryer.QueryContext(ctx, activeWorkSummaryQuery, asOf.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("read active work summary entries: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var decoded activeWorkSummary
+	entries := []summary.Entry{}
+	for rows.Next() {
+		var entry summary.Entry
+		if err := rows.Scan(&entry.Section, &entry.Ordinal, &entry.JSON); err != nil {
+			return nil, fmt.Errorf("read active work summary entries: %w", err)
+		}
+		if err := decoded.add(entry.Section, entry.JSON); err != nil {
+			return nil, fmt.Errorf("read active work summary entries %s row %d: %w", entry.Section, entry.Ordinal, err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read active work summary entries: %w", err)
+	}
+	return entries, nil
 }

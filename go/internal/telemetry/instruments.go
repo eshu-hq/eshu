@@ -2084,6 +2084,15 @@ type Instruments struct {
 	// route's reads spent the time (#6794). It replaced the retired status
 	// stage-counts cache counter.
 	StatusSnapshotReadDuration metric.Float64Histogram
+	// StatusSummaryWriterPasses, StatusSummaryWriterPassDuration,
+	// StatusSummaryWriterOverruns, and StatusSummaryWriterUp are the reducer's
+	// periodic status summary writer signals (#7009), registered by
+	// registerStatusSummaryWriterInstruments and labeled by model_key (and
+	// outcome for passes and durations).
+	StatusSummaryWriterPasses       metric.Int64Counter
+	StatusSummaryWriterPassDuration metric.Float64Histogram
+	StatusSummaryWriterOverruns     metric.Int64Counter
+	StatusSummaryWriterUp           metric.Int64Gauge
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -4752,6 +4761,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerChangedSinceLinkInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerStatusSummaryWriterInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

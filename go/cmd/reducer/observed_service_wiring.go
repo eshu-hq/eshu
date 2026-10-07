@@ -67,6 +67,10 @@ func buildObservedReducerService(
 	if err != nil {
 		return reducer.Service{}, nil, nil, err
 	}
+	serviceRunner, err = withStatusSummaryWriter(serviceRunner, getenv, instrumentedDB, tracer, instruments, logger)
+	if err != nil {
+		return reducer.Service{}, nil, nil, err
+	}
 	graphRefresher, postgresRefresher, err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger)
 	if err != nil {
 		return reducer.Service{}, nil, nil, err

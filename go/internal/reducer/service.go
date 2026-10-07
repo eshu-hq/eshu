@@ -19,6 +19,7 @@ import (
 	freshnesslinks "github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
+	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -116,6 +117,11 @@ type Service struct {
 	// InfraInventoryReconcileRunner re-derives infra read model repositories
 	// whose rows drifted from content_entities (#6793). Nil disables it.
 	InfraInventoryReconcileRunner *maintenance.InfraInventoryReconcileRunner
+
+	// StatusSummaryWriter keeps the status_summary_snapshots read model of the
+	// active-work summary current (#7009). Nil (ESHU_STATUS_SUMMARY_WRITER_ENABLED
+	// unset or false, the default) disables it and it issues no SQL.
+	StatusSummaryWriter *statussummary.Runner
 
 	// GenerationLivenessRunner re-drives active generations that wedge past the
 	// activation deadline and supersedes orphaned older actives. Nil disables
