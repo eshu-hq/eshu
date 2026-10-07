@@ -115,7 +115,9 @@ selector; a backing-read failure there already answered 500, but with
 `repository selector lookup failed` body, through `selector.WriteLookupFailure`
 on the investigation route and through `serviceStoryResolutionError` on the
 story seam, which records the span error itself because it returns an
-envelope rather than writing a response.
+envelope rather than writing a response. Every caller of that seam gets the
+same answer, including `GET /api/v0/services/{service_name}/intelligence-report`
+in `serviceintelhttp`.
 
 No-Regression Evidence (#7626): the success path runs no new code and the
 `ResolveEntity` string literals hash identically before and after (40
@@ -132,7 +134,10 @@ The entity branch has the same shape and was not benchmarked separately.
 Observability Evidence (#7626): a lookup failure on these routes now sets the
 request span to Error with the fixed description
 `repository selector lookup failed` and an `exception` event, where it
-previously answered 400 (500 on the two service routes) with no span signal.
+previously answered 400 (500 on the service routes) with no span signal.
+On the `otelhttp` server span the description is later replaced by the empty
+one `otelhttp` sets for a 5xx; the Error status and the `exception` event
+remain (see the selector README).
 Pinned by `TestResolveEntitySelectorLookupFailureAnswers500`,
 `TestCodeRouteSelectorLookupFailureAnswers500`,
 `TestLanguageQuerySelectorLookupFailureAnswers500`,

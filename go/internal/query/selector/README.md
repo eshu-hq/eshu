@@ -64,8 +64,12 @@ lookup failure it records the error on the span already in the request
 context (the caller's handler span, or the `otelhttp` server span) and sets
 that span's status to Error with the fixed description
 `repository selector lookup failed` (#7626). The description never carries the
-selector. A family that owns a logger should add its own stage record on top,
-as the supply-chain security-alert selector does with `stage_failed`.
+selector. When that span is the `otelhttp` server span, `otelhttp` sets Error
+again with an empty description once it sees the 5xx, and the SDK keeps the
+later description, so in production the span stays Error and keeps the
+`exception` event but loses the fixed description. A family that owns a logger
+should add its own stage record on top, as the supply-chain security-alert
+selector does with `stage_failed`.
 
 ## Gotchas / invariants
 
@@ -102,8 +106,9 @@ of the f93338478 source versus this change) measured: catalog hit 295.7ns to
 
 Observability Evidence (#7626): a lookup failure through
 `ResolveForRequestWithAccess` now sets the request span to Error with the fixed
-description `repository selector lookup failed` and an `exception` event, where
-it previously left no signal at all; the supply-chain security-alert selector
+description `repository selector lookup failed` (replaced by `otelhttp`'s empty
+5xx description on the server span, see Telemetry) and an `exception` event,
+where it previously left no signal at all; the supply-chain security-alert selector
 adds a `supply_chain_query.stage_failed` record for stage
 `repository_selector_resolve`. Pinned by
 `TestResolveForRequestWithAccessMapsLookupFailureTo500` and
