@@ -43,6 +43,11 @@
   non-selector failures only.
 - Keep the root `entity_alias.go` aliases and forwarders until every
   external caller has a separately reviewed migration path.
+- `GetEntityContext` records `resolved_by` (anchor, fallback, content, none)
+  once per answered request, in `context_resolution.go`, never at an error
+  return, and never as a new log line (#7212). Add a new answer path by
+  setting `res.resolvedBy` where it writes its 200 or 404; the label set is
+  closed and shared with `eshu_dp_entity_context_resolution_total`.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,
   never Cypher text or queue/projection behavior.
 

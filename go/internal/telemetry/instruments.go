@@ -2104,6 +2104,12 @@ type Instruments struct {
 	// source (model, last_row, zero), and reason; see
 	// registerStatusSummaryReadInstruments.
 	StatusSummaryScrapes metric.Int64Counter
+	// EntityContextResolution counts GET /api/v0/entities/{entity_id}/context
+	// requests that ended without an error, by resolved_by (anchor, fallback,
+	// content, none; #7212). none is the true-miss share: the graph and the
+	// content store both had no row. Registered by
+	// registerEntityContextResolutionInstruments.
+	EntityContextResolution metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -4780,6 +4786,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerStatusSummaryReadInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerEntityContextResolutionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

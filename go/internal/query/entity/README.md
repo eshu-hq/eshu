@@ -64,6 +64,17 @@ anchor's uid and id label sets come from `graph.HasUIDUniquenessConstraint` and
 by two labels resolves to the label the loop tried first. `Directory` has no id
 or uid index and resolves through the fallback.
 
+Resolution attribution (#7212): `GetEntityContext` records how each request was
+answered in `context_resolution.go`. `resolved_by` is `anchor` (a non-final
+statement returned the row), `fallback` (the final unlabeled statement did),
+`content` (the graph returned no row and the content store answered), or `none`
+(404). It lands on the request span as `eshu.entity_context.resolved_by`, with
+`eshu.entity_context.statements_tried`, and on
+`eshu_dp_entity_context_resolution_total{resolved_by}`. A request that ends in
+an error has no `resolved_by`. A graph row that the scoped grant then denies
+still counts as `anchor` or `fallback`: the graph answered. The two existing
+warnings carry `statements_tried`; there is no completion log line.
+
 NornicDB: `GetEntityContext` and `FetchWorkloadContextForOperation` no longer
 render the multi-line scoped `WHERE` group that was unreliable on the pinned
 NornicDB v1.3.3 image (#6786); the grant is decided in Go. The one Cypher-side

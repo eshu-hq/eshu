@@ -92,6 +92,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"phase",
 		"writer",
 		"model_key",
+		"resolved_by",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",
