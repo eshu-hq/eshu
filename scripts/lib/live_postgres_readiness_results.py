@@ -142,6 +142,9 @@ PACKAGES = {
         "go/internal/storage/postgres/maintenance/requests_live_test.go": (
             "TestStatusRequestStoreRequestReindexWatermarkMonotonicLive",
         ),
+        "go/internal/storage/postgres/maintenance/repository_reindex_live_test.go": (
+            "TestRepositoryReindexStoreWatermarksLive",
+        ),
     },
     REDUCER_PACKAGE: {
         "go/cmd/reducer/package_manifest_backfill_live_test.go": (

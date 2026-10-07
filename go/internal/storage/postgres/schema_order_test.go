@@ -372,4 +372,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 161 (#7009) adds status_summary_snapshots, the one-row-per-model
 	// read model behind the status routes' active-work summary.
 	"status_summary_snapshots",
+	// Migration 162 (#7620) adds repository_reindex_requests, the per-repository
+	// reindex watermarks the git ingesters read once per cycle.
+	"repository_reindex_requests",
 }
