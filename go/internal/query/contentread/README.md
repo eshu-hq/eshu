@@ -84,6 +84,22 @@ an unmatched selector answers 404 and an ambiguous one 400 (#7626). Before
 #7626 a fence or a failed catalog read answered 400 with the backend error
 text in the body.
 
+## Read and search failures
+
+Once the selector resolved, a failed content read or search on all five routes
+runs in this order: the search routes' substring-index 503
+(`WriteContentSubstringIndexUnavailable`), then
+`querycontract.WriteGraphReadError` (a stale or timed-out PostgreSQL reader
+answers the retryable 503 with Retry-After), then the search routes'
+unsupported-paging 400, then `tracing.WriteServerFailure`. That last step
+answers 500 with a fixed body from `failure.go` (`content file read failed`,
+`content entity read failed`, `content file search failed`, or `content entity
+search failed`) and records the error on the request span. A read that failed
+because the caller canceled the request answers 499 with the same body and
+only the `eshu.request.client_canceled` span event (#7626). Before this, each
+answered 500 with the store's error text as the body and left the span
+untouched.
+
 ## Gotchas / invariants
 
 **`ContentReader` stays in root, and so does every `content_reader_*.go`

@@ -45,6 +45,12 @@ Read `doc.go` and `README.md` first.
   argument at each call site: root's `TestWriteGraphReadErrorCapabilitiesExistInMatrix`
   resolves it through callers, not through a struct field. Never write a
   `selector.LookupError`'s `err.Error()` to a body.
+- A content read or search that fails after the selector resolved MUST answer
+  in the order: `WriteContentSubstringIndexUnavailable` (search routes), then
+  `querycontract.WriteGraphReadError` with the literal
+  `"code_search.content_search"`, then the unsupported-paging 400 sentinels,
+  then `tracing.WriteServerFailure` with a constant from `failure.go`. Never
+  write a store error's `err.Error()` as a 500 body (#7626).
 
 ## Test doubles that cannot be shared with root
 
