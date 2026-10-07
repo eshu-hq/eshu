@@ -178,9 +178,9 @@ and warning contract.
 `GET /api/v0/entities/{entity_id}/context`'s request span carries
 `eshu.entity_context.statements_tried`, the number of graph statements sent
 before the request resolved or ended (0 when no graph reader is configured),
-and, only when the request ended in an answer (200 or 404 after the graph
-read), `eshu.entity_context.resolved_by`: `anchor`, `fallback`, `content`, or
-`none`. It is the same closed set as `eshu_dp_entity_context_resolution_total`.
+and, only when the request reached the answer decision (a graph row, a
+content answer, or a true-miss 404), `eshu.entity_context.resolved_by`:
+`anchor`, `fallback`, `content`, or `none`. It is the same closed set as `eshu_dp_entity_context_resolution_total`.
 A request that ends in an error carries `statements_tried` and no
 `resolved_by`. A request rejected before the graph read (400 for a missing
 entity id, 404 for an empty scoped grant) carries neither attribute and is not
