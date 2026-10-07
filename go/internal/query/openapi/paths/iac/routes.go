@@ -41,7 +41,6 @@ const Routes = `
           }
         },
         "responses": {
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
             "description": "Dead-IaC candidate findings",
             "content": {
@@ -83,7 +82,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -214,7 +213,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -335,7 +334,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -398,7 +397,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
@@ -460,7 +459,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

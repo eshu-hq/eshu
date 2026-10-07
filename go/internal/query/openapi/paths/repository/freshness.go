@@ -105,14 +105,6 @@ const Freshness = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
-          "503": {
-            "description": "Repository freshness reader not configured",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-              }
-            }
-          },
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
