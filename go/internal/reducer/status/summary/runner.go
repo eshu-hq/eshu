@@ -157,6 +157,9 @@ type Runner struct {
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
 
+	// passBudgetOverride replaces the two-interval pass deadline in tests only.
+	passBudgetOverride time.Duration
+
 	warnedMissingTable atomic.Bool
 }
 
@@ -203,7 +206,7 @@ func (r *Runner) RunOnce(ctx context.Context) Pass {
 		defer span.End()
 	}
 	start := r.now()
-	passCtx, cancel := context.WithTimeout(ctx, 2*r.interval())
+	passCtx, cancel := context.WithTimeout(ctx, r.passBudget())
 	defer cancel()
 	first := r.modelPass(passCtx, r.Statement)
 	first.Duration = r.now().Sub(start)
@@ -394,6 +397,16 @@ func (r *Runner) validateCompanions() error {
 		seen[c.ModelKey] = true
 	}
 	return nil
+}
+
+// passBudget is the whole pass deadline: two intervals. passBudgetOverride is a
+// test seam so a hermetic test can exhaust the budget without waiting seconds;
+// production never sets it.
+func (r *Runner) passBudget() time.Duration {
+	if r.passBudgetOverride > 0 {
+		return r.passBudgetOverride
+	}
+	return 2 * r.interval()
 }
 
 func (r *Runner) interval() time.Duration {

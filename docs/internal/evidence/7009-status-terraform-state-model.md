@@ -41,9 +41,10 @@ stays live (24.2 ms).
 - `as_of` of the terraform row is the database clock read after the lock, just
   before the two statements. It is not a snapshot time: each statement sees the
   rows committed when it started (READ COMMITTED) and the two run on two
-  snapshots, while the live read runs both in one REPEATABLE READ snapshot. The
-  stored row and a live read can differ by rows committed in that gap, bounded by
-  one pass. `observed_at` is the collector's clock, not the database's.
+  snapshots. On the API and MCP server the live read runs both in one REPEATABLE
+  READ snapshot; a runtime that reads status on a plain connection runs each
+  statement on its own. The stored row and a live read can differ by rows
+  committed in that gap, bounded by one pass. `observed_at` is the collector's clock, not the database's.
 - No value in the section is an age, so `AddAge` and the reader apply no age
   correction. A test pins that Terraform entries come out of `AddAge` byte for
   byte at a 20 s age.

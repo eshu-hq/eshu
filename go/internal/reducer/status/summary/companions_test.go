@@ -346,6 +346,32 @@ func TestRunOnceCutsTheCompanionWhenTheFirstModelUsesTheWholePassBudget(t *testi
 	}
 }
 
+// TestRunOnceBoundsThePassByItsOwnTwoIntervalBudget: the runner's own pass
+// deadline, not a caller's, ends the first model and leaves the companion no
+// budget. The caller passes a context with no deadline, as the production loop
+// does, and the test shortens the runner's budget so it does not wait seconds.
+// A companion on the caller's context (without the pass deadline) would still
+// compute with a full interval.
+func TestRunOnceBoundsThePassByItsOwnTwoIntervalBudget(t *testing.T) {
+	t.Parallel()
+	runner, _, primary, _ := newPassRunner(t)
+	companion := withCompanion(runner)
+	runner.passBudgetOverride = 200 * time.Millisecond
+	primary.block = make(chan struct{}) // the first model waits for the pass deadline
+
+	pass := runner.RunOnce(context.Background())
+
+	if pass.Models[0].Err == nil {
+		t.Fatalf("first model = %+v, want it cut by the pass budget", pass.Models[0])
+	}
+	if companion.callCount() != 0 {
+		t.Fatalf("the companion computed %d times with the pass budget spent, want 0", companion.callCount())
+	}
+	if got := pass.Models[1]; got.Outcome != OutcomeError {
+		t.Fatalf("companion = %+v, want an error outcome", got)
+	}
+}
+
 func TestRunnerRejectsAnInvalidCompanion(t *testing.T) {
 	t.Parallel()
 	for name, mutate := range map[string]func(*Statement){
