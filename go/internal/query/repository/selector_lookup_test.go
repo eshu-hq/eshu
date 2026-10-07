@@ -29,8 +29,8 @@ import (
 const repoLookupSelector = "payments-svc"
 
 // repoLookupStore fails the selector's catalog read with matchErr from the
-// failFrom-th call on (1-based; 0 means never), and otherwise answers from the
-// embedded fixture catalog.
+// failFrom-th call on (1-based; 0 fails from the first call), and otherwise
+// answers from the embedded fixture catalog.
 type repoLookupStore struct {
 	content.FakePortContentStore
 	matchErr error
