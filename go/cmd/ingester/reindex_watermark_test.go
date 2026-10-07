@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
 )
 
 type stubReindexStateStore struct {
@@ -84,23 +85,28 @@ func TestBuildIngesterCollectorServiceWiresReindexWatermark(t *testing.T) {
 		}
 		return service.Source.(*git.GitSource).Selector
 	}
-	requireReader := func(name string, reader git.ReindexWatermarkReader) {
+	requireReader := func(name string, reader git.ReindexWatermarkReader, repository git.RepositoryReindexWatermarkReader) {
 		t.Helper()
 		if _, ok := reader.(reindexWatermarkReader); !ok {
 			t.Fatalf("%s ReindexWatermark = %T, want reindexWatermarkReader", name, reader)
 		}
+		if _, ok := repository.(maintenancestore.RepositoryReindexStore); !ok {
+			t.Fatalf("%s RepositoryReindexWatermark = %T, want maintenancestore.RepositoryReindexStore", name, repository)
+		}
 	}
 
 	native := build(map[string]string{}).(git.NativeRepositorySelector)
-	requireReader("native selector", native.ReindexWatermark)
+	requireReader("native selector", native.ReindexWatermark, native.RepositoryReindexWatermark)
 
 	webhookOnly := build(map[string]string{
 		"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true",
 		"ESHU_REPO_SCHEDULED_SYNC_ENABLED":     "false",
 	}).(git.WebhookTriggerRepositorySelector)
-	requireReader("webhook-only selector", webhookOnly.ReindexWatermark)
+	requireReader("webhook-only selector", webhookOnly.ReindexWatermark, webhookOnly.RepositoryReindexWatermark)
 
 	priority := build(map[string]string{"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true"}).(git.PriorityRepositorySelector)
-	requireReader("priority webhook selector", priority.Selectors[0].(git.WebhookTriggerRepositorySelector).ReindexWatermark)
-	requireReader("priority native selector", priority.Selectors[1].(git.NativeRepositorySelector).ReindexWatermark)
+	webhookSelector := priority.Selectors[0].(git.WebhookTriggerRepositorySelector)
+	nativeSelector := priority.Selectors[1].(git.NativeRepositorySelector)
+	requireReader("priority webhook selector", webhookSelector.ReindexWatermark, webhookSelector.RepositoryReindexWatermark)
+	requireReader("priority native selector", nativeSelector.ReindexWatermark, nativeSelector.RepositoryReindexWatermark)
 }

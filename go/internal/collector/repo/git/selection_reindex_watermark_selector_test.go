@@ -209,12 +209,12 @@ func TestReconcileSweepDecisionHonorsReindexWatermark(t *testing.T) {
 	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
 	resolver := &stubBaselineResolver{state: reindexState(now.Add(-3*time.Hour), "", time.Time{})}
 	for _, interval := range []time.Duration{24 * time.Hour, 0} {
-		due, reason := ReconcileSweepDecision(context.Background(), resolver, interval, now.Add(-time.Hour), now, "scope-1", discardLogger())
+		due, reason := ReconcileSweepDecision(context.Background(), resolver, interval, now.Add(-time.Hour), time.Time{}, now, "scope-1", discardLogger())
 		if !due || reason != reconcileReasonReindexRequested {
 			t.Fatalf("interval %v: ReconcileSweepDecision() = (%t, %q), want (true, reindex_requested)", interval, due, reason)
 		}
 	}
-	if due, reason := ReconcileSweepDecision(context.Background(), resolver, 0, time.Time{}, now, "scope-1", discardLogger()); due || reason != "" {
+	if due, reason := ReconcileSweepDecision(context.Background(), resolver, 0, time.Time{}, time.Time{}, now, "scope-1", discardLogger()); due || reason != "" {
 		t.Fatalf("interval 0 without a watermark = (%t, %q), want disabled", due, reason)
 	}
 }

@@ -33,6 +33,10 @@ type NativeRepositorySelector struct {
 	// ReindexWatermark reads the fleet reindex watermark once per git cycle
 	// (#7620). Nil disables reindex requests; filesystem mode never reads it.
 	ReindexWatermark ReindexWatermarkReader
+	// RepositoryReindexWatermark reads the per-repository reindex watermarks
+	// once per git cycle (#7620). Nil disables them; filesystem mode never
+	// reads it.
+	RepositoryReindexWatermark RepositoryReindexWatermarkReader
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -127,13 +131,15 @@ func (s NativeRepositorySelector) SelectRepositories(
 		syncGitFn := s.SyncGit
 		if syncGitFn == nil {
 			reindexRequestedAt := resolveReindexWatermark(ctx, s.ReindexWatermark, observedAt, s.Config, s.Logger)
+			repositoryReindexRequestedAt := resolveRepositoryReindexWatermarks(ctx, s.RepositoryReindexWatermark, reindexRequestedAt, observedAt, s.Config, s.Logger)
 			syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
 				return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
-					Resolver:           s.BaselineResolver,
-					Instruments:        s.Instruments,
-					Reconcile:          reconcilePolicyFromConfig(config),
-					ReindexRequestedAt: reindexRequestedAt,
-					Now:                s.Now,
+					Resolver:                     s.BaselineResolver,
+					Instruments:                  s.Instruments,
+					Reconcile:                    reconcilePolicyFromConfig(config),
+					ReindexRequestedAt:           reindexRequestedAt,
+					RepositoryReindexRequestedAt: repositoryReindexRequestedAt,
+					Now:                          s.Now,
 				})
 			}
 		}

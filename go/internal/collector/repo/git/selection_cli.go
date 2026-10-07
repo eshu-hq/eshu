@@ -51,6 +51,7 @@ func syncGitRepositoriesWithLogger(
 	fleetRefCount := 0
 	fleetCap := config.PinnedRefFleetCap
 	reconciledThisCycle := 0
+	repositoryIDs = prioritizeRepositoryReindex(config, repositoryIDs, baseline.RepositoryReindexRequestedAt)
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
 			return GitSyncSelection{}, err
