@@ -205,7 +205,49 @@ func rollbackDynamicTransactions[T interface{ Rollback(context.Context) error }]
 	return cleanupErr
 }
 
+func shareDynamicSnapshot(ctx context.Context, txs []pgx.Tx) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("share dynamic snapshot context: %w", err)
+	}
+	if len(txs) != 4 {
+		return fmt.Errorf("dynamic proof requires exactly four transactions")
+	}
+	var snapshotID string
+	if err := txs[0].QueryRow(ctx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
+		return fmt.Errorf("export dynamic snapshot: %w", err)
+	}
+	if !validSnapshotID(snapshotID) {
+		return fmt.Errorf("invalid exported snapshot identifier")
+	}
+	for _, tx := range txs[1:] {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("import dynamic snapshot context: %w", err)
+		}
+		if _, err := tx.Exec(ctx, "SET TRANSACTION SNAPSHOT '"+snapshotID+"'"); err != nil {
+			return fmt.Errorf("import dynamic snapshot: %w", err)
+		}
+	}
+	for _, tx := range txs {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("bound dynamic transaction context: %w", err)
+		}
+		if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = '5s'"); err != nil {
+			return fmt.Errorf("bound dynamic statement: %w", err)
+		}
+		if _, err := tx.Exec(ctx, "SET LOCAL lock_timeout = '1s'"); err != nil {
+			return fmt.Errorf("bound dynamic lock wait: %w", err)
+		}
+	}
+	return nil
+}
+
 func runDynamicCase(ctx context.Context, connections []*pgx.Conn, workload dynamicWorkload, timing bool) (resultErr error) {
+	if len(connections) != 4 {
+		return fmt.Errorf("dynamic proof requires exactly four connections")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("run dynamic case context: %w", err)
+	}
 	started := time.Now()
 	txs := make([]pgx.Tx, 0, 4)
 	defer func() {
@@ -218,25 +260,8 @@ func runDynamicCase(ctx context.Context, connections []*pgx.Conn, workload dynam
 		}
 		txs = append(txs, tx)
 	}
-	var snapshotID string
-	if err := txs[0].QueryRow(ctx, "SELECT pg_export_snapshot()").Scan(&snapshotID); err != nil {
-		return fmt.Errorf("export dynamic snapshot: %w", err)
-	}
-	if !validSnapshotID(snapshotID) {
-		return fmt.Errorf("invalid exported snapshot identifier")
-	}
-	for _, tx := range txs[1:] {
-		if _, err := tx.Exec(ctx, "SET TRANSACTION SNAPSHOT '"+snapshotID+"'"); err != nil {
-			return fmt.Errorf("import dynamic snapshot: %w", err)
-		}
-	}
-	for _, tx := range txs {
-		if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = '5s'"); err != nil {
-			return fmt.Errorf("bound dynamic statement: %w", err)
-		}
-		if _, err := tx.Exec(ctx, "SET LOCAL lock_timeout = '1s'"); err != nil {
-			return fmt.Errorf("bound dynamic lock wait: %w", err)
-		}
+	if err := shareDynamicSnapshot(ctx, txs); err != nil {
+		return err
 	}
 	baselineStarted := time.Now()
 	baselineRows, err := readBaselineTerms(ctx, txs, workload)

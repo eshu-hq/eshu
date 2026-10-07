@@ -6,24 +6,62 @@ and page-assembly SQL. It is a read-only experiment, not an API replacement.
 
 Run `go test ./internal/proof/scheduling -count=1` from `go/`. The fixed-corpus command
 accepts `ESHU7033_MODE=fixed_canonical` for the existing assertion and timing
-run, or `ESHU7033_MODE=fixed_diagnostic` for a separate correctness diagnosis.
+run, `ESHU7033_MODE=fixed_canonical_reader` for the same canonical proof on a
+read-only standby, or `ESHU7033_MODE=fixed_diagnostic` for a separate
+correctness diagnosis.
 It reads a PostgreSQL connection
 string from standard input, forces loopback TCP (or an absolute socket path),
-requires an explicit database name and PostgreSQL system ID, and rejects a
-standby or a session that is not read-only. `ESHU7033_FIXED_PORT` selects a
+requires an explicit database name and PostgreSQL system ID. The original two
+modes reject standbys; reader mode requires a standby and a read-only session
+on each of its four connections. Reader mode allows only loopback TCP, not a
+socket path or fallback host. `ESHU7033_FIXED_PORT` selects a
 non-default loopback port; it is valid only in fixed mode. Set
 `ESHU7033_EXPECTED_DATABASE` and `ESHU7033_EXPECTED_SYSTEM_ID` from a separate
-read-only preflight, not from the connection string alone.
+read-only preflight, not from the connection string alone. The external runner
+must collect fresh database/system IDs and corpus/index fingerprints for each
+run; the fixture values below do not identify an ops-qa reader.
 
-Both modes use a shared repeatable-read snapshot, a 50-second case deadline,
+All modes use a shared repeatable-read snapshot, a 50-second whole-case deadline,
 five-second SQL statement limit, and bounded rollback and connection cleanup.
-Only `fixed_canonical` checks persisted eligibility, path-first caps, pool
+The primary canonical mode checks persisted eligibility, path-first caps, pool
 agreement, and page stability before and during interleaved timing rounds.
+Reader mode runs exactly three baseline-candidate-candidate-baseline rounds
+without separate warmup requests. Its first baseline and candidate requests
+seed the correctness witness; each request is checked before the next starts.
+After both first requests pass persisted eligibility and conditional-pool
+checks, reader mode emits exactly one `reader_witness_pool` line per canonical
+term index (0 through 15). Each line has baseline and candidate entity/file
+row counts, cap booleans, and `baseline_eligibility=pass` and
+`candidate_eligibility=pass`. No term text, path, repository, or entity ID is
+printed. The `dynamic_case` aggregate follows these 16 lines.
+It queries standby recovery, read-only status, replay LSN, replay timestamp,
+database/system identity, receive LSN, apply backlog, WAL-receiver streaming
+status and message age on the exporter transaction before the first request,
+between requests, and after the last. Each checkpoint has a two-second SQL
+deadline and clears the PostgreSQL statistics snapshot before it reads the WAL
+receiver. Reader mode requires `ESHU7033_READER_HEALTH_MODE` before connecting.
+Use `strict_receiver` to require visible streaming status and a fresh receiver
+message, or explicitly select `redacted_receiver` when the database role lacks
+`pg_read_all_stats` and PostgreSQL redacts both fields. Both modes require
+`ESHU7033_EXPECTED_RECEIVER_PID` as a positive decimal PID from independent
+preflight. Every
+barrier rejects a missing or changed receiver row/PID, newly visible receiver
+fields, changed statistics privilege, or stale replay timestamp, even when
+receive and replay LSNs match. It does not claim visible streaming status.
+Reader mode requires explicit, bounded decimal ceilings in
+`ESHU7033_MAX_APPLY_BACKLOG_BYTES`, `ESHU7033_MAX_REPLAY_AGE_MS`, and
+`ESHU7033_MAX_RECEIVER_MESSAGE_AGE_MS`; it has no permissive defaults.
+At each barrier it also loads the atomic JSON file named by the absolute
+`ESHU7033_RESOURCE_GATE_FILE` path. The file must be no more than two seconds
+old, declare positive resource ceilings, contain no breaches, and match the
+freshly pinned `ESHU7033_READER_POD_UID` and `ESHU7033_WRITER_POD_UID`. The
+watcher is external to this command; its presence and reliability require
+separate verification before a live run.
 When a pool reaches its cap, selected rows and their page may differ between
-requests; each timed request must still match the warmup's pool cardinalities,
+requests; each timed request must still match its route's first pool cardinalities,
 keep uncapped pools exact, and pass the persisted eligibility check. Reusing
 the same probe-row multiset with a different page fails, including across
-rounds. Every timed request is checked against its route's warmup, not only
+rounds. Every timed request is checked against its route's witness, not only
 the first request in a round.
 The database container, host resource gates, source commit, and corpus/index
 fingerprints must be verified separately. Stop and clean up any task-owned
@@ -40,7 +78,7 @@ raw repository, path, or entity identifiers. This mode does not run timing
 rounds or establish a performance improvement; a differing capped pool can be
 legitimate, while a same-route difference needs diagnosis before optimization.
 
-The measured duration in `fixed_canonical` covers warmed probe scheduling,
+The measured duration in either canonical mode covers probe scheduling,
 payload encoding, and consumption of all direct typed assembly rows after
 connections and the snapshot exist. Both arms run the unchanged production
 `AssemblySQL`; page hashing and correctness checks are outside the measured
@@ -70,9 +108,10 @@ one second. A fixed-corpus same-state comparison remains required before any
 performance claim. This package is not deployed, so product-path latency is
 unchanged by adding the harness.
 
-Observability Evidence: `fixed_canonical` prints `dynamic_case` row counts,
-differences and snapshot age, `dynamic_timing_round` samples, and route
-medians. `fixed_diagnostic` prints probe-pool and direct-assembly hashes,
+Observability Evidence: both canonical modes print `dynamic_case` row counts,
+differences, `dynamic_timing_round` samples, and route medians. The primary
+mode also prints snapshot age; reader mode prints its declared SQL ceilings and
+13 standby-health and resource-gate barriers. `fixed_diagnostic` prints probe-pool and direct-assembly hashes,
 redacted rank differences, snapshot age, and `timing=not_run`; it does not
 print timing samples. The historical `fixed_exit=0` was recorded by the
 invoking shell, not emitted by the command. Some initial-screen failures

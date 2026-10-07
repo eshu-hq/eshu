@@ -140,8 +140,8 @@ func validSnapshotID(id string) bool {
 }
 
 func validateProofMode(mode string) error {
-	if mode != "fixed_canonical" && mode != "fixed_diagnostic" {
-		return fmt.Errorf("only fixed_canonical and fixed_diagnostic proof modes are supported")
+	if mode != "fixed_canonical" && mode != "fixed_diagnostic" && mode != "fixed_canonical_reader" {
+		return fmt.Errorf("only fixed_canonical, fixed_canonical_reader, and fixed_diagnostic proof modes are supported")
 	}
 	return nil
 }
@@ -169,9 +169,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
 	var runErr error
-	if mode == "fixed_diagnostic" {
+	switch mode {
+	case "fixed_diagnostic":
 		runErr = runFixedDiagnostic(ctx, config, os.Getenv("ESHU7033_EXPECTED_DATABASE"))
-	} else {
+	case "fixed_canonical_reader":
+		runErr = runFixedCanonicalReader(ctx, config, os.Getenv("ESHU7033_EXPECTED_DATABASE"))
+	default:
 		runErr = runFixedCanonical(ctx, config, os.Getenv("ESHU7033_EXPECTED_DATABASE"))
 	}
 	if runErr != nil {

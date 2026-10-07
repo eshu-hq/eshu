@@ -45,7 +45,7 @@ func configureProofTarget(config *pgx.ConnConfig, mode, socketDir string) error 
 		return fmt.Errorf("proof connection config is missing")
 	}
 	if socketDir != "" {
-		if !fixedProofMode(mode) || !filepath.IsAbs(socketDir) {
+		if !fixedProofMode(mode) || mode == "fixed_canonical_reader" || !filepath.IsAbs(socketDir) {
 			return fmt.Errorf("socket directory requires a fixed proof mode and an absolute path")
 		}
 		config.Host = socketDir
@@ -78,7 +78,7 @@ func configureProofTargetPort(config *pgx.ConnConfig, mode, socketDir, fixedPort
 }
 
 func fixedProofMode(mode string) bool {
-	return mode == "fixed_canonical" || mode == "fixed_diagnostic"
+	return mode == "fixed_canonical" || mode == "fixed_diagnostic" || mode == "fixed_canonical_reader"
 }
 
 func validateFixedDatabase(expected, configured string) error {
@@ -112,15 +112,32 @@ func requireFixedPrimary(expectedDatabase, actualDatabase, expectedSystemID, act
 	return nil
 }
 
+func requireFixedReaderTarget(expectedDatabase, actualDatabase, expectedSystemID, actualSystemID string, recovery bool, readOnly string) error {
+	if err := validateFixedDatabase(expectedDatabase, actualDatabase); err != nil {
+		return err
+	}
+	if err := validateExpectedSystemID(expectedSystemID); err != nil {
+		return err
+	}
+	if actualSystemID != expectedSystemID {
+		return fmt.Errorf("fixed proof PostgreSQL system identifier mismatch")
+	}
+	return requireReadOnlyReader(recovery, readOnly)
+}
+
 func runFixedCanonical(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string) error {
-	return runFixedProof(ctx, config, expectedDatabase, false)
+	return runFixedProof(ctx, config, expectedDatabase, false, false)
 }
 
 func runFixedDiagnostic(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string) error {
-	return runFixedProof(ctx, config, expectedDatabase, true)
+	return runFixedProof(ctx, config, expectedDatabase, true, false)
 }
 
-func runFixedProof(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string, diagnostic bool) (resultErr error) {
+func runFixedCanonicalReader(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string) error {
+	return runFixedProof(ctx, config, expectedDatabase, false, true)
+}
+
+func runFixedProof(ctx context.Context, config *pgx.ConnConfig, expectedDatabase string, diagnostic, reader bool) (resultErr error) {
 	if config == nil {
 		return fmt.Errorf("fixed proof connection config is missing")
 	}
@@ -130,6 +147,28 @@ func runFixedProof(ctx context.Context, config *pgx.ConnConfig, expectedDatabase
 	expectedSystemID := os.Getenv("ESHU7033_EXPECTED_SYSTEM_ID")
 	if err := validateExpectedSystemID(expectedSystemID); err != nil {
 		return err
+	}
+	if reader && (config.Host != "127.0.0.1" || config.Port == 0 || len(config.Fallbacks) != 0) {
+		return fmt.Errorf("fixed reader proof requires one loopback TCP target without fallbacks")
+	}
+	var readerLimits readerLagLimits
+	var resourceConfig readerResourceConfig
+	if reader {
+		var err error
+		readerLimits, err = loadReaderLagLimits()
+		if err != nil {
+			return err
+		}
+		readerLimits.expectedDatabase = expectedDatabase
+		readerLimits.expectedSystemID = expectedSystemID
+		resourceConfig, err = loadReaderResourceConfig()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("reader_health_mode=%s expected_receiver_pid=%d reader_declared_max_apply_backlog_bytes=%d max_replay_age_ms=%d max_receiver_message_age_ms=%d\n",
+			readerLimits.receiverMode, readerLimits.expectedReceiverPID,
+			readerLimits.maxApplyBacklogBytes, readerLimits.maxReplayAge.Milliseconds(),
+			readerLimits.maxReceiverMessageAge.Milliseconds())
 	}
 	workload, err := selectFixedCanonical("canonical")
 	if err != nil {
@@ -156,14 +195,23 @@ func runFixedProof(ctx context.Context, config *pgx.ConnConfig, expectedDatabase
 		if err := conn.QueryRow(ctx, "SELECT current_database(), pg_is_in_recovery(), current_setting('transaction_read_only'), (SELECT system_identifier::text FROM pg_control_system())").Scan(&actualDatabase, &recovery, &readOnly, &actualSystemID); err != nil {
 			return fmt.Errorf("verify fixed proof reader: %w", err)
 		}
-		if err := requireFixedPrimary(expectedDatabase, actualDatabase, expectedSystemID, actualSystemID, recovery, readOnly); err != nil {
-			return err
+		var guardErr error
+		if reader {
+			guardErr = requireFixedReaderTarget(expectedDatabase, actualDatabase, expectedSystemID, actualSystemID, recovery, readOnly)
+		} else {
+			guardErr = requireFixedPrimary(expectedDatabase, actualDatabase, expectedSystemID, actualSystemID, recovery, readOnly)
+		}
+		if guardErr != nil {
+			return guardErr
 		}
 	}
 	caseCtx, cancel := fixedCaseContext(ctx)
 	defer cancel()
 	if diagnostic {
 		return runFixedDiagnosticCase(caseCtx, connections, workload, os.Stdout)
+	}
+	if reader {
+		return runDynamicReaderCase(caseCtx, connections, workload, readerLimits, resourceConfig)
 	}
 	return runDynamicCase(caseCtx, connections, workload, true)
 }
