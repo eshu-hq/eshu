@@ -5,9 +5,13 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
@@ -55,7 +59,8 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	writtenRows := 0
 	writtenGroups := 0
 	if len(active) > 0 {
-		ready, replayRequests, replayDuration, err := r.ensureRunsOnWorkloadReadiness(ctx, active)
+		freshness := r.newGenerationFreshness()
+		ready, replayRequests, replayDuration, err := r.ensureRunsOnWorkloadReadiness(ctx, active, freshness)
 		result.ReplayDurationSeconds = replayDuration.Seconds()
 		result.ReplayRequests = replayRequests
 		if err != nil {
@@ -75,6 +80,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 			}
 			result.RetractedRows = retractedRows
 		}
+		r.recordInactiveAcceptedGenerationRows(ctx, active, freshness)
 		writeStart := time.Now()
 		writtenRows, writtenGroups, err = r.writeActiveRows(ctx, active)
 		result.WriteDurationSeconds = time.Since(writeStart).Seconds()
@@ -84,7 +90,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 		result.UpsertedRows = writtenRows
 		if r.WorkloadMaterializationReplayer != nil {
 			replayStart := time.Now()
-			replayRequests, err := r.replayWorkloadMaterialization(ctx, active)
+			replayRequests, err := r.replayWorkloadMaterialization(ctx, active, freshness)
 			result.ReplayDurationSeconds += time.Since(replayStart).Seconds()
 			result.ReplayRequests += replayRequests
 			if err != nil {
@@ -137,4 +143,232 @@ func validateRepoDependencySourceRepositoryIdentity(
 		)
 	}
 	return nil
+}
+
+// replayWorkloadMaterializationRequest sends one replay request and reports
+// the closed outcome. A replayer that does not implement
+// [WorkloadMaterializationOutcomeReplayer] reports only a boolean, so its
+// unscheduled answer stays [WorkloadMaterializationReplayNotScheduled] and the
+// caller fails closed on it.
+func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationRequest(
+	ctx context.Context,
+	request workloadMaterializationReplayRequest,
+) (WorkloadMaterializationReplayOutcome, error) {
+	if replayer, ok := r.WorkloadMaterializationReplayer.(WorkloadMaterializationOutcomeReplayer); ok {
+		return replayer.ReplayWorkloadMaterializationOutcome(
+			ctx, request.scopeID, request.generationID, request.entityKey,
+		)
+	}
+	replayed, err := r.WorkloadMaterializationReplayer.ReplayWorkloadMaterialization(
+		ctx, request.scopeID, request.generationID, request.entityKey,
+	)
+	if err != nil {
+		return WorkloadMaterializationReplayNotScheduled, err
+	}
+	if replayed {
+		return WorkloadMaterializationReplayScheduled, nil
+	}
+	return WorkloadMaterializationReplayNotScheduled, nil
+}
+
+// repoDependencyGenerationFreshness answers, for one acceptance-unit cycle,
+// whether a scope generation is still the scope's active generation (#7670).
+// The acceptance row the runner reads is written once and not rewritten when
+// recover-generations retires the generation, so an accepted generation can
+// name a retired one and its workload replay is then nothing to replay.
+//
+// It wraps [GenerationFreshnessCheck], the runtime's own guard: a scope with no
+// active generation or an unknown scope reads as current, and a newer pending
+// generation reports [reducercontract.GenerationNotYetActiveError], which is
+// not retired because the replay is still owed once it activates. Any other
+// lookup error is returned and fails the cycle closed. Answers are cached per
+// scope generation for this cycle only: the value is built per cycle, so a
+// scope that activates a new generation between cycles is re-checked.
+type repoDependencyGenerationFreshness struct {
+	check GenerationFreshnessCheck
+	cache map[string]bool
+	// skipped records the replay requests already counted as skipped this
+	// cycle, so a RUNS_ON row's fenced and plain request for the same scope,
+	// generation and entity count once.
+	skipped map[string]bool
+}
+
+func (r *RepoDependencyProjectionRunner) newGenerationFreshness() *repoDependencyGenerationFreshness {
+	return &repoDependencyGenerationFreshness{
+		check:   r.GenerationFreshness,
+		cache:   make(map[string]bool),
+		skipped: make(map[string]bool),
+	}
+}
+
+// firstSkip reports whether the request has not yet been counted as skipped
+// this cycle, and marks it counted.
+func (f *repoDependencyGenerationFreshness) firstSkip(request workloadMaterializationReplayRequest) bool {
+	if f == nil {
+		return true
+	}
+	key := request.scopeID + "\x00" + request.generationID + "\x00" + request.entityKey
+	if f.skipped[key] {
+		return false
+	}
+	f.skipped[key] = true
+	return true
+}
+
+// retired reports whether the generation is no longer active, using the cycle
+// cache. A nil check never reports retired, so every request stays on the
+// replayer and fails closed when it cannot be scheduled.
+func (f *repoDependencyGenerationFreshness) retired(
+	ctx context.Context,
+	scopeID, generationID string,
+) (bool, error) {
+	if f == nil || f.check == nil {
+		return false, nil
+	}
+	key := scopeID + "\x00" + generationID
+	if retired, ok := f.cache[key]; ok {
+		return retired, nil
+	}
+	return f.retiredNow(ctx, scopeID, generationID)
+}
+
+// retiredNow runs the check without reading the cache and refreshes the cache
+// with the answer. It re-checks a generation whose replay just reported a
+// superseded stable item, so a supersede that landed after the first check is
+// not reported as an active-generation failure.
+func (f *repoDependencyGenerationFreshness) retiredNow(
+	ctx context.Context,
+	scopeID, generationID string,
+) (bool, error) {
+	if f == nil || f.check == nil {
+		return false, nil
+	}
+	key := scopeID + "\x00" + generationID
+	current, err := f.check(ctx, scopeID, generationID)
+	if err != nil {
+		if errors.Is(err, reducercontract.ErrGenerationNotYetActive) {
+			f.cache[key] = false
+			return false, nil
+		}
+		return false, fmt.Errorf(
+			"check generation freshness for scope %q generation %q for workload materialization replay: %w",
+			scopeID, generationID, err,
+		)
+	}
+	f.cache[key] = !current
+	return !current, nil
+}
+
+// dropRetiredFenceRequests removes the fenced replay requests whose generation
+// is no longer the scope's active generation, counting each as skipped.
+func (r *RepoDependencyProjectionRunner) dropRetiredFenceRequests(
+	ctx context.Context,
+	requests []workloadMaterializationFenceRequest,
+	freshness *repoDependencyGenerationFreshness,
+) ([]workloadMaterializationFenceRequest, error) {
+	kept := make([]workloadMaterializationFenceRequest, 0, len(requests))
+	for _, request := range requests {
+		retired, err := freshness.retired(ctx, request.scopeID, request.generationID)
+		if err != nil {
+			return nil, err
+		}
+		if retired {
+			if freshness.firstSkip(request.workloadMaterializationReplayRequest) {
+				r.recordRepoDependencyReplaySkipped(ctx, request.workloadMaterializationReplayRequest, true)
+			}
+			continue
+		}
+		kept = append(kept, request)
+	}
+	return kept, nil
+}
+
+// recordInactiveAcceptedGenerationRows counts the active rows about to be
+// written whose accepted generation is no longer the scope's active
+// generation, and logs one WARN per scope generation for the cycle. It changes
+// no behavior: the rows still project. A freshness lookup error is left to the
+// replay path, which fails the cycle closed, so it is not reported here.
+func (r *RepoDependencyProjectionRunner) recordInactiveAcceptedGenerationRows(
+	ctx context.Context,
+	rows []SharedProjectionIntentRow,
+	freshness *repoDependencyGenerationFreshness,
+) {
+	type scopeGeneration struct{ scopeID, generationID string }
+	counts := make(map[scopeGeneration]int, len(rows))
+	order := make([]scopeGeneration, 0, len(rows))
+	for _, row := range rows {
+		key := scopeGeneration{
+			scopeID:      strings.TrimSpace(row.ScopeID),
+			generationID: strings.TrimSpace(row.GenerationID),
+		}
+		if key.scopeID == "" || key.generationID == "" {
+			continue
+		}
+		if _, seen := counts[key]; !seen {
+			order = append(order, key)
+		}
+		counts[key]++
+	}
+	for _, key := range order {
+		retired, err := freshness.retired(ctx, key.scopeID, key.generationID)
+		if err != nil || !retired {
+			continue
+		}
+		r.recordRepoDependencyGenerationAnomaly(
+			ctx, key.scopeID, key.generationID, "",
+			telemetry.RepoDependencyAnomalyInactiveAcceptedGeneration, counts[key],
+		)
+	}
+}
+
+func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationForFence(
+	ctx context.Context,
+	requests []workloadMaterializationFenceRequest,
+	freshness *repoDependencyGenerationFreshness,
+) (int, error) {
+	replayer, ok := r.WorkloadMaterializationReplayer.(WorkloadMaterializationFenceReplayer)
+	if !ok {
+		return 0, fmt.Errorf("repo dependency RUNS_ON workload replayer does not support readiness fences")
+	}
+	for i, request := range requests {
+		replayed, err := replayer.ReplayWorkloadMaterializationForFence(
+			ctx,
+			request.scopeID,
+			request.generationID,
+			request.entityKey,
+			request.repoID,
+			request.fence,
+		)
+		if err != nil {
+			return i + 1, err
+		}
+		if !replayed {
+			// The fenced path reports only a boolean. Re-check freshness
+			// without the cache: a supersede that landed after the first
+			// check retires the request, so it is skipped. On the active
+			// generation the replay is owed and cannot run: count it and fail
+			// closed.
+			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
+			if err != nil {
+				return i + 1, err
+			}
+			if retiredNow {
+				if freshness.firstSkip(request.workloadMaterializationReplayRequest) {
+					r.recordRepoDependencyReplaySkipped(ctx, request.workloadMaterializationReplayRequest, true)
+				}
+				continue
+			}
+			r.recordRepoDependencyGenerationAnomaly(
+				ctx, request.scopeID, request.generationID, request.entityKey,
+				telemetry.RepoDependencyAnomalyUnscheduledFencedReplayOnActiveGeneration, 1,
+			)
+			return i + 1, fmt.Errorf(
+				"workload materialization fenced replay was not scheduled for scope %q generation %q entity %q",
+				request.scopeID,
+				request.generationID,
+				request.entityKey,
+			)
+		}
+	}
+	return len(requests), nil
 }

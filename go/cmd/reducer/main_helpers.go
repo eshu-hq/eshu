@@ -360,6 +360,11 @@ func newRepoDependencyProjectionRunner(
 		EdgeWriter:                      edgeWriter,
 		WorkloadMaterializationReplayer: workQueue,
 		WorkloadReadinessPrefetch:       workloadReadinessPrefetch,
+		// #7670: the acceptance row is not rewritten when recover-generations
+		// retires a scope generation, so the lane can owe a workload replay
+		// for a generation that no longer exists. The runtime's own
+		// freshness check lets the runner skip it instead of quarantining.
+		GenerationFreshness: postgres.NewGenerationFreshnessCheck(database),
 		// Gate repo-dependency graph-projection authority on the relationship
 		// generation being active (published). Acceptance rows are committed
 		// atomically with the projection intents, but the runner derives

@@ -1571,6 +1571,22 @@ type Instruments struct {
 	// are left to retention instead of being cancelled.
 	SearchDocumentGenerationSuperseded metric.Int64Counter
 
+	// RepoDependencyReplaySkipped counts workload-materialization replay
+	// requests the repo-dependency runner skipped as nothing to replay
+	// (#7670), labeled by a closed reason: inactive_generation (the request's
+	// generation is no longer its scope's active generation). A
+	// request on the active generation that cannot be scheduled is not
+	// counted here: it still fails the cycle.
+	RepoDependencyReplaySkipped metric.Int64Counter
+
+	// RepoDependencyGenerationAnomalies counts repo-dependency generation
+	// states an operator should see (#7670), labeled by a closed reason:
+	// superseded_item_on_active_generation (a replay on the active generation
+	// found its stable work item terminally superseded and failed the cycle
+	// closed) or inactive_accepted_generation (active rows whose accepted
+	// generation is no longer the scope's active generation still project).
+	RepoDependencyGenerationAnomalies metric.Int64Counter
+
 	// CanonicalRepositoryRetirements counts the canonical writer's
 	// path-conflict retirements of a different-id Repository (#7324), by a
 	// closed outcome: clean (no relationships deleted) or
@@ -4792,6 +4808,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerSearchDocumentGenerationSuperseded(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerRepoDependencyReplayCounters(meter, inst); err != nil {
 		return nil, err
 	}
 

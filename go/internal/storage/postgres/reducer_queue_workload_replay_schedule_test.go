@@ -18,7 +18,7 @@ func TestReducerQueueReplayWorkloadMaterializationAcceptsConcurrentScheduler(t *
 			rowsAffectedResult{},
 			rowsAffectedResult{},
 		},
-		queryResponses: []queueFakeRows{{rows: [][]any{{true}}}},
+		queryResponses: []queueFakeRows{{rows: [][]any{{"pending"}}}},
 	}
 	queue := ReducerQueue{database: db}
 
@@ -91,7 +91,7 @@ func TestReducerQueueReplayWorkloadMaterializationRejectsTerminalWork(t *testing
 			rowsAffectedResult{},
 			rowsAffectedResult{},
 		},
-		queryResponses: []queueFakeRows{{rows: [][]any{{false}}}},
+		queryResponses: []queueFakeRows{{rows: [][]any{{"dead_letter"}}}},
 	}
 	queue := ReducerQueue{database: db}
 

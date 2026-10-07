@@ -23,6 +23,8 @@ Key metrics (all prefixed `eshu_dp_`):
 - `shared_projection_intent_wait_duration_seconds` — per-domain intent queue age.
 - `shared_projection_processing_duration_seconds` — per-domain partition processing.
 - `shared_projection_step_duration_seconds` — per phase (retract, write, mark_completed).
+- `repo_dependency_replay_skipped_total` — repo-dependency workload replay requests skipped because their generation is no longer the scope's active generation (#7670), by `reason` (`inactive_generation`).
+- `repo_dependency_generation_anomalies_total` — repo-dependency generation states needing an operator (#7670), by `reason` (`superseded_item_on_active_generation` and `unscheduled_fenced_replay_on_active_generation` fail closed; `inactive_accepted_generation` rows still project).
 - `canonical_writes_total` — includes graph-projection repair writes.
 - `package_source_correlations_total` — package source-correlation decisions by
   bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,

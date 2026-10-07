@@ -89,6 +89,24 @@ moving them would push that file over the 500-line cap.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
   before dispatching to a handler; stale intents return
   `ResultStatusSuperseded` without touching the graph.
+- **A retired generation owes no workload replay (#7670)** — the
+  repo-dependency runner replays `workload_materialization` for every scope
+  generation its cycle wrote, and its acceptance row is not rewritten when
+  recover-generations retires that generation. `RepoDependencyProjectionRunner`
+  builds a per-cycle `GenerationFreshness` cache and skips a replay request
+  (plain or RUNS_ON fenced) whose generation is no longer the scope's active
+  generation; a retired generation is also not waited on for RUNS_ON readiness.
+  Skips count on `eshu_dp_repo_dependency_replay_skipped_total`. Nothing else
+  is skipped: an unscheduled request on the active generation, including a
+  stable item that `ReducerQueue.ReplayWorkloadMaterializationOutcome` reports
+  `superseded` (plain replay only; counted on
+  `eshu_dp_repo_dependency_generation_anomalies_total` as
+  `superseded_item_on_active_generation`), an unscheduled RUNS_ON fenced replay
+  (the fenced path reports only a boolean, so a superseded item there counts as
+  `unscheduled_fenced_replay_on_active_generation`), a dead-lettered item, and a
+  freshness lookup error all still fail the cycle and quarantine the lease.
+  Rows on a retired accepted generation still project and count as
+  `inactive_accepted_generation`.
 - **`deployment_mapping` requires post-Phase-3 reopen** — the domain
   cannot produce `resolved_relationships` until after
   ReopenDeploymentMappingWorkItems runs in the bootstrap pipeline
