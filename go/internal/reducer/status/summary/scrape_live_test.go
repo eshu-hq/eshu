@@ -88,8 +88,9 @@ var scrapeSelection = sync.OnceValue(func() statuspkg.SnapshotSelection {
 // path on a real database in autocommit, the shape of every hosted runtime: a
 // row the production writer stored is served equal to the live statement at
 // the same data and clock; once the row is stale, missing, or its table is
-// dropped, the process keeps serving that last row as stale with a growing
-// age; a process that never served a row serves the zero summary; and the live
+// dropped, the process keeps serving its newest decodable row as stale with a
+// growing age; a process restarted into a stale row serves that row, and one
+// that can decode no row serves the zero summary; and the live
 // active-work statement runs zero times throughout.
 func TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive(t *testing.T) {
 	ctx, database := openWriterDatabase(t)
@@ -126,7 +127,7 @@ func TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive(t *testing.T) {
 	// limit sees it as stale and the process serves its last row instead.
 	mustExec(ctx, t, database, `UPDATE status_summary_snapshots SET as_of = as_of - interval '10 minutes'`)
 	short := scrapeStatusStore(pool, true, time.Minute)
-	// A process that never served a row (a restart during the outage) serves
+	// A process that has not served any row (a restart during the outage) serves
 	// the stale row itself, with its real age and its own counts: never zeros.
 	restart := scrape(short)
 	if got := restart.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLastRow || got.Reason != statuspkg.ActiveWorkReasonStale ||

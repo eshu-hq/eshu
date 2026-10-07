@@ -10,8 +10,8 @@ status reader with its live fallback is PR-C
 the deployed A-B-A sweep (PR-F) are not in this slice.
 
 The design ruling's rule for this path: it never falls back. A fresh row serves
-the model; a stale or missing row serves the last decoded row if the process has
-one, else the zero summary, and in both cases the scrape exports
+the model; a stale or missing row serves the newest row the process can decode
+(arbiter ruling: a stale row included), else the zero summary, and in both cases the scrape exports
 `eshu_runtime_status_summary_stale 1` and `eshu_runtime_status_summary_age_seconds`.
 
 ## Design as built
@@ -46,7 +46,7 @@ runtime builds once through `NewInstrumentedStatusStore`, so it is the same
 object for every scrape. It is guarded by a mutex, replaced only by a row with a
 newer `as_of`, kept as the writer stored it (before the age advance), and given
 its age again at every read from the database clock, so a held row is never
-served as fresh and its age keeps growing while the writer is down. Hosted
+served as fresh, and its age keeps growing while the writer is down. Hosted
 runtimes read in autocommit (PR-C decision 13), so the clock read, the row read,
 and every other statement are separate statements; a writer commit between the
 first two can only make an age negative, which clamps to zero.
@@ -165,6 +165,8 @@ Live, on PostgreSQL 18.6 (native, private cluster, loopback), enrolled in the
 
 ## Performance Evidence
 
+Performance Evidence: one scrape through the production StatusStore on an empty store sends 24 statements before this change, 20 with the reader off, and 21 with the reader on and no live active-work statement; the table below gives the split and the figures behind it.
+
 Statements one scrape sends through the production `StatusStore` to an empty
 store (count of physical statements; `TestStatusMetricsStatementInventory` over
 a recording fake and `TestScrapeStatementInventoryOnAnEmptyStoreLive` on
@@ -189,6 +191,8 @@ Prometheus scrapes each pod, and the effect of the replica replay lag on the
 scrape's age gauge.
 
 ## Observability Evidence
+
+Observability Evidence: the per-scrape gauges eshu_runtime_status_summary_stale and eshu_runtime_status_summary_age_seconds (service_name, model_key), the counter eshu_dp_status_summary_scrape_total (model_key, source, reason), span attributes on the status snapshot span, and a Warn at most once a minute per reason let an operator see a stale or empty scrape summary at 3 AM; the list below gives each signal.
 
 - `eshu_runtime_status_summary_stale{service_name,model_key}` and
   `eshu_runtime_status_summary_age_seconds{service_name,model_key}` per-scrape

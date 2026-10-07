@@ -65,7 +65,8 @@ type ActiveWorkSource struct {
 	// served by a status route: the live statement answers and Reason says
 	// "stale", so Stale is false on every route that reads through the
 	// stored-summary reader. It is true on the runtime /metrics scrape when it
-	// serves its last decoded row or the zero summary (#7009 PR-D).
+	// serves the newest row it can decode, stale included, or the zero summary
+	// (#7009 PR-D).
 	Stale bool
 }
 

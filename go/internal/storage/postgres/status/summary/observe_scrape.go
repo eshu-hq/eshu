@@ -57,7 +57,7 @@ func ObserveScrape(ctx context.Context, instruments *telemetry.Instruments, o Sc
 	}
 	span.SetAttributes(attribute.String(spanAttrFallbackWhy, reason))
 	if scrapeLimiter.allow(o.Reason, time.Now()) {
-		slog.Default().WarnContext(ctx, "status summary row not served fresh on the metrics scrape; serving the last decoded row or the zero summary",
+		slog.Default().WarnContext(ctx, "status summary row not served fresh on the metrics scrape; serving the newest decodable row or the zero summary",
 			slog.String("model_key", o.ModelKey),
 			slog.String("source", source),
 			slog.String("reason", reason),

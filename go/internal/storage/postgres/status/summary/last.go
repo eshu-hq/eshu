@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// lastRow holds the one stored row a process most recently served as fresh,
-// as the writer stored it. It is bounded to one row per ModelReader and is
+// lastRow holds the newest stored row a process has decoded, a fresh row it
+// served or a stale one found under DecodeStale, as the writer stored it. It is bounded to one row per ModelReader and is
 // safe for concurrent scrapes. The entries are kept unaged: the age is always
 // derived at read time from the row's as_of and the database clock, so a held
 // row can never be served as if it were fresh.
@@ -44,7 +44,7 @@ func (l *lastRow) newer(asOf time.Time) bool {
 }
 
 // recall returns the held entries and their as_of; ok is false when the
-// process has not served a fresh row yet. Entry values are immutable strings
+// process has decoded no row yet. Entry values are immutable strings
 // and AddAge never modifies its input, so the slice is shared.
 func (l *lastRow) recall() (entries []Entry, asOf time.Time, ok bool) {
 	l.mu.Lock()

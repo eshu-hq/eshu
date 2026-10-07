@@ -92,8 +92,8 @@ type SnapshotSelection struct {
 	// It is for a caller that polls on a timer from every process, the runtime
 	// /metrics scrape, where a live fallback herd would recreate the load the
 	// stored row removes. A row that cannot be served is answered with the
-	// process's last decoded row, or the zero summary when it has none, and
-	// ActiveWorkSource says which (with Stale true). It has no effect while the
+	// newest row the process can decode, stale included, or the zero summary
+	// when it can decode none, and ActiveWorkSource says which (with Stale true). It has no effect while the
 	// stored-summary reader is off: the live statement answers as before.
 	StoredActiveWorkOnly bool
 }

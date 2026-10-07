@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	// SourceLastRow is the last stored row this process served as fresh,
-	// served again because the current row could not be. It is stale by
+	// SourceLastRow is the newest stored row this process can decode, a fresh
+	// row it served earlier or a stale one Select decoded under DecodeStale,
+	// served because the current row could not be served fresh. It is stale by
 	// definition and its age keeps growing with the database clock.
 	SourceLastRow Source = "last_row"
 	// SourceZero is the empty summary, served when the current row could not
-	// be and the process has served no fresh row yet.
+	// be served fresh and the process can decode no row.
 	SourceZero Source = "zero"
 )
 
