@@ -308,7 +308,11 @@ type ReplayIdempotencyClaim struct {
 type Handler struct {
 	Recovery  RecoveryService
 	Reindexer ReindexRequester
-	Store     Store
+	// Repositories and RepositoryReindexer serve repository-scoped reindex
+	// requests (#7620); either nil makes them 503.
+	Repositories        RepositoryCatalogMatcher
+	RepositoryReindexer RepositoryReindexRequester
+	Store               Store
 	// ReadStore serves inspections; nil preserves legacy single-store wiring.
 	ReadStore ReadStore
 	// Audit records governance audit events for mutating recovery actions.

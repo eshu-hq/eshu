@@ -80,6 +80,28 @@ cycle's `observedAt` is deferred, because generations are ingested at
 `observedAt`. The reader is read-only: the request is never claimed. See
 `docs/public/reference/reconciliation-sweep.md#reindex-requests`.
 
+Both selectors also read the per-repository watermarks newer than the cycle's
+active fleet watermark (every row when none is active) through
+`RepositoryReindexWatermarkReader`, once per cycle
+(`resolveRepositoryReindexWatermarks`), and defer each row on its own. A
+scope's effective watermark is the later of the two
+(`gitDeltaBaseline.reindexWatermarkFor`); the reason is
+`repository_reindex_requested` only when the scope's own row is later.
+`prioritizeRepositoryReindex` moves requested repositories to the front of
+the sync order so the shared per-cycle budget cannot starve them. With the
+sweep off and no fleet watermark, `reconcileDue` reads state only for scopes
+with a row. This directory is pinned at its file count by the dirgate ledger,
+so the code lives in `selection_reconcile_config.go` and
+`selection_baseline.go`, not a new file.
+
+Performance Evidence (#7620, per-repository): the read is one sequential scan
+per cycle per shard, about 1 ms per 10,000 rows on PostgreSQL 18. Ordering
+derives a scope ID per repository only when at least one row is active, using
+`gitScopeIDForManagedRepo`, which does path and string work with no disk or
+network I/O. `TestRepositoryReindexTargetedScopeIsNotStarved` fails without
+the reordering (the requested 30th repository is not forced in the first
+cycle with a budget of 10) and passes with it, still forcing exactly 10.
+
 ## Two-phase content
 
 Snapshotting collects content file *metadata* first (bodies are temporary), then

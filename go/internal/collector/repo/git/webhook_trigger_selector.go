@@ -52,6 +52,10 @@ type WebhookTriggerRepositorySelector struct {
 	// claimed triggers (#7620). It reaches only the triggered repositories;
 	// nil disables reindex requests for this selector.
 	ReindexWatermark ReindexWatermarkReader
+	// RepositoryReindexWatermark reads the per-repository reindex watermarks
+	// once per cycle that claimed triggers (#7620). Like ReindexWatermark it
+	// reaches only the triggered repositories; nil disables them.
+	RepositoryReindexWatermark RepositoryReindexWatermarkReader
 }
 
 // SelectRepositories claims queued webhook triggers, syncs only the referenced
@@ -100,13 +104,15 @@ func (s WebhookTriggerRepositorySelector) SelectRepositories(ctx context.Context
 	syncGitFn := s.SyncGit
 	if syncGitFn == nil {
 		reindexRequestedAt := resolveReindexWatermark(ctx, s.ReindexWatermark, observedAt, s.Config, s.Logger)
+		repositoryReindexRequestedAt := resolveRepositoryReindexWatermarks(ctx, s.RepositoryReindexWatermark, reindexRequestedAt, observedAt, s.Config, s.Logger)
 		syncGitFn = func(ctx context.Context, config RepoSyncConfig, repositoryIDs []string) (GitSyncSelection, error) {
 			return syncGitRepositoriesWithLogger(ctx, config, repositoryIDs, s.Logger, gitDeltaBaseline{
-				Resolver:           s.BaselineResolver,
-				Instruments:        s.Instruments,
-				Reconcile:          reconcilePolicyFromConfig(config),
-				ReindexRequestedAt: reindexRequestedAt,
-				Now:                s.Now,
+				Resolver:                     s.BaselineResolver,
+				Instruments:                  s.Instruments,
+				Reconcile:                    reconcilePolicyFromConfig(config),
+				ReindexRequestedAt:           reindexRequestedAt,
+				RepositoryReindexRequestedAt: repositoryReindexRequestedAt,
+				Now:                          s.Now,
 			})
 		}
 	}

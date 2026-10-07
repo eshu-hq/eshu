@@ -75,9 +75,10 @@ Cost is one full re-observation and projection per scope per interval — the sa
 cost as a first sync, paid on a documented cadence. Each forced reconciliation
 increments `eshu_dp_collector_reconciliation_full_snapshots_total`, labeled by
 `reason` (`never_reconciled`, `interval_elapsed`, `in_flight_expired`,
-`retry_after_unprojected`, `graph_dirty`, `reindex_requested`), and logs `git_reconcile_forced` with `scope_id`,
-`reason`, `last_projected_full_at`, `latest_full_at`, and `latest_full_status`
-(plus `reindex_requested_at` for `reindex_requested`).
+`retry_after_unprojected`, `graph_dirty`, `reindex_requested`,
+`repository_reindex_requested`), and logs `git_reconcile_forced` with
+`scope_id`, `reason`, `last_projected_full_at`, `latest_full_at`, and
+`latest_full_status` (plus `reindex_requested_at` for the two reindex reasons).
 The log is WARN for `in_flight_expired` and `retry_after_unprojected`: repeats of
 either mean projection is not keeping up with the sweep. Each evaluation the
 sweep holds off increments `eshu_dp_collector_reconciliation_suppressed_total`,
@@ -158,6 +159,53 @@ Watch progress with
 and the `git_reconcile_forced` log. When that counter stops rising while the
 suppression counter is flat, no scope the sync visits is still due. A scope the
 sync never visits is not covered (#7625).
+
+### Per-repository reindex requests
+
+`POST /api/v0/admin/reindex` with `"scope": "repository"` and a `repositories`
+list of 1 to 100 selectors (or `eshu admin reindex --repository <selector>`,
+repeated) re-parses only those repositories. The API resolves each selector to
+exactly one git default-branch repository scope. If any selector matches no
+repository, matches several, or resolves to a ref or non-git scope, it returns
+400 naming every such selector and records nothing. Otherwise it upserts one
+row per distinct scope into `repository_reindex_requests (scope_id,
+requested_at)`, stamped by Postgres and never moved backward, and returns each
+repository with its `scope_id` and `requested_at`.
+
+Each shard reads the rows newer than the fleet watermark active for the cycle
+(every row when none is active, including a deferred or unreadable fleet
+watermark) once per sync cycle, right after it reads the fleet watermark. A
+scope's effective watermark
+is the later of the two, so a per-repository row at or before the fleet
+watermark adds nothing. The decision table above applies unchanged; a forced
+scope records reason `repository_reindex_requested` when its own row is the
+later watermark, otherwise `reindex_requested`.
+
+- Requested repositories are synced first in the cycle, so a fleet reindex
+  cannot starve a targeted one behind `ESHU_REPO_RECONCILE_MAX_PER_CYCLE`. The
+  budget itself is unchanged. Because rows are never deleted, a requested
+  repository stays first in the sync order, even once satisfied, until a newer
+  fleet request supersedes its row. Order matters elsewhere only for the
+  fleet-wide pinned-ref worktree cap in
+  [Ingestion and queue environment](environment-ingestion-queues.md).
+- Each row is deferred on its own when it is later than the cycle start; a
+  cycle with deferred rows logs INFO `git_repository_reindex_deferred` with
+  `deferred_count`. A cycle with active rows logs DEBUG
+  `git_repository_reindex_active` with `active_count`. A failed read is
+  ignored for the cycle with WARN `git_repository_reindex_read_failed`; the
+  fleet watermark still applies.
+- With `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` and no fleet watermark, only
+  scopes with a row read their per-scope state.
+- Rows are never deleted, like the fleet watermark. The read is a sequential
+  scan of a table with one row per repository ever requested, about 1 ms per
+  10,000 rows. A webhook-only ingester honors a row only when the repository is
+  triggered, and filesystem source mode does not read the table. Send the
+  request after every git ingester runs a binary that reads the table: older
+  ingesters ignore it.
+
+Watch progress with
+`eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`
+and the `git_reconcile_forced` log for the requested `scope_id`.
 
 ## Delta baseline fence
 

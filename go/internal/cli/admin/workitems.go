@@ -15,23 +15,33 @@ type ReindexInput struct {
 	// Ingester names the ingester type to reindex; the API accepts only
 	// "repository".
 	Ingester string
-	// Scope names the reindex scope; the API accepts only "workspace".
+	// Scope names the reindex scope: "workspace" for every repository, or
+	// "repository" for the repositories named in Repositories.
 	Scope string
 	// Force must be true: a reindex always forces a full re-parse, and the API
 	// rejects false with 400.
 	Force bool
+	// Repositories holds the repository selectors (repository ID, scope ID,
+	// name, slug, or path) of a "repository" scope reindex; it is sent only
+	// when not empty.
+	Repositories []string
 }
 
 // Reindex queues a reindex request for the ingester and returns the decoded
-// response body. Every field of in is sent, including a false Force and any
-// empty string, because the endpoint's defaults are the CLI's flag defaults.
+// response body. Ingester, Scope, and Force are always sent, including a
+// false Force and any empty string, because the endpoint's defaults are the
+// CLI's flag defaults.
 func Reindex(client Client, in ReindexInput) (any, error) {
-	var result any
-	err := client.Post("/api/v0/admin/reindex", map[string]any{
+	body := map[string]any{
 		"ingester": in.Ingester,
 		"scope":    in.Scope,
 		"force":    in.Force,
-	}, &result)
+	}
+	if len(in.Repositories) > 0 {
+		body["repositories"] = in.Repositories
+	}
+	var result any
+	err := client.Post("/api/v0/admin/reindex", body, &result)
 	if err != nil {
 		return nil, err //nolint:wrapcheck // Client's error is already the operator's message; cmd/eshu prints it verbatim and wrapping would prepend a second prefix.
 	}

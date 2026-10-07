@@ -9,14 +9,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
-// reindexScopeWorkspace is the only reindex scope: every repository the git
-// ingesters own.
+// reindexScopeWorkspace, the default scope, records the fleet watermark for
+// every repository the git ingesters own.
 const reindexScopeWorkspace = "workspace"
 
 // reindexAcceptedDetail states the watermark contract the 202 response
@@ -29,18 +30,25 @@ const reindexAcceptedDetail = "Reindex recorded. requested_at is the fleet reind
 
 // reindexRequest is the POST /api/v0/admin/reindex body. Force is a pointer so
 // an omitted field defaults to true while an explicit false is rejected.
+// Repositories holds the selectors of a repository-scoped request.
 type reindexRequest struct {
-	Ingester string `json:"ingester"`
-	Scope    string `json:"scope"`
-	Force    *bool  `json:"force"`
+	Ingester     string   `json:"ingester"`
+	Scope        string   `json:"scope"`
+	Repositories []string `json:"repositories"`
+	Force        *bool    `json:"force"`
 }
 
-// reindex records a fleet-wide reindex watermark and returns it.
+// reindex records a fleet-wide reindex watermark, or per-repository
+// watermarks for a repository-scoped request, and returns them.
 // POST /api/v0/admin/reindex
 func (h *Handler) reindex(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeReindexRequest(r)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Scope == reindexScopeRepository {
+		h.reindexRepositories(w, r, req)
 		return
 	}
 	if h.Reindexer == nil {
@@ -90,11 +98,34 @@ func decodeReindexRequest(r *http.Request) (reindexRequest, error) {
 	if req.Scope == "" {
 		req.Scope = reindexScopeWorkspace
 	}
-	if req.Scope != reindexScopeWorkspace {
-		return req, fmt.Errorf("scope must be %q: this route forces a fleet-wide re-parse; per-repository reindex is not supported", reindexScopeWorkspace)
+	switch req.Scope {
+	case reindexScopeWorkspace:
+		if req.Repositories != nil {
+			return req, fmt.Errorf("repositories requires scope %q; scope %q reindexes every repository", reindexScopeRepository, reindexScopeWorkspace)
+		}
+	case reindexScopeRepository:
+		if err := validateReindexRepositories(req.Repositories); err != nil {
+			return req, err
+		}
+	default:
+		return req, fmt.Errorf("scope must be %q or %q", reindexScopeWorkspace, reindexScopeRepository)
 	}
 	if req.Force != nil && !*req.Force {
 		return req, errors.New("force must be true or omitted: a reindex always forces a full re-parse")
 	}
 	return req, nil
+}
+
+// validateReindexRepositories bounds a repository-scoped request to 1 to
+// maxReindexRepositories selectors, none blank.
+func validateReindexRepositories(selectors []string) error {
+	if len(selectors) == 0 || len(selectors) > maxReindexRepositories {
+		return fmt.Errorf("scope %q requires repositories with 1 to %d selectors, got %d", reindexScopeRepository, maxReindexRepositories, len(selectors))
+	}
+	for i, selector := range selectors {
+		if strings.TrimSpace(selector) == "" {
+			return fmt.Errorf("repositories[%d] is blank", i)
+		}
+	}
+	return nil
 }

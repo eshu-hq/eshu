@@ -192,6 +192,10 @@ type RepositoryCatalogEntry struct {
 	RemoteURL string
 	RepoSlug  string
 	HasRemote bool
+	// ScopeID is the ingestion scope ID of the catalog row. Only
+	// MatchRepositories (and so ResolveRepository) fills it; a repository
+	// reindex request is recorded against it (#7620).
+	ScopeID string
 }
 
 // IsServiceEvidenceCandidate reports whether file looks like service

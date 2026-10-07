@@ -6,6 +6,7 @@ package git
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -79,7 +80,98 @@ const (
 	// reconcileReasonReindexRequested (#7620): an operator requested a reindex
 	// after the scope's newest activated full generation was ingested.
 	reconcileReasonReindexRequested = "reindex_requested"
+	// reconcileReasonRepositoryReindexRequested (#7620): an operator requested
+	// a reindex of this repository by name, later than any fleet request, after
+	// the scope's newest activated full generation was ingested.
+	reconcileReasonRepositoryReindexRequested = "repository_reindex_requested"
 )
+
+// RepositoryReindexWatermarkReader reads the per-repository reindex
+// watermarks: for each git scope named in a repository-scoped
+// POST /api/v0/admin/reindex request, the newest request time, stamped by
+// Postgres and never moved backward. It returns only the rows later than
+// after (the fleet watermark, or zero for every row), because a row at or
+// before the fleet watermark adds nothing. Like ReindexWatermarkReader it
+// only reads; rows are satisfied scope by scope as forced fulls activate.
+type RepositoryReindexWatermarkReader interface {
+	RepositoryReindexWatermarks(ctx context.Context, after time.Time) (map[string]time.Time, error)
+}
+
+// resolveRepositoryReindexWatermarks reads the per-repository watermarks
+// newer than fleet once per selection cycle and returns, in UTC, those active
+// for this cycle, keyed by scope ID. Each row is deferred on its own when it
+// is later than observedAt, for the reason resolveReindexWatermark defers the
+// fleet watermark. A read failure is logged and ignored for the cycle; the
+// fleet watermark still applies.
+func resolveRepositoryReindexWatermarks(
+	ctx context.Context,
+	reader RepositoryReindexWatermarkReader,
+	fleet time.Time,
+	observedAt time.Time,
+	config RepoSyncConfig,
+	logger *slog.Logger,
+) map[string]time.Time {
+	if reader == nil {
+		return nil
+	}
+	rows, err := reader.RepositoryReindexWatermarks(ctx, fleet)
+	if err != nil {
+		if logger != nil {
+			logger.WarnContext(ctx, "git_repository_reindex_read_failed",
+				slog.Int("repo_shard_index", config.RepoShardIndex), log.Err(err))
+		}
+		return nil
+	}
+	observedAt = observedAt.UTC()
+	active := make(map[string]time.Time, len(rows))
+	deferred := 0
+	for scopeID, requestedAt := range rows {
+		requestedAt = requestedAt.UTC()
+		if requestedAt.After(observedAt) {
+			deferred++
+			continue
+		}
+		active[scopeID] = requestedAt
+	}
+	if logger != nil && deferred > 0 {
+		logger.InfoContext(ctx, "git_repository_reindex_deferred",
+			slog.Int("repo_shard_index", config.RepoShardIndex),
+			slog.Int("deferred_count", deferred),
+			slog.Time("observed_at", observedAt))
+	}
+	if logger != nil && len(active) > 0 {
+		logger.DebugContext(ctx, "git_repository_reindex_active",
+			slog.Int("repo_shard_index", config.RepoShardIndex),
+			slog.Int("repo_shard_count", config.RepoShardCount),
+			slog.Int("active_count", len(active)))
+	}
+	return active
+}
+
+// prioritizeRepositoryReindex returns repositoryIDs with the repositories
+// that have an active per-repository watermark moved to the front, each group
+// keeping its order. The per-cycle reconcile budget fills in sync order, so
+// without this a repository requested by name during a fleet reindex would
+// wait behind every scope ahead of it. The budget itself is unchanged.
+func prioritizeRepositoryReindex(config RepoSyncConfig, repositoryIDs []string, requested map[string]time.Time) []string {
+	if len(requested) == 0 {
+		return repositoryIDs
+	}
+	first := make([]string, 0, len(requested))
+	rest := make([]string, 0, len(repositoryIDs))
+	for _, repoID := range repositoryIDs {
+		checkoutName, err := repoCheckoutName(repoID)
+		if err == nil {
+			repoPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
+			if _, ok := requested[gitScopeIDForManagedRepo(config, repoPath)]; ok {
+				first = append(first, repoID)
+				continue
+			}
+		}
+		rest = append(rest, repoID)
+	}
+	return append(first, rest...)
+}
 
 // ReindexWatermarkReader reads the fleet reindex watermark: the time of the
 // newest POST /api/v0/admin/reindex request, stamped by Postgres and never

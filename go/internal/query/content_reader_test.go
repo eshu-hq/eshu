@@ -21,9 +21,9 @@ func TestContentReaderMatchRepositoriesReturnsExactMatches(t *testing.T) {
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
-			columns: []string{"id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote"},
+			columns: []string{"id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote", "scope_id"},
 			rows: [][]driver.Value{
-				{"repository:r_payments", "payments", "/src/payments", "/src/payments", "", "acme/payments", false},
+				{"repository:r_payments", "payments", "/src/payments", "/src/payments", "", "acme/payments", false, "git-repository-scope:repository:r_payments"},
 			},
 		},
 	})
@@ -39,6 +39,9 @@ func TestContentReaderMatchRepositoriesReturnsExactMatches(t *testing.T) {
 	if got, want := matches[0].ID, "repository:r_payments"; got != want {
 		t.Fatalf("matches[0].ID = %q, want %q", got, want)
 	}
+	if got, want := matches[0].ScopeID, "git-repository-scope:repository:r_payments"; got != want {
+		t.Fatalf("matches[0].ScopeID = %q, want %q", got, want)
+	}
 }
 
 func TestContentReaderMatchRepositoriesPrefersCanonicalRepositoryIDExpression(t *testing.T) {
@@ -46,9 +49,9 @@ func TestContentReaderMatchRepositoriesPrefersCanonicalRepositoryIDExpression(t 
 
 	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{
-			columns: []string{"id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote"},
+			columns: []string{"id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote", "scope_id"},
 			rows: [][]driver.Value{
-				{"repository:r_payments", "payments", "/src/payments", "/src/payments", "", "acme/payments", false},
+				{"repository:r_payments", "payments", "/src/payments", "/src/payments", "", "acme/payments", false, "git-repository-scope:repository:r_payments"},
 			},
 		},
 	})
@@ -80,10 +83,10 @@ func TestContentReaderResolveRepositoryRejectsAmbiguousMatches(t *testing.T) {
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
-			columns: []string{"id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote"},
+			columns: []string{"id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote", "scope_id"},
 			rows: [][]driver.Value{
-				{"repository:r_one", "payments", "/src/payments-one", "/src/payments-one", "", "acme/payments-one", false},
-				{"repository:r_two", "payments", "/src/payments-two", "/src/payments-two", "", "acme/payments-two", false},
+				{"repository:r_one", "payments", "/src/payments-one", "/src/payments-one", "", "acme/payments-one", false, "git-repository-scope:repository:r_one"},
+				{"repository:r_two", "payments", "/src/payments-two", "/src/payments-two", "", "acme/payments-two", false, "git-repository-scope:repository:r_two"},
 			},
 		},
 	})

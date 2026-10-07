@@ -10,11 +10,19 @@ Layout:
   `deadletters.go`, `inputinvalid.go`, `safety.go` — the `Handler` type,
   its routes, the `Store` port, the shared row/filter models, and the
   replay-safety set.
-- `reindex.go` — `POST /api/v0/admin/reindex`. It records the fleet reindex
-  watermark through `ReindexRequester` and returns it as `requested_at`
-  (#7620). It accepts only `ingester=repository`, `scope=workspace`, and
-  `force` true or omitted, and rejects unknown fields so the retired
-  workspace `path`/`action` body fails instead of being ignored.
+- `reindex.go` — `POST /api/v0/admin/reindex`. With `scope=workspace` (the
+  default) it records the fleet reindex watermark through `ReindexRequester`
+  and returns it as `requested_at` (#7620). It accepts only
+  `ingester=repository` and `force` true or omitted, and rejects unknown
+  fields so the retired workspace `path`/`action` body fails instead of being
+  ignored.
+- `reindex_repository.go` — `scope=repository` with 1 to 100 `repositories`
+  selectors. Each selector goes through `RepositoryCatalogMatcher` (the query
+  `ContentReader`) and must match exactly one git default-branch scope
+  (`git-repository-scope:` prefix, no `@ref`). Otherwise the request is a 400
+  naming every bad selector, and nothing is recorded. A catalog failure is a
+  500, not a 400. Distinct scopes are recorded in one
+  `RepositoryReindexRequester` call and returned per repository.
 - `identity/` — tenant identity reads and mutations.
 - `provider/config/` — identity provider-config reads and mutations.
 - `store/` — the Postgres `Store` implementation and replay ledger.

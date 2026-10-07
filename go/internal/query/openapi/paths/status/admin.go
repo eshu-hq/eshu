@@ -24,8 +24,8 @@ const Admin = `
     "/api/v0/admin/reindex": {
       "post": {
         "tags": ["admin"],
-        "summary": "Request a fleet-wide reindex",
-        "description": "Records a fleet reindex watermark: the stored requested_at, stamped by Postgres and never moved backward. On each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at, sharing the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. The request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read the watermark. Send the request only after every git ingester runs the target binary: the watermark records when a full generation was ingested, not which parser produced it. Unknown body fields are rejected.",
+        "summary": "Request a fleet-wide or per-repository reindex",
+        "description": "Records a reindex watermark, stamped by Postgres and never moved backward. With scope workspace (the default) it records the fleet watermark, returned as requested_at: on each sync cycle every git ingester shard forces a full re-parse (reconcile reason reindex_requested) of each repository it owns whose newest activated full generation was ingested before requested_at. With scope repository it resolves each repositories selector to exactly one git default-branch repository scope and records a watermark for each, returned per repository; the owning shard forces a full re-parse (reconcile reason repository_reindex_requested) and syncs requested repositories first. A repository-scoped request is all or nothing: any selector that matches no repository, matches several, or is not a git default-branch scope fails the request with 400 naming every such selector, and nothing is recorded. Both share the reconciliation sweep's per-cycle budget (ESHU_REPO_RECONCILE_MAX_PER_CYCLE) and its in-flight and retry-backoff throttle. A request is satisfied repository by repository as those full generations activate; it is never claimed and has no completion status. Webhook-only ingesters reach only the repositories they are triggered for, and filesystem source mode does not read either watermark. Send the request only after every git ingester runs the target binary: the watermark records when a full generation was ingested, not which parser produced it. Unknown body fields are rejected.",
         "requestBody": {
           "required": true,
           "content": {
@@ -35,7 +35,8 @@ const Admin = `
                 "additionalProperties": false,
                 "properties": {
                   "ingester": {"type": "string", "enum": ["repository"], "default": "repository", "description": "Only the git repository ingesters honor reindex requests."},
-                  "scope": {"type": "string", "enum": ["workspace"], "default": "workspace", "description": "Every repository the git ingesters own. Per-repository reindex is not supported."},
+                  "scope": {"type": "string", "enum": ["workspace", "repository"], "default": "workspace", "description": "workspace reindexes every repository the git ingesters own; repository reindexes only the repositories listed in repositories."},
+                  "repositories": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string", "minLength": 1}, "description": "Repository selectors (repository ID, scope ID, name, slug, or path) for scope repository. Required with scope repository and rejected with scope workspace."},
                   "force": {"type": "boolean", "default": true, "description": "Must be true or omitted: a reindex always forces a full re-parse, and false is rejected with 400."}
                 }
               }
@@ -49,22 +50,39 @@ const Admin = `
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["status", "ingester", "scope", "force", "requested_at", "detail"],
+                  "required": ["status", "ingester", "scope", "force", "detail"],
                   "properties": {
                     "status": {"type": "string", "enum": ["accepted"]},
                     "ingester": {"type": "string", "enum": ["repository"]},
-                    "scope": {"type": "string", "enum": ["workspace"]},
+                    "scope": {"type": "string", "enum": ["workspace", "repository"]},
                     "force": {"type": "boolean", "enum": [true]},
-                    "requested_at": {"type": "string", "format": "date-time", "description": "The stored fleet reindex watermark in UTC. A request never lowers it."},
+                    "requested_at": {"type": "string", "format": "date-time", "description": "scope workspace only: the stored fleet reindex watermark in UTC. A request never lowers it."},
+                    "repositories": {
+                      "type": "array",
+                      "description": "scope repository only: one entry per distinct repository scope, sorted by scope_id.",
+                      "items": {
+                        "type": "object",
+                        "required": ["repository_id", "scope_id", "requested_at"],
+                        "properties": {
+                          "repository_id": {"type": "string"},
+                          "scope_id": {"type": "string"},
+                          "requested_at": {"type": "string", "format": "date-time", "description": "The stored per-repository reindex watermark in UTC. A request never lowers it."}
+                        }
+                      }
+                    },
                     "detail": {"type": "string"}
-                  }
+                  },
+                  "oneOf": [
+                    {"required": ["requested_at"], "properties": {"scope": {"enum": ["workspace"]}}},
+                    {"required": ["repositories"], "properties": {"scope": {"enum": ["repository"]}}}
+                  ]
                 }
               }
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "503": {"description": "Reindex requests are not configured on this API instance."}
+          "503": {"description": "Reindex requests, or repository-scoped reindex requests, are not configured on this API instance."}
         }
       }
     },

@@ -153,7 +153,10 @@ an audit failure never fails the credential operation.
   not, because the endpoint's defaults are the CLI's (`--ingester` defaults
   to `repository`, `--scope` to `workspace`), so an empty value only arrives
   when an operator types one. `eshu admin reindex --ingester "" --scope ""`
-  posts `{"force":true,"ingester":"","scope":""}`.
+  posts `{"force":true,"ingester":"","scope":""}`. `repositories` is sent
+  only when `ReindexInput.Repositories` is not empty, so a workspace reindex
+  body is unchanged; `eshu admin reindex --repository <selector>` (repeatable)
+  fills it and defaults `--scope` to `repository` (#7620).
 - **A reset always installs a NEW MFA factor row** rather than reusing the
   old one, so a login racing the reset can never read a factor whose hash
   has not been committed.

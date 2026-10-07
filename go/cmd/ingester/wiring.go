@@ -169,14 +169,17 @@ func buildIngesterCollectorService(
 	// (epic #2340).
 	// Every git selector reads the fleet reindex watermark once per cycle, so
 	// POST /api/v0/admin/reindex forces a full re-parse of each scope whose
-	// newest activated full predates it (#7620).
+	// newest activated full predates it (#7620). They also read the
+	// per-repository watermarks a repository-scoped request records.
 	reindexWatermark := reindexWatermarkReader{store: maintenancestore.NewStatusRequestStore(database)}
+	repositoryReindex := maintenancestore.NewRepositoryReindexStore(database)
 	nativeSelector := git.NativeRepositorySelector{
-		Config:           config,
-		Logger:           logger,
-		BaselineResolver: committer,
-		Instruments:      instruments,
-		ReindexWatermark: reindexWatermark,
+		Config:                     config,
+		Logger:                     logger,
+		BaselineResolver:           committer,
+		Instruments:                instruments,
+		ReindexWatermark:           reindexWatermark,
+		RepositoryReindexWatermark: repositoryReindex,
 	}
 	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("ingester", getenv)
@@ -185,14 +188,15 @@ func buildIngesterCollectorService(
 	}
 	if handoffConfig.Enabled {
 		webhookSelector := git.WebhookTriggerRepositorySelector{
-			Config:           config,
-			Store:            webhookstore.NewWebhookTriggerStore(database),
-			Owner:            handoffConfig.Owner,
-			ClaimLimit:       handoffConfig.ClaimLimit,
-			Logger:           logger,
-			BaselineResolver: committer,
-			Instruments:      instruments,
-			ReindexWatermark: reindexWatermark,
+			Config:                     config,
+			Store:                      webhookstore.NewWebhookTriggerStore(database),
+			Owner:                      handoffConfig.Owner,
+			ClaimLimit:                 handoffConfig.ClaimLimit,
+			Logger:                     logger,
+			BaselineResolver:           committer,
+			Instruments:                instruments,
+			ReindexWatermark:           reindexWatermark,
+			RepositoryReindexWatermark: repositoryReindex,
 		}
 		if scheduledSyncConfig.Enabled {
 			selector = git.PriorityRepositorySelector{Selectors: []git.RepositorySelector{

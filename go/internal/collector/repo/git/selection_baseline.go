@@ -120,7 +120,22 @@ type gitDeltaBaseline struct {
 	// ReindexRequestedAt is the fleet reindex watermark active for this cycle
 	// (#7620), or zero when none is active. See resolveReindexWatermark.
 	ReindexRequestedAt time.Time
-	Now                func() time.Time
+	// RepositoryReindexRequestedAt holds the per-repository reindex watermarks
+	// active for this cycle, keyed by scope ID (#7620). See
+	// resolveRepositoryReindexWatermarks.
+	RepositoryReindexRequestedAt map[string]time.Time
+	Now                          func() time.Time
+}
+
+// reindexWatermarkFor returns the reindex watermark that applies to scopeID
+// (the later of the fleet watermark and the scope's own entry, zero when
+// neither is set) and the reason a forced full records: the repository
+// reason only when the scope's own entry is strictly later than the fleet's.
+func (b gitDeltaBaseline) reindexWatermarkFor(scopeID string) (time.Time, string) {
+	if repository, ok := b.RepositoryReindexRequestedAt[scopeID]; ok && repository.After(b.ReindexRequestedAt) {
+		return repository, reconcileReasonRepositoryReindexRequested
+	}
+	return b.ReindexRequestedAt, reconcileReasonReindexRequested
 }
 
 func (b gitDeltaBaseline) now() time.Time {
@@ -148,15 +163,19 @@ type reconcileDecision struct {
 
 // reconcileDue decides whether the managed checkout at repoPath should be
 // forced to a full reconciliation snapshot this cycle: reconciliation must be
-// enabled or a reindex watermark active, a resolver must be present, and the
-// scope must be due (see decideForScope). The caller only asks while the
-// per-cycle budget lasts.
+// enabled or a reindex watermark active for the scope, a resolver must be
+// present, and the scope must be due (see decideForScope). The caller only
+// asks while the per-cycle budget lasts.
 func (b gitDeltaBaseline) reconcileDue(ctx context.Context, config RepoSyncConfig, repoPath string, logger *slog.Logger) reconcileDecision {
-	if b.Resolver == nil || (!b.Reconcile.enabled() && b.ReindexRequestedAt.IsZero()) {
+	sweepOff := !b.Reconcile.enabled() && b.ReindexRequestedAt.IsZero()
+	if b.Resolver == nil || (sweepOff && len(b.RepositoryReindexRequestedAt) == 0) {
 		return reconcileDecision{}
 	}
 	scopeID := gitScopeIDForManagedRepo(config, repoPath)
 	if scopeID == "" {
+		return reconcileDecision{}
+	}
+	if _, requested := b.RepositoryReindexRequestedAt[scopeID]; sweepOff && !requested {
 		return reconcileDecision{}
 	}
 	return b.decideForScope(ctx, scopeID, logger)
@@ -192,9 +211,12 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 			}
 		}
 	}
-	if !decision.Due && decision.Reason == reconcileReasonFresh && !b.ReindexRequestedAt.IsZero() {
-		decision.Due, decision.Reason = b.Reconcile.decideReindex(now, b.ReindexRequestedAt, state)
-		decision.ReindexRequestedAt = b.ReindexRequestedAt
+	if watermark, reason := b.reindexWatermarkFor(scopeID); !decision.Due && decision.Reason == reconcileReasonFresh && !watermark.IsZero() {
+		decision.Due, decision.Reason = b.Reconcile.decideReindex(now, watermark, state)
+		if decision.Due {
+			decision.Reason = reason
+		}
+		decision.ReindexRequestedAt = watermark
 	}
 	if decision.Reason == reconcileReasonInFlight || decision.Reason == reconcileReasonRetryBackoff {
 		b.recordReconcileSuppressed(ctx, decision.Reason)
@@ -204,20 +226,22 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 
 // ReconcileSweepDecision reports whether the git collector's reconciliation
 // sweep, including the #7389 graph_dirty reason and the #7620 reindex
-// watermark, would force a full snapshot for scopeID at now with the given
-// interval and active watermark (zero when none), and the bounded reason. It
-// runs the same decision the sync loop runs, without a per-cycle budget, so an
-// end-to-end proof can derive a generation's reconcile flag from production.
+// watermarks, would force a full snapshot for scopeID at now with the given
+// interval, active fleet watermark, and active per-repository watermark for
+// scopeID (each zero when none), and the bounded reason. It runs the same
+// decision the sync loop runs, without a per-cycle budget, so an end-to-end
+// proof can derive a generation's reconcile flag from production.
 func ReconcileSweepDecision(
 	ctx context.Context,
 	resolver DeltaBaselineResolver,
 	interval time.Duration,
 	reindexRequestedAt time.Time,
+	repositoryReindexRequestedAt time.Time,
 	now time.Time,
 	scopeID string,
 	logger *slog.Logger,
 ) (bool, string) {
-	if resolver == nil || (interval <= 0 && reindexRequestedAt.IsZero()) {
+	if resolver == nil || (interval <= 0 && reindexRequestedAt.IsZero() && repositoryReindexRequestedAt.IsZero()) {
 		return false, ""
 	}
 	baseline := gitDeltaBaseline{
@@ -225,6 +249,9 @@ func ReconcileSweepDecision(
 		Reconcile:          reconcilePolicy{Interval: interval},
 		ReindexRequestedAt: reindexRequestedAt,
 		Now:                func() time.Time { return now },
+	}
+	if !repositoryReindexRequestedAt.IsZero() {
+		baseline.RepositoryReindexRequestedAt = map[string]time.Time{scopeID: repositoryReindexRequestedAt}
 	}
 	decision := baseline.decideForScope(ctx, scopeID, logger)
 	return decision.Due, decision.Reason
