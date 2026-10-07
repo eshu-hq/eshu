@@ -245,5 +245,6 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	payload["terraform_state"] = terraformStateStatusToMap(report.TerraformState)
 	withActiveWorkSource(payload, report.ActiveWorkSource)
+	withTerraformStateSource(payload, report.TerraformStateSource)
 	WriteJSON(w, http.StatusOK, payload)
 }

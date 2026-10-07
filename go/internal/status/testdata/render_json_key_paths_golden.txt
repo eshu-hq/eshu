@@ -1,3 +1,8 @@
+active_work_source.age_seconds
+active_work_source.as_of
+active_work_source.reason
+active_work_source.source
+active_work_source.stale
 answer_narration.budget_available
 answer_narration.canonical_truth_affected
 answer_narration.detail
@@ -345,6 +350,11 @@ terraform_state.warnings_by_kind.safe-locator-hash-b.stale_lock.severity
 terraform_state.warnings_by_kind.safe-locator-hash-b.stale_lock.source
 terraform_state.warnings_by_kind.safe-locator-hash-b.stale_lock.source_handle
 terraform_state.warnings_by_kind.safe-locator-hash-b.stale_lock.warning_kind
+terraform_state_source.age_seconds
+terraform_state_source.as_of
+terraform_state_source.reason
+terraform_state_source.source
+terraform_state_source.stale
 version
 vulnerability_sources.collector_instance_id
 vulnerability_sources.ecosystem

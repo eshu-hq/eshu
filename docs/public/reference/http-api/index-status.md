@@ -4,7 +4,9 @@
 share one handler. See [Status And Admin](status-admin.md#index-status) for the
 rest of the status routes. The full report also carries an
 [`active_work_source`](active-work-source.md) object that says whether the
-queue came from the stored summary or the live statement.
+queue came from the stored summary or the live statement, and a
+[`terraform_state_source`](active-work-source.md#terraform-state-source) object
+for the `terraform_state` section. A scoped caller gets neither.
 
 A shared-key caller receives the full deployment-wide report: `status`,
 `reasons`, `repository_count`, `queue`, `queue_blockages`, `coordinator`,

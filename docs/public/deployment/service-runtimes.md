@@ -201,8 +201,10 @@ configuration.
   `ESHU_STATUS_SUMMARY_STALE_AFTER` stops the process from starting. A row older than `ESHU_STATUS_SUMMARY_STALE_AFTER`
   (default `33s`), a missing row or table, or a row from another statement
   version runs the live statement for the whole answer; the status payload's
-  `active_work_source` object and `eshu_dp_status_summary_read_total{source,reason}`
-  report which path answered. A runtime's `/metrics` scrape never falls back
+  `active_work_source` object (and `terraform_state_source` on the routes that
+  render the Terraform-state section) and
+  `eshu_dp_status_summary_read_total{model_key,source,reason}` report which path
+  answered. A runtime's `/metrics` scrape never falls back
   to the live statement: a stale or missing row serves the newest row that
   process can decode (a stale one included, with its true age), or an empty
   summary when it can decode none, and exports

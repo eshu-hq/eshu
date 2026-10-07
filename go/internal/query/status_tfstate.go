@@ -35,3 +35,17 @@ func terraformStateStatusToMap(report status.TerraformStateReport) map[string]an
 		"recent_warnings": recentWarnings,
 	}
 }
+
+// withTerraformStateSource adds the terraform_state_source object (#7009) that
+// says whether the terraform_state section came from the stored summary or the
+// live statements and how old it is. It has the shape and the closed value sets
+// of active_work_source. It adds no key when the status read skipped Terraform
+// evidence (the ingester, operations, hosted readiness, and the other routes
+// that never render the section) or when the reader reports no source. It
+// returns payload for chaining.
+func withTerraformStateSource(payload map[string]any, source status.ActiveWorkSource) map[string]any {
+	if view := source.JSON(); view != nil {
+		payload["terraform_state_source"] = view
+	}
+	return payload
+}

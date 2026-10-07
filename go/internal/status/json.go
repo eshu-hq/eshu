@@ -57,6 +57,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		DomainBacklogsLimit            int                                 `json:"domain_backlogs_limit,omitempty"`
 		QueueBlockages                 []queueBlockageJSON                 `json:"queue_blockages"`
 		TerraformState                 *tfstate.ReportJSON                 `json:"terraform_state,omitempty"`
+		TerraformStateSource           *ActiveWorkSourceJSON               `json:"terraform_state_source,omitempty"`
 	}{
 		Version:           buildinfo.AppVersion(),
 		AsOf:              report.AsOf.UTC().Format(time.RFC3339),
@@ -94,6 +95,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		DomainBacklogsLimit:            domainBacklogsLimitJSON(report),
 		QueueBlockages:                 queueBlockagesJSON(report.QueueBlockages),
 		TerraformState:                 tfstate.ReportJSONFrom(report.TerraformState),
+		TerraformStateSource:           report.TerraformStateSource.JSON(),
 	}
 
 	return json.MarshalIndent(payload, "", "  ")

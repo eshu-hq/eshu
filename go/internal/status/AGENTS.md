@@ -31,7 +31,10 @@
   They must never become metric label values.
 - **`ActiveWorkSource` is additive and omitted when empty.** The reason values
   are a closed set shared with the `eshu_dp_status_summary_read_total` metric
-  and the `ActiveWorkSource` OpenAPI enum; change all three together.
+  and the `ActiveWorkSource` and `TerraformStateSource` OpenAPI enums; change
+  all four together. `TerraformStateSource` (the `terraform_state_source` key)
+  reuses the Go type and is emitted only on the routes that render the
+  `terraform_state` section.
 - **`BuildReport` is pure.** It takes `RawSnapshot` and `Options` and returns
   `Report` with no I/O. Keep it that way — it makes health-logic unit tests
   possible without a storage dependency.

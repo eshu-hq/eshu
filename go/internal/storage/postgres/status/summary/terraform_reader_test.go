@@ -91,8 +91,9 @@ func TestTerraformReaderOffRunsOnlyTheLiveStatements(t *testing.T) {
 	if q.tfLiveRuns.Load() != 2 {
 		t.Fatalf("live Terraform statements ran %d times, want both (2)", q.tfLiveRuns.Load())
 	}
-	if got := snapshot.TerraformStateSource; got.Source != statuspkg.ActiveWorkSourceLive || got.Reason != statuspkg.ActiveWorkReasonFlagOff {
-		t.Fatalf("terraform source = %+v, want live/flag_off", got)
+	if got := snapshot.TerraformStateSource; got.Source != statuspkg.ActiveWorkSourceLive || got.Reason != statuspkg.ActiveWorkReasonFlagOff ||
+		!got.AsOf.Equal(sourceTestNow) || got.Age != 0 || got.Stale {
+		t.Fatalf("terraform source = %+v, want live/flag_off at the snapshot clock %v, age 0, not stale", got, sourceTestNow)
 	}
 	want := liveEvidence(t)
 	if !reflect.DeepEqual(snapshot.TerraformStateLastSerials, want.LastSerials) || !reflect.DeepEqual(snapshot.TerraformStateRecentWarnings, want.RecentWarnings) {
@@ -135,10 +136,18 @@ func TestTerraformReaderFallsBackToBothLiveStatementsWithATypedReason(t *testing
 		{"another digest", tfStoredRow(t, sourceTestNow.Add(-time.Second), "other", good), "version"},
 		{"stale", tfStoredRow(t, sourceTestNow.Add(-40*time.Second), sha, good), "stale"},
 		{"an entry the decoder rejects", tfStoredRow(t, sourceTestNow.Add(-time.Second), sha, badEntries), "decode"},
+		{"a stored count that disagrees with the payload", storedRow(sourceTestNow.Add(-time.Second), summary.SchemaVersion, sha, len(good)+3, encodedEntries(t, good...)), "row_count"},
+		// A foreign schema version is never decoded, so an undecodable payload
+		// is a version fallback and not a decode failure.
+		{"a foreign schema version with an object payload", storedRow(sourceTestNow.Add(-time.Second), summary.SchemaVersion+1, sha, 2, `{"future":"encoding"}`), "version"},
+		{"table not installed", nil, "not_installed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			q := tfQueryer(t, tc.row)
+			if tc.reason == "not_installed" {
+				q.installed = false
+			}
 			snapshot := tfSnapshot(t, readerStore(q, true))
 			if q.tfLiveRuns.Load() != 2 {
 				t.Fatalf("live Terraform statements ran %d times, want both (2)", q.tfLiveRuns.Load())

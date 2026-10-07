@@ -1007,6 +1007,13 @@
     ],
     "updated_at": "2026-03-04T07:16:07Z"
   },
+  "active_work_source": {
+    "source": "model",
+    "reason": "fresh",
+    "as_of": "2026-03-04T05:05:58Z",
+    "age_seconds": 9,
+    "stale": false
+  },
   "collector_generation_dead_letters": {
     "dead_letter": 4,
     "replay_requested": 2,
@@ -1254,5 +1261,12 @@
         "count": 1
       }
     ]
+  },
+  "terraform_state_source": {
+    "source": "live_fallback",
+    "reason": "stale",
+    "as_of": "2026-03-04T05:06:07Z",
+    "age_seconds": 0,
+    "stale": false
   }
 }

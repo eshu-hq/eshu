@@ -19,3 +19,21 @@ const componentsActiveWorkSource = `      "ActiveWorkSource": {
         }
       },
 `
+
+// componentsTerraformStateSource documents the terraform_state_source object
+// of the three routes that render the terraform_state section (#7009): the same
+// five keys and closed value sets as ActiveWorkSource, with a Terraform-state
+// description. TestOpenAPIDocumentsTheTerraformStateSource keeps the two
+// components' enums equal.
+const componentsTerraformStateSource = `      "TerraformStateSource": {
+        "type": "object",
+        "description": "Where the terraform_state section of a status report (the last observed serial per state locator and the recent warnings per locator) came from, and how old it is. A stored summary row holds the answer as of its as_of: serials and warnings observed after as_of are not in it, and no value in the section is an age, so nothing is advanced at read. The live statements are true at the snapshot clock. Present on the pipeline, index, and index-status responses and on the runtime admin status JSON, even when the section is empty; absent on every route that skips Terraform-state evidence and when the status reader reports no source.",
+        "properties": {
+          "source": {"type": "string", "enum": ["model", "live", "live_fallback"], "description": "model: a stored summary row that passed every fence. live: the stored-summary reader is off, so the live statements ran. live_fallback: the stored row could not be served, so the live statements answered the whole section; reason says why."},
+          "reason": {"type": "string", "enum": ["fresh", "flag_off", "missing", "not_installed", "version", "row_count", "stale", "decode"], "description": "fresh: served from the row. flag_off: the reader is off. missing: no row yet. not_installed: the table does not exist yet. version: the row was written by another schema or statement version. row_count: the stored row_count disagrees with its payload. stale: the row is older than the configured stale limit. decode: the row could not be decoded."},
+          "as_of": {"type": "string", "format": "date-time", "description": "The time the terraform_state section is true at: the stored row's as_of for source model, otherwise the snapshot clock. Serials and warnings observed after as_of are not in a stored row."},
+          "age_seconds": {"type": "number", "description": "How old the served terraform_state data was at the read, from the database clock; 0 for a live read."},
+          "stale": {"type": "boolean", "description": "Always false: a stored row that is too old is never served. The live statements answer and reason says stale."}
+        }
+      },
+`
