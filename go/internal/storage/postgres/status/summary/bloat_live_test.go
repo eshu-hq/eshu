@@ -26,7 +26,7 @@ import (
 func TestStatusSummaryBloatLive(t *testing.T) {
 	runBloatProof(t, func(i int) summary.Row {
 		return proofRow(proofAsOf.Add(time.Duration(i)*time.Second), "bloat", bloatEntries)
-	}, false, 3200)
+	}, bloatBounds{model: summary.ModelActiveWorkSummary, wantToast: false, minPayload: 2000, maxPayload: 3200, maxReadBuffers: 8})
 }
 
 // TestStatusSummaryBloatIncompressibleLive is the same proof with a payload that
@@ -61,7 +61,7 @@ func TestStatusSummaryBloatIncompressibleLive(t *testing.T) {
 			})
 		}
 		return row
-	}, true, 4200)
+	}, bloatBounds{model: summary.ModelActiveWorkSummary, wantToast: true, minPayload: 2000, maxPayload: 4200, maxReadBuffers: 8})
 }
 
 // bloatEntries sizes the proof payload at about the 2.3-2.4 KB the shim
@@ -73,8 +73,9 @@ const bloatEntries = 35
 // to be stored out of line, and the proof fails if the TOAST table's presence
 // disagrees, so the compressible and incompressible cases cannot both silently
 // measure the same storage path. maxPayload bounds the encoded payload size.
-func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, wantToast bool, maxPayload int) {
+func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, bounds bloatBounds) {
 	t.Helper()
+	wantToast := bounds.wantToast
 	ctx, database := openProofDatabase(t)
 	applySummaryMigration(ctx, t, database)
 	store := summary.NewStore(poolStore{database})
@@ -102,8 +103,8 @@ func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, wantToast bool
 					t.Fatalf("EncodeEntries(): %v", err)
 				}
 				payloadBytes = len(encoded)
-				if payloadBytes < 2000 || payloadBytes > maxPayload {
-					t.Fatalf("proof payload is %d bytes, want 2000-%d (the production row is about 2.4 KB)", payloadBytes, maxPayload)
+				if payloadBytes < bounds.minPayload || payloadBytes > bounds.maxPayload {
+					t.Fatalf("proof payload is %d bytes, want %d-%d", payloadBytes, bounds.minPayload, bounds.maxPayload)
 				}
 			}
 			advanced, err := store.Upsert(ctx, row)
@@ -147,15 +148,30 @@ func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, wantToast bool
 		t.Errorf("HOT ratio = %.3f (%d of %d), want >= 0.9", last.hotRatio(), last.hot, last.updated)
 	}
 
-	hits, reads, toastHits, toastReads := explainReadBuffers(ctx, t, database)
+	hits, reads, toastHits, toastReads := explainReadBuffers(ctx, t, database, bounds.model)
 	t.Logf("read buffers: shared hit=%d read=%d; serialization (TOAST detoast) hit=%d read=%d",
 		hits, reads, toastHits, toastReads)
-	if total := hits + reads; total > 8 {
-		t.Errorf("model read touched %d shared buffers, want a handful (<= 8)", total)
+	if total := hits + reads; total > bounds.maxReadBuffers {
+		t.Errorf("model read touched %d shared buffers, want <= %d", total, bounds.maxReadBuffers)
+	}
+	if bounds.maxToastBuffers > 0 && toastHits+toastReads > bounds.maxToastBuffers {
+		t.Errorf("model read detoasted through %d buffers, want <= %d", toastHits+toastReads, bounds.maxToastBuffers)
 	}
 	if wantToast && toastHits+toastReads == 0 {
 		t.Error("the TOASTed payload's read reported no serialization buffers; the TOAST read path was not measured")
 	}
+}
+
+// bloatBounds names one model's bloat proof: its row key, whether its payload
+// is expected out of line, the encoded payload size window, and the buffer
+// bounds of its read (the plan's shared buffers, and the serialization step's
+// when the payload is TOASTed, where maxToastBuffers > 0).
+type bloatBounds struct {
+	model                  string
+	wantToast              bool
+	minPayload, maxPayload int
+	maxReadBuffers         int64
+	maxToastBuffers        int64
 }
 
 // bloatMeasure is the table's size and update statistics at one point.
@@ -201,12 +217,12 @@ WHERE c.oid = 'status_summary_snapshots'::regclass`).Scan(
 // SERIALIZE, FORMAT JSON) and returns the plan's shared buffers and the
 // serialization step's shared buffers, which is where a TOASTed rows value is
 // fetched.
-func explainReadBuffers(ctx context.Context, t *testing.T, database *sql.DB) (hits, reads, toastHits, toastReads int64) {
+func explainReadBuffers(ctx context.Context, t *testing.T, database *sql.DB, model string) (hits, reads, toastHits, toastReads int64) {
 	t.Helper()
 	var document []byte
 	if err := database.QueryRowContext(ctx,
 		"EXPLAIN (ANALYZE, BUFFERS, SERIALIZE, FORMAT JSON) "+summary.ReadSQL,
-		summary.ModelActiveWorkSummary).Scan(&document); err != nil {
+		model).Scan(&document); err != nil {
 		t.Fatalf("EXPLAIN of the model read: %v", err)
 	}
 	var plans []struct {

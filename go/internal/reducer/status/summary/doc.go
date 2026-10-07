@@ -15,9 +15,11 @@
 // as $1, and one guarded single-row upsert (store.Upsert).
 //
 // Runner.Companions adds further models to the same pass, each its own
-// statement, row, as_of guard and digest (the Terraform-state model is one).
-// All statements run before any upsert, in the one transaction, and one failure
-// rolls every row back.
+// statement, row, as_of guard, digest and transaction (the Terraform-state
+// model is one). The first model is committed before a companion starts, so a
+// companion that fails or runs out of time never discards an earlier row. A
+// companion runs under the smaller of the pass's remaining budget and one
+// interval.
 //
 // Any number of reducer replicas may run the loop. The lock makes exactly one
 // compute per tick and the others report OutcomeSkippedLock; a crashed holder

@@ -188,8 +188,10 @@ configuration.
   minimum `5s`) and the others count `skipped_lock`. A pass runs the status
   active-work statement and the two Terraform-state admin-evidence statements on
   the primary and stores the results as two rows in `status_summary_snapshots`,
-  in one transaction. Watch
-  `eshu_dp_status_summary_writer_passes_total{outcome}` and
+  each row in its own transaction under the same advisory lock, the active-work
+  row first. A failed or slow Terraform-state row never discards the active-work
+  row. Watch
+  `eshu_dp_status_summary_writer_passes_total{model_key,outcome}` and
   `eshu_dp_status_summary_writer_overrun_total`. The API, MCP server, and
   ingester do not run the writer.
 - Every runtime that builds a status store reads the stored summary only when

@@ -183,6 +183,10 @@ PACKAGES = {
             "TestStatusSummaryBloatLive",
             "TestStatusSummaryBloatIncompressibleLive",
         ),
+        "go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go": (
+            "TestStatusSummaryBloatTerraformLive",
+            "TestStatusSummaryBloatTerraformWorstCaseLive",
+        ),
         "go/internal/storage/postgres/status/summary/select_live_test.go": (
             "TestStatusSummarySelectLive",
         ),
@@ -211,6 +215,7 @@ PACKAGES = {
         ),
         "go/internal/reducer/status/summary/terraform_live_test.go": (
             "TestTerraformModelServedEqualToLiveLive",
+            "TestWriterKilledMidCompanionKeepsThePrimaryRowLive",
         ),
     },
 }

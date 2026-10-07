@@ -60,9 +60,10 @@ func TestWritersBesideTheProductionClaimLoopLive(t *testing.T) {
 	writers := make([]*statussummary.Runner, 2)
 	readers := make([]*sdkmetric.ManualReader, 2)
 	for i := range writers {
-		writers[i] = newLiveWriter(writerPool)
+		writers[i] = newLiveWriterWithTerraform(writerPool)
 		writers[i].Interval = statussummary.MinInterval // the fastest allowed cadence is the worst case
 		writers[i].Statement.Compute = computes.wrap(i, writers[i].Statement.Compute)
+		writers[i].Companions[0].Compute = computes.wrap(i, writers[i].Companions[0].Compute)
 		writers[i].Instruments, readers[i] = proofInstruments(t)
 	}
 	writerCtx, stopWriters := context.WithTimeout(ctx, writerPhase)
@@ -78,13 +79,15 @@ func TestWritersBesideTheProductionClaimLoopLive(t *testing.T) {
 		}()
 	}
 	sampler := startLockSampler(writerCtx, t, database)
-	asOfs := startAsOfReader(writerCtx, t, database)
+	asOfs := startAsOfReader(writerCtx, t, database, store.ModelActiveWorkSummary)
+	tfAsOfs := startAsOfReader(writerCtx, t, database, store.ModelTerraformState)
 	time.Sleep(spikeAfter)
 	mustExec(ctx, t, database, `UPDATE fact_work_items SET status = 'pending', updated_at = now()
 		WHERE stage = 'reducer' AND domain = 'workload_identity' AND status = 'succeeded'`)
 	wg.Wait()
 	sampler.wait()
 	asOfs.wait()
+	tfAsOfs.wait()
 	loaded := claims.phase()
 	claims.stop()
 
@@ -98,12 +101,16 @@ func TestWritersBesideTheProductionClaimLoopLive(t *testing.T) {
 		t.Fatalf("writer-attributable lock waits = %d of %d samples, want 0", sampler.writerWaits, sampler.samples)
 	}
 	if !asOfs.monotone || asOfs.reads == 0 {
-		t.Fatalf("stored as_of monotone = %v over %d reads, want true", asOfs.monotone, asOfs.reads)
+		t.Fatalf("stored active_work_summary as_of monotone = %v over %d reads, want true", asOfs.monotone, asOfs.reads)
+	}
+	if !tfAsOfs.monotone || tfAsOfs.reads == 0 {
+		t.Fatalf("stored terraform_state as_of monotone = %v over %d reads, want true", tfAsOfs.monotone, tfAsOfs.reads)
 	}
 	if overlap := computes.overlap(); overlap != "" {
 		t.Fatalf("two writers computed at once: %s", overlap)
 	}
 	var okPasses int64
+	okPerModel := map[string]int64{}
 	for i, reader := range readers {
 		for _, outcome := range []string{statussummary.OutcomeError, statussummary.OutcomeRejectedGuard, statussummary.OutcomeSkippedMissingTable} {
 			if got := sumInt(t, reader, "eshu_dp_status_summary_writer_passes_total", outcome); got != 0 {
@@ -112,8 +119,18 @@ func TestWritersBesideTheProductionClaimLoopLive(t *testing.T) {
 		}
 		okPasses += sumInt(t, reader, "eshu_dp_status_summary_writer_passes_total", statussummary.OutcomeOK)
 		overruns := sumInt(t, reader, "eshu_dp_status_summary_writer_overrun_total", "")
-		if maxPass := maxDuration(t, reader); (overruns > 0) != (maxPass > statussummary.MinInterval.Seconds()) {
-			t.Fatalf("writer %d overruns = %d with max pass %.3fs; overruns must match passes over the interval", i, overruns, maxPass)
+		// A model transaction longer than the interval makes the pass longer
+		// than the interval, so it must have been counted as an overrun.
+		if maxPass := maxDuration(t, reader); maxPass > statussummary.MinInterval.Seconds() && overruns == 0 {
+			t.Fatalf("writer %d has a %.3fs model transaction over the interval but %d overruns", i, maxPass, overruns)
+		}
+		for _, model := range []string{store.ModelActiveWorkSummary, store.ModelTerraformState} {
+			okPerModel[model] += sumIntForModel(t, reader, "eshu_dp_status_summary_writer_passes_total", model, statussummary.OutcomeOK)
+		}
+	}
+	for model, n := range okPerModel {
+		if n < 2 {
+			t.Fatalf("ok passes of %s across both writers = %d in %s, want at least 2", model, n, writerPhase)
 		}
 	}
 	if okPasses < 4 {
@@ -277,4 +294,23 @@ func (l *computeLog) maxDuration() time.Duration {
 		longest = max(longest, window.end.Sub(window.start))
 	}
 	return longest
+}
+
+// sumIntForModel sums an Int64 counter's points for one model_key and outcome.
+func sumIntForModel(t *testing.T, reader *sdkmetric.ManualReader, name, model, outcome string) int64 {
+	t.Helper()
+	var total int64
+	for _, m := range collect(t, reader) {
+		if m.Name != name {
+			continue
+		}
+		for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
+			key, _ := point.Attributes.Value(telemetry.MetricDimensionModelKey)
+			value, _ := point.Attributes.Value(telemetry.MetricDimensionOutcome)
+			if key.AsString() == model && value.AsString() == outcome {
+				total += point.Value
+			}
+		}
+	}
+	return total
 }

@@ -154,3 +154,23 @@ func TestAgeKeysCoverTheDecoderDurations(t *testing.T) {
 		t.Fatalf("ageKeys = %v, want %v", ageKeys, want)
 	}
 }
+
+// TestAddAgeLeavesTheTerraformStateSectionsByteForByte: the Terraform-state
+// rows carry absolute observed_at values and no age, so a reader that runs
+// AddAge over them at a 20 s row age must change nothing.
+func TestAddAgeLeavesTheTerraformStateSectionsByteForByte(t *testing.T) {
+	t.Parallel()
+
+	entries := []Entry{
+		{Section: "last_serial", Ordinal: 1, JSON: `{"safe_locator_hash":"h","serial":3,"observed_at":"2026-10-07T09:30:15Z"}`},
+		{Section: "recent_warning", Ordinal: 1, JSON: `{"safe_locator_hash":"h","warning_kind":"state_missing","observed_at":null}`},
+	}
+
+	aged, err := AddAge(entries, 20*time.Second)
+	if err != nil {
+		t.Fatalf("AddAge() error = %v", err)
+	}
+	if !reflect.DeepEqual(aged, entries) {
+		t.Fatalf("AddAge() changed Terraform-state entries:\n got %+v\nwant %+v", aged, entries)
+	}
+}

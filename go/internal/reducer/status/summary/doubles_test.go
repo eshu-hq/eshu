@@ -23,17 +23,23 @@ import (
 type fakeDatabase struct {
 	mu sync.Mutex
 
-	lockAcquired   bool
-	tableInstalled bool
-	clock          time.Time
-	upsertAffected int64
+	lockAcquired bool
+	// lockAcquiredSeq, when set, gives the advisory lock result of the nth
+	// transaction (1-based Begin order); later transactions use lockAcquired.
+	lockAcquiredSeq []bool
+	tableInstalled  bool
+	clock           time.Time
+	upsertAffected  int64
 	// upsertAffectedSeq, when set, gives the affected-row count of the nth
 	// upsert in a pass; later upserts use upsertAffected.
 	upsertAffectedSeq []int64
 	upsertErr         error
-	beginErr          error
-	commitErr         error
-	execErr           error
+	// upsertErrSeq, when set, gives the error of the nth upsert in the
+	// database's life; later upserts use upsertErr.
+	upsertErrSeq []error
+	beginErr     error
+	commitErr    error
+	execErr      error
 
 	begun      int
 	committed  int
@@ -99,6 +105,9 @@ func (t *fakeTx) ExecContext(ctx context.Context, query string, args ...any) (sq
 		t.db.upsertCalls = append(t.db.upsertCalls, args)
 		nth := len(t.db.upsertCalls) - 1
 		t.db.mu.Unlock()
+		if nth < len(t.db.upsertErrSeq) && t.db.upsertErrSeq[nth] != nil {
+			return nil, t.db.upsertErrSeq[nth]
+		}
 		if t.db.upsertErr != nil {
 			return nil, t.db.upsertErr
 		}
@@ -120,7 +129,11 @@ func (t *fakeTx) QueryContext(ctx context.Context, query string, args ...any) (d
 		t.db.mu.Lock()
 		t.db.lockArgs = args
 		t.db.mu.Unlock()
-		return &fakeRows{rows: [][]any{{t.db.lockAcquired}}}, nil
+		acquired := t.db.lockAcquired
+		if t.id-1 < len(t.db.lockAcquiredSeq) {
+			acquired = t.db.lockAcquiredSeq[t.id-1]
+		}
+		return &fakeRows{rows: [][]any{{acquired}}}, nil
 	case strings.Contains(query, "clock_timestamp()"):
 		t.record("clock")
 		return &fakeRows{rows: [][]any{{t.db.clock, t.db.tableInstalled}}}, nil

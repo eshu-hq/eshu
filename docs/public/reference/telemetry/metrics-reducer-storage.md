@@ -128,14 +128,14 @@ sum for that table.
 
 The reducer's periodic writer of the `status_summary_snapshots` read model
 (#7009), on only when `ESHU_STATUS_SUMMARY_WRITER_ENABLED=true`. One pass
-writes two rows in one transaction: `active_work_summary` and `terraform_state`.
+writes two rows, each in its own transaction under the same advisory lock, the
+active-work row first: `active_work_summary` and `terraform_state`.
 Every metric carries `model_key` (`active_work_summary` or `terraform_state`).
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_status_summary_writer_passes_total` | counter | Writer passes by `model_key` and `outcome`, one sample per model per pass (a skipped or failed pass counts for both): `ok` (row advanced), `skipped_lock` (another replica held the advisory lock this tick; expected on every replica but one), `skipped_missing_table` (migration 161 not applied yet), `rejected_guard` (a stored row was as new or newer; nothing changed), `error` (rolled back; the next tick retries). |
-| `eshu_dp_status_summary_writer_model_compute_seconds` | histogram | Time one model's statement or statements took inside a pass, by `model_key`. The `terraform_state` samples are the cost of the two Terraform-state statements and their Go decode; a rise there, not in the pass total, points at `fact_records`. |
-| `eshu_dp_status_summary_writer_pass_duration_seconds` | histogram | Duration of one whole pass transaction (both models), by `outcome`, labeled with the first model's key. The `ok` samples are the cost the writer adds to the primary every interval. |
+| `eshu_dp_status_summary_writer_passes_total` | counter | Writer passes by `model_key` and `outcome`, one sample per model transaction (a companion that was not attempted because the first model skipped on the lock or the missing table counts with that outcome): `ok` (row advanced), `skipped_lock` (another replica held the advisory lock this tick; expected on every replica but one), `skipped_missing_table` (migration 161 not applied yet), `rejected_guard` (a stored row was as new or newer; nothing changed), `error` (rolled back; the next tick retries). |
+| `eshu_dp_status_summary_writer_pass_duration_seconds` | histogram | Duration of one model's own writer transaction (Begin to Commit or Rollback), by `model_key` and `outcome`. The `ok` samples are the cost each model adds to the primary every interval; a rise on `model_key="terraform_state"` and not on the active-work model points at `fact_records`. |
 | `eshu_dp_status_summary_writer_overrun_total` | counter | Passes longer than `ESHU_STATUS_SUMMARY_WRITER_INTERVAL`. The next pass then starts on the following interval boundary, so a steady rise means the stored row ages past one interval. |
 | `eshu_dp_status_summary_writer_up` | gauge | 1 while this reducer's writer loop runs, 0 after it stops. Absent when the writer is disabled. |
 

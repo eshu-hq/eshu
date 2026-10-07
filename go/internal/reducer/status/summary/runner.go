@@ -82,44 +82,55 @@ type Statement struct {
 	Compute func(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]store.Entry, error)
 }
 
-// RowResult is one model's part of a pass that reached the row writes.
-type RowResult struct {
+// ModelPass reports one model's transaction inside a pass.
+type ModelPass struct {
 	// ModelKey is the model's row key.
 	ModelKey string
-	// Outcome is OutcomeOK when the row's upsert advanced the stored as_of and
-	// OutcomeRejectedGuard when the guard kept a row that is as new or newer.
+	// Outcome is one of the Outcome constants for this model's own
+	// transaction.
 	Outcome string
+	// AsOf is the database clock this model's transaction bound, zero when it
+	// skipped before reading it.
+	AsOf time.Time
 	// RowCount is the number of entries the model's statement returned.
 	RowCount int
-	// Compute is the time the model's statement took inside the pass.
+	// Compute is the time the model's statement took.
 	Compute time.Duration
-}
-
-// Pass reports one writer pass.
-type Pass struct {
-	// Outcome is one of the Outcome constants. A pass with several models is
-	// OutcomeOK when any row advanced and OutcomeRejectedGuard when every
-	// row's guard rejected it; Rows has each model's own result.
-	Outcome string
-	// Rows holds one result per model, in statement order, for a pass that
-	// reached the row writes; empty for a pass that skipped or failed before.
-	Rows []RowResult
-	// AsOf is the database clock the pass bound, zero when it skipped before
-	// reading it.
-	AsOf time.Time
-	// RowCount is the number of rows the pass computed.
-	RowCount int
-	// Duration is the whole pass, from Begin to Commit or Rollback.
+	// Duration is the model's own transaction, from Begin to Commit or
+	// Rollback; zero for a model that never opened one.
 	Duration time.Duration
-	// Err is the failure of an OutcomeError pass.
+	// Err is the failure of an OutcomeError model.
 	Err error
 }
 
-// Runner is the reducer-owned periodic writer of one status summary model
-// (#7009). Every Interval it runs one pass in one transaction: SET LOCAL jit =
-// off, the transaction-scoped advisory try-lock, the database clock, the
-// statement at that clock, and one guarded single-row upsert. Any number of
-// reducer replicas may run it; the lock makes exactly one compute per tick
+// Pass reports one writer pass. Its Outcome, AsOf, RowCount and Err are the
+// first model's; Models has every model's own result.
+type Pass struct {
+	// Outcome is one of the Outcome constants, the first model's.
+	Outcome string
+	// Models holds one result per model, the first model then the companions,
+	// in order. A companion that was not attempted because the first model
+	// skipped on the lock or the missing table carries that outcome with no
+	// transaction.
+	Models []ModelPass
+	// AsOf is the database clock the first model bound, zero when it skipped
+	// before reading it.
+	AsOf time.Time
+	// RowCount is the number of rows the first model computed.
+	RowCount int
+	// Duration is the whole pass, from the first Begin to the last Commit or
+	// Rollback.
+	Duration time.Duration
+	// Err is the failure of an OutcomeError first model.
+	Err error
+}
+
+// Runner is the reducer-owned periodic writer of the status summary models
+// (#7009). Every Interval it runs one pass. Each model is written in its own
+// transaction, the first model first: SET LOCAL jit = off, the
+// transaction-scoped advisory try-lock, the database clock, the statement at
+// that clock, and one guarded single-row upsert. Any number of reducer
+// replicas may run it; the lock makes exactly one compute per model per tick
 // and the rest skip. Passes never overlap or queue: the next pass starts on
 // the first interval boundary after the previous one ends.
 type Runner struct {
@@ -127,11 +138,12 @@ type Runner struct {
 	DB db.Beginner
 	// Statement is the first model the runner writes.
 	Statement Statement
-	// Companions are further models written by the same pass: each its own
-	// row with its own key, digest, as_of guard and compute time, under the
-	// pass's one transaction, lock and database clock. Their statements run
-	// after Statement's, and every row is written after every statement has
-	// run, so a slow statement never holds an earlier row's lock.
+	// Companions are further models written by the same pass, after
+	// Statement's row is committed. Each has its own row, key, digest, as_of
+	// guard, database clock and transaction, under the same advisory lock key,
+	// so a companion that fails or runs out of time never discards an earlier
+	// row. A companion runs under the smaller of the pass's remaining budget
+	// and one interval.
 	Companions []Statement
 	// Interval is the cadence; zero means DefaultInterval and anything below
 	// MinInterval is refused.
@@ -193,8 +205,18 @@ func (r *Runner) RunOnce(ctx context.Context) Pass {
 	start := r.now()
 	passCtx, cancel := context.WithTimeout(ctx, 2*r.interval())
 	defer cancel()
-	pass := r.pass(passCtx)
-	pass.Duration = r.now().Sub(start)
+	first := r.modelPass(passCtx, r.Statement)
+	first.Duration = r.now().Sub(start)
+	pass := Pass{
+		Outcome: first.Outcome, AsOf: first.AsOf, RowCount: first.RowCount, Err: first.Err,
+		Duration: first.Duration, Models: []ModelPass{first},
+	}
+	for _, companion := range r.Companions {
+		pass.Models = append(pass.Models, r.companionPass(passCtx, first, companion))
+	}
+	if len(r.Companions) > 0 {
+		pass.Duration = r.now().Sub(start)
+	}
 	if ctx.Err() != nil {
 		return pass
 	}
@@ -202,11 +224,35 @@ func (r *Runner) RunOnce(ctx context.Context) Pass {
 	return pass
 }
 
-// pass runs the one transaction of a writer pass.
-func (r *Runner) pass(ctx context.Context) (result Pass) {
+// companionPass writes one companion model after the first. A first model
+// that skipped on the lock or the missing table means another writer owns this
+// tick or the table is absent, so the companion reports the same outcome
+// without opening a transaction. A first model that failed or was rejected by
+// its guard does not stop the companion: the rows are independent.
+func (r *Runner) companionPass(ctx context.Context, first ModelPass, statement Statement) ModelPass {
+	if first.Outcome == OutcomeSkippedLock || first.Outcome == OutcomeSkippedMissingTable {
+		return ModelPass{ModelKey: statement.ModelKey, Outcome: first.Outcome}
+	}
+	ctx, cancel := context.WithTimeout(ctx, r.interval())
+	defer cancel()
+	start := r.now()
+	result := r.modelPass(ctx, statement)
+	result.Duration = r.now().Sub(start)
+	return result
+}
+
+// modelPass runs one model's transaction: read committed, jit off, the
+// advisory try-lock, the database clock, the statement at that clock, one
+// guarded upsert, and commit.
+func (r *Runner) modelPass(ctx context.Context, statement Statement) (result ModelPass) {
+	result.ModelKey = statement.ModelKey
+	fail := func(err error) ModelPass {
+		result.Outcome, result.Err = OutcomeError, err
+		return result
+	}
 	tx, err := r.DB.Begin(ctx)
 	if err != nil {
-		return failed(fmt.Errorf("begin status summary pass: %w", err))
+		return fail(fmt.Errorf("begin status summary pass: %w", err))
 	}
 	committed := false
 	defer func() {
@@ -215,83 +261,63 @@ func (r *Runner) pass(ctx context.Context) (result Pass) {
 		}
 	}()
 	if _, err := tx.ExecContext(ctx, setReadCommittedSQL); err != nil {
-		return failed(fmt.Errorf("set status summary pass isolation: %w", err))
+		return fail(fmt.Errorf("set status summary pass isolation: %w", err))
 	}
 	if _, err := tx.ExecContext(ctx, setJITOffSQL); err != nil {
-		return failed(fmt.Errorf("disable jit for status summary pass: %w", err))
+		return fail(fmt.Errorf("disable jit for status summary pass: %w", err))
 	}
 	acquired, err := store.TryLock(ctx, tx)
 	if err != nil {
-		return failed(err)
+		return fail(err)
 	}
 	if !acquired {
-		return Pass{Outcome: OutcomeSkippedLock}
+		result.Outcome = OutcomeSkippedLock
+		return result
 	}
 	asOf, installed, err := readPassClock(ctx, tx)
 	if err != nil {
-		return failed(err)
+		return fail(err)
 	}
+	result.AsOf = asOf
 	if !installed {
-		return Pass{Outcome: OutcomeSkippedMissingTable, AsOf: asOf}
+		result.Outcome = OutcomeSkippedMissingTable
+		return result
 	}
-	statements := r.statements()
-	computed := make([]computedRow, 0, len(statements))
-	for _, statement := range statements {
-		computeStart := r.now()
-		entries, err := statement.Compute(ctx, tx, asOf)
-		if err != nil {
-			return failed(fmt.Errorf("compute status summary %q: %w", statement.ModelKey, err))
-		}
-		computed = append(computed, computedRow{statement: statement, entries: entries, took: r.now().Sub(computeStart)})
+	computeStart := r.now()
+	entries, err := statement.Compute(ctx, tx, asOf)
+	if err != nil {
+		return fail(fmt.Errorf("compute status summary %q: %w", statement.ModelKey, err))
 	}
-	result = Pass{AsOf: asOf, RowCount: len(computed[0].entries)}
-	advancedAny := false
-	for _, c := range computed {
-		advanced, err := store.Upsert(ctx, tx, store.Row{
-			ModelKey:      c.statement.ModelKey,
-			SchemaVersion: store.SchemaVersion,
-			SourceSHA256:  c.statement.SourceSHA256,
-			AsOf:          asOf,
-			PassDuration:  c.took,
-			RowCount:      len(c.entries),
-			Entries:       c.entries,
-		})
-		if errors.Is(err, store.ErrNotInstalled) {
-			result.Rows = nil
-			result.Outcome = OutcomeSkippedMissingTable
-			return result
-		}
-		if err != nil {
-			return failed(err)
-		}
-		outcome := OutcomeRejectedGuard
-		if advanced {
-			outcome, advancedAny = OutcomeOK, true
-		}
-		result.Rows = append(result.Rows, RowResult{
-			ModelKey: c.statement.ModelKey, Outcome: outcome, RowCount: len(c.entries), Compute: c.took,
-		})
+	result.Compute, result.RowCount = r.now().Sub(computeStart), len(entries)
+	advanced, err := store.Upsert(ctx, tx, store.Row{
+		ModelKey:      statement.ModelKey,
+		SchemaVersion: store.SchemaVersion,
+		SourceSHA256:  statement.SourceSHA256,
+		AsOf:          asOf,
+		PassDuration:  result.Compute,
+		RowCount:      len(entries),
+		Entries:       entries,
+	})
+	if errors.Is(err, store.ErrNotInstalled) {
+		result.RowCount, result.Outcome = 0, OutcomeSkippedMissingTable
+		return result
+	}
+	if err != nil {
+		return fail(err)
 	}
 	if err := tx.Commit(); err != nil {
 		committed = true // the driver ends the transaction on a failed commit
-		return failed(fmt.Errorf("commit status summary pass: %w", err))
+		return fail(fmt.Errorf("commit status summary pass: %w", err))
 	}
 	committed = true
 	result.Outcome = OutcomeOK
-	if !advancedAny {
+	if !advanced {
 		result.Outcome = OutcomeRejectedGuard
 	}
 	return result
 }
 
-// computedRow is one model's statement result inside a pass.
-type computedRow struct {
-	statement Statement
-	entries   []store.Entry
-	took      time.Duration
-}
-
-// statements returns the pass's statements: the first model, then the
+// statements returns the writer's statements: the first model, then the
 // companions.
 func (r *Runner) statements() []Statement {
 	return append([]Statement{r.Statement}, r.Companions...)
@@ -330,10 +356,6 @@ func nextWait(elapsed, interval time.Duration) time.Duration {
 	}
 	periods := elapsed/interval + 1
 	return periods*interval - elapsed
-}
-
-func failed(err error) Pass {
-	return Pass{Outcome: OutcomeError, Err: err}
 }
 
 func (r *Runner) validate() error {

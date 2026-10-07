@@ -158,6 +158,7 @@ func TestTerraformModelServedEqualToLiveLive(t *testing.T) {
 		wantMinWarn int
 	}{
 		{"empty", terraformFixture{}, 0, 0},
+		{"serials only", terraformFixture{stateScopes: 3}, 3, 0},
 		{"a few states", terraformFixture{stateScopes: 3, warningsPerScope: 4}, 3, 12},
 		{"past the per-locator rank cap", terraformFixture{stateScopes: 2, warningsPerScope: 60}, 2, 100},
 		{"states, git backends and malformed generations", terraformFixture{stateScopes: 4, warningsPerScope: 5, gitRepos: 6, gitWarnings: 4, malformedScopes: 2}, 4, 30},
@@ -165,8 +166,8 @@ func TestTerraformModelServedEqualToLiveLive(t *testing.T) {
 		t.Run(state.name, func(t *testing.T) {
 			seedTerraformState(ctx, t, database, state.fixture)
 			pass := writer.RunOnce(ctx)
-			if pass.Outcome != statussummary.OutcomeOK || len(pass.Rows) != 2 {
-				t.Fatalf("RunOnce() = %+v, want ok with two rows", pass)
+			if pass.Outcome != statussummary.OutcomeOK || len(pass.Models) != 2 {
+				t.Fatalf("RunOnce() = %+v, want ok with two models", pass)
 			}
 			time.Sleep(20 * time.Millisecond)
 			model, live := terraformSnapshotPair(ctx, t, database)
@@ -189,17 +190,19 @@ func TestTerraformModelServedEqualToLiveLive(t *testing.T) {
 					t.Fatalf("rank-cap fixture = %v, want 2 locators at exactly %d rows each", perLocator, statuspkg.MaxTerraformStateRecentWarnings)
 				}
 			}
-			// The two rows share one clock and have their own digests.
-			var modelAsOf, terraformAsOf time.Time
+			// Each row reads its own database clock in its own transaction,
+			// the first model first, and has its own digest.
+			var activeAsOf, terraformAsOf time.Time
 			var activeSHA, terraformSHA string
-			if err := database.QueryRowContext(ctx, `SELECT as_of, source_sha256 FROM status_summary_snapshots WHERE model_key = $1`, store.ModelActiveWorkSummary).Scan(&modelAsOf, &activeSHA); err != nil {
+			if err := database.QueryRowContext(ctx, `SELECT as_of, source_sha256 FROM status_summary_snapshots WHERE model_key = $1`, store.ModelActiveWorkSummary).Scan(&activeAsOf, &activeSHA); err != nil {
 				t.Fatal(err)
 			}
 			if err := database.QueryRowContext(ctx, `SELECT as_of, source_sha256 FROM status_summary_snapshots WHERE model_key = $1`, store.ModelTerraformState).Scan(&terraformAsOf, &terraformSHA); err != nil {
 				t.Fatal(err)
 			}
-			if !modelAsOf.Equal(terraformAsOf) || activeSHA == terraformSHA || terraformSHA != statestore.SummarySourceSHA256() {
-				t.Fatalf("rows: as_of %v / %v, digests %q / %q; want one as_of and each model's own digest", modelAsOf, terraformAsOf, activeSHA, terraformSHA)
+			if terraformAsOf.Before(activeAsOf) || terraformAsOf.Sub(activeAsOf) > 5*time.Second ||
+				activeSHA == terraformSHA || terraformSHA != statestore.SummarySourceSHA256() {
+				t.Fatalf("rows: as_of %v / %v, digests %q / %q; want the companion's own later as_of and each model's own digest", activeAsOf, terraformAsOf, activeSHA, terraformSHA)
 			}
 		})
 	}
@@ -218,4 +221,64 @@ FROM scope_generations gen WHERE gen.status = 'active' AND gen.scope_id LIKE 'st
 			t.Fatal("the equality check could not see a warning written after the pass")
 		}
 	})
+}
+
+// modelAsOf returns one model row's stored as_of.
+func modelAsOf(ctx context.Context, t *testing.T, database *sql.DB, modelKey string) time.Time {
+	t.Helper()
+	var asOf time.Time
+	if err := database.QueryRowContext(ctx,
+		`SELECT as_of FROM status_summary_snapshots WHERE model_key = $1`, modelKey).Scan(&asOf); err != nil {
+		t.Fatalf("read %s as_of: %v", modelKey, err)
+	}
+	return asOf
+}
+
+// TestWriterKilledMidCompanionKeepsThePrimaryRowLive: each model row is its own
+// transaction, so a companion whose backend dies between its statements and its
+// upsert leaves the terraform_state row at its old as_of, while the
+// active-work row of the same pass is already committed with a new one.
+func TestWriterKilledMidCompanionKeepsThePrimaryRowLive(t *testing.T) {
+	ctx, database := openWriterDatabase(t)
+	seedWork(ctx, t, database, 300, 120)
+	seedTerraformState(ctx, t, database, terraformFixture{stateScopes: 3, warningsPerScope: 4})
+	writer := newLiveWriterWithTerraform(database)
+	if pass := writer.RunOnce(ctx); pass.Outcome != statussummary.OutcomeOK || len(pass.Models) != 2 || pass.Models[1].Outcome != statussummary.OutcomeOK {
+		t.Fatalf("first pass = %+v, want ok for both models", pass)
+	}
+	primaryBefore, tfBefore := modelAsOf(ctx, t, database, store.ModelActiveWorkSummary), modelAsOf(ctx, t, database, store.ModelTerraformState)
+
+	killed := newLiveWriterWithTerraform(database)
+	killed.Companions[0].Compute = func(ctx context.Context, q db.Queryer, asOf time.Time) ([]store.Entry, error) {
+		entries, err := statestore.SummaryEntries(ctx, q, statuspkg.MaxTerraformStateRecentWarnings)
+		if err != nil {
+			return nil, err
+		}
+		rows, err := q.QueryContext(ctx, `SELECT pg_backend_pid()`)
+		if err != nil {
+			return nil, err
+		}
+		var pid int
+		for rows.Next() {
+			if err := rows.Scan(&pid); err != nil {
+				return nil, err
+			}
+		}
+		_ = rows.Close()
+		mustExec(context.Background(), t, database, `SELECT pg_terminate_backend($1)`, pid)
+		return entries, nil
+	}
+	pass := killed.RunOnce(ctx)
+	if pass.Outcome != statussummary.OutcomeOK || pass.Models[1].Outcome != statussummary.OutcomeError {
+		t.Fatalf("killed pass = %+v, want the first model ok and the companion an error", pass)
+	}
+	if got := modelAsOf(ctx, t, database, store.ModelActiveWorkSummary); !got.After(primaryBefore) {
+		t.Fatalf("active-work as_of = %s, want it advanced past %s by the killed pass's committed first model", got, primaryBefore)
+	}
+	if got := modelAsOf(ctx, t, database, store.ModelTerraformState); !got.Equal(tfBefore) {
+		t.Fatalf("terraform_state as_of = %s, want the old %s", got, tfBefore)
+	}
+	// The old terraform row is still whole and still serves equal to live.
+	model, live := terraformSnapshotPair(ctx, t, database)
+	assertTerraformEqual(t, model, live)
 }

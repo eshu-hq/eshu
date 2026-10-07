@@ -57,7 +57,7 @@ func TestSummaryEntriesStoreWhatTheLiveReadReturns(t *testing.T) {
 	for _, entry := range entries {
 		sections = append(sections, entry.Section)
 	}
-	if want := []string{"serial", "serial", "warning", "warning", "warning"}; !reflect.DeepEqual(sections, want) {
+	if want := []string{"last_serial", "last_serial", "recent_warning", "recent_warning", "recent_warning"}; !reflect.DeepEqual(sections, want) {
 		t.Fatalf("sections = %v, want %v in live order", sections, want)
 	}
 	for i, entry := range entries {
@@ -136,12 +136,12 @@ func TestDecodeSummaryEntriesRejectsWhatItDoesNotUnderstand(t *testing.T) {
 	good := `{"safe_locator_hash":"h","backend_kind":"s3","lineage":"l","serial":3,"generation_id":"g","observed_at":"2026-10-07T09:30:15Z"}`
 	for name, entries := range map[string][]summary.Entry{
 		"unknown section":       {{Section: "mystery", Ordinal: 1, JSON: good}},
-		"not json":              {{Section: "serial", Ordinal: 1, JSON: `not json`}},
-		"unknown field":         {{Section: "serial", Ordinal: 1, JSON: strings.Replace(good, `"serial":3`, `"serial":3,"extra":1`, 1)}},
-		"serial is text":        {{Section: "serial", Ordinal: 1, JSON: strings.Replace(good, `"serial":3`, `"serial":"3"`, 1)}},
-		"bad timestamp":         {{Section: "serial", Ordinal: 1, JSON: strings.Replace(good, "2026-10-07T09:30:15Z", "yesterday", 1)}},
-		"warning with a serial": {{Section: "warning", Ordinal: 1, JSON: good}},
-		"trailing data":         {{Section: "serial", Ordinal: 1, JSON: good + ` {}`}},
+		"not json":              {{Section: "last_serial", Ordinal: 1, JSON: `not json`}},
+		"unknown field":         {{Section: "last_serial", Ordinal: 1, JSON: strings.Replace(good, `"serial":3`, `"serial":3,"extra":1`, 1)}},
+		"serial is text":        {{Section: "last_serial", Ordinal: 1, JSON: strings.Replace(good, `"serial":3`, `"serial":"3"`, 1)}},
+		"bad timestamp":         {{Section: "last_serial", Ordinal: 1, JSON: strings.Replace(good, "2026-10-07T09:30:15Z", "yesterday", 1)}},
+		"warning with a serial": {{Section: "recent_warning", Ordinal: 1, JSON: good}},
+		"trailing data":         {{Section: "last_serial", Ordinal: 1, JSON: good + ` {}`}},
 	} {
 		if _, err := DecodeSummaryEntries(entries); err == nil {
 			t.Fatalf("%s: DecodeSummaryEntries() error = nil, want a decode error", name)

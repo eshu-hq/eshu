@@ -2132,9 +2132,6 @@ type Instruments struct {
 	StatusSummaryWriterPassDuration metric.Float64Histogram
 	StatusSummaryWriterOverruns     metric.Int64Counter
 	StatusSummaryWriterUp           metric.Int64Gauge
-	// StatusSummaryWriterModelCompute is the time each model's statement took
-	// inside a writer pass, labeled by model_key (#7009).
-	StatusSummaryWriterModelCompute metric.Float64Histogram
 	// StatusSummaryReads and StatusSummaryReadAge are the status reader's
 	// stored-summary signals (#7009), registered by
 	// registerStatusSummaryReadInstruments: one count per read by model_key,

@@ -30,8 +30,8 @@ const summaryEncodingTag = "terraform-state-summary/1"
 // serial row and one per recent warning row, in the order the live statements
 // return them.
 const (
-	summarySectionSerial  = "serial"
-	summarySectionWarning = "warning"
+	summarySectionSerial  = "last_serial"
+	summarySectionWarning = "recent_warning"
 )
 
 // serialWire and warningWire are the stored JSON shapes of the live rows. They

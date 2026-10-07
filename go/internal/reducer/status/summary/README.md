@@ -47,19 +47,24 @@ sequenceDiagram
             R->>P: ROLLBACK (skipped_missing_table)
         else table present
             R->>P: active-work statement at as_of
-            R->>P: terraform_state statements (companion)
-            R->>P: guarded upsert, one per model row
+            R->>P: guarded upsert
             R->>P: COMMIT (ok, or rejected_guard)
+            Note over R,P: then the same sequence again for terraform_state<br/>(own transaction, own clock, own as_of)
         end
     end
 ```
 
 - **as_of** is the database clock read after the lock, so it is monotonic
   across replicas whose host clocks differ.
-- **Two rows, one transaction.** Every statement runs before any upsert, so a
-  slow statement never holds an earlier row's lock. One failure rolls both rows
-  back. Each row has its own guard outcome, so one row can be `rejected_guard`
-  while the other is `ok`.
+- **One transaction per model row.** The active-work row commits first. The
+  `terraform_state` transaction then takes the same try-lock, reads its own
+  database clock and writes its own row, so a companion that fails, times out or
+  loses the lock never discards the active-work row. Each row has its own guard
+  outcome. A companion runs under the smaller of the pass's remaining budget and
+  one interval. When the first model skips on the lock or the missing table the
+  companion is not attempted and reports the same outcome. A companion that
+  breaks the per-tick bounds (sum of medians 2.5 s, companion p95 half the
+  interval, sum p95 the interval) moves to its own runner and lock key.
 - **Outcomes** (closed set): `ok`, `skipped_lock`, `skipped_missing_table`,
   `rejected_guard`, `error`.
 - **Deadline**: a pass is cancelled after two intervals.
@@ -74,7 +79,7 @@ The writer claims no queue rows and takes no row locks except on its own model
 row. Its only shared state is the advisory lock and the one row. Two replicas
 cannot compute in the same tick (the lock), an older pass cannot overwrite a
 newer row (the strict `as_of` guard), and a killed pass leaves the previous row
-whole (single-row upsert in the pass transaction). The live tests prove each
+whole (single-row upsert in the model's transaction). The live tests prove each
 claim, plus zero writer-attributable lock waits beside the production reducer
 claim and Ack loop.
 
@@ -82,10 +87,9 @@ claim and Ack loop.
 
 | signal | name |
 | --- | --- |
-| counter | `eshu_dp_status_summary_writer_passes_total{model_key, outcome}` (one sample per model per pass) |
-| histogram | `eshu_dp_status_summary_writer_model_compute_seconds{model_key}` (statement time of one model) |
-| histogram | `eshu_dp_status_summary_writer_pass_duration_seconds{model_key, outcome}` (whole pass, labeled with the first model key) |
-| counter | `eshu_dp_status_summary_writer_overrun_total{model_key}` |
+| counter | `eshu_dp_status_summary_writer_passes_total{model_key, outcome}` (one sample per model transaction) |
+| histogram | `eshu_dp_status_summary_writer_pass_duration_seconds{model_key, outcome}` (one model's own transaction) |
+| counter | `eshu_dp_status_summary_writer_overrun_total{model_key}` (one event per pass, first model key; the Warn carries every model's ms) |
 | gauge | `eshu_dp_status_summary_writer_up{model_key}` (1 while the loop runs) |
 | span | `reducer.status_summary.pass` with model key, outcome, as_of, pass ms, row count |
 | logs | Info at start; Warn per overrun, per guard rejection, and once per process for a missing table; Error with `sqlstate` per failed pass |

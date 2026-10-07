@@ -16,7 +16,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	store "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 )
 
 // claimLoop runs two workers that claim and Ack reducer work through the
@@ -231,7 +230,7 @@ type asOfReader struct {
 	maxAge   time.Duration
 }
 
-func startAsOfReader(ctx context.Context, t *testing.T, database *sql.DB) *asOfReader {
+func startAsOfReader(ctx context.Context, t *testing.T, database *sql.DB, modelKey string) *asOfReader {
 	t.Helper()
 	reader := &asOfReader{done: make(chan struct{}), monotone: true}
 	go func() {
@@ -243,7 +242,7 @@ func startAsOfReader(ctx context.Context, t *testing.T, database *sql.DB) *asOfR
 				age  float64
 			)
 			err := database.QueryRowContext(ctx, `SELECT as_of, EXTRACT(EPOCH FROM now() - as_of)
-				FROM status_summary_snapshots WHERE model_key = $1`, store.ModelActiveWorkSummary).Scan(&asOf, &age)
+				FROM status_summary_snapshots WHERE model_key = $1`, modelKey).Scan(&asOf, &age)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
 			case err != nil:
