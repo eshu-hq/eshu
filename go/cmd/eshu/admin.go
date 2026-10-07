@@ -38,17 +38,7 @@ func init() {
 	rootCmd.AddCommand(adminCmd)
 	adminCmd.AddCommand(adminFactsCmd)
 
-	// admin reindex
-	reindexCmd := &cobra.Command{
-		Use:   "reindex",
-		Short: "Force a fleet-wide re-parse of every git repository",
-		RunE:  runAdminReindex,
-	}
-	reindexCmd.Flags().String("ingester", "repository", "Ingester type (only repository is accepted)")
-	reindexCmd.Flags().String("scope", "workspace", "Reindex scope (only workspace is accepted)")
-	reindexCmd.Flags().Bool("force", true, "Force a full re-parse (false is rejected)")
-	addRemoteFlags(reindexCmd)
-	adminCmd.AddCommand(reindexCmd)
+	adminCmd.AddCommand(newAdminReindexCmd())
 
 	// admin tuning-report
 	tuningCmd := &cobra.Command{
@@ -146,14 +136,34 @@ func init() {
 	adminFactsCmd.AddCommand(replayEventsCmd)
 }
 
+// newAdminReindexCmd builds `eshu admin reindex`.
+func newAdminReindexCmd() *cobra.Command {
+	reindexCmd := &cobra.Command{
+		Use:   "reindex",
+		Short: "Force a full re-parse of every git repository, or of the repositories named with --repository",
+		RunE:  runAdminReindex,
+	}
+	reindexCmd.Flags().String("ingester", "repository", "Ingester type (only repository is accepted)")
+	reindexCmd.Flags().String("scope", "workspace", "Reindex scope: workspace, or repository (the default when --repository is set)")
+	reindexCmd.Flags().StringArray("repository", nil, "Repository selector (ID, name, slug, or path) to reindex; repeatable, 1 to 100")
+	reindexCmd.Flags().Bool("force", true, "Force a full re-parse (false is rejected)")
+	addRemoteFlags(reindexCmd)
+	return reindexCmd
+}
+
 func runAdminReindex(cmd *cobra.Command, args []string) error {
 	ingester, _ := cmd.Flags().GetString("ingester")
 	scope, _ := cmd.Flags().GetString("scope")
 	force, _ := cmd.Flags().GetBool("force")
+	repositories, _ := cmd.Flags().GetStringArray("repository")
+	if len(repositories) > 0 && !cmd.Flags().Changed("scope") {
+		scope = "repository"
+	}
 	result, err := admin.Reindex(apiClientFromCmd(cmd), admin.ReindexInput{
-		Ingester: ingester,
-		Scope:    scope,
-		Force:    force,
+		Ingester:     ingester,
+		Scope:        scope,
+		Force:        force,
+		Repositories: repositories,
 	})
 	if err != nil {
 		return err

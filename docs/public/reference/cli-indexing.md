@@ -81,8 +81,9 @@ debounces filesystem events into the same repo-level indexing path.
 
 For multi-repository local indexing, point `eshu index <path>` or `eshu watch`
 at the directory that holds the repositories. To force every git ingester to
-re-parse all repositories, use `eshu admin reindex` (see
-[Status And Admin](http-api/status-admin.md)). The Go CLI has no separate
+re-parse all repositories, use `eshu admin reindex`; to re-parse only some, add
+`--repository <selector>` once per repository (see
+[Reindex requests](reconciliation-sweep.md#reindex-requests)). The Go CLI has no separate
 workspace or ecosystem indexing commands.
 
 ## Compatibility Stubs

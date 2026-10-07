@@ -5,7 +5,9 @@
 This package owns the operator-triggered ingester requests persisted in the
 `runtime_ingester_control` table: the scan request lifecycle (request, claim,
 and complete transitions), the fleet reindex watermark (request only), and
-point reads of both.
+point reads of both. It also owns the per-repository reindex watermarks in
+`repository_reindex_requests` (#7620): one row per git scope, request and bulk
+read only.
 
 ## Ownership boundary
 
@@ -20,13 +22,19 @@ the `ScanRequest`/`ReindexRequest` domain types, and the
 `StatusRequestHandler` that drives this store. `cmd/api` owns the write
 wiring: it constructs the store and passes it to the handler. `cmd/ingester`
 constructs the store and reads it only through `GetReindexState`, once per
-sync cycle, for the reindex watermark.
+sync cycle, for the reindex watermark. `cmd/api` writes per-repository
+watermarks through `RepositoryReindexStore.RequestRepositoryReindex`, and
+`cmd/ingester` hands the same store to the git selectors, which call
+`RepositoryReindexWatermarks` once per sync cycle.
 
 ## Exported surface
 
 - `StatusRequestStore` with `NewStatusRequestStore(database db.ExecQueryer)`.
 - `RequestScan`, `ClaimScanRequest`, `CompleteScanRequest`, `RequestReindex`,
   `GetScanState`, `GetReindexState`.
+- `RepositoryReindexStore` with `NewRepositoryReindexStore(database
+  db.ExecQueryer)`, `RequestRepositoryReindex`, and
+  `RepositoryReindexWatermarks`.
 
 See `doc.go` for the godoc contract.
 
@@ -85,6 +93,32 @@ queue, lease, or row count changes.
 
 No-Observability-Change (#7655): the deleted methods emitted no metric, span,
 or log, and no operator signal moves.
+
+- `RequestRepositoryReindex` (#7620) upserts one row per distinct scope ID in
+  one statement. Go sorts and deduplicates the IDs, and the SQL feeds them
+  through `SELECT DISTINCT unnest($1::text[]) ... ORDER BY 1`, so concurrent
+  overlapping requests take row locks in one order and cannot deadlock, and a
+  duplicate never reaches `ON CONFLICT` twice (which Postgres rejects with
+  21000). `GREATEST` keeps each row monotonic, and `RETURNING` reports the
+  stored value. Rows are never claimed or deleted.
+- `RepositoryReindexWatermarks` returns the rows later than the given fleet
+  watermark. The table has no secondary index: it holds one row per
+  repository ever requested, and the read is a sequential scan.
+
+Performance Evidence (#7620, per-repository): measured on PostgreSQL 18
+(`postgres:18`, full bootstrap schema). The bulk read took 0.99 ms over
+10,000 rows (134 buffers) and 9.45 ms over 100,000 rows. Upserting 100 new
+scope IDs took 2.09 ms, and 100 conflicting IDs took 1.89 ms, both on the
+`repository_reindex_requests_pkey` conflict arbiter. Under `pgbench -c4 -t200`
+with overlapping ID sets, the sorted statement had 0 deadlocks in 800
+transactions; the same statement without `ORDER BY` had 257 (32%). The live
+test `TestRepositoryReindexStoreWatermarksLive` runs 16 workers over
+overlapping, oppositely ordered ID ranges and checks that every stored value
+equals the newest returned one. With `ORDER BY` removed, it fails with 40P01.
+
+No-Observability-Change (#7620, per-repository): the store emits no signal of
+its own. The git collector logs the read (`git_repository_reindex_*`) and
+records the `repository_reindex_requested` reason.
 - Non-test code does not import the parent `postgres` package, so root can
   import this leaf later without a cycle. The test imports root only to check
   `BootstrapDefinitions`.

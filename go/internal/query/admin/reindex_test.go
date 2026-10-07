@@ -65,9 +65,10 @@ func TestAdminHandler_ReindexAcceptsWatermarkRequest(t *testing.T) {
 }
 
 // TestAdminHandler_ReindexRejectsUnsupportedRequests: the route only records a
-// fleet-wide repository reindex. Any other ingester, a narrower scope, a
-// non-forcing request, or the retired workspace path/action fields are
-// rejected before anything is stored, instead of a 202 that does nothing.
+// repository-ingester reindex. Any other ingester, a repository scope without
+// repositories, a non-forcing request, or the retired workspace path/action
+// fields are rejected before anything is stored, instead of a 202 that does
+// nothing.
 func TestAdminHandler_ReindexRejectsUnsupportedRequests(t *testing.T) {
 	t.Parallel()
 
@@ -77,7 +78,7 @@ func TestAdminHandler_ReindexRejectsUnsupportedRequests(t *testing.T) {
 		want string
 	}{
 		{"unknown ingester", `{"ingester":"terraform"}`, `ingester must be "repository"`},
-		{"narrow scope", `{"scope":"repository"}`, "per-repository reindex is not supported"},
+		{"repository scope without repositories", `{"scope":"repository"}`, "repositories"},
 		{"force false", `{"force":false}`, "force"},
 		{"workspace path", `{"scope":"workspace","path":"/src/app"}`, `unknown field "path"`},
 		{"workspace action", `{"scope":"workspace","action":"sync"}`, `unknown field "action"`},

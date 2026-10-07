@@ -321,6 +321,8 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	}
 	router.Admin.Recovery = recoveryHandler
 	router.Admin.Reindexer = reindexer
+	router.Admin.Repositories = contentReader
+	router.Admin.RepositoryReindexer = maintenancestore.NewRepositoryReindexStore(pgstatus.SQLDB{DB: writer})
 	return router, nil
 }
 

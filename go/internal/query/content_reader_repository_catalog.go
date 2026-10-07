@@ -154,7 +154,8 @@ func (cr *ContentReader) MatchRepositories(ctx context.Context, selector string)
 		       coalesce(payload->>'local_path', payload->>'path', '') AS local_path,
 		       coalesce(payload->>'remote_url', '') AS remote_url,
 		       coalesce(payload->>'repo_slug', '') AS repo_slug,
-		       CASE WHEN coalesce(payload->>'remote_url', '') <> '' THEN true ELSE false END AS has_remote
+		       CASE WHEN coalesce(payload->>'remote_url', '') <> '' THEN true ELSE false END AS has_remote,
+		       scope_id
 		FROM ingestion_scopes
 		WHERE scope_kind = 'repository'
 		  AND (
@@ -184,6 +185,7 @@ func (cr *ContentReader) MatchRepositories(ctx context.Context, selector string)
 			&repo.RemoteURL,
 			&repo.RepoSlug,
 			&repo.HasRemote,
+			&repo.ScopeID,
 		); err != nil {
 			return nil, fmt.Errorf("scan repository catalog match: %w", err)
 		}

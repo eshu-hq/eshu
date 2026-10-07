@@ -572,8 +572,8 @@ console or API defect.
 
 - `POST /api/v0/admin/refinalize` re-enqueues scope generations for projection
   through the durable Go work queue and reports `skipped_scopes` (see below).
-- `POST /api/v0/admin/reindex` records a fleet reindex watermark that the git
-  ingesters honor: [Reindex requests](../reconciliation-sweep.md#reindex-requests).
+- `POST /api/v0/admin/reindex` records a fleet or per-repository reindex watermark
+  for the git ingesters: [Reindex requests](../reconciliation-sweep.md#reindex-requests).
 - `POST /api/v0/admin/recover-generations` is the operator escape hatch for
   generations that wedge `active` without advancing past
   canonical-nodes-committed. It durably re-enqueues projector work for the named
