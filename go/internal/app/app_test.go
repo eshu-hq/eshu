@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/semantic"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -193,6 +194,40 @@ func TestMountStatusServerFailsStartupWhenTheReaderIsMisconfigured(t *testing.T)
 	}
 	if _, err := MountStatusServer(base, &startupFailingReader{}); err != nil {
 		t.Fatalf("MountStatusServer() with a healthy reader error = %v, want nil", err)
+	}
+}
+
+// TestMountStatusServerFailsStartupThroughReaderWrappers: the ingester, reducer
+// and projector wrap their store in WithRetryPolicies, and the API and MCP path
+// in WithSemanticProviderProfiles. A configuration error the store reports must
+// still fail the mount through every wrapper, alone or stacked.
+func TestMountStatusServerFailsStartupThroughReaderWrappers(t *testing.T) {
+	t.Setenv("ESHU_LISTEN_ADDR", "127.0.0.1:0")
+
+	base, err := NewHosted("collector-git", runtime.ContextRunner{})
+	if err != nil {
+		t.Fatalf("NewHosted() error = %v, want nil", err)
+	}
+	boom := errors.New("ESHU_STATUS_SUMMARY_STALE_AFTER=\"soon\": invalid")
+	profile := semantic.ProviderProfileStatus{}
+	for name, wrap := range map[string]func(statuspkg.Reader) statuspkg.Reader{
+		"retry policies": func(r statuspkg.Reader) statuspkg.Reader {
+			return statuspkg.WithRetryPolicies(r, statuspkg.DefaultRetryPolicies()...)
+		},
+		"provider profiles": func(r statuspkg.Reader) statuspkg.Reader {
+			return statuspkg.WithSemanticProviderProfiles(r, profile)
+		},
+		"both": func(r statuspkg.Reader) statuspkg.Reader {
+			return statuspkg.WithSemanticProviderProfiles(
+				statuspkg.WithRetryPolicies(r, statuspkg.DefaultRetryPolicies()...), profile)
+		},
+	} {
+		if _, err := MountStatusServer(base, wrap(&startupFailingReader{startupErr: boom})); !errors.Is(err, boom) {
+			t.Fatalf("%s: MountStatusServer() error = %v, want the reader's startup error through the wrapper", name, err)
+		}
+		if _, err := MountStatusServer(base, wrap(&startupFailingReader{})); err != nil {
+			t.Fatalf("%s: MountStatusServer() with a healthy reader error = %v, want nil", name, err)
+		}
 	}
 }
 

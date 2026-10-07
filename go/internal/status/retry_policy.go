@@ -45,6 +45,11 @@ type retryPolicyReader struct {
 	policies []RetryPolicySummary
 }
 
+// StartupError forwards the wrapped reader's startup error.
+func (r retryPolicyReader) StartupError() error {
+	return ReaderStartupError(r.reader)
+}
+
 func (r retryPolicyReader) CheckStatusReadiness(ctx context.Context) error {
 	return checkReaderReadiness(ctx, r.reader)
 }

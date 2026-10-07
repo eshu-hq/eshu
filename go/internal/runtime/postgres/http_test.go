@@ -178,3 +178,23 @@ func TestFutureAuthBusinessRouteReplacesInheritedCheckpoint(t *testing.T) {
 		t.Fatalf("checkpoint calls=%d want=1", source.calls)
 	}
 }
+
+// startupStatusStub reports a startup configuration error through the trusted
+// reader wrapper, as a StatusStore with an invalid summary reader setting does.
+type startupStatusStub struct {
+	guardedStatusStub
+	err error
+}
+
+func (s *startupStatusStub) StartupError() error { return s.err }
+
+func TestTrustedStatusReaderForwardsStartupError(t *testing.T) {
+	want := errors.New("ESHU_STATUS_SUMMARY_STALE_AFTER=\"soon\": invalid")
+	reader := NewTrustedStatusReader(&startupStatusStub{err: want}, &checkpointStub{})
+	if err := status.ReaderStartupError(reader); !errors.Is(err, want) {
+		t.Fatalf("ReaderStartupError() = %v, want %v", err, want)
+	}
+	if err := status.ReaderStartupError(NewTrustedStatusReader(&guardedStatusStub{}, &checkpointStub{})); err != nil {
+		t.Fatalf("ReaderStartupError() with a healthy reader = %v, want nil", err)
+	}
+}

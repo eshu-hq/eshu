@@ -301,6 +301,11 @@ states (in priority order):
 
 - `DefaultRetryPolicies()` — projector and reducer defaults (3 attempts, 30 s
   delay)
+- `ReaderStartupError(reader)` — the startup configuration error a reader
+  reports through `StartupError() error` (an invalid
+  `ESHU_STATUS_SUMMARY_STALE_AFTER` on `postgres.StatusStore`), or nil. Both
+  decorators below forward it, so `app.MountStatusServer` fails a
+  misconfigured process at startup whatever wraps the store (#7009).
 - `WithRetryPolicies(reader, policies...)` — decorator that attaches static
   retry metadata to any `Reader` without Postgres persistence
 - `WithSemanticProviderProfiles(reader, profiles...)` — decorator that attaches
