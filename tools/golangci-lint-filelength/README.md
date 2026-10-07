@@ -98,7 +98,7 @@ linters:
   run: make build
 
 - name: Install golangci-lint
-  run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+  run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
 - name: Lint Go
   working-directory: go

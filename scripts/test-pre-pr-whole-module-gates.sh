@@ -97,8 +97,8 @@ git init -q "${mini_repo}"
 canonical_mini_repo="$(git -C "${mini_repo}" rev-parse --show-toplevel)"
 mkdir -p "${mini_repo}/scripts/dev" "${mini_repo}/.github/workflows"
 cp "${precommit_script}" "${mini_repo}/scripts/dev/precommit-go.sh"
-printf '%s\n' 'run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2' > "${mini_repo}/.github/workflows/test.yml"
-printf '%s\n' 'run: go install github.com/securego/gosec/v2/cmd/gosec@v2.27.1' > "${mini_repo}/.github/workflows/security-scan.yml"
+printf '%s\n' 'run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2' > "${mini_repo}/.github/workflows/test.yml"
+printf '%s\n' 'run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1' > "${mini_repo}/.github/workflows/security-scan.yml"
 git -C "${mini_repo}" add scripts .github
 git -C "${mini_repo}" -c user.name=cache-test -c user.email=cache-test@example.invalid commit -qm init
 git -C "${mini_repo}" worktree add --detach -q "${linked_worktree}" HEAD

@@ -661,6 +661,35 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: ci-go-install-retry
+    name: CI Go tool install retry-script test mirror
+    category: hygiene
+    layer: hygiene
+    purpose: "Self-tests the go-install retry wrapper and fails if any workflow runs a bare go install instead of it."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/go-install-retry.sh"
+      - "scripts/test-ci-go-install-retry.sh"
+      - "scripts/lib/test-ci-go-install-retry-fake-go.sh"
+      # Every workflow is a trigger: the mirror rejects a bare `go install`
+      # in any of them, so a workflow-only edit that adds one must still
+      # select this gate.
+      - ".github/workflows/**"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      # Same shape as ci-go-mod-download-retry above: a thin retry wrapper
+      # with no non-mutating "real" command (any real run would hit
+      # proxy.golang.org), so the hermetic mirror, via a fake `go` on PATH,
+      # IS this gate's verification.
+      command: "bash scripts/test-ci-go-install-retry.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements: []
+    ci_only_reason: ""
+
   - id: main-health-watcher
     name: Post-merge main-health watcher test mirror
     category: hygiene
@@ -2421,6 +2450,7 @@ gates:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/go-install-retry.sh"
     # Whole-module gosec here so the ci-gates runner (which passes no file list)
     # runs a real scan rather than a no-op. #4217 narrows the local security lane
     # to changed packages for speed while keeping CI authoritative.
@@ -2449,6 +2479,7 @@ gates:
       - "scripts/dev/precommit-go.sh"
       - "scripts/test-precommit-go-toolchain-isolation.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/go-install-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh govulncheck"
       # Self-test mirror: precommit-go.sh installs its scanners from the repo
@@ -2488,6 +2519,7 @@ gates:
       - "scripts/dev/nancy-local.sh"
       - "scripts/test-nancy-local.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/ci/go-install-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh nancy"
       test_command: "bash scripts/test-nancy-local.sh"

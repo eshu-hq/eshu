@@ -319,7 +319,7 @@ jobs:
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Install govulncheck (pinned)
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: scripts/ci/go-install-retry.sh golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Run govulncheck on every Go package
         working-directory: go
@@ -387,7 +387,7 @@ jobs:
         # and continues with the AST-based rules. Two packages (reducer, query)
         # whose generics trip the loader fall back to AST-only coverage; the
         # rest get full coverage.
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.27.1
+        run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1
 
       - name: Run gosec on every Go package (SARIF)
         working-directory: go
@@ -449,7 +449,7 @@ jobs:
         run: scripts/ci/go-mod-download-retry.sh
 
       - name: Install nancy (pinned)
-        run: go install github.com/sonatype-nexus-community/nancy@latest
+        run: scripts/ci/go-install-retry.sh github.com/sonatype-nexus-community/nancy@latest
 
       - name: Run nancy sleuth on go.sum
         working-directory: go
