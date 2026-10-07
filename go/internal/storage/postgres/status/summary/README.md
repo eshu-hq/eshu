@@ -114,7 +114,8 @@ ahead of its data, get a correct later pass rejected, and make the reader's
 ## Scrape path
 
 `ModelReader.ReadScrape` serves the runtime `/metrics` scrape and never runs the
-live statement (`Hooks` has a live step; `ScrapeHooks` has none). It runs
+live statement (`Hooks` has a live step; `ScrapeHooks` has none). A nil reader or
+one whose flag is off returns `ErrScrapeReaderDisabled` before any hook runs. It runs
 `Select` with `DecodeStale` set, serves a fresh row and remembers its entries as
 stored, and otherwise serves the newest row it can decode with its ages advanced by the database clock minus its
 `as_of` at this read, or the zero summary (`Decode(nil)`) when it can decode none.

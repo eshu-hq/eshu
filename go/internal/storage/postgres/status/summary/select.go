@@ -177,6 +177,8 @@ func decodableStored(payload []byte, rowCount int, age time.Duration) []Entry {
 	if err != nil || rowCount != len(entries) {
 		return nil
 	}
+	// Probe with at least a second: AddAge never fails on a non-positive age,
+	// so the floor forces real validation of the stored entries.
 	if _, err := AddAge(entries, max(age, time.Second)); err != nil {
 		return nil
 	}

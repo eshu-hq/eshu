@@ -5,8 +5,14 @@ package summary
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrScrapeReaderDisabled is returned by ReadScrape for a nil reader or one
+// whose flag is off: such a reader has no stored row to serve, and reading one
+// would run the clock and row statements the flag promises not to run.
+var ErrScrapeReaderDisabled = errors.New("status summary scrape: reader is off")
 
 const (
 	// SourceLastRow is the newest stored row this process can decode, a fresh
@@ -60,10 +66,14 @@ func (r *ModelReader[T]) Enabled() bool {
 // it has none, and is marked stale; the live statement is never an option,
 // because a scrape from every process would turn a stopped writer into a herd
 // of expensive statements. A database error is returned: it is neither a stale
-// serve nor a live run. Call it only when Enabled; a reader that is off has no
-// stored row to serve. The value is decoded fresh on every call, so concurrent
+// serve nor a live run. A reader that is off returns ErrScrapeReaderDisabled
+// before any hook runs, so a caller that skips the Enabled gate still sends no
+// summary statement. The value is decoded fresh on every call, so concurrent
 // scrapes share nothing but the remembered entries.
 func (r *ModelReader[T]) ReadScrape(ctx context.Context, h ScrapeHooks[T]) (ScrapeResult[T], error) {
+	if !r.Enabled() {
+		return ScrapeResult[T]{}, ErrScrapeReaderDisabled
+	}
 	selection, err := h.Select(ctx)
 	if err != nil {
 		return ScrapeResult[T]{}, err

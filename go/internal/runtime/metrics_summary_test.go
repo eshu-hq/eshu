@@ -211,11 +211,11 @@ func TestSummaryMarkerRendersOnlyForTheScrapeSources(t *testing.T) {
 		source     statuspkg.ActiveWorkSource
 		stale, age string
 	}{
-		{"fresh", statuspkg.ActiveWorkSource{Source: "model", Reason: "fresh", Age: 2500 * time.Millisecond}, "0", "2.5"},
-		{"last row", statuspkg.ActiveWorkSource{Source: "last_row", Reason: "stale", Age: 90 * time.Second, Stale: true}, "1", "90"},
-		{"zero", statuspkg.ActiveWorkSource{Source: "zero", Reason: "missing", Stale: true}, "1", "NaN"},
-		{"live", statuspkg.ActiveWorkSource{Source: "live", Reason: "flag_off"}, "", ""},
-		{"live fallback", statuspkg.ActiveWorkSource{Source: "live_fallback", Reason: "stale"}, "", ""},
+		{"fresh", statuspkg.ActiveWorkSource{Source: statuspkg.ActiveWorkSourceModel, Reason: "fresh", Age: 2500 * time.Millisecond}, "0", "2.5"},
+		{"last row", statuspkg.ActiveWorkSource{Source: statuspkg.ActiveWorkSourceLastRow, Reason: "stale", Age: 90 * time.Second, Stale: true}, "1", "90"},
+		{"zero", statuspkg.ActiveWorkSource{Source: statuspkg.ActiveWorkSourceZero, Reason: "missing", Stale: true}, "1", "NaN"},
+		{"live", statuspkg.ActiveWorkSource{Source: statuspkg.ActiveWorkSourceLive, Reason: "flag_off"}, "", ""},
+		{"live fallback", statuspkg.ActiveWorkSource{Source: statuspkg.ActiveWorkSourceLiveFallback, Reason: "stale"}, "", ""},
 		{"unreported", statuspkg.ActiveWorkSource{}, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
