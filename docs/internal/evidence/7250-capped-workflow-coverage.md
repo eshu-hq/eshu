@@ -212,9 +212,8 @@ baseline/candidate trials per case, `-benchmem`, `-benchtime=150ms`,
 branch, on the same 4,999/5,000-file fixtures (the baseline's "capped" fixtures
 are the candidate's `exactly_limit` fixtures). The shared host was busy
 (`load1` 12 during the run), so these medians disclose cost and do not
-establish a speedup. Bytes and allocations are the medians over the five trials
-(identical in every trial). The raw logs are `/tmp/eshu-7619-final/bench.log` and
-`explain-pairs.txt`.
+establish a speedup. Bytes and allocations are the medians over the five trials;
+allocation counts were identical in every trial.
 
 | Static plus story summary | Baseline median | Candidate median | Bytes/allocs before/after |
 | --- | ---: | ---: | ---: |
@@ -229,9 +228,20 @@ The direct path now asks the content store for one more row. Read-only paired
 `EXPLAIN (ANALYZE, BUFFERS)` of the `ListRepoFiles` statement (`ORDER BY
 relative_path LIMIT $2`, custom plan) on the QA reader for a 12,403-file
 repository, seven interleaved rounds with alternating first mover: median 12.211
-ms at `LIMIT 5000` and 12.532 ms at `LIMIT 5001`, range 11.9 to 13.3 ms for both,
-shared buffers 5,082 versus 5,083. The plan is an index scan on
-`content_files_repo_path_idx` in both. Host `load1` was 18 to 22 during these
+ms at `LIMIT 5000` and 12.532 ms at `LIMIT 5001`, ranges 11.9 to 13.1 ms and
+12.0 to 13.3 ms, shared buffers 5,082 versus 5,083. The rounds, in ms, were:
+
+| Round | First mover | `LIMIT 5000` | `LIMIT 5001` |
+| ---: | --- | ---: | ---: |
+| 1 | 5000 | 12.211 | 12.428 |
+| 2 | 5001 | 12.944 | 12.313 |
+| 3 | 5000 | 12.192 | 12.965 |
+| 4 | 5001 | 12.128 | 12.044 |
+| 5 | 5000 | 13.093 | 12.532 |
+| 6 | 5001 | 11.897 | 12.580 |
+| 7 | 5000 | 12.781 | 13.256 |
+
+The plan is an index scan on `content_files_repo_path_idx` in both. Host `load1` was 18 to 22 during these
 reads. Planner statistics for `content_files` were not recorded. This is a
 spot check on one repository, not an endpoint p95.
 
