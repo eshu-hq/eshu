@@ -63,8 +63,11 @@ each resolves one `StatusSummaryReader` at startup (an invalid
 per-transaction store. `NewStatusStore` reads no environment and allocates no
 `Flight`. Hosted runtimes build their store once through
 `NewInstrumentedStatusStore`, which reads the environment once; their store
-reports a bad value through `StartupError()` and `MountStatusServer` fails the
-mount. The ingester, reducer and projector wrap the store in
+reports a bad value through `StartupError()`. The check lives in the shared
+runtime constructors, `runtime.NewStatusAdminMux` and
+`runtime.NewStatusMetricsHandler`, which every runtime that serves a status
+endpoint calls (directly, through `app.MountStatusServer`, or, for the webhook
+listener, from its own mux), so a runtime cannot skip it. The ingester, reducer and projector wrap the store in
 `WithRetryPolicies`, and the API and MCP path in `WithSemanticProviderProfiles`,
 so both wrappers and the trusted reader forward the error through
 `status.ReaderStartupError`; tests mount a failing reader through each wrapper
@@ -91,8 +94,10 @@ Hermetic, `go test -race -count=1` per package:
   (`newSnapshotStatusReader`), two concurrent status reads open two snapshot
   transactions, each builds its own store, and one live statement runs;
   invalid `ESHU_STATUS_SUMMARY_STALE_AFTER` fails startup; the factory reads no
-  environment. `internal/app`: `MountStatusServer` fails when a reader reports a
-  startup error.
+  environment. `internal/runtime`: the admin mux, admin server, metrics
+  server and metrics handler constructors each fail on a reader startup error;
+  `cmd/webhook-listener` (its own mux) and `internal/app` (through wrappers)
+  fail the same way.
 - `postgres` (storage): flag off issues no summary statement; a fresh row is
   served with the age advanced and the live statement never runs; every
   fallback runs the live statement and returns none of the stored data; a
