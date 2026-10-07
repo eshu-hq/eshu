@@ -1,0 +1,22 @@
+go/internal/proof/scheduling/eligibility.go
+  s_b0d7e3abc26c5a::t_d088beae8ac115 306
+go/internal/proof/scheduling/eligibility_test.go
+  s_b0d7e3abc26c5a::t_4f78c6c307053c 225-228
+  s_b0d7e3abc26c5a::t_15c57b316f2225 7,186-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66df8b19fb38ee2f9eb504a2ab600ce88a2b5e2e",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
