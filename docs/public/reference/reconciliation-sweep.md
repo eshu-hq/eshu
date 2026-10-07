@@ -186,7 +186,8 @@ later watermark, otherwise `reindex_requested`.
   budget itself is unchanged. Because rows are never deleted, a requested
   repository stays first in the sync order, even once satisfied, until a newer
   fleet request supersedes its row. Order matters elsewhere only for the
-  `ESHU_PINNED_REF_FLEET_CAP` worktree cap.
+  fleet-wide pinned-ref worktree cap in
+  [Ingestion and queue environment](environment-ingestion-queues.md).
 - Each row is deferred on its own when it is later than the cycle start; a
   cycle with deferred rows logs INFO `git_repository_reindex_deferred` with
   `deferred_count`. A cycle with active rows logs DEBUG
