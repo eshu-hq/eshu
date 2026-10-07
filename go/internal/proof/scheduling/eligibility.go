@@ -103,7 +103,7 @@ func validateOracleTerm(term string, selected []codetopicparallel.ProbeRow, samp
 			return fmt.Errorf("selected row has no persisted primary key")
 		}
 		if _, duplicate := seen[identity]; duplicate {
-			return fmt.Errorf("duplicate selected persisted identity %q", identity)
+			return fmt.Errorf("duplicate selected persisted identity")
 		}
 		seen[identity] = struct{}{}
 		persisted, ok := verified[identity]

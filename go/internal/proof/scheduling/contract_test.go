@@ -64,6 +64,27 @@ func TestConditionalPoolsRejectUnexpectedTermAndKind(t *testing.T) {
 	}
 }
 
+func TestConditionalPoolsRejectUnexpectedValuesWithoutEcho(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		row    codetopicparallel.ProbeRow
+		secret string
+	}{
+		{name: "term", row: probe("entity", "private/path-canary.go", "id"), secret: "private/path-canary.go"},
+		{name: "kind", row: probe("private-entity-canary", "a", "id"), secret: "private-entity-canary"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateConditionalPools([]codetopicparallel.ProbeRow{test.row}, nil, []string{"a"}, 2)
+			if err == nil {
+				t.Fatal("unexpected probe value accepted")
+			}
+			if strings.Contains(err.Error(), test.secret) {
+				t.Fatalf("unexpected probe error exposed %q: %v", test.secret, err)
+			}
+		})
+	}
+}
+
 func TestConditionalPoolsRejectInvalidCap(t *testing.T) {
 	if err := validateConditionalPools(nil, nil, []string{"a"}, 0); err == nil || !strings.Contains(err.Error(), "cap") {
 		t.Fatalf("invalid cap error = %v", err)

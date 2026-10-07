@@ -150,3 +150,35 @@ func TestOracleRejectsMalformedFileProjection(t *testing.T) {
 		t.Fatal("unclamped file end line accepted")
 	}
 }
+
+func TestOracleDuplicateErrorDoesNotExposePersistedIdentity(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		row     codetopicparallel.ProbeRow
+		secrets []string
+	}{
+		{
+			name:    "entity",
+			row:     oracleEntity("private-entity-canary"),
+			secrets: []string{"private-entity-canary"},
+		},
+		{
+			name:    "file",
+			row:     oracleFile("private/path-canary.go"),
+			secrets: []string{"repo-a", "private/path-canary.go"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			verified := map[string]oracleVerified{oracleIdentity(test.row): {row: test.row}}
+			err := validateOracleTerm("needle", []codetopicparallel.ProbeRow{test.row, test.row}, oracleSamples{}, verified, 250)
+			if err == nil || !strings.Contains(err.Error(), "duplicate") {
+				t.Fatalf("want duplicate rejection, got %v", err)
+			}
+			for _, secret := range test.secrets {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("duplicate error exposed persisted identity %q: %v", secret, err)
+				}
+			}
+		})
+	}
+}

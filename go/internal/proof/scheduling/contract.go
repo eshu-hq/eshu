@@ -21,10 +21,10 @@ func indexPools(rows []codetopicparallel.ProbeRow, terms map[string]struct{}, ca
 	pools := make(poolRows)
 	for _, row := range rows {
 		if _, ok := terms[row.MatchedTerm]; !ok {
-			return nil, fmt.Errorf("unexpected matched term %q", row.MatchedTerm)
+			return nil, fmt.Errorf("unexpected matched term in probe row")
 		}
 		if row.SourceKind != "entity" && row.SourceKind != "file" {
-			return nil, fmt.Errorf("unexpected source kind %q", row.SourceKind)
+			return nil, fmt.Errorf("unexpected source kind in probe row")
 		}
 		key := poolKey{kind: row.SourceKind, term: row.MatchedTerm}
 		if pools[key] == nil {
