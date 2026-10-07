@@ -17,10 +17,13 @@ import (
 // and, when omitOnSkip is set, drops Terraform evidence as the Postgres status
 // store does for a selection that skips it.
 type terraformSelectionReader struct {
-	snapshot      statuspkg.RawSnapshot
-	omitOnSkip    bool
-	selections    []statuspkg.SnapshotSelection
-	unfilteredHit int
+	snapshot   statuspkg.RawSnapshot
+	omitOnSkip bool
+	// omitUnselected drops the fact_records sections a selection does not
+	// request, as the Postgres status store does.
+	omitUnselected bool
+	selections     []statuspkg.SnapshotSelection
+	unfilteredHit  int
 }
 
 func (r *terraformSelectionReader) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (statuspkg.RawSnapshot, error) {
@@ -39,6 +42,12 @@ func (r *terraformSelectionReader) ReadStatusSnapshotFiltered(
 		raw.TerraformStateLastSerials = nil
 		raw.TerraformStateRecentWarnings = nil
 	}
+	if r.omitUnselected && !selection.IncludeCollectorFactEvidence {
+		raw.CollectorFactEvidence = nil
+	}
+	if r.omitUnselected && !selection.IncludeRegistryCollectors {
+		raw.RegistryCollectors = nil
+	}
 	return raw, nil
 }
 
@@ -53,6 +62,12 @@ func terraformMetricsSnapshot() statuspkg.RawSnapshot {
 		},
 		TerraformStateRecentWarnings: []statuspkg.TerraformStateLocatorWarning{
 			{SafeLocatorHash: "hash-a", BackendKind: "s3", WarningKind: "state_missing", ObservedAt: asOf},
+		},
+		CollectorFactEvidence: []statuspkg.CollectorFactEvidence{
+			{CollectorKind: "git", InstanceID: "git-primary", ObservationCount: 12},
+		},
+		RegistryCollectors: []statuspkg.RegistryCollectorSnapshot{
+			{CollectorKind: "oci", ConfiguredInstances: 1, ActiveScopes: 1},
 		},
 	}
 }
@@ -76,18 +91,20 @@ func TestStatusMetricsSkipsTerraformEvidence(t *testing.T) {
 		return rec.Body.String()
 	}
 	baseline := &terraformSelectionReader{snapshot: terraformMetricsSnapshot()}
-	selected := &terraformSelectionReader{snapshot: terraformMetricsSnapshot(), omitOnSkip: true}
+	selected := &terraformSelectionReader{snapshot: terraformMetricsSnapshot(), omitOnSkip: true, omitUnselected: true}
 	want := scrape(baseline)
 	got := scrape(selected)
+	// The scrape renders no fact evidence or registry collector row and health
+	// reads neither, so the selection omits both with the Terraform reads, and
+	// asks for the stored active-work summary only.
 	wantSelection := statuspkg.SnapshotSelection{
-		IncludeCollectorFactEvidence: true,
-		IncludeRegistryCollectors:    true,
-		SkipTerraformStateEvidence:   true,
+		SkipTerraformStateEvidence: true,
+		StoredActiveWorkOnly:       true,
 	}
 	if len(selected.selections) != 1 || selected.selections[0] != wantSelection || selected.unfilteredHit != 0 {
 		t.Fatalf("selections = %+v (unfiltered %d), want [%+v]", selected.selections, selected.unfilteredHit, wantSelection)
 	}
 	if got != want {
-		t.Fatalf("metrics changed when Terraform evidence was omitted:\nfull=%s\nomitted=%s", want, got)
+		t.Fatalf("metrics changed when unrendered sections were omitted:\nfull=%s\nomitted=%s", want, got)
 	}
 }

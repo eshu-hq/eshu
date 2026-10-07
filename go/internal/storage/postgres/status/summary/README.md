@@ -111,6 +111,26 @@ clock domain: a replica with a fast Go clock would otherwise write an `as_of`
 ahead of its data, get a correct later pass rejected, and make the reader's
 `now - as_of` understate staleness.
 
+## Scrape path
+
+`ModelReader.ReadScrape` serves the runtime `/metrics` scrape and never runs the
+live statement (`Hooks` has a live step; `ScrapeHooks` has none). A nil reader or
+one whose flag is off returns `ErrScrapeReaderDisabled` before any hook runs. It runs
+`Select` with `DecodeStale` set, serves a fresh row and remembers its entries as
+stored, and otherwise serves the newest row it can decode with its ages advanced by the database clock minus its
+`as_of` at this read, or the zero summary (`Decode(nil)`) when it can decode none.
+The newest row is the remembered one or, on a stale row that passes the version,
+row count, decode, and age-key checks, that stale row itself (`Selection.Stored`),
+so a process that restarts during a writer outage serves the stored counts, not
+zeros. A status route leaves `DecodeStale` off and is unchanged. The
+result is `SourceModel`, `SourceLastRow`, or `SourceZero`, and `Stale` is true for
+the last two. `lastRow` holds one row per `ModelReader`, is safe for concurrent
+scrapes, and never moves back in time. A database error is returned. The
+`Selection` carries `Now` (the database clock) and `Stored` (the entries before
+the age advance) for it. `ObserveScrape` records
+`eshu_dp_status_summary_scrape_total`, the span attributes, and a Warn at most
+once a minute per reason.
+
 ## Rollout order
 
 Migration 160 belongs to PR #7645 (`160_activation_obligations.sql`). Merging

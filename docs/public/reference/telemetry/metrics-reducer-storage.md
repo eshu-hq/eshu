@@ -149,6 +149,11 @@ hosted runtimes. With the flag off, each read counts once as `source=live`,
 | --- | --- | --- |
 | `eshu_dp_status_summary_read_total` | counter | Status snapshot reads of the active-work summary by `model_key`, `source` (`model`: the stored row was served; `live`: the reader is off; `live_fallback`: the live statement answered because the row could not be served) and `reason` (`fresh`, `flag_off`, `missing`, `not_installed`, `version`, `row_count`, `stale`, `decode`). A steady `live_fallback` share means the writer is down, slow, or on another statement version; `stale` points at a slow or stopped writer, `version` at a rolling upgrade. |
 | `eshu_dp_status_summary_read_age_seconds` | histogram | Age of the stored row, from the database clock, at each read that served it (`source=model` only). Compare its upper buckets with `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`): a p95 near the limit predicts fallbacks. |
+| `eshu_dp_status_summary_scrape_total` | counter | Runtime `/metrics` scrapes of the active-work summary by `model_key`, `source` (`model`: a fresh stored row; `last_row`: the newest row this process can decode, now stale, including a stale row found at startup; `zero`: the empty summary because the process can decode no row) and `reason` (`fresh`, `missing`, `not_installed`, `version`, `row_count`, `stale`, `decode`). A scrape never runs the live statement, so `last_row` or `zero` is the whole signal that the writer is down, slow, or on another version; the per-scrape gauges `eshu_runtime_status_summary_stale` and `eshu_runtime_status_summary_age_seconds` carry the same state. Emitted only while the reader is on. |
+
+On the runtime `/metrics` scrape the same span attributes carry `source` `model`, `last_row`, or `zero`, and a scrape that serves a row other than a fresh one logs
+`status summary row not served fresh on the metrics scrape; serving the newest decodable row or the zero summary` at Warn, at most once a minute per reason per process, with
+`model_key`, `source`, `reason`, `age_seconds`, and `failure_class=status_summary_scrape_stale`.
 
 The `postgres.status_snapshot` span carries `status.active_work.source`,
 `status.active_work.as_of_age_seconds`, `status.active_work.as_of_age_signed_seconds`

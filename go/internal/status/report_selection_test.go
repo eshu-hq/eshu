@@ -76,3 +76,29 @@ func TestWithoutTerraformStateEvidenceKeepsSemanticOnlyInvalid(t *testing.T) {
 		t.Fatalf("standard selection without Terraform evidence: Validate() = %v, want nil", err)
 	}
 }
+
+// TestWithStoredActiveWorkOnlySetsOnlyItsFlagAndKeepsSemanticOnlyInvalid pins
+// the scrape-only selection: it changes no other section request, it never
+// mutates its receiver, and a semantic-only selection rejects it.
+func TestWithStoredActiveWorkOnlySetsOnlyItsFlagAndKeepsSemanticOnlyInvalid(t *testing.T) {
+	t.Parallel()
+
+	in := status.FullSnapshotSelection().WithoutTerraformStateEvidence()
+	got := in.WithStoredActiveWorkOnly()
+	want := status.SnapshotSelection{
+		IncludeCollectorFactEvidence: true, IncludeRegistryCollectors: true,
+		SkipTerraformStateEvidence: true, StoredActiveWorkOnly: true,
+	}
+	if got != want {
+		t.Fatalf("WithStoredActiveWorkOnly() = %+v, want %+v", got, want)
+	}
+	if in.StoredActiveWorkOnly {
+		t.Fatal("receiver mutated")
+	}
+	if err := got.Validate(); err != nil {
+		t.Fatalf("standard selection: Validate() = %v, want nil", err)
+	}
+	if err := status.SemanticOnlySnapshotSelection().WithStoredActiveWorkOnly().Validate(); err == nil {
+		t.Fatal("semantic-only selection with StoredActiveWorkOnly: Validate() = nil, want rejection")
+	}
+}

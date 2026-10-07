@@ -53,7 +53,7 @@ Do not treat a green pod as proof that the graph is complete.
 | --- | --- | --- |
 | `/healthz` | The process is alive. | Work is current. |
 | `/readyz` | The runtime has enough dependencies to serve. | Queues are empty. |
-| `/metrics` | Prometheus can scrape runtime and data-plane signals; `eshu_runtime_status_snapshot_available=0` means the status snapshot failed for that scrape while OTEL metrics remain available. | The graph is correct. |
+| `/metrics` | Prometheus can scrape runtime and data-plane signals; `eshu_runtime_status_snapshot_available=0` means the status snapshot failed for that scrape while OTEL metrics remain available; with `ESHU_STATUS_SUMMARY_READ_ENABLED=true`, `eshu_runtime_status_summary_stale=1` means the scrape served a stale or empty active-work summary and never the live statement. | The graph is correct. |
 | `/admin/status` | Runtime backlog, generation, failure, and domain status; `eshu_dp_status_snapshot_read_duration_seconds` (`read`, `outcome`) times each status read behind it, and `eshu_dp_status_summary_read_total` (`source`, `reason`) says whether the active-work part came from the stored summary or the live statement ([Reducer And Storage Metrics](metrics-reducer-storage.md#status-summary-reader)). | The underlying source did not change after the last collection. |
 | Query/API result | Current read-path answer. | The whole pipeline is healthy. |
 

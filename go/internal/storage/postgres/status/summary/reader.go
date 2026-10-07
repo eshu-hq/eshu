@@ -22,6 +22,9 @@ type ModelReader[T any] struct {
 	// Config holds the reader flag and the stale limit.
 	Config ReadConfig
 	flight Flight[liveResult[T]]
+	// last is the row the scrape path serves again when the current row cannot
+	// be served (see ReadScrape).
+	last lastRow
 }
 
 // liveResult is a live result and the clock it was evaluated at, which a

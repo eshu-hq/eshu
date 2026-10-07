@@ -45,6 +45,16 @@
   after telemetry bootstrap. A second call after `GOMEMLIMIT` is set in the
   env is a no-op but logs redundantly. (`memlimit.go:40–48`)
 
+- **The scrape never runs the live active-work statement and reads only what it
+  renders** — `metricsSnapshotSelection` (`metrics.go`) skips the Terraform-state,
+  collector fact-evidence, and registry collector reads, none of which
+  `renderStatusMetrics` or health reads, and asks for the stored summary only
+  (`StoredActiveWorkOnly`). Before adding a section to `renderStatusMetrics`,
+  check the selection still requests it; `TestStatusMetricsSkipsTerraformEvidence`
+  and `TestStatusMetricsStatementInventory` pin both. `writeSummaryMarker`
+  renders nothing unless the stored-summary reader answered, so a reader-off
+  scrape stays byte-identical.
+
 - **`NewStatusMetricsServer` may return nil** — when `Config.MetricsAddr` is
   empty, the function returns `(nil, nil)`. Every caller of this function must
   check for a nil `*HTTPServer` before calling Start.

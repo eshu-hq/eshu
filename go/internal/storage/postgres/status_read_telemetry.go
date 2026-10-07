@@ -127,10 +127,15 @@ func NewStatusSummaryReaderWithConfig(cfg summary.ReadConfig) *StatusSummaryRead
 }
 
 // readActiveWork returns the active-work summary and where it came from: the
-// stored row when every fence passes, otherwise the live statement.
-func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
+// stored row when every fence passes, otherwise the live statement. A
+// selection that asks for the stored summary only (the runtime /metrics scrape)
+// never reaches the live statement while the reader is on; see readActiveWorkScrape.
+func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
 	if s.startupErr != nil {
 		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.startupErr
+	}
+	if selection.StoredActiveWorkOnly && s.summaryReader.Enabled() {
+		return s.readActiveWorkScrape(ctx)
 	}
 	result, err := s.summaryReader.Read(ctx, asOf, summary.Hooks[activeWorkSummary]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
@@ -158,6 +163,31 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (active
 	// Stale stays false: a row that is too old is never served; Reason names it.
 	return result.Value, statuspkg.ActiveWorkSource{
 		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age,
+	}, err
+}
+
+// readActiveWorkScrape answers the scrape path: a fresh stored row, else the
+// newest row the process can decode (a stale one included), else the zero
+// summary, and never the live statement. The marker carries Stale for the last two and the row's age at
+// this read. A database error fails the read, like every other status read.
+func (s StatusStore) readActiveWorkScrape(ctx context.Context) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
+	result, err := s.summaryReader.ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
+		Select: func(ctx context.Context) (summary.Selection, error) {
+			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
+			selection, err := summary.Select(ctx, q, summary.SelectConfig{
+				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
+				StaleAfter: s.summaryReader.Config.StaleAfter, DecodeStale: true,
+			})
+			return selection, done(err)
+		},
+		Decode: decodeActiveWorkEntries,
+		Observe: func(ctx context.Context, o summary.ScrapeObservation) {
+			o.ModelKey = summary.ModelActiveWorkSummary
+			summary.ObserveScrape(ctx, s.Instruments, o)
+		},
+	})
+	return result.Value, statuspkg.ActiveWorkSource{
+		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age, Stale: result.Stale,
 	}, err
 }
 

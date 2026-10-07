@@ -87,6 +87,23 @@ type SnapshotSelection struct {
 	// (JSON and text), and cmd/admin-status retain these reads and their errors
 	// by default.
 	SkipTerraformStateEvidence bool
+	// StoredActiveWorkOnly makes the active-work part of the snapshot come
+	// from the stored summary row alone, never from the live statement (#7009).
+	// It is for a caller that polls on a timer from every process, the runtime
+	// /metrics scrape, where a live fallback herd would recreate the load the
+	// stored row removes. A row that cannot be served is answered with the
+	// newest row the process can decode, stale included, or the zero summary
+	// when it can decode none, and ActiveWorkSource says which (with Stale true). It has no effect while the
+	// stored-summary reader is off: the live statement answers as before.
+	StoredActiveWorkOnly bool
+}
+
+// WithStoredActiveWorkOnly returns a copy of s that never runs the live
+// active-work statement when the stored-summary reader is on. It applies to
+// the standard mode only; a semantic-only selection fails Validate.
+func (s SnapshotSelection) WithStoredActiveWorkOnly() SnapshotSelection {
+	s.StoredActiveWorkOnly = true
+	return s
 }
 
 // WithoutTerraformStateEvidence returns a copy of s that omits the
@@ -124,7 +141,7 @@ func (s SnapshotSelection) Validate() error {
 	case SnapshotModeStandard:
 		return nil
 	case SnapshotModeSemanticOnly:
-		if s.IncludeCollectorFactEvidence || s.IncludeRegistryCollectors || s.SkipTerraformStateEvidence {
+		if s.IncludeCollectorFactEvidence || s.IncludeRegistryCollectors || s.SkipTerraformStateEvidence || s.StoredActiveWorkOnly {
 			return fmt.Errorf("semantic-only status cannot include other sections")
 		}
 		return nil
