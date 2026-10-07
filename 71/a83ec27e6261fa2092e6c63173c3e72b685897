@@ -1,0 +1,22 @@
+go/internal/proof/scheduling/AGENTS.md
+  s_b0d7e3abc26c5a::t_9c7669d9a62ae5 3-7
+go/internal/proof/scheduling/README.md
+  s_b0d7e3abc26c5a::t_9c7669d9a62ae5 7,13-42
+  s_b0d7e3abc26c5a::t_ebad58cb0dfcf0 8-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "71a83ec27e6261fa2092e6c63173c3e72b685897",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
