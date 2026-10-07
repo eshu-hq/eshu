@@ -22,7 +22,7 @@ type on `src/file-05001.go`; a `.github/workflows` path would sort early and
 would not reproduce the late-candidate case.
 
 Repository story reuses its unfiltered file page after its existing cap+1
-sentinel is clipped. Service story independently uses the same 5,000-row
+sentinel is clipped (#7619 also passes the file sentinel flag forward). Service story independently uses the same 5,000-row
 listing loader. HTTP uses the typed summary; stories use a manual map, and MCP
 passes through the mounted HTTP handler. All these consumers preserve the
 candidate coverage marker.
@@ -65,7 +65,7 @@ RED/GREEN evidence:
   `testdata/golden/capped-workflow-evidence.json`. Old production overlays
   fail at 5,000/5,001 and preserve the 4,999 control; corrected production
   passes. Each transport checks the original one file-list read at limit
-  5,000 and zero unnecessary hydration.
+  5,000 (as of #7250; #7619 reads limit+1) and zero unnecessary hydration.
 - Repository story HTTP cap/sentinel cases and repository/service story
   assembly fail on the old production overlay and pass on the correction.
   Service trace preserves the same CI/CD static evidence.
@@ -212,13 +212,15 @@ baseline/candidate trials per case, `-benchmem`, `-benchtime=150ms`,
 branch, on the same 4,999/5,000-file fixtures (the baseline's "capped" fixtures
 are the candidate's `exactly_limit` fixtures). The shared host was busy
 (`load1` 12 during the run), so these medians disclose cost and do not
-establish a speedup.
+establish a speedup. Bytes and allocations are the medians over the five trials
+(identical in every trial). The raw logs are `/tmp/eshu-7619-final/bench.log` and
+`explain-pairs.txt`.
 
 | Static plus story summary | Baseline median | Candidate median | Bytes/allocs before/after |
 | --- | ---: | ---: | ---: |
 | Uncapped empty (4,999 files) | 92.316 us | 83.969 us | 83,446 / 18 to 83,445 / 18 |
 | Exactly 5,000, no workflows | 89.210 us | 85.963 us | 83,544 / 21 to 83,440 / 18 |
-| Exactly 5,000, all workflows | 345.835 us | 316.191 us | 779,218 / 73 to 779,139 / 71 |
+| Exactly 5,000, one workflow at ordinal 5,000 | 345.835 us | 316.191 us | 779,229 / 73 to 779,130 / 71 |
 
 The exactly-5,000 rows no longer allocate the coverage marker, which accounts for
 the 3 and 2 fewer allocations. The in-memory builder cost is flat within noise.
