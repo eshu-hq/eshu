@@ -49,14 +49,18 @@ func TestValidateProofMode(t *testing.T) {
 }
 
 func TestDynamicWorkloadsPreselected(t *testing.T) {
-	cases := dynamicWorkloads("sample-repo")
-	want := []string{"canonical", "common_rare", "punctuation", "explicit_repo", "grant", "language", "empty"}
+	cases := dynamicWorkloads()
+	want := []string{"canonical"}
 	if len(cases) != len(want) {
 		t.Fatalf("got %d workloads, want %d", len(cases), len(want))
 	}
 	for i, workload := range cases {
 		if workload.name != want[i] || len(workload.terms) != 16 {
 			t.Fatalf("workload %d: name=%q terms=%d", i, workload.name, len(workload.terms))
+		}
+		if !reflect.DeepEqual(workload.terms, terms) || !reflect.DeepEqual(workload.filters, []string{"eshu_require_content_substring_indexes_ready()"}) ||
+			len(workload.baseArgs) != 0 || len(workload.allowedRepos) != 0 || workload.language != "" {
+			t.Fatalf("canonical workload changed: %#v", workload)
 		}
 	}
 }

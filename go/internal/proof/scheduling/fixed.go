@@ -37,7 +37,7 @@ func closeFixedReaders[T interface{ Close(context.Context) error }](readers []T)
 }
 
 func selectFixedCanonical(name string) (dynamicWorkload, error) {
-	return selectTimingWorkload(name, "")
+	return selectTimingWorkload(name)
 }
 
 func configureProofTarget(config *pgx.ConnConfig, mode, socketDir string) error {

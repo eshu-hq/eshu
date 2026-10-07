@@ -248,12 +248,12 @@ func TestMedianDurationUsesAllSamples(t *testing.T) {
 }
 
 func TestSelectTimingWorkloadOnlyCanonical(t *testing.T) {
-	workload, err := selectTimingWorkload("canonical", "sample-repo")
+	workload, err := selectTimingWorkload("canonical")
 	if err != nil || workload.name != "canonical" || len(workload.terms) != 16 {
 		t.Fatalf("canonical selection = %#v, %v", workload, err)
 	}
 	for _, name := range []string{"", "dynamic", "punctuation", "all", "unknown"} {
-		if _, err := selectTimingWorkload(name, "sample-repo"); err == nil {
+		if _, err := selectTimingWorkload(name); err == nil {
 			t.Errorf("timing selector %q must fail closed", name)
 		}
 	}

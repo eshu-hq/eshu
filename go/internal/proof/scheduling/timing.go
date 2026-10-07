@@ -84,11 +84,11 @@ func blockRegression(baseline, candidate time.Duration) bool {
 	return baseline > 0 && candidate > baseline+baseline/10
 }
 
-func selectTimingWorkload(name, repoID string) (dynamicWorkload, error) {
+func selectTimingWorkload(name string) (dynamicWorkload, error) {
 	if name != "canonical" {
 		return dynamicWorkload{}, fmt.Errorf("unsupported timing workload %q", name)
 	}
-	for _, workload := range dynamicWorkloads(repoID) {
+	for _, workload := range dynamicWorkloads() {
 		if workload.name == name {
 			return workload, nil
 		}

@@ -33,41 +33,10 @@ func normalizedTerms(raw []string) []string {
 	return codequery.CodeTopicSearchTerms("", "", raw)
 }
 
-func dynamicWorkloads(repoID string) []dynamicWorkload {
-	commonRare := normalizedTerms([]string{
-		"api", "auth", "build", "cache", "client", "config", "database", "error",
-		"graph", "handler", "query", "repository", "service", "token", "worker", "zebra",
-	})
-	punctuation := normalizedTerms([]string{
-		"a%c", "a_c", `back\slash`, "foo.bar", "foo-bar", "package.json",
-		"request_id", "user%", "api/v1", "sha-256", "abc_def", "x%y",
-		"x_y", `path\`, "go.mod", "a+b",
-	})
-	emptyTerms := make([]string, 16)
-	for i := range emptyTerms {
-		emptyTerms[i] = fmt.Sprintf("zz7033never%02d", i)
-	}
+func dynamicWorkloads() []dynamicWorkload {
 	return []dynamicWorkload{
 		{name: "canonical", terms: terms, filters: []string{"eshu_require_content_substring_indexes_ready()"}},
-		{name: "common_rare", terms: commonRare, filters: []string{"eshu_require_content_substring_indexes_ready()"}},
-		{name: "punctuation", terms: punctuation, filters: []string{"eshu_require_content_substring_indexes_ready()"}},
-		{name: "explicit_repo", terms: terms, filters: []string{"repo_id = $1"}, baseArgs: []any{repoID}, allowedRepos: []string{repoID}},
-		{name: "grant", terms: commonRare, filters: []string{"eshu_require_content_substring_indexes_ready()", "repo_id = ANY($1)"}, baseArgs: []any{[]string{repoID}}, allowedRepos: []string{repoID}},
-		{name: "language", terms: terms, filters: []string{"eshu_require_content_substring_indexes_ready()", "coalesce(language, '') = $1"}, baseArgs: []any{"go"}, language: "go"},
-		{name: "empty", terms: emptyTerms, filters: []string{"eshu_require_content_substring_indexes_ready()"}},
 	}
-}
-
-func selectDiagnosticWorkload(name, repoID string) (dynamicWorkload, error) {
-	if name != "punctuation" {
-		return dynamicWorkload{}, fmt.Errorf("unsupported diagnostic workload %q", name)
-	}
-	for _, workload := range dynamicWorkloads(repoID) {
-		if workload.name == name {
-			return workload, nil
-		}
-	}
-	return dynamicWorkload{}, fmt.Errorf("diagnostic workload %q missing", name)
 }
 
 func readDynamicTerms(ctx context.Context, txs []pgx.Tx, workload dynamicWorkload) ([]codetopicparallel.ProbeRow, error) {

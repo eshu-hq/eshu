@@ -22,18 +22,3 @@ func TestAnnotatedScreenErrorKeepsPhaseAndCause(t *testing.T) {
 		}
 	}
 }
-
-func TestSelectDiagnosticWorkloadOnlyPunctuation(t *testing.T) {
-	workload, err := selectDiagnosticWorkload("punctuation", "sample-repo")
-	if err != nil {
-		t.Fatalf("select punctuation: %v", err)
-	}
-	if workload.name != "punctuation" || len(workload.terms) != 16 {
-		t.Fatalf("unexpected selected workload: %#v", workload)
-	}
-	for _, name := range []string{"", "dynamic", "canonical", "all", "unknown"} {
-		if _, err := selectDiagnosticWorkload(name, "sample-repo"); err == nil {
-			t.Errorf("selector %q must fail closed", name)
-		}
-	}
-}
