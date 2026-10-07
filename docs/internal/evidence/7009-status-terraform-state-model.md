@@ -38,6 +38,12 @@ stays live (24.2 ms).
   text of statement 24, the text of statement 25, and the per-locator limit,
   with NUL separators. A change to any of these makes a reader fall back with
   reason `version`.
+- `as_of` of the terraform row is the database clock read after the lock, just
+  before the two statements. It is not a snapshot time: each statement sees the
+  rows committed when it started (READ COMMITTED) and the two run on two
+  snapshots, while the live read runs both in one REPEATABLE READ snapshot. The
+  stored row and a live read can differ by rows committed in that gap, bounded by
+  one pass. `observed_at` is the collector's clock, not the database's.
 - No value in the section is an age, so `AddAge` and the reader apply no age
   correction. A test pins that Terraform entries come out of `AddAge` byte for
   byte at a 20 s age.
@@ -116,6 +122,23 @@ locator count (`rank <= 50` is per locator and git backend warnings are one
 locator per repo and path); the live response is unbounded the same way, so no
 cap was added. The realistic ops-qa figure is 111 rows.
 
+### Decode cost and the PR-F ceiling
+
+The served row is parsed in Go on every read: `Select` decodes the payload for
+the entry check, the model decoder parses the entries again, and the reader
+clones the result, with no cache between requests. At the 69 KB payload this
+is milliseconds. At the 5 MB worst case it is a structural estimate of 100 to
+300 ms of CPU, only on the three full routes (pipeline, index and the runtime
+admin JSON), never on `/metrics`. This cost is NOT_CHECKED: no decode timing was
+measured. The `read=terraform_state_model` duration label times the row read and
+the fence checks and excludes the final decode of the entries, so a slow decode
+shows in the route latency and not in that label.
+
+PR-F records `row_count`, `pg_column_size(rows)`, the WAL written per pass (the
+row is rewritten every interval, so the write cost is NOT_CHECKED here) and the
+read p95 on ops-qa. A row over 1,000 entries or 500 KB, or more than 1 MB of WAL
+per pass, files an issue before the default flip. No new metric was added now.
+
 ## Proof
 
 - `go/internal/storage/postgres/terraform/state/summary_test.go`: the round trip
@@ -130,7 +153,10 @@ cap was added. The realistic ops-qa figure is 111 rows.
   `skipped_lock` between the two transactions, with the lock never taken, and
   with the table missing; the one-interval companion budget; invalid companions;
   per-model `passes_total` and `pass_duration_seconds`; `writer_up` for both
-  models; stored per-model compute time.
+  models; stored per-model compute time. `telemetry_test.go`: two models of 3 s
+  each at a 5 s interval are one overrun with a 6 s pass and both models' ms in
+  the Warn, and 2 s each are none; the pass span is an error and records one
+  exception per failed model when either or both fail.
 - `status/summary/terraform_reader_test.go`: flag off, a fresh row equal to the
   live read, the fallback matrix (missing, version, stale, decode, row_count,
   not_installed, and a foreign version with an undecodable payload is `version`),
@@ -146,7 +172,7 @@ cap was added. The realistic ops-qa figure is 111 rows.
   three terraform bloat tests above.
 - Routes: `status_terraform_source_test.go` (carries, flag-off shape, absent when
   the reader reports none, every skipped route absent even when the snapshot
-  carries a source), `TestOpenAPIDocumentsTheTerraformStateSource`, the status
+  carries a source, and the live evidence bundle, which has no field for it), `TestOpenAPIDocumentsTheTerraformStateSource`, the status
   package tests, and the regenerated render goldens.
 
 Performance Evidence: the writer pass with both models measured a worst-case
@@ -189,14 +215,17 @@ closed and the coverage rows are in
    companion.
 3. The pass-level `Pass.Outcome`, `AsOf`, `RowCount` and `Err` are the first
    model's. `Pass.Models` holds every model's own result.
-4. The per-model detail is span events and structured logs, not child spans, to
-   avoid a new span name.
+4. The per-model detail is span events (`status_summary.model` with `compute_ms`)
+   and structured logs, not child spans, to avoid a new span name. The pass span
+   records every failed model's error and is an error when any model failed.
 5. `Report.TerraformStateSource` reuses the `ActiveWorkSource` Go type (the
    ruling allowed either).
 6. The render goldens now also carry `active_work_source` (the fixture sets both
    markers), closing a gap in the PR-C key lock.
 7. The `NULL observed_at` case is proven hermetically only: the live columns
-   are `NOT NULL`.
+   are `NOT NULL`. The malformed-serial skip is proven live: the fixture's
+   malformed scopes carry a serial that overflows int64, so the SQL returns them
+   and the Go decoder drops them (the live test counts both).
 8. The worst-case payload is not capped (see above).
 
 ## NOT_CHECKED

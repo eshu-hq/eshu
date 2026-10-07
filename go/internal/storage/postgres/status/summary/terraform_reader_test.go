@@ -10,6 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -38,7 +42,7 @@ func tfWarningRows() [][]any {
 func tfEntries(t *testing.T) []summary.Entry {
 	t.Helper()
 	queryer := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: tfSerialRows()}, {Data: tfWarningRows()}}}
-	entries, err := statestore.SummaryEntries(context.Background(), queryer, statuspkg.MaxTerraformStateRecentWarnings)
+	entries, err := statestore.SummaryEntries(context.Background(), queryer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,3 +222,40 @@ func TestTerraformReaderRowReadCarriesItsOwnLabel(t *testing.T) {
 }
 
 var _ db.Queryer = (*sourceQueryer)(nil)
+
+// TestTerraformReadSpanAttributesUseTheirOwnPrefix drives the production store:
+// the active-work row is served and the Terraform-state row is stale, so the
+// snapshot span must say model under status.active_work.* and live_fallback with
+// a stale reason under status.terraform_state.*. A terraform observation that
+// lost its prefix would overwrite the active-work attributes.
+func TestTerraformReadSpanAttributesUseTheirOwnPrefix(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+	ctx, span := tracer.Start(context.Background(), "postgres.status_snapshot")
+	q := tfQueryer(t, tfStoredRow(t, sourceTestNow.Add(-40*time.Second), statestore.SummarySourceSHA256(), tfEntries(t)))
+	q.row = storedRow(sourceTestNow.Add(-5*time.Second), summary.SchemaVersion, pgstatus.ActiveWorkSummarySourceSHA256(), 4, encodedEntries(t, goodEntries()...))
+	if _, err := readerStore(q, true).ReadStatusSnapshotFiltered(ctx, sourceTestNow, statuspkg.FullSnapshotSelection()); err != nil {
+		t.Fatal(err)
+	}
+	span.End()
+
+	attrs := map[string]attribute.Value{}
+	for _, kv := range recorder.Ended()[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value
+	}
+	if got := attrs["status.active_work.source"].AsString(); got != "model" {
+		t.Fatalf("status.active_work.source = %q, want model (overwritten by the terraform read?): %v", got, attrs)
+	}
+	if got := attrs["status.active_work.as_of_age_seconds"].AsFloat64(); got != 5 {
+		t.Fatalf("status.active_work.as_of_age_seconds = %v, want 5 (the active-work row's age)", got)
+	}
+	if _, present := attrs["status.active_work.fallback_reason"]; present {
+		t.Fatalf("status.active_work.fallback_reason is set although the active-work row was served: %v", attrs)
+	}
+	if attrs["status.terraform_state.source"].AsString() != "live_fallback" ||
+		attrs["status.terraform_state.fallback_reason"].AsString() != "stale" {
+		t.Fatalf("status.terraform_state.* = %v, want live_fallback/stale", attrs)
+	}
+}

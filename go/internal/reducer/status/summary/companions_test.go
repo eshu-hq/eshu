@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	store "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -267,6 +268,81 @@ func TestRunOnceBoundsTheCompanionByOneInterval(t *testing.T) {
 	}
 	if companion.deadlines[0] > MinInterval {
 		t.Fatalf("companion budget = %s, want at most one interval %s", companion.deadlines[0], MinInterval)
+	}
+}
+
+// TestRunOnceBoundsTheCompanionByTheRemainingPassBudget: a pass whose caller
+// deadline leaves less than one interval gives the companion that remainder,
+// not a full interval, so the companion budget is min(remaining, one interval).
+func TestRunOnceBoundsTheCompanionByTheRemainingPassBudget(t *testing.T) {
+	t.Parallel()
+	runner, _, _, _ := newPassRunner(t)
+	companion := withCompanion(runner)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	runner.RunOnce(ctx)
+
+	if len(companion.deadlines) != 1 {
+		t.Fatalf("companion deadlines recorded = %d, want 1", len(companion.deadlines))
+	}
+	if companion.deadlines[0] <= 0 || companion.deadlines[0] > 2*time.Second {
+		t.Fatalf("companion budget = %s, want at most the 2 s the pass has left (not the %s interval)", companion.deadlines[0], MinInterval)
+	}
+}
+
+// TestRunOnceDoesNotRunACompanionAfterTheCallerCancels: the companion's context
+// is derived from the pass context, so a caller cancel during the first model
+// stops the companion before it computes. A companion on a context cut loose
+// from the pass would run to completion.
+func TestRunOnceDoesNotRunACompanionAfterTheCallerCancels(t *testing.T) {
+	t.Parallel()
+	runner, _, primary, _ := newPassRunner(t)
+	companion := withCompanion(runner)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	first := runner.Statement.Compute
+	runner.Statement.Compute = func(c context.Context, q db.Queryer, asOf time.Time) ([]store.Entry, error) {
+		entries, err := first(c, q, asOf)
+		cancel()
+		return entries, err
+	}
+
+	pass := runner.RunOnce(ctx)
+
+	if primary.callCount() != 1 {
+		t.Fatalf("first model computes = %d, want 1", primary.callCount())
+	}
+	if companion.callCount() != 0 {
+		t.Fatalf("the companion computed %d times after the caller cancelled, want 0", companion.callCount())
+	}
+	if len(pass.Models) != 2 || pass.Models[1].Outcome == OutcomeOK {
+		t.Fatalf("pass models = %+v, want the companion not written", pass.Models)
+	}
+}
+
+// TestRunOnceCutsTheCompanionWhenTheFirstModelUsesTheWholePassBudget: a first
+// model that runs until the pass deadline leaves the companion no budget, so the
+// companion does not compute and reports an error. A companion on a context cut
+// loose from the pass would still compute.
+func TestRunOnceCutsTheCompanionWhenTheFirstModelUsesTheWholePassBudget(t *testing.T) {
+	t.Parallel()
+	runner, _, primary, _ := newPassRunner(t)
+	companion := withCompanion(runner)
+	primary.block = make(chan struct{}) // the first model waits for its context to end
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	pass := runner.RunOnce(ctx)
+
+	if pass.Outcome != OutcomeError || pass.Models[0].Err == nil {
+		t.Fatalf("first model = %+v, want an error at the deadline", pass.Models[0])
+	}
+	if companion.callCount() != 0 {
+		t.Fatalf("the companion computed %d times after the pass deadline passed, want 0", companion.callCount())
+	}
+	if got := pass.Models[1]; got.Outcome != OutcomeError || got.Err == nil {
+		t.Fatalf("companion = %+v, want an error outcome (cut by the pass deadline)", got)
 	}
 }
 

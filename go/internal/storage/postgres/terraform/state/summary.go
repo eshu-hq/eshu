@@ -65,9 +65,12 @@ type warningWire struct {
 // summary writer (#7009 terraform_state model). Rows the live read skips are
 // skipped here, so a stored row decodes to exactly what the live read
 // returns. The statements take no clock and return no ages, so the stored
-// rows need no age correction when they are read.
-func SummaryEntries(ctx context.Context, queryer db.Queryer, limit int) ([]summary.Entry, error) {
-	evidence, err := ReadTerraformStateAdminEvidence(ctx, queryer, limit, time.Time{})
+// rows need no age correction when they are read. The per-locator warning limit
+// is statuspkg.MaxTerraformStateRecentWarnings, the same constant
+// SummarySourceSHA256 digests, so the rows computed and the digest stored with
+// them cannot disagree.
+func SummaryEntries(ctx context.Context, queryer db.Queryer) ([]summary.Entry, error) {
+	evidence, err := ReadTerraformStateAdminEvidence(ctx, queryer, statuspkg.MaxTerraformStateRecentWarnings, time.Time{})
 	if err != nil {
 		return nil, err
 	}

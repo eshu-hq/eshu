@@ -38,7 +38,8 @@
   would make every legacy root `status_*.go` file trip the naming gate.
 - The reader side owns `Observe` (`observe.go`). Keep the `reason` values a
   closed set that matches `eshu_dp_status_summary_read_total` in the telemetry
-  reference and the `ActiveWorkSource` OpenAPI enum; a new reason needs both.
+  reference and both the `ActiveWorkSource` and `TerraformStateSource` OpenAPI
+  enums; a new reason needs all of them.
   The writer loop's telemetry stays in `reducer/status/summary`.
 - Age is the reader's database clock minus `as_of`, never a caller clock. Keep
   the clock read in `Select` on the same transaction as the row read.

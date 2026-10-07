@@ -91,7 +91,7 @@ claim and Ack loop.
 | histogram | `eshu_dp_status_summary_writer_pass_duration_seconds{model_key, outcome}` (one model's own transaction) |
 | counter | `eshu_dp_status_summary_writer_overrun_total{model_key}` (one event per pass, first model key; the Warn carries every model's ms) |
 | gauge | `eshu_dp_status_summary_writer_up{model_key}` (1 while the loop runs) |
-| span | `reducer.status_summary.pass` with model key, outcome, as_of, pass ms, row count |
+| span | `reducer.status_summary.pass` with the first model's key, outcome, as_of, pass ms, row count; one `status_summary.model` event per model (model_key, outcome, as_of, pass_ms, compute_ms, row_count); Error status and one exception event per failed model |
 | logs | Info at start; Warn per overrun, per guard rejection, and once per process for a missing table; Error with `sqlstate` per failed pass |
 
 The age of the stored row is a reader-side signal and is not exported here.

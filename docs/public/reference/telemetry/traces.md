@@ -73,6 +73,13 @@ Terraform-state section); `status.active_work.as_of_age_signed_seconds` is the r
 before the clamp at zero, negative when the reader's clock runs behind the
 writer's.
 
+The reducer's status summary writer pass span `reducer.status_summary.pass`
+carries the first model's `eshu.status_summary.model_key`, `outcome`, `as_of`,
+`pass_ms` and `row_count`, and one `status_summary.model` event per model
+(`model_key`, `outcome`, `as_of`, `pass_ms`, `compute_ms`, `row_count`), so a
+slow `terraform_state` transaction can be told from the active-work one. The span
+is an Error with one exception event per failed model when any model failed.
+
 For a slow repository-context read, inspect the child `postgres.query` span with
 `db.operation=repository_context_counts`. It covers the scope, platform, and
 dependency count reads. This span reads several tables and has no

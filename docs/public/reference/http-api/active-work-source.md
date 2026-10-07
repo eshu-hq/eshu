@@ -68,9 +68,16 @@ caller of the index route. With the reader off it reads `source: live`,
 
 The reducer writes this row apart from the active-work row, so the two markers
 are independent: one report can serve active work from `live` and Terraform state
-from `model`. `as_of` is the writer's clock before it ran the two Terraform-state
-statements: serials and warnings observed after `as_of` are not in the row.
-No value in the section is an age, so nothing is advanced at read. The row
+from `model`. `as_of` is the database clock the writer read after taking its
+lock, just before it ran the two Terraform-state statements. Each statement sees
+the rows committed when it started, so the stored row can include rows committed
+between `as_of` and that statement, and it omits anything committed later. The
+two statements run on two snapshots, while the live read runs both in one
+REPEATABLE READ snapshot, so the stored row and a live read can differ by the
+rows committed in that gap, bounded by one writer pass. `observed_at` values are
+the collector's clock, not the database's, so an `observed_at` can be later than
+`as_of`, and the two sections are read at their own statement starts. No value in the section is an age, so
+nothing is advanced at read. The row
 shares the `ESHU_STATUS_SUMMARY_STALE_AFTER` limit and the other settings below,
 and `stale` is `false` for the same reason as above.
 

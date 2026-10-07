@@ -37,8 +37,16 @@ func (r *Runner) record(ctx context.Context, pass Pass) {
 	if !pass.AsOf.IsZero() {
 		span.SetAttributes(attribute.String("eshu.status_summary.as_of", pass.AsOf.Format(time.RFC3339Nano)))
 	}
-	if pass.Err != nil {
-		span.RecordError(pass.Err)
+	failedModels := 0
+	for _, model := range pass.Models {
+		if model.Err != nil {
+			// Every failed model's error is on the span, not only the first
+			// model's, so a failed companion marks the pass trace as an error.
+			failedModels++
+			span.RecordError(model.Err, trace.WithAttributes(attribute.String("eshu.status_summary.model_key", model.ModelKey)))
+		}
+	}
+	if failedModels > 0 {
 		span.SetStatus(codes.Error, "status summary writer pass failed")
 	}
 	for _, model := range pass.Models {

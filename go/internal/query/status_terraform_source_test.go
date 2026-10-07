@@ -111,6 +111,7 @@ func TestRoutesThatSkipTerraformNeverCarryTheTerraformStateSource(t *testing.T) 
 		"/api/v0/status/collectors",
 		"/api/v0/collectors",
 		"/api/v0/status/collector-readiness",
+		"/api/v0/collector-readiness",
 		"/api/v0/status/operator-control-plane",
 		"/api/v0/status/freshness-causality",
 		"/api/v0/status/governance",
@@ -128,6 +129,30 @@ func TestRoutesThatSkipTerraformNeverCarryTheTerraformStateSource(t *testing.T) 
 		if strings.Contains(rec.Body.String(), "terraform_state_source") {
 			t.Fatalf("GET %s carries terraform_state_source although it skips Terraform evidence: %s", path, rec.Body.String())
 		}
+	}
+}
+
+// TestLiveEvidenceBundleNeverCarriesTheTerraformStateSource: the live bundle
+// reads the report with Terraform evidence skipped and composes a
+// LiveSnapshot that has no field for a source marker, so it cannot carry the key
+// even when the report does. The route is not a StatusHandler route, so it has
+// its own check.
+func TestLiveEvidenceBundleNeverCarriesTheTerraformStateSource(t *testing.T) {
+	t.Parallel()
+
+	handler := &EvidenceHandler{
+		StatusReader: fakeStatusReader{snapshot: terraformSourcedSnapshot()},
+		Neo4j:        evidenceBundleFixtureGraph{count: 5},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v0/evidence/bundle", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/v0/evidence/bundle status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "terraform_state_source") {
+		t.Fatalf("the live evidence bundle carries terraform_state_source: %s", rec.Body.String())
 	}
 }
 

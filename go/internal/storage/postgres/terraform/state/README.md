@@ -28,7 +28,7 @@ leaf) owns rendering this evidence into `statuspkg.RawSnapshot`.
   leaf moves.
 - `TerraformStateAdminEvidence` — `LastSerials` and `RecentWarnings`.
 
-- `SummaryEntries(ctx, queryer, limit)` runs the two statements with the live
+- `SummaryEntries(ctx, queryer)` runs the two statements (limit: `statuspkg.MaxTerraformStateRecentWarnings`, the constant the digest covers) with the live
   decoder and returns the rows as summary entries (`serial` and `warning`
   sections) for the `terraform_state` summary model; `DecodeSummaryEntries`
   turns stored entries back into a `TerraformStateAdminEvidence`;

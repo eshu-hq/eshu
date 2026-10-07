@@ -130,7 +130,9 @@ The reducer's periodic writer of the `status_summary_snapshots` read model
 (#7009), on only when `ESHU_STATUS_SUMMARY_WRITER_ENABLED=true`. One pass
 writes two rows, each in its own transaction under the same advisory lock, the
 active-work row first: `active_work_summary` and `terraform_state`.
-Every metric carries `model_key` (`active_work_summary` or `terraform_state`).
+`passes_total`, `pass_duration_seconds` and `writer_up` carry `model_key`
+(`active_work_summary` or `terraform_state`); `overrun_total` carries the first
+model's key only.
 
 | Metric | Type | Use |
 | --- | --- | --- |

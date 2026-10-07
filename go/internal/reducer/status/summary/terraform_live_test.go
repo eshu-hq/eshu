@@ -27,7 +27,7 @@ func newLiveWriterWithTerraform(database *sql.DB) *statussummary.Runner {
 		ModelKey:     store.ModelTerraformState,
 		SourceSHA256: statestore.SummarySourceSHA256(),
 		Compute: func(ctx context.Context, queryer db.Queryer, _ time.Time) ([]store.Entry, error) {
-			return statestore.SummaryEntries(ctx, queryer, statuspkg.MaxTerraformStateRecentWarnings)
+			return statestore.SummaryEntries(ctx, queryer)
 		},
 	}}
 	return writer
@@ -43,7 +43,7 @@ type terraformFixture struct {
 	warningsPerScope int // warnings per state generation (3 generations)
 	gitRepos         int // repository scopes with unresolved_backend_expression warnings
 	gitWarnings      int // per repo generation, spread over 3 source paths
-	malformedScopes  int // state scopes whose generation ids carry no serial
+	malformedScopes  int // state scopes whose serial overflows int64: the SQL returns them and the Go decoder skips them
 }
 
 func seedTerraformState(ctx context.Context, t *testing.T, database *sql.DB, f terraformFixture) {
@@ -62,7 +62,10 @@ FROM generate_series(1, $1) AS i`, f.stateScopes+f.malformedScopes)
 		mustExec(ctx, t, database, `
 INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
 SELECT CASE WHEN i <= $1 THEN 'terraform_state:state_snapshot:s3:tf-' || i || ':lineage-' || i || ':serial:' || g
-            ELSE 'terraform_state:no-serial-' || i || '-' || g END,
+            -- A serial that matches the statement's digits pattern but overflows
+            -- int64, so the SQL returns it and the Go decoder's malformed-serial
+            -- skip is the thing that drops the locator.
+            ELSE 'terraform_state:state_snapshot:s3:tf-' || i || ':lineage-' || i || ':serial:9999999999999999999' || g END,
        'state_snapshot:s3:tf-' || i, 'snapshot', now() - make_interval(hours => 4 - g), now() - make_interval(hours => 4 - g),
        CASE WHEN g = 3 THEN 'active' ELSE 'superseded' END, '{}'::jsonb
 FROM generate_series(1, $2) AS i CROSS JOIN generate_series(1, 3) AS g`, f.stateScopes, f.stateScopes+f.malformedScopes)
@@ -176,6 +179,19 @@ func TestTerraformModelServedEqualToLiveLive(t *testing.T) {
 				t.Fatalf("fixture produced %d serials and %d warnings, want %d and at least %d",
 					len(live.TerraformStateLastSerials), len(live.TerraformStateRecentWarnings), state.wantSerials, state.wantMinWarn)
 			}
+			if state.fixture.malformedScopes > 0 {
+				// The overflowing serials reach the Go decoder: the SQL
+				// statement returns a row for every state scope, so the
+				// skip of the malformed ones is the decoder's.
+				var sqlRows int
+				if err := database.QueryRowContext(ctx, `SELECT count(DISTINCT scope_id) FROM scope_generations WHERE generation_id LIKE 'terraform_state:%:serial:%'`).Scan(&sqlRows); err != nil {
+					t.Fatal(err)
+				}
+				if want := state.fixture.stateScopes + state.fixture.malformedScopes; sqlRows != want || len(live.TerraformStateLastSerials) != state.fixture.stateScopes {
+					t.Fatalf("SQL-visible state scopes = %d (want %d), decoded serials = %d (want %d): the malformed serials must pass the SQL and be dropped by the Go decoder",
+						sqlRows, want, len(live.TerraformStateLastSerials), state.fixture.stateScopes)
+				}
+			}
 			if state.name == "past the per-locator rank cap" {
 				perLocator := map[string]int{}
 				for _, w := range live.TerraformStateRecentWarnings {
@@ -250,7 +266,7 @@ func TestWriterKilledMidCompanionKeepsThePrimaryRowLive(t *testing.T) {
 
 	killed := newLiveWriterWithTerraform(database)
 	killed.Companions[0].Compute = func(ctx context.Context, q db.Queryer, asOf time.Time) ([]store.Entry, error) {
-		entries, err := statestore.SummaryEntries(ctx, q, statuspkg.MaxTerraformStateRecentWarnings)
+		entries, err := statestore.SummaryEntries(ctx, q)
 		if err != nil {
 			return nil, err
 		}

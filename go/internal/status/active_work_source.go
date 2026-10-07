@@ -55,7 +55,11 @@ type ActiveWorkSource struct {
 	// Reason explains Source with one of the ActiveWorkReason values.
 	Reason string
 	// AsOf is the time the active-work counts are true at: the stored row's
-	// as_of, or the live statement's clock.
+	// as_of, or the live statement's clock. For the Terraform-state marker
+	// (RawSnapshot.TerraformStateSource) a stored row's AsOf is the database
+	// clock the writer read after taking its lock, just before its two
+	// statements; those statements see what was committed when each started, so
+	// the row is not exactly "true at" AsOf (see the http-api doc).
 	AsOf time.Time
 	// Age is how old the served active-work data was at the read; zero for a
 	// live read.

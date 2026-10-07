@@ -14,7 +14,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	snapshots "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
@@ -117,7 +116,7 @@ func statusSummaryWriterFor(
 			ModelKey:     snapshots.ModelTerraformState,
 			SourceSHA256: statestore.SummarySourceSHA256(),
 			Compute: func(ctx context.Context, queryer db.Queryer, _ time.Time) ([]snapshots.Entry, error) {
-				return statestore.SummaryEntries(ctx, queryer, statuspkg.MaxTerraformStateRecentWarnings)
+				return statestore.SummaryEntries(ctx, queryer)
 			},
 		}},
 		Interval:    cfg.Interval,

@@ -18,8 +18,8 @@ import (
 	store "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 )
 
-// fakeDatabase is a hermetic db.Beginner that answers the writer pass's
-// statements and records what the pass did, in order.
+// fakeDatabase is a hermetic db.Beginner that answers the writer's per-model
+// transactions and records what they did, in order.
 type fakeDatabase struct {
 	mu sync.Mutex
 
@@ -45,8 +45,9 @@ type fakeDatabase struct {
 	committed  int
 	rolledBack int
 	statements []string
-	// txOf records which transaction (1-based Begin order) ran each
-	// statement, so a test can prove the lock and the upsert share one.
+	// txOf records which transaction (1-based Begin order, one per model per
+	// pass) ran each statement, so a test can prove one model's lock and upsert
+	// share a transaction and that two models do not.
 	txOf       map[string][]int
 	upsertArgs []any
 	// upsertCalls holds the arguments of every upsert, in order.
@@ -80,7 +81,8 @@ func (d *fakeDatabase) snapshot() []string {
 	return append([]string(nil), d.statements...)
 }
 
-// fakeTx is one pass transaction on fakeDatabase.
+// fakeTx is one transaction on fakeDatabase: one model's, since a pass opens one
+// transaction per model.
 type fakeTx struct {
 	db   *fakeDatabase
 	id   int

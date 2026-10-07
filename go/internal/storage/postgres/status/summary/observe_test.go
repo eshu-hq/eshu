@@ -219,3 +219,42 @@ func TestObserveUsesTheModelsSpanPrefixAndWarnsOncePerModelAndReason(t *testing.
 		t.Fatalf("warnings did not name both models: %s", buf.String())
 	}
 }
+
+// TestObserveKeepsEachModelsSpanAttributesApartInEitherOrder: two models
+// observed on one span, in both orders, leave each model's source, age and
+// fallback reason under its own prefix. An observation that lost its prefix
+// would overwrite the other model's attributes.
+func TestObserveKeepsEachModelsSpanAttributesApartInEitherOrder(t *testing.T) {
+	asOf := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	active := Observation{ModelKey: ModelActiveWorkSummary, Source: SourceModel, Reason: ReasonFresh, AsOf: asOf, Age: time.Second, SignedAge: time.Second}
+	terraform := Observation{
+		ModelKey: ModelTerraformState, SpanPrefix: "status.terraform_state", Source: SourceLiveFallback, Reason: ReasonStale,
+		AsOf: asOf, Age: 40 * time.Second, SignedAge: 40 * time.Second,
+	}
+	for name, order := range map[string][]Observation{"active then terraform": {active, terraform}, "terraform then active": {terraform, active}} {
+		t.Run(name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+			ctx, span := tracer.Start(context.Background(), "postgres.status_snapshot")
+			for _, o := range order {
+				Observe(ctx, nil, o)
+			}
+			span.End()
+			attrs := map[string]attribute.Value{}
+			for _, kv := range recorder.Ended()[0].Attributes() {
+				attrs[string(kv.Key)] = kv.Value
+			}
+			if attrs["status.active_work.source"].AsString() != "model" || attrs["status.active_work.as_of_age_seconds"].AsFloat64() != 1 {
+				t.Fatalf("active-work attributes were overwritten: %v", attrs)
+			}
+			if _, present := attrs["status.active_work.fallback_reason"]; present {
+				t.Fatalf("active-work carries the terraform model's fallback reason: %v", attrs)
+			}
+			if attrs["status.terraform_state.source"].AsString() != "live_fallback" ||
+				attrs["status.terraform_state.fallback_reason"].AsString() != "stale" ||
+				attrs["status.terraform_state.as_of_age_seconds"].AsFloat64() != 40 {
+				t.Fatalf("terraform attributes = %v", attrs)
+			}
+		})
+	}
+}

@@ -49,7 +49,7 @@ func TestSummaryEntriesStoreWhatTheLiveReadReturns(t *testing.T) {
 		t.Fatalf("ReadTerraformStateAdminEvidence() error = %v", err)
 	}
 
-	entries, err := SummaryEntries(context.Background(), summaryFakeQueryer(serials, warnings), statuspkg.MaxTerraformStateRecentWarnings)
+	entries, err := SummaryEntries(context.Background(), summaryFakeQueryer(serials, warnings))
 	if err != nil {
 		t.Fatalf("SummaryEntries() error = %v", err)
 	}
@@ -88,7 +88,7 @@ func TestSummaryEntriesEmptyResultDecodesToEmptySlices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, err := SummaryEntries(context.Background(), summaryFakeQueryer(nil, nil), statuspkg.MaxTerraformStateRecentWarnings)
+	entries, err := SummaryEntries(context.Background(), summaryFakeQueryer(nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestSummaryEntriesSkipRowsTheLiveReadSkips(t *testing.T) {
 		summarySerialRow("hash-a", "not-a-number", sql.NullTime{Time: summaryObservedAt, Valid: true}),
 		summarySerialRow("hash-b", "9", sql.NullTime{Time: summaryObservedAt, Valid: true}),
 	}
-	entries, err := SummaryEntries(context.Background(), summaryFakeQueryer(serials, nil), statuspkg.MaxTerraformStateRecentWarnings)
+	entries, err := SummaryEntries(context.Background(), summaryFakeQueryer(serials, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestSummaryEntriesPropagateAQueryError(t *testing.T) {
 
 	boom := errors.New("boom")
 	queryer := &fake.ExecQueryer{QueryResponses: []fake.Rows{{FailWith: boom}}}
-	if _, err := SummaryEntries(context.Background(), queryer, 50); !errors.Is(err, boom) {
+	if _, err := SummaryEntries(context.Background(), queryer); !errors.Is(err, boom) {
 		t.Fatalf("SummaryEntries() error = %v, want %v", err, boom)
 	}
 }
