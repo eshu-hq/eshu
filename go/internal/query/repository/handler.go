@@ -299,7 +299,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	dependencyCount := storySummary.dependencyCount
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "semantic_overview")
 	semanticOverview, files, semanticTruncated, filesTruncated, err := loadRepositorySemanticOverview(r.Context(), h.Content, repoID)
-	timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)), slog.Bool("truncated", semanticTruncated))
+	timer.Done(r.Context(), slog.Bool("error", err != nil), slog.Int("file_count", len(files)), slog.Bool("truncated", semanticTruncated), slog.Bool("files_truncated", filesTruncated))
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("semantic overview failed: %v", err))
 		return

@@ -15,8 +15,8 @@ change, the static state was `absent` and the empty live summary used
 
 The regression enters through `StaticWorkflowArtifactEvidence` and its real
 `ListRepoFiles` port, using an ordered fake with no database connection. It
-checks one read at the original repository/limit and zero hydration reads for
-this case. Classification retains the existing artifact-type override and
+checks one read at the original repository/limit (as of #7250; #7619 now reads
+limit+1, see the amendment below) and zero hydration reads for this case. Classification retains the existing artifact-type override and
 path predicate. The fixture's late workflow uses a mixed-case workflow artifact
 type on `src/file-05001.go`; a `.github/workflows` path would sort early and
 would not reproduce the late-candidate case.
@@ -45,8 +45,8 @@ candidate coverage marker.
 - Uncapped absence, missing repository scope, nil content store, and read
   failures retain distinct existing states. The marker is omitted when uncapped.
 
-There is no change to SQL, repository selection, file ordering, the read limit,
-workflow predicate, graph access, the 20 displayed paths, the 50 hydration
+As of #7250 there was no change to SQL, repository selection, file ordering, the
+read limit (#7619 later changed the read to limit+1), workflow predicate, graph access, the 20 displayed paths, the 50 hydration
 candidates, or hydration worker count. The existing static functions were
 split into `workflow_evidence.go` to keep the source file below 500 lines.
 
@@ -196,8 +196,44 @@ limit.
 
 The benchmark tables above predate this change and describe the old `>=` rule;
 their "capped" rows are now the `exactly_limit` fixtures, which no longer carry
-the marker. They are not re-measured here, and the extra sentinel row on the
-direct path has no measured cost: NOT_CHECKED. Claims in this amendment that
-depend on the Neo4j B-7 golden gate (graph and API truth agreeing on a
-complete exact-5,000 repository) are NOT_CHECKED until the coordinator runs it.
-The offline boundary tests do not replace that gate.
+the marker. They are re-measured in "#7619 response cost" below. The 4,999 / 5,000 / 5,001
+boundary is proven by the offline unit, HTTP, MCP and story regressions and the
+shared golden. The blocking Neo4j B-7 cell (`corpus-gate (neo4j)`) runs in CI on
+the pull request as a no-regression check for uncapped repositories under the
+5,001-row read. The corpus has 166 File nodes and does not exercise the boundary,
+so B-7 does not prove it. The 2026-10-01 B-7 record stays attributed to its own
+commit.
+
+### #7619 response cost
+
+Benchmark Evidence: Go 1.27.1, darwin/arm64, Apple M5 Max. Five alternating
+baseline/candidate trials per case, `-benchmem`, `-benchtime=150ms`,
+`-count=1`, from compiled test binaries of `origin/main` (8879d632f) and this
+branch, on the same 4,999/5,000-file fixtures (the baseline's "capped" fixtures
+are the candidate's `exactly_limit` fixtures). The shared host was busy
+(`load1` 12 during the run), so these medians disclose cost and do not
+establish a speedup.
+
+| Static plus story summary | Baseline median | Candidate median | Bytes/allocs before/after |
+| --- | ---: | ---: | ---: |
+| Uncapped empty (4,999 files) | 92.316 us | 83.969 us | 83,446 / 18 to 83,445 / 18 |
+| Exactly 5,000, no workflows | 89.210 us | 85.963 us | 83,544 / 21 to 83,440 / 18 |
+| Exactly 5,000, all workflows | 345.835 us | 316.191 us | 779,218 / 73 to 779,139 / 71 |
+
+The exactly-5,000 rows no longer allocate the coverage marker, which accounts for
+the 3 and 2 fewer allocations. The in-memory builder cost is flat within noise.
+
+The direct path now asks the content store for one more row. Read-only paired
+`EXPLAIN (ANALYZE, BUFFERS)` of the `ListRepoFiles` statement (`ORDER BY
+relative_path LIMIT $2`, custom plan) on the QA reader for a 12,403-file
+repository, seven interleaved rounds with alternating first mover: median 12.211
+ms at `LIMIT 5000` and 12.532 ms at `LIMIT 5001`, range 11.9 to 13.3 ms for both,
+shared buffers 5,082 versus 5,083. The plan is an index scan on
+`content_files_repo_path_idx` in both. Host `load1` was 18 to 22 during these
+reads. Planner statistics for `content_files` were not recorded. This is a
+spot check on one repository, not an endpoint p95.
+
+Observability Evidence: the repository story `semantic_overview` stage log now
+carries `files_truncated` beside `truncated`, so an operator can tell a file
+sentinel from an entity-only overflow. The response carries the
+`candidate_pool_status` marker. No new instrument, label, queue, lock or worker.
