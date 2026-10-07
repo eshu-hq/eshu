@@ -207,10 +207,10 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
 
 ### Status requests
 
-- `StatusRequestStore` — interface for durable scan/reindex lifecycle ops
+- `StatusRequestStore` — interface for the durable scan lifecycle and the
+  reindex watermark
 - `StatusRequestHandler` / `NewStatusRequestHandler(store)` — manages
-  `RequestScan`, `ClaimScan`, `CompleteScan`, `RequestReindex`,
-  `ClaimReindex`, `CompleteReindex`
+  `RequestScan`, `ClaimScan`, `CompleteScan`, `RequestReindex`
 - `RequestState` — `idle`, `pending`, `running`, `completed`, `failed`
 - `ScanRequest` / `ReindexRequest` — lifecycle state structs
 - `ReindexIngesterRepository` — the only ingester name the reindex route

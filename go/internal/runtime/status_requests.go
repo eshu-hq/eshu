@@ -61,8 +61,8 @@ type ReindexRequest struct {
 	Error       string
 }
 
-// StatusRequestStore provides the durable scan/reindex request lifecycle
-// operations ported from the Python status_store_db.
+// StatusRequestStore provides the durable scan request lifecycle and the
+// reindex watermark operations ported from the Python status_store_db.
 type StatusRequestStore interface {
 	// RequestScan transitions a scan request from idle to pending.
 	RequestScan(ctx context.Context, ingester string, now time.Time) error
@@ -79,12 +79,6 @@ type StatusRequestStore interface {
 	// every scope whose newest activated full generation is older than it.
 	RequestReindex(ctx context.Context, ingester string) (time.Time, error)
 
-	// ClaimReindexRequest transitions a pending reindex to running.
-	ClaimReindexRequest(ctx context.Context, ingester string, now time.Time) (ReindexRequest, error)
-
-	// CompleteReindexRequest transitions a running reindex to completed or failed.
-	CompleteReindexRequest(ctx context.Context, ingester string, now time.Time, reindexErr string) error
-
 	// GetScanState returns the current scan request state for one ingester.
 	GetScanState(ctx context.Context, ingester string) (ScanRequest, error)
 
@@ -92,7 +86,8 @@ type StatusRequestStore interface {
 	GetReindexState(ctx context.Context, ingester string) (ReindexRequest, error)
 }
 
-// StatusRequestHandler manages scan/reindex lifecycle transitions.
+// StatusRequestHandler manages scan lifecycle transitions and reindex
+// watermark requests.
 type StatusRequestHandler struct {
 	store StatusRequestStore
 }
@@ -136,20 +131,4 @@ func (h *StatusRequestHandler) RequestReindex(ctx context.Context, ingester stri
 		return time.Time{}, errors.New("ingester name is required")
 	}
 	return h.store.RequestReindex(ctx, ingester)
-}
-
-// ClaimReindex claims a pending reindex request for the given ingester.
-func (h *StatusRequestHandler) ClaimReindex(ctx context.Context, ingester string) (ReindexRequest, error) {
-	if ingester == "" {
-		return ReindexRequest{}, errors.New("ingester name is required")
-	}
-	return h.store.ClaimReindexRequest(ctx, ingester, time.Now().UTC())
-}
-
-// CompleteReindex marks a running reindex as completed or failed.
-func (h *StatusRequestHandler) CompleteReindex(ctx context.Context, ingester string, reindexErr string) error {
-	if ingester == "" {
-		return errors.New("ingester name is required")
-	}
-	return h.store.CompleteReindexRequest(ctx, ingester, time.Now().UTC(), reindexErr)
 }

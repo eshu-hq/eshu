@@ -79,26 +79,6 @@ SET reindex_request_status = 'pending',
 RETURNING reindex_request_requested_at
 `
 
-const claimReindexQuery = `
-UPDATE runtime_ingester_control
-SET reindex_request_status = 'running',
-    reindex_request_claimed_at = $2,
-    updated_at = $2
-WHERE ingester = $1
-  AND reindex_request_status = 'pending'
-RETURNING ingester, reindex_request_status, reindex_request_requested_at, reindex_request_claimed_at
-`
-
-const completeReindexQuery = `
-UPDATE runtime_ingester_control
-SET reindex_request_status = CASE WHEN $3 = '' THEN 'completed' ELSE 'failed' END,
-    reindex_request_completed_at = $2,
-    reindex_request_error = NULLIF($3, ''),
-    updated_at = $2
-WHERE ingester = $1
-  AND reindex_request_status = 'running'
-`
-
 const getScanStateQuery = `
 SELECT ingester, scan_request_status,
        COALESCE(scan_request_requested_at, '0001-01-01'::timestamptz),
@@ -205,45 +185,6 @@ func (s StatusRequestStore) RequestReindex(ctx context.Context, ingester string)
 		return time.Time{}, fmt.Errorf("request reindex: %w", err)
 	}
 	return requestedAt.UTC(), nil
-}
-
-// ClaimReindexRequest transitions a pending reindex to running.
-func (s StatusRequestStore) ClaimReindexRequest(ctx context.Context, ingester string, now time.Time) (runtime.ReindexRequest, error) {
-	if s.database == nil {
-		return runtime.ReindexRequest{}, fmt.Errorf("status request store database is required")
-	}
-	rows, err := s.database.QueryContext(ctx, claimReindexQuery, ingester, now.UTC())
-	if err != nil {
-		return runtime.ReindexRequest{}, fmt.Errorf("claim reindex request: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return runtime.ReindexRequest{}, fmt.Errorf("claim reindex request: %w", err)
-		}
-		return runtime.ReindexRequest{}, fmt.Errorf("no pending reindex request for ingester %q", ingester)
-	}
-
-	var req runtime.ReindexRequest
-	var state string
-	if err := rows.Scan(&req.Ingester, &state, &req.RequestedAt, &req.ClaimedAt); err != nil {
-		return runtime.ReindexRequest{}, fmt.Errorf("claim reindex request: %w", err)
-	}
-	req.State = runtime.RequestState(state)
-	return req, nil
-}
-
-// CompleteReindexRequest transitions a running reindex to completed or failed.
-func (s StatusRequestStore) CompleteReindexRequest(ctx context.Context, ingester string, now time.Time, reindexErr string) error {
-	if s.database == nil {
-		return fmt.Errorf("status request store database is required")
-	}
-	_, err := s.database.ExecContext(ctx, completeReindexQuery, ingester, now.UTC(), reindexErr)
-	if err != nil {
-		return fmt.Errorf("complete reindex request: %w", err)
-	}
-	return nil
 }
 
 // GetScanState returns the current scan request state for one ingester.
