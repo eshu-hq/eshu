@@ -4,6 +4,42 @@ This non-deployed Go command compares the current four fixed term groups with fo
 workers that draw one term at a time. Both routes use Eshu's unchanged probe
 and page-assembly SQL. It is a read-only experiment, not an API replacement.
 
+The SQL helpers are separate checks for a disposable PostgreSQL 18 primary,
+not scripts for ops-qa. The seed creates persistent fixture tables, so use
+the empty postgres database in a new instance that can be discarded. Connect
+as that instance's postgres superuser; the preflight reads pg_control_system().
+From the repository root, set ESHU7033_FIXTURE_DSN to its connection string,
+then run:
+
+~~~bash
+psql -X -v ON_ERROR_STOP=1 -d "$ESHU7033_FIXTURE_DSN" \
+  -f go/internal/proof/scheduling/fixture_seed.sql
+ESHU7033_FIXTURE_SYSTEM_ID=$(psql -X -At -d "$ESHU7033_FIXTURE_DSN" \
+  -c 'SELECT system_identifier::text FROM pg_control_system()')
+psql -X -v ON_ERROR_STOP=1 -v expected_database=postgres \
+  -v expected_system_id="$ESHU7033_FIXTURE_SYSTEM_ID" \
+  -d "$ESHU7033_FIXTURE_DSN" \
+  -f go/internal/proof/scheduling/oracle_preflight.sql
+psql -X -v ON_ERROR_STOP=1 -d "$ESHU7033_FIXTURE_DSN" \
+  -f go/internal/proof/scheduling/persisted_oracle.sql
+for bad in bad_scope bad_match bad_field bad_duplicate bad_path_first; do
+  if psql -X -v ON_ERROR_STOP=1 -v "$bad=1" -d "$ESHU7033_FIXTURE_DSN" \
+    -f go/internal/proof/scheduling/persisted_oracle.sql; then
+    printf 'unexpected oracle pass: %s\n' "$bad"
+    exit 1
+  else
+    status=$?
+    if [ "$status" -ne 3 ]; then exit "$status"; fi
+  fi
+done
+~~~
+
+The seed reports FIXTURE_READY. The standalone persisted oracle reports
+ORACLE_GREEN, ORACLE_LANGUAGE_GREEN, and ORACLE_EMPTY_GRANT_GREEN. Each seeded
+bad case reports oracle rejected candidate and exits 3. The preflight uses
+EXPLAIN ANALYZE under a two-second statement limit; it is a cost screen,
+not endpoint timing.
+
 Run `go test ./internal/proof/scheduling -count=1` from `go/`. The fixed-corpus command
 accepts `ESHU7033_MODE=fixed_canonical` for the existing assertion and timing
 run, `ESHU7033_MODE=fixed_canonical_reader` for the same canonical proof on a
