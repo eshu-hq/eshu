@@ -62,8 +62,8 @@ reader off is byte-identical to one before this change
 `Health.State` (137), `Queue` (146), `CollectorGenerationDeadLetters` (162),
 `GenerationTotals` (184-191), `StageSummaries` (195), `DomainBacklogs` (209),
 `Coordinator` (224), and `ActiveWorkSource` for the summary marker (225).
-`Health` is computed by `evaluateHealth` (`go/internal/status/health.go:14-22`),
-called at `go/internal/status/status.go:162` with exactly the queue snapshot,
+`Health` is computed by `evaluateHealth` (`go/internal/status/health.go`),
+called from `BuildReport` (`go/internal/status/status.go`) with exactly the queue snapshot,
 generation totals, domain backlogs, producer activity, coordinator, and
 collector generation dead letters (plus options). None of the four sections the
 selection omits (`TerraformStateLastSerials`, `TerraformStateRecentWarnings`,
