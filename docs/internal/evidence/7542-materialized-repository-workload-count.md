@@ -95,3 +95,73 @@ The existing `summary_counts` repository query stage logs the four count
 fields and graph read errors. The graph read uses the existing query adapter,
 spans, and duration metrics. No new metric, span, status, or runtime setting is
 introduced.
+
+## Performance Evidence: #7542 count-only context port
+
+On source `306eac09` (a proof-branch commit that is not on `main`) against the PostgreSQL 18 read replica, one read-only
+repeatable-read snapshot compared the
+original full summary with a count-only path for repositories with 12,403 and
+7,097 files. Both AB/BA orderings matched on scope, availability, platform
+count (11), and dependency count (0). The workload-names read took
+0.924480208 s and 3.038443042 s; the required count reads together took
+0.092049124 s and 0.126132124 s. These are one-snapshot query-path samples,
+not endpoint latency or a p95 estimate. The full/narrow SQL texts were the
+same as the four relevant source files on `ebce60b8` (a proof-branch commit that is
+not on `main`; the SQL has not changed since).
+
+The context handler now selects a count-only read-model port. Its adapter
+reuses the existing scope, platform, and dependency SQL with no query rewrite,
+index, cache, or concurrency change. It leaves the graph `Workload` count in
+place. Story and entity loaders still fetch workload names. If the new port
+fails or returns unavailable, context uses the graph counts without a full
+summary retry. A failure of workload-name hydration alone no longer triggers
+context graph fallback; this is an intentional behavior change for a field
+context does not consume. The `summary_counts` stage remains; the new bounded
+`postgres.query` span identifies `repository_context_counts` and records
+errors without repository IDs. Built API/MCP latency and original-argument
+cold/warm p95 for this follow-up remain NOT_CHECKED until post-deployment
+proof.
+
+The finished `ContentReader` methods were also run through the repository's
+FIFO SQL fixture driver in alternating order, 100 calls each. The full
+summary consumed 400 queued fixture results in 1.523085 ms of local method time; the count
+method consumed 300 in 0.672120 ms. Both returned platform count 11 and
+dependency count 0. The fixture has no PostgreSQL server work, so these
+times only check local call-path cost and cannot be combined with the
+read-only snapshot times or used as endpoint latency evidence.
+
+Observability Evidence: the context `summary_counts` stage still logs all
+four counts and graph errors. The new `postgres.query` span records the
+`repository_context_counts` operation and required Postgres errors with
+bounded attributes; the focused span test proves the operation and error
+event without a repository ID attribute. No queue or write path runs here.
+
+## Deployed route and statement timings on `sha-2f0388b` (2026-10-06)
+
+Performance Evidence: before this change, a replay of the original saved
+argument sets (cold on set 0, then ten warm, concurrency 1, 22 calls, all HTTP
+200) on the ops-qa image `sha-2f0388b` measured `GET /api/v0/repositories/{repo_id}/context`
+at cold 2.828 s and warm p95 (max of ten samples) 5.109 s, and MCP `get_repo_context` at cold 1.139 s and
+warm p95 4.150 s. The slow sets were the 7,097-file repository (4.0 to 5.1 s) and
+the 12,403-file repository (1.1 to 2.8 s); the other seven sets were 0.15 to 0.50 s.
+The two slowest `eshu-api` request traces (Tempo trace ids beginning `4af8bc35` and
+`3261fa1b`, 2026-10-06 17:51 EDT) spent 3,741 ms of 3,896 ms and 4,008 ms of
+4,988 ms in one Postgres query, `repository_workload_names` on `fact_records`; the
+remaining 155 ms and about 980 ms are the coverage read (11 and 48 ms) and the
+graph and other reads, which this note does not break down further.
+
+Statement timings on the ops-qa physical reader (read-only session, 15 s statement
+timeout, `PREPARE` plus `EXPLAIN (ANALYZE, BUFFERS)`, one warm-up round then four
+rounds with alternating order): the names read this change removes from context took
+a median 842.4 ms (834.5 to 850.7) on the 12,403-file repository and 3,805.3 ms
+(3,794.6 to 3,837.7) on the 7,097-file repository; the retained reads took
+0.87 and 0.88 ms (scope read, five runs with the first discarded), 1.3 and 1.8 ms
+(platform) and 0.1 ms (dependency), about 2.3 and 2.8 ms in total. The earlier
+section's 0.092 s and 0.126 s for the required count reads were one-snapshot samples
+taken on 3 October on the replica with an unrecorded cache state; I did not
+reproduce them (today's warm figures are 40 to 50 times lower), and both sets are
+far below the removed names read and are not endpoint latency. The reader's cache had warmed
+since its restart at 19:58Z, so these are warm-cache figures; planner statistics for
+`fact_records` were not recorded. The statement times add up to the trace cost but
+are not endpoint latency: the endpoint figure for the image that carries this
+change stays NOT_CHECKED until it is deployed and replayed.

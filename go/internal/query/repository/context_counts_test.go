@@ -16,12 +16,11 @@ import (
 func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name         string
-		graphCount   int64
-		summaryNames []string
+		name       string
+		graphCount int64
 	}{
-		{name: "retained identity without materialization", graphCount: 0, summaryNames: []string{"retained-intent"}},
-		{name: "multiple materialized workloads", graphCount: 2, summaryNames: []string{"single-summary-name"}},
+		{name: "retained identity without materialization", graphCount: 0},
+		{name: "multiple materialized workloads", graphCount: 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reader := graph.FakeRepoGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -31,9 +30,9 @@ func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing
 				}
 				return []map[string]any{{"count": tc.graphCount}}, nil
 			}}
-			summary := &querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: tc.summaryNames}
+			readModelCounts := &querycontract.RepositoryReadModelCounts{Available: true}
 			counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
-				&querycontract.RepositoryContentCoverage{Available: true}, summary)
+				&querycontract.RepositoryContentCoverage{Available: true}, readModelCounts)
 			got := counts.workloadCount
 			if err != nil || got != int(tc.graphCount) {
 				t.Fatalf("workload count = %d, %v; want %d, nil", got, err, tc.graphCount)
@@ -63,7 +62,7 @@ func TestQueryRepositoryWorkloadCountGraphErrorWithSummary(t *testing.T) {
 	}}
 	counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
 		&querycontract.RepositoryContentCoverage{Available: true},
-		&querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: []string{"retained-intent"}})
+		&querycontract.RepositoryReadModelCounts{Available: true})
 	got := counts.workloadCount
 	if got != 0 || !errors.Is(err, querycontract.ErrGraphReadDeadline) {
 		t.Fatalf("workload count = %d, %v; want 0, graph read deadline", got, err)

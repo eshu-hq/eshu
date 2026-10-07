@@ -22,11 +22,23 @@ assembly already references them.
 ## Context workload count
 
 `getRepositoryContext` counts distinct graph `Workload` nodes reached through
-`Repository` `DEFINES`, even when the repository read-model summary is
-available. The summary workload names remain available for identity and story
-display; they do not establish materialization. A failed graph count aborts the
+`Repository` `DEFINES`. Repository context does not load the read-model
+workload names (story and entity still do, for identity and display); names do
+not establish materialization. A failed graph count aborts the
 context response rather than reporting an inferred zero or name count. File,
 platform, and dependency counts retain their existing read-model paths.
+
+Repository context uses the optional count-only Postgres read port for platform
+and dependency counts. It does not load workload names. A missing or failed
+count read falls back to the existing graph counts without retrying the full
+summary. Legacy content stores can still use the full summary port. A workload
+name read failure alone no longer changes context counts; story and entity
+responses still use names. The count read runs before the `summary_counts`
+stage starts, so that stage times only the count assembly (graph counts and any
+read-model scalars already loaded) and does not see a Postgres count error or
+the fallback. The read's timing and errors are on the bounded `postgres.query`
+span with `db.operation=repository_context_counts`, which carries no repository
+or scope identifier.
 
 ## Story file list
 

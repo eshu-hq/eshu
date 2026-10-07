@@ -9,14 +9,15 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // RepositoryReadModelSummary is the Postgres read-model fast path for a
 // repository's workload names, deployment-platform materialization count,
-// and dependency count -- the same fields repository/context.go otherwise
-// derives from per-field Neo4j graph counts in queryRepositoryContextCounts.
+// and dependency count. Repository context uses the count-only port for the
+// concrete reader and uses this summary only for legacy stores.
 //
 // It is an alias onto querycontract so the shared ContentStore double can
 // name it from outside this package (#6060). See the querycontract
@@ -62,6 +63,44 @@ func (cr *ContentReader) RepositoryReadModelSummary(ctx context.Context, repoID 
 	return RepositoryReadModelSummary{
 		Available:       scopeID != "" || dependencyCount > 0,
 		WorkloadNames:   workloadNames,
+		PlatformCount:   platformCount,
+		DependencyCount: dependencyCount,
+	}, nil
+}
+
+// RepositoryReadModelCounts reads only the platform and dependency scalars
+// needed by repository context. It keeps the full name summary for story and
+// entity callers, and preserves the same availability rule.
+func (cr *ContentReader) RepositoryReadModelCounts(ctx context.Context, repoID string) (querycontract.RepositoryReadModelCounts, error) {
+	if cr == nil || cr.db == nil || repoID == "" {
+		return querycontract.RepositoryReadModelCounts{}, nil
+	}
+	tracer := cr.tracer
+	if tracer == nil {
+		tracer = otel.Tracer("eshu/go/internal/query")
+	}
+	ctx, span := tracer.Start(ctx, "postgres.query", trace.WithAttributes(
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "repository_context_counts"),
+	))
+	defer span.End()
+	scopeID, err := cr.repositoryScopeID(ctx, repoID)
+	if err != nil {
+		span.RecordError(err)
+		return querycontract.RepositoryReadModelCounts{}, err
+	}
+	platformCount, err := cr.repositoryPlatformMaterializationCount(ctx, scopeID)
+	if err != nil {
+		span.RecordError(err)
+		return querycontract.RepositoryReadModelCounts{}, err
+	}
+	dependencyCount, err := cr.repositoryDependencyCount(ctx, repoID)
+	if err != nil {
+		span.RecordError(err)
+		return querycontract.RepositoryReadModelCounts{}, err
+	}
+	return querycontract.RepositoryReadModelCounts{
+		Available:       scopeID != "" || dependencyCount > 0,
 		PlatformCount:   platformCount,
 		DependencyCount: dependencyCount,
 	}, nil
