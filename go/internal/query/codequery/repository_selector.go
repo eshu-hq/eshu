@@ -32,8 +32,11 @@ func (h *CodeHandler) applyRepositorySelectorForCapability(w http.ResponseWriter
 // caller's grant, and an ungranted repository id was pushed into the query
 // instead of being refused. Extracting the body here rather than copying it
 // onto a second handler keeps one implementation of "resolve the selector, map
-// a transient graph failure to the bounded-read contract, and reject anything
-// else with 400" for every route in the family.
+// a transient graph failure to the bounded-read contract, answer any other
+// backend read failure with selector.WriteLookupFailure's 500, and reject
+// anything else with 400" for every route in the family. An unmatched or
+// ambiguous selector stays a 400 in this family, not the 404 the shared
+// selector helper answers.
 func ApplyRepositorySelectorForAccess(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -54,6 +57,9 @@ func ApplyRepositorySelectorForAccess(
 	)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, capability) {
+			return false
+		}
+		if selector.WriteLookupFailure(w, r, err) {
 			return false
 		}
 		WriteError(w, http.StatusBadRequest, err.Error())

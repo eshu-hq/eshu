@@ -31,6 +31,15 @@ this blind: `go build ./...` is the tripwire, and it stays green
 only while this rule holds. Allowed: stdlib plus the leaves named in
 [doc.go](doc.go).
 
+## Repository selector errors (`repository_selector.go`)
+
+- `ApplyRepositorySelectorForAccess` MUST keep the order
+  `WriteGraphReadError` (503/504), then `selector.WriteLookupFailure` (500,
+  fixed body, span error), then 400. Never write `err.Error()` of a
+  `selector.LookupError` to a body: it carries backend text (#7626).
+- Not-found stays 400 in this family. Moving it to 404 is a separate
+  contract change, not part of a lookup-failure fix.
+
 ## Bundles read (`registry_bundles.go`)
 
 - `searchRegistryBundlesCypher` MUST stay anchor-only: no `OPTIONAL MATCH`,

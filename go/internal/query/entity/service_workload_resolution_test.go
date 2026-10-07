@@ -55,7 +55,7 @@ func TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage(t *testing.T) {
 		t.Fatal("resolveServiceWorkloadCandidate() error = nil, want an ambiguity error")
 	}
 
-	status, envelope := serviceStoryResolutionError(err)
+	status, envelope := serviceStoryResolutionError(context.Background(), err)
 	if status != http.StatusConflict {
 		t.Fatalf("status = %d, want %d", status, http.StatusConflict)
 	}

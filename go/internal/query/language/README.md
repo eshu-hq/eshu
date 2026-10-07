@@ -14,7 +14,9 @@ Owns the `Handler` struct, its HTTP dispatch and both Cypher builders and
 content-store reads it calls, the language name/spelling registry, and the
 truth-basis-to-reason and truth-basis-to-source_backend mappings this route
 reports. Does not own the repository-selector resolution or the language-query
-grant type (`codequery`), the content-model types or capability registry
+grant type (`codequery`; `codequery.ApplyRepositorySelectorForAccess` also owns
+the selector's 503/504, 500 lookup-failure, and 400 answers for this route,
+#7626), the content-model types or capability registry
 (`querycontract`), the semantic-summary attachment
 (`entitysemantics`), or the shared semantic-metadata Cypher fragment
 (`rows`) -- those are separate leaves this package calls into.
@@ -105,7 +107,9 @@ tracer var (mirroring `incidentHandlerTracer` in
 `go/internal/query/incident/handler.go`), seeded from
 `tracing.HandlerTracer()`; `span_test.go` (moved with the family, since the
 tracer it swaps is now package-local) proves the handler still emits exactly
-one span with those attributes.
+one span with those attributes. Since #7626 that span is also set to Error,
+with an `exception` event, when the repo_id selector's backing read fails
+(`TestLanguageQuerySelectorLookupFailureAnswers500`).
 
 ## Related docs
 

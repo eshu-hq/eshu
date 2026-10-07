@@ -205,7 +205,7 @@ source_coverage:
           max_results: 1
   - file: entity/handler.go
     calls:
-      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 5c4a6153f21d3ef702bc7a10e8c5eeaabc447e7d9d16f8a59c08b8cac4eba252, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 5f8c4acb35418321c55a93d08e3e5ddfb638e6451c6889e99caec76ba1f24182, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity/resolve_workload.go
     calls:
       - {symbol: "(*Handler).ResolveWorkloadEntities", count: 2, source_sha256: 0f5ae69f1f825814cd2e58fecb146589dc2733e95fe9dd24163c0bb2939473ad, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}

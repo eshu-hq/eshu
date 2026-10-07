@@ -28,6 +28,19 @@
   in the query root: many families gate on it, so it is not this family's
   row to move. Keep the capability strings and the `TruthBasisHybrid`
   envelope basis on the moved handlers verbatim.
+- `ResolveEntity` maps a `repo_id` selector error in the order
+  `querycontract.WriteGraphReadError` (503/504), then
+  `selector.WriteLookupFailure` (500, fixed body, span error), then 404 for
+  not-found and 400 otherwise. Never write `err.Error()` of a
+  `selector.LookupError` to a body: it carries backend text (#7626).
+- The service routes' optional `repo` selector follows the same rule.
+  `InvestigateService` calls `selector.WriteLookupFailure` after
+  `WriteGraphReadError`; `serviceStoryResolutionError` (behind
+  `GET /api/v0/services/{service_name}/story` and every in-process
+  `BuildServiceStoryEnvelope` caller) returns the fixed
+  `selector.LookupFailureMessage` envelope and records the error on the ctx
+  span after `GraphReadErrorEnvelope`. Their `query failed: %v` 500 is for
+  non-selector failures only.
 - Keep the root `entity_alias.go` aliases and forwarders until every
   external caller has a separately reviewed migration path.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,

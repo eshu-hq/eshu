@@ -47,6 +47,12 @@ surface. Exactly 40 non-test `.go` files (dirgate cap).
   sanctioned reason) in
   `go/internal/queryplan/testdata/{handler-hot-cypher,hot-cypher}.yaml`
   and re-run `go test ./internal/queryplan/`.
+- **Selector failures map in one place.** `ApplyRepositorySelectorForAccess`
+  serves every `repo_id` selector in the family, including
+  `POST /api/v0/code/language-query`. A reader fence or graph verdict answers
+  503/504, any other backend read failure answers 500 with the fixed
+  `selector.LookupFailureMessage` body and a span error (#7626), and an
+  unmatched or ambiguous selector answers 400.
 - **Live proofs stay honest.** `live_nornicdb_reader_test.go` is the
   test-only live-backend reader (no production read policy); the
   `live_nornicdb_*` tag-gated files prove query text against a real

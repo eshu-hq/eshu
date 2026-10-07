@@ -127,6 +127,61 @@ func TestResolveForRequestWithAccessMapsLookupFailureTo500(t *testing.T) {
 	}
 }
 
+// TestWriteLookupFailureAnswersOnlyLookupFailures pins the helper every
+// selector caller outside ResolveForRequestWithAccess uses (#7626): a
+// LookupError, bare or wrapped, answers 500 with the fixed body and records the
+// error on the request span; every other error writes nothing, touches no span,
+// and reports false so the caller's own 404/400 mapping runs.
+func TestWriteLookupFailureAnswersOnlyLookupFailures(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		err   error
+		wantW bool
+	}{
+		{"lookup error", LookupError{Err: errors.New("private neo4j: connection reset")}, true},
+		{"wrapped lookup error", fmt.Errorf("resolve: %w", LookupError{Err: errors.New("private pq: boom")}), true},
+		{"not found", NotFoundError{Selector: requestTestSelector}, false},
+		{"ambiguous", AmbiguousError{Selector: requestTestSelector, Matches: []string{"a", "b"}}, false},
+		{"plain error", errors.New("private other"), false},
+		{"nil", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+			ctx, span := provider.Tracer("selector-request-test").Start(context.Background(), "handler")
+
+			req := httptest.NewRequest(http.MethodGet, "/route", nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			wrote := WriteLookupFailure(rec, req, tc.err)
+			span.End()
+
+			if wrote != tc.wantW {
+				t.Fatalf("WriteLookupFailure() = %v, want %v", wrote, tc.wantW)
+			}
+			assertRequestSpanError(t, recorder.Ended()[0], tc.wantW)
+			body := rec.Body.String()
+			if !tc.wantW {
+				if body != "" {
+					t.Fatalf("body = %q, want nothing written", body)
+				}
+				return
+			}
+			if rec.Code != http.StatusInternalServerError {
+				t.Fatalf("status = %d, want 500", rec.Code)
+			}
+			if !strings.Contains(body, LookupFailureMessage) || strings.Contains(body, "private") {
+				t.Fatalf("body = %s, want the fixed %q message and no backend text", body, LookupFailureMessage)
+			}
+		})
+	}
+}
+
 func assertRequestSpanError(t *testing.T, span sdktrace.ReadOnlySpan, want bool) {
 	t.Helper()
 	hasException := false

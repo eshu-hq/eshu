@@ -23,8 +23,9 @@ against the graph under authorization bounds, so treat changes as security work.
   text, and do not return a `LookupError` for a not-found or ambiguous answer
   (#7626).
 - `ResolveForRequestWithAccess` MUST keep the order: `WriteGraphReadError`,
-  then `IsLookupFailure` (500, fixed body, span error), then `IsNotFound`
-  (404), then 400.
+  then `WriteLookupFailure` (500, fixed body, span error), then `IsNotFound`
+  (404), then 400. Callers that map selector errors themselves use the same
+  order and the same helper; do not inline a second copy of the 500 answer.
 - `HydrateResolvedEntityRepoIdentity` MUST call
   `entity.ClearResolvedEntityRepoProjectionPlaceholders` on every
   entity before any other hydration path runs (#6408). Skipping it lets a
