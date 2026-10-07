@@ -12,8 +12,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // LookupFailureMessage is the fixed text a lookup failure answers with, as
@@ -254,20 +253,19 @@ func IsLookupFailure(err error) bool {
 }
 
 // WriteLookupFailure answers a lookup failure for a caller that maps selector
-// errors itself: when IsLookupFailure(err) holds it records err on the request
-// span, writes 500 with LookupFailureMessage as the body, and reports true.
-// Any other error writes nothing and reports false, so the caller's own
-// not-found and 400 mapping runs next. Call it after
-// querycontract.WriteGraphReadError, which owns the fence and
-// graph-availability verdicts that also wrap a LookupError.
+// errors itself: when IsLookupFailure(err) holds it answers through
+// tracing.WriteServerFailure with LookupFailureMessage as the body (500 with
+// the error recorded on the request span, or 499 with only the client-cancel
+// event when the caller canceled the request) and reports true. Any other
+// error writes nothing and reports false, so the caller's own not-found and
+// 400 mapping runs next. Call it after querycontract.WriteGraphReadError,
+// which owns the fence and graph-availability verdicts that also wrap a
+// LookupError.
 func WriteLookupFailure(w http.ResponseWriter, r *http.Request, err error) bool {
 	if !IsLookupFailure(err) {
 		return false
 	}
-	span := trace.SpanFromContext(r.Context())
-	span.RecordError(err)
-	span.SetStatus(codes.Error, LookupFailureMessage)
-	querycontract.WriteError(w, http.StatusInternalServerError, LookupFailureMessage)
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, LookupFailureMessage)
 	return true
 }
 

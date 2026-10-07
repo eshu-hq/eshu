@@ -28,6 +28,15 @@ func WriteJSON(w http.ResponseWriter, status int, value any) {
 	_ = enc.Encode(value)
 }
 
+// StatusClientClosedRequest is the nonstandard 499 status a query route
+// answers when the caller canceled its own request before the server failed.
+// net/http has no constant for it. The client is gone and never reads the
+// body, so the status exists for access logs, the otelhttp
+// http.response.status_code metric, and MCP dispatch, which all tell it apart
+// from a 500 server fault. The tracing package's server-failure helpers are
+// the only writers; they leave the span status unset for it.
+const StatusClientClosedRequest = 499
+
 // WriteError writes a plain JSON error response.
 func WriteError(w http.ResponseWriter, status int, message string) {
 	WriteJSON(w, status, map[string]any{"error": http.StatusText(status), "detail": message})
