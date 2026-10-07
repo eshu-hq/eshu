@@ -12,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
+// repositoryCoverageQueryFailedMessage is the fixed body for a failed coverage
+// read or re-resolution (#7626); the backend error goes only to the span.
+const repositoryCoverageQueryFailedMessage = "repository coverage query failed"
+
 // getRepositoryCoverage returns content store coverage for the repository.
 func (h *Handler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) {
 	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")

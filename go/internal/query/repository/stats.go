@@ -23,6 +23,9 @@ const (
 	StatsContentCoverageShape        = "content_store_repository_coverage"
 	repositoryStatsIdentityOnlyShape = "repository_identity_only"
 	repositoryStatsReadTimeout       = 2 * time.Second
+	// repositoryStatsQueryFailedMessage is the fixed body for a failed stats
+	// repository lookup (#7626); the backend error goes only to the span.
+	repositoryStatsQueryFailedMessage = "repository stats query failed"
 )
 
 // getRepositoryStats returns bounded repository statistics from read models. The

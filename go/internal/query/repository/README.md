@@ -57,7 +57,7 @@ that second resolution the same way.
 After the selector resolved, a failed stats repository lookup or coverage
 read maps a reader fence or graph verdict through
 `querycontract.WriteGraphReadError` first, then answers through
-`tracing.WriteServerFailure` with a fixed body from `failure.go`
+`tracing.WriteServerFailure` with a fixed body
 (`repository stats query failed` or `repository coverage query failed`) and an
 error on the request span. Stats keeps 504 when its own route budget ran out.
 A read that failed because the caller canceled the request answers 499 with

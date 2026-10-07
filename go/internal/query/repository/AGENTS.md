@@ -34,7 +34,7 @@
   `err.Error()` to a body; it carries backend text.
 - A stats or coverage read that fails after the selector resolved answers
   `querycontract.WriteGraphReadError` with the literal capability first, then
-  `tracing.WriteServerFailure` with a constant from `failure.go` (stats passes
+  `tracing.WriteServerFailure` with a package message constant (stats passes
   `repositoryStatsErrorStatus(err)` so its own budget keeps 504). Never format
   `err` into a body (#7626).
 
