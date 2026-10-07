@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -51,7 +52,7 @@ func (h *Handler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, repositoryStatsErrorStatus(err), fmt.Sprintf("query repository failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, repositoryStatsErrorStatus(err), repositoryStatsQueryFailedMessage)
 		return
 	}
 	if repo == nil {
@@ -100,12 +101,13 @@ func (h *Handler) resolveRepositoryStatsPathSelector(
 		// recognizes context.DeadlineExceeded (this route's own read budget),
 		// not the ErrGraphReadDeadline/ErrGraphUnavailable sentinels, which
 		// never wrap it; it keeps its 504 ahead of the lookup-failure 500. Both
-		// answer a fixed body: a LookupError's text carries backend detail.
+		// answer a fixed body (a LookupError's text carries backend detail) and
+		// record the error on the request span.
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return "", false
 		}
 		if repositoryStatsErrIsTimeout(err) {
-			querycontract.WriteError(w, http.StatusGatewayTimeout, selector.LookupFailureMessage)
+			tracing.WriteServerFailure(w, r, err, http.StatusGatewayTimeout, selector.LookupFailureMessage)
 			return "", false
 		}
 		if selector.WriteLookupFailure(w, r, err) {

@@ -77,7 +77,7 @@ func repoLookupCases(deadlineStatus int) []repoLookupCase {
 		{"plain store error", nil, repoLookupStore{matchErr: errors.New(`private pq: relation "repositories" does not exist`)}, http.StatusInternalServerError, true},
 		{"bare reader unavailable", nil, repoLookupStore{matchErr: fmt.Errorf("private read store: %w", db.ErrReaderUnavailable)}, http.StatusInternalServerError, true},
 		{"plain graph driver error", repoLookupGraph(errors.New("private neo4j: connection reset")), nil, http.StatusInternalServerError, true},
-		{"store context deadline", nil, repoLookupStore{matchErr: fmt.Errorf("private read store: %w", context.DeadlineExceeded)}, deadlineStatus, deadlineStatus == http.StatusInternalServerError},
+		{"store context deadline", nil, repoLookupStore{matchErr: fmt.Errorf("private read store: %w", context.DeadlineExceeded)}, deadlineStatus, true},
 		{"reader stale", nil, repoLookupStore{matchErr: fmt.Errorf("private read store: %w", db.ErrReaderStale)}, http.StatusServiceUnavailable, false},
 		{"graph unavailable", repoLookupGraph(fmt.Errorf("private: %w", querycontract.ErrGraphUnavailable)), nil, http.StatusServiceUnavailable, false},
 		{"graph deadline", repoLookupGraph(fmt.Errorf("private: %w", querycontract.ErrGraphReadDeadline)), nil, http.StatusGatewayTimeout, false},
@@ -93,7 +93,8 @@ func repoLookupCases(deadlineStatus int) []repoLookupCase {
 // request span, never the 400 that blamed the client and echoed backend text.
 // Fence verdicts keep 503/504, an unmatched selector keeps 404, and an
 // ambiguous one keeps 400. The stats route keeps its existing 504 for a
-// selector read that ran out its route budget (context.DeadlineExceeded).
+// selector read that ran out its route budget (context.DeadlineExceeded), with
+// the same fixed body and span error as the 500.
 func TestRepositorySelectorLookupFailureMapping(t *testing.T) {
 	t.Parallel()
 
@@ -165,7 +166,7 @@ func serveRepoLookup(t *testing.T, handler *Handler, path string, wantStatus int
 		t.Fatalf("body leaked the backend error text: %s", body)
 	}
 	assertRepoLookupSpan(t, recorder.Ended(), wantSpanError)
-	if wantStatus != http.StatusInternalServerError {
+	if !wantSpanError {
 		return
 	}
 	if !strings.Contains(body, selector.LookupFailureMessage) {

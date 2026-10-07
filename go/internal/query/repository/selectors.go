@@ -5,11 +5,11 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // getRepositoryCoverage returns content store coverage for the repository.
@@ -27,7 +27,7 @@ func (h *Handler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) 
 		if selector.WriteLookupFailure(w, r, err) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, repositoryCoverageQueryFailedMessage)
 		return
 	}
 	if resolvedRepoID == "" {
@@ -42,7 +42,7 @@ func (h *Handler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) 
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("coverage query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, repositoryCoverageQueryFailedMessage)
 		return
 	}
 

@@ -27,10 +27,16 @@
   never Cypher text or queue/projection behavior.
 - Selector errors keep the shared order (#7626):
   `querycontract.WriteGraphReadError` (503/504), then (stats only) the 504
-  for a `context.DeadlineExceeded` route-budget expiry, then
+  for a `context.DeadlineExceeded` route-budget expiry through
+  `tracing.WriteServerFailure` (fixed body, span error), then
   `selector.WriteLookupFailure` (500, fixed body, span error), then 404 for
   not-found and 400 otherwise. Never write a `selector.LookupError`'s
   `err.Error()` to a body; it carries backend text.
+- A stats or coverage read that fails after the selector resolved answers
+  `querycontract.WriteGraphReadError` with the literal capability first, then
+  `tracing.WriteServerFailure` with a constant from `failure.go` (stats passes
+  `repositoryStatsErrorStatus(err)` so its own budget keeps 504). Never format
+  `err` into a body (#7626).
 
 ## Verification
 

@@ -50,9 +50,19 @@ failed catalog or graph read answers 500 with the fixed `repository selector
 lookup failed` body and an error on the request span
 (`selector.WriteLookupFailure`, #7626); an unmatched selector answers 404 and
 an ambiguous one 400. The stats route answers 504 with the same fixed body
-when the selector read runs out its 2s route budget
+and span error when the selector read runs out its 2s route budget
 (`context.DeadlineExceeded`). Coverage re-resolves the selector and answers
 that second resolution the same way.
+
+After the selector resolved, a failed stats repository lookup or coverage
+read maps a reader fence or graph verdict through
+`querycontract.WriteGraphReadError` first, then answers through
+`tracing.WriteServerFailure` with a fixed body from `failure.go`
+(`repository stats query failed` or `repository coverage query failed`) and an
+error on the request span. Stats keeps 504 when its own route budget ran out.
+A read that failed because the caller canceled the request answers 499 with
+the same body and only the `eshu.request.client_canceled` span event. Before
+this, both answered with the backend error text in the body (#7626).
 
 No-Regression Evidence (#7626): for the content-backed selector routes in
 this package, `iac` dead-IaC, and `contentread`, the new
@@ -69,9 +79,10 @@ ok) with the route regressions in `selector_lookup_test.go`,
 Observability Evidence (#7626): a lookup failure on these routes now records
 the error and an `exception` event on the request span (the iac
 `SpanQueryDeadIaC` handler span for dead-IaC) with status description
-`repository selector lookup failed`; a reader-fence `503`, a graph `503`/`504`,
-the stats budget `504`, not-found, and ambiguous answers leave the span
-untouched. The route tests assert both halves with an SDK span recorder.
+`repository selector lookup failed`, and so does the stats budget `504`; a
+reader-fence `503`, a graph `503`/`504`, not-found, and ambiguous answers leave
+the span untouched. The route tests assert both halves with an SDK span
+recorder.
 
 ## Story file list
 
