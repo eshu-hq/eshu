@@ -28,6 +28,14 @@ leaf) owns rendering this evidence into `statuspkg.RawSnapshot`.
   leaf moves.
 - `TerraformStateAdminEvidence` — `LastSerials` and `RecentWarnings`.
 
+- `SummaryEntries(ctx, queryer, limit)` runs the two statements with the live
+  decoder and returns the rows as summary entries (`serial` and `warning`
+  sections) for the `terraform_state` summary model; `DecodeSummaryEntries`
+  turns stored entries back into a `TerraformStateAdminEvidence`;
+  `SummarySourceSHA256()` is the writer's digest (encoding tag, both statement
+  texts, and the per-locator limit). The entries hold the Go-decoded rows, so a
+  decoded stored row equals the live read by construction.
+
 Everything else (`listTerraformStateLastSerials`,
 `listTerraformStateRecentWarnings`, the two query constants) is
 family-private.

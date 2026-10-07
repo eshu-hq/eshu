@@ -12,6 +12,8 @@
 // status family (still in the postgres root until its own #6693 leaf) reads
 // through it to populate statuspkg.RawSnapshot.TerraformStateLastSerials and
 // RawSnapshot.TerraformStateRecentWarnings. Everything else in this package
-// is family-private. This package must not import the parent postgres
-// package.
+// is family-private except the summary codec (SummaryEntries,
+// DecodeSummaryEntries, SummarySourceSHA256), which stores the same evidence
+// as the terraform_state status summary model. This package must not import
+// the parent postgres package.
 package statestore

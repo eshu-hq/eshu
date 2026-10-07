@@ -11,6 +11,13 @@ and advisory lock live in `go/internal/storage/postgres/status/summary`; the
 statement and its digest live in `go/internal/storage/postgres`
 (`ReadActiveWorkSummaryEntries`, `ActiveWorkSummarySourceSHA256`).
 
+The same pass also writes a second model, `terraform_state`, as a companion
+row (`Runner.Companions`): the last observed serial per state locator and the
+recent warnings per locator, from `storage/postgres/terraform/state`
+(`SummaryEntries`, `SummarySourceSHA256`). The companion has its own row, its
+own `as_of`, its own guarded upsert and its own digest. It adds no flag: the
+writer, reader and stale flags cover both models.
+
 ## Where it runs
 
 `go/cmd/reducer/status_summary_wiring.go` builds the runner when
@@ -40,7 +47,8 @@ sequenceDiagram
             R->>P: ROLLBACK (skipped_missing_table)
         else table present
             R->>P: active-work statement at as_of
-            R->>P: guarded single-row upsert
+            R->>P: terraform_state statements (companion)
+            R->>P: guarded upsert, one per model row
             R->>P: COMMIT (ok, or rejected_guard)
         end
     end
@@ -48,6 +56,10 @@ sequenceDiagram
 
 - **as_of** is the database clock read after the lock, so it is monotonic
   across replicas whose host clocks differ.
+- **Two rows, one transaction.** Every statement runs before any upsert, so a
+  slow statement never holds an earlier row's lock. One failure rolls both rows
+  back. Each row has its own guard outcome, so one row can be `rejected_guard`
+  while the other is `ok`.
 - **Outcomes** (closed set): `ok`, `skipped_lock`, `skipped_missing_table`,
   `rejected_guard`, `error`.
 - **Deadline**: a pass is cancelled after two intervals.
@@ -70,8 +82,9 @@ claim and Ack loop.
 
 | signal | name |
 | --- | --- |
-| counter | `eshu_dp_status_summary_writer_passes_total{model_key, outcome}` |
-| histogram | `eshu_dp_status_summary_writer_pass_duration_seconds{model_key, outcome}` |
+| counter | `eshu_dp_status_summary_writer_passes_total{model_key, outcome}` (one sample per model per pass) |
+| histogram | `eshu_dp_status_summary_writer_model_compute_seconds{model_key}` (statement time of one model) |
+| histogram | `eshu_dp_status_summary_writer_pass_duration_seconds{model_key, outcome}` (whole pass, labeled with the first model key) |
 | counter | `eshu_dp_status_summary_writer_overrun_total{model_key}` |
 | gauge | `eshu_dp_status_summary_writer_up{model_key}` (1 while the loop runs) |
 | span | `reducer.status_summary.pass` with model key, outcome, as_of, pass ms, row count |

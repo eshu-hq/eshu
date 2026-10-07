@@ -186,8 +186,9 @@ configuration.
   replica runs the loop, but a transaction advisory lock lets exactly one
   replica compute per tick (`ESHU_STATUS_SUMMARY_WRITER_INTERVAL`, default `10s`,
   minimum `5s`) and the others count `skipped_lock`. A pass runs the status
-  active-work statement on the primary and stores the result as one row in
-  `status_summary_snapshots`. Watch
+  active-work statement and the two Terraform-state admin-evidence statements on
+  the primary and stores the results as two rows in `status_summary_snapshots`,
+  in one transaction. Watch
   `eshu_dp_status_summary_writer_passes_total{outcome}` and
   `eshu_dp_status_summary_writer_overrun_total`. The API, MCP server, and
   ingester do not run the writer.

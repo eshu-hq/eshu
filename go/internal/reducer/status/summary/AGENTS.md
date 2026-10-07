@@ -14,6 +14,10 @@
 - One pass is one transaction: READ COMMITTED, jit off, try-lock, clock, statement, upsert,
   commit. Never split the lock and the upsert across transactions: the lock is
   transaction scoped and the single-writer guarantee ends with it.
+- A companion model (`Runner.Companions`) joins the same transaction, lock and
+  clock. Compute every statement before any upsert. Never open a second
+  transaction or a second lock for a model. `validateCompanions` rejects a
+  blank key, digest or compute, and a duplicate key.
 - Keep the pass at READ COMMITTED (`setReadCommittedSQL`, the first
   statement). Under REPEATABLE READ the guarded upsert raises 40001 when
   another writer committed the row after the pass's snapshot.

@@ -14,6 +14,11 @@
 // clock as as_of plus a check that the table exists, the statement with as_of
 // as $1, and one guarded single-row upsert (store.Upsert).
 //
+// Runner.Companions adds further models to the same pass, each its own
+// statement, row, as_of guard and digest (the Terraform-state model is one).
+// All statements run before any upsert, in the one transaction, and one failure
+// rolls every row back.
+//
 // Any number of reducer replicas may run the loop. The lock makes exactly one
 // compute per tick and the others report OutcomeSkippedLock; a crashed holder
 // frees the lock with its backend. The upsert's as_of guard keeps an older

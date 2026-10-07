@@ -68,7 +68,8 @@ mode with a high true live share means the table statistics lag the table
 With the stored-summary reader on, `status.active_work.source` (`model`, `live`,
 `live_fallback`, or, on the runtime `/metrics` scrape, `last_row` or `zero`), `status.active_work.as_of_age_seconds`, and on a fallback
 `status.active_work.fallback_reason` say which path answered the active-work
-part of the read; `status.active_work.as_of_age_signed_seconds` is the row's age
+part of the read (`status.terraform_state.*` does the same for the
+Terraform-state section); `status.active_work.as_of_age_signed_seconds` is the row's age
 before the clamp at zero, negative when the reader's clock runs behind the
 writer's.
 

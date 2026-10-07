@@ -383,8 +383,9 @@ Important env vars:
 - `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` (default `5m`, wait between cycles)
 - `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` (default `500`, repositories per cycle)
 - `ESHU_STATUS_SUMMARY_WRITER_ENABLED` (default `false`): run the periodic
-  status summary writer (#7009), which stores the active-work summary in
-  `status_summary_snapshots`. One replica computes per tick under a
+  status summary writer (#7009), which stores the active-work summary and the
+  Terraform-state admin evidence in `status_summary_snapshots` (two rows, one
+  pass). One replica computes per tick under a
   transaction advisory lock; the others skip.
 - `ESHU_STATUS_SUMMARY_WRITER_INTERVAL` (default `10s`, minimum `5s`; values
   below `5s` or unparsable values fail startup)
@@ -446,6 +447,7 @@ Start with:
   `reducer.infra_inventory_reconcile`
 - status summary writer: `eshu_dp_status_summary_writer_passes_total{model_key,outcome}`,
   `eshu_dp_status_summary_writer_pass_duration_seconds{model_key,outcome}`,
+  `eshu_dp_status_summary_writer_model_compute_seconds{model_key}`,
   `eshu_dp_status_summary_writer_overrun_total{model_key}`,
   `eshu_dp_status_summary_writer_up{model_key}`, span `reducer.status_summary.pass`
 - changed-since link domain (dark): `eshu_dp_changed_since_links_total{link_kind,outcome}`,

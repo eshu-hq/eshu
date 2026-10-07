@@ -176,3 +176,46 @@ func TestObserveLogsAFallbackButNotAServedOrFlagOffRead(t *testing.T) {
 		}
 	}
 }
+
+func TestObserveUsesTheModelsSpanPrefixAndWarnsOncePerModelAndReason(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+	ctx, span := tracer.Start(context.Background(), "postgres.status_snapshot")
+	asOf := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	fallbackLimiter.reset()
+
+	Observe(ctx, nil, Observation{ModelKey: ModelActiveWorkSummary, Source: SourceModel, Reason: ReasonFresh, AsOf: asOf, Age: time.Second})
+	Observe(ctx, nil, Observation{
+		ModelKey: ModelTerraformState, SpanPrefix: "status.terraform_state", Source: SourceLiveFallback, Reason: ReasonStale,
+		AsOf: asOf, Age: 40 * time.Second, SignedAge: 40 * time.Second,
+	})
+	span.End()
+
+	attrs := map[string]attribute.Value{}
+	for _, kv := range recorder.Ended()[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value
+	}
+	if attrs["status.active_work.source"].AsString() != "model" {
+		t.Fatalf("active work source attr = %v", attrs["status.active_work.source"])
+	}
+	if attrs["status.terraform_state.source"].AsString() != "live_fallback" ||
+		attrs["status.terraform_state.fallback_reason"].AsString() != "stale" ||
+		attrs["status.terraform_state.as_of_age_seconds"].AsFloat64() != 40 {
+		t.Fatalf("terraform attrs = %v", attrs)
+	}
+
+	// The same reason on another model is its own Warn: one noisy model must
+	// not hide the other's.
+	Observe(context.Background(), nil, Observation{ModelKey: ModelActiveWorkSummary, Source: SourceLiveFallback, Reason: ReasonStale, Age: 41 * time.Second})
+	Observe(context.Background(), nil, Observation{ModelKey: ModelActiveWorkSummary, Source: SourceLiveFallback, Reason: ReasonStale, Age: 42 * time.Second})
+	if got := strings.Count(buf.String(), "status summary row not served"); got != 2 {
+		t.Fatalf("fallback warnings = %d, want 2 (one per model, the repeat suppressed): %s", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), `"model_key":"terraform_state"`) || !strings.Contains(buf.String(), `"model_key":"active_work_summary"`) {
+		t.Fatalf("warnings did not name both models: %s", buf.String())
+	}
+}
