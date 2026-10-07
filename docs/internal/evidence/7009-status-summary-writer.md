@@ -29,9 +29,12 @@ has a deadline of two intervals. Passes never overlap or queue: the next pass
 starts on the first interval boundary after the previous one ends.
 
 The interval default is 10 s, minimum 5 s. The ops-qa read-replica probe
-(2026-10-06, run `b5f4bf6ad467ee0e`) measured the real active-work pass at a
-1,020 ms median (1,013-1,028 ms, 160k shared hits). The ruling's P4 mapping
-puts 1-2.5 s at a 10 s interval. A 2 s cadence raised claim p95 on the fixture
+(2026-10-06) measured the active-work statement at a 1,020 ms median
+(1,013-1,028 ms, 160,522 shared hits). Labels for that figure: 1 warm-up plus 3
+timed runs, median of 3; `EXPLAIN (ANALYZE, BUFFERS)` timing with warm buffers;
+`jit = off`; time on the read replica (a hot standby), not on the primary where
+the writer runs; not a p95 and not a deployed route latency. The ruling's P4
+mapping puts 1-2.5 s at a 10 s interval. A 2 s cadence raised claim p95 on the fixture
 shim, so values below 5 s fail reducer startup.
 
 ## Proof
@@ -63,9 +66,11 @@ the writer field, nil by default. `go test ./internal/reducer/
 empty `Service` starts nothing.
 
 Live on PostgreSQL 18.6 (Homebrew, native, loopback), every test creating its
-own database and applying all 179 migrations, `go test -race -count=1
+own database and applying all 180 migrations, `go test -race -count=1 -v
 ./internal/reducer/status/summary/` with the proof DSN, the disposable opt-in,
-and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`: 38 tests passed, rc=0.
+and `ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1`, run at f0fb295f3 (this branch
+on e5dfb548a): 39 PASS lines (27 top-level tests and 12 subtests), no FAIL and
+no SKIP, rc=0.
 
 - the stored row equals the live statement at its `as_of`, read in one
   `REPEATABLE READ` snapshot, at 1/600, 300/600 and 600/600 live rows (every
@@ -126,7 +131,11 @@ advisory `live-postgres-readiness` job.
 
 - Writer pass cost on the ops-qa primary (the probe ran on the read replica).
 - Claim latency with the writer on, on a quiet host or deployed (PR-F).
-- The reader side: model selection, age correction, fallback, and the
-  row-derived age gauge (PR-C, PR-F).
+- The reader side: model selection, age correction, and fallback (PR-C).
+- Design change from the ruling (D4): the reducer-side
+  `eshu_dp_status_summary_age_seconds` gauge is not in this slice. Writer health
+  is covered by the pass counter and duration histogram by outcome, the overrun
+  counter, the `writer_up` gauge, and the Warn and Error logs. PR-C and PR-F
+  must land an age signal before the `EshuStatusSummaryStale` alert that uses it.
 - Behaviour beside #7647's gated statement: the writer runs whatever statement
   the binary carries, and the digest changes with it.
