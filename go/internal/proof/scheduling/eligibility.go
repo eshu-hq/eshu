@@ -303,7 +303,7 @@ func verifyPersistedEligibility(ctx context.Context, tx pgx.Tx, rows []codetopic
 	bytesSeen := 0
 	for _, row := range rows {
 		if _, ok := allowed[row.MatchedTerm]; !ok {
-			return fmt.Errorf("unexpected probe term %q", row.MatchedTerm)
+			return fmt.Errorf("unexpected matched term in probe row")
 		}
 		size, err := oracleRowSize(row)
 		if err != nil {

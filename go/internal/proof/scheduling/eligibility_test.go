@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -178,6 +179,49 @@ func TestOracleDuplicateErrorDoesNotExposePersistedIdentity(t *testing.T) {
 				if strings.Contains(err.Error(), secret) {
 					t.Fatalf("duplicate error exposed persisted identity %q: %v", secret, err)
 				}
+			}
+		})
+	}
+}
+
+func TestPersistedEligibilityUnexpectedTermErrorRedactsRow(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		row  codetopicparallel.ProbeRow
+	}{
+		{name: "entity", row: codetopicparallel.ProbeRow{
+			SourceKind: "entity", MatchedTerm: "private/term-canary",
+			RepoID:       oracleString("private-repository-canary"),
+			RelativePath: oracleString("private/path-canary.go"),
+			EntityID:     oracleString("private-entity-canary"),
+			EntityName:   oracleString("private-name-canary"),
+		}},
+		{name: "file", row: codetopicparallel.ProbeRow{
+			SourceKind: "file", MatchedTerm: "private/file-term-canary",
+			RepoID:       oracleString("private-file-repository-canary"),
+			RelativePath: oracleString("private/file-path-canary.go"),
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := verifyPersistedEligibility(
+				context.Background(), nil, []codetopicparallel.ProbeRow{test.row},
+				dynamicWorkload{terms: []string{"needle"}}, 250,
+			)
+			if err == nil || !strings.Contains(err.Error(), "unexpected") {
+				t.Fatalf("want unexpected-term rejection, got %v", err)
+			}
+			for _, secret := range []string{
+				test.row.MatchedTerm, *test.row.RepoID, *test.row.RelativePath,
+			} {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("eligibility error exposed raw row content: %v", err)
+				}
+			}
+			if test.row.EntityID != nil && strings.Contains(err.Error(), *test.row.EntityID) {
+				t.Fatalf("eligibility error exposed entity identity: %v", err)
+			}
+			if test.row.EntityName != nil && strings.Contains(err.Error(), *test.row.EntityName) {
+				t.Fatalf("eligibility error exposed entity name: %v", err)
 			}
 		})
 	}
