@@ -137,6 +137,27 @@ carries `model_key` (`active_work_summary`).
 | `eshu_dp_status_summary_writer_overrun_total` | counter | Passes longer than `ESHU_STATUS_SUMMARY_WRITER_INTERVAL`. The next pass then starts on the following interval boundary, so a steady rise means the stored row ages past one interval. |
 | `eshu_dp_status_summary_writer_up` | gauge | 1 while this reducer's writer loop runs, 0 after it stops. Absent when the writer is disabled. |
 
+## Status Summary Reader
+
+The status snapshot's read of the stored `status_summary_snapshots` row (#7009),
+on only when `ESHU_STATUS_SUMMARY_READ_ENABLED=true`. Emitted by every process
+that builds a status store with instruments: the API, the MCP server, and the
+hosted runtimes. With the flag off, each read counts once as `source=live`,
+`reason=flag_off`.
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_status_summary_read_total` | counter | Status snapshot reads of the active-work summary by `model_key`, `source` (`model`: the stored row was served; `live`: the reader is off; `live_fallback`: the live statement answered because the row could not be served) and `reason` (`fresh`, `flag_off`, `missing`, `not_installed`, `version`, `row_count`, `stale`, `decode`). A steady `live_fallback` share means the writer is down, slow, or on another statement version; `stale` points at a slow or stopped writer, `version` at a rolling upgrade. |
+| `eshu_dp_status_summary_read_age_seconds` | histogram | Age of the stored row, from the database clock, at each read that served it (`source=model` only). Compare its upper buckets with `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`): a p95 near the limit predicts fallbacks. |
+
+The `postgres.status_snapshot` span carries `status.active_work.source`,
+`status.active_work.as_of_age_seconds`, `status.active_work.as_of_age_signed_seconds`
+(the age before the clamp at zero), and, on a fallback,
+`status.active_work.fallback_reason`. A fallback logs
+`status summary row not served; running the live active-work statement` at Warn,
+at most once a minute per reason per process, with `model_key`, `source`,
+`reason`, `age_seconds`, and `failure_class=status_summary_fallback`.
+
 ## Infra Read Model Reconcile
 
 | Metric | Type | Use |
@@ -280,7 +301,7 @@ or generation context.
 | Metric | Type | Use |
 | --- | --- | --- |
 | `eshu_dp_postgres_query_duration_seconds` | histogram | Postgres query and exec latency from the instrumented wrapper, measured until `QueryContext` or `ExecContext` returns (not until the rows are read). Labeled by `operation` (`read` or `write`) and `store`, a fixed name per wired store (never a query string). `store="status_snapshot"` covers the API status snapshot reads behind the status, collector, readiness, index, and ingester routes (#6794); each read also emits a `postgres.query` span, and a caller-labeled read adds a bounded `db.query.summary` span attribute naming the read. |
-| `eshu_dp_status_snapshot_read_duration_seconds` | histogram | Duration of each status snapshot read (`StatusStore.ReadStatusSnapshotFiltered`), one sample per read measured until the reader returns (rows scanned and decoded), labeled by `read` (closed set: `scope_counts`, `generation_counts`, `generation_transitions`, `active_work_summary`, `producer_activity`, `collector_generation_dead_letters`, `coordinator`, `registry_collectors`, `aws_cloud_scans`, `aws_freshness`, `infra_inventory`, `vulnerability_sources`, `collector_fact_evidence`, `terraform_state`, `semantic_extraction`) and `outcome` (`success`, or `error` for any query, iteration, scan, or decode failure). Emitted by every process whose status store carries instruments, including the hosted runtimes and the API and MCP servers. Replaced `eshu_dp_status_stage_counts_cache_total`, retired with the stage-counts cache in #6794. |
+| `eshu_dp_status_snapshot_read_duration_seconds` | histogram | Duration of each status snapshot read (`StatusStore.ReadStatusSnapshotFiltered`), one sample per read measured until the reader returns (rows scanned and decoded), labeled by `read` (closed set: `scope_counts`, `generation_counts`, `generation_transitions`, `active_work_summary`, `producer_activity`, `collector_generation_dead_letters`, `coordinator`, `registry_collectors`, `aws_cloud_scans`, `aws_freshness`, `infra_inventory`, `vulnerability_sources`, `collector_fact_evidence`, `terraform_state`, `semantic_extraction`, plus `active_work_summary_model` for the stored summary row read when `ESHU_STATUS_SUMMARY_READ_ENABLED` is on) and `outcome` (`success`, or `error` for any query, iteration, scan, or decode failure). Emitted by every process whose status store carries instruments, including the hosted runtimes and the API and MCP servers. Replaced `eshu_dp_status_stage_counts_cache_total`, retired with the stage-counts cache in #6794. |
 | `eshu_dp_neo4j_query_duration_seconds` | histogram | Neo4j/NornicDB Bolt query latency. Logical reads use `operation="read"` and bounded `outcome` values: `success`, `slow`, `recovered`, `deadline`, `caller_deadline`, `unavailable`, `canceled`, or `error`. |
 | `eshu_dp_iac_resource_list_duration_seconds` | histogram | Bounded IaC resource list (`GET /api/v0/iac/resources`) handler latency, labeled by `iac.kind`. |
 | `eshu_dp_iac_resource_list_errors_total` | counter | Bounded IaC resource list handler errors, labeled by `iac.kind` and `reason`. |

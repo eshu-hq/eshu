@@ -444,6 +444,12 @@ func (r *fakeRows) Scan(dest ...any) error {
 			default:
 				return fmt.Errorf("row[%d] type = %T, want float64 or nil", i, row[i])
 			}
+		case *[]byte:
+			value, ok := row[i].([]byte)
+			if !ok {
+				return fmt.Errorf("row[%d] type = %T, want []byte", i, row[i])
+			}
+			*target = value
 		case *time.Time:
 			value, ok := row[i].(time.Time)
 			if !ok {

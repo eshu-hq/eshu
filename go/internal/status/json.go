@@ -42,6 +42,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		VulnerabilitySources           []collector.VulnerabilitySourceJSON `json:"vulnerability_sources,omitempty"`
 		SemanticExtraction             semantic.ExtractionJSON             `json:"semantic_extraction"`
 		AnswerNarration                answerNarrationJSON                 `json:"answer_narration"`
+		ActiveWorkSource               *ActiveWorkSourceJSON               `json:"active_work_source,omitempty"`
 		CollectorGenerationDeadLetters collector.GenerationDeadLetterJSON  `json:"collector_generation_dead_letters"`
 		AWSCloudScansTruncated         bool                                `json:"aws_cloud_scans_truncated,omitempty"`
 		AWSCloudScanLimit              int                                 `json:"aws_cloud_scan_limit,omitempty"`
@@ -78,6 +79,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		VulnerabilitySources:           collector.VulnerabilitySourcesJSON(report.VulnerabilitySources),
 		SemanticExtraction:             semantic.ExtractionStatusJSON(report.SemanticExtraction),
 		AnswerNarration:                answerNarrationStatusJSON(report.AnswerNarration),
+		ActiveWorkSource:               report.ActiveWorkSource.JSON(),
 		CollectorGenerationDeadLetters: collector.GenerationDeadLetterJSONFrom(report.CollectorGenerationDeadLetters),
 		AWSCloudScansTruncated:         report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:              awsCloudScanLimitJSON(report),

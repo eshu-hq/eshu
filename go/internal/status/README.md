@@ -46,6 +46,12 @@ See `doc.go` for the godoc contract. Key types and functions:
 - `RawSnapshot` — read-only substrate: scope counts, generation counts, stage
   counts, domain backlogs, queue blockages, retry policies, queue snapshot,
   latest failure metadata, and the optional `CoordinatorSnapshot`
+- `ActiveWorkSource` — where the queue, stage, backlog, blockage, and
+  latest-failure sections came from (`model`, `live`, or `live_fallback`), why,
+  and how old they are (#7009). `RawSnapshot.ActiveWorkSource` carries it from
+  the storage reader through `BuildReport` to `Report` and to the
+  `active_work_source` JSON object (`JSON()` returns nil, so no key is emitted,
+  when a reader reports none)
 - `Report` — operator-facing projection of `RawSnapshot`; the fields below are
   the stable output surface
 - `Reader` — two-method interface that storage implementations satisfy:
@@ -295,6 +301,12 @@ states (in priority order):
 
 - `DefaultRetryPolicies()` — projector and reducer defaults (3 attempts, 30 s
   delay)
+- `ReaderStartupError(reader)` — the startup configuration error a reader
+  reports through `StartupError() error` (an invalid
+  `ESHU_STATUS_SUMMARY_STALE_AFTER` on `postgres.StatusStore`), or nil. Both
+  decorators below forward it, and the runtime status constructors
+  (`NewStatusAdminMux`, `NewStatusMetricsHandler`) fail a misconfigured process
+  at startup whatever wraps the store (#7009).
 - `WithRetryPolicies(reader, policies...)` — decorator that attaches static
   retry metadata to any `Reader` without Postgres persistence
 - `WithSemanticProviderProfiles(reader, profiles...)` — decorator that attaches

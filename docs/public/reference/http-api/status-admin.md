@@ -238,8 +238,8 @@ is an unsupported inventory mode; query that pod's `/admin/status`, metrics, or
 the deployment platform inventory to prove process liveness.
 
 `/api/v0/status/ingesters` is the canonical ingester-status list route.
-`/api/v0/status/ingesters/{ingester}` is the canonical detail route. The
-`/api/v0/ingesters` routes are legacy GET aliases that return the same payload.
+`/api/v0/status/ingesters/{ingester}` is the canonical detail route; the
+`/api/v0/ingesters` GET aliases return the same payload. See [Active Work Source](active-work-source.md).
 
 ## Live Operations Board
 

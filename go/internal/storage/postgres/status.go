@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -44,11 +45,30 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 type StatusStore struct {
 	queryer     db.Queryer
 	Instruments *telemetry.Instruments
+	// summaryReader is the process-wide stored-summary reader (#7009); nil
+	// means the reader is off. startupErr is an invalid reader configuration.
+	summaryReader *StatusSummaryReader
+	startupErr    error
 }
 
-// NewStatusStore constructs a read-only status store.
+// NewStatusStore constructs a read-only status store with the stored-summary
+// reader off and reads no environment. The API and MCP server build a store
+// per snapshot transaction, so they attach one process-wide reader.
 func NewStatusStore(queryer db.Queryer) StatusStore {
 	return StatusStore{queryer: queryer}
+}
+
+// WithSummaryReader returns a copy of the store that reads the stored summary
+// through the process-wide reader; nil leaves it off.
+func (s StatusStore) WithSummaryReader(reader *StatusSummaryReader) StatusStore {
+	s.summaryReader = reader
+	return s
+}
+
+// StartupError reports an invalid stored-summary configuration found when the
+// store was built from the environment; runtimes fail startup on it.
+func (s StatusStore) StartupError() error {
+	return s.startupErr
 }
 
 // NewInstrumentedStatusStore constructs a read-only status store with the
@@ -62,6 +82,8 @@ func NewStatusStore(queryer db.Queryer) StatusStore {
 func NewInstrumentedStatusStore(queryer db.Queryer, instruments *telemetry.Instruments) StatusStore {
 	store := NewStatusStore(queryer)
 	store.Instruments = instruments
+	// Hosted runtimes build this store once at startup: once per process.
+	store.summaryReader, store.startupErr = NewStatusSummaryReader(os.Getenv)
 	return store
 }
 
@@ -128,9 +150,8 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	// Stage counts, domain backlog, queue snapshot, conflict blockages, and the
 	// latest queue failure all come from one evaluation of
 	// active_fact_work_items in a single round trip (#6794).
-	q, done = s.read(ctx, statusReadActiveWorkSummary)
-	activeWork, err := readActiveWorkSummary(ctx, q, asOf.UTC())
-	if err = done(err); err != nil {
+	activeWork, activeWorkSource, err := s.readActiveWork(ctx, asOf.UTC())
+	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	recordActiveWorkSummaryMode(ctx, activeWork)
@@ -231,6 +252,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		TerraformStateLastSerials:      terraformStateEvidence.LastSerials,
 		TerraformStateRecentWarnings:   terraformStateEvidence.RecentWarnings,
 		SemanticExtraction:             semanticExtraction,
+		ActiveWorkSource:               activeWorkSource,
 	}, nil
 }
 

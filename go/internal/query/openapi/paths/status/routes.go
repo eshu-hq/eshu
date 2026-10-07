@@ -18,7 +18,7 @@ const Routes = `
             "description": "Pipeline status",
             "content": {
               "application/json": {
-                "schema": {"type": "object"}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}}}
               }
             }
           },
@@ -43,6 +43,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "ingesters": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"}
                   }
@@ -130,7 +131,7 @@ const Routes = `
             "description": "Ingester status",
             "content": {
               "application/json": {
-                "schema": {"type": "object"}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}}}
               }
             }
           },
@@ -155,6 +156,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "ingesters": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"}
                   }
@@ -206,7 +208,7 @@ const Routes = `
             "description": "Ingester status",
             "content": {
               "application/json": {
-                "schema": {"type": "object"}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}}}
               }
             }
           },
@@ -232,6 +234,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "status": {"type": "string"},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
                     "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},
@@ -353,6 +356,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "status": {"type": "string"},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
                     "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},

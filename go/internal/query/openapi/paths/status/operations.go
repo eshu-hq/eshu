@@ -55,6 +55,7 @@ const Operations = `
                     "stage_summaries": {"type": "array", "items": {"type": "object"}},
                     "domain_backlogs": {"type": "array", "items": {"type": "object"}},
                     "queue": {"type": "object"},
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "live_activity": {
                       "type": "array",
                       "items": {

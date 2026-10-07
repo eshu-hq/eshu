@@ -29,6 +29,9 @@
 - **`QueueFailureSnapshot` is status-surface only.** Its `FailureMessage` and
   `FailureDetails` fields are high-cardinality strings from graph backend errors.
   They must never become metric label values.
+- **`ActiveWorkSource` is additive and omitted when empty.** The reason values
+  are a closed set shared with the `eshu_dp_status_summary_read_total` metric
+  and the `ActiveWorkSource` OpenAPI enum; change all three together.
 - **`BuildReport` is pure.** It takes `RawSnapshot` and `Options` and returns
   `Report` with no I/O. Keep it that way — it makes health-logic unit tests
   possible without a storage dependency.

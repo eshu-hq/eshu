@@ -97,6 +97,9 @@ type OperationsReport struct {
 	DomainBacklogs []DomainBacklog
 	// Queue is the aggregate queue depth and claim-latency snapshot.
 	Queue QueueSnapshot
+	// ActiveWorkSource says where the stage, backlog, and queue sections came
+	// from (#7009); zero when the reader reports none.
+	ActiveWorkSource ActiveWorkSource
 	// LiveActivity lists up to Limit in-flight work items ordered by
 	// most-recently-updated first, each joined to its originating repo.
 	LiveActivity []LiveActivityRow
@@ -115,15 +118,16 @@ type OperationsReport struct {
 // response shape.
 func Operations(report Report, activity []LiveActivityRow, truncated bool, limit int) OperationsReport {
 	return OperationsReport{
-		AsOf:           report.AsOf,
-		Health:         report.Health,
-		Collectors:     collector.RuntimeStatuses(collectorEvidence(report)),
-		StageSummaries: cloneStageSummaries(report.StageSummaries),
-		DomainBacklogs: cloneDomainBacklogs(report.DomainBacklogs),
-		Queue:          report.Queue,
-		LiveActivity:   cloneLiveActivity(activity),
-		Truncated:      truncated,
-		Limit:          limit,
+		AsOf:             report.AsOf,
+		Health:           report.Health,
+		Collectors:       collector.RuntimeStatuses(collectorEvidence(report)),
+		StageSummaries:   cloneStageSummaries(report.StageSummaries),
+		DomainBacklogs:   cloneDomainBacklogs(report.DomainBacklogs),
+		Queue:            report.Queue,
+		ActiveWorkSource: report.ActiveWorkSource,
+		LiveActivity:     cloneLiveActivity(activity),
+		Truncated:        truncated,
+		Limit:            limit,
 	}
 }
 

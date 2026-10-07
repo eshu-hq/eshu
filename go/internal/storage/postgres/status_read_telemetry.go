@@ -5,24 +5,31 @@ package postgres
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Status snapshot read labels: the closed value set of the `read` attribute on
 // eshu_dp_status_snapshot_read_duration_seconds and of db.query.summary on the
 // postgres.query span. One label per reader in ReadStatusSnapshotFiltered.
+// active_work_summary_model labels the stored-summary row read (#7009), so a
+// before and after of the reader flag is separable from the live statement.
 const (
 	statusReadScopeCounts                    = "scope_counts"
 	statusReadGenerationCounts               = "generation_counts"
 	statusReadGenerationTransitions          = "generation_transitions"
 	statusReadActiveWorkSummary              = "active_work_summary"
+	statusReadActiveWorkSummaryModel         = "active_work_summary_model"
 	statusReadProducerActivity               = "producer_activity"
 	statusReadCollectorGenerationDeadLetters = "collector_generation_dead_letters"
 	statusReadCoordinator                    = "coordinator"
@@ -102,4 +109,81 @@ func recordActiveWorkSummaryMode(ctx context.Context, summary activeWorkSummary)
 		statusActiveWorkSummaryModeKey.String(summary.Mode),
 		statusActiveWorkSummaryEstimateKey.Float64(summary.Estimate),
 	)
+}
+
+// StatusSummaryReader is the process-wide reader of the stored active-work
+// summary (#7009), built once at startup (see summary.ModelReader).
+type StatusSummaryReader = summary.ModelReader[activeWorkSummary]
+
+// NewStatusSummaryReader loads ESHU_STATUS_SUMMARY_READ_ENABLED and
+// ESHU_STATUS_SUMMARY_STALE_AFTER; an invalid value while on is a startup error.
+func NewStatusSummaryReader(getenv func(string) string) (*StatusSummaryReader, error) {
+	return summary.NewModelReader[activeWorkSummary](getenv)
+}
+
+// NewStatusSummaryReaderWithConfig builds a reader from explicit settings.
+func NewStatusSummaryReaderWithConfig(cfg summary.ReadConfig) *StatusSummaryReader {
+	return summary.NewModelReaderWithConfig[activeWorkSummary](cfg)
+}
+
+// readActiveWork returns the active-work summary and where it came from: the
+// stored row when every fence passes, otherwise the live statement.
+func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
+	if s.startupErr != nil {
+		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.startupErr
+	}
+	result, err := s.summaryReader.Read(ctx, asOf, summary.Hooks[activeWorkSummary]{
+		Select: func(ctx context.Context) (summary.Selection, error) {
+			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
+			selection, err := summary.Select(ctx, q, summary.SelectConfig{
+				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
+				StaleAfter: s.summaryReader.Config.StaleAfter,
+			})
+			return selection, done(err)
+		},
+		Decode: decodeActiveWorkEntries,
+		Live: func(ctx context.Context) (activeWorkSummary, error) {
+			q, done := s.read(ctx, statusReadActiveWorkSummary)
+			work, err := readActiveWorkSummary(ctx, q, asOf)
+			return work, done(err)
+		},
+		Clone: activeWorkSummary.clone,
+		Observe: func(ctx context.Context, selection summary.Selection) {
+			summary.Observe(ctx, s.Instruments, summary.Observation{
+				ModelKey: summary.ModelActiveWorkSummary, Source: selection.Source, Reason: selection.Reason,
+				AsOf: selection.AsOf, Age: selection.Age, SignedAge: selection.SignedAge,
+			})
+		},
+	})
+	// Stale stays false: a row that is too old is never served; Reason names it.
+	return result.Value, statuspkg.ActiveWorkSource{
+		Source: string(result.Source), Reason: string(result.Reason), AsOf: result.AsOf, Age: result.Age,
+	}, err
+}
+
+// decodeActiveWorkEntries decodes stored entries with the live read's decoder.
+func decodeActiveWorkEntries(entries []summary.Entry) (activeWorkSummary, error) {
+	work := activeWorkSummary{
+		StageCounts:    []statuspkg.StageStatusCount{},
+		DomainBacklogs: []statuspkg.DomainBacklog{},
+		Blockages:      []statuspkg.QueueBlockage{},
+	}
+	for _, entry := range entries {
+		if err := work.add(entry.Section, entry.JSON); err != nil {
+			return activeWorkSummary{}, fmt.Errorf("decode stored active work summary %s row %d: %w", entry.Section, entry.Ordinal, err)
+		}
+	}
+	return work, nil
+}
+
+// clone returns a copy that shares no slice or pointer with s.
+func (s activeWorkSummary) clone() activeWorkSummary {
+	s.StageCounts = slices.Clone(s.StageCounts)
+	s.DomainBacklogs = slices.Clone(s.DomainBacklogs)
+	s.Blockages = slices.Clone(s.Blockages)
+	if s.LatestFailure != nil {
+		failure := *s.LatestFailure
+		s.LatestFailure = &failure
+	}
+	return s
 }

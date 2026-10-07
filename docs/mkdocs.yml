@@ -103,6 +103,7 @@ nav:
         - Service Changed-Since: reference/http-api/service-changed-since.md
         - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md
         - Index Status: reference/http-api/index-status.md
+        - Active Work Source: reference/http-api/active-work-source.md
         - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md
         - Ask Eshu: reference/http-api/ask.md
         - Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory.md

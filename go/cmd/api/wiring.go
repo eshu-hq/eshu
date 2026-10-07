@@ -166,10 +166,15 @@ func wireAPI(
 		return nil, nil, nil, err
 	}
 	contentReader := query.NewContentReaderWithReadStore(readStore).WithInstruments(instruments)
+	// The stored-summary reader is resolved once here: every snapshot
+	// transaction builds its own StatusStore, so a reader (or its shared live
+	// statement) owned by that store would never be shared (#7009).
+	statusSummaryReader, err := newStatusSummaryReader(getenv)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	statusReader := status.WithSemanticProviderProfiles(
-		pgaccess.NewSnapshotStatusReader(readStore, func(reader db.Queryer) status.Reader {
-			return newStatusStore(reader, instruments)
-		}, otel.Tracer(telemetry.DefaultSignalName)),
+		newSnapshotStatusReader(readStore, instruments, statusSummaryReader),
 		semanticProviderProfiles...,
 	)
 	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)

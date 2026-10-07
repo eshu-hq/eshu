@@ -58,6 +58,10 @@ type RawSnapshot struct {
 	// warning_fact rows per safe_locator_hash so operators can see recent
 	// warnings without scanning the fact stream.
 	TerraformStateRecentWarnings []tfstate.LocatorWarning
+	// ActiveWorkSource records whether the queue, stage, backlog, blockage,
+	// and latest-failure sections came from the stored summary or the live
+	// statement (#7009). Zero when the reader reports none.
+	ActiveWorkSource ActiveWorkSource
 }
 
 // SnapshotSelection controls which optional, expensive sections a status reader
@@ -233,6 +237,8 @@ type Report struct {
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
 	// surface tfstate evidence.
 	TerraformState tfstate.Report
+	// ActiveWorkSource carries RawSnapshot.ActiveWorkSource through unchanged.
+	ActiveWorkSource ActiveWorkSource
 }
 
 // DefaultOptions returns the baseline operator heuristics for this first live

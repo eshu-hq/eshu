@@ -30,6 +30,11 @@ type semanticProviderProfileReader struct {
 	profiles []semantic.ProviderProfileStatus
 }
 
+// StartupError forwards the wrapped reader's startup error.
+func (r semanticProviderProfileReader) StartupError() error {
+	return ReaderStartupError(r.reader)
+}
+
 func (r semanticProviderProfileReader) CheckStatusReadiness(ctx context.Context) error {
 	return checkReaderReadiness(ctx, r.reader)
 }

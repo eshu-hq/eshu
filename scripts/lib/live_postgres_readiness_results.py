@@ -180,6 +180,9 @@ PACKAGES = {
             "TestStatusSummaryBloatLive",
             "TestStatusSummaryBloatIncompressibleLive",
         ),
+        "go/internal/storage/postgres/status/summary/select_live_test.go": (
+            "TestStatusSummarySelectLive",
+        ),
     },
     WRITER_PACKAGE: {
         "go/internal/reducer/status/summary/runner_live_test.go": (
@@ -193,6 +196,10 @@ PACKAGES = {
         ),
         "go/internal/reducer/status/summary/contention_live_test.go": (
             "TestWritersBesideTheProductionClaimLoopLive",
+        ),
+        "go/internal/reducer/status/summary/reader_live_test.go": (
+            "TestReaderServesWhatTheWriterStoredEqualToLiveLive",
+            "TestReaderFallsBackAndNeverMixesWhenTheRowIsStaleLive",
         ),
     },
 }

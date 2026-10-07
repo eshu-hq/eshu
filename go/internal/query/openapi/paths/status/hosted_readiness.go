@@ -41,6 +41,7 @@ const HostedReadiness = `
                     "failure_classes": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "coordinator": {"type": "object"},
                     "checks": {
                       "type": "array",

@@ -12,6 +12,11 @@ import (
 
 // MountStatusServer composes the shared mounted runtime admin surface into an
 // existing hosted application.
+//
+// A reader that reports a configuration problem through StartupError() error
+// fails the mount, because the runtime status constructors it calls check the
+// reader; a misconfigured process fails at startup instead of serving status
+// routes that all error (#7009).
 func MountStatusServer(app Application, reader statuspkg.Reader, opts ...runtimecfg.StatusAdminOption) (Application, error) {
 	adminServer, err := runtimecfg.NewStatusAdminServer(app.Config, reader, opts...)
 	if err != nil {

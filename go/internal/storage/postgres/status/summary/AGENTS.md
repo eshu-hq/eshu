@@ -26,8 +26,8 @@
   migration ledger pins its checksum. Change storage parameters with a new
   migration, and update the checksum manifest and embed invariant tests in the
   same change as any new migration.
-- Never import the parent `postgres` package from here; the status store will
-  import this package. Live tests live in the external `summary_test` package
+- Never import the parent `postgres` package from here; the status store
+  imports this package. Live tests live in the external `summary_test` package
   so they may import the parent for its adapters.
 - `WriterLockKey` must stay distinct from every other advisory key constant;
   `lock_key_test.go` scans the module for collisions. Add a new advisory key
@@ -36,5 +36,18 @@
 - Do not add a `.go` file directly in `go/internal/storage/postgres/status/`: it
   has none today, so dirgate does not treat it as a package, and a file there
   would make every legacy root `status_*.go` file trip the naming gate.
-- This package adds no telemetry: the writer and reader callers own the
-  metrics, spans, and logs the ruling lists.
+- The reader side owns `Observe` (`observe.go`). Keep the `reason` values a
+  closed set that matches `eshu_dp_status_summary_read_total` in the telemetry
+  reference and the `ActiveWorkSource` OpenAPI enum; a new reason needs both.
+  The writer loop's telemetry stays in `reducer/status/summary`.
+- Age is the reader's database clock minus `as_of`, never a caller clock. Keep
+  the clock read in `Select` on the same transaction as the row read.
+- Keep the fence order in `Select` (version, row count, stale, decode). `Read`
+  decodes before the caller can judge the version columns, so `Select` uses
+  `readRaw`; do not switch it back to `Read`.
+- A fallback is whole. `Select` returns no entries on a fallback, so a caller
+  cannot mix a stored row with the live statement. A database error is an error,
+  not a fallback.
+- `ageKeys` must name exactly the durations the production decoder reads;
+  `TestAgeKeysCoverTheDecoderDurations` and the parent package's
+  `TestAgeAdvanceReachesEveryDecodedDuration` pin both sides.

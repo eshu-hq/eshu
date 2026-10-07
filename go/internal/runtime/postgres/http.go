@@ -81,6 +81,11 @@ func (r trustedStatusReader) context(ctx context.Context) (context.Context, cont
 	return checkpoint, cancel, nil
 }
 
+// StartupError forwards the wrapped reader's startup error.
+func (r trustedStatusReader) StartupError() error {
+	return status.ReaderStartupError(r.reader)
+}
+
 func (r trustedStatusReader) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (status.RawSnapshot, error) {
 	checkpoint, cancel, err := r.context(ctx)
 	if err != nil {
