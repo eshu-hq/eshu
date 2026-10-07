@@ -145,8 +145,10 @@ that classified the error with the bounded-read classifier). A reader failure th
 condition stays a `500` with a fixed message and no `Retry-After`: a rejected
 statement, a reader connection that fails to authenticate or connect (refused
 connection, TLS error), a role denied `pg_control_system()` or another identity
-or replay query, and a client disconnect are not transient, so the API does not
-tell the client to retry them. Every supply-chain query route sends its store
+or replay query are not transient, so the API does not tell the client to
+retry them. A client disconnect is not retried either: the routes listed in
+the post-selector paragraph below answer `499`, and other routes still answer
+`500` until #7674 lands. Every supply-chain query route sends its store
 reads through the shared helper first (#7549): a stale or timed-out guarded
 reader answers the retryable `503` with `Retry-After` above, while any other
 store failure stays a handler-owned `500` with a
@@ -190,6 +192,24 @@ text. The stats route keeps `504`, with the same fixed
 message, when the selector read runs out its 2-second route budget. An
 unmatched selector stays `404`, except on `POST /api/v0/iac/dead`, which keeps
 its `400`; an ambiguous selector stays `400`.
+
+After the selector resolves, the same routes answer a failed read with a fixed
+message instead of the backend error text (#7626). The content routes answer
+`content file read failed` (`files/read`, `files/lines`), `content entity read
+failed` (`POST /api/v0/content/entities/read`), `content file search failed`,
+or `content entity search failed`. `GET /api/v0/repositories/{repo_id}/stats`
+answers `repository stats query failed`, keeping `504` when its own route
+budget ran out, and `.../coverage` answers `repository coverage query failed`.
+The service routes answer a fixed message per step, for example `service
+context query failed`, `service investigation enrichment failed`, or `service
+story ci/cd evidence load failed`. Each is recorded on the request span. A
+reader fence on these reads answers the retryable `503` with `Retry-After`;
+the content routes and the service story's ci/cd and supply-chain reads
+previously answered `500`. A client that cancels its request while one of these
+reads runs, or while a selector lookup runs, gets `499` with the same fixed
+message, and the request span is not marked as an error; the span carries an
+`eshu.request.client_canceled` event instead. No route documents `499` in the
+OpenAPI spec, because the client has already gone.
 Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and

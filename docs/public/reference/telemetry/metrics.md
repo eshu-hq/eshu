@@ -101,7 +101,9 @@ succeeded. Only the `deadline` outcomes map to the `503`. The same stages with
 `outcome="error"` (authentication or TLS failure, connection refused, a role
 denied `pg_control_system()`, a failing replay query) answer `500`, not `503`, and
 are the operator signal for a permanent reader misconfiguration; `canceled` is a
-client disconnect and also stays `500`.
+client disconnect and is never a `503`. It answers `499` on the routes listed in
+[Failed and canceled query reads](traces.md#failed-and-canceled-query-reads-7626)
+and `500` elsewhere until #7674 lands.
 
 ## Runtime Health And Backlog
 
