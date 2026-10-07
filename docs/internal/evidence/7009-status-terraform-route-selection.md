@@ -26,7 +26,7 @@ request is unchanged.
 | `/api/v0/status/collector-readiness`, `/api/v0/collector-readiness` | full minus Terraform |
 | `/api/v0/status/governance`, `/api/v0/status/answer-narration` | full minus Terraform |
 | `/api/v0/status/ingesters`, `/api/v0/ingesters` (MCP `list_ingesters`) | no fact aggregates, minus Terraform |
-| Runtime `/metrics` (`serveStatusMetrics`) | full minus Terraform |
+| Runtime `/metrics` (`serveStatusMetrics`) | full minus Terraform, then narrowed again by [7009-status-summary-metrics-scrape.md](7009-status-summary-metrics-scrape.md) |
 
 Repository ingester detail and the live evidence bundle already skipped these
 reads. Pipeline, index, runtime `/admin/status` (JSON and text), and

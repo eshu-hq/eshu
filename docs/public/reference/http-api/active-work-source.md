@@ -36,7 +36,7 @@ evidence note for #7009).
 | `reason` | `fresh`, `flag_off`, `missing` (no row yet), `not_installed` (migration 161 not applied), `version` (the row came from another schema or statement version), `row_count`, `stale`, or `decode`. |
 | `as_of` | When the active-work counts are true. For `model` it is the stored row's `as_of`; otherwise it is the snapshot clock, or, for a read that shared another read's live statement, the clock that statement ran at. |
 | `age_seconds` | How old the served data was at the read, from the database clock. `0` for a live read. |
-| `stale` | `true` when the served data is older than the limit. A stored row that is too old is never served, so this is `false` on every route above; `reason: stale` says the live statement answered because the row was too old. It is reserved for the runtime `/metrics` scrape. |
+| `stale` | `true` when the served data is older than the limit. A stored row that is too old is never served, so this is `false` on every route above; `reason: stale` says the live statement answered because the row was too old. It is `true` only on the runtime `/metrics` scrape, which never reaches this payload (see below). |
 
 ## Staleness contract
 
@@ -79,3 +79,17 @@ and an invalid `ESHU_STATUS_SUMMARY_STALE_AFTER` stops the process from
 starting instead of failing each status read. Watch `eshu_dp_status_summary_read_total` by
 `source` and `reason`: a sustained `live_fallback` rate means the writer is
 down, slow, or running another version.
+
+## Runtime `/metrics` scrape
+
+A runtime's `/metrics` scrape reads the stored row with the same fences and
+never runs the live statement, because a scrape from every pod would turn a
+stopped writer into a herd of expensive statements. A fresh row is served; a
+stale, missing, foreign, or undecodable row serves the last row that process
+decoded, with its ages advanced to the read, or an empty summary when the process
+has decoded none. `eshu_runtime_status_summary_stale{model_key}` is `0` for a
+fresh row and `1` otherwise, and `eshu_runtime_status_summary_age_seconds{model_key}`
+is the served row's age (`-1` for the empty summary). A database error fails the
+scrape like any other failed status read
+(`eshu_runtime_status_snapshot_available 0`). With the reader off neither gauge
+is rendered and the scrape is unchanged.

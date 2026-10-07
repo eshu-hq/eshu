@@ -201,6 +201,10 @@ PACKAGES = {
             "TestReaderServesWhatTheWriterStoredEqualToLiveLive",
             "TestReaderFallsBackAndNeverMixesWhenTheRowIsStaleLive",
         ),
+        "go/internal/reducer/status/summary/scrape_live_test.go": (
+            "TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive",
+            "TestScrapeStatementInventoryOnAnEmptyStoreLive",
+        ),
     },
 }
 EXPECTED = {

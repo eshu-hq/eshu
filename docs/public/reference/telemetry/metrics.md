@@ -109,6 +109,8 @@ Use these first when asking whether a runtime is alive, ready, or stuck:
 
 - `eshu_runtime_info`
 - `eshu_runtime_status_snapshot_available` — unlabelled per-scrape gauge: `1` when the status snapshot succeeded, `0` when it failed or timed out. OTEL metrics remain available when this is `0`; status-derived gauge values are omitted.
+- `eshu_runtime_status_summary_stale{model_key}` — per-scrape gauge, rendered only while `ESHU_STATUS_SUMMARY_READ_ENABLED=true`: `0` when the scrape served a fresh stored active-work summary row, `1` when it served the last row this process decoded or the zero summary because the current row could not be served. A scrape never runs the live active-work statement. Alert on `== 1` held for several minutes; it means the reducer writer is down, slow, or on another statement version.
+- `eshu_runtime_status_summary_age_seconds{model_key}` — per-scrape gauge, rendered with the stale gauge: the age in seconds of the active-work summary the scrape served (database clock at the read minus the row's `as_of`), growing while the writer is down; `-1` when the process has served no row yet (the zero summary).
 - `eshu_runtime_health_state`
 - `eshu_runtime_scope_active`
 - `eshu_runtime_scope_changed`

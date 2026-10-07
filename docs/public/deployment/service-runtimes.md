@@ -199,7 +199,13 @@ configuration.
   (default `33s`), a missing row or table, or a row from another statement
   version runs the live statement for the whole answer; the status payload's
   `active_work_source` object and `eshu_dp_status_summary_read_total{source,reason}`
-  report which path answered. See
+  report which path answered. A runtime's `/metrics` scrape never falls back
+  to the live statement: a stale or missing row serves the last row that
+  process decoded, or an empty summary when it has none, and exports
+  `eshu_runtime_status_summary_stale 1` and
+  `eshu_runtime_status_summary_age_seconds`. The scrape also skips the
+  Terraform-state, collector fact-evidence, and registry collector reads it
+  never renders, with the reader on or off. See
   [Active Work Source](../reference/http-api/active-work-source.md).
 
 ## Route Map

@@ -71,7 +71,8 @@ func registerStatusSummaryWriterInstruments(meter metric.Meter, inst *Instrument
 var statusSummaryReadAgeBuckets = []float64{0.5, 1, 2, 5, 10, 15, 20, 25, 33, 45, 60}
 
 // AttrSummarySource returns a source attribute naming where a status
-// summary answer came from: model, live, or live_fallback.
+// summary answer came from: model, live, live_fallback, or, on the runtime
+// /metrics scrape, last_row or zero.
 func AttrSummarySource(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionSource, v)
 }
@@ -100,6 +101,12 @@ func registerStatusSummaryReadInstruments(meter metric.Meter, inst *Instruments)
 		metric.WithExplicitBucketBoundaries(statusSummaryReadAgeBuckets...),
 	); err != nil {
 		return fmt.Errorf("register StatusSummaryReadAge histogram: %w", err)
+	}
+	if inst.StatusSummaryScrapes, err = meter.Int64Counter(
+		"eshu_dp_status_summary_scrape_total",
+		metric.WithDescription("Runtime /metrics scrapes of the active-work summary by model_key, source (model: a fresh stored row; last_row: the last row this process served, now stale; zero: the empty summary because the process has served no row), and reason (fresh, missing, not_installed, version, row_count, stale, decode)"),
+	); err != nil {
+		return fmt.Errorf("register StatusSummaryScrapes counter: %w", err)
 	}
 	return nil
 }

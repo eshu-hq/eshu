@@ -9,7 +9,7 @@ package in the data plane imports this package and nothing imports it back.
 
 ## Ownership boundary
 
-`RuntimeStatusSnapshotAvailableMetric` names a per-response Prometheus gauge assembled by `internal/runtime`. It is intentionally not registered on the OTEL meter: concurrent scrapes can have different status outcomes.
+`RuntimeStatusSnapshotAvailableMetric` names a per-response Prometheus gauge assembled by `internal/runtime`. It is intentionally not registered on the OTEL meter: concurrent scrapes can have different status outcomes. `RuntimeStatusSummaryStaleMetric` and `RuntimeStatusSummaryAgeSecondsMetric` are the same kind of gauge for the stored active-work summary served on the scrape (`model_key` label).
 
 This package is the single source of truth for all `eshu_dp_*` metric names, span names, and log key constants. New names are registered here before being used anywhere else.
 It does not own queue workers, graph writers, or HTTP handlers — it only defines the naming contract and the bootstrapping seams those packages call at startup.

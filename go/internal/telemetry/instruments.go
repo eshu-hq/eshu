@@ -2099,6 +2099,10 @@ type Instruments struct {
 	// source, and reason, and the age of each stored row actually served.
 	StatusSummaryReads   metric.Int64Counter
 	StatusSummaryReadAge metric.Float64Histogram
+	// StatusSummaryScrapes counts runtime /metrics scrapes by model_key,
+	// source (model, last_row, zero), and reason; see
+	// registerStatusSummaryReadInstruments.
+	StatusSummaryScrapes metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:

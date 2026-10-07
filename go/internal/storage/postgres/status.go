@@ -150,7 +150,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	// Stage counts, domain backlog, queue snapshot, conflict blockages, and the
 	// latest queue failure all come from one evaluation of
 	// active_fact_work_items in a single round trip (#6794).
-	activeWork, activeWorkSource, err := s.readActiveWork(ctx, asOf.UTC())
+	activeWork, activeWorkSource, err := s.readActiveWork(ctx, asOf.UTC(), selection)
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}

@@ -47,7 +47,9 @@ See `doc.go` for the godoc contract. Key types and functions:
   counts, domain backlogs, queue blockages, retry policies, queue snapshot,
   latest failure metadata, and the optional `CoordinatorSnapshot`
 - `ActiveWorkSource` — where the queue, stage, backlog, blockage, and
-  latest-failure sections came from (`model`, `live`, or `live_fallback`), why,
+  latest-failure sections came from (`model`, `live`, or `live_fallback`; the
+  runtime `/metrics` scrape alone also reports `last_row` or `zero` with
+  `Stale` true, through `SnapshotSelection.StoredActiveWorkOnly`), why,
   and how old they are (#7009). `RawSnapshot.ActiveWorkSource` carries it from
   the storage reader through `BuildReport` to `Report` and to the
   `active_work_source` JSON object (`JSON()` returns nil, so no key is emitted,

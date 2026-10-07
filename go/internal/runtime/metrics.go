@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -44,14 +45,12 @@ func serveStatusMetrics(w http.ResponseWriter, r *http.Request, serviceName stri
 		return
 	}
 
-	// The metrics surface renders no Terraform-state gauge, so it skips the
-	// Terraform serial and warning reads (#7009).
 	report, err := statuspkg.LoadReportWithSelection(
 		r.Context(),
 		reader,
 		time.Now().UTC(),
 		statuspkg.DefaultOptions(),
-		statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence(),
+		metricsSnapshotSelection(),
 	)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("load runtime metrics: %v", err), http.StatusInternalServerError)
@@ -65,6 +64,15 @@ func serveStatusMetrics(w http.ResponseWriter, r *http.Request, serviceName stri
 	}
 
 	_, _ = w.Write([]byte(renderStatusMetrics(serviceName, report)))
+}
+
+// metricsSnapshotSelection is the snapshot the scrape reads (#7009). The
+// metrics surface renders no Terraform-state gauge, no collector fact evidence,
+// and no registry collector row, and health does not read them, so it skips
+// those reads; and it takes the active-work part from the stored summary row
+// alone, so a scrape never runs the live active-work statement.
+func metricsSnapshotSelection() statuspkg.SnapshotSelection {
+	return statuspkg.SnapshotSelection{}.WithoutTerraformStateEvidence().WithStoredActiveWorkOnly()
 }
 
 func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
@@ -214,8 +222,33 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 		)
 	}
 	writeCoordinatorMetrics(writeGauge, serviceName, report.Coordinator)
+	writeSummaryMarker(writeGauge, report.ActiveWorkSource)
 
 	return builder.String()
+}
+
+// writeSummaryMarker says whether the active-work gauges above came from a fresh
+// stored row. It writes nothing unless the stored-summary reader answered, so a
+// scrape with the reader off is byte-identical to one from before the reader.
+func writeSummaryMarker(
+	writeGauge func(name string, labels map[string]string, value string),
+	source statuspkg.ActiveWorkSource,
+) {
+	switch source.Source {
+	case statuspkg.ActiveWorkSourceModel, statuspkg.ActiveWorkSourceLastRow, statuspkg.ActiveWorkSourceZero:
+	default:
+		return
+	}
+	labels := map[string]string{telemetry.MetricDimensionModelKey: summary.ModelActiveWorkSummary}
+	stale, age := "0", strconv.FormatFloat(source.Age.Seconds(), 'f', -1, 64)
+	if source.Stale {
+		stale = "1"
+	}
+	if source.Source == statuspkg.ActiveWorkSourceZero {
+		age = "-1" // no row was ever served, so there is no age to report
+	}
+	writeGauge(telemetry.RuntimeStatusSummaryStaleMetric, labels, stale)
+	writeGauge(telemetry.RuntimeStatusSummaryAgeSecondsMetric, labels, age)
 }
 
 func writeProvenanceEdgeIdentityUpgradeMetrics(

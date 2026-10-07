@@ -39,6 +39,12 @@
 // settings, and Observe records the read counter, the served-age histogram, the
 // span attributes, and a rate-limited fallback warning.
 //
+// ReadScrape is the same decision for the runtime /metrics scrape, which must
+// never run the live statement: it serves a fresh row and remembers it, and
+// otherwise serves the last row the process served, aged to the read, or the
+// zero summary, marked stale (SourceLastRow, SourceZero). ObserveScrape records
+// its counter, span attributes, and rate-limited warning.
+//
 // The package depends only on the storage db contracts, never on the parent
 // postgres package, so the status store can import it without a cycle.
 package summary
