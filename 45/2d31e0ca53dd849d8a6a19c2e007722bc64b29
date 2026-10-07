@@ -1,0 +1,38 @@
+go/internal/proof/scheduling/README.md
+  s_b0d7e3abc26c5a::t_868841243854e2 22-27,43-50,62-63
+go/internal/proof/scheduling/main.go
+  s_b0d7e3abc26c5a::t_da656a5e53d1b9 119,123-125,127
+go/internal/proof/scheduling/assembly_test.go
+  s_b0d7e3abc26c5a::t_f43b5e13f6be51 1-119
+  s_b0d7e3abc26c5a::t_7871784639ebf5 120-142
+go/internal/proof/scheduling/timing_test.go
+  s_b0d7e3abc26c5a::t_64bfb2cdcdcbee 65-68,82-89,99
+  s_b0d7e3abc26c5a::t_8639f588864ecd 156-157,159-180
+  s_b0d7e3abc26c5a::t_ed5aea6c19d2fe 53,57,60,64,69-81,90-98,100-155
+  s_b0d7e3abc26c5a::t_bb996f9ed1c0c5 158,181
+go/internal/proof/scheduling/timing.go
+  s_b0d7e3abc26c5a::t_293dac74d13345 28
+  s_b0d7e3abc26c5a::t_19c2ee87f4021b 133-138,143,157
+  s_b0d7e3abc26c5a::t_07e4b5b4952c05 22-27,29-34,94-101,103-114,116-117,119-120,122,124,126-128,130-132,144-147,151-156
+  s_b0d7e3abc26c5a::t_356f5155faf9cc 139-142
+go/internal/proof/scheduling/diagnostic_run.go
+  s_b0d7e3abc26c5a::t_46a5cfa83937f2 57-59,61,66-68,73,77,79-87
+go/internal/proof/scheduling/dynamic.go
+  s_b0d7e3abc26c5a::t_f6fa6e757dc48d 8,136,138-142,144-149,152,155,165,169,171,300-301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "452d31e0ca53dd849d8a6a19c2e007722bc64b29",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

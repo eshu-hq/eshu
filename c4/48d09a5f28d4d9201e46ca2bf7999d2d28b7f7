@@ -1,0 +1,29 @@
+go/.scratch7033eight/parallel.go
+  s_b0d7e3abc26c5a::t_b40ec9bdfc930f 1-131
+go/.scratch7033eight/main.go
+  s_b0d7e3abc26c5a::t_0c131badb60b14 84
+  s_b0d7e3abc26c5a::t_180e641a6b1a19 1-50,52-62,64-66,68-82,87-126,128-132,134-139,141-144,146-174,176-178,180-334
+  s_b0d7e3abc26c5a::t_b40ec9bdfc930f 51,63,67,83,85-86,127,133,140,145,175,179
+go/.scratch7033eight/eligibility.go
+  s_b0d7e3abc26c5a::t_b40ec9bdfc930f 1-349
+go/.scratch7033eight/dynamic.go
+  s_b0d7e3abc26c5a::t_06d5d15fb33166 1-341
+go/.scratch7033eight/deterministic.go
+  s_b0d7e3abc26c5a::t_06d5d15fb33166 1-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c448d09a5f28d4d9201e46ca2bf7999d2d28b7f7",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

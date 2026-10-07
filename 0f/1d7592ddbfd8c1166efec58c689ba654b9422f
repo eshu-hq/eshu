@@ -1,0 +1,45 @@
+go/internal/proof/scheduling/contract_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/timing.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/eligibility_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/doc.go
+  s_b0d7e3abc26c5a::t_f4b15baaae75c0 1-3
+go/internal/proof/scheduling/fixed.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/timing_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/eligibility.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/main.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/diagnostics_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/contract.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/main_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/fixed_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/dynamic.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+go/internal/proof/scheduling/dynamic_cleanup_test.go
+  s_b0d7e3abc26c5a::t_14eeb929a2988f 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f1d7592ddbfd8c1166efec58c689ba654b9422f",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

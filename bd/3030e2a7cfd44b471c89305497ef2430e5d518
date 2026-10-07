@@ -1,0 +1,71 @@
+go/.scratch7033eight/fixed_test.go
+  s_b0d7e3abc26c5a::t_ff66e7f6b76e50 1-188
+go/.scratch7033eight/fixed.go
+  s_b0d7e3abc26c5a::t_180e641a6b1a19 1-151
+go/.scratch7033eight/contract.go
+  s_b0d7e3abc26c5a::t_093d0af81dc3fa 1-119
+go/.scratch7033eight/contract_test.go
+  s_b0d7e3abc26c5a::t_0929880d6c5e6f 1-121
+go/.scratch7033eight/eligibility_test.go
+  s_b0d7e3abc26c5a::t_0c6394fa33343f 1-149
+go/.scratch7033eight/fixture_seed.sql
+  s_b0d7e3abc26c5a::t_6fef4794a9b45b 1-67
+go/.scratch7033eight/oracle_preflight.sql
+  s_b0d7e3abc26c5a::t_d69a8f2dff52ca 1-66
+go/.scratch7033eight/timing.go
+  s_b0d7e3abc26c5a::t_62fc085a28614d 1-110
+go/.scratch7033eight/timing_test.go
+  s_b0d7e3abc26c5a::t_e6be13d9b859ef 1-95
+go/.scratch7033eight/diagnostics_test.go
+  s_7438f45e9b7934::t_cc4d606203559f 1-36
+go/.scratch7033eight/dynamic_cleanup_test.go
+  s_d726a5838bde71::t_bbb14a066a94fa 1-40
+go/.scratch7033eight/explain_p1.go
+  s_b0d7e3abc26c5a::t_eac3f8cada90cd 1-95
+go/.scratch7033eight/explain_p1_test.go
+  s_b0d7e3abc26c5a::t_13169056c31343 1-26
+go/.scratch7033eight/main_test.go
+  s_b0d7e3abc26c5a::t_835e1e139863cc 1-71
+go/.scratch7033eight/persisted_oracle.sql
+  s_bfb169b8d4b66d::t_2c58389a000105 1-306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd3030e2a7cfd44b471c89305497ef2430e5d518",
+  "prompts": {},
+  "sessions": {
+    "s_7438f45e9b7934": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a111cb-d364-7e81-83c8-33cbe800fd55",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bfb169b8d4b66d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11213-2999-7611-9e55-c4ae5927b52e",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_d726a5838bde71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a111ff-82bc-7a00-8350-45680609af4a",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
