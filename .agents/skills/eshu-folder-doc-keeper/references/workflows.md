@@ -35,7 +35,7 @@ When you are invoked because the marker file has new lines:
      specific sections that no longer match.
 3. Rewrite **only** the affected sections. Preserve everything else verbatim
    — humans add value to these files between regenerations.
-4. Run the humanizer pass on the rewritten sections.
+4. Run the `eshu-publish` pass on the rewritten sections.
 5. Verify the affected surface (Go commands run inside `go/`):
    - For changes to `doc.go`, `go doc ./<package>` prints the new comment;
      use `go vet ./<package>` when package declarations or code changed.
@@ -68,7 +68,7 @@ When creating package docs for a directory that has neither:
 6. Create a package-local `AGENTS.md` with relevant invariants, common changes,
    failure modes, and ADR boundaries. Route to files when their surface changes;
    avoid a mandatory read stack for every edit.
-7. Run the humanizer pass.
+7. Run the `eshu-publish` pass.
 8. From `go/`, verify the new package with `go vet ./<package>` and
    `go doc ./<package>`.
 9. Run `scripts/verify-package-docs.sh` from the repo root.

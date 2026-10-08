@@ -185,7 +185,7 @@ Use this lookup for ordinary tasks as well as goal phases. The skill body in
 | Final diff, pre-push review, merge-readiness | `eshu-code-review` |
 | Resolve review threads after verified fixes | `resolve-review-threads` |
 | Resume, handoff, PR monitoring, liveness, worktree cleanup | `eshu-session-lifecycle` |
-| Draft or polish PRs, reviews, issues, docs, or substantial updates | `eshu-humanizer` |
+| Write or polish a PR, issue, review reply, doc, or owner report | `eshu-publish` |
 
 ### Where the model binds
 

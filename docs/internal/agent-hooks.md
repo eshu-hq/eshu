@@ -106,7 +106,7 @@ file, so a passing mention in an unrelated comment cannot satisfy it — and it
 reads `IDS=` rather than `NOTE=` so that guidance prose cannot mint an id.
 
 Skills with no characteristic file path belong in `NUDGE_EXEMPT` with a reason.
-A code review runs against a diff, a release against intent, the humanizer
+A code review runs against a diff, a release against intent, the publish skill
 against prose. No `Edit|Write` arm could ever fire for them.
 
 ### Arm ordering is load-bearing
