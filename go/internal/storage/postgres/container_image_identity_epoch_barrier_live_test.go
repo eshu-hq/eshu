@@ -110,8 +110,8 @@ UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1
 // activation behind a controlled barrier while the projection reads B's epoch
 // first. A transient inactive generation must defer and retry (non-counting),
 // never dead-letter; after the barrier releases, B proceeds and acks; the
-// superseded A is then superseded rather than dead-lettered; a genuinely
-// missing scope still surfaces loudly. Issue #6502.
+// superseded A is then superseded rather than dead-lettered. The loud
+// missing-epoch path is pinned by the sentinel test below. Issue #6502.
 func TestContainerImageIdentityEpochBarrierDefersPendingLive(t *testing.T) {
 	// Bridge the live-postgres-readiness runner's family DSN onto the shared
 	// helper's generic variable, as the retention proofs do. Local runs keep

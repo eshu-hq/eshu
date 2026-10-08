@@ -36,8 +36,8 @@ The miss is now a matchable sentinel
 (`contract.ErrContainerImageIdentityGenerationNotActive`, same message), and
 Handle routes it through a generation-freshness gate
 (`containerimage.gatedActivationEpoch`, wired to the shared
-`postgres.NewGenerationFreshnessCheck` at all three production assembly
-sites):
+`postgres.NewGenerationFreshnessCheck` at the production assembly site
+(`buildReducerService`, consumed through the handler registry)):
 
 | Freshness verdict | Outcome |
 |---|---|
