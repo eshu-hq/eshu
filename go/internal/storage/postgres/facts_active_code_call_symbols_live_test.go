@@ -62,8 +62,8 @@ INSERT INTO scope_generations (
 	}
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
-    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status
-) VALUES ($1, $2, 'snapshot', $3, $3, 'superseded')`, generationID+"-stale", scopeID, observedAt.Add(-time.Minute)); err != nil {
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+) VALUES ($1, $2, 'snapshot', $3, $3, 'superseded', $3)`, generationID+"-stale", scopeID, observedAt.Add(-time.Minute)); err != nil {
 		t.Fatalf("insert stale generation for %q: %v", scopeID, err)
 	}
 }
@@ -325,14 +325,20 @@ INSERT INTO ingestion_scopes (
 ) VALUES ($1, 'repository', 'git', $2, 'git', $1, $4, $4, 'active', $3)`, scopeID, sourceKey, generationID, observedAt); err != nil {
 		t.Fatalf("insert scope %q: %v", scopeID, err)
 	}
+	// Both generations carry activated_at, matching production: the stale row
+	// is an ex-active generation, and Ack stamps activated_at on activation.
+	// A scope seeded this way is clean under the #7609 dirty predicate, so
+	// tests that need dirt add their own never-activated generation or a
+	// manifest newer than the activation.
 	for _, generation := range []struct {
-		id     string
-		status string
-	}{{generationID, "active"}, {generationID + "-stale", "superseded"}} {
+		id          string
+		status      string
+		activatedAt time.Time
+	}{{generationID, "active", observedAt.Add(time.Minute)}, {generationID + "-stale", "superseded", observedAt.Add(-time.Hour)}} {
 		if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
-    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status
-) VALUES ($1, $2, 'snapshot', $3, $3, $4)`, generation.id, scopeID, observedAt, generation.status); err != nil {
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+) VALUES ($1, $2, 'snapshot', $3, $3, $4, $5)`, generation.id, scopeID, observedAt, generation.status, generation.activatedAt); err != nil {
 			t.Fatalf("insert generation %q: %v", generation.id, err)
 		}
 	}

@@ -5,6 +5,7 @@ package producerstore
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"testing"
@@ -12,9 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// fakeRows serves (scope_id, content) pairs.
+// fakeRows serves (scope_id, content) pairs. A nil content models the NULL
+// manifest of a dirty scope (#7609).
 type fakeRows struct {
-	rows [][2]string
+	rows [][2]any
 	next int
 	err  error
 }
@@ -22,8 +24,19 @@ type fakeRows struct {
 func (f *fakeRows) Next() bool { f.next++; return f.next <= len(f.rows) }
 func (f *fakeRows) Scan(dest ...any) error {
 	row := f.rows[f.next-1]
-	*(dest[0].(*string)) = row[0]
-	*(dest[1].(*string)) = row[1]
+	*(dest[0].(*string)) = row[0].(string)
+	switch d := dest[1].(type) {
+	case *sql.NullString:
+		if row[1] == nil {
+			*d = sql.NullString{}
+		} else {
+			*d = sql.NullString{String: row[1].(string), Valid: true}
+		}
+	case *string:
+		*d = row[1].(string)
+	default:
+		return errors.New("fakeRows supports *string and *sql.NullString destinations")
+	}
 	return nil
 }
 func (f *fakeRows) Err() error   { return f.err }
@@ -31,7 +44,7 @@ func (f *fakeRows) Close() error { return nil }
 
 type fakeQueryer struct {
 	queries []string
-	rows    [][2]string
+	rows    [][2]any
 	err     error
 }
 
@@ -46,7 +59,7 @@ func (f *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (d
 func TestGoModuleScopeIDsMatchesModuleOrPathPrefix(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]string{
+	q := &fakeQueryer{rows: [][2]any{
 		{"scope-lib", "module github.com/acme/lib\n"},
 		{"scope-lib", "module github.com/acme/lib\n"}, // nested go.mod of the same repository
 		{"scope-v2", "module github.com/acme/lib/v2\n"},
@@ -74,7 +87,7 @@ func TestGoModuleScopeIDsMatchesModuleOrPathPrefix(t *testing.T) {
 func TestPackageScopeIDsMatchesManifestName(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]string{
+	q := &fakeQueryer{rows: [][2]any{
 		{"scope-a", `{"name":"@acme/logging"}`},
 		{"scope-b", `{"name":"@acme/other"}`},
 		{"scope-c", `{"name":"@acme/logging"}`},
@@ -86,6 +99,22 @@ func TestPackageScopeIDsMatchesManifestName(t *testing.T) {
 	}
 	if want := []string{"scope-a", "scope-c"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scopes = %v, want %v", got, want)
+	}
+}
+
+func TestPackageScopeIDsIncludesNullDirtyScopes(t *testing.T) {
+	t.Parallel()
+
+	q := &fakeQueryer{rows: [][2]any{
+		{"scope-dirty", nil},
+		{"scope-other", `{"name":"@acme/unrelated"}`},
+	}}
+	got, err := New(q).PackageScopeIDs(context.Background(), []string{"package:@acme/shared#Thing"})
+	if err != nil {
+		t.Fatalf("PackageScopeIDs() error = %v, want nil", err)
+	}
+	if want := []string{"scope-dirty"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scopes = %v, want %v (a NULL manifest marks a dirty scope, always scanned)", got, want)
 	}
 }
 
@@ -121,7 +150,7 @@ func TestScopeIDsWrapQueryErrors(t *testing.T) {
 func TestGoModuleScopeIDsRequiresPathBoundary(t *testing.T) {
 	t.Parallel()
 
-	q := &fakeQueryer{rows: [][2]string{
+	q := &fakeQueryer{rows: [][2]any{
 		{"scope-lib", "module github.com/acme/lib\n"},
 		{"scope-ext", "module github.com/acme/libext\n"},
 	}}
