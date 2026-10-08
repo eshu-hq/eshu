@@ -16,7 +16,7 @@ succeed. The per-tool profile limits live in
 [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
 
 No-Regression Evidence (#7726): the production-profile filter runs once at
-server construction (O(registered tools), about 162 string comparisons) and
+server construction (one pass over the registered tool definitions) and
 the `tools/list` handler serves the precomputed slice unchanged, so
 request-path work is identical before and after. Baseline: unfiltered list
 on every profile. After: byte-identical lists on local and default profiles
