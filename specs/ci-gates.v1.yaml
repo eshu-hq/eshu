@@ -5042,6 +5042,30 @@ gates:
       - credentials
     ci_only_reason: "requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs"
 
+  - id: runtime-image-tools
+    name: Runtime image ships required tools
+    category: build
+    layer: contract
+    purpose: "Fails when the built runtime image is missing git, ssh, or curl, the external tools the collector and HEALTHCHECK exec."
+    tier: pre-pr
+    blocking: true
+    # The primary local command is the hermetic RED/GREEN suite: it needs no
+    # Docker. CI runs the same suite, then the verifier against the rootfs the
+    # verify-reproducibility job builds (#7762); same workflow, same job, two
+    # more steps.
+    triggers:
+      - "Dockerfile"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/verify-runtime-image-tools.sh"
+      - "scripts/test-verify-runtime-image-tools.sh"
+    local:
+      command: "bash scripts/test-verify-runtime-image-tools.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-reproducibility"
+    requirements: []
+    ci_only_reason: ""
+
   - id: apk-floors
     name: Alpine apk floors match the repository
     category: exactness
