@@ -115,7 +115,11 @@ func TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive(t *testing.T)
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	base := time.Now().UTC().Add(-time.Minute)
+	// #7684: truncate the fixture clock to timestamptz precision. The test
+	// asserts exact equality after a database round trip, which keeps
+	// microseconds; untruncated nanos fail whenever the wall clock has
+	// nonzero sub-microsecond digits.
+	base := time.Now().UTC().Add(-time.Minute).Truncate(time.Microsecond)
 	store := completionstore.NewCrossScopeCompletionStore(SQLDB{DB: db})
 	store.Now = func() time.Time { return base }
 	insertCrossScopeCompletionEvent(

@@ -31,6 +31,17 @@ func TestReducerAckFanoutScalePlanProbe(t *testing.T) {
 	defer cancel()
 	const owner = "reducer-5740-scale"
 	seedCrossScopeCompletionScale(t, ctx, database, 900, 25, owner)
+	// #7494: stamp the seeded identity claims with the attempt the producer
+	// ack fences on (last_attempt_at = $N), like the scale proof does.
+	identityClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := database.ExecContext(ctx, `
+UPDATE fact_work_items
+SET last_attempt_at = $1,
+    container_image_identity_claim_epoch = container_image_identity_claim_epoch + 1
+WHERE domain = 'container_image_identity' AND status = 'claimed'
+`, identityClaimedAt); err != nil {
+		t.Fatalf("stamp scale identity claims: %v", err)
+	}
 	probe := &ackScalePlanDB{SQLDB: SQLDB{DB: database}, t: t, calls: make(map[string]int)}
 	queue := ReducerQueue{database: probe, LeaseOwner: owner, LeaseDuration: time.Minute}
 	store := completionstore.NewCrossScopeCompletionStore(probe)
@@ -39,19 +50,22 @@ func TestReducerAckFanoutScalePlanProbe(t *testing.T) {
 		Queue: store, LeaseOwner: "fanout-5740-scale", LeaseTTL: time.Minute,
 		BatchSize: 500, Now: store.Now,
 	}
-	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainContainerImageIdentity, 900, 57)
+	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainContainerImageIdentity, 900, 57, identityClaimedAt)
 	if processed, _, err := runner.RunOnce(ctx); err != nil || !processed {
 		t.Fatalf("identity fanout: processed=%t err=%v", processed, err)
 	}
-	claimCrossScopeCompletionScaleDomain(t, ctx, database, reducer.DomainCICDRunCorrelation, owner)
-	claimCrossScopeCompletionScaleDomain(t, ctx, database, reducer.DomainSupplyChainImpact, owner)
-	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainSupplyChainImpact, 900, 57)
-	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainCICDRunCorrelation, 900, 57)
+	cicdClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
+	claimCrossScopeCompletionScaleDomain(t, ctx, database, reducer.DomainCICDRunCorrelation, owner, cicdClaimedAt)
+	supplyClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
+	claimCrossScopeCompletionScaleDomain(t, ctx, database, reducer.DomainSupplyChainImpact, owner, supplyClaimedAt)
+	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainSupplyChainImpact, 900, 57, supplyClaimedAt)
+	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainCICDRunCorrelation, 900, 57, cicdClaimedAt)
 	if processed, _, err := runner.RunOnce(ctx); err != nil || !processed {
 		t.Fatalf("CI/CD fanout: processed=%t err=%v", processed, err)
 	}
-	claimCrossScopeCompletionScaleDomain(t, ctx, database, reducer.DomainSupplyChainImpact, owner)
-	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainSupplyChainImpact, 900, 57)
+	supplyReplayClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
+	claimCrossScopeCompletionScaleDomain(t, ctx, database, reducer.DomainSupplyChainImpact, owner, supplyReplayClaimedAt)
+	ackCrossScopeCompletionScaleDomain(t, ctx, database, queue, reducer.DomainSupplyChainImpact, 900, 57, supplyReplayClaimedAt)
 	assertCrossScopeCompletionScaleTerminal(t, ctx, database, 900, 25)
 }
 

@@ -58,6 +58,23 @@ WHERE scope_id IN ($1, $3)
 		reducer.DomainSupplyChainImpact, now,
 	)
 
+	// #7494: the producer ack fences on the claim attempt stamp and a live
+	// lease (last_attempt_at = $N AND claim_until > clock_timestamp()). The
+	// seed predates that fence, so stamp the claim the way a real claim
+	// would: last_attempt_at plus a DB-clock-relative lease. Advancing the
+	// stamp UPDATEs the identity epoch (migration 088 trigger), so the
+	// intent below carries the post-claim epoch.
+	producerClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET last_attempt_at = $1,
+    claim_until = clock_timestamp() + INTERVAL '1 minute',
+    container_image_identity_claim_epoch = container_image_identity_claim_epoch + 1
+WHERE work_item_id = $2
+`, producerClaimedAt, identityID); err != nil {
+		t.Fatalf("stamp identity producer claim: %v", err)
+	}
+
 	queue := ReducerQueue{
 		database:      SQLDB{DB: db},
 		LeaseOwner:    leaseOwner,
@@ -67,7 +84,8 @@ WHERE scope_id IN ($1, $3)
 	identity := reducer.Intent{
 		IntentID:   identityID,
 		Domain:     reducer.DomainContainerImageIdentity,
-		ClaimEpoch: 1,
+		ClaimEpoch: 2,
+		ClaimedAt:  &producerClaimedAt,
 	}
 	if err := queue.Ack(ctx, identity, reducer.Result{}); err != nil {
 		t.Fatalf("ack identity producer: %v", err)
@@ -96,16 +114,23 @@ WHERE scope_id IN ($1, $3)
 	assertCrossScopeConsumerState(t, ctx, db, cicdID, "pending", false)
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "pending", false)
 
+	// #7494: the synthetic downstream claim stamps the attempt and takes a
+	// DB-clock-relative lease, like a real claim; the fixed-date lease the
+	// seed used predates the ack fence and reads expired on the DB clock.
+	downstreamClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
 	if _, err := db.ExecContext(ctx, `
 UPDATE fact_work_items
-SET status = 'running', lease_owner = $2, claim_until = $3
+SET status = 'running', lease_owner = $2,
+    claim_until = clock_timestamp() + INTERVAL '1 minute',
+    last_attempt_at = $3
 WHERE work_item_id IN ($1, $4)
-`, cicdID, leaseOwner, now.Add(time.Minute), supplyID); err != nil {
+`, cicdID, leaseOwner, downstreamClaimedAt, supplyID); err != nil {
 		t.Fatalf("claim synthetic downstream intents: %v", err)
 	}
 	if err := queue.Ack(ctx, reducer.Intent{
-		IntentID: cicdID,
-		Domain:   reducer.DomainCICDRunCorrelation,
+		IntentID:  cicdID,
+		Domain:    reducer.DomainCICDRunCorrelation,
+		ClaimedAt: &downstreamClaimedAt,
 	}, reducer.Result{}); err != nil {
 		t.Fatalf("ack CI/CD producer: %v", err)
 	}
@@ -120,28 +145,39 @@ WHERE work_item_id IN ($1, $4)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "running", true)
 	if err := queue.Ack(ctx, reducer.Intent{
-		IntentID: supplyID,
-		Domain:   reducer.DomainSupplyChainImpact,
+		IntentID:  supplyID,
+		Domain:    reducer.DomainSupplyChainImpact,
+		ClaimedAt: &downstreamClaimedAt,
 	}, reducer.Result{}); err != nil {
 		t.Fatalf("ack in-flight supply consumer: %v", err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "pending", false)
+	// #7494: the replay re-claim stamps a fresh attempt; each synthetic
+	// claim carries its own stamp, like successive real claims.
+	replayClaimedAt := time.Now().UTC().Truncate(time.Microsecond)
 	if _, err := db.ExecContext(ctx, `
 UPDATE fact_work_items
-SET status = 'running', lease_owner = $2, claim_until = $3
+SET status = 'running', lease_owner = $2,
+    claim_until = clock_timestamp() + INTERVAL '1 minute',
+    last_attempt_at = $3
 WHERE work_item_id = $1
-`, supplyID, leaseOwner, now.Add(time.Minute)); err != nil {
+`, supplyID, leaseOwner, replayClaimedAt); err != nil {
 		t.Fatalf("claim required supply replay: %v", err)
 	}
 	if err := queue.Ack(ctx, reducer.Intent{
-		IntentID: supplyID,
-		Domain:   reducer.DomainSupplyChainImpact,
+		IntentID:  supplyID,
+		Domain:    reducer.DomainSupplyChainImpact,
+		ClaimedAt: &replayClaimedAt,
 	}, reducer.Result{}); err != nil {
 		t.Fatalf("ack required supply replay: %v", err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "succeeded", false)
+	// #7494: count only this proof's canonical rows. The production
+	// bootstrap seeds its own fact_work_items rows (migration 115's global
+	// value-flow refresh), which an unscoped count would sweep in.
 	var workItems int
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items`).Scan(&workItems); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items WHERE work_item_id IN ($1, $2, $3)`,
+		identityID, cicdID, supplyID).Scan(&workItems); err != nil {
 		t.Fatalf("count canonical completion work items: %v", err)
 	}
 	if workItems != 3 {
