@@ -177,8 +177,8 @@ cost, and what that measurement does not cover.
 Those drains are paced by ingestion, not by a timer. `collector.Service` runs
 `AfterBatchDrained` only when the source batch exhausts after at least one
 committed generation, or via the `AfterEmptyBatchDrained` escape described
-below (`go/internal/collector/service.go:236`). `committedSinceDrain` is
-cleared on every drain (`:247`) and set again on every commit (`:288`), so a
+below (`go/internal/collector/service.go:223`). `committedSinceDrain` is
+cleared on every drain (`:234`) and set again on every commit (`:275`), so a
 shard that keeps committing drains once per commit-to-idle cycle whether or
 not the escape is enabled.
 
@@ -187,8 +187,8 @@ or scheduled sync off (`wiring.go`) fires on every idle poll for as long as
 this shard has never
 committed a generation, gated by the `everCommitted` latch
 (`go/internal/collector/service.go`): `everCommitted` starts false, latches
-true permanently on the shard's first commit (`:289`), and the escape checks
-`!everCommitted` (`:236`). A shard that commits regularly only ever exercises
+true permanently on the shard's first commit (`:276`), and the escape checks
+`!everCommitted` (`:223`). A shard that commits regularly only ever exercises
 the escape during its pre-first-commit startup window, after which
 `committedSinceDrain` is decisive for the rest of the process — exactly as
 before #5852. That window is not bounded in code: it is one escape-driven drain
