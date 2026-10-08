@@ -53,7 +53,7 @@ func TestNeo4jEntityContextAnchorIsTheMeasuredStatement(t *testing.T) {
 	t.Parallel()
 
 	access := querycontract.RepositoryAccessFilterFromContext(context.Background())
-	statements := (&Handler{GraphBackend: querycontract.GraphBackendNeo4j}).entityContextStatements(access)
+	statements := (&Handler{GraphBackend: querycontract.GraphBackendNeo4j}).EntityContextStatements(access)
 	if len(statements) != 2 {
 		t.Fatalf("Neo4j statements = %d, want 2 (anchor, fallback)", len(statements))
 	}
@@ -87,7 +87,7 @@ func TestNeo4jEntityContextScopedShapeKeepsTheWideAnchor(t *testing.T) {
 	if !access.Scoped() {
 		t.Fatal("access filter is not scoped")
 	}
-	statements := (&Handler{GraphBackend: querycontract.GraphBackendNeo4j}).entityContextStatements(access)
+	statements := (&Handler{GraphBackend: querycontract.GraphBackendNeo4j}).EntityContextStatements(access)
 	if len(statements) != 2 {
 		t.Fatalf("scoped Neo4j statements = %d, want 2", len(statements))
 	}
