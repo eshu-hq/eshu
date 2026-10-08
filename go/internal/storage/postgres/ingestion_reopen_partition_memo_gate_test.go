@@ -183,16 +183,20 @@ func TestApplyReopenPartitionMemoGateEmptyItemsIsNoop(t *testing.T) {
 // TestListSucceededDeploymentMappingWorkItemsQueryIncludesPartitionColumns
 // locks the schema-shape change (issue #4770): the reopen listing query MUST
 // select scope_id and generation_id alongside work_item_id so the reopen
-// partition-memo gate can key on the work item's partition without a join —
-// fact_work_items already carries both columns directly on the row.
+// partition-memo gate can key on the work item's partition — fact_work_items
+// already carries both columns directly on the row. It also pins the #7637
+// replay floor fragments the listing composes from the shared fragments.
 func TestListSucceededDeploymentMappingWorkItemsQueryIncludesPartitionColumns(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		"SELECT work_item_id, scope_id, generation_id",
-		"FROM fact_work_items",
+		"SELECT work.work_item_id, work.scope_id, work.generation_id",
+		"FROM fact_work_items AS work",
 		"domain = 'deployment_mapping'",
 		"status = 'succeeded'",
+		"WITH scope_replay_floor AS MATERIALIZED",
+		"work_generation.status <> 'failed'",
+		">= (floor.floor_ingested_at, floor.floor_generation_id)",
 	} {
 		if !strings.Contains(listSucceededDeploymentMappingWorkItemsQuery, want) {
 			t.Fatalf("listSucceededDeploymentMappingWorkItemsQuery missing %q:\n%s", want, listSucceededDeploymentMappingWorkItemsQuery)
@@ -206,10 +210,13 @@ func TestListSucceededCodeImportRepoEdgeWorkItemsQueryIncludesPartitionColumns(t
 	t.Parallel()
 
 	for _, want := range []string{
-		"SELECT work_item_id, scope_id, generation_id",
-		"FROM fact_work_items",
+		"SELECT work.work_item_id, work.scope_id, work.generation_id",
+		"FROM fact_work_items AS work",
 		"domain = 'code_import_repo_edge'",
 		"status = 'succeeded'",
+		"WITH scope_replay_floor AS MATERIALIZED",
+		"work_generation.status <> 'failed'",
+		">= (floor.floor_ingested_at, floor.floor_generation_id)",
 	} {
 		if !strings.Contains(listSucceededCodeImportRepoEdgeWorkItemsQuery, want) {
 			t.Fatalf("listSucceededCodeImportRepoEdgeWorkItemsQuery missing %q:\n%s", want, listSucceededCodeImportRepoEdgeWorkItemsQuery)
