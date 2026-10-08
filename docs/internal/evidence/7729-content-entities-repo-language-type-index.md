@@ -148,8 +148,9 @@ index measured 1,248 kB on 93,878 rows.
 
 Not measured. Estimate from the clone: 14 MB on 1.88M rows, so about 17 MB at
 2.24M rows. `content_entities_repo_idx` becomes a prefix of the new key; it
-stays (no `DROP` in the migration tree) and can be reviewed for removal
-separately.
+stays (no `DROP` in the migration tree). Its removal is reviewed separately in
+eshu-hq/eshu#7759: it is not idle on the production reader (71 scans reading
+18.7M tuples), so a drop needs plan evidence first.
 
 ## Cold cache
 
