@@ -102,7 +102,7 @@ const Freshness = `
                       "properties": {
                         "state": {"type": "string", "enum": ["selected", "not_selected", "pending_confirmation", "excluded_still_ingested", "unknown"]},
                         "reason": {"type": "string", "enum": ["no_live_observations", "live_selected_row", "unconfirmed_exclusion", "generation_observed_after_state_since", "confirmed_exclusion"]},
-                        "state_since": {"type": "string", "nullable": true, "description": "Latest exclusion start among the live rows; null when state=unknown."},
+                        "state_since": {"type": "string", "nullable": true, "description": "Latest state start among the live rows; null when state=unknown."},
                         "last_listed_at": {"type": "string", "nullable": true, "description": "Latest listing sighting among the live rows; null when no evaluation ever listed the scope."},
                         "evaluated_at": {"type": "string", "nullable": true, "description": "Latest evaluation stamp among the live rows; null when state=unknown."},
                         "live_selector_count": {"type": "integer", "description": "Number of live observation rows behind this block."}
