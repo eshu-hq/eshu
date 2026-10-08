@@ -97,8 +97,8 @@ func TestReducerFairnessIsolatedSchemaDefinitionDriftLive(t *testing.T) {
 			helperSchema := isolatedSchemaCurrentSchema(t, ctx, helperDB)
 			referenceSchema := isolatedSchemaCurrentSchema(t, ctx, referenceDB)
 			diff := diffIsolatedSchemaObjects(
-				listIsolatedSchemaObjects(t, ctx, helperDB, helperSchema),
-				listIsolatedSchemaObjects(t, ctx, referenceDB, referenceSchema),
+				postgresproof.ListSchemaObjects(t, ctx, helperDB, helperSchema),
+				postgresproof.ListSchemaObjects(t, ctx, referenceDB, referenceSchema),
 			)
 			if len(diff) == 0 {
 				t.Fatalf("%s drift undetected: mutated schema compares identical to the reference", mutation.name)

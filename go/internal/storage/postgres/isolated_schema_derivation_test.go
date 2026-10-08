@@ -6,8 +6,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"sort"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestReducerFairnessIsolatedSchemaDerivesFromBootstrap is the seeded-violation
@@ -50,8 +51,8 @@ func assertIsolatedSchemaMatchesBootstrap(t *testing.T, ctx context.Context, hel
 
 	helperSchema := isolatedSchemaCurrentSchema(t, ctx, helperDB)
 	referenceSchema := isolatedSchemaCurrentSchema(t, ctx, referenceDB)
-	helperObjects := listIsolatedSchemaObjects(t, ctx, helperDB, helperSchema)
-	referenceObjects := listIsolatedSchemaObjects(t, ctx, referenceDB, referenceSchema)
+	helperObjects := postgresproof.ListSchemaObjects(t, ctx, helperDB, helperSchema)
+	referenceObjects := postgresproof.ListSchemaObjects(t, ctx, referenceDB, referenceSchema)
 
 	helperSet := make(map[string]struct{}, len(helperObjects))
 	for _, object := range helperObjects {
@@ -77,7 +78,7 @@ func assertIsolatedSchemaMatchesBootstrap(t *testing.T, ctx context.Context, hel
 	}
 	t.Fatalf("isolated schema %q drifted from the production bootstrap %q: %d object(s) missing, %d extra\nmissing: %v\nextra: %v",
 		helperSchema, referenceSchema, len(missing), len(extra),
-		firstIsolatedSchemaObjects(missing, 20), firstIsolatedSchemaObjects(extra, 20))
+		postgresproof.FirstSchemaObjects(missing, 20), postgresproof.FirstSchemaObjects(extra, 20))
 }
 
 // isolatedSchemaCurrentSchema returns the schema a proof handle builds into:
@@ -93,102 +94,4 @@ func isolatedSchemaCurrentSchema(t *testing.T, ctx context.Context, db *sql.DB) 
 		t.Fatal("current_schema() is empty: the proof handle lost its pinned search_path")
 	}
 	return schema
-}
-
-// isolatedSchemaInventoryQuery lists every comparable object in one schema.
-// Constraint, trigger, routine, and index fingerprints compare definitions,
-// not just names (#7693): a CHECK with an altered predicate, a retargeted
-// foreign key, a rebound trigger, an edited routine body, or a changed index
-// expression must fail the comparison.
-//
-// pg_get_constraintdef renders schema-free under the pinned search_path each
-// proof handle carries, and md5(prosrc) is schema-free by construction, so
-// both compare directly. pg_get_triggerdef and pg_get_indexdef embed the
-// schema name (ON <schema>.<table>), so the arms strip "<schema>." before
-// comparing. Isolated schema names are prefix_<unixnanos>, which cannot
-// appear in a definition except as a qualifier.
-// Extension-owned objects are excluded (see the guard's doc comment).
-const isolatedSchemaInventoryQuery = `
-SELECT 'rel:' || c.relname || ':' || c.relkind::text
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-UNION ALL
-SELECT 'col:' || c.relname || '.' || a.attname || ':' || format_type(a.atttypid, a.atttypmod)
-FROM pg_attribute a
-JOIN pg_class c ON c.oid = a.attrelid
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
-  AND a.attnum > 0 AND NOT a.attisdropped
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-UNION ALL
-SELECT 'idx:' || c.relname || ':' || tc.relname || ':' || am.amname || ':' || i.indisunique::text || ':' || i.indkey::text ||
-       ':' || COALESCE(pg_get_expr(i.indpred, i.indrelid), '') || ':' || replace(pg_get_indexdef(c.oid), $1 || '.', '')
-FROM pg_class c
-JOIN pg_index i ON i.indexrelid = c.oid
-JOIN pg_class tc ON tc.oid = i.indrelid
-JOIN pg_am am ON am.oid = c.relam
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = $1
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-UNION ALL
-SELECT 'seq:' || c.relname
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = $1 AND c.relkind = 'S'
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-UNION ALL
-SELECT 'fn:' || p.proname || ':' || pg_get_function_identity_arguments(p.oid) || ':' || p.prorettype::regtype::text || ':' || md5(p.prosrc)
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = $1
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
-UNION ALL
-SELECT 'trg:' || t.tgname || ':' || c.relname || ':' || t.tgtype::text || ':' || replace(pg_get_triggerdef(t.oid), $1 || '.', '')
-FROM pg_trigger t
-JOIN pg_class c ON c.oid = t.tgrelid
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = $1 AND NOT t.tgisinternal
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e')
-UNION ALL
-SELECT 'con:' || c.conname || ':' || t.relname || ':' || c.contype::text || ':' || c.confdeltype::text || ':' || c.confupdtype::text || ':' || pg_get_constraintdef(c.oid)
-FROM pg_constraint c
-JOIN pg_class t ON t.oid = c.conrelid
-JOIN pg_namespace n ON n.oid = c.connamespace
-WHERE n.nspname = $1
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-ORDER BY 1`
-
-// listIsolatedSchemaObjects returns the sorted inventory of one schema.
-func listIsolatedSchemaObjects(t *testing.T, ctx context.Context, db *sql.DB, schema string) []string {
-	t.Helper()
-
-	rows, err := db.QueryContext(ctx, isolatedSchemaInventoryQuery, schema)
-	if err != nil {
-		t.Fatalf("inventory schema %q: %v", schema, err)
-	}
-	defer rows.Close()
-	var objects []string
-	for rows.Next() {
-		var object string
-		if err := rows.Scan(&object); err != nil {
-			t.Fatalf("scan inventory row: %v", err)
-		}
-		objects = append(objects, object)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("read inventory rows: %v", err)
-	}
-	sort.Strings(objects)
-	return objects
-}
-
-// firstIsolatedSchemaObjects caps a failure listing so a fully drifted schema
-// does not dump ten thousand objects into the log.
-func firstIsolatedSchemaObjects(objects []string, limit int) []string {
-	if len(objects) <= limit {
-		return objects
-	}
-	return objects[:limit]
 }
