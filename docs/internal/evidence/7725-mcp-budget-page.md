@@ -126,7 +126,8 @@ Limits of this evidence: the shim graph is not the sweep's state (the sweep's
 100k or more matching entities (cost is about one db hit per pre-`Top` row);
 one client on a host that was not quiet (profiled n=3, warm n=2), so this is not
 a timing proof; no NornicDB; no Go-path run against Neo4j; the live
-`query-plan-regression` gate is not run here (CI-only, expected to pass because
+`query-plan-regression` gate is deferred at pre-push and runs in the deeper local
+preflight and in CI; its result is recorded in the PR (expected to pass because
 the anchor `NodeUniqueIndexSeek` is unchanged).
 
 The repository content fallback read `SearchEntitiesByName` ordered by
