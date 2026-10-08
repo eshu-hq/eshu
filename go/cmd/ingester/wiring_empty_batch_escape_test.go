@@ -15,6 +15,7 @@ func TestBuildIngesterCollectorServiceEnablesEmptyBatchEscapeForSingleShardColle
 	service, err := buildIngesterCollectorService(
 		postgres.SQLDB{},
 		mapGetenv(map[string]string{
+			"ESHU_REPO_SHARD_COUNT":                "1",
 			"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "true",
 			"ESHU_REPO_SCHEDULED_SYNC_ENABLED":     "false",
 		}),
@@ -38,6 +39,7 @@ func TestBuildIngesterCollectorServiceKeepsEmptyBatchEscapeOffForSingleShardSche
 	service, err := buildIngesterCollectorService(
 		postgres.SQLDB{},
 		mapGetenv(map[string]string{
+			"ESHU_REPO_SHARD_COUNT":            "1",
 			"ESHU_REPO_SCHEDULED_SYNC_ENABLED": "true",
 		}),
 		func() (string, error) { return t.TempDir(), nil },
