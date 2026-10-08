@@ -327,6 +327,11 @@ const (
 	// missing, and the second finalize, with scope_id, generation_id,
 	// claim_token, outcome and any hold or failure reason as attributes.
 	SpanReducerActivationObligationSettle = "reducer.activation_obligation_settle"
+	// SpanReducerProducerActivationSettle wraps one producer activation
+	// settle (#7635): claim age, the dependency-index reopen and the
+	// token-fenced completion, with scope_id, generation_id, claim_token,
+	// outcome and any failure reason as attributes.
+	SpanReducerProducerActivationSettle = "reducer.producer_activation_settle"
 	// SpanReducerEshuSearchIndexWrite wraps the reducer-owned persisted search
 	// index write path for curated EshuSearchDocument projection. It covers
 	// document/term retire, document/term upsert, and stats refresh work so a

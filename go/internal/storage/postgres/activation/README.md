@@ -57,6 +57,20 @@ partition-scoped pass for the obligation's own partition and maps
 (Finalize wakes and completes), and `retry` or any other error to a
 maintenance failure.
 
+The producer family beside it (`InsertProducerActivation`,
+`ClaimProducerActivation`, `BeginProducerSettle`, `PruneProducer`,
+`StatsProducer`) owes, leases, settles, prunes and counts the
+`producer_activation_obligations` rows (#7635): one obligation per producer
+activation, settled by reopening the dependent consumers and completing
+under the same token-fenced claim shape, with no catch-up (a catch-up would
+re-owe every pruned generation; see `StatsProducer`). The production
+consumer port is `postgres.ProducerActivationRunnerStore` in the parent
+package (the settle needs `IngestionStore`, which this package cannot
+import); the resolution engine's consumer is
+`maintenance.ProducerActivationRunner`, wired by `cmd/reducer`
+(`producer_activation_wiring.go`) when
+`ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED=true`.
+
 ## Clock skew
 
 Every obligation timestamp and lease comparison uses the database clock

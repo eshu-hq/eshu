@@ -194,6 +194,7 @@ var spanNames = []string{
 	SpanReducerInfraInventoryReconcile,
 	SpanReducerChangedSinceLink,
 	SpanReducerActivationObligationSettle,
+	SpanReducerProducerActivationSettle,
 	SpanReducerStatusSummaryPass,
 }
 

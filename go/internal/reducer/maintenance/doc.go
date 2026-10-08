@@ -43,6 +43,16 @@
 // partition (the row retires inapplicable) or an [ActivationHoldError] built
 // by [HoldActivation] (catalog_changed, no_memo_baseline, closure_too_deep):
 // held at lease cadence, counted under its reason, no fallback pass.
+// [ProducerActivationRunner] settles the producer-activation obligations
+// ProjectorQueue.Ack writes (#7635): workers claim one obligation at a time
+// through [ProducerActivationStore] and settle it (the dependent consumer
+// items reopen and the obligation completes under the claim fence); one
+// worker per process also runs a bounded prune and the census gauges each
+// cycle. The production store is postgres.ProducerActivationRunnerStore,
+// wired by cmd/reducer when ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED is
+// true. There is no catch-up: a generation whose consumers already replayed
+// is indistinguishable from one that never did, so a catch-up would re-owe
+// every pruned generation.
 //
 // AcceptedGenerationLookup, AcceptedGenerationPrefetch, and
 // PartitionLeaseManager are declared locally as mirrors of the identically
@@ -87,4 +97,9 @@
 // [ActivationHoldError], [HoldActivation], [ActivationHoldReasons], the
 // ActivationHold* reason constants, and
 // the ActivationOutcome* constants.
+// [ProducerActivationRunner], [ProducerActivationRunnerConfig],
+// [ProducerActivationStore], [ProducerActivation],
+// [ProducerActivationSettleResult], [ProducerActivationStats],
+// [ErrProducerActivationLeaseLost], [ErrProducerActivationSettleLockTimeout],
+// and the ProducerActivationOutcome* constants.
 package maintenance

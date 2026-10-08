@@ -1665,6 +1665,22 @@ type Instruments struct {
 	ActivationObligationCatchUpInserted     metric.Int64Counter
 	ActivationObligationPruned              metric.Int64Counter
 	ActivationObligationFailures            metric.Int64Counter
+	// ProducerActivations, ProducerActivationOldestOpenAge,
+	// ProducerActivationClaimAge, ProducerActivationSettles,
+	// ProducerActivationReopened, ProducerActivationPruned and
+	// ProducerActivationFailures are the #7635 producer activation
+	// consumer's signals (internal/reducer/maintenance): per-status row
+	// gauge and oldest open age sampled each cycle, claim age, settle
+	// outcomes, reopened rows by consumer domain, prune deletes and step
+	// failures by reason. Registered in
+	// instruments_producer_activation.go.
+	ProducerActivations             metric.Int64Gauge
+	ProducerActivationOldestOpenAge metric.Float64Gauge
+	ProducerActivationClaimAge      metric.Float64Histogram
+	ProducerActivationSettles       metric.Int64Counter
+	ProducerActivationReopened      metric.Int64Counter
+	ProducerActivationPruned        metric.Int64Counter
+	ProducerActivationFailures      metric.Int64Counter
 	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
 	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
 	// governance-audit drop-observability triad. The mcp-server transport auth
@@ -4898,6 +4914,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerActivationObligationInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerProducerActivationInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 
