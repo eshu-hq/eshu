@@ -83,6 +83,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionLinkKind,
 	MetricDimensionPhase,
 	MetricDimensionWriter,
+	MetricDimensionState,
 	MetricDimensionModelKey,
 	MetricDimensionResolvedBy,
 }
