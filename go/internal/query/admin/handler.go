@@ -72,6 +72,12 @@ type Store interface {
 	SupersededReplayTargets(ctx context.Context, f UnsafeReplayTargetFilter) ([]SupersededReplayTarget, error)
 	ClaimReplayIdempotency(ctx context.Context, key, fingerprint string, now time.Time) (ReplayIdempotencyClaim, error)
 	CompleteReplayIdempotency(ctx context.Context, key string, count int, workItemIDs []string, now time.Time) error
+	ReopenCompletedWork(ctx context.Context, f ReopenFilter) (ReopenResult, error)
+	// ResolveReopenTarget resolves the scope selector to the canonical
+	// scope id and active generation without mutating anything, so the
+	// handler can refuse an unknown scope or a generation-less scope
+	// before the idempotency claim instead of burning the key.
+	ResolveReopenTarget(ctx context.Context, scopeID string) (scope string, generation string, err error)
 	RequestBackfill(ctx context.Context, input BackfillInput) (*BackfillRequest, error)
 }
 
@@ -361,6 +367,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/dead-letter", h.deadLetter)
 	mux.HandleFunc("POST /api/v0/admin/skip", h.skip)
 	mux.HandleFunc("POST /api/v0/admin/replay", h.replay)
+	mux.HandleFunc("POST /api/v0/admin/reopen", h.reopen)
 	mux.HandleFunc("POST /api/v0/admin/backfill", h.backfill)
 	mux.HandleFunc("POST /api/v0/admin/replay-events/query", h.listReplayEvents)
 }

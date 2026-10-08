@@ -41,6 +41,7 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		"/api/v0/admin/dead-letter",
 		"/api/v0/admin/skip",
 		"/api/v0/admin/replay",
+		"/api/v0/admin/reopen",
 		"/api/v0/admin/backfill",
 		"/api/v0/admin/replay-events/query",
 	}
@@ -109,6 +110,14 @@ func (s *specAdminStore) CompleteReplayIdempotency(_ context.Context, _ string, 
 
 func (s *specAdminStore) RequestBackfill(_ context.Context, _ admin.BackfillInput) (*admin.BackfillRequest, error) {
 	return nil, nil
+}
+
+func (s *specAdminStore) ReopenCompletedWork(_ context.Context, _ admin.ReopenFilter) (admin.ReopenResult, error) {
+	return admin.ReopenResult{}, nil
+}
+
+func (s *specAdminStore) ResolveReopenTarget(_ context.Context, _ string) (string, string, error) {
+	return "", "", nil
 }
 
 func (s *specAdminStore) ListReplayEvents(_ context.Context, _ admin.ReplayEventFilter) ([]admin.ReplayEvent, error) {

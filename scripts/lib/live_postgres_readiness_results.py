@@ -15,6 +15,7 @@ REDUCER_PACKAGE = "./cmd/reducer"
 QUERY_PACKAGE = "./internal/query"
 SUMMARY_PACKAGE = "./internal/storage/postgres/status/summary"
 WRITER_PACKAGE = "./internal/reducer/status/summary"
+ADMIN_PACKAGE = "./internal/query/admin"
 
 # Expected files and tests per Go package (relative to the go/ module root).
 # The runner invokes one go test per package, each with its own events file
@@ -233,6 +234,11 @@ PACKAGES = {
         "go/internal/reducer/status/summary/terraform_live_test.go": (
             "TestTerraformModelServedEqualToLiveLive",
             "TestWriterKilledMidCompanionKeepsThePrimaryRowLive",
+        ),
+    },
+    ADMIN_PACKAGE: {
+        "go/internal/query/admin/reopen_live_test.go": (
+            "TestAdminHandler_ReopenLive",
         ),
     },
 }

@@ -93,6 +93,15 @@ type stubAdminStore struct {
 	changedSincePoisonedLinkFilter ChangedSincePoisonedLinkFilter
 	changedSincePoisonedLinkCalls  int
 	changedSincePoisonedLinkErr    error
+
+	reopened     ReopenResult
+	reopenErr    error
+	reopenFilter ReopenFilter
+	reopenCalls  int
+	resolveScope string
+	resolveGen   string
+	resolveErr   error
+	resolveCalls int
 }
 
 func (s *stubAdminStore) ListWorkItems(_ context.Context, _ WorkItemFilter) ([]WorkItem, error) {
@@ -131,6 +140,17 @@ func (s *stubAdminStore) SupersededReplayTargets(_ context.Context, f UnsafeRepl
 	s.supersededCalls++
 	s.supersededFilter = f
 	return s.supersededTargets, s.supersededErr
+}
+
+func (s *stubAdminStore) ReopenCompletedWork(_ context.Context, f ReopenFilter) (ReopenResult, error) {
+	s.reopenCalls++
+	s.reopenFilter = f
+	return s.reopened, s.reopenErr
+}
+
+func (s *stubAdminStore) ResolveReopenTarget(_ context.Context, _ string) (string, string, error) {
+	s.resolveCalls++
+	return s.resolveScope, s.resolveGen, s.resolveErr
 }
 
 func (s *stubAdminStore) ClaimReplayIdempotency(_ context.Context, key, _ string, _ time.Time) (ReplayIdempotencyClaim, error) {

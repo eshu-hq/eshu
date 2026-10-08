@@ -13,6 +13,7 @@ on:
     branches: [main]
     paths:
       - 'go/internal/query/supply/chain/impact/**'
+      - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
@@ -38,6 +39,7 @@ on:
     branches: [main]
     paths:
       - 'go/internal/query/supply/chain/impact/**'
+      - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
@@ -128,4 +130,6 @@ jobs:
           ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE: '1'
           ESHU_STATUS_SUMMARY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE: '1'
+          ESHU_ADMIN_REOPEN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh
