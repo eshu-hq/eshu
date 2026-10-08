@@ -21,7 +21,7 @@ When the target cannot be inferred, cover every stale package. Inspect enough
 package source to support each claim; keep discovery within that directory
 (`rg --max-depth 1`) so subpackages do not contaminate its documented surface.
 Rewrite only affected sections and preserve human-authored content elsewhere.
-Use `eshu-humanizer` for the prose pass. Reduce unsupported claims rather than
+Use `eshu-publish` for the prose pass. Reduce unsupported claims rather than
 inventing facts; take an unresolved decision to an arbiter model.
 
 Read [workflows](references/workflows.md) for stale-marker processing or new

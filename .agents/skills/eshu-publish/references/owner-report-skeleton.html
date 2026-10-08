@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REPLACE: short topic name</title>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--ink:#14202b;--mute:#566778;--line:#dde4ea;--accent:#0b6bcb;
+--ok:#13795b;--warn:#b45309;--bad:#b42318;--chip:#eef2f6;--okbg:#e3f4ee;--warnbg:#fdf0dc;--badbg:#fde8e6;--accbg:#e4effb}
+@media (prefers-color-scheme:dark){:root{--bg:#0e151c;--card:#17212b;--ink:#e6edf3;--mute:#93a4b4;--line:#293746;
+--accent:#58a6ff;--ok:#3fb68b;--warn:#e3a008;--bad:#f97066;--chip:#213040;--okbg:#12332a;--warnbg:#3a2c10;--badbg:#3d1a17;--accbg:#12263d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:22px 16px 56px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:18px;margin:30px 0 6px}
+.sub{color:var(--mute);margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:10px 0}
+.status{border-left:5px solid var(--accent)}
+.status.done{border-left-color:var(--ok)}.status.blocked,.status.decide{border-left-color:var(--bad)}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--chip);color:var(--mute)}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.warn{background:var(--warnbg);color:var(--warn)}
+.tag.bad{background:var(--badbg);color:var(--bad)}.tag.inf{background:var(--accbg);color:var(--accent)}
+code,pre{background:var(--chip);border-radius:4px;font-size:12.5px}
+code{padding:1px 5px;word-break:break-word}pre{padding:10px 12px;overflow-x:auto}
+ul{margin:0;padding-left:18px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+@media (max-width:560px){h1{font-size:20px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>REPLACE: what this page is about</h1>
+  <p class="sub">REPLACE: date, and the PR or issue numbers this covers.</p>
+
+  <!-- 1. Status: one of done | blocked | decide | working. Keep the class in step with the word.
+       Use "decide" only when the arbiter route cannot settle it, or only the owner can authorize the act. -->
+  <div class="card status">
+    <b>Working.</b> REPLACE: one sentence of why.
+  </div>
+
+  <!-- 2. Answer: 2 to 4 short sentences. -->
+  <h2>Short answer</h2>
+  <div class="card">REPLACE</div>
+
+  <!-- 3. Decision: plain statement, your recommendation, cost of each option. Or "No decision needed." -->
+  <h2>Decision</h2>
+  <div class="card">
+    <b>I recommend:</b> REPLACE.
+    <ul>
+      <li>Option A: REPLACE. Cost: REPLACE.</li>
+      <li>Option B: REPLACE. Cost: REPLACE.</li>
+    </ul>
+  </div>
+
+  <!-- 4. What changed or what we found. Mermaid draws when online. Offline, the source text shows. -->
+  <h2>What we found</h2>
+  <div class="card">
+    <pre class="mermaid">
+flowchart LR
+  A["REPLACE: real name"] --> B["REPLACE: real name"] --> C["REPLACE: real name"]
+    </pre>
+  </div>
+
+  <!-- 5. Evidence: claim, evidence, who checked, tag. -->
+  <h2>Evidence</h2>
+  <div class="card tw">
+    <table>
+      <tr><th>Claim</th><th>Evidence</th><th>Checked by</th><th>State</th></tr>
+      <tr><td>REPLACE</td><td><code>command or source</code></td><td>Me</td><td><span class="tag ok">Proven</span></td></tr>
+      <tr><td>REPLACE</td><td>REPLACE</td><td>Agent</td><td><span class="tag inf">Inferred</span></td></tr>
+    </table>
+  </div>
+
+  <!-- 6. NOT_CHECKED. -->
+  <h2>NOT_CHECKED</h2>
+  <div class="card"><ul><li>REPLACE</li></ul></div>
+
+  <!-- 7. Next step. -->
+  <h2>Next step</h2>
+  <div class="card">REPLACE: what happens now, who does it, and which sessions you told.</div>
+</main>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+</script>
+</body>
+</html>

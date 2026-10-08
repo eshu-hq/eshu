@@ -52,7 +52,7 @@ ROOT="$(eshu_root_path "$FP")" || exit 0
 # intent, so a PreToolUse Edit|Write arm could never fire for them. Listed so
 # scripts/verify-agent-canon.sh can tell "deliberately exempt" from "forgotten".
 #   eshu-code-review        runs against a final diff, not a path
-#   eshu-humanizer          runs over prose headed for a human reader
+#   eshu-publish            runs over prose headed for a human reader
 #   eshu-issue-driver       invoked with an issue or epic number
 #   eshu-release            invoked by release intent
 #   resolve-review-threads  invoked with a PR number

@@ -76,5 +76,5 @@ When those disagree, the answer is "assume alive": leave it and keep working.
   session mechanics that driver depends on.
 - `eshu-code-review` owns the pre-push verdict. Pickup and babysit hand off to
   it, they do not replace it.
-- `eshu-humanizer` is the last pass over any status update, resume note, or PR
+- `eshu-publish` is the last pass over any status update, resume note, or PR
   reply these playbooks produce.

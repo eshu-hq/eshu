@@ -58,6 +58,12 @@ Use one only in a pointer or a definition, and define it once.
 This standard comes from the public ASD-STE100 rules. Check a rewrite against the
 public rules when a rule is in doubt.
 
+This is STE-style wording, not certified STE. The sentence rules are checkable.
+The approved-word list is not public domain, so the word rules are a direction.
+For issues, PR bodies, replies, and owner reports, use the `eshu-publish` skill.
+Its wording reference holds the split between checkable and uncheckable rules,
+the strict and flavored modes, and the rule to keep every hedge.
+
 ## License notice
 
 The guidance above is adapted from `writing-for-agents` in

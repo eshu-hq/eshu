@@ -86,7 +86,7 @@ if [ -d "$skills_root" ]; then
   # explicitly exempt. The nudge table is an Eshu path->skill map, so it rots
   # silently every time a directory moves or a skill is added: the hook keeps
   # exiting 0 and nobody learns the arm stopped matching. Session-triggered
-  # skills (review, release, humanizer) have no characteristic file path and
+  # skills (review, release, publish) have no characteristic file path and
   # belong in NUDGE_EXEMPT rather than in an arm.
   nudge_hook="$repo_root/.claude/hooks/skill-nudge.sh"
   if [ ! -f "$nudge_hook" ]; then
