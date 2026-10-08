@@ -181,7 +181,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 		// owner, stage, or status, independent of the attempt fence.
 		targetClaimedAt, targetEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, targetID)
 		unrelatedClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, unrelatedID)
-		wrongAttemptClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, wrongAttemptID)
+		wrongAttemptClaimedAt, wrongAttemptEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, wrongAttemptID)
 
 		queue := ReducerQueue{
 			database:      SQLDB{DB: db},
@@ -208,7 +208,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			},
 			{
 				IntentID: wrongAttemptID, Domain: reducer.DomainOwnership,
-				AttemptCount: 2, ClaimEpoch: 2, ClaimedAt: &wrongAttemptClaimedAt,
+				AttemptCount: 2, ClaimEpoch: wrongAttemptEpoch, ClaimedAt: &wrongAttemptClaimedAt,
 			},
 			{
 				IntentID: missingID, Domain: reducer.DomainOwnership,
