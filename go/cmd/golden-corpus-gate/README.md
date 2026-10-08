@@ -266,9 +266,9 @@ scans an entire response.
   and a `-diff-executions-advisory-max` ceiling on the reproduced advisory
   scheduling-noise total (execution counts or row totals) in quorum mode
   (#6941, extended by the #6782 option-2 slice).
-- `writercoverage.go` — the writer-coverage phase: join the capture recordings
+- `writer_coverage.go` — the writer-coverage phase: join the capture recordings
   against `anchor.CheckWriters` (#7212).
-- `anchorcensus.go` — the `graph/anchor_census` check and the Bolt census
+- `anchor_census.go` — the `graph/anchor_census` check and the Bolt census
   read behind it (#7212).
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
 
