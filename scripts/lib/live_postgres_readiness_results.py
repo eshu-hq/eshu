@@ -110,6 +110,11 @@ PACKAGES = {
             "TestProjectorRefusalSkipsHealWithoutActiveGeneration",
             "TestProjectorRefusalSkipsHealWhenActiveRowInFlight",
         ),
+        "go/internal/storage/postgres/facts_active_code_call_symbols_ahead_manifest_live_test.go": (
+            "TestReducerContentionGateActiveCodeCallSymbolLoaderAheadManifestKeepsProducer",
+            "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",
+            "TestReducerContentionGateActiveCodeCallSymbolLoaderDirtyNonProducerStaysGated",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (
