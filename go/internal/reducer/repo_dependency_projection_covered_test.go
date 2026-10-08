@@ -91,6 +91,9 @@ func TestRepoDependencyProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	if result.CoveredByFullSuccessorIntents != 1 {
 		t.Fatalf("CoveredByFullSuccessorIntents = %d, want 1", result.CoveredByFullSuccessorIntents)
 	}
+	if result.StaleIntents != 1 {
+		t.Fatalf("StaleIntents = %d, want 1: covered intents are a subset of stale intents", result.StaleIntents)
+	}
 	if result.ProcessedIntents != 1 {
 		t.Fatalf("ProcessedIntents = %d, want 1", result.ProcessedIntents)
 	}
