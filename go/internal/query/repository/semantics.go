@@ -113,32 +113,35 @@ const SemanticReadTruncatedReason = "repository_semantic_read_truncated_at_5000"
 // Each list is read with querycontract.RepositorySemanticEntityLimit+1 rows,
 // the extra row being a sentinel: when it comes back the list is clipped to the
 // limit, so downstream consumers see exactly the rows they always did, and
-// truncated is true so the caller can disclose the cap.
+// truncated is true so the caller can disclose the cap. filesTruncated reports
+// the file read's sentinel alone: the CI/CD workflow candidate pool is unknown
+// only when files exist past the clipped list, so an entity-only overflow must
+// not mark it unknown (#7619).
 func loadRepositorySemanticOverview(
 	ctx context.Context,
 	reader querycontract.ContentStore,
 	repoID string,
-) (overview map[string]any, files []querycontract.FileContent, truncated bool, err error) {
+) (overview map[string]any, files []querycontract.FileContent, truncated bool, filesTruncated bool, err error) {
 	if reader == nil || repoID == "" {
-		return nil, nil, false, nil
+		return nil, nil, false, false, nil
 	}
 
 	const limit = querycontract.RepositorySemanticEntityLimit
 	entities, err := reader.ListRepoEntities(ctx, repoID, limit+1)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("list repository semantic entities: %w", err)
+		return nil, nil, false, false, fmt.Errorf("list repository semantic entities: %w", err)
 	}
 	files, err = reader.ListRepoFiles(ctx, repoID, limit+1)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("list repository semantic files: %w", err)
+		return nil, nil, false, false, fmt.Errorf("list repository semantic files: %w", err)
 	}
 	if len(entities) > limit {
 		entities, truncated = entities[:limit], true
 	}
 	if len(files) > limit {
-		files, truncated = files[:limit], true
+		files, truncated, filesTruncated = files[:limit], true, true
 	}
-	return buildRepositorySemanticOverviewWithFiles(entities, files), files, truncated, nil
+	return buildRepositorySemanticOverviewWithFiles(entities, files), files, truncated, filesTruncated, nil
 }
 
 func buildRepositorySemanticStory(overview map[string]any) string {

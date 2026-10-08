@@ -13,24 +13,29 @@ The static reader examines the first 5,000 indexed repository files in path
 order, then identifies GitHub Actions workflows. It keeps that selection order
 and limit before filtering by workflow path or artifact type.
 
-When the returned file page reaches 5,000 records,
-`candidate_pool_status` is `unknown_at_limit`. Reaching the limit does not
-prove that more files exist, and it does not prove that the repository scan is
-complete.
+The read asks for 5,001 rows. The extra row is a sentinel: it proves that files
+exist beyond the 5,000 the reader examines, and it is never classified. Only
+when the sentinel row comes back is `candidate_pool_status`
+`unknown_at_limit`. A repository with exactly 5,000 indexed files returns no
+sentinel row, so its scan is complete and it reads `absent` or `present` with
+no marker.
 
-| Observed workflow files | Candidate page | State | Coverage |
+| Observed workflow files | Repository files | State | Coverage |
 | --- | --- | --- | --- |
-| None | Fewer than 5,000 files | `absent` | No workflow in the indexed file pool read |
-| None | 5,000 files | `unknown` | The bounded prefix cannot establish absence |
-| One or more | Fewer than 5,000 files | `present` | Workflow evidence observed |
-| One or more | 5,000 files | `present` | Observed count and paths; candidate coverage remains uncertain |
+| None | 5,000 or fewer | `absent` | No workflow in the indexed file pool read |
+| None | 5,001 or more | `unknown` | The bounded prefix cannot establish absence |
+| One or more | 5,000 or fewer | `present` | Workflow evidence observed |
+| One or more | 5,001 or more | `present` | Observed count and paths; candidate coverage remains uncertain |
 
-The marker is omitted for an uncapped page. Missing repository scope, an
+The marker is omitted when the scan is complete. On the repository story the
+marker follows the story's file read alone: an entity list longer than 5,000
+rows sets the story's own truncation reason but does not make the workflow
+candidate pool unknown. Missing repository scope, an
 unavailable content store, and a failed read keep their separate
 `not_checked` or `unavailable` states.
 
 For example, a repository may have 5,001 indexed files and its only workflow may
-sort last. The reader still examines only 5,000 files. Its static summary is
+sort last. The reader still examines only the first 5,000 files. Its static summary is
 `state=unknown`, `count=0`, and
 `candidate_pool_status=unknown_at_limit`; it cannot report repository-wide
 absence.
@@ -52,10 +57,10 @@ A capped static scan must not produce the summary reason
 `no_ci_cd_evidence_found`. Its uncertainty remains visible in HTTP, MCP, and
 story responses, including when live run correlations are unavailable or
 empty. Typed CI/CD summaries add `static_workflow_coverage_unknown` to
-`missing_evidence` for every capped page, independently of live evidence.
-Stories add that coverage class only for capped pages; their preexisting
+`missing_evidence` for every capped scan, independently of live evidence.
+Stories add that coverage class only for capped scans; their preexisting
 missing-evidence serialization is preserved for uncapped pages. An empty
-capped page has static reason `repository_file_scan_limit_reached`. When live
+capped scan has static reason `repository_file_scan_limit_reached`. When live
 runs are missing, its summary reason is `static_workflow_coverage_unknown`;
 existing live-unavailable and live-present reason precedence is preserved.
 

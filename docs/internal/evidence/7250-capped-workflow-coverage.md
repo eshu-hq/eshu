@@ -15,14 +15,14 @@ change, the static state was `absent` and the empty live summary used
 
 The regression enters through `StaticWorkflowArtifactEvidence` and its real
 `ListRepoFiles` port, using an ordered fake with no database connection. It
-checks one read at the original repository/limit and zero hydration reads for
-this case. Classification retains the existing artifact-type override and
+checks one read at the original repository/limit (as of #7250; #7619 now reads
+limit+1, see the amendment below) and zero hydration reads for this case. Classification retains the existing artifact-type override and
 path predicate. The fixture's late workflow uses a mixed-case workflow artifact
 type on `src/file-05001.go`; a `.github/workflows` path would sort early and
 would not reproduce the late-candidate case.
 
 Repository story reuses its unfiltered file page after its existing cap+1
-sentinel is clipped. Service story independently uses the same 5,000-row
+sentinel is clipped (#7619 also passes the file sentinel flag forward). Service story independently uses the same 5,000-row
 listing loader. HTTP uses the typed summary; stories use a manual map, and MCP
 passes through the mounted HTTP handler. All these consumers preserve the
 candidate coverage marker.
@@ -31,6 +31,8 @@ candidate coverage marker.
 
 - A page at the limit carries `candidate_pool_status=unknown_at_limit`.
   Reaching exactly 5,000 rows does not establish that more rows exist.
+  (Superseded by #7619, see the amendment below: the marker now needs a
+  sentinel row past the limit, so an exact 5,000-file repository is complete.)
 - Zero observed workflows at the limit means `state=unknown`, with static
   reason `repository_file_scan_limit_reached`. Positive evidence keeps
   `state=present` and its observed count.
@@ -43,8 +45,8 @@ candidate coverage marker.
 - Uncapped absence, missing repository scope, nil content store, and read
   failures retain distinct existing states. The marker is omitted when uncapped.
 
-There is no change to SQL, repository selection, file ordering, the read limit,
-workflow predicate, graph access, the 20 displayed paths, the 50 hydration
+As of #7250 there was no change to SQL, repository selection, file ordering, the
+read limit (#7619 later changed the read to limit+1), workflow predicate, graph access, the 20 displayed paths, the 50 hydration
 candidates, or hydration worker count. The existing static functions were
 split into `workflow_evidence.go` to keep the source file below 500 lines.
 
@@ -63,7 +65,7 @@ RED/GREEN evidence:
   `testdata/golden/capped-workflow-evidence.json`. Old production overlays
   fail at 5,000/5,001 and preserve the 4,999 control; corrected production
   passes. Each transport checks the original one file-list read at limit
-  5,000 and zero unnecessary hydration.
+  5,000 (as of #7250; #7619 reads limit+1) and zero unnecessary hydration.
 - Repository story HTTP cap/sentinel cases and repository/service story
   assembly fail on the old production overlay and pass on the correction.
   Service trace preserves the same CI/CD static evidence.
@@ -164,3 +166,86 @@ Offline replay did not waive this gate. The full corpus is uncapped and does
 not replace the boundary regressions above. Final publication review/gates,
 deployed row/value proof, cold/warm p95, owner deployment, and #7250 closure
 remain pending. This correctness change still does not fix latency.
+
+## #7619 amendment: exact-limit sentinel
+
+The #7250 rule above keyed the marker on `len(files) >= 5000`, so a repository
+with exactly 5,000 files, a complete scan, read `unknown_at_limit`. #7619
+replaces that with the cap+1 sentinel the repository story already used
+(#7126). The marker is set exactly when the file read returns a row past the
+limit.
+
+- `StaticWorkflowArtifactEvidence` (CI/CD HTTP, MCP, and
+  `LoadRepositoryScopedCICDEvidence`) reads `ListRepoFiles(..., 5001)`, treats a
+  5,001st row as `filesTruncated`, and clips to 5,000 before classification and
+  image evidence. Its read cost changes by one extra row on the same ordered,
+  repository-scoped read; the SQL is otherwise unchanged.
+- `StaticWorkflowArtifactEvidenceFromFiles` and
+  `LoadRepositoryScopedCICDEvidenceFromFiles` take the clipped list plus
+  `filesTruncated`. The repository story passes the file-read sentinel alone,
+  so an entity-only overflow does not make the workflow pool unknown, and it
+  still issues one `ListRepoFiles` call (limit 5,001).
+- The 4,999, 5,000, and 5,001 boundary is pinned for the direct path, the HTTP
+  and MCP handlers, and the story path. The exact-5,000 empty case reads
+  `absent` with no marker or reason, the exact-5,000 workflow case reads
+  `present` with no marker, and 5,001 files still read `unknown` or `present`
+  with the marker. A 5,001-file repository is never reported `absent`.
+- The shared golden `testdata/golden/capped-workflow-evidence.json` gained
+  `exactly_limit_empty` and `exactly_limit_present`; `capped_present` now uses
+  5,001 files with the workflow at ordinal 5,000.
+
+The benchmark tables above predate this change and describe the old `>=` rule;
+their "capped" rows are now the `exactly_limit` fixtures, which no longer carry
+the marker. They are re-measured in "#7619 response cost" below. The 4,999 / 5,000 / 5,001
+boundary is proven by the offline unit, HTTP, MCP and story regressions and the
+shared golden. The blocking Neo4j B-7 cell (`corpus-gate (neo4j)`) runs in CI on
+the pull request as a no-regression check for uncapped repositories under the
+5,001-row read. The corpus has 166 File nodes and does not exercise the boundary,
+so B-7 does not prove it. The 2026-10-01 B-7 record stays attributed to its own
+commit.
+
+### #7619 response cost
+
+Benchmark Evidence: Go 1.27.1, darwin/arm64, Apple M5 Max. Five alternating
+baseline/candidate trials per case, `-benchmem`, `-benchtime=150ms`,
+`-count=1`, from compiled test binaries of `origin/main` (8879d632f) and this
+branch, on the same 4,999/5,000-file fixtures (the baseline's "capped" fixtures
+are the candidate's `exactly_limit` fixtures). The shared host was busy
+(`load1` 12 during the run), so these medians disclose cost and do not
+establish a speedup. Bytes and allocations are the medians over the five trials;
+allocation counts were identical in every trial.
+
+| Static plus story summary | Baseline median | Candidate median | Bytes/allocs before/after |
+| --- | ---: | ---: | ---: |
+| Uncapped empty (4,999 files) | 92.316 us | 83.969 us | 83,446 / 18 to 83,445 / 18 |
+| Exactly 5,000, no workflows | 89.210 us | 85.963 us | 83,544 / 21 to 83,440 / 18 |
+| Exactly 5,000, one workflow at ordinal 5,000 | 345.835 us | 316.191 us | 779,229 / 73 to 779,130 / 71 |
+
+The exactly-5,000 rows no longer allocate the coverage marker, which accounts for
+the 3 and 2 fewer allocations. The in-memory builder cost is flat within noise.
+
+The direct path now asks the content store for one more row. Read-only paired
+`EXPLAIN (ANALYZE, BUFFERS)` of the `ListRepoFiles` statement (`ORDER BY
+relative_path LIMIT $2`, custom plan) on the QA reader for a 12,403-file
+repository, seven interleaved rounds with alternating first mover: median 12.211
+ms at `LIMIT 5000` and 12.532 ms at `LIMIT 5001`, ranges 11.9 to 13.1 ms and
+12.0 to 13.3 ms, shared buffers 5,082 versus 5,083. The rounds, in ms, were:
+
+| Round | First mover | `LIMIT 5000` | `LIMIT 5001` |
+| ---: | --- | ---: | ---: |
+| 1 | 5000 | 12.211 | 12.428 |
+| 2 | 5001 | 12.944 | 12.313 |
+| 3 | 5000 | 12.192 | 12.965 |
+| 4 | 5001 | 12.128 | 12.044 |
+| 5 | 5000 | 13.093 | 12.532 |
+| 6 | 5001 | 11.897 | 12.580 |
+| 7 | 5000 | 12.781 | 13.256 |
+
+The plan is an index scan on `content_files_repo_path_idx` in both. Host `load1` was 18 to 22 during these
+reads. Planner statistics for `content_files` were not recorded. This is a
+spot check on one repository, not an endpoint p95.
+
+Observability Evidence: the repository story `semantic_overview` stage log now
+carries `files_truncated` beside `truncated`, so an operator can tell a file
+sentinel from an entity-only overflow. The response carries the
+`candidate_pool_status` marker. No new instrument, label, queue, lock or worker.

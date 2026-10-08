@@ -53,7 +53,7 @@ func TestWorkflowCoverageSurvivesEveryLiveState(t *testing.T) {
 				if positive {
 					ordinal = 5000
 				}
-				static := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), &orderedCoverageStore{}, coverageRepoID, coverageFiles(5000, ordinal))
+				static := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), &orderedCoverageStore{}, coverageRepoID, coverageFiles(5000, ordinal), true)
 				var rows []querycontract.CICDRunCorrelationResult
 				if live == "present" {
 					rows = []querycontract.CICDRunCorrelationResult{{Outcome: "exact", ImageRef: "registry.example.test/app:fixture"}}
@@ -101,7 +101,7 @@ func TestWorkflowCoveragePreservesDisplayAndHydrationLimits(t *testing.T) {
 	for i := range 60 {
 		files[i].ArtifactType = "github_actions_workflow"
 	}
-	got := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), store, coverageRepoID, files)
+	got := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), store, coverageRepoID, files, true)
 	if got.State != "present" || got.Count != 60 || len(got.Paths) != 20 || !got.Truncated || got.CandidatePoolStatus != "unknown_at_limit" {
 		t.Fatalf("bounded workflow evidence = %#v", got)
 	}

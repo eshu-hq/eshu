@@ -50,23 +50,31 @@ func TestLoadRepositorySemanticOverviewReportsTruncationAtCap(t *testing.T) {
 		name            string
 		entities, files int
 		wantTruncated   bool
+		wantFilesTrunc  bool
 		wantFiles       int
 	}{
-		{"cap-1 both", limit - 1, limit - 1, false, limit - 1},
-		{"cap both", limit, limit, false, limit},
-		{"entities cap+1", limit + 1, 1, true, 1},
-		{"files cap+1", 1, limit + 1, true, limit},
-		{"empty", 0, 0, false, 0},
+		{"cap-1 both", limit - 1, limit - 1, false, false, limit - 1},
+		{"cap both", limit, limit, false, false, limit},
+		// An entity-only overflow must not report file truncation: the
+		// workflow candidate pool is unknown only when files exist past the
+		// clipped list (#7619).
+		{"entities cap+1", limit + 1, 1, true, false, 1},
+		{"entities cap+1 files cap", limit + 1, limit, true, false, limit},
+		{"files cap+1", 1, limit + 1, true, true, limit},
+		{"empty", 0, 0, false, false, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			store := &cappedListStore{entities: tc.entities, files: tc.files}
-			overview, files, truncated, err := loadRepositorySemanticOverview(context.Background(), store, "repo-1")
+			overview, files, truncated, filesTruncated, err := loadRepositorySemanticOverview(context.Background(), store, "repo-1")
 			if err != nil {
 				t.Fatalf("loadRepositorySemanticOverview() error = %v, want nil", err)
 			}
 			if truncated != tc.wantTruncated {
 				t.Fatalf("truncated = %v, want %v", truncated, tc.wantTruncated)
+			}
+			if filesTruncated != tc.wantFilesTrunc {
+				t.Fatalf("filesTruncated = %v, want %v", filesTruncated, tc.wantFilesTrunc)
 			}
 			if len(files) != tc.wantFiles {
 				t.Fatalf("len(files) = %d, want %d (never more than the cap)", len(files), tc.wantFiles)

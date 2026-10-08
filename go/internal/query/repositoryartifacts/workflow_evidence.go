@@ -12,12 +12,16 @@ import (
 )
 
 // candidatePoolUnknownAtLimit is the only candidate_pool_status value the
-// workflow evidence defines: the path-ordered file page reached its limit, so
-// files beyond it may or may not exist. It matches the OpenAPI enum.
+// workflow evidence defines: the path-ordered file read returned a sentinel row
+// beyond its limit, so files past the clipped page were not scanned. It matches the OpenAPI enum.
 const candidatePoolUnknownAtLimit = "unknown_at_limit"
 
 // StaticWorkflowArtifactEvidence lists one bounded repository file page and
-// reports observed workflow evidence with explicit candidate coverage.
+// reports observed workflow evidence with explicit candidate coverage. It reads
+// querycontract.RepositorySemanticEntityLimit+1 rows: the extra row is a
+// sentinel that proves files exist beyond the limit. A repository with exactly
+// the limit's files therefore reads as a complete scan, and only a sentinel row
+// marks the candidate pool unknown (#7619).
 func StaticWorkflowArtifactEvidence(
 	ctx context.Context,
 	content querycontract.ContentStore,
@@ -36,29 +40,41 @@ func StaticWorkflowArtifactEvidence(
 		}
 	}
 
-	files, err := content.ListRepoFiles(ctx, repositoryID, querycontract.RepositorySemanticEntityLimit)
+	const limit = querycontract.RepositorySemanticEntityLimit
+	files, err := content.ListRepoFiles(ctx, repositoryID, limit+1)
 	if err != nil {
 		return CicdStaticWorkflowArtifactEvidence{
 			State:  "unavailable",
 			Reason: "workflow_artifact_read_failed",
 		}
 	}
-	return StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files)
+	filesTruncated := len(files) > limit
+	if filesTruncated {
+		files = files[:limit]
+	}
+	return StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files, filesTruncated)
 }
 
 // StaticWorkflowArtifactEvidenceFromFiles builds the same static workflow
 // evidence as StaticWorkflowArtifactEvidence from a repository file list the
 // caller already read with ListRepoFiles(repositoryID,
-// querycontract.RepositorySemanticEntityLimit). The repository story passes the
+// querycontract.RepositorySemanticEntityLimit+1) and clipped to
+// querycontract.RepositorySemanticEntityLimit. The repository story passes the
 // list it listed for its semantic overview so the story pays for that read once
 // instead of once per consumer (#7126). The list is only read, never modified.
-// A full page reports uncertain coverage even when the caller knows there are
-// exactly 5,000 files.
+//
+// filesTruncated reports that the caller's read returned the sentinel row beyond
+// the limit, so repository files exist past the clipped list. The candidate pool
+// is unknown exactly when filesTruncated is true; a clipped list of exactly
+// querycontract.RepositorySemanticEntityLimit files with filesTruncated false is
+// a complete scan (#7619). Classification and image evidence read only the
+// clipped list.
 func StaticWorkflowArtifactEvidenceFromFiles(
 	ctx context.Context,
 	content querycontract.ContentStore,
 	repositoryID string,
 	files []querycontract.FileContent,
+	filesTruncated bool,
 ) CicdStaticWorkflowArtifactEvidence {
 	if repositoryID == "" {
 		return CicdStaticWorkflowArtifactEvidence{
@@ -74,7 +90,7 @@ func StaticWorkflowArtifactEvidenceFromFiles(
 	}
 
 	candidatePoolStatus := ""
-	if len(files) >= querycontract.RepositorySemanticEntityLimit {
+	if filesTruncated {
 		candidatePoolStatus = candidatePoolUnknownAtLimit
 	}
 	count := 0

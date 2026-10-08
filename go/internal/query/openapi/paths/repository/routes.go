@@ -338,7 +338,7 @@ const Routes = `
                     "story": {"type": "string"},
                     "story_sections": {"type": "array", "items": {"type": "object"}},
                     "semantic_overview": {"type": "object"},
-                    "ci_cd_evidence": {"type": "object", "description": "Repository-scoped static workflow, live run, and artifact evidence. A full 5,000-file page adds static_workflow_artifacts.candidate_pool_status=unknown_at_limit and missing_evidence class static_workflow_coverage_unknown. Zero observed workflows then means state=unknown; positive counts describe the observed page. Uncapped serialization is preserved."},
+                    "ci_cd_evidence": {"type": "object", "description": "Repository-scoped static workflow, live run, and artifact evidence. A file read that returns a sentinel row past the 5,000-file limit adds static_workflow_artifacts.candidate_pool_status=unknown_at_limit and missing_evidence class static_workflow_coverage_unknown. A repository with exactly 5,000 files is a complete scan and adds neither. Zero observed workflows on a truncated scan means state=unknown; positive counts describe the observed page. Uncapped serialization is preserved."},
                     "deployment_overview": {"type": "object"},
                     "gitops_overview": {"type": "object"},
                     "documentation_overview": {"type": "object"},

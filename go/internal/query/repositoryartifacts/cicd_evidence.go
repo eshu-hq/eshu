@@ -22,7 +22,8 @@ type CicdRunCorrelationEvidenceSummary struct {
 }
 
 // CicdStaticWorkflowArtifactEvidence describes workflows observed in a bounded
-// repository file page. A full page cannot establish repository-wide absence.
+// repository file page. A page truncated at the file limit cannot establish
+// repository-wide absence.
 type CicdStaticWorkflowArtifactEvidence struct {
 	CandidatePoolStatus string   `json:"candidate_pool_status,omitempty"`
 	State               string   `json:"state"`
@@ -258,17 +259,20 @@ func LoadRepositoryScopedCICDEvidence(
 // LoadRepositoryScopedCICDEvidenceFromFiles is LoadRepositoryScopedCICDEvidence
 // for a caller that already holds the repository file list (see
 // StaticWorkflowArtifactEvidenceFromFiles), so the file list is not read again.
+// filesTruncated carries the caller's file-read sentinel: true when rows beyond
+// the clipped list exist, which marks the static candidate pool unknown.
 func LoadRepositoryScopedCICDEvidenceFromFiles(
 	ctx context.Context,
 	content querycontract.ContentStore,
 	correlations querycontract.CICDRunCorrelationStore,
 	repositoryID string,
 	files []querycontract.FileContent,
+	filesTruncated bool,
 ) (map[string]any, error) {
 	if repositoryID == "" {
 		return nil, nil
 	}
-	static := StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files)
+	static := StaticWorkflowArtifactEvidenceFromFiles(ctx, content, repositoryID, files, filesTruncated)
 	return loadRepositoryScopedCICDEvidence(ctx, correlations, repositoryID, static)
 }
 

@@ -14,15 +14,15 @@ func BenchmarkWorkflowCoverageStory(b *testing.B) {
 		total, workflow int
 	}{
 		{"uncapped_empty", 4999, 0},
-		{"capped_empty", 5000, 0},
-		{"capped_present", 5000, 5000},
+		{"exactly_limit_empty", 5000, 0},
+		{"exactly_limit_present", 5000, 5000},
 	} {
 		files := coverageFiles(tc.total, tc.workflow)
 		store := &orderedCoverageStore{}
 		correlations := &emptyCoverageCorrelations{}
 		b.Run(tc.name, func(b *testing.B) {
 			for range b.N {
-				_, err := LoadRepositoryScopedCICDEvidenceFromFiles(context.Background(), store, correlations, coverageRepoID, files)
+				_, err := LoadRepositoryScopedCICDEvidenceFromFiles(context.Background(), store, correlations, coverageRepoID, files, false)
 				if err != nil {
 					b.Fatal(err)
 				}

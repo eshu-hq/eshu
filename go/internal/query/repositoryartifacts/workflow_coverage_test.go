@@ -105,24 +105,27 @@ func TestStaticWorkflowCoverageAtFilePageBoundary(t *testing.T) {
 		wantStatus      string
 		wantCount       int
 		wantPath        string
+		wantReason      string
 	}{
-		{name: "uncapped_empty", total: 4999, wantState: "absent"},
-		{name: "capped_empty", total: 5001, workflowOrdinal: 5001, wantState: "unknown", wantStatus: "unknown_at_limit"},
-		{name: "capped_present", total: 5000, workflowOrdinal: 5000, wantState: "present", wantStatus: "unknown_at_limit", wantCount: 1, wantPath: "src/file-05000.go"},
+		{name: "below_limit_empty", total: 4999, wantState: "absent"},
+		{name: "exactly_limit_empty", total: 5000, wantState: "absent"},
+		{name: "exactly_limit_present", total: 5000, workflowOrdinal: 5000, wantState: "present", wantCount: 1, wantPath: "src/file-05000.go"},
+		{name: "past_limit_empty", total: 5001, workflowOrdinal: 5001, wantState: "unknown", wantStatus: "unknown_at_limit", wantReason: "repository_file_scan_limit_reached"},
+		{name: "past_limit_present", total: 5001, workflowOrdinal: 5000, wantState: "present", wantStatus: "unknown_at_limit", wantCount: 1, wantPath: "src/file-05000.go"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			store := &orderedCoverageStore{files: coverageFiles(tc.total, tc.workflowOrdinal)}
 			got := StaticWorkflowArtifactEvidence(t.Context(), store, coverageRepoID)
-			if store.listCalls != 1 || store.listRepo != coverageRepoID || store.listLimit != querycontract.RepositorySemanticEntityLimit {
-				t.Fatalf("ListRepoFiles calls/repo/limit = %d/%q/%d, want 1/%q/%d", store.listCalls, store.listRepo, store.listLimit, coverageRepoID, querycontract.RepositorySemanticEntityLimit)
+			if store.listCalls != 1 || store.listRepo != coverageRepoID || store.listLimit != querycontract.RepositorySemanticEntityLimit+1 {
+				t.Fatalf("ListRepoFiles calls/repo/limit = %d/%q/%d, want 1/%q/%d", store.listCalls, store.listRepo, store.listLimit, coverageRepoID, querycontract.RepositorySemanticEntityLimit+1)
 			}
 			if store.hydrateCalls != 0 {
 				t.Fatalf("GetFileContent calls = %d, want 0", store.hydrateCalls)
 			}
-			if got.State != tc.wantState || got.Count != tc.wantCount {
-				t.Errorf("state/count = %q/%d, want %q/%d", got.State, got.Count, tc.wantState, tc.wantCount)
+			if got.State != tc.wantState || got.Count != tc.wantCount || got.Reason != tc.wantReason {
+				t.Errorf("state/count/reason = %q/%d/%q, want %q/%d/%q", got.State, got.Count, got.Reason, tc.wantState, tc.wantCount, tc.wantReason)
 			}
 			if status := workflowCoverageJSON(t, got)["candidate_pool_status"]; status != tc.wantStatus && (status != nil || tc.wantStatus != "") {
 				t.Errorf("candidate_pool_status = %#v, want %q", status, tc.wantStatus)
@@ -152,21 +155,29 @@ func TestCappedEmptyWorkflowSummaryDoesNotClaimAbsence(t *testing.T) {
 	if got["reason"] == "no_ci_cd_evidence_found" {
 		t.Errorf("summary reason = %q, claims absence beyond capped page", got["reason"])
 	}
-	if store.listCalls != 1 || store.listLimit != querycontract.RepositorySemanticEntityLimit || store.hydrateCalls != 0 {
-		t.Errorf("content reads = list %d limit %d hydrate %d, want 1/%d/0", store.listCalls, store.listLimit, store.hydrateCalls, querycontract.RepositorySemanticEntityLimit)
+	if store.listCalls != 1 || store.listLimit != querycontract.RepositorySemanticEntityLimit+1 || store.hydrateCalls != 0 {
+		t.Errorf("content reads = list %d limit %d hydrate %d, want 1/%d/0", store.listCalls, store.listLimit, store.hydrateCalls, querycontract.RepositorySemanticEntityLimit+1)
 	}
 	if correlations.calls != 1 || correlations.filter.RepositoryID != coverageRepoID {
 		t.Errorf("correlation reads = %d with filter %#v, want one scoped read", correlations.calls, correlations.filter)
 	}
 }
 
-func TestStaticWorkflowCoverageFromFilesAtLimitDoesNotReadAgain(t *testing.T) {
+// TestStaticWorkflowCoverageFromFilesKeysOnTruncationFlag pins #7619: the
+// candidate pool is unknown exactly when the caller reports its file read
+// returned the sentinel row, never because the clipped list is limit-sized.
+func TestStaticWorkflowCoverageFromFilesKeysOnTruncationFlag(t *testing.T) {
 	t.Parallel()
 	store := &orderedCoverageStore{}
 	files := coverageFiles(querycontract.RepositorySemanticEntityLimit, 0)
-	got := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), store, coverageRepoID, files)
-	if got.State != "unknown" || workflowCoverageJSON(t, got)["candidate_pool_status"] != "unknown_at_limit" {
-		t.Errorf("coverage = %#v, want unknown at limit", got)
+
+	complete := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), store, coverageRepoID, files, false)
+	if complete.State != "absent" || complete.Reason != "" || workflowCoverageJSON(t, complete)["candidate_pool_status"] != nil {
+		t.Errorf("limit-sized complete list = %#v, want absent without marker", complete)
+	}
+	truncated := StaticWorkflowArtifactEvidenceFromFiles(t.Context(), store, coverageRepoID, files, true)
+	if truncated.State != "unknown" || workflowCoverageJSON(t, truncated)["candidate_pool_status"] != "unknown_at_limit" {
+		t.Errorf("truncated list = %#v, want unknown at limit", truncated)
 	}
 	if store.listCalls != 0 || store.hydrateCalls != 0 {
 		t.Errorf("content reads = list %d hydrate %d, want zero", store.listCalls, store.hydrateCalls)
@@ -203,15 +214,15 @@ func BenchmarkStaticWorkflowCoverage(b *testing.B) {
 		workflowOrdinal int
 	}{
 		{name: "uncapped_empty", total: 4999},
-		{name: "capped_empty", total: 5000},
-		{name: "capped_present", total: 5000, workflowOrdinal: 5000},
+		{name: "exactly_limit_empty", total: 5000},
+		{name: "exactly_limit_present", total: 5000, workflowOrdinal: 5000},
 	}
 	for _, tc := range cases {
 		files := coverageFiles(tc.total, tc.workflowOrdinal)
 		store := &orderedCoverageStore{}
 		b.Run(tc.name, func(b *testing.B) {
 			for range b.N {
-				StaticWorkflowArtifactEvidenceFromFiles(context.Background(), store, coverageRepoID, files)
+				StaticWorkflowArtifactEvidenceFromFiles(context.Background(), store, coverageRepoID, files, false)
 			}
 		})
 	}

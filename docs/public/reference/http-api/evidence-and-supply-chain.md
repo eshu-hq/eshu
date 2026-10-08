@@ -591,7 +591,7 @@ refs, repository names, or shell commands. Current classes include
 `live_ci_provider_evidence_unavailable`, `ci_cd_evidence_missing`,
 `ci_cd_run_correlation_missing`, `static_workflow_evidence_unavailable`,
 `workflow_image_ref_unresolved`, `workflow_image_ref_ambiguous`, and
-`static_workflow_coverage_unknown` (full 5,000-file page, `static_workflow_artifacts.state=unknown`; see [workflow coverage](workflow-coverage.md)).
+`static_workflow_coverage_unknown` (repository files past the 5,000-file read limit, `static_workflow_artifacts.state=unknown`; see [workflow coverage](workflow-coverage.md)).
 The hosted GitHub Actions collector runtime can now poll bounded live run, job, and artifact metadata
 through claim-driven workflow targets. Representative remote target-story proof still must show
 either exact live artifact bridge evidence or these named API/MCP missing-hop classes for the selected target.

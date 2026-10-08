@@ -95,8 +95,10 @@ func TestMCPWorkflowCoverageMatchesExpectedWireTruth(t *testing.T) {
 		workflowOrdinal int
 	}{
 		{name: "uncapped_empty", total: 4999},
+		{name: "exactly_limit_empty", total: 5000},
+		{name: "exactly_limit_present", total: 5000, workflowOrdinal: 5000},
 		{name: "capped_empty", total: 5001, workflowOrdinal: 5001},
-		{name: "capped_present", total: 5000, workflowOrdinal: 5000},
+		{name: "capped_present", total: 5001, workflowOrdinal: 5000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -144,8 +146,8 @@ func TestMCPWorkflowCoverageMatchesExpectedWireTruth(t *testing.T) {
 			if summary["reason"] != want.Reason {
 				t.Errorf("MCP evidence_summary.reason = %#v, want %q", summary["reason"], want.Reason)
 			}
-			if store.listCalls != 1 || store.listRepo != workflowCoverageMCPRepo || store.listLimit != querycontract.RepositorySemanticEntityLimit || store.hydrateCalls != 0 {
-				t.Errorf("MCP content reads = list %d repo %q limit %d hydrate %d, want 1/%q/%d/0", store.listCalls, store.listRepo, store.listLimit, store.hydrateCalls, workflowCoverageMCPRepo, querycontract.RepositorySemanticEntityLimit)
+			if store.listCalls != 1 || store.listRepo != workflowCoverageMCPRepo || store.listLimit != querycontract.RepositorySemanticEntityLimit+1 || store.hydrateCalls != 0 {
+				t.Errorf("MCP content reads = list %d repo %q limit %d hydrate %d, want 1/%q/%d/0", store.listCalls, store.listRepo, store.listLimit, store.hydrateCalls, workflowCoverageMCPRepo, querycontract.RepositorySemanticEntityLimit+1)
 			}
 		})
 	}

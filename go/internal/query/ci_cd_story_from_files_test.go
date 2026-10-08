@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -47,6 +48,8 @@ func TestStaticWorkflowArtifactEvidenceFromFilesMatchesListingVariant(t *testing
 		{name: "no_files", repo: "repo-1", files: nil},
 		{name: "no_repository_scope", repo: "", files: []querycontract.FileContent{workflow}},
 		{name: "no_content_store", repo: "repo-1", files: []querycontract.FileContent{workflow}, nilCS: true},
+		{name: "exactly_limit", repo: "repo-1", files: syntheticRepoFiles("repo-1", querycontract.RepositorySemanticEntityLimit)},
+		{name: "past_limit", repo: "repo-1", files: syntheticRepoFiles("repo-1", querycontract.RepositorySemanticEntityLimit+1)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -57,14 +60,19 @@ func TestStaticWorkflowArtifactEvidenceFromFilesMatchesListingVariant(t *testing
 				listingStore, fromFilesStore = nil, nil
 			}
 
+			// The story reads limit+1 rows, clips to the limit, and reports the
+			// sentinel as filesTruncated; the listing variant does the same itself.
+			filesTruncated := len(tc.files) > querycontract.RepositorySemanticEntityLimit
+			clipped := tc.files[:min(len(tc.files), querycontract.RepositorySemanticEntityLimit)]
+
 			want := artifacts.StaticWorkflowArtifactEvidence(t.Context(), listingStore, tc.repo)
-			got := artifacts.StaticWorkflowArtifactEvidenceFromFiles(t.Context(), fromFilesStore, tc.repo, tc.files)
+			got := artifacts.StaticWorkflowArtifactEvidenceFromFiles(t.Context(), fromFilesStore, tc.repo, clipped, filesTruncated)
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("StaticWorkflowArtifactEvidenceFromFiles = %#v, want %#v", got, want)
 			}
 
 			wantSummary, wantErr := artifacts.LoadRepositoryScopedCICDEvidence(t.Context(), listingStore, nil, tc.repo)
-			gotSummary, gotErr := artifacts.LoadRepositoryScopedCICDEvidenceFromFiles(t.Context(), fromFilesStore, nil, tc.repo, tc.files)
+			gotSummary, gotErr := artifacts.LoadRepositoryScopedCICDEvidenceFromFiles(t.Context(), fromFilesStore, nil, tc.repo, clipped, filesTruncated)
 			if (gotErr == nil) != (wantErr == nil) || !reflect.DeepEqual(gotSummary, wantSummary) {
 				t.Fatalf("LoadRepositoryScopedCICDEvidenceFromFiles = %#v, %v; want %#v, %v", gotSummary, gotErr, wantSummary, wantErr)
 			}
@@ -73,4 +81,13 @@ func TestStaticWorkflowArtifactEvidenceFromFilesMatchesListingVariant(t *testing
 			}
 		})
 	}
+}
+
+// syntheticRepoFiles returns count non-workflow files for repoID.
+func syntheticRepoFiles(repoID string, count int) []querycontract.FileContent {
+	files := make([]querycontract.FileContent, count)
+	for i := range files {
+		files[i] = querycontract.FileContent{RepoID: repoID, RelativePath: fmt.Sprintf("src/file-%05d.go", i+1)}
+	}
+	return files
 }

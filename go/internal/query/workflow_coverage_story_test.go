@@ -34,8 +34,8 @@ func TestWorkflowCoverageGoldenStoryReplay(t *testing.T) {
 	if err := json.Unmarshal(encoded, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixture.Cases) != 3 {
-		t.Fatalf("golden cases = %d, want 3", len(fixture.Cases))
+	if len(fixture.Cases) != 5 {
+		t.Fatalf("golden cases = %d, want 5", len(fixture.Cases))
 	}
 	for _, tc := range fixture.Cases {
 		t.Run(tc.Name, func(t *testing.T) {
@@ -50,8 +50,10 @@ func TestWorkflowCoverageGoldenStoryReplay(t *testing.T) {
 			}
 			store := fakePortContentStore{repoFiles: files}
 			correlations := &recordingCICDRunCorrelationStore{}
-			// Repository story already owns the bounded, unfiltered file page.
-			repoEvidence, err := artifacts.LoadRepositoryScopedCICDEvidenceFromFiles(t.Context(), store, correlations, "repo-coverage", files[:min(len(files), querycontract.RepositorySemanticEntityLimit)])
+			// Repository story already owns the bounded, unfiltered file page:
+			// it reads limit+1 rows, clips to the limit, and reports the sentinel.
+			filesTruncated := len(files) > querycontract.RepositorySemanticEntityLimit
+			repoEvidence, err := artifacts.LoadRepositoryScopedCICDEvidenceFromFiles(t.Context(), store, correlations, "repo-coverage", files[:min(len(files), querycontract.RepositorySemanticEntityLimit)], filesTruncated)
 			if err != nil {
 				t.Fatal(err)
 			}
