@@ -17,6 +17,7 @@ on:
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
+      - 'go/internal/relationships/**'
       - 'go/internal/storage/postgres/**'
       - 'go/cmd/reducer/**'
       - 'go/internal/reducer/maintenance/**'
@@ -43,6 +44,7 @@ on:
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
+      - 'go/internal/relationships/**'
       - 'go/internal/storage/postgres/**'
       - 'go/cmd/reducer/**'
       - 'go/internal/reducer/maintenance/**'
@@ -132,4 +134,6 @@ jobs:
           ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE: '1'
           ESHU_ADMIN_REOPEN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE: '1'
+          ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

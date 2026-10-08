@@ -2224,6 +2224,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/ingestion_flux_evidence_identity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7543 disposable PostgreSQL 18 proof of the repository-scoped Flux source identity: native commit binds TEXT without SQLSTATE 22021, two repositories with the same namespace and name stay distinct, and mixed legacy/current generations coexist via the COALESCE fallback; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
     tag: ~
     class: scheduled

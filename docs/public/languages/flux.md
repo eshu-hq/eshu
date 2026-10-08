@@ -75,6 +75,19 @@ Supported today:
   trace's controller-entity surface the same way `ArgoCDApplication` is (see
   Known Limitations below for the target-repo-root matching gap this does
   not yet close).
+- **Cross-repo source identity** (issue #7543): the evidence fact's
+  `SourceEntityID` is
+  `FluxGitRepository:v1:<hex(sourceRepoID)>:<hex(namespace)>:<hex(name)>`
+  over trimmed inputs. Hex encoding keeps the value UTF-8-safe so it
+  binds to a `TEXT` column (the earlier NUL-separated shape failed
+  native persistence with `SQLSTATE 22021`), and embedding the source
+  repository keeps two repositories that share a namespace/name from
+  collapsing to one resolver candidate. Historical rows with a SQL NULL
+  source entity keep resolving through the repository fallback
+  (`COALESCE(source_entity_id, source_repo_id)`) and are never
+  rewritten: those producers omitted the namespace, so no one-to-one
+  replacement exists. The `DEPLOYS_FROM` graph write keys on endpoints,
+  so a mixed generation converges to one edge.
 
 Not claimed today:
 

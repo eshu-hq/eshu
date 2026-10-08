@@ -4,6 +4,7 @@
 package relationships
 
 import (
+	"encoding/hex"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
@@ -157,7 +158,7 @@ func discoverFluxGitRepositoryEvidence(
 			TargetRepoID:   target.RepoID,
 			Path:           filePath,
 			MatchedValue:   normalizedURL,
-			SourceEntityID: strings.Join([]string{"FluxGitRepository", fluxGitRepositoryNamespace, fluxGitRepositoryName}, "\x00"),
+			SourceEntityID: fluxGitRepositorySourceEntityID(sourceRepoID, fluxGitRepositoryNamespace, fluxGitRepositoryName),
 		}
 		stats.recordFluxCrossRepoURLResolution(FluxCrossRepoURLResolutionOutcomeLinked)
 		if _, exists := seen[key]; exists {
@@ -186,6 +187,35 @@ func discoverFluxGitRepositoryEvidence(
 		stats.recordFluxCrossRepoURLResolution(FluxCrossRepoURLResolutionOutcomeAmbiguous)
 		return EvidenceFact{}, false
 	}
+}
+
+// fluxGitRepositorySourceEntityID derives the stable, PostgreSQL-safe,
+// repository-scoped identity for one linked Flux GitRepository source
+// (issue #7543):
+//
+//	FluxGitRepository:v1:<hex(sourceRepoID)>:<hex(namespace)>:<hex(name)>
+//
+// Hex encoding keeps every byte UTF-8-safe (no NUL separators, so the
+// value binds to a TEXT column) and collision-free across delimiter,
+// trimming, and arbitrary-byte inputs; embedding the source repository
+// keeps two repositories that share a namespace/name from collapsing to
+// one resolver candidate. Namespace/name are trimmed here so a future
+// caller passing untrimmed inputs cannot silently fork identities; the
+// encoding is deterministic over its inputs.
+//
+// Compatibility: historical producers omitted SourceEntityID (stored as
+// SQL NULL), and the resolver and SQL layers fall back to the source
+// repository identity for those rows
+// (COALESCE(source_entity_id, source_repo_id)). Those versions also
+// omitted the namespace, so a legacy row has no one-to-one replacement
+// under this scheme and is never rewritten: it keeps resolving by
+// repository fallback. New rows carry explicit identities; the two
+// shapes coexist by design.
+func fluxGitRepositorySourceEntityID(sourceRepoID, namespace, name string) string {
+	return "FluxGitRepository:v1:" +
+		hex.EncodeToString([]byte(sourceRepoID)) + ":" +
+		hex.EncodeToString([]byte(strings.TrimSpace(namespace))) + ":" +
+		hex.EncodeToString([]byte(strings.TrimSpace(name)))
 }
 
 // recordFluxCrossRepoURLResolution is a nil-safe DiscoveryStats method so
