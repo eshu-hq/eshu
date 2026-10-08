@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 
@@ -219,4 +220,43 @@ type discardWriter struct{}
 
 func (*discardWriter) Write(p []byte) (int, error) {
 	return len(p), nil
+}
+
+func TestBuildCollectorServiceThreadsWebhookLeaseKnobs(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED":    "true",
+		"ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW": "30m",
+		"ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS": "5",
+	}
+	service, err := buildCollectorService(
+		postgres.SQLDB{},
+		func(key string) string { return env[key] },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildCollectorService() error = %v, want nil", err)
+	}
+
+	source := service.Source.(*git.GitSource)
+	priority, ok := source.Selector.(git.PriorityRepositorySelector)
+	if !ok {
+		t.Fatalf("buildCollectorService() selector type = %T, want collector.PriorityRepositorySelector", source.Selector)
+	}
+	if len(priority.Selectors) == 0 {
+		t.Fatal("buildCollectorService() priority selectors empty, want webhook selector first")
+	}
+	selector, ok := priority.Selectors[0].(git.WebhookTriggerRepositorySelector)
+	if !ok {
+		t.Fatalf("buildCollectorService() first selector type = %T, want collector.WebhookTriggerRepositorySelector", priority.Selectors[0])
+	}
+	if selector.ClaimLeaseWindow != 30*time.Minute {
+		t.Fatalf("ClaimLeaseWindow = %v, want 30m", selector.ClaimLeaseWindow)
+	}
+	if selector.MaxClaimAttempts != 5 {
+		t.Fatalf("MaxClaimAttempts = %d, want 5", selector.MaxClaimAttempts)
+	}
 }

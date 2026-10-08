@@ -489,3 +489,37 @@ func TestCanonicalExecutorForGraphBackendUsesNornicDBPhaseGroupsByDefault(t *tes
 		t.Fatalf("inner ExecuteGroup calls = %d, want 1", inner.groupCalls)
 	}
 }
+
+func TestBuildIngesterCollectorServiceThreadsWebhookLeaseKnobs(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildIngesterCollectorService(
+		postgres.SQLDB{},
+		mapGetenv(map[string]string{
+			"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED":    "true",
+			"ESHU_REPO_SCHEDULED_SYNC_ENABLED":        "false",
+			"ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW": "30m",
+			"ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS": "5",
+		}),
+		func() (string, error) { return t.TempDir(), nil },
+		func() []string { return []string{"PATH=/usr/bin"} },
+		nil, // tracer
+		nil, // instruments
+		nil, // logger
+	)
+	if err != nil {
+		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
+	}
+
+	source := service.Source.(*git.GitSource)
+	selector, ok := source.Selector.(git.WebhookTriggerRepositorySelector)
+	if !ok {
+		t.Fatalf("buildIngesterCollectorService() selector type = %T, want collector.WebhookTriggerRepositorySelector", source.Selector)
+	}
+	if selector.ClaimLeaseWindow != 30*time.Minute {
+		t.Fatalf("ClaimLeaseWindow = %v, want 30m", selector.ClaimLeaseWindow)
+	}
+	if selector.MaxClaimAttempts != 5 {
+		t.Fatalf("MaxClaimAttempts = %d, want 5", selector.MaxClaimAttempts)
+	}
+}
