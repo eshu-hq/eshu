@@ -2690,7 +2690,7 @@ tests:
   - file: go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go
     tag: ~
     class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    reason: "#5465 advisory-only suppression proof (runs the live supply-chain impact reducer over an advisory-only suppression) plus the #7493 isolated-schema derivation guard, untagged and gated by the ESHU_POSTGRES_TEST_DSN env Skip; about 3s for the proof and 6s for the guard locally (3.5s and 6.6s under -race); Postgres only; enrolled in the blocking reducer contention gate workflow, not the live-backend job, where ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1 turns the unset-DSN skip into a failure (#7141)"
   - file: go/internal/storage/postgres/vulnerability_suppression_lineage_index_upgrade_live_test.go
     tag: integration
     class: scheduled

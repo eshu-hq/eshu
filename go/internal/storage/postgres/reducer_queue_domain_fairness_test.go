@@ -264,12 +264,20 @@ func openReducerFairnessDB(t *testing.T, ctx context.Context, dsn string) *sql.D
 }
 
 // openReducerFairnessDBWithSchema creates an isolated throwaway schema, applies
-// the reducer-queue DDL, and returns the owning handle plus the schema name.
-// The handle is capped at one connection so its session-local search_path stays
-// pinned to the new schema. The schema name lets concurrency proofs open
-// additional independent connections against the SAME schema (see
+// the production bootstrap schema, and returns the owning handle plus the
+// schema name. The handle is capped at one connection so its session-local
+// search_path stays pinned to the new schema. The schema name lets concurrency
+// proofs open additional independent connections against the SAME schema (see
 // openReducerFairnessClaimerDB), which is required to exercise real concurrent
 // claim statements rather than serializing behind one pooled connection.
+//
+// The schema derives from ApplyBootstrapWithoutContentSearchIndexes (#6680):
+// the previous hand-picked definition list silently fell behind the
+// production schema on every migration a claim or Ack path depended on
+// (provenance_edge_identity_upgrade_required, projector_scope_claim_fences,
+// delta_baseline_commit_sha, ...). A full isolated bootstrap costs about two
+// seconds; TestReducerFairnessIsolatedSchemaDerivesFromBootstrap guards the
+// derivation.
 func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
 	t.Helper()
 	schemaName := fmt.Sprintf("reducer_fairness_%d", time.Now().UnixNano())
@@ -281,40 +289,8 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
-	for _, stmt := range []string{
-		MigrationSQL("ingestion_scopes"),
-		// migration 130 (#7115): the projector claim inner-joins, locks and
-		// bumps projector_scope_claim_fences, and the AFTER INSERT trigger on
-		// ingestion_scopes seeds a row per scope. Applying the shipped
-		// migration (not a copy of its DDL) keeps this fixture on the
-		// production schema; a fixture without it fails every ProjectorQueue
-		// Claim() with `relation "projector_scope_claim_fences" does not exist`.
-		MigrationSQL("projector_scope_claim_fences"),
-		MigrationSQL("scope_generations"),
-		// migration 148 (#7319): scope_generations.delta_baseline_commit_sha,
-		// read by the Ack/preflight delta-baseline fence. A fixture that
-		// applies the base table without this ALTER makes every fenced Ack
-		// fail with `column target.delta_baseline_commit_sha does not exist`.
-		MigrationSQL("scope_generations_delta_baseline_commit_sha"),
-		// migration 149 (#7389): scope_generations.projection_write_started_at,
-		// read by the projector heartbeat's supersede gate.
-		MigrationSQL("scope_generations_projection_write_started_at"),
-		MigrationSQL("fact_work_items"),
-		// migration 160 (#7584): ProjectorQueue.Ack inserts its activation
-		// obligation in the Ack transaction, so a fixture that Acks without
-		// it fails `relation "activation_obligations" does not exist`.
-		MigrationSQL("activation_obligations"),
-		reducerClaimCapabilityColumnsSchemaSQL,
-		// migration 088 (#5848/#5837): fact_work_items.reopened_at, read by the
-		// claim query as COALESCE(reopened_at, created_at). A fixture that
-		// applies the base table without this ALTER makes every Claim() fail
-		// with `column work.reopened_at does not exist`.
-		MigrationSQL("reducer_work_item_reopened_at"),
-		graphProjectionPhaseStateSchemaSQL,
-	} {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			t.Fatalf("apply fairness schema: %v", err)
-		}
+	if err := ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply fairness schema: %v", err)
 	}
 	return db, schemaName
 }
@@ -335,7 +311,9 @@ func openReducerFairnessClaimerDB(t *testing.T, ctx context.Context, dsn, schema
 // is what keeps SET search_path durable for the handle: search_path is
 // connection-local, so a multi-connection pool would hand out fresh connections
 // that no longer see the schema's tables. Each handle still represents one live
-// connection, so distinct handles run concurrently.
+// connection, so distinct handles run concurrently. public stays on the path so
+// the pg_trgm operator classes the content-entity index bootstrap names still
+// resolve once any other bootstrap has installed the extension there (#7489).
 func openReducerFairnessSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("pgx", dsn)
@@ -345,7 +323,7 @@ func openReducerFairnessSchemaConn(t *testing.T, ctx context.Context, dsn, schem
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+",public"); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
 	return db
