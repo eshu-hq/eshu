@@ -27,6 +27,7 @@ is why the rename is sequenced late. The rename carries the leaves with it.
 | 6 | `querycontract/evidence` | 3 | [#7013](https://github.com/eshu-hq/eshu/pull/7013) | **merged** `1d2bd268d` | 46 |
 | 7 | `querycontract/visualization` | 2 | [#7021](https://github.com/eshu-hq/eshu/pull/7021) | **merged** `957772254` | 44 |
 | 8 | `querycontract/answer` | 3 | [#7025](https://github.com/eshu-hq/eshu/pull/7025) | **merged** `1d119f391` | 41 |
+| 9 | `querycontract/repository` | 3 | _this PR_ | **in review** | 40, `//nolint:dirgate` retired |
 | | rename `querycontract` -> `contract` | — | — | blocked on `contract/` draining | |
 
 Move-sequence row 4 is not a `querycontract` leaf, so it has its own table.
@@ -277,6 +278,37 @@ removed or renamed. The moved package holds maps and pure functions.
 Why it is safe: `go vet ./...`, `go test ./internal/query/...
 ./internal/queryplan/... -count=1`, `verify-parser-relationship-kit.sh`,
 `verify-dirgate.sh --all` and `verify-moved-file-refs.sh` all exit 0.
+
+## Performance and observability evidence for the `repository` leaf
+
+The leaf keeps the name `repository` although the `query/repository` handler
+family exists: both are package `repository`, which Go allows, and only four
+of the 51 importing files also import the family, spelling this leaf
+`repositorycontract`. The trio is the last acyclic group the directory
+needed: stay-to-leaf references are zero (verified by exact-symbol sweep
+over the other 40 files, the eight existing leaves, and the parent tests),
+so the leaf imports the parent one way for `ContentStore` and the
+row-shaping helpers and the parent never imports back.
+
+No-Regression Evidence: three files move from `querycontract/` to
+`querycontract/repository/` (`repository_read_models.go` -> `read_models.go`,
+`repository_summary_read_models.go` -> `summary_read_models.go`,
+`repository_projection.go` -> `projection.go`), and 30 non-test and 21 test
+files repoint their qualifier. Root keeps its four exported aliases
+(`RepositoryRef`, `RepoRef`, `RepositoryReadModelSummary`,
+`RepositoryRelationshipReadModel`), its unexported aliases, and its thin
+forwarders, all repointed at the leaf; no root file goes. In every touched
+Go file the diff changes an import line, a package qualifier, or a comment.
+No SQL, Cypher, call site, argument, allocation or loop bound changes, and
+no queryplan source-hash pin covers the moved files.
+
+No-Observability-Change: no span, metric, log or status field is added,
+removed or renamed. The moved package holds types, loaders, and pure
+row-shaping.
+
+Why it is safe: `go vet ./...`, `go test ./internal/query/...
+./internal/queryplan/... -count=1`, `verify-dirgate.sh --all` and
+`verify-moved-file-refs.sh` all exit 0.
 
 ## Performance and observability evidence for the `querytestutil` leaves
 

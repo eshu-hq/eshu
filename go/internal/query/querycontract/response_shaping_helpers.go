@@ -63,8 +63,8 @@ func FilterNullRelationships(v any) []map[string]any {
 }
 
 // StringVal, BoolVal, IntVal, StringSliceVal and FloatVal forward to the
-// rowvalue subpackage. The implementations moved there for #6597: this
-// directory carries a //nolint:dirgate past the 40-file cap, and these helpers
+// rowvalue subpackage. The implementations moved there for #6597, when this
+// directory sat over the 40-file cap under a //nolint:dirgate: these helpers
 // were the one file in it that named no identifier declared anywhere else in
 // the package. The compiler is the proof of that, not a symbol census:
 // rowvalue compiles as a leaf whose only import is "fmt". Moving them first

@@ -41,8 +41,9 @@
 // projection-placeholder scrubber (entity), the evidence-citation handles,
 // citation packet and evidence boundaries (evidence), the
 // visualization-packet contract and its builder (visualization), the
-// answer packet and answer_metadata companion (answer), and the language and
-// entity-type vocabulary (taxonomy).
+// answer packet and answer_metadata companion (answer), the language and
+// entity-type vocabulary (taxonomy), and the repository read models, summary
+// loaders, and row projection (repository).
 // Content-index readiness covers ErrContentSubstringIndexesNotReady and
 // WriteContentSubstringIndexUnavailable. Language normalization
 // (CanonicalLanguage, NormalizedLanguageVariants, CoverageLanguageMaps) lives
@@ -63,8 +64,9 @@
 // DocumentationFactListReadModel, the packet and freshness read models and
 // their authorization filters, and the DocumentationTargetScope,
 // DocumentationTargetCoverage and DocumentationMissingEvidence readback types.
-// Repository stories cover RepositoryEntryPointReadModel,
-// RepositoryDeploymentEvidenceReadModel, RelationshipEvidenceReadModel,
+// Repository stories (in the repository/ leaf) cover
+// RepositoryEntryPointReadModel, RepositoryDeploymentEvidenceReadModel,
+// RelationshipEvidenceReadModel,
 // RepositoryReadModelSummary, RepositoryRelationshipReadModel, RepositoryRef,
 // CatalogWorkloadIdentityEntry, ServiceStoryTargetSupportFilter and
 // ServiceStoryTargetSupportReadModel. The filter carries the graph gate a
@@ -99,4 +101,4 @@
 // root caller (the WWW-Authenticate lookup's only caller moved with it, so
 // it keeps none), and cmd/mcp-server, auth_constructors.go, and every
 // other existing caller compile unchanged.
-package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle, so the directory sits over the 40-file cap. It is draining, not parked -- #6597 extracts one acyclic leaf at a time into a subpackage (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/, answer/ and taxonomy/ so far), and this marker retires when what stays is under the cap. No file count is stated here on purpose: a count in a marker rots silently, because a justified marker on a non-grandfathered directory disables the cap check outright.
+package querycontract // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle. The #6597 split extracted nine leaves into subpackages (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/, answer/, taxonomy/ and repository/); what stays fits the 40-file cap, so no dirgate marker remains.
