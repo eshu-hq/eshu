@@ -6,6 +6,8 @@ package status
 import (
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
 )
 
 // RepositoryFreshnessVerdict is the coarse verdict rendered for
@@ -14,15 +16,22 @@ import (
 // evidence fully built.
 type RepositoryFreshnessVerdict string
 
-// The five verdicts a repository freshness read can render. See
+// The six verdicts a repository freshness read can render. See
 // ComputeRepositoryFreshnessVerdict for the precedence between them.
 const (
-	RepositoryFreshnessCurrent    RepositoryFreshnessVerdict = "current"
-	RepositoryFreshnessBuilding   RepositoryFreshnessVerdict = "building"
-	RepositoryFreshnessBehind     RepositoryFreshnessVerdict = "behind"
-	RepositoryFreshnessUnobserved RepositoryFreshnessVerdict = "unobserved"
-	RepositoryFreshnessUnknown    RepositoryFreshnessVerdict = "unknown"
+	RepositoryFreshnessCurrent     RepositoryFreshnessVerdict = "current"
+	RepositoryFreshnessBuilding    RepositoryFreshnessVerdict = "building"
+	RepositoryFreshnessBehind      RepositoryFreshnessVerdict = "behind"
+	RepositoryFreshnessUnobserved  RepositoryFreshnessVerdict = "unobserved"
+	RepositoryFreshnessNotSelected RepositoryFreshnessVerdict = "not_selected"
+	RepositoryFreshnessUnknown     RepositoryFreshnessVerdict = "unknown"
 )
+
+// RepositoryFreshnessSelection is the scope's collector selection evidence
+// (#7625): whether the live githubOrg selectors that observe this scope still
+// select it. It is selection.Summary, computed by selection.Summarize over
+// the scope's live repository_selection_observations rows.
+type RepositoryFreshnessSelection = selection.Summary
 
 // RepositoryFreshnessGeneration is the resolved generation lifecycle snapshot
 // backing a freshness read, mirroring the fields generationTransitionsQuery
@@ -126,6 +135,9 @@ type RepositoryFreshnessSnapshot struct {
 	// UnobservedPush is nil when no queued/claimed webhook push evidence
 	// exists for this repository.
 	UnobservedPush *RepositoryFreshnessUnobservedPush
+	// Selection is nil when no live selector observes this scope, which
+	// leaves the verdict exactly as it was before #7625.
+	Selection *RepositoryFreshnessSelection
 }
 
 // ComputeRepositoryFreshnessVerdict derives the coarse verdict from a
@@ -139,18 +151,25 @@ type RepositoryFreshnessSnapshot struct {
 //  1. unknown: no scope/generation resolved for this repository, or the
 //     resolved scope is not a git ("repository") scope and carries no
 //     commit -- freshness-by-commit is not a meaningful question for it.
-//  2. unobserved: a queued/claimed webhook push exists whose target commit
+//  2. not_selected (#7625): the scope has at least one live selector
+//     observation, none of them selects it, and every one is settled
+//     exclusion evidence (archived or rule excluded, or not_listed confirmed
+//     over two cycles) -- see selection.Summarize. The collector no longer
+//     picks this repository up, so no later commit will arrive; that
+//     outranks every commit- and build-based answer below. Without a live
+//     observation (nil Selection) this rule never fires.
+//  3. unobserved: a queued/claimed webhook push exists whose target commit
 //     does not match the observed commit -- eshu has not even started
 //     building it.
-//  3. behind: the caller supplied expected_commit and it does not match
+//  4. behind: the caller supplied expected_commit and it does not match
 //     observed_commit. This takes precedence over building/current:
 //     whether or not a generation is actively catching up, the answer does
 //     not yet reflect the caller's expected commit, and that is the
 //     accurate, actionable state for "did eshu pick up my commit".
-//  4. building: the repository's own reducer/projector stage has
+//  5. building: the repository's own reducer/projector stage has
 //     outstanding work, or shared cross-repo enrichment referencing this
 //     generation is still pending.
-//  5. current: own stages drained, no shared pending, and (no
+//  6. current: own stages drained, no shared pending, and (no
 //     expected_commit was supplied, or it matches observed_commit). This
 //     speaks to BUILD COMPLETENESS, not necessarily a commit receipt:
 //     observed_commit may be empty (non-git scopes, pre-delta-baseline
@@ -164,6 +183,9 @@ func ComputeRepositoryFreshnessVerdict(snapshot RepositoryFreshnessSnapshot, exp
 	}
 	if snapshot.ObservedCommit == "" && snapshot.ScopeKind != "" && snapshot.ScopeKind != "repository" {
 		return RepositoryFreshnessUnknown
+	}
+	if snapshot.Selection != nil && snapshot.Selection.State == selection.AggregateNotSelected {
+		return RepositoryFreshnessNotSelected
 	}
 	if snapshot.UnobservedPush != nil {
 		return RepositoryFreshnessUnobserved
