@@ -11,9 +11,9 @@ import (
 )
 
 // TestOpenAPISpecContentSelectorRoutesDocumentSelectorStatuses pins the
-// selector answers the content routes write (#7626): an unmatched repository
-// selector answers 404 and a reader fence answers 503, so each route must
-// declare both.
+// statuses the content read and search routes write (#7626): an unmatched
+// repository selector or a missing file or entity answers 404, and a reader
+// fence answers 503, so each route must declare both.
 func TestOpenAPISpecContentSelectorRoutesDocumentSelectorStatuses(t *testing.T) {
 	t.Parallel()
 
@@ -25,6 +25,7 @@ func TestOpenAPISpecContentSelectorRoutesDocumentSelectorStatuses(t *testing.T) 
 	for _, route := range []string{
 		"/api/v0/content/files/read",
 		"/api/v0/content/files/lines",
+		"/api/v0/content/entities/read",
 		"/api/v0/content/files/search",
 		"/api/v0/content/entities/search",
 	} {

@@ -110,9 +110,20 @@ it is not counted as a server fault, and `http.response.status_code=499` shows
 up on the HTTP server metrics. A read counts as canceled only when the error
 is `context.Canceled` and the request's own context was canceled; a cancel
 from inside the server still reads as a fault. The routes covered are the
-selector lookups, the content read and search routes, repository stats and
-coverage, and the service context, investigation, and story routes. Other
-routes still answer a cancel with `500` until #7674 lands. On the `otelhttp`
+selector lookups that answer through `selector.WriteLookupFailure` (the
+supply-chain security-alert selector writes its own `500`), the content read
+and search routes, repository stats and coverage, and the service context,
+investigation, and story routes. Other routes still answer a cancel with `500`
+until #7674 lands.
+
+Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
+counts only `5xx`, so a canceled read on these routes leaves that counter and
+shows up in `eshu_dp_api_request_duration_seconds` with `status_class="4xx"`;
+an error-rate alert built on the counter sees fewer errors than before for the
+same client behavior. And a proxy or load balancer that drops the upstream
+connection on its own timeout cancels the request context, so a slow read cut
+off by the proxy now reads as `499` with no span Error. Watch the `4xx` share
+and `499` counts on these routes when a proxy timeout is suspected. On the `otelhttp`
 server span, the Error description is replaced by the empty one `otelhttp`
 sets for a 5xx. The Error status and the `exception` event remain.
 

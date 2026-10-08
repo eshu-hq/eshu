@@ -193,8 +193,11 @@ message, when the selector read runs out its 2-second route budget. An
 unmatched selector stays `404`, except on `POST /api/v0/iac/dead`, which keeps
 its `400`; an ambiguous selector stays `400`.
 
-After the selector resolves, the same routes answer a failed read with a fixed
-message instead of the backend error text (#7626). The content routes answer
+The content routes (including `POST /api/v0/content/entities/read`, which takes
+no selector), repository stats and coverage, and the service context,
+investigation, and story routes also answer a failed read after selector
+resolution with a fixed message instead of the backend error text (#7626). The
+content routes answer
 `content file read failed` (`files/read`, `files/lines`), `content entity read
 failed` (`POST /api/v0/content/entities/read`), `content file search failed`,
 or `content entity search failed`. `GET /api/v0/repositories/{repo_id}/stats`
@@ -206,7 +209,8 @@ story ci/cd evidence load failed`. Each is recorded on the request span. A
 reader fence on these reads answers the retryable `503` with `Retry-After`;
 the content routes and the service story's ci/cd and supply-chain reads
 previously answered `500`. A client that cancels its request while one of these
-reads runs, or while a selector lookup runs, gets `499` with the same fixed
+reads runs, or while a selector lookup runs through the shared selector
+helper, gets `499` with the same fixed
 message, and the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
 OpenAPI spec, because the client has already gone.

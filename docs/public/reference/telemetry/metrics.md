@@ -101,9 +101,12 @@ succeeded. Only the `deadline` outcomes map to the `503`. The same stages with
 `outcome="error"` (authentication or TLS failure, connection refused, a role
 denied `pg_control_system()`, a failing replay query) answer `500`, not `503`, and
 are the operator signal for a permanent reader misconfiguration; `canceled` is a
-client disconnect and is never a `503`. It answers `499` on the routes listed in
+canceled context and is never a `503`. A client disconnect answers `499` on the
+routes listed in
 [Failed and canceled query reads](traces.md#failed-and-canceled-query-reads-7626)
-and `500` elsewhere until #7674 lands.
+and `500` elsewhere until #7674 lands; a cancel from inside the server while the
+request is still live answers `500`. A `499` is not counted in
+`eshu_dp_api_request_errors_total`, which counts only `5xx`.
 
 ## Runtime Health And Backlog
 
