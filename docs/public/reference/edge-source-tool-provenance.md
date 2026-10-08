@@ -170,7 +170,7 @@ same enum across both axes.
 
 ## `EvidenceKind` → `source_tool` mapping
 
-The 37 `EvidenceKind` constants (`go/internal/relationships/models.go:20-112`)
+The 37 `EvidenceKind` constants (the constant block in `go/internal/relationships/models.go`)
 collapse to 15 tools; 36 appear in the table, and `HELM_TEMPLATE_VALUE_REFERENCE`
 resolves to `helm` through the `HELM_` prefix fallback. This is the family→tool map #3999 implements (distinct
 from the existing `evidenceKindToType` sub-kind map, which keeps each kind

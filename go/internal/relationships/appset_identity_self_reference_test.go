@@ -68,7 +68,14 @@ func TestApplicationSetIdentitySelfReferenceEmitsTemplateSource(t *testing.T) {
 // become a deployment edge, even when the alias it would match exists.
 func TestApplicationSetBroadIdentityDoesNotEmitTemplateSource(t *testing.T) {
 	t.Parallel()
-	catalog := append([]CatalogEntry{{RepoID: "repo-api", Aliases: []string{"api"}}}, appSetConfigRepoCatalog...)
+	// One catalog repository per broad value, so each row reaches the guard in
+	// argocdServiceIdentityValues and fails if that guard is removed: "api" and
+	// "app" are in the broad list, "web" is rejected only by the length rule.
+	catalog := append([]CatalogEntry{
+		{RepoID: "repo-api", Aliases: []string{"api"}},
+		{RepoID: "repo-short-app", Aliases: []string{"app"}},
+		{RepoID: "repo-web", Aliases: []string{"web"}},
+	}, appSetConfigRepoCatalog...)
 	for _, tc := range []struct{ key, value string }{
 		{"name", "api"},
 		{"app", "app"},
