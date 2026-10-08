@@ -121,19 +121,23 @@ active_fact_work_items AS (
 // obsolete work keep readiness in progress forever.
 //
 // A readiness-gated domain (reducer_claim_readiness_requirements) must NOT be
-// superseded while its required canonical-node phase is still unmet
-// (#4445/A2): 'superseded' is a terminal, unreplayable status (only
-// status='succeeded' rows are reopened by ReopenSucceeded/ReplayDomain), so
-// superseding a row whose readiness gate never opened permanently drops that
-// materialization intent and produces incomplete graph output for the
-// domain. The trailing readiness-gate predicate mirrors
-// reducerClaimReadinessGateSQL: it holds a stale row out of the supersede
-// sweep for exactly as long as the outer candidate CTE would also refuse to
-// claim it on readiness grounds, so a stale row becomes supersede-eligible
-// the moment (and not before) its domain's readiness would independently
-// allow a claim. Domains with no readiness requirement row are unaffected —
-// the NOT EXISTS is vacuously true for them, preserving today's
-// generation-ordering-only behavior.
+// superseded while its required canonical-node phase is still unmet under
+// both its own generation and the scope's active generation (#4445/A2):
+// 'superseded' is a terminal, unreplayable status (only status='succeeded'
+// rows are reopened by ReopenSucceeded/ReplayDomain), so superseding a row
+// whose readiness gate never opened permanently drops that materialization
+// intent and produces incomplete graph output for the domain. The trailing
+// readiness-gate predicate is the OR of reducerClaimReadinessGateSQL evaluated
+// for the stale row's own generation and for the scope's active generation
+// (#7664): it holds a stale row out of the supersede sweep for exactly as long
+// as neither generation's readiness would independently allow a claim, so a
+// stale row whose phases exist only under the active generation is retired —
+// the active generation's own rows for that domain are claimable and carry the
+// intent forward — while a stale row whose phases exist under neither
+// generation stays pending. The claim candidate CTEs keep the own-generation
+// gate, so no live row becomes claimable early. Domains with no readiness
+// requirement row are unaffected — the NOT EXISTS is vacuously true for them,
+// preserving today's generation-ordering-only behavior.
 //
 // This CTE must be declared AFTER reducerClaimReadinessRequirementsCTE in the
 // enclosing WITH clause so the readiness-gate predicate below can reference
@@ -183,7 +187,10 @@ superseded_stale_reducer_generations AS (
           AND stale_generation.generation_id < active_generation.generation_id
         )
       )
-      AND ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
+      AND (
+        ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
+        OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
+      )
     RETURNING stale.work_item_id
 )
 `
