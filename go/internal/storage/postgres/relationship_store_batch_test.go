@@ -95,6 +95,33 @@ func TestUpsertEvidenceFactsCountedSumsBatchInsertCounts(t *testing.T) {
 		t.Fatalf("UpsertEvidenceFactsCounted() inserted = %d, want 1", inserted)
 	}
 
+	// Multi-batch case: facts spanning two chunk statements sum RowsAffected
+	// across chunks (the "Sums" in this test's name). The first chunk
+	// inserts a full batch, the second a single row.
+	many := make([]relationships.EvidenceFact, 0, evidenceInsertBatchRows+1)
+	for i := 0; i < evidenceInsertBatchRows+1; i++ {
+		many = append(many, relationships.EvidenceFact{
+			EvidenceKind:     relationships.EvidenceKind("terraform_module"),
+			RelationshipType: relationships.RelationshipType("depends_on"),
+			SourceRepoID:     "repo-source",
+			TargetRepoID:     "repo-target-" + string(rune('a'+i%26)) + itoa(i),
+			Confidence:       0.9,
+			Rationale:        "module reference",
+		})
+	}
+	fake.execResults = []sql.Result{
+		rowsAffectedResult{rowsAffected: int64(evidenceInsertBatchRows)},
+		rowsAffectedResult{rowsAffected: 1},
+	}
+	inserted, err = store.UpsertEvidenceFactsCounted(context.Background(), "gen-1", many)
+	if err != nil {
+		t.Fatalf("UpsertEvidenceFactsCounted() multi-batch error = %v, want nil", err)
+	}
+	if inserted != int64(evidenceInsertBatchRows+1) {
+		t.Fatalf("UpsertEvidenceFactsCounted() multi-batch inserted = %d, want %d",
+			inserted, evidenceInsertBatchRows+1)
+	}
+
 	// A re-upsert whose statement inserts nothing reports 0, not an error.
 	fake.execResults = []sql.Result{rowsAffectedResult{rowsAffected: 0}}
 	inserted, err = store.UpsertEvidenceFactsCounted(context.Background(), "gen-1", facts)
