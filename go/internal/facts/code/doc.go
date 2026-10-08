@@ -15,12 +15,11 @@
 // CodeFunctionSourceFactKind is now FunctionSourceFactKind, and
 // CodeFunctionSummaryFactKind is now FunctionSummaryFactKind.
 // DataflowScannedFactKind and DataflowFunctionFactKind kept their names —
-// they never stuttered. Every pre-move facts.Code* spelling still resolves
-// through the facts root's transitional compat_code.go, which forwards all
-// seven of them (including the CodeFlowReadFactKinds function) to these
-// destuttered names; each compat entry is deleted only once its last caller
-// has moved off it. New code should prefer the code.<Name> spelling
-// directly.
+// they never stuttered. The pre-move facts.Code* spellings no longer
+// resolve: the facts root's transitional compat_code.go, which forwarded
+// all seven of them (including the CodeFlowReadFactKinds function) to
+// these destuttered names, was deleted in #6950 once the last caller
+// moved off it. Callers use the code.<Name> spelling directly.
 //
 // Unlike the cloud package, these kinds are NOT part of the facts root's
 // schema-version admission regime: none of them appears in
