@@ -140,21 +140,22 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		mode = "all_scopes"
 	}
 	h.reportRefinalizeOutcome(r.Context(), "recover-generations", mode, result)
-	// The four reset counts are the operator's evidence that this rebuild will
+	// The five reset counts are the operator's evidence that this rebuild will
 	// restore the whole graph rather than only its source-local layer. Without
 	// them, a rebuild that re-queues every scope and still comes back short looks
 	// identical to one that worked, until someone counts the edges.
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
-		"status":                   "recovered",
-		"enqueued":                 result.Enqueued,
-		"scope_ids":                result.ScopeIDs,
-		"reducer_work_deleted":     result.ReducerWorkDeleted,
-		"shared_intents_reopened":  result.SharedIntentsReopened,
-		"readiness_phases_cleared": result.ReadinessPhasesCleared,
-		"generations_retired":      result.GenerationsRetired,
-		"skipped_scopes":           skippedScopesResponse(result.Skipped),
-		"idempotency_key":          req.IdempotencyKey,
-		"duplicate":                false,
+		"status":                               "recovered",
+		"enqueued":                             result.Enqueued,
+		"scope_ids":                            result.ScopeIDs,
+		"reducer_work_deleted":                 result.ReducerWorkDeleted,
+		"shared_intents_reopened":              result.SharedIntentsReopened,
+		"readiness_phases_cleared":             result.ReadinessPhasesCleared,
+		"generations_retired":                  result.GenerationsRetired,
+		"shared_projection_acceptance_cleared": result.SharedProjectionAcceptanceCleared,
+		"skipped_scopes":                       skippedScopesResponse(result.Skipped),
+		"idempotency_key":                      req.IdempotencyKey,
+		"duplicate":                            false,
 	})
 }
 

@@ -139,17 +139,18 @@ type refinalizeRequest struct {
 }
 
 // refinalizeResponse reports the re-enqueue plus the dedup state the refinalize
-// cleared for those scopes. The four reset counts matter here as much as on the
+// cleared for those scopes. The five reset counts matter here as much as on the
 // disaster-recovery route: re-projecting a wedged scope without re-driving its
 // reducer domains rebuilds only the source-local half of what that scope owns.
 type refinalizeResponse struct {
-	Status                 string   `json:"status"`
-	Enqueued               int      `json:"enqueued"`
-	ScopeIDs               []string `json:"scope_ids"`
-	ReducerWorkDeleted     int      `json:"reducer_work_deleted"`
-	SharedIntentsReopened  int      `json:"shared_intents_reopened"`
-	ReadinessPhasesCleared int      `json:"readiness_phases_cleared"`
-	GenerationsRetired     int      `json:"generations_retired"`
+	Status                            string   `json:"status"`
+	Enqueued                          int      `json:"enqueued"`
+	ScopeIDs                          []string `json:"scope_ids"`
+	ReducerWorkDeleted                int      `json:"reducer_work_deleted"`
+	SharedIntentsReopened             int      `json:"shared_intents_reopened"`
+	ReadinessPhasesCleared            int      `json:"readiness_phases_cleared"`
+	GenerationsRetired                int      `json:"generations_retired"`
+	SharedProjectionAcceptanceCleared int      `json:"shared_projection_acceptance_cleared"`
 
 	// SkippedScopes reports the scopes the refinalize considered but did not
 	// re-enqueue, by reason (#7116), so a partial rebuild is visible.
@@ -181,14 +182,15 @@ func (h *RecoveryHandler) handleRefinalize(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, refinalizeResponse{
-		Status:                 "enqueued",
-		Enqueued:               result.Enqueued,
-		ScopeIDs:               result.ScopeIDs,
-		ReducerWorkDeleted:     result.ReducerWorkDeleted,
-		SharedIntentsReopened:  result.SharedIntentsReopened,
-		ReadinessPhasesCleared: result.ReadinessPhasesCleared,
-		GenerationsRetired:     result.GenerationsRetired,
-		SkippedScopes:          result.Skipped.Report(),
+		Status:                            "enqueued",
+		Enqueued:                          result.Enqueued,
+		ScopeIDs:                          result.ScopeIDs,
+		ReducerWorkDeleted:                result.ReducerWorkDeleted,
+		SharedIntentsReopened:             result.SharedIntentsReopened,
+		ReadinessPhasesCleared:            result.ReadinessPhasesCleared,
+		GenerationsRetired:                result.GenerationsRetired,
+		SharedProjectionAcceptanceCleared: result.SharedProjectionAcceptanceCleared,
+		SkippedScopes:                     result.Skipped.Report(),
 	})
 }
 

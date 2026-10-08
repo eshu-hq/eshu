@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"hash/crc32"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 )
 
 // Real-Postgres proofs for the #4594 disaster-recovery rebuild.
@@ -100,6 +102,7 @@ func refinalizeResetScope(
 		for _, statement := range []string{
 			`DELETE FROM graph_projection_phase_state WHERE scope_id = $1`,
 			`DELETE FROM shared_projection_intents WHERE scope_id = $1`,
+			`DELETE FROM shared_projection_acceptance WHERE scope_id = $1`,
 			`DELETE FROM fact_work_items WHERE scope_id = $1`,
 			`DELETE FROM scope_generations WHERE scope_id = $1`,
 			`DELETE FROM ingestion_scopes WHERE scope_id = $1`,
@@ -173,6 +176,49 @@ func seedRefinalizeResetReducerWork(
 	return workItemID
 }
 
+// seedRefinalizeResetAcceptance inserts one shared projection acceptance row
+// pointing at the given generation. The generation must exist in
+// scope_generations: the table carries an FK to it.
+func seedRefinalizeResetAcceptance(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	scopeID, acceptanceUnitID, sourceRunID, generationID string,
+	now time.Time,
+) {
+	t.Helper()
+
+	if _, err := db.ExecContext(
+		ctx, `
+		INSERT INTO shared_projection_acceptance
+		  (scope_id, acceptance_unit_id, source_run_id, generation_id, accepted_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $5)
+		ON CONFLICT (scope_id, acceptance_unit_id, source_run_id)
+		DO UPDATE SET generation_id = EXCLUDED.generation_id, updated_at = EXCLUDED.updated_at`,
+		scopeID, acceptanceUnitID, sourceRunID, generationID, now,
+	); err != nil {
+		t.Fatalf("seed shared_projection_acceptance %s/%s/%s: %v", scopeID, acceptanceUnitID, sourceRunID, err)
+	}
+}
+
+// refinalizeResetAcceptedGeneration reads one acceptance row's generation,
+// reporting absence as ok=false so a test can tell "cleared" apart from
+// "still pointing at a generation".
+func refinalizeResetAcceptedGeneration(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	scopeID, acceptanceUnitID, sourceRunID string,
+) (string, bool) {
+	t.Helper()
+
+	generation, ok, err := NewSharedProjectionAcceptanceStore(SQLDB{DB: db}).Lookup(ctx, scopeID, acceptanceUnitID, sourceRunID)
+	if err != nil {
+		t.Fatalf("Lookup acceptance %s/%s/%s: %v", scopeID, acceptanceUnitID, sourceRunID, err)
+	}
+	return generation, ok
+}
+
 // refinalizeResetWorkItemStatus reads one work item's status, reporting absence as the empty
 // string so a test can tell "deleted" apart from "still here in some state".
 func refinalizeResetWorkItemStatus(t *testing.T, ctx context.Context, db *sql.DB, workItemID string) string {
@@ -190,4 +236,108 @@ func refinalizeResetWorkItemStatus(t *testing.T, ctx context.Context, db *sql.DB
 		t.Fatalf("read work item %s: %v", workItemID, err)
 	}
 	return status
+}
+
+// seedRefinalizeResetRepoDependencyIntent inserts one pending repo_dependency
+// shared intent through the production upsert, without touching acceptance:
+// unlike the acceptance writer, the plain store never commits an acceptance
+// row, so the test controls the (intent, acceptance) pair exactly. The caller
+// owns the acceptance row via seedRefinalizeResetAcceptance.
+func seedRefinalizeResetRepoDependencyIntent(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	row reducer.SharedProjectionIntentRow,
+) {
+	t.Helper()
+
+	if err := NewSharedIntentStore(SQLDB{DB: db}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+		t.Fatalf("seed repo_dependency intent %s: %v", row.IntentID, err)
+	}
+}
+
+// activateRefinalizeResetGeneration rolls the scope forward: the old active
+// generation is superseded and newGenerationID becomes active, mirroring what a
+// projector ack does when the next generation commits. The old generation must
+// drop out of 'active' before the new one lands: only one generation per scope
+// may be active (scope_generations_active_scope_idx).
+func activateRefinalizeResetGeneration(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	scopeID, oldGenerationID, newGenerationID string,
+) {
+	t.Helper()
+
+	now := time.Now().UTC()
+	if _, err := db.ExecContext(
+		ctx,
+		`UPDATE scope_generations SET status = 'superseded' WHERE generation_id = $1`,
+		oldGenerationID,
+	); err != nil {
+		t.Fatalf("supersede generation %s: %v", oldGenerationID, err)
+	}
+	if _, err := db.ExecContext(
+		ctx, `
+		INSERT INTO scope_generations
+		  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		VALUES ($1, $2, 'manual', $3, $3, 'active', $3)
+		ON CONFLICT (generation_id) DO NOTHING`,
+		newGenerationID, scopeID, now,
+	); err != nil {
+		t.Fatalf("seed scope_generations %s: %v", newGenerationID, err)
+	}
+	seedRefinalizeResetScopeRow(t, ctx, db, scopeID, newGenerationID, now)
+}
+
+// refinalizeResetGatedAcceptedGen builds the production repo_dependency
+// authority lookup: the raw acceptance-store lookup fenced by the production
+// relationship-generation active check through
+// maintenance.GateAcceptedGenerationOnActive, exactly as go/cmd/reducer wires
+// the lane. Bypassed source runs (code-import, package-consumption) skip the
+// fence; resolver runs ("repo_dependency[:<scope>]") must clear it.
+func refinalizeResetGatedAcceptedGen(database *sql.DB) reducer.AcceptedGenerationLookup {
+	return maintenance.GateAcceptedGenerationOnActive(
+		NewAcceptedGenerationLookup(SQLDB{DB: database}),
+		NewRelationshipGenerationActiveLookup(NewRelationshipStore(SQLDB{DB: database})),
+		nil,
+	)
+}
+
+// refinalizeResetLaneRunner builds a repo_dependency lane over live Postgres,
+// mirroring causalFenceRunner except for the accepted-generation lookup: where
+// the fence proof uses the raw store lookup, the #7673 lane proofs use the
+// production gate (maintenance.GateAcceptedGenerationOnActive over the
+// production lookup and the production relationship-generation active check),
+// which is the authority under test. AcceptedGenPrefetch stays nil so both
+// selection and filtering resolve through that one gate. The edge writer is the
+// caller's recorder; everything else is production.
+func refinalizeResetLaneRunner(
+	database *sql.DB,
+	queue ReducerQueue,
+	writer reducer.SharedProjectionEdgeWriter,
+	suffix string,
+) *reducer.RepoDependencyProjectionRunner {
+	const partitionCount = 1_000_000_000
+	partitionID := int(crc32.ChecksumIEEE([]byte(suffix)) % partitionCount)
+	store := NewSharedIntentStore(SQLDB{DB: database})
+	return &reducer.RepoDependencyProjectionRunner{
+		IntentReader:                    store,
+		LeaseManager:                    store,
+		AcceptanceUnitGate:              NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: database}),
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: queue,
+		WorkloadReadinessPrefetch:       NewGraphProjectionReadinessPrefetch(SQLDB{DB: database}),
+		AcceptedGen:                     refinalizeResetGatedAcceptedGen(database),
+		Config: reducer.RepoDependencyProjectionRunnerConfig{
+			LeaseOwner:            "refinalize-reset-lane-" + suffix,
+			PollInterval:          time.Millisecond,
+			LeaseTTL:              35 * time.Second,
+			CycleTimeout:          2 * time.Second,
+			GraphQuiescenceBudget: time.Millisecond,
+			BatchLimit:            100,
+			PartitionID:           partitionID,
+			PartitionCount:        partitionCount,
+		},
+	}
 }

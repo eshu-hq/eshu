@@ -229,9 +229,10 @@ var _ *sql.DB
 func TestAdminHandler_Refinalize(t *testing.T) {
 	stub := &stubRecoveryHandler{
 		refinalizeResult: recovery.RefinalizeResult{
-			Enqueued:           2,
-			ScopeIDs:           []string{"scope-1", "scope-2"},
-			GenerationsRetired: 3,
+			Enqueued:                          2,
+			ScopeIDs:                          []string{"scope-1", "scope-2"},
+			GenerationsRetired:                3,
+			SharedProjectionAcceptanceCleared: 4,
 		},
 	}
 	h := &Handler{Recovery: stub}
@@ -251,6 +252,9 @@ func TestAdminHandler_Refinalize(t *testing.T) {
 	}
 	if int(got["generations_retired"].(float64)) != 3 {
 		t.Errorf("generations_retired = %v, want 3", got["generations_retired"])
+	}
+	if int(got["shared_projection_acceptance_cleared"].(float64)) != 4 {
+		t.Errorf("shared_projection_acceptance_cleared = %v, want 4", got["shared_projection_acceptance_cleared"])
 	}
 }
 

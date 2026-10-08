@@ -381,3 +381,58 @@ func TestRefinalizeRebuildResetConvergesAcrossTwoCalls(t *testing.T) {
 		t.Fatalf("second call Enqueued = %d, want %d: the projector row must still be reset to pending", got, want)
 	}
 }
+
+// TestRefinalizeRebuildResetClearsSharedProjectionAcceptanceForAffectedGenerationsOnly
+// is the #7673 failing-first proof. A rebuild re-projects the affected
+// generations from facts, so an acceptance row that still points at a
+// refinalized generation lets the repo_dependency lane project edges for a
+// generation whose supporting state was wiped (and which a later activation
+// supersedes). The refinalize must clear those rows — for both the
+// scope-generation source runs the gate bypasses and the cross-repo resolver
+// runs behind the RUNS_ON rows — and leave every other row alone. The
+// re-projection re-commits intents, which re-advances acceptance.
+func TestRefinalizeRebuildResetClearsSharedProjectionAcceptanceForAffectedGenerationsOnly(t *testing.T) {
+	database, ctx := refinalizeRebuildResetLiveDB(t)
+	suffix := testSuffix(t)
+	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, database, suffix)
+	outScopeID, outActiveGeneration, _ := refinalizeResetScope(t, ctx, database, suffix+"-outside")
+	now := time.Now().UTC()
+
+	scopeRun := "repo_dependency:" + scopeID
+	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-scope", scopeRun, activeGeneration, now)
+	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-resolver", reducer.CrossRepoEvidenceSource, activeGeneration, now)
+	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, "unit-retired", scopeRun, retiredGeneration, now)
+	seedRefinalizeResetAcceptance(t, ctx, database, outScopeID, "unit-outside", scopeRun, outActiveGeneration, now)
+
+	store := NewRecoveryStore(SQLDB{DB: database})
+	result, err := store.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
+		ScopeIDs: []string{scopeID},
+	}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("RefinalizeScopeProjections() error = %v, want nil", err)
+	}
+	if got, want := result.SharedProjectionAcceptanceCleared, 2; got != want {
+		t.Fatalf("result.SharedProjectionAcceptanceCleared = %d, want %d", got, want)
+	}
+
+	for name, key := range map[string][3]string{
+		"scope-generation source run": {"unit-scope", scopeRun, ""},
+		"resolver source run":         {"unit-resolver", reducer.CrossRepoEvidenceSource, ""},
+	} {
+		if got, ok := refinalizeResetAcceptedGeneration(t, ctx, database, scopeID, key[0], key[1]); ok {
+			t.Fatalf("%s acceptance still points at %q after refinalize; "+
+				"the lane would project edges for a generation whose supporting state was wiped", name, got)
+		}
+	}
+	for name, key := range map[string][3]string{
+		"retired generation": {"unit-retired", scopeRun, retiredGeneration},
+	} {
+		if got, ok := refinalizeResetAcceptedGeneration(t, ctx, database, scopeID, key[0], key[1]); !ok || got != key[2] {
+			t.Fatalf("%s acceptance = (%q, %v), want (%q, true): the reset must touch "+
+				"only the generations being refinalized", name, got, ok, key[2])
+		}
+	}
+	if got, ok := refinalizeResetAcceptedGeneration(t, ctx, database, outScopeID, "unit-outside", scopeRun); !ok || got != outActiveGeneration {
+		t.Fatalf("outside-scope acceptance = (%q, %v), want (%q, true)", got, ok, outActiveGeneration)
+	}
+}

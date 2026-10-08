@@ -139,7 +139,7 @@ func (s *specRecoveryHandler) ReplayFailed(_ context.Context, _ recovery.ReplayF
 
 // TestOpenAPIRecoverGenerationsResponsesMatchTheHandler holds the published
 // contract to what the endpoint actually sends. The two 200 bodies are not the
-// same shape: a recovery this call performed reports the three dedup counters,
+// same shape: a recovery this call performed reports the five dedup counters,
 // and an idempotent replay cannot, because the admin_replay_requests ledger does
 // not persist them.
 //
@@ -152,11 +152,12 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 	freshStore := &specAdminStore{claim: admin.ReplayIdempotencyClaim{Claimed: true}}
 	freshHandler := &admin.Handler{
 		Recovery: &specRecoveryHandler{refinalizeResult: recovery.RefinalizeResult{
-			Enqueued:               1,
-			ScopeIDs:               []string{"scope-1"},
-			ReducerWorkDeleted:     4,
-			SharedIntentsReopened:  5,
-			ReadinessPhasesCleared: 6,
+			Enqueued:                          1,
+			ScopeIDs:                          []string{"scope-1"},
+			ReducerWorkDeleted:                4,
+			SharedIntentsReopened:             5,
+			ReadinessPhasesCleared:            6,
+			SharedProjectionAcceptanceCleared: 7,
 		}},
 		Store: freshStore,
 	}

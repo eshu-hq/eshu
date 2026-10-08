@@ -173,7 +173,7 @@ func TestRefinalizeReadsIngestionScopesExactlyOnce(t *testing.T) {
 
 // refinalizeStatements returns every statement a refinalize issued, in order:
 // the queries first (generation read, drain poll, post-lock recheck, enqueue),
-// then the claim-fence lock and four reset execs.
+// then the claim-fence lock and five reset execs.
 func refinalizeStatements(db *fakeBeginnerExecQueryer) []string {
 	statements := make([]string, 0, len(db.queries)+len(db.execs))
 	for _, query := range db.queries {
@@ -186,12 +186,12 @@ func refinalizeStatements(db *fakeBeginnerExecQueryer) []string {
 }
 
 // assertRefinalizeBindsOneGenerationSet checks that both live-lease reads, the
-// projector re-enqueue, and all four rebuild-reset statements bind exactly the
+// projector re-enqueue, and all five rebuild-reset statements bind exactly the
 // generation set the first statement read.
 //
 // This replaces an earlier "do all four render the same predicate" assertion.
-// Identical predicates were never enough: four statements can render the same
-// SQL and still select four different row sets, one per snapshot. Identical
+// Identical predicates were never enough: five statements can render the same
+// SQL and still select five different row sets, one per snapshot. Identical
 // bound arrays cannot. The drain poll is pinned the same way: a fence watching
 // a different set than the retirement guards would be theater.
 func assertRefinalizeBindsOneGenerationSet(
@@ -235,8 +235,8 @@ func assertRefinalizeBindsOneGenerationSet(
 	assertStringSliceArg(t, "projector re-enqueue scope ids", enqueue.args[1], wantScopeIDs)
 	assertStringSliceArg(t, "projector re-enqueue generation ids", enqueue.args[2], wantGenerationIDs)
 
-	if len(db.execs) != 5 {
-		t.Fatalf("claim-fence plus rebuild-reset statement count = %d, want 5", len(db.execs))
+	if len(db.execs) != 6 {
+		t.Fatalf("claim-fence plus rebuild-reset statement count = %d, want 6", len(db.execs))
 	}
 	if !strings.Contains(db.execs[0].query, "LOCK TABLE fact_work_items IN EXCLUSIVE MODE") {
 		t.Fatalf("first post-drain exec is not the reducer claim fence: %s", db.execs[0].query)
@@ -248,6 +248,7 @@ func assertRefinalizeBindsOneGenerationSet(
 		"DELETE FROM fact_work_items",
 		"UPDATE shared_projection_intents",
 		"DELETE FROM graph_projection_phase_state",
+		"DELETE FROM shared_projection_acceptance",
 		"UPDATE relationship_generations",
 	}
 	for i, want := range wantTargets {

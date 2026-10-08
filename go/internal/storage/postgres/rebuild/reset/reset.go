@@ -30,7 +30,7 @@ type Execer interface {
 // snapshot, so an ingester that activates a new generation mid-refinalize can
 // make the enqueue and the resets disagree: the enqueue re-projects G1 while a
 // later reset deletes G2's dedup state, which both leaves G1 deduplicated and
-// damages G2 without replaying it. One read, four bindings, no disagreement --
+// damages G2 without replaying it. One read, five bindings, no disagreement --
 // and no lock on ingestion_scopes, so an activation racing a rebuild is delayed
 // by nothing and simply lands outside this refinalize.
 //
@@ -105,7 +105,7 @@ ORDER BY candidate.scope_id
 // re-enqueue carries a leading timestamp and starts at $2.
 //
 // Passing the pairs as parallel arrays rather than re-running the SELECT is what
-// makes the four statements agree by construction: they cannot select a
+// makes the five statements agree by construction: they cannot select a
 // different set, because none of them selects anything.
 func affectedPairs(first int) string {
 	return fmt.Sprintf(
@@ -158,6 +158,18 @@ const clearReadinessPhaseStateTemplate = `
 DELETE FROM graph_projection_phase_state
 WHERE (scope_id, generation_id) IN (%s)
   AND keyspace <> 'cross_repo_evidence'
+`
+
+// clearSharedProjectionAcceptanceTemplate deletes the acceptance rows that
+// point at a refinalized generation. A rebuild re-projects those generations
+// from facts, so a surviving row would let the repo_dependency lane project
+// edges for a generation whose supporting state was wiped — and which a later
+// activation supersedes. The re-projection's intent commits re-advance
+// acceptance from first principles, including the cross-repo resolver runs
+// whose rows this clears alongside the scope-generation runs (#7673).
+const clearSharedProjectionAcceptanceTemplate = `
+DELETE FROM shared_projection_acceptance
+WHERE (scope_id, generation_id) IN (%s)
 `
 
 // retireResolutionGenerationsTemplate supersedes the active relationship
@@ -278,9 +290,14 @@ type Counts struct {
 	// the re-projection never consumes the prior wave's resolved rows as
 	// current truth.
 	GenerationsRetired int
+	// SharedProjectionAcceptanceCleared counts acceptance rows deleted so the
+	// repo_dependency lane cannot project edges for a refinalized generation
+	// from its pre-wipe watermark. The re-projection's intent commits
+	// re-advance acceptance.
+	SharedProjectionAcceptanceCleared int
 }
 
-// ApplyPreRetirement clears the three pieces of dedup state that would otherwise make a
+// ApplyPreRetirement clears the four pieces of dedup state that would otherwise make a
 // rebuild-from-facts stop at source-local structure. It runs inside the caller's
 // transaction so a refinalize either re-enqueues the projector work and reopens
 // its downstream state together, or does neither.
@@ -290,7 +307,7 @@ type Counts struct {
 // projector work. Passing it in rather than re-selecting it is the point: under
 // READ COMMITTED a re-selection could pick up a generation the enqueue never saw.
 //
-// All three statements touch terminal state only, so no live lease is taken away
+// All four statements touch terminal state only, so no live lease is taken away
 // and no claimed item can double-execute.
 func ApplyPreRetirement(
 	ctx context.Context,
@@ -307,6 +324,7 @@ func ApplyPreRetirement(
 		{"delete succeeded reducer work", deleteSucceededReducerWorkTemplate, &counts.ReducerWorkDeleted},
 		{"reopen shared projection intents", reopenSharedIntentsTemplate, &counts.SharedIntentsReopened},
 		{"clear readiness phase state", clearReadinessPhaseStateTemplate, &counts.ReadinessPhasesCleared},
+		{"clear shared projection acceptance", clearSharedProjectionAcceptanceTemplate, &counts.SharedProjectionAcceptanceCleared},
 	} {
 		query, args := buildResetQuery(step.template, generations)
 		result, err := tx.ExecContext(ctx, query, args...)

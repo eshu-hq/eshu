@@ -321,7 +321,7 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 // re-projection at source-local structure; the reset subpackage says
 // which state and why each piece blocks a rebuild.
 //
-// All four statements run in one transaction so a refinalize cannot leave the
+// All five statements run in one transaction so a refinalize cannot leave the
 // queue re-enqueued while its downstream state still says the work is done; that
 // half-applied state is invisible until the graph comes back short. They all
 // bind one generation set, read once at the top -- see
@@ -397,12 +397,13 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	committed = true
 
 	return recovery.RefinalizeResult{
-		Enqueued:               len(scopeIDs),
-		ScopeIDs:               scopeIDs,
-		ReducerWorkDeleted:     counts.ReducerWorkDeleted,
-		SharedIntentsReopened:  counts.SharedIntentsReopened,
-		ReadinessPhasesCleared: counts.ReadinessPhasesCleared,
-		GenerationsRetired:     counts.GenerationsRetired,
-		Skipped:                skipped,
+		Enqueued:                          len(scopeIDs),
+		ScopeIDs:                          scopeIDs,
+		ReducerWorkDeleted:                counts.ReducerWorkDeleted,
+		SharedIntentsReopened:             counts.SharedIntentsReopened,
+		ReadinessPhasesCleared:            counts.ReadinessPhasesCleared,
+		GenerationsRetired:                counts.GenerationsRetired,
+		SharedProjectionAcceptanceCleared: counts.SharedProjectionAcceptanceCleared,
+		Skipped:                           skipped,
 	}, nil
 }

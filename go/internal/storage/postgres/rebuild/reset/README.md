@@ -87,7 +87,7 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   are reclaimable, not in-flight. A resolver still running after expiry cannot
   republish: relationship-generation activation locks and validates its exact
   `(work_item_id, last_attempt_at)` claim and requires the lease to remain live.
-  The relation-wide write pause is recovery-only and bounded by the four reset
+  The relation-wide write pause is recovery-only and bounded by the five reset
   statements plus commit; it does block unrelated queue writes during that
   interval, so its representative lock-hold duration is part of the live proof.
 - **Delete, do not reset to pending.** A pending row is claimable before the
