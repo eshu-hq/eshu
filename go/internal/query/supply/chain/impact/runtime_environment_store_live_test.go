@@ -398,7 +398,7 @@ func TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive(t *testing.T) {
 		t.Fatalf("confirmed digests = %d, want %d", len(got), len(candidates))
 	}
 	if got[digests[0]]["prod"] != RuntimeEnvironmentEvidenceDeployEvent {
-		t.Fatalf("digest 0 evidence = %#v, want deploy_event fold", got[digests[0]])
+		t.Fatalf("digest %s evidence = %#v, want deploy_event fold", digests[0], got[digests[0]])
 	}
 }
 
