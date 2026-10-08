@@ -116,7 +116,9 @@ func observeRepositorySelection(
 		}
 		return
 	case scope.SelectionEvaluationEvaluated:
-		recordSelectionScopesGauge(ctx, inst, outcome)
+		if kind == scope.SelectionSelectorKindGitHubOrg {
+			recordSelectionScopesGauge(ctx, inst, outcome)
+		}
 		if logger != nil {
 			logger.InfoContext(ctx, "git_repository_selection_evaluated",
 				slog.String("selector_kind", kind),

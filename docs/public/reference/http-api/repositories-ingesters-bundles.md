@@ -354,10 +354,11 @@ checks (selection evidence needs a resolved scope) and before `unobserved` (a qu
 repository will never be built). Scoped tokens receive the same shape; a repository outside the caller's
 grant 404s like every other repository route.
 
-Performance Evidence: the single-scope composite read is six tightly-scoped unconditional statements (resolve
+Performance Evidence: the single-scope composite read is six tightly-scoped statements (resolve
 scope, generation lookup, stage counts, shared-projection pending, and the two-statement #7625 selection block:
 observation rows plus per-scope MAX(observed_at)), plus the conditional webhook trigger lookup when a display name
-resolves. The pre-change four-statement core is proven at 2.5ms against a 20,000-scope/150,000-work-item/60,000-shared-intent
+resolves. The MAX(observed_at) leg runs only when observation rows exist (zero rows read `unknown` without it).
+The pre-change four-statement core is proven at 2.5ms against a 20,000-scope/150,000-work-item/60,000-shared-intent
 corpus, with the shared-projection lookup keyed on `repository_id` (0.018ms) rather than `generation_id` alone (2.3ms);
 the additive selection reads are index-bound (the live test records their EXPLAIN plans); see
 `go/internal/storage/postgres/README.md#repo-freshness-single-scope-composite-read-5143`

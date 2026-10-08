@@ -146,6 +146,9 @@ func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID str
 	if err != nil {
 		return statuspkg.RepositorySelection{}, err
 	}
+	if len(rows) == 0 {
+		return statuspkg.ComputeRepositorySelectionState(nil, time.Time{}, time.Now().UTC()), nil
+	}
 	latestObservedAt, err := readLatestGenerationObservedAt(ctx, s.queryer, scopeID)
 	if err != nil {
 		return statuspkg.RepositorySelection{}, err
