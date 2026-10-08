@@ -4,7 +4,7 @@
 package query //nolint:dirgate // B3 root alias shim for #6060: type aliases for the moved repository family must live in package query so the APIRouter wiring and cmd constructors compile unchanged.
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -20,6 +20,6 @@ type RepositoryHandler = repository.Handler
 type CatalogWorkloadIdentityEntry = repository.CatalogWorkloadIdentityEntry
 
 // RepositoryRef is one source-backed repository branch or ref head. Alias
-// onto querycontract; the read-model package and the staying OpenAPI
-// components share it without importing each other.
-type RepositoryRef = querycontract.RepositoryRef
+// onto the querycontract/repository leaf; the read-model package and the
+// staying OpenAPI components share it without importing each other.
+type RepositoryRef = repositorycontract.RepositoryRef

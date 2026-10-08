@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/contentrefs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -171,7 +172,7 @@ func TestRepositoryStoryReadbackKeepsDocsRoutesWithoutHostnameEntrypoints(t *tes
 	t.Parallel()
 
 	response := repository.BuildRepositoryStoryResponse(
-		querycontract.RepoRef{ID: "repo-sample-service-api", Name: "sample-service-api"},
+		repositorycontract.RepoRef{ID: "repo-sample-service-api", Name: "sample-service-api"},
 		1,
 		[]string{"yaml"},
 		nil,

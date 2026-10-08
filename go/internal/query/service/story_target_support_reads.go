@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // This file hosts the operation-gated target-support and target-documentation
@@ -26,8 +27,8 @@ import (
 type serviceStoryTargetSupportStore interface {
 	ServiceStoryTargetSupportEvidence(
 		context.Context,
-		querycontract.ServiceStoryTargetSupportFilter,
-	) (querycontract.ServiceStoryTargetSupportReadModel, error)
+		repository.ServiceStoryTargetSupportFilter,
+	) (repository.ServiceStoryTargetSupportReadModel, error)
 }
 
 // repositoryDefinesWorkloadsCypher lists the Workloads a repository DEFINES,
@@ -44,7 +45,7 @@ type serviceStoryTargetSupportStore interface {
 var repositoryDefinesWorkloadsCypher = `MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
 RETURN w.id AS id
 ORDER BY CASE WHEN id = $workload_id THEN 0 ELSE 1 END, id
-LIMIT ` + strconv.Itoa(querycontract.ServiceStoryRepositoryWorkloadReadLimit)
+LIMIT ` + strconv.Itoa(repository.ServiceStoryRepositoryWorkloadReadLimit)
 
 // TargetSupportLoad is the outcome of one service-story target-support load: the
 // support block plus what the graph gate decided, so the enrichment stage event
@@ -91,9 +92,9 @@ func loadServiceStoryTargetSupportOutcome(
 	if repoID == "" && serviceID == "" {
 		return TargetSupportLoad{}, nil
 	}
-	filter := querycontract.ServiceStoryTargetSupportFilter{
+	filter := repository.ServiceStoryTargetSupportFilter{
 		Repository: repoID,
-		Limit:      querycontract.ServiceStoryTargetSupportLimit,
+		Limit:      repository.ServiceStoryTargetSupportLimit,
 	}
 	var load TargetSupportLoad
 	if serviceID != "" {

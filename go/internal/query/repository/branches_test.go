@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
@@ -72,7 +73,7 @@ func TestGetRepositoryBranchesReturnsSourceBackedRefs(t *testing.T) {
 	handler := &Handler{
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{
 					Name:       "main",
 					Kind:       "branch",
@@ -141,7 +142,7 @@ func TestGetRepositoryBranchesReturnsTagsSeparately(t *testing.T) {
 	handler := &Handler{
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{
 					Name:       "main",
 					Kind:       "branch",
@@ -230,7 +231,7 @@ func TestGetRepositoryBranchesTagSameNameAsBranch(t *testing.T) {
 	handler := &Handler{
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{
 					Name:       "main",
 					Kind:       "branch",
@@ -295,11 +296,11 @@ func TestGetRepositoryBranchesTagsExceedingCapAreTruncated(t *testing.T) {
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
 
-	refs := []querycontract.RepositoryRef{
+	refs := []repository.RepositoryRef{
 		{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 	}
 	for i := 0; i < 600; i++ {
-		refs = append(refs, querycontract.RepositoryRef{
+		refs = append(refs, repository.RepositoryRef{
 			Name:       fmt.Sprintf("v1.%d.0", i),
 			Kind:       "tag",
 			HeadSHA:    "abc123",
@@ -361,7 +362,7 @@ func TestGetRepositoryBranchesTagsWithinCapNotTruncated(t *testing.T) {
 	handler := &Handler{
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 				{Name: "v1.0.0", Kind: "tag", HeadSHA: "abc123", ObservedAt: observedAt, IndexedAt: indexedAt},
 			},

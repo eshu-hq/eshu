@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -85,7 +86,7 @@ func boundaryHoistStore(relationships []map[string]any) *crossRepoDeadCodeConten
 		},
 	}
 	if len(relationships) > 0 {
-		store.RelationshipReadModel = querycontract.RepositoryRelationshipReadModel{
+		store.RelationshipReadModel = repository.RepositoryRelationshipReadModel{
 			Available:     true,
 			Relationships: relationships,
 		}

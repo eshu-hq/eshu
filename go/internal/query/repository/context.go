@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
@@ -54,8 +55,8 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		coverageAttrs = append(coverageAttrs, slog.String("failure_class", contextCoverageDegradedReason))
 	}
 	timer.Done(ctx, coverageAttrs...)
-	readModelCounts := querycontract.LoadRepositoryContextCounts(ctx, h.Content, repoID)
-	relationshipReadModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
+	readModelCounts := repository.LoadRepositoryContextCounts(ctx, h.Content, repoID)
+	relationshipReadModel := repository.LoadRepositoryRelationshipReadModel(ctx, h.Content, repoID)
 	if relationshipReadModel != nil {
 		timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "deployable_unit_relationships")
 		deployableUnitRows, deployableUnitDegraded := queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params)
@@ -95,7 +96,7 @@ func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 		slog.Int("dependency_count", counts.dependencyCount),
 	)
 	result := map[string]any{
-		"repository":       querycontract.RepoRefFromRow(baseRow),
+		"repository":       repository.RepoRefFromRow(baseRow),
 		"file_count":       counts.fileCount,
 		"workload_count":   counts.workloadCount,
 		"platform_count":   counts.platformCount,

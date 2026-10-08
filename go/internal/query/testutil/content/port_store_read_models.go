@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // FakePortContentStore's read-model methods live here, split from
@@ -23,7 +24,7 @@ import (
 func (f FakePortContentStore) RepositoryReadModelSummary(
 	context.Context,
 	string,
-) (querycontract.RepositoryReadModelSummary, error) {
+) (repository.RepositoryReadModelSummary, error) {
 	return f.Summary, nil
 }
 
@@ -31,7 +32,7 @@ func (f FakePortContentStore) RepositoryReadModelSummary(
 func (f FakePortContentStore) RepositoryRelationshipReadModel(
 	context.Context,
 	string,
-) (querycontract.RepositoryRelationshipReadModel, error) {
+) (repository.RepositoryRelationshipReadModel, error) {
 	return f.RelationshipReadModel, nil
 }
 
@@ -39,7 +40,7 @@ func (f FakePortContentStore) RepositoryRelationshipReadModel(
 func (f FakePortContentStore) RepositoryEntryPoints(
 	context.Context,
 	string,
-) (querycontract.RepositoryEntryPointReadModel, error) {
+) (repository.RepositoryEntryPointReadModel, error) {
 	return f.EntryPoints, nil
 }
 
@@ -49,9 +50,9 @@ func (f FakePortContentStore) RepositoryEntryPoints(
 func (f FakePortContentStore) RepositoryDeploymentEvidence(
 	context.Context,
 	string,
-) (querycontract.RepositoryDeploymentEvidenceReadModel, error) {
+) (repository.RepositoryDeploymentEvidenceReadModel, error) {
 	if f.DeploymentEvidenceErr != nil {
-		return querycontract.RepositoryDeploymentEvidenceReadModel{}, f.DeploymentEvidenceErr
+		return repository.RepositoryDeploymentEvidenceReadModel{}, f.DeploymentEvidenceErr
 	}
 	return f.DeploymentEvidence, nil
 }
@@ -60,7 +61,7 @@ func (f FakePortContentStore) RepositoryDeploymentEvidence(
 func (f FakePortContentStore) RelationshipEvidenceByResolvedID(
 	context.Context,
 	string,
-) (querycontract.RelationshipEvidenceReadModel, error) {
+) (repository.RelationshipEvidenceReadModel, error) {
 	return f.RelationshipEvidence, nil
 }
 
@@ -156,8 +157,8 @@ func (f FakePortContentStore) DocumentationEvidencePacketFreshnessWithFilter(
 // was called with.
 func (f FakePortContentStore) ServiceStoryTargetSupportEvidence(
 	_ context.Context,
-	filter querycontract.ServiceStoryTargetSupportFilter,
-) (querycontract.ServiceStoryTargetSupportReadModel, error) {
+	filter repository.ServiceStoryTargetSupportFilter,
+) (repository.ServiceStoryTargetSupportReadModel, error) {
 	if f.TargetSupportFilter != nil {
 		*f.TargetSupportFilter = filter
 	}

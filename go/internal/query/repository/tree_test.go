@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
@@ -182,7 +183,7 @@ func TestGetRepositoryTreeServesSelectedIndexedBranch(t *testing.T) {
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
 			},
 		},
@@ -202,7 +203,7 @@ func TestGetRepositoryTreeServesSelectedIndexedCommitSHA(t *testing.T) {
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{Name: "release", Kind: "branch", HeadSHA: "def456"},
 			},
 		},
@@ -222,7 +223,7 @@ func TestGetRepositoryTreeRejectsUnindexedSelectedBranch(t *testing.T) {
 		Content: content.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    repositoryTreeFixtureFiles(),
-			RepositoryRefs: []querycontract.RepositoryRef{
+			RepositoryRefs: []repository.RepositoryRef{
 				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true},
 				{Name: "release", Kind: "branch", HeadSHA: "def456"},
 			},

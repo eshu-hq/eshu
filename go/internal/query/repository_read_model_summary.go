@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract.
+package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract (now its repository leaf).
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -19,17 +19,17 @@ import (
 // and dependency count. Repository context uses the count-only port for the
 // concrete reader and uses this summary only for legacy stores.
 //
-// It is an alias onto querycontract so the shared ContentStore double can
-// name it from outside this package (#6060). See the querycontract
-// declaration for the Available fallback obligation.
-type RepositoryReadModelSummary = querycontract.RepositoryReadModelSummary
+// It is an alias onto the querycontract/repository leaf so the shared
+// ContentStore double can name it from outside this package (#6060). See the
+// leaf declaration for the Available fallback obligation.
+type RepositoryReadModelSummary = repository.RepositoryReadModelSummary
 
 type repositoryReadModelSummaryStore interface {
 	RepositoryReadModelSummary(context.Context, string) (RepositoryReadModelSummary, error)
 }
 
 func loadRepositoryReadModelSummary(ctx context.Context, content ContentStore, repoID string) *RepositoryReadModelSummary {
-	return querycontract.LoadRepositoryReadModelSummary(ctx, content, repoID)
+	return repository.LoadRepositoryReadModelSummary(ctx, content, repoID)
 }
 
 // RepositoryReadModelSummary resolves repoID's scope ID, workload names,
@@ -71,9 +71,9 @@ func (cr *ContentReader) RepositoryReadModelSummary(ctx context.Context, repoID 
 // RepositoryReadModelCounts reads only the platform and dependency scalars
 // needed by repository context. It keeps the full name summary for story and
 // entity callers, and preserves the same availability rule.
-func (cr *ContentReader) RepositoryReadModelCounts(ctx context.Context, repoID string) (querycontract.RepositoryReadModelCounts, error) {
+func (cr *ContentReader) RepositoryReadModelCounts(ctx context.Context, repoID string) (repository.RepositoryReadModelCounts, error) {
 	if cr == nil || cr.db == nil || repoID == "" {
-		return querycontract.RepositoryReadModelCounts{}, nil
+		return repository.RepositoryReadModelCounts{}, nil
 	}
 	tracer := cr.tracer
 	if tracer == nil {
@@ -87,19 +87,19 @@ func (cr *ContentReader) RepositoryReadModelCounts(ctx context.Context, repoID s
 	scopeID, err := cr.repositoryScopeID(ctx, repoID)
 	if err != nil {
 		span.RecordError(err)
-		return querycontract.RepositoryReadModelCounts{}, err
+		return repository.RepositoryReadModelCounts{}, err
 	}
 	platformCount, err := cr.repositoryPlatformMaterializationCount(ctx, scopeID)
 	if err != nil {
 		span.RecordError(err)
-		return querycontract.RepositoryReadModelCounts{}, err
+		return repository.RepositoryReadModelCounts{}, err
 	}
 	dependencyCount, err := cr.repositoryDependencyCount(ctx, repoID)
 	if err != nil {
 		span.RecordError(err)
-		return querycontract.RepositoryReadModelCounts{}, err
+		return repository.RepositoryReadModelCounts{}, err
 	}
-	return querycontract.RepositoryReadModelCounts{
+	return repository.RepositoryReadModelCounts{
 		Available:       scopeID != "" || dependencyCount > 0,
 		PlatformCount:   platformCount,
 		DependencyCount: dependencyCount,

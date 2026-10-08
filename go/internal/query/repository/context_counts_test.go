@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
@@ -30,7 +31,7 @@ func TestQueryRepositoryWorkloadCountUsesMaterializedGraphWithSummary(t *testing
 				}
 				return []map[string]any{{"count": tc.graphCount}}, nil
 			}}
-			readModelCounts := &querycontract.RepositoryReadModelCounts{Available: true}
+			readModelCounts := &repository.RepositoryReadModelCounts{Available: true}
 			counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
 				&querycontract.RepositoryContentCoverage{Available: true}, readModelCounts)
 			got := counts.workloadCount
@@ -62,7 +63,7 @@ func TestQueryRepositoryWorkloadCountGraphErrorWithSummary(t *testing.T) {
 	}}
 	counts, err := queryRepositoryContextCounts(t.Context(), reader, map[string]any{"repo_id": "repo-1"}, nil,
 		&querycontract.RepositoryContentCoverage{Available: true},
-		&querycontract.RepositoryReadModelCounts{Available: true})
+		&repository.RepositoryReadModelCounts{Available: true})
 	got := counts.workloadCount
 	if got != 0 || !errors.Is(err, querycontract.ErrGraphReadDeadline) {
 		t.Fatalf("workload count = %d, %v; want 0, graph read deadline", got, err)

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
@@ -20,7 +21,7 @@ import (
 var repositoryBaseCypher = fmt.Sprintf(`
 	MATCH (r:Repository {id: $repo_id})
 	RETURN %s
-`, querycontract.RepoProjection("r"))
+`, repository.RepoProjection("r"))
 
 // Handler exposes HTTP routes for repository queries.
 type Handler struct {
@@ -177,7 +178,7 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, access.GraphWhereClause("r"), querycontract.RepoProjection("r"))
+	`, access.GraphWhereClause("r"), repository.RepoProjection("r"))
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, access.GraphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
@@ -269,11 +270,11 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	}
 	repoID = querycontract.StringVal(row, "id")
 
-	repo := querycontract.RepoRefFromRow(row)
+	repo := repository.RepoRefFromRow(row)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "content_coverage")
 	contentCoverage, coverageSummary, coverageErr := h.repositoryStoryContentCoverage(r.Context(), repoID)
 	timer.Done(r.Context(), repositoryStatsCoverageLogAttrs(coverageSummary, coverageErr)...)
-	readModelSummary := querycontract.LoadRepositoryReadModelSummary(r.Context(), h.Content, repoID)
+	readModelSummary := repository.LoadRepositoryReadModelSummary(r.Context(), h.Content, repoID)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "graph_summary")
 	storySummary, err := queryRepositoryStoryGraphSummary(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID}, row, contentCoverage, readModelSummary)
 	if err != nil {
@@ -433,14 +434,14 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 		response["documentation_overview"] = documentationOverview
 	}
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "target_support")
-	targetSupport, err := querycontract.LoadRepositoryStoryTargetSupport(r.Context(), h.Content, repoID)
+	targetSupport, err := repository.LoadRepositoryStoryTargetSupport(r.Context(), h.Content, repoID)
 	timer.Done(
 		r.Context(),
 		slog.Bool("has_result", len(targetSupport) > 0),
 		slog.Int("evidence_count", querycontract.IntVal(targetSupport, "evidence_count")),
 		slog.Int("target_support_incident_routing_count", querycontract.IntVal(targetSupport, "incident_routing_count")),
 		slog.Int("target_support_ambiguous_count", querycontract.IntVal(targetSupport, "ambiguous_count")),
-		slog.String("target_support_missing_reason", querycontract.FirstMissingEvidenceReason(targetSupport)),
+		slog.String("target_support_missing_reason", repository.FirstMissingEvidenceReason(targetSupport)),
 		slog.Bool("error", err != nil),
 	)
 	if err != nil {

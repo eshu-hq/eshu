@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -96,7 +97,7 @@ var (
 var (
 	_ querycontract.RepositoryContextCoverageReadModelStore = (*ContentReader)(nil)
 	_ querycontract.RepositoryFilesIndexedAtReadModelStore  = (*ContentReader)(nil)
-	_ querycontract.RepositoryReadModelCountsStore          = (*ContentReader)(nil)
+	_ repository.RepositoryReadModelCountsStore             = (*ContentReader)(nil)
 )
 
 // EntityContent is one indexed entity and its content metadata.

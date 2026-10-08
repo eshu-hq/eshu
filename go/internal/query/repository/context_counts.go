@@ -5,6 +5,7 @@ package repository
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 import "context"
@@ -28,7 +29,7 @@ func queryRepositoryContextCounts(
 	params map[string]any,
 	fallback map[string]any,
 	contentCoverage *querycontract.RepositoryContentCoverage,
-	readModelCounts *querycontract.RepositoryReadModelCounts,
+	readModelCounts *repository.RepositoryReadModelCounts,
 ) (repositoryContextCounts, error) {
 	fileCount, err := queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage)
 	if err != nil {
@@ -57,11 +58,11 @@ func queryRepositoryContextCounts(
 
 // countsAsSummary adapts the context-only scalars to the shared story count
 // helpers without changing story's workload-name read model.
-func countsAsSummary(counts *querycontract.RepositoryReadModelCounts) *querycontract.RepositoryReadModelSummary {
+func countsAsSummary(counts *repository.RepositoryReadModelCounts) *repository.RepositoryReadModelSummary {
 	if counts == nil {
 		return nil
 	}
-	return &querycontract.RepositoryReadModelSummary{
+	return &repository.RepositoryReadModelSummary{
 		Available:       counts.Available,
 		PlatformCount:   counts.PlatformCount,
 		DependencyCount: counts.DependencyCount,
@@ -85,7 +86,7 @@ func queryRepositoryPlatformCount(
 	reader querycontract.GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
+	readModelSummary *repository.RepositoryReadModelSummary,
 ) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.PlatformCount, nil
@@ -103,7 +104,7 @@ func queryRepositoryDependencyCount(
 	reader querycontract.GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
+	readModelSummary *repository.RepositoryReadModelSummary,
 ) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.DependencyCount, nil

@@ -14,18 +14,19 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type contextCountPortStore struct {
 	fakePortContentStore
-	counts querycontract.RepositoryReadModelCounts
+	counts repository.RepositoryReadModelCounts
 	err    error
 	calls  int
 }
 
-func (s *contextCountPortStore) RepositoryReadModelCounts(_ context.Context, _ string) (querycontract.RepositoryReadModelCounts, error) {
+func (s *contextCountPortStore) RepositoryReadModelCounts(_ context.Context, _ string) (repository.RepositoryReadModelCounts, error) {
 	s.calls++
 	return s.counts, s.err
 }
@@ -35,7 +36,7 @@ func (s *contextCountPortStore) RepositoryReadModelSummary(context.Context, stri
 }
 
 func TestRepositoryContextUsesCountPortAndPreservesGraphWorkloadTruth(t *testing.T) {
-	store := &contextCountPortStore{counts: querycontract.RepositoryReadModelCounts{Available: true, PlatformCount: 0, DependencyCount: 0}}
+	store := &contextCountPortStore{counts: repository.RepositoryReadModelCounts{Available: true, PlatformCount: 0, DependencyCount: 0}}
 	store.coverage = RepositoryContentCoverage{Available: true, FileCount: 7}
 	h := &RepositoryHandler{Content: store, Neo4j: fakeRepoGraphReader{
 		runSingle: func(context.Context, string, map[string]any) (map[string]any, error) {
@@ -131,7 +132,7 @@ func TestContentReaderRepositoryReadModelCountsRequiredReadError(t *testing.T) {
 func TestRepositoryContextCountPortFailureUsesGraphWithoutSummaryRetry(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		counts querycontract.RepositoryReadModelCounts
+		counts repository.RepositoryReadModelCounts
 		err    error
 	}{
 		{name: "unavailable"},
@@ -204,11 +205,11 @@ func TestRepositoryContextCountPortLegacySummaryCompatibility(t *testing.T) {
 	legacy := fakePortContentStore{summary: RepositoryReadModelSummary{
 		Available: true, WorkloadNames: []string{"story-name"}, PlatformCount: 3, DependencyCount: 4,
 	}}
-	got := querycontract.LoadRepositoryContextCounts(t.Context(), legacy, "repo-one")
+	got := repository.LoadRepositoryContextCounts(t.Context(), legacy, "repo-one")
 	if got == nil || !got.Available || got.PlatformCount != 3 || got.DependencyCount != 4 {
 		t.Fatalf("legacy counts = %+v, want 3 platform and 4 dependency", got)
 	}
-	if got := querycontract.LoadRepositoryContextCounts(t.Context(), legacy, ""); got != nil {
+	if got := repository.LoadRepositoryContextCounts(t.Context(), legacy, ""); got != nil {
 		t.Fatalf("empty repo counts = %+v, want nil", got)
 	}
 }

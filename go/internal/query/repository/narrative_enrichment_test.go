@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
@@ -129,7 +130,7 @@ func TestEnrichRepositoryStoryResponseWithEvidenceAddsNarrativeOverviews(t *test
 	t.Parallel()
 
 	response := buildRepositoryStoryResponse(
-		querycontract.RepoRef{
+		repository.RepoRef{
 			ID:        "repository:sample-app",
 			Name:      "sample-app",
 			LocalPath: "/workspace/sample-app",

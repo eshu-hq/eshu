@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package repository
 
 import (
 	"context"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // The repository-story and evidence read models live here for the same reason
@@ -87,7 +89,7 @@ type RepositoryEntryPointReadModelStore interface {
 // content store can answer the narrow query directly. It lives here for the
 // same reason as the port above; root keeps an unexported forwarder so its
 // stayers and read-model tripwires compile unchanged.
-func LoadRepositoryEntryPoints(ctx context.Context, content ContentStore, repoID string) []map[string]any {
+func LoadRepositoryEntryPoints(ctx context.Context, content querycontract.ContentStore, repoID string) []map[string]any {
 	store, ok := content.(RepositoryEntryPointReadModelStore)
 	if !ok || repoID == "" {
 		return nil
@@ -122,18 +124,18 @@ type ServiceStoryTargetSupportStore interface {
 // carries no reason. The story stage events log it so an operator can see why a
 // story shows no support without reading the response.
 func FirstMissingEvidenceReason(support map[string]any) string {
-	missing := MapSliceValue(support, "missing_evidence")
+	missing := querycontract.MapSliceValue(support, "missing_evidence")
 	if len(missing) == 0 {
 		return ""
 	}
-	return StringVal(missing[0], "reason")
+	return querycontract.StringVal(missing[0], "reason")
 }
 
 // LoadRepositoryStoryTargetSupport returns target-support evidence for one
 // repository when the content store can answer the narrow query directly.
 // It lives here for the same reason as the port above; root keeps an
 // unexported forwarder so its stayers compile unchanged.
-func LoadRepositoryStoryTargetSupport(ctx context.Context, content ContentStore, repoID string) (map[string]any, error) {
+func LoadRepositoryStoryTargetSupport(ctx context.Context, content querycontract.ContentStore, repoID string) (map[string]any, error) {
 	store, ok := content.(ServiceStoryTargetSupportStore)
 	if !ok || store == nil {
 		return nil, nil

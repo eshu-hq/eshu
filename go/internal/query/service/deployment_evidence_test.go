@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
@@ -25,7 +26,7 @@ func TestQueryServiceDeploymentEvidenceUsesReadModelBeforeGraphFallback(t *testi
 		},
 	}
 	content := content.FakePortContentStore{
-		DeploymentEvidence: querycontract.RepositoryDeploymentEvidenceReadModel{
+		DeploymentEvidence: repository.RepositoryDeploymentEvidenceReadModel{
 			Available: true,
 			Rows: []map[string]any{
 				{

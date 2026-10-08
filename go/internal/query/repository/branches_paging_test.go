@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
@@ -21,14 +22,14 @@ import (
 // DESC, ref_kind ASC, name ASC): one default branch "main", branchCount-1
 // non-default branches "branch-NNN", then tagCount tags "tag-NNN", all
 // zero-padded so string sort matches numeric sequence.
-func buildPagedRefFixture(branchCount, tagCount int) []querycontract.RepositoryRef {
+func buildPagedRefFixture(branchCount, tagCount int) []repository.RepositoryRef {
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
-	refs := []querycontract.RepositoryRef{
+	refs := []repository.RepositoryRef{
 		{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 	}
 	for i := 0; i < branchCount-1; i++ {
-		refs = append(refs, querycontract.RepositoryRef{
+		refs = append(refs, repository.RepositoryRef{
 			Name:       fmt.Sprintf("branch-%03d", i),
 			Kind:       "branch",
 			HeadSHA:    fmt.Sprintf("sha-b-%03d", i),
@@ -37,7 +38,7 @@ func buildPagedRefFixture(branchCount, tagCount int) []querycontract.RepositoryR
 		})
 	}
 	for i := 0; i < tagCount; i++ {
-		refs = append(refs, querycontract.RepositoryRef{
+		refs = append(refs, repository.RepositoryRef{
 			Name:       fmt.Sprintf("tag-%03d", i),
 			Kind:       "tag",
 			HeadSHA:    fmt.Sprintf("sha-t-%03d", i),
@@ -280,7 +281,7 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 	badVersion := readmodel.RefPageCursor{Version: 3, RepoID: "repo-1", Kind: "branch", Name: "main"}
 	badVersionCursor := marshalCursorForTest(t, badVersion)
 
-	wrongRepoCursor := readmodel.EncodeRepositoryRefPageCursor("repo-other", querycontract.RepositoryRef{Name: "main", Kind: "branch", Default: true})
+	wrongRepoCursor := readmodel.EncodeRepositoryRefPageCursor("repo-other", repository.RepositoryRef{Name: "main", Kind: "branch", Default: true})
 
 	unknownKind := readmodel.RefPageCursor{Version: readmodel.RefPageCursorVersion, RepoID: "repo-1", Kind: "commit", Name: "x"}
 	unknownKindCursor := marshalCursorForTest(t, unknownKind)
@@ -317,7 +318,7 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 
 	// Sanity: a validly-encoded cursor for the right repo, right version,
 	// known kind does NOT 400.
-	validCursor := readmodel.EncodeRepositoryRefPageCursor("repo-1", querycontract.RepositoryRef{Name: "main", Kind: "branch", Default: true})
+	validCursor := readmodel.EncodeRepositoryRefPageCursor("repo-1", repository.RepositoryRef{Name: "main", Kind: "branch", Default: true})
 	w := requestRepositoryBranches(t, newHandler(), "/api/v0/repositories/repo-1/branches?cursor="+validCursor)
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("valid cursor status = %d, want %d; body = %s", got, want, w.Body.String())
@@ -345,14 +346,14 @@ func TestGetRepositoryBranchesPagingChurnBetweenPages(t *testing.T) {
 
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
-	branchA := querycontract.RepositoryRef{Name: "branch-000", Kind: "branch", HeadSHA: "sha-a", ObservedAt: observedAt, IndexedAt: indexedAt}
-	branchB := querycontract.RepositoryRef{Name: "branch-001", Kind: "branch", HeadSHA: "sha-b", ObservedAt: observedAt, IndexedAt: indexedAt}
-	main := querycontract.RepositoryRef{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt}
+	branchA := repository.RepositoryRef{Name: "branch-000", Kind: "branch", HeadSHA: "sha-a", ObservedAt: observedAt, IndexedAt: indexedAt}
+	branchB := repository.RepositoryRef{Name: "branch-001", Kind: "branch", HeadSHA: "sha-b", ObservedAt: observedAt, IndexedAt: indexedAt}
+	main := repository.RepositoryRef{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt}
 
 	handler := &Handler{
 		Content: content.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-			RepositoryRefs: []querycontract.RepositoryRef{main, branchA, branchB},
+			RepositoryRefs: []repository.RepositoryRef{main, branchA, branchB},
 		},
 	}
 	page1 := pagedBranchesResponse(t, handler, "/api/v0/repositories/repo-1/branches?limit=1")
@@ -368,7 +369,7 @@ func TestGetRepositoryBranchesPagingChurnBetweenPages(t *testing.T) {
 	// Simulate churn: branch-001 (not yet returned) is deleted before page 2.
 	handler.Content = content.FakePortContentStore{
 		Repositories:   []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-		RepositoryRefs: []querycontract.RepositoryRef{main, branchA},
+		RepositoryRefs: []repository.RepositoryRef{main, branchA},
 	}
 
 	page2 := pagedBranchesResponse(t, handler, "/api/v0/repositories/repo-1/branches?limit=1&cursor="+cursor)
@@ -393,7 +394,7 @@ func TestGetRepositoryBranchesPagingDefaultChurnNoDupSkip(t *testing.T) {
 
 	// Page 1: "main" is the default branch. In real Postgres output this
 	// sorts (is_default DESC, ref_kind, name) as [main, alpha].
-	page1Refs := []querycontract.RepositoryRef{
+	page1Refs := []repository.RepositoryRef{
 		{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 		{Name: "alpha", Kind: "branch", HeadSHA: "sha-alpha", Default: false, ObservedAt: observedAt, IndexedAt: indexedAt},
 	}
@@ -418,7 +419,7 @@ func TestGetRepositoryBranchesPagingDefaultChurnNoDupSkip(t *testing.T) {
 	// moves. Real Postgres output for this state sorts as [alpha, main].
 	handler.Content = content.FakePortContentStore{
 		Repositories: []querycontract.RepositoryCatalogEntry{testutil.RepositoryStatsCatalogEntry()},
-		RepositoryRefs: []querycontract.RepositoryRef{
+		RepositoryRefs: []repository.RepositoryRef{
 			{Name: "alpha", Kind: "branch", HeadSHA: "sha-alpha", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 			{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: false, ObservedAt: observedAt, IndexedAt: indexedAt},
 		},

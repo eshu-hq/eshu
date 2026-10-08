@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func queryRepoDeployableUnitRelationshipOverview(
@@ -59,14 +60,14 @@ func queryRepoDeployableUnitRelationshipOverview(
 }
 
 func mergeRepositoryDeployableUnitRelationships(
-	readModel *querycontract.RepositoryRelationshipReadModel,
+	readModel *repository.RepositoryRelationshipReadModel,
 	supplemental []map[string]any,
-) *querycontract.RepositoryRelationshipReadModel {
+) *repository.RepositoryRelationshipReadModel {
 	if readModel == nil || len(supplemental) == 0 {
 		return readModel
 	}
 	relationships := mergeRepositoryRelationshipRows(readModel.Relationships, supplemental)
-	return &querycontract.RepositoryRelationshipReadModel{
+	return &repository.RepositoryRelationshipReadModel{
 		Available:     readModel.Available,
 		Relationships: relationships,
 		Consumers:     repositoryConsumersFromRelationships(relationships),

@@ -9,10 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func BuildRepositoryStoryResponse(
-	repo querycontract.RepoRef,
+	repo repository.RepoRef,
 	fileCount int,
 	languages []string,
 	workloads []string,
@@ -52,7 +53,7 @@ func BuildRepositoryStoryResponse(
 // directly, not the limitations slice) stop answering
 // answer_metadata.truncated=false when either read was actually clipped.
 func BuildRepositoryStoryResponseWithCoverage(
-	repo querycontract.RepoRef,
+	repo repository.RepoRef,
 	fileCount int,
 	languages []string,
 	workloads []string,
@@ -229,7 +230,7 @@ func repositoryDeploymentSurfaceKnown(
 }
 
 func buildRepositoryStory(
-	repo querycontract.RepoRef,
+	repo repository.RepoRef,
 	fileCount int,
 	languages []string,
 	workloads []string,
@@ -350,7 +351,7 @@ func mergeStringSets(left []string, right []string) []string {
 // buildRepositoryStoryResponseWithCoverage keeps the in-package spelling after
 // the #6060 export; root tests name BuildRepositoryStoryResponseWithCoverage.
 func buildRepositoryStoryResponseWithCoverage(
-	repo querycontract.RepoRef,
+	repo repository.RepoRef,
 	fileCount int,
 	languages []string,
 	workloads []string,
@@ -368,7 +369,7 @@ func buildRepositoryStoryResponseWithCoverage(
 // buildRepositoryStoryResponse keeps the in-package spelling after the #6060
 // export; root tests name BuildRepositoryStoryResponse.
 func buildRepositoryStoryResponse(
-	repo querycontract.RepoRef,
+	repo repository.RepoRef,
 	fileCount int,
 	languages []string,
 	workloads []string,

@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func (a *Analyzer) crossRepoDeadCodeRepositoryBoundaryEvidence(
 	ctx context.Context,
 	producerRepoID string,
 ) []CrossRepoDeadCodeEvidence {
-	readModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, a.deps.Content, producerRepoID)
+	readModel := repository.LoadRepositoryRelationshipReadModel(ctx, a.deps.Content, producerRepoID)
 	if readModel == nil {
 		return nil
 	}

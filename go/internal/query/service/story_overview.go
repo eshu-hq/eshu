@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/answer"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -327,10 +328,10 @@ func buildServiceDocumentationOverview(
 	if graph != nil && repoID != "" {
 		row, err := graph.RunSingle(ctx, fmt.Sprintf(
 			`MATCH (r:Repository {id: $repo_id}) RETURN %s`,
-			querycontract.RepoProjection("r"),
+			repository.RepoProjection("r"),
 		), map[string]any{"repo_id": repoID})
 		if err == nil && row != nil {
-			repo := querycontract.RepoRefFromRow(row)
+			repo := repository.RepoRefFromRow(row)
 			overview["remote_url"] = repo.RemoteURL
 			overview["repo_slug"] = repo.RepoSlug
 			overview["has_remote"] = repo.HasRemote

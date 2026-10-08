@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // DeploymentEvidenceStore is the narrow optional port a
@@ -16,7 +17,7 @@ import (
 // both, so the fast-path assertion below resolves exactly as it did before
 // the move (#6060, lane B B3).
 type DeploymentEvidenceStore interface {
-	RepositoryDeploymentEvidence(context.Context, string) (querycontract.RepositoryDeploymentEvidenceReadModel, error)
+	RepositoryDeploymentEvidence(context.Context, string) (repository.RepositoryDeploymentEvidenceReadModel, error)
 }
 
 // LoadRepositoryDeploymentEvidence returns the Postgres read-model fast

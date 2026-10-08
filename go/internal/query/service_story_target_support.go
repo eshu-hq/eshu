@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/support"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-const serviceStoryTargetSupportLimit = querycontract.ServiceStoryTargetSupportLimit
+const serviceStoryTargetSupportLimit = repository.ServiceStoryTargetSupportLimit
 
 // The row read links a support fact to a target through durable keys the support
 // writers emit: payload->>'linked_repository_id' on a work_item.external_link
@@ -52,8 +53,8 @@ type serviceStoryTargetSupportStore interface {
 // this package's call sites keep their unexported spelling while a
 // ContentStore double outside package query can still name them (#6060).
 type (
-	serviceStoryTargetSupportFilter    = querycontract.ServiceStoryTargetSupportFilter
-	serviceStoryTargetSupportReadModel = querycontract.ServiceStoryTargetSupportReadModel
+	serviceStoryTargetSupportFilter    = repository.ServiceStoryTargetSupportFilter
+	serviceStoryTargetSupportReadModel = repository.ServiceStoryTargetSupportReadModel
 )
 
 // ServiceStoryTargetSupportEvidence reads the support-evidence rows of the
@@ -474,7 +475,7 @@ func serviceStorySupportMissingEvidence(
 
 // storySupportWorkloadCountPhrase words the bounded DEFINES count ("at least" at the bound).
 func storySupportWorkloadCountPhrase(count int) string {
-	if count >= querycontract.ServiceStoryRepositoryWorkloadReadLimit {
+	if count >= repository.ServiceStoryRepositoryWorkloadReadLimit {
 		return fmt.Sprintf("at least %d workloads", count)
 	}
 	return fmt.Sprintf("%d workloads", count)

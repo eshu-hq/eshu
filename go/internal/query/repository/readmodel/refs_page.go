@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // RefPageDefaultLimit is the page size applied when the caller
@@ -56,7 +56,7 @@ type RefPageCursor struct {
 
 // EncodeRepositoryRefPageCursor renders ref's (kind, name) sort key as an
 // opaque forward-only page token scoped to repoID.
-func EncodeRepositoryRefPageCursor(repoID string, ref querycontract.RepositoryRef) string {
+func EncodeRepositoryRefPageCursor(repoID string, ref repository.RepositoryRef) string {
 	cursor := RefPageCursor{
 		Version: RefPageCursorVersion,
 		RepoID:  repoID,
@@ -97,7 +97,7 @@ func DecodeRepositoryRefPageCursor(raw, repoID string) (RefPageCursor, error) {
 // RefSortKey projects ref onto the same (kind, name) key shape as a
 // decoded cursor, so a ref and a cursor can be compared with
 // RefKeyLess.
-func RefSortKey(ref querycontract.RepositoryRef) RefPageCursor {
+func RefSortKey(ref repository.RepositoryRef) RefPageCursor {
 	return RefPageCursor{
 		Kind: ref.Kind,
 		Name: ref.Name,
@@ -124,7 +124,7 @@ func RefKeyLess(a, b RefPageCursor) bool {
 // non-ASCII ref names differently than Go's byte-wise string comparison)
 // with the comparator windowing actually applies, closing a latent
 // collation-vs-Go-order dup/skip for such names.
-func SortRepositoryRefsForPaging(refs []querycontract.RepositoryRef) {
+func SortRepositoryRefsForPaging(refs []repository.RepositoryRef) {
 	sort.Slice(refs, func(i, j int) bool {
 		return RefKeyLess(RefSortKey(refs[i]), RefSortKey(refs[j]))
 	})
@@ -141,7 +141,7 @@ func SortRepositoryRefsForPaging(refs []querycontract.RepositoryRef) {
 // truncated is true exactly when more refs exist beyond window, and nextCursor -- set
 // only when truncated -- is window's last ref's own sort key, so paging
 // forward never skips or repeats a ref regardless of concurrent ref churn.
-func RefPageWindow(repoID string, refs []querycontract.RepositoryRef, cursor *RefPageCursor, limit int) (window, remainder []querycontract.RepositoryRef, truncated bool, nextCursor string) {
+func RefPageWindow(repoID string, refs []repository.RepositoryRef, cursor *RefPageCursor, limit int) (window, remainder []repository.RepositoryRef, truncated bool, nextCursor string) {
 	start := 0
 	if cursor != nil {
 		for start < len(refs) && !RefKeyLess(*cursor, RefSortKey(refs[start])) {
@@ -163,7 +163,7 @@ func RefPageWindow(repoID string, refs []querycontract.RepositoryRef, cursor *Re
 // tag wire entries, preserving the window's relative order. A window may
 // span the branch/tag boundary (all branches sort before all tags -- kind
 // ASCENDING), so both slices are populated from a single pass.
-func RefWindowEntries(window []querycontract.RepositoryRef) (branches, tags []map[string]any) {
+func RefWindowEntries(window []repository.RepositoryRef) (branches, tags []map[string]any) {
 	branches = make([]map[string]any, 0)
 	tags = make([]map[string]any, 0)
 	for _, ref := range window {
@@ -180,7 +180,7 @@ func RefWindowEntries(window []querycontract.RepositoryRef) (branches, tags []ma
 // RefsContainTag reports whether refs contains at least one tag
 // entry. Used to derive the deprecated tags_truncated field from the exact
 // in-memory remainder rather than re-deriving a separate tag-only cap.
-func RefsContainTag(refs []querycontract.RepositoryRef) bool {
+func RefsContainTag(refs []repository.RepositoryRef) bool {
 	for _, ref := range refs {
 		if ref.Kind == "tag" {
 			return true
