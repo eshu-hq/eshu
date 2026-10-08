@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -327,4 +328,37 @@ func TestScaleCanaryBoundCoversCommittedG7Spread(t *testing.T) {
 	if scaleDefaultControlMaxSeconds <= max {
 		t.Fatalf("canary bound %.2f does not cover the committed bare_b max %.2f over %d rounds", scaleDefaultControlMaxSeconds, max, n)
 	}
+}
+
+// TestScaleBaseRefEnvWins: an explicit base ref needs no git resolution.
+func TestScaleBaseRefEnvWins(t *testing.T) {
+	t.Setenv(scaleBaseRefEnv, "deadbeef")
+	if got := scaleBaseRef(t); got != "deadbeef" {
+		t.Fatalf("base ref = %q, want the env value", got)
+	}
+}
+
+// TestDeclareScaleHostWritesGateFile: the PD1 record carries the label and
+// the host's uptime line.
+func TestDeclareScaleHostWritesGateFile(t *testing.T) {
+	path := t.TempDir() + "/gate.log"
+	t.Setenv(scaleGateFileEnv, path)
+	declareScaleHost(t, "test-label")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("gate file: %v", err)
+	}
+	if !strings.Contains(string(raw), "== test-label ") {
+		t.Fatalf("gate file lacks the label line:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "load average") {
+		t.Fatalf("gate file lacks the uptime line:\n%s", raw)
+	}
+}
+
+// TestDeclareScaleHostWithoutGateFileIsNoOp: unset gate file, nothing to
+// declare and no failure.
+func TestDeclareScaleHostWithoutGateFileIsNoOp(t *testing.T) {
+	t.Setenv(scaleGateFileEnv, "")
+	declareScaleHost(t, "test-label")
 }
