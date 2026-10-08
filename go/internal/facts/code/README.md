@@ -81,7 +81,8 @@ own their own telemetry (see their READMEs).
 ## Evidence
 
 No-Regression Evidence (#6950 batch 1, code family): this change moves the
-seven `code.*` fact-kind constants' Go importers off the transitional
+seven `code.*` compat entries' Go importers (six fact-kind constants and
+the `FlowReadFactKinds` function) off the transitional
 `facts.Code*` compat spellings and deletes the emptied `compat_code.go`. No
 fact-kind string, payload shape, registry entry, or executable statement
 changes: across 44 files, every production hunk requalifies an identifier or
