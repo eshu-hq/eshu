@@ -125,7 +125,7 @@ Edge cases the tests actually cover.
 | Unused function has no dead_code_root_kinds | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
 | Private helper method in Controller has no dead_code_root_kinds | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` |
 | Controller method without route backing is not rooted as controller action | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPEmitsDeadCodeRootKinds` (supportOnly) |
-| Public `*Action` method on a class extending `Zend_Controller_Action` is rooted as `php.zf1_controller_action`; private, bare `Action`, and non-Zend `*Action` methods are not | `php/zf1_roots_test.go:TestDefaultEngineParsePathPHPZF1ControllerActionsAreRoots` |
+| Public `*Action` method on a class directly extending `Zend_Controller_Action` is rooted as `php.zf1_controller_action`; private, bare `Action`, non-Zend, and indirect-inheritance `*Action` methods are not | `php/php_dead_code_roots_test.go:TestDefaultEngineParsePathPHPZF1ControllerActionsAreRoots` |
 | `__invoke` is rooted as `php.magic_method` | `php/php_dead_code_roots_test.go` (both test 1 and test 5) |
 | Parenthesized receiver `($expr)->method()` resolves type through chain | `php/php_language_parenthesized_receiver_test.go:TestDefaultEngineParsePathPHPInfersParenthesizedMethodReturnCallChainReceiverCalls` |
 | Self/static resolution in `new self()` / `new static()` chains | `php/php_language_self_static_new_test.go:TestDefaultEngineParsePathPHPInfersSelfAndStaticInstantiationReceiverCalls` |

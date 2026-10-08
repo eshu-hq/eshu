@@ -314,3 +314,83 @@ func TestDefaultEngineParsePathPHPDeadCodeFixtureExpectedRoots(t *testing.T) {
 		t.Fatalf("PublicPhpController.helper dead_code_root_kinds = %#v, want nil", helper["dead_code_root_kinds"])
 	}
 }
+
+func TestDefaultEngineParsePathPHPZF1ControllerActionsAreRoots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	sourcePath := filepath.Join(repoRoot, "controllers.php")
+	parsertest.WriteFile(
+		t,
+		sourcePath,
+		`<?php
+class UserController extends Zend_Controller_Action {
+    public function indexAction(): void {
+    }
+
+    public function showAction(): void {
+    }
+
+    public function helperMethod(): void {
+    }
+
+    private function secretAction(): void {
+    }
+
+    public function Action(): void {
+    }
+}
+
+class AdminController extends \Zend_Controller_Action {
+    public function listAction(): void {
+    }
+}
+
+class PlainController {
+    public function indexAction(): void {
+    }
+}
+
+class MidBase extends Zend_Controller_Action {
+}
+
+class IndirectController extends MidBase {
+    public function editAction(): void {
+    }
+}
+`,
+	)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("parser.DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, sourcePath, false, parser.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v, want nil", sourcePath, err)
+	}
+
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "indexAction", "UserController"), "dead_code_root_kinds", "php.zf1_controller_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "showAction", "UserController"), "dead_code_root_kinds", "php.zf1_controller_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "listAction", "AdminController"), "dead_code_root_kinds", "php.zf1_controller_action")
+
+	for _, tc := range []struct {
+		name         string
+		classContext string
+	}{
+		{name: "helperMethod", classContext: "UserController"},
+		{name: "secretAction", classContext: "UserController"},
+		{name: "Action", classContext: "UserController"},
+		{name: "indexAction", classContext: "PlainController"},
+		// IndirectController inherits the Zend base through MidBase in the
+		// same file; only direct same-file bases are visible, so its action
+		// is a known miss (see phpIsZF1ControllerAction).
+		{name: "editAction", classContext: "IndirectController"},
+	} {
+		function := parsertest.AssertFunctionByNameAndClass(t, got, tc.name, tc.classContext)
+		if function["dead_code_root_kinds"] != nil {
+			t.Fatalf("%s.%s dead_code_root_kinds = %#v, want nil", tc.classContext, tc.name, function["dead_code_root_kinds"])
+		}
+	}
+}
