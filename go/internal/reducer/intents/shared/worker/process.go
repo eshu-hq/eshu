@@ -83,7 +83,12 @@ type PartitionProcessResult struct {
 	// SupersededGenerationIntents is the subset of StaleIntents drained because
 	// the intent's scope generation is superseded (#7121). The rest are
 	// acceptance mismatches.
-	SupersededGenerationIntents       int
+	SupersededGenerationIntents int
+	// CoveredByFullSuccessorIntents is the subset of StaleIntents drained
+	// because the intent's superseded generation is covered by a newer
+	// emitted full generation (#7165). Only the code_calls and
+	// repo_dependency lanes set it; the shared runner leaves it zero.
+	CoveredByFullSuccessorIntents     int
 	BlockedReadiness                  int
 	MaxIntentWaitSeconds              float64
 	MaxBlockedIntentWaitSeconds       float64

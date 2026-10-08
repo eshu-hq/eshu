@@ -44,6 +44,13 @@ generation ids. The port is optional: a nil or
 non-implementing reader must stay byte-identical, and a lookup error must
 fail the selection rather than drop or keep rows.
 
+**The #7165 emitted-full-successor drain is a separate drain with a separate
+safety case.** `SplitCoveredByFullSuccessorRows` serves ONLY the code_calls
+and repo_dependency lanes (whose emitters prove atomic per-generation
+emission); it never runs in `SelectPartitionBatch`, and the blocked-only rule
+above still governs that path unchanged. Do not extend the #7165 port to a
+shared-runner domain without that domain's own emission proof.
+
 **Do not reorder the heartbeat stop before the lease release in
 `ProcessPartitionOnce`.** `stopHeartbeat()` must run first, and
 `ReleasePartitionLease` must use the pre-heartbeat context (`releaseCtx`),

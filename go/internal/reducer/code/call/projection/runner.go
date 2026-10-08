@@ -106,72 +106,6 @@ type RefreshFenceLookup interface {
 	) (bool, error)
 }
 
-// RunnerConfig configures the controlled code-calls lane.
-type RunnerConfig struct {
-	LeaseOwner          string
-	PollInterval        time.Duration
-	LeaseTTL            time.Duration
-	BatchLimit          int
-	AcceptanceScanLimit int
-	PartitionCount      int
-	Workers             int
-}
-
-func (c RunnerConfig) pollInterval() time.Duration {
-	if c.PollInterval <= 0 {
-		return worker.DefaultPollInterval
-	}
-	return c.PollInterval
-}
-
-func (c RunnerConfig) leaseTTL() time.Duration {
-	if c.LeaseTTL <= 0 {
-		return worker.DefaultLeaseTTL
-	}
-	return c.LeaseTTL
-}
-
-func (c RunnerConfig) batchLimit() int {
-	if c.BatchLimit <= 0 {
-		return worker.DefaultBatchLimit
-	}
-	return c.BatchLimit
-}
-
-func (c RunnerConfig) partitionCount() int {
-	if c.PartitionCount <= 0 {
-		return 1
-	}
-	return c.PartitionCount
-}
-
-func (c RunnerConfig) workers() int {
-	if c.Workers <= 0 {
-		return 1
-	}
-	if c.Workers > c.partitionCount() {
-		return c.partitionCount()
-	}
-	return c.Workers
-}
-
-func (c RunnerConfig) acceptanceScanLimit() int {
-	if c.AcceptanceScanLimit <= 0 {
-		return DefaultAcceptanceScanLimit
-	}
-	if c.AcceptanceScanLimit < c.batchLimit() {
-		return c.batchLimit()
-	}
-	return c.AcceptanceScanLimit
-}
-
-func (c RunnerConfig) leaseOwner() string {
-	if c.LeaseOwner == "" {
-		return DefaultLeaseOwnerPrefix
-	}
-	return c.LeaseOwner
-}
-
 // Runner processes code-call shared intents one repo/run at a time.
 type Runner struct {
 	IntentReader        IntentReader
@@ -412,6 +346,25 @@ func (r *Runner) processPartitionOnce(
 
 	active, staleIDs := worker.FilterAuthoritativeIntents(rows, lookup)
 	acceptanceTelemetry.RecordStaleIntents(ctx, "code_call_projection", reducercontract.DomainCodeCalls, len(staleIDs))
+
+	// Drain rows covered by a newer emitted full generation (#7165): the
+	// successor re-emits their edges, so replaying them would be a wasted
+	// retract/write cycle. Drained rows join the stale set and are marked
+	// completed without a write; a lookup error fails the cycle instead of
+	// guessing.
+	kept, drainable, err := worker.SplitCoveredByFullSuccessorRows(ctx, r.IntentReader, reducercontract.DomainCodeCalls, active)
+	if err != nil {
+		return worker.PartitionProcessResult{
+			LeaseAcquired:             true,
+			LeaseClaimDurationSeconds: leaseClaimDuration,
+			SelectionDurationSeconds:  selection.SelectionDurationSeconds,
+		}, fmt.Errorf("split generations covered by emitted full successor: %w", err)
+	}
+	for _, row := range drainable {
+		staleIDs = append(staleIDs, row.IntentID)
+	}
+	active = kept
+	acceptanceTelemetry.RecordCoveredByFullSuccessorIntents(ctx, "code_call_projection", reducercontract.DomainCodeCalls, len(drainable))
 	if len(active) == 0 && len(staleIDs) == 0 {
 		result := worker.PartitionProcessResult{
 			LeaseAcquired:               true,
@@ -426,12 +379,14 @@ func (r *Runner) processPartitionOnce(
 	}
 
 	result = worker.PartitionProcessResult{
-		LeaseAcquired:               true,
-		BlockedReadiness:            selection.BlockedReadiness,
-		MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
-		LeaseClaimDurationSeconds:   leaseClaimDuration,
-		SelectionDurationSeconds:    selection.SelectionDurationSeconds,
-		SelectionPhases:             selection.SelectionPhases,
+		LeaseAcquired:                 true,
+		BlockedReadiness:              selection.BlockedReadiness,
+		MaxBlockedIntentWaitSeconds:   selection.MaxBlockedIntentWaitSeconds,
+		LeaseClaimDurationSeconds:     leaseClaimDuration,
+		SelectionDurationSeconds:      selection.SelectionDurationSeconds,
+		SelectionPhases:               selection.SelectionPhases,
+		StaleIntents:                  len(staleIDs),
+		CoveredByFullSuccessorIntents: len(drainable),
 	}
 	processingStart := time.Now()
 	writtenGroups := 0

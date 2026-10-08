@@ -11,6 +11,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -48,8 +49,26 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	}
 
 	active, staleIDs := FilterAuthoritativeIntents(rows, lookup)
+	// Drain rows covered by a newer emitted full generation (#7165): the
+	// successor re-emits their edges, so replaying them would be a wasted
+	// retract/write cycle. Drained rows join the stale set and are marked
+	// completed without a write; a lookup error fails the cycle instead of
+	// guessing.
+	kept, drainable, err := worker.SplitCoveredByFullSuccessorRows(ctx, reader, DomainRepoDependency, active)
+	if err != nil {
+		result.LeaseAcquired = true
+		return result, nil, 0, fmt.Errorf("split generations covered by emitted full successor: %w", err)
+	}
+	for _, row := range drainable {
+		staleIDs = append(staleIDs, row.IntentID)
+	}
+	active = kept
+	worker.AcceptanceTelemetry{Instruments: r.Instruments, Logger: r.Logger}.RecordCoveredByFullSuccessorIntents(
+		ctx, "repo_dependency_projection", DomainRepoDependency, len(drainable),
+	)
 	result.StaleIntents = len(staleIDs)
 	result.ActiveIntents = len(active)
+	result.CoveredByFullSuccessorIntents = len(drainable)
 	if len(active) == 0 && len(staleIDs) == 0 {
 		result.LeaseAcquired = true
 		return result, active, 0, nil

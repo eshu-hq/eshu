@@ -77,10 +77,14 @@ func (t AcceptanceTelemetry) RecordLookup(ctx context.Context, event AcceptanceL
 // generation differing from the accepted generation for its acceptance key;
 // generation_superseded is a readiness-blocked intent whose scope generation
 // is terminally superseded (#7121): it was superseded before workload
-// materialization ran, so no phase row will ever unblock it.
+// materialization ran, so no phase row will ever unblock it;
+// covered_by_full_successor is an intent whose superseded generation is
+// covered by a newer emitted full generation (#7165): the successor re-emits
+// its edges, so replaying it would be a wasted retract/write cycle.
 const (
-	StaleReasonAcceptanceMismatch   = "acceptance_mismatch"
-	StaleReasonGenerationSuperseded = "generation_superseded"
+	StaleReasonAcceptanceMismatch     = "acceptance_mismatch"
+	StaleReasonGenerationSuperseded   = "generation_superseded"
+	StaleReasonCoveredByFullSuccessor = "covered_by_full_successor"
 )
 
 // RecordStaleIntents records stale intents drained because the accepted
@@ -94,6 +98,15 @@ func (t AcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runner stri
 // acceptance mismatches so operators can tell orphan cleanup from churn.
 func (t AcceptanceTelemetry) RecordSupersededGenerationIntents(ctx context.Context, runner string, domain string, count int) {
 	t.recordStale(ctx, runner, domain, StaleReasonGenerationSuperseded, "shared projection drained intents of superseded generations", count)
+}
+
+// RecordCoveredByFullSuccessorIntents records intents drained because their
+// superseded generation is covered by a newer emitted full generation
+// (#7165). The reason attribute keeps them apart from acceptance mismatches
+// and from the #7121 orphan drain, so operators can tell skipped replays from
+// churn and from orphan cleanup.
+func (t AcceptanceTelemetry) RecordCoveredByFullSuccessorIntents(ctx context.Context, runner string, domain string, count int) {
+	t.recordStale(ctx, runner, domain, StaleReasonCoveredByFullSuccessor, "shared projection drained intents covered by an emitted full successor", count)
 }
 
 func (t AcceptanceTelemetry) recordStale(
