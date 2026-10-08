@@ -17,6 +17,12 @@ This binary owns collection-cycle wiring around `collector.Service`,
 projection. The deployed long-running runtime that mounts the workspace PVC
 in Kubernetes is `ingester`, not `collector-git`.
 
+The native selector carries a `membership.Observer` backed by
+`membershipstore.ObservationStore`, as the ingester's does (#7625). Each
+complete `githubOrg` listing from shard 0 records repository selection
+observations in Postgres. A store failure is logged and counted, and does not
+fail the cycle.
+
 ## Entry points
 
 - `main` and `run` in `go/cmd/collector-git/main.go`
