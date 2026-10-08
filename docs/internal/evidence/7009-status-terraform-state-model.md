@@ -126,9 +126,10 @@ at naptime 3 s and 5 runs with continuous aggressive autovacuum
 (`autovacuum_naptime` 1 s, zero scale factor, threshold 50, zero cost delay) all
 gave 4,001 and 4,447 pages at 69 KB. Removing the manual `VACUUM` between
 rounds makes the bound fail (4,001 to 8,002 pages), so the proof still detects
-a lack of space reuse. In production the TOAST relation stays under autovacuum;
-the table's own reloptions do not reach it, and autovacuum's defaults vacuum it
-on far less volume per cycle than the proof writes. The size is bounded by the
+a lack of space reuse (one run by the executor; its log was not kept). In production autovacuum still vacuums the TOAST relation: it inherits the
+table's autovacuum options (migration 161 sets a zero scale factor and a
+threshold of 50), so it is vacuumed on far less volume per cycle than the proof
+writes. The size is bounded by the
 write volume between vacuums, not by the number of updates. The keyed read
 touches only `status_summary_snapshots`, and its buffer counts were the same in
 every run.
@@ -136,7 +137,7 @@ every run.
 | payload | test | TOAST pages (round 1 / 2) | read buffers (plan / TOAST) | pinned at |
 | --- | --- | --- | --- | --- |
 | 34,583 bytes, 72 entries (the ops-qa size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
-| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (identical in all 18 runs with autovacuum disabled on the table) | 1 / 13 | 8 / 30 |
+| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (identical in all 17 runs of this test with autovacuum disabled on the table, and in the full live-set run) | 1 / 13 | 8 / 30 |
 
 The `rows = CASE ...` option the ruling allowed was not needed.
 

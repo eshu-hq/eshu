@@ -86,8 +86,8 @@ func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, bounds bloatBo
 	// payloads), long enough for autovacuum to vacuum the TOAST relation in the
 	// middle of round one. That shrinks the round-one baseline and breaks the
 	// relative bound on round two (a merge-group run measured 1,967 then 4,221
-	// pages). The table's reloptions do not reach the TOAST relation, hence the
-	// toast. prefix.
+	// pages). A TOAST relation without options of its own would inherit the
+	// table's autovacuum options; the toast. prefix sets it explicitly.
 	if _, err := database.ExecContext(ctx,
 		`ALTER TABLE status_summary_snapshots SET (autovacuum_enabled = false, toast.autovacuum_enabled = false)`); err != nil {
 		t.Fatalf("disable autovacuum for the proof table: %v", err)
@@ -98,8 +98,10 @@ func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, bounds bloatBo
 	// is bounded by the write volume between vacuums, not by the number of
 	// updates: VACUUM makes the dead versions' space reusable. The proof runs
 	// VACUUM by hand and turns autovacuum off for this table (above) so no
-	// background vacuum lands between rounds; in production the TOAST relation
-	// is vacuumed by autovacuum's defaults on far less volume per cycle.
+	// background vacuum lands during or between rounds; in production autovacuum
+	// vacuums the TOAST relation under the table's own options (migration 161
+	// sets a zero scale factor and a threshold of 50), which it inherits, so on
+	// far less volume per cycle than the proof writes.
 	const (
 		upserts = 2000
 		rounds  = 2
