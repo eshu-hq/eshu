@@ -4,9 +4,10 @@
 
 This package owns `repository_selection_observations` (#7625): per git
 repository scope and per selector, whether the newest complete GitHub org
-listing still selects the repository. The git collector's
-`membership.Observer` reads and writes it once per githubOrg cycle, on shard 0
-only. The rows are evidence; nothing in this phase deletes, hides, or retires
+listing, or an explicit configured repository list, still selects the
+repository. The git collector's `membership.Observer` reads and writes it once
+per githubOrg or explicit cycle (once per owner for an explicit list), on
+shard 0 only. The rows are evidence; nothing in this phase deletes, hides, or retires
 a scope because of them.
 
 ## Ownership boundary
@@ -18,7 +19,7 @@ is the bootstrap source of truth), the org partition read of
 `go/internal/collector/repo/git/membership` owns the evaluation, the
 `Store` interface this type implements, and every operator signal.
 `cmd/ingester` and `cmd/collector-git` construct the store and hand it to the
-native githubOrg selector.
+native selector, which observes in githubOrg and explicit mode.
 
 ## Exported surface
 
@@ -77,7 +78,8 @@ The earlier theory shim on the same data measured the partition read at
 org scope; the evaluation transaction held only `AccessShareLock` on
 `ingestion_scopes` and its indexes and no tuple locks. A per-scope lookup by
 `scope_id` (the phase-two freshness read) measured 0.019 ms on the primary
-key. The work runs once per githubOrg cycle on shard 0 only.
+key. The work runs once per githubOrg cycle, or once per owner of an explicit
+list, on shard 0 only.
 
 ### Freshness read
 

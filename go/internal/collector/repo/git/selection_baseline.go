@@ -397,17 +397,26 @@ func (b gitDeltaBaseline) recordReconcileSuppressed(ctx context.Context, reason 
 // from the canonical remote URL, so it is stable across checkouts and shallow
 // refetches. Returns an empty string when identity cannot be derived.
 func gitScopeIDForManagedRepo(config RepoSyncConfig, repoPath string) string {
+	scopeID, _ := gitScopeIdentityForManagedRepo(config, repoPath)
+	return scopeID
+}
+
+// gitScopeIdentityForManagedRepo returns the scope ID and the stored repo_slug
+// of the scope gitScopeIDForManagedRepo derives. Both are empty when identity
+// cannot be derived; the slug is empty when the checkout has no remote.
+func gitScopeIdentityForManagedRepo(config RepoSyncConfig, repoPath string) (scopeID, repoSlug string) {
 	absRepoPath, err := filepath.Abs(repoPath)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	managedRepoID := repoIDFromManagedPath(config.ReposDir, absRepoPath)
 	remoteURL := repoRemoteURL(config, managedRepoID)
 	metadata, err := repositoryidentity.MetadataFor(filepath.Base(absRepoPath), absRepoPath, remoteURL)
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return buildScope(metadata, "").ScopeID
+	built := buildScope(metadata, "")
+	return built.ScopeID, built.Metadata["repo_slug"]
 }
 
 // gitScopeIDForRepositoryID derives the default-branch scope ID a git sync of
@@ -415,11 +424,18 @@ func gitScopeIDForManagedRepo(config RepoSyncConfig, repoPath string) string {
 // the checkout to exist. Returns an empty string for an invalid or reserved
 // repository identifier.
 func gitScopeIDForRepositoryID(config RepoSyncConfig, repoID string) string {
+	scopeID, _ := gitScopeIdentityForRepositoryID(config, repoID)
+	return scopeID
+}
+
+// gitScopeIdentityForRepositoryID returns the scope ID and stored repo_slug a
+// git sync of repoID writes, through gitScopeIdentityForManagedRepo.
+func gitScopeIdentityForRepositoryID(config RepoSyncConfig, repoID string) (scopeID, repoSlug string) {
 	checkoutName, err := repoCheckoutName(repoID)
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return gitScopeIDForManagedRepo(config, filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName)))
+	return gitScopeIdentityForManagedRepo(config, filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName)))
 }
 
 // isGitCommitReachable reports whether sha resolves to a commit object present

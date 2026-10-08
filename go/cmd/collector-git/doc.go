@@ -15,7 +15,8 @@
 // the runtime logger so clone/fetch start, progress, completion, and failure
 // records are visible before snapshot workers start. It also carries a
 // membership.Observer that records repository selection observations on
-// complete githubOrg listings (#7625). Commit failures before
+// complete githubOrg listings and explicit repository lists (#7625). Commit
+// failures before
 // projector work exists are recorded through the shared collector generation
 // dead-letter sink. It honors SIGINT and SIGTERM for clean shutdown.
 package main

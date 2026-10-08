@@ -18,10 +18,11 @@ projection. The deployed long-running runtime that mounts the workspace PVC
 in Kubernetes is `ingester`, not `collector-git`.
 
 The native selector carries a `membership.Observer` backed by
-`membershipstore.ObservationStore`, as the ingester's does (#7625). Each
-complete `githubOrg` listing from shard 0 records repository selection
-observations in Postgres. A store failure is logged and counted, and does not
-fail the cycle.
+`membershipstore.ObservationStore`, as the ingester's does (#7625). On shard 0,
+each complete `githubOrg` listing records repository selection observations in
+Postgres, and `explicit` mode records `selected` rows for configured
+repositories that already have scopes. A store failure is logged and counted,
+and does not fail the cycle.
 
 ## Entry points
 

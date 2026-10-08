@@ -166,6 +166,11 @@ ID a sync of it would write (`gitScopeIDForRepositoryID`) and to a state:
 `selected`, `archived_excluded`, or `rule_excluded`. The `membership`
 subpackage compares that listing with the org's known repository scopes and
 records `not_listed` evidence; it never deletes, hides, or writes the graph.
+In explicit mode, shard 0 hands the full pre-shard configured list to the
+observer as one all-`selected` listing per owner
+(`explicitSelectionRequests`), with scope IDs and slugs from
+`gitScopeIdentityForRepositoryID`; only configured repositories that already
+have scopes get rows.
 `listGitHubOrgRepositories` reports the listing complete only when its last
 page came back short, so a listing cut at `ESHU_REPO_LIMIT` is never evaluated.
 A store failure is logged and counted, and the cycle carries on. The webhook

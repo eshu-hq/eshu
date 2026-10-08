@@ -38,8 +38,9 @@ type NativeRepositorySelector struct {
 	// reads it.
 	RepositoryReindexWatermark RepositoryReindexWatermarkReader
 	// SelectionObserver records which known repository scopes the githubOrg
-	// listing still selects (#7625). Nil disables observation; only shard 0
-	// in githubOrg mode calls it.
+	// listing or the explicit configured list still selects (#7625). Nil
+	// disables observation; only shard 0 in githubOrg or explicit mode calls
+	// it.
 	SelectionObserver RepositorySelectionObserver
 }
 
@@ -64,7 +65,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 	if err != nil {
 		return SelectionBatch{}, err
 	}
-	s.observeGitHubOrgSelection(ctx, selection, observedAt)
+	s.observeSelection(ctx, selection, observedAt)
 	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {
 		s.Logger.InfoContext(

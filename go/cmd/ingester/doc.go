@@ -32,7 +32,8 @@
 // scheduled polling, marks unsupported providers failed, and still sends
 // selected repositories through the same Git sync and snapshot path. Only the
 // native selector records repository selection observations, through a
-// membership.Observer, on complete githubOrg listings (#7625). The
+// membership.Observer, on complete githubOrg listings and explicit repository
+// lists (#7625). The
 // selector receives the ingester runtime logger so clone/fetch start, progress,
 // completion, and failure records are visible during hosted startup before
 // snapshot workers begin. It is the only long-running runtime that mounts the
