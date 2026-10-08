@@ -120,7 +120,7 @@ type packageImportBinding struct {
 // annotatePackageImportCalls sets package_export_symbol on each real call bound
 // to a bare package import that a package.json between the file and repoRoot
 // declares as a dependency (project.DeclaredDependencies). An undeclared bare
-// name may be a bundler or jsconfig alias or a Node.js built-in that resolves
+// name may be a bundler alias or a Node.js built-in that resolves
 // inside the repository, so it is never keyed. An npm alias dependency
 // (`"alias": "npm:target@range") is keyed under the target package, which is
 // what the producer publishes; an alias whose target does not parse stays

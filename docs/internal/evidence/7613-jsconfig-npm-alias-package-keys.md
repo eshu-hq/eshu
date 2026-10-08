@@ -61,7 +61,8 @@ Reducer end-to-end (real parser output through `ExtractRows`):
 Staged corpus (`scripts/lib/golden-corpus-fixtures.sh`, 33 repos):
 
 - repos carrying `jsconfig.json`: **0**
-- repos carrying `tsconfig.json`: **1**
+- repos carrying `tsconfig.json`: **0** (`json_comprehensive` has one but is
+  not in `corpus_fixtures`)
 - manifests with an `"npm:` dependency value: **0**
 
 The change is corpus-neutral: no staged import gains `resolved_source` and no
@@ -70,9 +71,13 @@ run below proves the pipeline still agrees end to end.
 
 ## B-7 live proof
 
-`ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`:
-(recorded at promotion time; the gate must report N pass, 0 required-fail,
-0 advisory-warn plus `PASS: B-7 golden corpus gate green`.)
+`ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh` on head
+`1e1a7634` (+ this section): `summary: 573 pass, 0 required-fail,
+3 advisory-warn`, `PASS: B-7 golden corpus gate green (elapsed 334s, budget
+ceiling 1800s)`. Counts are identical to the pre-change B-7 run on this
+machine (573/0/3), confirming the corpus-neutral claim numerically. Static
+`test-verify-golden-corpus-gate.sh` passes, and `verify-telemetry-coverage.sh`
+reports no new untracked stages (parser-only change).
 
 ## Performance
 
