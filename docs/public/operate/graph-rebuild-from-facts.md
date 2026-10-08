@@ -274,7 +274,7 @@ watch -n 10 "curl -fsS \
 You are waiting for `pending`, `retrying`, `failed`, and `dead_letter` all at
 zero. That is the rebuild's terminal state and the number to time.
 
-On a collector-off stack (one ingester shard, `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false`),
+On a collector-off stack (one ingester shard with scheduled sync off),
 the ingester runs the deferred relationship maintenance pass once at startup —
 look for `deferred_backfill_completed` in the ingester log shortly after step 6
 starts it. That pass publishes the backward evidence the workload and cross-repo
