@@ -77,6 +77,9 @@ PACKAGES = {
         "go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go": (
             "TestTheoryExactPartitionEvidenceClosure",
         ),
+        "go/internal/storage/postgres/repository_selection_observations_live_test.go": (
+            "TestSelectionObservationStoreEvaluationLive",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (

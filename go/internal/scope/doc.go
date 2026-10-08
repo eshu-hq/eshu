@@ -31,4 +31,9 @@
 // single source of truth for tooling that must cover the full collector fleet
 // (readiness reports, promotion proofs, fleet hygiene); adding a collector means
 // updating that one list.
+// SelectionEvaluation is one repository selection evaluation the git collector
+// hands the Postgres store (#7625): the categorized listing one selector
+// observed, shared here so neither side imports the other. The store answers
+// with a SelectionEvaluationOutcome: the outcome, the per-state row counts,
+// and the selector's newest prior stamp for the liveness-gap check.
 package scope

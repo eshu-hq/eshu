@@ -216,6 +216,31 @@ func TestBuildCollectorServiceWiresTelemetryIntoSourceAndService(t *testing.T) {
 	}
 }
 
+// TestBuildCollectorServiceWiresSelectionObserver fails when the git
+// selector cannot record the #7625 selection evaluation.
+func TestBuildCollectorServiceWiresSelectionObserver(t *testing.T) {
+	t.Parallel()
+
+	service, err := buildCollectorService(
+		postgres.SQLDB{},
+		func(string) string { return "" },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildCollectorService() error = %v, want nil", err)
+	}
+	source := service.Source.(*git.GitSource)
+	selector, ok := source.Selector.(git.NativeRepositorySelector)
+	if !ok {
+		t.Fatalf("selector type = %T, want git.NativeRepositorySelector", source.Selector)
+	}
+	if _, ok := selector.SelectionObserver.(postgres.SelectionObservationStore); !ok {
+		t.Fatalf("SelectionObserver = %T, want postgres.SelectionObservationStore", selector.SelectionObserver)
+	}
+}
+
 type discardWriter struct{}
 
 func (*discardWriter) Write(p []byte) (int, error) {

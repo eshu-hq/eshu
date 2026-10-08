@@ -47,10 +47,11 @@ func NewInstrumentedRepositoryFreshnessStore(queryer db.Queryer, instruments *te
 // ReadRepositoryFreshness reads the freshness snapshot for one canonical
 // repository id: the composite single-scope read (resolve -> generation ->
 // stage counts -> shared-enrichment pending), then the separate bounded
-// webhook-trigger lookup. It is one instrumented Go-level composite read
-// backed by four tightly-scoped, index-bound SQL statements -- see this
-// package's README, "Repo freshness single-scope composite read (#5143)",
-// for the measured shape.
+// webhook-trigger lookup, then the #7625 selection block (observation rows
+// plus the latest generation observed_at). It is one instrumented Go-level
+// composite read backed by six tightly-scoped, index-bound SQL statements --
+// see this package's README, "Repo freshness single-scope composite read
+// (#5143)", for the measured shape.
 //
 // A repoID that resolves to no scope returns a snapshot with Resolved=false
 // and a nil error: an unresolved repository is not a query failure, it is
@@ -126,7 +127,30 @@ func (s RepositoryFreshnessStore) readRepositoryFreshness(ctx context.Context, r
 		snapshot.UnobservedPush = unobserved
 	}
 
+	selection, err := s.readSelection(ctx, scopeID)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.Selection = selection
+
 	return snapshot, nil
+}
+
+// readSelection reads the #7625 selection block for one resolved scope: its
+// observation rows across every selector plus the latest generation
+// observed_at for rule 4, composed by the pure
+// statuspkg.ComputeRepositorySelectionState. A scope with no observation
+// rows reads RepositorySelectionUnknown, never a fabricated state.
+func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID string) (statuspkg.RepositorySelection, error) {
+	rows, err := readSelectionObservationRows(ctx, s.queryer, scopeID)
+	if err != nil {
+		return statuspkg.RepositorySelection{}, err
+	}
+	latestObservedAt, err := readLatestGenerationObservedAt(ctx, s.queryer, scopeID)
+	if err != nil {
+		return statuspkg.RepositorySelection{}, err
+	}
+	return statuspkg.ComputeRepositorySelectionState(rows, latestObservedAt, time.Now().UTC()), nil
 }
 
 func (s RepositoryFreshnessStore) resolveScope(ctx context.Context, repoID string) (scopeID, generationID string, resolved bool, err error) {

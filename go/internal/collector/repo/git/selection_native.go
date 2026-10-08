@@ -37,6 +37,11 @@ type NativeRepositorySelector struct {
 	// once per git cycle (#7620). Nil disables them; filesystem mode never
 	// reads it.
 	RepositoryReindexWatermark RepositoryReindexWatermarkReader
+	// SelectionObserver records the #7625 repository selection evaluation
+	// once per git cycle, on shard 0 with the full pre-shard listing, in
+	// githubOrg and explicit modes only. Nil disables evaluation;
+	// filesystem, webhook, and bootstrap paths never evaluate.
+	SelectionObserver SelectionObserver
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -59,6 +64,14 @@ func (s NativeRepositorySelector) SelectRepositories(
 	selection, err := discoverSelectionFn(ctx, s.Config, token)
 	if err != nil {
 		return SelectionBatch{}, err
+	}
+	// The #7625 selection evaluation runs on shard 0 only, against the
+	// full pre-shard listing: every shard instance sees the same discovery,
+	// so letting all N evaluate would record the same evaluation N times.
+	// Shard index 0 exists for any shard count >= 1, and at the unsharded
+	// default the index is 0, so single-instance behaviour evaluates.
+	if s.SelectionObserver != nil && s.Config.RepoShardIndex == 0 {
+		observeRepositorySelection(ctx, s.Config, token, selection, observedAt, s.SelectionObserver, s.Logger, s.Instruments)
 	}
 	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {

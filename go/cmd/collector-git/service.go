@@ -40,12 +40,14 @@ func buildCollectorService(
 
 	// committer doubles as the delta-baseline resolver so git delta syncs
 	// baseline on the last projected commit per scope rather than local HEAD
-	// (epic #2340).
+	// (epic #2340). The selection observer records the #7625 per-cycle
+	// selection evaluation on shard 0 over the same database handle.
 	selector := git.RepositorySelector(git.NativeRepositorySelector{
-		Config:           config,
-		Logger:           logger,
-		BaselineResolver: committer,
-		Instruments:      instruments,
+		Config:            config,
+		Logger:            logger,
+		BaselineResolver:  committer,
+		Instruments:       instruments,
+		SelectionObserver: postgres.NewSelectionObservationStore(database),
 	})
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
 	if handoffConfig.Enabled {

@@ -91,6 +91,38 @@ type RepoSyncConfig struct {
 	// allowed across the entire fleet per sync cycle. Zero means unlimited.
 	// Default: 0 (unlimited until #5393 measures the real cost).
 	PinnedRefFleetCap int
+	// SelectionLivenessWindow is how long one selection observation row
+	// stays live (#7625), from ESHU_REPO_SELECTION_LIVENESS_WINDOW.
+	// Default 48h, minimum 1h.
+	SelectionLivenessWindow time.Duration
+}
+
+// DefaultSelectionLivenessWindow is the default
+// ESHU_REPO_SELECTION_LIVENESS_WINDOW: an observation row is live while its
+// evaluated_at plus this window still covers now.
+const DefaultSelectionLivenessWindow = 48 * time.Hour
+
+// MinSelectionLivenessWindow is the floor for
+// ESHU_REPO_SELECTION_LIVENESS_WINDOW. Below it a single slow cycle would
+// lapse every row into unknown.
+const MinSelectionLivenessWindow = time.Hour
+
+// selectionLivenessWindowFromEnv reads
+// ESHU_REPO_SELECTION_LIVENESS_WINDOW as a Go duration ("48h"). Unset or
+// invalid values use the default; values below the minimum clamp up to it.
+func selectionLivenessWindowFromEnv(getenv func(string) string) time.Duration {
+	raw := strings.TrimSpace(getenv("ESHU_REPO_SELECTION_LIVENESS_WINDOW"))
+	if raw == "" {
+		return DefaultSelectionLivenessWindow
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		return DefaultSelectionLivenessWindow
+	}
+	if parsed < MinSelectionLivenessWindow {
+		return MinSelectionLivenessWindow
+	}
+	return parsed
 }
 
 // LoadRepoSyncConfig parses the repo-sync environment contract for Go runtimes.
@@ -133,39 +165,40 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	}
 
 	config := RepoSyncConfig{
-		ReposDir:               reposDir,
-		SourceMode:             sourceMode,
-		GitAuthMethod:          gitAuthMethod,
-		GithubOrg:              strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
-		Repositories:           extractExactRepositoryIDs(sourceMode, repositoryRules),
-		FilesystemRoot:         strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
-		FilesystemDirect:       boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
-		CloneDepth:             cloneDepth,
-		RepoLimit:              repoLimit,
-		Component:              component,
-		RepositoryRules:        repositoryRules,
-		IncludeArchivedRepos:   boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
-		GitToken:               firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
-		GitHubAppID:            firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
-		GitHubAppInstallation:  firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
-		GitHubAppPrivateKey:    firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
-		SSHPrivateKeyPath:      strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
-		SSHKnownHostsPath:      strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
-		DependencyMode:         boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
-		DependencyName:         strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
-		DependencyLanguage:     strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
-		SnapshotWorkers:        snapshotWorkerCount(getenv),
-		ParseWorkers:           parseWorkerCount(getenv),
-		LargeRepoThreshold:     largeRepoThreshold(getenv),
-		LargeRepoMaxConcurrent: largeRepoMaxConcurrent(getenv),
-		StreamBuffer:           streamBufferSize(getenv),
-		RepoShardCount:         repoShardCount,
-		RepoShardIndex:         repoShardIndex,
-		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
-		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
-		PinnedRefsByRepoID:     pinnedRefsByRepoID,
-		PinnedRefPerRepoCap:    pinnedRefCap,
-		PinnedRefFleetCap:      pinnedRefFleetCap,
+		ReposDir:                reposDir,
+		SourceMode:              sourceMode,
+		GitAuthMethod:           gitAuthMethod,
+		GithubOrg:               strings.TrimSpace(getenv("ESHU_GITHUB_ORG")),
+		Repositories:            extractExactRepositoryIDs(sourceMode, repositoryRules),
+		FilesystemRoot:          strings.TrimSpace(getenv("ESHU_FILESYSTEM_ROOT")),
+		FilesystemDirect:        boolFromEnv(getenv("ESHU_FILESYSTEM_DIRECT")),
+		CloneDepth:              cloneDepth,
+		RepoLimit:               repoLimit,
+		Component:               component,
+		RepositoryRules:         repositoryRules,
+		IncludeArchivedRepos:    boolFromEnv(getenv("ESHU_INCLUDE_ARCHIVED_REPOS")),
+		GitToken:                firstNonEmpty(getenv("ESHU_GIT_TOKEN"), getenv("GITHUB_TOKEN")),
+		GitHubAppID:             firstNonEmpty(getenv("GITHUB_APP_ID"), getenv("ESHU_GITHUB_APP_ID")),
+		GitHubAppInstallation:   firstNonEmpty(getenv("GITHUB_APP_INSTALLATION_ID"), getenv("ESHU_GITHUB_APP_INSTALLATION_ID")),
+		GitHubAppPrivateKey:     firstNonEmpty(getenv("GITHUB_APP_PRIVATE_KEY"), getenv("ESHU_GITHUB_APP_PRIVATE_KEY")),
+		SSHPrivateKeyPath:       strings.TrimSpace(getenv("ESHU_SSH_PRIVATE_KEY_PATH")),
+		SSHKnownHostsPath:       strings.TrimSpace(getenv("ESHU_SSH_KNOWN_HOSTS_PATH")),
+		DependencyMode:          boolFromEnv(getenv("ESHU_BOOTSTRAP_IS_DEPENDENCY")),
+		DependencyName:          strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_NAME")),
+		DependencyLanguage:      strings.TrimSpace(getenv("ESHU_BOOTSTRAP_PACKAGE_LANGUAGE")),
+		SnapshotWorkers:         snapshotWorkerCount(getenv),
+		ParseWorkers:            parseWorkerCount(getenv),
+		LargeRepoThreshold:      largeRepoThreshold(getenv),
+		LargeRepoMaxConcurrent:  largeRepoMaxConcurrent(getenv),
+		StreamBuffer:            streamBufferSize(getenv),
+		RepoShardCount:          repoShardCount,
+		RepoShardIndex:          repoShardIndex,
+		ReconcileInterval:       reconcileIntervalFromEnv(getenv),
+		ReconcileMaxPerCycle:    reconcileMaxPerCycleFromEnv(getenv),
+		PinnedRefsByRepoID:      pinnedRefsByRepoID,
+		PinnedRefPerRepoCap:     pinnedRefCap,
+		PinnedRefFleetCap:       pinnedRefFleetCap,
+		SelectionLivenessWindow: selectionLivenessWindowFromEnv(getenv),
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil

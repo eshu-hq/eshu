@@ -173,6 +173,10 @@ func buildIngesterCollectorService(
 	// per-repository watermarks a repository-scoped request records.
 	reindexWatermark := reindexWatermarkReader{store: maintenancestore.NewStatusRequestStore(database)}
 	repositoryReindex := maintenancestore.NewRepositoryReindexStore(database)
+	// The selection observer records the #7625 per-cycle selection
+	// evaluation on shard 0. It shares the instrumented database handle,
+	// so its statements stay under eshu_dp_postgres_query_duration_seconds.
+	selectionObserver := postgres.NewSelectionObservationStore(database)
 	nativeSelector := git.NativeRepositorySelector{
 		Config:                     config,
 		Logger:                     logger,
@@ -180,6 +184,7 @@ func buildIngesterCollectorService(
 		Instruments:                instruments,
 		ReindexWatermark:           reindexWatermark,
 		RepositoryReindexWatermark: repositoryReindex,
+		SelectionObserver:          selectionObserver,
 	}
 	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("ingester", getenv)

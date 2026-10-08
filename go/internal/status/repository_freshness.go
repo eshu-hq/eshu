@@ -14,7 +14,7 @@ import (
 // evidence fully built.
 type RepositoryFreshnessVerdict string
 
-// The five verdicts a repository freshness read can render. See
+// The six verdicts a repository freshness read can render. See
 // ComputeRepositoryFreshnessVerdict for the precedence between them.
 const (
 	RepositoryFreshnessCurrent    RepositoryFreshnessVerdict = "current"
@@ -22,6 +22,12 @@ const (
 	RepositoryFreshnessBehind     RepositoryFreshnessVerdict = "behind"
 	RepositoryFreshnessUnobserved RepositoryFreshnessVerdict = "unobserved"
 	RepositoryFreshnessUnknown    RepositoryFreshnessVerdict = "unknown"
+	// RepositoryFreshnessNotSelected means every live selector excludes the
+	// repository from its listing, every exclusion is confirmed, and no
+	// generation was observed after the exclusions began (#7625): eshu is
+	// not building this repository because no selector lists it anymore,
+	// not because work is queued or in flight.
+	RepositoryFreshnessNotSelected RepositoryFreshnessVerdict = "not_selected"
 )
 
 // RepositoryFreshnessGeneration is the resolved generation lifecycle snapshot
@@ -126,6 +132,12 @@ type RepositoryFreshnessSnapshot struct {
 	// UnobservedPush is nil when no queued/claimed webhook push evidence
 	// exists for this repository.
 	UnobservedPush *RepositoryFreshnessUnobservedPush
+	// Selection is the additive #7625 selection block: whether the scope's
+	// repository is still in some live selector's listing. The zero value
+	// (empty State) predates selection evidence and never renders
+	// not_selected; a read with no observation rows renders
+	// RepositorySelectionUnknown instead.
+	Selection RepositorySelection
 }
 
 // ComputeRepositoryFreshnessVerdict derives the coarse verdict from a
@@ -139,18 +151,24 @@ type RepositoryFreshnessSnapshot struct {
 //  1. unknown: no scope/generation resolved for this repository, or the
 //     resolved scope is not a git ("repository") scope and carries no
 //     commit -- freshness-by-commit is not a meaningful question for it.
-//  2. unobserved: a queued/claimed webhook push exists whose target commit
+//  2. not_selected: every live selector excludes the repository and the
+//     exclusions are confirmed. It sits after the unknown checks because
+//     selection evidence cannot exist without a resolved scope, and before
+//     unobserved because a queued push for a repository no selector lists
+//     will never be built -- unobserved would promise imminent progress
+//     that cannot come, while not_selected names the actual blocker.
+//  3. unobserved: a queued/claimed webhook push exists whose target commit
 //     does not match the observed commit -- eshu has not even started
 //     building it.
-//  3. behind: the caller supplied expected_commit and it does not match
+//  4. behind: the caller supplied expected_commit and it does not match
 //     observed_commit. This takes precedence over building/current:
 //     whether or not a generation is actively catching up, the answer does
 //     not yet reflect the caller's expected commit, and that is the
 //     accurate, actionable state for "did eshu pick up my commit".
-//  4. building: the repository's own reducer/projector stage has
+//  5. building: the repository's own reducer/projector stage has
 //     outstanding work, or shared cross-repo enrichment referencing this
 //     generation is still pending.
-//  5. current: own stages drained, no shared pending, and (no
+//  6. current: own stages drained, no shared pending, and (no
 //     expected_commit was supplied, or it matches observed_commit). This
 //     speaks to BUILD COMPLETENESS, not necessarily a commit receipt:
 //     observed_commit may be empty (non-git scopes, pre-delta-baseline
@@ -164,6 +182,9 @@ func ComputeRepositoryFreshnessVerdict(snapshot RepositoryFreshnessSnapshot, exp
 	}
 	if snapshot.ObservedCommit == "" && snapshot.ScopeKind != "" && snapshot.ScopeKind != "repository" {
 		return RepositoryFreshnessUnknown
+	}
+	if snapshot.Selection.State == RepositorySelectionNotSelected {
+		return RepositoryFreshnessNotSelected
 	}
 	if snapshot.UnobservedPush != nil {
 		return RepositoryFreshnessUnobserved

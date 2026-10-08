@@ -17,14 +17,34 @@ import (
 
 // GitHubRepositoryRecord is one GitHub discovery candidate for repository selection.
 type GitHubRepositoryRecord struct {
-	RepoID   string
+	RepoID string
+	// GitHubID is the numeric GitHub repository id from the API payload.
+	// Zero means the listing did not carry one; the selection observer
+	// stores it so a later phase can detect renames (#7625).
+	GitHubID int64
 	Archived bool
 }
 
 // RepositorySelection holds the selected repository identifiers for one sync cycle.
 type RepositorySelection struct {
-	RepositoryIDs         []string
+	RepositoryIDs []string
+	// ArchivedRepositoryIDs holds the listed repositories excluded as
+	// archived. Its first production consumer is the #7625 selection
+	// observer; before that nothing read it.
 	ArchivedRepositoryIDs []string
+	// RuleExcludedRepositoryIDs holds the listed, non-archived repositories
+	// no repository rule matched (#7625). Empty when no rules are
+	// configured: every listed repository is then selected.
+	RuleExcludedRepositoryIDs []string
+	// GitHubIDsByRepoID maps each normalized listed repository ID (selected,
+	// archived-excluded, or rule-excluded) to its numeric GitHub repository
+	// id. Repositories without a known id are absent, never zero-valued.
+	GitHubIDsByRepoID map[string]int64
+	// ListingTruncated reports that discovery stopped at RepoLimit before
+	// the listing was exhausted (#7625). The selection observer skips a
+	// truncated listing: evaluating from an incomplete list would mark
+	// present repositories as missing.
+	ListingTruncated bool
 }
 
 // GitSyncSelection captures the repo paths selected after one Git-backed sync pass.
@@ -89,12 +109,18 @@ func selectGitHubRepositoryIDs(
 
 	selectable := make([]string, 0, len(repositories))
 	archived := make([]string, 0)
+	githubIDs := make(map[string]int64, len(repositories))
 	seenSelectable := make(map[string]struct{})
 	seenArchived := make(map[string]struct{})
 	for _, repository := range repositories {
 		repoID := normalizeRepositoryID(repository.RepoID)
 		if repoID == "" {
 			continue
+		}
+		if repository.GitHubID != 0 {
+			if _, ok := githubIDs[repoID]; !ok {
+				githubIDs[repoID] = repository.GitHubID
+			}
 		}
 		_, explicitlyAllowedArchived := exactRules[repoID]
 		if repository.Archived && !includeArchivedRepos && !explicitlyAllowedArchived {
@@ -110,25 +136,38 @@ func selectGitHubRepositoryIDs(
 		seenSelectable[repoID] = struct{}{}
 		selectable = append(selectable, repoID)
 	}
+	if len(githubIDs) == 0 {
+		githubIDs = nil
+	}
 	if len(repositoryRules) == 0 {
 		return RepositorySelection{
 			RepositoryIDs:         selectable,
 			ArchivedRepositoryIDs: archived,
+			GitHubIDsByRepoID:     githubIDs,
 		}
 	}
 
 	selected := make([]string, 0, len(selectable))
+	var ruleExcluded []string
 	for _, repoID := range selectable {
+		matched := false
 		for _, rule := range repositoryRules {
 			if rule.Matches(repoID) {
-				selected = append(selected, repoID)
+				matched = true
 				break
 			}
 		}
+		if matched {
+			selected = append(selected, repoID)
+		} else {
+			ruleExcluded = append(ruleExcluded, repoID)
+		}
 	}
 	return RepositorySelection{
-		RepositoryIDs:         selected,
-		ArchivedRepositoryIDs: archived,
+		RepositoryIDs:             selected,
+		ArchivedRepositoryIDs:     archived,
+		RuleExcludedRepositoryIDs: ruleExcluded,
+		GitHubIDsByRepoID:         githubIDs,
 	}
 }
 

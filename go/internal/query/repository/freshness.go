@@ -105,7 +105,7 @@ func repositoryFreshnessTruth(profile querycontract.QueryProfile, verdict status
 // shape documented in issue #5143. Every field the underlying snapshot did
 // not resolve is rendered explicitly (empty string, null, or false) rather
 // than omitted, so the contract shape is stable across current, building,
-// behind, unobserved, and unknown verdicts.
+// behind, unobserved, not_selected, and unknown verdicts.
 func repositoryFreshnessToMap(
 	repo any,
 	snapshot status.RepositoryFreshnessSnapshot,
@@ -124,8 +124,27 @@ func repositoryFreshnessToMap(
 		"outstanding_by_stage": repositoryFreshnessOutstandingToSlice(snapshot.Outstanding),
 		"shared_enrichment":    repositoryFreshnessSharedEnrichmentToMap(snapshot.SharedEnrichment),
 		"unobserved_push":      repositoryFreshnessUnobservedPushToMap(snapshot.UnobservedPush),
+		"selection":            repositoryFreshnessSelectionToMap(snapshot.Selection),
 		"as_of":                asOf.Format(time.RFC3339),
 		"scoped":               scoped,
+	}
+}
+
+// repositoryFreshnessSelectionToMap renders the additive #7625 selection
+// block. A zero Selection (a read that predates selection evidence) renders
+// as unknown with empty evidence, never as an empty state string.
+func repositoryFreshnessSelectionToMap(selection status.RepositorySelection) map[string]any {
+	state := selection.State
+	if state == "" {
+		state = status.RepositorySelectionUnknown
+	}
+	return map[string]any{
+		"state":               string(state),
+		"reason":              selection.Reason,
+		"state_since":         querycontract.NullableRFC3339(selection.StateSince),
+		"last_listed_at":      querycontract.NullableRFC3339(selection.LastListedAt),
+		"evaluated_at":        querycontract.NullableRFC3339(selection.EvaluatedAt),
+		"live_selector_count": selection.LiveSelectorCount,
 	}
 }
 

@@ -327,8 +327,8 @@ with `stage=repository_lookup` and `stage=content_coverage`, including
 for one repository: did eshu pick up its latest commit, and is the evidence
 for that commit fully built. `verdict=current` speaks to build completeness
 for the resolved generation, not necessarily a commit receipt. The response
-carries `verdict` (one of `current`, `building`, `behind`, `unobserved`, or
-`unknown`), `observed_commit` (the active generation's source commit SHA --
+carries `verdict` (one of `current`, `building`, `behind`, `unobserved`,
+`not_selected`, or `unknown`), `observed_commit` (the active generation's source commit SHA --
 legitimately empty for non-git scopes, pre-delta-baseline generations, and
 snapshot-trigger git generations (`trigger_kind=snapshot`, for example a
 cassette-replayed source with no commit to report, as opposed to a
@@ -345,8 +345,14 @@ asks whether a specific commit SHA is reflected; a mismatch always renders
 `behind`, whether or not a generation is
 actively progressing. `unobserved_push` reports a queued or claimed webhook
 refresh trigger for this repository whose target commit does not match the
-observed commit. Scoped tokens receive the same shape; a repository outside
-the caller's grant 404s like every other repository route.
+observed commit. `selection` (#7625) reports whether the repository is still in some live selector's listing:
+`state` (one of `selected`, `not_selected`, `pending_confirmation`, `excluded_still_ingested`, or `unknown`),
+`reason`, `state_since`, `last_listed_at`, `evaluated_at`, and `live_selector_count`. `verdict=not_selected`
+renders when every live selector excludes the repository, every exclusion is confirmed (seen twice, at least
+five minutes apart), and no generation was observed after the exclusions began; it sits after the `unknown`
+checks (selection evidence needs a resolved scope) and before `unobserved` (a queued push for an unlisted
+repository will never be built). Scoped tokens receive the same shape; a repository outside the caller's
+grant 404s like every other repository route.
 
 Performance Evidence: the single-scope composite read (resolve scope,
 generation lookup, stage counts, shared-projection pending) is proven at

@@ -2247,6 +2247,11 @@ tests:
     class: postgres_ci
     reason: "#7620 disposable PostgreSQL 18 proof of the per-repository reindex watermarks: one request stores one row per distinct scope, sixteen concurrent requests over overlapping scope sets in opposite orders all succeed and store the largest returned value per scope, a future-seeded value is not moved backward, and the per-cycle read returns only rows newer than the fleet watermark (a mutant that locks rows in input order fails with SQLSTATE 40P01). Enrolled in the live-postgres-readiness runner; 2.01s of test time on postgres:18 on 2026-10-07; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/repository_selection_observations_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof of the repository selection observations: two evaluations over the QA-shape corpus (776 listed + 1 archived + 25 not_listed) record exactly those states with zero false positives and confirm on the second cycle, other-org/ref/slugless decoys gain no rows, the mass-miss guard and the empty-listing guard write nothing, explicit mode writes positive selected rows, and EXPLAIN shows the per-scope MAX(observed_at), the org enumeration, and the prior-row read all index-bound. Enrolled in the live-postgres-readiness runner; 3.13s of test time on postgres:18 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/migration_148_delta_baseline_live_test.go
     tag: ~
     class: scheduled

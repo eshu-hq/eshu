@@ -2173,6 +2173,21 @@ type Instruments struct {
 	// content store both had no row. Registered by
 	// registerEntityContextResolutionInstruments.
 	EntityContextResolution metric.Int64Counter
+	// RepositorySelectionEvaluations counts #7625 repository selection
+	// evaluations by outcome (evaluated, listing_truncated, guard_tripped,
+	// store_error) and selector_kind (githubOrg, explicit). Emitted once
+	// per evaluation attempt by the git selection observer, on shard 0
+	// only. Registered by registerRepositorySelectionInstruments.
+	RepositorySelectionEvaluations metric.Int64Counter
+	// RepositorySelectionScopes reports the known same-org scope count per
+	// selection state (selected, archived_excluded, rule_excluded,
+	// not_listed) from the last successful selection evaluation (#7625).
+	// It is written only on outcome=evaluated, so a guard trip, a
+	// truncated listing, or a store error leaves the previous reading in
+	// place rather than zeroing it. The gauge carries no selector label:
+	// when several selectors evaluate, the last writer wins. Registered by
+	// registerRepositorySelectionInstruments.
+	RepositorySelectionScopes metric.Int64Gauge
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -4888,6 +4903,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerEntityContextResolutionInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerRepositorySelectionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

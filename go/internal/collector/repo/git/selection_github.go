@@ -45,11 +45,13 @@ func discoverSelection(
 		if strings.TrimSpace(token) == "" {
 			return RepositorySelection{}, fmt.Errorf("githubOrg source mode requires GitHub token or App auth")
 		}
-		repositories, err := listGitHubOrgRepositories(ctx, config.GithubOrg, config.RepoLimit, token)
+		repositories, truncated, err := listGitHubOrgRepositories(ctx, config.GithubOrg, config.RepoLimit, token)
 		if err != nil {
 			return RepositorySelection{}, err
 		}
-		return selectGitHubRepositoryIDs(repositories, config.RepositoryRules, config.IncludeArchivedRepos), nil
+		selection := selectGitHubRepositoryIDs(repositories, config.RepositoryRules, config.IncludeArchivedRepos)
+		selection.ListingTruncated = truncated
+		return selection, nil
 	default:
 		return RepositorySelection{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", config.SourceMode)
 	}
@@ -72,27 +74,41 @@ func resolveGitToken(ctx context.Context, config RepoSyncConfig) (string, error)
 	}
 }
 
+// githubAPIReposBaseURL is the GitHub REST API base for org repository
+// listings. Tests override it with an httptest server; production keeps the
+// public API host.
+var githubAPIReposBaseURL = "https://api.github.com"
+
+// githubOrgReposPerPage is the fixed page width for org repository
+// listings. It must stay constant across every page of one listing: GitHub
+// paginates by offset ((page-1)*per_page), so shrinking per_page on the last
+// request re-reads earlier repositories and the listing ends incomplete
+// while looking complete (#7625 amendment 1).
+const githubOrgReposPerPage = 100
+
+// listGitHubOrgRepositories returns the org's repositories, fetching fixed
+// 100-wide pages and trimming to repoLimit client-side. It reports whether
+// the listing stopped at RepoLimit before exhaustion: a truncated listing is
+// incomplete by construction and the #7625 selection observer must skip it
+// rather than mistake present repositories for missing ones.
 func listGitHubOrgRepositories(
 	ctx context.Context,
 	org string,
 	repoLimit int,
 	token string,
-) ([]GitHubRepositoryRecord, error) {
+) ([]GitHubRepositoryRecord, bool, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	repositories := make([]GitHubRepositoryRecord, 0)
+	exhausted := false
 	for page := 1; len(repositories) < repoLimit; page++ {
-		perPage := repoLimit - len(repositories)
-		if perPage > 100 {
-			perPage = 100
-		}
 		request, err := http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("https://api.github.com/orgs/%s/repos?per_page=%d&page=%d&type=all", org, perPage, page),
+			fmt.Sprintf(githubAPIReposBaseURL+"/orgs/%s/repos?per_page=%d&page=%d&type=all", org, githubOrgReposPerPage, page),
 			nil,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("build GitHub org repos request: %w", err)
+			return nil, false, fmt.Errorf("build GitHub org repos request: %w", err)
 		}
 		request.Header.Set("Accept", "application/vnd.github+json")
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -101,24 +117,26 @@ func listGitHubOrgRepositories(
 
 		response, err := client.Do(request)
 		if err != nil {
-			return nil, fmt.Errorf("list GitHub org repositories: %w", err)
+			return nil, false, fmt.Errorf("list GitHub org repositories: %w", err)
 		}
 		if response.Body == nil {
 			response.Close = true
 		}
 		var payload []struct {
+			ID       int64  `json:"id"`
 			FullName string `json:"full_name"`
 			Archived bool   `json:"archived"`
 		}
 		decodeErr := json.NewDecoder(response.Body).Decode(&payload)
 		_ = response.Body.Close()
 		if response.StatusCode >= 300 {
-			return nil, fmt.Errorf("list GitHub org repositories: status %d", response.StatusCode)
+			return nil, false, fmt.Errorf("list GitHub org repositories: status %d", response.StatusCode)
 		}
 		if decodeErr != nil {
-			return nil, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
+			return nil, false, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
 		}
 		if len(payload) == 0 {
+			exhausted = true
 			break
 		}
 		for _, item := range payload {
@@ -128,6 +146,7 @@ func listGitHubOrgRepositories(
 			}
 			repositories = append(repositories, GitHubRepositoryRecord{
 				RepoID:   repoID,
+				GitHubID: item.ID,
 				Archived: item.Archived,
 			})
 		}
@@ -135,7 +154,7 @@ func listGitHubOrgRepositories(
 	if len(repositories) > repoLimit {
 		repositories = repositories[:repoLimit]
 	}
-	return repositories, nil
+	return repositories, !exhausted, nil
 }
 
 func mintGitHubAppToken(ctx context.Context, config RepoSyncConfig) (string, error) {

@@ -365,6 +365,11 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 		if query == semanticQueueDepthQuery || query == semanticQueueOldestAgeQuery {
 			return &fakeRows{}, nil
 		}
+		// The #7625 selection reads default to no observation rows: existing
+		// freshness tests predate selection evidence and read unknown.
+		if query == selectionObservationsByScopeQuery || query == latestGenerationObservedAtQuery {
+			return &fakeRows{}, nil
+		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 
@@ -443,6 +448,15 @@ func (r *fakeRows) Scan(dest ...any) error {
 				*target = sql.NullFloat64{Float64: value, Valid: true}
 			default:
 				return fmt.Errorf("row[%d] type = %T, want float64 or nil", i, row[i])
+			}
+		case *sql.NullInt64:
+			switch value := row[i].(type) {
+			case nil:
+				*target = sql.NullInt64{}
+			case int64:
+				*target = sql.NullInt64{Int64: value, Valid: true}
+			default:
+				return fmt.Errorf("row[%d] type = %T, want int64 or nil", i, row[i])
 			}
 		case *[]byte:
 			value, ok := row[i].([]byte)

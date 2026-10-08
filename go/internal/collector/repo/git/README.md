@@ -102,6 +102,19 @@ network I/O. `TestRepositoryReindexTargetedScopeIsNotStarved` fails without
 the reordering (the requested 30th repository is not forced in the first
 cycle with a budget of 10) and passes with it, still forcing exactly 10.
 
+## Repository selection observation
+
+`NativeRepositorySelector` evaluates its discovery for #7625 once per git
+cycle through `SelectionObserver` (`selection_observation.go`): on shard 0
+with the full pre-shard listing, in githubOrg and explicit modes only. The
+selector id hashes the mode, org, rules, archived setting, and credential
+identity, so two collectors that list different repositories never share a
+row. A listing cut off at `RepoLimit` is skipped, and a store error is a
+WARN that never fails ingestion. Explicit mode writes positive `selected`
+rows for its configured repositories. The githubOrg listing always requests
+`per_page=100` and trims client-side: shrinking the last page re-reads
+earlier repositories under offset pagination (#7625 amendment 1).
+
 ## Default branch tracking
 
 `git clone` records `refs/remotes/origin/HEAD` once, and the single-branch

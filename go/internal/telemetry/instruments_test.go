@@ -231,6 +231,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.WebhookRequestDuration, "WebhookRequestDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookStoreDuration, "WebhookStoreDuration histogram should be registered")
 	assert.NotNil(t, inst.AWSScanDuration, "AWSScanDuration histogram should be registered")
+	assert.NotNil(t, inst.RepositorySelectionEvaluations, "RepositorySelectionEvaluations counter should be registered")
+	assert.NotNil(t, inst.RepositorySelectionScopes, "RepositorySelectionScopes gauge should be registered")
 }
 
 func TestNewInstrumentsNilMeterError(t *testing.T) {
@@ -471,6 +473,16 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrMCPMethod",
 			attrFunc: func(v string) string { return string(AttrMCPMethod(v).Key) },
 			wantKey:  MetricDimensionMCPMethod,
+		},
+		{
+			name:     "AttrSelectorKind",
+			attrFunc: func(v string) string { return string(AttrSelectorKind(v).Key) },
+			wantKey:  MetricDimensionSelectorKind,
+		},
+		{
+			name:     "AttrSelectionState",
+			attrFunc: func(v string) string { return string(AttrSelectionState(v).Key) },
+			wantKey:  MetricDimensionSelectionState,
 		},
 	}
 

@@ -139,6 +139,12 @@ func TestGetRepositoryFreshnessRendersEachVerdict(t *testing.T) {
 
 	unknown := status.RepositoryFreshnessSnapshot{RepositoryID: "repo-1", Resolved: false}
 
+	notSelected := testutil.FullyBuiltRepositoryFreshnessSnapshot()
+	notSelected.Selection = status.RepositorySelection{
+		State:  status.RepositorySelectionNotSelected,
+		Reason: status.RepositorySelectionReasonConfirmedExclusion,
+	}
+
 	tests := []struct {
 		name           string
 		snapshot       status.RepositoryFreshnessSnapshot
@@ -149,6 +155,7 @@ func TestGetRepositoryFreshnessRendersEachVerdict(t *testing.T) {
 		{name: "behind", snapshot: behind, expectedCommit: "def456", wantVerdict: "behind"},
 		{name: "unobserved", snapshot: unobserved, wantVerdict: "unobserved"},
 		{name: "unknown", snapshot: unknown, wantVerdict: "unknown"},
+		{name: "not_selected", snapshot: notSelected, wantVerdict: "not_selected"},
 	}
 
 	for _, tt := range tests {
@@ -381,5 +388,66 @@ func TestGetRepositoryFreshnessOutstandingByStageRendersRows(t *testing.T) {
 	}
 	if got, want := first["count"], float64(2); got != want {
 		t.Fatalf("outstanding_by_stage[0].count = %#v, want %#v", got, want)
+	}
+}
+
+// TestGetRepositoryFreshnessRendersSelectionBlock verifies the additive
+// #7625 selection block renders every field, and that a zero Selection
+// renders as unknown rather than an empty state string.
+func TestGetRepositoryFreshnessRendersSelectionBlock(t *testing.T) {
+	t.Parallel()
+
+	stateSince := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	evaluatedAt := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
+	snapshot.Selection = status.RepositorySelection{
+		State:             status.RepositorySelectionNotSelected,
+		Reason:            status.RepositorySelectionReasonConfirmedExclusion,
+		StateSince:        stateSince,
+		EvaluatedAt:       evaluatedAt,
+		LiveSelectorCount: 1,
+	}
+
+	reader := &testutil.FakeRepositoryFreshnessReader{Snapshot: snapshot}
+	handler := repositoryFreshnessTestHandler(reader)
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/freshness", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	resp := testutil.DecodeResponseBody(t, w)
+	selection, ok := resp["selection"].(map[string]any)
+	if !ok {
+		t.Fatalf("selection = %#v, want an object", resp["selection"])
+	}
+	if got, want := selection["state"], "not_selected"; got != want {
+		t.Fatalf("selection.state = %#v, want %#v", got, want)
+	}
+	if got, want := selection["reason"], "confirmed_exclusion"; got != want {
+		t.Fatalf("selection.reason = %#v, want %#v", got, want)
+	}
+	if got, want := selection["state_since"], "2026-10-06T12:00:00Z"; got != want {
+		t.Fatalf("selection.state_since = %#v, want %#v", got, want)
+	}
+	if selection["last_listed_at"] != nil {
+		t.Fatalf("selection.last_listed_at = %#v, want null for a zero time", selection["last_listed_at"])
+	}
+	if got, want := selection["evaluated_at"], "2026-10-08T12:00:00Z"; got != want {
+		t.Fatalf("selection.evaluated_at = %#v, want %#v", got, want)
+	}
+	if got, want := selection["live_selector_count"], float64(1); got != want {
+		t.Fatalf("selection.live_selector_count = %#v, want %#v", got, want)
+	}
+
+	zero := testutil.FullyBuiltRepositoryFreshnessSnapshot()
+	rendered := repositoryFreshnessToMap(nil, zero, status.RepositoryFreshnessCurrent, evaluatedAt, false)
+	zeroSelection, ok := rendered["selection"].(map[string]any)
+	if !ok {
+		t.Fatalf("zero selection = %#v, want an object", rendered["selection"])
+	}
+	if got, want := zeroSelection["state"], "unknown"; got != want {
+		t.Fatalf("zero selection.state = %#v, want %#v", got, want)
 	}
 }

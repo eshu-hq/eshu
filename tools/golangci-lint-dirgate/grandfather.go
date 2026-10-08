@@ -22,11 +22,11 @@ package main
 var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/collector/awscloud": {FileCount: 154, Digest: "7f55ebaf069c318deeb9e220f97a5387f9f33011a08e6c72b8497b38a396cbfd"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
-	"internal/collector/repo/git": {FileCount: 65, Digest: "c52b52eda6e521c5b56988994f637f36708e6810e1b6c04386d6081d845e78bb"},
+	"internal/collector/repo/git": {FileCount: 66, Digest: "cfa365dbf4210896f318519fc37b9a52482c821f4c99861ba8832ee35e608375"},
 	"internal/mcp":                {FileCount: 89, Digest: "b75022ddc4a0f0ede18e25ec264dc2585585a02dc2e53b4f7a58a0fc9a7e550c"},
 	"internal/parser":             {FileCount: 45, Digest: "ec26538203a8717bfb5cdc794d85fd02156914c7678f1683f1229d13cf7c6bf5", NamingExempt: []string{"c_language.go", "cpp_language.go", "csharp_language.go", "dart_language.go", "dockerfile_language.go", "elixir_language.go", "gomod_language.go", "gradle_language.go", "groovy_language.go", "hcl_language.go", "java_language.go", "java_metadata_files.go", "javascript_language.go", "json_language.go", "kotlin_language.go", "maven_language.go", "perl_haskell_language.go", "php_language.go", "python_dep_language.go", "python_language.go", "ruby_language.go", "rust_language.go", "scala_language.go", "shared_bridge.go", "sql_language.go", "swift_language.go", "yaml_language.go"}},
 	"internal/query":              {FileCount: 252, Digest: "6a369fab5e74a59148ffd84b1c2cf0d346ad82ea635726fa348e82ab1275cfa4"},
 	"internal/reducer":            {FileCount: 129, Digest: "d1ed380a1a061cf8a3d2e8fbf5b2dcd22d77137394f7b9f533123db35de125b6"},
 	"internal/storage/cypher":     {FileCount: 109, Digest: "e8063838d416354547735422111cdaa416b281a48d60a7a49245ed3abb92660e"},
-	"internal/storage/postgres":   {FileCount: 334, Digest: "6d25f47fa22cf666f29ecb87496c3c09ae0658e547ad7c9afb960ed1c5538233"},
+	"internal/storage/postgres":   {FileCount: 336, Digest: "7dc656046628ab6654452b194288c21a09633d8fb9bf2fc4809a264c6917de34"},
 }
