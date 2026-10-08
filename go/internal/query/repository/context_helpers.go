@@ -8,11 +8,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func QueryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, content querycontract.ContentStore, params map[string]any) ([]map[string]any, bool) {
 	repoID := querycontract.StringVal(params, "repo_id")
-	if entryPoints := querycontract.LoadRepositoryEntryPoints(ctx, content, repoID); entryPoints != nil {
+	if entryPoints := repository.LoadRepositoryEntryPoints(ctx, content, repoID); entryPoints != nil {
 		return entryPoints, false
 	}
 
@@ -32,7 +33,7 @@ func QueryRepoEntryPoints(ctx context.Context, reader querycontract.GraphQuery, 
 
 	result := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		if !querycontract.IsRepositoryEntryPointName(querycontract.StringVal(row, "name")) {
+		if !repository.IsRepositoryEntryPointName(querycontract.StringVal(row, "name")) {
 			continue
 		}
 		result = append(result, map[string]any{
@@ -335,14 +336,14 @@ func repositoryRelationshipEndpointAllowed(repoID, anchorRepoID string, access q
 // when every cross-tenant row is dropped, so the handler does not fall back to
 // the graph and re-run the (already grant-bound) helpers.
 func filterRepositoryRelationshipReadModelForAccess(
-	readModel *querycontract.RepositoryRelationshipReadModel,
+	readModel *repository.RepositoryRelationshipReadModel,
 	anchorRepoID string,
 	access querycontract.RepositoryAccessFilter,
-) *querycontract.RepositoryRelationshipReadModel {
+) *repository.RepositoryRelationshipReadModel {
 	if readModel == nil || !access.Scoped() {
 		return readModel
 	}
-	return &querycontract.RepositoryRelationshipReadModel{
+	return &repository.RepositoryRelationshipReadModel{
 		Available:     readModel.Available,
 		Relationships: filterRepoRelationshipOverviewRowsForAccess(readModel.Relationships, anchorRepoID, access),
 		Consumers:     filterRepoRelationshipTargetRowsForAccess(readModel.Consumers, "id", access),
@@ -351,7 +352,7 @@ func filterRepositoryRelationshipReadModelForAccess(
 
 // repositoryReadModelDependencies returns outgoing rows in the legacy
 // repository dependency shape.
-func repositoryReadModelDependencies(readModel *querycontract.RepositoryRelationshipReadModel) []map[string]any {
+func repositoryReadModelDependencies(readModel *repository.RepositoryRelationshipReadModel) []map[string]any {
 	if readModel == nil {
 		return nil
 	}

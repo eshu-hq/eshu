@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract.
+package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract (now its repository leaf).
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -21,7 +22,7 @@ import (
 // repositoryDeploymentEvidenceReadModel is the shared read model, aliased so
 // this package's call sites keep their unexported spelling while a
 // ContentStore double outside package query can still name it (#6060).
-type repositoryDeploymentEvidenceReadModel = querycontract.RepositoryDeploymentEvidenceReadModel
+type repositoryDeploymentEvidenceReadModel = repositorycontract.RepositoryDeploymentEvidenceReadModel
 
 type repositoryDeploymentEvidenceReadModelStore interface {
 	RepositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error)

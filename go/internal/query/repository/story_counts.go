@@ -5,6 +5,7 @@ package repository
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 import "context"
@@ -68,7 +69,7 @@ func queryRepositoryStoryGraphSummary(
 	params map[string]any,
 	fallback map[string]any,
 	contentCoverage *querycontract.RepositoryContentCoverage,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
+	readModelSummary *repository.RepositoryReadModelSummary,
 ) (repositoryStoryGraphSummary, error) {
 	fileCount, err := queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage)
 	if err != nil {
@@ -105,7 +106,7 @@ func queryRepositoryStoryWorkloadNames(
 	reader querycontract.GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
+	readModelSummary *repository.RepositoryReadModelSummary,
 ) ([]string, bool, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.WorkloadNames, false, nil
@@ -132,7 +133,7 @@ func queryRepositoryStoryPlatformTypes(
 	reader querycontract.GraphQuery,
 	params map[string]any,
 	fallback map[string]any,
-	readModelSummary *querycontract.RepositoryReadModelSummary,
+	readModelSummary *repository.RepositoryReadModelSummary,
 ) ([]string, bool, error) {
 	if readModelSummary != nil && readModelSummary.Available {
 		return readModelSummary.PlatformTypes, false, nil

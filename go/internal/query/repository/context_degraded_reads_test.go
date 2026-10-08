@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -168,7 +168,7 @@ func TestRepositoryContextReportsDegradedDeployableUnitRead(t *testing.T) {
 		},
 	}
 	content := content.FakePortContentStore{
-		RelationshipReadModel: querycontract.RepositoryRelationshipReadModel{
+		RelationshipReadModel: repository.RepositoryRelationshipReadModel{
 			Available: true,
 			Relationships: []map[string]any{{
 				"direction": "outgoing", "type": "DEPENDS_ON",

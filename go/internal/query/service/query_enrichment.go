@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -355,7 +356,7 @@ func EnrichServiceQueryContextWithOptions(
 		slog.Int("target_support_evidence_count", querycontract.IntVal(targetSupport, "evidence_count")),
 		slog.Int("target_support_incident_routing_count", querycontract.IntVal(targetSupport, "incident_routing_count")),
 		slog.Int("target_support_ambiguous_count", querycontract.IntVal(targetSupport, "ambiguous_count")),
-		slog.String("target_support_missing_reason", querycontract.FirstMissingEvidenceReason(targetSupport)),
+		slog.String("target_support_missing_reason", repositorycontract.FirstMissingEvidenceReason(targetSupport)),
 		slog.Int("repository_workload_count", supportLoad.RepositoryWorkloadCount),
 		slog.Bool("repository_defines_target", supportLoad.RepositoryDefinesTarget),
 		slog.Bool("error", err != nil),

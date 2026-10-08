@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // FakePortContentStore's repository-catalog and language-inventory reads live
@@ -25,8 +26,8 @@ func (f FakePortContentStore) ListRepositories(context.Context) ([]querycontract
 func (f FakePortContentStore) ListWorkloadIdentities(
 	context.Context,
 	int,
-) ([]querycontract.CatalogWorkloadIdentityEntry, bool, error) {
-	return append([]querycontract.CatalogWorkloadIdentityEntry(nil), f.WorkloadIdentities...), false, nil
+) ([]repository.CatalogWorkloadIdentityEntry, bool, error) {
+	return append([]repository.CatalogWorkloadIdentityEntry(nil), f.WorkloadIdentities...), false, nil
 }
 
 // MatchRepositories returns every fixture repository the selector names by any

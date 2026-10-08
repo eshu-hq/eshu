@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func TestBuildRepositoryStoryResponseIncludesSharedConfigInDirectStory(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		42,
@@ -72,7 +72,7 @@ func TestBuildRepositoryStoryResponseIncludesSharedConfigInDirectStory(t *testin
 func TestBuildRepositoryStoryResponsePreservesDeliveryPathsInDirectStory(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		42,
@@ -156,7 +156,7 @@ func TestBuildRepositoryStoryResponsePreservesDeliveryPathsInDirectStory(t *test
 func TestBuildRepositoryStoryResponseIncludesDockerfileRuntimeArtifactsInDirectStory(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		42,
@@ -201,7 +201,7 @@ func TestBuildRepositoryStoryResponseIncludesDockerfileRuntimeArtifactsInDirectS
 func TestBuildRepositoryStoryResponseIncludesWorkflowArtifactsForWorkflowOnlyRepo(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:ci-workflows", Name: "ci-workflows"}
+	repo := repository.RepoRef{ID: "repository:ci-workflows", Name: "ci-workflows"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		8,
@@ -267,7 +267,7 @@ func TestBuildRepositoryStoryResponseIncludesWorkflowArtifactsForWorkflowOnlyRep
 func TestBuildRepositoryStoryResponseIncludesControllerAndWorkflowProofTogether(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:platform-service", Name: "platform-service"}
+	repo := repository.RepoRef{ID: "repository:platform-service", Name: "platform-service"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		64,

@@ -8,15 +8,16 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // Ref is one source-backed repository branch/ref head. It is an
 // alias onto querycontract so the shared ContentStore double can name it from
 // outside this package (#6060).
-type Ref = querycontract.RepositoryRef
+type Ref = repository.RepositoryRef
 
 type repositoryRefLister interface {
-	ListRepositoryRefs(context.Context, string) ([]querycontract.RepositoryRef, error)
+	ListRepositoryRefs(context.Context, string) ([]repository.RepositoryRef, error)
 }
 
 // Refs lists every source-backed branch/tag ref store has recorded for
@@ -24,7 +25,7 @@ type repositoryRefLister interface {
 // ref name/SHA (RefsDefaultBranch, ValidateSelectedRepositoryRef) need the
 // full list, not a page of it. It returns (nil, nil), not an error, when
 // store is nil or does not implement repositoryRefLister.
-func Refs(ctx context.Context, store querycontract.ContentStore, repoID string) ([]querycontract.RepositoryRef, error) {
+func Refs(ctx context.Context, store querycontract.ContentStore, repoID string) ([]repository.RepositoryRef, error) {
 	if store == nil {
 		return nil, nil
 	}
@@ -39,7 +40,7 @@ func Refs(ctx context.Context, store querycontract.ContentStore, repoID string) 
 // Default, or "" when refs carries no default (an empty or all-tag list).
 // It scans by the Default flag, not position, so callers may reorder refs
 // (for paging, for example) without affecting the result.
-func RefsDefaultBranch(refs []querycontract.RepositoryRef) string {
+func RefsDefaultBranch(refs []repository.RepositoryRef) string {
 	for _, ref := range refs {
 		if ref.Default {
 			return strings.TrimSpace(ref.Name)
@@ -51,7 +52,7 @@ func RefsDefaultBranch(refs []querycontract.RepositoryRef) string {
 // RefEntry builds the wire entry for one repository ref.
 // includeDefault controls whether the is_default field appears;
 // branches always include it (legacy contract), tags never include it.
-func RefEntry(ref querycontract.RepositoryRef, includeDefault bool) map[string]any {
+func RefEntry(ref repository.RepositoryRef, includeDefault bool) map[string]any {
 	entry := map[string]any{
 		"name":     ref.Name,
 		"kind":     ref.Kind,

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package repository
 
 import (
 	"context"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // These four read models were already exported from package query, but a
@@ -48,7 +50,7 @@ type RepositoryReadModelCountsStore interface {
 // LoadRepositoryContextCounts selects the count-only port when present. An
 // error or unavailable result leaves graph fallback to the caller; it does not
 // retry through the full summary. Legacy stores retain the summary path.
-func LoadRepositoryContextCounts(ctx context.Context, content ContentStore, repoID string) *RepositoryReadModelCounts {
+func LoadRepositoryContextCounts(ctx context.Context, content querycontract.ContentStore, repoID string) *RepositoryReadModelCounts {
 	if content == nil || repoID == "" {
 		return nil
 	}
@@ -117,7 +119,7 @@ type RepositoryReadModelSummaryStore interface {
 // for repoID when the content store can answer it directly. It lives here
 // for the same reason as the port above; root keeps an unexported forwarder
 // so its stayers and read-model tripwires compile unchanged.
-func LoadRepositoryReadModelSummary(ctx context.Context, content ContentStore, repoID string) *RepositoryReadModelSummary {
+func LoadRepositoryReadModelSummary(ctx context.Context, content querycontract.ContentStore, repoID string) *RepositoryReadModelSummary {
 	store, ok := content.(RepositoryReadModelSummaryStore)
 	if !ok || repoID == "" {
 		return nil
@@ -143,7 +145,7 @@ type RepositoryRelationshipReadModelStore interface {
 // lives here for the same reason as the port above; root keeps an
 // unexported forwarder so its stayers and read-model tripwires compile
 // unchanged.
-func LoadRepositoryRelationshipReadModel(ctx context.Context, content ContentStore, repoID string) *RepositoryRelationshipReadModel {
+func LoadRepositoryRelationshipReadModel(ctx context.Context, content querycontract.ContentStore, repoID string) *RepositoryRelationshipReadModel {
 	store, ok := content.(RepositoryRelationshipReadModelStore)
 	if !ok || repoID == "" {
 		return nil

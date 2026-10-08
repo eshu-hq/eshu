@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func TestBuildRepositorySemanticOverviewCountsSemanticSignals(t *testing.T) {
@@ -332,7 +333,7 @@ func TestBuildRepositorySemanticOverviewCountsTerraformAndTerragruntSignals(t *t
 func TestBuildRepositoryStoryResponseIncludesSemanticOverview(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	semanticOverview := map[string]any{
 		"entity_count": 3,
 		"language_counts": map[string]int{
@@ -392,7 +393,7 @@ func TestBuildRepositoryStoryResponseIncludesSemanticOverview(t *testing.T) {
 func TestBuildRepositoryStoryResponseOmitsSemanticOverviewWhenEmpty(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		42,

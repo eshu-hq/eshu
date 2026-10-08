@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -51,11 +52,11 @@ func (s serviceReadModelInfrastructureOverflowContentStore) ListRepoEntitiesByTy
 
 func (s serviceReadModelInfrastructureOverflowContentStore) RepositoryReadModelSummary(
 	_ context.Context, _ string,
-) (querycontract.RepositoryReadModelSummary, error) {
-	return querycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: s.workloadNames}, nil
+) (repositorycontract.RepositoryReadModelSummary, error) {
+	return repositorycontract.RepositoryReadModelSummary{Available: true, WorkloadNames: s.workloadNames}, nil
 }
 
-var _ querycontract.RepositoryReadModelSummaryStore = serviceReadModelInfrastructureOverflowContentStore{}
+var _ repositorycontract.RepositoryReadModelSummaryStore = serviceReadModelInfrastructureOverflowContentStore{}
 
 // TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated is
 // the PR #5933 review follow-up (P1-2). FetchServiceReadModelWorkloadContext

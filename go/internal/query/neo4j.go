@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/graph/statement"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -234,14 +235,16 @@ func StringSliceVal(row map[string]any, key string) []string {
 }
 
 // RepoRef is the canonical repository reference returned by query endpoints.
-// It is an alias onto querycontract so the moved repository handler family
-// can name it from outside this package (#6060, lane B B3).
-type RepoRef = querycontract.RepoRef
+// It is an alias onto the querycontract/repository leaf so the moved
+// repository handler family can name it from outside this package (#6060,
+// lane B B3).
+type RepoRef = repository.RepoRef
 
 // RepoRefFromRow converts a graph result row to a RepoRef. The implementation
-// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
-func RepoRefFromRow(row map[string]any) querycontract.RepoRef {
-	return querycontract.RepoRefFromRow(row)
+// moved to querycontract for #6060 (now the repository leaf); this wrapper
+// keeps root callers unchanged.
+func RepoRefFromRow(row map[string]any) repository.RepoRef {
+	return repository.RepoRefFromRow(row)
 }
 
 // impactRelProvenanceList decodes a relationships(path) value into per-edge
@@ -389,8 +392,8 @@ func resourceInvestigationHopReason(props map[string]any) string {
 }
 
 // RepoProjection returns the standard Cypher RETURN clause for repository nodes.
-// The implementation moved to querycontract for #6060; this wrapper keeps
-// root callers unchanged.
+// The implementation moved to querycontract for #6060 (now the repository
+// leaf); this wrapper keeps root callers unchanged.
 func RepoProjection(alias string) string {
-	return querycontract.RepoProjection(alias)
+	return repository.RepoProjection(alias)
 }

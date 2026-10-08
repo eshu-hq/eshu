@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func TestBuildRepositoryStoryResponseIncludesTypedRelationshipNarrative(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{
+	repo := repository.RepoRef{
 		ID:        "repository:payments",
 		Name:      "payments",
 		LocalPath: "/workspace/payments",

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
@@ -15,7 +16,7 @@ import (
 func TestBuildRepositoryStoryResponsePreservesCombinedDeliverySurfaces(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:platform-service", Name: "platform-service"}
+	repo := repository.RepoRef{ID: "repository:platform-service", Name: "platform-service"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		64,
@@ -120,7 +121,7 @@ func TestBuildRepositoryStoryResponsePreservesCombinedDeliverySurfaces(t *testin
 func TestBuildRepositoryStoryResponsePreservesDockerfileRelationshipAndRuntimeStory(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		42,
@@ -225,7 +226,7 @@ locals {
 		t.Fatalf("config_paths type = %T, want []map[string]any", configArtifacts["config_paths"])
 	}
 
-	repo := querycontract.RepoRef{ID: "repository:terragrunt-deployment", Name: "terragrunt-deployment"}
+	repo := repository.RepoRef{ID: "repository:terragrunt-deployment", Name: "terragrunt-deployment"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		12,
@@ -268,7 +269,7 @@ locals {
 func TestBuildRepositoryStoryResponsePreservesSharedConfigAlongsideDeliverySurfaces(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:platform-service", Name: "platform-service"}
+	repo := repository.RepoRef{ID: "repository:platform-service", Name: "platform-service"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		64,
@@ -348,7 +349,7 @@ func TestBuildRepositoryStoryResponsePreservesSharedConfigAlongsideDeliverySurfa
 func TestBuildRepositoryStoryResponsePreservesDockerAndComposeRelationshipEvidenceWithDeliveryStory(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:platform-runtime", Name: "platform-runtime"}
+	repo := repository.RepoRef{ID: "repository:platform-runtime", Name: "platform-runtime"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		64,
@@ -498,7 +499,7 @@ func TestBuildRepositoryStoryResponsePreservesDockerAndComposeRelationshipEviden
 func TestRepositoryStoryDeliveryParitySynthesizesDeliveryFamilyParityWithoutCollapsingControllers(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments-service", Name: "payments-service"}
+	repo := repository.RepoRef{ID: "repository:payments-service", Name: "payments-service"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		18,

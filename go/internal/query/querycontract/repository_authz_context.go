@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package querycontract //nolint:dirgate // authz stays at root with its pair file (see repository_authz.go): repository/ imports this package, so moving either there would cycle.
 
 import (
 	"context"

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // listCatalogRepositoriesFromGraph returns the catalog's bounded repository
@@ -46,7 +47,7 @@ func (h *Handler) listCatalogRepositoriesFromGraph(
 		RETURN %s
 		ORDER BY r.name, r.id
 		LIMIT $limit
-	`, querycontract.RepoProjection("r"))
+	`, repository.RepoProjection("r"))
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"limit": limit + 1})
 	if err != nil {
 		return nil, false, false, err

@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -219,7 +220,7 @@ func TestHandleCrossRepoDeadCodeRepositoryBoundaryEvidenceStaysUnknown(t *testin
 		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
 			FakePortContentStore: content.FakePortContentStore{
 				Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
-				RelationshipReadModel: querycontract.RepositoryRelationshipReadModel{
+				RelationshipReadModel: repository.RepositoryRelationshipReadModel{
 					Available: true,
 					Relationships: []map[string]any{{
 						"direction":         "incoming",

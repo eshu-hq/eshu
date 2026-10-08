@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
@@ -244,7 +245,7 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 
 	handler := &Handler{
 		Content: content.FakePortContentStore{
-			WorkloadIdentities: []querycontract.CatalogWorkloadIdentityEntry{
+			WorkloadIdentities: []repository.CatalogWorkloadIdentityEntry{
 				{
 					Name:     "svc-catalog",
 					RepoID:   "repository:r_api",

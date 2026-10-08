@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
@@ -29,7 +30,7 @@ func getServiceContextReadModelPartialReasons(t *testing.T, dependenciesErr erro
 
 	content := content.FakePortContentStore{
 		Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "order-service"}},
-		Summary: querycontract.RepositoryReadModelSummary{
+		Summary: repositorycontract.RepositoryReadModelSummary{
 			Available:     true,
 			WorkloadNames: []string{"order-service"},
 		},

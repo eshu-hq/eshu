@@ -9,10 +9,11 @@ need without depending on the root `query` package.
 its name and source pages apply language and exact-name predicates before the
 limit. The root `ContentReader` implements it through this port.
 
-`RepositoryReadModelCountsStore` is an optional repository-context port. It
-returns only platform and dependency counts and keeps authoritative zeroes
-distinct from unavailable data. Context falls back to graph counts when this
-port fails or is unavailable; stores without it retain the full-summary port.
+`RepositoryReadModelCountsStore` (in the `repository/` leaf) is an optional
+repository-context port. It returns only platform and dependency counts and
+keeps authoritative zeroes distinct from unavailable data. Context falls back
+to graph counts when this port fails or is unavailable; stores without it
+retain the full-summary port.
 
 ## Ownership boundary
 
@@ -35,7 +36,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
 | Evidence-citation packet read models (#6642) | moved to `evidence/` (#6597) | callers name `evidence.EvidenceCitationHandle` and friends directly; root's unexported #6060 aliases were deleted with the move |
 | Language alias table and coverage maps | moved to `taxonomy/` (#6597) | callers name `taxonomy.CanonicalLanguage` and friends; `query/language` keeps unexported forwarders |
-| `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go` | 20 unexported type aliases in root, plus four exported ones |
+| `ContentStore` read models (#6060) | `documentation_read_models.go`, plus the repository read models, summary loaders, and row projection in `repository/` (#6597) | 20 unexported type aliases in root, plus four exported ones (the repository ones now name the leaf) |
 | Documentation fact generation state (#7128) | `documentation_fact_generation.go` | pure mapping from a scope or generation row to a documentation facts page's binding, freshness, and empty reason; `ContentReader.documentationFactPageState` reads the row |
 | `AnswerMetadata` attach helper and the answer packet | moved to `answer/` (#6597) | callers name `answer.AttachAnswerMetadata`, `answer.NewAnswerPacket` and friends directly; root keeps the exported aliases in `answer_metadata_alias.go` and `ask_alias.go` that packages outside `go/internal/query` name; `AssertAnswerMetadata` pin in `impact/` test |
 | Edge-materialization coverage | `edge_materialization_coverage.go` | `impact/` callers and the root coverage test reference directly |

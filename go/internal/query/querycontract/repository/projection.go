@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package repository
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // RepoProjection returns the standard Cypher RETURN clause for repository
@@ -43,22 +45,22 @@ type RepoRef struct {
 // the same reason as RepoRef; root keeps a wrapper so its callers are
 // unchanged.
 func RepoRefFromRow(row map[string]any) RepoRef {
-	localPath := StringVal(row, "local_path")
+	localPath := querycontract.StringVal(row, "local_path")
 	if localPath == "" {
-		localPath = StringVal(row, "path")
+		localPath = querycontract.StringVal(row, "path")
 	}
-	name := StringVal(row, "name")
+	name := querycontract.StringVal(row, "name")
 	if name == "" && localPath != "" {
 		parts := strings.Split(localPath, "/")
 		name = parts[len(parts)-1]
 	}
 	return RepoRef{
-		ID:        StringVal(row, "id"),
+		ID:        querycontract.StringVal(row, "id"),
 		Name:      name,
 		LocalPath: localPath,
-		RemoteURL: StringVal(row, "remote_url"),
-		RepoSlug:  StringVal(row, "repo_slug"),
-		HasRemote: BoolVal(row, "has_remote"),
+		RemoteURL: querycontract.StringVal(row, "remote_url"),
+		RepoSlug:  querycontract.StringVal(row, "repo_slug"),
+		HasRemote: querycontract.BoolVal(row, "has_remote"),
 	}
 }
 

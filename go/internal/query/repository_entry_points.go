@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract.
+package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract (now its repository leaf).
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // repositoryEntryPointReadModel is the shared read model, aliased so this
 // package's call sites keep their unexported spelling while a ContentStore
 // double outside package query can still name it (#6060).
-type repositoryEntryPointReadModel = querycontract.RepositoryEntryPointReadModel
+type repositoryEntryPointReadModel = repository.RepositoryEntryPointReadModel
 
 type repositoryEntryPointReadModelStore interface {
 	RepositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error)
@@ -21,11 +21,11 @@ type repositoryEntryPointReadModelStore interface {
 
 // loadRepositoryEntryPoints returns content-derived entry points when the
 // content store can answer the narrow query directly. The implementation
-// moved to querycontract for #6060; this wrapper keeps root callers
-// unchanged. The unexported store interface stays as the structural twin
-// the ContentReader assertion below resolves against.
+// moved to querycontract for #6060 (now the repository leaf); this wrapper
+// keeps root callers unchanged. The unexported store interface stays as the
+// structural twin the ContentReader assertion below resolves against.
 func loadRepositoryEntryPoints(ctx context.Context, content ContentStore, repoID string) []map[string]any {
-	return querycontract.LoadRepositoryEntryPoints(ctx, content, repoID)
+	return repository.LoadRepositoryEntryPoints(ctx, content, repoID)
 }
 
 // RepositoryEntryPoints reads only known entry-point function names from
@@ -56,7 +56,7 @@ func (cr *ContentReader) RepositoryEntryPoints(ctx context.Context, repoID strin
 		if err := rows.Scan(&name, &relativePath, &language); err != nil {
 			return repositoryEntryPointReadModel{}, fmt.Errorf("scan repository entry point: %w", err)
 		}
-		if !querycontract.IsRepositoryEntryPointName(name) {
+		if !repository.IsRepositoryEntryPointName(name) {
 			continue
 		}
 		result = append(result, map[string]any{

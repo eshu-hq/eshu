@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/kubernetes"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 // FakePortContentStore is the shared content-read double for handler tests. It
@@ -40,18 +41,18 @@ type FakePortContentStore struct {
 	// Coverage answers RepositoryCoverage.
 	Coverage querycontract.RepositoryContentCoverage
 	// Summary answers RepositoryReadModelSummary.
-	Summary querycontract.RepositoryReadModelSummary
+	Summary repository.RepositoryReadModelSummary
 	// RelationshipReadModel answers RepositoryRelationshipReadModel.
-	RelationshipReadModel querycontract.RepositoryRelationshipReadModel
+	RelationshipReadModel repository.RepositoryRelationshipReadModel
 	// EntryPoints answers RepositoryEntryPoints.
-	EntryPoints querycontract.RepositoryEntryPointReadModel
+	EntryPoints repository.RepositoryEntryPointReadModel
 	// DeploymentEvidence and DeploymentEvidenceErr answer
 	// RepositoryDeploymentEvidence. The error wins when both are set, so a
 	// test can cover the failure path without clearing the fixture.
-	DeploymentEvidence    querycontract.RepositoryDeploymentEvidenceReadModel
+	DeploymentEvidence    repository.RepositoryDeploymentEvidenceReadModel
 	DeploymentEvidenceErr error
 	// RelationshipEvidence answers RelationshipEvidenceByResolvedID.
-	RelationshipEvidence querycontract.RelationshipEvidenceReadModel
+	RelationshipEvidence repository.RelationshipEvidenceReadModel
 
 	// DocumentationFindingsModel, DocumentationFindingsErr, and
 	// DocumentationFindingsFilter answer DocumentationFindings. The filter
@@ -73,13 +74,13 @@ type FakePortContentStore struct {
 	DocumentationFreshnessFilter *querycontract.DocumentationEvidencePacketFreshnessFilter
 	// TargetSupportModel and TargetSupportErr answer
 	// ServiceStoryTargetSupportEvidence; both are returned as given.
-	TargetSupportModel querycontract.ServiceStoryTargetSupportReadModel
+	TargetSupportModel repository.ServiceStoryTargetSupportReadModel
 	TargetSupportErr   error
 	// TargetSupportFilter, when non-nil, receives the filter the loader built
 	// for each ServiceStoryTargetSupportEvidence call, so a handler test can
 	// assert what the loader derived (for example the graph-derived
 	// repository workload fields) rather than only the rows returned.
-	TargetSupportFilter *querycontract.ServiceStoryTargetSupportFilter
+	TargetSupportFilter *repository.ServiceStoryTargetSupportFilter
 
 	// Entities backs every entity read: the by-type, by-types, by-paths, and
 	// by-ID fetches and the K8s candidate scan all filter this one slice, so a
@@ -88,7 +89,7 @@ type FakePortContentStore struct {
 	// RepoFiles backs GetFileContent and ListRepoFiles.
 	RepoFiles []querycontract.FileContent
 	// RepositoryRefs answers ListRepositoryRefs.
-	RepositoryRefs []querycontract.RepositoryRef
+	RepositoryRefs []repository.RepositoryRef
 	// Repositories backs ListRepositories, MatchRepositories, and
 	// ResolveRepository.
 	Repositories []querycontract.RepositoryCatalogEntry
@@ -98,7 +99,7 @@ type FakePortContentStore struct {
 	LanguageCounts    map[string]querycontract.RepositoryLanguageAggregate
 	LanguageInventory []querycontract.RepositoryLanguageInventoryRow
 	// WorkloadIdentities answers ListWorkloadIdentities.
-	WorkloadIdentities []querycontract.CatalogWorkloadIdentityEntry
+	WorkloadIdentities []repository.CatalogWorkloadIdentityEntry
 }
 
 var _ querycontract.ContentStore = (*FakePortContentStore)(nil)
@@ -281,8 +282,8 @@ func (f FakePortContentStore) ListRepoFiles(
 func (f FakePortContentStore) ListRepositoryRefs(
 	context.Context,
 	string,
-) ([]querycontract.RepositoryRef, error) {
-	return append([]querycontract.RepositoryRef(nil), f.RepositoryRefs...), nil
+) ([]repository.RepositoryRef, error) {
+	return append([]repository.RepositoryRef(nil), f.RepositoryRefs...), nil
 }
 
 // ListRepoEntities returns the fixture entities up to limit, unfiltered by

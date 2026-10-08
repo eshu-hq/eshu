@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -34,7 +35,7 @@ type EvidenceHandler struct {
 // relationshipEvidenceReadModel is the shared read model, aliased so this
 // package's call sites keep their unexported spelling while a ContentStore
 // double outside package query can still name it (#6060).
-type relationshipEvidenceReadModel = querycontract.RelationshipEvidenceReadModel
+type relationshipEvidenceReadModel = repository.RelationshipEvidenceReadModel
 
 type relationshipEvidenceReadModelStore interface {
 	RelationshipEvidenceByResolvedID(context.Context, string) (relationshipEvidenceReadModel, error)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract.
+package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract (now its repository leaf).
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -20,10 +20,10 @@ import (
 // queries (queryRepoDependencies, queryRepoRelationshipOverview,
 // queryRepoConsumers).
 //
-// It is an alias onto querycontract so the shared ContentStore double can
-// name it from outside this package (#6060). See the querycontract
-// declaration for the Available fallback obligation.
-type RepositoryRelationshipReadModel = querycontract.RepositoryRelationshipReadModel
+// It is an alias onto the querycontract/repository leaf so the shared
+// ContentStore double can name it from outside this package (#6060). See the
+// leaf declaration for the Available fallback obligation.
+type RepositoryRelationshipReadModel = repository.RepositoryRelationshipReadModel
 
 type repositoryRelationshipReadModelStore interface {
 	RepositoryRelationshipReadModel(context.Context, string) (RepositoryRelationshipReadModel, error)
@@ -31,10 +31,10 @@ type repositoryRelationshipReadModelStore interface {
 
 // loadRepositoryRelationshipReadModel returns resolved relationship truth from
 // the Postgres read model when the content store can provide it. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers unchanged.
+// implementation moved to querycontract for #6060 (now the repository leaf);
+// this wrapper keeps root callers unchanged.
 func loadRepositoryRelationshipReadModel(ctx context.Context, content ContentStore, repoID string) *RepositoryRelationshipReadModel {
-	return querycontract.LoadRepositoryRelationshipReadModel(ctx, content, repoID)
+	return repository.LoadRepositoryRelationshipReadModel(ctx, content, repoID)
 }
 
 // RepositoryRelationshipReadModel hydrates repository relationship rows from

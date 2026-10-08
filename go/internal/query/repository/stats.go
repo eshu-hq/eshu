@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
@@ -136,7 +137,7 @@ func (h *Handler) repositoryStatsRepositoryRef(
 			return nil, "graph", err
 		}
 		if row != nil {
-			return querycontract.RepoRefFromRow(row), "graph", nil
+			return repository.RepoRefFromRow(row), "graph", nil
 		}
 	}
 	if h != nil && h.Content != nil {

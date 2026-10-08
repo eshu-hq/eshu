@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
@@ -222,7 +223,7 @@ func (h *Handler) FetchServiceReadModelWorkloadContext(ctx context.Context, serv
 		return nil, nil
 	}
 
-	summary := querycontract.LoadRepositoryReadModelSummary(ctx, h.Content, repo.ID)
+	summary := repositorycontract.LoadRepositoryReadModelSummary(ctx, h.Content, repo.ID)
 	if summary == nil {
 		return nil, nil
 	}

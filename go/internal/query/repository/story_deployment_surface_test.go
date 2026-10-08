@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 )
 
 func TestBuildRepositoryStoryResponseDoesNotMarkDeploymentUnknownWhenWorkloadHasDeliveryEvidence(t *testing.T) {
 	t.Parallel()
 
-	repo := querycontract.RepoRef{ID: "repository:payments", Name: "payments"}
+	repo := repository.RepoRef{ID: "repository:payments", Name: "payments"}
 	got := buildRepositoryStoryResponse(
 		repo,
 		42,
@@ -48,7 +49,7 @@ func TestBuildRepositoryStoryResponseDoesNotMarkDeploymentUnknownWhenEvidenceCou
 	t.Parallel()
 
 	got := buildRepositoryStoryResponse(
-		querycontract.RepoRef{ID: "repository:deploy", Name: "deploy"},
+		repository.RepoRef{ID: "repository:deploy", Name: "deploy"},
 		3,
 		[]string{"yaml"},
 		nil,

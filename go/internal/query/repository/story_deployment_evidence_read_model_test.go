@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
@@ -47,11 +48,11 @@ func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
 					{Language: "yaml", FileCount: 2},
 				},
 			},
-			Summary: querycontract.RepositoryReadModelSummary{
+			Summary: repository.RepositoryReadModelSummary{
 				Available:     true,
 				WorkloadNames: []string{"checkout-service"},
 			},
-			DeploymentEvidence: querycontract.RepositoryDeploymentEvidenceReadModel{
+			DeploymentEvidence: repository.RepositoryDeploymentEvidenceReadModel{
 				Available: true,
 				Rows: []map[string]any{
 					{
@@ -115,7 +116,7 @@ func TestBuildRepositoryStoryResponseSummarizesRepositoryOnlyDeploymentEvidence(
 	t.Parallel()
 
 	got := buildRepositoryStoryResponse(
-		querycontract.RepoRef{ID: "repo-deploy-only", Name: "deployment-only"},
+		repository.RepoRef{ID: "repo-deploy-only", Name: "deployment-only"},
 		3,
 		[]string{"yaml"},
 		nil,
