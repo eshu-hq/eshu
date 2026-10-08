@@ -128,8 +128,9 @@ default-branch `SelectedRepository` only, never to a pinned-ref entry. The
 fact builder then empties the generation's freshness hint: the snapshot hint
 does not fold git refs, so a rename that kept the tree would otherwise be
 dropped as unchanged and leave the old `default_branch` on the repository
-fact. It is not a reconciliation: `reconciliation_generation` stays unset, so
-the old branch's removals do not count as drift on
+fact. It is not a reconciliation: unless a sweep reconciliation lands on the
+same cycle, `reconciliation_generation` stays unset, so the old branch's
+removals do not count as drift on
 `eshu_dp_reconciliation_drift_retractions_total`, and no sweep budget or
 reconciliation counter is spent. One gap remains: when `list_refs` fails on
 the cycle that adopts a same-tree rename, `origin/HEAD` already names the new
@@ -144,6 +145,16 @@ tip and the probe resolve in one `rev-parse`. Two unusual remotes cost more
 each cycle: a remote `HEAD` that names a missing branch costs a second fetch,
 and a detached remote `HEAD` (a bare commit, no branch) at a commit other than
 the tracked tip costs one `ls-remote`.
+
+Observability Evidence (#7678): before this change the only signal was the
+repeating sync error `couldn't find remote ref refs/heads/<branch>`, and a
+moved default branch with the old branch kept produced no signal at all. A
+detected change now emits the WARN `git repository default branch changed`
+(`previous_branch`, `branch`, `detection`) and, on the incremental path, one
+increment of `eshu_dp_collector_delta_baseline_fallback_total` with
+`skip_reason=default_branch_changed`; `TestUpdateRepositoryFollowsDeletedDefaultBranch`
+and `TestUpdateRepositoryFollowsMovedDefaultBranch` assert both against a real
+git remote. Steady-state syncs emit nothing new.
 
 ## Two-phase content
 

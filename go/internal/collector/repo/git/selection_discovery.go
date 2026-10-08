@@ -30,8 +30,10 @@ type RepositorySelection struct {
 // GitSyncSelection captures the repo paths selected after one Git-backed sync pass.
 type GitSyncSelection struct {
 	SelectedRepoPaths []string
-	DeltaByRepoPath   map[string]GitSyncDelta
-	RefsByRepoPath    map[string][]GitRef
+	// DeltaByRepoPath holds incremental deltas, plus path-less entries that
+	// only carry GitSyncDelta.DefaultBranchChanged for a full snapshot.
+	DeltaByRepoPath map[string]GitSyncDelta
+	RefsByRepoPath  map[string][]GitRef
 	// ReconcileByRepoPath marks repo paths the sweep forced to a full
 	// reconciliation snapshot this cycle so their generation bypasses the
 	// freshness-hint skip and always re-projects to retract drift.
