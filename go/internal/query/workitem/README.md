@@ -11,12 +11,12 @@ version, or service identity.
 ## Ownership boundary
 
 Owns the `Handler` struct, its HTTP dispatch, the `EvidenceStore` Postgres
-implementation, the typed `work_item.*` fact decode wrappers, and the
-evidence-state classification, pagination, and span-attribute shaping this
-route reports. Does not own the scoped-token grant type or context helpers
+implementation, and the evidence-state classification, pagination, and
+span-attribute shaping this route reports. Does not own the scoped-token grant type or context helpers
 (`auth`), the content-model types, capability registry, or HTTP/error
-envelope helpers (`querycontract`), or the classified decode-error type
-(`decode`) -- those are separate leaves this package calls into.
+envelope helpers (`querycontract`), the classified decode-error type
+(`decode`), or the shared work-item decode substrate
+(`decode/workitem`) -- those are separate leaves this package calls into.
 
 ## Layout
 
@@ -39,10 +39,11 @@ envelope helpers (`querycontract`), or the classified decode-error type
 - `read_kinds.go` -- `EvidenceFactKinds`, the fact-kind registry bound.
 - `state.go` -- the evidence-state classification, summary, and span-attribute
   shaping.
-- `factschema_decode.go` -- the nine `work_item.*` typed decode wrappers
-  (`decodeWorkItemRecord`, `decodeWorkItemTransition`, ...), `workItemDecodeInput`,
-  `workItemSchemaEnvelope`, and this package's own `derefBool`.
 - `capability.go` -- `EvidenceSupport`, this family's capability contract.
+- The nine `work_item.*` typed decode wrappers, the decode input, the
+  schema envelope, the `*bool` deref, and the drop-log helper live in the
+  shared `internal/query/decode/workitem` leaf (#6623), imported here as
+  `workitemdecode`; `evidence.go` keeps the decode dispatch.
 - Test files -- this package's own tests, moved in verbatim from root (see
   Move evidence).
 
@@ -116,6 +117,14 @@ attributes, and the per-state span counters
 (mirroring `incidentHandlerTracer` in `go/internal/query/incident/handler.go`;
 also used by the sibling #6642 language move's `language/handler_tracing.go`'s
 `languageHandlerTracer`), seeded from `tracing.HandlerTracer()`.
+
+#6623 then moved `factschema_decode.go`'s nine wrappers, the decode input,
+the schema envelope, and `derefBool` -- plus `logWorkItemEvidenceDecodeDrop`
+from `evidence.go` -- into the shared `internal/query/decode/workitem` leaf
+(`git mv` plus export), absorbing the incident store's verbatim fork; both
+read paths call the leaf as `workitemdecode` with no logic change. The
+payload-usage-manifest gate attributes the moved seams through the new
+`workitemdecode` qualifier.
 
 ## Related docs
 

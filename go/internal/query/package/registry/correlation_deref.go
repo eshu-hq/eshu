@@ -9,7 +9,7 @@ package registry
 //
 // The *string case is decode.DerefString, shared by every query-layer
 // factschema decoder since #6642 moved root's copy into internal/query/decode.
-// derefBool stays here: no other query package needs a *bool deref.
+// derefBool stays here: the registry keeps its own and does not import the work-item leaf for one helper.
 
 // derefBool returns the value a *bool points at, or false when it is nil.
 func derefBool(value *bool) bool {

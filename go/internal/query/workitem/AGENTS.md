@@ -10,10 +10,12 @@ dispatch), `handler.go` (`Handler`, `Mount`, dispatch), `handler_tracing.go`
 (the span seam), `scope.go` (the empty-grant page writer), `store.go`
 (`PostgresEvidenceStore` and `NewPostgresEvidenceStoreWithReadStore`), `sql.go` (`listWorkItemEvidenceQuery`), `page.go`
 (`EvidencePage`, pagination), `read_kinds.go` (`EvidenceFactKinds`),
-`state.go` (evidence-state classification), `factschema_decode.go` (the nine
-`work_item.*` typed decode wrappers), and `capability.go`
+`state.go` (evidence-state classification), and `capability.go`
 (`EvidenceSupport`), plus this package's own tests, moved in verbatim from
-root -- see README.md's Move evidence.
+root -- see README.md's Move evidence. The nine `work_item.*` typed decode
+wrappers live in the shared `internal/query/decode/workitem` leaf (#6623),
+which this package imports as `workitemdecode`; `evidence.go` keeps the
+decode dispatch.
 
 ## Invariants
 
@@ -43,8 +45,9 @@ root -- see README.md's Move evidence.
 - The `*string` deref and the default schema version come from
   `decode.DerefString` and `decode.DefaultSchemaMajorVersion`, shared by every
   query-layer factschema decoder since #6642. Do not re-fork either here.
-  `derefBool` (`factschema_decode.go`) stays package-local: no other query
-  package needs a `*bool` deref.
+  The `*bool` deref, the decode input, the schema envelope, and the nine
+  wrappers come from the shared `internal/query/decode/workitem` leaf
+  (#6623); do not re-fork any of them here.
 
 ## Naming
 
@@ -60,7 +63,11 @@ The #4573 payload-usage manifest gate (`go test ./internal/reducer -run
 TestPayloadUsageManifest`) discovers query-layer decode wrappers by globbing
 `factschema_decode*.go` recursively under `go/internal/query`
 (`go/internal/payloadusage/paths.go`, `QueryDecodeFiles`). The nine
-`work_item.*` wrappers therefore live in `factschema_decode.go`, not a
+`work_item.*` wrappers live in the shared
+`internal/query/decode/workitem/factschema_decode.go` (#6623), not a
 shorter name: the file name does not repeat the directory name, so rule 2
-of `docs/internal/naming.md` is satisfied, and the gate keeps scanning this
-family after the move. Do not rename that file without moving the glob.
+of `docs/internal/naming.md` is satisfied, and the gate keeps scanning the
+wrappers after the move. This package calls them through the single
+`workitemdecode` import spelling, the only qualifier the gate attributes;
+do not rename that file or spelling without moving the glob and
+`KnownDecodeQualifiers` together.

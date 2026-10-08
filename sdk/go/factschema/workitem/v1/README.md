@@ -112,8 +112,9 @@ Some work-item payload fields are read only by raw-SQL-JSONB queries in
 `incident_context_review_sql.go`), which the #4573 payload-usage manifest
 gate's decode-seam scan cannot see on its own -- that raw-SQL path is the
 actual blind spot. The query-side seam file,
-`go/internal/query/workitem/factschema_decode.go` (moved from root's
-`factschema_decode_workitem.go` in #6642), is the opposite of blind: it
+`go/internal/query/decode/workitem/factschema_decode.go` (moved from root's
+`factschema_decode_workitem.go` in #6642, then into the shared leaf in #6623),
+is the opposite of blind: it
 deliberately keeps the `factschema_decode` name because the gate's
 `QueryDir` input discovers query-layer decoders by globbing
 `factschema_decode*.go` recursively, so this file is scanned every time. The

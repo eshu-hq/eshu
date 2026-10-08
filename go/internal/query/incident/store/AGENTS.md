@@ -11,21 +11,22 @@ reads), `review.go` / `routing.go` / `runtime.go` (the per-topic reads),
 pure evidence-edge assembly over decoded rows), `candidates.go` and
 `commit.go` (routing-candidate and build-commit assembly), `decode.go` (the
 incident row decoders), `factschema_decode_incident.go` (the
-incident-specific factschema decode wrappers), `decode_workitem.go` (the
-forked work-item decode substrate — see below), and `authorizer.go` (the
-durable owning-repository authorizer).
+incident-specific factschema decode wrappers), and `authorizer.go` (the
+durable owning-repository authorizer). Work-item decoding comes from the
+shared `internal/query/decode/workitem` leaf (#6623), imported as
+`workitemdecode`.
 
 - The service-catalog, CI/CD run, and container image sub-reads behind the
   runtime evidence arrive as injected ports (`WithCatalog`, `WithCICD`,
   `WithImages`). A nil port fails its read with a required-store error;
   never default one silently, and never construct the owning families'
   concretes here (their homes live outside this package).
-- `decode_workitem.go` forks shared root decode helpers with per-symbol
-  source citations. Do not extend the forks: when the work-item lane
-  promotes that substrate to a shared home, this file adopts it and the
-  forks go away.
+- Do not re-fork the shared work-item decode substrate
+  (`internal/query/decode/workitem`, imported as `workitemdecode`): the
+  `#6623` move deleted this package's verbatim fork.
 - This package imports `incident/model`, `incident/sql`, `querycontract`,
-  `supplychain` (image port only), the narrow `storage/postgres/db` read port, and the factschema SDKs. It MUST NOT
+  `supplychain` (image port only), the narrow `storage/postgres/db` read port, `decode` (the classified
+  decode-error type), the shared `decode/workitem` leaf, and the factschema SDKs. It MUST NOT
   import the query root or `incident/`.
 - `queryplan` manifests: the incident family has no entries. Keep it zero.
 

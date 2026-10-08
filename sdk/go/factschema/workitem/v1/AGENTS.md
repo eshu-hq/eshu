@@ -24,7 +24,7 @@ and `WorkItemMetadataWarning`. It must remain independent from Eshu internals.
 ## Decode site is the query layer, not the reducer
 
 No reducer or projector domain decodes `work_item.*` payloads. The decode
-sites are `go/internal/query/workitem/factschema_decode.go` (the typed seam wrapper
+sites are `go/internal/query/decode/workitem/factschema_decode.go` (the typed seam wrapper
 the #4573 payload-usage manifest gate's `QueryDir` input scans, moved from
 root's `factschema_decode_workitem.go` in #6642),
 `workitem/store.go`/`workitem/evidence.go`, and

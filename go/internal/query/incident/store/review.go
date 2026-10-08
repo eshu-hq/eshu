@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
+	workitemdecode "github.com/eshu-hq/eshu/go/internal/query/decode/workitem"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 )
@@ -228,9 +229,9 @@ func appendIncidentReviewDistinct(values []string, value string) []string {
 // anchor (provider_work_item_id or work_item_key) — the caller drops it
 // rather than emitting an empty-identity row.
 func decodeIncidentWorkItemRecord(row incidentContextFactRow) (incidentWorkItemRecord, bool) {
-	record, err := decodeWorkItemRecord(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
+	record, err := workitemdecode.DecodeRecord(workitemdecode.DecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
-		logWorkItemEvidenceDecodeDrop(err)
+		workitemdecode.LogEvidenceDecodeDrop(err)
 		return incidentWorkItemRecord{}, false
 	}
 	return incidentWorkItemRecord{
@@ -251,9 +252,9 @@ func decodeIncidentWorkItemRecord(row incidentContextFactRow) (incidentWorkItemR
 // work_item.project_metadata fact row through the typed seam. ok is false
 // when the fact failed decode (only "provider" is required for this kind).
 func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) (incidentWorkItemProjectMetadata, bool) {
-	metadata, err := decodeWorkItemProjectMetadata(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
+	metadata, err := workitemdecode.DecodeProjectMetadata(workitemdecode.DecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
-		logWorkItemEvidenceDecodeDrop(err)
+		workitemdecode.LogEvidenceDecodeDrop(err)
 		return incidentWorkItemProjectMetadata{}, false
 	}
 	return incidentWorkItemProjectMetadata{
@@ -269,9 +270,9 @@ func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) (incident
 // fact row through the typed seam. ok is false when the fact is missing its
 // required status_id anchor.
 func decodeIncidentWorkItemStatusMetadata(row incidentContextFactRow) (incidentWorkItemStatusMetadata, bool) {
-	metadata, err := decodeWorkItemStatusMetadata(workItemDecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
+	metadata, err := workitemdecode.DecodeStatusMetadata(workitemdecode.DecodeInput{FactID: row.FactID, SchemaVersion: row.SchemaVersion, Payload: row.Payload})
 	if err != nil {
-		logWorkItemEvidenceDecodeDrop(err)
+		workitemdecode.LogEvidenceDecodeDrop(err)
 		return incidentWorkItemStatusMetadata{}, false
 	}
 	return incidentWorkItemStatusMetadata{

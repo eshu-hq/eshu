@@ -33,6 +33,9 @@ import (
 var decodePackageImports = map[string]string{
 	"github.com/eshu-hq/eshu/sdk/go/factschema":                "factschema",
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode": "schemadecode",
+	// Shared work-item decode leaf (#6623); every importer aliases it
+	// workitemdecode so the manifest attributes its qualified seams.
+	"github.com/eshu-hq/eshu/go/internal/query/decode/workitem": "workitemdecode",
 }
 
 // decodeSurfaceDirs returns the six trees Load feeds to ScanDecodeUsage, by

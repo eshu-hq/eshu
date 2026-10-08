@@ -45,7 +45,7 @@ import (
 // decode wrapper. Bundling FactID, SchemaVersion, and Payload into a single
 // parameter keeps each wrapper's one-argument shape, matching the
 // payload-usage manifest gate's seam parser convention (see
-// internal/query/workitem/factschema_decode.go's workItemDecodeInput).
+// internal/query/decode/workitem/factschema_decode.go's DecodeInput).
 type supplyChainFactDecodeInput struct {
 	FactID        string
 	SchemaVersion string
