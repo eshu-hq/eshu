@@ -292,6 +292,19 @@ func buildPythonFrameworkSemanticsGathered(g pythonGatheredNodes, root *tree_sit
 	return semantics
 }
 
+// pythonSingleFileFramework returns the file's framework when the route
+// semantics name exactly one, so every function in the file can carry it as
+// observed framework evidence. Zero or several frameworks return "":
+// ambiguous stays silent rather than guessing, since the dead-code
+// no-root-model notice must never fire on a misattribution.
+func pythonSingleFileFramework(semantics map[string]any) string {
+	frameworks, ok := semantics["frameworks"].([]string)
+	if !ok || len(frameworks) != 1 {
+		return ""
+	}
+	return strings.TrimSpace(frameworks[0])
+}
+
 // buildPythonORMTableMappingsGathered derives SQLAlchemy __tablename__ and
 // Django Meta.db_table mappings from pre-gathered class_definition nodes
 // instead of a separate full-tree walk.

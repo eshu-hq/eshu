@@ -45,6 +45,28 @@ For the analyzer contract, response fields, and promotion rules, see
 | TSX | `derived` | React and Next.js roots through the JavaScript-family parser, component exports, generated/test exclusions. | React runtime dispatch, dynamic imports, JSX component indirection, package declaration surfaces, framework loading. |
 | TypeScript | `derived` | JavaScript-family framework roots plus interface method implementations, module-contract exports, static registry members, public API exports, public API reexports, public API type references. | Dynamic imports, property dispatch, declaration-surface precision, package export breadth, decorators, framework/plugin loading. |
 
+## Framework Root-Model Coverage
+
+The `frameworks_without_root_model` notice fires per language from producer
+framework tags: a framework observed in result metadata fires the notice when
+its language has a modeled set below that does not contain it. Languages
+without a row are not evaluated and stay silent. This table mirrors
+`deadCodeModeledFrameworks`; keep the two in lockstep.
+
+| Language | Modeled (silence) | Observed, unmodeled (notice fires) |
+| --- | --- | --- |
+| Go | `chi`, `net_http` | `echo`, `fiber`, `gin` |
+| Groovy | `jenkins` | - |
+| PHP | `laravel`, `slim`, `symfony`, `wordpress`, `zend_framework_1` | - |
+| Python | `fastapi`, `flask` | `aiohttp`, `django`, `drf`, `tornado` |
+
+`chi` is modeled incidentally: chi handlers are `net/http` HandlerFuncs, so
+the `go.net_http_handler_signature` shape roots them without a chi-specific
+kind. Frameworks with root models but no producer (`cobra` and
+controller-runtime for Go; Celery, Click, and Typer for Python) must gain
+their modeled-set entry in the same change that adds a producer, or the new
+tags fire a false notice.
+
 ## Evidence Locations
 
 The source of truth is split by owner:

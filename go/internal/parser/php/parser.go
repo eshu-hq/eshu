@@ -195,6 +195,16 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 		if len(rootKinds) > 0 {
 			function.item["dead_code_root_kinds"] = rootKinds
 		}
+		if framework := phpDeadCodeFramework(
+			function.name,
+			function.contextName,
+			function.contextKind,
+			function.lineNumber,
+			function.isPublic,
+			state.deadCodeFacts,
+		); framework != "" {
+			function.item["framework"] = framework
+		}
 	}
 
 	if namespace := phpNamespaceName(root, source); namespace != "" {

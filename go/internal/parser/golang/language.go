@@ -63,9 +63,11 @@ func Parse(
 	// only ever return (nil, false) for such a file (issue #5219). Profiling
 	// on the kubernetes corpus (17,490 files) showed this gate skips the
 	// walk for 94.7% of files, output-identical.
+	fileFramework := ""
 	if goFileImportsRouteFramework(importAliases) {
 		if frameworkSemantics, ok := goHTTPFrameworkSemantics(root, source, importAliases); ok {
 			payload["framework_semantics"] = frameworkSemantics
+			fileFramework = goSingleFileFramework(frameworkSemantics)
 		}
 	}
 	scope := options.NormalizedVariableScope()
@@ -111,6 +113,9 @@ func Parse(
 			}
 			if rootKinds := deadcode.RootKinds(node, source, importAliases, deadCodeEvidence.FunctionRootKinds); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
+			}
+			if fileFramework != "" {
+				item["framework"] = fileFramework
 			}
 			if options.IndexSource {
 				item["source"] = nodeText(node, source)

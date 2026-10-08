@@ -270,7 +270,11 @@ calls, imported receiver method calls, function-value references,
 function-literal reachable calls, interface implementations, generic constraint
 methods, fmt Stringer methods, and dependency-injection callbacks add
 `dead_code_root_kinds` only when local syntax, same-package pre-scan evidence,
-or a qualified same-repo package contract proves the root.
+or a qualified same-repo package contract proves the root. Functions also
+carry `framework` when the file's route semantics name exactly one
+framework; multi-framework files stay untagged and the dead-code
+no-root-model notice fires for observed frameworks without a root model
+(gin/echo/fiber), while net_http and chi are modeled (#7712).
 
 `ImportedInterfaceParamMethods` is file-local by design. The parent `Engine`
 groups those rows by package directory before passing them back through

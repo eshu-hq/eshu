@@ -381,6 +381,39 @@ func phpDeadCodeRootKinds(
 	return dedupePHPNonEmptyStrings(rootKinds)
 }
 
+// phpDeadCodeFramework returns the single framework whose evidence touches a
+// function or method: a Symfony Route attribute on the method, a WordPress
+// hook callback name, or a ZF1 controller action. The conditions mirror the
+// root-kind classifier above so the observed framework always names evidence
+// the parser already trusts. When zero or several frameworks claim the
+// function it returns "": ambiguous stays silent rather than guessing, since
+// the dead-code no-root-model notice must never fire on a misattribution.
+func phpDeadCodeFramework(
+	name string,
+	contextName string,
+	contextKind string,
+	lineNumber int,
+	isPublic bool,
+	facts phpDeadCodeFacts,
+) string {
+	frameworks := make([]string, 0, 1)
+	if _, ok := facts.wordpressFunctionTargets[name]; ok && contextKind == "" {
+		frameworks = append(frameworks, "wordpress")
+	}
+	if contextKind == "class_declaration" {
+		if _, ok := facts.symfonyRouteAttributeLine[lineNumber]; ok {
+			frameworks = append(frameworks, "symfony")
+		}
+		if phpIsZF1ControllerAction(contextName, name, isPublic, facts) {
+			frameworks = append(frameworks, "zend_framework_1")
+		}
+	}
+	if len(frameworks) != 1 {
+		return ""
+	}
+	return frameworks[0]
+}
+
 func phpClassImplementsInterfaceMethod(className string, methodKey phpMethodKey, facts phpDeadCodeFacts) bool {
 	for _, base := range facts.typeBases[className] {
 		if facts.typeKinds[base] != "interface_declaration" {

@@ -254,7 +254,15 @@ func Parse(
 	sortNamedBucket(payload, "function_calls")
 	sortNamedBucket(payload, "type_annotations")
 	fwGathered := gatherPythonFrameworkNodes(root)
-	payload["framework_semantics"] = buildPythonFrameworkSemanticsGathered(fwGathered, root, source)
+	frameworkSemantics := buildPythonFrameworkSemanticsGathered(fwGathered, root, source)
+	payload["framework_semantics"] = frameworkSemantics
+	if fileFramework := pythonSingleFileFramework(frameworkSemantics); fileFramework != "" {
+		if functions, ok := payload["functions"].([]map[string]any); ok {
+			for _, item := range functions {
+				item["framework"] = fileFramework
+			}
+		}
+	}
 	payload["orm_table_mappings"] = buildPythonORMTableMappingsGathered(fwGathered.classes, source)
 
 	emitValueFlowBuckets(payload, root, source, options)
