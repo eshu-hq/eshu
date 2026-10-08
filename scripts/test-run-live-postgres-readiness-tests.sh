@@ -206,13 +206,86 @@ out="$(run_runner)" && fail "tailed failure passed"
 [[ "${out}" == *"SEEDED-FAILURE-MARKER"* ]] || fail "failure tail not printed: ${out}"
 [[ "${out}" != *"early line 0"* ]] || fail "early noise crowded out the failure: ${out}"
 
-# A missing DSN or opt-in names the variable before any package runs.
+# A missing DSN or opt-in names the variable before any package runs. The
+# Neo4j variables are exempt: without a backend the runner degrades (see
+# below) instead of dying.
 while read -r var; do
   out="$(env -u "${var}" bash "${runner}" 2>&1)" && fail "unset ${var} passed"
   [[ "${out}" == *"${var}"* ]] || fail "unset ${var} not named: ${out}"
-done <"${fake}/envs"
+done < <(rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs")
 out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "opt-in 0 passed"
 [[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "opt-in 0 not named: ${out}"
+
+# Without a Neo4j backend the runner degrades: the graph proofs are excused
+# (absence or skip passes, a failure still fails) and the summary names
+# them, so a developer without a container runs every other proof. The
+# excused list comes from the verifier, so this file still carries no
+# test-name copy. A partial backend (URI without credentials) dies loud.
+graph_tests="$(python3 "${checker}" list-neo4j-tests)" || fail "list-neo4j-tests rejected"
+[[ -n "${graph_tests}" ]] || fail "list-neo4j-tests is empty, the degrade checks are vacuous"
+for name in ${graph_tests}; do
+  found=0
+  for entry in "${proofs[@]}"; do [[ "${entry##*|}" == "${name}" ]] && found=1; done
+  [[ "${found}" -eq 1 ]] || fail "neo4j test ${name} is not an enrolled proof"
+done
+graph_count="$(printf '%s' "${graph_tests}" | wc -w | tr -d '[:space:]')"
+degraded_total="$((total - graph_count))"
+cp "${fake}/envs" "${fake}/envs.full"
+rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.full" >"${fake}/envs"
+unset ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD ESHU_GRAPH_BACKEND
+write_events
+for name in ${graph_tests}; do
+  for entry in "${proofs[@]}"; do
+    if [[ "${entry##*|}" == "${name}" ]]; then
+      sed -i.bak "/\"Test\":\"${name}\"/d" "$(events_of "${entry%%|*}")"
+    fi
+  done
+done
+out="$(run_runner)" || fail "degraded run without Neo4j env failed: ${out}"
+[[ "${out}" == *"no Neo4j proof backend configured"* ]] || fail "degrade notice missing: ${out}"
+for name in ${graph_tests}; do
+  [[ "${out}" == *"${name}"* ]] || fail "excused ${name} not named: ${out}"
+done
+[[ "${out}" == *"${degraded_total}/${total} PASS"* ]] || fail "degraded summary missing: ${out}"
+write_events
+for name in ${graph_tests}; do
+  for entry in "${proofs[@]}"; do
+    if [[ "${entry##*|}" == "${name}" ]]; then
+      sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${name}\"/\"Action\":\"skip\",\"Test\":\"${name}\"/" "$(events_of "${entry%%|*}")"
+    fi
+  done
+done
+out="$(run_runner)" || fail "degraded run with graph skip failed: ${out}"
+write_events
+first_graph="${graph_tests%% *}"
+for entry in "${proofs[@]}"; do
+  if [[ "${entry##*|}" == "${first_graph}" ]]; then
+    sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_graph}\"/\"Action\":\"fail\",\"Test\":\"${first_graph}\"/" "$(events_of "${entry%%|*}")"
+  fi
+done
+out="$(run_runner)" && fail "degraded run with graph failure passed"
+[[ "${out}" == *"${first_graph}: FAIL"* ]] || fail "graph failure not named: ${out}"
+export ESHU_NEO4J_URI="${ESHU_EXPECTED_NEO4J_URI}"
+out="$(run_runner)" && fail "partial Neo4j env passed"
+[[ "${out}" == *"ESHU_NEO4J_USERNAME"* ]] || fail "partial Neo4j env not named: ${out}"
+unset ESHU_NEO4J_URI
+export ESHU_GRAPH_BACKEND=neo4j
+write_events
+for name in ${graph_tests}; do
+  for entry in "${proofs[@]}"; do
+    if [[ "${entry##*|}" == "${name}" ]]; then
+      sed -i.bak "/\"Test\":\"${name}\"/d" "$(events_of "${entry%%|*}")"
+    fi
+  done
+done
+out="$(run_runner)" || fail "backend set without Neo4j env failed: ${out}"
+unset ESHU_GRAPH_BACKEND
+cp "${fake}/envs.full" "${fake}/envs"
+export ESHU_NEO4J_URI="${ESHU_EXPECTED_NEO4J_URI}"
+export ESHU_NEO4J_USERNAME="${ESHU_EXPECTED_NEO4J_USERNAME}"
+export ESHU_NEO4J_PASSWORD="${ESHU_EXPECTED_NEO4J_PASSWORD}"
+export ESHU_GRAPH_BACKEND=neo4j
+write_events
 
 # The ledger mapping is part of the gate: a changed classification cannot
 # leave the live job green with hard-coded test names.
