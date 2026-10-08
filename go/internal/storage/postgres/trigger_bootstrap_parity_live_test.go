@@ -14,6 +14,7 @@ import (
 	"time"
 
 	webhookstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -53,6 +54,7 @@ func TestWebhookTriggerStoreRunsOnBootstrapSchemaLive(t *testing.T) {
 	defer cancel()
 
 	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
+	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
 	schema, database := openWebhookParityProofSchema(ctx, t, adminDB, dsn, "bootstrap")
 	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
