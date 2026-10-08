@@ -1502,7 +1502,7 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
-  - file: go/internal/storage/postgres/code_drifted_evidence_live_test.go
+  - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
