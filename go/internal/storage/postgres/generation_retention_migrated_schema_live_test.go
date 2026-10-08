@@ -24,9 +24,10 @@ import (
 const generationRetentionMigratedSchemaRequiredEnv = "ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF"
 
 // generationRetentionMigratedSchemaStatements lists every SQL statement owned
-// by generation_retention_sql.go. Each one is prepared against the migrated
-// schema so a table or column that drifts from the migrations fails here
-// instead of at the first prunable retention batch (#6809).
+// by generation_retention_sql.go and generation_retention_row_counts_sql.go.
+// Each one is prepared against the migrated schema so a table or column that
+// drifts from the migrations fails here instead of at the first prunable
+// retention batch (#6809).
 var generationRetentionMigratedSchemaStatements = map[string]string{
 	"candidate":                        generationRetentionCandidateQuery,
 	"row_counts":                       generationRetentionRowCountsQuery,
