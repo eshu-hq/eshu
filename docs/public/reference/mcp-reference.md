@@ -9,6 +9,27 @@ The code source of truth is `go/internal/mcp`: `ReadOnlyTools` registers tool
 definitions, `resolveRoute` maps tool names to HTTP routes, and dispatch tests
 prove every registered tool has a route.
 
+`tools/list` follows the server's query profile (`ESHU_QUERY_PROFILE`): tools
+the capability matrix marks unsupported on production are omitted from the
+list on a production-profile server instead of advertising calls that cannot
+succeed. The per-tool profile limits live in
+[MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
+
+No-Regression Evidence (#7726): the production-profile filter runs once at
+server construction (O(registered tools), about 162 string comparisons) and
+the `tools/list` handler serves the precomputed slice unchanged, so
+request-path work is identical before and after. Baseline: unfiltered list
+on every profile. After: byte-identical lists on local and default profiles
+(`TestToolsListShowsCodeDivergenceOnLocalProfiles`); production omits only
+the 3 divergence tools (`TestToolsListHidesCodeDivergenceOnProduction`);
+the matrix-parity test pins the hide set to the capability-matrix row. Safe
+because no request-path code changed and the per-call gate still fails
+closed with `unsupported_capability`.
+
+No-Observability-Change (#7726): no new metric, span, or log line. The
+existing `mcp server started` log's `tools` count observes the filtered
+surface.
+
 For per-tool bounds, required fields, envelopes, and prompt-readiness notes, use
 [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). This page is the public
 tool index, not a second copy of every schema.

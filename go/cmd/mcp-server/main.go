@@ -101,7 +101,21 @@ func main() {
 	// chain protecting /api/ and tools/call's internal dispatch (issue
 	// #5168). The query API routes mounted under /api/ are protected by the
 	// query mux itself (queryMux is already an authed handler).
-	server := mcp.NewServer(queryMux, logger, mcp.WithTransportAuth(authWiring.transportAuth))
+	//
+	// The tools/list surface follows the same query profile the query
+	// router serves (#7726): loadQueryProfile is pure, so resolving it
+	// again here agrees with the copy wireAPI holds. A production-profile
+	// server omits tools the capability matrix marks unsupported there
+	// instead of advertising calls that cannot succeed.
+	queryProfile, err := loadQueryProfile(os.Getenv)
+	if err != nil {
+		logger.Error("load query profile failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+	server := mcp.NewServer(queryMux, logger,
+		mcp.WithTransportAuth(authWiring.transportAuth),
+		mcp.WithQueryProfile(queryProfile),
+	)
 
 	switch transport {
 	case "stdio":

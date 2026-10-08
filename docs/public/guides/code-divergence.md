@@ -6,6 +6,12 @@ Every finding is deterministic and reproducible: no LLM judges duplicates.
 Every finding is labeled `derived`, never `exact` — each one is an inference
 a maintainer must confirm.
 
+Availability: the three divergence tools (`find_code_divergence`,
+`report_code_divergence`, `investigate_code_divergence`) are served on the
+local profiles only. The production cell is unsupported until remote
+validation lands, so a production-profile server omits them from `tools/list`;
+a direct call there still fails closed with `unsupported_capability`.
+
 ## The five finding kinds
 
 | Kind | What it means | Detected from |

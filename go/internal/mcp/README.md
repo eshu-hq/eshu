@@ -457,7 +457,7 @@ membership as trust.
 | Identifier | File | Notes |
 |---|---|---|
 | `Server` | `server.go:93` | MCP server struct; fields `handler`, `tools`, `logger`, `sessions`, `transportAuth` |
-| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`) |
+| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`, `WithQueryProfile`) |
 | `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
 | `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |
