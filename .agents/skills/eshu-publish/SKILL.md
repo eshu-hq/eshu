@@ -53,7 +53,7 @@ reports.
 - **Lists and tables.** Use a list for 3 or more steps or conditions. Use a table
   to compare before and after, or claim and evidence.
 - **Pictures.** Use a Mermaid diagram when the text describes a flow, a
-  dependency, or a before and after with 3 or more parts. Label each node with
+  dependency, or a before and after, when it has 3 or more parts. Label each node with
   the real identifier. Use a file tree or a `diff` block for a layout change.
   The `show-me` skill, when your harness has it, helps choose the view.
 - **Collapse the data.** Put logs, long command output, verbatim reviewer or
