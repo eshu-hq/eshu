@@ -57,7 +57,7 @@ emission proof, rather than per-unit coverage or an activation-status guard.
 Per-generation atomic emission makes F-emitted imply F-covers-all-units; the
 status of F is irrelevant because pending rows project regardless of it.
 
-## Performance Evidence
+## Performance Evidence:
 
 Conflict domain: `shared_projection_intents` rows of one lane per selection
 pass; one bounded lookup over the cycle's distinct generation ids, skipped
@@ -79,7 +79,7 @@ replays as a real cycle; after, covered generations' rows mark completed with
 no graph touch. The lane tests assert zero retract/write calls for drained
 rows and normal projection for kept rows.
 
-## Observability Evidence
+## Observability Evidence:
 
 - `eshu_dp_shared_projection_stale_intents_total{reason="covered_by_full_successor"}`
   counts drained rows per (`domain`, `runner`); `code_call_projection` and

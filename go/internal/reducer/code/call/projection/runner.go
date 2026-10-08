@@ -385,6 +385,7 @@ func (r *Runner) processPartitionOnce(
 		LeaseClaimDurationSeconds:     leaseClaimDuration,
 		SelectionDurationSeconds:      selection.SelectionDurationSeconds,
 		SelectionPhases:               selection.SelectionPhases,
+		StaleIntents:                  len(staleIDs),
 		CoveredByFullSuccessorIntents: len(drainable),
 	}
 	processingStart := time.Now()
