@@ -97,13 +97,10 @@ func syncGitRepositoriesWithLogger(
 				if ok {
 					selected = append(selected, repoPath)
 					refsByRepoPath[repoPath] = refs
-					if !delta.IsEmpty() {
+					if !delta.IsEmpty() || delta.DefaultBranchChanged {
 						deltaByRepoPath[repoPath] = delta
 					}
 					sourceSHAByRepoPath[repoPath] = sourceSHA
-					if delta.DefaultBranchChanged {
-						reconcileByRepoPath[repoPath] = true
-					}
 					if forceReconcile {
 						reconcileByRepoPath[repoPath] = true
 						reconciledThisCycle++

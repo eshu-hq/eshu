@@ -241,6 +241,8 @@ func buildSelectedRepositories(
 			Language:     strings.TrimSpace(config.DependencyLanguage),
 			FileTargets:  fileTargetsForRepository(config, absolutePath),
 			Reconcile:    reconcileByRepoPath[repoPath] || reconcileByRepoPath[absolutePath],
+			DefaultBranchChanged: deltaByRepoPath[repoPath].DefaultBranchChanged ||
+				deltaByRepoPath[absolutePath].DefaultBranchChanged,
 		}
 		if delta, ok := deltaByRepoPath[repoPath]; ok && !delta.IsEmpty() {
 			repository.Delta = true

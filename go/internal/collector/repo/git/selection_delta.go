@@ -49,7 +49,7 @@ func fetchDefaultBranch(
 	probeRef := remoteHeadProbeRef
 	err := gitFetchBranch(ctx, config, repoPath, branch, token, logger, event, probeRef)
 	if gitMissingRemoteRef(err, "HEAD") {
-		// The remote HEAD names no branch; sync the tracked branch unprobed.
+		// The remote HEAD names a missing branch; sync the tracked branch unprobed.
 		probeRef = ""
 		err = gitFetchBranch(ctx, config, repoPath, branch, token, logger, event, probeRef)
 	}

@@ -66,8 +66,9 @@ type GitSyncDelta struct {
 	// projector refuses the delta unless it is still the active commit.
 	BaselineCommitSHA string
 	// DefaultBranchChanged marks a full snapshot taken because the remote
-	// default branch changed (#7678). The sync marks it a reconciliation so
-	// the unchanged-generation skip cannot drop a rename that kept the tree.
+	// default branch changed (#7678). The sync keeps such an entry in
+	// DeltaByRepoPath even though it carries no paths, and the selection
+	// carries it to SelectedRepository.DefaultBranchChanged.
 	DefaultBranchChanged bool
 }
 

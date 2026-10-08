@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
 const defaultBranchChangedMsg = `"msg":"git repository default branch changed"`
@@ -141,12 +143,11 @@ func TestUpdateRepositoryFollowsMovedDefaultBranch(t *testing.T) {
 	assertFollowedMain(t, f, runUpdate(f, f.oldTip), mainTip, defaultBranchDetectionMoved)
 }
 
-// TestSyncMarksDefaultBranchChangeAsReconcile proves the cycle marks a
-// default-branch change as a reconciliation, so its generation carries an
-// empty freshness hint: a rename that keeps the tree would otherwise match the
-// last full generation's hint and be dropped as unchanged, leaving the old
-// default_branch on the repository fact. It must not spend the sweep budget.
-func TestSyncMarksDefaultBranchChangeAsReconcile(t *testing.T) {
+// TestSyncCarriesDefaultBranchChange proves the cycle carries a default-branch
+// change to the default-branch selection only, as a full observation that is
+// not a reconciliation: a reconciliation would count the old branch's
+// removals as drift on eshu_dp_reconciliation_drift_retractions_total.
+func TestSyncCarriesDefaultBranchChange(t *testing.T) {
 	f := newDefaultBranchFixture(t)
 	mainTip := f.moveDefaultToMain(t)
 	reposDir := t.TempDir()
@@ -170,11 +171,62 @@ func TestSyncMarksDefaultBranchChangeAsReconcile(t *testing.T) {
 	if !slices.Contains(synced.SelectedRepoPaths, repoPath) || synced.SourceCommitSHAByRepoPath[repoPath] != mainTip {
 		t.Fatalf("selected %v source %q; want %s at main tip %q", synced.SelectedRepoPaths, synced.SourceCommitSHAByRepoPath[repoPath], repoPath, mainTip)
 	}
-	if _, isDelta := synced.DeltaByRepoPath[repoPath]; isDelta {
-		t.Fatalf("default-branch change produced a delta: %+v", synced.DeltaByRepoPath[repoPath])
+	if len(synced.ReconcileByRepoPath) != 0 {
+		t.Fatalf("ReconcileByRepoPath = %v; a default-branch change is not a reconciliation", synced.ReconcileByRepoPath)
 	}
-	if !synced.ReconcileByRepoPath[repoPath] {
-		t.Fatalf("ReconcileByRepoPath = %v; a default-branch change must bypass the freshness-hint skip", synced.ReconcileByRepoPath)
+
+	selected := buildSelectedRepositories(reconcileTestConfig(reposDir), synced.SelectedRepoPaths, synced.DeltaByRepoPath,
+		synced.ReconcileByRepoPath, synced.SourceCommitSHAByRepoPath, synced.RefsByRepoPath,
+		map[string][]RefWorktreeEntry{repoPath: {{WorktreePath: filepath.Join(reposDir, "wt"), Ref: "release", RefKind: "branch"}}})
+	if len(selected) != 2 {
+		t.Fatalf("selected = %+v, want the default-branch entry and one pinned-ref entry", selected)
+	}
+	if main := selected[0]; !main.DefaultBranchChanged || main.Delta || main.Reconcile || main.SourceCommitSHA != mainTip {
+		t.Fatalf("default-branch entry = %+v; want a flagged full observation at %q that is not a reconciliation", main, mainTip)
+	}
+	if ref := selected[1]; ref.Ref != "release" || ref.DefaultBranchChanged {
+		t.Fatalf("pinned-ref entry = %+v; it must not inherit DefaultBranchChanged", ref)
+	}
+}
+
+// TestNativeRepositorySnapshotterCarriesDefaultBranchChange keeps the flag on
+// its way from the selection to the fact builder.
+func TestNativeRepositorySnapshotterCarriesDefaultBranchChange(t *testing.T) {
+	t.Parallel()
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() = %v", err)
+	}
+	got, err := (NativeRepositorySnapshotter{Engine: engine}).SnapshotRepository(context.Background(), SelectedRepository{
+		RepoPath: t.TempDir(), DefaultBranchChanged: true,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() = %v", err)
+	}
+	if !got.DefaultBranchChanged || got.Reconcile {
+		t.Fatalf("snapshot DefaultBranchChanged=%v Reconcile=%v, want true and false", got.DefaultBranchChanged, got.Reconcile)
+	}
+}
+
+// TestBuildStreamingGenerationDefaultBranchChangeClearsFreshnessHint proves a
+// default-branch change bypasses the unchanged-generation skip, whose hint
+// does not fold git refs, without marking the repository fact a
+// reconciliation.
+func TestBuildStreamingGenerationDefaultBranchChangeClearsFreshnessHint(t *testing.T) {
+	t.Parallel()
+	repoPath := t.TempDir()
+	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
+	snapshot.DefaultBranchChanged = true
+
+	collected := buildStreamingGeneration(repoPath, testCollectorRepositoryMetadata(repoPath), "run-branch",
+		time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), snapshot, false, "")
+	if collected.Generation.FreshnessHint != "" || collected.Generation.IsDelta {
+		t.Fatalf("generation hint=%q delta=%v; want an empty hint on a full observation",
+			collected.Generation.FreshnessHint, collected.Generation.IsDelta)
+	}
+	repositoryFact := requireRepositoryFact(t, drainFactChannel(collected.Facts))
+	if _, ok := repositoryFact.Payload["reconciliation_generation"]; ok {
+		t.Fatalf("repository reconciliation_generation = %#v, want absent", repositoryFact.Payload["reconciliation_generation"])
 	}
 }
 
@@ -285,7 +337,7 @@ func TestGitCommandEnvPinsCLocale(t *testing.T) {
 }
 
 // TestUpdateRepositoryRemoteHeadUnresolved keeps syncing a repository whose
-// remote HEAD names no branch: the HEAD probe is dropped and the tracked
+// remote HEAD names a missing branch: the HEAD probe is dropped and the tracked
 // branch still updates as a delta.
 func TestUpdateRepositoryRemoteHeadUnresolved(t *testing.T) {
 	f := newDefaultBranchFixture(t)

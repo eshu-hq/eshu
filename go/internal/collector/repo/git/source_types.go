@@ -55,6 +55,12 @@ type SelectedRepository struct {
 	// must bypass the freshness-hint skip so it always re-projects and retracts
 	// any drift the delta path missed (epic #2340).
 	Reconcile bool `json:"reconcile,omitempty"`
+	// DefaultBranchChanged marks a full observation taken because the remote
+	// default branch changed (#7678). Its generation bypasses the
+	// freshness-hint skip without being a reconciliation, so the repository
+	// fact's default branch re-projects even when the tree did not change.
+	// Only the default-branch selection carries it, never a pinned-ref entry.
+	DefaultBranchChanged bool `json:"default_branch_changed,omitempty"`
 	// SourceCommitSHA carries a commit identity proven by the selector. Git-sync
 	// modes populate it after checkoutRemoteBranch resolves and checks out the
 	// remote SHA. Filesystem managed-copy mode populates it only when the source
@@ -120,6 +126,10 @@ type RepositorySnapshot struct {
 	// guaranteeing a periodic full re-projection that retracts drift the delta
 	// path missed (epic #2340).
 	Reconcile bool `json:"reconcile,omitempty"`
+	// DefaultBranchChanged marks a full snapshot taken because the remote
+	// default branch changed (#7678). Like Reconcile it empties the freshness
+	// hint, but it does not mark the generation a reconciliation.
+	DefaultBranchChanged bool `json:"default_branch_changed,omitempty"`
 	// TaintEvidence carries intraprocedural value-flow taint findings resolved to
 	// the graph Function entity they concern. Empty unless the parser emitted
 	// taint_findings (gated by ESHU_EMIT_DATAFLOW), so the snapshot is
