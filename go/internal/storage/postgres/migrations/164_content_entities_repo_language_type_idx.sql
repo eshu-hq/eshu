@@ -1,0 +1,63 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Bound the #6540 EXISTS gate in SearchEntitiesByLanguageAndTypeForAccess
+-- (go/internal/query/content_reader_entity_search.go) by repository (#7729).
+-- Evidence: docs/internal/evidence/7729-content-entities-repo-language-type-index.md.
+--
+-- WHAT GOES WRONG TODAY (ops-prod read replica, PG 18.3, 2,240,821
+-- content_entities rows, 2026-10-08). The gate probes
+-- content_entities_language_type_idx (language, entity_type) and applies
+-- repo_id as a Filter. For a repository whose matching rows sit late in that
+-- index the probe walks the corpus-wide (javascript, Function) entries first:
+--
+--   repository:r_8946df89 (241,726 rows), javascript Function, LIMIT 10
+--   InitPlan 1: Index Scan using content_entities_language_type_idx
+--     Filter: repo_id = ...   Rows Removed by Filter: 121106
+--     Buffers: shared hit=155688   actual time=276.233 rows=1
+--   Execution Time: 277.489 ms   (same page without the gate: 5.679 ms)
+--
+-- WHY A PREDICATE-ONLY REWRITE DOES NOT WORK. Measured on the same replica:
+--   * Drop the gate when repo_id is set: the correlation-empty OR-language pair
+--     (javascript|jsx, TerraformResource) on that repository takes 4548.576 ms
+--     and 1,431,639 buffers (a full repository walk). With the gate: 0.201 ms.
+--   * Fence the gate onto the repository (OFFSET 0 subquery): the slow
+--     repository takes 314.027 ms, and a repository-empty pair (kotlin
+--     Function) takes 387.366 ms against 25.636 ms today.
+--   * Gate on the corpus pair only: the slow repository is fixed, but a pair
+--     that exists in the corpus and not in the repository (javascript|jsx,
+--     Class) goes from 25.477 ms to 1034.081 ms.
+-- Each trades one failure class for another, because no index carries repo_id
+-- together with language and entity_type.
+--
+-- THE INDEX. (repo_id, language, entity_type) makes the gate a btree descent in
+-- every case above: abundant, repository-empty, corpus-empty. The page read
+-- keeps content_entities_repo_path_start_idx for its ORDER BY. The key is three
+-- columns on purpose: adding the ORDER BY columns would approach the size of
+-- content_entities_repo_path_start_idx for a gate that needs only existence.
+--
+-- MEASURED on a scratch clone (PG 18.3, 1,879,576 rows, 2026-10-04 snapshot).
+-- The clone lacks the production repository and the planner there never takes
+-- the language index for the gate, so the clone proves the index's effect, not
+-- the production plan flip. With the index, the unforced gate was an Index Only
+-- Scan on this index with 3 to 6 buffers in all 14 cases (JavaScript and php
+-- functions on eight repositories, repository-empty kotlin, JavaScript Class and
+-- php, and corpus-empty hcl and TerraformResource pairs). The same gate forced
+-- onto the language index, the production plan shape, cost 50,998 to 55,170
+-- buffers on the three repositories that sort latest (Rows Removed by Filter
+-- 117,648 to 126,289). Build: 2,227 ms CONCURRENTLY, 14,311,424 bytes at 1.88M
+-- rows. Insert cost: about 1.06 WAL records and 109 bytes per row on a
+-- btree-only copy of content_entities.
+--
+-- content_entities_repo_idx becomes a prefix of this key. It is kept (no DROP
+-- in the migration tree) and its removal is reviewed separately in
+-- eshu-hq/eshu#7759: it is not idle (71 scans reading 18.7M tuples on the
+-- production reader), so a drop needs plan evidence first.
+--
+-- CONCURRENTLY so bootstrap never blocks the ingester's content writes;
+-- IF NOT EXISTS so every later bootstrap over an install that has it is a
+-- no-op. The lone statement in this file so the migration coordinator can run
+-- it outside a transaction (coordination.IsSoleConcurrentIndexStatement). A
+-- new file per issue #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS content_entities_repo_language_type_idx
+    ON content_entities (repo_id, language, entity_type);

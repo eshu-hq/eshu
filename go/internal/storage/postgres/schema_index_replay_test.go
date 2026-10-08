@@ -379,3 +379,54 @@ func TestContentEntitiesLanguageTypeIndexCarriesTheOrderByKey(t *testing.T) {
 			indexName, found, wantColumns)
 	}
 }
+
+// TestContentEntitiesRepoLanguageTypeIndexIsCreatedOnceAndNeverDropped pins the
+// same end state for the index that bounds the #6540 existence gate by
+// repository (#7729): one create, no drop, so an install that has it does no
+// index work on bootstrap and content_entities (hot, continuously ingested) is
+// never asked to rebuild it.
+func TestContentEntitiesRepoLanguageTypeIndexIsCreatedOnceAndNeverDropped(t *testing.T) {
+	t.Parallel()
+
+	const repoLanguageTypeIndex = "content_entities_repo_language_type_idx"
+	creates, drops := migrationIndexCreateDropCounts()
+	if creates[repoLanguageTypeIndex] != 1 || drops[repoLanguageTypeIndex] != 0 {
+		t.Errorf("%s has %d creates and %d drops, want 1 and 0",
+			repoLanguageTypeIndex, creates[repoLanguageTypeIndex], drops[repoLanguageTypeIndex])
+	}
+}
+
+// TestContentEntitiesRepoLanguageTypeIndexKeyLeadsWithRepository pins WHY the
+// index works, which the create/drop guard above cannot see. The existence gate
+// binds repo_id, language and entity_type by equality; with repo_id first the
+// gate is one btree descent whatever the repository's rows look like in the
+// corpus-wide (language, entity_type) index. Reordering the key to lead with
+// language, or dropping repo_id, keeps the name and the guard above intact
+// while restoring the defect (121,106 filtered entries, 155,688 buffers on the
+// ops-prod read replica), so the column list is asserted here.
+func TestContentEntitiesRepoLanguageTypeIndexKeyLeadsWithRepository(t *testing.T) {
+	t.Parallel()
+
+	const (
+		indexName   = "content_entities_repo_language_type_idx"
+		wantColumns = "(repo_id, language, entity_type)"
+	)
+	var found string
+	for _, definition := range BootstrapDefinitions() {
+		if !strings.Contains(definition.SQL, indexName) {
+			continue
+		}
+		for _, line := range strings.Split(stripSQLLineComments(definition.SQL), "\n") {
+			if strings.Contains(line, "ON content_entities") {
+				found = strings.TrimSpace(line)
+			}
+		}
+	}
+	if found == "" {
+		t.Fatalf("no CREATE INDEX statement for %s found in the bootstrap definitions", indexName)
+	}
+	if !strings.Contains(found, wantColumns) {
+		t.Errorf("%s is defined as %q, want the three equality columns %s with repo_id first (#7729)",
+			indexName, found, wantColumns)
+	}
+}
