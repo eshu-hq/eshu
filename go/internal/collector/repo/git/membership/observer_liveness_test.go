@@ -67,12 +67,12 @@ func TestObserverLivenessLapseWarnsOnlyPastTheWindow(t *testing.T) {
 func TestObserverExplicitWritesSelectedRowsWithoutTheGauge(t *testing.T) {
 	t.Parallel()
 
-	selector := NewExplicitSelector("explicit", "boatsgroup", []Rule{{Kind: "exact", Value: "boatsgroup/repo-001"}}, appPrincipal)
+	selector := NewExplicitSelector("explicit", "acme", []Rule{{Kind: "exact", Value: "acme/repo-001"}}, appPrincipal)
 	known, _ := qaFixture()
 	store := &fakeStore{selector: selector, known: known, prior: priorAt(known[:1], cycleOne.Add(-50*time.Hour))}
 	h := newObserverHarness(t, store)
 	listing := Listing{Complete: true, Repositories: []ListedRepository{
-		{ScopeID: scopeIDFor("boatsgroup/repo-001"), Slug: "boatsgroup/repo-001", State: StateSelected},
+		{ScopeID: scopeIDFor("acme/repo-001"), Slug: "acme/repo-001", State: StateSelected},
 	}}
 	result := h.observer.Observe(context.Background(), Request{
 		Selector: selector, SourceMode: "explicit", RepoShardCount: 4, Now: cycleOne, LivenessWindow: testWindow, Listing: listing,
@@ -98,15 +98,15 @@ func TestObserverExplicitWritesSelectedRowsWithoutTheGauge(t *testing.T) {
 func TestObserverExplicitStoreErrorIsCountedUnderExplicit(t *testing.T) {
 	t.Parallel()
 
-	selector := NewExplicitSelector("explicit", "boatsgroup", nil, appPrincipal)
+	selector := NewExplicitSelector("explicit", "acme", nil, appPrincipal)
 	store := &fakeStore{
 		selector: selector, upsertErr: errors.New("deadline"),
-		known: []KnownScope{{ScopeID: scopeIDFor("boatsgroup/a"), Slug: "boatsgroup/a"}},
+		known: []KnownScope{{ScopeID: scopeIDFor("acme/a"), Slug: "acme/a"}},
 	}
 	h := newObserverHarness(t, store)
 	result := h.observer.Observe(context.Background(), Request{
 		Selector: selector, SourceMode: "explicit", Now: cycleOne, LivenessWindow: testWindow,
-		Listing: Listing{Complete: true, Repositories: []ListedRepository{{ScopeID: scopeIDFor("boatsgroup/a"), Slug: "boatsgroup/a", State: StateSelected}}},
+		Listing: Listing{Complete: true, Repositories: []ListedRepository{{ScopeID: scopeIDFor("acme/a"), Slug: "acme/a", State: StateSelected}}},
 	})
 	if result.Outcome != OutcomeStoreError {
 		t.Fatalf("outcome = %q, want %q", result.Outcome, OutcomeStoreError)
