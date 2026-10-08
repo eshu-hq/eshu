@@ -45,7 +45,7 @@ only the package clause, the `model` / `incidentsql` / `querycontract`
 qualifications, the destuttered file and constant names, and the
 constructor-to-ports change differ. The work-item decode substrate the
 review reads need was forked verbatim into `decode_workitem.go` with source
-citations (shared with the work-item lane, which still owns it); #6623
+citations (shared with the work-item lane, which owned it then); #6623
 then deleted that fork and repointed this package at the shared
 `internal/query/decode/workitem` leaf with no logic change.
 
