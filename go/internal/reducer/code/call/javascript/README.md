@@ -48,8 +48,14 @@ Input shape: `BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls`
 - Baseline (base `28c20c20a2`): 10.90 / 10.74 / 9.86 / 9.82 / 10.77 ms/op.
 - After (this change): 9.44 / 9.90 / 10.05 / 9.77 / 9.74 ms/op.
 
-The ranges overlap fully (after-tree mean below the baseline mean), so the
-barrier adds no measurable cost. `go build -gcflags=-m` confirms
+The ranges overlap (baseline 9.82–10.90 ms/op vs after 9.44–10.05 ms/op;
+after-tree mean 9.78 below the baseline mean 10.42), so the barrier adds no
+measurable cost. The benchmark's unkeyed dynamic calls resolve at the
+dynamic branch before the barrier, so it times the surrounding extraction
+path plus the index-build guard rather than the barrier branch per se; the
+barrier branch itself is bounded structurally (bounded string ops plus one
+inlined map lookup, replacing heavier fallback work when it blocks).
+`go build -gcflags=-m` confirms
 `inlining call to shared.EntityIndex.RepoPublishesNodePackage` at the
 barrier call site. Row counts: the barrier only removes false-positive
 `repo_unique_name` edges (promoted golden
