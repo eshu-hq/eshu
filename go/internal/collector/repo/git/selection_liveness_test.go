@@ -49,7 +49,7 @@ type recordingBatchStore struct {
 	batches []membership.Batch
 }
 
-func (s *recordingBatchStore) KnownScopes(context.Context, string) ([]membership.KnownScope, error) {
+func (s *recordingBatchStore) KnownScopes(context.Context, string, string) ([]membership.KnownScope, error) {
 	return s.known, nil
 }
 

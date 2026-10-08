@@ -74,6 +74,23 @@ exact production statements as prepared statements:
 | `UpsertObservations`, replay at the same `evaluated_at` | 7.8 ms, 0 written (1,000 removed by the conflict filter) |
 | `Observations`, 1,000 rows | 0.20 ms, bitmap scan on `repository_selection_observations_selector_idx` |
 
+The `github_org` host filter (`AND ($2 = '' OR lower(split_part(payload->>'remote_url', '/', 3)) = $2)`)
+was measured before and after on PostgreSQL 18.6 with 20,000
+`ingestion_scopes` rows, 12,000 of them git repository scopes (owner `acme`:
+900 github.com, 100 gitlab.com, 50 ghe.corp; the rest across 200 owners and
+three hosts), migration 001 and 091 indexes, prepared statements, warm runs.
+With git repository scopes the majority, the planner picks a sequential scan
+for both forms:
+
+| Statement | Rows | Plan | Buffers | Execution |
+| --- | --- | --- | --- | --- |
+| Slug-only (before) | 1,050 | seq scan | 594 | 4.8-4.9 ms |
+| Host `github.com` (after) | 900 | seq scan, same filter plus host | 594 | 5.0-5.4 ms |
+| Host `''` (explicit selectors) | 1,050 | identical to slug-only; predicate folded | 594 | 4.8-4.9 ms |
+
+The plan shape and buffers do not change; the read runs once per org cycle
+on shard 0. No new index.
+
 Re-measured after amendment 1 changed the row shape (`state_since`,
 `state_cycle_count`, `liveness_window_seconds`): PostgreSQL 18.6, migration
 163's DDL, 36,000 background rows (12,000 scopes x 3 selectors), the exact

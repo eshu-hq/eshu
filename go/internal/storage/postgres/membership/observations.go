@@ -42,7 +42,11 @@ CREATE INDEX IF NOT EXISTS repository_selection_observations_selector_idx
 
 // knownScopesQuery reads one org's git repository scopes without locking
 // them. repository_ref scopes have their own scope_kind and are excluded; the
-// org comparison is case-insensitive because GitHub org names are.
+// org comparison is case-insensitive because GitHub org names are. A
+// non-empty $2 also requires the remote host: remote_url is stored as
+// https://<lowercase host>/<path> by repositoryidentity.NormalizeRemoteURL,
+// so its third '/' field is the host. With an empty $2 the planner drops the
+// predicate and the plan equals the slug-only read.
 const knownScopesQuery = `
 SELECT scope_id, payload->>'repo_slug'
 FROM ingestion_scopes
@@ -50,6 +54,7 @@ WHERE source_system = 'git'
   AND scope_kind = 'repository'
   AND collector_kind = 'git'
   AND lower(split_part(payload->>'repo_slug', '/', 1)) = $1
+  AND ($2 = '' OR lower(split_part(payload->>'remote_url', '/', 3)) = $2)
 `
 
 // observationsQuery reads every stored observation of one selector.
@@ -108,9 +113,11 @@ func NewObservationStore(database db.ExecQueryer) ObservationStore {
 }
 
 // KnownScopes returns the git repository scopes whose repo slug org equals
-// owner, compared case-insensitively. owner is trimmed and lowercased; a blank
-// owner is rejected before any query.
-func (s ObservationStore) KnownScopes(ctx context.Context, owner string) ([]membership.KnownScope, error) {
+// owner, compared case-insensitively, and, when host is non-empty, whose
+// stored remote_url host equals host (a scope without a remote_url then never
+// matches). owner and host are trimmed and lowercased; a blank owner is
+// rejected before any query.
+func (s ObservationStore) KnownScopes(ctx context.Context, owner, host string) ([]membership.KnownScope, error) {
 	if s.database == nil {
 		return nil, errors.New("repository selection store database is required")
 	}
@@ -118,7 +125,8 @@ func (s ObservationStore) KnownScopes(ctx context.Context, owner string) ([]memb
 	if owner == "" {
 		return nil, errors.New("read known repository scopes: owner must not be blank")
 	}
-	rows, err := s.database.QueryContext(ctx, knownScopesQuery, owner)
+	host = strings.ToLower(strings.TrimSpace(host))
+	rows, err := s.database.QueryContext(ctx, knownScopesQuery, owner, host)
 	if err != nil {
 		return nil, fmt.Errorf("read known repository scopes: %w", err)
 	}

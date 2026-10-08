@@ -23,6 +23,22 @@ const (
 	KindExplicit = "explicit"
 )
 
+// gitHubHost is the remote host every githubOrg listing covers: the listing
+// reads api.github.com and its clones use github.com remotes.
+const gitHubHost = "github.com"
+
+// KnownScopeHost returns the remote host a selector kind's known scopes must
+// carry. A github_org selector only judges github.com scopes, so a gitlab.com
+// or GitHub Enterprise scope whose slug shares the org's owner never reads
+// not_listed. Other kinds return "" (no host filter): an explicit selector
+// matches scopes by exact id and writes only selected rows.
+func KnownScopeHost(kind string) string {
+	if kind == KindGitHubOrg {
+		return gitHubHost
+	}
+	return ""
+}
+
 // selectorIDBytes is how many leading SHA-256 bytes the selector id keeps:
 // 16 bytes (32 hex characters, 128 bits) is collision-free for any realistic
 // number of selector configurations and keeps the primary key short.

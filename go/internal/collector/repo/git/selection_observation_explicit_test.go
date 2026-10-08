@@ -162,13 +162,15 @@ func TestFilesystemModeNeverObservesSelection(t *testing.T) {
 }
 
 // ownerKnownStore is a membership.Store that returns each owner's known
-// scopes and records every batch it writes.
+// scopes and records every host argument and batch it sees.
 type ownerKnownStore struct {
 	known   map[string][]membership.KnownScope
+	hosts   []string
 	batches []membership.Batch
 }
 
-func (s *ownerKnownStore) KnownScopes(_ context.Context, owner string) ([]membership.KnownScope, error) {
+func (s *ownerKnownStore) KnownScopes(_ context.Context, owner, host string) ([]membership.KnownScope, error) {
+	s.hosts = append(s.hosts, host)
 	return s.known[owner], nil
 }
 
@@ -216,6 +218,14 @@ func TestExplicitSelectionWritesSelectedRowsOnlyForScopedRepositories(t *testing
 	slices.Sort(want)
 	if !slices.Equal(written, want) {
 		t.Fatalf("written scopes = %v, want only the configured repositories with scopes %v", written, want)
+	}
+	for _, host := range store.hosts {
+		if host != "" {
+			t.Fatalf("explicit KnownScopes host = %q, want no host filter", host)
+		}
+	}
+	if len(store.hosts) == 0 {
+		t.Fatal("explicit selection never read known scopes")
 	}
 }
 

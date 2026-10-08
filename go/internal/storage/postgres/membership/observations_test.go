@@ -31,7 +31,7 @@ func TestObservationStoreKnownScopesReadsTheOrgPartition(t *testing.T) {
 		{"git-repository-scope:a", "acme/a"},
 		{"git-repository-scope:b", "Acme/b"},
 	}}}}
-	got, err := membershipstore.NewObservationStore(database).KnownScopes(context.Background(), " Acme ")
+	got, err := membershipstore.NewObservationStore(database).KnownScopes(context.Background(), " Acme ", " GitHub.com ")
 	if err != nil {
 		t.Fatalf("KnownScopes() error = %v", err)
 	}
@@ -43,8 +43,8 @@ func TestObservationStoreKnownScopesReadsTheOrgPartition(t *testing.T) {
 		t.Fatalf("KnownScopes() = %+v, want %+v", got, want)
 	}
 	query := database.Queries[0]
-	if !reflect.DeepEqual(query.Args, []any{"acme"}) {
-		t.Fatalf("bound owner = %#v, want the trimmed lowercased org", query.Args)
+	if !reflect.DeepEqual(query.Args, []any{"acme", "github.com"}) {
+		t.Fatalf("bound args = %#v, want the trimmed lowercased org and host", query.Args)
 	}
 	knownScopesSQL := membershipstore.KnownScopesQuery
 	for _, want := range []string{
@@ -52,6 +52,7 @@ func TestObservationStoreKnownScopesReadsTheOrgPartition(t *testing.T) {
 		"scope_kind = 'repository'",
 		"collector_kind = 'git'",
 		"lower(split_part(payload->>'repo_slug', '/', 1)) = $1",
+		"($2 = '' OR lower(split_part(payload->>'remote_url', '/', 3)) = $2)",
 	} {
 		if !strings.Contains(knownScopesSQL, want) {
 			t.Fatalf("known scopes query missing %q: %s", want, knownScopesSQL)
@@ -232,7 +233,7 @@ func TestObservationStoreRejectsInvalidInputWithoutWriting(t *testing.T) {
 	}
 
 	store := membershipstore.NewObservationStore(&fake.ExecQueryer{})
-	if _, err := store.KnownScopes(context.Background(), " "); err == nil {
+	if _, err := store.KnownScopes(context.Background(), " ", "github.com"); err == nil {
 		t.Fatal("KnownScopes(blank) error = nil, want non-nil")
 	}
 	if _, err := store.Observations(context.Background(), ""); err == nil {
@@ -244,7 +245,7 @@ func TestObservationStoreRequiresDatabase(t *testing.T) {
 	t.Parallel()
 
 	store := membershipstore.NewObservationStore(nil)
-	if _, err := store.KnownScopes(context.Background(), "acme"); err == nil {
+	if _, err := store.KnownScopes(context.Background(), "acme", ""); err == nil {
 		t.Fatal("KnownScopes() error = nil without a database")
 	}
 	if _, err := store.Observations(context.Background(), testSelector.ID); err == nil {
