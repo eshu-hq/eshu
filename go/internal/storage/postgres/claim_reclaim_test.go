@@ -314,7 +314,10 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 	for _, want := range []string{
 		"status IN ('pending', 'retrying', 'claimed', 'running')",
 		"claim_until IS NULL OR claim_until <= $1",
-		"visible_at IS NULL OR visible_at <= $1",
+		// #6828: visibility runs on the clock that stamped the row: the $1
+		// arm covers app-stamped retry rows and simulated clocks, the
+		// pending arm covers trigger-stamped reopened rows on the DB clock.
+		"visible_at IS NULL OR visible_at <= $1 OR (status = 'pending' AND visible_at <= clock_timestamp())",
 		"NOT EXISTS (",
 		"inflight.conflict_domain = fact_work_items.conflict_domain",
 		"COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
