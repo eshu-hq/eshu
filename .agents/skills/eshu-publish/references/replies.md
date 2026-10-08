@@ -22,9 +22,9 @@ Never close a thread with only "fixed". Fix the code first, then reply.
 A reply is usually 40 to 120 words. The median inline review comment in the
 last 30 PRs was about 70 words. Keep to that range.
 
-## A long review comment
+## A review comment with many findings
 
-When a review has many findings, do not write one block.
+When a review has more than 3 findings, do not write one block.
 
 1. Lead: the verdict and the count. `Not ready: 1 P1, 2 P2.`
 2. A list. One finding per item: severity, the claim, the file, the fix.
@@ -61,4 +61,4 @@ order:
 4. What you did not check, as a `NOT_CHECKED` list.
 
 Use the Wording rules. Do not add a bold lead, a diagram, or a `<details>` block
-unless the note is long.
+unless the note runs past 10 lines.

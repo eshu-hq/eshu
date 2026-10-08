@@ -16,7 +16,7 @@ owner skimming 10 sessions, are in the same position.
 | Structure | No phrasal verbs ("set up", "take off"). | Yes |
 | Structure | A noun cluster has 3 words or fewer. | By reading |
 | Structure | One topic in each paragraph, 6 sentences or fewer. | By reading |
-| Structure | Use a list for 3 or more steps. | By reading |
+| Structure | Use a list for 3 or more steps, or for 3 or more conditions. | By reading |
 | Words | One word for one meaning, used the same way each time. | Within one text |
 | Words | The verb, not the noun made from it ("check", not "perform a check"). | Yes |
 | Words | Use only approved words in the approved sense. | No: the ASD dictionary is not public domain and is not in this repo |

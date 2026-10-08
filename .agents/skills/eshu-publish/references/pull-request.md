@@ -21,8 +21,8 @@ guess` beats `fix #5572`.
 4. `## Problem`. How it broke, not only that it broke. A table suits "test and
    failure". Say `sed exited 0 having replaced nothing`, not `the fixture did
    not land`.
-5. A Mermaid diagram when the PR changes structure or a flow. Use a file tree
-   or `diff` block for a layout change.
+5. A Mermaid diagram when the Pictures rule in `SKILL.md` applies. Use a file
+   tree or `diff` block for a layout change.
 6. `## What changed`. One bullet per change: the verb, the object, and the why.
    Name a rejected alternative only when it explains a tradeoff that is still in
    the diff.

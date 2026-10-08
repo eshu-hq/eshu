@@ -9,7 +9,7 @@ and a reviewer reads it a year later with no context. Write for all three.
 2. **Blocker or decision.** If the work cannot start until someone decides,
    say so here, with your recommendation.
 3. `## Problem`. What happens, where, and how we know. Give counts with their
-   source. Add a Mermaid diagram if the text describes a flow.
+   source. Add a Mermaid diagram when the Pictures rule in `SKILL.md` applies.
 4. `## Theory (not yet proven)`. Use it only when the cause is a guess. Say what
    would prove or disprove it. See the prove-the-theory-first rule in `AGENTS.md`.
 5. `## Expected`. The behavior after the fix.
@@ -30,8 +30,8 @@ and a reviewer reads it a year later with no context. Write for all three.
   `<details>` block.
 - Write acceptance criteria as checks, not goals. "Flip the G == C row" is a
   check. "Improve coverage" is a goal.
-- Do not paste a long log into `Problem`. Quote the one failing line and
-  collapse the rest.
+- Do not paste a log of more than 10 lines into `Problem`. Quote the one
+  failing line and collapse the rest.
 - Keep the `competitive-audit` issue form headings exactly as the form defines
   them. `audit-preflight` parses them.
 

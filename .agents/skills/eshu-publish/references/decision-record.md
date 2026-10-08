@@ -19,7 +19,7 @@ agent needs measurable limits and a checklist.
 4. `## Context`. Why now, what limits the choice, and the measured facts with
    their source. Label a theory as a theory.
 5. `## Options`. A table: option, what it costs, why chosen or why not. Add a
-   Mermaid diagram when the options differ in structure.
+   Mermaid diagram when the Pictures rule in `SKILL.md` applies.
 6. `## Decision`. The detail: scope, non-goals, and limits as numbers. Write
    "p95 under 200 ms on the named corpus", not "fast".
 7. `## Consequences`. Two lists, `Good` and `Bad`. Number each follow-up issue.
@@ -39,8 +39,8 @@ agent needs measurable limits and a checklist.
   document: update it in the same PR as the code.
 - **Agent test.** Before you publish, ask: can an executor implement this
   without asking a question? If not, add the missing limit, path, or check.
-- **Size.** Aim for 250 lines or fewer. The Markdown cap is 500 lines. Move long
-  evidence to the `<details>` block or to a linked file.
+- **Size.** Aim for 250 lines or fewer. The Markdown cap is 500 lines. Move evidence
+  of more than 10 lines to the `<details>` block or to a linked file.
 - **Open questions.** Number them under `## Decisions for the arbiter`. Name the
   options. Do not hide a question inside a paragraph.
 - Do not record a routine choice inside an established pattern, a bug fix, or a

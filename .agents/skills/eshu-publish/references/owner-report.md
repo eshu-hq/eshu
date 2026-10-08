@@ -9,7 +9,7 @@ wording. The chat message stays short and points to it.
 - Use the page for a status update, a result, a plan, a proposal, or a
   comparison.
 - Answer in chat when the owner asks you to explain something in plain English,
-  or asks a direct question. Write the page after, if the answer is long.
+  or asks a direct question. Write the page after, if the answer runs past 10 lines.
 - Coordination messages between agents stay plain text.
 
 ## Steps
@@ -34,8 +34,9 @@ wording. The chat message stays short and points to it.
 3. **Decision.** If the owner must decide, state it plainly with your
    recommendation and the cost of each option. Otherwise write "No decision
    needed."
-4. **What changed or what we found.** A list or a Mermaid diagram. Use a file
-   tree in `ls` form for a proposed change to files.
+4. **What changed or what we found.** A list, or a Mermaid diagram when the
+   Pictures rule in `SKILL.md` applies. Use a file tree in `ls` form for a
+   proposed change to files.
 5. **Evidence.** A table: claim, evidence, who checked it (you or an agent), and
    a `Proven`, `Inferred`, or `NOT_CHECKED` tag.
 6. **NOT_CHECKED.** Everything you did not check.
@@ -55,7 +56,7 @@ wording. The chat message stays short and points to it.
 - Use the numbers and names the owner sees on GitHub, such as the PR and issue
   numbers, so the owner can open the item.
 - Show the command and the result behind a claim, not only the conclusion. Put
-  long output in a `<details>` block.
+  output of more than 10 lines in a `<details>` block.
 - Do not add gimmicks, such as "explained like you are 10".
 - Keep pod IDs, image digests, entity IDs, and credentials out of the page.
 - When you ask peer sessions to report to the owner, tell them to follow this
