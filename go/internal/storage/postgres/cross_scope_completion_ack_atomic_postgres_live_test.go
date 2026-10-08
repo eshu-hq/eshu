@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,8 +34,13 @@ func TestReducerAckCoalescesPendingCompletionEventsPerDomainLive(t *testing.T) {
 			t, ctx, db, workItemID, scopeID, generationID,
 			owner, now.Add(time.Minute), now,
 		)
+		// #7691: stamp the synthetic claim the way a real claim would. The
+		// seed predates the ack attempt fence, so without the stamp the ack
+		// below is rejected on last_attempt_at and the expired lease.
+		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 		if err := queue.Ack(ctx, reducer.Intent{
-			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity, ClaimEpoch: 1,
+			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
+			ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
 		}, reducer.Result{}); err != nil {
 			t.Fatalf("ACK coalesced producer %d: %v", index, err)
 		}
@@ -94,10 +100,16 @@ FOR EACH ROW EXECUTE FUNCTION reject_completion_event()
 		database: SQLDB{DB: db}, LeaseOwner: owner,
 		LeaseDuration: time.Minute, Now: func() time.Time { return now },
 	}
-	if err := queue.Ack(ctx, reducer.Intent{
-		IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity, ClaimEpoch: 1,
-	}, reducer.Result{}); err == nil {
-		t.Fatal("ACK error = nil, want completion-event insert failure")
+	// #7691: stamp the synthetic claim so the ack reaches the event insert.
+	// Without the stamp the fence rejects first and this proof passes without
+	// ever exercising the rollback it names.
+	claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
+	err := queue.Ack(ctx, reducer.Intent{
+		IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
+		ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
+	}, reducer.Result{})
+	if err == nil || !strings.Contains(err.Error(), "synthetic completion event rejection") {
+		t.Fatalf("ACK error = %v, want completion-event insert failure", err)
 	}
 	assertContainerImageIdentityAckWorkItemState(t, ctx, db, workItemID, "claimed", owner)
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -42,24 +41,14 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 					index,
 				)
 				seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
-				seedContainerImageIdentityAckGeneration(
-					t,
-					ctx,
-					db,
-					scopeID,
-					generationID,
-				)
+				seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
 				seedContainerImageIdentityAckWorkItem(
-					t,
-					ctx,
-					db,
-					workItemID,
-					scopeID,
-					generationID,
-					owner,
-					now.Add(time.Minute),
-					now,
+					t, ctx, db, workItemID, scopeID, generationID,
+					owner, now.Add(time.Minute), now,
 				)
+				// #7691: stamp the synthetic claim the way a real claim would;
+				// the seed predates the ack attempt fence.
+				claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 				insertContainerImageIdentityCutoverMarker(
 					t,
 					ctx,
@@ -71,7 +60,8 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 					IntentID:     workItemID,
 					Domain:       reducer.DomainContainerImageIdentity,
 					AttemptCount: 1,
-					ClaimEpoch:   1,
+					ClaimEpoch:   claimEpoch,
+					ClaimedAt:    &claimedAt,
 				}
 			}
 
@@ -121,13 +111,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			{unrelatedScope, unrelatedGen},
 		} {
 			seedContainerImageIdentityAckScope(t, ctx, db, fixture.scopeID)
-			seedContainerImageIdentityAckGeneration(
-				t,
-				ctx,
-				db,
-				fixture.scopeID,
-				fixture.generationID,
-			)
+			seedContainerImageIdentityAckGeneration(t, ctx, db, fixture.scopeID, fixture.generationID)
 		}
 		for _, fixture := range []struct {
 			workItemID string
@@ -143,15 +127,8 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			{wrongAttemptID, unrelatedScope, unrelatedGen, owner},
 		} {
 			seedContainerImageIdentityAckWorkItem(
-				t,
-				ctx,
-				db,
-				fixture.workItemID,
-				fixture.scopeID,
-				fixture.generation,
-				fixture.leaseOwner,
-				now.Add(time.Minute),
-				now,
+				t, ctx, db, fixture.workItemID, fixture.scopeID,
+				fixture.generation, fixture.leaseOwner, now.Add(time.Minute), now,
 			)
 		}
 		insertContainerImageIdentityCutoverMarker(
@@ -199,6 +176,13 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			t.Fatalf("mark wrong-status row: %v", err)
 		}
 
+		// #7691: stamp the rows whose ack must succeed the way a real claim
+		// would. The rejection-path rows stay unstamped: they already fail on
+		// owner, stage, or status, independent of the attempt fence.
+		targetClaimedAt, targetEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, targetID)
+		unrelatedClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, unrelatedID)
+		wrongAttemptClaimedAt, wrongAttemptEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, wrongAttemptID)
+
 		queue := ReducerQueue{
 			database:      SQLDB{DB: db},
 			LeaseOwner:    owner,
@@ -208,7 +192,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 		intents := []reducer.Intent{
 			{
 				IntentID: unrelatedID, Domain: reducer.DomainOwnership,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &unrelatedClaimedAt,
 			},
 			{
 				IntentID: wrongOwnerID, Domain: reducer.DomainOwnership,
@@ -224,7 +208,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			},
 			{
 				IntentID: wrongAttemptID, Domain: reducer.DomainOwnership,
-				AttemptCount: 2, ClaimEpoch: 2,
+				AttemptCount: 2, ClaimEpoch: wrongAttemptEpoch, ClaimedAt: &wrongAttemptClaimedAt,
 			},
 			{
 				IntentID: missingID, Domain: reducer.DomainOwnership,
@@ -232,15 +216,18 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			},
 			{
 				IntentID: targetID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: targetEpoch, ClaimedAt: &targetClaimedAt,
 			},
 			{
 				IntentID: targetID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: targetEpoch, ClaimedAt: &targetClaimedAt,
 			},
 		}
-		if err := queue.AckBatch(ctx, intents, nil); err != nil {
-			t.Fatalf("mixed AckBatch() error = %v", err)
+		// #7691: the batch reports its non-matching members (wrong owner,
+		// stage, status, and the missing row) as a claim rejection; exactness
+		// means only the matching rows below commit.
+		if err := queue.AckBatch(ctx, intents, nil); !errors.Is(err, ErrReducerClaimRejected) {
+			t.Fatalf("mixed AckBatch() error = %v, want non-matching-member rejection", err)
 		}
 
 		assertContainerImageIdentityAckWorkItemState(
@@ -294,13 +281,17 @@ WHERE work_item_id = $1
 `, workItemID, currentEpoch); err != nil {
 			t.Fatalf("advance all-stale batch epoch: %v", err)
 		}
+		// #7691: stamp the attempt fence so the rejection below isolates the
+		// stale epoch. Without the stamp the fence rejects first and the
+		// proof passes without testing epoch staleness at all.
+		staleClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 		queue := ReducerQueue{
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
 		err := queue.AckBatch(ctx, []reducer.Intent{{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
-			AttemptCount: 1, ClaimEpoch: 1,
+			AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
 		}}, nil)
 		if !errors.Is(err, ErrReducerClaimRejected) {
 			t.Fatalf("all-stale target AckBatch error = %v, want claim rejection", err)
@@ -355,6 +346,10 @@ WHERE work_item_id = $1
 `, otherID); err != nil {
 			t.Fatalf("mark valid unrelated batch row: %v", err)
 		}
+		// #7691: stamp both rows so the target rejects on its stale epoch
+		// alone while the unrelated row acks.
+		targetClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, targetID)
+		otherClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, otherID)
 		queue := ReducerQueue{
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
@@ -362,11 +357,11 @@ WHERE work_item_id = $1
 		err := queue.AckBatch(ctx, []reducer.Intent{
 			{
 				IntentID: targetID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &targetClaimedAt,
 			},
 			{
 				IntentID: otherID, Domain: reducer.DomainOwnership,
-				AttemptCount: 1,
+				AttemptCount: 1, ClaimedAt: &otherClaimedAt,
 			},
 		}, nil)
 		if !errors.Is(err, ErrReducerClaimRejected) {
@@ -417,6 +412,11 @@ WHERE work_item_id = $1
 `, staleID); err != nil {
 			t.Fatalf("advance partial stale epoch: %v", err)
 		}
+		// #7691: stamp both rows so the stale one rejects on its epoch alone
+		// while the valid one acks. The batch still reports the stale row's
+		// rejection; partial success means the valid row commits anyway.
+		validClaimedAt, validEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, validID)
+		staleClaimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, staleID)
 		queue := ReducerQueue{
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
@@ -424,14 +424,14 @@ WHERE work_item_id = $1
 		if err := queue.AckBatch(ctx, []reducer.Intent{
 			{
 				IntentID: validID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: validEpoch, ClaimedAt: &validClaimedAt,
 			},
 			{
 				IntentID: staleID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
 			},
-		}, nil); err != nil {
-			t.Fatalf("partial target AckBatch error = %v, want valid pair committed", err)
+		}, nil); !errors.Is(err, ErrReducerClaimRejected) {
+			t.Fatalf("partial target AckBatch error = %v, want stale-row rejection with valid pair committed", err)
 		}
 		assertContainerImageIdentityAckWorkItemState(
 			t, ctx, db, validID, "succeeded", "",
@@ -441,7 +441,7 @@ WHERE work_item_id = $1
 		)
 	})
 
-	t.Run("conflicting duplicate epochs reject input", func(t *testing.T) {
+	t.Run("superseded duplicate epoch keeps newer claim", func(t *testing.T) {
 		const (
 			scopeID    = "repository:5854-ack-conflicting-duplicate"
 			generation = "generation:5854-ack-conflicting-duplicate"
@@ -455,6 +455,13 @@ WHERE work_item_id = $1
 			leaseOwner, now.Add(time.Minute), now,
 		)
 		insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generation)
+		// #7691: stamp the attempt fence. Same-ID duplicates with different
+		// epochs are a lease race, not invalid input: #6162 keeps the newer
+		// claim, acks it, and still reports the superseded sibling as a
+		// claim rejection. The stale intent below is in-memory only; the
+		// database only ever saw the live stamp.
+		latestClaimedAt, latestEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
+		staleClaimedAt := latestClaimedAt.Add(-time.Second)
 		queue := ReducerQueue{
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
@@ -462,18 +469,18 @@ WHERE work_item_id = $1
 		err := queue.AckBatch(ctx, []reducer.Intent{
 			{
 				IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 1, ClaimEpoch: 1,
+				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
 			},
 			{
 				IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
-				AttemptCount: 2, ClaimEpoch: 2,
+				AttemptCount: 2, ClaimEpoch: latestEpoch, ClaimedAt: &latestClaimedAt,
 			},
 		}, nil)
-		if err == nil || !strings.Contains(err.Error(), "conflicting claim epochs") {
-			t.Fatalf("conflicting duplicate AckBatch error = %v", err)
+		if !errors.Is(err, ErrReducerClaimRejected) {
+			t.Fatalf("superseded duplicate AckBatch error = %v, want superseded-claim rejection", err)
 		}
 		assertContainerImageIdentityAckWorkItemState(
-			t, ctx, db, workItemID, "running", leaseOwner,
+			t, ctx, db, workItemID, "succeeded", "",
 		)
 	})
 }
