@@ -70,6 +70,12 @@ func TestGenerationRetentionRowCountsAreGenerationAware(t *testing.T) {
 		"SELECT candidate.generation_id, 'content_file_references'",
 		"SELECT candidate.generation_id, 'content_entities'",
 		"SELECT candidate.generation_id, 'content_files'",
+		// #7396: the cascade children count arms (partitioned terms
+		// table and one small child shown; the migrated-schema live
+		// test pins all fifteen with exact counts).
+		"SELECT candidate.generation_id, 'eshu_search_index_terms'",
+		"LEFT JOIN eshu_search_index_terms AS row",
+		"SELECT candidate.generation_id, 'activation_obligations'",
 	} {
 		if !strings.Contains(generationRetentionRowCountsQuery, want) {
 			t.Fatalf("row-count query missing %q:\n%s", want, generationRetentionRowCountsQuery)

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -44,11 +45,32 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			probeCounts := retentionCountsWith(t, ctx, database, generationRetentionRowCountsQuery, tc.candidates)
 			groupedCounts := retentionCountsWith(t, ctx, database, legacyGenerationRetentionRowCountsQuery, tc.candidates)
-			if !maps.Equal(probeCounts, groupedCounts) {
-				t.Errorf("row counts differ:\n probe   %v\n grouped %v", probeCounts, groupedCounts)
+			// The frozen oracle covers the 13 #6809 tables; the probe
+			// covers those plus the #7396 cascade children. Equality
+			// holds on the oracle's tables; the pair count pins the
+			// probe's full 28-table coverage (13 + 15).
+			legacyTables := map[string]bool{}
+			for key := range groupedCounts {
+				if i := strings.LastIndexByte(key, '|'); i >= 0 {
+					legacyTables[key[i+1:]] = true
+				}
 			}
-			if len(probeCounts) != len(tc.candidates)*13 {
-				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*13)
+			probeLegacy := map[string]int64{}
+			for key, n := range probeCounts {
+				if i := strings.LastIndexByte(key, '|'); i >= 0 {
+					if legacyTables[key[i+1:]] {
+						probeLegacy[key] = n
+					}
+				}
+			}
+			if !maps.Equal(probeLegacy, groupedCounts) {
+				t.Errorf("row counts differ:\n probe   %v\n grouped %v", probeLegacy, groupedCounts)
+			}
+			if len(groupedCounts) != len(tc.candidates)*13 {
+				t.Errorf("oracle covers %d (generation, table) pairs, want %d", len(groupedCounts), len(tc.candidates)*13)
+			}
+			if len(probeCounts) != len(tc.candidates)*28 {
+				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*28)
 			}
 			probeKept := retentionPruneSurvivors(t, ctx, database, tc.candidates, [3]string{
 				pruneContentFileReferencesForGenerationsQuery,
