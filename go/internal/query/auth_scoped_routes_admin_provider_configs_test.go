@@ -92,8 +92,14 @@ const validOIDCCreateBody = `{"provider_kind":"oidc","issuer":"https://idp.examp
 
 // fakeAdminProviderConfigReadStore is a tenant-keyed read double for the
 // middleware proof below. It mirrors the provider-config family tests'
-// double, which this package cannot import; the bodies are identical on
-// purpose so the proof runs against the same fake behavior.
+// doubles in admin/provider/config/reads_test.go (read store) and
+// admin/provider/config/mutations_test.go (mutation store, connection
+// tester); the bodies are identical on purpose so the proof runs against
+// the same fake behavior. The doubles stay duplicated rather than shared
+// via query/testutil because they name the config family's DTOs while the
+// family's internal tests import testutil, which the compiler rejects as
+// an import cycle (#6621); see testutil/AGENTS.md, "A fixture that names
+// a family type cannot live here".
 type fakeAdminProviderConfigReadStore struct {
 	details   map[string]AdminProviderConfigDetail
 	list      map[string][]AdminProviderConfigDetail
