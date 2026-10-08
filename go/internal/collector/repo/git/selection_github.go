@@ -77,7 +77,7 @@ func githubOrgSelectionRequest(
 		rules = append(rules, membership.Rule{Kind: rule.Kind, Value: rule.Value})
 	}
 	return membership.Request{
-		Selector:       membership.NewGitHubOrgSelector(config.SourceMode, config.GithubOrg, rules, config.IncludeArchivedRepos, ""),
+		Selector:       membership.NewGitHubOrgSelector(config.SourceMode, config.GithubOrg, rules, config.IncludeArchivedRepos, selectionPrincipal(config)),
 		SourceMode:     config.SourceMode,
 		RepoShardCount: config.RepoShardCount,
 		RepoLimit:      config.RepoLimit,
@@ -87,6 +87,21 @@ func githubOrgSelectionRequest(
 			Repositories: listed,
 		},
 	}
+}
+
+// selectionPrincipal names the credential the githubOrg listing ran with,
+// following resolveGitToken's choice: the GitHub App installation for
+// githubApp auth, otherwise the salted token hash of the configured token, or
+// blank (anonymous) when there is none. The token itself never leaves
+// membership.TokenPrincipal.
+func selectionPrincipal(config RepoSyncConfig) string {
+	if strings.EqualFold(strings.TrimSpace(config.GitAuthMethod), "githubapp") {
+		return membership.GitHubAppPrincipal(config.GitHubAppID, config.GitHubAppInstallation)
+	}
+	if token := strings.TrimSpace(config.GitToken); token != "" {
+		return membership.TokenPrincipal(token)
+	}
+	return ""
 }
 
 func discoverSelection(
