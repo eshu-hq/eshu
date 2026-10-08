@@ -1355,7 +1355,7 @@ tests:
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/storage/cypher/orphan_sweep_sourceless_artifact_live_test.go
-    tag: ~
+    tag: live_nornicdb_answer_truth
     class: ci
     reason: "sourceless-artifact sweep regression for #7322; deterministic seeded fixture with unique id prefixes and cleanup on both paths; measured 0.1s locally against Neo4j; backend-agnostic so both live-backend legs run it"
   - file: go/internal/storage/cypher/owner_ledger_batch_perf_live_test.go
