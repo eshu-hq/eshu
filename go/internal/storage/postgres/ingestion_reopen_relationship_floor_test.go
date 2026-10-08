@@ -134,7 +134,10 @@ func TestRelationshipReopenMatchesCorrelationReplayFloor(t *testing.T) {
 		"git:scope-b": {"gen-b"},
 		"git:scope-c": {"gen-c-old", "gen-c-failed"},
 	}
-	correlationDomain := string(reducer.DomainSupplyChainImpact)
+	// Any domain exercises the same domain-parameterized floor; use the
+	// remaining fact-backed reopened domain for consistency with the
+	// other reopen tests.
+	correlationDomain := string(reducer.DomainContainerImageIdentity)
 	for scopeID, genIDs := range generations {
 		for _, genID := range genIDs {
 			seedSucceededReopenWorkItem(t, ctx, db,
