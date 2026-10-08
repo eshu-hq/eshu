@@ -24,7 +24,7 @@ Scope: `go/internal/scope/selection` only. The parent instructions in
   for it and for `excluded_still_ingested`, never treat either as selected or
   not selected.
 - The state values match the `repository_selection_observations` CHECK
-  constraint (migration 163). Adding a state needs a migration, the writer,
+  constraint (migration 164). Adding a state needs a migration, the writer,
   and the aggregate rules changed together.
 - Evidence only: nothing here may delete, hide, or retire a scope.
 

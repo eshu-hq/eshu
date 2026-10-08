@@ -14,7 +14,7 @@ a scope because of them.
 
 This package owns the table DDL text (kept byte-identical by a test to the
 DDL that follows the leading comment block of migration
-`163_repository_selection_observations.sql`; the embedded migration
+`164_repository_selection_observations.sql`; the embedded migration
 is the bootstrap source of truth), the org partition read of
 `ingestion_scopes`, the selector read, and the batched upsert.
 `go/internal/collector/repo/git/membership` owns the evaluation, the
@@ -95,7 +95,7 @@ shard 0. No new index.
 
 Re-measured after amendment 1 changed the row shape (`state_since`,
 `state_cycle_count`, `liveness_window_seconds`): PostgreSQL 18.6, migration
-163's DDL, 36,000 background rows (12,000 scopes x 3 selectors), the exact
+164's DDL, 36,000 background rows (12,000 scopes x 3 selectors), the exact
 production upsert as a prepared statement for a new selector's 1,000-row
 batch (scripts and raw output kept with the PR evidence):
 

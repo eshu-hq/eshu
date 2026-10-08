@@ -4,7 +4,7 @@
 
 `internal/scope/selection` defines what a stored repository selection
 observation means (#7625). The git collector writes one row per repository
-scope and selector to `repository_selection_observations` (migration 163).
+scope and selector to `repository_selection_observations` (migration 164).
 The repository freshness reader reads the rows back and reports a
 `not_selected` verdict when the collector's org listing no longer selects the
 repository.
@@ -75,7 +75,7 @@ reader records `eshu_dp_repository_freshness_query_duration_seconds` and
   gauge and the freshness verdict must agree, and they only do while both
   call this package.
 - `unknown` means "no evidence", not "selected".
-- The state values match the migration 163 CHECK constraint.
+- The state values match the migration 164 CHECK constraint.
 
 ## Related docs
 
