@@ -48,7 +48,7 @@ func registerRepositorySelectionInstruments(meter metric.Meter, inst *Instrument
 	}
 	if inst.RepositorySelectionScopes, err = meter.Int64Gauge(
 		"eshu_dp_collector_repository_selection_scopes",
-		metric.WithDescription("Known same-org scopes per selection state (selected, archived_excluded, rule_excluded, not_listed) from the last successful selection evaluation (#7625)"),
+		metric.WithDescription("Known same-org scopes per selection state (selected, archived_excluded, rule_excluded, not_listed) from the last successful githubOrg selection evaluation (#7625)"),
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionScopes gauge: %w", err)
 	}

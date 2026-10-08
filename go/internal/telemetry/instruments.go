@@ -2181,11 +2181,11 @@ type Instruments struct {
 	RepositorySelectionEvaluations metric.Int64Counter
 	// RepositorySelectionScopes reports the known same-org scope count per
 	// selection state (selected, archived_excluded, rule_excluded,
-	// not_listed) from the last successful selection evaluation (#7625).
-	// It is written only on outcome=evaluated, so a guard trip, a
-	// truncated listing, or a store error leaves the previous reading in
-	// place rather than zeroing it. The gauge carries no selector label:
-	// when several selectors evaluate, the last writer wins. Registered by
+	// not_listed) from the last successful githubOrg selection evaluation
+	// (#7625). It is written only on githubOrg outcome=evaluated, so a
+	// guard trip, a truncated listing, or a store error leaves the
+	// previous reading in place rather than zeroing it. Explicit-only
+	// fleets do not emit this gauge. Registered by
 	// registerRepositorySelectionInstruments.
 	RepositorySelectionScopes metric.Int64Gauge
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:

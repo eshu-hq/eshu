@@ -17,7 +17,7 @@ import (
 // selectionObservationPriorRowsQuery reads one selector's stored rows: the
 // states the last evaluation left behind, which the mass-miss guard and the
 // confirmation counters compare against. The (selector_id, evaluated_at
-// DESC) index from migration 163 serves the selector equality.
+// DESC) index from migration 164 serves the selector equality.
 const selectionObservationPriorRowsQuery = `
 SELECT scope_id, state, evaluated_at
 FROM repository_selection_observations
