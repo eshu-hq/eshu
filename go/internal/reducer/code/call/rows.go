@@ -23,8 +23,8 @@ func extractSCIPCodeCallRows(
 ) []map[string]any {
 	rows := make([]map[string]any, 0)
 	for _, edge := range payloadcore.MapSlice(fileData["function_calls_scip"]) {
-		callerID := shared.ResolveEntityID(entityIndex, edge["caller_file"], edge["caller_line"])
-		calleeID := shared.ResolveEntityID(entityIndex, edge["callee_file"], edge["callee_line"])
+		callerID := shared.ResolveEntityID(entityIndex, repositoryID, edge["caller_file"], edge["caller_line"])
+		calleeID := shared.ResolveEntityID(entityIndex, repositoryID, edge["callee_file"], edge["callee_line"])
 		calleeFile := payloadcore.AnyToString(edge["callee_file"])
 		resolutionMethod := codeprovenance.MethodSCIP
 		if calleeID == "" {
@@ -73,7 +73,8 @@ func extractSCIPCodeCallRows(
 // extractGenericCodeCallRows builds the CALLS (and related) rows for one
 // file's function_calls. It also returns how many calls resolved a callee but
 // no caller (no containing entity in the call file and no JavaScript/Java
-// file-root fallback); those calls emit no row.
+// file-root fallback), and how many calls resolved no callee at all; those
+// calls emit no row.
 func extractGenericCodeCallRows(
 	repositoryID string,
 	relativePath string,
@@ -83,9 +84,10 @@ func extractGenericCodeCallRows(
 	reexportIndex shared.ReexportIndex,
 	seenRows map[string]struct{},
 	fileData map[string]any,
-) ([]map[string]any, int) {
+) ([]map[string]any, int, int) {
 	rows := make([]map[string]any, 0)
 	unresolvedCallers := 0
+	unresolvedCallees := 0
 	callerFilePath := shared.PreferredPath(rawPath, relativePath)
 	for _, edge := range payloadcore.MapSlice(fileData["function_calls"]) {
 		callLine := shared.PayloadInt(edge["line_number"], edge["ref_line"])
@@ -107,6 +109,7 @@ func extractGenericCodeCallRows(
 			edge,
 		)
 		if calleeID == "" {
+			unresolvedCallees++
 			continue
 		}
 		if callerID == "" {
@@ -130,11 +133,11 @@ func extractGenericCodeCallRows(
 
 		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, resolutionMethod, edge)
 		rows = appendInstantiatesRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
-		if constructorID := shared.ResolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
+		if constructorID := shared.ResolveConstructorMethodCalleeID(entityIndex, repositoryID, calleeFilePath, edge); constructorID != "" {
 			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, edge)
 		}
 	}
-	return rows, unresolvedCallers
+	return rows, unresolvedCallers, unresolvedCallees
 }
 
 // resolveSameFileScopedCalleeEntityID resolves a call to the single

@@ -17,9 +17,10 @@ var (
 )
 
 // ResolveDynamicCallee handles static JavaScript patterns that look dynamic
-// in call metadata but have a literal same-file target. The cached alias set
-// it reads comes only from a function in the call file's own repository and
-// path (repositoryID plus [shared.FileKeys]).
+// in call metadata but have a literal same-file target. Both the cached
+// alias set it reads and the same-file target it resolves come only from
+// the call file's own repository and path (repositoryID plus
+// [shared.FileKeys]), never from a same-named file elsewhere (#7640, #7642).
 func ResolveDynamicCallee(
 	index shared.EntityIndex,
 	repositoryID string,
@@ -59,7 +60,7 @@ func ResolveDynamicCallee(
 		if aliasTarget := aliasSet.Aliases[candidate]; aliasTarget != "" {
 			target = aliasTarget
 		}
-		if entityID := resolveSameFileJavaScriptDynamicTarget(index, rawPath, relativePath, target); entityID != "" {
+		if entityID := resolveSameFileJavaScriptDynamicTarget(index, repositoryID, rawPath, relativePath, target); entityID != "" {
 			return entityID
 		}
 	}
@@ -146,8 +147,13 @@ func javaScriptNormalizeStaticMemberExpression(value string, staticStrings map[s
 	})
 }
 
+// resolveSameFileJavaScriptDynamicTarget resolves a dynamic-call target to a
+// same-file entity by the target and trailing names. Both probe only the
+// call file's own (repositoryID, full path) or (repositoryID, relative path)
+// keys, never a bare file name or another repository's path (#7642).
 func resolveSameFileJavaScriptDynamicTarget(
 	index shared.EntityIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	target string,
@@ -157,9 +163,13 @@ func resolveSameFileJavaScriptDynamicTarget(
 		return ""
 	}
 	candidates := []string{target, shared.TrailingName(target)}
-	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
+	fullKey, relativeKey := shared.FileKeys(rawPath, relativePath)
+	for _, fileKey := range [2]string{fullKey, relativeKey} {
+		if fileKey == "" {
+			continue
+		}
 		for _, candidate := range candidates {
-			if entityID := index.UniqueNameByPath(pathKey, candidate); entityID != "" {
+			if entityID := index.UniqueNameByRepoPath(repositoryID, fileKey, candidate); entityID != "" {
 				return entityID
 			}
 		}

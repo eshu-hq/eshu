@@ -65,7 +65,7 @@ func ExtractMetaclassRowsWithIndex(
 		for _, item := range payloadcore.MapSlice(fileData["classes"]) {
 			sourceEntityID := strings.TrimSpace(payloadcore.AnyToString(item["uid"]))
 			if sourceEntityID == "" {
-				sourceEntityID = resolvePythonClassEntityID(entityIndex, rawPath, relativePath, item)
+				sourceEntityID = resolvePythonClassEntityID(entityIndex, repositoryID, rawPath, relativePath, item)
 			}
 			if sourceEntityID == "" {
 				continue
@@ -122,8 +122,13 @@ func ExtractMetaclassRowsWithIndex(
 	return repositoryIDs, rows
 }
 
+// resolvePythonClassEntityID resolves a uid-less class item to the entity of
+// its name in the class's own file. It probes only the file's own
+// (repositoryID, full path) or (repositoryID, relative path) keys, never a
+// bare file name or another repository's path (#7642).
 func resolvePythonClassEntityID(
 	index shared.EntityIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	class map[string]any,
@@ -132,8 +137,12 @@ func resolvePythonClassEntityID(
 	if sourceName == "" {
 		return ""
 	}
-	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
-		if entityID := index.UniqueNameByPath(pathKey, sourceName); entityID != "" {
+	fullKey, relativeKey := shared.FileKeys(rawPath, relativePath)
+	for _, fileKey := range [2]string{fullKey, relativeKey} {
+		if fileKey == "" {
+			continue
+		}
+		if entityID := index.UniqueNameByRepoPath(repositoryID, fileKey, sourceName); entityID != "" {
 			return entityID
 		}
 	}
@@ -155,7 +164,7 @@ func resolvePythonMetaclassEntityID(
 		"lang":      "python",
 	}
 
-	if entityID := shared.ResolveSameFileCalleeEntityID(index, rawPath, relativePath, callLike); entityID != "" {
+	if entityID := shared.ResolveSameFileCalleeEntityID(index, repositoryID, rawPath, relativePath, callLike); entityID != "" {
 		return entityID, shared.PreferredPath(rawPath, relativePath)
 	}
 	for _, name := range shared.ExactCandidateNames(callLike, "python") {

@@ -214,8 +214,20 @@ lookup take the repository ID. What changes for operators:
 - `unresolved_caller_calls` counts the `CALLS` path. An SDK call whose caller
   does not resolve in its own repository also emits no `INVOKES_CLOUD_ACTION`
   intent; `unresolved_cloud_action_callers` counts those.
-- Callee-side name lookups (`uniqueNameByPath`, `ResolveEntityID`) still
-  include bare-name keys and are out of scope here.
+- Callee-side same-file lookups are repository- and file-scoped since #7642:
+  `ResolveEntityID` takes a repository ID and resolves only within the
+  file's own identity, and same-file name lookups go through
+  `UniqueNameByRepoPath` instead of the bare-aggregated `uniqueNameByPath`,
+  which now backs only cross-file import lookups probing an explicitly
+  matched target path. A `same_file` callee defined only in a same-named
+  file elsewhere resolves to nothing instead of binding across files.
+- `unresolved_callee_calls` counts the `CALLS` path. `Result.SubSignals`
+  carries it (rendered as `sub_signal_unresolved_callee_calls`) and the
+  `code call materialization completed` log carries
+  `code_call_unresolved_callee_count`: calls whose callee resolved to no
+  entity in the call file's own repository and path, so they emitted no
+  row. A drop in `code_call_row_count` with a matching rise here is this
+  rule working.
 
 No-Regression Evidence: `go test ./internal/reducer/code/call/... ./internal/resolutionparity/... -count=1` passes with the repository-scoped index; the new `TestResolveContainingEntityIDStaysInsideTheCallFile`, `TestSameFileScopedCalleeStaysInsideTheCallFile`, `TestJavaScriptStaticAliasesStayInsideTheCallFile`, `TestExtractRowsDropsCallerFromAnotherRepositorysSameNamedFile`, and `TestBuildInvokesCloudActionIntentRowsIgnoresSameNamedFileInAnotherRepo` failed at the base commit with a foreign entity as the caller and pass after the change. The probe builds no composite `repo+path` string: it normalizes the call file's two paths and does at most two nested map lookups, with no key slice where `PathKeys` built one, and the index writes each span under at most two keys instead of up to four. Benchmark on the remote host (AWS EC2 r7a.4xlarge, 16 logical CPUs, 123 GiB RAM, Linux, Go 1.26.2, quiet host): base `3c0de54e5` against fix `79f35f8ee`, each fetched by Git and checked out clean at the exact SHA, `go test ./internal/reducer/code/call/ -run '^$' -bench . -benchmem -count=5 -cpu 1` run in the order base, fix, base, fix and appended to 10 runs each. The four benchmarks in package `call` are no slower and allocate less. Median ns/op: `ExtractCodeCallRowsLargeJavaScriptDynamicCalls` 13,408,538 to 13,287,608 (-0.9%, inside the 6.5% run-to-run spread of the base runs, so no measurable difference), `ExtractCodeCallRowsRepositoryImportBarrier` 14,960,540 to 14,582,409 (-2.5%), `ResolveDynamicJavaScriptCalleeAnonymousFunctionSource` 1,871.5 to 1,794.0 (-4.1%), `ResolveDynamicJavaScriptCalleeNoAliasFunctionSource` 1,505.0 to 1,421.0 (-5.6%). Bytes per op fall 3% to 11% and allocations per op fall on all four, for example 30,188 to 28,692 and 117,201 to 114,199 allocs/op on the two extract benchmarks. These are in-process microbenchmarks over synthetic fixtures, so they show no end-to-end reducer wall time, and no many-repository fan-out shape was benchmarked.
 

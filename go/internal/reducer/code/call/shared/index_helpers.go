@@ -45,7 +45,11 @@ func uniqueCodeCallNamesByDirectory(
 // ResolveConstructorMethodCalleeID resolves a constructor_call edge to the
 // constructor entity declared for its class name within calleeFilePath, or ""
 // when edge is not a constructor call or no such constructor is indexed.
-func ResolveConstructorMethodCalleeID(index EntityIndex, calleeFilePath string, edge map[string]any) string {
+//
+// The lookup uses only the callee file's own identity within repositoryID:
+// the normalized calleeFilePath. It never consults a bare file name or
+// another repository's path (#7642).
+func ResolveConstructorMethodCalleeID(index EntityIndex, repositoryID string, calleeFilePath string, edge map[string]any) string {
 	if payloadcore.AnyToString(edge["call_kind"]) != "constructor_call" {
 		return ""
 	}
@@ -56,10 +60,9 @@ func ResolveConstructorMethodCalleeID(index EntityIndex, calleeFilePath string, 
 	if className == "" {
 		return ""
 	}
-	for _, pathKey := range PathKeys(calleeFilePath, "") {
-		if entityID := index.constructorByPath[pathKey][className]; entityID != "" {
-			return entityID
-		}
+	fullKey, _ := FileKeys(calleeFilePath, "")
+	if fullKey == "" {
+		return ""
 	}
-	return ""
+	return index.constructorByRepoPath[repositoryID][fullKey][className]
 }

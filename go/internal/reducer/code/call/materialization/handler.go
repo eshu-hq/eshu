@@ -192,6 +192,7 @@ func (h Handler) Handle(
 			repoCount:                    len(contextByRepoID),
 			codeCallRowCount:             len(codeCallRows),
 			unresolvedCallers:            extraction.UnresolvedCallerCount,
+			unresolvedCallees:            extraction.UnresolvedCalleeCount,
 			unresolvedCloudActionCallers: unresolvedCloudActionCallers,
 			metaclassRowCount:            len(metaclassRows),
 			intentRowCount:               0,
@@ -209,6 +210,7 @@ func (h Handler) Handle(
 		// edges: genuine empty work, signaled by input_ready=1 and written_rows=0.
 		emptySubSignals := reducercontract.MaterializationDiagnosticSignals(true, 0)
 		emptySubSignals[SubSignalUnresolvedCallerCalls] = float64(extraction.UnresolvedCallerCount)
+		emptySubSignals[SubSignalUnresolvedCalleeCalls] = float64(extraction.UnresolvedCalleeCount)
 		emptySubSignals[SubSignalUnresolvedCloudActionCallers] = float64(unresolvedCloudActionCallers)
 		for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 			emptySubSignals[key] = value
@@ -255,6 +257,7 @@ func (h Handler) Handle(
 		repoCount:                    len(contextByRepoID),
 		codeCallRowCount:             len(codeCallRows),
 		unresolvedCallers:            extraction.UnresolvedCallerCount,
+		unresolvedCallees:            extraction.UnresolvedCalleeCount,
 		unresolvedCloudActionCallers: unresolvedCloudActionCallers,
 		metaclassRowCount:            len(metaclassRows),
 		intentRowCount:               len(intentRows),
@@ -273,6 +276,7 @@ func (h Handler) Handle(
 	// Projection context was built (input present) and intents were emitted.
 	subSignals := reducercontract.MaterializationDiagnosticSignals(true, len(intentRows))
 	subSignals[SubSignalUnresolvedCallerCalls] = float64(extraction.UnresolvedCallerCount)
+	subSignals[SubSignalUnresolvedCalleeCalls] = float64(extraction.UnresolvedCalleeCount)
 	subSignals[SubSignalUnresolvedCloudActionCallers] = float64(unresolvedCloudActionCallers)
 	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
@@ -338,6 +342,14 @@ func loadActiveCodeCallSymbolDefinitionFacts(
 // containment effect, not lost input.
 const SubSignalUnresolvedCallerCalls = "unresolved_caller_calls"
 
+// SubSignalUnresolvedCalleeCalls is the Result.SubSignals key (logged as
+// sub_signal_unresolved_callee_calls) carrying how many calls resolved no
+// callee at all, so emitted no CALLS row. A drop in code_call_row_count
+// with a matching rise here is the expected #7642 same-file scoping
+// effect — those calls previously bound a foreign file's declaration —
+// not lost input.
+const SubSignalUnresolvedCalleeCalls = "unresolved_callee_calls"
+
 // SubSignalUnresolvedCloudActionCallers is the Result.SubSignals key (logged
 // as sub_signal_unresolved_cloud_action_callers) carrying
 // how many SDK calls mapped to a cataloged cloud action but had no containing
@@ -354,6 +366,7 @@ type codeCallMaterializationTiming struct {
 	repoCount                    int
 	codeCallRowCount             int
 	unresolvedCallers            int
+	unresolvedCallees            int
 	unresolvedCloudActionCallers int
 	metaclassRowCount            int
 	intentRowCount               int
@@ -381,6 +394,7 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Int("repo_count", timing.repoCount),
 		slog.Int("code_call_row_count", timing.codeCallRowCount),
 		slog.Int("code_call_unresolved_caller_count", timing.unresolvedCallers),
+		slog.Int("code_call_unresolved_callee_count", timing.unresolvedCallees),
 		slog.Int("code_call_unresolved_cloud_action_caller_count", timing.unresolvedCloudActionCallers),
 		slog.Int("metaclass_row_count", timing.metaclassRowCount),
 		slog.Int("intent_row_count", timing.intentRowCount),

@@ -18,6 +18,7 @@ import (
 // one to its unique-only result in finalizeEntityIndex.
 type entityIndexCandidates struct {
 	nameCandidates               map[string]map[string]map[string]struct{}
+	repoPathNameCandidates       map[string]map[string]map[string]map[string]struct{}
 	repoNameCandidates           map[string]map[string]map[string]struct{}
 	repoDirNameCandidates        map[string]map[string]map[string]map[string]struct{}
 	goMethodReturnTypeCandidates map[string]map[string]map[string]struct{}
@@ -31,6 +32,7 @@ type entityIndexCandidates struct {
 func newEntityIndexCandidates() entityIndexCandidates {
 	return entityIndexCandidates{
 		nameCandidates:               make(map[string]map[string]map[string]struct{}),
+		repoPathNameCandidates:       make(map[string]map[string]map[string]map[string]struct{}),
 		repoNameCandidates:           make(map[string]map[string]map[string]struct{}),
 		repoDirNameCandidates:        make(map[string]map[string]map[string]map[string]struct{}),
 		goMethodReturnTypeCandidates: make(map[string]map[string]map[string]struct{}),
@@ -50,13 +52,14 @@ func newEntityIndexCandidates() entityIndexCandidates {
 // repository directory) are omitted rather than resolved incorrectly.
 func BuildEntityIndex(envelopes []facts.Envelope) EntityIndex {
 	index := EntityIndex{
-		entitiesByPathLine:      make(map[string]string),
+		entitiesByRepoPathLine:  make(map[string]map[string]string),
 		spansByFile:             make(map[string]map[string][]FunctionSpan),
 		containersByFile:        make(map[string]map[string][]FunctionSpan),
 		uniqueNameByPath:        make(map[string]map[string]string),
+		uniqueNameByRepoPath:    make(map[string]map[string]map[string]string),
 		uniqueNameByRepo:        make(map[string]map[string]string),
 		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
-		constructorByPath:       make(map[string]map[string]string),
+		constructorByRepoPath:   make(map[string]map[string]map[string]string),
 		goMethodReturnTypes:     make(map[string]map[string]string),
 		rustTraitMethodsByRepo:  make(map[string]map[string]string),
 		pythonClassBasesByRepo:  make(map[string]map[string][]string),
@@ -147,17 +150,8 @@ func addFunctionEntityCandidates(
 		}
 		addFileSpan(index.spansByFile, repositoryID, fullKey, relativeKey, span)
 		addFileSpan(index.containersByFile, repositoryID, fullKey, relativeKey, span)
+		addRepoPathEntityCandidates(index, candidates, repositoryID, fullKey, relativeKey, startLine, item, entityID)
 		for _, pathKey := range PathKeys(rawPath, relativePath) {
-			index.entitiesByPathLine[codeCallPathLineKey(pathKey, startLine)] = entityID
-			if name := payloadcore.AnyToString(item["name"]); name == "constructor" || name == "__init__" {
-				classContext := strings.TrimSpace(payloadcore.AnyToString(item["class_context"]))
-				if classContext != "" {
-					if _, ok := index.constructorByPath[pathKey]; !ok {
-						index.constructorByPath[pathKey] = make(map[string]string)
-					}
-					index.constructorByPath[pathKey][classContext] = entityID
-				}
-			}
 			for _, candidateName := range codeCallFunctionCandidateNames(item) {
 				addNameCandidate(candidates.nameCandidates, pathKey, candidateName, entityID)
 				if repositoryID != "" {
@@ -191,6 +185,15 @@ func addTypeEntityCandidates(
 			if entityID == "" {
 				continue
 			}
+			fullKey, relativeKey := FileKeys(rawPath, relativePath)
+			for _, fileKey := range [2]string{fullKey, relativeKey} {
+				if fileKey == "" {
+					continue
+				}
+				for _, candidateName := range codeCallTypeCandidateNames(item) {
+					addCodeCallRepoPathNameCandidate(candidates.repoPathNameCandidates, repositoryID, fileKey, candidateName, entityID)
+				}
+			}
 			addCodeCallSymbolCandidates(candidates.symbolCandidates, item, entityID)
 			if preferredPath != "" {
 				index.entityFileByID[entityID] = preferredPath
@@ -201,7 +204,6 @@ func addTypeEntityCandidates(
 				if endLine < startLine {
 					endLine = startLine
 				}
-				fullKey, relativeKey := FileKeys(rawPath, relativePath)
 				addFileSpan(index.containersByFile, repositoryID, fullKey, relativeKey, FunctionSpan{
 					StartLine: startLine,
 					EndLine:   endLine,
@@ -244,6 +246,75 @@ func addNameCandidate(
 	candidates[scope][candidateName][entityID] = struct{}{}
 }
 
+// addRepoPathEntityCandidates records one function's repository- and
+// file-scoped entries: its path/line identity, its constructor binding when
+// it declares one, and its candidate names. All three are stored under the
+// repository ID plus the file's own keys only (see [FileKeys]), never under
+// a bare file name, so same-file lookups cannot reach a same-named file
+// elsewhere (#7642).
+func addRepoPathEntityCandidates(
+	index *EntityIndex,
+	candidates *entityIndexCandidates,
+	repositoryID string,
+	fullKey string,
+	relativeKey string,
+	startLine int,
+	item map[string]any,
+	entityID string,
+) {
+	candidateNames := codeCallFunctionCandidateNames(item)
+	for _, fileKey := range [2]string{fullKey, relativeKey} {
+		if fileKey == "" {
+			continue
+		}
+		if _, ok := index.entitiesByRepoPathLine[repositoryID]; !ok {
+			index.entitiesByRepoPathLine[repositoryID] = make(map[string]string)
+		}
+		index.entitiesByRepoPathLine[repositoryID][codeCallPathLineKey(fileKey, startLine)] = entityID
+		if name := payloadcore.AnyToString(item["name"]); name == "constructor" || name == "__init__" {
+			if classContext := strings.TrimSpace(payloadcore.AnyToString(item["class_context"])); classContext != "" {
+				if _, ok := index.constructorByRepoPath[repositoryID]; !ok {
+					index.constructorByRepoPath[repositoryID] = make(map[string]map[string]string)
+				}
+				if _, ok := index.constructorByRepoPath[repositoryID][fileKey]; !ok {
+					index.constructorByRepoPath[repositoryID][fileKey] = make(map[string]string)
+				}
+				index.constructorByRepoPath[repositoryID][fileKey][classContext] = entityID
+			}
+		}
+		for _, candidateName := range candidateNames {
+			addCodeCallRepoPathNameCandidate(candidates.repoPathNameCandidates, repositoryID, fileKey, candidateName, entityID)
+		}
+	}
+}
+
+// addCodeCallRepoPathNameCandidate records that entityID is a candidate for
+// candidateName within one file (repositoryID plus the file's own key); the
+// finalize step keeps the name only when exactly one entity claims it. An
+// empty repositoryID is stored as-is, so a repository-less fixture still
+// resolves within its own file keys.
+func addCodeCallRepoPathNameCandidate(
+	candidates map[string]map[string]map[string]map[string]struct{},
+	repositoryID string,
+	fileKey string,
+	candidateName string,
+	entityID string,
+) {
+	if fileKey == "" || candidateName == "" || entityID == "" {
+		return
+	}
+	if _, ok := candidates[repositoryID]; !ok {
+		candidates[repositoryID] = make(map[string]map[string]map[string]struct{})
+	}
+	if _, ok := candidates[repositoryID][fileKey]; !ok {
+		candidates[repositoryID][fileKey] = make(map[string]map[string]struct{})
+	}
+	if _, ok := candidates[repositoryID][fileKey][candidateName]; !ok {
+		candidates[repositoryID][fileKey][candidateName] = make(map[string]struct{})
+	}
+	candidates[repositoryID][fileKey][candidateName][entityID] = struct{}{}
+}
+
 // finalizeEntityIndex sorts every span slice into ascending line order and
 // collapses each ambiguity-tracking candidate map in candidates to its
 // unique-only result on index.
@@ -280,6 +351,20 @@ func finalizeEntityIndex(index *EntityIndex, candidates *entityIndexCandidates, 
 			}
 			for entityID := range entityIDs {
 				index.uniqueNameByRepo[repositoryID][name] = entityID
+			}
+		}
+	}
+	for repositoryID, files := range candidates.repoPathNameCandidates {
+		index.uniqueNameByRepoPath[repositoryID] = make(map[string]map[string]string, len(files))
+		for fileKey, names := range files {
+			index.uniqueNameByRepoPath[repositoryID][fileKey] = make(map[string]string, len(names))
+			for name, entityIDs := range names {
+				if len(entityIDs) != 1 {
+					continue
+				}
+				for entityID := range entityIDs {
+					index.uniqueNameByRepoPath[repositoryID][fileKey][name] = entityID
+				}
 			}
 		}
 	}
@@ -351,16 +436,21 @@ func DirectoryKey(filePath string) string {
 // ResolveEntityID resolves the entity declared at pathValue/lineValue via the
 // exact path/line index, or "" when lineValue is not a positive line number
 // or no entity is recorded there.
-func ResolveEntityID(index EntityIndex, pathValue any, lineValue any) string {
+//
+// The lookup uses only the file's own identity within repositoryID: the
+// normalized pathValue. It never consults a bare file name or another
+// repository's path, so a path/line with no declaration in its own file
+// resolves to "" instead of borrowing an entity from a same-named file
+// elsewhere (#7642).
+func ResolveEntityID(index EntityIndex, repositoryID string, pathValue any, lineValue any) string {
 	line := PayloadInt(lineValue)
 	if line <= 0 {
 		return ""
 	}
 
-	for _, pathKey := range PathKeys(payloadcore.AnyToString(pathValue), "") {
-		if entityID := index.entitiesByPathLine[codeCallPathLineKey(pathKey, line)]; entityID != "" {
-			return entityID
-		}
+	fullKey, _ := FileKeys(payloadcore.AnyToString(pathValue), "")
+	if fullKey == "" {
+		return ""
 	}
-	return ""
+	return index.entitiesByRepoPathLine[repositoryID][codeCallPathLineKey(fullKey, line)]
 }

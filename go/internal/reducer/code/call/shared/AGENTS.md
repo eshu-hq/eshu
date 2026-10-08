@@ -38,6 +38,14 @@ helpers every language leaf depends on.
   lookup by a bare file name (`PathKeys` includes one) or by a path from
   another repository, and never build a `repo+path` string per probe on this
   hot path. `containment_test.go` holds the regression table.
+- Same-file callee lookups stay repository- and file-scoped too (#7642).
+  Store and probe `entitiesByRepoPathLine`, `uniqueNameByRepoPath`, and
+  `constructorByRepoPath` only by repository ID plus the `FileKeys` values,
+  through `ResolveEntityID`, `UniqueNameByRepoPath`,
+  `ResolveSameFileCalleeEntityID`, and `ResolveConstructorMethodCalleeID`.
+  `uniqueNameByPath` keeps its bare and aggregated keys only for
+  cross-file import lookups that probe an explicitly matched target path.
+  `same_file_scope_test.go` holds the regression tables.
 - Prove changes with `go test ./internal/reducer/code/call/... -count=1`
   (recursive covers every leaf) plus the resolution goldens in `code/call`
   when row shapes could change.

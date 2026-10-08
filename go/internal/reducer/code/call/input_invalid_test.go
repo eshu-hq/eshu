@@ -88,7 +88,7 @@ func TestExtractCodeCallRowsQuarantinesFileMissingRepoID(t *testing.T) {
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
-	_, rows, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	_, rows, _, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 
 	// The malformed fact must be recorded as EXACTLY one input_invalid
 	// quarantine naming the missing field and the fact id — the visible
@@ -178,7 +178,7 @@ func TestExtractCodeCallRowsQuarantinesFileMissingRelativePath(t *testing.T) {
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
-	_, rows, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	_, rows, _, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-relative_path file fact must be quarantined via partitionDecodeFailures", len(quarantined))
@@ -318,7 +318,7 @@ func TestExtractCodeCallRowsQuarantinesFileNonObjectParsedFileData(t *testing.T)
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
-	_, rows, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	_, rows, _, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; a non-object parsed_file_data must be quarantined, never silently dropped", len(quarantined))
