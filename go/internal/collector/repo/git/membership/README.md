@@ -33,6 +33,9 @@ webhook selector never observes: a webhook batch is not a listing.
   The Postgres implementation is
   `go/internal/storage/postgres/membership`.
 - `Observation`, `Row`, `Batch`, `State`, `Confirmed`: the row contract.
+  `State` aliases `selection.State` and `Confirmed` delegates to
+  `selection.Confirmed` (`go/internal/scope/selection`), the definition the
+  repository freshness `not_selected` verdict also uses.
 
 ## Evaluation rules
 

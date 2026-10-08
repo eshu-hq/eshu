@@ -3,26 +3,23 @@
 
 package membership
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
+)
 
 // State is the persisted selection state of one repository scope for one
-// selector. The values match the repository_selection_observations state
-// CHECK constraint.
-type State string
+// selector. It aliases selection.State so the writer and the freshness reader
+// share one state set.
+type State = selection.State
 
+// The persisted states, re-exported from the selection package.
 const (
-	// StateSelected means the complete listing names the repository and the
-	// selector's rules select it.
-	StateSelected State = "selected"
-	// StateArchivedExcluded means the listing names the repository as
-	// archived and the selector does not include archived repositories.
-	StateArchivedExcluded State = "archived_excluded"
-	// StateRuleExcluded means the listing names the repository and no
-	// configured rule matches it.
-	StateRuleExcluded State = "rule_excluded"
-	// StateNotListed means a complete listing did not name the repository.
-	// It is evidence only after two-cycle confirmation; see Confirmed.
-	StateNotListed State = "not_listed"
+	StateSelected         = selection.StateSelected
+	StateArchivedExcluded = selection.StateArchivedExcluded
+	StateRuleExcluded     = selection.StateRuleExcluded
+	StateNotListed        = selection.StateNotListed
 )
 
 // Observation is the stored selection evidence for one scope under one
@@ -39,13 +36,18 @@ type Observation struct {
 }
 
 // Confirmed reports whether a not_listed observation passed two-cycle
-// confirmation: at least two consecutive unlisted cycles spanning at least
-// the stored evaluation interval. Positive listing evidence (archived or
-// rule excluded) needs no confirmation and is never "confirmed" here.
+// confirmation. It applies selection.Confirmed, the one definition the
+// freshness reader also uses, so the gauge and the not_selected verdict
+// cannot disagree.
 func Confirmed(o Observation) bool {
-	return o.State == StateNotListed &&
-		o.UnlistedCycleCount >= 2 &&
-		o.EvaluatedAt.Sub(o.FirstUnlistedAt) >= o.EvaluationInterval
+	return selection.Confirmed(selection.Observation{
+		State:              o.State,
+		LastListedAt:       o.LastListedAt,
+		FirstUnlistedAt:    o.FirstUnlistedAt,
+		UnlistedCycleCount: o.UnlistedCycleCount,
+		EvaluatedAt:        o.EvaluatedAt,
+		EvaluationInterval: o.EvaluationInterval,
+	})
 }
 
 // Row is one scope's input to the batched observation upsert. The store
