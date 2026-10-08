@@ -20,7 +20,16 @@ import (
 )
 
 // GetEntityContext retrieves the context for a specific entity. Exported so the staying graph-read-error tests keep driving the handler; see #6060.
+//
+// It records how the request was resolved (anchor, fallback, content, or
+// none) on the server span and the resolution counter once the answer is
+// written (#7212); a request that ends in an error, or is rejected before the
+// graph read, records no resolved_by. The body stays in this one method so the
+// query-plan callsite pins keep keying on (*Handler).GetEntityContext.
 func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
+	res := &entityContextResolution{}
+	defer func() { h.recordEntityContextResolution(r.Context(), res) }()
+
 	entityID := querycontract.PathParam(r, "entity_id")
 	if entityID == "" {
 		querycontract.WriteError(w, http.StatusBadRequest, "entity_id is required")
@@ -32,6 +41,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
+	res.started = true
 
 	// Scoped mode used to add an `AND EXISTS { MATCH ... WHERE <grant> }`
 	// block here to bound e to the caller's granted repositories. On the
@@ -112,6 +122,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		)
 		defer cancel()
 		statements := h.entityContextStatements(access)
+		res.statementsTotal = len(statements)
 		labelsAttempted := 0
 		for _, statement := range statements {
 			labelsAttempted++
@@ -120,6 +131,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
+		res.statementsTried = labelsAttempted
 		if err != nil {
 			// #7006 review F1: Neo4jReader.runRead's graphReadResult now
 			// classifies a spent WithBoundedGraphReadDeadline budget as the
@@ -144,6 +156,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 				h.Logger.WarnContext(r.Context(),
 					"entity context anchor loop ended with an error before resolving",
 					"labels_tried", labelsAttempted,
+					"statements_tried", labelsAttempted,
 					"labels_total", len(statements),
 					telemetry.LogKeyFailureClass, failureClass,
 				)
@@ -176,11 +189,17 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 					"requested_entity_id", entityID,
 					"returned_entity_id", gotID,
 					"reason", "backend_anchor_mismatch",
+					"statements_tried", res.statementsTried,
 				)
 			}
 			h.recordScopedGrantDenied(r.Context(), "entity_context", "backend_anchor_mismatch")
 			row = nil
 		}
+	}
+
+	graphResolvedBy := ""
+	if row != nil {
+		graphResolvedBy = res.graphResolvedBy()
 	}
 
 	if row == nil {
@@ -194,9 +213,11 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if response == nil {
+			res.resolvedBy = resolvedByNone
 			querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 			return
 		}
+		res.resolvedBy = resolvedByContent
 		response["result_limits"] = contextResultLimits(response, entityID)
 		response["partial_reasons"] = querycontract.ContextPartialReasons(response)
 		querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
@@ -237,6 +258,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	}
 	if access.Scoped() && !access.AllowsRepositoryID(querycontract.StringVal(response, "repo_id")) {
 		h.recordScopedGrantDenied(r.Context(), "entity_context", "grant_denied")
+		res.resolvedBy = graphResolvedBy
 		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -250,6 +272,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 
 	response["result_limits"] = contextResultLimits(response, entityID)
 	response["partial_reasons"] = querycontract.ContextPartialReasons(response)
+	res.resolvedBy = graphResolvedBy
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
 }
 
