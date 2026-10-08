@@ -186,7 +186,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 
 	want := map[string]int64{
 		"fact_records":                        2,
-		"fact_work_items":                     1,
+		"fact_work_items":                     2,
 		"fact_replay_events":                  1,
 		"semantic_extraction_jobs":            0,
 		"shared_projection_acceptance":        1,
@@ -198,6 +198,27 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"content_entities":                    1,
 		"infra_resource_entities":             1,
 		"content_files":                       1,
+		// #7396: the cascade children of scope_generations the count
+		// query must include so BatchRowLimit and the retention events
+		// stop under-counting the prune. (eshu_search_index_terms_shadow
+		// from the issue list is a transient migration artifact that the
+		// migrated schema never contains; activation_obligations landed
+		// after the issue and belongs to the same class.)
+		"activation_obligations":                  1,
+		"admission_decisions":                     1,
+		"code_reachability_rows":                  2,
+		"code_reachability_repository_watermarks": 1,
+		"code_root_verdicts":                      1,
+		"container_image_identity_cutovers":       1,
+		"deferred_backfill_partition_memo":        1,
+		"eshu_search_document_projection_state":   1,
+		"eshu_search_index_documents":             1,
+		"eshu_search_index_stats":                 1,
+		"eshu_search_index_terms":                 1,
+		"eshu_search_vector_metadata":             1,
+		"eshu_search_vector_scope_state":          1,
+		"eshu_search_vector_values":               1,
+		"reducer_input_invalid_facts":             1,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,
@@ -239,12 +260,12 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
-	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents"} {
+	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "admission_decisions", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		if got := result.RowsPruned[table]; got != want[table] {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
 	}
-	for _, table := range []string{"fact_records", "iac_reachability_rows", "content_file_references", "content_entities", "content_files", "infra_resource_entities"} {
+	for _, table := range []string{"fact_records", "iac_reachability_rows", "content_file_references", "content_entities", "content_files", "infra_resource_entities", "activation_obligations", "admission_decisions", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		var remaining int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&remaining); err != nil {
 			t.Fatalf("count %s: %v", table, err)
@@ -299,6 +320,28 @@ VALUES ('repo-1', 'main.tf', 'x', 'h', 1, now())`,
 VALUES ('entity-1', 'repo-1', 'main.tf', 'TerraformResource', 'r', 1, 2, 'x', now())`,
 		`INSERT INTO infra_resource_entities (entity_id, repo_id, relative_path, label, entity_name, updated_at)
 VALUES ('entity-1', 'repo-1', 'main.tf', 'TerraformResource', 'r', now())`,
+		// #7396: one row in each cascade child of scope_generations the
+		// row-count query must cover. The cutover guard needs a live
+		// container_image_identity work item, which the final flip retires
+		// so gen-old stays prunable (the completion trigger it fires
+		// writes to cross_scope_completion_events, outside retention).
+		`INSERT INTO activation_obligations (generation_id, scope_id, work_item_id) VALUES ('gen-old', 'scope-1', 'work-1')`,
+		`INSERT INTO admission_decisions (decision_id, domain, state, domain_state, scope_id, generation_id, anchor_kind, anchor_id, candidate_kind, candidate_id, confidence_score, confidence_bucket, confidence_basis, freshness_state, freshness_cause, redaction_state, redaction_reason, payload_version, decided_at, updated_at) VALUES ('dec-1', 'd', 'admitted', 'ds', 'scope-1', 'gen-old', 'ak', 'ai', 'ck', 'ci', 0.5, 'b', 'basis', 'fs', 'fc', 'rs', 'rr', 'v1', now(), now())`,
+		`INSERT INTO code_reachability_repository_watermarks (scope_id, generation_id, repository_id, updated_at) VALUES ('scope-1', 'gen-old', 'repo-1', now())`,
+		`INSERT INTO code_reachability_rows (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at) VALUES ('scope-1', 'gen-old', 'repo-1', 'root-1', 'ent-1', 0, 'resolved', 1.0, 'm', '{}'::jsonb, '[]'::jsonb, now(), now()), ('scope-1', 'gen-old', 'repo-1', 'root-1', 'ent-2', 1, 'resolved', 0.5, 'm', '{}'::jsonb, '[]'::jsonb, now(), now())`,
+		`INSERT INTO code_root_verdicts (scope_id, generation_id, repository_id, entity_id, root_kind, verdict, basis, observed_at, updated_at) VALUES ('scope-1', 'gen-old', 'repo-1', 'ent-1', 'rk', 'v', '{}'::jsonb, now(), now())`,
+		`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, conflict_domain, conflict_key, status, attempt_count, lease_owner, claim_until, payload, container_image_identity_claim_epoch, created_at, updated_at) VALUES ('work-cii', 'scope-1', 'gen-old', 'reducer', 'container_image_identity', 'intent', 'work-cii', 'claimed', 1, 'seed', now() + interval '1 minute', '{}'::jsonb, 1, now(), now())`,
+		`INSERT INTO container_image_identity_cutovers (scope_id, generation_id, activated_by_work_item_id, activated_by_claim_epoch) VALUES ('scope-1', 'gen-old', 'work-cii', 1)`,
+		`UPDATE fact_work_items SET status = 'succeeded', lease_owner = NULL, claim_until = NULL WHERE work_item_id = 'work-cii'`,
+		`INSERT INTO deferred_backfill_partition_memo (scope_id, generation_id, catalog_fingerprint, committed_at) VALUES ('scope-1', 'gen-old', 'fp', now())`,
+		`INSERT INTO eshu_search_document_projection_state (scope_id, generation_id, projection_revision, build_fence, state, updated_at) VALUES ('scope-1', 'gen-old', 1, 1, 'ready', now())`,
+		`INSERT INTO eshu_search_index_documents (scope_id, generation_id, document_id, fact_id, repo_id, source_kind, document, document_length, updated_at) VALUES ('scope-1', 'gen-old', 'doc-1', 'fact-1', 'repo-1', 'sk', '{}'::jsonb, 1, now())`,
+		`INSERT INTO eshu_search_index_stats (scope_id, generation_id, document_count, average_document_length, updated_at) VALUES ('scope-1', 'gen-old', 1, 1.0, now())`,
+		`INSERT INTO eshu_search_index_terms (scope_id, generation_id, document_id, term_key, term, term_frequency) VALUES ('scope-1', 'gen-old', 'doc-1', 'tk', 'term', 1)`,
+		`INSERT INTO eshu_search_vector_metadata (scope_id, generation_id, document_id, embedding_model_id, embedding_dimensions, embedding_content_hash, vector_index_version, build_state, created_at, updated_at) VALUES ('scope-1', 'gen-old', 'doc-1', 'model', 3, 'h', 'v1', 'ready', now(), now())`,
+		`INSERT INTO eshu_search_vector_scope_state (scope_id, generation_id, provider_profile_id, source_class, embedding_model_id, vector_index_version, projection_revision, build_fence, state, updated_at) VALUES ('scope-1', 'gen-old', 'pp', 'sc', 'model', 'v1', 1, 1, 'ready', now())`,
+		`INSERT INTO eshu_search_vector_values (scope_id, generation_id, document_id, embedding_model_id, embedding_dimensions, embedding_content_hash, vector_index_version, vector_values, created_at, updated_at) VALUES ('scope-1', 'gen-old', 'doc-1', 'model', 3, 'h', 'v1', '{0.1,0.2,0.3}', now(), now())`,
+		`INSERT INTO reducer_input_invalid_facts (fact_id, fact_kind, missing_field, failure_class, domain, scope_id, generation_id, decided_at) VALUES ('fact-1', 'fk', 'mf', 'fc', 'd', 'scope-1', 'gen-old', now())`,
 	}
 	for i, step := range steps {
 		if _, err := database.ExecContext(ctx, step); err != nil {
