@@ -192,6 +192,9 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		// #6828: the lock recheck matches the base filter's stamp-clock
 		// visibility; a Go-only recheck would reintroduce the skew flake.
 		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))",
+		// #6828 (F4): the semantic-next gate uses the same stamp-clock
+		// visibility, or a skewed reopen would vanish from the batch.
+		"AND (semantic_next.visible_at IS NULL OR semantic_next.visible_at <= $1 OR (semantic_next.status = 'pending' AND semantic_next.visible_at <= clock_timestamp()))",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)

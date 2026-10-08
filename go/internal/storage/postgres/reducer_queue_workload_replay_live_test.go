@@ -97,8 +97,10 @@ func TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock(t *testing.T) {
 	queue := NewReducerQueue(SQLDB{DB: db}, "workload-replay-skew", time.Minute)
 	queue.ClaimDomain = reducer.DomainWorkloadMaterialization
 	// Skew the APP clock 5s behind the database clock for the whole flow.
-	// Fresh rows carry no visible_at, so only the post-ACK reopened rows
-	// exercise the visibility comparison.
+	// Fresh rows carry app-stamped visible_at at the skewed claim instant,
+	// so the first claim passes through the $1 arm; only the post-ACK
+	// reopened rows (visible_at re-stamped from the database clock)
+	// exercise the pending arm.
 	queue.Now = func() time.Time { return time.Now().Add(-5 * time.Second) }
 
 	enqueue := func(entityKey string) {
