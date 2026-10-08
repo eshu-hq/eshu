@@ -28,9 +28,11 @@ The recommended architecture to test is a **PostgreSQL-owned, versioned
 compressed-posting lane with a transactional exact-delta/tombstone overlay**.
 Immutable posting segments would store sorted content identities per searchable
 gram and field, in bounded shards. Each source mutation would record its exact
-search delta or tombstone in the same transaction; a read would merge the
-active segments and the snapshot-visible overlay before its cap, then fetch
-source rows and verify the raw PostgreSQL `ILIKE` predicate. A manifest switch
+search delta or tombstone in the same transaction. A read would merge the
+active segments and snapshot-visible overlay, fetch source rows, and verify
+raw PostgreSQL `ILIKE` **before** counting a match toward the cap or its
+cap-plus-one sentinel. Candidate grams are only a superset: false positives
+must not consume quota. A manifest switch
 would publish rebuilt segments only after validation, while old segments and
 covered deltas remain until active readers finish. This is an **unproven
 candidate**, not a selected implementation: the fixture must establish a
@@ -65,8 +67,10 @@ required candidate rank order ([pg_trgm](https://www.postgresql.org/docs/current
    fixture exactness and product approval.
    This is **not** a promise of global top-K by final score: capped results are
    explicitly partial and `candidate_pool_truncated` must be true only when a
-   cap-plus-one sentinel proves an omitted candidate. The final page still
-   ranks the selected pool; its separate `truncated` flag is based on a
+   cap-plus-one sentinel proves an omitted candidate. This changes today's
+   `bool_or(term_count >= cap)` saturation heuristic, which can report a pool
+   as truncated when the cap is reached but no candidate was omitted. The final
+   page still ranks the selected pool; its separate `truncated` flag is based on a
    page-limit-plus-one sentinel. The exact key and any wire-visible delta need
    product-contract approval before code. A proposed global exact top-K policy
    instead needs a proven complete scoring algorithm under the same budget.
@@ -107,8 +111,11 @@ The recommended overlay protocol is:
    commit-completeness watermark: PostgreSQL sequences are nontransactional
    ([transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html)).
 3. In one read snapshot, merge active segments with all uncovered exact deltas
-   and tombstones, authorize/filter, order/cap, then `ILIKE`-verify against
-   source rows. A missing segment, incomplete overlay, or stale manifest must
+   and tombstones, authorize/filter, then iterate in candidate order and
+   `ILIKE`-verify against source rows until the cap-plus-one **verified** match
+   or exhaustion. Only verified matches enter the selected pool; a rejected
+   candidate cannot consume its quota. A missing segment, incomplete overlay,
+   or stale manifest must
    fail closed or use the existing exact route—not return incomplete success.
 4. Publish a new manifest atomically only after source/index coverage proof.
    Keep old manifests/segments for existing readers; retire only deltas known
