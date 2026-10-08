@@ -47,7 +47,7 @@ sed 's/eshu_runtime_status_summary_stale/eshu_runtime_status_summary_stale_renam
 expect_fail bad_metric_alerts "alert references a metric that does not exist" --alerts "${bad_metric_alerts}"
 
 bad_metric_rule="${tmp_dir}/bad-metric-rule.yaml"
-sed 's/eshu_dp_status_summary_writer_up/eshu_dp_status_summary_writer_up_renamed/' \
+sed 's/eshu_runtime_status_snapshot_available/eshu_runtime_status_snapshot_available_renamed/' \
 	"${repo_root}/deploy/observability/hosted-operations-prometheus-rule.yaml" >"${bad_metric_rule}"
 expect_fail bad_metric_rule "alert references a metric that does not exist" --prometheus-rule "${bad_metric_rule}"
 

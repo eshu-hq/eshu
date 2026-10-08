@@ -17,18 +17,16 @@ required_alerts=(
 	"EshuHostedSchemaBootstrapFailed"
 	"EshuHostedMCPToolErrors"
 	"EshuHostedStatusSummaryStale"
-	"EshuHostedStatusSummaryWriterDown"
 	"EshuHostedStatusSnapshotUnavailable"
 )
 
 # Alerts whose metric names must exist in the Go source (#7009). The status
-# summary alerts read one gauge assembled by the runtime metrics handler and two
-# registered OTEL instruments; a renamed metric would leave the rule silent.
+# summary alerts read gauges assembled by the runtime metrics handler; a renamed
+# metric would leave the rule silent.
 # Other hosted alerts name metrics built from a shared prefix at runtime, so a
 # literal-name search cannot prove them and they stay out of this list.
 metric_checked_alerts=(
 	"EshuHostedStatusSummaryStale"
-	"EshuHostedStatusSummaryWriterDown"
 	"EshuHostedStatusSnapshotUnavailable"
 )
 

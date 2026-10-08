@@ -143,19 +143,7 @@ spec:
           annotations:
             summary: "Hosted Eshu is serving a stale status summary"
             description: "The runtime /metrics scrape could not serve a fresh stored status summary row for model_key {{ $labels.model_key }} on {{ $labels.service_name }}: the row is older than ESHU_STATUS_SUMMARY_STALE_AFTER, missing, on another statement version, or undecodable. Queue and generation gauges from that runtime reflect the last row, or an empty summary when none was ever decoded."
-            runbook: "Check eshu_dp_status_summary_writer_up and eshu_dp_status_summary_writer_passes_total by outcome on the resolution-engine, then eshu_dp_status_summary_scrape_total by source and reason (stale, missing, version, decode) and eshu_runtime_status_summary_age_seconds against ESHU_STATUS_SUMMARY_STALE_AFTER. Fix the writer before changing ESHU_STATUS_SUMMARY_READ_ENABLED."
-
-        - alert: EshuHostedStatusSummaryWriterDown
-          expr: max by (service_name, model_key) (eshu_dp_status_summary_writer_up) == 0
-          for: 5m
-          labels:
-            severity: warning
-            component: status-summary
-            runbook_section: status-summary-writer
-          annotations:
-            summary: "Hosted Eshu status summary writer has stopped"
-            description: "Every reducer reporting eshu_dp_status_summary_writer_up for model_key {{ $labels.model_key }} reports 0, so no replica refreshes the stored status summary row. Readers age past ESHU_STATUS_SUMMARY_STALE_AFTER and status reads fall back to the live statements."
-            runbook: "Read the resolution-engine logs for the last status summary writer started line and any status summary writer pass failed error (failure_class=status_summary_writer_error), check eshu_dp_status_summary_writer_passes_total by outcome (error, skipped_missing_table), and confirm ESHU_STATUS_SUMMARY_WRITER_ENABLED is on and migration 161 is applied before restarting the reducer."
+            runbook: "Check eshu_dp_status_summary_scrape_total by source and reason (stale, missing, version, decode) and eshu_runtime_status_summary_age_seconds against ESHU_STATUS_SUMMARY_STALE_AFTER. A stopped or failing writer shows here as a row that keeps aging: read the resolution-engine logs for the last status summary writer started line and any status summary writer pass failed error (failure_class=status_summary_writer_error), check eshu_dp_status_summary_writer_passes_total by outcome (error, skipped_missing_table), and confirm ESHU_STATUS_SUMMARY_WRITER_ENABLED is on and migration 161 is applied. Fix the writer before changing ESHU_STATUS_SUMMARY_READ_ENABLED."
 
         - alert: EshuHostedStatusSnapshotUnavailable
           expr: eshu_runtime_status_snapshot_available == 0
