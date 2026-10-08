@@ -68,6 +68,17 @@ func openDriftedLiveDB(t *testing.T) (context.Context, *sql.DB) {
 		t.Fatalf("ping isolated Postgres schema: %v", err)
 	}
 
+	applyDriftedLiveSchema(t, ctx, db)
+	return ctx, db
+}
+
+// applyDriftedLiveSchema applies the hand-picked bootstrap definitions the
+// drifted live proofs need. It is shared by the scheduled findings proof
+// (ESHU_POSTGRES_TEST_DSN isolated schema) and the readiness-runner bucket
+// proof (disposable database) so the two cannot drift apart.
+func applyDriftedLiveSchema(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+
 	required := map[string]bool{
 		"ingestion_scopes":                   true,
 		"scope_generations":                  true,
@@ -88,7 +99,6 @@ func openDriftedLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	if err := ApplyDefinitions(ctx, SQLDB{DB: db}, definitions); err != nil {
 		t.Fatalf("apply isolated Postgres schema: %v", err)
 	}
-	return ctx, db
 }
 
 // seedDriftedLiveScope seeds one repository scope with a superseded gen-0

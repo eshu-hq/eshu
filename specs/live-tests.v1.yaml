@@ -1505,7 +1505,7 @@ tests:
   - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
+    reason: "#7228 overfull-band-bucket skip proof, enrolled in the live-postgres-readiness runner on ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN: a 307-member bucket nominates no pairs while the same repo's small-bucket pairs are unchanged, with skipped-bucket/max-bucket/pairs-considered stats. Local run passed in 1.3s on postgres:18 on 2026-10-08; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code_drifted_findings_live_test.go
     tag: ~

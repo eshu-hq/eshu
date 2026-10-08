@@ -7,10 +7,38 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
+
+// openDriftedBucketSkipLiveDB opens a disposable database for the #7228
+// bucket-skip proof. Enrolled in the live-postgres-readiness runner, which
+// sets ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN (administrative database) and
+// ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE=1; without a DSN it skips. Run
+// it locally with, for example:
+//
+//	ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN=postgres://eshu:eshu@127.0.0.1:<port>/postgres?sslmode=disable \
+//	ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE=1 \
+//	go test ./internal/storage/postgres/ -run TestDriftedPathologicalBucketSkippedLive -count=1
+//
+// The schema is the same hand-picked drifted set as the scheduled findings
+// proof (applyDriftedLiveSchema), not a copy of it.
+func openDriftedBucketSkipLiveDB(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN"),
+		os.Getenv("ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE"),
+		3*time.Minute,
+	)
+	applyDriftedLiveSchema(t, ctx, db)
+	return ctx, db
+}
 
 // seedDriftedEvidenceLiveRepo seeds one repo with a pathological band
 // bucket (every patho entity shares one band-0 hash) plus a small normal
@@ -75,7 +103,7 @@ VALUES ($1, 0, 'pathobucket', $2)`, repoID, id); err != nil {
 // pathological bucket cannot make the nomination quadratic, while the
 // small-bucket pairs for the same repo are unchanged.
 func TestDriftedPathologicalBucketSkippedLive(t *testing.T) {
-	ctx, db := openDriftedLiveDB(t)
+	ctx, db := openDriftedBucketSkipLiveDB(t)
 
 	const repoID = "repo-patho"
 	const pathoSize = 307
