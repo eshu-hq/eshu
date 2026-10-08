@@ -132,3 +132,39 @@ spec:
             summary: "Hosted MCP tool error rate is above 2%"
             description: "Assistant-facing reads are failing even if process health is green."
             runbook: "Group MCP errors by tool, check query spans, and compare API readback for the same bounded question before changing client configuration."
+
+        - alert: EshuHostedStatusSummaryStale
+          expr: max by (service_name, model_key) (eshu_runtime_status_summary_stale) == 1
+          for: 5m
+          labels:
+            severity: warning
+            component: status-summary
+            runbook_section: status-summary-stale
+          annotations:
+            summary: "Hosted Eshu is serving a stale status summary"
+            description: "The runtime /metrics scrape could not serve a fresh stored status summary row for model_key {{ $labels.model_key }} on {{ $labels.service_name }}: the row is older than ESHU_STATUS_SUMMARY_STALE_AFTER, missing, on another statement version, or undecodable. Queue and generation gauges from that runtime reflect the last row, or an empty summary when none was ever decoded."
+            runbook: "Check eshu_dp_status_summary_writer_up and eshu_dp_status_summary_writer_passes_total by outcome on the resolution-engine, then eshu_dp_status_summary_scrape_total by source and reason (stale, missing, version, decode) and eshu_runtime_status_summary_age_seconds against ESHU_STATUS_SUMMARY_STALE_AFTER. Fix the writer before changing ESHU_STATUS_SUMMARY_READ_ENABLED."
+
+        - alert: EshuHostedStatusSummaryWriterDown
+          expr: max by (service_name, model_key) (eshu_dp_status_summary_writer_up) == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: status-summary
+            runbook_section: status-summary-writer
+          annotations:
+            summary: "Hosted Eshu status summary writer has stopped"
+            description: "Every reducer reporting eshu_dp_status_summary_writer_up for model_key {{ $labels.model_key }} reports 0, so no replica refreshes the stored status summary row. Readers age past ESHU_STATUS_SUMMARY_STALE_AFTER and status reads fall back to the live statements."
+            runbook: "Read the resolution-engine logs for the last status summary writer started line and any status summary writer pass failed error (failure_class=status_summary_writer_error), check eshu_dp_status_summary_writer_passes_total by outcome (error, skipped_missing_table), and confirm ESHU_STATUS_SUMMARY_WRITER_ENABLED is on and migration 161 is applied before restarting the reducer."
+
+        - alert: EshuHostedStatusSnapshotUnavailable
+          expr: eshu_runtime_status_snapshot_available == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: telemetry
+            runbook_section: status-snapshot
+          annotations:
+            summary: "Hosted Eshu runtime status snapshot is failing on scrape"
+            description: "The runtime /metrics scrape could not read its status snapshot, so queue, generation, health, and status summary gauges are omitted from that runtime. Queue and completeness alerts cannot fire while this persists."
+            runbook: "Check the scraped runtime logs for the status snapshot error, eshu_dp_status_snapshot_read_duration_seconds by outcome, and Postgres reachability from that pod. A database error reading the stored summary row fails the scrape by design, so verify Postgres before touching ESHU_STATUS_SUMMARY_READ_ENABLED."

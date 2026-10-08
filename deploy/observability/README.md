@@ -19,7 +19,7 @@ contracts, runtime health semantics, or operator runbooks. Metric names live in
   environments and carries the same `eshu.freshness` group.
 - `hosted-operations-alerts.yaml` contains standalone hosted ops rules for
   runtime metrics, queue convergence, dependency health, collector claims,
-  schema bootstrap, and MCP tool errors.
+  schema bootstrap, MCP tool errors, and status summary freshness.
 - `hosted-operations-prometheus-rule.yaml` wraps the hosted ops rules for
   Prometheus Operator environments.
 - `otel-collector-config.yaml` receives OTLP, batches telemetry, exports traces

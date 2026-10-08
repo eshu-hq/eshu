@@ -45,12 +45,32 @@ The alert pack covers:
 - Postgres, graph, and canonical write latency;
 - degraded or stalled runtime dependency health;
 - schema bootstrap failure;
-- MCP tool error rate.
+- MCP tool error rate;
+- status summary freshness (see below).
 
 Every alert must include `severity`, `component`, `runbook_section`, and a
 `runbook` annotation that points at a concrete diagnostic check. Alert text must
 not tell operators to restart broadly. It should identify the owning runtime,
 status surface, metric family, or rollout proof to inspect next.
+
+## Status Summary Alerts
+
+Three alerts watch the stored status summary read model (#7009). They use only
+metrics the code defines, and `scripts/verify-hosted-ops-alert-pack.sh` fails if
+a metric they name is not defined in `go/`.
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `EshuHostedStatusSummaryStale` | `eshu_runtime_status_summary_stale` is `1` for 5 minutes: the scrape could not serve a fresh row for a `model_key`. The runtime compares the row age with its own `ESHU_STATUS_SUMMARY_STALE_AFTER`, so the rule holds no copy of the bound. | warning |
+| `EshuHostedStatusSummaryWriterDown` | Every reducer that reports `eshu_dp_status_summary_writer_up` reports `0` for 5 minutes, so no replica refreshes the row. | warning |
+| `EshuHostedStatusSnapshotUnavailable` | `eshu_runtime_status_snapshot_available` is `0` for 5 minutes. Status-derived gauges are omitted, so the queue and completeness alerts above cannot fire. | critical |
+
+The stale gauge is rendered only while `ESHU_STATUS_SUMMARY_READ_ENABLED` is on,
+and the writer gauge only while `ESHU_STATUS_SUMMARY_WRITER_ENABLED` is on, so
+the first two alerts stay silent with those features off. A writer that is
+disabled while the reader is on shows as `EshuHostedStatusSummaryStale`, not as
+a writer alert. If `EshuHostedStatusSnapshotUnavailable` fires, treat the stale
+alert as unreadable: a failed snapshot also drops the stale gauge.
 
 ## Health Versus Completeness
 
