@@ -443,8 +443,11 @@ func TestProducerEvidenceProbeCostLive(t *testing.T) {
 // TestProducerEvidenceKindPrefilterDifferential proves the probe's kind
 // prefilter never changes the outcome: the shipped prefiltered query and
 // the unprefiltered query agree on every corpus generation, including one
-// carrying every identity-filter arm kind, so a derivation miss for any arm
-// would show up as a disagreement.
+// carrying every identity-filter arm kind. The all-arms generation masks a
+// single-arm derivation miss (other matching rows still agree), so the
+// exact derived list is pinned separately by
+// TestProducerEvidenceKindDerivation; only the isolated kinds
+// (image_manifest, terraform_state_resource) would disagree here.
 func TestProducerEvidenceKindPrefilterDifferential(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")

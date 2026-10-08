@@ -5,11 +5,12 @@ package activation
 
 // insertProducerObligationQuery is the one-row idempotent write
 // ProjectorQueue.Ack runs inside its transaction, after the generation is
-// activated and before commit, when the activated generation carries
-// producer evidence for a correlation consumer domain. A first activation
-// inserts a pending row. A re-activation of a generation whose row is
-// obsolete owes it again. completed and inapplicable stay terminal: the
-// generation's dependents were already reopened, or it carried no producer
+// activated and before commit, for every activated generation. The settle
+// retires generations without producer evidence as inapplicable. A first
+// activation inserts a pending row. A re-activation of a generation whose
+// row is obsolete owes it again. completed and inapplicable stay terminal:
+// the generation's dependents were already reopened, or it carried no
+// producer
 // evidence, and the generation's facts are unchanged.
 //
 // Lock order: Ack already holds the scope row when this statement locks the
@@ -77,8 +78,9 @@ WHERE scope_id = $1 AND generation_id = $2 AND state = 'leased'
 `
 
 // inapplicableProducerObligationQuery retires an obligation whose generation
-// carries no producer evidence at settle time (its facts were tombstoned
-// between Ack and settle). It is token- and lease-fenced like completion.
+// carries no producer evidence at settle time (the normal case for
+// non-producer generations; tombstoned-between-Ack-and-settle facts retire
+// the same way). It is token- and lease-fenced like completion.
 // Prune never deletes an inapplicable row (only the generation cascade
 // does), so catch-up cannot owe it again.
 const inapplicableProducerObligationQuery = `

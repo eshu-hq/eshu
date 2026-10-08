@@ -143,14 +143,15 @@ noise; buffer counts and plan shapes are the deterministic claims.
 
 ## F5 limitation: removal-only OCI generations (deferred follow-up)
 
-Removal-only OCI generations owe nothing and removal-affected consumers
-can be missed: `producerEvidenceExistsQuery` requires non-tombstoned
-identity facts, so a generation that only tombstones manifests creates no
-obligation, and partial-removal generations owe on their remaining
+Removal-only OCI generations create an obligation the settle retires as
+inapplicable, and removal-affected consumers can be missed:
+`producerEvidenceExistsQuery` requires non-tombstoned identity facts, so
+a generation that only tombstones manifests never reaches the reopen
+listings, and partial-removal generations link only their surviving
 evidence while consumers embedding the removed keys lack intersection.
-Those consumers stay stale until the next commit-driven epoch pass. (Drift
-is not affected: its arms carry no tombstone filter, so tombstoned ARNs
-still owe and link.) This sits inside arbiter-blessed R2-A and needs a
+Those consumers stay stale until the next commit-driven epoch pass.
+(Drift is not affected: its arms carry no tombstone filter, so tombstoned
+ARNs still link.) This sits inside arbiter-blessed R2-A and needs a
 design decision (tombstone-aware owe plus previous-generation linkage),
 so it is deferred to #7705 rather than fixed here; see that issue for the
 acceptance criteria.
