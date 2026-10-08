@@ -85,7 +85,7 @@ Decision-16 bounds:
 
 - sum of per-model `ok` medians at most 2.5 s: worst 0.38 s. PASS.
 - companion p95 at most interval/2 (5 s): worst 0.24 s. PASS.
-- sum p95 at most the interval (10 s): worst 0.71 s. PASS.
+- sum p95 at most the interval (10 s): worst 0.53 s (the largest sum maximum is 0.71 s). PASS.
 
 The ops-qa P1 medians for the same pair (#4 1.02 s and #25 0.41 s, measured on
 the reader, not the primary) sum to about 1.43 s, still inside the 2.5 s bound;
@@ -106,7 +106,7 @@ two sizes were measured, each with 4,000 upserts and a `VACUUM` after each
 2,000. Both keep one heap page and 100% HOT updates. The dead-tuple count is a
 `pg_stat` sample that depends on when autovacuum runs: it was 0 and 0 in the
 first measurement and 5 and 5 (35 KB) or 0 and 0 (69 KB) when rerun after the
-rebase onto main, and no test pins it. The TOAST relation size in the second
+rebase onto main, and no test pins the exact value (`runBloatProof` bounds dead tuples at 100 after the vacuum and the round-two TOAST size at 1.25 times round one). The TOAST relation size in the second
 round also depends on when vacuum runs: 4,001 to 4,447 pages in one run and
 4,001 to 1,266 in a later run at 69 KB. Either way it is bounded by the write
 volume between vacuums, not by the number of updates. The keyed read touches
@@ -187,7 +187,7 @@ per pass, files an issue before the default flip. No new metric was added now.
   package tests, and the regenerated render goldens.
 
 Performance Evidence: the writer pass with both models measured a worst-case
-sum median of 0.38 s and a worst-case sum p95 of 0.71 s on the fixture, against
+sum median of 0.38 s and a worst-case sum p95 of 0.53 s (maximum 0.71 s) on the fixture, against
 the 10 s interval and the ruling's 2.5 s, 5 s and 10 s bounds, with the table in
 the shape and bloat bounds above. With the flag on, the snapshot read replaces
 the two Terraform statements with one keyed read of 1 plan buffer plus 13 TOAST
