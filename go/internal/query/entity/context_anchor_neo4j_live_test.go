@@ -12,6 +12,12 @@
 // the two responses must be identical. The plan is also checked: the anchor
 // seeks an index for every label and never scans.
 //
+// Issue #7212 widened the anchor from the 15 loop labels to every label with a
+// uid or id uniqueness constraint. The loop still resolves those labels, through
+// its unlabeled fallback, so it stays the oracle; the scenarios for
+// TerraformVariable (uid-constrained), Endpoint and CloudAction (id-constrained)
+// pin that they now resolve on the anchor, in one statement.
+//
 // This proves Neo4j only. The anchor is not used on NornicDB (#7006), so the
 // test skips on that backend. Run it with, for example:
 //
@@ -30,6 +36,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -54,6 +61,8 @@ const (
 	anchorSeedDupID         = anchorSeedPrefix + "dup"
 	anchorSeedDupLateFirst  = anchorSeedPrefix + "dup-late-first"
 	anchorSeedOtherRepoFn   = anchorSeedPrefix + "fn-other-repo"
+	anchorSeedDupOldNew     = anchorSeedPrefix + "dup-old-new"
+	anchorSeedTFVarSplitUID = anchorSeedPrefix + "tfvar-split"
 	anchorReadStatementMark = "OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)"
 )
 
@@ -80,6 +89,19 @@ var anchorSeed = []string{
 	// dup: one id on Function (rank 0) and Class (rank 1); the loop resolves the Function.
 	`CREATE (:Class {id: '` + anchorSeedDupID + `', uid: '` + anchorSeedDupID + `', name: 'DupClass'})`,
 	`CREATE (:Function {id: '` + anchorSeedDupID + `', uid: '` + anchorSeedDupID + `', name: 'DupFunction'})`,
+	// #7212 widened labels: a uid-constrained TerraformVariable (id == uid) and
+	// two id-constrained labels outside the old 15.
+	`CREATE (:TerraformVariable {id: '` + anchorSeedPrefix + `tfvar0', uid: '` + anchorSeedPrefix + `tfvar0', name: 'tfvar0'})`,
+	`CREATE (:Endpoint {id: '` + anchorSeedPrefix + `endpoint0', name: 'endpoint0'})`,
+	`CREATE (:CloudAction {id: '` + anchorSeedPrefix + `action0', name: 'action0'})`,
+	// tfvar-split: a TerraformVariable whose id differs from its uid; the uid
+	// seek cannot reach it, so it resolves through the fallback as before.
+	`CREATE (:TerraformVariable {id: '` + anchorSeedTFVarSplitUID + `', uid: '` + anchorSeedTFVarSplitUID + `-uid', name: 'tfvarSplit'})`,
+	// dup-old-new: one id on a widened label (TerraformVariable, created first)
+	// and an old loop label (WorkloadInstance); the old label outranks it, as
+	// the loop would resolve it.
+	`CREATE (:TerraformVariable {id: '` + anchorSeedDupOldNew + `', uid: '` + anchorSeedDupOldNew + `', name: 'DupTFVar'})`,
+	`CREATE (:WorkloadInstance {id: '` + anchorSeedDupOldNew + `', name: 'DupInstanceOld'})`,
 	// dup-late-first: the later-ranked WorkloadInstance is created before the
 	// earlier-ranked Enum, so creation order cannot explain a passing result.
 	`CREATE (:WorkloadInstance {id: '` + anchorSeedDupLateFirst + `', name: 'DupInstance'})`,
@@ -114,7 +136,12 @@ var anchorScenarios = []anchorScenario{
 	{"Repository id-keyed", anchorSeedRepoID, http.StatusOK, "Repository", 1},
 	{"Directory with an id resolves through the fallback", anchorSeedPrefix + "dir0", http.StatusOK, "Directory", 2},
 	{"id-only Function resolves through the fallback", anchorSeedPrefix + "fn-id-only", http.StatusOK, "Function", 2},
-	{"off-list Trait resolves through the fallback", anchorSeedPrefix + "trait0", http.StatusOK, "Trait", 2},
+	{"Trait, outside the old 15, resolves on the anchor", anchorSeedPrefix + "trait0", http.StatusOK, "Trait", 1},
+	{"uid-constrained TerraformVariable resolves on the anchor", anchorSeedPrefix + "tfvar0", http.StatusOK, "TerraformVariable", 1},
+	{"id-constrained Endpoint resolves on the anchor", anchorSeedPrefix + "endpoint0", http.StatusOK, "Endpoint", 1},
+	{"id-constrained CloudAction resolves on the anchor", anchorSeedPrefix + "action0", http.StatusOK, "CloudAction", 1},
+	{"TerraformVariable with id != uid resolves through the fallback", anchorSeedTFVarSplitUID, http.StatusOK, "TerraformVariable", 2},
+	{"id shared by an old and a widened label resolves to the old label", anchorSeedDupOldNew, http.StatusOK, "WorkloadInstance", 1},
 	{"File uid-only must not match", anchorSeedFileUIDOnly, http.StatusNotFound, "", 2},
 	{"File uid must not match", anchorSeedFileUID, http.StatusNotFound, "", 2},
 	{"not found", anchorSeedPrefix + "nope", http.StatusNotFound, "", 2},
@@ -275,6 +302,22 @@ func TestLiveNeo4jEntityContextAnchorMatchesLoop(t *testing.T) {
 			for _, scan := range []string{"NodeByLabelScan", "AllNodesScan", "UnionNodeByLabelsScan"} {
 				if strings.Contains(ops, scan) {
 					t.Errorf("%s anchor plan contains %s:\n%s", name, scan, ops)
+				}
+			}
+			// #7212: every widened label must have its own unique-index seek
+			// in the rendered plan, on uid for the uid branch and on id for
+			// the id branch. The variable name is not matched: Neo4j may
+			// rename it inside a UNION branch.
+			anchor := neo4jEntityContextAnchor()
+			for property, branch := range map[string]*regexp.Regexp{"uid": wideUIDBranch, "id": wideIDBranch} {
+				m := branch.FindStringSubmatch(anchor)
+				if m == nil {
+					t.Fatalf("anchor lacks the %s branch:\n%s", property, anchor)
+				}
+				for _, label := range strings.Split(m[1], "|") {
+					if want := ":" + label + "(" + property + ")"; !strings.Contains(ops, want) {
+						t.Errorf("%s anchor plan has no unique-index seek %s", name, want)
+					}
 				}
 			}
 		}
