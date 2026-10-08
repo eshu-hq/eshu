@@ -34,9 +34,11 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 
 ## Exported surface
 
-- `NewGitHubOrgSelector`, `Selector`, `Rule`: the selector identity. The id
-  hashes the source mode, the lowercased org, the sorted normalized rules, and
-  the include-archived flag, so two configurations on one org never share rows.
+- `NewGitHubOrgSelector`, `NewExplicitSelector`, `Selector`, `Rule`,
+  `GitHubAppPrincipal`, `TokenPrincipal`: the selector identity. The id hashes
+  the kind, source mode, lowercased owner, sorted normalized rules, and the
+  include-archived flag, then appends the credential principal, so two
+  configurations or credentials on one owner never share rows.
 - `Evaluate`, `Input`, `Result`, `Counts`, `ScopeCounts`: the pure evaluation.
 - `Observer`, `Store`, `Request`: the per-cycle wrapper and its storage port.
   The Postgres implementation is
@@ -53,19 +55,28 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 | Complete listing only | `Listing.Complete == false` writes nothing; outcome `listing_truncated`. |
 | Owner partition | Known scopes are the org's `repository` scopes, matched case-insensitively on the repo slug org. `repository_ref` scopes are excluded. |
 | Mass-miss guard | More newly unlisted scopes than `max(10, ceil(0.10 * known))`, or an empty listing while known scopes exist, writes nothing; outcome `guard_tripped`. |
-| Confirmation | `not_listed` is `Confirmed` only when `unlisted_cycle_count >= 2` and `evaluated_at - first_unlisted_at >= evaluation_interval`. |
-| Relist | A listed scope resets `first_unlisted_at` and `unlisted_cycle_count`. |
+| State tracking | Each row stores `state_since` and `state_cycle_count`. The same state as the stored row keeps `state_since` and adds one to the count; a different state, or a new row, sets `state_since` to this evaluation and the count to 1. |
+| Confirmation | Any state other than `selected` (`not_listed`, `archived_excluded`, `rule_excluded`) is `Confirmed` only when `state_cycle_count >= 2` and `evaluated_at - state_since >= ConfirmationMinSpan` (5 minutes). A first evaluation never confirms anything. |
+| Liveness | Every row stores `liveness_window_seconds` from `ESHU_REPO_SELECTION_LIVENESS_WINDOW` (default 48h, minimum 1h). A row counts while `evaluated_at + window >= now`. The window does not depend on the gap between cycles. |
 | Replay | An upsert with an `evaluated_at` that is not newer than the stored row changes nothing. |
 | Store errors | Never fail the cycle; logged and counted as `store_error`. |
 
-The collector has no configured cycle interval (it loops back to back). The
-evaluation interval is therefore `max(MinimumInterval, now - newest prior
-evaluated_at for the selector)`, truncated to whole seconds, with
-`DefaultMinimumInterval` of 5 minutes. Confirmation then needs two cycles and
-at least the floor, and tracks the actual cadence when cycles are slow.
+The selector id is `<config hash>@<principal>`. The principal names the
+credential that listed the repositories: `app:<app_id>:<installation_id>` for
+a GitHub App, `token:` plus the first 16 hex characters of a salted SHA-256 of
+the token, or `anonymous`. The token itself never appears in an id, a log, or
+an error. A token rotation starts a new selector; the old one's rows expire
+after the window, and any live `selected` row from either keeps the scope
+selected during the overlap.
 
-`project` mirrors the SQL counter math in the Postgres upsert so the state
+`project` mirrors the SQL state math in the Postgres upsert so the state
 gauge needs no read-back. The live store test asserts the two agree.
+
+Known limits: filesystem-mode collectors write no rows, so a repository only
+they ingest is covered only by the freshness rule that no generation was
+observed after the exclusion began. If a repository's other producer stops
+without its selector's rows expiring first, the scope fails open to `unknown`
+or keeps its last evidence label until the window passes.
 
 ## When the guard trips every cycle
 
@@ -117,7 +128,12 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
   outcome and counts; plus WARN `git_repository_selection_guard_tripped`,
   `git_repository_selection_listing_truncated`, or
   `git_repository_selection_store_failed` (with `failure_class`) when the
-  outcome is not `evaluated`.
+  outcome is not `evaluated`. The INFO line also carries `selector_kind`,
+  `evaluation_gap_seconds`, and `liveness_window_seconds`.
+- WARN `git_repository_selection_liveness_lapsed` (`evaluation_gap_seconds`,
+  `liveness_window_seconds`) when the gap since the selector's previous
+  evaluation exceeds the window: its rows had expired and read `unknown`
+  until this evaluation.
 
 ## Evidence
 

@@ -50,8 +50,8 @@ The collector cycle continues.
   serves it.
 - The upsert binds `github_repo_id` as `bigint[]` with `0` for unknown and
   maps it back to `NULL` with `NULLIF`, so no nullable array crosses the
-  driver. `last_listed_at`, `first_unlisted_at`, and the counter are derived
-  in SQL from `state` and the stored row.
+  driver. `last_listed_at`, `state_since`, and `state_cycle_count` are
+  derived in SQL from `state` and the stored row.
 - `ORDER BY s.scope_id` is load-bearing: it fixes the lock order across
   replicas of one selector.
 - `WHERE o.evaluated_at < EXCLUDED.evaluated_at` makes every write
@@ -74,6 +74,18 @@ exact production statements as prepared statements:
 | `UpsertObservations`, replay at the same `evaluated_at` | 7.8 ms, 0 written (1,000 removed by the conflict filter) |
 | `Observations`, 1,000 rows | 0.20 ms, bitmap scan on `repository_selection_observations_selector_idx` |
 
+Re-measured after amendment 1 changed the row shape (`state_since`,
+`state_cycle_count`, `liveness_window_seconds`): PostgreSQL 18.6, migration
+163's DDL, 36,000 background rows (12,000 scopes x 3 selectors), the exact
+production upsert as a prepared statement for a new selector's 1,000-row
+batch (scripts and raw output kept with the PR evidence):
+
+| Statement | Result |
+| --- | --- |
+| `UpsertObservations`, first cycle | 17.1 ms, 1,000 inserted |
+| `UpsertObservations`, next cycle, 100 rows change state | 18.4 ms, 1,000 updated; afterwards 900 rows `selected` with count 2 and 100 `not_listed` with count 1 |
+| `UpsertObservations`, replay at the same `evaluated_at` | 8.5 ms, 0 written (1,000 removed by the conflict filter) |
+
 The earlier theory shim on the same data measured the partition read at
 0.72 ms (58 buffers), and 0.9 ms while another session held `FOR UPDATE` on an
 org scope; the evaluation transaction held only `AccessShareLock` on
@@ -84,11 +96,12 @@ list, on shard 0 only.
 
 ### Freshness read
 
-The repository freshness reader (`repositoryFreshnessSelectionQuery` in
-`go/internal/storage/postgres/repository_freshness_sql.go`) reads this table
-by `scope_id` alone and returns every selector's row for the scope, live or
-stale. `selection.Summarize` (`go/internal/scope/selection`) then applies
-liveness and two-cycle confirmation in Go, so the collector gauge and the
+The repository freshness reader calls `ReadLiveScopeObservations`
+(`live_read.go`): one primary-key lookup by `scope_id` that keeps only rows
+with `evaluated_at + liveness_window_seconds >= now`, the SQL form of
+`selection.Live`. `TestLiveFilterParityLive` pins the two at the window
+boundary. `selection.Summarize` (`go/internal/scope/selection`) then applies
+confirmation and the aggregate rules in Go, so the collector gauge and the
 `not_selected` verdict share one definition. A lookup error fails the whole
 freshness read; the API answers 500 instead of a verdict missing evidence.
 
@@ -113,11 +126,32 @@ Sort (actual time=0.016..0.017 rows=5 loops=1)  Sort Key: selector_id
 Execution Time: 0.044 ms cold, 0.020 ms warm; a missing scope 0.019 ms (3 buffers)
 ```
 
-Pushing liveness into SQL (`evaluated_at >= now() - 3 * interval`) only adds a
-residual filter over the same 5 heap blocks (0.040 ms, 8 buffers), so keeping
-the predicate in Go costs nothing. The rows per scope are bounded by the
-selectors that ever observed it. No new index: the primary key prefix serves
-the lookup. The rest of the freshness read is unchanged.
+After amendment 1 the shipped live read (36,000 rows, 3 selectors per scope,
+one expired) is an index scan on `repository_selection_observations_pkey`
+with the window as a residual filter: 2 rows returned, 1 removed by the
+filter, 4 shared buffers, 0.028-0.030 ms; a missing scope 0.021 ms (3
+buffers). The rows per scope are bounded by the selectors that ever observed
+it. No new index: the primary key prefix serves the lookup.
+
+### Latest generation read
+
+When rules (a)-(c) hold, the freshness reader issues
+`repositoryFreshnessLatestGenerationQuery`
+(`SELECT MAX(observed_at) FROM scope_generations WHERE scope_id = $1`) for
+rule (d). PostgreSQL 18.6, 12,000 scopes and 739,838 generations shaped like
+QA (per-scope p50 27, p99 79, max 3,280, plus a 5,000 tail), heap rows
+interleaved across scopes the way time-ordered ingestion stores them, the
+migration 002 indexes:
+
+| Scope | Plan | Buffers | Execution |
+| --- | --- | --- | --- |
+| 27 generations | bitmap scan on `scope_generations_scope_generation_idx` | 30 | 0.10 ms |
+| 3,280 generations | same | 3,310 | 2.68 ms |
+| 5,000 generations | same | 3,433 | 3.71 ms first run, 2.77 ms warm |
+
+No new index. The read serves one repository per request and only for a scope
+that already has confirmed exclusion evidence, so a selected or pending scope
+never pays for it.
 
 Observability Evidence (#7625): the store has no signal of its own by design.
 Every failure surfaces through `membership.Observer` as the

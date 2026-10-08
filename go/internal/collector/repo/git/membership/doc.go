@@ -17,9 +17,9 @@
 // scope and never writes the graph. Three rails keep a bad cycle from writing
 // a false not_listed: a truncated listing writes nothing, a mass miss (more
 // newly unlisted scopes than max(10, 10% of known), or an empty listing with
-// known scopes) trips the guard and writes nothing, and a not_listed scope is
-// only Confirmed after two consecutive unlisted cycles spanning at least the
-// evaluation interval.
+// known scopes) trips the guard and writes nothing, and a non-selected state
+// only counts as Confirmed after at least two cycles in that state spanning
+// selection.ConfirmationMinSpan.
 //
 // This package is a leaf below the git collector: git imports it, it must not
 // import git.

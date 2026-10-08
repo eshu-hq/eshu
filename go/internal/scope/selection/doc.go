@@ -9,17 +9,18 @@
 //
 // State is the persisted per-selector state (selected, archived_excluded,
 // rule_excluded, not_listed). Observation is one stored row. Live reports
-// whether a row was evaluated within LiveIntervals of its own evaluation
-// interval; rows that are not live belong to a selector that stopped
-// evaluating and decide nothing. Confirmed is the two-cycle rule for
-// not_listed: at least two unlisted cycles spanning at least the evaluation
-// interval. Excluded is settled exclusion: archived or rule excluded, which
-// apply immediately, or a confirmed not_listed.
+// whether a row is still inside the liveness window its writer stored
+// (ESHU_REPO_SELECTION_LIVENESS_WINDOW); rows past it belong to a selector
+// that stopped evaluating and decide nothing. Confirmed is the uniform
+// confirmation rule: any state other than selected, held for at least two
+// evaluations spanning at least ConfirmationMinSpan.
 //
-// Summarize aggregates a scope's live rows into a Summary: selected when any
-// live row is selected, not_selected when every live row is Excluded, and
-// pending otherwise. It reports false when no live row exists, and callers
-// must then leave their decision unchanged.
+// Summarize aggregates a scope's live rows into a Summary: unknown with no
+// live row, selected when any live row is selected, pending_confirmation
+// while a live row is unconfirmed, and otherwise not_selected unless a
+// generation of the scope was observed after the newest exclusion began, in
+// which case excluded_still_ingested. Only not_selected changes a freshness
+// verdict.
 //
 // The package is evidence only. Nothing here deletes, hides, or retires a
 // scope. It depends only on the standard library so the collector, storage,

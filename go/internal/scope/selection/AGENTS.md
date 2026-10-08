@@ -12,15 +12,17 @@ Scope: `go/internal/scope/selection` only. The parent instructions in
 
 ## Invariants
 
-- This package is the only definition of liveness, two-cycle confirmation,
-  and settled exclusion. Do not copy these predicates into SQL, the collector,
-  or the status package. Change them here and both the gauge and the
-  freshness verdict follow.
+- This package is the only definition of liveness, confirmation, and the
+  scope-level aggregate. Do not copy these predicates into the collector or
+  the status package. The storage live-row filter and the upsert's state math
+  are the only SQL mirrors, and live Postgres parity tests pin them to `Live`
+  and `project`; change both sides together.
 - Keep the dependency set to the standard library. `internal/status`,
   `internal/storage/postgres`, and the git collector import this package; an
   import back into any of them is a cycle or a layering break.
-- `Summarize` returning `false` means "no evidence". Callers must leave their
-  decision unchanged in that case, never treat it as selected or not selected.
+- `unknown` means "no evidence". Callers must leave their decision unchanged
+  for it and for `excluded_still_ingested`, never treat either as selected or
+  not selected.
 - The state values match the `repository_selection_observations` CHECK
   constraint (migration 163). Adding a state needs a migration, the writer,
   and the aggregate rules changed together.
