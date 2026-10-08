@@ -37,7 +37,7 @@ package postgres
 // long pole is the serial client-side per-fact processing, addressed by the
 // concurrent per-repository batch writes (writeDeferredBackfillInBatches in
 // ingestion_backfill.go) and the multi-row evidence INSERT batching
-// (UpsertEvidenceFacts in relationship_store.go).
+// (UpsertEvidenceFacts in relationship_evidence_batch.go).
 const latestGenerationCTE = `WITH latest_generations AS (
     SELECT DISTINCT ON (generation.scope_id)
         generation.scope_id,

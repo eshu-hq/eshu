@@ -1366,7 +1366,7 @@ per-repository write batches strictly one at a time.
 Two serial client costs were removed:
 
 1. **Per-row evidence INSERT → multi-row batched INSERT.**
-   `RelationshipStore.UpsertEvidenceFacts` (`relationship_store.go`) issued one
+   `RelationshipStore.UpsertEvidenceFacts` (`relationship_evidence_batch.go`) issued one
    `INSERT ... ON CONFLICT (evidence_id) DO NOTHING` round-trip per evidence row.
    It now groups rows into multi-row INSERT statements of `evidenceInsertBatchRows`
    (500, matching the FactStore batch size, 500×12 = 6000 bound params, well under
@@ -2270,15 +2270,15 @@ memo-table lookup on that path at all:**
 
 - **Same-pass path (the ingester, `RunDeferredRelationshipMaintenance`).**
   `backfillAllRelationshipEvidence` (the unexported implementation behind
-  `BackfillAllRelationshipEvidence`) additionally returns the exact set of
-  `(scope_id, generation_id)` partitions its own Track 1 read-side gate
-  (`applyDeferredPartitionMemoGate`) skipped at the START of this pass —
-  i.e. partitions whose backward evidence is provably unchanged THIS pass, not
-  partitions that merely have a memo row by the time the fact-load finishes.
-  `RunDeferredRelationshipMaintenance` threads that set straight into the
-  reopen step in memory (`reopenDeploymentMappingWorkItemsWithSkipSet` /
-  `reopenCodeImportRepoEdgeWorkItemsWithSkipSet`), and the gate keys SOLELY on
-  set membership — it never touches the memo table in this path.
+  `BackfillAllRelationshipEvidence`) additionally returns the set of
+  `(scope_id, generation_id)` partitions its Track 1 read-side gate skipped at
+  the START of this pass, MINUS every partition the backfill actually inserted
+  rows under (`excludePartitionsWithNewEvidence`, #7636: discovery is
+  cross-partition) — i.e. partitions whose backward evidence is provably
+  unchanged THIS pass. `RunDeferredRelationshipMaintenance` threads that set
+  into the reopen step in memory, and the gate keys SOLELY on set membership —
+  it never touches the memo table in this path. The partition-scoped pass
+  applies the same revision before its reopen step.
 - **Nil skip-set path (bootstrap-index's direct `RelationshipMaintenanceCommitter`
   phase calls, and any other caller with no same-pass skip-set to offer).**
   The public `ReopenDeploymentMappingWorkItems`/`ReopenCodeImportRepoEdgeWorkItems`

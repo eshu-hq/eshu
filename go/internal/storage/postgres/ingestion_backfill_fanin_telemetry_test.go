@@ -126,7 +126,7 @@ func TestDeferredBackfillFanInRecordsPublishedAndDurationMetrics(t *testing.T) {
 
 	reader, instruments := fanInMetricHarness(t)
 
-	published, err := store.writeDeferredBackfillInBatches(
+	published, _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,
@@ -174,7 +174,7 @@ func TestDeferredBackfillFanInRecordsSkippedMetricWhenGenerationAdvanced(t *test
 
 	reader, instruments := fanInMetricHarness(t)
 
-	published, err := store.writeDeferredBackfillInBatches(
+	published, _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,

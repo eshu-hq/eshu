@@ -82,15 +82,20 @@ type reopenPartitionMemoGateResult struct {
 //
 // This is a correctness-preserving skip only in the skip-set case: when a
 // partition is a member of skippedThisPass, the deferred backfill did NOT
-// re-run DiscoverEvidence/UpsertEvidenceFacts for it THIS pass (see
-// loadDeferredScopedFactsAcrossPartitions), so no NEW backward evidence
-// committed for that partition since the reducer already resolved it.
-// DiscoverEvidence, the cross-repo Resolve handler, and UpsertIntents are pure
-// functions of (facts, catalog, assertions) with no read-back of their own
-// prior output, and evidence rows are content-addressed with
-// ON CONFLICT DO NOTHING, so replaying a work item whose partition saw no new
-// evidence this pass would recompute byte-identical intents — the replay is
-// provably redundant, not merely likely so.
+// re-run DiscoverEvidence for it THIS pass (see
+// loadDeferredScopedFactsAcrossPartitions), AND no evidence row was actually
+// inserted under it this pass (see excludePartitionsWithNewEvidence), so no
+// NEW backward evidence committed for that partition since the reducer
+// already resolved it. The second conjunct matters because discovery is
+// cross-partition: evidence derived from a loaded partition's facts can still
+// be written under a memo-hit partition's generation (issue #7636), so
+// "not loaded" alone does not prove "unchanged". DiscoverEvidence, the
+// cross-repo Resolve handler, and UpsertIntents are pure functions of
+// (facts, catalog, assertions) with no read-back of their own prior output,
+// and evidence rows are content-addressed with ON CONFLICT DO NOTHING, so
+// replaying a work item whose partition saw no new evidence this pass would
+// recompute byte-identical intents — the replay is provably redundant, not
+// merely likely so.
 //
 // A work item whose partition is blank (defensive: the schema requires
 // scope_id/generation_id NOT NULL, but a legacy row or a fake in a test may
@@ -155,6 +160,44 @@ func applyReopenPartitionMemoGateFromSkipSet(
 
 	logReopenPartitionMemoGateResult(ctx, domain, len(items), result, instruments)
 	return result
+}
+
+// excludePartitionsWithNewEvidence revises a same-pass memo-hit skip-set with
+// the ground truth of what the pass's backfill actually wrote (issue #7636).
+// skipped holds the partitions the fact loader skipped at pass start; a
+// memo-hit partition can still receive NEW evidence during the pass when
+// cross-partition discovery writes under its generation (for example a GCP
+// cloud scope with no repository fact of its own). insertedRows maps each
+// partition to the rows the pass's backfill actually INSERTED — ON CONFLICT
+// DO NOTHING skips do not count — so a re-upsert of already-committed
+// evidence never invalidates a skip. Every skipped partition with a positive
+// count is excluded; the result is the set whose backward evidence the pass
+// provably did NOT change.
+//
+// A nil skipped (gate failure upstream) stays nil: the reopen-all fallback is
+// preserved, not converted into an empty skip-set. The input map is not
+// mutated. Indexing a nil insertedRows is safe and excludes nothing.
+func excludePartitionsWithNewEvidence(
+	skipped map[scopeGenerationPartition]struct{},
+	insertedRows map[scopeGenerationPartition]int64,
+) map[scopeGenerationPartition]struct{} {
+	if skipped == nil {
+		return nil
+	}
+	revised := make(map[scopeGenerationPartition]struct{}, len(skipped))
+	unskipped := 0
+	for partition := range skipped {
+		if insertedRows[partition] > 0 {
+			unskipped++
+			continue
+		}
+		revised[partition] = struct{}{}
+	}
+	log.Printf(
+		"deferred_backfill_skip_set_revised skipped_before=%d unskipped_new_evidence=%d skipped_after=%d",
+		len(skipped), unskipped, len(revised),
+	)
+	return revised
 }
 
 func logReopenPartitionMemoGateResult(

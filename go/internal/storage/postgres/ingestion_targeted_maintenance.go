@@ -231,11 +231,17 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceForPartitions(
 		result.EvidenceFacts++
 	}
 
-	if result.Published, err = s.writeTargetedMaintenanceEvidence(
+	var insertedRows map[scopeGenerationPartition]int64
+	if result.Published, insertedRows, err = s.writeTargetedMaintenanceEvidence(
 		ctx, closure, evidenceBySourceRepo, snapshot, catalogFingerprint,
 	); err != nil {
 		return result, err
 	}
+	// Revise the pass-start memo-hit set with what the backfill actually wrote:
+	// a skipped partition that received new evidence this pass must reopen
+	// (issue #7636). A nil skipped (gate failure) stays nil, preserving the
+	// reopen-all fallback and the SkipSetUnavailable flag set above.
+	skipped = excludePartitionsWithNewEvidence(skipped, insertedRows)
 	if result.Reopened, err = s.reopenTargetedMaintenanceWorkItems(ctx, tracer, affectedList, skipped); err != nil {
 		return result, err
 	}

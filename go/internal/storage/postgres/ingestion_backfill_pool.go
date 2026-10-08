@@ -26,7 +26,9 @@ import (
 
 // runDeferredBackfillBatchesWith is runDeferredBackfillBatches with the
 // per-batch under-lock generation read supplied by the caller; see
-// writeDeferredBackfillBatchWith.
+// writeDeferredBackfillBatchWith. It merges both per-batch maps: contributions
+// for the fan-in publisher, and inserted-rows-per-partition for the pass's
+// memo-hit skip-set revision (issue #7636).
 func (s IngestionStore) runDeferredBackfillBatchesWith(
 	ctx context.Context,
 	repoIDs []string,
@@ -36,7 +38,7 @@ func (s IngestionStore) runDeferredBackfillBatchesWith(
 	snapshotGenerations map[string]string,
 	instruments *telemetry.Instruments,
 	loadGenerations repositoryGenerationLoader,
-) (map[scopeGenerationPartition][]string, error) {
+) (map[scopeGenerationPartition][]string, map[scopeGenerationPartition]int64, error) {
 	totalBatches := len(bounds)
 	groupCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -44,6 +46,7 @@ func (s IngestionStore) runDeferredBackfillBatchesWith(
 	var (
 		mu            sync.Mutex
 		contributions = make(map[scopeGenerationPartition][]string)
+		insertedRows  = make(map[scopeGenerationPartition]int64)
 		firstErr      error
 	)
 	sem := make(chan struct{}, workers)
@@ -64,7 +67,7 @@ func (s IngestionStore) runDeferredBackfillBatchesWith(
 			defer func() { <-sem }()
 
 			batchStart := time.Now()
-			batchContributions, err := s.writeDeferredBackfillBatchWith(
+			batchContributions, batchInsertedRows, err := s.writeDeferredBackfillBatchWith(
 				groupCtx, repoIDs[lo:hi], evidenceBySourceRepo, snapshotGenerations, loadGenerations,
 			)
 			batchDuration := time.Since(batchStart).Seconds()
@@ -80,6 +83,9 @@ func (s IngestionStore) runDeferredBackfillBatchesWith(
 			}
 			for partition, partitionRepoIDs := range batchContributions {
 				contributions[partition] = append(contributions[partition], partitionRepoIDs...)
+			}
+			for partition, inserted := range batchInsertedRows {
+				insertedRows[partition] += inserted
 			}
 			batchPartitions := len(batchContributions)
 			mu.Unlock()
@@ -107,9 +113,9 @@ func (s IngestionStore) runDeferredBackfillBatchesWith(
 	wg.Wait()
 
 	if firstErr != nil {
-		return nil, firstErr
+		return nil, nil, firstErr
 	}
-	return contributions, nil
+	return contributions, insertedRows, nil
 }
 
 // deferredBackfillWorkerCount returns the number of deferred-maintenance batch

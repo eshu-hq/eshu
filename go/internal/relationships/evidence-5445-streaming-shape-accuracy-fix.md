@@ -137,7 +137,7 @@ milliseconds. This is not a meaningful streaming-throughput regression risk.
 
 **Postgres write-side cost** (modeled, not live-Postgres wall-clock — see
 "What was not measured" below): `RelationshipStore.UpsertEvidenceFacts`
-(`go/internal/storage/postgres/relationship_store.go`) already batches
+(`go/internal/storage/postgres/relationship_evidence_batch.go`) already batches
 evidence rows into bounded multi-row `INSERT ... ON CONFLICT (evidence_id)
 DO NOTHING` statements of up to `evidenceInsertBatchRows = 500` rows each —
 pre-existing infrastructure from issue #3704, unmodified by this change.

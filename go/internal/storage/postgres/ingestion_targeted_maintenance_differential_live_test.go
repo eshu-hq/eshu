@@ -86,11 +86,13 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			compared:    partitionSet("git:gsrc", "gsrc-1"),
 			newEvidence: []string{"repo-gsrc->repo-tgt"},
 			published:   partitionSet("git:gsrc", "gsrc-1"),
-			// gsrc-1 is a memo hit (its own facts did not change), so BOTH arms
-			// leave its relationship items succeeded even though the pass wrote
-			// new evidence into it: the shipped skip set keys on the
-			// partition's own fact load. Recorded as a whole-pass finding.
-			reopened: correlationIDs("gsrc-1"),
+			// gsrc-1 is a memo hit (its own facts did not change), but the pass
+			// wrote genuinely new evidence into it (repo-gsrc->repo-tgt from
+			// the cloud fact), so BOTH arms reopen its relationship items:
+			// the skip set is revised with the rows the backfill actually
+			// inserted (issue #7636). Before the fix both arms wrongly left
+			// them succeeded.
+			reopened: workIDs("gsrc-1"),
 			wholeOutside: outsideKeys(concatIDs(
 				[]string{
 					phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1"),
@@ -146,13 +148,16 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 		// repo-config (yaml_iac_evidence.go appendDiscoveryEvidence) touches
 		// the owed config repo, so the control partition gitops-1 is affected
 		// too. gitops-1 is ArgoCD-bearing and never memoized, so its
-		// relationship items reopen; dep-1 is a memo hit.
+		// relationship items reopen; dep-1 is a memo hit, but it received
+		// genuinely new evidence this pass, so its relationship items
+		// reopen too (issue #7636: the skip set is revised with the rows
+		// the backfill actually inserted).
 		p.run("argocd_applicationset_external_config_repo", targetedDiffCase{
 			owed:        owedPartitions("git:config", "config-2"),
 			compared:    partitionSet("git:config", "config-2", "git:dep", "dep-1", "git:gitops", "gitops-1"),
 			newEvidence: []string{"repo-dep->repo-config"},
 			published:   partitionSet("git:config", "config-2", "git:dep", "dep-1", "git:gitops", "gitops-1"),
-			reopened:    concatIDs(workIDs("config-2"), correlationIDs("dep-1"), workIDs("gitops-1")),
+			reopened:    concatIDs(workIDs("config-2"), workIDs("dep-1"), workIDs("gitops-1")),
 		})
 	})
 

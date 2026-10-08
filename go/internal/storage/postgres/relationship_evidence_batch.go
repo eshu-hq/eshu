@@ -33,15 +33,18 @@ const evidenceInsertBatchRows = 500
 // insertEvidenceFactBatch builds and executes one multi-row evidence INSERT for
 // the supplied slice. The per-row evidence_id digest and column binding match the
 // prior single-row path exactly, so batching changes only the number of
-// round-trips, not the rows written.
+// round-trips, not the rows written. It returns the rows the statement
+// inserted: the ON CONFLICT (evidence_id) DO NOTHING clause skips
+// already-committed rows without counting them, so a re-upsert of identical
+// evidence reports 0.
 func (s *RelationshipStore) insertEvidenceFactBatch(
 	ctx context.Context,
 	generationID string,
 	facts []relationships.EvidenceFact,
 	now time.Time,
-) error {
+) (int64, error) {
 	if len(facts) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	var sb strings.Builder
@@ -50,7 +53,7 @@ func (s *RelationshipStore) insertEvidenceFactBatch(
 	for i, f := range facts {
 		detailsJSON, err := json.Marshal(f.Details)
 		if err != nil {
-			return fmt.Errorf("marshal evidence details: %w", err)
+			return 0, fmt.Errorf("marshal evidence details: %w", err)
 		}
 		evidenceID := relationshipDigest(
 			"evidence",
@@ -88,10 +91,68 @@ func (s *RelationshipStore) insertEvidenceFactBatch(
 	}
 	sb.WriteString(insertEvidenceFactBatchSuffix)
 
-	if _, err := s.database.ExecContext(ctx, sb.String(), args...); err != nil {
-		return fmt.Errorf("insert evidence fact batch (%d rows): %w", len(facts), err)
+	result, err := s.database.ExecContext(ctx, sb.String(), args...)
+	if err != nil {
+		return 0, fmt.Errorf("insert evidence fact batch (%d rows): %w", len(facts), err)
 	}
-	return nil
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("insert evidence fact batch (%d rows) rows affected: %w", len(facts), err)
+	}
+	return inserted, nil
+}
+
+// UpsertEvidenceFacts persists evidence facts for a generation in bounded
+// multi-row INSERT batches. Each batch is one idempotent
+// `INSERT ... ON CONFLICT (evidence_id) DO NOTHING` statement, so re-running the
+// backfill converges to the same rows and the per-row round-trips that made the
+// corpus-wide backfill the client-side long pole (issue #3704) are gone. Row
+// identity (evidence_id) is unchanged, so the persisted evidence is byte-identical
+// to the prior per-row path.
+func (s *RelationshipStore) UpsertEvidenceFacts(
+	ctx context.Context,
+	generationID string,
+	facts []relationships.EvidenceFact,
+) error {
+	_, err := s.UpsertEvidenceFactsCounted(ctx, generationID, facts)
+	return err
+}
+
+// UpsertEvidenceFactsCounted persists evidence facts for a generation exactly
+// like UpsertEvidenceFacts and additionally returns the number of rows the
+// backfill inserted. The `ON CONFLICT (evidence_id) DO NOTHING` clause skips
+// already-committed rows without counting them, so a re-upsert of identical
+// evidence reports 0. The deferred relationship maintenance pass uses the count
+// to distinguish "new evidence arrived" (reopen the partition's relationship
+// items) from "already committed" (keep the memo-hit skip): only rows actually
+// inserted this call can invalidate a skip-set entry computed at pass start.
+func (s *RelationshipStore) UpsertEvidenceFactsCounted(
+	ctx context.Context,
+	generationID string,
+	facts []relationships.EvidenceFact,
+) (int64, error) {
+	if len(facts) == 0 {
+		return 0, nil
+	}
+	facts = relationships.DedupeEvidenceFacts(facts)
+	if len(facts) == 0 {
+		return 0, nil
+	}
+
+	var inserted int64
+	now := time.Now().UTC()
+	for start := 0; start < len(facts); start += evidenceInsertBatchRows {
+		end := start + evidenceInsertBatchRows
+		if end > len(facts) {
+			end = len(facts)
+		}
+		n, err := s.insertEvidenceFactBatch(ctx, generationID, facts[start:end], now)
+		if err != nil {
+			return 0, err
+		}
+		inserted += n
+	}
+	return inserted, nil
 }
 
 // evidenceRowPlaceholders returns the `($base+1, ..., $base+12)` placeholder tuple

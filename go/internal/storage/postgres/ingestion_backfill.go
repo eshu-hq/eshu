@@ -52,8 +52,14 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 // BackfillAllRelationshipEvidence. It additionally returns the set of
 // (scope_id, generation_id) partitions this pass's Track-1 memo gate
 // (applyDeferredPartitionMemoGate, via loadDeferredScopedFactsAcrossPartitions)
-// SKIPPED because they were already a memo hit at the START of this pass —
-// i.e. partitions whose backward evidence this pass provably did NOT change.
+// SKIPPED because they were already a memo hit at the START of this pass,
+// MINUS every partition the pass's backfill actually inserted evidence rows
+// under (see excludePartitionsWithNewEvidence) — i.e. partitions whose
+// backward evidence this pass provably did NOT change. The subtraction is
+// load-bearing: discovery is cross-partition, so a memo-hit partition can
+// still receive new evidence during the pass (issue #7636), and returning it
+// unrevised would let the reopen gate skip items that never re-read the new
+// rows.
 //
 // RunDeferredRelationshipMaintenance is the only caller that uses this return
 // value: it is the sole set the deferred reopen gate (issue #4770) may treat as
@@ -131,7 +137,7 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 	fingerprintParams, _ := buildDeferredScopedFactQueryParams(catalog)
 	catalogFingerprint := deferredCatalogFingerprint(fingerprintParams)
 
-	readinessRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
+	readinessRows, insertedRows, err := s.writeDeferredBackfillInBatches(ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, instruments)
 	if err != nil {
 		return nil, err
 	}
@@ -144,17 +150,19 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 	log.Printf("deferred_backfill_completed evidence_facts=%d readiness_rows=%d duration_s=%.2f batch_size=%d",
 		totalEvidence, readinessRows, dur, deferredMaintenanceRepoBatchSize)
 
-	return skippedPartitions, nil
+	return excludePartitionsWithNewEvidence(skippedPartitions, insertedRows), nil
 }
 
 // writeDeferredBackfillInBatches commits deferred backward evidence in bounded
 // per-repository batches, each in its own transaction holding only that batch's
 // exclusive maintenance locks, and then publishes readiness and the partition
 // memo in a separate per-partition fan-in step. It returns the number of
-// readiness rows published. Every active repository is published as
-// backward-evidence-ready even when it discovered no new evidence, preserving
-// the prior corpus-wide readiness contract; repositories whose active generation
-// disappears between batches are skipped idempotently.
+// readiness rows published, plus the per-partition actually-inserted evidence
+// row counts the pass's memo-hit skip-set revision needs (issue #7636). Every
+// active repository is published as backward-evidence-ready even when it
+// discovered no new evidence, preserving the prior corpus-wide readiness
+// contract; repositories whose active generation disappears between batches
+// are skipped idempotently.
 //
 // The two phases are separate because they have different natural units. A
 // batch is a contiguous slice of the repo-ID-sorted corpus, so the repositories
@@ -168,13 +176,13 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 	snapshotGenerations map[string]string,
 	catalogFingerprint string,
 	instruments *telemetry.Instruments,
-) (int, error) {
+) (int, map[scopeGenerationPartition]int64, error) {
 	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.database)
 	if err != nil {
-		return 0, fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
+		return 0, nil, fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
 	}
 	if len(repoGenerations) == 0 {
-		return 0, nil
+		return 0, nil, nil
 	}
 
 	repoIDs := make([]string, 0, len(repoGenerations))
@@ -213,7 +221,7 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		workers = len(bounds)
 	}
 
-	contributions, err := s.runDeferredBackfillBatches(
+	contributions, insertedRows, err := s.runDeferredBackfillBatches(
 		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments,
 	)
 	if err != nil {
@@ -225,13 +233,17 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 		// fingerprint changes. Withhold the whole fan-in instead; the committed
 		// evidence is content-addressed and the next pass re-derives and
 		// republishes it.
-		return 0, err
+		return 0, nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
+		return 0, nil, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
 	}
 
-	return s.publishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers, instruments)
+	published, err := s.publishDeferredBackfillPartitions(ctx, contributions, snapshotGenerations, catalogFingerprint, workers, instruments)
+	if err != nil {
+		return 0, nil, err
+	}
+	return published, insertedRows, nil
 }
 
 // runDeferredBackfillBatches executes the partitioned per-repository batches with
@@ -247,7 +259,9 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 // is not returned at all: the caller must not publish readiness or a memo row for
 // any partition once a batch has failed, because a partition's repositories are
 // spread across batches and a survivor's contribution says nothing about whether
-// the rest of that partition committed.
+// the rest of that partition committed. The second map carries the
+// per-partition actually-inserted row counts for the pass's memo-hit
+// skip-set revision (issue #7636); it is likewise withheld on error.
 func (s IngestionStore) runDeferredBackfillBatches(
 	ctx context.Context,
 	repoIDs []string,
@@ -256,7 +270,7 @@ func (s IngestionStore) runDeferredBackfillBatches(
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
 	instruments *telemetry.Instruments,
-) (map[scopeGenerationPartition][]string, error) {
+) (map[scopeGenerationPartition][]string, map[scopeGenerationPartition]int64, error) {
 	return s.runDeferredBackfillBatchesWith(
 		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments,
 		loadAllActiveRepositoryGenerations,
@@ -279,6 +293,12 @@ func (s IngestionStore) runDeferredBackfillBatches(
 // SOME of a partition's repositories; publishing a partition-wide claim from
 // here would assert completion on behalf of sibling batches that may still fail.
 //
+// The second return maps each partition the batch wrote evidence under to the
+// number of rows it actually INSERTED (ON CONFLICT DO NOTHING skips do not
+// count). The pass's reopen step uses it to revise the memo-hit skip-set:
+// a partition that received new rows this pass must reopen even when the fact
+// loader skipped it at pass start (issue #7636).
+//
 // The under-lock generation read is supplied by the caller. The whole pass supplies
 // loadAllActiveRepositoryGenerations, the shipped corpus-wide read; the
 // partition-scoped pass (#7584) supplies loadActiveRepositoryGenerationsForRepos,
@@ -290,10 +310,10 @@ func (s IngestionStore) writeDeferredBackfillBatchWith(
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshotGenerations map[string]string,
 	loadGenerations repositoryGenerationLoader,
-) (map[scopeGenerationPartition][]string, error) {
+) (map[scopeGenerationPartition][]string, map[scopeGenerationPartition]int64, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("begin deferred backfill batch transaction: %w", err)
+		return nil, nil, fmt.Errorf("begin deferred backfill batch transaction: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -307,12 +327,12 @@ func (s IngestionStore) writeDeferredBackfillBatchWith(
 		lockKeys = append(lockKeys, lockstore.DeferredMaintenanceRepoLockKeyFromID(repoID))
 	}
 	if err := lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, lockKeys); err != nil {
-		return nil, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
+		return nil, nil, fmt.Errorf("acquire deferred backfill batch locks: %w", err)
 	}
 
 	currentGenerations, err := loadGenerations(ctx, tx, batchRepoIDs)
 	if err != nil {
-		return nil, fmt.Errorf("reload active repository generations under batch lock: %w", err)
+		return nil, nil, fmt.Errorf("reload active repository generations under batch lock: %w", err)
 	}
 
 	relationshipStore := NewRelationshipStore(tx)
@@ -330,6 +350,7 @@ func (s IngestionStore) writeDeferredBackfillBatchWith(
 	// Keying by partition here makes that shape unrepresentable rather than
 	// merely filtered.
 	contributions := make(map[scopeGenerationPartition][]string, len(batchRepoIDs))
+	insertedRows := make(map[scopeGenerationPartition]int64)
 	for _, repoID := range batchRepoIDs {
 		repoGeneration, ok := currentGenerations[repoID]
 		if !ok {
@@ -366,20 +387,24 @@ func (s IngestionStore) writeDeferredBackfillBatchWith(
 				continue
 			}
 		}
-		if repoEvidence := evidenceBySourceRepo[repoID]; len(repoEvidence) > 0 {
-			if err := relationshipStore.UpsertEvidenceFacts(ctx, repoGeneration.GenerationID, repoEvidence); err != nil {
-				return nil, fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
-			}
-		}
 		partition := scopeGenerationPartition{
 			ScopeID:      repoGeneration.ScopeID,
 			GenerationID: repoGeneration.GenerationID,
 		}
+		if repoEvidence := evidenceBySourceRepo[repoID]; len(repoEvidence) > 0 {
+			inserted, err := relationshipStore.UpsertEvidenceFactsCounted(ctx, repoGeneration.GenerationID, repoEvidence)
+			if err != nil {
+				return nil, nil, fmt.Errorf("persist deferred relationship evidence for repo %q: %w", repoID, err)
+			}
+			if inserted > 0 {
+				insertedRows[partition] += inserted
+			}
+		}
 		contributions[partition] = append(contributions[partition], repoID)
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit deferred backfill batch transaction: %w", err)
+		return nil, nil, fmt.Errorf("commit deferred backfill batch transaction: %w", err)
 	}
 	committed = true
-	return contributions, nil
+	return contributions, insertedRows, nil
 }

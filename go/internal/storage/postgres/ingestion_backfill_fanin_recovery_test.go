@@ -233,7 +233,7 @@ func runFanInProofEvidencePhaseOnly(
 		bounds = append(bounds, [2]int{i, i + 1})
 	}
 
-	contributions, err := store.runDeferredBackfillBatches(
+	contributions, _, err := store.runDeferredBackfillBatches(
 		ctx, repoIDs, bounds, 1, evidenceBySourceRepo, snapshotGenerations, nil,
 	)
 	if err != nil {

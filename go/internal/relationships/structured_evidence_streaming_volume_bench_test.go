@@ -62,7 +62,7 @@ func parseFixtureForBench(t testing.TB, filename, source string) map[string]any 
 //  2. streaming-time COST delta: BenchmarkStreamingEvidenceDiscovery_
 //     RepresentativeRepo measures relationships.DiscoverEvidenceWithStats'
 //     reducer-side (in-memory, no Postgres) compute cost on that same batch.
-//     RelationshipStore.UpsertEvidenceFacts (relationship_store.go) persists
+//     RelationshipStore.UpsertEvidenceFacts (relationship_evidence_batch.go) persists
 //     the result as bounded multi-row `INSERT ... ON CONFLICT DO NOTHING`
 //     batches of up to evidenceInsertBatchRows=500 rows each (issue #3704 --
 //     pre-existing infrastructure, not new to this change), so the Postgres
@@ -348,7 +348,7 @@ func TestStreamingEvidenceVolume_RepresentativeRepo(t *testing.T) {
 // UpsertEvidenceFacts write cost is out of scope for this package (see the
 // file doc comment) and is bounded by the pre-existing
 // evidenceInsertBatchRows=500-row batched-insert design
-// (go/internal/storage/postgres/relationship_store.go).
+// (go/internal/storage/postgres/relationship_evidence_batch.go).
 func BenchmarkStreamingEvidenceDiscovery_RepresentativeRepo(b *testing.B) {
 	envelopes, catalog := buildRepresentativeStreamingRepoBatch(b)
 

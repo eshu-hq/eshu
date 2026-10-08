@@ -269,3 +269,47 @@ func TestListSucceededCodeImportRepoEdgeWorkItemsScansPartitionColumns(t *testin
 		t.Fatalf("listSucceededCodeImportRepoEdgeWorkItems() = %+v, want %+v", items, want)
 	}
 }
+
+// TestExcludePartitionsWithNewEvidence pins the #7636 skip-set revision
+// contract without a database: only a positive actually-inserted count
+// excludes a partition, a nil skip-set stays nil (reopen-all fallback), and
+// the input map is never mutated.
+func TestExcludePartitionsWithNewEvidence(t *testing.T) {
+	t.Parallel()
+
+	quiet := scopeGenerationPartition{ScopeID: "git:quiet", GenerationID: "quiet-1"}
+	noisy := scopeGenerationPartition{ScopeID: "git:noisy", GenerationID: "noisy-1"}
+	reUpserted := scopeGenerationPartition{ScopeID: "git:re", GenerationID: "re-1"}
+
+	// Nil in, nil out: a gate failure upstream keeps the reopen-all
+	// fallback instead of becoming an empty skip-set.
+	if got := excludePartitionsWithNewEvidence(nil, map[scopeGenerationPartition]int64{noisy: 5}); got != nil {
+		t.Fatalf("excludePartitionsWithNewEvidence(nil, ...) = %v, want nil", got)
+	}
+
+	skipped := map[scopeGenerationPartition]struct{}{quiet: {}, noisy: {}, reUpserted: {}}
+	inserted := map[scopeGenerationPartition]int64{noisy: 3, reUpserted: 0}
+	got := excludePartitionsWithNewEvidence(skipped, inserted)
+	if len(got) != 2 {
+		t.Fatalf("excludePartitionsWithNewEvidence() kept %d partitions, want 2 (quiet + re-upserted)", len(got))
+	}
+	if _, ok := got[quiet]; !ok {
+		t.Fatal("excludePartitionsWithNewEvidence() dropped the quiet partition, want it kept")
+	}
+	if _, ok := got[reUpserted]; !ok {
+		t.Fatal("excludePartitionsWithNewEvidence() dropped the zero-insert partition: identical re-upserts must not invalidate a skip")
+	}
+	if _, ok := got[noisy]; ok {
+		t.Fatal("excludePartitionsWithNewEvidence() kept the partition with 3 inserted rows, want it excluded")
+	}
+	if len(skipped) != 3 {
+		t.Fatalf("excludePartitionsWithNewEvidence() mutated its input: %d entries left, want 3", len(skipped))
+	}
+
+	// Empty-but-non-nil stays empty-but-non-nil: every candidate then falls
+	// through to ToReopen by set membership (see the gate's doc comment).
+	empty := excludePartitionsWithNewEvidence(map[scopeGenerationPartition]struct{}{}, inserted)
+	if empty == nil || len(empty) != 0 {
+		t.Fatalf("excludePartitionsWithNewEvidence(empty, ...) = %v, want empty non-nil", empty)
+	}
+}
