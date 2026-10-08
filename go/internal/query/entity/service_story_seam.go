@@ -6,15 +6,12 @@ package entity
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -75,14 +72,19 @@ func (h *Handler) BuildServiceStoryEnvelope(
 		if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
 			return nil, nil, status, errEnv
 		}
-		return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story", err)
+		status, errEnv := tracing.ServerFailureEnvelope(ctx, err, serviceStoryEnrichmentFailedMessage, "platform_impact.context_overview")
+		return nil, nil, status, errEnv
 	}
 
 	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "ci_cd_evidence")
 	ciCDEvidence, err := artifacts.LoadRepositoryScopedCICDEvidence(ctx, h.Content, h.CICDRunCorrelations, safeStr(workloadCtx, "repo_id"))
 	timer.Done(ctx, slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
-		return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("load service story ci/cd evidence", err)
+		if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
+			return nil, nil, status, errEnv
+		}
+		status, errEnv := tracing.ServerFailureEnvelope(ctx, err, serviceStoryCICDEvidenceFailedMessage, "platform_impact.context_overview")
+		return nil, nil, status, errEnv
 	}
 	if len(ciCDEvidence) > 0 {
 		workloadCtx["ci_cd_evidence"] = ciCDEvidence
@@ -92,7 +94,11 @@ func (h *Handler) BuildServiceStoryEnvelope(
 		timer := service.StartServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "supply_chain_evidence")
 		if err := h.enrichServiceStorySupplyChainEvidence(ctx, workloadCtx); err != nil {
 			timer.Done(ctx, slog.Bool("error", true))
-			return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story supply chain evidence", err)
+			if status, errEnv, ok := querycontract.GraphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
+				return nil, nil, status, errEnv
+			}
+			status, errEnv := tracing.ServerFailureEnvelope(ctx, err, serviceStorySupplyChainFailedMessage, "platform_impact.context_overview")
+			return nil, nil, status, errEnv
 		}
 		imagePackage := service.StorySupplyChainImagePackage(workloadCtx)
 		timer.Done(
@@ -117,11 +123,13 @@ func (h *Handler) BuildServiceStoryEnvelope(
 // error envelope, preserving the ambiguity candidate details and not-found
 // classification the HTTP handler returns.
 //
-// A repo-selector lookup failure that is not a fence or graph verdict answers
-// 500 with the fixed selector.LookupFailureMessage, never the LookupError text,
-// which carries the backend error (#7626). This seam returns an envelope rather
-// than writing a response, so it records the error on ctx's span itself; every
-// caller, HTTP or in-process, gets the same signal.
+// A failure that is not a fence or graph verdict answers 500 with a fixed
+// message, never the error text, which carries the backend error (#7626): a
+// repo-selector lookup failure answers selector.LookupFailureMessage and any
+// other failure serviceStoryQueryFailedMessage. A client cancel answers 499
+// instead. This seam returns an envelope rather than writing a response, so
+// tracing.ServerFailureEnvelope marks ctx's span itself; every caller, HTTP or
+// in-process, gets the same signal.
 func serviceStoryResolutionError(ctx context.Context, err error) (int, *querycontract.ErrorEnvelope) {
 	var ambiguous serviceWorkloadAmbiguousError
 	if errors.As(err, &ambiguous) {
@@ -162,30 +170,15 @@ func serviceStoryResolutionError(ctx context.Context, err error) (int, *querycon
 		return status, errEnv
 	}
 	if selector.IsLookupFailure(err) {
-		span := trace.SpanFromContext(ctx)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, selector.LookupFailureMessage)
-		return http.StatusInternalServerError, &querycontract.ErrorEnvelope{
-			Code:       querycontract.ErrorCodeInternalError,
-			Message:    selector.LookupFailureMessage,
-			Capability: "platform_impact.context_overview",
-		}
+		return tracing.ServerFailureEnvelope(ctx, err, selector.LookupFailureMessage, "platform_impact.context_overview")
 	}
-	return http.StatusInternalServerError, serviceStoryInternalError("query failed", err)
+	return tracing.ServerFailureEnvelope(ctx, err, serviceStoryQueryFailedMessage, "platform_impact.context_overview")
 }
 
 func serviceStoryNotFoundError() *querycontract.ErrorEnvelope {
 	return &querycontract.ErrorEnvelope{
 		Code:       querycontract.ErrorCodeNotFound,
 		Message:    "service not found",
-		Capability: "platform_impact.context_overview",
-	}
-}
-
-func serviceStoryInternalError(prefix string, err error) *querycontract.ErrorEnvelope {
-	return &querycontract.ErrorEnvelope{
-		Code:       querycontract.ErrorCodeInternalError,
-		Message:    fmt.Sprintf("%s: %v", prefix, err),
 		Capability: "platform_impact.context_overview",
 	}
 }

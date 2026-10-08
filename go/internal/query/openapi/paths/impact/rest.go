@@ -94,7 +94,6 @@ const Rest = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -193,7 +192,6 @@ const Rest = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

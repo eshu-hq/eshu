@@ -151,7 +151,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 	}
 	repoIDs, err := h.resolveRepositoryScope(r.Context(), repoIDs)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, DeadCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, DeadCapability) || selector.WriteLookupFailure(w, r, err) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
@@ -382,9 +382,10 @@ func deadIaCNextOffset(offset int, returned int, total int) *int {
 // chain the #5167 Group A single-repository routes
 // (auth_scoped_routes_repository.go) use -- so a selector naming a repository
 // outside a scoped caller's AllowedRepositoryIDs/AllowedScopeIDs grant fails
-// with repositorySelectorNotFoundError (surfaced by handleDeadIaC as 400,
-// matching every other selector-resolution error on this route) instead of
-// silently returning cross-tenant dead-IaC findings. An all-scopes caller
+// with selector.NotFoundError (surfaced by handleDeadIaC as 400, like an
+// ambiguous selector; a failed catalog read answers 503 for a reader fence and
+// 500 otherwise, #7626) instead of silently returning cross-tenant dead-IaC
+// findings. An all-scopes caller
 // (no AuthContext, admin, or shared-key token) is unaffected:
 // querycontract.RepositoryAccessFilterFromContext returns allowsRepositoryID true for
 // every canonical id, matching the pre-#5167 unscoped behavior.

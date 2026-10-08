@@ -4,12 +4,12 @@
 package entity
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // GetServiceContext retrieves the context for a service by name. Exported so
@@ -55,7 +55,7 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceContextQueryFailedMessage)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service context: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceContextEnrichmentFailedMessage)
 		return
 	}
 

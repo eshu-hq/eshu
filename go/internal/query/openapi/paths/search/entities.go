@@ -276,7 +276,6 @@ const Entities = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
           "404": {"$ref": "#/components/responses/NotFound"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

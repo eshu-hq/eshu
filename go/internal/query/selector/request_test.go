@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/codes"
@@ -179,6 +180,52 @@ func TestWriteLookupFailureAnswersOnlyLookupFailures(t *testing.T) {
 				t.Fatalf("body = %s, want the fixed %q message and no backend text", body, LookupFailureMessage)
 			}
 		})
+	}
+}
+
+// TestWriteLookupFailureClientCancelAnswers499 proves a lookup that failed
+// because the caller canceled its own request is not a server fault: it
+// answers 499 with the fixed body, leaves the span status unset, records no
+// exception, and adds only the client-cancel event.
+func TestWriteLookupFailureClientCancelAnswers499(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	ctx, span := provider.Tracer("selector-request-test").Start(context.Background(), "handler")
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/route", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	err := LookupError{Err: fmt.Errorf("private match repositories: %w", context.Canceled)}
+	if !WriteLookupFailure(rec, req, err) {
+		t.Fatal("WriteLookupFailure() = false, want true for a LookupError")
+	}
+	span.End()
+
+	if rec.Code != querycontract.StatusClientClosedRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, querycontract.StatusClientClosedRequest)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, LookupFailureMessage) || strings.Contains(body, "private") {
+		t.Fatalf("body = %s, want the fixed %q message and no backend text", body, LookupFailureMessage)
+	}
+	ended := recorder.Ended()[0]
+	if ended.Status().Code != codes.Unset {
+		t.Fatalf("span status = %v (%q), want Unset for a client cancel", ended.Status().Code, ended.Status().Description)
+	}
+	canceled := false
+	for _, event := range ended.Events() {
+		if event.Name == "exception" {
+			t.Fatal("exception event recorded for a client cancel")
+		}
+		if event.Name == tracing.ClientCanceledEvent {
+			canceled = true
+		}
+	}
+	if !canceled {
+		t.Fatalf("%s event missing", tracing.ClientCanceledEvent)
 	}
 }
 

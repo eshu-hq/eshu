@@ -37,14 +37,17 @@ carries backend text. Only `NotFoundError` is a 404 and only the remaining
 selector answers (an ambiguous match) are a 400 (#7626). A caller that maps
 selector errors itself calls `WriteLookupFailure` for that 500 step; it writes
 the body and the span error and reports false for anything that is not a
-lookup failure.
+lookup failure. When the lookup failed because the caller canceled its own
+request, the same step answers 499 (`querycontract.StatusClientClosedRequest`)
+with the fixed body instead.
 
 ## Dependencies
 
 The Go standard library plus `internal/query/querycontract`, for the
 `GraphQuery` and `ContentStore` ports, `RepositoryAccessFilter`, the row-value
-decoders, and the HTTP error writers. `go.opentelemetry.io/otel/trace` and
-`otel/codes` record a lookup failure on the request span.
+decoders, and the HTTP error writers, and `internal/query/tracing`, whose
+`WriteServerFailure` writes the lookup-failure answer and marks the request
+span.
 
 It is **not** in `querycontract` itself. `ResolveForRequestWithAccess` takes an
 `http.ResponseWriter` and writes to it, and request-time orchestration in the
@@ -70,6 +73,13 @@ later description, so in production the span stays Error and keeps the
 `exception` event but loses the fixed description. A family that owns a logger
 should add its own stage record on top, as the supply-chain security-alert
 selector does with `stage_failed`.
+
+A lookup that failed because the caller canceled its own request (the error
+wraps `context.Canceled` and the request context is canceled) is not a server
+fault. It answers 499, records no `exception` event, leaves the span status
+unset, and adds the `eshu.request.client_canceled` event with no attributes.
+Both answers come from `tracing.WriteServerFailure`; see the
+[tracing README](../tracing/README.md).
 
 ## Gotchas / invariants
 

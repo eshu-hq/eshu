@@ -98,8 +98,12 @@ func ClassifyBoundedGraphReadError(ctx context.Context, err error) error {
 // sentinel onto every reader connection failure, identity-query error, and
 // replay-query error, including permanent ones (authentication or TLS failure,
 // connection refused, a role denied pg_control_system) and a client
-// context.Canceled. Those fall through to the caller's own 500 so a permanent
-// misconfiguration is never told "retry shortly". The deadline-wrapping
+// context.Canceled. Those fall through to the caller's own failure step so a
+// permanent misconfiguration is never told "retry shortly". A client cancel is
+// not retryable either; the caller's step decides its status: 499 with no span
+// error on routes that use tracing.WriteServerFailure or
+// tracing.ServerFailureEnvelope, and 500 on other routes until #7674 lands.
+// The deadline-wrapping
 // verdicts also must be left alone by ClassifyBoundedGraphReadError, or a
 // transient reader condition would read as a 504 graph deadline.
 func isReaderFenceError(err error) bool {

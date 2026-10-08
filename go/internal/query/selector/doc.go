@@ -21,7 +21,9 @@
 // NotFoundError answers 404, and anything else answers 400. A caller that maps
 // selector errors itself calls WriteLookupFailure after WriteGraphReadError, so
 // it answers the same 500, fixed body, and span error, never the error text,
-// which carries backend detail.
+// which carries backend detail. Both answer through tracing.WriteServerFailure,
+// so a lookup that failed because the caller canceled its own request answers
+// 499 with only the client-cancel span event instead.
 //
 // HydrateResolvedEntityRepoIdentity hydrates an already-resolved entity's own
 // canonical repository identity (repo_id, repo_name) under the same access

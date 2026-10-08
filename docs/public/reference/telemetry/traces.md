@@ -95,6 +95,38 @@ For a parallel code-topic read, `query.code_topic_partition` children identify
 each bounded PostgreSQL probe. See [Code-topic probe traces](code-topic-probes.md)
 for the parent, duration, and privacy contract.
 
+### Failed and canceled query reads (#7626)
+
+Query routes that end a failed read through `tracing.WriteServerFailure` or
+`tracing.ServerFailureEnvelope` mark the request span in one of two ways. A
+server fault sets the span status to Error with the route's fixed message as
+the description (for example `content file read failed` or `repository
+selector lookup failed`) and records the error as an `exception` event, which
+holds the backend detail that the response body leaves out. A client that
+canceled its request leaves the span status Unset and adds an
+`eshu.request.client_canceled` event with no attributes, and the response
+status is `499`. The `otelhttp` server span treats `499` as a client error, so
+it is not counted as a server fault, and `http.response.status_code=499` shows
+up on the HTTP server metrics. A read counts as canceled only when the error
+is `context.Canceled` and the request's own context was canceled; a cancel
+from inside the server still reads as a fault. The routes covered are the
+selector lookups that answer through `selector.WriteLookupFailure` (the
+supply-chain security-alert selector writes its own `500`), the content read
+and search routes, repository stats and coverage, and the service context,
+investigation, and story routes. Other routes still answer a cancel with `500`
+until #7674 lands.
+
+Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
+counts only `5xx`, so a canceled read on these routes leaves that counter and
+shows up in `eshu_dp_api_request_duration_seconds` with `status_class="4xx"`;
+an error-rate alert built on the counter sees fewer errors than before for the
+same client behavior. And a proxy or load balancer that drops the upstream
+connection on its own timeout cancels the request context, so a slow read cut
+off by the proxy now reads as `499` with no span Error. Watch the `4xx` share
+and `499` counts on these routes when a proxy timeout is suspected. On the `otelhttp`
+server span, the Error description is replaced by the empty one `otelhttp`
+sets for a 5xx. The Error status and the `exception` event remain.
+
 Keep high-cardinality or sensitive values out of span attributes. Raw bucket
 names, object keys, local paths, delivery IDs, commit SHAs, full state
 locators, package versions, and cloud resource identifiers belong in controlled

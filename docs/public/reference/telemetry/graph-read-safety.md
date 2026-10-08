@@ -48,8 +48,11 @@ connection acquisition (pool wait or dial) or identity check timed out inside
 the replay window, onto `503` `backend_unavailable` with the fixed message
 `database read temporarily unavailable; retry shortly`. A reader failure that is
 not a timeout (authentication or TLS failure, connection refused, permission
-denied, a client disconnect, a wrong topology, a missing checkpoint) stays a
-`500`. See [HTTP API](../http-api.md#postgresql-reader-fence-failures).
+denied, a wrong topology, a missing checkpoint) stays a `500`. A client
+disconnect is not a `503` either; it answers `499` on the routes listed in
+[Failed and canceled query reads](traces.md#failed-and-canceled-query-reads-7626)
+and `500` elsewhere until #7674 lands. See
+[HTTP API](../http-api.md#postgresql-reader-fence-failures).
 
 `Retry-After` is set only on the transient verdicts the shared mapping produces:
 the graph-unavailable `503` above and the reader `503`. It is not set by the

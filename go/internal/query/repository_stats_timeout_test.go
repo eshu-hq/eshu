@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
@@ -95,8 +96,14 @@ func TestGetRepositoryStatsSelectorResolutionUsesRouteDeadline(t *testing.T) {
 	if got, want := w.Code, http.StatusGatewayTimeout; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got := w.Body.String(); !strings.Contains(got, "query graph repository selector") {
-		t.Fatalf("body = %s, want selector query error detail", got)
+	// The 504 carries the fixed selector message, never the LookupError text,
+	// which embeds the backend error (#7626).
+	got := w.Body.String()
+	if !strings.Contains(got, selector.LookupFailureMessage) {
+		t.Fatalf("body = %s, want the fixed %q message", got, selector.LookupFailureMessage)
+	}
+	if strings.Contains(got, "query graph repository selector") || strings.Contains(got, "deadline exceeded") {
+		t.Fatalf("body = %s leaks the selector lookup error text", got)
 	}
 }
 

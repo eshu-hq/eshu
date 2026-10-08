@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -22,6 +23,9 @@ const (
 	StatsContentCoverageShape        = "content_store_repository_coverage"
 	repositoryStatsIdentityOnlyShape = "repository_identity_only"
 	repositoryStatsReadTimeout       = 2 * time.Second
+	// repositoryStatsQueryFailedMessage is the fixed body for a failed stats
+	// repository lookup (#7626); the backend error goes only to the span.
+	repositoryStatsQueryFailedMessage = "repository stats query failed"
 )
 
 // getRepositoryStats returns bounded repository statistics from read models. The
@@ -51,7 +55,7 @@ func (h *Handler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
-		querycontract.WriteError(w, repositoryStatsErrorStatus(err), fmt.Sprintf("query repository failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, repositoryStatsErrorStatus(err), repositoryStatsQueryFailedMessage)
 		return
 	}
 	if repo == nil {
@@ -96,16 +100,23 @@ func (h *Handler) resolveRepositoryStatsPathSelector(
 	if err != nil {
 		// Selector resolution issues its own graph read, so a bounded backend
 		// timeout/outage must map to 503/504 rather than being downgraded to
-		// 400 by the generic branch below. repositoryStatsErrorStatus only
-		// recognizes context.DeadlineExceeded, not the ErrGraphReadDeadline/
-		// ErrGraphUnavailable sentinels, which never wrap it.
+		// 400 by the generic branch below. repositoryStatsErrIsTimeout only
+		// recognizes context.DeadlineExceeded (this route's own read budget),
+		// not the ErrGraphReadDeadline/ErrGraphUnavailable sentinels, which
+		// never wrap it; it keeps its 504 ahead of the lookup-failure 500. Both
+		// answer a fixed body (a LookupError's text carries backend detail) and
+		// record the error on the request span.
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return "", false
 		}
-		status := repositoryStatsErrorStatus(err)
-		if status == http.StatusInternalServerError {
-			status = http.StatusBadRequest
+		if repositoryStatsErrIsTimeout(err) {
+			tracing.WriteServerFailure(w, r, err, http.StatusGatewayTimeout, selector.LookupFailureMessage)
+			return "", false
 		}
+		if selector.WriteLookupFailure(w, r, err) {
+			return "", false
+		}
+		status := http.StatusBadRequest
 		if selector.IsNotFound(err) {
 			status = http.StatusNotFound
 		}

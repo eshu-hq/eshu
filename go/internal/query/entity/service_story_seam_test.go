@@ -70,8 +70,7 @@ func TestBuildServiceStoryEnvelopeUnsupportedCapability(t *testing.T) {
 // 503/504 contract the HTTP handlers use. BuildServiceStoryEnvelope returns an
 // envelope instead of writing the response, so it cannot call
 // WriteGraphReadError; without the graphReadErrorEnvelope guard these
-// sentinels collapse into a generic 500 that also leaks the private cause
-// through serviceStoryInternalError's "%v" formatting.
+// sentinels collapse into a generic 500.
 func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -145,10 +145,13 @@ that classified the error with the bounded-read classifier). A reader failure th
 condition stays a `500` with a fixed message and no `Retry-After`: a rejected
 statement, a reader connection that fails to authenticate or connect (refused
 connection, TLS error), a role denied `pg_control_system()` or another identity
-or replay query, and a client disconnect are not transient, so the API does not
-tell the client to retry them. Every supply-chain query route sends its store
-reads through the shared helper first (#7549): a stale or timed-out guarded
-reader answers the retryable `503` with `Retry-After` above, while any other
+or replay query are not transient, so the API does not tell the client to
+retry them. A client disconnect is not retried either: a post-selector read or
+shared-helper selector lookup covered in
+[Selector And Read Failures](http-api/selector-and-read-failures.md#client-cancels)
+answers `499`, and other routes still answer `500` until #7674 lands. Every
+supply-chain query route sends its store reads through the shared helper first
+(#7549): a stale or timed-out guarded reader answers the retryable `503` with `Retry-After` above, while any other
 store failure stays a handler-owned `500` with a
 `supply_chain_query.stage_failed` log line. The repository-selector reads on
 the security-alert reconciliation list, count, and inventory routes (the
@@ -158,22 +161,9 @@ stage `repository_catalog_match` or `provider_repository_scope_lookup`. When
 the catalog has no match, the exact selector resolution on those routes runs
 as stage `repository_selector_resolve` and maps the same way; its `500` carries
 the fixed message `repository selector lookup failed` (#7626).
-Repository-selector resolution through the shared request helper (the
-package-registry, service-catalog, CI/CD, advisory-evidence, container-image,
-SBOM-attachment, and impact routes) answers a catalog or graph failure that is
-not a fence or graph-availability verdict with `500` and the fixed message
-`repository selector lookup failed`, recorded on the request span, rather than
-`400`. An unmatched selector stays `404` and an ambiguous one `400`.
-The graph-backed `repo_id` selectors map the same lookup failure to the same
-`500`: every `/api/v0/code/*` route that takes `repo_id` (including
-`POST /api/v0/code/language-query`), where an unmatched or ambiguous selector
-stays `400`, and `POST /api/v0/entities/resolve`, where an unmatched selector
-stays `404` and an ambiguous one `400`. The optional `repo` selector on
-`GET /api/v0/investigations/services/{service_name}`,
-`GET /api/v0/services/{service_name}/story`, and
-`GET /api/v0/services/{service_name}/intelligence-report` answers the same fixed `500`
-instead of a `500` that carried the backend error text; an unmatched selector
-there stays `404` and an ambiguous one `409`.
+The repository-selector lookup failure, post-selector read failure, and
+client-cancel contracts are in
+[Selector And Read Failures](http-api/selector-and-read-failures.md).
 Routes outside the dead-code and
 dead-IaC lanes and `GET /api/v0/supply-chain/impact/findings` that write a
 store error straight into a `500` do not yet map a reader fence failure and

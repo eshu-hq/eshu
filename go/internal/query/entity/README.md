@@ -163,6 +163,32 @@ Pinned by `TestResolveEntitySelectorLookupFailureAnswers500`,
 `TestServiceRoutesSelectorLookupFailureAnswers500`, and
 `TestBuildServiceStoryEnvelopeSelectorLookupFailure`.
 
+## Service read failures (#7626)
+
+Every other 500 on `GET /api/v0/services/{service_name}/context`,
+`GET /api/v0/investigations/services/{service_name}`, and
+`GET /api/v0/services/{service_name}/story` used to answer a prefix plus the
+backend error text (`query failed: ...`, `enrich service context: ...`), which
+quoted Cypher, SQL, and host detail, and left the span untouched. Each failure
+step now answers a fixed message from `failure.go`, such as
+`service context query failed` or `service story ci/cd evidence load failed`,
+and records the error on the request span with that message as the Error
+description. The HTTP routes use `tracing.WriteServerFailure`; the story seam
+uses `tracing.ServerFailureEnvelope`, so in-process callers such as the
+intelligence report get the same answer.
+
+The story's ci/cd and supply-chain steps read Postgres through the fenced
+reader but went straight to 500, so a stale reader answered 500 instead of the
+retryable 503 with `Retry-After`. They now run `GraphReadErrorEnvelope` first.
+A client that cancels its request mid-read now answers 499 with the span left
+Unset and an `eshu.request.client_canceled` event, not a 500.
+
+No-Regression Evidence (#7626): only failure branches changed; the success
+path and every query string are unchanged. Observability Evidence (#7626):
+the request span now carries Error, an `exception` event, and the fixed
+description on each 500, and the client-cancel event on each 499. Pinned by
+`TestServiceRoutesServerFailureAnswersFixedMessage`.
+
 ## Exported surface
 
 Exports exist only for staying callers: the root deployment-trace wrapper,

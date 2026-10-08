@@ -38,9 +38,15 @@
   `WriteGraphReadError`; `serviceStoryResolutionError` (behind
   `GET /api/v0/services/{service_name}/story` and every in-process
   `BuildServiceStoryEnvelope` caller) returns the fixed
-  `selector.LookupFailureMessage` envelope and records the error on the ctx
-  span after `GraphReadErrorEnvelope`. Their `query failed: %v` 500 is for
-  non-selector failures only.
+  `selector.LookupFailureMessage` envelope through
+  `tracing.ServerFailureEnvelope` after `GraphReadErrorEnvelope`.
+- Every other 500 on the service context, investigation, and story routes
+  answers a fixed message from `failure.go` through
+  `tracing.WriteServerFailure` (HTTP) or `tracing.ServerFailureEnvelope`
+  (story seam), after the route's own 503 and the graph-read verdict. Never
+  format the error into the body. A client cancel answers 499 with no span
+  error. The story's ci/cd and supply-chain steps run `GraphReadErrorEnvelope`
+  first, so a reader fence answers the retryable 503.
 - Keep the root `entity_alias.go` aliases and forwarders until every
   external caller has a separately reviewed migration path.
 - `GetEntityContext` records `resolved_by` (anchor, fallback, content, none)

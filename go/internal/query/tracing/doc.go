@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package tracing owns the per-route span that query HTTP reads emit.
+// Package tracing owns the per-route span that query HTTP reads emit, and the
+// shared answer a query route gives when a server-side read fails.
 //
 // It exists so a handler-family subpackage under go/internal/query can start the
 // same span without importing the root query package, which it cannot do
@@ -13,4 +14,12 @@
 // reading a shared one. That keeps a test's recording provider private to the
 // package that installed it: a swap in one family cannot change what another
 // family records, and two such swaps cannot race.
+//
+// WriteServerFailure and ServerFailureEnvelope answer a failed read with a
+// fixed message the caller supplies, never the backend error text (#7626). A
+// server fault (500, or 504 for a route's own read budget) records the error
+// on the span and sets its status to Error. A client cancel, meaning the error
+// wraps context.Canceled and the request context itself is canceled, answers
+// querycontract.StatusClientClosedRequest (499), leaves the span status unset,
+// and adds only the ClientCanceledEvent span event.
 package tracing

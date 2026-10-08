@@ -6,11 +6,11 @@ package contentread
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // Search-page bounds for the content read surface. Exported (#6060) so
@@ -81,14 +81,17 @@ func (h *ContentHandler) readFile(w http.ResponseWriter, r *http.Request) {
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 	req.RepoID = resolvedRepoID
 
 	fc, err := h.Content.GetFileContent(r.Context(), req.RepoID, req.RelativePath)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentFileReadFailedMessage)
 		return
 	}
 	if fc == nil {
@@ -125,14 +128,17 @@ func (h *ContentHandler) readFileLines(w http.ResponseWriter, r *http.Request) {
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 	req.RepoID = resolvedRepoID
 
 	fc, err := h.Content.GetFileLines(r.Context(), req.RepoID, req.RelativePath, req.StartLine, req.EndLine)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentFileReadFailedMessage)
 		return
 	}
 	if fc == nil {
@@ -167,7 +173,10 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 	}
 	ec, err := getEntityContentForRepositoryAccess(r.Context(), h.Content, req.EntityID, access)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntityReadFailedMessage)
 		return
 	}
 	if ec == nil {
@@ -193,7 +202,7 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 
@@ -202,11 +211,14 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}
+		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
+			return
+		}
 		if errors.Is(err, errUnsupportedPagedFileSearch) {
 			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentFileSearchFailedMessage)
 		return
 	}
 
@@ -230,7 +242,7 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
-		writeContentSelectorError(w, err)
+		writeContentSelectorError(w, r, err, "code_search.content_search")
 		return
 	}
 
@@ -239,98 +251,20 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}
+		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
+			return
+		}
 		if errors.Is(err, errUnsupportedPagedEntitySearch) {
 			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentEntitySearchFailedMessage)
 		return
 	}
 
 	results = h.rerankEntityResults(r.Context(), req, results)
 
 	querycontract.WriteSuccess(w, r, http.StatusOK, entityContentSearchResponse(results, req, truncated), querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from bounded entity content search"))
-}
-
-type contentSearchRequest struct {
-	RepoID  string   `json:"repo_id"`
-	RepoIDs []string `json:"repo_ids"`
-	Query   string   `json:"query"`
-	Pattern string   `json:"pattern"`
-	Limit   int      `json:"limit"`
-	Offset  int      `json:"offset"`
-}
-
-func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {
-	var req contentSearchRequest
-	if err := querycontract.ReadJSON(r, &req); err != nil {
-		return contentSearchRequest{}, err
-	}
-	return req, nil
-}
-
-func (req contentSearchRequest) validate() error {
-	if req.pattern() == "" {
-		return errors.New("query is required")
-	}
-	if req.Offset > ContentSearchMaxOffset {
-		return fmt.Errorf("offset exceeds maximum of %d", ContentSearchMaxOffset)
-	}
-	return nil
-}
-
-func (req contentSearchRequest) repoID() string {
-	if req.RepoID != "" {
-		return req.RepoID
-	}
-	if len(req.RepoIDs) == 1 {
-		return req.RepoIDs[0]
-	}
-	return ""
-}
-
-func (req contentSearchRequest) pattern() string {
-	if req.Query != "" {
-		return req.Query
-	}
-	return req.Pattern
-}
-
-func (req contentSearchRequest) limit() int {
-	if req.Limit <= 0 {
-		return ContentSearchDefaultLimit
-	}
-	if req.Limit > ContentSearchMaxLimit {
-		return ContentSearchMaxLimit
-	}
-	return req.Limit
-}
-
-func (req contentSearchRequest) offset() int {
-	if req.Offset < 0 {
-		return 0
-	}
-	return req.Offset
-}
-
-func (req contentSearchRequest) explicitRepoIDs() []string {
-	if req.RepoID != "" {
-		return nil
-	}
-
-	repoIDs := make([]string, 0, len(req.RepoIDs))
-	seen := make(map[string]struct{}, len(req.RepoIDs))
-	for _, repoID := range req.RepoIDs {
-		if repoID == "" {
-			continue
-		}
-		if _, ok := seen[repoID]; ok {
-			continue
-		}
-		seen[repoID] = struct{}{}
-		repoIDs = append(repoIDs, repoID)
-	}
-	return repoIDs
 }
 
 func (h *ContentHandler) resolveRepositorySelectorForAccess(
@@ -449,14 +383,6 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 	}
 	results, err := h.Content.SearchEntityContentAnyRepo(ctx, req.pattern(), probeLimit)
 	return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
-}
-
-func writeContentSelectorError(w http.ResponseWriter, err error) {
-	status := http.StatusBadRequest
-	if selector.IsNotFound(err) {
-		status = http.StatusNotFound
-	}
-	querycontract.WriteError(w, status, err.Error())
 }
 
 func contentSearchResponse(results any, req contentSearchRequest, truncated bool) map[string]any {

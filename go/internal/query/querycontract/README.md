@@ -346,7 +346,11 @@ sentinel because the stale verdict wraps `context.DeadlineExceeded`, and
 `ClassifyBoundedGraphReadError` leaves such an error untouched. A reader
 failure that is not a timeout (authentication, TLS, connection refused,
 permission denied, client cancel) also carries `db.ErrReaderUnavailable` but is
-not transient, so it is not claimed and stays the caller's 500.
+not transient, so it is not claimed and falls to the caller's own failure
+step. A permanent failure answers that step's 500. A client cancel is not
+retryable either: routes that end in `tracing.WriteServerFailure` or
+`tracing.ServerFailureEnvelope` answer `StatusClientClosedRequest` (499) with
+no span error, and other routes still answer 500 until #7674 lands.
 Each mapped verdict carries its own retryable marker (#7536): only graph
 unavailable, the stale or timed-out reader, and the identity-store `503` above
 are marked, never a verdict merely because its status is `503`. `GraphReadErrorEnvelope` copies the marker onto the
