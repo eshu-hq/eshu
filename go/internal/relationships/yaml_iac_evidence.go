@@ -232,10 +232,13 @@ func appendSelfReferenceEvidence(
 				"control_plane_repo_id": controlRepoID,
 				"config_repo_id":        deployedRepo.RepoID,
 				"discovery_path":        discoveryPath,
-				"deploy_repo_url":       templateSource,
-				"extractor":             "argocd",
-				"matched_alias":         firstAlias(deployedRepo),
-				"self_reference":        true,
+				// deploy_repo_url is the matched template-source string: a URL on
+				// the repoURL path, or a bare service or release name on the
+				// config-identity path (matched by alias, not parsed as a URL).
+				"deploy_repo_url": templateSource,
+				"extractor":       "argocd",
+				"matched_alias":   firstAlias(deployedRepo),
+				"self_reference":  true,
 			},
 		})
 	}
