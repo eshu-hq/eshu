@@ -21,6 +21,7 @@ var PHPDeadCodeMetadataRootKinds = []string{
 	"php.interface_implementation_method",
 	"php.trait_method",
 	"php.framework_controller_action",
+	"php.zf1_controller_action",
 	"php.route_handler",
 	"php.symfony_route_attribute",
 	"php.wordpress_hook_callback",

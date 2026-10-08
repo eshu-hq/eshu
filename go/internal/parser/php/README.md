@@ -18,8 +18,8 @@ The parser also emits exact `framework_semantics.symfony.route_entries` for
 method-level attributes resolved to Symfony `Route` whose path and HTTP methods
 are literal, and bounded `dead_code_root_kinds` for PHP entrypoints,
 constructors, known magic methods, same-file interface and trait methods,
-route-backed controller actions, literal route handlers, Symfony route
-attributes, and WordPress hook callbacks.
+route-backed controller actions, ZF1 convention-dispatched actions, literal
+route handlers, Symfony route attributes, and WordPress hook callbacks.
 
 The engine-level PHP regressions live in this directory as the `php_*_test.go`
 family (18 files in the external `php_test` package: 16 test files, the

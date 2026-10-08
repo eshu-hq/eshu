@@ -86,8 +86,9 @@ non-exact because part libraries, conditional imports and exports, package
 export surfaces, dynamic dispatch, Flutter route/lifecycle wiring, generated
 code, mirrors, and public API breadth are not resolved exactly. PHP parser
 metadata suppresses script entrypoints, constructors, known magic methods,
-same-file interface and trait methods, route-backed controller actions, literal
-route handlers, Symfony route attributes, and WordPress hook callbacks; PHP
+same-file interface and trait methods, route-backed controller actions, ZF1
+convention-dispatched actions, literal route handlers, Symfony route
+attributes, and WordPress hook callbacks; PHP
 remains non-exact because broader autoloading, routing, reflection, and dynamic
 dispatch are not resolved exactly.
 Perl parser metadata suppresses script `main`, public package namespaces,

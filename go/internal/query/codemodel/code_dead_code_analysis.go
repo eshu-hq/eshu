@@ -35,8 +35,9 @@ func BuildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []strin
 		frameworks = append(frameworks, framework)
 	}
 	slices.Sort(frameworks)
+	unmodeled := deadCodeFrameworksWithoutRootModel(results)
 
-	return map[string]any{
+	analysis := map[string]any{
 		"root_categories_used": []string{
 			"language_entrypoints",
 			"generated_and_tool_owned",
@@ -60,6 +61,7 @@ func BuildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []strin
 		"dead_code_language_maturity":            DeadCodeLanguageMaturityReport(),
 		"dead_code_language_exactness_blockers":  DeadCodeLanguageExactnessBlockerReport(),
 		"dead_code_observed_exactness_blockers":  deadCodeObservedExactnessBlockerReport(results),
+		"frameworks_without_root_model":          unmodeled,
 		"modeled_entrypoints": []string{
 			"go.main",
 			"go.init",
@@ -252,6 +254,7 @@ func BuildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []strin
 			"php.interface_implementation_method",
 			"php.trait_method",
 			"php.framework_controller_action",
+			"php.zf1_controller_action",
 			"php.route_handler",
 			"php.symfony_route_attribute",
 			"php.wordpress_hook_callback",
@@ -308,7 +311,7 @@ func BuildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []strin
 		},
 		"notes": []string{
 			"dead-code remains derived until broader framework, public-API, and reflection root models land",
-			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, C c.main_function, c.public_header_api, c.signal_handler, c.callback_argument_target, and c.function_pointer_target roots, C# main/constructor/override/interface/ASP.NET/hosted-service/test/serialization roots, C++ cpp.main_function, cpp.public_header_api, cpp.virtual_method, cpp.override_method, cpp.callback_argument_target, cpp.function_pointer_target, and cpp.node_addon_entrypoint roots, Dart main/constructor/override/Flutter build/createState/public-library roots, Perl script entrypoints, package namespaces, Exporter exports, constructors, special blocks, AUTOLOAD, and DESTROY roots, PHP script entrypoints, constructors, known magic methods, interface/trait methods, route-backed controller actions, route handlers, Symfony route attributes, and WordPress hook callbacks, Python FastAPI/Flask/Celery/Click/Typer decorator roots, Python AWS Lambda handler roots, Python dataclass/property roots, Ruby Rails controller/callback roots, Ruby dynamic dispatch hooks, Ruby literal method-reference targets, Ruby script entrypoints, Groovy Jenkinsfile and vars/call roots, Haskell main/module export/typeclass/instance roots, Java main/constructor/override/Ant task setter/Gradle plugin and DSL roots, Kotlin main/constructor/interface/override/Gradle/Spring/JUnit/lifecycle roots, Scala main/App object/trait/override/Play/Akka/JUnit/ScalaTest/lifecycle roots, Swift main/SwiftUI/protocol/constructor/override/app-delegate/Vapor/XCTest/Swift Testing roots, Elixir Application, macro, guard, behaviour, GenServer, Supervisor, Mix task, protocol, Phoenix controller, and LiveView roots, and JavaScript/TypeScript Next.js, Express, Koa, Fastify, NestJS, Node, Hapi, migration, interface, module-contract, and static-registry roots are modeled as derived roots",
+			"go CLI registrations/signatures, stdlib HTTP registrations/signatures, controller-runtime reconcile signatures, C c.main_function, c.public_header_api, c.signal_handler, c.callback_argument_target, and c.function_pointer_target roots, C# main/constructor/override/interface/ASP.NET/hosted-service/test/serialization roots, C++ cpp.main_function, cpp.public_header_api, cpp.virtual_method, cpp.override_method, cpp.callback_argument_target, cpp.function_pointer_target, and cpp.node_addon_entrypoint roots, Dart main/constructor/override/Flutter build/createState/public-library roots, Perl script entrypoints, package namespaces, Exporter exports, constructors, special blocks, AUTOLOAD, and DESTROY roots, PHP script entrypoints, constructors, known magic methods, interface/trait methods, route-backed controller actions, ZF1 convention-dispatched actions, route handlers, Symfony route attributes, and WordPress hook callbacks, Python FastAPI/Flask/Celery/Click/Typer decorator roots, Python AWS Lambda handler roots, Python dataclass/property roots, Ruby Rails controller/callback roots, Ruby dynamic dispatch hooks, Ruby literal method-reference targets, Ruby script entrypoints, Groovy Jenkinsfile and vars/call roots, Haskell main/module export/typeclass/instance roots, Java main/constructor/override/Ant task setter/Gradle plugin and DSL roots, Kotlin main/constructor/interface/override/Gradle/Spring/JUnit/lifecycle roots, Scala main/App object/trait/override/Play/Akka/JUnit/ScalaTest/lifecycle roots, Swift main/SwiftUI/protocol/constructor/override/app-delegate/Vapor/XCTest/Swift Testing roots, Elixir Application, macro, guard, behaviour, GenServer, Supervisor, Mix task, protocol, Phoenix controller, and LiveView roots, and JavaScript/TypeScript Next.js, Express, Koa, Fastify, NestJS, Node, Hapi, migration, interface, module-contract, and static-registry roots are modeled as derived roots",
 			"go same-package and imported-package direct method calls, fmt Stringer hooks, generic constraint methods, function-value references, function-literal reachable calls, dependency-injection callbacks, type references, interface type references, interface implementation types, interface method implementations, and method values are honored when parser or reducer metadata marks them explicitly",
 			"analysis reports whether a modeled framework root came from parser metadata or the legacy source fallback path",
 			"go framework-root signature checks require entity source; missing source leaves those roots unevaluated",
@@ -316,6 +319,10 @@ func BuildDeadCodeAnalysisForLanguage(results []map[string]any, excluded []strin
 			"IaC deadness is not inferred by the code dead-code analyzer; use the IaC usage/reachability capability once available",
 		},
 	}
+	if len(unmodeled) > 0 {
+		analysis["notes"] = append(analysis["notes"].([]string), deadCodeNoRootModelNote(unmodeled))
+	}
+	return analysis
 }
 
 func deadCodeReflectionModeled(language string) bool {

@@ -21,8 +21,9 @@
 // entries when a method attribute resolves to Symfony Route and carries a
 // literal path and literal HTTP methods, plus bounded dead-code root hints for
 // PHP entrypoints, constructors, known magic methods, same-file interface and
-// trait methods, route-backed controller actions, literal route handlers,
-// Symfony route attributes, and WordPress hook callbacks; broader autoload,
+// trait methods, route-backed controller actions, ZF1 convention-dispatched
+// actions, literal route handlers, Symfony route attributes, and WordPress
+// hook callbacks; broader autoload,
 // reflection, and dynamic-dispatch behavior stays non-exact. The package is
 // deterministic and depends only on shared parser helpers and the tree-sitter
 // runtime.

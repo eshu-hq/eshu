@@ -222,6 +222,7 @@ Important response fields:
 | `analysis.dead_code_language_maturity` | Per-language maturity from the query package. |
 | `analysis.dead_code_language_exactness_blockers` | Named blockers that prevent exact cleanup-safe truth. |
 | `analysis.dead_code_observed_exactness_blockers` | Blockers observed on returned candidates. |
+| `analysis.frameworks_without_root_model` | Frameworks observed in result metadata for which dead-code has no root model, grouped by language. Empty until a producer emits per-result `framework` for a language with a modeled-frameworks entry. |
 | `analysis.tests_excluded` | Whether test-owned code is excluded by default. |
 | `analysis.generated_code_excluded` | Whether generated code is excluded by default. |
 | `analysis.user_overrides_applied` | Whether request-level exclusions were applied. |

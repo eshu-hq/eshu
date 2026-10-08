@@ -565,6 +565,9 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	if _, ok := deadCodeAnalysis["dead_code_observed_exactness_blockers"]; !ok {
 		t.Fatal("code/dead-code analysis schema missing dead_code_observed_exactness_blockers")
 	}
+	if _, ok := deadCodeAnalysis["frameworks_without_root_model"]; !ok {
+		t.Fatal("code/dead-code analysis schema missing frameworks_without_root_model")
+	}
 
 	deadIaCPath := testutil.MustMapField(t, paths, "/api/v0/iac/dead")
 	deadIaCPost := testutil.MustMapField(t, deadIaCPath, "post")

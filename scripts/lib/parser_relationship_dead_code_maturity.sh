@@ -14,7 +14,7 @@
 # maturity map source file.
 is_dead_code_maturity_source() {
   local path="$1"
-  [ "$path" = "go/internal/query/code_dead_code_language_maturity.go" ]
+  [ "$path" = "go/internal/query/codemodel/code_dead_code_language_maturity.go" ]
 }
 
 # is_dead_code_maturity_doc reports whether $1 is a doc page that documents

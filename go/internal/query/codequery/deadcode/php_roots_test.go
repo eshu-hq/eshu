@@ -77,6 +77,11 @@ func TestHandleDeadCodeExcludesPHPRootKindsFromMetadata(t *testing.T) {
 						"dead_code_root_kinds": []any{"php.magic_method"},
 					},
 					{
+						"entity_id": "php-zf1", "name": "indexAction", "labels": []any{"Function"},
+						"file_path": "application/controllers/IndexController.php", "repo_id": "repo-1", "repo_name": "php-app", "language": "php",
+						"dead_code_root_kinds": []any{"php.zf1_controller_action"},
+					},
+					{
 						"entity_id": "php-unused", "name": "unused_php_helper", "labels": []any{"Function"},
 						"file_path": "src/helpers.php", "repo_id": "repo-1", "repo_name": "php-app", "language": "php",
 					},
@@ -115,7 +120,7 @@ func TestHandleDeadCodeExcludesPHPRootKindsFromMetadata(t *testing.T) {
 	}
 
 	analysis := data["analysis"].(map[string]any)
-	if got, want := analysis["framework_roots_from_parser_metadata"], float64(10); got != want {
+	if got, want := analysis["framework_roots_from_parser_metadata"], float64(11); got != want {
 		t.Fatalf("analysis[framework_roots_from_parser_metadata] = %#v, want %#v", got, want)
 	}
 	roots := analysis["modeled_framework_roots"].([]any)

@@ -108,6 +108,11 @@ const Scan = `
                           "description": "Named exactness blockers observed on returned candidates, grouped by language.",
                           "additionalProperties": {"type": "array", "items": {"type": "string"}}
                         },
+                        "frameworks_without_root_model": {
+                          "type": "object",
+                          "description": "Frameworks observed on returned candidates for which dead-code has no root model, grouped by language. Convention-dispatched entry points of those frameworks may be misreported as dead.",
+                          "additionalProperties": {"type": "array", "items": {"type": "string"}}
+                        },
                         "modeled_entrypoints": {"type": "array", "items": {"type": "string"}},
                         "modeled_public_api": {"type": "array", "items": {"type": "string"}},
                         "notes": {"type": "array", "items": {"type": "string"}}

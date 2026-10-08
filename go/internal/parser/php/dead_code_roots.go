@@ -368,6 +368,9 @@ func phpDeadCodeRootKinds(
 		if phpIsControllerAction(contextName, name, isPublic, routeBacked || attributeBacked) {
 			rootKinds = append(rootKinds, "php.framework_controller_action")
 		}
+		if phpIsZF1ControllerAction(contextName, name, isPublic, facts) {
+			rootKinds = append(rootKinds, "php.zf1_controller_action")
+		}
 		if routeBacked {
 			rootKinds = append(rootKinds, "php.route_handler")
 		}
@@ -414,6 +417,26 @@ func phpIsControllerAction(contextName string, name string, isPublic bool, route
 		return false
 	}
 	return isPublic
+}
+
+// phpIsZF1ControllerAction reports whether a method is dispatched by Zend
+// Framework 1's conventional dispatcher: a public *Action method on a class
+// that directly extends Zend_Controller_Action. ZF1 appends "Action" to the
+// requested action name, so a bare "Action" method is never dispatched.
+// PHP method and class names are case-insensitive, so both the suffix and
+// the base comparison fold case. Only direct same-file bases are visible
+// here; a controller inheriting through an intermediate base class is a
+// known miss.
+func phpIsZF1ControllerAction(contextName string, name string, isPublic bool, facts phpDeadCodeFacts) bool {
+	if !isPublic || strings.EqualFold(name, "Action") || !strings.HasSuffix(strings.ToLower(name), "action") || strings.HasPrefix(name, "__") {
+		return false
+	}
+	for _, base := range facts.typeBases[contextName] {
+		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(base), `\`), "Zend_Controller_Action") {
+			return true
+		}
+	}
+	return false
 }
 
 func phpIsMagicMethod(name string) bool {

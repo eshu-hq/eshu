@@ -59,12 +59,12 @@ is_comment_only_diff() {
     return 1
   fi
   if is_dead_code_maturity_source "$file"; then
-    # code_dead_code_language_maturity.go also matches is_language_query_source's
-    # glob (it has no explicit exclusion there, unlike *language_inventory.go
-    # and content_reader_language.go) and always fired the language rule
-    # unconditionally before this exemption existed, on top of its own
-    # dead-code rule. Keep that pre-existing double coverage: the exemption
-    # never applies to this file, comment-only or not.
+    # code_dead_code_language_maturity.go is excluded from
+    # is_language_query_source (same filename-token class as
+    # *language_inventory.go and content_reader_language.go); its live doc
+    # contract is the dead-code maturity rule. Keep this early return as a
+    # fail-closed backstop: if that exclusion is ever removed, the language
+    # rule fires on this file again with no comment-only exemption.
     return 1
   fi
   local merge_base

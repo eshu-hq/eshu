@@ -125,6 +125,12 @@ go/internal/mcp/language*.go) ;;
     # _query lives in go/internal/mcp and never reaches it, so a change here does
     # not change the DSL that language-query-dsl.md documents.
     */content_reader_language.go) return 1 ;;
+    # code_dead_code_language_maturity.go is dead-code maturity source, not the
+    # Language Query DSL: it maps languages to modeled root frameworks for the
+    # dead-code answer. It is already covered by the dead-code maturity doc
+    # contract (is_dead_code_maturity_source), so requiring a
+    # language-query-dsl.md update for it would demand a false doc claim.
+    */code_dead_code_language_maturity.go) return 1 ;;
     *) return 0 ;;
   esac
 }
