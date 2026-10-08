@@ -5,11 +5,11 @@
 1. `go/internal/storage/postgres/membership/README.md` — invariants and evidence
 2. `go/internal/storage/postgres/membership/doc.go` — the package contract
 3. `go/internal/collector/repo/git/membership/README.md` — the evaluation this store serves
-4. `go/internal/storage/postgres/migrations/164_repository_selection_observations.sql` — the shipped DDL
+4. `go/internal/storage/postgres/migrations/166_repository_selection_observations.sql` — the shipped DDL
 
 ## Rules
 
-- `schemaSQL` must stay byte-identical to the DDL after migration 164's
+- `schemaSQL` must stay byte-identical to the DDL after migration 166's
   leading comment block (`TestObservationSchemaEqualsEmbeddedMigration`
   compares them for equality). Never edit a shipped
   migration; add a new guarded one and update the checksum manifest.

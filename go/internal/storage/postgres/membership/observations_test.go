@@ -261,13 +261,13 @@ func TestObservationStoreRequiresDatabase(t *testing.T) {
 }
 
 // TestObservationSchemaEqualsEmbeddedMigration keeps the store's DDL and
-// migration 164 identical: the migration with its leading comment block and
+// migration 166 identical: the migration with its leading comment block and
 // blank lines removed must equal schemaSQL.
 func TestObservationSchemaEqualsEmbeddedMigration(t *testing.T) {
 	t.Parallel()
 
 	for _, definition := range postgres.BootstrapDefinitions() {
-		if !strings.HasSuffix(definition.Path, "/164_repository_selection_observations.sql") {
+		if !strings.HasSuffix(definition.Path, "/166_repository_selection_observations.sql") {
 			continue
 		}
 		lines := strings.Split(definition.SQL, "\n")
@@ -276,9 +276,9 @@ func TestObservationSchemaEqualsEmbeddedMigration(t *testing.T) {
 		}
 		got := strings.TrimSpace(strings.Join(lines, "\n"))
 		if want := strings.TrimSpace(membershipstore.SchemaSQL); got != want {
-			t.Fatalf("migration 164 DDL differs from the store's schemaSQL:\nmigration:\n%s\nstore:\n%s", got, want)
+			t.Fatalf("migration 166 DDL differs from the store's schemaSQL:\nmigration:\n%s\nstore:\n%s", got, want)
 		}
 		return
 	}
-	t.Fatal("migration 164_repository_selection_observations.sql is not embedded")
+	t.Fatal("migration 166_repository_selection_observations.sql is not embedded")
 }
