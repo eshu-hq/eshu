@@ -123,9 +123,9 @@ func ParseCensusRow(row map[string]any) (Census, error) {
 		{"via_uid_only", &out.ViaUIDOnly},
 		{"residual", &out.Residual},
 	} {
-		value, ok := row[field.key].(int64)
+		value, ok := wholeNumber(row[field.key])
 		if !ok {
-			return Census{}, fmt.Errorf("anchor census row: %q is %T, want int64", field.key, row[field.key])
+			return Census{}, fmt.Errorf("anchor census row: %q is %T, want a whole number", field.key, row[field.key])
 		}
 		*field.dst = value
 	}
@@ -157,4 +157,20 @@ func EvaluateCensus(ctx context.Context, source CensusSource) Verdict {
 		return Verdict{Detail: fmt.Sprintf("%d id-bearing node(s) are not reachable by the labeled anchor (%s)", census.Residual, summary)}
 	}
 	return Verdict{OK: true, Detail: summary}
+}
+
+// wholeNumber reads a count a graph driver or reader may hand back as int64,
+// int, or a whole float64.
+func wholeNumber(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int64:
+		return typed, true
+	case int:
+		return int64(typed), true
+	case float64:
+		if typed == float64(int64(typed)) {
+			return int64(typed), true
+		}
+	}
+	return 0, false
 }

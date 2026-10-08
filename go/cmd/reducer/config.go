@@ -447,3 +447,46 @@ func parsePriorConfigDepth(raw string, logger *slog.Logger) int {
 	}
 	return n
 }
+
+const (
+	idAnchorCensusEnabledEnv      = "ESHU_ID_ANCHOR_CENSUS_ENABLED"
+	idAnchorCensusPollIntervalEnv = "ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL"
+	idAnchorCensusTimeoutEnv      = "ESHU_ID_ANCHOR_CENSUS_TIMEOUT"
+
+	// defaultIDAnchorCensusPollInterval spaces the AllNodesScan: about 1.95 s
+	// over 1,130,424 nodes on ops-qa (image sha-57167b0, 2026-10-08), so an
+	// hourly pass is well under 0.1% of one core per replica.
+	defaultIDAnchorCensusPollInterval = time.Hour
+	// defaultIDAnchorCensusTimeout bounds one pass at about 60 times the
+	// measured scan, so a graph that grows several-fold still finishes while a
+	// wedged read cannot hold the loop.
+	defaultIDAnchorCensusTimeout = 2 * time.Minute
+)
+
+// idAnchorCensusConfig configures the periodic id-anchor census (#7212).
+type idAnchorCensusConfig struct {
+	// Enabled turns the census on. It still runs only on Neo4j.
+	Enabled bool
+	// PollInterval is the delay between passes.
+	PollInterval time.Duration
+	// Timeout bounds one pass.
+	Timeout time.Duration
+}
+
+func loadIDAnchorCensusConfig(getenv func(string) string) idAnchorCensusConfig {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	return idAnchorCensusConfig{
+		Enabled:      loadBoolOrDefault(getenv, idAnchorCensusEnabledEnv, true),
+		PollInterval: loadDurationOrDefault(getenv, idAnchorCensusPollIntervalEnv, defaultIDAnchorCensusPollInterval),
+		Timeout:      loadDurationOrDefault(getenv, idAnchorCensusTimeoutEnv, defaultIDAnchorCensusTimeout),
+	}
+}
+
+// idAnchorCensusShouldRun reports whether the census runs: enabled, and on
+// Neo4j. The labeled anchor is a Neo4j statement; the NornicDB loop keeps the
+// unlabeled fallback, so the invariant is not its contract.
+func idAnchorCensusShouldRun(cfg idAnchorCensusConfig, backend runtimecfg.GraphBackend) bool {
+	return cfg.Enabled && backend == runtimecfg.GraphBackendNeo4j
+}

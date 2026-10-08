@@ -1099,6 +1099,19 @@ type Instruments struct {
 	// backoff). failed without a later completed means readers are still on the
 	// graph path.
 	InfraInventoryBackfillRuns metric.Int64Counter
+	// GraphIDAnchorUnreachableNodes is the number of graph nodes with an id that
+	// the labeled Neo4j entity-context anchor cannot reach, as of the last
+	// successful census pass. It is a snapshot, not a point in time, and it keeps
+	// its last good value when a later pass fails (#7212).
+	GraphIDAnchorUnreachableNodes metric.Int64Gauge
+	// GraphIDAnchorCensusLastSuccess is the Unix second of the last successful
+	// census pass; time() minus this gauge is the age of the snapshot.
+	GraphIDAnchorCensusLastSuccess metric.Int64Gauge
+	// GraphIDAnchorCensusPasses counts census passes by the closed outcome set
+	// ok and failed.
+	GraphIDAnchorCensusPasses metric.Int64Counter
+	// GraphIDAnchorCensusDuration measures each census pass.
+	GraphIDAnchorCensusDuration metric.Float64Histogram
 	// PackageManifestBackfillPasses counts elected, contended, and failed
 	// sidecar-repair passes by the closed outcome set.
 	PackageManifestBackfillPasses metric.Int64Counter
@@ -5001,6 +5014,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerChangedSinceLinkInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+
+	if err := registerGraphIDAnchorCensusInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 

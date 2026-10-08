@@ -17,6 +17,9 @@ statement.
 #7212 stays open. The post-deploy step-1a sweep decides the close (see
 [What decides the close](#what-decides-the-close)).
 
+The census, the writer-coverage gate, and the census gauge that guard dropping
+the Neo4j fallback are in [id-anchor census](7212-id-anchor-census.md).
+
 ## What changed
 
 - `graph.UIDUniquenessConstrainedLabels` and `graph.IDUniquenessConstrainedLabels`

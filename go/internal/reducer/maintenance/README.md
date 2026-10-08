@@ -29,6 +29,7 @@ every family's side-runner, not just this tree's).
 | `infra/` | infra read model reconcile (#6793) | `Runner` |
 | `poison/` | poison dead-letter liveness (#4740) | `Runner` |
 | `producer/` | producer activation consumer (#7635) | `Runner` |
+| `census/` | Neo4j id-anchor census gauges (#7212) | `Runner` |
 | `testutil/` | shared metric-reading test helpers | `CounterValue`, `GaugeValue`, `HasAttrs` |
 
 See each leaf's `doc.go` for its godoc-rendered contract.

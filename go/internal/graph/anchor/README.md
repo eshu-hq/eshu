@@ -35,6 +35,7 @@ anchor/
   parse.go             Cypher scan: clauses, node patterns, SET items
   proof.go             parameter proof that a dynamic map has no id key
   census.go            Classify, CensusCypher, Census, EvaluateCensus
+  reader.go            ReaderCensus: the census over a single-row graph read port
   sweep_test.go        static sweep of go/ literals plus a planted violation
   census_live_test.go  live Neo4j proof of the census Cypher
 ```

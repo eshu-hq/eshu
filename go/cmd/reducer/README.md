@@ -98,15 +98,16 @@ flowchart TB
    `postgres.NewReducerQueue`.
 6. `app.NewHostedWithStatusServer` — mounts the shared admin surface.
 7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
-8. The search-document, config-state-drift, and package-consumption
-   background loops start (see [Background maintenance](background-maintenance.md)).
+8. The search-document, config-state-drift, package-consumption, and (Neo4j
+   only) id-anchor census background loops start (see [Background maintenance](background-maintenance.md)).
 9. `service.Run(ctx)` — blocks until the context is canceled; hosted
    runtime drains in-flight work before returning.
 
 ### Background maintenance
 
 `run.go` starts the search-document and config-state-drift catch-up sweeps,
-plus the reducer-owned package-consumption sidecar repair loop. Their
+plus the reducer-owned package-consumption sidecar repair loop and, on Neo4j,
+the id-anchor census (`run.go`, runner in `internal/reducer/maintenance`, #7212). Their
 ownership, retry, and shutdown contracts are in
 [Background maintenance](background-maintenance.md).
 

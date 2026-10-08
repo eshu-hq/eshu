@@ -402,6 +402,9 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | duration | `10m` | TTL for the graph orphan sweep partition lease. Keep above the graph write budget (ops-qa ESHU_CANONICAL_WRITE_TIMEOUT is 300s) plus margin (#7047). |
 | `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL` | duration | `1h` | Delay between graph orphan sweep passes. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_TTL` | duration | `168h` | Minimum age before a marked graph orphan can be deleted. |
+| `ESHU_ID_ANCHOR_CENSUS_ENABLED` | bool | `true` | Runs the periodic id-anchor census (#7212) on Neo4j: one AllNodesScan that counts graph nodes with an id the labeled entity-context anchor cannot reach, reported as eshu_dp_graph_id_anchor_unreachable_nodes. No effect on NornicDB. |
+| `ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL` | duration | `1h` | Delay between id-anchor census passes. The first pass runs at startup. |
+| `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` | duration | `2m` | Deadline for one id-anchor census pass. A pass that exceeds it counts as failed and keeps the last good snapshot. |
 | `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` | bool | `true` | Run the infra read model reconcile loop, which re-derives repositories whose infra_resource_entities rows drifted from content_entities, and repairs rolling-upgrade fence marks. With it false, nothing repairs rolling-upgrade fence marks: one write from an older binary or manual SQL keeps unscoped infra aggregate reads on the graph until the loop runs again (see eshu_dp_infra_inventory_dirty_repos and the infra_inventory admin status field). |
 | `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` | duration | `5m` | Wait between infra read model reconcile cycles. |
 | `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` | int | `500` | Repositories one infra read model reconcile cycle checks. |

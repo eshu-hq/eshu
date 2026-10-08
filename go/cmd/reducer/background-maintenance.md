@@ -1,6 +1,6 @@
 # Reducer background maintenance
 
-The resolution engine starts three loops beside its hosted queue drain in
+The resolution engine starts four loops beside its hosted queue drain in
 `go/cmd/reducer/run.go`. They use the signal context and stop before the
 Postgres pool closes.
 
@@ -49,3 +49,24 @@ means at least two 25-scope passes remain. Both gauges are sampled after each
 successful elected pass, not during Prometheus scrapes. Structured reducer pass logs and storage key=value per-scope process logs
 retain detailed context; the reader's unavailable
 reason distinguishes missing initial backfill from a fresh old-writer mutation.
+
+## Id-anchor census
+
+`startIDAnchorCensus` (issue #7212) runs only on Neo4j, because the labeled
+entity-context anchor it measures is a Neo4j statement. It takes one pass at
+startup, so the startup log line carries the count, then one pass per
+`ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL` (default one hour). Each pass is one
+read-only `AllNodesScan` through the reducer's graph read port under a
+`ESHU_ID_ANCHOR_CENSUS_TIMEOUT` deadline (default two minutes): about 1.95 s
+over 1,130,424 nodes on ops-qa (image sha-57167b0, 2026-10-08). The scan is
+read-only and idempotent, so replicas need no lease; each reports the same
+snapshot. The result is recorded after the pass, never during a scrape.
+
+`eshu_dp_graph_id_anchor_unreachable_nodes` is the count of nodes with an id the
+anchor cannot reach. It is a snapshot of one read transaction, not a point in
+time, and a failed pass leaves it at its last good value while
+`eshu_dp_graph_id_anchor_census_last_success_unixtime` ages. Passes are counted
+by `outcome` (`ok`, `failed`) in `eshu_dp_graph_id_anchor_census_passes_total`.
+The pass log line is `id anchor census` with `snapshot=true`, the counts, and
+`first_pass=true` on the startup pass; a nonzero residual logs at WARN. Shutdown
+cancels the loop and waits for it before the graph driver closes.
