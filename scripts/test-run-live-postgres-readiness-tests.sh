@@ -36,7 +36,14 @@ done <"${ESHU_FAKE_DIR}/${key}.names"
 EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 while read -r var; do
-  case "${var}" in *_DSN) want="${ESHU_EXPECTED_DSN:-}" ;; *) want=1 ;; esac
+  case "${var}" in
+    *_DSN) want="${ESHU_EXPECTED_DSN:-}" ;;
+    ESHU_NEO4J_URI) want="${ESHU_EXPECTED_NEO4J_URI:-}" ;;
+    ESHU_NEO4J_USERNAME) want="${ESHU_EXPECTED_NEO4J_USERNAME:-}" ;;
+    ESHU_NEO4J_PASSWORD) want="${ESHU_EXPECTED_NEO4J_PASSWORD:-}" ;;
+    ESHU_GRAPH_BACKEND) want=neo4j ;;
+    *) want=1 ;;
+  esac
   [[ "${!var:-}" == "${want}" ]] || { echo "wrong ${var}" >&2; exit 9; }
 done <"${ESHU_FAKE_DIR}/envs"
 EOF
@@ -54,14 +61,29 @@ for var in ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF ESHU_SCAN_TIER_READINE
   ESHU_STATUS_SUMMARY_PROOF ESHU_ADMIN_REOPEN_PROOF ESHU_FLUX_EVIDENCE_IDENTITY_PROOF \
   ESHU_REACHABILITY_EDGES_SCOPE_PROOF \
   ESHU_DRIFTED_BUCKET_SKIP_PROOF \
-  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF; do
+  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF \
+  ESHU_PROJECTOR_SUPERSESSION_PROOF; do
   printf '%s_DSN\n%s_DISPOSABLE\n' "${var}" "${var}" >>"${fake}/envs"
+done
+for var in ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD \
+  ESHU_GRAPH_BACKEND; do
+  printf '%s\n' "${var}" >>"${fake}/envs"
 done
 
 export ESHU_FAKE_DIR="${fake}"
 export ESHU_EXPECTED_DSN='postgres://postgres:local-test@127.0.0.1:15432/postgres?sslmode=disable'
+export ESHU_EXPECTED_NEO4J_URI='neo4j://127.0.0.1:17687'
+export ESHU_EXPECTED_NEO4J_USERNAME='neo4j'
+export ESHU_EXPECTED_NEO4J_PASSWORD='local-test-neo4j'
 while read -r var; do
-  case "${var}" in *_DSN) export "${var}=${ESHU_EXPECTED_DSN}" ;; *) export "${var}=1" ;; esac
+  case "${var}" in
+    *_DSN) export "${var}=${ESHU_EXPECTED_DSN}" ;;
+    ESHU_NEO4J_URI) export "${var}=${ESHU_EXPECTED_NEO4J_URI}" ;;
+    ESHU_NEO4J_USERNAME) export "${var}=${ESHU_EXPECTED_NEO4J_USERNAME}" ;;
+    ESHU_NEO4J_PASSWORD) export "${var}=${ESHU_EXPECTED_NEO4J_PASSWORD}" ;;
+    ESHU_GRAPH_BACKEND) export "${var}=neo4j" ;;
+    *) export "${var}=1" ;;
+  esac
 done <"${fake}/envs"
 export PATH="${seed_dir}/bin:${PATH}"
 
