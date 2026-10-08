@@ -1583,8 +1583,11 @@ type Instruments struct {
 	// states an operator should see (#7670), labeled by a closed reason:
 	// superseded_item_on_active_generation (a replay on the active generation
 	// found its stable work item terminally superseded and failed the cycle
-	// closed) or inactive_accepted_generation (active rows whose accepted
-	// generation is no longer the scope's active generation still project).
+	// closed), unscheduled_fenced_replay_on_active_generation (a RUNS_ON
+	// fenced replay on the active generation could not be scheduled and
+	// failed the cycle closed), or inactive_accepted_generation (active rows
+	// whose accepted generation is no longer the scope's active generation
+	// still project).
 	RepoDependencyGenerationAnomalies metric.Int64Counter
 
 	// CanonicalRepositoryRetirements counts the canonical writer's
