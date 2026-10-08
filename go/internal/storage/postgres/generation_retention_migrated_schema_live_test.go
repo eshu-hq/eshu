@@ -221,6 +221,14 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"eshu_search_vector_scope_state":          1,
 		"eshu_search_vector_values":               1,
 		"reducer_input_invalid_facts":             1,
+		// #7784: the cascade grandchildren the prune deletes (keys via
+		// the fact delete, secret lines via the file delete) plus the
+		// explicitly reaped unroutable intents.
+		"package_manifest_consumption_keys":     2,
+		"package_registry_identity_keys":        2,
+		"relationship_reference_candidate_keys": 1,
+		"content_file_secret_lines":             2,
+		"shared_projection_unroutable_intents":  1,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,
@@ -262,12 +270,12 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
-	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
 		if got := result.RowsPruned[table]; got != want[table] {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
 	}
-	for _, table := range []string{"iac_reachability_rows", "content_file_references", "content_files", "activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"iac_reachability_rows", "content_file_references", "activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		var remaining int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&remaining); err != nil {
 			t.Fatalf("count %s: %v", table, err)
@@ -275,6 +283,21 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		if remaining != 0 {
 			t.Errorf("%s has %d rows after prune, want 0", table, remaining)
 		}
+	}
+	// #7784: the doomed main.tf file row is pruned with its secret
+	// lines; the gen-active fact keeps kept.tf alive.
+	var doomedFiles, keptFiles int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM content_files WHERE relative_path = 'main.tf'").Scan(&doomedFiles); err != nil {
+		t.Fatalf("count pruned content_files: %v", err)
+	}
+	if doomedFiles != 0 {
+		t.Errorf("pruned content_files after prune = %d, want 0", doomedFiles)
+	}
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM content_files WHERE relative_path = 'kept.tf'").Scan(&keptFiles); err != nil {
+		t.Fatalf("count retained content_files: %v", err)
+	}
+	if keptFiles != 1 {
+		t.Errorf("retained content_files after prune = %d, want 1", keptFiles)
 	}
 	// #7700: the doomed decision and its evidence rows are cascade-deleted
 	// with the prune; the retained gen-active decision and its evidence
@@ -307,14 +330,16 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if keptEvidence != 1 {
 		t.Errorf("retained admission_decision_evidence after prune = %d, want 1", keptEvidence)
 	}
+	assertGenerationRetentionGrandchildren7784(t, ctx, database)
 	// #7695: gen-old's facts are pruned; the retained holder's gen-active fact
-	// survives.
+	// survives. #7784 adds a second gen-active fact, the file fact that
+	// keeps kept.tf (and its secret line) alive.
 	var retainedFacts int
 	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM fact_records WHERE generation_id = 'gen-active'").Scan(&retainedFacts); err != nil {
 		t.Fatalf("count retained gen-active facts: %v", err)
 	}
-	if retainedFacts != 1 {
-		t.Errorf("retained gen-active fact_records after prune = %d, want 1", retainedFacts)
+	if retainedFacts != 2 {
+		t.Errorf("retained gen-active fact_records after prune = %d, want 2", retainedFacts)
 	}
 	var doomedFacts int
 	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM fact_records WHERE generation_id = 'gen-old'").Scan(&doomedFacts); err != nil {
@@ -458,4 +483,7 @@ VALUES ('entity-2', 'repo-1', 'main.tf', 'TerraformResource', 'r2', 1, 2, 'x', n
 			t.Fatalf("seed step %d: %v", i, err)
 		}
 	}
+	// #7784 grandchildren live in their own file: this one sits at the
+	// 500-line cap.
+	seedGenerationRetentionGrandchildren7784(t, ctx, database)
 }
