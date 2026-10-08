@@ -103,15 +103,20 @@ The realistic size is the ops-qa one: about 111 warning rows, which the
 ruling puts at about 35 KB. This proof's entries are larger than ops-qa's
 (about 490 bytes each with full 64-character hashes and generation ids), so
 two sizes were measured, each with 4,000 upserts and a `VACUUM` after each
-2,000. Both keep one heap page, 100% HOT updates, and 0 dead tuples, and the
-TOAST relation grows by 10-11% in the second round (bounded by the write volume
-between vacuums, not by the number of updates). The keyed read touches only
-`status_summary_snapshots`.
+2,000. Both keep one heap page and 100% HOT updates. The dead-tuple count is a
+`pg_stat` sample that depends on when autovacuum runs: it was 0 and 0 in the
+first measurement and 5 and 5 (35 KB) or 0 and 0 (69 KB) when rerun after the
+rebase onto main, and no test pins it. The TOAST relation size in the second
+round also depends on when vacuum runs: 4,001 to 4,447 pages in one run and
+4,001 to 1,266 in a later run at 69 KB. Either way it is bounded by the write
+volume between vacuums, not by the number of updates. The keyed read touches
+only `status_summary_snapshots`, and its buffer counts were the same in every
+run.
 
 | payload | test | TOAST pages (round 1 / 2) | read buffers (plan / TOAST) | pinned at |
 | --- | --- | --- | --- | --- |
 | 34,583 bytes, 72 entries (the ops-qa size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
-| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 | 1 / 13 | 8 / 30 |
+| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (one run), 4,001 / 1,266 (a later run) | 1 / 13 | 8 / 30 |
 
 The `rows = CASE ...` option the ruling allowed was not needed.
 
