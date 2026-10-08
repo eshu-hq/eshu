@@ -36,6 +36,9 @@ generation after it are kept. The issue's four shapes fall out:
   transaction (`Handler.Handle` for code_calls, `resolve()`'s mutually
   exclusive paths for repo_dependency). One intent row for F proves F covered
   every unit, so F's rows re-emit every drained edge when they project.
+  If a successor generation quarantines a file, its repo-wide retract deletes
+  that file's last-valid edges with nothing re-emitting them — the same end
+  state as the replay order; last-known-good semantics are deferred to #7736.
 - The emission check is domain-scoped. Acceptance units are repository ids in
   both lanes, so an unscoped check would let one lane's emission falsely cover
   the other's; the live proof pins a wrong-domain seed.
@@ -49,6 +52,11 @@ generation after it are kept. The issue's four shapes fall out:
   guessing; a reader without the port keeps byte-identical behavior.
 - Accepted residual, shared with #7121: projector Ack reactivation of a
   superseded generation (#7130). Documented on the store SQL, not closed.
+- Accepted residual (review R1 F5, deferred to #7736 with arbiter approval):
+  a pure-drain cycle can skip the successor retract in a narrow cross-cycle
+  conjunction, letting a crash-window partial write linger until a later
+  retract-forcing cycle. Same-cycle safety (retract forced when in-cycle
+  stale IDs exist) is unaffected.
 
 ## Arbiter verdict
 
@@ -56,6 +64,14 @@ Muse Spark (arbiter on Muse): generation-level coverage with a domain-scoped
 emission proof, rather than per-unit coverage or an activation-status guard.
 Per-generation atomic emission makes F-emitted imply F-covers-all-units; the
 status of F is irrelevant because pending rows project regardless of it.
+
+Deferral ruling (review R1 F4/F5): "RULING: APPROVE deferring F4+F5 to #7736
+— merge the #7165 PR without fixing them, subject to the conditions below.
+Severity re-grade right exercised: both stay P2 ("edge case"); neither is
+re-graded to P1." Conditions: link #7736 and quote the ruling in the PR body,
+carry both finding texts with category "edge case", scope the re-emission
+claim for quarantined files (done above), keep the promotion order intact, no
+new telemetry here. Full text in the PR body.
 
 ## Performance Evidence:
 
