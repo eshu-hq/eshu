@@ -16,6 +16,18 @@ required_alerts=(
 	"EshuHostedRuntimeDependencyDegraded"
 	"EshuHostedSchemaBootstrapFailed"
 	"EshuHostedMCPToolErrors"
+	"EshuHostedStatusSummaryStale"
+	"EshuHostedStatusSnapshotUnavailable"
+)
+
+# Alerts whose metric names must exist in the Go source (#7009). The status
+# summary alerts read gauges assembled by the runtime metrics handler; a renamed
+# metric would leave the rule silent.
+# Other hosted alerts name metrics built from a shared prefix at runtime, so a
+# literal-name search cannot prove them and they stay out of this list.
+metric_checked_alerts=(
+	"EshuHostedStatusSummaryStale"
+	"EshuHostedStatusSnapshotUnavailable"
 )
 
 required_panels=(
@@ -160,6 +172,25 @@ ruby -r yaml -e '
 	end
 ' "${alerts}" "${prometheus_rule}" >/dev/null \
 	|| die "every hosted alert needs a runbook annotation, severity, component, and runbook_section"
+
+# Every eshu_* metric a status summary alert reads must be defined by a
+# non-test Go source file. A histogram suffix is stripped before the search.
+for rule_file in "${alerts}" "${prometheus_rule}"; do
+	while IFS= read -r metric; do
+		[[ -n "${metric}" ]] || continue
+		rg --fixed-strings --quiet --glob '!*_test.go' -- "\"${metric}\"" "${repo_root}/go" \
+			|| die "alert references a metric that does not exist in go/: ${metric} (${rule_file##*/})"
+	done < <(ruby -r yaml -e '
+		doc = YAML.load_file(ARGV.fetch(0))
+		groups = doc.key?("spec") ? doc.fetch("spec").fetch("groups") : doc.fetch("groups")
+		checked = ARGV.drop(1)
+		names = groups.flat_map { |g| g.fetch("rules") }
+			.select { |r| checked.include?(r["alert"]) }
+			.flat_map { |r| r["expr"].to_s.scan(/\beshu_[a-z0-9_]+/) }
+			.map { |m| m.sub(/_(bucket|sum|count)\z/, "") }
+		puts names.uniq.sort
+	' "${rule_file}" "${metric_checked_alerts[@]}")
+done
 
 if rg --quiet "${private_label_pattern}" "${alerts}" "${prometheus_rule}"; then
 	die "alert pack contains high-cardinality or private-data-shaped label keys"

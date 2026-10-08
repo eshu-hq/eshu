@@ -38,6 +38,24 @@ cp "${repo_root}/deploy/observability/hosted-operations-alerts.yaml" "${bad_aler
 perl -0pi -e 's/EshuHostedDeadLettersPresent/EshuHostedDeadLettersRenamed/' "${bad_alerts}"
 expect_fail bad_alerts "missing required alert" --alerts "${bad_alerts}"
 
+# A status summary alert that names a metric the code does not define is silent
+# forever. Rename the reader's stale gauge in a copy of each file and expect the
+# existence check to fail (#7009).
+bad_metric_alerts="${tmp_dir}/bad-metric-alerts.yaml"
+sed 's/eshu_runtime_status_summary_stale/eshu_runtime_status_summary_stale_renamed/' \
+	"${repo_root}/deploy/observability/hosted-operations-alerts.yaml" >"${bad_metric_alerts}"
+expect_fail bad_metric_alerts "alert references a metric that does not exist" --alerts "${bad_metric_alerts}"
+
+bad_metric_rule="${tmp_dir}/bad-metric-rule.yaml"
+sed 's/eshu_runtime_status_snapshot_available/eshu_runtime_status_snapshot_available_renamed/' \
+	"${repo_root}/deploy/observability/hosted-operations-prometheus-rule.yaml" >"${bad_metric_rule}"
+expect_fail bad_metric_rule "alert references a metric that does not exist" --prometheus-rule "${bad_metric_rule}"
+
+bad_status_alert="${tmp_dir}/bad-status-alert.yaml"
+cp "${repo_root}/deploy/observability/hosted-operations-alerts.yaml" "${bad_status_alert}"
+perl -0pi -e 's/EshuHostedStatusSnapshotUnavailable/EshuHostedStatusSnapshotRenamed/' "${bad_status_alert}"
+expect_fail bad_status_alert "missing required alert" --alerts "${bad_status_alert}"
+
 # The private-label guard had no negative case, and it was blind: it pipes the
 # dashboard expressions into `rg` and asks "did anything match". With --quiet,
 # rg exits on the first match while printf is still writing, printf takes

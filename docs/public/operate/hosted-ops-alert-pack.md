@@ -45,12 +45,37 @@ The alert pack covers:
 - Postgres, graph, and canonical write latency;
 - degraded or stalled runtime dependency health;
 - schema bootstrap failure;
-- MCP tool error rate.
+- MCP tool error rate;
+- status summary freshness (see below).
 
 Every alert must include `severity`, `component`, `runbook_section`, and a
 `runbook` annotation that points at a concrete diagnostic check. Alert text must
 not tell operators to restart broadly. It should identify the owning runtime,
 status surface, metric family, or rollout proof to inspect next.
+
+## Status Summary Alerts
+
+Two alerts watch the status read path (#7009). They use only metrics the code
+defines, and `scripts/verify-hosted-ops-alert-pack.sh` fails if a metric they
+name is not defined as a quoted name in `go/`.
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `EshuHostedStatusSummaryStale` | `eshu_runtime_status_summary_stale` is `1` for 5 minutes: the scrape could not serve a fresh stored row for a `model_key`. The runtime compares the row age with its own `ESHU_STATUS_SUMMARY_STALE_AFTER`, so the rule holds no copy of the bound. A stopped or failing writer shows here as a row that keeps aging. | warning |
+| `EshuHostedStatusSnapshotUnavailable` | `eshu_runtime_status_snapshot_available` is `0` for 5 minutes. Status-derived gauges are omitted, so the queue and completeness alerts above cannot fire. | critical |
+
+`EshuHostedStatusSummaryStale` is inert until `ESHU_STATUS_SUMMARY_READ_ENABLED`
+is on, because the stale gauge is rendered only then. A writer that is disabled
+while the reader is on also shows as stale. There is no separate writer alert:
+`eshu_dp_status_summary_writer_up` is set to `0` only when the writer loop
+returns, which happens when the reducer is shutting down, and the series then
+disappears with the process.
+
+`EshuHostedStatusSnapshotUnavailable` is active on default deployments. It fires
+whenever the status snapshot read fails or exceeds the scrape's 2 second status
+read timeout, which includes the live active-work statement when the reader flag
+is off. If it fires, treat the stale alert as unreadable: a failed snapshot also
+drops the stale gauge.
 
 ## Health Versus Completeness
 
