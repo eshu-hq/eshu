@@ -18,8 +18,10 @@
 // (docs/internal/evidence/6834-code-divergence-theory.md §5–§6): ship at
 // Jaccard ≥ 0.7 ([DriftedSimilarityThreshold]), at most
 // [MaxCandidatesPerEntity] (200) verifications per entity ordered by
-// shared-band count desc, partitioned by repo_id. Budget exhaustions are
-// counted in telemetry, never silently dropped. Findings from superseded
+// shared-band count desc, partitioned by repo_id, and band buckets over
+// [MaxBandBucketSize] (200) nominate no pairs at all (#7228: joining
+// them is quadratic in the bucket size). Budget exhaustions and skipped
+// buckets are counted in telemetry, never silently dropped. Findings from superseded
 // generations are retired with the generation; the read path serves the
 // active generation only.
 //

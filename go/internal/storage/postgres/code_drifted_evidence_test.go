@@ -149,6 +149,7 @@ func TestCodeDriftedPairsQueriesSkipOverfullBuckets(t *testing.T) {
 	for _, want := range []string{
 		"kept_buckets",
 		"HAVING COUNT(*) <=",
+		"JOIN kept_buckets",
 	} {
 		if !strings.Contains(listCodeDriftedPairsQuery, want) {
 			t.Fatalf("pairs query missing overfull-bucket skip %q", want)

@@ -77,7 +77,7 @@ PR.
 
 ## After
 
-Same shim, cap 200:
+Same shim, cap 200, pairs query only:
 
 | Shape | Pairs kept | Time | Buffers | Temp |
 | --- | --- | --- | --- | --- |
@@ -86,6 +86,9 @@ Same shim, cap 200:
 
 The army case drops from 144.6 s to 0.56 s (259x) with the 21 GB spill
 gone. The remaining temp is the window sorts over the 6,754 kept pairs.
+The new bucket-stats query is one linear grouped scan of the repo's band
+rows (same scan the nomination already pays); it was not separately
+timed because it is decision-immaterial at 259x headroom.
 
 ## Differential
 

@@ -57,6 +57,16 @@ VALUES ($1, 1, 'normbucket', $2)`, repoID, id); err != nil {
 			t.Fatalf("seed norm band %s: %v", id, err)
 		}
 	}
+	// norm0 and norm1 also sit in the pathological bucket: their pair
+	// shares two bands under the old nomination but only the normal one
+	// once the bucket is skipped, pinning the corrected shared count.
+	for _, id := range []string{repoID + ":norm0", repoID + ":norm1"} {
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO code_fingerprint_band (repo_id, band_no, band_hash, entity_id)
+VALUES ($1, 0, 'pathobucket', $2)`, repoID, id); err != nil {
+			t.Fatalf("seed shared patho band %s: %v", id, err)
+		}
+	}
 	return pathoIDs
 }
 
@@ -91,10 +101,21 @@ func TestDriftedPathologicalBucketSkippedLive(t *testing.T) {
 	if normal != 3 {
 		t.Fatalf("normal-bucket pairs = %d, want 3 (C(3,2) unchanged)", normal)
 	}
-	if page.Stats.SkippedBuckets != 1 || page.Stats.MaxBucketSize != pathoSize {
-		t.Fatalf("bucket stats = %+v, want skipped 1, max %d", page.Stats, pathoSize)
+	if page.Stats.SkippedBuckets != 1 || page.Stats.MaxBucketSize != pathoSize+2 {
+		t.Fatalf("bucket stats = %+v, want skipped 1, max %d", page.Stats, pathoSize+2)
 	}
 	if page.Stats.PairsConsidered != 3 {
 		t.Fatalf("pairs considered = %d, want 3 (only the normal bucket nominates)", page.Stats.PairsConsidered)
+	}
+	shared := -1
+	for _, pair := range page.Pairs {
+		a, b := pair.A.EntityID, pair.B.EntityID
+		if (a == repoID+":norm0" && b == repoID+":norm1") ||
+			(a == repoID+":norm1" && b == repoID+":norm0") {
+			shared = pair.SharedBands
+		}
+	}
+	if shared != 1 {
+		t.Fatalf("norm0/norm1 shared bands = %d, want 1 (skipped bucket contributes no evidence)", shared)
 	}
 }

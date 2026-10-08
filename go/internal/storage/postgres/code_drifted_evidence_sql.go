@@ -8,14 +8,17 @@ package postgres
 // $2 the token floor, $3 the per-entity candidate budget, $4 the band
 // bucket cap: buckets with more members nominate no pairs (#7228).
 //
-// Shape: keep the band self-join's equi-join on all three of
-// (repo_id, band_no, band_hash), the predicate shape the #6834 EXPLAIN
-// evidence (single-repo band join 4.0ms indexed) measured. Which index serves
-// it depends on table state and plan mode: the primary key with index-only
-// scans on a vacuumed table, a sequential scan or code_fingerprint_band_entity_idx
-// bitmap scans on a table with an empty visibility map, and the migration 111
-// lookup index only under a generic plan (docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md,
-// #7254). Buckets over the cap are skipped before the self-join: joining
+// Shape: the repo's band rows load once into the bands CTE (the
+// repo_id = $1 filter the #6834 EXPLAIN evidence measured as a 4.0ms
+// indexed single-repo read), and the self-join runs on (band_no,
+// band_hash) over that CTE. Which index serves the repo filter depends
+// on table state and plan mode: the primary key with index-only scans
+// on a vacuumed table, a sequential scan or
+// code_fingerprint_band_entity_idx bitmap scans on a table with an empty
+// visibility map, and the migration 111 lookup index only under a generic
+// plan (docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md,
+// #7254). The kept_buckets prefilter joins the same two columns before
+// the self-join: buckets over the cap nominate nothing, because joining
 // them is quadratic in the bucket size and a bucket bigger than the budget
 // is non-discriminating (every member's partners from that band alone
 // overflow the budget). Pairs sharing an equality fingerprint
