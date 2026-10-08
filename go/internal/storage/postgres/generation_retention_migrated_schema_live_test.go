@@ -207,6 +207,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		// after the issue and belongs to the same class.)
 		"activation_obligations":                  1,
 		"admission_decisions":                     1,
+		"admission_decision_evidence":             2,
 		"code_reachability_rows":                  2,
 		"code_reachability_repository_watermarks": 1,
 		"code_root_verdicts":                      1,
@@ -261,12 +262,12 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
-	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "admission_decisions", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		if got := result.RowsPruned[table]; got != want[table] {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
 	}
-	for _, table := range []string{"iac_reachability_rows", "content_file_references", "content_files", "activation_obligations", "admission_decisions", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"iac_reachability_rows", "content_file_references", "content_files", "activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		var remaining int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&remaining); err != nil {
 			t.Fatalf("count %s: %v", table, err)
@@ -274,6 +275,37 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		if remaining != 0 {
 			t.Errorf("%s has %d rows after prune, want 0", table, remaining)
 		}
+	}
+	// #7700: the doomed decision and its evidence rows are cascade-deleted
+	// with the prune; the retained gen-active decision and its evidence
+	// row survive.
+	var doomedDecisions int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM admission_decisions WHERE decision_id = 'dec-1'").Scan(&doomedDecisions); err != nil {
+		t.Fatalf("count pruned decisions: %v", err)
+	}
+	if doomedDecisions != 0 {
+		t.Errorf("pruned admission_decisions after prune = %d, want 0", doomedDecisions)
+	}
+	var keptDecisions int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM admission_decisions WHERE decision_id = 'dec-kept'").Scan(&keptDecisions); err != nil {
+		t.Fatalf("count retained decisions: %v", err)
+	}
+	if keptDecisions != 1 {
+		t.Errorf("retained admission_decisions after prune = %d, want 1", keptDecisions)
+	}
+	var doomedEvidence int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM admission_decision_evidence WHERE evidence_id IN ('ev-1', 'ev-2')").Scan(&doomedEvidence); err != nil {
+		t.Fatalf("count pruned evidence: %v", err)
+	}
+	if doomedEvidence != 0 {
+		t.Errorf("pruned admission_decision_evidence after prune = %d, want 0", doomedEvidence)
+	}
+	var keptEvidence int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM admission_decision_evidence WHERE evidence_id = 'ev-kept'").Scan(&keptEvidence); err != nil {
+		t.Fatalf("count retained evidence: %v", err)
+	}
+	if keptEvidence != 1 {
+		t.Errorf("retained admission_decision_evidence after prune = %d, want 1", keptEvidence)
 	}
 	// #7695: gen-old's facts are pruned; the retained holder's gen-active fact
 	// survives.
@@ -397,6 +429,14 @@ VALUES ('entity-2', 'repo-1', 'main.tf', 'TerraformResource', 'r2', 1, 2, 'x', n
 		// writes to cross_scope_completion_events, outside retention).
 		`INSERT INTO activation_obligations (generation_id, scope_id, work_item_id) VALUES ('gen-old', 'scope-1', 'work-1')`,
 		`INSERT INTO admission_decisions (decision_id, domain, state, domain_state, scope_id, generation_id, anchor_kind, anchor_id, candidate_kind, candidate_id, confidence_score, confidence_bucket, confidence_basis, freshness_state, freshness_cause, redaction_state, redaction_reason, payload_version, decided_at, updated_at) VALUES ('dec-1', 'd', 'admitted', 'ds', 'scope-1', 'gen-old', 'ak', 'ai', 'ck', 'ci', 0.5, 'b', 'basis', 'fs', 'fc', 'rs', 'rr', 'v1', now(), now())`,
+		// #7700: two evidence rows on the doomed decision (counted and
+		// cascade-deleted) plus one on a retained gen-active decision
+		// (neither counted nor pruned).
+		`INSERT INTO admission_decisions (decision_id, domain, state, domain_state, scope_id, generation_id, anchor_kind, anchor_id, candidate_kind, candidate_id, confidence_score, confidence_bucket, confidence_basis, freshness_state, freshness_cause, redaction_state, redaction_reason, payload_version, decided_at, updated_at) VALUES ('dec-kept', 'd', 'admitted', 'ds', 'scope-1', 'gen-active', 'ak', 'ai', 'ck', 'ci', 0.5, 'b', 'basis', 'fs', 'fc', 'rs', 'rr', 'v1', now(), now())`,
+		`INSERT INTO admission_decision_evidence (evidence_id, decision_id, source_handle, evidence_kind, created_at) VALUES
+('ev-1', 'dec-1', 'h', 'k', now()),
+('ev-2', 'dec-1', 'h', 'k', now()),
+('ev-kept', 'dec-kept', 'h', 'k', now())`,
 		`INSERT INTO code_reachability_repository_watermarks (scope_id, generation_id, repository_id, updated_at) VALUES ('scope-1', 'gen-old', 'repo-1', now())`,
 		`INSERT INTO code_reachability_rows (scope_id, generation_id, repository_id, root_entity_id, entity_id, depth, state, confidence, min_resolution_method, evidence, root_kinds, observed_at, updated_at) VALUES ('scope-1', 'gen-old', 'repo-1', 'root-1', 'ent-1', 0, 'resolved', 1.0, 'm', '{}'::jsonb, '[]'::jsonb, now(), now()), ('scope-1', 'gen-old', 'repo-1', 'root-1', 'ent-2', 1, 'resolved', 0.5, 'm', '{}'::jsonb, '[]'::jsonb, now(), now())`,
 		`INSERT INTO code_root_verdicts (scope_id, generation_id, repository_id, entity_id, root_kind, verdict, basis, observed_at, updated_at) VALUES ('scope-1', 'gen-old', 'repo-1', 'ent-1', 'rk', 'v', '{}'::jsonb, now(), now())`,

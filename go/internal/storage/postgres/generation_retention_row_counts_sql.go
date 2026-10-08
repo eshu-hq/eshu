@@ -21,6 +21,12 @@ package postgres
 // per candidate over every scope, with cost growing with the table instead
 // of the batch.
 //
+// The sixteenth arm (#7700) counts admission_decision_evidence, a cascade
+// grandchild: evidence rows hang off admission_decisions by decision_id, so
+// the arm joins through the decision's (scope_id, generation_id) probe and
+// then the evidence (decision_id) prefix. Both probes stay index-only and
+// the cost follows the batch, measured with EXPLAIN ANALYZE before landing.
+//
 // Its cost follows the batch, not fact_records (#7279). candidate_* reads only
 // the candidates' own facts, through scope_generations and the (scope_id,
 // generation_id) prefix of fact_records_scope_generation_idx, and doomed_*
@@ -203,6 +209,17 @@ LEFT JOIN scope_generations AS generation
 LEFT JOIN admission_decisions AS row
   ON row.scope_id = generation.scope_id
  AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'admission_decision_evidence' AS table_name, COUNT(evidence.evidence_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN admission_decisions AS decision
+  ON decision.scope_id = generation.scope_id
+ AND decision.generation_id = candidate.generation_id
+LEFT JOIN admission_decision_evidence AS evidence
+  ON evidence.decision_id = decision.decision_id
 GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'code_reachability_rows' AS table_name, COUNT(row.generation_id) AS row_count
