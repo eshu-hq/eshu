@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -23,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
+	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
@@ -180,6 +182,13 @@ func buildIngesterCollectorService(
 		Instruments:                instruments,
 		ReindexWatermark:           reindexWatermark,
 		RepositoryReindexWatermark: repositoryReindex,
+		// Only the native selector sees a full githubOrg listing, so only it
+		// records repository selection observations (#7625).
+		SelectionObserver: membership.Observer{
+			Store:       membershipstore.NewObservationStore(database),
+			Instruments: instruments,
+			Logger:      logger,
+		},
 	}
 	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("ingester", getenv)
