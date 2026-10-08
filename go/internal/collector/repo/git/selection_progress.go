@@ -289,7 +289,7 @@ func gitRunWithStderrWriter(
 	commandArgs = append(commandArgs, "-C", repoPath)
 	commandArgs = append(commandArgs, args...)
 	command := newGitCommand(ctx, commandArgs...)
-	command.Env = gitCommandEnv(config, token)
+	command.Env = gitCommandEnv(config, token, repoPath)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	command.Stdout = &stdout

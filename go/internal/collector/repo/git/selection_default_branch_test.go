@@ -326,7 +326,7 @@ func TestGitCommandEnvPinsCLocale(t *testing.T) {
 	t.Setenv("LC_ALL", "de_DE.UTF-8")
 	for _, method := range []string{"none", "token", "githubapp", "ssh"} {
 		command := exec.Command("env")
-		command.Env = gitCommandEnv(RepoSyncConfig{GitAuthMethod: method}, "")
+		command.Env = gitCommandEnv(RepoSyncConfig{GitAuthMethod: method}, "", "")
 		output, err := command.Output()
 		if err != nil {
 			t.Fatalf("%s: run env: %v", method, err)
