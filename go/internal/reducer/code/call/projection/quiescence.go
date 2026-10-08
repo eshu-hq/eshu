@@ -6,6 +6,7 @@ package projection
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
@@ -36,20 +37,33 @@ func (r *Runner) projectionLaneBlocked(ctx context.Context) (string, error) {
 		if active {
 			return BlockedReasonReducerGraphWork, nil
 		}
-		uncommitted, err := r.ReducerGraphDrain.HasUncommittedCanonicalCodeScopes(ctx)
+		uncommitted, err := r.timedQuiescenceProbe(ctx, r.ReducerGraphDrain)
 		if err != nil {
 			return "", fmt.Errorf("check canonical code quiescence: %w", err)
 		}
 		return blockedReasonIf(uncommitted), nil
 	}
 	if r.CanonicalQuiescence != nil {
-		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
+		uncommitted, err := r.timedQuiescenceProbe(ctx, r.CanonicalQuiescence)
 		if err != nil {
 			return "", fmt.Errorf("check canonical code quiescence: %w", err)
 		}
 		return blockedReasonIf(uncommitted), nil
 	}
 	return "", nil
+}
+
+// timedQuiescenceProbe consults the canonical-code gate and records the
+// probe's latency (#7166), on every cycle whether the lane holds or runs.
+func (r *Runner) timedQuiescenceProbe(ctx context.Context, checker CanonicalCodeQuiescenceChecker) (bool, error) {
+	start := time.Now()
+	uncommitted, err := checker.HasUncommittedCanonicalCodeScopes(ctx)
+	if r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
+		r.Instruments.SharedProjectionLaneGateDuration.Record(
+			ctx, time.Since(start).Seconds(), laneAttributes(BlockedReasonCanonicalCodeQuiescence),
+		)
+	}
+	return uncommitted, err
 }
 
 func blockedReasonIf(uncommitted bool) string {

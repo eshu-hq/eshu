@@ -119,6 +119,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_shared_projection_processing_seconds", Buckets: sharedProjectionProcessingBuckets},
 		{MetricName: "eshu_dp_shared_projection_step_seconds", Buckets: sharedProjectionProcessingBuckets},
 		{MetricName: "eshu_dp_shared_projection_partition_processing_seconds", Buckets: sharedProjectionProcessingBuckets},
+		{MetricName: "eshu_dp_shared_projection_lane_gate_seconds", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
 		{MetricName: "eshu_dp_documentation_drift_generation_duration_seconds", Buckets: sharedProjectionProcessingBuckets},
 		{MetricName: "eshu_dp_identity_cache_reload_duration_seconds", Buckets: []float64{0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120}},
 		{MetricName: "eshu_dp_identity_cache_probe_duration_seconds", Buckets: claimDurationBuckets},

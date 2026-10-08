@@ -266,6 +266,13 @@ type Instruments struct {
 	// domain and reason, as for SharedProjectionLaneBlocked. The scope ids
 	// themselves are in the runner's "lane blocked" log line, never a label.
 	SharedProjectionLaneBlockerCount metric.Int64Gauge
+	// SharedProjectionLaneGateDuration records one lane-wide gate probe's
+	// latency per poll cycle (#7166): every consultation, open or held, so
+	// the gate's own cost is visible even when the lane runs free. Labels:
+	// domain and reason, as for SharedProjectionLaneBlocked. Emitted by the
+	// code-call and repo-dependency poll loops only; the deployable-unit
+	// edge path has no instruments handle and stays dark.
+	SharedProjectionLaneGateDuration metric.Float64Histogram
 	GenerationRetentionPruned        metric.Int64Counter
 	GenerationRetentionRowsPruned    metric.Int64Counter
 	GenerationRetentionFailures      metric.Int64Counter
@@ -2457,6 +2464,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedProjectionLaneBlockerCount gauge: %w", err)
+	}
+
+	laneGateBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
+	inst.SharedProjectionLaneGateDuration, err = meter.Float64Histogram(
+		"eshu_dp_shared_projection_lane_gate_seconds",
+		metric.WithDescription("One lane-wide gate probe's latency per poll cycle, by domain and bounded reason; recorded on every consultation so the gate's own cost is visible even when the lane runs free (#7166)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(laneGateBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedProjectionLaneGateDuration histogram: %w", err)
 	}
 
 	inst.GenerationRetentionPruned, err = meter.Int64Counter(

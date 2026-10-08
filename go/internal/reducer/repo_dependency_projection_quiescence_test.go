@@ -89,6 +89,35 @@ func TestRepoDependencyProjectionRunnerRecordsQuiescenceBlockedCycle(t *testing.
 	if got := laneBlockedCount(resources, DomainRepoDependency, "canonical_code_quiescence"); got != 1 {
 		t.Fatalf("lane_blocked_total{repo_dependency,canonical_code_quiescence} = %d, want 1", got)
 	}
+	// #7166: the gate probe's own latency is recorded on the same cycle.
+	if !quiescenceGateDurationHasPoint(resources) {
+		t.Fatal("blocked cycle left no lane-gate-duration point for domain repo_dependency")
+	}
+}
+
+func quiescenceGateDurationHasPoint(resources metricdata.ResourceMetrics) bool {
+	for _, scope := range resources.ScopeMetrics {
+		for _, candidate := range scope.Metrics {
+			if candidate.Name != "eshu_dp_shared_projection_lane_gate_seconds" {
+				continue
+			}
+			histogram, ok := candidate.Data.(metricdata.Histogram[float64])
+			if !ok {
+				continue
+			}
+			for _, point := range histogram.DataPoints {
+				domain, domainOK := point.Attributes.Value(attribute.Key("domain"))
+				reason, reasonOK := point.Attributes.Value(attribute.Key("reason"))
+				if domainOK && reasonOK &&
+					domain.AsString() == DomainRepoDependency &&
+					reason.AsString() == "canonical_code_quiescence" &&
+					point.Count == 1 {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func laneBlockedCount(resources metricdata.ResourceMetrics, domain, reason string) int64 {
