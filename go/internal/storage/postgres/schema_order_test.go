@@ -378,4 +378,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 163 (#7635) adds producer_activation_obligations, the lease-
 	// fenced obligations a quiet Ack owes for producer generations.
 	"producer_activation_obligations",
+	// Migration 164 (#7729) bounds the #6540 language-query existence gate by
+	// repository: a (repo_id, language, entity_type) btree under a NEW name, so
+	// the gate no longer walks the corpus-wide (language, entity_type) entries
+	// that sort before a late repository's first row.
+	"content_entities_repo_language_type_idx",
 }
