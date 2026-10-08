@@ -17,23 +17,51 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-func TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively(t *testing.T) {
-	dsn := factCrossBatchFencingProofDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the native Flux evidence identity proof")
-	}
+// openFluxEvidenceIdentitySchema opens a disposable PostgreSQL 18 database,
+// creates an isolated schema with the full bootstrap, and returns a handle
+// pinned to it. It runs in the live-postgres-readiness runner. Run locally
+// with a disposable PostgreSQL 18 administrative database:
+//
+//	ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN=postgresql://postgres:postgres@localhost:<port>/postgres?sslmode=disable \
+//	ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE=1 \
+//	  go test ./internal/storage/postgres -run 'TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively|TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist' -count=1 -v
+func openFluxEvidenceIdentitySchema(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+	dsn := os.Getenv("ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN")
+	optIn := os.Getenv("ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE")
+	ctx, db := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
 
-	ctx := context.Background()
-	db := openDerivedEvidenceFencingSchema(t, ctx, dsn)
+	schemaName := fmt.Sprintf("flux_evidence_identity_%d", time.Now().UnixNano())
+	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+		t.Fatalf("create flux evidence identity schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+	})
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply full bootstrap: %v", err)
+	}
+	return ctx, db
+}
+
+func TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively(t *testing.T) {
+	ctx, db := openFluxEvidenceIdentitySchema(t)
 	store := NewIngestionStore(SQLDB{DB: db})
 	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
 	store.Now = func() time.Time { return now }
@@ -105,13 +133,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively(t *test
 // was stored), so no rewrite is attempted: the rows coexist, and the
 // graph layer converges them (DEPLOYS_FROM MERGE keys on endpoints).
 func TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist(t *testing.T) {
-	dsn := factCrossBatchFencingProofDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_DSN to run the mixed-generation Flux proof")
-	}
-
-	ctx := context.Background()
-	db := openDerivedEvidenceFencingSchema(t, ctx, dsn)
+	ctx, db := openFluxEvidenceIdentitySchema(t)
 	store := NewIngestionStore(SQLDB{DB: db})
 	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
 	store.Now = func() time.Time { return now }

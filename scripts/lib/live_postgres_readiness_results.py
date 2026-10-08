@@ -61,6 +61,10 @@ PACKAGES = {
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
+        "go/internal/storage/postgres/ingestion_flux_evidence_identity_live_test.go": (
+            "TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively",
+            "TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist",
+        ),
         "go/internal/storage/postgres/ingestion_targeted_maintenance_differential_live_test.go": (
             "TestTargetedMaintenanceMatchesWholePass",
         ),

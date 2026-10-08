@@ -179,6 +179,15 @@ must contain the resource's safe relative path; `.` and `./` mean the target
 repository root and match safe relative paths. Empty, unsafe, or otherwise
 unusable roots do not become repository-wide matches.
 
+The source identity is
+`FluxGitRepository:v1:<hex(sourceRepoID)>:<hex(namespace)>:<hex(name)>`
+(#7543). Hex keeps arbitrary UTF-8 safe for the TEXT column the batch writer
+binds (NUL separators fail with `SQLSTATE 22021`), and the source repository
+keeps two repositories with the same Flux namespace and name distinct. Rows
+stored under the older shape keep resolving through the COALESCE fallback
+and are never rewritten: a legacy row without a namespace maps to no single
+new identity.
+
 ## Terraform State MATCHES_STATE Edge Existence
 
 `MATCHES_STATE` links a config-declared `TerraformResource` to the
