@@ -212,7 +212,7 @@ out="$(run_runner)" && fail "tailed failure passed"
 while read -r var; do
   out="$(env -u "${var}" bash "${runner}" 2>&1)" && fail "unset ${var} passed"
   [[ "${out}" == *"${var}"* ]] || fail "unset ${var} not named: ${out}"
-done < <(rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs")
+done < <(grep -v -E '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs")
 out="$(env ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE=0 bash "${runner}" 2>&1)" && fail "opt-in 0 passed"
 [[ "${out}" == *"ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE"* ]] || fail "opt-in 0 not named: ${out}"
 
@@ -231,7 +231,7 @@ done
 graph_count="$(printf '%s' "${graph_tests}" | wc -w | tr -d '[:space:]')"
 degraded_total="$((total - graph_count))"
 cp "${fake}/envs" "${fake}/envs.full"
-rg -v '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.full" >"${fake}/envs"
+grep -v -E '^(ESHU_NEO4J_|ESHU_GRAPH_BACKEND)' "${fake}/envs.full" >"${fake}/envs"
 unset ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD ESHU_GRAPH_BACKEND
 write_events
 for name in ${graph_tests}; do
