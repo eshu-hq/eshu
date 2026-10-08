@@ -28,13 +28,18 @@ func NewStore(database *sql.DB) admin.Store {
 	sqlDB := pgstatus.SQLDB{DB: database}
 	return &postgresStore{
 		database:  sqlDB,
+		beginner:  sqlDB,
 		decisions: decisionsstore.NewDecisionStore(sqlDB),
 		now:       func() time.Time { return time.Now().UTC() },
 	}
 }
 
 type postgresStore struct {
-	database  db.ExecQueryer
+	database db.ExecQueryer
+	// beginner opens the lock_timeout transaction the reopen path needs.
+	// It is always set by NewStore; tests that build the struct directly
+	// leave it nil and cannot run a reopen.
+	beginner  db.Beginner
 	decisions *decisionsstore.DecisionStore
 	now       func() time.Time
 }

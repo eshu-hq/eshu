@@ -385,6 +385,56 @@ const Admin = `
         }
       }
     },
+    "/api/v0/admin/reopen": {
+      "post": {
+        "tags": ["admin"],
+        "summary": "Reopen completed work items",
+        "description": "Reopens completed reducer or shared-projection work for one domain and scope, the admin surface for the #7285 hand-SQL repair. Requires an explicit domain, scope_id, reason and idempotency_key, and an admin (all-scopes) token. Only repo_dependency (one completed intent row per acceptance unit, at the accepted source run), workload_materialization and submodule_pin (succeeded reducer rows) reopen; every other domain is refused. The store resolves the scope's active generation at run time and locks with SKIP LOCKED under a lock_timeout. A 200 with reopened_total_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true, totals without the reducer/intent split) instead of reopening again.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["domain", "scope_id", "reason", "idempotency_key"],
+                "properties": {
+                  "domain": {"type": "string", "enum": ["repo_dependency", "workload_materialization", "submodule_pin"], "description": "Which completed work to reopen."},
+                  "scope_id": {"type": "string", "description": "Ingestion scope id or source key."},
+                  "reason": {"type": "string", "description": "Why the reopen is safe."},
+                  "idempotency_key": {"type": "string", "description": "Makes the reopen safe under retries and concurrent delivery."},
+                  "limit": {"type": "integer", "description": "Maximum rows to reopen. Defaults to 1000."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Reopen request results (duplicate=true when an idempotent prior outcome is returned)"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {
+            "description": "Refused before the idempotency claim, so the key is not consumed: the domain is not one of the three reopenable domains, or the scope has no active generation to reopen work for. Nothing is reopened either way.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status", "reason", "detail"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["refused"]},
+                    "domain": {"type": "string", "description": "Present when the domain itself was refused."},
+                    "reason": {"type": "string"},
+                    "detail": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/admin/backfill": {
       "post": {
         "tags": ["admin"],
