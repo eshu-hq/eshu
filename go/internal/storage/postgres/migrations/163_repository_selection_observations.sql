@@ -23,7 +23,7 @@
 -- like repository_reindex_requests (162); the writer never locks
 -- ingestion_scopes.
 --
--- The per-cycle selector read uses the selector_id index: 0.22 ms for 1000
+-- The per-cycle selector read uses the selector_id index: 0.20 ms for 1000
 -- rows on PostgreSQL 18, against a sequential scan otherwise. The freshness
 -- read by scope_id uses the primary key.
 CREATE TABLE IF NOT EXISTS repository_selection_observations (
