@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	codedivergencetools "github.com/eshu-hq/eshu/go/internal/mcp/code/divergence"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // JSON-RPC 2.0 message types
@@ -362,4 +364,52 @@ func (s *Server) errorResponse(id any, code int, msg string) *jsonrpcResponse {
 		ID:      id,
 		Error:   &jsonrpcError{Code: code, Message: msg},
 	}
+}
+
+// WithQueryProfile filters the server's tools/list surface for the active
+// query profile. Capabilities the matrix marks unsupported on production
+// (ProductionMax nil, e.g. code_divergence.findings in
+// go/internal/query/contract/capability_matrix.go) stay callable-gated on
+// every profile, but a production-profile server no longer advertises tools
+// that cannot succeed there (#7726). The filter runs once at construction,
+// so the tools/list handler and the startup tools count observe the filtered
+// surface. Any profile other than production, including the empty profile
+// when this option is absent, keeps the full ReadOnlyTools surface.
+// The option filters s.tools at application time, so it must be applied
+// after any ServerOption that mutates s.tools; a later option that appends
+// or replaces the tool list would otherwise re-advertise hidden tools.
+func WithQueryProfile(profile querycontract.QueryProfile) ServerOption {
+	return func(s *Server) {
+		s.tools = filterToolsForProfile(s.tools, profile)
+	}
+}
+
+// filterToolsForProfile drops production-unsupported tools when profile is
+// the production query profile and returns tools unchanged otherwise. It
+// builds a fresh slice so callers never observe a truncated backing array.
+func filterToolsForProfile(tools []ToolDefinition, profile querycontract.QueryProfile) []ToolDefinition {
+	if querycontract.NormalizeQueryProfile(string(profile)) != querycontract.ProfileProduction {
+		return tools
+	}
+	hidden := productionHiddenToolNames()
+	kept := make([]ToolDefinition, 0, len(tools))
+	for _, tool := range tools {
+		if !hidden[tool.Name] {
+			kept = append(kept, tool)
+		}
+	}
+	return kept
+}
+
+// productionHiddenToolNames is the tools/list hide set for the production
+// query profile. It derives from the divergence family's own registration,
+// so a future family member hides automatically; the matrix-parity test
+// locks it to the capability-matrix row instead of a second copy here.
+func productionHiddenToolNames() map[string]bool {
+	family := codedivergencetools.Tools()
+	hidden := make(map[string]bool, len(family))
+	for _, tool := range family {
+		hidden[tool.Name] = true
+	}
+	return hidden
 }

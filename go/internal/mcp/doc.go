@@ -108,6 +108,14 @@
 // mcp_response_over_budget error envelope with budget accounting and narrowing
 // guidance. Per-route token budgets still apply first.
 //
+// tools/list serves the server's construction-time surface: NewServer starts
+// from ReadOnlyTools, and WithQueryProfile narrows that surface to the
+// capabilities the active query profile supports (#7726). A
+// production-profile server omits tools the capability matrix marks
+// unsupported there; every other profile lists the full surface. Listing is
+// advertisement only -- tools/call still enforces the per-call capability
+// gate, so a direct call to an unlisted tool fails closed.
+//
 // In HTTP mode the transport is wrapped with the caller-supplied credential
 // middleware when the server is constructed with WithTransportAuth (issue
 // #5168): the GET /sse and POST /mcp/message endpoints run every JSON-RPC
