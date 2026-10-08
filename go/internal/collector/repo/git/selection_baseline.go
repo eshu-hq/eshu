@@ -410,6 +410,18 @@ func gitScopeIDForManagedRepo(config RepoSyncConfig, repoPath string) string {
 	return buildScope(metadata, "").ScopeID
 }
 
+// gitScopeIDForRepositoryID derives the default-branch scope ID a git sync of
+// repoID writes, from the managed checkout path it would use, without needing
+// the checkout to exist. Returns an empty string for an invalid or reserved
+// repository identifier.
+func gitScopeIDForRepositoryID(config RepoSyncConfig, repoID string) string {
+	checkoutName, err := repoCheckoutName(repoID)
+	if err != nil {
+		return ""
+	}
+	return gitScopeIDForManagedRepo(config, filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName)))
+}
+
 // isGitCommitReachable reports whether sha resolves to a commit object present
 // in the local checkout. A baseline that a shallow fetch has pruned (or that a
 // diverged local tree never contained) is unreachable; diffing against it would

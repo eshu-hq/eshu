@@ -6,7 +6,6 @@ package git
 import (
 	"context"
 	"log/slog"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -160,10 +159,8 @@ func prioritizeRepositoryReindex(config RepoSyncConfig, repositoryIDs []string, 
 	first := make([]string, 0, len(requested))
 	rest := make([]string, 0, len(repositoryIDs))
 	for _, repoID := range repositoryIDs {
-		checkoutName, err := repoCheckoutName(repoID)
-		if err == nil {
-			repoPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
-			if _, ok := requested[gitScopeIDForManagedRepo(config, repoPath)]; ok {
+		if scopeID := gitScopeIDForRepositoryID(config, repoID); scopeID != "" {
+			if _, ok := requested[scopeID]; ok {
 				first = append(first, repoID)
 				continue
 			}

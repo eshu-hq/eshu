@@ -15,16 +15,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// GitHubRepositoryRecord is one GitHub discovery candidate for repository selection.
+// GitHubRepositoryRecord is one GitHub discovery candidate for repository
+// selection. GitHubID is the provider's numeric repository id, stable across
+// renames and transfers; zero when the listing did not carry one.
 type GitHubRepositoryRecord struct {
 	RepoID   string
+	GitHubID int64
 	Archived bool
 }
 
 // RepositorySelection holds the selected repository identifiers for one sync cycle.
+//
+// The githubOrg source mode also fills the listing fields the #7625 selection
+// observer consumes: ListingComplete is true only when the org listing ended
+// before the repository limit, ListedRepositories is every listed record in
+// listing order, ArchivedRepositoryIDs the archived repositories the
+// archive policy excluded, and RuleExcludedRepositoryIDs the selectable
+// repositories no configured rule matched. Other modes leave them empty.
 type RepositorySelection struct {
-	RepositoryIDs         []string
-	ArchivedRepositoryIDs []string
+	RepositoryIDs             []string
+	ArchivedRepositoryIDs     []string
+	RuleExcludedRepositoryIDs []string
+	ListedRepositories        []GitHubRepositoryRecord
+	ListingComplete           bool
 }
 
 // GitSyncSelection captures the repo paths selected after one Git-backed sync pass.
@@ -110,25 +123,36 @@ func selectGitHubRepositoryIDs(
 		seenSelectable[repoID] = struct{}{}
 		selectable = append(selectable, repoID)
 	}
+	listed := append([]GitHubRepositoryRecord(nil), repositories...)
 	if len(repositoryRules) == 0 {
 		return RepositorySelection{
 			RepositoryIDs:         selectable,
 			ArchivedRepositoryIDs: archived,
+			ListedRepositories:    listed,
 		}
 	}
 
 	selected := make([]string, 0, len(selectable))
+	ruleExcluded := make([]string, 0)
 	for _, repoID := range selectable {
+		matched := false
 		for _, rule := range repositoryRules {
 			if rule.Matches(repoID) {
-				selected = append(selected, repoID)
+				matched = true
 				break
 			}
 		}
+		if matched {
+			selected = append(selected, repoID)
+		} else {
+			ruleExcluded = append(ruleExcluded, repoID)
+		}
 	}
 	return RepositorySelection{
-		RepositoryIDs:         selected,
-		ArchivedRepositoryIDs: archived,
+		RepositoryIDs:             selected,
+		ArchivedRepositoryIDs:     archived,
+		RuleExcludedRepositoryIDs: ruleExcluded,
+		ListedRepositories:        listed,
 	}
 }
 

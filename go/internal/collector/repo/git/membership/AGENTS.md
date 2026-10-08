@@ -1,0 +1,39 @@
+# AGENTS.md — go/internal/collector/repo/git/membership
+
+## Read first
+
+1. `go/internal/collector/repo/git/membership/README.md` — evaluation rules and telemetry
+2. `go/internal/collector/repo/git/membership/doc.go` — the package contract
+3. `go/internal/storage/postgres/membership/README.md` — the SQL this package mirrors
+4. `go/internal/collector/repo/git/README.md` — where the native selector calls `Observe`
+
+## The rules that shape this package
+
+- This package is a leaf. `git` imports it; it must never import `git`.
+- Do not rename it to `selection`: the dirgate naming rule would then demand
+  that every `selection_*.go` file in `git/` move into it.
+- It records evidence only. Do not add deletion, hiding, retirement, or graph
+  writes here; a freshness verdict that reads these rows is a separate phase.
+- `project` and the Postgres upsert implement the same counter math. Change
+  both together, and keep the live store parity test green.
+- The three write rails (complete listing only, mass-miss guard, two-cycle
+  confirmation) protect against a false `not_listed`. Do not loosen one without
+  a test that shows the false positive it can no longer produce.
+- Changing the selector identity encoding changes every selector id and orphans
+  existing rows. Bump the version field deliberately and say so in the PR.
+- `Observer.Observe` never returns an error. A store failure must stay a WARN
+  log plus `store_error`, never a failed collector cycle.
+
+## Telemetry
+
+Outcome and state values live in
+`go/internal/telemetry/instruments_repository_selection.go`. A new outcome or
+state needs the docs rows in `docs/public/reference/telemetry/` and
+`docs/public/observability/telemetry-coverage.md` in the same change.
+
+## Verification
+
+```bash
+cd go && go test ./internal/collector/repo/git/... -count=1
+cd go && go test -race ./internal/collector/repo/git/membership -count=1
+```

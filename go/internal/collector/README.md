@@ -283,7 +283,9 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   `eshu_dp_discovery_files_skipped_total` (labeled `skip_reason`),
   `eshu_dp_large_repo_classifications_total` (labeled `repo_size_tier`),
   `eshu_dp_large_repo_semaphore_wait_seconds`,
-  `eshu_dp_scip_process_wait_seconds`
+  `eshu_dp_scip_process_wait_seconds`,
+  `eshu_dp_collector_repository_selection_evaluations_total` (labeled
+  `outcome`), `eshu_dp_collector_repository_selection_scopes` (labeled `state`)
 - Log events: `git repository sync started`,
   `git repository sync progress`, `git repository sync completed`,
   `git repository sync failed`, `git repository default branch changed`
@@ -295,7 +297,11 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   `language_parse_summary` rows with file count and parse duration totals per
   language), `collector snapshot completed`,
   `collector commit succeeded / failed`, `collector stream completed / failed`,
-  `large repository queued`, `large repo semaphore acquired / released`
+  `large repository queued`, `large repo semaphore acquired / released`,
+  `git_repository_selection_evaluated` (INFO), and the WARN events
+  `git_repository_selection_guard_tripped`,
+  `git_repository_selection_listing_truncated`,
+  `git_repository_selection_store_failed` (#7625, githubOrg shard 0 only)
 
 ## Operational notes
 
