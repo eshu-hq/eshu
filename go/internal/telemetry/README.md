@@ -95,6 +95,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `FactsCommitted` | `eshu_dp_facts_committed_total` |
 | `ProjectionsCompleted` | `eshu_dp_projections_completed_total` |
 | `ProjectorAckDeferrals` | `eshu_dp_projector_ack_deferrals_total` |
+| `ProjectorWriteMarkerDeferrals` | `eshu_dp_projector_write_marker_deferrals_total` |
 | `QueueDeadLetters` | `eshu_dp_queue_dead_letters_total` |
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
@@ -341,6 +342,7 @@ module prefixes across generations.
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
 | `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | 0.001–120 s |
 | `ProjectorAckWaitDuration` | `eshu_dp_projector_ack_wait_seconds` | 1–600 s |
+| `ProjectorWriteMarkerWaitDuration` | `eshu_dp_projector_write_marker_wait_seconds` | 1–600 s |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | 0.05–900 s |
 | `SearchIndexWriteDuration` | `eshu_dp_search_index_write_duration_seconds` | 0.001–21600 s |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
