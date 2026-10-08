@@ -14,13 +14,14 @@
   that every `selection_*.go` file in `git/` move into it.
 - It records evidence only. Do not add deletion, hiding, retirement, or graph
   writes here.
-- The state set and the two-cycle `Confirmed` rule live in
+- The state set, `Live`, and the uniform `Confirmed` rule live in
   `go/internal/scope/selection`, shared with the freshness `not_selected`
   verdict. Change them there, never by redefining them here.
 - `project` and the Postgres upsert implement the same counter math. Change
   both together, and keep the live store parity test green.
-- The three write rails (complete listing only, mass-miss guard, two-cycle
-  confirmation) protect against a false `not_listed`. Do not loosen one without
+- The three rails (complete listing only, mass-miss guard, confirmation over
+  at least two cycles and `ConfirmationMinSpan`) protect against a false
+  `not_selected`. Do not loosen one without
   a test that shows the false positive it can no longer produce.
 - Changing the selector identity encoding changes every selector id and orphans
   existing rows. Bump the version field deliberately and say so in the PR.
