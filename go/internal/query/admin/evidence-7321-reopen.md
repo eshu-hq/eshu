@@ -32,7 +32,7 @@ touch only the locked ids, and the update re-checks the full selection
 predicate so EvalPlanQual drops rows a concurrent writer moved. The
 transaction sets `LOCAL lock_timeout = '5s'` and every lock is
 `SKIP LOCKED`, so a reopen never waits on a worker-held row; contended
-rows are reported as skipped, not reopened. The intent path
+rows are excluded from the reopened lists, not reopened. The intent path
 (`reopenIntentCandidatesQuery`, `DISTINCT ON` one row per acceptance
 unit) reuses the same select-lock-update shape. The live proof
 `TestAdminHandler_ReopenLive` reopens the fixture rows and claims them
@@ -47,8 +47,12 @@ Observability Evidence (#7321): every reopen decision appends one
 reason, missing idempotency key, unauthorized, unknown scope, no active
 generation) on refusal, `reopen_idempotent_replay` on a duplicate key,
 and `reopen_idempotency_key_reused` on a key reused with different
-selectors. The 200 response carries the terminal counts
-(`reopened_count`, `work_item_ids`, `duplicate`). No new Prometheus
+selectors. The 200 response carries the terminal counts: a first
+completion reports `reopened_reducer_count`/`_ids`,
+`reopened_intent_count`/`_ids`, `reopened_units`, and
+`reopened_total_count`; a duplicate key reports `reopened_total_count`
+plus `reopened_ids` (the ledger keeps one combined id list, so the
+reducer/intent split is absent). No new Prometheus
 instruments: the audit ledger is the 3 AM signal, the same convention
 as the neighbouring `/api/v0/admin/replay` route (replay/admin/recovery
 flows have no dedicated trace namespace; see

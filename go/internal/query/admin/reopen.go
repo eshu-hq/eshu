@@ -184,10 +184,11 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 		Limit:   req.limit(),
 	})
 	if err != nil {
-		// The reopen may have partially committed before the error (the
-		// reducer update and the commit are not atomic with this return),
-		// so failures map to statuses while the ledger row stays
-		// in_progress: a retry gets a 409 instead of losing the outcome.
+		// The store runs the reopen in one transaction with a deferred
+		// rollback, so an error return means rolled back: only a
+		// commit-time error is ambiguous, never partial. Failures map to
+		// statuses while the ledger row stays in_progress, so a retry
+		// gets a 409 instead of losing the outcome.
 		// The scope/generation arms below only fire on a resolve race: the
 		// pre-claim probe already refused the expected cases.
 		switch {

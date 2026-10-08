@@ -99,6 +99,7 @@ func TestReopenRefusesUnknownDomain(t *testing.T) {
 	if len(audit.Events) != 1 || audit.Events[0].ReasonCode != "reopen_refused_unknown_domain" {
 		t.Fatalf("want reopen_refused_unknown_domain denied audit, got %+v", audit.Events)
 	}
+	assertReopenRefusedBody(t, rec, "unknown reopen domain: want one of repo_dependency, workload_materialization, submodule_pin", "other domains fail closed; reopening them needs a repair-sized review first")
 	assertAuditValid(t, audit.Events)
 }
 
@@ -283,7 +284,7 @@ func TestReopenWithoutActiveGenerationIsUnprocessable(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", rec.Code)
 	}
-	assertReopenRefusedBody(t, rec, "nothing was reopened and the idempotency key was not consumed")
+	assertReopenRefusedBody(t, rec, "scope has no active generation to reopen work for", "nothing was reopened and the idempotency key was not consumed")
 	if len(audit.Events) != 1 || audit.Events[0].ReasonCode != "reopen_refused_no_active_generation" {
 		t.Fatalf("want reopen_refused_no_active_generation denied audit, got %+v", audit.Events)
 	}
@@ -319,7 +320,7 @@ func TestReopenNoActiveGenerationRaceAfterClaimIsRefused(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", rec.Code)
 	}
-	assertReopenRefusedBody(t, rec, "the scope lost its active generation after the claim; the idempotency key stays in progress")
+	assertReopenRefusedBody(t, rec, "scope has no active generation to reopen work for", "the scope lost its active generation after the claim; the idempotency key stays in progress")
 	if stub.completed {
 		t.Fatal("failed reopen must leave the claim in progress")
 	}
@@ -328,14 +329,14 @@ func TestReopenNoActiveGenerationRaceAfterClaimIsRefused(t *testing.T) {
 // assertReopenRefusedBody pins the 422 refused shape the OpenAPI schema
 // requires (status/reason/detail) so a WriteError-shaped regression fails
 // loudly instead of silently breaking the documented contract.
-func assertReopenRefusedBody(t *testing.T, rec *httptest.ResponseRecorder, wantDetail string) {
+func assertReopenRefusedBody(t *testing.T, rec *httptest.ResponseRecorder, wantReason, wantDetail string) {
 	t.Helper()
 	body := decodeBody(t, rec)
 	if body["status"] != "refused" {
 		t.Fatalf(`body["status"] = %v, want "refused"`, body["status"])
 	}
-	if body["reason"] != "scope has no active generation to reopen work for" {
-		t.Fatalf(`body["reason"] = %v, want the no-active-generation reason`, body["reason"])
+	if body["reason"] != wantReason {
+		t.Fatalf(`body["reason"] = %v, want %q`, body["reason"], wantReason)
 	}
 	if body["detail"] != wantDetail {
 		t.Fatalf(`body["detail"] = %v, want %q`, body["detail"], wantDetail)
