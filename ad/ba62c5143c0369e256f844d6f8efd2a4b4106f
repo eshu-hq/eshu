@@ -1,0 +1,26 @@
+docs/internal/design/7033-exact-code-topic-retrieval.md
+  s_b0d7e3abc26c5a::t_56fdc20d3ee96c 169,171-172,174-179,206-219
+  s_b0d7e3abc26c5a::t_85a7518ce81bdc 170
+  s_b0d7e3abc26c5a::t_4324167d2ed28c 180-181
+  s_b0d7e3abc26c5a::t_66b6895e8d3435 1-26,41-51,57-60,66-72,81-95,127-141,143-168,182,184,187-189,203-205,220-238
+  s_b0d7e3abc26c5a::t_cb0484eb1ff064 199-202
+  s_b0d7e3abc26c5a::t_3ae022cce8859d 27-40,52-56,61-65,96-126
+  s_b0d7e3abc26c5a::t_f8b474a071144f 142,173,183,185-186,190-198
+  s_b0d7e3abc26c5a::t_3d5e91917e3920 73-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "adba62c5143c0369e256f844d6f8efd2a4b4106f",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
