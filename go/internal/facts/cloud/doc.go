@@ -24,11 +24,13 @@
 // and no I/O. Every fact kind here is a versioned, schema-admitted family:
 // go/internal/facts/schema_version.go's schemaVersionFamilies table
 // dispatches SchemaVersion, ClassifySchemaVersion, and ValidateSchemaVersion
-// across these accessors alongside every other core family, reaching them
-// through the facts root's compat_cloud.go and compat_cloud_posture.go,
-// which import this package and forward every constant and accessor as
-// facts.<Name> (issue #6776's root-wiring step, landed in this worktree --
-// see README.md). The same kinds are
+// across these accessors alongside every other core family, reaching the
+// posture accessors directly and the rest through the facts root's
+// compat_cloud.go, which imports this package and forwards every remaining
+// constant and accessor as facts.<Name> (issue #6776's root-wiring step;
+// the compat_cloud_posture.go forwarders were retired in #6950 once the
+// last caller moved to the cloud.<Name> spelling -- see README.md). The
+// same kinds are
 // registered in specs/fact-kind-registry.v1.yaml with their lifecycle
 // owner, reducer domain, projection hook, and truth profile, and several
 // AWS and S3 kinds also carry a checked-in payload schema.

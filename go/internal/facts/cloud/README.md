@@ -47,13 +47,16 @@ Go standard library only (`slices`). No internal package imports.
 
 ## Depended on by
 
-Today: the facts root's `compat_cloud.go` and `compat_cloud_posture.go`
-import `cloud` and forward every constant and accessor as `facts.<Name>`
-(e.g. `facts.AWSFactKinds` calls `cloud.AWSFactKinds`), and
+Today: the facts root's `compat_cloud.go` imports `cloud` and forwards
+every remaining constant and accessor as `facts.<Name>` (e.g.
+`facts.AWSFactKinds` calls `cloud.AWSFactKinds`), and
 `go/internal/facts/schema_version.go`'s `schemaVersionFamilies` table
-references those forwarders. Every external caller that uses
-`facts.AWSFactKinds` / `facts.AzureFactKinds` / etc. —
-`go/cmd/capability-inventory/surfaces.go`, `go/cmd/fact-kind-registry/main.go`,
+references those forwarders alongside the posture accessors, which it
+reaches directly. The posture forwarders (`compat_cloud_posture.go`) were
+retired in #6950 once the last caller moved to the `cloud.<Name>` spelling.
+Every external caller that uses `facts.AWSFactKinds` /
+`facts.AzureFactKinds` / etc. — `go/cmd/capability-inventory/surfaces.go`,
+`go/cmd/fact-kind-registry/main.go`,
 `go/cmd/eshu/component_schema_versions_test.go`,
 `go/internal/storage/postgres/facts_test.go`, and
 `go/internal/query/fact_schema_version_test.go` — builds unchanged through

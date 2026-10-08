@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -21,8 +22,8 @@ const (
 func postureEnvelope(factID string, publiclyAccessible bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.RDSInstancePostureFactKind,
-		SchemaVersion: facts.RDSPostureSchemaVersionV1,
+		FactKind:      cloud.RDSInstancePostureFactKind,
+		SchemaVersion: cloud.RDSPostureSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

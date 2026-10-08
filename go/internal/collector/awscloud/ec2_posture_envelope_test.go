@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestNewEC2InstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
@@ -50,11 +51,11 @@ func TestNewEC2InstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 		t.Fatalf("NewEC2InstancePostureEnvelope() error = %v, want nil", err)
 	}
 
-	if envelope.FactKind != facts.EC2InstancePostureFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.EC2InstancePostureFactKind)
+	if envelope.FactKind != cloud.EC2InstancePostureFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.EC2InstancePostureFactKind)
 	}
-	if envelope.SchemaVersion != facts.EC2InstancePostureSchemaVersionV1 {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.EC2InstancePostureSchemaVersionV1)
+	if envelope.SchemaVersion != cloud.EC2InstancePostureSchemaVersionV1 {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.EC2InstancePostureSchemaVersionV1)
 	}
 	if envelope.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, CollectorKind)

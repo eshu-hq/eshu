@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -29,7 +30,7 @@ func BuildLogsToMaterializationReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKindMatching(facts.S3BucketPostureFactKind, func(envelope facts.Envelope) bool {
+	envelope, ok := lookup.FirstOfKindMatching(cloud.S3BucketPostureFactKind, func(envelope facts.Envelope) bool {
 		posture, err := decodeS3BucketPosture(envelope)
 		if err != nil {
 			return false

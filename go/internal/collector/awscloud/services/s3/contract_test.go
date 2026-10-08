@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/conformance/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func s3Contract() contract.CollectorContract {
@@ -33,14 +34,14 @@ func s3Contract() contract.CollectorContract {
 				},
 			},
 			{
-				Kind: facts.S3BucketPostureFactKind,
+				Kind: cloud.S3BucketPostureFactKind,
 				RequiredPayloadKeys: []string{
 					"account_id", "region", "service_kind", "collector_instance_id",
 					"bucket_arn", "bucket_name",
 				},
 			},
 			{
-				Kind: facts.S3ExternalPrincipalGrantFactKind,
+				Kind: cloud.S3ExternalPrincipalGrantFactKind,
 				RequiredPayloadKeys: []string{
 					"account_id", "region", "service_kind", "collector_instance_id",
 					"bucket_arn", "bucket_name", "principal_kind", "principal_value", "grant_outcome",

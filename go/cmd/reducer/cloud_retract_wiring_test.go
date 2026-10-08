@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -129,8 +130,8 @@ func (f *retractWiringDB) QueryContext(ctx context.Context, query string, args .
 						"display_name":       "deleted",
 						"state":              "RUNNING",
 					})
-				case facts.EC2InstancePostureFactKind:
-					return retractWiringEnvelopeRows(facts.EC2InstancePostureFactKind, map[string]any{
+				case cloud.EC2InstancePostureFactKind:
+					return retractWiringEnvelopeRows(cloud.EC2InstancePostureFactKind, map[string]any{
 						"account_id":                  "111122223333",
 						"region":                      "us-east-1",
 						"service_kind":                "ec2",

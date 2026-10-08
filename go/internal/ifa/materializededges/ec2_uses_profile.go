@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 )
@@ -96,7 +97,7 @@ func resolveEC2UsesProfileMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.EC2InstancePostureFactKind:
+		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)
 		}
 	}

@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // schemaSemverPattern matches the MAJOR.MINOR.PATCH form every core fact family
@@ -76,7 +78,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{AzureFactKinds, AzureSchemaVersion},
 	{CICDRunFactKinds, CICDRunSchemaVersion},
 	{CodeownersFactKinds, CodeownersSchemaVersion},
-	{EC2InstancePostureFactKinds, EC2InstancePostureSchemaVersion},
+	{cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
 	{GCPFactKinds, GCPSchemaVersion},
 	{IncidentContextFactKinds, IncidentContextSchemaVersion},
 	{IncidentRoutingFactKinds, IncidentRoutingSchemaVersion},
@@ -84,10 +86,10 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{ObservabilityFactKinds, ObservabilitySchemaVersion},
 	{OCIRegistryFactKinds, OCIRegistrySchemaVersion},
 	{PackageRegistryFactKinds, PackageRegistrySchemaVersion},
-	{RDSPostureFactKinds, RDSPostureSchemaVersion},
+	{cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 	{ReducerDerivedFactKinds, ReducerDerivedSchemaVersion},
-	{S3BucketPostureFactKinds, S3BucketPostureSchemaVersion},
-	{S3ExternalPrincipalGrantFactKinds, S3ExternalPrincipalGrantSchemaVersion},
+	{cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},
+	{cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
 	{SBOMAttestationFactKinds, SBOMAttestationSchemaVersion},
 	{ScannerWorkerFactKinds, ScannerWorkerSchemaVersion},
 	{SecretsIAMFactKinds, SecretsIAMSchemaVersion},

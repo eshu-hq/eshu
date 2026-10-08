@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -77,7 +78,7 @@ type EC2InternetExposureMaterializationHandler struct {
 
 func ec2InternetExposureFactKinds() []string {
 	return []string{
-		facts.EC2InstancePostureFactKind,
+		cloud.EC2InstancePostureFactKind,
 		facts.AWSRelationshipFactKind,
 		facts.AWSSecurityGroupRuleFactKind,
 	}
@@ -260,7 +261,7 @@ func (h EC2InternetExposureMaterializationHandler) recordDecisionCounters(ctx co
 func splitEC2InternetExposureEnvelopes(envelopes []facts.Envelope) (postures, relationships, rules []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
-		case facts.EC2InstancePostureFactKind:
+		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)
 		case facts.AWSRelationshipFactKind:
 			relationships = append(relationships, env)

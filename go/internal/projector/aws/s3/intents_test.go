@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -21,8 +22,8 @@ const (
 func postureEnvelope(factID, loggingTarget string) facts.Envelope {
 	return facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.S3BucketPostureFactKind,
-		SchemaVersion: facts.S3BucketPostureSchemaVersionV1,
+		FactKind:      cloud.S3BucketPostureFactKind,
+		SchemaVersion: cloud.S3BucketPostureSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{
@@ -41,8 +42,8 @@ func postureEnvelope(factID, loggingTarget string) facts.Envelope {
 func grantEnvelope(factID, principalKind, principalValue, grantOutcome string) facts.Envelope {
 	return facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.S3ExternalPrincipalGrantFactKind,
-		SchemaVersion: facts.S3ExternalPrincipalGrantSchemaVersionV1,
+		FactKind:      cloud.S3ExternalPrincipalGrantFactKind,
+		SchemaVersion: cloud.S3ExternalPrincipalGrantSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

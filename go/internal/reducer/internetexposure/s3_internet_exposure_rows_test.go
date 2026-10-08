@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
@@ -49,7 +50,7 @@ func s3InternetExposurePostureEnvelope(factID, account, region, name string, pay
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.S3BucketPostureFactKind,
+		FactKind: cloud.S3BucketPostureFactKind,
 		Payload:  merged,
 	}
 }

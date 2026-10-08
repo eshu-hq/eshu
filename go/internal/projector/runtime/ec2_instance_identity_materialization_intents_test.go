@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -101,8 +102,8 @@ func ec2InstanceIdentityPostureEnvelope(factID, scopeID, generationID string) fa
 		FactID:           factID,
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.EC2InstancePostureFactKind,
-		SchemaVersion:    facts.EC2InstancePostureSchemaVersionV1,
+		FactKind:         cloud.EC2InstancePostureFactKind,
+		SchemaVersion:    cloud.EC2InstancePostureSchemaVersionV1,
 		CollectorKind:    "aws_cloud",
 		SourceConfidence: "reported",
 		ObservedAt:       time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),

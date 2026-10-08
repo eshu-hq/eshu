@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -88,7 +89,7 @@ func ExtractS3ExternalPrincipalGrantRows(
 	rows := make([]map[string]any, 0, len(grantEnvelopes))
 
 	for _, env := range grantEnvelopes {
-		if env.FactKind != facts.S3ExternalPrincipalGrantFactKind {
+		if env.FactKind != cloud.S3ExternalPrincipalGrantFactKind {
 			continue
 		}
 

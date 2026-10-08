@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -201,7 +202,7 @@ func ExtractEC2UsesProfileEdgeRows(
 	rows := make([]map[string]any, 0, len(postureEnvelopes))
 
 	for _, env := range postureEnvelopes {
-		if env.FactKind != facts.EC2InstancePostureFactKind {
+		if env.FactKind != cloud.EC2InstancePostureFactKind {
 			continue
 		}
 		// A terminated/tombstoned instance no longer runs, so PR-A materialized no

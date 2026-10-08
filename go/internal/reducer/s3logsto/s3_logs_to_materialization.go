@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -96,7 +97,7 @@ type S3LogsToMaterializationHandler struct {
 // aws_resource S3 bucket node substrate for the join index and the
 // s3_bucket_posture facts that drive the edges.
 func s3LogsToFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, facts.S3BucketPostureFactKind}
+	return []string{facts.AWSResourceFactKind, cloud.S3BucketPostureFactKind}
 }
 
 // Handle executes one S3 LOGS_TO materialization intent.
@@ -328,7 +329,7 @@ func splitS3LogsToEnvelopes(envelopes []facts.Envelope) (resources, postures []f
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.S3BucketPostureFactKind:
+		case cloud.S3BucketPostureFactKind:
 			postures = append(postures, env)
 		}
 	}

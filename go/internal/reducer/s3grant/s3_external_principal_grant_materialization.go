@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -76,7 +77,7 @@ type S3ExternalPrincipalGrantMaterializationHandler struct {
 }
 
 func s3ExternalPrincipalGrantFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, facts.S3ExternalPrincipalGrantFactKind}
+	return []string{facts.AWSResourceFactKind, cloud.S3ExternalPrincipalGrantFactKind}
 }
 
 // Handle executes one S3 external-principal grant materialization intent.
@@ -223,7 +224,7 @@ func splitS3ExternalPrincipalGrantEnvelopes(envelopes []facts.Envelope) (resourc
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.S3ExternalPrincipalGrantFactKind:
+		case cloud.S3ExternalPrincipalGrantFactKind:
 			grants = append(grants, env)
 		}
 	}

@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -85,7 +86,7 @@ func ec2BlockDeviceKMSPostureFactKinds() []string {
 	return []string{
 		facts.AWSResourceFactKind,
 		facts.AWSRelationshipFactKind,
-		facts.EC2InstancePostureFactKind,
+		cloud.EC2InstancePostureFactKind,
 	}
 }
 
@@ -289,7 +290,7 @@ func splitEC2BlockDeviceKMSPostureEnvelopes(envelopes []facts.Envelope) (resourc
 			resources = append(resources, env)
 		case facts.AWSRelationshipFactKind:
 			relationships = append(relationships, env)
-		case facts.EC2InstancePostureFactKind:
+		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)
 		}
 	}

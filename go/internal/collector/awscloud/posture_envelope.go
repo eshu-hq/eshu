@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -39,7 +40,7 @@ func NewRDSInstancePostureEnvelope(observation RDSPostureObservation) (facts.Env
 		return facts.Envelope{}, fmt.Errorf("rds posture observation requires resource_type")
 	}
 	identifier := strings.TrimSpace(observation.Identifier)
-	stableKey := facts.StableID(facts.RDSInstancePostureFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.RDSInstancePostureFactKind, map[string]any{
 		"account_id":    observation.Boundary.AccountID,
 		"region":        observation.Boundary.Region,
 		"resource_id":   resourceID,
@@ -82,8 +83,8 @@ func NewRDSInstancePostureEnvelope(observation RDSPostureObservation) (facts.Env
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.RDSInstancePostureFactKind,
-		facts.RDSPostureSchemaVersionV1,
+		cloud.RDSInstancePostureFactKind,
+		cloud.RDSPostureSchemaVersionV1,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, resourceType+":"+resourceID),
 		observation.SourceURI,

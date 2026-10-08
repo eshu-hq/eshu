@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -76,7 +77,7 @@ type S3InternetExposureMaterializationHandler struct {
 }
 
 func s3InternetExposureFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, facts.S3BucketPostureFactKind}
+	return []string{facts.AWSResourceFactKind, cloud.S3BucketPostureFactKind}
 }
 
 // Handle executes one S3 internet-exposure materialization intent.
@@ -258,7 +259,7 @@ func splitS3InternetExposureEnvelopes(envelopes []facts.Envelope) (resources, po
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.S3BucketPostureFactKind:
+		case cloud.S3BucketPostureFactKind:
 			postures = append(postures, env)
 		}
 	}

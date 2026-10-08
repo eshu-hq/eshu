@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
@@ -35,7 +36,7 @@ func s3BucketResourceEnvelope(account, region, name string) facts.Envelope {
 func s3PostureEnvelope(account, region, name, loggingTarget string) facts.Envelope {
 	arn := "arn:aws:s3:::" + name
 	return facts.Envelope{
-		FactKind: facts.S3BucketPostureFactKind,
+		FactKind: cloud.S3BucketPostureFactKind,
 		Payload: map[string]any{
 			"account_id":            account,
 			"region":                region,

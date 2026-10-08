@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships(t *testing.T) {
@@ -379,7 +380,7 @@ func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func postureByBucket(t *testing.T, envelopes []facts.Envelope, bucketARN string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.S3BucketPostureFactKind {
+		if envelope.FactKind != cloud.S3BucketPostureFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["bucket_arn"].(string); got == bucketARN {
@@ -393,7 +394,7 @@ func postureByBucket(t *testing.T, envelopes []facts.Envelope, bucketARN string)
 func externalPrincipalGrantByPrincipal(t *testing.T, envelopes []facts.Envelope, kind, value string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.S3ExternalPrincipalGrantFactKind {
+		if envelope.FactKind != cloud.S3ExternalPrincipalGrantFactKind {
 			continue
 		}
 		if gotKind, _ := envelope.Payload["principal_kind"].(string); gotKind != kind {

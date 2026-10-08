@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 )
@@ -98,7 +99,7 @@ func resolveS3LogsToMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bo
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.S3BucketPostureFactKind:
+		case cloud.S3BucketPostureFactKind:
 			postures = append(postures, env)
 		}
 	}

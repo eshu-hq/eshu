@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -76,8 +77,8 @@ func rdsPostureIntentEnvelope(factID, scopeID, generationID string) facts.Envelo
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.RDSInstancePostureFactKind,
-		SchemaVersion: facts.RDSPostureSchemaVersionV1,
+		FactKind:      cloud.RDSInstancePostureFactKind,
+		SchemaVersion: cloud.RDSPostureSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

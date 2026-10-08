@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
@@ -35,7 +36,7 @@ func rdsResourceEnvelope(resourceType, arn, identifier string) facts.Envelope {
 func rdsPostureEnvelope(resourceType, arn, identifier string, public bool) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "fact-posture-" + identifier,
-		FactKind: facts.RDSInstancePostureFactKind,
+		FactKind: cloud.RDSInstancePostureFactKind,
 		Payload: map[string]any{
 			"account_id":                          testRDSAccount,
 			"region":                              testRDSRegion,
@@ -212,7 +213,7 @@ func TestExtractRDSPostureRowsQuarantinesMissingRequiredField(t *testing.T) {
 	}
 	malformed := facts.Envelope{
 		FactID:   "fact-posture-missing-account",
-		FactKind: facts.RDSInstancePostureFactKind,
+		FactKind: cloud.RDSInstancePostureFactKind,
 		Payload: map[string]any{
 			// account_id intentionally absent.
 			"region":                              testRDSRegion,
@@ -246,8 +247,8 @@ func TestExtractRDSPostureRowsQuarantinesMissingRequiredField(t *testing.T) {
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id fact must be quarantined", len(quarantined))
 	}
-	if quarantined[0].FactKind != facts.RDSInstancePostureFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, facts.RDSInstancePostureFactKind)
+	if quarantined[0].FactKind != cloud.RDSInstancePostureFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, cloud.RDSInstancePostureFactKind)
 	}
 	if quarantined[0].Field != "account_id" {
 		t.Fatalf("quarantined field = %q, want %q", quarantined[0].Field, "account_id")

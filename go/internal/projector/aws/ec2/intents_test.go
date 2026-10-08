@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -18,7 +19,7 @@ import (
 func postureEnvelope(factID, sourceSystem, collectorKind, instanceProfileARN string) facts.Envelope {
 	env := facts.Envelope{
 		FactID:        factID,
-		FactKind:      facts.EC2InstancePostureFactKind,
+		FactKind:      cloud.EC2InstancePostureFactKind,
 		CollectorKind: collectorKind,
 		SourceRef:     facts.Ref{SourceSystem: sourceSystem},
 		Payload: map[string]any{

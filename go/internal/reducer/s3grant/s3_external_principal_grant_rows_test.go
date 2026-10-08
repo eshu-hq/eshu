@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
@@ -45,7 +46,7 @@ func s3ExternalPrincipalGrantEnvelope(
 	outcome string,
 ) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.S3ExternalPrincipalGrantFactKind,
+		FactKind: cloud.S3ExternalPrincipalGrantFactKind,
 		Payload: map[string]any{
 			"account_id":            account,
 			"region":                region,
@@ -219,7 +220,7 @@ func TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField(t *t
 	}
 	malformed := facts.Envelope{
 		FactID:   "fact-grant-missing-account",
-		FactKind: facts.S3ExternalPrincipalGrantFactKind,
+		FactKind: cloud.S3ExternalPrincipalGrantFactKind,
 		Payload: map[string]any{
 			// account_id intentionally absent.
 			"region":               "us-east-1",
@@ -256,8 +257,8 @@ func TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField(t *t
 	if len(quarantined) != 1 {
 		t.Fatalf("len(quarantined) = %d, want 1; the missing-account_id fact must be quarantined", len(quarantined))
 	}
-	if quarantined[0].FactKind != facts.S3ExternalPrincipalGrantFactKind {
-		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, facts.S3ExternalPrincipalGrantFactKind)
+	if quarantined[0].FactKind != cloud.S3ExternalPrincipalGrantFactKind {
+		t.Fatalf("quarantined factKind = %q, want %q", quarantined[0].FactKind, cloud.S3ExternalPrincipalGrantFactKind)
 	}
 	if quarantined[0].Field != "account_id" {
 		t.Fatalf("quarantined field = %q, want %q", quarantined[0].Field, "account_id")

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -85,7 +86,7 @@ func NewS3BucketPostureEnvelope(observation S3BucketPostureObservation) (facts.E
 	if identity == "" {
 		identity = bucketName
 	}
-	stableKey := facts.StableID(facts.S3BucketPostureFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.S3BucketPostureFactKind, map[string]any{
 		"account_id": observation.Boundary.AccountID,
 		"bucket":     identity,
 		"region":     observation.Boundary.Region,
@@ -125,8 +126,8 @@ func NewS3BucketPostureEnvelope(observation S3BucketPostureObservation) (facts.E
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.S3BucketPostureFactKind,
-		facts.S3BucketPostureSchemaVersionV1,
+		cloud.S3BucketPostureFactKind,
+		cloud.S3BucketPostureSchemaVersionV1,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, identity+"#posture"),
 		observation.SourceURI,

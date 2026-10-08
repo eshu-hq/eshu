@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -212,7 +213,7 @@ func (h RDSPostureMaterializationHandler) Handle(
 }
 
 func rdsPostureFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, facts.RDSInstancePostureFactKind}
+	return []string{facts.AWSResourceFactKind, cloud.RDSInstancePostureFactKind}
 }
 
 func (h RDSPostureMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
@@ -248,7 +249,7 @@ func splitRDSPostureEnvelopes(envelopes []facts.Envelope) (resources, postures [
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.RDSInstancePostureFactKind:
+		case cloud.RDSInstancePostureFactKind:
 			postures = append(postures, env)
 		}
 	}

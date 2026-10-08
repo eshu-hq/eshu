@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -111,7 +112,7 @@ func ExtractS3LogsToEdgeRows(
 	rows := make([]map[string]any, 0, len(postureEnvelopes))
 
 	for _, env := range postureEnvelopes {
-		if env.FactKind != facts.S3BucketPostureFactKind {
+		if env.FactKind != cloud.S3BucketPostureFactKind {
 			continue
 		}
 

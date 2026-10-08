@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -56,7 +56,7 @@ func retractDeadEC2InstanceNodes(
 		return 0, nil
 	}
 	priorEnvelopes, err := factload.LoadFactsForKinds(
-		ctx, loader, scopeID, prior, []string{facts.EC2InstancePostureFactKind},
+		ctx, loader, scopeID, prior, []string{cloud.EC2InstancePostureFactKind},
 	)
 	if err != nil {
 		return 0, fmt.Errorf("load prior generation posture facts for ec2 instance retract: %w", err)
