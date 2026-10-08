@@ -3,7 +3,10 @@
 
 package graph
 
-import "regexp"
+import (
+	"regexp"
+	"slices"
+)
 
 // idConstraintPattern matches a single-property id uniqueness constraint in
 // schemaConstraints, e.g. `FOR (r:Repository) REQUIRE r.id IS UNIQUE`. RE2 has no
@@ -32,4 +35,22 @@ var idConstrainedLabelSet = func() map[string]struct{} {
 func HasIDUniquenessConstraint(label string) bool {
 	_, ok := idConstrainedLabelSet[label]
 	return ok
+}
+
+// IDUniquenessConstrainedLabels returns every label HasIDUniquenessConstraint
+// reports true for, sorted, as a fresh slice the caller may modify. The Neo4j
+// entity-context anchor seeks those without a uid constraint on id (issue
+// #7212), so the set follows the DDL with no hand-listed change.
+func IDUniquenessConstrainedLabels() []string {
+	return sortedLabels(idConstrainedLabelSet)
+}
+
+// sortedLabels returns the keys of set in ascending order.
+func sortedLabels(set map[string]struct{}) []string {
+	labels := make([]string, 0, len(set))
+	for label := range set {
+		labels = append(labels, label)
+	}
+	slices.Sort(labels)
+	return labels
 }

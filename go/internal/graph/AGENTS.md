@@ -119,6 +119,15 @@
   Adding or removing an `x.id IS UNIQUE` constraint flips
   `HasIDUniquenessConstraint`, which the Neo4j entity-context anchor uses to
   choose its id-seek labels (#7380).
+  Since #7212 the Neo4j entity-context anchor seeks every uid- and
+  id-constrained label (`UIDUniquenessConstrainedLabels`,
+  `IDUniquenessConstrainedLabels`), so any uid or id constraint change widens or
+  narrows it and fails
+  `TestNeo4jEntityContextAnchorIsTheMeasuredStatement` in `query/entity`. Update
+  `query/entity/testdata/neo4j_wide_anchor.cypher` and the pinned SHA-256 in the
+  same change, and say in the PR that the anchor's width moved past the
+  measured 124 labels
+  (`docs/internal/evidence/7212-wide-entity-anchor.md`).
 
 - **Add a new entity merge path** → if it is a single merge, use
   `BuildEntityMergeStatement` or `MergeEntity`. If it is bulk, add a

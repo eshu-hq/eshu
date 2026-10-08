@@ -48,6 +48,14 @@
   return, and never as a new log line (#7212). Add a new answer path by
   setting `res.resolvedBy` where it writes its 200 or 404; the label set is
   closed and shared with `eshu_dp_entity_context_resolution_total`.
+- The Neo4j entity-context anchor seeks every uid- and id-constrained schema
+  label (#7212), derived from `graph.UIDUniquenessConstrainedLabels` and
+  `graph.IDUniquenessConstrainedLabels`; never hand-list them. Its text is
+  pinned byte for byte by `TestNeo4jEntityContextAnchorIsTheMeasuredStatement`
+  (`testdata/neo4j_wide_anchor.cypher` plus a SHA-256). A schema constraint
+  change moves that text: re-render the golden and the hash in the same change
+  and state the new width; the measured width is 124 labels. The NornicDB
+  per-label loop keeps `EntityContextAnchorLabels`.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,
   never Cypher text or queue/projection behavior.
 

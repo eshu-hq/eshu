@@ -142,9 +142,10 @@ func TestNeo4jEntityContextAnchorHitSkipsFallback(t *testing.T) {
 	}
 }
 
-// TestNeo4jEntityContextFallsBackOnlyWhenAnchorMisses: an id-only Function or
-// a label outside the anchor set (a CloudResource) still resolves, through
-// the unlabeled fallback, as it did with the 16-statement loop.
+// TestNeo4jEntityContextFallsBackOnlyWhenAnchorMisses: a node the indexed
+// anchor cannot seek (an id-only Function, a Directory with no uid or id
+// constraint, or a node whose id differs from its uid) still resolves,
+// through the unlabeled fallback, as it did with the 16-statement loop.
 func TestNeo4jEntityContextFallsBackOnlyWhenAnchorMisses(t *testing.T) {
 	t.Parallel()
 
@@ -153,7 +154,7 @@ func TestNeo4jEntityContextFallsBackOnlyWhenAnchorMisses(t *testing.T) {
 			return nil, nil
 		}
 		return map[string]any{
-			"id": "cr-1", "labels": []any{"CloudResource"}, "name": "cr-1",
+			"id": "cr-1", "labels": []any{"Directory"}, "name": "cr-1",
 			"relationships": []any{},
 		}, nil
 	})
@@ -192,67 +193,6 @@ func labelSet(disjunction string) []string {
 	labels := strings.Split(disjunction, "|")
 	sort.Strings(labels)
 	return labels
-}
-
-// TestNeo4jEntityContextAnchorLabelSetsMatchSchema derives the expected label
-// sets from the schema DDL (uid uniqueness constraints, id uniqueness
-// constraints) intersected with EntityContextAnchorLabels, never from the
-// anchor's own lists, and compares them to what the production statement
-// seeks. A label with neither constraint (Directory, keyed by path; the
-// canonical writer never sets Directory.id) has no index to seek and stays
-// with the unlabeled fallback.
-func TestNeo4jEntityContextAnchorLabelSetsMatchSchema(t *testing.T) {
-	t.Parallel()
-
-	uid := schemaUIDConstrainedLabels(t, schemagraph.SchemaBackendNeo4j)
-	id := schemaIDConstrainedLabels(t, schemagraph.SchemaBackendNeo4j)
-
-	var wantUID, wantID, rankOrder []string
-	for _, label := range EntityContextAnchorLabels {
-		switch {
-		case uid[label]:
-			wantUID = append(wantUID, label)
-			rankOrder = append(rankOrder, label)
-		case id[label]:
-			wantID = append(wantID, label)
-			rankOrder = append(rankOrder, label)
-		}
-	}
-	sort.Strings(wantUID)
-	sort.Strings(wantID)
-	if len(wantUID) == 0 || len(wantID) == 0 {
-		t.Fatalf("uid labels = %v, id labels = %v; want both nonzero or the test proves nothing", wantUID, wantID)
-	}
-
-	anchor := neo4jEntityContextAnchor()
-	uidMatch := regexp.MustCompile(`MATCH \(e:([\w|]+) \{uid: \$entity_id\}\) WHERE e\.id = \$entity_id`).FindStringSubmatch(anchor)
-	idMatch := regexp.MustCompile(`MATCH \(e:([\w|]+) \{id: \$entity_id\}\)`).FindStringSubmatch(anchor)
-	if uidMatch == nil || idMatch == nil {
-		t.Fatalf("anchor lacks the uid or id seek branch:\n%s", anchor)
-	}
-	if got := labelSet(uidMatch[1]); strings.Join(got, ",") != strings.Join(wantUID, ",") {
-		t.Errorf("uid seek labels = %v, want %v (anchor labels with a schema uid constraint)", got, wantUID)
-	}
-	if got := labelSet(idMatch[1]); strings.Join(got, ",") != strings.Join(wantID, ",") {
-		t.Errorf("id seek labels = %v, want %v (anchor labels with a schema id constraint and no uid constraint)", got, wantID)
-	}
-	if strings.Contains(anchor, "Directory") {
-		t.Errorf("anchor mentions Directory, which has no id or uid index; it must resolve through the fallback:\n%s", anchor)
-	}
-
-	// Precedence: the rank list is the loop's own try order, so an id shared
-	// by two labels resolves to the label the 16-statement loop tried first.
-	rankMatch := regexp.MustCompile(`\[((?:"\w+"(?:, )?)+)\]\[i\]`).FindStringSubmatch(anchor)
-	if rankMatch == nil {
-		t.Fatalf("anchor lacks the precedence rank list:\n%s", anchor)
-	}
-	gotRank := strings.Split(strings.ReplaceAll(rankMatch[1], `"`, ""), ", ")
-	if strings.Join(gotRank, ",") != strings.Join(rankOrder, ",") {
-		t.Errorf("rank order = %v, want the loop's try order %v", gotRank, rankOrder)
-	}
-	if !strings.Contains(anchor, "ORDER BY anchor_rank") || !strings.Contains(anchor, "LIMIT 1") {
-		t.Errorf("anchor must ORDER BY anchor_rank LIMIT 1 so an id shared by two labels resolves deterministically:\n%s", anchor)
-	}
 }
 
 // TestEntityContextNonNeo4jBackendsKeepThePerLabelLoop: NornicDB (and the

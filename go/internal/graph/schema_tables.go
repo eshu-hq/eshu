@@ -316,3 +316,11 @@ func HasUIDUniquenessConstraint(label string) bool {
 	_, ok := uidConstrainedLabelSet[label]
 	return ok
 }
+
+// UIDUniquenessConstrainedLabels returns every label HasUIDUniquenessConstraint
+// reports true for, sorted, as a fresh slice the caller may modify. The Neo4j
+// entity-context anchor seeks each of them on uid (issue #7212), so a label
+// added to uidConstraintLabels joins that anchor with no hand-listed change.
+func UIDUniquenessConstrainedLabels() []string {
+	return sortedLabels(uidConstrainedLabelSet)
+}

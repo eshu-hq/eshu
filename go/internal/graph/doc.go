@@ -26,6 +26,9 @@
 // HasIDUniquenessConstraint does the same for id-keyed labels (Repository,
 // Workload, WorkloadInstance), derived from the constraint DDL, so a single
 // Neo4j anchor can seek both kinds of key (#7380).
+// UIDUniquenessConstrainedLabels and IDUniquenessConstrainedLabels enumerate
+// the two sets, sorted, so the Neo4j entity-context anchor can seek every
+// constrained label without a hand-kept list (#7212).
 // Schema setup emits bounded progress logs for every DDL statement and treats context
 // deadline or cancellation as a fail-fast signal. Generic DDL warnings remain
 // non-fatal for permissive callers, while the strict schema helper returns an
