@@ -37,6 +37,11 @@ A cold call is not always the first call on a fresh process. Each section says
 whether the process was fresh: yes, no, or not stated. A fresh process had
 served no earlier business request.
 
+A route counter can read 0 while the process has already served other routes.
+This page calls a value process-cold only when it was the first business
+request on the process. Otherwise it says "first call of that route". Earlier
+routes in the same sweep had already run on the process.
+
 The planner-statistics column uses these values.
 
 - **Autoanalyze time**: the source gave the last autoanalyze time and the
@@ -86,15 +91,24 @@ repository. Then it got ten warm calls across eight real argument sets.
 
 The cold value is n=1. The planning routes took 3.0 to 5.7 s on a 12,403-file
 repository and 1.8 to 3.7 s on a 7,097-file repository. Small repositories were
-fast. Cost followed repository size, not result size. `change-surface` took
-1.2 to 1.35 s on the 12,403-file repository and returned 0 rows.
+fast. For the planning routes, cost followed repository size, not result size.
+`change-surface` took 1.2 to 1.35 s on the 12,403-file repository and returned
+0 rows. For `deployment-config-influence`, the source says cost followed the
+service: it peaked at 1.74 s on a 36-file repository's service.
+
+The source also lists `POST /api/v0/impact/explain-dependency-path`: cold
+1.06 s, warm p50 0.09 s, warm p95 0.10 s. The table omits that row.
 
 ## Change-planning routes after the fixes
 
 Source: #7246 comments of 2026-10-05 18:21 UTC (first replay) and 19:36 UTC
-(second replay). Process fresh: yes for the first replay (each route counter
-read 0 before and 11 after on both pods). No for the second replay, which used
-the same pods about 75 minutes later. It lists warm p95 only.
+(second replay). Process fresh: the pods were new at the start of the first
+replay. Each cold value there is the first call of that route on a fresh
+process. Earlier routes in the sweep had already run on it. Each route counter
+read 0 before and 11 after on both pods. For the second replay the answer is
+no: it used the same pods about 75 minutes later, so its cold values are not
+process-cold. It lists warm p95 for every route. It lists cold values for the
+two `change-surface` routes only.
 
 The next table shows the first replay after the topic-search fix (#7617). Four
 routes were still over 1 s at warm p95 on the 7,097-file repository. The source
@@ -126,10 +140,11 @@ Both runs used the original saved argument sets. The control probe is a
 `/health` call used as a load check.
 
 The same two sweeps had other routes near or over 1 s. Host load is as in the
-tables above. The `change-surface` rows are graph reads, so planner statistics do not apply. The source did not record
-planner statistics for `deployment-config-influence`.
+tables above. The `change-surface` rows are graph reads, so planner statistics
+do not apply. The source did not record planner statistics for
+`deployment-config-influence`.
 
-| Route and replay | Cold | Warm p95 |
+| Route and replay | Cold (n=1) | Warm p95 (n=10) |
 | --- | --- | --- |
 | `POST /api/v0/impact/change-surface`, first replay | 1.0003 s | 0.926 s |
 | `POST /api/v0/impact/deployment-config-influence`, first replay | 1.255 s | 0.718 s |
@@ -143,14 +158,20 @@ The `change-surface` traversal is a graph read. The label fix addresses it. See
 
 ## Replay on a fresh process
 
-Source: #7246 comment of 2026-10-06 17:55 UTC. Process fresh: yes.
+Source: #7246 comment of 2026-10-06 17:55 UTC and #7250 comment of
+2026-10-06 17:56 UTC. Process fresh: at the start of the sweep. Each cold value
+is the first call of that route on a fresh process. Earlier routes in the sweep
+had already run on it.
 
 This replay ran after the scoped code-topic fix (#7649) was deployed. The API
-and MCP processes were fresh. The route counter read 0 before and 11 after on
-every route, so each cold value is the first call on that process. All 99 calls
-returned HTTP 200.
+and MCP processes were fresh at the start. The route counter read 0 before and
+11 after on every route, so each cold value is the first call of that route on
+that process. The routes ran in sequence (99 calls), so only the first route
+served the first business request on each process. The other cold values ran
+on a process that earlier routes had already used. All 99 calls returned
+HTTP 200.
 
-| Route | Cold (n=1) | Warm p50 | Warm p95 (n=10) |
+| Route | Cold (n=1, first call of the route) | Warm p50 | Warm p95 (n=10) |
 | --- | --- | --- | --- |
 | `POST /api/v0/impact/pre-change` | 0.155 s | 0.159 s | 0.447 s |
 | `POST /api/v0/impact/developer-change-plan` | 0.224 s | 0.186 s | 0.594 s |
@@ -166,8 +187,9 @@ Host load for the whole table: 1-minute load average 6.8 at the start. The
 control probe read 0.097 s before and after.
 
 Planner statistics for the whole table, as autoanalyze time: `content_files` at
-17:31 UTC with 9,645 changes since, and `content_entities` at 17:48 UTC with
-36,522 changes since.
+17:31 UTC with 9,645 changes since (from the #7250 comment), and
+`content_entities` at 17:48 UTC with 36,522 changes since (from the #7246
+comment).
 
 With those statistics the unhinted statement was in the slow plan for the term
 `decode` on the 7,097-file repository. The hinted statement ran in 327 and
@@ -178,8 +200,9 @@ same reader).
 
 Source: #7246 comment of 2026-10-06 11:59 UTC. Process fresh: run 1 ran on pods
 that started at 10:16 UTC, and the source calls its cold call a fresh-pod call.
-It states no route counter. No for run 2: it ran about 20 minutes later on the
-same pods, so its set-0 call is not process-cold.
+It states no route counter and does not say whether other routes ran first.
+No for run 2: it ran about 20 minutes later on the same pods, so its set-0 call
+is not process-cold.
 
 The change-surface fix (#7631) was deployed before the replay above. These two
 runs came from that deployment.
@@ -230,8 +253,14 @@ independently cold, so the source does not call them process-cold.
 Surfaces: API is `POST /api/v0/ecosystem/graph-summary`. MCP is
 `get_graph_summary_packet`.
 
-Five notes on this table.
+Seven notes on this table.
 
+- Cohort 3 has no first-call row. Its source gives two initial observed times,
+  0.648145 s and 0.667154 s, and says neither is a qualified cold sample. The
+  table omits them. Both are inside the range of the first-call rows.
+- Cohort 4's cold calls ran at 18:15 UTC on pods that started at 18:06 UTC. The
+  change-planning replay that began at 18:21 UTC ran on the same pods after
+  them, so the cohort 4 rows are process-first for the graph-summary route.
 - The 1.0006 s API value is 0.6 ms over the 1 s line. Its server-side time was
   0.895 s.
 - The Postgres reader had been restarted before that sample. Its
@@ -242,8 +271,9 @@ Five notes on this table.
 - In epoch 2 of cohort 6 the order reversed. MCP ran first at 0.649 s. API ran
   second, 11 s later, at 0.567 s. The two epochs used the same build after one
   rollout restart.
-- Cohorts 1 to 5 have n=1 per surface in their first-call rows. Cohort 6 has n=2
-  per surface (one per epoch). None of these rows is a cold p95.
+- Cohorts 1, 2, 4, and 5 have n=1 per surface in their first-call rows. Cohort 3
+  has no first-call row. Cohort 6 has n=2 per surface (one per epoch). None of
+  these rows is a cold p95.
 
 ## Repository context
 
@@ -259,26 +289,33 @@ runs: one before the fix and three after it.
 | --- | --- | --- | --- | --- | --- |
 | API context, before fix, warm pods | 2.828 s | 0.421 s | 5.109 s | 5.9 at start | not recorded |
 | MCP `get_repo_context`, before fix, warm pods | 1.139 s | 0.311 s | 4.150 s | 5.9 at start | not recorded |
-| API context, after fix, run 1, fresh pods | 1.265 s | 0.250 s | 1.413 s | 12.2 at start | not recorded |
+| API context, after fix, run 1, new pods | 1.265 s | 0.250 s | 1.413 s | 12.2 at start | not recorded |
 | MCP `get_repo_context`, after fix, run 1 | 0.264 s | 0.166 s | 0.261 s | 12.2 at start | not recorded |
 | API context, after fix, run 2, warm pods | 0.601 s | 0.389 s | 0.847 s | 4.5 at start | not recorded |
 | MCP `get_repo_context`, after fix, run 2 | 0.459 s | 0.208 s | 0.401 s | 4.5 at start | not recorded |
-| API context, after fix, run 3, fresh pods | 0.463 s | 0.207 s | 0.371 s | 6.7 at start | not recorded |
+| API context, after fix, run 3, restarted pods | 0.463 s | 0.207 s | 0.371 s | 6.7 at start | not recorded |
 | MCP `get_repo_context`, after fix, run 3 | 0.273 s | 0.180 s | 0.269 s | 6.7 at start | not recorded |
 
 In the after-fix runs the control probe stayed near 0.09 s (0.085 s in run 3).
-In the before-fix run it read 0.106 to 0.117 s. The before-fix pods were already
-warm, so that first call is not a fresh-process sample. The MCP first call in
-run 1 was not process-cold either, because the API and MCP wrappers had already
-run on those pods. In run 2 the pods were warm.
+In the before-fix run it read 0.106 to 0.117 s.
 
-Run 3 followed one rollout restart of the API and MCP pods. A one-call
-graph-summary wrapper ran on those pods first, so this page treats the first
-calls in run 3 as not process-cold. The database cache was not cold. The database primary had
-restarted earlier and autoprewarm had run, and a pod restart does not clear the
-cache. The 5-minute and 15-minute load averages were still about 14 to 16.
-Traces showed `repository_context_counts` spans and no
-`repository_workload_names` span.
+No first call in this table is process-cold. Process fresh: no, for every row.
+
+- Before the fix, the pods were already warm.
+- In run 1 the pods were new, but the first-request wrappers had already run on
+  them. The API wrapper ran a graph-summary call first, and the MCP wrapper ran
+  after it. So the first calls on both surfaces ran on a process that had
+  served other requests.
+- In run 2 the pods were warm.
+- Run 3 followed one rollout restart of the API and MCP pods. A one-call
+  graph-summary wrapper ran on those pods first, so the first calls in run 3
+  are not process-cold either.
+
+The database cache was not cold in run 3. The database primary had restarted
+earlier and autoprewarm had run, and a pod restart does not clear the cache.
+The 5-minute and 15-minute load averages were still about 14 to 16. Traces
+showed `repository_context_counts` spans and no `repository_workload_names`
+span.
 
 The run 1 warm p95 of 1.413 s was the first call on the 7,097-file repository.
 The second visit to that repository took 0.250 s. Run 3 did not reproduce the
@@ -287,6 +324,9 @@ repository took 0.463 s. See
 [Buffer-cache first touch](scale-and-performance-mechanisms.md#buffer-cache-first-touch).
 
 ### Local fixture comparison
+
+This comparison measures the earlier graph-count change (#7551), not the
+count-port fix (#7654). Its candidate added the graph `Workload` count read.
 
 A separate comparison ran built API and MCP processes against isolated local
 stores. The stores held a sparse synthetic graph, not the production corpus. It
@@ -301,8 +341,8 @@ recorded. Host load was not stated for the request timings.
 | 7,097 files, MCP | 21.636 ms | 21.734 ms | 10 |
 
 The source calls the round drift substantial. It does not claim a speedup. The
-added graph read shows in the `summary_counts` stage as a warm median of about
-0.9 ms, against about 0.015 ms before.
+added graph `Workload` count read shows in the `summary_counts` stage as a warm
+median of about 0.9 ms, against about 0.015 ms before.
 
 ## Mechanisms and statement timings
 
@@ -322,7 +362,8 @@ Read the figures with these limits in mind.
   reads from a warm database cache, unless the database itself restarted.
 - **The page claims no acceptance against the 1 s target.** Per-route facts from
   the tables follow.
-  - Baseline sweep: warm p95 was over 1 s on all 10 rows (1.04 to 3.75 s).
+  - Baseline sweep: warm p95 was over 1 s on all 10 rows of the table (1.04 to
+    3.75 s). The omitted `explain-dependency-path` row was 0.10 s.
   - Change planning, first replay: warm p95 was over 1 s on four routes
     (1.158 to 2.192 s). The second replay and the fresh-process replay were
     under 1 s on those routes (0.404 to 0.642 s).
