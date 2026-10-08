@@ -45,8 +45,8 @@ CREATE INDEX IF NOT EXISTS repository_selection_observations_selector_idx
 // org comparison is case-insensitive because GitHub org names are. A
 // non-empty $2 also requires the remote host: remote_url is stored as
 // https://<lowercase host>/<path> by repositoryidentity.NormalizeRemoteURL,
-// so its third '/' field is the host. With an empty $2 the planner drops the
-// predicate and the plan equals the slug-only read.
+// so its third '/' field is the host. An empty $2 makes the host predicate
+// true for every row, so the read matches the slug-only partition.
 const knownScopesQuery = `
 SELECT scope_id, payload->>'repo_slug'
 FROM ingestion_scopes

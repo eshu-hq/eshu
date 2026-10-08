@@ -84,12 +84,14 @@ for both forms:
 
 | Statement | Rows | Plan | Buffers | Execution |
 | --- | --- | --- | --- | --- |
-| Slug-only (before) | 1,050 | seq scan | 594 | 4.8-4.9 ms |
+| Slug-only (before) | 1,050 | seq scan | 594 | 4.8-5.1 ms |
 | Host `github.com` (after) | 900 | seq scan, same filter plus host | 594 | 5.0-5.4 ms |
-| Host `''` (explicit selectors) | 1,050 | identical to slug-only; predicate folded | 594 | 4.8-4.9 ms |
+| Host `''` (explicit selectors) | 1,050 | identical to slug-only | 594 | 4.8-4.9 ms |
 
-The plan shape and buffers do not change; the read runs once per org cycle
-on shard 0. No new index.
+These are custom plans; under a cached generic plan the empty-host predicate
+stays as a per-row filter that is always true, with the same plan shape. The
+plan shape and buffers do not change; the read runs once per org cycle on
+shard 0. No new index.
 
 Re-measured after amendment 1 changed the row shape (`state_since`,
 `state_cycle_count`, `liveness_window_seconds`): PostgreSQL 18.6, migration
