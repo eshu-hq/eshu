@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -319,19 +320,25 @@ esac
 }
 
 // TestGitCommandEnvPinsCLocale keeps git messages untranslated: default-branch
-// detection and shallow-lock recovery match stderr text.
+// detection and shallow-lock recovery match stderr text. It reads the
+// environment a child process receives, so an inherited LC_ALL must not win.
 func TestGitCommandEnvPinsCLocale(t *testing.T) {
 	t.Setenv("LC_ALL", "de_DE.UTF-8")
 	for _, method := range []string{"none", "token", "githubapp", "ssh"} {
-		env := gitCommandEnv(RepoSyncConfig{GitAuthMethod: method}, "")
-		last := ""
-		for _, kv := range env {
-			if value, ok := strings.CutPrefix(kv, "LC_ALL="); ok {
-				last = value
+		command := exec.Command("env")
+		command.Env = gitCommandEnv(RepoSyncConfig{GitAuthMethod: method}, "")
+		output, err := command.Output()
+		if err != nil {
+			t.Fatalf("%s: run env: %v", method, err)
+		}
+		var seen []string
+		for _, line := range strings.Split(string(output), "\n") {
+			if strings.HasPrefix(line, "LC_ALL=") {
+				seen = append(seen, line)
 			}
 		}
-		if last != "C" {
-			t.Errorf("%s: effective LC_ALL = %q, want C", method, last)
+		if !slices.Equal(seen, []string{"LC_ALL=C"}) {
+			t.Errorf("%s: child LC_ALL entries = %q, want exactly [LC_ALL=C]", method, seen)
 		}
 	}
 }
