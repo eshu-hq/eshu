@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 )
 
 // RepoSyncRepositoryRule constrains repository selection for one sync cycle.
@@ -91,6 +93,11 @@ type RepoSyncConfig struct {
 	// allowed across the entire fleet per sync cycle. Zero means unlimited.
 	// Default: 0 (unlimited until #5393 measures the real cost).
 	PinnedRefFleetCap int
+	// SelectionLivenessWindow is how long the repository selection rows a
+	// githubOrg shard 0 writes stay live after each evaluation (#7625).
+	// Parsed from ESHU_REPO_SELECTION_LIVENESS_WINDOW; default 48h, minimum
+	// 1h.
+	SelectionLivenessWindow time.Duration
 }
 
 // LoadRepoSyncConfig parses the repo-sync environment contract for Go runtimes.
@@ -116,6 +123,10 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	}
 	pinnedRefCap := pinnedRefPerRepoCap(getenv)
 	pinnedRefFleetCap := pinnedRefFleetCap(getenv)
+	selectionLivenessWindow, err := membership.ParseLivenessWindow(getenv(membership.LivenessWindowEnv))
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
 
 	reposDir := strings.TrimSpace(getenv("ESHU_REPOS_DIR"))
 	if reposDir == "" {
@@ -166,6 +177,8 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		PinnedRefsByRepoID:     pinnedRefsByRepoID,
 		PinnedRefPerRepoCap:    pinnedRefCap,
 		PinnedRefFleetCap:      pinnedRefFleetCap,
+
+		SelectionLivenessWindow: selectionLivenessWindow,
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil
