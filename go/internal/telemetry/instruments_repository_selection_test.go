@@ -23,7 +23,8 @@ func TestRepositorySelectionInstrumentsRegisterClosedLabels(t *testing.T) {
 	}
 	ctx := context.Background()
 	inst.RepositorySelectionEvaluations.Add(ctx, 1, metric.WithAttributes(
-		AttrCollectorKind("git"), AttrOutcome(RepositorySelectionOutcomeEvaluated),
+		AttrCollectorKind("git"), AttrSelectorKind(RepositorySelectionSelectorKindGitHubOrg),
+		AttrOutcome(RepositorySelectionOutcomeEvaluated),
 	))
 	inst.RepositorySelectionScopes.Record(ctx, 25, metric.WithAttributes(
 		AttrCollectorKind("git"), AttrState(RepositorySelectionStateNotListedPending),
@@ -56,6 +57,13 @@ func TestRepositorySelectionInstrumentsRegisterClosedLabels(t *testing.T) {
 	}
 	if want := []string{"evaluated", "listing_truncated", "guard_tripped", "store_error"}; !slices.Equal(outcomes, want) {
 		t.Fatalf("outcomes = %v, want %v", outcomes, want)
+	}
+	kinds := []string{RepositorySelectionSelectorKindGitHubOrg, RepositorySelectionSelectorKindExplicit}
+	if want := []string{"github_org", "explicit"}; !slices.Equal(kinds, want) {
+		t.Fatalf("selector kinds = %v, want %v", kinds, want)
+	}
+	if got := AttrSelectorKind("explicit"); string(got.Key) != "selector_kind" {
+		t.Fatalf("AttrSelectorKind key = %q, want selector_kind", got.Key)
 	}
 	states := []string{
 		RepositorySelectionStateSelected,

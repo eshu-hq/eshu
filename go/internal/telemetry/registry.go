@@ -84,6 +84,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionPhase,
 	MetricDimensionWriter,
 	MetricDimensionState,
+	MetricDimensionSelectorKind,
 	MetricDimensionModelKey,
 	MetricDimensionResolvedBy,
 }
