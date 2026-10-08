@@ -145,7 +145,10 @@ The trim cost: `BenchmarkTrimToBudgetPage` (200 rows of about 5 KiB, Apple M5
 Max) takes 4.2 ms and 9.8 MB per trim. It runs only on a response that returned
 an error before this change.
 
-No-Regression Evidence: a request that fits the budget is unchanged. The test
+No-Regression Evidence: a request that fits the budget is unchanged, with one
+opt-in exception: the `find_code` repository content fallback with the hybrid
+ranker on and more than `limit` rows (see the behaviour change above; the ranker
+is off in the deployment where this was seen). The test
 `TestBudgetPageLeavesFittingResponsesUnchanged` compares the rendered result
 with the guard on and off and requires equal bytes, no `budget_page`,
 `next_offset`, or `truth.omissions`, and no `truncated` or `omissions` key in the
