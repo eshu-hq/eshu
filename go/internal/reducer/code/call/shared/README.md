@@ -73,8 +73,11 @@ one (a JavaScript/TypeScript package-root file, a JavaScript reference or
 same-file top-level call, or a Java metadata root, as before). Any other
 top-level call, in any language, has no caller and emits no `CALLS` row. PHP in-function calls resolve to their containing
 function since #7641 gave the PHP parser real `end_line` spans (they dropped between #7640 and #7641).
-`PathKeys` still includes bare names for the name lookups (`ResolveEntityID`,
-`uniqueNameByPath`) that this change did not touch.
+#7642 later scoped the callee side the same way: `ResolveEntityID` takes a
+repository ID and resolves only within the file's own identity, same-file
+name lookups go through `UniqueNameByRepoPath` (repository plus own-file
+keys, never a bare name), and the bare-aggregated `uniqueNameByPath` backs
+only cross-file import lookups that probe an explicitly matched target path.
 
 ## Dependency rule
 
