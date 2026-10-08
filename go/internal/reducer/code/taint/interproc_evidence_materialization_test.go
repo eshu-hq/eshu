@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -134,7 +135,7 @@ func codeInterprocEvidenceEnvelope(in InterprocEvidenceInput) facts.Envelope {
 	}
 	return facts.Envelope{
 		FactID:   "interproc:" + in.SourceFunctionUID + ":" + in.SinkFunctionUID,
-		FactKind: facts.CodeInterprocEvidenceFactKind,
+		FactKind: code.InterprocEvidenceFactKind,
 		Payload:  payload,
 	}
 }

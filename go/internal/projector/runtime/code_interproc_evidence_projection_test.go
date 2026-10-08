@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -25,7 +26,7 @@ func TestAppendScopeGenerationReducerIntentsWiresCodeInterproc(t *testing.T) {
 	scopeValue := scope.IngestionScope{ScopeID: "scope-1"}
 	generation := scope.ScopeGeneration{GenerationID: "gen-1"}
 	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
-		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "interproc-fact-1", CollectorKind: "git"},
+		{FactKind: code.InterprocEvidenceFactKind, FactID: "interproc-fact-1", CollectorKind: "git"},
 	})
 	found := false
 	for _, intent := range intents {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestBuildFunctionSourcesReadsBucket proves the dataflow_sources bucket rows are
@@ -55,7 +55,7 @@ func TestFunctionSourceFactEmittedAndCounted(t *testing.T) {
 	}
 	found := false
 	for _, e := range envelopes {
-		if e.FactKind == facts.CodeFunctionSourceFactKind {
+		if e.FactKind == code.FunctionSourceFactKind {
 			found = true
 		}
 	}

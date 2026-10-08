@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
@@ -24,7 +25,7 @@ func TestCodeTaintEvidenceHandlerQuarantinesMalformedFact(t *testing.T) {
 
 	malformed := facts.Envelope{
 		FactID:   "taint-malformed",
-		FactKind: facts.CodeTaintEvidenceFactKind,
+		FactKind: code.TaintEvidenceFactKind,
 		Payload: map[string]any{
 			// "function_uid" intentionally absent.
 			"relative_path": "src/handler.go",
@@ -59,7 +60,7 @@ func TestCodeInterprocEvidenceHandlerQuarantinesMalformedFact(t *testing.T) {
 
 	malformed := facts.Envelope{
 		FactID:   "interproc-malformed",
-		FactKind: facts.CodeInterprocEvidenceFactKind,
+		FactKind: code.InterprocEvidenceFactKind,
 		Payload: map[string]any{
 			// "source_function_uid" intentionally absent.
 			"sink_function_uid": "uid:sink",

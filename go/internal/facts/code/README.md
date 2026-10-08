@@ -48,14 +48,9 @@ Every current caller — `go/internal/storage/postgres`,
 `go/internal/projector/code/*`, `go/internal/projector/runtime`,
 `go/internal/collector/repo/git`, `go/internal/query/codequery`,
 `go/internal/query/codemodel`, `go/internal/reducer/code/*`, and the
-`go/internal/reducer` root — still references the pre-move,
-non-destuttered names on `facts.Code*FactKind`. Those names still resolve:
-the facts root's transitional `compat_code.go` forwards each one to its
-destuttered `code.<Name>` counterpart. None of these call sites has been
-updated to `code.<Name>` directly yet; that migration is the same tracked
-importer-migration follow-up on issue #6776 described in the facts root and
-`cloud` package docs, not something this package's contract can fix on its
-own.
+`go/internal/reducer` root — references the destuttered `code.<Name>`
+names directly. The pre-move `facts.Code*` spellings were retired with
+the transitional `compat_code.go` in #6950 once the last caller moved.
 
 ## Telemetry
 
@@ -79,10 +74,46 @@ own their own telemetry (see their READMEs).
   every kind this function returns, or the index silently stops covering a
   kind the read still queries.
 - Every exported name here was destuttered from its pre-move `Code*` form
-  (`docs/internal/naming.md` rule 4). The facts root's `compat_code.go`
-  forwards every pre-move `facts.Code*` spelling to its `code.<Name>`
-  counterpart, so a caller may still requalify to `code.<Name>` at its own
-  pace rather than on a hard cutover.
+  (`docs/internal/naming.md` rule 4). The pre-move `facts.Code*` spellings
+  no longer resolve; the transitional `compat_code.go` was deleted in
+  #6950 after the last caller requalified to `code.<Name>`.
+
+## Evidence
+
+No-Regression Evidence (#6950 batch 1, code family): this change moves the
+seven `code.*` compat entries' Go importers (six fact-kind constants and
+the `FlowReadFactKinds` function) off the transitional
+`facts.Code*` compat spellings and deletes the emptied `compat_code.go`. No
+fact-kind string, payload shape, registry entry, or executable statement
+changes: across 45 files, every production hunk requalifies an identifier or
+import path only, every other hunk is a package-doc rewording, a ledger row,
+or the compat file's own deletion, and the build resolves with no dangling
+reference.
+Measurement: identical before/after outcomes (ledger:6950-code-batch1-before, ledger:6950-code-batch1-after).
+The command is `go test -count=1` over the changed Go packages (per-side
+counts in the cited rows) on baseline `57167b009` vs measurement commit
+`49be8f597` (this Evidence section, the two ledger rows, and a
+content-identical rebase onto `862aaa6ef` are the only later changes): the
+same packages ok on both sides, with the single failing package
+(`internal/collector/repo/git`, `TestFetchChurnZombiesDrainedByReaper`)
+failing identically before and after (it fails on the clean baseline on this
+host too; its test file and the git constructor it exercises are untouched by
+this diff, and CI is green on main). `go test -list` inventory is identical
+on both sides. Backend/version: n/a (compile-time-only; no backend touched).
+Input shape: n/a (no runtime input). Terminal queue/row counts: none — no
+queue, lease, Cypher, or SQL path is touched. Contract gates green on the
+branch: `verify-fact-kind-registry.sh`, `verify-factschema-diff.sh`, and
+`verify-payload-usage-manifest.sh` (the `code.*` kinds carry no schema
+version and are not in `specs/fact-kind-registry.v1.yaml`, so registry
+output is unchanged by construction). The change is safe because it cannot
+alter runtime behavior: the compiler resolves the same constants through
+their new paths.
+
+No-Observability-Change (#6950 batch 1, code family): this package carries no
+instrumentation (see Telemetry above) and the move adds, removes, or renames
+no metric, span, structured log, or status field in any touched package. The
+collector, reducer, and projector telemetry that reads and writes facts of
+these kinds is untouched; operator signals are identical before and after.
 
 ## Related docs
 

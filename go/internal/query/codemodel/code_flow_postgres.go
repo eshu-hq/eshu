@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -216,9 +216,9 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 			return CodeFlowReadModel{}, fmt.Errorf("decode cumulative active code-flow payload: %w", err)
 		}
 		switch factKind {
-		case facts.CodeDataflowFunctionFactKind:
+		case code.DataflowFunctionFactKind:
 			model.Functions = append(model.Functions, CodeFlowFunctionFromPayload(payload, factID, generationID, factKind, observedAt))
-		case facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind:
+		case code.TaintEvidenceFactKind, code.InterprocEvidenceFactKind:
 			model.TaintPaths = append(model.TaintPaths, codeFlowTaintPathFromPayload(payload, factID, generationID, factKind, observedAt))
 		}
 	}
@@ -232,9 +232,9 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 // read selects. It is the single dispatch source for CodeFlowFactKinds AND the
 // enumeration the lockstep coverage guard ranges
 // (TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex), so a new CodeFlowKind
-// wired here is automatically checked against facts.CodeFlowReadFactKinds() —
+// wired here is automatically checked against code.FlowReadFactKinds() —
 // there is no separate hand-maintained kind list a new entry could drift from.
-// Every fact kind listed here MUST be covered by facts.CodeFlowReadFactKinds()
+// Every fact kind listed here MUST be covered by code.FlowReadFactKinds()
 // (and therefore by the read's literal `fact_kind IN (...)` conjunct and the
 // fact_records_code_flow_repo_idx partial index), or the read would select a
 // kind the literal conjunct silently excludes, returning zero rows for it.
@@ -242,10 +242,10 @@ func (s PostgresCodeFlowStore) ListCodeFlow(ctx context.Context, filter CodeFlow
 // kinds. It is exported because the staying flow tests range over it via
 // the root forward (same map).
 var CodeFlowKindFactKinds = map[CodeFlowKind][]string{
-	CodeFlowKindTaintPath:   {facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind},
-	CodeFlowKindReachingDef: {facts.CodeDataflowFunctionFactKind},
-	CodeFlowKindCFGSummary:  {facts.CodeDataflowFunctionFactKind},
-	CodeFlowKindPDGSummary:  {facts.CodeDataflowFunctionFactKind},
+	CodeFlowKindTaintPath:   {code.TaintEvidenceFactKind, code.InterprocEvidenceFactKind},
+	CodeFlowKindReachingDef: {code.DataflowFunctionFactKind},
+	CodeFlowKindCFGSummary:  {code.DataflowFunctionFactKind},
+	CodeFlowKindPDGSummary:  {code.DataflowFunctionFactKind},
 }
 
 // CodeFlowFactKinds returns the fact kinds the read selects for kind, or nil for

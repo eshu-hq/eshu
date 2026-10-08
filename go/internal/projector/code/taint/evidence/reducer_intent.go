@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -51,10 +52,10 @@ func BuildReducerIntent(
 // need cross-kind original-order merging because a finding always outranks
 // the marker regardless of which appears earlier in the generation.
 func trigger(lookup projectorintent.FactLookup) (facts.Envelope, string, bool) {
-	if finding, ok := lookup.FirstOfKind(facts.CodeTaintEvidenceFactKind); ok {
+	if finding, ok := lookup.FirstOfKind(code.TaintEvidenceFactKind); ok {
 		return finding, "value-flow taint evidence observed", true
 	}
-	if marker, ok := lookup.FirstOfKind(facts.CodeDataflowScannedFactKind); ok {
+	if marker, ok := lookup.FirstOfKind(code.DataflowScannedFactKind); ok {
 		return marker, "value-flow gate scanned; reconcile taint evidence", true
 	}
 	return facts.Envelope{}, "", false

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -26,8 +27,8 @@ func BuildReducerIntent(
 	// trigger regardless of which appears earlier in the generation, and the
 	// payload construction below needs both facts' repo IDs, not just the
 	// winning trigger's.
-	summaryFact, hasSummaryFact := lookup.FirstOfKind(facts.CodeFunctionSummaryFactKind)
-	markerFact, hasMarkerFact := lookup.FirstOfKind(facts.CodeDataflowScannedFactKind)
+	summaryFact, hasSummaryFact := lookup.FirstOfKind(code.FunctionSummaryFactKind)
+	markerFact, hasMarkerFact := lookup.FirstOfKind(code.DataflowScannedFactKind)
 
 	var trigger *facts.Envelope
 	reason := "value-flow function summaries observed"
@@ -79,13 +80,13 @@ func triggerRepoID(trigger *facts.Envelope) string {
 		return ""
 	}
 	switch trigger.FactKind {
-	case facts.CodeFunctionSummaryFactKind:
+	case code.FunctionSummaryFactKind:
 		summary, err := decodeFunctionSummary(*trigger)
 		if err != nil {
 			return ""
 		}
 		return repoIDFromFunctionID(summary.FunctionID)
-	case facts.CodeDataflowScannedFactKind:
+	case code.DataflowScannedFactKind:
 		scanned, err := decodeDataflowScanned(*trigger)
 		if err != nil {
 			return ""

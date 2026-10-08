@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestDecodeCodeTaintEvidenceInputMapsAllFields proves the fact payload maps
@@ -20,7 +21,7 @@ func TestDecodeCodeTaintEvidenceInputMapsAllFields(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeTaintEvidenceFactKind,
+		FactKind: code.TaintEvidenceFactKind,
 		Payload: map[string]any{
 			"function_uid":  "func-handle",
 			"function_name": "handle",
@@ -68,7 +69,7 @@ func TestDecodeCodeTaintEvidenceInputMissingFunctionUIDReturnsError(t *testing.T
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeTaintEvidenceFactKind,
+		FactKind: code.TaintEvidenceFactKind,
 		Payload: map[string]any{
 			"relative_path": "src/handler.go",
 		},
@@ -86,7 +87,7 @@ func TestDecodeCodeTaintEvidenceInputTrimsWhitespace(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeTaintEvidenceFactKind,
+		FactKind: code.TaintEvidenceFactKind,
 		Payload: map[string]any{
 			"function_uid":  "  uid:padded  ",
 			"function_name": "  handle  ",
@@ -113,7 +114,7 @@ func TestDecodeCodeInterprocEvidenceInputTrimsWhitespace(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeInterprocEvidenceFactKind,
+		FactKind: code.InterprocEvidenceFactKind,
 		Payload: map[string]any{
 			"source_function_uid": "  uid:source-padded  ",
 			"sink_function_uid":   "  uid:sink-padded  ",
@@ -136,7 +137,7 @@ func TestDecodeCodeInterprocEvidenceInputMapsAllFields(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeInterprocEvidenceFactKind,
+		FactKind: code.InterprocEvidenceFactKind,
 		Payload: map[string]any{
 			"source_function_uid":  "func-source",
 			"sink_function_uid":    "func-sink",
@@ -187,7 +188,7 @@ func TestDecodeCodeInterprocEvidenceInputDefaultsCloudAbsent(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeInterprocEvidenceFactKind,
+		FactKind: code.InterprocEvidenceFactKind,
 		Payload: map[string]any{
 			"source_function_uid": "func-source",
 			"sink_function_uid":   "func-sink",

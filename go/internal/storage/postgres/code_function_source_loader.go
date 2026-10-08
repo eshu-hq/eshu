@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // LoadCodeFunctionSourceFacts implements reducer.CodeFunctionSourceLoader by
@@ -21,5 +22,5 @@ func (s FactStore) LoadCodeFunctionSourceFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeFunctionSourceFactKind})
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{code.FunctionSourceFactKind})
 }

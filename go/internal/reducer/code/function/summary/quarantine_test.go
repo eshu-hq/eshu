@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestCodeFunctionSummaryHandlerQuarantinesMalformedFact proves the
@@ -19,7 +20,7 @@ func TestCodeFunctionSummaryHandlerQuarantinesMalformedFact(t *testing.T) {
 
 	malformed := facts.Envelope{
 		FactID:   "summary-malformed",
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload: map[string]any{
 			// "function_id" intentionally absent.
 			"graph_uid": "uid:orphan",
@@ -27,7 +28,7 @@ func TestCodeFunctionSummaryHandlerQuarantinesMalformedFact(t *testing.T) {
 	}
 	valid := facts.Envelope{
 		FactID:   "summary-valid",
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload: map[string]any{
 			"function_id": "repo-1\x1fpkg\x1f\x1fview",
 			"graph_uid":   "uid:view",
@@ -70,7 +71,7 @@ func TestCodeFunctionSummaryHandlerQuarantinesMalformedSourceFact(t *testing.T) 
 
 	malformedSource := facts.Envelope{
 		FactID:   "source-malformed",
-		FactKind: facts.CodeFunctionSourceFactKind,
+		FactKind: code.FunctionSourceFactKind,
 		Payload: map[string]any{
 			// "kind" intentionally absent.
 			"function_id": "repo-1\x1fpkg\x1f\x1fhandle",

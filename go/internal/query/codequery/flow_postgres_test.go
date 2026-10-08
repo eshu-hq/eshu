@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 )
 
@@ -76,11 +76,11 @@ func TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex(t *testing.T) {
 	// not merely a superset: extracting and set-comparing (rather than a
 	// substring check) fails when a kind is missing OR when an extra kind drifts
 	// in, keeping the query literal, the partial index predicate, and
-	// facts.CodeFlowReadFactKinds in lockstep across package boundaries (#5284).
+	// code.FlowReadFactKinds in lockstep across package boundaries (#5284).
 	got := extractFactKindInList(t, query)
-	want := codeFlowSortedKinds(facts.CodeFlowReadFactKinds())
+	want := codeFlowSortedKinds(code.FlowReadFactKinds())
 	if !codeFlowEqualKinds(got, want) {
-		t.Fatalf("code-flow SQL literal conjunct set = %v, want the canonical facts.CodeFlowReadFactKinds() = %v", got, want)
+		t.Fatalf("code-flow SQL literal conjunct set = %v, want the canonical code.FlowReadFactKinds() = %v", got, want)
 	}
 
 	// The canonical set must in turn cover every fact kind codemodel.CodeFlowFactKinds can
@@ -89,7 +89,7 @@ func TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex(t *testing.T) {
 	// conjunct is redundant (result-neutral) rather than a filter that could
 	// drop rows the $1 subset would have returned.
 	canonical := map[string]bool{}
-	for _, k := range facts.CodeFlowReadFactKinds() {
+	for _, k := range code.FlowReadFactKinds() {
 		canonical[k] = true
 	}
 	// Range the production dispatch map itself, not a hand-copied list of
@@ -101,12 +101,12 @@ func TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex(t *testing.T) {
 		for _, k := range codemodel.CodeFlowFactKinds(kind) {
 			union[k] = true
 			if !canonical[k] {
-				t.Fatalf("codemodel.CodeFlowFactKinds(%q) can select kind %q that is not in facts.CodeFlowReadFactKinds(); the read would query a kind the literal conjunct and partial index do not cover", kind, k)
+				t.Fatalf("codemodel.CodeFlowFactKinds(%q) can select kind %q that is not in code.FlowReadFactKinds(); the read would query a kind the literal conjunct and partial index do not cover", kind, k)
 			}
 		}
 	}
 	if len(union) != len(canonical) {
-		t.Fatalf("codemodel.CodeFlowFactKinds union has %d kinds but facts.CodeFlowReadFactKinds() has %d; the canonical set must equal the kinds the read can actually select", len(union), len(canonical))
+		t.Fatalf("codemodel.CodeFlowFactKinds union has %d kinds but code.FlowReadFactKinds() has %d; the canonical set must equal the kinds the read can actually select", len(union), len(canonical))
 	}
 }
 
@@ -123,10 +123,10 @@ func TestCodeFlowFactKindsDispatch(t *testing.T) {
 		kind codemodel.CodeFlowKind
 		want []string
 	}{
-		{codemodel.CodeFlowKindTaintPath, []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}},
-		{codemodel.CodeFlowKindReachingDef, []string{facts.CodeDataflowFunctionFactKind}},
-		{codemodel.CodeFlowKindCFGSummary, []string{facts.CodeDataflowFunctionFactKind}},
-		{codemodel.CodeFlowKindPDGSummary, []string{facts.CodeDataflowFunctionFactKind}},
+		{codemodel.CodeFlowKindTaintPath, []string{code.TaintEvidenceFactKind, code.InterprocEvidenceFactKind}},
+		{codemodel.CodeFlowKindReachingDef, []string{code.DataflowFunctionFactKind}},
+		{codemodel.CodeFlowKindCFGSummary, []string{code.DataflowFunctionFactKind}},
+		{codemodel.CodeFlowKindPDGSummary, []string{code.DataflowFunctionFactKind}},
 		{codemodel.CodeFlowKind("unknown_kind"), nil},
 	}
 	for _, tc := range cases {
@@ -159,7 +159,7 @@ func TestCodeFlowFactKindsReturnsIsolatedCopy(t *testing.T) {
 	}
 	// A subsequent call must still return the pristine canonical entry.
 	second := codemodel.CodeFlowFactKinds(codemodel.CodeFlowKindTaintPath)
-	want := []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}
+	want := []string{code.TaintEvidenceFactKind, code.InterprocEvidenceFactKind}
 	if len(second) != len(want) {
 		t.Fatalf("codemodel.CodeFlowFactKinds(taint) after mutation = %v, want %v (shared backing slice corrupted)", second, want)
 	}

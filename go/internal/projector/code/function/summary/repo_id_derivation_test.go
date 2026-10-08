@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 )
 
@@ -17,13 +18,13 @@ func TestBuildReducerIntentPrefersSummaryProvenanceOverEarlierMarker(t *testing.
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
-			FactKind:      facts.CodeDataflowScannedFactKind,
+			FactKind:      code.DataflowScannedFactKind,
 			FactID:        "marker-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-marker"},
 		},
 		{
-			FactKind:      facts.CodeFunctionSummaryFactKind,
+			FactKind:      code.FunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"function_id": "repo-summary\x1fpkg\x1f\x1fHandle"},
@@ -54,7 +55,7 @@ func TestBuildReducerIntentFallsBackToMarkerRepoIDWhenSummaryRepoIDUnresolvable(
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
-			FactKind:      facts.CodeFunctionSummaryFactKind,
+			FactKind:      code.FunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
 			// No function_id key: decodeFunctionSummary fails, so the
@@ -62,7 +63,7 @@ func TestBuildReducerIntentFallsBackToMarkerRepoIDWhenSummaryRepoIDUnresolvable(
 			Payload: map[string]any{"repo_id": "ignored-not-a-function-summary-field"},
 		},
 		{
-			FactKind:      facts.CodeDataflowScannedFactKind,
+			FactKind:      code.DataflowScannedFactKind,
 			FactID:        "marker-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-from-marker"},
@@ -89,7 +90,7 @@ func TestBuildReducerIntentTrimsCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.CodeFunctionSummaryFactKind,
+		FactKind:      code.FunctionSummaryFactKind,
 		FactID:        "summary-fact-1",
 		CollectorKind: "  git  ",
 		SourceRef:     facts.Ref{SourceSystem: "source-ref-system"},

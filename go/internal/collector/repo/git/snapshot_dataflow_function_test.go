@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestBuildDataflowFunctionsReadsParserBucket proves the parser's
@@ -102,7 +102,7 @@ func TestDataflowFunctionFactEmittedAndCounted(t *testing.T) {
 	}
 	found := false
 	for _, e := range envelopes {
-		if e.FactKind != facts.CodeDataflowFunctionFactKind {
+		if e.FactKind != code.DataflowFunctionFactKind {
 			continue
 		}
 		found = true
@@ -111,6 +111,6 @@ func TestDataflowFunctionFactEmittedAndCounted(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("no %s fact emitted", facts.CodeDataflowFunctionFactKind)
+		t.Fatalf("no %s fact emitted", code.DataflowFunctionFactKind)
 	}
 }

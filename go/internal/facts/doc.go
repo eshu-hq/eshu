@@ -64,8 +64,8 @@
 // package imports the nested families and a nested family therefore cannot
 // import it back.
 //
-// The compat_cloud.go, compat_cloud_posture.go, compat_code.go,
-// compat_docs.go, and compat_supply_chain.go files are this package's
+// The compat_cloud.go, compat_cloud_posture.go, compat_docs.go, and
+// compat_supply_chain.go files are this package's
 // transitional compatibility surface for those moves: each entry is an alias
 // or a thin forwarder with no behavior change, so every caller that spells a
 // moved name facts.X keeps the same type and the same value. An entry is

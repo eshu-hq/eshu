@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -69,7 +70,7 @@ func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, stri
 func codeTaintEvidenceEnvelope(in EvidenceInput) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "taint:" + in.FunctionUID,
-		FactKind: facts.CodeTaintEvidenceFactKind,
+		FactKind: code.TaintEvidenceFactKind,
 		Payload: map[string]any{
 			"function_uid":  in.FunctionUID,
 			"function_name": in.FunctionName,

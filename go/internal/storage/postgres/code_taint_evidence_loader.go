@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // LoadCodeTaintEvidence implements taint.EvidenceLoader by
@@ -27,5 +28,5 @@ func (s FactStore) LoadCodeTaintEvidence(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeTaintEvidenceFactKind})
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{code.TaintEvidenceFactKind})
 }

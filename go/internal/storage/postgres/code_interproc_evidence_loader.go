@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // LoadCodeInterprocEvidenceFacts implements
@@ -24,5 +25,5 @@ func (s FactStore) LoadCodeInterprocEvidenceFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeInterprocEvidenceFactKind})
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{code.InterprocEvidenceFactKind})
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // dataflowScannedFactEnvelope builds the per-generation marker fact emitted when
@@ -29,11 +30,11 @@ func dataflowScannedFactEnvelope(
 	}
 
 	return model.FactEnvelope(
-		facts.CodeDataflowScannedFactKind,
+		code.DataflowScannedFactKind,
 		scopeID,
 		generationID,
 		observedAt,
-		facts.CodeDataflowScannedFactKind+":"+repoID,
+		code.DataflowScannedFactKind+":"+repoID,
 		payload,
 		repoPath,
 	)
