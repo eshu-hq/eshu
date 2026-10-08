@@ -30,7 +30,7 @@ const selectorIDBytes = 16
 
 // tokenPrincipalSalt domain-separates the token principal hash from any other
 // SHA-256 of the same token.
-const tokenPrincipalSalt = "eshu-repo-selector:"
+const tokenPrincipalSalt = "eshu-repo-selector:" // #nosec G101 -- public hash domain prefix, not a credential
 
 // anonymousPrincipal names a selector whose collector has no GitHub
 // credential, such as an explicit list cloned over SSH.
