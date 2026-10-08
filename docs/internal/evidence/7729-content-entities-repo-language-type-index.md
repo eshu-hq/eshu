@@ -3,7 +3,7 @@
 Scope: `SearchEntitiesByLanguageAndTypeForAccess`
 (`go/internal/query/content_reader_entity_search.go`), the content read behind
 `POST /api/v0/code/language-query`. The fix is one index, migration
-`163_content_entities_repo_language_type_idx.sql`:
+`164_content_entities_repo_language_type_idx.sql`:
 `content_entities (repo_id, language, entity_type)`. No Go SQL changes.
 
 This is a **Prove-The-Theory-First** record. The defect was reproduced on the
@@ -162,7 +162,7 @@ not a measurement.
 
 ## Production confirmation (not yet done)
 
-After migration 163 is applied to ops-prod, run read-only
+After migration 164 is applied to ops-prod, run read-only
 `EXPLAIN (ANALYZE, BUFFERS)` of the gate for `repository:r_8946df89` on the read
 replica. Expected: the gate InitPlan is an Index Only Scan on
 `content_entities_repo_language_type_idx` with single-digit buffers, and the
@@ -174,7 +174,7 @@ Performance Evidence: the gate InitPlan for `repository:r_8946df89` JavaScript
 Function was an Index Scan on `content_entities_language_type_idx` with
 `Rows Removed by Filter: 121106` and 155,688 buffers (277.5 ms warm). On the
 clone, the same plan shape (forced) costs 50,998 to 55,170 gate buffers across
-three repositories, and the unforced gate with migration 163 costs 4 to 5
+three repositories, and the unforced gate with migration 164 costs 4 to 5
 buffers. Production confirmation is pending (above).
 
 ## Observability Evidence
