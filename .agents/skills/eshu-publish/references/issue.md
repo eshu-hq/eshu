@@ -38,7 +38,8 @@ and a reviewer reads it a year later with no context. Write for all three.
 ## Example
 
 Issue #7778 was one paragraph of 1,485 characters with no headings. This is the
-same content in the new shape.
+same content in the new shape. The identifiers come from #7778 as filed. They
+were not on `main` at the time of writing.
 
 ````markdown
 **Eshu finds no deployment evidence when an ApplicationSet reads its config

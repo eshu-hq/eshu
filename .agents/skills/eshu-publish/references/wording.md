@@ -27,8 +27,9 @@ compliant".
 ## Two modes
 
 - **Strict.** Tool descriptions, error text, and instructions for an agent. Apply
-  every rule, including one word for one meaning. `docs/internal/writing-for-agents.md`
-  sets the standard for agent-facing documents.
+  every rule above, including one word for one meaning. Also follow
+  `docs/internal/writing-for-agents.md`, which adds `must` for a mandatory rule,
+  `can` for permission, and no idioms. That page owns the shared sentence rules.
 - **STE-flavored.** Issues, PR bodies, replies, and owner reports. Keep the
   structure rules. Relax the word-choice rules, because prose needs some range.
 

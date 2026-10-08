@@ -19,8 +19,8 @@ Say what changed, where, and what proves it. Start with the answer.
 
 Never close a thread with only "fixed". Fix the code first, then reply.
 
-A reply is usually 40 to 120 words. The 58 inline review comments in the
-last 30 PRs had a median of 70 words. Keep to that range.
+A reply is usually 40 to 120 words. The median inline review comment in the
+last 30 PRs was about 70 words. Keep to that range.
 
 ## A long review comment
 
@@ -42,6 +42,23 @@ If part of the work remains, comment on the issue with what remains.
 
 ## Status comment
 
-Put the state first: `Done`, `Blocked`, or `Needs a decision`. Then the reason
-in one sentence and the next step. If you wait on the owner, say so plainly and
-give your recommendation.
+Put the state first: `Done`, `Working`, `Blocked`, or `Needs a decision`. Then
+the reason in one sentence and the next step.
+
+Use `Needs a decision` only after the arbiter route cannot settle the question,
+or for an act that only the owner can authorize. Say so plainly and give your
+recommendation. Otherwise report `Done` or `Working` and record the arbiter
+verdict.
+
+## Resume note or handoff
+
+Write for a reader who has none of your context. Give four things, in this
+order:
+
+1. The goal, in one sentence.
+2. The state: what you finished, with the commit or PR, and what remains.
+3. The next action, as one imperative sentence.
+4. What you did not check, as a `NOT_CHECKED` list.
+
+Use the Wording rules. Do not add a bold lead, a diagram, or a `<details>` block
+unless the note is long.

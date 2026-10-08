@@ -36,9 +36,10 @@ th{color:var(--mute);font-weight:600;font-size:11.5px;text-transform:uppercase;l
   <h1>REPLACE: what this page is about</h1>
   <p class="sub">REPLACE: date, and the PR or issue numbers this covers.</p>
 
-  <!-- 1. Status: one of done | blocked | decide | working. Keep the class in step with the word. -->
-  <div class="card status decide">
-    <b>Needs your decision.</b> REPLACE: one sentence of why.
+  <!-- 1. Status: one of done | blocked | decide | working. Keep the class in step with the word.
+       Use "decide" only when the arbiter route cannot settle it, or only the owner can authorize the act. -->
+  <div class="card status">
+    <b>Working.</b> REPLACE: one sentence of why.
   </div>
 
   <!-- 2. Answer: 2 to 4 short sentences. -->
@@ -74,13 +75,13 @@ flowchart LR
     </table>
   </div>
 
-  <!-- 6. Not checked. -->
-  <h2>Not checked</h2>
+  <!-- 6. NOT_CHECKED. -->
+  <h2>NOT_CHECKED</h2>
   <div class="card"><ul><li>REPLACE</li></ul></div>
 
   <!-- 7. Next step. -->
   <h2>Next step</h2>
-  <div class="card">REPLACE: what happens now, and who does it.</div>
+  <div class="card">REPLACE: what happens now, who does it, and which sessions you told.</div>
 </main>
 <script type="module">
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";

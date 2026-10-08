@@ -27,10 +27,13 @@ guess` beats `fix #5572`.
    Name a rejected alternative only when it explains a tradeoff that is still in
    the diff.
 7. `## Proof`. A table of check, before, after. Give the command, the exit code,
-   and the number with its source. Put full gate output in `<details>`.
+   and the number with its source. Put full gate output in `<details>`. For a
+   runtime change, add the performance impact and the telemetry an operator
+   can use, or write `none` and the reason. Name the docs you updated for a
+   changed contract.
 8. `## Review`. One line per finding: severity, what changed, the SHA. Put
    quoted reviewer or arbiter text in `<details>`.
-9. `**Not checked:**` One line. Name what you did not run, and why.
+9. `**NOT_CHECKED:**` One line. Name what you did not run, and why.
 
 ## Rules
 
@@ -42,20 +45,23 @@ guess` beats `fix #5572`.
   for readability, the long unbroken blocks were verbatim arbiter rulings and
   deferred findings. Collapse them.
 - Keep at most 3 identifiers in one sentence.
+- Omit a section that has nothing to say. A one-line docs PR needs a lead and
+  a proof line, not nine headings.
 - After you capture the `ci-gates review-attest` claims file, do not edit the
   title or body.
 
 ## Example
 
 PR #7756 had a 2,212-character body with a mechanism-first opening. This is the
-same content in the new shape.
+same content in the new shape. In your own PR, replace the issue number. Use
+`Refs` unless the PR must close the issue.
 
 ````markdown
 Fixes #7695.
 
-**Two Postgres retention tests ran on a hand-built schema that no CI lane
-uses, so both broke and nobody saw it. This PR runs them on the real
-bootstrap schema. It also deletes the one test that the other now covers.**
+**Two Postgres retention tests ran on a hand-built schema outside every CI
+lane, and both rotted. This PR runs them on the real bootstrap schema. It
+also deletes the one test that the other now covers.**
 
 ## Problem
 
@@ -117,5 +123,5 @@ flowchart LR
 
 </details>
 
-**Not checked:** hosted CI lanes. They run on this PR.
+**NOT_CHECKED:** hosted CI lanes. They run on this PR.
 ````
