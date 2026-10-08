@@ -59,6 +59,13 @@ The policy preserves Eshu's facts-first model:
 | Plugin or extension revocation | Stop claim-capable work, mark pending work ineligible with a bounded reason, delete extension-owned content according to source policy, and keep revocation audit metadata. |
 | Collector instance removal | Stop scheduling new claims for that collector kind or instance class, reap stale claims, and avoid deleting source facts unless the source scope is also removed or expired. |
 
+Collector deselection (#7625), where a repository drops out of a git
+collector's org listing, is an observation that surfaces as the `not_selected`
+freshness verdict; it never triggers repository removal, which stays the
+tombstone path above (phase 3). Its `repository_selection_observations` rows
+are kept after they expire: an expired row reads as no evidence (`unknown`),
+and no sweep deletes it until #7774 lands.
+
 ## Tombstones And Query Truth
 
 Tombstones preserve accuracy without retaining sensitive material. They should

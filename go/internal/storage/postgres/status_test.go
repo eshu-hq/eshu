@@ -362,7 +362,8 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 		if query == semanticstore.SemanticExtractionObservabilityQuery {
 			return &fakeRows{}, nil
 		}
-		if query == semanticQueueDepthQuery || query == semanticQueueOldestAgeQuery {
+		if query == semanticQueueDepthQuery || query == semanticQueueOldestAgeQuery ||
+			strings.Contains(query, "FROM repository_selection_observations") {
 			return &fakeRows{}, nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)

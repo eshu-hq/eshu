@@ -159,3 +159,18 @@ WHERE status IN ('queued', 'claimed')
 ORDER BY received_at DESC, trigger_id DESC
 LIMIT 5
 `
+
+// repositoryFreshnessLatestGenerationQuery reads rule (d)'s G for #7625: the
+// newest observed_at over every generation of the scope, any status. The
+// resolved active-else-newest generation is not enough, because a superseded
+// or failed generation observed after a selector stopped selecting still
+// proves something ingests the scope. It is issued only after rules (a)-(c)
+// hold, so a selected or pending scope never pays for it. It is a bitmap scan
+// of scope_generation_idx (migration 002) bounded by the scope's retained
+// generations; no new index (Performance Evidence: storage/postgres/
+// membership's README, "Latest generation read").
+const repositoryFreshnessLatestGenerationQuery = `
+SELECT MAX(observed_at)
+FROM scope_generations
+WHERE scope_id = $1
+`

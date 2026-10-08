@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -105,7 +106,7 @@ func repositoryFreshnessTruth(profile querycontract.QueryProfile, verdict status
 // shape documented in issue #5143. Every field the underlying snapshot did
 // not resolve is rendered explicitly (empty string, null, or false) rather
 // than omitted, so the contract shape is stable across current, building,
-// behind, unobserved, and unknown verdicts.
+// behind, unobserved, not_selected, and unknown verdicts.
 func repositoryFreshnessToMap(
 	repo any,
 	snapshot status.RepositoryFreshnessSnapshot,
@@ -124,6 +125,7 @@ func repositoryFreshnessToMap(
 		"outstanding_by_stage": repositoryFreshnessOutstandingToSlice(snapshot.Outstanding),
 		"shared_enrichment":    repositoryFreshnessSharedEnrichmentToMap(snapshot.SharedEnrichment),
 		"unobserved_push":      repositoryFreshnessUnobservedPushToMap(snapshot.UnobservedPush),
+		"selection":            repositoryFreshnessSelectionToMap(snapshot.Selection),
 		"as_of":                asOf.Format(time.RFC3339),
 		"scoped":               scoped,
 	}
@@ -174,6 +176,30 @@ func repositoryFreshnessSharedEnrichmentToMap(enrichment status.RepositoryFreshn
 	return map[string]any{
 		"pending":         enrichment.Pending,
 		"pending_domains": domains,
+	}
+}
+
+// repositoryFreshnessSelectionToMap renders the #7625 collector selection
+// evidence. The block is always present: a scope with no live selector, or a
+// read that stopped before the selection lookup, renders state unknown with
+// zero live selectors and null fields. reason is null for selected and
+// unknown; absent timestamps render as null.
+func repositoryFreshnessSelectionToMap(sel status.RepositoryFreshnessSelection) map[string]any {
+	state := sel.State
+	if state == "" {
+		state = selection.AggregateUnknown
+	}
+	var reason any
+	if sel.Reason != "" && state != selection.AggregateSelected && state != selection.AggregateUnknown {
+		reason = string(sel.Reason)
+	}
+	return map[string]any{
+		"state":               string(state),
+		"reason":              reason,
+		"state_since":         querycontract.NullableRFC3339(sel.StateSince),
+		"last_listed_at":      querycontract.NullableRFC3339(sel.LastListedAt),
+		"evaluated_at":        querycontract.NullableRFC3339(sel.EvaluatedAt),
+		"live_selector_count": sel.LiveSelectorCount,
 	}
 }
 

@@ -30,7 +30,10 @@
 // If ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED is true, the repository selector
 // checks queued GitHub, GitLab, and Bitbucket webhook refresh triggers before
 // scheduled polling, marks unsupported providers failed, and still sends
-// selected repositories through the same Git sync and snapshot path. The
+// selected repositories through the same Git sync and snapshot path. Only the
+// native selector records repository selection observations, through a
+// membership.Observer, on complete githubOrg listings and explicit repository
+// lists (#7625). The
 // selector receives the ingester runtime logger so clone/fetch start, progress,
 // completion, and failure records are visible during hosted startup before
 // snapshot workers begin. It is the only long-running runtime that mounts the

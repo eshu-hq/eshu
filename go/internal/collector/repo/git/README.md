@@ -24,6 +24,7 @@ git/                     selection + snapshot + source (the tangled core)
   service/catalog/       service catalog manifest facts (hook)
   tfstate/               Terraform backend-expression warnings
   workflow/image/        CI workflow container image evidence
+  membership/            githubOrg repository selection observations (#7625)
 ```
 
 Imports run one way: `git -> leaf -> model`. No leaf imports `git`.
@@ -155,6 +156,34 @@ increment of `eshu_dp_collector_delta_baseline_fallback_total` with
 `skip_reason=default_branch_changed`; `TestUpdateRepositoryFollowsDeletedDefaultBranch`
 and `TestUpdateRepositoryFollowsMovedDefaultBranch` assert both against a real
 git remote. Steady-state syncs emit nothing new.
+
+## Repository selection observations
+
+In githubOrg mode, `NativeRepositorySelector` hands the full pre-shard org
+listing to its `SelectionObserver` right after discovery, on shard 0 only
+(#7625). `githubOrgSelectionRequest` maps each listed repository to the scope
+ID a sync of it would write (`gitScopeIDForRepositoryID`) and to a state:
+`selected`, `archived_excluded`, or `rule_excluded`. The `membership`
+subpackage compares that listing with the org's known repository scopes and
+records `not_listed` evidence; it never deletes, hides, or writes the graph.
+In explicit mode, shard 0 hands the full pre-shard configured list to the
+observer as one all-`selected` listing per owner
+(`explicitSelectionRequests`), with scope IDs and slugs from
+`gitScopeIdentityForRepositoryID`; only configured repositories that already
+have scopes get rows.
+`listGitHubOrgRepositories` requests every page at `per_page=100`, because
+GitHub pages by offset and a smaller page would re-read earlier repositories,
+and trims to `ESHU_REPO_LIMIT` client-side. Only an empty page or the limit
+ends the listing; a short page mid-listing keeps paging, so the repositories
+after it still sync. It reports the listing complete only when an empty page
+arrives before the limit without a `Link` `rel="next"`; a listing that
+reaches the limit is truncated even when the org holds exactly that many
+repositories, so a listing cut at `ESHU_REPO_LIMIT` is never evaluated.
+A store failure is logged and counted, and the cycle carries on. The webhook
+selector never observes. Telemetry: the
+`eshu_dp_collector_repository_selection_evaluations_total` counter, the
+`eshu_dp_collector_repository_selection_scopes` gauge, and the
+`git_repository_selection_*` logs; see `membership/README.md`.
 
 ## Two-phase content
 

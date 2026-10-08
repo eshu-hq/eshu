@@ -1626,6 +1626,17 @@ type Instruments struct {
 	// record nothing.
 	CanonicalRepositoryRetirements metric.Int64Counter
 
+	// RepositorySelectionEvaluations counts git collector repository
+	// selection evaluations (#7625) by collector_kind and a closed outcome
+	// (evaluated, listing_truncated, guard_tripped, store_error).
+	RepositorySelectionEvaluations metric.Int64Counter
+
+	// RepositorySelectionScopes samples, after each evaluated cycle, the
+	// known repository scopes of the evaluating selector by collector_kind and
+	// a closed state (selected, not_listed_pending, not_listed,
+	// archived_excluded, rule_excluded) (#7625).
+	RepositorySelectionScopes metric.Int64Gauge
+
 	// CanonicalRepositoryStubsCreated counts Repository nodes the
 	// repo_dependency and submodule_pin shared-edge writers MERGE-created by
 	// id because no node held that id (#7446): a path-less stub, typically
@@ -4908,6 +4919,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerCanonicalRepositoryRetirements(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerRepositorySelection(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

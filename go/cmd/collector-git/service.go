@@ -11,7 +11,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -46,6 +48,13 @@ func buildCollectorService(
 		Logger:           logger,
 		BaselineResolver: committer,
 		Instruments:      instruments,
+		// Only the native selector sees a full githubOrg listing, so only it
+		// records repository selection observations (#7625).
+		SelectionObserver: membership.Observer{
+			Store:       membershipstore.NewObservationStore(database),
+			Instruments: instruments,
+			Logger:      logger,
+		},
 	})
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
 	if handoffConfig.Enabled {

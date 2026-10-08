@@ -11,6 +11,7 @@ IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
 STORAGE_PACKAGE = "./internal/storage/postgres"
 ACTIVATION_PACKAGE = "./internal/storage/postgres/activation"
 MAINTENANCE_PACKAGE = "./internal/storage/postgres/maintenance"
+MEMBERSHIP_PACKAGE = "./internal/storage/postgres/membership"
 REDUCER_PACKAGE = "./cmd/reducer"
 QUERY_PACKAGE = "./internal/query"
 SUMMARY_PACKAGE = "./internal/storage/postgres/status/summary"
@@ -166,6 +167,17 @@ PACKAGES = {
         ),
         "go/internal/storage/postgres/maintenance/repository_reindex_live_test.go": (
             "TestRepositoryReindexStoreWatermarksLive",
+        ),
+    },
+    MEMBERSHIP_PACKAGE: {
+        "go/internal/storage/postgres/membership/known_scopes_live_test.go": (
+            "TestKnownScopesHostFilterLive",
+        ),
+        "go/internal/storage/postgres/membership/live_read_live_test.go": (
+            "TestLiveFilterParityLive",
+        ),
+        "go/internal/storage/postgres/membership/observations_live_test.go": (
+            "TestObservationStoreLive",
         ),
     },
     REDUCER_PACKAGE: {

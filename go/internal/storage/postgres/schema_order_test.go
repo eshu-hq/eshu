@@ -383,4 +383,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// the gate no longer walks the corpus-wide (language, entity_type) entries
 	// that sort before a late repository's first row.
 	"content_entities_repo_language_type_idx",
+	// Migration 166 (#7625) adds repository_selection_observations, the
+	// per-scope, per-selector githubOrg listing evidence shard 0 writes.
+	"repository_selection_observations",
 }

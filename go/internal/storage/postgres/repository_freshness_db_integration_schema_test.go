@@ -62,6 +62,7 @@ func openRepositoryFreshnessDBIntegrationSchema(t *testing.T, ctx context.Contex
 		MigrationSQL("reducer_work_item_reopened_at"),
 		MigrationSQL("shared_projection_intents"),
 		MigrationSQL("webhook_refresh_triggers"),
+		MigrationSQL("repository_selection_observations"),
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			t.Fatalf("apply repository freshness schema: %v", err)

@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	membershipstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/membership"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -28,6 +30,9 @@ type RepositoryFreshnessStore struct {
 	// stay source-compatible; NewInstrumentedRepositoryFreshnessStore is the
 	// wiring entry point that wants the duration/error signals.
 	Instruments *telemetry.Instruments
+	// now is the clock selection liveness is judged against; nil means
+	// time.Now.
+	now func() time.Time
 }
 
 // NewRepositoryFreshnessStore constructs a read-only repository freshness
@@ -47,14 +52,16 @@ func NewInstrumentedRepositoryFreshnessStore(queryer db.Queryer, instruments *te
 // ReadRepositoryFreshness reads the freshness snapshot for one canonical
 // repository id: the composite single-scope read (resolve -> generation ->
 // stage counts -> shared-enrichment pending), then the separate bounded
-// webhook-trigger lookup. It is one instrumented Go-level composite read
-// backed by four tightly-scoped, index-bound SQL statements -- see this
-// package's README, "Repo freshness single-scope composite read (#5143)",
-// for the measured shape.
+// webhook-trigger lookup, then the scope's selection observations (#7625).
+// It is one instrumented Go-level composite read backed by tightly-scoped,
+// index-bound SQL statements -- see this package's README, "Repo freshness
+// single-scope composite read (#5143)", for the measured shape.
 //
 // A repoID that resolves to no scope returns a snapshot with Resolved=false
 // and a nil error: an unresolved repository is not a query failure, it is
-// evidence the verdict function represents as "unknown".
+// evidence the verdict function represents as "unknown". Any sub-query
+// error, the selection lookup included, fails the whole read; the caller
+// never receives a snapshot with evidence silently missing.
 func (s RepositoryFreshnessStore) ReadRepositoryFreshness(ctx context.Context, repoID string) (statuspkg.RepositoryFreshnessSnapshot, error) {
 	start := time.Now()
 	snapshot, err := s.readRepositoryFreshness(ctx, repoID)
@@ -126,7 +133,63 @@ func (s RepositoryFreshnessStore) readRepositoryFreshness(ctx context.Context, r
 		snapshot.UnobservedPush = unobserved
 	}
 
+	summary, err := s.readSelection(ctx, scopeID)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.Selection = summary
+
 	return snapshot, nil
+}
+
+func (s RepositoryFreshnessStore) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+// readSelection summarizes scopeID's live selection observations (#7625).
+// The scope's newest generation observed_at (rule (d)) is read only when
+// selection.Summarize needs it: the scope has live rows, none selected, all
+// confirmed. A scope with no live row summarizes to unknown.
+func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID string) (selection.Summary, error) {
+	now := s.clock().UTC().Truncate(time.Microsecond)
+	observations, err := membershipstore.ReadLiveScopeObservations(ctx, s.queryer, scopeID, now)
+	if err != nil {
+		return selection.Summary{}, fmt.Errorf("read repository freshness: read selection: %w", err)
+	}
+	summary, err := selection.Summarize(observations, now, func() (time.Time, error) {
+		return s.readLatestGenerationObservedAt(ctx, scopeID)
+	})
+	if err != nil {
+		return selection.Summary{}, fmt.Errorf("read repository freshness: read selection: %w", err)
+	}
+	return summary, nil
+}
+
+// readLatestGenerationObservedAt returns MAX(observed_at) over every
+// generation of scopeID, any status, or the zero time when it has none.
+func (s RepositoryFreshnessStore) readLatestGenerationObservedAt(ctx context.Context, scopeID string) (time.Time, error) {
+	rows, err := s.queryer.QueryContext(ctx, repositoryFreshnessLatestGenerationQuery, scopeID)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read latest generation observed_at: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var latest sql.NullTime
+	if rows.Next() {
+		if scanErr := rows.Scan(&latest); scanErr != nil {
+			return time.Time{}, fmt.Errorf("read latest generation observed_at: %w", scanErr)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return time.Time{}, fmt.Errorf("read latest generation observed_at: %w", err)
+	}
+	if !latest.Valid {
+		return time.Time{}, nil
+	}
+	return latest.Time.UTC(), nil
 }
 
 func (s RepositoryFreshnessStore) resolveScope(ctx context.Context, repoID string) (scopeID, generationID string, resolved bool, err error) {

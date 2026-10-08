@@ -37,6 +37,11 @@ type NativeRepositorySelector struct {
 	// once per git cycle (#7620). Nil disables them; filesystem mode never
 	// reads it.
 	RepositoryReindexWatermark RepositoryReindexWatermarkReader
+	// SelectionObserver records which known repository scopes the githubOrg
+	// listing or the explicit configured list still selects (#7625). Nil
+	// disables observation; only shard 0 in githubOrg or explicit mode calls
+	// it.
+	SelectionObserver RepositorySelectionObserver
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -60,6 +65,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 	if err != nil {
 		return SelectionBatch{}, err
 	}
+	s.observeSelection(ctx, selection, observedAt)
 	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {
 		s.Logger.InfoContext(
