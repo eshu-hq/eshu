@@ -88,23 +88,23 @@ func zombieHealBoltExecutorForTest(t *testing.T) *zombieHealBoltExecutor {
 }
 
 // zombieHealFilesMat builds a file-only materialization for one generation
-// of the proof repo.
-func zombieHealFilesMat(generationID string, paths ...string) canonical.CanonicalMaterialization {
-	const repoID = "repo-zh"
-	files := make([]canonical.FileRow, 0, len(paths))
-	for _, path := range paths {
+// of the proof repo. The repo id is nonced per run (see the test) so
+// concurrent runs on a shared backend never share nodes.
+func zombieHealFilesMat(repoID, generationID string, names ...string) canonical.CanonicalMaterialization {
+	repoPath := "/" + repoID
+	files := make([]canonical.FileRow, 0, len(names))
+	for _, name := range names {
 		files = append(files, canonical.FileRow{
-			Path: path, RelativePath: strings.TrimPrefix(path, "/repo-zh/"),
-			Name:     path[strings.LastIndex(path, "/")+1:],
-			Language: "go", RepoID: repoID, DirPath: "/repo-zh",
+			Path: repoPath + "/" + name, RelativePath: name, Name: name,
+			Language: "go", RepoID: repoID, DirPath: repoPath,
 		})
 	}
 	return canonical.CanonicalMaterialization{
 		ScopeID:      "scope-zh",
 		GenerationID: generationID,
 		RepoID:       repoID,
-		RepoPath:     "/repo-zh",
-		Repository:   &canonical.RepositoryRow{RepoID: repoID, Name: "zh", Path: "/repo-zh"},
+		RepoPath:     repoPath,
+		Repository:   &canonical.RepositoryRow{RepoID: repoID, Name: "zh", Path: repoPath},
 		Files:        files,
 	}
 }
@@ -115,13 +115,14 @@ func zombieHealFilesMat(generationID string, paths ...string) canonical.Canonica
 // production writer; the refused zombie Ack heals the active generation; a
 // fresh worker claims the re-opened row, re-projects through the production
 // writer, and Acks; the active generation's files are back and the zombie's
-// are gone. Skipped unless ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN,
-// ESHU_GRAPH_BACKEND=neo4j, and the ESHU_NEO4J_* connection env are set.
+// are gone. Skipped unless ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN (+ its
+// DISPOSABLE flag), ESHU_GRAPH_BACKEND=neo4j, and the ESHU_NEO4J_*
+// connection env are set.
 func TestProjectorZombieHealRestoresCanonicalNodesLive(t *testing.T) {
 	database := zombieHealProofDB(t, zombieOldSeed(true))
 	bolt := zombieHealBoltExecutorForTest(t)
 	ctx := context.Background()
-	const repoID = "repo-zh"
+	repoID := fmt.Sprintf("repo-zh-%d", time.Now().UnixNano())
 
 	if err := bolt.cleanupRepo(ctx, repoID); err != nil {
 		t.Fatalf("clean graph fixture: %v", err)
@@ -142,7 +143,7 @@ func TestProjectorZombieHealRestoresCanonicalNodesLive(t *testing.T) {
 	}
 
 	// The active generation's published files, written through production.
-	if err := writer.Write(ctx, zombieHealFilesMat("gen-new", "/repo-zh/a.go", "/repo-zh/b.go")); err != nil {
+	if err := writer.Write(ctx, zombieHealFilesMat(repoID, "gen-new", "a.go", "b.go")); err != nil {
 		t.Fatalf("write gen-new files: %v", err)
 	}
 	if got := countFiles("gen-new"); got != 2 {
@@ -151,7 +152,7 @@ func TestProjectorZombieHealRestoresCanonicalNodesLive(t *testing.T) {
 
 	// The zombie's post-supersede write: its retract deletes gen-new's
 	// files because they carry another generation's id.
-	if err := writer.Write(ctx, zombieHealFilesMat("gen-old", "/repo-zh/z.go")); err != nil {
+	if err := writer.Write(ctx, zombieHealFilesMat(repoID, "gen-old", "z.go")); err != nil {
 		t.Fatalf("write gen-old files: %v", err)
 	}
 	if got := countFiles("gen-new"); got != 0 {
@@ -183,7 +184,7 @@ func TestProjectorZombieHealRestoresCanonicalNodesLive(t *testing.T) {
 	if err := healer.MarkProjectionWriteStarted(ctx, work); err != nil {
 		t.Fatalf("mark healed write: %v", err)
 	}
-	if err := writer.Write(ctx, zombieHealFilesMat("gen-new", "/repo-zh/a.go", "/repo-zh/b.go")); err != nil {
+	if err := writer.Write(ctx, zombieHealFilesMat(repoID, "gen-new", "a.go", "b.go")); err != nil {
 		t.Fatalf("re-project gen-new: %v", err)
 	}
 	if err := healer.Ack(ctx, work, runtime.Result{}); err != nil {

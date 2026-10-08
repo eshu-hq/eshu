@@ -5,12 +5,33 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// TestHealZombieActiveGenerationMapsStatementError pins the production
+// mapping behind the error outcome: any heal statement failure surfaces as
+// outcome "error" with no healed generation. A closed handle fails
+// hermetically, without touching the network.
+func TestHealZombieActiveGenerationMapsStatementError(t *testing.T) {
+	database, err := sql.Open("pgx", "postgres://localhost:1/closed?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open handle: %v", err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("close handle: %v", err)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: database}, "closed-owner", time.Minute)
+	got := queue.healZombieActiveGeneration(context.Background(), "scope-x", "gen-x", time.Now().UTC())
+	if got.outcome != zombieHealOutcomeError || got.healedGenerationID != "" {
+		t.Fatalf("heal on closed db = %+v, want outcome error with no healed generation", got)
+	}
+}
 
 // TestRecordZombieHealEmitsClosedOutcomes pins the heal counter's wire
 // contract: every outcome label, including error, emits exactly, and nil

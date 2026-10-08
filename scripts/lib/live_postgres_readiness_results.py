@@ -92,6 +92,18 @@ PACKAGES = {
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
             "TestContainerImageIdentityActivationEpochMissIsSentinelLive",
         ),
+        "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
+            "TestProjectorZombieHealRestoresCanonicalNodesLive",
+        ),
+        "go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go": (
+            "TestProjectorRefusalHealsMarkedSupersededGeneration",
+            "TestProjectorRepeatedRefusalsOpenOneActiveRow",
+            "TestProjectorConcurrentHealsOpenOneActiveRow",
+            "TestProjectorRefusalSkipsHealWithoutWriteMarker",
+            "TestProjectorSupersededByNewerSkipsHeal",
+            "TestProjectorRefusalSkipsHealWithoutActiveGeneration",
+            "TestProjectorRefusalSkipsHealWhenActiveRowInFlight",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (

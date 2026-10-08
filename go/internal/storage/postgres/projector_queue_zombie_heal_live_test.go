@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,8 +41,8 @@ const (
 func zombieHealProofDB(t *testing.T, seedSQL string) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN")
-	if dsn == "" {
-		t.Skip("set ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN to a disposable Postgres database")
+	if dsn == "" || os.Getenv("ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE") != "1" {
+		t.Skip("set ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN to a disposable Postgres database and ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE=1")
 	}
 	database := openLivenessProofDB(t, dsn)
 	provisionLivenessSchema(t, database, `
@@ -215,6 +216,79 @@ INSERT INTO fact_work_items (
 	}
 	assertZombieHealOutcome(t, reader, wantZombieHealHealed, 1)
 	assertZombieHealOutcome(t, reader, wantZombieHealOpen, 1)
+}
+
+// TestProjectorConcurrentHealsOpenOneActiveRow proves the heal arbitration
+// under true overlap: concurrent heal statements for one marked refusal
+// converge on one open row with heal_count 1 — exactly one wins (healed)
+// and the rest observe the open row (skipped_already_open) via the
+// ON CONFLICT write-time guard. It calls the production heal helper
+// directly because racing the full Heartbeat would contend on the
+// supersede statement's SKIP LOCKED generation-row lock — an orthogonal,
+// already-covered mechanism — instead of the heal upsert under test.
+func TestProjectorConcurrentHealsOpenOneActiveRow(t *testing.T) {
+	database := zombieHealProofDB(t, zombieOldSeed(true))
+	var schema string
+	if err := database.QueryRowContext(context.Background(), "SELECT current_schema()").Scan(&schema); err != nil {
+		t.Fatalf("read proof schema: %v", err)
+	}
+	const healers = 4
+	queues := make([]ProjectorQueue, 0, healers)
+	for i := range healers {
+		handle := database
+		if i > 0 {
+			extra := openLivenessProofDB(t, os.Getenv("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN"))
+			if _, err := extra.ExecContext(context.Background(), "SET search_path TO "+schema); err != nil {
+				t.Fatalf("set proof search_path: %v", err)
+			}
+			handle = extra
+		}
+		queues = append(queues, NewProjectorQueue(SQLDB{DB: handle}, "heal-racer", time.Minute))
+	}
+
+	start := make(chan struct{})
+	results := make([]healZombieActiveGenerationResult, healers)
+	var group sync.WaitGroup
+	for i := range healers {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-start
+			results[i] = queues[i].healZombieActiveGeneration(context.Background(), "scope-zh", "gen-old", time.Now().UTC())
+		}()
+	}
+	close(start)
+	group.Wait()
+
+	var healed, alreadyOpen int
+	for _, result := range results {
+		switch result.outcome {
+		case zombieHealOutcomeHealed:
+			healed++
+			if result.healedGenerationID != "gen-new" {
+				t.Fatalf("healed generation = %q, want gen-new", result.healedGenerationID)
+			}
+		case zombieHealOutcomeSkippedAlreadyOpen:
+			alreadyOpen++
+		default:
+			t.Fatalf("concurrent heal outcome = %q, want healed or skipped_already_open", result.outcome)
+		}
+	}
+	if healed != 1 || alreadyOpen != healers-1 {
+		t.Fatalf("healed = %d, already_open = %d, want 1 and %d", healed, alreadyOpen, healers-1)
+	}
+	var status, healCount string
+	var canonicalRows int
+	if err := database.QueryRowContext(context.Background(), `
+SELECT status, payload ->> 'zombie_heal_count',
+       (SELECT COUNT(*) FROM fact_work_items
+        WHERE work_item_id = 'projector_scope-zh_gen-new')
+FROM fact_work_items WHERE work_item_id = 'projector_scope-zh_gen-new'`).Scan(&status, &healCount, &canonicalRows); err != nil {
+		t.Fatalf("read healed row: %v", err)
+	}
+	if status != "pending" || healCount != "1" || canonicalRows != 1 {
+		t.Fatalf("healed row = %s/%s/%d rows, want pending/1/1", status, healCount, canonicalRows)
+	}
 }
 
 // TestProjectorRefusalSkipsHealWithoutWriteMarker pins the gate's negative
