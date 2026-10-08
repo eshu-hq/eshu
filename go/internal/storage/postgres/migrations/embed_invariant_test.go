@@ -61,6 +61,8 @@ import (
 // 163_producer_activation_obligations.sql; #7729 adds
 // 164_content_entities_repo_language_type_idx.sql.
 const goldenBootstrapDefinitionsDigest = "9dc65432215610306f1282972a3af65005bf911ace9032833537efa769ec2bc3"
+// 163_producer_activation_obligations.sql; #7625 adds
+// 164_repository_selection_observations.sql.
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
