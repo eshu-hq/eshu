@@ -167,6 +167,12 @@ func TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable(t *testing.T) {
 				// UNWIND row's first column and the rest in the WHERE clause.
 				anchor = ": candidate_key.key_0})-[r]-(m)"
 			}
+			if label == OrphanSweepLabelEvidenceArtifact {
+				// #7322: artifacts are orphaned by the missing source
+				// edge, not by full disconnection, so S2 checks the
+				// typed incoming edge instead of any relationship.
+				anchor = ": candidate_key})<-[r:HAS_DEPLOYMENT_EVIDENCE]-(source)"
+			}
 			for _, want := range []string{
 				"UNWIND $keys AS candidate_key",
 				fmt.Sprintf("MATCH (n:%s {", label),
@@ -257,7 +263,15 @@ func TestBuildClearMarkSweepStatementsAreKeyAnchoredNoRelationshipPredicate(t *t
 				}
 			}
 			assertNoForbiddenPatterns(t, "sweep", sweepStmt.Cypher)
-			if strings.Contains(sweepStmt.Cypher, "DETACH DELETE") {
+			// #7322: only EvidenceArtifact orphans may still carry edges
+			// (they are orphaned by the missing source edge), so only
+			// that label detaches; every other label sweeps nodes the
+			// anti-join proved fully disconnected.
+			if label == OrphanSweepLabelEvidenceArtifact {
+				if !strings.Contains(sweepStmt.Cypher, "DETACH DELETE n") {
+					t.Fatalf("artifact sweep Cypher must detach-delete:\n%s", sweepStmt.Cypher)
+				}
+			} else if strings.Contains(sweepStmt.Cypher, "DETACH DELETE") {
 				t.Fatalf("sweep Cypher must not detach-delete:\n%s", sweepStmt.Cypher)
 			}
 		})

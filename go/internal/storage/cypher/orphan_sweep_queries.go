@@ -174,11 +174,14 @@ func cursorValue(cursor orphanSweepKey, position int) string {
 }
 
 // BuildConnectedKeysQuery builds the S2 read: for each supplied identity key,
-// whether that node currently has any relationship. This is the anti-join's
-// only relationship predicate, and the only shape proven reliable on both
-// pinned NornicDB backends: a concrete relationship variable (`-[r]-`) in a
-// MATCH anchored on a caller-supplied key, never a negated or counted
-// pattern-existence predicate.
+// whether that node currently counts as connected. For most labels that is
+// any relationship. For EvidenceArtifact (#7322) it is an incoming
+// HAS_DEPLOYMENT_EVIDENCE source edge: the node is evidence of its source
+// repository's relationship, so a sourceless artifact is orphaned even when
+// it still carries target or environment edges. Both shapes are a concrete
+// relationship variable in a MATCH anchored on a caller-supplied key, never
+// a negated or counted pattern-existence predicate, which is the only shape
+// proven reliable on both pinned NornicDB backends.
 //
 // The UNWIND binding variable is deliberately named candidate_key rather than
 // key: reusing the RETURN alias name for the UNWIND variable silently returns
@@ -192,6 +195,23 @@ func BuildConnectedKeysQuery(label OrphanSweepLabel, keys []orphanSweepKey) (Sta
 	properties, ok := orphanSweepIdentityProperties(label)
 	if !ok {
 		return Statement{}, false
+	}
+	if label == OrphanSweepLabelEvidenceArtifact {
+		// The far end stays untyped on purpose: any incoming source edge
+		// counts as connected, so a hand-repaired edge from a
+		// non-Repository node still masks the orphan instead of letting
+		// the sweep delete a referenced artifact. The near end is
+		// key-anchored on the id UNIQUE constraint, so the untyped far
+		// end expands only that artifact's own incoming edges.
+		return Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher: `UNWIND $keys AS candidate_key
+MATCH (n:EvidenceArtifact {id: candidate_key})<-[r:HAS_DEPLOYMENT_EVIDENCE]-(source)
+RETURN DISTINCT n.id AS key`,
+			Parameters: map[string]any{
+				"keys": singlePropertyKeyParams(keys),
+			},
+		}, true
 	}
 	// For a label whose identity key is not unique across node classes (Module:
 	// name is shared between canonical imports and semantic entities), restrict
