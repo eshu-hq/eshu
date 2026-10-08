@@ -71,6 +71,9 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 			if !maps.Equal(probeLegacy, groupedCounts) {
 				t.Errorf("row counts differ:\n probe   %v\n grouped %v", probeLegacy, groupedCounts)
 			}
+			if len(groupedCounts) != len(tc.candidates)*13 {
+				t.Errorf("oracle covers %d (generation, table) pairs, want %d", len(groupedCounts), len(tc.candidates)*13)
+			}
 			if len(probeCounts) != len(tc.candidates)*28 {
 				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*28)
 			}

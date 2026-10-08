@@ -14,12 +14,12 @@ Seeded one superseded generation with one row in each child (two in
 - current query reported: 2 rows (the `fact_work_items` only)
 - cascade deleted in the 15 children: 16 rows, 0 survivors
 
-Two corrections to the issue list, both verified against the migrated
-schema's `pg_constraint` closure: `eshu_search_index_terms_shadow` does
-not exist post-migration (transient artifact of migration 039a, renamed
+Two corrections to the issue's 15-name list, both verified against the
+migrated schema's `pg_constraint` closure: `eshu_search_index_terms_shadow`
+does not exist post-migration (transient artifact of migration 039a, renamed
 into `eshu_search_index_terms`), and `activation_obligations` (migration
-160, landed after the issue) is a sixteenth uncounted cascade child of the
-same class. Net: 14 issue tables minus the phantom plus
+160, landed after the issue) is an uncounted cascade child of the same
+class the list predates. Net: 15 names minus the phantom plus
 `activation_obligations` = 15 new arms, 28 tables total.
 
 Performance Evidence: EXPLAIN ANALYZE on seeded bulk rows (per candidate:
