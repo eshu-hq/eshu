@@ -82,6 +82,100 @@ func TestWorkloadReplayDuringClaimReturnsAckToPending(t *testing.T) {
 	}
 }
 
+// TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock proves #6828: the
+// claim visibility check runs on the database clock, so a just-reopened row
+// (visible_at stamped by the dirty-reopen trigger from clock_timestamp())
+// stays claimable even when the app clock lags the database clock by
+// seconds. Both the single-claim and batch-claim paths are covered. Pre-fix
+// this test fails with "claim after ACK returned no work"; no sleeps or
+// retries are involved, only the queue.Now seam.
+func TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock(t *testing.T) {
+	db, ctx := refinalizeRebuildResetLiveDB(t)
+	suffix := testSuffix(t)
+	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
+
+	queue := NewReducerQueue(SQLDB{DB: db}, "workload-replay-skew", time.Minute)
+	queue.ClaimDomain = reducer.DomainWorkloadMaterialization
+	// Skew the APP clock 5s behind the database clock for the whole flow.
+	// Fresh rows carry no visible_at, so only the post-ACK reopened rows
+	// exercise the visibility comparison.
+	queue.Now = func() time.Time { return time.Now().Add(-5 * time.Second) }
+
+	enqueue := func(entityKey string) {
+		t.Helper()
+		intent := runtime.ReducerIntent{
+			ScopeID:      scopeID,
+			GenerationID: generationID,
+			Domain:       reducer.DomainWorkloadMaterialization,
+			EntityKey:    entityKey,
+			Reason:       "6828 skewed-clock proof",
+			SourceSystem: "reducer",
+		}
+		if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
+			t.Fatalf("enqueue %s: %v", entityKey, err)
+		}
+	}
+	dirty := func(entityKey string) {
+		t.Helper()
+		replayed, err := queue.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
+		if err != nil {
+			t.Fatalf("schedule replay for %s: %v", entityKey, err)
+		}
+		if !replayed {
+			t.Fatalf("schedule replay for %s returned false", entityKey)
+		}
+	}
+
+	// Single-claim path: enqueue, claim, dirty, ack, then the skewed claim
+	// must still find the reopened row.
+	singleKey := "repo:workload-replay-skew-single-" + suffix
+	enqueue(singleKey)
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("claim single workload materialization: %v", err)
+	}
+	if !ok {
+		t.Fatal("claim single workload materialization returned no work")
+	}
+	dirty(singleKey)
+	if err := queue.Ack(ctx, claimed, reducer.Result{}); err != nil {
+		t.Fatalf("ack dirtied single workload materialization: %v", err)
+	}
+	second, ok, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("claim reopened single workload materialization: %v", err)
+	}
+	if !ok || second.IntentID != claimed.IntentID {
+		t.Fatalf("reopened single claim = (%q, %v), want (%q, true)", second.IntentID, ok, claimed.IntentID)
+	}
+	// Retire the single row so the batch phase sees only its own row.
+	if err := queue.Ack(ctx, second, reducer.Result{}); err != nil {
+		t.Fatalf("ack reopened single workload materialization: %v", err)
+	}
+
+	// Batch-claim path: same flow through ClaimBatch/AckBatch.
+	batchKey := "repo:workload-replay-skew-batch-" + suffix
+	enqueue(batchKey)
+	first, err := queue.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("batch-claim workload materialization: %v", err)
+	}
+	if len(first) != 1 {
+		t.Fatalf("batch-claim workload materialization returned %d intents, want 1", len(first))
+	}
+	dirty(batchKey)
+	if err := queue.AckBatch(ctx, first, []reducer.Result{{}}); err != nil {
+		t.Fatalf("batch-ack dirtied workload materialization: %v", err)
+	}
+	reopened, err := queue.ClaimBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("batch-claim reopened workload materialization: %v", err)
+	}
+	if len(reopened) != 1 || reopened[0].IntentID != first[0].IntentID {
+		t.Fatalf("reopened batch claim = %d intents, want the 1 reopened row", len(reopened))
+	}
+}
+
 func TestWorkloadReplayConcurrentFirstScheduleReportsSuccess(t *testing.T) {
 	db, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)

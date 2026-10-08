@@ -189,7 +189,9 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		"WHERE lock_target.stage = 'reducer'",
 		"AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')",
 		"AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)",
-		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1)",
+		// #6828: the lock recheck matches the base filter's stamp-clock
+		// visibility; a Go-only recheck would reintroduce the skew flake.
+		"AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query missing %q:\n%s", want, query)

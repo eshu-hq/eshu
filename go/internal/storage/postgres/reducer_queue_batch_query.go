@@ -126,7 +126,8 @@ base AS MATERIALIZED (
                 WHERE semantic_next.stage = 'reducer'
                   AND semantic_next.domain = 'semantic_entity_materialization'
                   AND semantic_next.status IN ('pending', 'retrying', 'claimed', 'running')
-                  AND (semantic_next.visible_at IS NULL OR semantic_next.visible_at <= $1)
+                  -- #6828: stamp-clock visibility, like the base candidate filter below.
+                  AND (semantic_next.visible_at IS NULL OR semantic_next.visible_at <= $1 OR (semantic_next.status = 'pending' AND semantic_next.visible_at <= clock_timestamp()))
                   AND (semantic_next.claim_until IS NULL OR semantic_next.claim_until <= $1)
                   AND (
                       semantic_next.updated_at < fact_work_items.updated_at
@@ -152,7 +153,11 @@ base AS MATERIALIZED (
           FROM superseded_stale_reducer_generations AS superseded
           WHERE superseded.work_item_id = fact_work_items.work_item_id
       )
-      AND (visible_at IS NULL OR visible_at <= $1)
+      -- #6828: visibility runs on the clock that stamped the row (same fix
+      -- as the single-claim query): the $1 arm covers app-stamped retry
+      -- rows and simulated clocks, the pending arm covers trigger-stamped
+      -- reopened rows on the database clock.
+      AND (visible_at IS NULL OR visible_at <= $1 OR (status = 'pending' AND visible_at <= clock_timestamp()))
       AND (claim_until IS NULL OR claim_until <= $1)
       AND ($2::text[] IS NULL OR domain = ANY($2::text[]))
 ),
@@ -261,7 +266,10 @@ locked AS (
     WHERE lock_target.stage = 'reducer'
       AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
       AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
-      AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1)
+      -- #6828: stamp-clock visibility, matching the base candidate filter
+      -- above; a Go-only recheck here would reintroduce the skew flake by
+      -- dropping trigger-reopened rows the base filter admitted.
+      AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
     ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, updated_at ASC, work_item_id ASC
     LIMIT $8
     FOR UPDATE OF lock_target SKIP LOCKED
