@@ -310,16 +310,18 @@ func producerEvidenceFactKindsFromFilter(filter string) []string {
 }
 
 // producerEvidenceFactKindListSQL is the comma-separated quoted kind list
-// for the probe's prefilter: every kind the identity filter matches plus
-// the drift arm's kind. Every OR arm below pins fact_kind, so the prefilter
-// is implied by the predicate and cannot change the probe outcome (pinned
-// by TestProducerEvidenceKindPrefilterDifferential); it lets the planner
+// for the probe's prefilter, derived from the composed core predicate
+// itself (identity arms plus the drift arm), never hand-copied, so a new
+// arm on either side cannot silently fall outside the prefilter. Every OR
+// arm below pins fact_kind, so the prefilter is implied by the predicate
+// and cannot change the probe outcome (pinned by
+// TestProducerEvidenceKindPrefilterDifferential); it lets the planner
 // seek fact_records_scope_generation_idx on
 // (scope_id, generation_id, fact_kind) instead of fetching the generation's
 // non-producer facts only to filter them out (F1: a 5000-row non-producer
 // generation costs 882 buffers unprefiltered, 4 prefiltered).
 func producerEvidenceFactKindListSQL() string {
-	kinds := append(producerEvidenceFactKindsFromFilter(identityFactFilterSQL), "terraform_state_resource")
+	kinds := producerEvidenceFactKindsFromFilter(producerEvidenceCoreSQL)
 	quoted := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		quoted = append(quoted, "'"+kind+"'")

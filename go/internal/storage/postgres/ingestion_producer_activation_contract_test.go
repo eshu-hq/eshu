@@ -501,8 +501,9 @@ func TestProducerEvidenceKindPrefilterDifferential(t *testing.T) {
 }
 
 // TestProducerEvidenceKindDerivation pins the derived kind list: every kind
-// the identity filter matches, in filter order. The drift arm's kind is
-// appended separately by producerEvidenceFactKindListSQL.
+// the identity filter matches, in filter order, plus the drift arm's kind
+// when derived from the composed core predicate (the prefilter derives
+// from the core text itself, never a hand-copied literal).
 func TestProducerEvidenceKindDerivation(t *testing.T) {
 	want := []string{
 		"oci_registry.image_tag_observation", "oci_registry.image_manifest", "oci_registry.image_index",
@@ -512,13 +513,18 @@ func TestProducerEvidenceKindDerivation(t *testing.T) {
 	if got := producerEvidenceFactKindsFromFilter(identityFactFilterSQL); !reflect.DeepEqual(got, want) {
 		t.Fatalf("derived filter kinds = %v, want %v", got, want)
 	}
+	wantCore := append(append([]string{}, want...), "terraform_state_resource")
+	if got := producerEvidenceFactKindsFromFilter(producerEvidenceCoreSQL); !reflect.DeepEqual(got, wantCore) {
+		t.Fatalf("derived core kinds = %v, want %v", got, wantCore)
+	}
 }
 
 // TestProducerEvidenceKindDerivationCoversEveryMention fails closed on
-// future filter arms. Every fact_kind mention in the identity filter must
-// satisfy three guards: it is consumed by the derivation pattern (so a
-// LIKE or unparseable arm breaks the test), its operator is a positive IN
-// or equality (so != or <> cannot hide behind the = inside it), and every
+// future filter arms. Every fact_kind mention in the identity filter and
+// in the composed core predicate (which adds the drift arm) must satisfy
+// three guards: it is consumed by the derivation pattern (so a LIKE or
+// unparseable arm breaks the test), its operator is a positive IN or
+// equality (so != or <> cannot hide behind the = inside it), and every
 // derived kind is a plain literal (so a subquery or nested IN cannot yield
 // garbage that silently shrinks the prefilter and retires a producer
 // generation inapplicable, #7708 review).
@@ -531,6 +537,9 @@ var producerDerivedKindLiteralPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
 func TestProducerEvidenceKindDerivationCoversEveryMention(t *testing.T) {
 	t.Parallel()
 	if err := checkFilterDerivationCoversEveryMention(identityFactFilterSQL); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkFilterDerivationCoversEveryMention(producerEvidenceCoreSQL); err != nil {
 		t.Fatal(err)
 	}
 }
