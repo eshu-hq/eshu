@@ -39,10 +39,9 @@ qualifier; see `AGENTS.md`.
 
 ## Move evidence
 
-#6623 moved `internal/query/workitem/factschema_decode.go` here by rename
-plus export, folded in `logWorkItemEvidenceDecodeDrop` from
-`internal/query/workitem/evidence.go`, deleted the
-`internal/query/incident/store/decode_workitem.go` fork, and repointed all
+#6623 moved the work-item seam file here by rename plus export, folded in
+`logWorkItemEvidenceDecodeDrop` from `internal/query/workitem/evidence.go`,
+deleted the incident store's `decode_workitem.go` fork, and repointed all
 consumers with no logic change.
 
 No-Regression Evidence: `go test ./internal/query/...` and

@@ -12,9 +12,9 @@ import (
 // This file holds the decode wrappers for the work_item fact family — the
 // ONLY decode site for work_item.* payloads in this codebase (no reducer or
 // projector domain consumes them; see sdk/go/factschema/workitem/v1/README.md).
-// It moved here from internal/query/workitem/factschema_decode.go (#6623),
-// absorbing the verbatim fork internal/query/incident/store/decode_workitem.go
-// carried, so both read paths execute this code. It calls decode.Error,
+// It moved here from the work-item lane (#6623), absorbing the verbatim fork
+// the incident store carried, so both read paths execute this code. It calls
+// decode.Error,
 // decode.New, decode.DefaultSchemaMajorVersion and decode.DerefString
 // directly.
 //

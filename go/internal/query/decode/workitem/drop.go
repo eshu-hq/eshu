@@ -13,8 +13,8 @@ import (
 // LogEvidenceDecodeDrop emits an operator-diagnosable debug log for
 // a work-item evidence fact dropped from a read because its payload failed
 // typed decode. Moved here from internal/query/workitem/evidence.go (#6623),
-// absorbing the verbatim fork internal/query/incident/store/decode_workitem.go
-// carried. This package never logs on its own: each read path decides to call
+// absorbing the verbatim fork the incident store carried. This package never
+// logs on its own: each read path decides to call
 // this helper when it drops a row.
 func LogEvidenceDecodeDrop(err error) {
 	var decodeErr *decode.Error
