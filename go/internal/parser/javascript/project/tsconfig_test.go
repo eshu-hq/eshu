@@ -68,6 +68,37 @@ func TestTSConfigSourceCandidatesAreDeterministic(t *testing.T) {
 	}
 }
 
+func TestTSConfigImportResolverReadsJSConfig(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "jsconfig.json"), `{"compilerOptions": {"baseUrl": "src"}}`)
+	writeFile(t, filepath.Join(repoRoot, "src", "api", "index.js"), `export function getUser() {}`)
+	fromPath := filepath.Join(repoRoot, "src", "page.jsx")
+	writeFile(t, fromPath, `import { getUser } from "api"`)
+
+	resolver := NewTSConfigImportResolver(repoRoot, fromPath)
+	if got, want := resolver.ResolveSource("api"), "src/api/index.js"; got != want {
+		t.Fatalf("ResolveSource() = %q, want %q", got, want)
+	}
+}
+
+func TestTSConfigImportResolverPrefersTSConfigOverJSConfig(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "tsconfig.json"), `{"compilerOptions": {"baseUrl": "ts"}}`)
+	writeFile(t, filepath.Join(repoRoot, "jsconfig.json"), `{"compilerOptions": {"baseUrl": "js"}}`)
+	writeFile(t, filepath.Join(repoRoot, "ts", "lib", "index.ts"), `export const lib = true`)
+	fromPath := filepath.Join(repoRoot, "ts", "page.ts")
+	writeFile(t, fromPath, `import { lib } from "lib"`)
+
+	resolver := NewTSConfigImportResolver(repoRoot, fromPath)
+	if got, want := resolver.ResolveSource("lib"), "ts/lib/index.ts"; got != want {
+		t.Fatalf("ResolveSource() = %q, want %q", got, want)
+	}
+}
+
 func writeFile(t *testing.T, path string, body string) {
 	t.Helper()
 

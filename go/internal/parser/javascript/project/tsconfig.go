@@ -27,8 +27,9 @@ type tsConfigOptions struct {
 }
 
 // NewTSConfigImportResolver builds a resolver from the nearest tsconfig.json
-// owned by path. It accepts JSONC syntax and rejects absolute or out-of-repo
-// baseUrl values so imports cannot resolve outside the indexed repository.
+// or jsconfig.json owned by path. It accepts JSONC syntax and rejects
+// absolute or out-of-repo baseUrl values so imports cannot resolve outside
+// the indexed repository.
 func NewTSConfigImportResolver(repoRoot string, path string) TSConfigImportResolver {
 	repoRoot = CleanPath(repoRoot)
 	path = CleanPath(path)
@@ -99,9 +100,14 @@ func (r TSConfigImportResolver) resolveBaseRelativeSource(source string) string 
 func nearestTSConfig(repoRoot string, path string) (string, bool) {
 	dir := filepath.Dir(path)
 	for PathWithin(repoRoot, dir) {
-		candidate := filepath.Join(dir, "tsconfig.json")
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate, true
+		// tsconfig.json wins over jsconfig.json in one directory; a project
+		// carries exactly one of them in practice, so the order only settles
+		// the corner where both exist.
+		for _, name := range []string{"tsconfig.json", "jsconfig.json"} {
+			candidate := filepath.Join(dir, name)
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				return candidate, true
+			}
 		}
 		if dir == repoRoot {
 			break
@@ -116,7 +122,7 @@ func nearestTSConfig(repoRoot string, path string) (string, bool) {
 }
 
 func tsConfigCompilerOptions(path string) tsConfigOptions {
-	raw, err := os.ReadFile(path) // #nosec G304 -- reads a tsconfig.json at a path derived from the scan target repo tree
+	raw, err := os.ReadFile(path) // #nosec G304 -- reads a tsconfig/jsconfig file at a path derived from the scan target repo tree
 	if err != nil {
 		return tsConfigOptions{}
 	}

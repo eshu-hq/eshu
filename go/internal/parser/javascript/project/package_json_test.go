@@ -83,6 +83,57 @@ func assertStringSliceContains(t *testing.T, values []string, want string) {
 	t.Fatalf("%#v does not contain %q", values, want)
 }
 
+func TestNpmAliasTargetsMapAliasToPublishedName(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writePackageJSONTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "name": "web-app",
+  "dependencies": {
+    "foo": "npm:bar@1.2.3",
+    "scoped": "npm:@acme/real@^2.0.0",
+    "unversioned": "npm:bare",
+    "broken": "npm:",
+    "subpath": "npm:bar/baz@1",
+    "plain": "1.0.0",
+    "odd": 7
+  }
+}`)
+	fromPath := filepath.Join(repoRoot, "src", "page.js")
+
+	targets := NpmAliasTargets(repoRoot, fromPath)
+	want := map[string]string{
+		"foo":         "bar",
+		"scoped":      "@acme/real",
+		"unversioned": "bare",
+		"broken":      "",
+		"subpath":     "",
+	}
+	if len(targets) != len(want) {
+		t.Fatalf("NpmAliasTargets() = %#v, want %#v", targets, want)
+	}
+	for alias, target := range want {
+		if targets[alias] != target {
+			t.Errorf("NpmAliasTargets()[%q] = %q, want %q", alias, targets[alias], target)
+		}
+	}
+}
+
+func TestNpmAliasTargetsPreferNearestManifest(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writePackageJSONTestFile(t, filepath.Join(repoRoot, "package.json"),
+		`{"name": "root", "dependencies": {"foo": "npm:outer@1"}}`)
+	writePackageJSONTestFile(t, filepath.Join(repoRoot, "packages", "app", "package.json"),
+		`{"name": "app", "dependencies": {"foo": "npm:inner@2"}}`)
+	fromPath := filepath.Join(repoRoot, "packages", "app", "src", "page.js")
+
+	if targets := NpmAliasTargets(repoRoot, fromPath); targets["foo"] != "inner" {
+		t.Fatalf(`NpmAliasTargets()["foo"] = %q, want "inner"`, targets["foo"])
+	}
+}
+
 func writePackageJSONTestFile(t *testing.T, path string, body string) {
 	t.Helper()
 

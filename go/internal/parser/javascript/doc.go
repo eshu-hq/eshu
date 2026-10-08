@@ -36,10 +36,14 @@
 // bare package import carries package_export_symbol =
 // "package:<source>#<imported name>", but only when a package.json between the
 // file and the repository root declares that package in a dependency field
-// (project.DeclaredDependencies). An undeclared bare name (a jsconfig or
-// bundler alias, a Node.js built-in) stays unkeyed, as do type references,
+// (project.DeclaredDependencies). An npm alias dependency is keyed under its
+// target ("alias": "npm:target@range" keys package:target#name), and an alias
+// whose target does not parse stays unkeyed (#7613). An undeclared bare name
+// (a bundler alias, a Node.js built-in) stays unkeyed, as do type references,
 // type-only imports, subpaths, in-repo imports, deep chains, default-import
-// members, and names the file declares again.
+// members, and names the file declares again. A jsconfig.json alias resolves
+// in-repo like a tsconfig.json one, so it sets resolved_source and stays
+// unkeyed even when the name is also declared (#7613).
 //
 // Three leaf subpackages carry work that does not need the parse lifecycle,
 // and none of them may import this package back (issue #6771):
