@@ -282,9 +282,10 @@ Why it is safe: `go vet ./...`, `go test ./internal/query/...
 ## Performance and observability evidence for the `repository` leaf
 
 The leaf keeps the name `repository` although the `query/repository` handler
-family exists: both are package `repository`, which Go allows, and only four
-of the 51 importing files also import the family, spelling this leaf
-`repositorycontract`. The trio is the last acyclic group the directory
+family exists: both are package `repository`, which Go allows, and seven
+of the 51 importing files (four non-test, three test) also import the
+family, spelling this leaf `repositorycontract`. The trio is the last
+acyclic group the directory
 needed: stay-to-leaf references are zero (verified by exact-symbol sweep
 over the other 40 files, the eight existing leaves, and the parent tests),
 so the leaf imports the parent one way for `ContentStore` and the

@@ -5,8 +5,8 @@
 | File | Contents |
 | --- | --- |
 | `read_models.go` | Repository entry-point, deployment-evidence, relationship-evidence, and service-story target-support read models, stores, and loaders. |
-| `summary_read_models.go` | Repository summary, counts, and relationship read models, stores, and loaders, plus `RepositoryRef`, `RepoRef`, and the workload identity entry. |
-| `projection.go` | `RepoProjection` (standard Cypher RETURN-list fragment for repository nodes) and `RepoRefFromRow` (graph row to `RepoRef`). |
+| `summary_read_models.go` | Repository summary, counts, and relationship read models, stores, and loaders, plus `RepositoryRef` and the workload identity entry. |
+| `projection.go` | `RepoRef`, `RepoProjection` (standard Cypher RETURN-list fragment for repository nodes), and `RepoRefFromRow` (graph row to `RepoRef`). |
 
 Every read model answers through the `ContentStore` port; the loaders take
 the store as a parameter so doubles stay in the caller. `Available` false

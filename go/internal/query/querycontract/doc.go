@@ -101,4 +101,4 @@
 // root caller (the WWW-Authenticate lookup's only caller moved with it, so
 // it keeps none), and cmd/mcp-server, auth_constructors.go, and every
 // other existing caller compile unchanged.
-package querycontract // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle. The #6597 split extracted nine leaves into subpackages (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/, answer/, taxonomy/ and repository/); what stays fits the 40-file cap, so no dirgate marker remains.
+package querycontract // Shared-seam home for #6060 family moves: root, impact/ and the family packages must share these seams without an import cycle. The #6597 split extracted nine leaves into subpackages (kubernetes/, rowvalue/, code/, entity/, evidence/, visualization/, answer/, taxonomy/ and repository/); what stays fits the 40-file cap, so no file-count dirgate marker remains.
