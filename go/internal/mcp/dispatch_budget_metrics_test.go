@@ -100,10 +100,10 @@ func TestApplyResponseBudgetRecordsResourceFallbackPerTool(t *testing.T) {
 	if err != nil || result.IsError || !result.ResourceOnly {
 		t.Fatalf("resource fallback = (%+v, %v), want success", result, err)
 	}
-	if got := collectResourceFallbacks(t, reader, "find_code"); got != 1 {
+	if got := collectResourceFallbacks(t, reader, "find_symbol"); got != 1 {
 		t.Fatalf("resource fallback counter = %d, want 1", got)
 	}
-	if over, count, _ := collectBudgetMetrics(t, reader, "find_code"); over != 0 || count != 1 {
+	if over, count, _ := collectBudgetMetrics(t, reader, "find_symbol"); over != 0 || count != 1 {
 		t.Fatalf("budget metrics = (over %d, count %d), want (0, 1)", over, count)
 	}
 }
@@ -122,7 +122,7 @@ func TestApplyResponseBudgetRecordsSizeAndOverBudgetPerTool(t *testing.T) {
 	if err != nil || res.IsError {
 		t.Fatalf("small dispatch = (%+v, %v), want an under-budget success", res, err)
 	}
-	over, count, sum := collectBudgetMetrics(t, reader, "find_code")
+	over, count, sum := collectBudgetMetrics(t, reader, "find_symbol")
 	if over != 0 {
 		t.Fatalf("over-budget counter = %d after an under-budget response, want 0", over)
 	}
@@ -134,7 +134,7 @@ func TestApplyResponseBudgetRecordsSizeAndOverBudgetPerTool(t *testing.T) {
 	if err != nil || !res.IsError {
 		t.Fatalf("big dispatch = (%+v, %v), want the over-budget error envelope", res, err)
 	}
-	over, count, _ = collectBudgetMetrics(t, reader, "find_code")
+	over, count, _ = collectBudgetMetrics(t, reader, "find_symbol")
 	if over != 1 {
 		t.Fatalf("over-budget counter = %d after one over-budget response, want 1", over)
 	}
@@ -151,7 +151,7 @@ func TestApplyResponseBudgetDisabledRecordsNothing(t *testing.T) {
 	if _, err := dispatchWithBudget(t, bigRowsHandler(t, 2, 16), 0); err != nil {
 		t.Fatalf("dispatchWithBudget(budget=0) error = %v, want nil", err)
 	}
-	if over, count, _ := collectBudgetMetrics(t, reader, "find_code"); over != 0 || count != 0 {
+	if over, count, _ := collectBudgetMetrics(t, reader, "find_symbol"); over != 0 || count != 0 {
 		t.Fatalf("disabled guard recorded (over %d, count %d), want none", over, count)
 	}
 }

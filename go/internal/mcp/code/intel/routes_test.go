@@ -73,11 +73,11 @@ func TestRouteCarriesEveryCodeIntelBodyKey(t *testing.T) {
 			tool: "find_code",
 			args: routecontract.Arguments{
 				"query": "auth", "repo_id": "repo-1", "language": "go",
-				"limit": float64(10), "exact": true,
+				"limit": float64(10), "offset": float64(30), "exact": true,
 			},
 			want: map[string]any{
 				"query": "auth", "repo_id": "repo-1", "language": "go",
-				"limit": 10, "exact": true,
+				"limit": 10, "offset": 30, "exact": true,
 			},
 		},
 		{

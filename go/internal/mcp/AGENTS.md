@@ -119,6 +119,20 @@
   paths like `/api/v0/services/workload:name/context` which no handler
   matches.
 
+- **Over-budget paging is limited to two tools** — `budgetPagedTools` in
+  `dispatch_budget.go` lists `find_code` and `search_entity_content`. Only
+  tools whose `data.results` rows are ordered, independent, and re-readable by
+  the `offset` they accept may be added; the page's `next_offset` is the offset
+  of the first dropped row. Adding a tool whose rows cannot be re-read by offset
+  would lose the dropped rows silently.
+- **Cutting a re-ranked page by displayed order** — `next_offset` is a position
+  in the offset order, not in the order the hybrid re-rank displays. A re-ranked
+  page carries `page_position` on each row (`rowPagePositions` and
+  `offsetPrefix`), and the trim keeps the rows with the smallest positions. A
+  new paged tool whose handler reorders rows inside a page must stamp
+  `page_position` the same way, or it loses and repeats rows across pages
+  (#7725 review).
+
 - **SSE buffer drop / closed session is non-fatal** — `sseSession.send`
   (`server_sse.go`) returns false when the session channel is full OR the
   session has already been closed (client disconnected mid-dispatch);

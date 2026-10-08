@@ -186,8 +186,9 @@ The ranker:
   searchable text, truth labels, and graph handles match the persisted
   search-document lane;
 - ranks repository-scoped `hybrid` mode (BM25 fused with vector cosine via RRF)
-  and reorders the existing rows by fused rank, tagging reordered rows with
-  `search_backend=hybrid`;
+  and reorders the existing rows by fused rank inside the page, tagging reordered rows with
+  `search_backend=hybrid` and `page_position` (the row's index in the lexical order
+  of that page, set only when the re-rank changed the order);
 - bounds the pass with a context timeout derived from the caller's context and
   returns the lexical order unchanged if the caller's context is already done;
 - preserves the lexical order and lexical `content_index` truth basis unchanged
@@ -240,16 +241,17 @@ re-rank design as `CodeHybridRanker`, not a new approach:
   through `searchdocs.ProjectContentFile`, so the searchable text, truth labels,
   and graph handles match the persisted search-document lane;
 - it ranks repository-scoped `hybrid` mode (BM25 fused with vector cosine via
-  RRF) and reorders the existing rows by fused rank, tagging reordered rows with
-  `search_backend=hybrid`;
+  RRF) and reorders the existing rows by fused rank inside the page, tagging reordered rows with
+  `search_backend=hybrid` and `page_position` (the row's index in the lexical order
+  of that page, set only when the re-rank changed the order);
 - it preserves the lexical order and lexical `content_index` truth basis
   unchanged when it cannot fuse a signal (no embedder / semantic search disabled,
   fewer than two rows, no single-repo scope, or no projectable document), never
   drops or adds a row, and never relabels a row as canonical truth.
 
 The content tools keep `source_backend=postgres_content_store`; this change adds
-only result ordering plus the per-row `search_backend=hybrid` marker on reordered
-rows, so the response envelope and wire contract are otherwise unchanged. The
+only result ordering plus the per-row `search_backend=hybrid` and `page_position`
+markers on reordered rows, so the response envelope and wire contract are otherwise unchanged. The
 ranker is wired only when the runtime's semantic search is enabled; content-only
 deployments keep the lexical content order. `go test ./internal/query -run
 'SearchEntityContentResultsAreHybridReranked|SearchFileContentResultsAreHybridReranked|ContentHybridRerank'`

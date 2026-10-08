@@ -67,9 +67,9 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/codemodel/code_graph_search_query.go, symbol: BuildSearchGraphEntitiesQuery, source_sha256: af016da90903b148cd7906b8a3e4b77124490d580b4c37cfdb67aff1d46ffeec}
+    source: {file: go/internal/query/codemodel/code_graph_search_query.go, symbol: BuildSearchGraphEntitiesQuery, source_sha256: 88dd9e5f96c3c7af776a4be04e8fa91fb23587f1f2f13d2017c6e37d71e7be1a}
     query_fragment: 'MATCH (r:Repository {id: $repo_id})'
-    cypher_sha256: 428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3
+    cypher_sha256: 1e27e10a316e7b3e99983f74e9ee83f7d1d6b9420ba6885373be986fe3fc4fdf
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]

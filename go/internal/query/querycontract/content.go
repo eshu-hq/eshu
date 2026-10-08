@@ -26,6 +26,62 @@ type FileContent struct {
 	SearchBackend string `json:"search_backend,omitempty"`
 }
 
+// PagePositionKey is the wire key a re-ranked page row carries for its
+// zero-based position inside the page's offset-ordered window. See
+// EntityContent.PagePosition.
+const PagePositionKey = "page_position"
+
+// StampEntityPagePositions returns a copy of rows with PagePosition set to each
+// row's current index, so a later re-rank that permutes the copy leaves every
+// row able to report where the offset order put it. The input slice and its
+// backing array are not modified.
+func StampEntityPagePositions(rows []EntityContent) []EntityContent {
+	stamped := make([]EntityContent, len(rows))
+	copy(stamped, rows)
+	for index := range stamped {
+		position := index
+		stamped[index].PagePosition = &position
+	}
+	return stamped
+}
+
+// SettleEntityPagePositions clears PagePosition on every row when the rows
+// are still in offset order, so a page the re-rank left alone keeps its
+// existing response bytes. It modifies rows in place and returns it.
+func SettleEntityPagePositions(rows []EntityContent) []EntityContent {
+	for index := range rows {
+		if rows[index].PagePosition == nil || *rows[index].PagePosition != index {
+			return rows
+		}
+	}
+	for index := range rows {
+		rows[index].PagePosition = nil
+	}
+	return rows
+}
+
+// StampRowPagePositions sets PagePositionKey on every row to its current
+// index. It is the map-row counterpart of StampEntityPagePositions and
+// modifies the rows in place; the rows must be request-local maps.
+func StampRowPagePositions(rows []map[string]any) {
+	for index, row := range rows {
+		row[PagePositionKey] = index
+	}
+}
+
+// SettleRowPagePositions removes PagePositionKey from every row when the rows
+// are still in offset order, mirroring SettleEntityPagePositions.
+func SettleRowPagePositions(rows []map[string]any) {
+	for index, row := range rows {
+		if position, ok := row[PagePositionKey].(int); !ok || position != index {
+			return
+		}
+	}
+	for _, row := range rows {
+		delete(row, PagePositionKey)
+	}
+}
+
 // MaxEntityContentKeys bounds one exact-key hydration batch to the largest
 // entity page, including its truncation sentinel row.
 const MaxEntityContentKeys = 101
@@ -58,6 +114,13 @@ type EntityContent struct {
 	// the lexical content-index order was served, so the lexical truth basis
 	// stays authoritative.
 	SearchBackend string `json:"search_backend,omitempty"`
+	// PagePosition is the row's zero-based position inside its page's
+	// offset-ordered window. It is set only on a page the hybrid re-rank
+	// reordered, so a response that kept the offset order carries no key. The
+	// MCP budget page reads it to cut a re-ranked page back to a prefix of the
+	// offset order, which keeps next_offset a position the offset parameter
+	// can resume from (#7725).
+	PagePosition *int `json:"page_position,omitempty"`
 }
 
 // EntityContentSearchRow shapes one entity content row into the wire map the
@@ -96,6 +159,9 @@ func EntityContentSearchRow(entity EntityContent) map[string]any {
 	}
 	if entity.SearchBackend != "" {
 		row["search_backend"] = entity.SearchBackend
+	}
+	if entity.PagePosition != nil {
+		row[PagePositionKey] = *entity.PagePosition
 	}
 	return row
 }

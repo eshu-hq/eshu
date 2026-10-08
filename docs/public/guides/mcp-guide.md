@@ -21,8 +21,10 @@ authoritative. Most responses carry the complete envelope in both
 `structuredContent` and the resource. If that duplicate exceeds the 256 KiB MCP
 response budget but the resource alone fits, the successful response omits
 `structuredContent`; the resource still holds the full envelope. If the resource
-alone exceeds the budget, the result carries `mcp_response_over_budget` and
-narrowing guidance. Do not parse the text summary.
+alone exceeds the budget, `find_code` and `search_entity_content` return a page
+of whole rows with `truncated=true` and `next_offset`; every other tool, and a
+single row that is over budget by itself, carries `mcp_response_over_budget`
+and narrowing guidance. Do not parse the text summary.
 
 Important envelope fields:
 
@@ -30,6 +32,7 @@ Important envelope fields:
 | --- | --- |
 | `data` | Tool-specific result payload. |
 | `truth.level` | Exact, derived, fallback, or another profile-specific truth level. |
+| `truth.truncated` | Present and `true` only on a response-budget page: the reply was cut to fit the byte budget and the rest is reachable by `data.next_offset`. `data.next_offset` is absent past the `search_entity_content` offset cap (10,000). A page the handler cut at `limit` reports `data.truncated` instead and leaves this key absent. |
 | `truth.capability` | Capability ID from the query contract. |
 | `truth.profile` | Runtime profile, such as local or production. |
 | `truth.freshness.state` | Fresh, stale, building, or unavailable evidence. |

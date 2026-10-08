@@ -36,8 +36,12 @@ func (h *ContentHandler) rerankEntityResults(ctx context.Context, req contentSea
 	if repoID == "" {
 		return results
 	}
-	reranked, _ := h.HybridRanker.RerankEntities(ctx, repoID, req.pattern(), results)
-	return reranked
+	// The page is a window of the offset-ordered rows. The re-rank may order
+	// rows inside it, so each row keeps its offset position for the MCP budget
+	// page, which must cut a prefix of the offset order, not of the re-ranked
+	// order (#7725).
+	reranked, _ := h.HybridRanker.RerankEntities(ctx, repoID, req.pattern(), querycontract.StampEntityPagePositions(results))
+	return querycontract.SettleEntityPagePositions(reranked)
 }
 
 // entityContentSearchResponse shapes the entity search page into its response

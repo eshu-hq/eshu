@@ -6,6 +6,7 @@ package codequery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -113,6 +114,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		RepoID     string `json:"repo_id"`
 		Language   string `json:"language"`
 		Limit      int    `json:"limit"`
+		Offset     int    `json:"offset"`
 		Exact      bool   `json:"exact"`
 		SearchType string `json:"search_type"`
 	}
@@ -135,7 +137,17 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.Limit > entity.EntityNameSearchMaxLimit {
 		req.Limit = entity.EntityNameSearchMaxLimit
 	}
-	probeLimit := codemodel.CodeSearchProbeLimit(req.Limit)
+	// A page can start inside the ranked window only. The effective limit
+	// shrinks so offset+limit stays within it, which keeps the store probe at
+	// or below one maximum page plus the truncation row.
+	offset := codemodel.CodeSearchPageWindowOffset(req.Offset)
+	pageLimit, inWindow := codemodel.CodeSearchPageWindow(offset, req.Limit)
+	if !inWindow {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("offset must be less than %d", codemodel.CodeSearchRankedWindow))
+		return
+	}
+	req.Limit = pageLimit
+	probeLimit := codemodel.CodeSearchProbeLimit(offset + req.Limit)
 	if req.RepoID == "" && !req.Exact && len([]rune(req.Query)) < 3 {
 		WriteError(w, http.StatusBadRequest, "global substring code search requires at least 3 Unicode characters")
 		return
@@ -162,8 +174,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayload(
-			"content", "postgres_content_name_index", req.Query, "", results, req.Limit,
+		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
+			"content", "postgres_content_name_index", req.Query, "", results, req.Limit, offset,
 		), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, "resolved from the current content entity name index"))
 		return
 	}
@@ -183,8 +195,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// If graph search returns results, return them
 	if len(graphResults) > 0 {
-		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayload(
-			"graph", "graph", req.Query, req.RepoID, graphResults, req.Limit,
+		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
+			"graph", "graph", req.Query, req.RepoID, graphResults, req.Limit, offset,
 		), BuildTruthEnvelope(h.profile(), capability, TruthBasisAuthoritativeGraph, "resolved from graph-backed entity search"))
 		return
 	}
@@ -199,22 +211,30 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-rank the lexical content results by fused BM25+vector relevance when a
-	// hybrid ranker is configured. The ranker is bounded to the already-retrieved
-	// result set and falls back to lexical order when no vector/lexical signal is
-	// available, so the response never drops a row or invents canonical truth.
+	// Cut the page on the offset order first, then re-rank inside it when a
+	// hybrid ranker is configured. A page is always the same window of the
+	// offset order, so the order a client pages through is the same on every
+	// request: a re-rank over the whole probe window would change with the
+	// window size and lose or repeat rows across pages (#7725). The ranker is
+	// bounded to the page, falls back to lexical order when no vector/lexical
+	// signal is available, and never drops a row or invents canonical truth.
+	// Each re-ranked row keeps its offset position so the MCP budget page can
+	// cut back to a prefix of the offset order.
+	page, truncated := codemodel.CodeSearchPageRows(contentResults, req.Limit, offset)
 	sourceBackend := "postgres_content_store"
 	truthDetail := "resolved from content index fallback"
 	if h.HybridRanker != nil && !req.Exact {
-		if reranked, applied := h.HybridRanker.Rerank(ctx, req.RepoID, req.Query, contentResults); applied {
-			contentResults = reranked
+		querycontract.StampRowPagePositions(page)
+		if reranked, applied := h.HybridRanker.Rerank(ctx, req.RepoID, req.Query, page); applied {
+			page = reranked
 			sourceBackend = "hybrid_content_store"
 			truthDetail = "resolved from content index fallback ranked by hybrid BM25+vector retrieval"
 		}
+		querycontract.SettleRowPagePositions(page)
 	}
 
-	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayload(
-		"content", sourceBackend, req.Query, req.RepoID, contentResults, req.Limit,
+	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadFromPage(
+		"content", sourceBackend, req.Query, req.RepoID, page, truncated, req.Limit, offset,
 	), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
 }
 

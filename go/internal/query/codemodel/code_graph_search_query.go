@@ -59,7 +59,7 @@ func BuildSearchGraphEntitiesQuery(
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + graphSemanticMetadataProjection() + `
-		ORDER BY e.name
+		ORDER BY e.name, e.id
 		LIMIT $limit
 	`
 	return cypher, params

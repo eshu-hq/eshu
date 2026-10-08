@@ -25,6 +25,7 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 			"repo_id":  args.String("repo_id"),
 			"language": args.String("language"),
 			"limit":    args.IntOr("limit", 10),
+			"offset":   args.IntOr("offset", 0),
 			"exact":    args.BoolOr("exact", false),
 		}}, true
 	case "find_symbol":
