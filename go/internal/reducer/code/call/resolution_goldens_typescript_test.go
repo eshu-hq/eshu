@@ -165,17 +165,40 @@ func typeScriptCallResolutionGoldens() []callResolutionGolden {
 		},
 
 		// When the package key resolves to nothing (no producer, or two), the
-		// call still falls through to the repo-unique-name fallback and links
-		// to the consumer's own same-named function in another file. That is
-		// wrong: the call is bound to the package import. It predates #7601
-		// (the same call without a key resolves the same way on main) and the
-		// key never makes it worse, because a resolved key wins first.
+		// call is bound to an explicitly imported but unresolvable target, so
+		// it must not fall through to the repo-unique-name fallback and link
+		// to the consumer's own same-named function in another file (#7610).
+		// The key's package is not one of the consumer repository's own
+		// manifest names, so the fallback stays blocked.
 		{
-			name:             "package_import_unresolved_falls_back_to_local_name",
-			category:         categoryMissingDependency,
-			forbidCallees:    []string{"uid:app-formatPrice"},
-			falsePositiveGap: "#7610: repo-unique fallback for calls bound to a bare package import",
-			envelopes:        packageKeyGoldenEnvelopes(),
+			name:          "package_import_unresolved_falls_back_to_local_name",
+			category:      categoryMissingDependency,
+			forbidCallees: []string{"uid:app-formatPrice"},
+			envelopes:     packageKeyGoldenEnvelopes(),
+		},
+
+		// The #7610 carve-out: the key's package is one of the consumer
+		// repository's own manifest names (a same-repository workspace
+		// package whose export list the parser does not key), so the
+		// repo-unique fallback to the workspace definition is the true edge
+		// and stays.
+		{
+			name:           "package_import_unresolved_workspace_package_falls_back",
+			category:       categoryRepoFallback,
+			wantCallee:     "uid:mono-widget",
+			wantMethod:     codeprovenance.MethodRepoUniqueName,
+			wantConfidence: 0.50,
+			envelopes:      packageKeyWorkspaceGoldenEnvelopes(false),
+		},
+
+		// Same carve-out, but the workspace name is declared twice in the
+		// repository: the fallback is allowed to try yet resolves nothing,
+		// and neither same-named definition gains a wrong edge.
+		{
+			name:          "package_import_unresolved_workspace_package_ambiguous",
+			category:      categoryRepoFallback,
+			forbidCallees: []string{"uid:mono-widget", "uid:mono-decoy-widget"},
+			envelopes:     packageKeyWorkspaceGoldenEnvelopes(true),
 		},
 
 		// A dynamically computed import target (require of a non-literal) gives
@@ -215,14 +238,16 @@ func typeScriptCallResolutionGoldens() []callResolutionGolden {
 // formatPrice of its own in another file. The envelopes are hand-built, so the
 // consumer's package.json is not parsed here; the parser stamps this call's
 // package_export_symbol only when that manifest declares "@acme/format", which
-// cross_repo_package_keys_test.go proves from real parser output.
+// cross_repo_package_keys_test.go proves from real parser output. Both sides
+// carry the node_package_name the parser would stamp (#7610): the consumer
+// files belong to "acme-app", which publishes no "@acme/format".
 func packageKeyGoldenEnvelopes(producerRepoIDs ...string) []facts.Envelope {
 	envelopes := []facts.Envelope{
 		{FactKind: "repository", Payload: map[string]any{"repo_id": "ts-app"}},
 		{FactKind: "file", Payload: map[string]any{
 			"repo_id": "ts-app", "relative_path": "src/page.ts",
 			"parsed_file_data": map[string]any{
-				"path":      "src/page.ts",
+				"path": "src/page.ts", "node_package_name": "acme-app",
 				"functions": []any{map[string]any{"name": "render", "line_number": 3, "end_line": 5, "uid": "uid:app-render"}},
 				"imports":   []any{map[string]any{"name": "formatPrice", "alias": "", "source": "@acme/format", "lang": "typescript"}},
 				"function_calls": []any{map[string]any{
@@ -234,7 +259,7 @@ func packageKeyGoldenEnvelopes(producerRepoIDs ...string) []facts.Envelope {
 		{FactKind: "file", Payload: map[string]any{
 			"repo_id": "ts-app", "relative_path": "src/money.ts",
 			"parsed_file_data": map[string]any{
-				"path":      "src/money.ts",
+				"path": "src/money.ts", "node_package_name": "acme-app",
 				"functions": []any{map[string]any{"name": "formatPrice", "line_number": 1, "end_line": 2, "uid": "uid:app-formatPrice"}},
 			},
 		}},
@@ -247,11 +272,54 @@ func packageKeyGoldenEnvelopes(producerRepoIDs ...string) []facts.Envelope {
 		envelopes = append(envelopes, facts.Envelope{FactKind: "file", Payload: map[string]any{
 			"repo_id": repoID, "relative_path": "src/index.ts",
 			"parsed_file_data": map[string]any{
-				"path": "src/index.ts",
+				"path": "src/index.ts", "node_package_name": "@acme/format",
 				"functions": []any{map[string]any{
 					"name": "formatPrice", "line_number": 1, "end_line": 3, "uid": uid,
 					"package_id": "@acme/format", "export_name": "formatPrice",
 				}},
+			},
+		}})
+	}
+	return envelopes
+}
+
+// packageKeyWorkspaceGoldenEnvelopes builds a monorepo repository where the
+// app file calls widget bound to "@acme/widgets" while the same repository
+// publishes "@acme/widgets" with an export the parser does not key (an
+// export list or a CommonJS module carries no package_id/export_name), so no
+// symbol key joins the call. The widget definition is the fallback's true
+// edge (#7610 carve-out). With ambiguous set, the app package declares a
+// second widget, so the name is no longer repo-unique and the call must stay
+// unresolved rather than guess.
+func packageKeyWorkspaceGoldenEnvelopes(ambiguous bool) []facts.Envelope {
+	envelopes := []facts.Envelope{
+		{FactKind: "repository", Payload: map[string]any{"repo_id": "ts-mono"}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id": "ts-mono", "relative_path": "packages/app/src/page.ts",
+			"parsed_file_data": map[string]any{
+				"path": "packages/app/src/page.ts", "node_package_name": "@acme/app",
+				"functions": []any{map[string]any{"name": "render", "line_number": 3, "end_line": 5, "uid": "uid:mono-render"}},
+				"imports":   []any{map[string]any{"name": "widget", "alias": "", "source": "@acme/widgets", "lang": "typescript"}},
+				"function_calls": []any{map[string]any{
+					"name": "widget", "full_name": "widget", "call_kind": "function_call",
+					"line_number": 4, "lang": "typescript", "package_export_symbol": "package:@acme/widgets#widget",
+				}},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id": "ts-mono", "relative_path": "packages/widgets/index.ts",
+			"parsed_file_data": map[string]any{
+				"path": "packages/widgets/index.ts", "node_package_name": "@acme/widgets",
+				"functions": []any{map[string]any{"name": "widget", "line_number": 1, "end_line": 3, "uid": "uid:mono-widget"}},
+			},
+		}},
+	}
+	if ambiguous {
+		envelopes = append(envelopes, facts.Envelope{FactKind: "file", Payload: map[string]any{
+			"repo_id": "ts-mono", "relative_path": "packages/app/src/decoy.ts",
+			"parsed_file_data": map[string]any{
+				"path": "packages/app/src/decoy.ts", "node_package_name": "@acme/app",
+				"functions": []any{map[string]any{"name": "widget", "line_number": 1, "end_line": 2, "uid": "uid:mono-decoy-widget"}},
 			},
 		}})
 	}

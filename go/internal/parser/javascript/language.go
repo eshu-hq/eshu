@@ -370,6 +370,16 @@ func Parse(
 	})
 
 	annotatePackageImportCalls(payload, root, source, parents, repoRoot, path)
+	// node_package_name is the nearest package.json name that owns this file
+	// (#7610). It reuses the producer stamper's already-computed name, so no
+	// manifest is read twice. The reducer unions the names per repository: an
+	// unresolved package key to a same-repository workspace package keeps its
+	// repo-unique fallback, while a key to an external package never falls
+	// back to a same-named local declaration. Absent when no manifest owns
+	// the file.
+	if packageExports.packageName != "" {
+		payload["node_package_name"] = packageExports.packageName
+	}
 	syntax.AppendTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")

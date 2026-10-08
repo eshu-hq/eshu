@@ -345,3 +345,57 @@ formatPrice(3);
 		t.Fatalf("test-file call package_export_symbol = %q, want package:@acme/format#formatPrice", key)
 	}
 }
+
+// Every JavaScript-family file carries node_package_name, the trimmed "name"
+// of the nearest package.json that owns it (#7610). The reducer unions the
+// names per repository so an unresolved package key to a same-repository
+// workspace package keeps its repo-unique fallback while a key to an external
+// package never falls back to a same-named local declaration.
+func TestDefaultEngineParsePathStampsNodePackageName(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": " mono-root ", "private": true}`)
+	writeTestFile(t, filepath.Join(repoRoot, "packages", "app", "package.json"), `{"name": "@acme/app"}`)
+	appPath := filepath.Join(repoRoot, "packages", "app", "src", "page.ts")
+	writeTestFile(t, appPath, "export function render() { return 1; }\n")
+	widgetPath := filepath.Join(repoRoot, "packages", "widgets", "index.js")
+	writeTestFile(t, widgetPath, "export function widget() { return 2; }\n")
+	plainPath := filepath.Join(repoRoot, "scripts", "setup.mjs")
+	writeTestFile(t, plainPath, "console.log(1);\n")
+
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		// Nearest manifest wins: the app file belongs to @acme/app, not the
+		// workspace root.
+		{appPath, "@acme/app"},
+		// No manifest between the widgets file and the repo root names it,
+		// so the root manifest owns it.
+		{widgetPath, "mono-root"},
+		{plainPath, "mono-root"},
+	} {
+		got := parsePackageKeyFixture(t, repoRoot, tc.path)
+		name, _ := got["node_package_name"].(string)
+		if name != tc.want {
+			t.Errorf("ParsePath(%q) node_package_name = %q, want %q", tc.path, name, tc.want)
+		}
+	}
+}
+
+// Without any package.json on the path to the repo root, the file carries no
+// node_package_name at all: absence (not "") marks a file outside every
+// package, so the reducer cannot mistake it for a published name.
+func TestDefaultEngineParsePathOmitsNodePackageNameWithoutManifest(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "src", "page.ts")
+	writeTestFile(t, filePath, "export function render() { return 1; }\n")
+
+	got := parsePackageKeyFixture(t, repoRoot, filePath)
+	if _, ok := got["node_package_name"]; ok {
+		t.Errorf("ParsePath without a manifest carries node_package_name = %#v, want absent", got["node_package_name"])
+	}
+}

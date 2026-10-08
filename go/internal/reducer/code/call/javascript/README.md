@@ -9,9 +9,12 @@ Not imported outside `code/call`.
 Receiver-typed method resolution (via `shared.ResolveReceiverMethodCallee`),
 dynamic (alias-obscured) call resolution — static local aliasing and
 destructuring patterns that look dynamic in call metadata but have a literal
-same-file target — and the file-root/top-level-reference caller identity
+same-file target — the file-root/top-level-reference caller identity
 helpers `code/call` uses for module-body and route-configuration calls
-(shared across JavaScript, JSX, TypeScript, and TSX).
+(shared across JavaScript, JSX, TypeScript, and TSX), and the
+`BlocksRepoFallback` barrier that keeps an unresolved package key to an
+external package off same-named in-repository declarations while a key to a
+same-repository workspace package keeps its fallback (#7610).
 
 ## Files
 
@@ -20,6 +23,7 @@ helpers `code/call` uses for module-body and route-configuration calls
 | `resolver.go` | `Resolvers` |
 | `dynamic.go` | `ResolveDynamicCallee`, static-alias lookup, member-expression normalization |
 | `roots.go` | `FileRootCallerID`, `SameFileTopLevelCallerID`, `TopLevelReferenceCallerID` |
+| `repo_fallback.go` | `BlocksRepoFallback`, package-key parsing |
 | `doc.go` | Package contract |
 
 ## Dependency rule
