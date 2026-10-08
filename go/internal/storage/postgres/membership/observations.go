@@ -18,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// schemaSQL is the repository_selection_observations DDL that migration 163
+// schemaSQL is the repository_selection_observations DDL that migration 164
 // applies after its leading comment block. A test keeps the two identical.
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS repository_selection_observations (

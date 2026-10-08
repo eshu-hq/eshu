@@ -7,7 +7,7 @@ import "time"
 
 // State is the stored selection state of one repository scope under one
 // selector. The values match the repository_selection_observations state
-// CHECK constraint (migration 163).
+// CHECK constraint (migration 164).
 type State string
 
 const (
