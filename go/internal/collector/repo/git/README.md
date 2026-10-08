@@ -185,6 +185,21 @@ selector never observes. Telemetry: the
 `eshu_dp_collector_repository_selection_scopes` gauge, and the
 `git_repository_selection_*` logs; see `membership/README.md`.
 
+## Git auth host scope
+
+`gitCommandEnv` builds the auth environment for every managed git command. With
+`ESHU_GIT_AUTH_METHOD=token` it scopes the credential header to one host, the
+host of the repository the command runs against. It derives that host from the
+checkout path (`<ReposDir>/<repoID>`) the same way `repoRemoteURL` builds the
+clone URL, so the header and the remote always name the same host (#7763):
+github.com with username `x-access-token`, gitlab.com with `oauth2`, or
+bitbucket.org with `x-token-auth`. A path with no provider prefix, or one
+outside `ReposDir`, resolves to github.com. Ref worktrees under
+`.eshu-ref-worktrees` resolve to github.com too; that is safe because only
+local commands run there. A `githubApp` token is always scoped to github.com.
+`TestGitCommandEnvTokenHeaderMatchesCloneURLHost` asserts the header host
+matches the clone URL host for each provider.
+
 ## Two-phase content
 
 Snapshotting collects content file *metadata* first (bodies are temporary), then

@@ -85,7 +85,7 @@ func tokenAuthProvider(config RepoSyncConfig, repoPath string) string {
 // tokenAuthUsername returns the HTTP Basic username each provider expects
 // alongside an access token: GitHub's x-access-token, GitLab's documented
 // oauth2 (accepted for personal, group, and project access tokens), and
-// Bitbucket's x-token-auth for repository, project, and workspace tokens.
+// Bitbucket's x-token-auth for repository access tokens.
 func tokenAuthUsername(provider string) string {
 	switch provider {
 	case "gitlab":
