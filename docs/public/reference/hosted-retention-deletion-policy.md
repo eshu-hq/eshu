@@ -62,7 +62,9 @@ The policy preserves Eshu's facts-first model:
 Collector deselection (#7625), where a repository drops out of a git
 collector's org listing, is an observation that surfaces as the `not_selected`
 freshness verdict; it never triggers repository removal, which stays the
-tombstone path above (phase 3).
+tombstone path above (phase 3). Its `repository_selection_observations` rows
+are kept after they expire: an expired row reads as no evidence (`unknown`),
+and no sweep deletes it until #7774 lands.
 
 ## Tombstones And Query Truth
 
