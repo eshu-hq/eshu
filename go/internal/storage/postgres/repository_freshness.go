@@ -154,7 +154,7 @@ func (s RepositoryFreshnessStore) clock() time.Time {
 // selection.Summarize needs it: the scope has live rows, none selected, all
 // confirmed. A scope with no live row summarizes to unknown.
 func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID string) (selection.Summary, error) {
-	now := s.clock()
+	now := s.clock().UTC().Truncate(time.Microsecond)
 	observations, err := membershipstore.ReadLiveScopeObservations(ctx, s.queryer, scopeID, now)
 	if err != nil {
 		return selection.Summary{}, fmt.Errorf("read repository freshness: read selection: %w", err)
