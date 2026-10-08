@@ -281,6 +281,7 @@ nav:
       - Local Host Lifecycle: reference/local-host-lifecycle.md
       - Performance SLO Contract: reference/performance-slo-contract.md
       - Scale And Performance Reference: reference/scale-and-performance-measurements.md
+      - Scale And Performance Mechanisms: reference/scale-and-performance-mechanisms.md
       - Local Performance Envelope: reference/local-performance-envelope.md
       - Collector Performance Envelope: reference/collector-performance-envelope.md
       - Parse Scale Evidence: reference/parse-scale-evidence.md
