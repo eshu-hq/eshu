@@ -286,7 +286,8 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   `eshu_dp_scip_process_wait_seconds`
 - Log events: `git repository sync started`,
   `git repository sync progress`, `git repository sync completed`,
-  `git repository sync failed`, `collector stream started`,
+  `git repository sync failed`, `git repository default branch changed`
+  (WARN, #7678), `collector stream started`,
   `collector snapshot stage completed`
   (stages: `discovery`, `pre_scan`, `go_package_semantic_prescan`, `parse`,
   `materialize`; the Go semantic pre-scan stage includes

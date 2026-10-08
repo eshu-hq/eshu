@@ -30,8 +30,10 @@ type RepositorySelection struct {
 // GitSyncSelection captures the repo paths selected after one Git-backed sync pass.
 type GitSyncSelection struct {
 	SelectedRepoPaths []string
-	DeltaByRepoPath   map[string]GitSyncDelta
-	RefsByRepoPath    map[string][]GitRef
+	// DeltaByRepoPath holds incremental deltas, plus path-less entries that
+	// only carry GitSyncDelta.DefaultBranchChanged for a full snapshot.
+	DeltaByRepoPath map[string]GitSyncDelta
+	RefsByRepoPath  map[string][]GitRef
 	// ReconcileByRepoPath marks repo paths the sweep forced to a full
 	// reconciliation snapshot this cycle so their generation bypasses the
 	// freshness-hint skip and always re-projects to retract drift.
@@ -65,6 +67,11 @@ type GitSyncDelta struct {
 	// BaselineCommitSHA is the commit the diff was taken from (#7319). The
 	// projector refuses the delta unless it is still the active commit.
 	BaselineCommitSHA string
+	// DefaultBranchChanged marks a full snapshot taken because the remote
+	// default branch changed (#7678). The sync keeps such an entry in
+	// DeltaByRepoPath even though it carries no paths, and the selection
+	// carries it to SelectedRepository.DefaultBranchChanged.
+	DefaultBranchChanged bool
 }
 
 func selectGitHubRepositoryIDs(
