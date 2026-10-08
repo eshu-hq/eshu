@@ -248,20 +248,24 @@ func TestProjectorConcurrentHealsOpenOneActiveRow(t *testing.T) {
 
 	start := make(chan struct{})
 	results := make([]healZombieActiveGenerationResult, healers)
+	errs := make([]error, healers)
 	var group sync.WaitGroup
 	for i := range healers {
 		group.Add(1)
 		go func() {
 			defer group.Done()
 			<-start
-			results[i] = queues[i].healZombieActiveGeneration(context.Background(), "scope-zh", "gen-old", time.Now().UTC())
+			results[i], errs[i] = queues[i].healZombieActiveGeneration(context.Background(), "scope-zh", "gen-old", time.Now().UTC())
 		}()
 	}
 	close(start)
 	group.Wait()
 
 	var healed, alreadyOpen int
-	for _, result := range results {
+	for i, result := range results {
+		if errs[i] != nil {
+			t.Fatalf("concurrent heal %d error = %v, want nil", i, errs[i])
+		}
 		switch result.outcome {
 		case zombieHealOutcomeHealed:
 			healed++

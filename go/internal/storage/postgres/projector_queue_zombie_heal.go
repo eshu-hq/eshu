@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -190,37 +191,43 @@ type healZombieActiveGenerationResult struct {
 	outcome            string
 }
 
+// errZombieHealNoRows reports a heal statement that returned zero rows. The
+// aggregate SELECT always yields exactly one row, so zero rows means the
+// statement itself misbehaved.
+var errZombieHealNoRows = errors.New("projector zombie heal returned no rows")
+
 // healZombieActiveGeneration runs the heal statement for one refused zombie
 // attempt and returns which generation was re-opened, if any, with the
-// outcome label. A statement error returns outcome "error" so the caller
-// still counts the attempt.
+// outcome label. A statement error returns outcome "error" alongside the
+// statement cause, so the caller still counts the attempt and can log why
+// it failed.
 func (q ProjectorQueue) healZombieActiveGeneration(
 	ctx context.Context,
 	scopeID string,
 	refusedGenerationID string,
 	now time.Time,
-) healZombieActiveGenerationResult {
+) (healZombieActiveGenerationResult, error) {
 	rows, err := q.database.QueryContext(ctx, healProjectorActiveGenerationQuery,
 		now, scopeID, refusedGenerationID)
 	if err != nil {
-		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}
+		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}, err
 	}
 	defer func() { _ = rows.Close() }()
 	var healed sql.NullString
 	var outcome string
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}
+			return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}, err
 		}
-		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}
+		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}, errZombieHealNoRows
 	}
 	if err := rows.Scan(&healed, &outcome); err != nil {
-		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}
+		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}, err
 	}
 	if err := rows.Err(); err != nil {
-		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}
+		return healZombieActiveGenerationResult{outcome: zombieHealOutcomeError}, err
 	}
-	return healZombieActiveGenerationResult{healedGenerationID: healed.String, outcome: outcome}
+	return healZombieActiveGenerationResult{healedGenerationID: healed.String, outcome: outcome}, nil
 }
 
 // healZombieRefusal heals the scope's active generation after one zombie
@@ -232,7 +239,7 @@ func (q ProjectorQueue) healZombieRefusal(
 	work projector.ScopeGenerationWork,
 	now time.Time,
 ) {
-	result := q.healZombieActiveGeneration(ctx, work.Scope.ScopeID, work.Generation.GenerationID, now)
+	result, healErr := q.healZombieActiveGeneration(ctx, work.Scope.ScopeID, work.Generation.GenerationID, now)
 	recordZombieHeal(ctx, q.Instruments, result.outcome)
 	switch result.outcome {
 	case zombieHealOutcomeHealed:
@@ -247,6 +254,7 @@ func (q ProjectorQueue) healZombieRefusal(
 			slog.String(telemetry.LogKeyScopeID, work.Scope.ScopeID),
 			slog.String(telemetry.LogKeyRefusedGenerationID, work.Generation.GenerationID),
 			slog.String(telemetry.LogKeyOutcome, result.outcome),
+			slog.Any("error", healErr),
 		)
 	default:
 		slog.DebugContext(ctx, "projector zombie refusal skipped the active-generation heal",
@@ -263,5 +271,5 @@ func recordZombieHeal(ctx context.Context, instruments *telemetry.Instruments, o
 	if instruments == nil || instruments.ProjectorZombieHeal == nil {
 		return
 	}
-	instruments.ProjectorZombieHeal.Add(ctx, 1, metric.WithAttributes(telemetry.AttrOutcome(outcome)))
+	instruments.ProjectorZombieHeal.Add(context.WithoutCancel(ctx), 1, metric.WithAttributes(telemetry.AttrOutcome(outcome)))
 }

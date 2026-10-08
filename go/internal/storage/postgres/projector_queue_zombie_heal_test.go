@@ -16,8 +16,9 @@ import (
 
 // TestHealZombieActiveGenerationMapsStatementError pins the production
 // mapping behind the error outcome: any heal statement failure surfaces as
-// outcome "error" with no healed generation. A closed handle fails
-// hermetically, without touching the network.
+// outcome "error" with no healed generation, and the statement cause is
+// returned alongside the result so the ERROR log can name it. A closed
+// handle fails hermetically, without touching the network.
 func TestHealZombieActiveGenerationMapsStatementError(t *testing.T) {
 	database, err := sql.Open("pgx", "postgres://localhost:1/closed?sslmode=disable")
 	if err != nil {
@@ -27,9 +28,12 @@ func TestHealZombieActiveGenerationMapsStatementError(t *testing.T) {
 		t.Fatalf("close handle: %v", err)
 	}
 	queue := NewProjectorQueue(SQLDB{DB: database}, "closed-owner", time.Minute)
-	got := queue.healZombieActiveGeneration(context.Background(), "scope-x", "gen-x", time.Now().UTC())
+	got, healErr := queue.healZombieActiveGeneration(context.Background(), "scope-x", "gen-x", time.Now().UTC())
 	if got.outcome != zombieHealOutcomeError || got.healedGenerationID != "" {
 		t.Fatalf("heal on closed db = %+v, want outcome error with no healed generation", got)
+	}
+	if healErr == nil {
+		t.Fatal("heal on closed db returned nil error, want the statement cause")
 	}
 }
 
