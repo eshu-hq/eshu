@@ -375,4 +375,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 162 (#7620) adds repository_reindex_requests, the per-repository
 	// reindex watermarks the git ingesters read once per cycle.
 	"repository_reindex_requests",
+	// Migration 163 (#7635) adds producer_activation_obligations, the lease-
+	// fenced obligations a quiet Ack owes for producer generations.
+	"producer_activation_obligations",
 }

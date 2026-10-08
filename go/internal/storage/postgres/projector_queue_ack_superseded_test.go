@@ -48,7 +48,11 @@ func (tx ackRefusalTx) Rollback() error { tx.parent.rollbacks++; return nil }
 
 func ackRefusalResults(activated, marked int64) []sql.Result {
 	// set_config, scope repoint, work ack, obsolete supersede, active
-	// supersede, activate, then (only when refused) the superseded mark.
+	// supersede, activate, then the activation obligation insert when
+	// activated (the superseded mark when refused), then the producer
+	// activation obligation insert when activated (#7635). Refused Acks
+	// roll back before either obligation, so the last two entries feed
+	// the activated path only.
 	return []sql.Result{
 		projectorRowsAffectedResult{rowsAffected: 1},
 		projectorRowsAffectedResult{rowsAffected: 1},
@@ -57,6 +61,7 @@ func ackRefusalResults(activated, marked int64) []sql.Result {
 		projectorRowsAffectedResult{rowsAffected: 1},
 		projectorRowsAffectedResult{rowsAffected: activated},
 		projectorRowsAffectedResult{rowsAffected: marked},
+		projectorRowsAffectedResult{rowsAffected: 1},
 	}
 }
 
@@ -145,7 +150,13 @@ func TestProjectorAckActivatedGenerationCommits(t *testing.T) {
 	if err := queue.Ack(context.Background(), ackRefusalWork(), runtime.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
-	if fake.commits != 1 || len(fake.execs) != 7 {
-		t.Fatalf("commits=%d execs=%d, want one commit, no superseded mark, and one activation obligation", fake.commits, len(fake.execs))
+	if fake.commits != 1 || len(fake.execs) != 8 {
+		t.Fatalf("commits=%d execs=%d, want one commit, no superseded mark, and both obligation inserts", fake.commits, len(fake.execs))
+	}
+	if got := fake.execs[6].query; !strings.Contains(got, "INSERT INTO activation_obligations") {
+		t.Fatalf("exec[6] lacks the activation obligation insert:\n%s", got)
+	}
+	if got := fake.execs[7].query; !strings.Contains(got, "INSERT INTO producer_activation_obligations") {
+		t.Fatalf("exec[7] lacks the producer activation obligation insert (#7635):\n%s", got)
 	}
 }
