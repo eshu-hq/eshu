@@ -20,6 +20,7 @@ own what happens after handoff.
 - `WebhookTriggerStore` with `NewWebhookTriggerStore(database db.ExecQueryer)`.
 - `EnsureSchema`, `StoreTrigger`, `ClaimQueuedTriggers`,
   `MarkTriggersHandedOff`, `MarkTriggersFailed`.
+- `ReapExpiredTriggerClaims`, `CountStaleClaims` (#7661 lease recovery).
 - `WebhookTriggerSchemaSQL()` returns the DDL.
 
 See `doc.go` for the godoc contract.

@@ -77,6 +77,8 @@ held time for large repositories.
 | `ESHU_REPO_SCHEDULED_SYNC_ENABLED` | `true` | ingester | Enables broad scheduled repository selection when no webhook triggers are queued. Startup rejects `false` unless webhook handoff is enabled. |
 | `ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER` | `ingester` | ingester webhook-trigger selector | Lease owner recorded when claiming queued Git webhook refresh triggers. |
 | `ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT` | `100` | ingester webhook-trigger selector | Maximum webhook refresh triggers claimed in one selector pass. |
+| `ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW` | `15m` | ingester webhook-trigger selector | Stale-claim lease: a claim older than this without a handoff goes back to `queued`, or to `failed` past the attempt cap (#7661). Go duration string; empty or invalid keeps the default. |
+| `ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS` | `3` | ingester webhook-trigger selector | Lifetime claim attempts per trigger before a reap fails it with `claim_lease_exhausted` (#7661). Empty or below 1 keeps the default. |
 
 ## Projection And Reducer Queues
 

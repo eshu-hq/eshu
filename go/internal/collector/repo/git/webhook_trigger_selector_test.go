@@ -283,9 +283,11 @@ func TestLoadWebhookTriggerHandoffConfig(t *testing.T) {
 	t.Parallel()
 
 	env := map[string]string{
-		"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED": "yes",
-		"ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER":   "custom-owner",
-		"ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT":     "25",
+		"ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED":    "yes",
+		"ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER":      "custom-owner",
+		"ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT":        "25",
+		"ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW": "30m",
+		"ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS": "5",
 	}
 	config := LoadWebhookTriggerHandoffConfig("collector-git", func(key string) string {
 		return env[key]
@@ -300,13 +302,39 @@ func TestLoadWebhookTriggerHandoffConfig(t *testing.T) {
 	if config.ClaimLimit != 25 {
 		t.Fatalf("ClaimLimit = %d, want 25", config.ClaimLimit)
 	}
+	if config.ClaimLeaseWindow != 30*time.Minute {
+		t.Fatalf("ClaimLeaseWindow = %v, want 30m", config.ClaimLeaseWindow)
+	}
+	if config.MaxClaimAttempts != 5 {
+		t.Fatalf("MaxClaimAttempts = %d, want 5", config.MaxClaimAttempts)
+	}
+
+	invalid := map[string]string{
+		"ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW": "not-a-duration",
+		"ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS": "0",
+	}
+	fallback := LoadWebhookTriggerHandoffConfig("collector-git", func(key string) string {
+		return invalid[key]
+	})
+	if fallback.ClaimLeaseWindow != 0 {
+		t.Fatalf("ClaimLeaseWindow = %v, want 0 (selector default)", fallback.ClaimLeaseWindow)
+	}
+	if fallback.MaxClaimAttempts != 0 {
+		t.Fatalf("MaxClaimAttempts = %d, want 0 (selector default)", fallback.MaxClaimAttempts)
+	}
 }
 
 type stubWebhookTriggerStore struct {
-	claimed     []webhook.StoredTrigger
-	handedOff   []string
-	failed      []string
-	failedCalls []webhookTriggerFailureCall
+	claimed       []webhook.StoredTrigger
+	handedOff     []string
+	failed        []string
+	failedCalls   []webhookTriggerFailureCall
+	reapCalls     int
+	reapErr       error
+	requeued      []webhook.StoredTrigger
+	exhausted     []webhook.StoredTrigger
+	staleCount    int64
+	staleCountErr error
 }
 
 func remoteURLsFromSelectedRepositories(repositories []SelectedRepository) []string {
@@ -329,26 +357,52 @@ func (s *stubWebhookTriggerStore) ClaimQueuedTriggers(
 
 func (s *stubWebhookTriggerStore) MarkTriggersHandedOff(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []webhook.StoredTrigger,
 	_ time.Time,
 ) error {
-	s.handedOff = append([]string(nil), triggerIDs...)
+	s.handedOff = triggerIDsFromWebhookTriggers(triggers)
 	return nil
 }
 
 func (s *stubWebhookTriggerStore) MarkTriggersFailed(
 	_ context.Context,
-	triggerIDs []string,
+	triggers []webhook.StoredTrigger,
 	_ time.Time,
 	failureClass string,
 	_ string,
 ) error {
+	triggerIDs := triggerIDsFromWebhookTriggers(triggers)
 	s.failed = append([]string(nil), triggerIDs...)
 	s.failedCalls = append(s.failedCalls, webhookTriggerFailureCall{
 		triggerIDs:   append([]string(nil), triggerIDs...),
 		failureClass: failureClass,
 	})
 	return nil
+}
+
+func (s *stubWebhookTriggerStore) ReapExpiredTriggerClaims(
+	_ context.Context,
+	_ time.Time,
+	_ int,
+	_ int,
+	_ time.Time,
+) ([]webhook.StoredTrigger, []webhook.StoredTrigger, error) {
+	s.reapCalls++
+	if s.reapErr != nil {
+		return nil, nil, s.reapErr
+	}
+	return append([]webhook.StoredTrigger(nil), s.requeued...),
+		append([]webhook.StoredTrigger(nil), s.exhausted...), nil
+}
+
+func (s *stubWebhookTriggerStore) CountStaleClaims(
+	_ context.Context,
+	_ time.Time,
+) (int64, error) {
+	if s.staleCountErr != nil {
+		return 0, s.staleCountErr
+	}
+	return s.staleCount, nil
 }
 
 func (s *stubWebhookTriggerStore) failedCall(failureClass string) []string {

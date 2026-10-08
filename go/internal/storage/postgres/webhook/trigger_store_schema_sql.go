@@ -34,8 +34,12 @@ CREATE TABLE IF NOT EXISTS webhook_refresh_triggers (
     failed_at TIMESTAMPTZ NULL,
     failure_class TEXT NULL,
     failure_message TEXT NULL,
+    claim_fencing_token BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (trigger_id)
 );
+
+ALTER TABLE webhook_refresh_triggers
+    ADD COLUMN IF NOT EXISTS claim_fencing_token BIGINT NOT NULL DEFAULT 0;
 
 ALTER TABLE webhook_refresh_triggers
     ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ NULL;
@@ -65,4 +69,11 @@ CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_pr_commit_idx
     ON webhook_refresh_triggers (provider, event_kind, target_sha, received_at ASC, trigger_id ASC)
     WHERE decision = 'accepted'
       AND pull_request_url <> '';
+
+-- Partial index for the #7661 stale-claim reap: the sweep reads only
+-- claimed rows by claimed_at, so the index stays small no matter how
+-- large the handed_off history grows.
+CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_claimed_at_idx
+    ON webhook_refresh_triggers (claimed_at ASC)
+    WHERE status = 'claimed';
 `

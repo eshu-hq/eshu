@@ -55,6 +55,8 @@ func buildCollectorService(
 				Store:            webhookstore.NewWebhookTriggerStore(database),
 				Owner:            handoffConfig.Owner,
 				ClaimLimit:       handoffConfig.ClaimLimit,
+				ClaimLeaseWindow: handoffConfig.ClaimLeaseWindow,
+				MaxClaimAttempts: handoffConfig.MaxClaimAttempts,
 				Logger:           logger,
 				BaselineResolver: committer,
 				Instruments:      instruments,

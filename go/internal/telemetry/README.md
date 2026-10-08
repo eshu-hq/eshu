@@ -286,7 +286,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
 | `WebhookRequests` | `eshu_dp_webhook_requests_total` |
 | `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
-| `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
+| `WebhookStoreOperations`, `WebhookTriggerClaimReaps`, `WebhookTriggerStaleClaims` | `eshu_dp_webhook_store_operations_total`; `eshu_dp_webhook_trigger_claim_reaps_total` (label: `outcome` = `requeued` \| `exhausted`) and `eshu_dp_webhook_trigger_stale_claims` (#7661 claim lease) |
 | `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
 | `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, entity/workload_lookup.go, deployment/workload_selection.go; `grant_denied` counts once per request, only when no lookup admitted a workload) |
 | `EntityContextResolution` | `eshu_dp_entity_context_resolution_total` (label: `resolved_by` = `anchor` \| `fallback` \| `content` \| `none`; #7212; emitted by `GET /api/v0/entities/{entity_id}/context` in `go/internal/query/entity/context_resolution.go`; an errored request is not counted) |

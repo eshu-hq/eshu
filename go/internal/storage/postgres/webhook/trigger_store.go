@@ -147,30 +147,32 @@ func (s *WebhookTriggerStore) ClaimQueuedTriggers(
 }
 
 // MarkTriggersHandedOff records that claimed triggers were handed to the
-// repository refresh selector.
-func (s *WebhookTriggerStore) MarkTriggersHandedOff(ctx context.Context, triggerIDs []string, handedOffAt time.Time) error {
+// repository refresh selector. Each completion carries the claim fencing
+// token the claim returned; a holder whose lease expired and was reaped
+// affects zero rows instead of completing the new owner's claim (#7661).
+func (s *WebhookTriggerStore) MarkTriggersHandedOff(ctx context.Context, triggers []webhook.StoredTrigger, handedOffAt time.Time) error {
 	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
-	cleaned := db.CleanIDs(triggerIDs)
-	if len(cleaned) == 0 {
-		return errors.New("webhook trigger ids are required")
+	if len(triggers) == 0 {
+		return errors.New("webhook triggers are required")
 	}
 	if handedOffAt.IsZero() {
 		return errors.New("webhook trigger handed_off_at is required")
 	}
-	args := db.IDArgs(cleaned, handedOffAt.UTC())
-	if _, err := s.database.ExecContext(ctx, buildMarkWebhookTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
+	args := webhookFencedTriggerArgs(triggers, handedOffAt.UTC())
+	if _, err := s.database.ExecContext(ctx, buildMarkWebhookTriggersHandedOffQuery(len(triggers)), args...); err != nil {
 		return fmt.Errorf("mark webhook triggers handed off: %w", err)
 	}
 	return nil
 }
 
 // MarkTriggersFailed records a failed compatibility handoff so claimed
-// triggers do not stay invisible to operators.
+// triggers do not stay invisible to operators. Completions are fenced by
+// the claim token exactly like MarkTriggersHandedOff (#7661).
 func (s *WebhookTriggerStore) MarkTriggersFailed(
 	ctx context.Context,
-	triggerIDs []string,
+	triggers []webhook.StoredTrigger,
 	failedAt time.Time,
 	failureClass string,
 	failureMessage string,
@@ -178,9 +180,8 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
-	cleaned := db.CleanIDs(triggerIDs)
-	if len(cleaned) == 0 {
-		return errors.New("webhook trigger ids are required")
+	if len(triggers) == 0 {
+		return errors.New("webhook triggers are required")
 	}
 	if failedAt.IsZero() {
 		return errors.New("webhook trigger failed_at is required")
@@ -189,15 +190,97 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	if failureClass == "" {
 		return errors.New("webhook trigger failure class is required")
 	}
-	args := db.IDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
+	args := webhookFencedTriggerArgs(triggers, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
 	if _, err := s.database.ExecContext(
 		ctx,
-		buildMarkWebhookTriggersFailedQuery(len(cleaned)),
+		buildMarkWebhookTriggersFailedQuery(len(triggers)),
 		args...,
 	); err != nil {
 		return fmt.Errorf("mark webhook triggers failed: %w", err)
 	}
 	return nil
+}
+
+// ReapExpiredTriggerClaims recovers claimed rows whose claimed_at predates
+// staleBefore: rows below maxAttempts go back to queued, rows at or past
+// the cap go to failed with the claim_lease_exhausted reason (#7661). Two
+// reclaimers racing split the stale set via SKIP LOCKED; callers pass a
+// positive per-statement limit, so one sweep touches at most 2×limit rows
+// across the requeue and exhaust statements.
+func (s *WebhookTriggerStore) ReapExpiredTriggerClaims(
+	ctx context.Context,
+	staleBefore time.Time,
+	maxAttempts int,
+	limit int,
+	asOf time.Time,
+) (requeued []webhook.StoredTrigger, exhausted []webhook.StoredTrigger, err error) {
+	if s.database == nil {
+		return nil, nil, errors.New("webhook trigger store database is required")
+	}
+	if staleBefore.IsZero() {
+		return nil, nil, errors.New("webhook trigger reap cutoff is required")
+	}
+	if maxAttempts <= 0 {
+		return nil, nil, errors.New("webhook trigger max attempts must be positive")
+	}
+	if limit <= 0 {
+		return nil, nil, errors.New("webhook trigger reap limit must be positive")
+	}
+	if asOf.IsZero() {
+		return nil, nil, errors.New("webhook trigger reap timestamp is required")
+	}
+	requeued, err = scanWebhookTriggers(s.database.QueryContext(ctx, reapStaleWebhookTriggerClaimsQuery, staleBefore.UTC(), maxAttempts, limit, asOf.UTC()))
+	if err != nil {
+		return nil, nil, fmt.Errorf("reap stale webhook trigger claims: %w", err)
+	}
+	exhausted, err = scanWebhookTriggers(s.database.QueryContext(ctx, exhaustStaleWebhookTriggerClaimsQuery, staleBefore.UTC(), maxAttempts, limit, asOf.UTC()))
+	if err != nil {
+		return nil, nil, fmt.Errorf("exhaust stale webhook trigger claims: %w", err)
+	}
+	return requeued, exhausted, nil
+}
+
+// CountStaleClaims counts the rows stuck in claimed past staleBefore: the
+// stuck-claim gauge's source (#7661).
+func (s *WebhookTriggerStore) CountStaleClaims(ctx context.Context, staleBefore time.Time) (int64, error) {
+	if s.database == nil {
+		return 0, errors.New("webhook trigger store database is required")
+	}
+	if staleBefore.IsZero() {
+		return 0, errors.New("webhook trigger reap cutoff is required")
+	}
+	rows, err := s.database.QueryContext(ctx, countStaleWebhookTriggerClaimsQuery, staleBefore.UTC())
+	if err != nil {
+		return 0, fmt.Errorf("count stale webhook trigger claims: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return 0, errors.New("count stale webhook trigger claims: no rows")
+	}
+	var count int64
+	if err := rows.Scan(&count); err != nil {
+		return 0, fmt.Errorf("count stale webhook trigger claims: %w", err)
+	}
+	return count, nil
+}
+
+func scanWebhookTriggers(rows db.Rows, err error) ([]webhook.StoredTrigger, error) {
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	triggers := make([]webhook.StoredTrigger, 0)
+	for rows.Next() {
+		trigger, err := scanStoredWebhookTrigger(rows)
+		if err != nil {
+			return nil, err
+		}
+		triggers = append(triggers, trigger)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return triggers, nil
 }
 
 func prepareStoredTrigger(trigger webhook.Trigger, receivedAt time.Time) (webhook.StoredTrigger, error) {
@@ -283,6 +366,7 @@ func scanStoredWebhookTrigger(rows db.Rows) (webhook.StoredTrigger, error) {
 		&stored.DuplicateCount,
 		&stored.ReceivedAt,
 		&stored.UpdatedAt,
+		&stored.ClaimFencingToken,
 	); err != nil {
 		return webhook.StoredTrigger{}, err
 	}
@@ -294,26 +378,50 @@ func scanStoredWebhookTrigger(rows db.Rows) (webhook.StoredTrigger, error) {
 	return stored, nil
 }
 
-func buildMarkWebhookTriggersHandedOffQuery(idCount int) string {
-	timestampParam := idCount + 1
+func buildMarkWebhookTriggersHandedOffQuery(rowCount int) string {
+	timestampParam := rowCount*2 + 1
 	return fmt.Sprintf(
 		markWebhookTriggersHandedOffQueryFormat,
 		timestampParam,
 		timestampParam,
-		db.IDPlaceholders(idCount),
+		webhookFencedTriggerPlaceholders(rowCount),
 	)
 }
 
-func buildMarkWebhookTriggersFailedQuery(idCount int) string {
-	failureClassParam := idCount + 1
-	failureMessageParam := idCount + 2
-	timestampParam := idCount + 3
+func buildMarkWebhookTriggersFailedQuery(rowCount int) string {
+	failureClassParam := rowCount*2 + 1
+	failureMessageParam := rowCount*2 + 2
+	timestampParam := rowCount*2 + 3
 	return fmt.Sprintf(
 		markWebhookTriggersFailedQueryFormat,
 		failureClassParam,
 		failureMessageParam,
 		timestampParam,
 		timestampParam,
-		db.IDPlaceholders(idCount),
+		webhookFencedTriggerPlaceholders(rowCount),
 	)
+}
+
+// webhookFencedTriggerPlaceholders returns one "($n, $n+1)" pair per row
+// for the VALUES(trigger_id, fencing_token) clause the mark-handed-off/
+// failed query formats join against (#7661).
+func webhookFencedTriggerPlaceholders(rowCount int) string {
+	pairs := make([]string, rowCount)
+	for i := range pairs {
+		idParam := i*2 + 1
+		tokenParam := i*2 + 2
+		pairs[i] = fmt.Sprintf("($%d, $%d::bigint)", idParam, tokenParam)
+	}
+	return strings.Join(pairs, ", ")
+}
+
+// webhookFencedTriggerArgs interleaves each trigger's id and fencing token
+// (matching webhookFencedTriggerPlaceholders's pairing) ahead of any
+// trailing args (timestamps, failure class/message).
+func webhookFencedTriggerArgs(triggers []webhook.StoredTrigger, extra ...any) []any {
+	args := make([]any, 0, len(triggers)*2+len(extra))
+	for _, trigger := range triggers {
+		args = append(args, trigger.TriggerID, trigger.ClaimFencingToken)
+	}
+	return append(args, extra...)
 }
