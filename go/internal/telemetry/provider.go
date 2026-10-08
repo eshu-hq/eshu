@@ -35,13 +35,7 @@ type Providers struct {
 type ProviderOption func(*providerConfig)
 
 type providerConfig struct {
-	metricsLogger *slog.Logger
-}
-
-// WithMetricsLogger sets the logger that reports /metrics gather errors. The
-// default writes JSON to stderr with the bootstrap service attributes.
-func WithMetricsLogger(logger *slog.Logger) ProviderOption {
-	return func(cfg *providerConfig) { cfg.metricsLogger = logger }
+	// Future options can be added here
 }
 
 // NewProviders creates OTEL SDK providers from the bootstrap configuration.
@@ -76,10 +70,9 @@ func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Pr
 		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
 
-	metricsLogger := cfg.metricsLogger
-	if metricsLogger == nil {
-		metricsLogger = NewLogger(b, "telemetry", "metrics")
-	}
+	// The gather-error log writes JSON to stderr with the bootstrap service
+	// attributes.
+	metricsLogger := NewLogger(b, "telemetry", "metrics")
 
 	// Create meter provider with both OTLP and Prometheus exporters
 	meterProvider, promHandler, err := createMeterProvider(ctx, res, hasOTLP, metricsLogger)
