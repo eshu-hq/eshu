@@ -64,6 +64,21 @@
 # `parser/elixir/engine_elixir_*`, `cmd/*` binary prefixes, the legacy
 # stuttering directories) never block unrelated work.
 #
+# Rule 3, sibling-directory shape (issue #7648): an Added or Renamed file
+# whose first stem word equals the basename of a sibling directory that
+# already exists. `postgres/activation_x.go` beside `postgres/activation/`
+# is the #7645 miss: the file belongs in that directory, or needs a name
+# that does not repeat it. First word means the stem split on `-`/`_`,
+# case-insensitive, after the same extension and `_test` stripping as the
+# file rule (so `activation_x_test.go` flags too); a single-word stem
+# (`activation.go`) counts, a glued longer word (`activationx.go`) does
+# not. The sibling must be a directory, not a same-named file, and it must
+# pre-exist the change: the base tree in git modes, the worktree in
+# --files mode (which has no base). A same-PR dir+file pair therefore
+# stays quiet here; the review "Naming surface" pass owns that shape.
+# Dot-directories are not siblings (named by external tools, not by us),
+# and the conventional file names plus stem==leaf keep their exemptions.
+#
 # Modes:
 #   (default)      scan Added + Renamed destinations in the merge-base
 #                  range plus staged files. Used by local promotion
@@ -184,6 +199,65 @@ dir_is_new() {
 seen_dirs=$'\n'
 failures=0
 
+# Sibling-directory enumeration for the third shape (#7648), cached per
+# directory so a PR touching many files in one directory pays one listing.
+# Newline-delimited (no assoc arrays: bash 3.2 on macOS):
+#   sib_scanned  "\n<lowered dir>\n..."              directories listed
+#   sib_hits     "\n<lowered dir>\t<lowered tree>\n..."  (dir, subdir) pairs
+sib_scanned=$'\n'
+sib_hits=$'\n'
+
+# sib_fill <dir> <lowered dir>: record one sib_hits line per non-dot
+# subdirectory of <dir>. Git modes read the base tree, so only a sibling
+# that pre-exists the change counts; --files mode has no base tree and
+# reads the worktree instead. Marks the dir scanned either way: a missing
+# dir (or a failed listing) simply has no siblings.
+sib_fill() {
+  local dir="$1" ldir="$2" out line rest type name lname e
+  out=""
+  if [ -n "$base_ref" ]; then
+    # `local` and the assignment stay on separate lines so a failing
+    # ls-tree is visible here instead of masked by local's status.
+    out="$(git ls-tree "$base_ref:$dir" 2>/dev/null)" || out=""
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      rest="${line#* }"
+      type="${rest%% *}"
+      [ "$type" = "tree" ] || continue
+      name="${line##*$'\t'}"
+      case "$name" in .*) continue ;; esac
+      lname="$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z')"
+      sib_hits="${sib_hits}${ldir}"$'\t'"${lname}"$'\n'
+    done <<<"$out"
+  else
+    if [ -d "$dir" ]; then
+      for e in "$dir"/*/; do
+        [ -d "$e" ] || continue
+        name="${e%/}"
+        name="${name##*/}"
+        lname="$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z')"
+        sib_hits="${sib_hits}${ldir}"$'\t'"${lname}"$'\n'
+      done
+    fi
+  fi
+  sib_scanned="${sib_scanned}${ldir}"$'\n'
+}
+
+# sib_has <dir> <lowered dir> <lowered word>: true when <dir> holds a
+# subdirectory whose basename equals <word>. The original-case dir feeds
+# the listing (tree lookups are case-sensitive); the lowered pair keys
+# the cache and the comparison.
+sib_has() {
+  case "$sib_scanned" in
+    *$'\n'"$2"$'\n'*) ;;
+    *) sib_fill "$1" "$2" ;;
+  esac
+  case "$sib_hits" in
+    *$'\n'"$2"$'\t'"$3"$'\n'*) return 0 ;;
+  esac
+  return 1
+}
+
 # is_fixture_root <lowercased component>: directories that hold fixture
 # corpora; the component and everything below it is exempt.
 is_fixture_root() {
@@ -244,9 +318,10 @@ check_dirs() {
   done
 }
 
-# check_file <path> <lowercased path>: rule 2 for one path, any file type.
+# check_file <path> <lowercased path>: rule 2 plus the rule 3
+# sibling-directory shape (#7648) for one path, any file type.
 check_file() {
-  local path="$1" lpath="$2" file lfile lbase ldir lleaf
+  local path="$1" lpath="$2" file lfile lbase ldir lleaf first
   case "$path" in */*) ;; *) return 0 ;; esac
   file="${path##*/}"
   lfile="${lpath##*/}"
@@ -280,6 +355,14 @@ check_file() {
       failures=$((failures + 1))
       ;;
   esac
+  # Third shape (#7648): the stem's first word equals a sibling
+  # directory's basename. The exemptions above (conventional names,
+  # stem==leaf, fixtures for non-Go) return before this runs.
+  first="${lbase%%_*}"
+  if [ -n "$first" ] && sib_has "${path%/*}" "$ldir" "$first"; then
+    printf 'filename-stutter: %s repeats sibling directory %s (naming rule 3: move the file into that directory or drop the repeated word)\n' "$path" "$first" >&2
+    failures=$((failures + 1))
+  fi
 }
 
 exec 3<"$candidates_file" 4<"$lower_file"

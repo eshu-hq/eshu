@@ -15,6 +15,20 @@ Before reviewing behavior, prove the review is pointed at the right work:
 - `.codex/skills` and `.claude/skills` discovery links exist for project
   skills that must be visible to both harnesses.
 
+### Naming surface
+
+The filename-stutter gate only scans Added and Renamed paths against
+pre-existing directories, so a same-PR dir+file pair slips past it (issue
+#7648). Cover that shape by hand on every diff that adds paths:
+
+- print `git diff --name-status --diff-filter=AR origin/main...HEAD` as a
+  tree so new directories and their siblings are visible together;
+- for every new directory, list the root siblings whose stem starts with
+  that directory's name; any hit is a blocking P2 (the file belongs in
+  the new directory or needs a name that does not repeat it);
+- read every added file stem against naming.md rules 1-3 (plain English,
+  no repeated directory name, no glued compounds).
+
 ## Pass 1: Correctness And Truth
 
 Check the changed contract against its actual consumers and requirements. For

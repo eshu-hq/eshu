@@ -54,6 +54,14 @@ refactored today.
      `query/auth` passes). Prefix glue is the common shape and the busiest
      short domain dirs (`mcp`, `api`, `cli`, `aws`) are where it happens,
      while short-parent suffixes are usually unrelated real words.
+   - **Sibling directories.** A newly added file fails when its first stem
+     word equals the basename of a sibling directory that already exists:
+     `postgres/activation_x.go` beside `postgres/activation/` fails. The
+     file belongs in that directory, or needs a name that does not repeat
+     it. First word means the stem split on `-`/`_` after extension and
+     `_test` stripping, case-insensitive, so `activation_x_test.go` fails
+     too. The sibling must pre-exist the change; a same-PR dir+file pair
+     is the review "Naming surface" pass's shape, not the gate's.
    - **Exempt.** `README.md`, `AGENTS.md`, `CLAUDE.md`, `doc.go`, a file
      named for its own directory, dot-directories such as `.codex`, and the
      structural parents `go`, `internal`, `cmd`, `docs`, `scripts`, `specs`,
