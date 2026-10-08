@@ -81,6 +81,12 @@ type EntityIndex struct {
 	// used by unresolved JavaScript and Python import-binding barriers. Building
 	// it once per extraction avoids walking every repository import for each call.
 	repositoryImportPathsByRepo map[string][]string
+	// nodePackageNamesByRepo maps repositoryID -> the set of nearest
+	// package.json names ("node_package_name") the repository's
+	// JavaScript-family files carry. It backs the #7610 repo-fallback
+	// barrier: a package key names a same-repository workspace package
+	// exactly when its package is in this set.
+	nodePackageNamesByRepo map[string]map[string]struct{}
 }
 
 // goCrossRepoExportEntry records the unique-resolution state for one exported Go
@@ -218,4 +224,14 @@ func (idx EntityIndex) UniqueNameByRepoPath(repositoryID, fileKey, name string) 
 // unique-name index BuildEntityIndex fills.
 func (idx EntityIndex) UniqueNameByRepo(repositoryID, name string) string {
 	return idx.uniqueNameByRepo[repositoryID][name]
+}
+
+// RepoPublishesNodePackage reports whether any JavaScript-family file of
+// repositoryID carries nodePackageName as its nearest package.json name
+// ("node_package_name"). It is the read-only view of the per-repository
+// manifest-name set BuildEntityIndex fills, and the carve-out test for the
+// #7610 repo-fallback barrier.
+func (idx EntityIndex) RepoPublishesNodePackage(repositoryID, nodePackageName string) bool {
+	_, ok := idx.nodePackageNamesByRepo[repositoryID][nodePackageName]
+	return ok
 }

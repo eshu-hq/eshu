@@ -197,6 +197,80 @@ export function render() {
 	}
 }
 
+// A keyed call whose package no producer publishes must not fall back to the
+// consumer's own same-named function: the call is bound to an explicitly
+// imported but unresolvable target, and the key's package is not one of the
+// consumer repository's own manifest names (#7610).
+func TestExtractRowsLeavesUnresolvedExternalPackageKeyOffLocalName(t *testing.T) {
+	t.Parallel()
+
+	consumer := parsePackageKeyRepo(t, "repo-app", map[string]string{
+		"package.json": `{"name": "acme-app", "dependencies": {"@acme/format": "1.0.0"}}`,
+		"src/page.ts": `import { formatPrice } from "@acme/format";
+
+export function render(amount: number) {
+  return formatPrice(amount);
+}
+`,
+		"src/money.ts": "export function formatPrice(amount: number) { return amount; }\n",
+	})
+
+	_, rows := ExtractRows(consumer.envelopes)
+	if fromRender := callRowsFrom(rows, "uid:repo-app:render"); len(fromRender) != 0 {
+		t.Errorf("unresolved external key gained rows from render: %#v, want none", fromRender)
+	}
+}
+
+// The #7610 carve-out, end to end: the key's package is a same-repository
+// workspace package whose export list the parser does not key, so no symbol
+// key joins the call and the repo-unique fallback to the workspace definition
+// is the true edge.
+func TestExtractRowsKeepsWorkspacePackageFallbackForUnkeyedExportList(t *testing.T) {
+	t.Parallel()
+
+	mono := parsePackageKeyRepo(t, "repo-mono", map[string]string{
+		"package.json":                  `{"name": "mono-root", "private": true}`,
+		"packages/app/package.json":     `{"name": "@acme/app", "dependencies": {"@acme/widgets": "1.0.0"}}`,
+		"packages/app/src/page.js":      "import { widget } from \"@acme/widgets\";\n\nexport function render() {\n  return widget();\n}\n",
+		"packages/widgets/package.json": `{"name": "@acme/widgets", "main": "index.js"}`,
+		"packages/widgets/index.js":     "function widget() { return 1; }\n\nexport { widget };\n",
+	})
+
+	_, rows := ExtractRows(mono.envelopes)
+	fromRender := callRowsFrom(rows, "uid:repo-mono:render")
+	row, ok := fromRender["uid:repo-mono:widget"]
+	if !ok {
+		t.Fatalf("no CALLS row render -> uid:repo-mono:widget; rows from render = %#v", fromRender)
+	}
+	if got := payloadcore.AnyToString(row["resolution_method"]); got != string(codeprovenance.MethodRepoUniqueName) {
+		t.Errorf("resolution_method = %q, want %q", got, codeprovenance.MethodRepoUniqueName)
+	}
+}
+
+// Same carve-out with a CommonJS workspace producer: module.exports carries
+// no export key either, so the fallback stays the true edge.
+func TestExtractRowsKeepsWorkspacePackageFallbackForCommonJSProducer(t *testing.T) {
+	t.Parallel()
+
+	mono := parsePackageKeyRepo(t, "repo-cjs", map[string]string{
+		"package.json":              `{"name": "cjs-root", "private": true}`,
+		"packages/app/package.json": `{"name": "@acme/cjs-app", "dependencies": {"@acme/cjs-lib": "1.0.0"}}`,
+		"packages/app/src/main.js":  "const { helper } = require(\"@acme/cjs-lib\");\n\nexport function run() {\n  return helper();\n}\n",
+		"packages/lib/package.json": `{"name": "@acme/cjs-lib", "main": "index.js"}`,
+		"packages/lib/index.js":     "function helper() { return 2; }\n\nmodule.exports = { helper };\n",
+	})
+
+	_, rows := ExtractRows(mono.envelopes)
+	fromRun := callRowsFrom(rows, "uid:repo-cjs:run")
+	row, ok := fromRun["uid:repo-cjs:helper"]
+	if !ok {
+		t.Fatalf("no CALLS row run -> uid:repo-cjs:helper; rows from run = %#v", fromRun)
+	}
+	if got := payloadcore.AnyToString(row["resolution_method"]); got != string(codeprovenance.MethodRepoUniqueName) {
+		t.Errorf("resolution_method = %q, want %q", got, codeprovenance.MethodRepoUniqueName)
+	}
+}
+
 // A jsconfig baseUrl alias that shares its name with a declared dependency
 // resolves inside the consumer repository, so the call must not gain a
 // cross-repository row to the unrelated corpus publisher of that name (#7613).

@@ -43,7 +43,12 @@
 // type-only imports, subpaths, in-repo imports, deep chains, default-import
 // members, and names the file declares again. A jsconfig.json alias resolves
 // in-repo like a tsconfig.json one, so it sets resolved_source and stays
-// unkeyed even when the name is also declared (#7613).
+// unkeyed even when the name is also declared (#7613). Every file also
+// carries node_package_name, the nearest package.json name that owns it
+// (absent when no manifest does); the reducer unions the names per
+// repository so an unresolved package key to a same-repository workspace
+// package keeps its repo-unique fallback while a key to an external package
+// never falls back to a same-named local declaration (#7610).
 //
 // Three leaf subpackages carry work that does not need the parse lifecycle,
 // and none of them may import this package back (issue #6771):

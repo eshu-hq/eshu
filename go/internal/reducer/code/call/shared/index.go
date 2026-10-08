@@ -69,6 +69,7 @@ func BuildEntityIndex(envelopes []facts.Envelope) EntityIndex {
 		javaScriptAliasesByFile: make(map[string]map[string][]javaScriptStaticAliasSpan),
 	}
 	index.repositoryImportPathsByRepo = make(map[string][]string)
+	index.nodePackageNamesByRepo = make(map[string]map[string]struct{})
 	candidates := newEntityIndexCandidates()
 
 	for _, env := range envelopes {
@@ -88,6 +89,14 @@ func BuildEntityIndex(envelopes []facts.Envelope) EntityIndex {
 		// JavaScript alias parsing is cached once per function source because
 		// generated bundles can carry thousands of dynamic call records.
 		shouldCacheJavaScriptAliases := codeCallJavaScriptSourceFile(fileData, rawPath, relativePath)
+		if nodePackageName := strings.TrimSpace(payloadcore.AnyToString(fileData["node_package_name"])); nodePackageName != "" {
+			names := index.nodePackageNamesByRepo[repositoryID]
+			if names == nil {
+				names = make(map[string]struct{})
+				index.nodePackageNamesByRepo[repositoryID] = names
+			}
+			names[nodePackageName] = struct{}{}
+		}
 
 		addFunctionEntityCandidates(
 			&index, &candidates, fileData, rawPath, relativePath, repositoryID, preferredPath, shouldCacheJavaScriptAliases,

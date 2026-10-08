@@ -74,6 +74,10 @@ func codeCallLanguageResolverBlocksRepoFallback(ctx shared.ResolveContext) bool 
 		return haskell.QualifiedImportTargetExists(ctx)
 	case "java":
 		return java.BlocksRepoFallback(ctx)
+	case "javascript", "jsx", "typescript", "tsx":
+		// One parser leaf stamps the #7601 package keys for the whole
+		// JavaScript family, so one barrier covers all four languages.
+		return javascript.BlocksRepoFallback(ctx)
 	case "kotlin":
 		return kotlin.BlocksRepoFallback(ctx)
 	default:

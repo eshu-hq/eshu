@@ -45,9 +45,9 @@ wiring stay in `code/call`.
 survives the package boundary. A language leaf reads them through:
 `EntityFileByID`, `UniqueNameByPath`, `UniqueNameByRepo`, `UniqueNameByRepoDir`,
 `GoMethodReturnTypes`, `GoExportByImportPath`, `HasGoExports`,
-`JavaScriptAliasesByFile`, `PythonClassBasesByRepo`, `RustTraitMethodsByRepo`,
-`SpansByFile`, `TypeScriptInterfaceMethodsByRepo`, and (for tests)
-`RepositoryImportPathsByRepo`. Every accessor call inlines
+`JavaScriptAliasesByFile`, `PythonClassBasesByRepo`, `RepoPublishesNodePackage`,
+`RustTraitMethodsByRepo`, `SpansByFile`, `TypeScriptInterfaceMethodsByRepo`, and
+(for tests) `RepositoryImportPathsByRepo`. Every accessor call inlines
 (`go build -gcflags=-m` reports `inlining call to shared.EntityIndex.<Accessor>`
 at every call site), so the accessor indirection costs nothing on the
 resolution hot path — verified by a before/after benchmark on
