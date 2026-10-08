@@ -59,10 +59,16 @@ a miss, by the unlabeled fallback: at most two distinct statement texts per
 caller shape, because a cold Neo4j plans every distinct text. NornicDB and the
 zero value keep the per-label loop of up to 16 statements, since a label
 disjunction or many-branch `UNION` is unreliable there (#7006). The Neo4j
-anchor's uid and id label sets come from `graph.HasUIDUniquenessConstraint` and
-`graph.HasIDUniquenessConstraint` over `EntityContextAnchorLabels`. An id shared
-by two labels resolves to the label the loop tried first. `Directory` has no id
-or uid index and resolves through the fallback.
+anchor seeks every schema label with a uid or id uniqueness constraint
+(`graph.UIDUniquenessConstrainedLabels`, `graph.IDUniquenessConstrainedLabels`;
+117 uid and 7 id labels at #7212), not only `EntityContextAnchorLabels`, so an
+id on a label outside the loop list no longer pays the whole-graph fallback.
+`neo4jAnchorRankOrder` ranks the loop's constrained labels first, in loop
+order, then the rest alphabetically: an id shared by two labels resolves to the
+label the loop tried first. `Directory` has no id or uid index and resolves
+through the fallback. `TestNeo4jEntityContextAnchorIsTheMeasuredStatement` pins
+the statement to the text measured in
+`docs/internal/evidence/7212-wide-entity-anchor.md`.
 
 Resolution attribution (#7212): `GetEntityContext` records how each request was
 answered in `context_resolution.go`. `resolved_by` is `anchor` (a non-final

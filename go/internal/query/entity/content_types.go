@@ -74,7 +74,10 @@ const EntityContextAnchorLabelDisjunction = "Repository|Directory|File|Module|Fu
 // ordered most-common-first (the six code-entity labels
 // codequery/chain.AnchorLabelDisjunction already prioritizes, then the rarer
 // structural/infra types) so GetEntityContext's per-label anchor loop
-// resolves the common case on its first try.
+// resolves the common case on its first try. The loop runs on NornicDB. On
+// Neo4j the list sets only the rank of its constrained labels: the indexed
+// anchor seeks every uid- or id-constrained schema label (#7212, see
+// neo4jAnchorRankOrder).
 var EntityContextAnchorLabels = []string{
 	"Function", "Class", "Struct", "Interface", "TypeAlias", "File",
 	"Repository", "Directory", "Module", "Enum", "Union", "Macro", "TypeAnnotation", "Workload",
