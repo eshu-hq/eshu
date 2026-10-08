@@ -279,6 +279,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.infra_inventory_reconcile",
 		"reducer.changed_since_link",
 		"reducer.activation_obligation_settle",
+		"reducer.producer_activation_settle",
 		"reducer.status_summary.pass",
 		"bootstrap.collector_cycle",
 		"collector.claimed_run",

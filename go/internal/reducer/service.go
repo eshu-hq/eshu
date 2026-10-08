@@ -135,6 +135,9 @@ type Service struct {
 	// the stuck-gauge remains active independently of this field.
 	PoisonLivenessRunner *maintenance.PoisonLivenessRunner
 
+	// ProducerActivationRunner replays the correlation consumers that wait on
+	// each producer activation (#7635). Nil disables the consumer.
+	ProducerActivationRunner *maintenance.ProducerActivationRunner
 	// ActivationObligationRunner settles the exact-generation activation
 	// obligations ProjectorQueue.Ack writes (#7584): it runs the activation
 	// maintenance port when the generation's backward-evidence phase is

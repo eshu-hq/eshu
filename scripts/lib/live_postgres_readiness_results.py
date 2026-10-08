@@ -137,6 +137,19 @@ PACKAGES = {
             "TestQuietGenerationActivatesAfterMaintenanceSnapshotLive",
             "TestQuietGenerationActivatesWithControlArmMaintenanceLive",
         ),
+        "go/internal/storage/postgres/activation/producer_obligation_live_test.go": (
+            "TestProducerActivationQuietAckLeavesConsumerUnreplayedLive",
+        ),
+        "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go": (
+            "TestProducerActivationSettleIsExactlyOnceLive",
+            "TestProducerActivationLeaseFencesStaleSettleLive",
+            "TestProducerActivationUnrelatedScopeIsNotReopenedLive",
+            "TestProducerActivationSettleMatchesEpochPassLive",
+            "TestProducerActivationPruneAndStatsLive",
+            "TestProducerActivationDriftReopenLive",
+            "TestProducerActivationRetentionCascadeLive",
+            "TestProducerActivationInsertConflictBranchesLive",
+        ),
     },
     MAINTENANCE_PACKAGE: {
         "go/internal/storage/postgres/maintenance/requests_live_test.go": (

@@ -33,8 +33,11 @@ func TestProjectorQueueAckSupersedesObsoleteTerminalGenerations(t *testing.T) {
 	if err := queue.Ack(context.Background(), work, runtime.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 7; got != want {
+	if got, want := len(db.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	if got := db.execs[7].query; !strings.Contains(got, "INSERT INTO producer_activation_obligations") {
+		t.Fatalf("Ack() last statement lacks the producer obligation insert (#7635):\n%s", got)
 	}
 
 	query := db.execs[3].query

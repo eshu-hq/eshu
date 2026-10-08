@@ -2420,6 +2420,16 @@ tests:
     class: postgres_ci
     reason: "#7584 single-commit quiet-generation phase liveness against isolated disposable PostgreSQL; collector drain completes before real projector Ack, subsequent empty polls cannot substitute for activation maintenance, and the activation obligation consumer (control-arm callback) publishes the exact phase, wakes the exact row and completes the obligation"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/producer_obligation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7635 quiet-Ack producer activation RED/GREEN on the full bootstrap schema in an isolated disposable PostgreSQL schema: a producer scope activating with no commit replays exactly the owed correlation consumers once the obligation settles"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7635 producer activation settle contracts on the full bootstrap schema in isolated disposable PostgreSQL schemas: exactly-once reopen, lease-fenced stale settle with empty counts, no reopen for unrelated scopes, epoch-pass subset match, drift reopen, prune/stats, retention cascade and insert conflict branches"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/readiness/wait/store_clear_fence_live_test.go
     tag: ~
     class: scheduled

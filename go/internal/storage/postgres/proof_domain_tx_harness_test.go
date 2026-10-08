@@ -148,6 +148,10 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		// #7584: Ack's one-row obligation insert; the proof-domain flows do
 		// not consume obligations.
 		return proofResult{}, nil
+	case strings.Contains(query, "INSERT INTO producer_activation_obligations"):
+		// #7635: Ack's producer obligation insert; the proof-domain flows
+		// do not consume obligations.
+		return proofResult{}, nil
 	case strings.Contains(query, "set_config('lock_timeout'"):
 		return proofResult{}, nil
 	case strings.Contains(query, "set_config('eshu.package_manifest_consumption_keys_writer'"):

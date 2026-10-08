@@ -59,6 +59,9 @@ func (s Service) startSideRunners(
 	if s.ActivationObligationRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.ActivationObligationRunner)
 	}
+	if s.ProducerActivationRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.ProducerActivationRunner)
+	}
 	if s.GraphOrphanSweepRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GraphOrphanSweepRunner)
 	}

@@ -47,7 +47,7 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin count = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 7; got != want {
+	if got, want := len(db.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if !strings.Contains(db.execs[0].query, "set_config('lock_timeout', $1, true)") ||
@@ -108,10 +108,25 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 				"WHERE activation_obligations.state = 'obsolete'",
 			},
 		},
+		{
+			// #7635: the producer activation obligation commits with the
+			// activation, owed unconditionally; the settle retires
+			// generations without producer evidence.
+			query: db.execs[7].query,
+			want: []string{
+				"INSERT INTO producer_activation_obligations (scope_id, generation_id, work_item_id)",
+				"ON CONFLICT (scope_id, generation_id) DO UPDATE",
+				"WHERE producer_activation_obligations.state = 'obsolete'",
+			},
+		},
 	}
 	if args := db.execs[6].args; len(args) != 3 || args[0] != "scope-123" ||
 		args[1] != "generation-456" || args[2] != "projector_scope-123_generation-456" {
 		t.Fatalf("Ack() obligation args = %v, want exact scope, generation and projector work item", args)
+	}
+	if args := db.execs[7].args; len(args) != 3 || args[0] != "scope-123" ||
+		args[1] != "generation-456" || args[2] != "projector_scope-123_generation-456" {
+		t.Fatalf("Ack() producer obligation args = %v, want exact scope, generation and projector work item", args)
 	}
 	for _, check := range checks {
 		for _, want := range check.want {

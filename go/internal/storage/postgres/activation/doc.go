@@ -38,6 +38,18 @@
 // RunnerStore adapts Store to the resolution engine's consumer port,
 // reducer/maintenance.ActivationObligationStore.
 //
+// The producer family beside it (InsertProducerActivation,
+// ClaimProducerActivation, BeginProducerSettle, PruneProducer,
+// StatsProducer) owes, leases, settles, prunes and counts the
+// producer_activation_obligations rows ProjectorQueue.Ack writes for every
+// activated generation (#7635). The settle retires generations without
+// producer evidence as inapplicable, reopens the dependent consumers of
+// the rest, and completes under the same token-fenced claim shape; there is
+// no catch-up (see StatsProducer for why one would re-owe every pruned
+// generation). The production consumer
+// port is postgres.ProducerActivationRunnerStore in the parent package (the
+// settle needs IngestionStore, which this package cannot import).
+//
 // The package imports the db contracts and reducer/maintenance, never the
 // parent postgres package, so ProjectorQueue.Ack can call Insert.
 package activation

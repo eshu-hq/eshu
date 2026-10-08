@@ -200,8 +200,11 @@ func TestProjectorAckCountsMatchedDeltaOnceAfterCommit(t *testing.T) {
 			if err := queue.Ack(context.Background(), deltaFenceWork(), runtime.Result{}); err != nil {
 				t.Fatalf("Ack() = %v, want nil", err)
 			}
-			if fake.commits != 1 || len(fake.execs) != 7 {
-				t.Fatalf("commits=%d execs=%d, want 1 and 7", fake.commits, len(fake.execs))
+			if fake.commits != 1 || len(fake.execs) != 8 {
+				t.Fatalf("commits=%d execs=%d, want 1 and 8", fake.commits, len(fake.execs))
+			}
+			if got := fake.execs[7].query; !strings.Contains(got, "INSERT INTO producer_activation_obligations") {
+				t.Fatalf("Ack() last statement lacks the producer obligation insert (#7635):\n%s", got)
 			}
 			var rm metricdata.ResourceMetrics
 			if err := reader.Collect(context.Background(), &rm); err != nil {

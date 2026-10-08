@@ -276,6 +276,11 @@ func (q ProjectorQueue) Ack(
 	if err := activation.Insert(ctx, tx, work.Scope.ScopeID, work.Generation.GenerationID, projectorWorkItemID(work.Scope.ScopeID, work.Generation.GenerationID)); err != nil {
 		return fmt.Errorf("ack projector work: %w", err)
 	}
+	// #7635: owe a producer-activation obligation for the activated
+	// generation; the settle retires generations without producer evidence.
+	if err := oweProducerActivationObligation(ctx, tx, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
+		return fmt.Errorf("ack projector work: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}

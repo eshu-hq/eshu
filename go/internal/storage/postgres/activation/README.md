@@ -57,6 +57,21 @@ partition-scoped pass for the obligation's own partition and maps
 (Finalize wakes and completes), and `retry` or any other error to a
 maintenance failure.
 
+The producer family beside it (`InsertProducerActivation`,
+`ClaimProducerActivation`, `BeginProducerSettle`, `PruneProducer`,
+`StatsProducer`) owes, leases, settles, prunes and counts the
+`producer_activation_obligations` rows (#7635): one obligation per activated
+generation, settled by retiring non-producers as inapplicable, reopening
+the dependent consumers of the rest, and completing under the same
+token-fenced claim shape, with no catch-up (a catch-up would re-owe every
+pruned generation; see `StatsProducer`). The production
+consumer port is `postgres.ProducerActivationRunnerStore` in the parent
+package (the settle needs `IngestionStore`, which this package cannot
+import); the resolution engine's consumer is
+`maintenance.ProducerActivationRunner`, wired by `cmd/reducer`
+(`producer_activation_wiring.go`) when
+`ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED=true`.
+
 ## Clock skew
 
 Every obligation timestamp and lease comparison uses the database clock
@@ -147,7 +162,8 @@ live-fixture package.
 No-Regression Evidence: the Ack transaction runs one more statement,
 `insertObligationQuery`, with the consumer flag off or on
 (`projector_queue.go`, the `activation.Insert` call before the commit): 8
-statements between BEGIN and COMMIT instead of 7. Its deterministic cost, from
+statements between BEGIN and COMMIT instead of 7 at #7584 (9 with the #7635
+insert below). Its deterministic cost, from
 `pg_stat_statements` reset per sample, is 12.8 shared blocks and 0.038 to
 0.044 ms of server time per Ack for the insert, plus about 4 blocks per Ack
 that no named line carries and that by shape are its foreign-key probe on
@@ -231,6 +247,25 @@ the finished partial index. The retention cascade seeks the
 generation-leading primary key. Consumer throughput at fleet scale and the
 lease against a representative maintenance p99 are NOT_CHECKED; they gate the
 consumer's default-on change, not this slice.
+
+No-Regression Evidence (#7635): the Ack transaction gains exactly one more
+statement, `insertProducerObligationQuery`, owed unconditionally for every
+activated generation: 9 statements between BEGIN and COMMIT. Its
+deterministic cost, from `pg_stat_statements` reset before the sample on a
+disposable PostgreSQL 18, is 9.17 shared blocks and 0.097 ms mean server
+time per call over 100 calls, with 0.0 ms planning. The producer-evidence
+probe runs in the background settle, never in Ack: it plans in 8.43 ms per
+call through the Go driver (200 mixed-generation calls,
+`track_planning = on`, 0.21 ms mean exec), which would multiply Ack server
+time and the scope-row hold, so an earlier probe-in-Ack shape was replaced
+by owe-unconditionally plus settle-side retire-as-inapplicable. The settle
+probe is generation-anchored (`TestProducerEvidenceProbeCostLive` on a
+100k-row bulk corpus): 290 buffers for a 2000-file generation, 4 for a
+5000-row non-producer generation (882 without the derived kind prefilter; a
+differential over every arm kind proves identical outcomes), 3 to 4 for
+producer, drift, empty and all-arms generations. Producer consumer
+throughput at fleet scale is NOT_CHECKED; it gates that consumer's
+default-on change, not this slice.
 
 Observability Evidence: `eshu_dp_activation_obligations{status}`,
 `eshu_dp_activation_obligation_oldest_open_age_seconds`,
