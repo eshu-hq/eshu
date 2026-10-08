@@ -115,10 +115,12 @@ rows for its configured repositories. The githubOrg listing always requests
 `per_page=100` and trims client-side: shrinking the last page re-reads
 earlier repositories under offset pagination (#7625 amendment 1).
 
-No-Regression Evidence: Phase 1 is observe-and-report only: selection
-behavior, ListRepositories, ResolveRepository, and the graph are
-unchanged, so the baseline selection outcome is byte-identical before
-and after. The additive cost is one evaluation transaction plus one
+No-Regression Evidence: Phase 1 is observe-and-report only: the
+selection decision logic, ListRepositories, ResolveRepository, and the
+graph are unchanged, so the baseline selection outcome is identical
+before and after apart from the amendment-1 per_page fix, which
+corrects multi-page listings that previously re-read earlier pages.
+The additive cost is one evaluation transaction plus one
 ordered upsert per (scope, selector) once per cycle on shard 0, and two
 index-bound reads (observation rows plus per-scope MAX(observed_at)) on
 the single-scope freshness path. After measurement: live
