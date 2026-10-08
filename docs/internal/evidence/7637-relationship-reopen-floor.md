@@ -13,10 +13,13 @@ extraction, since removed).
 
 ## Reopened-row counts (900 scopes x 25 generations, Postgres 18)
 
-Seeded shim (`/tmp/7637-shim.sh`, queries extracted mechanically from the Go
-source, no hand copies): 898 active scopes, 1 never-activated scope, 1 scope
-whose latest generation failed. One succeeded row per (scope, generation,
-domain), the shape the shipped comment documents.
+Seeded shim (`7637-reopen-bound-shim.sh` + `7637-reopen-bound-seed.sql`
+beside this file; raw output in `7637-reopen-bound-shim-output.txt`): queries are
+extracted mechanically from the Go source — the old text from the pre-fix
+base ref, the new text by reassembling the shared fragments — no hand
+copies. Fixture: 898 active scopes, 1 never-activated scope, 1 scope whose
+latest generation failed. One succeeded row per (scope, generation, domain),
+the shape the shipped comment documents.
 
 | Listing (per domain) | Rows listed (= reopened candidates) |
 | --- | --- |
@@ -30,7 +33,8 @@ is the floor.
 
 ## Listing cost: old vs new
 
-`EXPLAIN (ANALYZE, BUFFERS)`, same host, back-to-back arms (`/tmp/7637-shim.out`):
+`EXPLAIN (ANALYZE, BUFFERS)`, same host, back-to-back arms (raw plans in
+`7637-reopen-bound-shim-output.txt`):
 
 | Arm | Execution | Buffers (shared hit) | Plan shape |
 | --- | --- | --- | --- |
@@ -51,8 +55,13 @@ reopens per domain dwarfs +13 ms of listing.
   (superseded/failed stay `succeeded`; active/never-activated go `pending`,
   both domains) and `TestRelationshipReopenMatchesCorrelationReplayFloor`
   (the relationship partition sets equal the shipped correlation listing's
-  set on the same fixture — derivation, not hand copy). Both failed on
-  clean main and pass with the fix.
+  set on the same fixture). RED procedure: the differential test is
+  SELECT-only and failed on clean main. The absolute test's genuine
+  semantic RED was recorded as a mutant run — base production queries with
+  the new tests and repaired proof schema — failing with the four
+  stale/failed-reopened assertion errors (on a literally clean-main tree it
+  fails earlier with SQLSTATE 42703, which is the proof-schema drift this
+  PR repairs). Both pass with the fix.
 - `#7584` whole-vs-targeted differential still holds: `TestTheoryExactPartitionEvidenceClosure`,
   `TestTargetedMaintenanceOutcomesMatchWholePass`, and the terminal proofs
   pass, so evidence, phase, memo, and reopen rows for active generations

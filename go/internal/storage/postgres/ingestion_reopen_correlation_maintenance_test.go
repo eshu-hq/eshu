@@ -20,10 +20,10 @@ import (
 // by the ingester. The live ingester runs
 // RunDeferredRelationshipMaintenanceAfterShardDrain ->
 // RunDeferredRelationshipMaintenance, which before this change replayed only
-// deployment_mapping and code_import_repo_edge. A container_image_identity,
-// ci_cd_run_correlation, or supply_chain_impact work item that lost the
-// cross-scope activation race therefore kept its empty-join decision forever in
-// normal ingestion, while the golden-corpus gate — which drives
+// deployment_mapping and code_import_repo_edge. A container_image_identity
+// (or other CrossScopeCorrelationReopenDomains member) work item that lost
+// the cross-scope activation race therefore kept its empty-join decision
+// forever in normal ingestion, while the golden-corpus gate — which drives
 // eshu-bootstrap-index for its maintenance passes — went green.
 func TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains(t *testing.T) {
 	dsn := dsnForDeferredPartitionMemoProof(t)

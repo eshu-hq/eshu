@@ -100,10 +100,12 @@ func TestRelationshipReopenSkipsSupersededGenerations(t *testing.T) {
 
 // TestRelationshipReopenMatchesCorrelationReplayFloor is the #7637 live
 // differential: the relationship listings must reopen exactly the partitions
-// the SHIPPED correlation listing reopens for the same fixture, proving the
-// floor is derived from that query rather than hand-copied. A hand copy that
-// drifted (wrong fallback, missing exclusion) would show up here as a
-// partition-set mismatch against the shipped text.
+// the SHIPPED correlation listing reopens for the same fixture. Both arms
+// now compose the same shared fragments, so this test pins against
+// divergence between the relationship and correlation compositions (a
+// wrong fallback or missing exclusion in one arm shows up as a
+// partition-set mismatch); a bug in the shared fragments themselves is
+// covered by the absolute test above and the hermetic fragment pins.
 func TestRelationshipReopenMatchesCorrelationReplayFloor(t *testing.T) {
 	dsn := dsnForDeferredPartitionMemoProof(t)
 	ctx := context.Background()

@@ -1,0 +1,167 @@
+        domain         | failed_generation_rows
+-----------------------+------------------------
+ code_import_repo_edge |                      1
+ deployment_mapping    |                      1
+(2 rows)
+
+===== old_dm_count =====
+ old_dm_count_rows
+-------------------
+             22500
+(1 row)
+
+===== new_dm_count =====
+ new_dm_count_rows
+-------------------
+               899
+(1 row)
+
+===== old_dm_plan =====
+                                                          QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=3007.10..3063.17 rows=22426 width=36) (actual time=9.640..10.367 rows=22500.00 loops=1)
+   Sort Key: updated_at, work_item_id
+   Sort Method: quicksort  Memory: 1998kB
+   Buffers: shared hit=605
+   ->  Seq Scan on fact_work_items  (cost=0.00..1386.50 rows=22426 width=36) (actual time=0.013..5.241 rows=22500.00 loops=1)
+         Filter: ((stage = 'reducer'::text) AND (domain = 'deployment_mapping'::text) AND (status = 'succeeded'::text))
+         Rows Removed by Filter: 22500
+         Buffers: shared hit=599
+ Planning:
+   Buffers: shared hit=125
+ Planning Time: 0.798 ms
+ Execution Time: 11.589 ms
+(12 rows)
+
+===== new_dm_plan =====
+                                                                                           QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=3327.94..3327.96 rows=8 width=36) (actual time=23.632..23.664 rows=899.00 loops=1)
+   Sort Key: work.updated_at, work.work_item_id
+   Sort Method: quicksort  Memory: 74kB
+   Buffers: shared hit=2788
+   CTE scope_replay_floor
+     ->  Nested Loop Left Join  (cost=28.79..987.12 rows=900 width=49) (actual time=3.088..5.805 rows=900.00 loops=1)
+           Buffers: shared hit=1995
+           ->  Hash Right Join  (cost=28.50..559.62 rows=900 width=27) (actual time=3.060..3.327 rows=900.00 loops=1)
+                 Hash Cond: ((active_generation.scope_id = scope.scope_id) AND (active_generation.generation_id = scope.active_generation_id))
+                 Buffers: shared hit=194
+                 ->  Seq Scan on scope_generations active_generation  (cost=0.00..413.00 rows=22500 width=27) (actual time=0.005..1.115 rows=22500.00 loops=1)
+                       Buffers: shared hit=188
+                 ->  Hash  (cost=15.00..15.00 rows=900 width=19) (actual time=0.164..0.165 rows=900.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 55kB
+                       Buffers: shared hit=6
+                       ->  Seq Scan on ingestion_scopes scope  (cost=0.00..15.00 rows=900 width=19) (actual time=0.012..0.046 rows=900.00 loops=1)
+                             Buffers: shared hit=6
+           ->  Limit  (cost=0.29..0.46 rows=1 width=18) (actual time=0.003..0.003 rows=1.00 loops=900)
+                 Buffers: shared hit=1801
+                 ->  Index Only Scan using scope_generations_scope_latest_idx on scope_generations candidate  (cost=0.29..4.72 rows=25 width=18) (actual time=0.002..0.002 rows=1.00 loops=900)
+                       Index Cond: (scope_id = scope.scope_id)
+                       Heap Fetches: 0
+                       Index Searches: 900
+                       Buffers: shared hit=1801
+   ->  Hash Join  (cost=835.99..2340.69 rows=8 width=36) (actual time=21.135..23.438 rows=899.00 loops=1)
+         Hash Cond: (work_generation.scope_id = floor.scope_id)
+         Join Filter: (ROW(work_generation.ingested_at, work_generation.generation_id) >= ROW(floor.floor_ingested_at, floor.floor_generation_id))
+         Rows Removed by Join Filter: 21600
+         Buffers: shared hit=2782
+         ->  Hash Join  (cost=806.74..2310.97 rows=25 width=63) (actual time=5.127..14.367 rows=22499.00 loops=1)
+               Hash Cond: ((work.scope_id = work_generation.scope_id) AND (work.generation_id = work_generation.generation_id))
+               Buffers: shared hit=787
+               ->  Seq Scan on fact_work_items work  (cost=0.00..1386.50 rows=22426 width=36) (actual time=0.005..4.905 rows=22500.00 loops=1)
+                     Filter: ((stage = 'reducer'::text) AND (domain = 'deployment_mapping'::text) AND (status = 'succeeded'::text))
+                     Rows Removed by Filter: 22500
+                     Buffers: shared hit=599
+               ->  Hash  (cost=469.25..469.25 rows=22499 width=27) (actual time=4.972..4.972 rows=22499.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 1662kB
+                     Buffers: shared hit=188
+                     ->  Seq Scan on scope_generations work_generation  (cost=0.00..469.25 rows=22499 width=27) (actual time=0.005..1.569 rows=22499.00 loops=1)
+                           Filter: (status <> 'failed'::text)
+                           Rows Removed by Filter: 1
+                           Buffers: shared hit=188
+         ->  Hash  (cost=18.00..18.00 rows=900 width=72) (actual time=6.139..6.139 rows=900.00 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 67kB
+               Buffers: shared hit=1995
+               ->  CTE Scan on scope_replay_floor floor  (cost=0.00..18.00 rows=900 width=72) (actual time=3.089..6.010 rows=900.00 loops=1)
+                     Storage: Memory  Maximum Storage: 73kB
+                     Buffers: shared hit=1995
+ Planning:
+   Buffers: shared hit=259
+ Planning Time: 2.147 ms
+ Execution Time: 24.330 ms
+(53 rows)
+
+===== old_dm_plan_r2 =====
+                                                          QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=3007.10..3063.17 rows=22426 width=36) (actual time=9.585..10.302 rows=22500.00 loops=1)
+   Sort Key: updated_at, work_item_id
+   Sort Method: quicksort  Memory: 1998kB
+   Buffers: shared hit=605
+   ->  Seq Scan on fact_work_items  (cost=0.00..1386.50 rows=22426 width=36) (actual time=0.009..5.181 rows=22500.00 loops=1)
+         Filter: ((stage = 'reducer'::text) AND (domain = 'deployment_mapping'::text) AND (status = 'succeeded'::text))
+         Rows Removed by Filter: 22500
+         Buffers: shared hit=599
+ Planning:
+   Buffers: shared hit=125
+ Planning Time: 0.802 ms
+ Execution Time: 11.532 ms
+(12 rows)
+
+===== new_dm_plan_r2 =====
+                                                                                           QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=3327.94..3327.96 rows=8 width=36) (actual time=24.282..24.320 rows=899.00 loops=1)
+   Sort Key: work.updated_at, work.work_item_id
+   Sort Method: quicksort  Memory: 74kB
+   Buffers: shared hit=2788
+   CTE scope_replay_floor
+     ->  Nested Loop Left Join  (cost=28.79..987.12 rows=900 width=49) (actual time=3.127..5.962 rows=900.00 loops=1)
+           Buffers: shared hit=1995
+           ->  Hash Right Join  (cost=28.50..559.62 rows=900 width=27) (actual time=3.097..3.373 rows=900.00 loops=1)
+                 Hash Cond: ((active_generation.scope_id = scope.scope_id) AND (active_generation.generation_id = scope.active_generation_id))
+                 Buffers: shared hit=194
+                 ->  Seq Scan on scope_generations active_generation  (cost=0.00..413.00 rows=22500 width=27) (actual time=0.005..1.146 rows=22500.00 loops=1)
+                       Buffers: shared hit=188
+                 ->  Hash  (cost=15.00..15.00 rows=900 width=19) (actual time=0.167..0.168 rows=900.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 55kB
+                       Buffers: shared hit=6
+                       ->  Seq Scan on ingestion_scopes scope  (cost=0.00..15.00 rows=900 width=19) (actual time=0.013..0.046 rows=900.00 loops=1)
+                             Buffers: shared hit=6
+           ->  Limit  (cost=0.29..0.46 rows=1 width=18) (actual time=0.003..0.003 rows=1.00 loops=900)
+                 Buffers: shared hit=1801
+                 ->  Index Only Scan using scope_generations_scope_latest_idx on scope_generations candidate  (cost=0.29..4.72 rows=25 width=18) (actual time=0.002..0.002 rows=1.00 loops=900)
+                       Index Cond: (scope_id = scope.scope_id)
+                       Heap Fetches: 0
+                       Index Searches: 900
+                       Buffers: shared hit=1801
+   ->  Hash Join  (cost=835.99..2340.69 rows=8 width=36) (actual time=21.668..24.071 rows=899.00 loops=1)
+         Hash Cond: (work_generation.scope_id = floor.scope_id)
+         Join Filter: (ROW(work_generation.ingested_at, work_generation.generation_id) >= ROW(floor.floor_ingested_at, floor.floor_generation_id))
+         Rows Removed by Join Filter: 21600
+         Buffers: shared hit=2782
+         ->  Hash Join  (cost=806.74..2310.97 rows=25 width=63) (actual time=5.213..14.784 rows=22499.00 loops=1)
+               Hash Cond: ((work.scope_id = work_generation.scope_id) AND (work.generation_id = work_generation.generation_id))
+               Buffers: shared hit=787
+               ->  Seq Scan on fact_work_items work  (cost=0.00..1386.50 rows=22426 width=36) (actual time=0.005..5.087 rows=22500.00 loops=1)
+                     Filter: ((stage = 'reducer'::text) AND (domain = 'deployment_mapping'::text) AND (status = 'succeeded'::text))
+                     Rows Removed by Filter: 22500
+                     Buffers: shared hit=599
+               ->  Hash  (cost=469.25..469.25 rows=22499 width=27) (actual time=5.055..5.056 rows=22499.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 1662kB
+                     Buffers: shared hit=188
+                     ->  Seq Scan on scope_generations work_generation  (cost=0.00..469.25 rows=22499 width=27) (actual time=0.005..1.634 rows=22499.00 loops=1)
+                           Filter: (status <> 'failed'::text)
+                           Rows Removed by Filter: 1
+                           Buffers: shared hit=188
+         ->  Hash  (cost=18.00..18.00 rows=900 width=72) (actual time=6.311..6.311 rows=900.00 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 67kB
+               Buffers: shared hit=1995
+               ->  CTE Scan on scope_replay_floor floor  (cost=0.00..18.00 rows=900 width=72) (actual time=3.129..6.164 rows=900.00 loops=1)
+                     Storage: Memory  Maximum Storage: 73kB
+                     Buffers: shared hit=1995
+ Planning:
+   Buffers: shared hit=259
+ Planning Time: 2.219 ms
+ Execution Time: 25.053 ms
+(53 rows)
