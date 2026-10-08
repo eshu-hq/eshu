@@ -12,8 +12,9 @@ a scope because of them.
 
 ## Ownership boundary
 
-This package owns the table DDL text (kept byte-identical to migration
-`163_repository_selection_observations.sql` by a test; the embedded migration
+This package owns the table DDL text (kept byte-identical by a test to the
+DDL that follows the leading comment block of migration
+`163_repository_selection_observations.sql`; the embedded migration
 is the bootstrap source of truth), the org partition read of
 `ingestion_scopes`, the selector read, and the batched upsert.
 `go/internal/collector/repo/git/membership` owns the evaluation, the

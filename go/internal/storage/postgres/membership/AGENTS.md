@@ -9,7 +9,9 @@
 
 ## Rules
 
-- `schemaSQL` must stay byte-identical to migration 163. Never edit a shipped
+- `schemaSQL` must stay byte-identical to the DDL after migration 163's
+  leading comment block (`TestObservationSchemaEqualsEmbeddedMigration`
+  compares them for equality). Never edit a shipped
   migration; add a new guarded one and update the checksum manifest.
 - The upsert's counter math must match `project` in the collector
   `membership` package. Change both together; the live test compares them.
