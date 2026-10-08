@@ -92,9 +92,7 @@ entry, or executable statement changes: across 75 files, every production
 hunk requalifies an identifier or import path only, every other hunk is a
 package-doc rewording, a ledger row, or the compat file's own deletion, and
 the build resolves with no dangling reference.
-Measurement: identical before/after outcomes
-(ledger:6950-cloud-posture-batch2-before,
-ledger:6950-cloud-posture-batch2-after). The command is `go test -count=1`
+Measurement: identical before/after outcomes (ledger:6950-cloud-posture-batch2-before, ledger:6950-cloud-posture-batch2-after). The command is `go test -count=1`
 over the 18 affected recursive package targets (per-side counts in the
 cited rows) on baseline `a0830a6826` vs measurement commit `a3773f91ad`
 (this Evidence section, the two ledger rows, and a content-identical rebase
