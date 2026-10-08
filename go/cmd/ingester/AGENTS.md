@@ -34,8 +34,11 @@
   is suppressed deliberately. Do not remove this flag without adding equivalent
   per-commit backfill, which would slow the hot commit path.
 - **Empty sharded batch participation** — `AfterEmptyBatchDrained` is enabled
-  only when `ESHU_REPO_SHARD_COUNT > 1` so empty shards can enter the
-  fleet-wide barrier. Do not enable it for unsharded ingesters.
+  when `ESHU_REPO_SHARD_COUNT > 1` so empty shards can enter the
+  fleet-wide barrier, or for a single-shard ingester with scheduled sync off
+  (#7665) so a collector-off ingester gets its one startup maintenance pass.
+  Do not enable it for a single-shard ingester with scheduled sync on: its
+  commits trigger the pass, and the escape would add a surprise startup pass.
 - **compositeRunner retry-aware bounded drain** — superseding the former
   "first-error cancel" invariant (see
   `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`).

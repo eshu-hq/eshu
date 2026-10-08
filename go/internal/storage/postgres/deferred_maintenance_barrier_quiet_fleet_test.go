@@ -4,9 +4,11 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"testing"
@@ -293,5 +295,72 @@ func TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossMa
 		if err != nil {
 			t.Fatalf("collector.Service.Run(shard=%d) error = %v, want nil", shardIndex, err)
 		}
+	}
+}
+
+// TestIngestionStoreShardDrainBarrierSingleShardQuietRestartRunsExactlyOnePass
+// is the single-shard companion of the quiet-restart regression above, and the
+// composition proof behind #7665: one real collector.Service.Run with the
+// empty-batch escape enabled, never committing, drives the real single-shard
+// barrier against an empty corpus. The run must execute the deferred
+// relationship maintenance pass exactly once — the once-latch's opener call —
+// and stay quiet on every later idle poll, so a collector-off ingester gets
+// its startup pass without a per-poll maintenance storm. The pass count is
+// read off the operator-visible deferred_backfill_completed log line, which
+// the backfill emits unconditionally once per pass.
+//
+// Not parallel: it captures the stdlib log output. See
+// TestLoadDeferredScopedFactsAcrossPartitionsLogsPerTaskCompletion for why the
+// non-parallel ordering keeps that race-free.
+func TestIngestionStoreShardDrainBarrierSingleShardQuietRestartRunsExactlyOnePass(t *testing.T) {
+	const idlePolls = 25
+
+	original := log.Writer()
+	t.Cleanup(func() { log.SetOutput(original) })
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+
+	state := newQuietFleetBarrierState()
+	store := NewIngestionStore(&quietFleetDB{state: state})
+	store.Now = func() time.Time { return time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC) }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hookCalls := 0
+	openerCalls := 0
+	service := collector.Service{
+		Source:                 &quietFleetIdleSource{pollsRemaining: idlePolls, cancel: cancel},
+		Committer:              quietFleetNoopCommitter{},
+		PollInterval:           time.Millisecond,
+		AfterEmptyBatchDrained: true,
+		AfterBatchDrained: func(ctx context.Context, hasCommitted bool) error {
+			hookCalls++
+			if hasCommitted {
+				openerCalls++
+			}
+			return store.RunDeferredRelationshipMaintenanceAfterShardDrain(
+				ctx,
+				DeferredMaintenanceBarrierConfig{
+					ShardCount:   1,
+					ShardIndex:   0,
+					HasCommitted: hasCommitted,
+				},
+				nil,
+				nil,
+			)
+		},
+	}
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("collector.Service.Run() error = %v, want nil", err)
+	}
+
+	if hookCalls != idlePolls {
+		t.Fatalf("AfterBatchDrained calls across %d idle polls = %d, want %d (the escape must fire on every idle poll)", idlePolls, hookCalls, idlePolls)
+	}
+	if openerCalls != 1 {
+		t.Fatalf("AfterBatchDrained opener calls across %d idle polls = %d, want exactly 1", idlePolls, openerCalls)
+	}
+	if got := strings.Count(buf.String(), "deferred_backfill_completed"); got != 1 {
+		t.Fatalf("deferred_backfill_completed lines across %d idle polls = %d, want exactly 1 (log output: %q)", idlePolls, got, buf.String())
 	}
 }

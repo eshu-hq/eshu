@@ -14,8 +14,10 @@ When a generation is available, the span covers source collection and durable
 commit. When no generation is ready, the service calls `AfterBatchDrained` if
 at least one generation was committed since the last drain, then waits
 `PollInterval` (1 second in `cmd/ingester`). Runtimes that must include empty
-source batches in a fleet barrier may set `AfterEmptyBatchDrained`; the default
-keeps idle polls from running drain hooks. The opt-in path fires on every idle
+source batches in a fleet barrier — or single-shard runtimes that may never
+commit and need the escape's one startup pass (#7665) — may set
+`AfterEmptyBatchDrained`; the default keeps idle polls from running drain
+hooks. The opt-in path fires on every idle
 poll until this process's FIRST generation commit, then never again -- a shard
 that owns no repositories never commits, so it keeps arriving at the fleet
 barrier for its whole lifetime rather than arriving once and starving every later
@@ -141,8 +143,10 @@ source-neutral facts under the same scope and generation; see
 `OPERATIONS.md` for the per-kind extraction and safety-limit detail.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
-it unless `AfterEmptyBatchDrained` is set for a caller that needs configured
-empty source batches to participate in a cross-process barrier. The empty path
+it unless `AfterEmptyBatchDrained` is set: either for a caller that needs
+configured empty source batches to participate in a cross-process barrier, or
+for a single-shard caller that may never commit and needs the escape's one
+startup pass (#7665). The empty path
 is gated on never-having-committed, not edge-triggered per drain window: it
 repeats on every idle poll until this process commits its first generation, and
 is permanently disabled by that commit. A shard that never commits therefore

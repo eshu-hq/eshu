@@ -1986,8 +1986,8 @@ On the ingester those drains are paced by ingestion, not by a timer.
 `collector.Service` runs `AfterBatchDrained` when the source batch exhausts
 after at least one committed generation (`committedSinceDrain`, cleared at
 `go/internal/collector/service.go:234`, set again at `:275`), or via the
-`AfterEmptyBatchDrained` escape the ingester enables for `RepoShardCount > 1`
-(`go/cmd/ingester/wiring.go:220`).
+`AfterEmptyBatchDrained` escape the ingester enables for `RepoShardCount > 1` or
+a single shard with scheduled sync off (a collector-off ingester, #7665).
 
 The escape is gated on `!everCommitted` (`:223`), where `everCommitted`
 latches true permanently on this shard's first commit (`:276`) and is never
