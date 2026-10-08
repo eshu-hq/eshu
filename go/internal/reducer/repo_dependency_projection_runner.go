@@ -47,6 +47,13 @@ type RepoDependencyProjectionRunner struct {
 	WorkloadReadinessPrefetch GraphProjectionReadinessPrefetch
 	AcceptedGen               AcceptedGenerationLookup
 	AcceptedGenPrefetch       AcceptedGenerationPrefetch
+	// GenerationFreshness reports whether a replay request's generation is
+	// still its scope's active generation (#7670). A generation retired after
+	// its acceptance row was written has nothing left to replay, so the runner
+	// skips it instead of failing the cycle. Nil keeps every request on the
+	// replayer, which then fails closed on an unscheduled replay, including a
+	// superseded stable item it cannot prove retired.
+	GenerationFreshness GenerationFreshnessCheck
 	// CanonicalQuiescence holds the lane until every code scope's active
 	// generation has committed canonical nodes (#6184). The lane's artifact
 	// and edge writes MATCH Repository nodes from both the source and

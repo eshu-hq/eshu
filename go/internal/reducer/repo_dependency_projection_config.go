@@ -102,3 +102,35 @@ func (c RepoDependencyProjectionRunnerConfig) partitionCount() int {
 	}
 	return c.PartitionCount
 }
+
+// WorkloadMaterializationReplayOutcome is the closed result of one workload
+// materialization replay request.
+type WorkloadMaterializationReplayOutcome string
+
+const (
+	// WorkloadMaterializationReplayScheduled means replayable work is pending,
+	// claimed, running, retrying, or was just enqueued or reopened.
+	WorkloadMaterializationReplayScheduled WorkloadMaterializationReplayOutcome = "scheduled"
+	// WorkloadMaterializationReplaySuperseded means the stable work item is
+	// terminally superseded and the queue never revives it. The repo-dependency
+	// runner reaches this outcome only after its freshness check read the
+	// generation as current, so an owed materialization cannot run: it
+	// re-checks freshness, skips only if the generation has since retired, and
+	// otherwise fails the cycle closed and counts the anomaly.
+	WorkloadMaterializationReplaySuperseded WorkloadMaterializationReplayOutcome = "superseded"
+	// WorkloadMaterializationReplayNotScheduled means the replay could not be
+	// scheduled for any other reason, such as a dead-lettered stable item.
+	WorkloadMaterializationReplayNotScheduled WorkloadMaterializationReplayOutcome = "not_scheduled"
+)
+
+// WorkloadMaterializationOutcomeReplayer is the optional replayer extension
+// that distinguishes a superseded stable work item from other unscheduled
+// outcomes. A replayer without it reports only a boolean.
+type WorkloadMaterializationOutcomeReplayer interface {
+	ReplayWorkloadMaterializationOutcome(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+		entityKey string,
+	) (WorkloadMaterializationReplayOutcome, error)
+}

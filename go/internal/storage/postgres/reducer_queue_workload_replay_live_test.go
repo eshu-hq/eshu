@@ -388,3 +388,62 @@ func assertWorkloadReplayPendingAndReclaimable(
 		t.Fatalf("replayed claim = (%q, %v, %v), want (%q, true, nil)", reclaimed.IntentID, ok, err, workItemID)
 	}
 }
+
+// TestWorkloadReplayOutcomeReportsSupersededStableItem drives a real
+// superseded workload_materialization row through the replay (#7670). The
+// UPDATE excludes superseded, the enqueue conflicts on the stable identity, and
+// the follow-up read must report the closed outcome superseded while the
+// boolean method keeps answering false for its other callers. The replay must
+// also leave the row superseded: the queue never revives it.
+func TestWorkloadReplayOutcomeReportsSupersededStableItem(t *testing.T) {
+	db, ctx := refinalizeRebuildResetLiveDB(t)
+	suffix := testSuffix(t)
+	scopeID, _, retiredGeneration := refinalizeResetScope(t, ctx, db, suffix)
+	entityKey := "repo:workload-superseded-replay-" + suffix
+	intent := runtime.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: retiredGeneration,
+		Domain:       reducer.DomainWorkloadMaterialization,
+		EntityKey:    entityKey,
+		Reason:       "superseded stable item proof",
+		SourceSystem: "reducer",
+	}
+	queue := NewReducerQueue(SQLDB{DB: db}, "workload-superseded-replay", time.Minute)
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
+		t.Fatalf("enqueue workload materialization: %v", err)
+	}
+	workItemID := reducerWorkItemID(intent)
+	seeded, err := db.ExecContext(ctx,
+		`UPDATE fact_work_items SET status = 'superseded' WHERE work_item_id = $1`, workItemID,
+	)
+	if err != nil {
+		t.Fatalf("mark stable item superseded: %v", err)
+	}
+	if affected, err := seeded.RowsAffected(); err != nil || affected != 1 {
+		t.Fatalf("superseded seed rows affected = (%d, %v), want (1, nil): the proof needs the enqueued row", affected, err)
+	}
+
+	outcome, err := queue.ReplayWorkloadMaterializationOutcome(ctx, scopeID, retiredGeneration, entityKey)
+	if err != nil {
+		t.Fatalf("ReplayWorkloadMaterializationOutcome() error = %v", err)
+	}
+	if outcome != reducer.WorkloadMaterializationReplaySuperseded {
+		t.Fatalf("outcome = %q, want %q", outcome, reducer.WorkloadMaterializationReplaySuperseded)
+	}
+	replayed, err := queue.ReplayWorkloadMaterialization(ctx, scopeID, retiredGeneration, entityKey)
+	if err != nil {
+		t.Fatalf("ReplayWorkloadMaterialization() error = %v", err)
+	}
+	if replayed {
+		t.Fatal("ReplayWorkloadMaterialization() = true for a superseded stable item, want false")
+	}
+	var status string
+	if err := db.QueryRowContext(ctx,
+		`SELECT status FROM fact_work_items WHERE work_item_id = $1`, workItemID,
+	).Scan(&status); err != nil {
+		t.Fatalf("read stable item status: %v", err)
+	}
+	if status != "superseded" {
+		t.Fatalf("stable item status after replay = %q, want superseded: replay must not revive it", status)
+	}
+}

@@ -221,6 +221,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestReplayedFailedGenerationWritesAndActivatesLive",
 		"TestReplayAfterFullRecordsLatestWriteStartLive",
 		"TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal",
+		// #7670: a terminally superseded workload_materialization item must
+		// report the closed outcome superseded and stay superseded; only a real
+		// fact_work_items row and the enqueue conflict reproduce it.
+		"TestWorkloadReplayOutcomeReportsSupersededStableItem",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

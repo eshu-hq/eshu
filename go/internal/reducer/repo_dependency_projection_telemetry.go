@@ -396,3 +396,61 @@ func repoDependencyPollBackoff(base time.Duration, consecutiveEmpty int) time.Du
 	}
 	return backoff
 }
+
+// recordRepoDependencyReplaySkipped counts and logs one replay request skipped
+// because its generation is no longer the scope's active generation. fenced
+// marks a RUNS_ON readiness replay. The increment is independent of the cycle
+// context so a cancelled cycle still records the skip.
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyReplaySkipped(
+	ctx context.Context,
+	request workloadMaterializationReplayRequest,
+	fenced bool,
+) {
+	if r.Instruments != nil && r.Instruments.RepoDependencyReplaySkipped != nil {
+		r.Instruments.RepoDependencyReplaySkipped.Add(
+			context.WithoutCancel(ctx), 1,
+			metric.WithAttributes(telemetry.AttrReason(telemetry.RepoDependencyReplaySkipInactiveGeneration)),
+		)
+	}
+	if r.Logger != nil {
+		r.Logger.WarnContext(
+			ctx, "repo dependency workload materialization replay skipped: nothing to replay",
+			log.ScopeID(request.scopeID),
+			log.GenerationID(request.generationID),
+			log.Domain(DomainRepoDependency),
+			slog.String("entity_key", request.entityKey),
+			slog.Bool("fenced", fenced),
+			slog.String(telemetry.MetricDimensionReason, telemetry.RepoDependencyReplaySkipInactiveGeneration),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}
+
+// recordRepoDependencyGenerationAnomaly counts rows and logs one generation
+// state an operator should see: reason is one of the closed
+// telemetry.RepoDependencyAnomaly* values. entityKey is empty when the state is
+// per generation rather than per replay request.
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyGenerationAnomaly(
+	ctx context.Context,
+	scopeID, generationID, entityKey, reason string,
+	rows int,
+) {
+	if r.Instruments != nil && r.Instruments.RepoDependencyGenerationAnomalies != nil {
+		r.Instruments.RepoDependencyGenerationAnomalies.Add(
+			context.WithoutCancel(ctx), int64(rows),
+			metric.WithAttributes(telemetry.AttrReason(reason)),
+		)
+	}
+	if r.Logger != nil {
+		r.Logger.WarnContext(
+			ctx, "repo dependency generation anomaly",
+			log.ScopeID(scopeID),
+			log.GenerationID(generationID),
+			log.Domain(DomainRepoDependency),
+			slog.String("entity_key", entityKey),
+			slog.Int("rows", rows),
+			slog.String(telemetry.MetricDimensionReason, reason),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}

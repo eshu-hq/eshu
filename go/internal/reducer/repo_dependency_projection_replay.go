@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type workloadMaterializationReplayRequest struct {
@@ -59,61 +60,62 @@ func RepoDependencyReadinessFenceSourceRunID(fence string) string {
 func (r *RepoDependencyProjectionRunner) replayWorkloadMaterialization(
 	ctx context.Context,
 	rows []SharedProjectionIntentRow,
+	freshness *repoDependencyGenerationFreshness,
 ) (int, error) {
 	requestCount := 0
 	for _, request := range repoDependencyReplayRequests(rows) {
-		requestCount++
-		replayed, err := r.WorkloadMaterializationReplayer.ReplayWorkloadMaterialization(
-			ctx,
-			request.scopeID,
-			request.generationID,
-			request.entityKey,
-		)
+		retired, err := freshness.retired(ctx, request.scopeID, request.generationID)
 		if err != nil {
 			return requestCount, err
 		}
-		if !replayed {
-			return requestCount, fmt.Errorf(
-				"workload materialization replay was not scheduled for scope %q generation %q entity %q",
-				request.scopeID,
-				request.generationID,
-				request.entityKey,
+		if retired {
+			if freshness.firstSkip(request) {
+				r.recordRepoDependencyReplaySkipped(ctx, request, false)
+			}
+			continue
+		}
+		requestCount++
+		outcome, err := r.replayWorkloadMaterializationRequest(ctx, request)
+		if err != nil {
+			return requestCount, err
+		}
+		switch outcome {
+		case WorkloadMaterializationReplayScheduled:
+		case WorkloadMaterializationReplaySuperseded:
+			// A superseded stable item is nothing to replay only when the
+			// generation is retired. Re-check, because a supersede can land
+			// between the first check and this replay. On the active
+			// generation the queue never revives the item, so the owed
+			// materialization cannot run: count it and fail closed.
+			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
+			if err != nil {
+				return requestCount, err
+			}
+			if retiredNow {
+				if freshness.firstSkip(request) {
+					r.recordRepoDependencyReplaySkipped(ctx, request, false)
+				}
+				continue
+			}
+			r.recordRepoDependencyGenerationAnomaly(
+				ctx, request.scopeID, request.generationID, request.entityKey,
+				telemetry.RepoDependencyAnomalySupersededItemOnActiveGeneration, 1,
 			)
+			return requestCount, errRepoDependencyReplayNotScheduled(request)
+		default:
+			return requestCount, errRepoDependencyReplayNotScheduled(request)
 		}
 	}
 	return requestCount, nil
 }
 
-func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationForFence(
-	ctx context.Context,
-	requests []workloadMaterializationFenceRequest,
-) (int, error) {
-	replayer, ok := r.WorkloadMaterializationReplayer.(WorkloadMaterializationFenceReplayer)
-	if !ok {
-		return 0, fmt.Errorf("repo dependency RUNS_ON workload replayer does not support readiness fences")
-	}
-	for i, request := range requests {
-		replayed, err := replayer.ReplayWorkloadMaterializationForFence(
-			ctx,
-			request.scopeID,
-			request.generationID,
-			request.entityKey,
-			request.repoID,
-			request.fence,
-		)
-		if err != nil {
-			return i + 1, err
-		}
-		if !replayed {
-			return i + 1, fmt.Errorf(
-				"workload materialization fenced replay was not scheduled for scope %q generation %q entity %q",
-				request.scopeID,
-				request.generationID,
-				request.entityKey,
-			)
-		}
-	}
-	return len(requests), nil
+func errRepoDependencyReplayNotScheduled(request workloadMaterializationReplayRequest) error {
+	return fmt.Errorf(
+		"workload materialization replay was not scheduled for scope %q generation %q entity %q",
+		request.scopeID,
+		request.generationID,
+		request.entityKey,
+	)
 }
 
 func repoDependencyRunsOnFenceRequests(
@@ -388,6 +390,7 @@ func repoDependencyRunsOnRows(rows []SharedProjectionIntentRow) []SharedProjecti
 func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 	ctx context.Context,
 	rows []SharedProjectionIntentRow,
+	freshness *repoDependencyGenerationFreshness,
 ) (bool, int, time.Duration, error) {
 	runsOn := repoDependencyRunsOnRows(rows)
 	if len(runsOn) == 0 {
@@ -399,6 +402,17 @@ func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 	requests, err := repoDependencyRunsOnFenceRequests(runsOn)
 	if err != nil {
 		return false, 0, 0, err
+	}
+	// A retired generation never materializes workloads, so no fenced replay
+	// can publish its readiness and waiting on it would hold the lane forever.
+	// The request is skipped and not waited on (#7670); an active generation's
+	// request that cannot be scheduled still fails the cycle below.
+	requests, err = r.dropRetiredFenceRequests(ctx, requests, freshness)
+	if err != nil {
+		return false, 0, 0, err
+	}
+	if len(requests) == 0 {
+		return true, 0, 0, nil
 	}
 	keys := make([]GraphProjectionPhaseKey, 0, len(requests))
 	for _, request := range requests {
@@ -430,7 +444,7 @@ func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 		return false, 0, 0, fmt.Errorf("repo dependency RUNS_ON workload readiness requires workload replayer")
 	}
 	replayStart := time.Now()
-	replayed, err := r.replayWorkloadMaterializationForFence(ctx, missing)
+	replayed, err := r.replayWorkloadMaterializationForFence(ctx, missing, freshness)
 	replayDuration := time.Since(replayStart)
 	if err != nil {
 		return false, replayed, replayDuration, fmt.Errorf("replay workload materialization for RUNS_ON readiness: %w", err)
