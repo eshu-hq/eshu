@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -169,7 +168,7 @@ func initTagHistoryQueryInstruments() {
 // handling -- and it is mounted on the same admin mux the API surface is served
 // through, so a scoped caller can scrape it. A counter carrying
 // withheld_ungranted and withheld_unattributed increments, labelled only by
-// disposition and service.namespace, would let that caller recover its own
+// disposition, would let that caller recover its own
 // page's withheld count from a before/after scrape on a quiet deployment. On a
 // filled page that count is precisely what the response body declines to state,
 // so publishing it here would re-disclose one surface over exactly what the body
@@ -201,7 +200,6 @@ func recordTagHistoryScopedPage(ctx context.Context, capReached bool) {
 		ctx, 1,
 		metric.WithAttributes(
 			attribute.String("outcome", outcome),
-			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
 		),
 	)
 }
@@ -219,7 +217,6 @@ func recordTagHistoryDuration(ctx context.Context, start time.Time, outcome stri
 		ctx, time.Since(start).Seconds(),
 		metric.WithAttributes(
 			attribute.String("outcome", outcome),
-			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
 		),
 	)
 }
@@ -236,7 +233,6 @@ func recordTagHistoryError(ctx context.Context, reason string) {
 		ctx, 1,
 		metric.WithAttributes(
 			attribute.String("reason", reason),
-			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
 		),
 	)
 }

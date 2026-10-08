@@ -7,11 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -69,8 +70,12 @@ func NewProviders(ctx context.Context, b Bootstrap, opts ...ProviderOption) (*Pr
 		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
 
+	// The gather-error log writes JSON to stderr with the bootstrap service
+	// attributes.
+	metricsLogger := NewLogger(b, "telemetry", "metrics")
+
 	// Create meter provider with both OTLP and Prometheus exporters
-	meterProvider, promHandler, err := createMeterProvider(ctx, res, hasOTLP)
+	meterProvider, promHandler, err := createMeterProvider(ctx, res, hasOTLP, metricsLogger)
 	if err != nil {
 		if traceProvider != nil {
 			_ = traceProvider.Shutdown(ctx)
@@ -120,7 +125,7 @@ func createTraceProvider(ctx context.Context, res *resource.Resource, hasOTLP bo
 	return sdktrace.NewTracerProvider(opts...), nil
 }
 
-func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bool) (*sdkmetric.MeterProvider, http.Handler, error) {
+func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bool, metricsLogger *slog.Logger) (*sdkmetric.MeterProvider, http.Handler, error) {
 	var readers []sdkmetric.Reader
 
 	// Always create Prometheus exporter for /metrics endpoint.
@@ -142,7 +147,7 @@ func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bo
 	promExporter, err := otelprom.New(
 		otelprom.WithRegisterer(registry),
 		otelprom.WithResourceAsConstantLabels(
-			attribute.NewAllowKeysFilter("service.name", "service.namespace"),
+			attribute.NewAllowKeysFilter(prometheusResourceLabelKeys...),
 		),
 	)
 	if err != nil {
@@ -159,15 +164,18 @@ func createMeterProvider(ctx context.Context, res *resource.Resource, hasOTLP bo
 		readers = append(readers, sdkmetric.NewPeriodicReader(metricExporter))
 	}
 
-	opts := []sdkmetric.Option{sdkmetric.WithResource(res)}
+	opts := []sdkmetric.Option{sdkmetric.WithResource(res), sdkmetric.WithView(reservedAttributeView())}
 	for _, reader := range readers {
 		opts = append(opts, sdkmetric.WithReader(reader))
 	}
 
 	meterProvider := sdkmetric.NewMeterProvider(opts...)
 
-	// Create HTTP handler for Prometheus metrics
-	handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
+	gatherErrors, err := registerMetricsGatherErrors(meterProvider.Meter("eshu/telemetry"))
+	if err != nil {
+		_ = meterProvider.Shutdown(ctx)
+		return nil, nil, err
+	}
 
-	return meterProvider, handler, nil
+	return meterProvider, newMetricsHandler(registry, metricsLogger, gatherErrors, time.Now), nil
 }
