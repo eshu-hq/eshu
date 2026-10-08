@@ -70,9 +70,12 @@ repository bitmap is paid anyway.
 
 Planner statistics were not recorded for the rare-term cases.
 
-A term with no run of three ASCII letters or digits has no trigram to filter on.
-Hiding such a term cost 3.6 to 4 times more (n=1 for the hidden case). The
-change keeps the plain statement for those terms. A `db_` read on the
+The guard treats a term with no run of three ASCII letters or digits as having
+no trigram to filter on. The terms `db_` and `pg_` really have none. The guard
+also treats some terms that do have trigrams, such as `ab-cd`, as having none.
+That is safe, because those terms keep the plain statement. Hiding a term with
+no trigram cost 3.6 to 4 times more (n=1 for the hidden case). The change keeps
+the plain statement for those terms. A `db_` read on the
 241,726-entity repository took 4,133 and 4,577 ms plain and 16,722 ms hidden.
 Planner statistics were not recorded. Those terms still take 3 to 4 s on the
 plain statement. The change does not address that.
@@ -97,7 +100,7 @@ Host load on the driving machine was 15 to 41. Planner statistics are not
 applicable (graph read). This table uses the source's counts of 12,402 and
 7,096 files.
 
-| Repository (files) | Whitelisted paths | Before | After | Faster |
+| Repository (files) | Whitelisted paths | Before | After | Before/after ratio |
 | --- | --- | --- | --- | --- |
 | 12,402 | 0 | 552 ms | 145 ms | 3.80x |
 | 7,096 | 0 | 306 ms | 89 ms | 3.44x |
@@ -146,9 +149,10 @@ Source: #7250 comment of 2026-09-27 17:34 UTC and #7542 comment of 2026-10-07
 15:03 UTC.
 
 In two statements the first run was slower than later runs. Only the first row
-shows an order-of-magnitude gap. The first run reads pages from disk. Later runs
-find them in the database cache. Planner statistics were not recorded for
-either row.
+shows an order-of-magnitude gap. The first run reads pages from outside
+`shared_buffers`, from disk or from the operating-system cache. Later runs find
+them in the database cache. Planner statistics were not recorded for either
+row.
 
 | Statement | First run | Later runs | n | Host load |
 | --- | --- | --- | --- | --- |
@@ -167,7 +171,8 @@ proven it.
 
 A pod restart does not make the database cache cold. The database process keeps
 its cache across an API or MCP pod restart. A database restart empties
-`shared_buffers`. The operating-system cache and autoprewarm can refill it.
+`shared_buffers`. Autoprewarm can refill it. The operating-system cache does
+not refill `shared_buffers`, but it can make the re-reads cheaper.
 
 ## Bounded reads and truth markers
 
@@ -175,9 +180,11 @@ Most fixes below change what the response says, not how fast it runs. The
 third bullet is a speed change.
 
 - The CI/CD static workflow summary reads the first 5,000 repository files in
-  path order. A full page now reports `candidate_pool_status=unknown_at_limit`.
-  Zero workloads at the limit means `state=unknown`, not absence. The SQL,
-  order, and limit did not change. See
+  path order. A page with a row past the 5,000-file limit reports
+  `candidate_pool_status=unknown_at_limit` (#7676). Before that change, any
+  full page did, so a repository with exactly 5,000 files also read as
+  unknown. Zero workflows with that marker means `state=unknown`, not absence.
+  See [CI/CD workflow coverage](http-api/workflow-coverage.md) and
   `docs/internal/evidence/7250-capped-workflow-coverage.md`.
 - Change-planning responses report known topic-pool caps. The pool holds up to
   4,000 rows. An empty page at a nonzero offset reports
