@@ -156,7 +156,11 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 			return
 		case errors.Is(err, ErrReopenNoActiveGeneration):
 			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_no_active_generation", authCtx, correlationID)
-			querycontract.WriteError(w, http.StatusUnprocessableEntity, "scope has no active generation to reopen work for")
+			querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
+				"status": "refused",
+				"reason": "scope has no active generation to reopen work for",
+				"detail": "nothing was reopened and the idempotency key was not consumed",
+			})
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen resolve: %v", err))
@@ -193,7 +197,11 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 			return
 		case errors.Is(err, ErrReopenNoActiveGeneration):
 			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_no_active_generation", authCtx, correlationID)
-			querycontract.WriteError(w, http.StatusUnprocessableEntity, "scope has no active generation to reopen work for")
+			querycontract.WriteJSON(w, http.StatusUnprocessableEntity, map[string]any{
+				"status": "refused",
+				"reason": "scope has no active generation to reopen work for",
+				"detail": "the scope lost its active generation after the claim; the idempotency key stays in progress",
+			})
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("reopen: %v", err))

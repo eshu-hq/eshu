@@ -23,6 +23,8 @@ idempotency claim, so the key is not consumed.
 `scope_id` accepts the raw scope id or the scope's source key. An unknown
 scope is `404` and a scope with no active generation is `422`, both refused
 before the idempotency claim so the key stays usable for a corrected retry.
+(On a resolve race after the claim the same refused body is returned and the
+key stays in progress.)
 Reducer reopens run against the resolved active generation; intent reopens
 select by accepted source run. Selection locks with `SKIP LOCKED` under a
 5 s `lock_timeout`, and the reducer reset sets every state column the claim

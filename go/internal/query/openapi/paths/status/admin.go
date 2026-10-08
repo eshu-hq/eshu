@@ -415,7 +415,7 @@ const Admin = `
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"$ref": "#/components/responses/Conflict"},
           "422": {
-            "description": "Refused before the idempotency claim, so the key is not consumed: the domain is not one of the three reopenable domains, or the scope has no active generation to reopen work for. Nothing is reopened either way.",
+            "description": "Refused before the idempotency claim, so the key is not consumed: the domain is not one of the three reopenable domains, or the scope has no active generation to reopen work for. Nothing is reopened either way. On a resolve race after the claim the same refused body is returned and the key stays in progress.",
             "content": {
               "application/json": {
                 "schema": {

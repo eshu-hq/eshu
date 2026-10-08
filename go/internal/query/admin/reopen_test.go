@@ -283,6 +283,7 @@ func TestReopenWithoutActiveGenerationIsUnprocessable(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", rec.Code)
 	}
+	assertReopenRefusedBody(t, rec, "nothing was reopened and the idempotency key was not consumed")
 	if len(audit.Events) != 1 || audit.Events[0].ReasonCode != "reopen_refused_no_active_generation" {
 		t.Fatalf("want reopen_refused_no_active_generation denied audit, got %+v", audit.Events)
 	}
@@ -304,6 +305,40 @@ func TestReopenResolveRaceAfterClaimFailsClosed(t *testing.T) {
 	}
 	if stub.completed {
 		t.Fatal("failed reopen must leave the claim in progress")
+	}
+}
+
+func TestReopenNoActiveGenerationRaceAfterClaimIsRefused(t *testing.T) {
+	// The pre-claim probe passed but the scope lost its active generation
+	// before the store ran: the post-claim arm returns the same refused
+	// 422 body as the probe (per the OpenAPI schema) and leaves the claim
+	// in progress instead of losing the outcome.
+	stub := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}, reopenErr: ErrReopenNoActiveGeneration}
+	h := &Handler{Store: stub}
+	rec := postReopen(t, h, reopenBody(), nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	assertReopenRefusedBody(t, rec, "the scope lost its active generation after the claim; the idempotency key stays in progress")
+	if stub.completed {
+		t.Fatal("failed reopen must leave the claim in progress")
+	}
+}
+
+// assertReopenRefusedBody pins the 422 refused shape the OpenAPI schema
+// requires (status/reason/detail) so a WriteError-shaped regression fails
+// loudly instead of silently breaking the documented contract.
+func assertReopenRefusedBody(t *testing.T, rec *httptest.ResponseRecorder, wantDetail string) {
+	t.Helper()
+	body := decodeBody(t, rec)
+	if body["status"] != "refused" {
+		t.Fatalf(`body["status"] = %v, want "refused"`, body["status"])
+	}
+	if body["reason"] != "scope has no active generation to reopen work for" {
+		t.Fatalf(`body["reason"] = %v, want the no-active-generation reason`, body["reason"])
+	}
+	if body["detail"] != wantDetail {
+		t.Fatalf(`body["detail"] = %v, want %q`, body["detail"], wantDetail)
 	}
 }
 

@@ -13,6 +13,7 @@ on:
     branches: [main]
     paths:
       - 'go/internal/query/supply/chain/impact/**'
+      - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
@@ -38,6 +39,7 @@ on:
     branches: [main]
     paths:
       - 'go/internal/query/supply/chain/impact/**'
+      - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
