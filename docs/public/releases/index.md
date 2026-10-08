@@ -44,3 +44,22 @@ gh release download "${TAG}" \
 
 For non-tag images published from `main`, use
 `refs/heads/main` in `WORKFLOW_IDENTITY`.
+
+## Image Tags
+
+Every `main` commit that changes the image gets its own run of
+`.github/workflows/docker-publish.yml`, and every run pushes an immutable
+per-commit tag:
+
+- `sha-<full commit sha>` — the only tag a `main` push writes. It exists if
+  and only if that commit's run pushed an image, so it is the handle the
+  post-publish Trivy scan and the promotion guard both address.
+- `main` and `latest` — moving tags, promoted AFTER the push by the
+  `promote-moving-tags` job behind a commit-ancestry guard: an older,
+  still-running publish never moves them backward past a newer commit.
+- `pr-<number>` — pull-request builds only; never pushed to the registry.
+- `<version>`, `<major>.<minor>`, `<major>` — tag releases (`v*`) only.
+
+A manual `workflow_dispatch` on another branch pushes that branch's tag
+instead; dispatches on `main` promote the moving tags like a push. Tag pushes
+promote nothing: their semver tags are immutable.

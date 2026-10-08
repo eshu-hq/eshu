@@ -9,10 +9,12 @@ name: Security Scan
 #                     weekly schedule + manual dispatch) for vulnerable
 #                     dependencies, leaked secrets, and IaC
 #                     misconfigurations. Triggered from O4.
-#   trivy-image     — scans ghcr.io/eshu-hq/eshu:<tag> after docker-publish
-#                     has actually pushed an image. Triggered via
-#                     workflow_run so we always scan the digest that was
-#                     just shipped. Triggered from O4.
+#   trivy-image     — scans ghcr.io/eshu-hq/eshu:sha-<full triggering sha>
+#                     after docker-publish has actually pushed an image.
+#                     Triggered via workflow_run so we always scan the
+#                     digest that was just shipped; skips green when the
+#                     triggering run pushed no image (chart-only). Triggered
+#                     from O4.
 #   govulncheck     — `govulncheck ./...` on every PR; the canonical Go
 #                     vulnerability database (pkg.go.dev/vuln). Fails on
 #                     any known CVE the code imports, including transitive
@@ -256,22 +258,11 @@ jobs:
           TRIGGER_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           TRIGGER_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          ref=""
-          branch="${TRIGGER_HEAD_BRANCH:-}"
-          sha="${TRIGGER_HEAD_SHA:-}"
-          if [[ "${branch}" =~ ^v[0-9] ]]; then
-            ref="ghcr.io/${REPOSITORY}:${branch#v}"
-          elif [ -n "${branch}" ]; then
-            ref="ghcr.io/${REPOSITORY}:${branch}"
-          else
-            ref="ghcr.io/${REPOSITORY}:sha-${sha::12}"
-          fi
-          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
-          echo "image-scan: scanning ${ref}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/resolve-image-scan-ref.sh
 
       - name: Run Trivy image scan
+        if: steps.image.outputs.skip != 'true'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
@@ -286,7 +277,10 @@ jobs:
           output: trivy-image.sarif
 
       - name: Upload Trivy image SARIF to GitHub Security tab
-        if: always()
+        # The outcome pin keeps a resolver failure from adding a second,
+        # confusing error about the missing SARIF file: the job is already
+        # red, and there is nothing to upload.
+        if: always() && steps.image.outputs.skip != 'true' && steps.image.outcome == 'success'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-image.sarif
