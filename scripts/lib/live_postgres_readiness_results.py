@@ -63,6 +63,9 @@ PACKAGES = {
         "go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go": (
             "TestGenerationRetentionHardCeilingLive",
         ),
+        "go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go": (
+            "TestWebhookTriggerStoreRunsOnBootstrapSchemaLive",
+        ),
         "go/internal/storage/postgres/generation_retention_large_fixture_live_test.go": (
             "TestGenerationRetentionStoreLargeFixtureLive",
         ),

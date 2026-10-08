@@ -41,6 +41,16 @@ the instrumented handle and the callers own observability.
 - Claim order is `(status, received_at ASC, trigger_id ASC)`; the claim holds
   `FOR UPDATE SKIP LOCKED` so concurrent claimants never double-deliver.
 - A nil database fails fast with an explicit error, never a nil panic.
+- The bootstrap migrations (`017_webhook_refresh_triggers.sql` plus
+  `168_webhook_refresh_triggers_claim_fencing.sql`) must produce the same
+  table as `EnsureSchema`. Only `cmd/webhook-listener` runs `EnsureSchema`;
+  the ingester and `collector-git` claim, hand off, and reap on whatever the
+  bootstrap built. Before #7777 a bootstrap-only database lacked
+  `claim_fencing_token` and the `claimed_at` reap index, so every trigger
+  write failed until a listener started. The live test
+  `TestWebhookTriggerStoreRunsOnBootstrapSchemaLive` runs the lifecycle on a
+  bootstrap-only schema and fails if `EnsureSchema` would add any column or
+  index.
 - Do not import the parent `postgres` package: that is an import cycle.
   Root tests exercise this package through its exported constructors.
 

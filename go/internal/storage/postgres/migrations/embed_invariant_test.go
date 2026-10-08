@@ -62,7 +62,8 @@ import (
 // 164_content_entities_repo_language_type_idx.sql; #7166 adds
 // 165_phase_state_quiescence_gate_stats.sql; #7625 adds
 // 166_repository_selection_observations.sql; #7799 adds
-// 167_unroutable_intents_generation_idx.sql.
+// 167_unroutable_intents_generation_idx.sql; #7777 adds
+// 168_webhook_refresh_triggers_claim_fencing.sql.
 const goldenBootstrapDefinitionsDigest = "93149226f6ba0cfcbf5a671dad5987e3694a6ae882d071e1a8ef595f624f704e"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the

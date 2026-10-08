@@ -395,4 +395,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// retention count leg and the generation-only reap DELETE both probe
 	// instead of skip-scanning the scope-leading index.
 	"unroutable_intents_generation_idx",
+	// Migration 168 (#7777) adds the webhook trigger claim fencing token and
+	// stale-claim reap index that only the store's EnsureSchema created.
+	"webhook_refresh_triggers_claim_fencing",
 }

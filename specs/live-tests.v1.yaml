@@ -2758,6 +2758,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7777 disposable PostgreSQL 18 proof that a schema built by ApplyBootstrap alone runs the webhook trigger store's store, claim, fenced handoff, and stale-claim reap, and that the store's EnsureSchema then finds the same webhook_refresh_triggers columns and indexes (fails on main without migration 168: column claim_fencing_token does not exist). Enrolled in the live-postgres-readiness runner; 1.64s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/value_flow_inputs_liveness_live_test.go
     tag: ~
     class: scheduled
