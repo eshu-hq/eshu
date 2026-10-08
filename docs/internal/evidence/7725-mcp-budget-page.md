@@ -154,10 +154,15 @@ measured with a scratch benchmark that calls `estimateResponseBytes` twice and
 not slower than the error path it replaces, and it returns rows instead of an
 error.
 
-No-Regression Evidence: a request that fits the budget is unchanged, with one
-opt-in exception: the `find_code` repository content fallback with the hybrid
-ranker on and more than `limit` rows (see the behaviour change above; the ranker
-is off in the deployment where this was seen). The test
+No-Regression Evidence: a request that fits the budget is unchanged, with two
+opt-in exceptions, both only when the hybrid ranker is on: (1) the `find_code`
+repository content fallback with more than `limit` rows pages by lexical order
+(see the behaviour change above); (2) every row of a page the re-rank reordered,
+in either tool and including a page with at most `limit` rows, gains
+`page_position` (`content_handler_rerank.go:43-44`, `codequery/handler.go:226-234`).
+The ranker is off in the deployment where this was seen: a read-only `kubectl`
+read on 2026-10-08 of the live `eshu-api` and `eshu-mcp-server` container
+environments found no `SEMANTIC` or `EMBED` variable and no `envFrom`. The test
 `TestBudgetPageLeavesFittingResponsesUnchanged` compares the rendered result
 with the guard on and off and requires equal bytes, no `budget_page`,
 `next_offset`, or `truth.omissions`, and no `truncated` or `omissions` key in the
