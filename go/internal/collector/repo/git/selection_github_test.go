@@ -18,7 +18,7 @@ import (
 // GitHub page/per_page offset arithmetic, every tenth one archived.
 func newGitHubOrgListingServer(t *testing.T, total int) *httptest.Server {
 	t.Helper()
-	return newRecordingGitHubOrgListingServer(t, total, nil, nil)
+	return newRecordingGitHubOrgListingServer(t, total, nil, nil, nil)
 }
 
 // githubListingRequest is one page request the fake GitHub received.
@@ -28,12 +28,14 @@ type githubListingRequest struct {
 }
 
 // newRecordingGitHubOrgListingServer is newGitHubOrgListingServer that also
-// appends every page request to requests (when non-nil) and cuts page N to
-// shortPages[N] items, as GitHub may when it returns a short page early.
+// appends every page request to requests (when non-nil), cuts page N to
+// shortPages[N] items, as GitHub may when it returns a short page early, and
+// sends a Link rel="next" header on every page in linkNextPages.
 func newRecordingGitHubOrgListingServer(
 	t *testing.T,
 	total int,
 	shortPages map[int]int,
+	linkNextPages map[int]bool,
 	requests *[]githubListingRequest,
 ) *httptest.Server {
 	t.Helper()
@@ -66,6 +68,9 @@ func newRecordingGitHubOrgListingServer(
 				"full_name": fmt.Sprintf("acme/repo-%03d", i),
 				"archived":  i%10 == 9,
 			})
+		}
+		if linkNextPages[page] {
+			w.Header().Set("Link", fmt.Sprintf(`<%s/orgs/acme/repos?per_page=%d&page=%d>; rel="next"`, "http://"+r.Host, perPage, page+1))
 		}
 		_ = json.NewEncoder(w).Encode(items)
 	}))
@@ -117,44 +122,56 @@ func TestListGitHubOrgRepositoriesReportsCompletenessAndDecodesIDs(t *testing.T)
 // TestListGitHubOrgRepositoriesPagesAtAFixedPerPage pins the offset-paging
 // contract: page N at per_page P covers items (N-1)*P+1..N*P, so every
 // request must use per_page=100 and the limit is applied client-side. A
-// smaller per_page on a later page would re-read earlier repositories.
+// smaller per_page on a later page would re-read earlier repositories. Only
+// an empty page or the limit ends the listing: a short page mid-listing must
+// not stop ingestion of the repositories after it. A listing is complete only
+// when its empty page carries no Link rel="next".
 func TestListGitHubOrgRepositoriesPagesAtAFixedPerPage(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name         string
-		total        int
-		repoLimit    int
-		shortPages   map[int]int
-		wantCount    int
-		wantComplete bool
-		wantPages    int
+		name          string
+		total         int
+		repoLimit     int
+		shortPages    map[int]int
+		linkNextPages map[int]bool
+		wantComplete  bool
+		wantPages     int
+		wantIDRanges  [][2]int // half-open [from, to) ranges of repo-NNN, in order
 	}{
-		{name: "limit above a small org", total: 120, repoLimit: 160, wantCount: 120, wantComplete: true, wantPages: 2},
-		{name: "limit above a large org", total: 820, repoLimit: 850, wantCount: 820, wantComplete: true, wantPages: 9},
-		{name: "org larger than the limit", total: 250, repoLimit: 100, wantCount: 100, wantComplete: false, wantPages: 1},
-		{name: "limit not on a page boundary", total: 250, repoLimit: 150, wantCount: 150, wantComplete: false, wantPages: 2},
-		{name: "org exactly the limit stays truncated", total: 150, repoLimit: 150, wantCount: 150, wantComplete: false, wantPages: 2},
-		{name: "short page mid-listing ends it", total: 300, repoLimit: 250, shortPages: map[int]int{2: 40}, wantCount: 140, wantComplete: true, wantPages: 2},
+		{name: "limit above a small org", total: 120, repoLimit: 160, wantComplete: true, wantPages: 3, wantIDRanges: [][2]int{{0, 120}}},
+		{name: "limit above a large org", total: 820, repoLimit: 850, wantComplete: true, wantPages: 10, wantIDRanges: [][2]int{{0, 820}}},
+		{name: "org larger than the limit", total: 250, repoLimit: 100, wantComplete: false, wantPages: 1, wantIDRanges: [][2]int{{0, 100}}},
+		{name: "limit not on a page boundary", total: 250, repoLimit: 150, wantComplete: false, wantPages: 2, wantIDRanges: [][2]int{{0, 150}}},
+		{name: "org exactly the limit stays truncated", total: 150, repoLimit: 150, wantComplete: false, wantPages: 2, wantIDRanges: [][2]int{{0, 150}}},
+		{name: "short page mid-listing continues", total: 300, repoLimit: 250, shortPages: map[int]int{2: 40}, wantComplete: true, wantPages: 4, wantIDRanges: [][2]int{{0, 140}, {200, 300}}},
+		{name: "short page mid-listing then the limit", total: 300, repoLimit: 200, shortPages: map[int]int{2: 40}, wantComplete: false, wantPages: 3, wantIDRanges: [][2]int{{0, 140}, {200, 260}}},
+		{name: "empty page that still links a next page", total: 300, repoLimit: 400, shortPages: map[int]int{2: 0}, linkNextPages: map[int]bool{2: true}, wantComplete: false, wantPages: 2, wantIDRanges: [][2]int{{0, 100}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var requests []githubListingRequest
-			server := newRecordingGitHubOrgListingServer(t, tc.total, tc.shortPages, &requests)
+			server := newRecordingGitHubOrgListingServer(t, tc.total, tc.shortPages, tc.linkNextPages, &requests)
 			records, complete, err := listGitHubOrgRepositoriesFrom(
 				context.Background(), server.Client(), server.URL, "acme", tc.repoLimit, "token-1",
 			)
 			if err != nil {
 				t.Fatalf("listGitHubOrgRepositoriesFrom() error = %v", err)
 			}
-			if got := len(records); got != tc.wantCount || complete != tc.wantComplete {
-				t.Fatalf("listed %d complete %v, want %d complete %v", got, complete, tc.wantCount, tc.wantComplete)
+			var wantIDs []string
+			for _, r := range tc.wantIDRanges {
+				for i := r[0]; i < r[1]; i++ {
+					wantIDs = append(wantIDs, fmt.Sprintf("acme/repo-%03d", i))
+				}
+			}
+			if got := len(records); got != len(wantIDs) || complete != tc.wantComplete {
+				t.Fatalf("listed %d complete %v, want %d complete %v", got, complete, len(wantIDs), tc.wantComplete)
 			}
 			seen := make(map[string]struct{}, len(records))
 			for i, record := range records {
-				if want := fmt.Sprintf("acme/repo-%03d", i); record.RepoID != want {
-					t.Fatalf("records[%d] = %s, want %s (each repository once, in listing order)", i, record.RepoID, want)
+				if record.RepoID != wantIDs[i] {
+					t.Fatalf("records[%d] = %s, want %s (each repository once, in listing order)", i, record.RepoID, wantIDs[i])
 				}
 				if _, dup := seen[record.RepoID]; dup {
 					t.Fatalf("records list %s twice", record.RepoID)
@@ -170,6 +187,29 @@ func TestListGitHubOrgRepositoriesPagesAtAFixedPerPage(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLinkHeaderHasNext(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		values []string
+		want   bool
+	}{
+		{name: "no header", want: false},
+		{name: "prev and last only", values: []string{`<https://x/?page=1>; rel="prev", <https://x/?page=3>; rel="last"`}, want: false},
+		{name: "next among others", values: []string{`<https://x/?page=1>; rel="prev", <https://x/?page=3>; rel="next"`}, want: true},
+		{name: "space-separated rel types", values: []string{`<https://x/?page=3>; rel="last next"`}, want: true},
+		{name: "unquoted and upper case", values: []string{`<https://x/?page=3>; REL=Next`}, want: true},
+		{name: "second header value", values: []string{`<https://x/?page=1>; rel="prev"`, `<https://x/?page=3>; rel="next"`}, want: true},
+		{name: "next only in the target", values: []string{`<https://x/?rel=next>; rel="last"`}, want: false},
+	}
+	for _, tc := range cases {
+		if got := linkHeaderHasNext(tc.values); got != tc.want {
+			t.Errorf("%s: linkHeaderHasNext(%q) = %v, want %v", tc.name, tc.values, got, tc.want)
+		}
 	}
 }
 
