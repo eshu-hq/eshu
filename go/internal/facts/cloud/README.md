@@ -95,8 +95,8 @@ the build resolves with no dangling reference.
 Measurement: identical before/after outcomes (ledger:6950-cloud-posture-batch2-before, ledger:6950-cloud-posture-batch2-after). The command is `go test -count=1`
 over the 18 affected recursive package targets (per-side counts in the
 cited rows) on baseline `a0830a6826` vs measurement commit `a3773f91ad`
-(this Evidence section, the two ledger rows, and a content-identical rebase
-onto the then-tip `01ef5e5e1a` are the only later changes): 436 packages ok, 0 fail on
+(this Evidence section, the two ledger rows, and content-identical rebases
+tracking main are the only later changes): 436 packages ok, 0 fail on
 both sides, with the ok-package set byte-identical after timing strip.
 `go test -list` inventory is identical on both sides. Backend/version:
 go1.26.6 linux/amd64, in-memory; no backend touched. Input shape: n/a (no
