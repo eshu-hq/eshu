@@ -152,6 +152,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		// reducer. Only real Postgres expires a lease on the wall clock and
 		// applies the ack statement's last_attempt_at fence.
 		"TestReducerQueueAckBatchFencesSupersededClaimLive",
+		// #6680: the fenced-sibling claim proof and the isolated-schema
+		// derivation guard run against the production bootstrap, not a
+		// hand-picked definition list, so only real Postgres proves them.
+		"TestReducerClaimFencedSiblingBecomesClaimableAfterAck",
+		"TestReducerFairnessIsolatedSchemaDerivesFromBootstrap",
 		// #7121: the superseded-generation drain lookup must defer to in-flight
 		// producers and durable phase-repair rows. Only real Postgres executes
 		// the NOT EXISTS safety predicate, so a skipped proof leaves it untested.
