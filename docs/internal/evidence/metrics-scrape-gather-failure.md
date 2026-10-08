@@ -58,7 +58,7 @@ instruments. `TestMetricsHandlerServesHealthySeriesAndReportsGatherError`,
 `TestMetricsHandlerRateLimitsRepeatedGatherErrorLogs` and
 `TestMetricsHandlerFailsWhenNothingCanBeGathered` cover the handler.
 
-Performance Evidence: scratch benchmark, Apple M-series arm64, Go 1.26, OTEL SDK
+Performance Evidence: scratch benchmark, Apple M5 Max arm64, Go 1.27.1, OTEL SDK
 metric v1.45.0, exporter prometheus v0.67.0, 3 runs of 2 s.
 
 | Path | Before | After |
