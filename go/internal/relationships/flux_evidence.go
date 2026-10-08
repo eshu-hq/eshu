@@ -199,7 +199,8 @@ func discoverFluxGitRepositoryEvidence(
 // value binds to a TEXT column) and collision-free across delimiter,
 // trimming, and arbitrary-byte inputs; embedding the source repository
 // keeps two repositories that share a namespace/name from collapsing to
-// one resolver candidate. Callers pass trimmed namespace/name; the
+// one resolver candidate. Namespace/name are trimmed here so a future
+// caller passing untrimmed inputs cannot silently fork identities; the
 // encoding is deterministic over its inputs.
 //
 // Compatibility: historical producers omitted SourceEntityID (stored as
@@ -213,8 +214,8 @@ func discoverFluxGitRepositoryEvidence(
 func fluxGitRepositorySourceEntityID(sourceRepoID, namespace, name string) string {
 	return "FluxGitRepository:v1:" +
 		hex.EncodeToString([]byte(sourceRepoID)) + ":" +
-		hex.EncodeToString([]byte(namespace)) + ":" +
-		hex.EncodeToString([]byte(name))
+		hex.EncodeToString([]byte(strings.TrimSpace(namespace))) + ":" +
+		hex.EncodeToString([]byte(strings.TrimSpace(name)))
 }
 
 // recordFluxCrossRepoURLResolution is a nil-safe DiscoveryStats method so
