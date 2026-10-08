@@ -17,4 +17,8 @@
 // runner checks the proof DSNs it passes.
 // DeferredPartitionProofDSN reads the DSN the deferred-partition and
 // activation-obligation proofs share, or skips.
+//
+// ListSchemaObjects returns the sorted definition-level inventory of one
+// schema, shared by the isolated-schema guards so their fingerprints cannot
+// drift apart; FirstSchemaObjects caps a failure listing.
 package postgresproof
