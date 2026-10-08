@@ -274,6 +274,15 @@ watch -n 10 "curl -fsS \
 You are waiting for `pending`, `retrying`, `failed`, and `dead_letter` all at
 zero. That is the rebuild's terminal state and the number to time.
 
+On a collector-off stack (one ingester shard, `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false`),
+the ingester runs the deferred relationship maintenance pass once at startup —
+look for `deferred_backfill_completed` in the ingester log shortly after step 6
+starts it. That pass publishes the backward evidence the workload and cross-repo
+families wait on; without it they stay in readiness retry (#7665). The pass fires
+once per ingester process, so if you ran recovery while the ingester was already
+up — an out-of-band recovery rather than this procedure, which stops the workers
+first — restart the ingester so the startup pass runs after the recovery.
+
 ### 8. Verify
 
 ```bash

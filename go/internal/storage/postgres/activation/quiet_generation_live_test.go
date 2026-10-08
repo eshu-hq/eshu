@@ -165,7 +165,7 @@ func runQuietGenerationActivation(t *testing.T, controlArm bool) {
 	var serviceErr error
 	service := collector.Service{
 		Source: source, Committer: committer, PollInterval: time.Millisecond,
-		AfterEmptyBatchDrained: false, // the real single-shard ingester setting
+		AfterEmptyBatchDrained: false, // the real single-shard ingester setting with scheduled sync on (#7665 enables the escape when sync is off)
 		AfterBatchDrained: func(ctx context.Context, hasCommitted bool) error {
 			err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
 				ctx,

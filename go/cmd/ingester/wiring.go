@@ -236,7 +236,18 @@ func buildIngesterCollectorService(
 			ShardCount: config.RepoShardCount,
 			ShardIndex: config.RepoShardIndex,
 		}, tracer, instruments, logger),
-		AfterEmptyBatchDrained: config.RepoShardCount > 1,
+		// AfterEmptyBatchDrained also covers a single-shard collector-off
+		// ingester (#7665): with scheduled sync off and no webhook trigger
+		// arriving, the collector never commits, so the drain hook — and the
+		// deferred relationship maintenance pass behind it — would otherwise
+		// never fire and the workload/cross-repo families would stay in
+		// readiness retry forever. The escape is still exactly one startup
+		// pass per process: collector.Service.Run's once-latch reports
+		// hasCommitted=true only on the first idle poll, and the single-shard
+		// barrier path joins nothing and returns nil on every later one.
+		// A single shard with scheduled sync on keeps the old behavior —
+		// its commits trigger the pass, so it needs no escape.
+		AfterEmptyBatchDrained: config.RepoShardCount > 1 || !scheduledSyncConfig.Enabled,
 		Tracer:                 tracer,
 		Instruments:            instruments,
 		Logger:                 logger,

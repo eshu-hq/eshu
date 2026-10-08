@@ -173,7 +173,9 @@ type Service struct {
 	// startupMaintenanceEscapeUsed once-latch in Run); every later arrival can
 	// only join an epoch already open, so a quiet fleet does not reopen one
 	// per poll. Use only for runtimes that need configured empty shards to
-	// participate in a fleet barrier.
+	// participate in a fleet barrier, or for single-shard runtimes that may
+	// never commit and need the escape's one startup pass because no commit
+	// will ever trigger the drain hook (a collector-off ingester, #7665).
 	AfterEmptyBatchDrained bool
 	Tracer                 trace.Tracer           // optional — nil means no tracing
 	Instruments            *telemetry.Instruments // optional — nil means no metrics

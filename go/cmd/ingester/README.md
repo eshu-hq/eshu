@@ -177,17 +177,18 @@ cost, and what that measurement does not cover.
 Those drains are paced by ingestion, not by a timer. `collector.Service` runs
 `AfterBatchDrained` only when the source batch exhausts after at least one
 committed generation, or via the `AfterEmptyBatchDrained` escape described
-below (`go/internal/collector/service.go:223`). `committedSinceDrain` is
-cleared on every drain (`:234`) and set again on every commit (`:275`), so a
+below (`go/internal/collector/service.go:236`). `committedSinceDrain` is
+cleared on every drain (`:247`) and set again on every commit (`:288`), so a
 shard that keeps committing drains once per commit-to-idle cycle whether or
 not the escape is enabled.
 
 The `AfterEmptyBatchDrained` escape set here from `ESHU_REPO_SHARD_COUNT > 1`
-(`wiring.go:220`) fires on every idle poll for as long as this shard has never
+or scheduled sync off (`wiring.go`) fires on every idle poll for as long as
+this shard has never
 committed a generation, gated by the `everCommitted` latch
 (`go/internal/collector/service.go`): `everCommitted` starts false, latches
-true permanently on the shard's first commit (`:276`), and the escape checks
-`!everCommitted` (`:223`). A shard that commits regularly only ever exercises
+true permanently on the shard's first commit (`:289`), and the escape checks
+`!everCommitted` (`:236`). A shard that commits regularly only ever exercises
 the escape during its pre-first-commit startup window, after which
 `committedSinceDrain` is decisive for the rest of the process — exactly as
 before #5852. That window is not bounded in code: it is one escape-driven drain
@@ -262,18 +263,17 @@ not a leak. The same once-per-process bound holds for
 `ESHU_REPO_SHARD_COUNT == 1`, whose
 `RunDeferredRelationshipMaintenanceAfterShardDrain` short-circuit applies the
 identical rule directly: it runs maintenance when `HasCommitted` is true and
-skips it outright otherwise, so "at most once" is literally true there too
-(zero is at most one). That is a narrower guarantee than it may read as,
-though: `wiring.go:220` sets `AfterEmptyBatchDrained: config.RepoShardCount >
-1`, so a single-shard ingester never enables the empty-batch escape at all.
-The `startupMaintenanceEscapeUsed` latch this paragraph describes is
-therefore inert on `ESHU_REPO_SHARD_COUNT == 1` — it never gets a call to
-latch on — and a single shard that owns repositories but never commits (an
-empty corpus, not a sharding artifact) gets zero startup maintenance passes,
-not one. The single-shard short-circuit restores the pre-#5852 behavior of
-running maintenance exactly when this shard itself has committed; it does not
-restore the once-per-process startup pass that only exists for the
-multi-shard escape path.
+skips it outright otherwise, so "at most once" is literally true there too.
+`wiring.go` sets `AfterEmptyBatchDrained` for `RepoShardCount > 1` or when
+scheduled sync is off (#7665), so a single-shard ingester enables the escape
+exactly in the collector-off configuration, where only an arriving webhook
+trigger can ever commit: the first idle poll runs the one startup pass and
+every later poll skips outright
+(`TestIngestionStoreShardDrainBarrierSingleShardQuietRestartRunsExactlyOnePass`
+pins the composition). A single shard with scheduled sync on keeps the
+pre-#5852 behavior of running maintenance exactly when this shard itself has
+committed — the once-latch stays inert there, since its commits trigger the
+pass and it needs no escape.
 
 What both fixes deliberately leave unbounded is
 `waitDeferredMaintenanceBarrierCompletion` itself: it still has no arrival
