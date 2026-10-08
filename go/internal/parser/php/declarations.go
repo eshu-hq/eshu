@@ -71,7 +71,7 @@ func collectPHPAnonymousClass(state *phpParseState, node *tree_sitter.Node) {
 	item := map[string]any{
 		"name":        name,
 		"line_number": shared.NodeLine(node),
-		"end_line":    shared.NodeLine(node),
+		"end_line":    shared.NodeEndLine(node),
 		"lang":        "php",
 	}
 	if len(bases) > 0 {
@@ -143,7 +143,7 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 	item := map[string]any{
 		"name":                  name,
 		"line_number":           shared.NodeLine(phpNameNode(node)),
-		"end_line":              shared.NodeLine(phpNameNode(node)),
+		"end_line":              shared.NodeEndLine(node),
 		"lang":                  "php",
 		"decorators":            []string{},
 		"parameters":            parameters,
@@ -228,7 +228,7 @@ func phpTypeItem(name string, node *tree_sitter.Node) map[string]any {
 	return map[string]any{
 		"name":        name,
 		"line_number": shared.NodeLine(phpNameNode(node)),
-		"end_line":    shared.NodeLine(phpNameNode(node)),
+		"end_line":    shared.NodeEndLine(node),
 		"lang":        "php",
 	}
 }
