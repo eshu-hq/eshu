@@ -261,7 +261,7 @@ Seven notes on this table.
   0.648145 s and 0.667154 s, and says neither is a qualified cold sample. The
   table omits them. Both are inside the range of the first-call rows.
 - Cohort 4's cold calls were sent at 18:15 UTC on pods that started at 18:06 UTC
-  (#7251 comment of 2026-10-08 UTC, which quotes the run receipts). The wrapper
+  (#7251 comment of 2026-10-08 04:47 UTC, which quotes the run receipts). The wrapper
   ran first after the sync, and the change-planning replay ran on the same pods
   after those calls and before its results were posted at 18:21 UTC. The
   receipts check the graph-summary series only. These rows are cold, process-first

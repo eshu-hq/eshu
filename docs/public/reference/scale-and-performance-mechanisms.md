@@ -71,10 +71,12 @@ repository bitmap is paid anyway.
 Planner statistics were not recorded for the rare-term cases.
 
 The guard treats a term with no run of three ASCII letters or digits as having
-no trigram to filter on. The terms `db_` and `pg_` really have none. The guard
-also treats some terms that do have trigrams, such as `ab-cd`, as having none.
-That is safe, because those terms keep the plain statement. Hiding a term with
-no trigram cost 3.6 to 4 times more (n=1 for the hidden case). The change keeps
+no trigram to filter on. The terms `db_` and `pg_` really have none: the
+statement matches with `ILIKE`, where `_` is a wildcard, so two literal
+characters give the trigram index nothing to extract. The guard also treats
+some terms that do have trigrams, such as `ab-cd`, as having none. That is safe,
+because those terms keep the plain statement. Hiding a term with no trigram cost
+3.6 to 4 times more (n=1 for the hidden case). The change keeps
 the plain statement for those terms. A `db_` read on the
 241,726-entity repository took 4,133 and 4,577 ms plain and 16,722 ms hidden.
 Planner statistics were not recorded. Those terms still take 3 to 4 s on the
