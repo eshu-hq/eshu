@@ -71,8 +71,8 @@ allocation where `PathKeys` built one.
 Consequences: a top-level call now has a caller only when a fallback supplies
 one (a JavaScript/TypeScript package-root file, a JavaScript reference or
 same-file top-level call, or a Java metadata root, as before). Any other
-top-level call, in any language, has no caller and emits no `CALLS` row. PHP in-function calls also drop until the PHP parser
-reports real `end_line` values, because today a PHP function span is zero-width.
+top-level call, in any language, has no caller and emits no `CALLS` row. PHP in-function calls resolve to their containing
+function since #7641 gave the PHP parser real `end_line` spans (they dropped between #7640 and #7641).
 `PathKeys` still includes bare names for the name lookups (`ResolveEntityID`,
 `uniqueNameByPath`) that this change did not touch.
 

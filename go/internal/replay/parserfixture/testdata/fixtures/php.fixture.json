@@ -15,7 +15,7 @@
           "parsed_file_data": {
             "classes": [
               {
-                "end_line": 5,
+                "end_line": 27,
                 "lang": "php",
                 "line_number": 5,
                 "name": "OrderService"
@@ -119,7 +119,7 @@
                   "php.magic_method"
                 ],
                 "decorators": [],
-                "end_line": 9,
+                "end_line": 12,
                 "lang": "php",
                 "line_number": 9,
                 "name": "__construct",
@@ -132,7 +132,7 @@
                 "class_context": "OrderService",
                 "cyclomatic_complexity": 2,
                 "decorators": [],
-                "end_line": 14,
+                "end_line": 21,
                 "lang": "php",
                 "line_number": 14,
                 "name": "place",
@@ -146,7 +146,7 @@
                 "class_context": "OrderService",
                 "cyclomatic_complexity": 1,
                 "decorators": [],
-                "end_line": 23,
+                "end_line": 26,
                 "lang": "php",
                 "line_number": 23,
                 "name": "find",

@@ -208,10 +208,9 @@ lookup take the repository ID. What changes for operators:
   same-file top-level call, or a Java metadata root. Every other top-level call,
   in any language including JavaScript/TypeScript and Java, has no caller and
   emits no row. Before this fix it could borrow a caller from a same-named file.
-- PHP in-function calls also drop for now. The PHP parser reports `end_line`
-  equal to the start line, so a PHP function span covers only its declaration
-  line. Before this fix those calls were attached through other same-named
-  files; a separate parser change restores them.
+- PHP in-function calls resolve to their containing function: #7641 gave the
+  PHP parser real `end_line` spans. Between #7640 and #7641 those calls
+  dropped; before #7640 they could borrow a caller from a same-named file.
 - `unresolved_caller_calls` counts the `CALLS` path. An SDK call whose caller
   does not resolve in its own repository also emits no `INVOKES_CLOUD_ACTION`
   intent; `unresolved_cloud_action_callers` counts those.
