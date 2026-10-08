@@ -294,6 +294,18 @@ func reducerSupersedeReadinessDSN() string {
 
 func openReducerSupersedeReadinessDB(t *testing.T, ctx context.Context, dsn string) *sql.DB {
 	t.Helper()
+	db, _ := openReducerSupersedeReadinessDBWithSchema(t, ctx, dsn)
+	return db
+}
+
+// openReducerSupersedeReadinessDBWithSchema creates the isolated throwaway
+// schema and returns the owning handle plus the schema name. The name lets
+// concurrency proofs open additional independent connections against the same
+// schema (see openReducerFairnessClaimerDB), which is required to exercise
+// real concurrent claim statements rather than serializing behind one pooled
+// connection.
+func openReducerSupersedeReadinessDBWithSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
+	t.Helper()
 	schemaName := fmt.Sprintf("reducer_supersede_readiness_%d", time.Now().UnixNano())
 
 	db, err := sql.Open("pgx", dsn)
@@ -330,7 +342,7 @@ func openReducerSupersedeReadinessDB(t *testing.T, ctx context.Context, dsn stri
 			t.Fatalf("apply supersede-readiness schema: %v", err)
 		}
 	}
-	return db
+	return db, schemaName
 }
 
 func insertReducerSupersedeReadinessScope(

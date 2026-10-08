@@ -263,7 +263,27 @@ func reducerClaimReadinessRequirementsSQL() string {
         ('ec2_block_device_kms_posture_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'scope_prefix', 'aws_resource_materialization:')`
 }
 
+// reducerClaimReadinessGateSQL renders the claim-time readiness gate for one
+// work row: every bounded requirement row for the row's domain must have its
+// canonical-node phase committed for the row's own generation. The candidate
+// CTEs in the single and batch claim queries use this form, so a live row is
+// claimable only on its own generation's readiness — never early.
 func reducerClaimReadinessGateSQL(workAlias, requirementAlias, phaseAlias string) string {
+	return reducerClaimReadinessGateForGenerationSQL(workAlias, workAlias+".generation_id", requirementAlias, phaseAlias)
+}
+
+// reducerClaimReadinessGateForGenerationSQL renders the readiness gate with
+// the phase lookup pinned to an arbitrary generation expression instead of
+// the work row's own generation. The inactive-generation supersede sweep uses
+// it to test a stale row's requirements against the scope's active generation
+// (#7664): a stale row whose phases exist only under the active generation is
+// retired, while a stale row whose phases exist under neither generation is
+// still held out (#4445/A2). The generation expression must be a column
+// reference visible in the enclosing statement (for example
+// "scope.active_generation_id" in the sweep, whose inner join to the active
+// generation row guarantees it is non-NULL); the acceptance unit still derives
+// from the work row's own payload.
+func reducerClaimReadinessGateForGenerationSQL(workAlias, generationExpr, requirementAlias, phaseAlias string) string {
 	return `NOT EXISTS (
           SELECT 1
           FROM reducer_claim_readiness_requirements AS ` + requirementAlias + `
@@ -273,8 +293,8 @@ func reducerClaimReadinessGateSQL(workAlias, requirementAlias, phaseAlias string
                 FROM graph_projection_phase_state AS ` + phaseAlias + `
                 WHERE ` + phaseAlias + `.scope_id = ` + workAlias + `.scope_id
                   AND ` + phaseAlias + `.acceptance_unit_id = ` + reducerClaimReadinessAcceptanceUnitSQL(workAlias, requirementAlias) + `
-                  AND ` + phaseAlias + `.source_run_id = ` + workAlias + `.generation_id
-                  AND ` + phaseAlias + `.generation_id = ` + workAlias + `.generation_id
+                  AND ` + phaseAlias + `.source_run_id = ` + generationExpr + `
+                  AND ` + phaseAlias + `.generation_id = ` + generationExpr + `
                   AND ` + phaseAlias + `.keyspace = ` + requirementAlias + `.keyspace
                   AND ` + phaseAlias + `.phase = ` + requirementAlias + `.phase
             )
