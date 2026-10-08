@@ -59,7 +59,10 @@ func TestNeo4jEntityContextAnchorIsTheMeasuredStatement(t *testing.T) {
 	}
 	sum := sha256.Sum256([]byte(statements[0]))
 	if got := hex.EncodeToString(sum[:]); got != neo4jWideAnchorStatementSHA256 {
-		t.Errorf("anchor statement sha256 = %s, want %s (the measured candidate)", got, neo4jWideAnchorStatementSHA256)
+		t.Errorf("anchor statement sha256 = %s, want %s (the measured candidate); "+
+			"a uid/id constraint change widens the anchor: re-render testdata/neo4j_wide_anchor.cypher and this hash "+
+			"and state the new width (query/entity AGENTS.md; docs/internal/evidence/7212-wide-entity-anchor.md)",
+			got, neo4jWideAnchorStatementSHA256)
 	}
 	if got, want := neo4jEntityContextAnchor(), goldenWideAnchorClause(t); got != want {
 		t.Errorf("anchor clause differs from testdata/neo4j_wide_anchor.cypher:\n%s\n----\n%s", got, want)

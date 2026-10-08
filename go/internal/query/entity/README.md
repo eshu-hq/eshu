@@ -64,8 +64,9 @@ anchor seeks every schema label with a uid or id uniqueness constraint
 117 uid and 7 id labels at #7212), not only `EntityContextAnchorLabels`, so an
 id on a label outside the loop list no longer pays the whole-graph fallback.
 `neo4jAnchorRankOrder` ranks the loop's constrained labels first, in loop
-order, then the rest alphabetically: an id shared by two labels resolves to the
-label the loop tried first. `Directory` has no id or uid index and resolves
+order, then the rest alphabetically. An id shared by two old loop labels
+resolves to the one the loop tried first; otherwise the earlier label in this
+order wins. `Directory` has no id or uid index and resolves
 through the fallback. `TestNeo4jEntityContextAnchorIsTheMeasuredStatement` pins
 the statement to the text measured in
 `docs/internal/evidence/7212-wide-entity-anchor.md`.

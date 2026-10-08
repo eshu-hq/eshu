@@ -74,13 +74,15 @@ AllNodesScan.
 
 ## Performance Evidence
 
-Performance Evidence: a read-only ops-qa PROFILE (run 558cb48fdede) planned the widened anchor as 124 NodeUniqueIndexSeek operators with no scan, at 124 db hits on a miss, and answered fallback-only ids in 1 to 2 ms server time against 940 to 1235 ms for the shipped fallback, with an identical row; the local cost bench (run cf7541cb485f, bar set B2, PASS) measured the cold compile at a 226 ms median and the cached-plan cost at +0.593 ms.
+Performance Evidence: a read-only ops-qa PROFILE (run 558cb48fdede) planned the widened anchor as 124 NodeUniqueIndexSeek operators with no scan, at 124 db hits on a miss, and answered fallback-only ids in 1 to 2 ms server time (result_consumed_after) against 940 to 1235 ms for the shipped fallback, with an identical row; the local cost bench (run cf7541cb485f, bar set B2, PASS) measured the cold compile at a 226 ms median and the cached-plan cost at +0.593 ms.
 
 ### Plan, miss cost, and row identity (ops-qa, read-only PROFILE)
 
 Run 558cb48fdede, 2026-10-07, Neo4j Bolt read mode. It is not a latency sweep.
 PROFILE inflates server time. There is one observation per round, in 3 rounds,
-and the first mover alternates.
+and the first mover alternates. Server time here is Neo4j's
+`result_consumed_after`. The candidate anchor's warm `result_available_after`
+was 0 to 31 ms, and 412 ms on its cold first execution.
 
 - The plan is one NodeUniqueIndexSeek per label (124), with no NodeByLabelScan,
   AllNodesScan, or UnionNodeByLabelsScan.
@@ -98,9 +100,11 @@ and the first mover alternates.
 
 - The first execution of the widened statement, on a cold plan, reported
   412 ms server-available time. That is one sample, under PROFILE.
-- An absent id still ends in the fallback scan. The total for the anchor and
-  the fallback was about 3 s under PROFILE (3,074 ms shipped, 3,085 ms
-  candidate). This change does not help a true miss.
+- An absent id still ends in the fallback scan. Per request, the anchor plus
+  the fallback took about 0.93 to 1.08 s server time under PROFILE. By round
+  (1, 2, 3), each figure is the anchor ms plus the fallback ms: shipped 1,079 /
+  1,063 / 932 ms, candidate 1,083 / 1,070 / 932 ms. The three-round totals are
+  3,074 ms and 3,085 ms. This change does not help a true miss.
 
 ### Compile and cached-plan cost (local bench B2)
 
@@ -144,7 +148,7 @@ does, each schema ensure starts an epoch.
 
 | candidate | expected saving | cheapest proof | old | new | accuracy | concurrency | disposition |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| widen the Neo4j anchor to all 124 constrained labels | about 1.1 s per fallback-only request | ops-qa PROFILE 558cb48fdede and local bench cf7541cb485f | 940 to 1235 ms (fallback, PROFILE) | 1 to 2 ms (anchor, PROFILE) | same row (P3) | read-only; no lock, queue, or worker | proven |
+| widen the Neo4j anchor to all 124 constrained labels | about 1.1 s per fallback-only request | ops-qa PROFILE 558cb48fdede and local bench cf7541cb485f | 940 to 1235 ms (fallback, PROFILE, result_consumed_after) | 1 to 2 ms (anchor, PROFILE, result_consumed_after) | same row (P3) | read-only; no lock, queue, or worker | proven |
 | ranked top-40 cut | smaller compile | same bench, informational | not applicable | 133 ms / 93 ms cold t_first | same row | read-only | rejected: labels below the cut keep paying about 1.1 s each request |
 
 Classification: handler win for fallback-only ids, on the plan and server-time
