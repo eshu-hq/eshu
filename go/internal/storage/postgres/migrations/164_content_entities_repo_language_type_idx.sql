@@ -50,7 +50,9 @@
 -- btree-only copy of content_entities.
 --
 -- content_entities_repo_idx becomes a prefix of this key. It is kept (no DROP
--- in the migration tree) and can be reviewed for removal separately.
+-- in the migration tree) and its removal is reviewed separately in
+-- eshu-hq/eshu#7759: it is not idle (71 scans reading 18.7M tuples on the
+-- production reader), so a drop needs plan evidence first.
 --
 -- CONCURRENTLY so bootstrap never blocks the ingester's content writes;
 -- IF NOT EXISTS so every later bootstrap over an install that has it is a
