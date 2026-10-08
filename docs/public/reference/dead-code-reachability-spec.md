@@ -62,8 +62,7 @@ does not count, because it carries no edge. On a delta generation any such inten
 because a delta generation never gets a watermark. A repository with no such
 intent has no code edges, cannot be a consumer, and is complete
 without a watermark. A repository with intents is never excluded for having zero
-roots: its edges can still sit on a chain from a rooted repository to the
-producer symbol. The check covers the consumers the request named (a named
+roots: without a snapshot none of its own edges has been examined, so one may still reach the producer symbol directly (#7592: each snapshot is the transitive closure of its own repository's edges only; the walk never chains one repository's edges with another's, though within one repository several hops can apply). The check covers the consumers the request named (a named
 repository with no active generation is incomplete), otherwise the caller's
 grant, otherwise every repository with an active generation. When
 it finds a gap, a candidate with no strong live consumer evidence comes back

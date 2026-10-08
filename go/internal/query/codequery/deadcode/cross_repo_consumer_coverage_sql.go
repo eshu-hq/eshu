@@ -26,9 +26,11 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // gap: a pending intent beside an existing truncated = false watermark is not one
 // (a stale snapshot reads complete until the reducer rebuilds it). A repository with no
 // such intent (docs, IaC) is complete without a watermark. A zero-root
-// repository WITH edge intents is not excluded: its edges can still sit on a
-// chain from a rooted repository to the producer symbol, and its truncated
-// watermark is a gap.
+// repository WITH edge intents is not excluded: without a snapshot none of
+// its own edges has been examined, so one may still reach the producer
+// symbol directly, and its missing or truncated watermark stays a gap.
+// Each snapshot is its own transitive closure over its own scope's edges
+// only (#7592); the walk never chains one repository's edges with another's.
 //
 // On a full generation only per-edge intents count (#7591). A refresh intent
 // (payload action = 'refresh', the stored generated column is_refresh_intent)

@@ -381,3 +381,15 @@ Observability Evidence: no change. The read keeps its `postgres.query` span
   and in the changed-since and generation-lifecycle routes. The QA check that
   the three counts agree (799 repository scopes, 796 watermarks, 796 in the join;
   the 3 scopes without a watermark have no code intents) is recorded above.
+
+## Corrections
+
+- 2026-10-08 (#7592): the Behavior bullet above says a zero-root
+  repository's edges "can sit on a chain from a rooted repository to the
+  producer symbol". That rationale was wrong and is kept here only as
+  history: the loader reads each consumer scope's own edges only, each
+  snapshot is its own transitive closure over that scope, and the walk never
+  chains one repository's edges with another's. The behavior the sentence
+  decorated (zero-root repositories with edge intents stay coverage gaps)
+  is unchanged and is the sound conservative answer under the direct-edge
+  contract; the live statement and the public spec now say so.
