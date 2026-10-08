@@ -266,13 +266,48 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
 	}
-	for _, table := range []string{"fact_records", "iac_reachability_rows", "content_file_references", "content_entities", "content_files", "infra_resource_entities", "activation_obligations", "admission_decisions", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"iac_reachability_rows", "content_file_references", "content_files", "activation_obligations", "admission_decisions", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		var remaining int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&remaining); err != nil {
 			t.Fatalf("count %s: %v", table, err)
 		}
 		if remaining != 0 {
 			t.Errorf("%s has %d rows after prune, want 0", table, remaining)
+		}
+	}
+	// #7695: gen-old's facts are pruned; the retained holder's gen-active fact
+	// survives.
+	var retainedFacts int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM fact_records WHERE generation_id = 'gen-active'").Scan(&retainedFacts); err != nil {
+		t.Fatalf("count retained gen-active facts: %v", err)
+	}
+	if retainedFacts != 1 {
+		t.Errorf("retained gen-active fact_records after prune = %d, want 1", retainedFacts)
+	}
+	var doomedFacts int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM fact_records WHERE generation_id = 'gen-old'").Scan(&doomedFacts); err != nil {
+		t.Fatalf("count pruned gen-old facts: %v", err)
+	}
+	if doomedFacts != 0 {
+		t.Errorf("pruned gen-old fact_records after prune = %d, want 0", doomedFacts)
+	}
+	// #7695: the retained holder's rows survive the prune. The exact-count
+	// assertions above already prove entity-3 is excluded from gen-old's
+	// content_entities and infra_resource_entities counts.
+	for _, table := range []string{"content_entities", "infra_resource_entities"} {
+		var remaining int
+		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table+" WHERE entity_id = 'entity-3'").Scan(&remaining); err != nil {
+			t.Fatalf("count retained %s: %v", table, err)
+		}
+		if remaining != 1 {
+			t.Errorf("retained %s entity-3 rows after prune = %d, want 1", table, remaining)
+		}
+		var doomed int
+		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table+" WHERE entity_id = 'entity-1'").Scan(&doomed); err != nil {
+			t.Fatalf("count pruned %s: %v", table, err)
+		}
+		if doomed != 0 {
+			t.Errorf("pruned %s entity-1 rows after prune = %d, want 0", table, doomed)
 		}
 	}
 }
@@ -321,6 +356,19 @@ VALUES ('repo-1', 'main.tf', 'x', 'h', 1, now())`,
 VALUES ('entity-1', 'repo-1', 'main.tf', 'TerraformResource', 'r', 1, 2, 'x', now())`,
 		`INSERT INTO infra_resource_entities (entity_id, repo_id, relative_path, label, entity_name, updated_at)
 VALUES ('entity-1', 'repo-1', 'main.tf', 'TerraformResource', 'r', now())`,
+		// #7695: a retained holder for the infra-mirror exclusion (folded in
+		// from TestGenerationRetentionInfraMirrorCountLive, retired): gen-active
+		// is active and still holds entity-3, so its content and mirror rows
+		// must be neither counted against gen-old nor pruned.
+		`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, payload) VALUES
+('fact-entity-new', 'scope-1', 'gen-active', 'content_entity', 'k-entity-new', 'git', 'k-entity-new', now(), now(),
+    '{"repo_id":"repo-1","entity_id":"entity-3"}'::jsonb)`,
+		`INSERT INTO content_entities (entity_id, repo_id, relative_path, entity_type, entity_name,
+    start_line, end_line, source_cache, indexed_at)
+VALUES ('entity-3', 'repo-1', 'main.tf', 'TerraformResource', 'r3', 1, 2, 'x', now())`,
+		`INSERT INTO infra_resource_entities (entity_id, repo_id, relative_path, label, entity_name, updated_at)
+VALUES ('entity-3', 'repo-1', 'main.tf', 'TerraformResource', 'r3', now())`,
 		// #7396: one row in each cascade child of scope_generations the
 		// row-count query must cover. The cutover guard needs a live
 		// container_image_identity work item, which the final flip retires

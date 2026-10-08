@@ -54,6 +54,9 @@ PACKAGES = {
         "go/internal/storage/postgres/generation_retention_hard_ceiling_live_test.go": (
             "TestGenerationRetentionHardCeilingLive",
         ),
+        "go/internal/storage/postgres/generation_retention_large_fixture_live_test.go": (
+            "TestGenerationRetentionStoreLargeFixtureLive",
+        ),
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
