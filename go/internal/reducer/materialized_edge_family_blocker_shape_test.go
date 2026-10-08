@@ -107,7 +107,7 @@ type familyBlockerExpectation struct {
 // runner_lease_hold proof is checked separately.
 var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectation{
 	// code/call/intents.go:118,221 tag rows
-	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:218
+	// ProjectionDomain: DomainCodeCalls; code/call/materialization/handler.go:236
 	// writes them via h.IntentWriter.UpsertIntents.
 	DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},
 	// sqlrelationship/sql_relationship_intents.go:108,167 tag rows
