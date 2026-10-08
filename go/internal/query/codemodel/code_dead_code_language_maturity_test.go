@@ -27,9 +27,16 @@ func TestDeadCodeFrameworksWithoutRootModelTable(t *testing.T) {
 		{"language": "groovy", "metadata": map[string]any{"framework": "jenkins"}},
 		{"language": "groovy", "metadata": map[string]any{"framework": "gradle"}},
 		{"language": "python", "metadata": map[string]any{"framework": "django"}},
+		{"language": "python", "metadata": map[string]any{"framework": "drf"}},
+		{"language": "python", "metadata": map[string]any{"framework": "aiohttp"}},
+		{"language": "python", "metadata": map[string]any{"framework": "tornado"}},
 		{"language": "python", "metadata": map[string]any{"framework": "fastapi"}},
 		{"language": "python", "metadata": map[string]any{"framework": "flask"}},
 		{"language": "php", "metadata": map[string]any{"framework": "laravel"}},
+		{"language": "php", "metadata": map[string]any{"framework": "slim"}},
+		{"language": "php", "metadata": map[string]any{"framework": "symfony"}},
+		{"language": "php", "metadata": map[string]any{"framework": "wordpress"}},
+		{"language": "php", "metadata": map[string]any{"framework": "zend_framework_1"}},
 		{"language": "php", "metadata": map[string]any{"framework": "cakephp"}},
 		{"language": "ruby", "metadata": map[string]any{"framework": "rails"}},
 	}
@@ -38,7 +45,7 @@ func TestDeadCodeFrameworksWithoutRootModelTable(t *testing.T) {
 	want := map[string][]string{
 		"go":     {"echo", "fiber", "gin"},
 		"groovy": {"gradle"},
-		"python": {"django"},
+		"python": {"aiohttp", "django", "drf", "tornado"},
 		"php":    {"cakephp"},
 	}
 	if !reflect.DeepEqual(got, want) {

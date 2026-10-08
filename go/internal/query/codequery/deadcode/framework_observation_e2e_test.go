@@ -28,6 +28,8 @@ import (
 func TestHandleDeadCodeReportsProducerObservedFrameworks(t *testing.T) {
 	t.Parallel()
 
+	// The go handler stays unexported: an exported name in a non-main
+	// package is a library-public-API root and never reaches results.
 	repoRoot := t.TempDir()
 	goPath := filepath.Join(repoRoot, "routes.go")
 	if err := os.WriteFile(goPath, []byte(`package test
@@ -36,10 +38,10 @@ import gin "github.com/gin-gonic/gin"
 
 func wire() {
 	router := gin.New()
-	router.GET("/health", Health)
+	router.GET("/health", health)
 }
 
-func Health() {}
+func health() {}
 `), 0o644); err != nil {
 		t.Fatalf("WriteFile(go) error = %v, want nil", err)
 	}
@@ -132,6 +134,22 @@ final class ReportController {
 		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
 	data := resp["data"].(map[string]any)
+
+	// Both producer-observed candidates must survive candidate policy:
+	// php silence is only meaningful if the symfony result is present.
+	results := data["results"].([]any)
+	seen := map[string]bool{}
+	for _, entry := range results {
+		result, _ := entry.(map[string]any)
+		name, _ := result["name"].(string)
+		seen[name] = true
+	}
+	for _, want := range []string{"health", "show"} {
+		if !seen[want] {
+			t.Fatalf("results missing %q: silence would be filtering, not modeling (results=%#v)", want, results)
+		}
+	}
+
 	analysis := data["analysis"].(map[string]any)
 
 	unmodeled, ok := analysis["frameworks_without_root_model"].(map[string]any)
