@@ -14,7 +14,7 @@
       "dead_code_root_kinds": [
         "haskell.exported_type"
       ],
-      "end_line": 13,
+      "end_line": 14,
       "lang": "haskell",
       "line_number": 13,
       "name": "Runner",

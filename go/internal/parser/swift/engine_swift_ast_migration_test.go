@@ -189,3 +189,43 @@ func TestDefaultEngineParsePathSwiftASTFunctionSourceSpansFullBody(t *testing.T)
 		t.Fatalf("run source = %q, want it to span the function body", source)
 	}
 }
+
+// TestDefaultEngineParsePathSwiftEndLineSpansMultilineProperty pins that a
+// Swift property spanning several lines (here a computed property) records its
+// full span: end_line is the declaration's last line, not a copy of
+// line_number (#7686). Functions and types already record full spans; the
+// property site was the exception.
+func TestDefaultEngineParsePathSwiftEndLineSpansMultilineProperty(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "Props.swift")
+	writeSwiftTestFile(
+		t,
+		filePath,
+		`struct Greeter {
+    var greeting: String {
+        return helper()
+    }
+}
+
+func helper() -> String {
+    return "hi"
+}
+`,
+	)
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, filePath, false, parser.Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
+	}
+
+	greeting := parsertest.AssertBucketItemByName(t, payload, "variables", "greeting")
+	parsertest.AssertIntFieldValue(t, greeting, "line_number", 2)
+	parsertest.AssertIntFieldValue(t, greeting, "end_line", 4)
+}

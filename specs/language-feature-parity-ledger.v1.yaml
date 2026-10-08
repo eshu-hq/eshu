@@ -153,7 +153,7 @@ language_features:
     docs_claim: docs/public/languages/haskell.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [function-declarations, initializer-declarations, type-classes, data-types-struct-like, enumerations, protocols-typeclasses, import-declarations, function-call-expressions, property-binding-declarations]
+    supported_features: [function-declarations, initializer-declarations, type-classes, data-types-struct-like, enumerations, protocols-typeclasses, import-declarations, function-call-expressions, property-binding-declarations, declaration-spans]
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/perl_haskell_language.go, go/internal/parser/haskell/parser.go]
@@ -210,7 +210,7 @@ language_features:
     docs_claim: docs/public/languages/kotlin.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [core-declarations, extension-receiver-tracking, suspend-function-semantics, receiver-inference, smart-casts-and-safe-calls, scope-function-preservation, delegated-lazy-properties, same-file-function-return-aliasing, cross-file-function-return-chaining, constructor-root-receiver-chains, class-context-on-functions, secondary-constructors, dead-code-derived-roots, spring-mvc-route-truth, jax-rs-route-truth, micronaut-route-truth, ktor-literal-handler-route-truth]
+    supported_features: [core-declarations, declaration-spans, extension-receiver-tracking, suspend-function-semantics, receiver-inference, smart-casts-and-safe-calls, scope-function-preservation, delegated-lazy-properties, same-file-function-return-aliasing, cross-file-function-return-chaining, constructor-root-receiver-chains, class-context-on-functions, secondary-constructors, dead-code-derived-roots, spring-mvc-route-truth, jax-rs-route-truth, micronaut-route-truth, ktor-literal-handler-route-truth]
     partial_features: [spring-composed-route-truth, ktor-nested-route-prefix-truth, ktor-inline-lambda-route-truth, external-route-config-truth, generated-route-truth, outbound-contracts]
     derived_features: []
     source_files: [go/internal/parser/kotlin_language.go, go/internal/parser/kotlin/parser.go, go/internal/parser/kotlin/spring_routes.go, go/internal/parser/kotlin/framework_routes.go]
@@ -327,7 +327,7 @@ language_features:
     docs_claim: docs/public/languages/swift.md
     parser_backing: tree-sitter-backed
     no_provider_required: true
-    supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations, vapor-literal-route-entries]
+    supported_features: [functions, initializers-init, classes, structs, enums, protocols, actors, imports, function-calls, property-declarations, declaration-spans, vapor-literal-route-entries]
     partial_features: [vapor-dynamic-route-truth]
     derived_features: [dead-code-derived-roots]
     source_files: [go/internal/parser/swift_language.go, go/internal/parser/swift/language.go, go/internal/parser/swift/tree_sitter_syntax.go]

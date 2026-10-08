@@ -39,7 +39,7 @@ func (w *astWalker) handlePropertyDeclaration(node *tree_sitter.Node, f frame) {
 		shared.AppendBucket(w.payload, "variables", map[string]any{
 			"name":        name,
 			"line_number": shared.NodeLine(node),
-			"end_line":    shared.NodeLine(node),
+			"end_line":    shared.NodeEndLine(node),
 			"lang":        "kotlin",
 		})
 	}

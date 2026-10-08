@@ -205,7 +205,7 @@ func (e *haskellExtractor) handleTypeDeclaration(node *tree_sitter.Node) {
 	item := map[string]any{
 		"name":          name,
 		"line_number":   shared.NodeLine(node),
-		"end_line":      shared.NodeLine(node),
+		"end_line":      shared.NodeEndLine(node),
 		"lang":          "haskell",
 		"semantic_kind": kind,
 	}
@@ -225,7 +225,7 @@ func (e *haskellExtractor) handleClass(node *tree_sitter.Node) {
 	item := map[string]any{
 		"name":          name,
 		"line_number":   shared.NodeLine(node),
-		"end_line":      shared.NodeLine(node),
+		"end_line":      shared.NodeEndLine(node),
 		"lang":          "haskell",
 		"semantic_kind": "typeclass",
 	}
@@ -270,7 +270,7 @@ func (e *haskellExtractor) handleSignature(node *tree_sitter.Node, classContext,
 	item := map[string]any{
 		"name":                 name,
 		"line_number":          shared.NodeLine(node),
-		"end_line":             shared.NodeLine(node),
+		"end_line":             shared.NodeEndLine(node),
 		"lang":                 "haskell",
 		"class_context":        classContext,
 		"decorators":           []string{},
@@ -391,11 +391,10 @@ func (e *haskellExtractor) appendBindingVariables(node *tree_sitter.Node) {
 		}
 		if _, ok := e.seenVariables[localName]; !ok {
 			e.seenVariables[localName] = struct{}{}
-			localLine := shared.NodeLine(&decl)
 			shared.AppendBucket(e.payload, "variables", map[string]any{
 				"name":        localName,
-				"line_number": localLine,
-				"end_line":    localLine,
+				"line_number": shared.NodeLine(&decl),
+				"end_line":    shared.NodeEndLine(&decl),
 				"lang":        "haskell",
 			})
 		}

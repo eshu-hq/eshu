@@ -286,7 +286,7 @@ func (w *astWalker) handleTypeDeclaration(node *tree_sitter.Node, f frame) {
 	item := map[string]any{
 		"name":        name,
 		"line_number": shared.NodeLine(node),
-		"end_line":    shared.NodeLine(node),
+		"end_line":    shared.NodeEndLine(node),
 		"lang":        "kotlin",
 	}
 	if rootKinds := kotlinTypeDeadCodeRootKinds(annotations, kind); len(rootKinds) > 0 {
