@@ -56,7 +56,7 @@ Projected graph truth is unchanged: defer and supersede only change the
 intent's disposition, never a decision or edge. The B-7 golden-corpus gate in
 CI is the end-to-end proof that collector, graph, and query truth still agree.
 
-## No-Regression Evidence (#6502)
+## No-Regression Evidence (#6502):
 
 The happy path is byte-identical: one indexed epoch join per intent, no added
 query. The freshness check and the re-read run only on an epoch miss, which
@@ -72,19 +72,23 @@ disposable PostgreSQL 18 (single shared host, warm cache):
 - Full `containerimage`, `reducer`, `contract`, `factload`, `cmd/reducer`,
   and `recordpseudo` suites GREEN; store-touching Postgres live tests GREEN.
 
-The full `storage/postgres` package run shows failures that are identical on
-clean main (time-bombed July-2026 seeded leases and a missing `pg_trgm`
-extension in the local container); they are unrelated to this change and are
-recorded in the PR body.
+The full `storage/postgres` package run with a live DSN shows failures that
+are identical on clean main and unrelated to this change: 13 fence/cutover
+proofs assert the pre-096 loud-rejection contract while migration 096's
+enforce trigger now fences those transitions back to pending (filed as
+#7790), and a `pg_trgm` search_path/pin ordering hazard needs a fresh
+database. This PR's own live proofs are green; `make pre-push` is the
+credential-free floor (live proofs skip without a DSN) and CI runs the
+ledger-enrolled proofs.
 
-## No-Observability-Change: eshu_dp_reducer_retry_surge_total, eshu_dp_reducer_executions
+## No-Observability-Change: eshu_dp_reducer_retry_surge_total, eshu_dp_reducer_executions_total
 
 No new instrument. Each gate outcome reuses an existing operator signal:
 
 - Defer: `failIntent` records `eshu_dp_reducer_retry_surge_total` with
   `failure_class="generation_activation_not_ready"` and leaves a `retrying`
   row carrying that class.
-- Supersede: the service records `eshu_dp_reducer_executions` with
+- Supersede: the service records `eshu_dp_reducer_executions_total` with
   status `superseded` and its `reducer intent superseded` log line; the queue
   acks the item succeeded.
 - Loud: the existing failure counters and dead-letter triage apply unchanged.
