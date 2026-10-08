@@ -228,7 +228,7 @@ func (f RefinalizeFilter) Validate() error {
 // RefinalizeResult captures the outcome of a refinalize operation.
 //
 // Enqueued and ScopeIDs describe the projector work a refinalize queued. The
-// four reset counters describe the downstream dedup state it cleared so that
+// five reset counters describe the downstream dedup state it cleared so that
 // projector work actually rebuilds the whole graph rather than only the
 // source-local part of it. They are reported because "the rebuild ran and the
 // graph is still short" is otherwise invisible: an operator watching a recovery
@@ -262,6 +262,12 @@ type RefinalizeResult struct {
 	// current truth. Resolution re-activates each generation on resolving
 	// from the preserved facts.
 	GenerationsRetired int
+
+	// SharedProjectionAcceptanceCleared counts acceptance rows deleted so the
+	// repo_dependency lane cannot project edges for a refinalized generation
+	// from its pre-wipe watermark. The re-projection's intent commits
+	// re-advance acceptance from first principles (#7673).
+	SharedProjectionAcceptanceCleared int
 
 	// Skipped reports the scopes the refinalize considered but did not
 	// re-enqueue, by reason, so a partial rebuild is visible to the operator.

@@ -240,10 +240,13 @@ response body and the log line do.
 An idempotent retry (`duplicate: true`) does not repeat the report.
 
 A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,
-`shared_intents_reopened`, `readiness_phases_cleared`, and `generations_retired`
+`shared_intents_reopened`, `readiness_phases_cleared`, `generations_retired`
 (active relationship generations superseded so the re-projection never consumes
-the prior wave's resolved rows as current truth). Inspect these counts against
-the stack's prior state, not as four required non-zero postconditions:
+the prior wave's resolved rows as current truth), and
+`shared_projection_acceptance_cleared` (acceptance rows deleted so the
+repo_dependency lane cannot project edges for a refinalized generation from its
+pre-wipe watermark; #7673). Inspect these counts against
+the stack's prior state, not as five required non-zero postconditions:
 `generations_retired=0` is valid when no relationship generation was active,
 and another zero may mean there were no matching rows to reset. An unexpected
 all-zero response on a populated stack calls for checking queue state and the
@@ -256,7 +259,7 @@ Pick a fresh `idempotency_key` per rebuild attempt. Reusing one from a *scoped*
 recovery is refused with a 409 rather than quietly replaying that recovery's
 much smaller outcome. Reusing the key from a rebuild that already finished
 returns that rebuild's `enqueued` and `scope_ids` with `duplicate: true`, but
-not the four counters — the ledger does not store them. If you lost the first
+not the five counters — the ledger does not store them. If you lost the first
 response, count the effect in Postgres instead: pending `projector` rows in
 `fact_work_items`, and `shared_projection_intents` with `completed_at IS NULL`.
 

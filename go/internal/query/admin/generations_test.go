@@ -18,9 +18,10 @@ import (
 func TestAdminHandler_RecoverGenerations_DurablyEnqueuesAndRecordsLedger(t *testing.T) {
 	recoveryStub := &stubRecoveryHandler{
 		refinalizeResult: recovery.RefinalizeResult{
-			Enqueued:           2,
-			ScopeIDs:           []string{"scope-1", "scope-2"},
-			GenerationsRetired: 3,
+			Enqueued:                          2,
+			ScopeIDs:                          []string{"scope-1", "scope-2"},
+			GenerationsRetired:                3,
+			SharedProjectionAcceptanceCleared: 4,
 		},
 	}
 	store := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
@@ -45,6 +46,9 @@ func TestAdminHandler_RecoverGenerations_DurablyEnqueuesAndRecordsLedger(t *test
 	}
 	if int(got["generations_retired"].(float64)) != 3 {
 		t.Errorf("generations_retired = %v, want 3", got["generations_retired"])
+	}
+	if int(got["shared_projection_acceptance_cleared"].(float64)) != 4 {
+		t.Errorf("shared_projection_acceptance_cleared = %v, want 4", got["shared_projection_acceptance_cleared"])
 	}
 	// The ledger must be claimed and completed so admin_replay_requests is written.
 	if store.claimCalls != 1 {
@@ -205,7 +209,7 @@ func TestAdminHandler_RecoverGenerations_RequiresReasonAndKey(t *testing.T) {
 
 // TestOpenAPIRecoverGenerationsResponsesMatchTheHandler holds the published
 // contract to what the endpoint actually sends. The two 200 bodies are not the
-// same shape: a recovery this call performed reports the four dedup counters,
+// same shape: a recovery this call performed reports the five dedup counters,
 // and an idempotent replay cannot, because the admin_replay_requests ledger does
 // not persist them.
 //

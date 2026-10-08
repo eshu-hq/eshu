@@ -4,7 +4,7 @@
 
 1. `README.md` in this directory — why the package exists and what each reset is
    for
-2. `reset.go` — the four reset templates, `AffectedGenerationsQuery`, `Apply`;
+2. `reset.go` — the five reset templates, `AffectedGenerationsQuery`, `Apply`;
    `refinalize.go` — the ordered coordination (read once, drain-wait, enqueue,
    fence check) the caller runs before `Apply`
 3. `../recovery.go` — `RecoveryStore.RefinalizeScopeProjections`, the only
@@ -50,7 +50,7 @@ failed (#7116), and it returns every other scope with a `skip_reason` from the
 closed `recovery.SkipReason*` set. Keep the covered set and the skip report in
 that one statement: a second read would let the report disagree with the set the
 enqueue and resets bound. The projector
-re-enqueue, the drain poll, and the four resets (all in this package; the
+re-enqueue, the drain poll, and the five resets (all in this package; the
 transaction owner in `../recovery.go` only orchestrates) bind the `Generations`
 it returned. Change a guard and every statement follows, because none of them
 selects anything.

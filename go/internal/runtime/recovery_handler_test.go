@@ -181,8 +181,9 @@ func TestRecoveryHandlerRefinalizeReturnsEnqueuedScopes(t *testing.T) {
 
 	store := &fakeRecoveryStore{
 		refinalizeResult: recovery.RefinalizeResult{
-			Enqueued: 2,
-			ScopeIDs: []string{"s1", "s2"},
+			Enqueued:                          2,
+			ScopeIDs:                          []string{"s1", "s2"},
+			SharedProjectionAcceptanceCleared: 4,
 		},
 	}
 	handler := mustNewRecoveryHandler(t, store)
@@ -204,6 +205,9 @@ func TestRecoveryHandlerRefinalizeReturnsEnqueuedScopes(t *testing.T) {
 	}
 	if resp.Enqueued != 2 {
 		t.Fatalf("response enqueued = %d, want 2", resp.Enqueued)
+	}
+	if resp.SharedProjectionAcceptanceCleared != 4 {
+		t.Fatalf("response shared_projection_acceptance_cleared = %d, want 4", resp.SharedProjectionAcceptanceCleared)
 	}
 }
 

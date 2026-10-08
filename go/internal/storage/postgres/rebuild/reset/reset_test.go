@@ -75,7 +75,7 @@ func TestAffectedGenerationsQueryExplicitScopesBindsTheScopeList(t *testing.T) {
 }
 
 // TestResetQueriesBindTheSameGenerationSet is the cross-statement agreement
-// proof. All four resets must act on exactly the generations the caller read,
+// proof. All five resets must act on exactly the generations the caller read,
 // and on the same ones as each other; if one drifted, a rebuild could delete a
 // domain's work without reopening the intents that rebuild it, and the graph
 // would come back short in a way no single statement's test would catch.
@@ -92,10 +92,11 @@ func TestResetQueriesBindTheSameGenerationSet(t *testing.T) {
 	generations.Append("scope-b", "gen-b")
 
 	for name, template := range map[string]string{
-		"delete succeeded reducer work":    deleteSucceededReducerWorkTemplate,
-		"reopen shared projection intents": reopenSharedIntentsTemplate,
-		"clear readiness phase state":      clearReadinessPhaseStateTemplate,
-		"retire resolution generations":    retireResolutionGenerationsTemplate,
+		"delete succeeded reducer work":      deleteSucceededReducerWorkTemplate,
+		"reopen shared projection intents":   reopenSharedIntentsTemplate,
+		"clear readiness phase state":        clearReadinessPhaseStateTemplate,
+		"clear shared projection acceptance": clearSharedProjectionAcceptanceTemplate,
+		"retire resolution generations":      retireResolutionGenerationsTemplate,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

@@ -51,7 +51,7 @@ func (q *readFakeQueryer) QueryContext(_ context.Context, query string, args ...
 
 // TestReadAffectedGenerationsSplitsCoveredFromSkipped pins the classification
 // contract of the single read (#7116): a row with a skip reason is reported and
-// never enters the generation set the four statements bind, and a row without
+// never enters the generation set the five statements bind, and a row without
 // one is covered.
 func TestReadAffectedGenerationsSplitsCoveredFromSkipped(t *testing.T) {
 	t.Parallel()

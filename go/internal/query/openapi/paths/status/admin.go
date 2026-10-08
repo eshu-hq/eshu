@@ -13,7 +13,7 @@ const Admin = `
         "summary": "Refinalize scopes",
         "responses": {
           "200": {
-            "description": "Refinalize request accepted. Alongside status, enqueued, scope_ids, and the four dedup counters it carries skipped_scopes, the scopes named in the request that were considered but not re-enqueued, by reason.",
+            "description": "Refinalize request accepted. Alongside status, enqueued, scope_ids, and the five dedup counters it carries skipped_scopes, the scopes named in the request that were considered but not re-enqueued, by reason.",
             "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}}}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
@@ -90,7 +90,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Recover wedged generations",
-        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every recoverable scope, which is what a graph rebuild after a Postgres restore or a graph-backend swap needs: each active scope through its active generation, and each failed scope with no active generation through its newest failed generation (a named failed scope in scope_ids is recovered the same way). Scopes it cannot re-enqueue are reported in skipped_scopes, by reason, so a partial rebuild is visible. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, graph projection phase rows, and active relationship generations - because all four outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure.",
+        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every recoverable scope, which is what a graph rebuild after a Postgres restore or a graph-backend swap needs: each active scope through its active generation, and each failed scope with no active generation through its newest failed generation (a named failed scope in scope_ids is recovered the same way). Scopes it cannot re-enqueue are reported in skipped_scopes, by reason, so a partial rebuild is visible. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, graph projection phase rows, active relationship generations, and shared projection acceptance rows - because all five outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure.",
         "requestBody": {
           "required": true,
           "content": {
@@ -121,8 +121,8 @@ const Admin = `
                   "oneOf": [
                     {
                       "type": "object",
-                      "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all four counters should be non-zero; four zeros mean the rebuild will restore source-local structure and nothing else.",
-                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "skipped_scopes", "idempotency_key", "duplicate"],
+                      "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all five counters should be non-zero; five zeros mean the rebuild will restore source-local structure and nothing else.",
+                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "shared_projection_acceptance_cleared", "skipped_scopes", "idempotency_key", "duplicate"],
                       "properties": {
                         "status": {"type": "string", "enum": ["recovered"]},
                         "enqueued": {"type": "integer", "description": "Scope generations re-enqueued for projection."},
@@ -131,6 +131,7 @@ const Admin = `
                         "shared_intents_reopened": {"type": "integer", "description": "Shared projection intents whose completed_at was cleared so the partition workers drain them again."},
                         "readiness_phases_cleared": {"type": "integer", "description": "Graph projection phase rows removed, because they outlive a graph wipe and would otherwise assert canonical nodes are committed for an empty graph."},
                         "generations_retired": {"type": "integer", "description": "Active relationship generations superseded so the re-projection never consumes the prior wave's resolved rows as current truth."},
+                        "shared_projection_acceptance_cleared": {"type": "integer", "description": "Shared projection acceptance rows deleted so the repo_dependency lane cannot project edges for a refinalized generation from its pre-wipe watermark; the re-projection's intent commits re-advance acceptance."},
                         "skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"},
                         "idempotency_key": {"type": "string"},
                         "duplicate": {"type": "boolean", "enum": [false]}
@@ -138,7 +139,7 @@ const Admin = `
                     },
                     {
                       "type": "object",
-                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The four dedup counters and skipped_scopes are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
+                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The five dedup counters and skipped_scopes are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
                       "required": ["status", "enqueued", "scope_ids", "idempotency_key", "duplicate"],
                       "properties": {
                         "status": {"type": "string", "enum": ["recovered"]},

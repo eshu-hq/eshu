@@ -142,7 +142,7 @@ func TestRefinalizeFailedScopeAllScopesEnqueuesNewestFailedGeneration(t *testing
 	// Dedup state that survived the graph wipe for the failed generation: a
 	// succeeded reducer item, a completed shared intent, a readiness phase row,
 	// and an active relationship generation. None may survive the rebuild or the
-	// re-projection stays deduplicated. This exercises all four reset statements
+	// re-projection stays deduplicated. This exercises all five reset statements
 	// against a generation that was never active.
 	reducerWork := seedRefinalizeResetReducerWork(t, ctx, database, failedScope, failedGeneration, "failed-entity", "succeeded")
 	seedActiveRelationshipGeneration(t, ctx, database, failedGeneration, failedScope)

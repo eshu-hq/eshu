@@ -19,10 +19,11 @@
 // reports, by closed reason, each scope considered but not re-enqueued, so a
 // partial rebuild is visible. Refinalize also clears
 // the downstream dedup state for exactly those generations — succeeded reducer
-// work, completed shared projection intents, and graph projection phase rows —
-// because all four outlive a graph wipe and would otherwise tell the pipeline
+// work, completed shared projection intents, graph projection phase rows,
+// active relationship generations, and shared projection acceptance rows —
+// because all five outlive a graph wipe and would otherwise tell the pipeline
 // the work is already done, leaving the rebuild stuck at source-local structure.
-// RefinalizeResult reports each of those four counts.
+// RefinalizeResult reports each of those five counts.
 // ReplayCollectorGenerations
 // marks collector generation
 // commit failures for source-level replay when the failure happened before

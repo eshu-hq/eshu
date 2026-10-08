@@ -11,7 +11,7 @@ supposed to be: restore Postgres, wipe the graph, `POST
 source-local structure — repositories, files, functions, classes, directories —
 and stopped there. Everything a reducer domain owns stayed missing.
 
-The cause is that four pieces of Postgres state survive a graph wipe, and each
+The cause is that five pieces of Postgres state survive a graph wipe, and each
 one independently tells the pipeline the work is already finished:
 
 | State | Why it blocks the rebuild |
@@ -20,6 +20,7 @@ one independently tells the pipeline the work is already finished:
 | `shared_projection_intents` with `completed_at` set | Partition workers drain only `completed_at IS NULL`, and the upsert's `COALESCE` refuses to reopen a completed row. |
 | `graph_projection_phase_state` rows | They assert canonical nodes are committed. After a wipe that is false, and the edge Cypher is `MATCH`-only — so admitted work matches nothing, writes nothing, and still acks `succeeded`. |
 | Active `relationship_generations` | The phase wipe does not touch them, so the re-projection's resolved read keeps serving the prior wave's rows as current truth. |
+| `shared_projection_acceptance` rows (#7673) | They grant the repo_dependency lane projection authority for the refinalized generation, so it keeps writing edges for history instead of rebuilding. The re-projection's intent commits re-advance them. |
 
 The third is the dangerous one: it fails silently and reports success. The
 fourth gets a fence of its own (see `refinalize.go`): retirement commits only
@@ -71,7 +72,7 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   graph.
 - **Retire only over drained reducers.** After the lock-free drain and before
   any transaction write, recovery takes `EXCLUSIVE` on `fact_work_items` for
-  the immediate live-lease recheck, projector re-enqueue, three dedup resets,
+  the immediate live-lease recheck, projector re-enqueue, four dedup resets,
   relationship retirement, and commit. Taking it before write avoids a table
   lock upgrade deadlock between concurrent recoveries. The mode conflicts
   with both a claim's row update and claim-fenced publication's `SELECT FOR
@@ -87,7 +88,7 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   are reclaimable, not in-flight. A resolver still running after expiry cannot
   republish: relationship-generation activation locks and validates its exact
   `(work_item_id, last_attempt_at)` claim and requires the lease to remain live.
-  The relation-wide write pause is recovery-only and bounded by the four reset
+  The relation-wide write pause is recovery-only and bounded by the five reset
   statements plus commit; it does block unrelated queue writes during that
   interval, so its representative lock-hold duration is part of the live proof.
 - **Delete, do not reset to pending.** A pending row is claimable before the

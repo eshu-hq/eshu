@@ -211,7 +211,7 @@ func (e *InflightReducersError) Error() string {
 }
 
 // ReadAffectedGenerations reads the (scope_id, generation_id) set one
-// refinalize covers, once, so the enqueue, the drain fence, and the four
+// refinalize covers, once, so the enqueue, the drain fence, and the five
 // resets all bind the same rows. Re-deriving the set per statement would give
 // each one its own READ COMMITTED snapshot, and an ingester activating a
 // generation mid-refinalize could then leave the enqueue rebuilding G1 while

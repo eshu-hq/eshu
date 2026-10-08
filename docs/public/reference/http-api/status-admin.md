@@ -592,15 +592,14 @@ console or API defect.
   `shared_intents_reopened` (shared projection intents whose `completed_at` was
   cleared so the partition workers drain them again),
   `readiness_phases_cleared` (phase rows removed: they outlive a wipe and would
-  otherwise assert canonical nodes are committed for an empty graph), and
-  `generations_retired` (see [Rebuild the graph from
-  facts](../../operate/graph-rebuild-from-facts.md)). These diagnostic counts
+  otherwise assert canonical nodes are committed for an empty graph), `generations_retired`, and `shared_projection_acceptance_cleared` (acceptance rows deleted so the lane cannot project a refinalized generation; #7673: see
+  [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md)). These diagnostic counts
   may be zero with no prior state; unexpected all-zero resets need graph checks.
 
   `skipped_scopes` (`total`, `by_reason`, `sample_scope_ids`; always present)
   lists scopes not re-enqueued, by reason; see [Rebuild the graph from
   facts](../../operate/graph-rebuild-from-facts.md). A retry returning
-  `duplicate: true` carries neither the four counters nor `skipped_scopes`: the
+  `duplicate: true` carries neither the five counters nor `skipped_scopes`: the
   `admin_replay_requests` ledger stores only the enqueue outcome. If the
   original response was lost, read the effect from the queue instead: pending
   `projector` rows in `fact_work_items`, and `shared_projection_intents` with
