@@ -15,7 +15,8 @@
 //
 //   - [CheckWriters] reads recorded or literal Cypher and requires every
 //     statement that writes a node id to name at least one label in [Labels].
-//     It is fail-closed: an unlabeled variable, or a dynamic
+//     It is fail-closed: an unlabeled variable, a label expression it cannot
+//     reduce, an id key in a pattern it cannot place, or a dynamic
 //     `SET n += <map>` on an uncovered label whose bound parameters do not
 //     prove the map has no id key, is a finding.
 //   - [CensusCypher] counts, over the whole graph, the id-bearing nodes the

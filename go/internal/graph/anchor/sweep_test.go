@@ -4,116 +4,42 @@
 package anchor
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 )
 
-// writeShape is the cheap prefilter for the static sweep: a literal that has a
-// write keyword, mentions an id key or property, and carries a labeled node
-// pattern. The pattern requirement keeps Postgres SQL (SET col = value) out of
-// the sweep. CheckWriters then decides.
-var (
-	writeShape   = regexp.MustCompile(`(?is)\b(MERGE|CREATE|SET)\b.*\bid\b`)
-	labeledShape = regexp.MustCompile(`\(\s*\w*\s*:\s*[A-Za-z_]`)
-)
-
-// productionCypherLiterals returns every string literal in the non-test Go
-// files under root that looks like a Cypher write touching an id, keyed by
-// "relative/path.go:line". Constant concatenation of literals is folded.
-func productionCypherLiterals(t *testing.T, root string) map[string]string {
-	t.Helper()
-	out := make(map[string]string)
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case "testdata", "vendor", "node_modules", ".gocache":
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		fset := token.NewFileSet()
-		file, perr := parser.ParseFile(fset, path, nil, 0)
-		if perr != nil {
-			return perr
-		}
-		rel, _ := filepath.Rel(root, path)
-		ast.Inspect(file, func(node ast.Node) bool {
-			expr, ok := node.(ast.Expr)
-			if !ok {
-				return true
-			}
-			text, folded := foldStringLiterals(expr)
-			if !folded {
-				return true
-			}
-			if writeShape.MatchString(text) && labeledShape.MatchString(text) {
-				out[rel+":"+strconv.Itoa(fset.Position(expr.Pos()).Line)] = text
-			}
-			return false
-		})
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
-	}
-	return out
+// sweepResult is the outcome of the static sweep over a source tree.
+type sweepResult struct {
+	// Writes is the number of id writes CheckWriters saw in static-label sites.
+	Writes int
+	// Failures has one line per uncovered id write in a static-label site.
+	Failures []string
+	// Dynamic lists the template sites whose node label is a placeholder.
+	Dynamic []cypherSite
 }
 
-// foldStringLiterals returns the value of a string literal or of a `+` chain
-// of string literals.
-func foldStringLiterals(expr ast.Expr) (string, bool) {
-	switch typed := expr.(type) {
-	case *ast.BasicLit:
-		if typed.Kind != token.STRING {
-			return "", false
-		}
-		value, err := strconv.Unquote(typed.Value)
-		return value, err == nil
-	case *ast.BinaryExpr:
-		if typed.Op != token.ADD {
-			return "", false
-		}
-		left, lok := foldStringLiterals(typed.X)
-		right, rok := foldStringLiterals(typed.Y)
-		return left + right, lok && rok
-	case *ast.ParenExpr:
-		return foldStringLiterals(typed.X)
-	}
-	return "", false
-}
-
-// sweepForUncoveredIDWriters runs CheckWriters over every id-writing Cypher
-// literal under root and returns the number of id writes seen and one line per
-// uncovered write.
-func sweepForUncoveredIDWriters(t *testing.T, root string, labels map[string]bool) (int, []string) {
+// sweepSource runs CheckWriters over every static-label Cypher literal under
+// root and collects the dynamic-label template sites for the allowlist check.
+func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult {
 	t.Helper()
-	literals := productionCypherLiterals(t, root)
-	var failures []string
-	writing := 0
-	for site, text := range literals {
-		report := CheckWriters([]Statement{{Text: text, Callsite: site}}, labels)
-		writing += report.IDWrites
+	var result sweepResult
+	for _, site := range productionCypherSites(t, root) {
+		if site.DynamicLabel {
+			result.Dynamic = append(result.Dynamic, site)
+			continue
+		}
+		report := CheckWriters([]Statement{{Text: site.Text, Callsite: site.Key}}, labels)
+		result.Writes += report.IDWrites
 		for _, finding := range report.Findings {
-			failures = append(failures, site+" "+finding.Kind+" on "+finding.Variable+" labels="+strings.Join(finding.Labels, ":"))
+			result.Failures = append(result.Failures, site.Key+" "+finding.Kind+" on "+finding.Variable+" labels="+strings.Join(finding.Labels, ":"))
 		}
 	}
-	sort.Strings(failures)
-	return writing, failures
+	sort.Strings(result.Failures)
+	sort.Slice(result.Dynamic, func(i, j int) bool { return result.Dynamic[i].Key < result.Dynamic[j].Key })
+	return result
 }
 
 // TestEveryProductionIDWriterNamesAnAnchorLabel is the static half of the
@@ -122,9 +48,10 @@ func sweepForUncoveredIDWriters(t *testing.T, root string, labels map[string]boo
 // sets an id on a label outside UIDLabels and IDLabels would leave an
 // id-bearing node the labeled entity-context anchor cannot reach.
 //
-// The sweep reads literals and constant concatenations only. A statement whose
-// label is built at run time ("MERGE (n:" + label + ...) is invisible to it;
-// the replay half of the gate covers those.
+// Static-label sites are decided here. A statement whose label is built at run
+// time ("MERGE (n:" + label + ...) or a fmt template (`(n:%s`) is a dynamic-label
+// site: TestEveryDynamicLabelWriterIsNamed requires a named allowlist row for
+// each, and the replay half of the gate covers what the corpus executes.
 func TestEveryProductionIDWriterNamesAnAnchorLabel(t *testing.T) {
 	root, err := filepath.Abs("../../..")
 	if err != nil {
@@ -133,12 +60,12 @@ func TestEveryProductionIDWriterNamesAnAnchorLabel(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
 		t.Fatalf("go module root %s: %v", root, err)
 	}
-	writing, failures := sweepForUncoveredIDWriters(t, root, Labels())
-	if writing < 20 {
-		t.Fatalf("static sweep saw %d id writes; the sweep is not reading go/", writing)
+	result := sweepSource(t, root, Labels())
+	if result.Writes < 20 {
+		t.Fatalf("static sweep saw %d id writes; the sweep is not reading go/", result.Writes)
 	}
-	if len(failures) > 0 {
-		t.Fatalf("%d id write(s) outside the anchor label set:\n%s", len(failures), strings.Join(failures, "\n"))
+	if len(result.Failures) > 0 {
+		t.Fatalf("%d id write(s) outside the anchor label set:\n%s", len(result.Failures), strings.Join(result.Failures, "\n"))
 	}
 }
 
@@ -152,13 +79,13 @@ func TestStaticSweepFailsOnAPlantedUnconstrainedIDWriter(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "planted.go"), []byte(source), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, failures := sweepForUncoveredIDWriters(t, root, Labels())
+	failures := sweepSource(t, root, Labels()).Failures
 	if len(failures) != 1 || !strings.HasPrefix(failures[0], "planted.go:3 map_key on n labels=Unconstrained") {
 		t.Fatalf("failures = %v, want exactly the planted writer at planted.go:3", failures)
 	}
 	covered := Labels()
 	covered["Unconstrained"] = true
-	if _, failures := sweepForUncoveredIDWriters(t, root, covered); len(failures) != 0 {
+	if failures := sweepSource(t, root, covered).Failures; len(failures) != 0 {
 		t.Fatalf("failures with the planted label covered = %v, want none", failures)
 	}
 }

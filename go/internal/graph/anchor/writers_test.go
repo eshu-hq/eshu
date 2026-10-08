@@ -189,3 +189,110 @@ func TestLabelsIsTheUnionOfBothConstraintSets(t *testing.T) {
 		t.Error("Directory has neither constraint and must not be an anchor label")
 	}
 }
+
+// Shapes the first parser read wrongly and failed open on (review F4). Each is
+// a real Cypher write of an id on an uncovered label; each must be a finding.
+func TestCheckWritersFailsClosedOnShapesItCannotParse(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		params string
+		kind   string
+	}{
+		{
+			name: "a WHERE inside a list comprehension does not end the SET item",
+			text: "MERGE (n:Unconstrained {uid: $u}) SET n.tags = [t IN $tags WHERE t <> ''], n.id = $id",
+			kind: KindSetProperty,
+		},
+		{
+			name: "a WHERE inside a list comprehension in a SET map literal",
+			text: "MERGE (n:Unconstrained {uid: $u}) SET n += {tags: [t IN $tags WHERE t <> ''], id: $id}",
+			kind: KindDynamicMap,
+		},
+		{
+			name: "an EXISTS subquery inside a SET item",
+			text: "MERGE (n:Unconstrained {uid: $u}) SET n.flag = EXISTS { MATCH (n)-[:R]->() }, n.id = $u",
+			kind: KindSetProperty,
+		},
+		{
+			name: "a list literal of a node is not a relationship variable",
+			text: "MERGE (n:Unconstrained {id: $id}) WITH [n] AS ns RETURN ns",
+			kind: KindMapKey,
+		},
+		{
+			name: "a list index is not a relationship variable",
+			text: "UNWIND $rows AS row UNWIND range(0, 1) AS i CREATE (i:Unconstrained {id: row.ids[i]})",
+			kind: KindMapKey,
+		},
+		{
+			name: "a label conjunction with an ampersand",
+			text: "CREATE (n:Unconstrained&Other {id: $id})",
+			kind: KindMapKey,
+		},
+		{
+			name: "a label disjunction on a bound variable is unknown",
+			text: "MATCH (n:Function|Unconstrained {uid: $u}) SET n.id = $u",
+			kind: KindSetProperty,
+		},
+		{
+			name:   "a dynamic property key that is id",
+			text:   "MERGE (n:Unconstrained {uid: $u}) SET n[$k] = $v",
+			params: `{"u":"u","k":"id","v":"x"}`,
+			kind:   KindDynamicMap,
+		},
+		{
+			name: "a dynamic property key without parameters fails closed",
+			text: "MERGE (n:Unconstrained {uid: $u}) SET n[$k] = $v",
+			kind: KindDynamicMap,
+		},
+		{
+			name: "a property map with a nested map is not placed, and its id key still fails closed",
+			text: "MERGE (n:Function {id: $id, meta: {a: 1}})",
+			kind: KindMapKey,
+		},
+		{
+			name: "a pattern the parser cannot place still carries an id key",
+			text: "MERGE (a:Unconstrained)-[:R]->(b:Unconstrained) MERGE p = (c:Unconstrained {id: $id}) RETURN p",
+			kind: KindMapKey,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			report := check(t, tc.text, tc.params)
+			if len(report.Findings) == 0 {
+				t.Fatalf("no finding for %q (report %+v)", tc.text, report)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Kind == tc.kind {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("findings %+v lack kind %s", report.Findings, tc.kind)
+			}
+		})
+	}
+}
+
+// The counterpart rows: the same shapes on covered labels or with proof stay
+// clean, so the stricter parser does not turn production writes red.
+func TestCheckWritersStricterParserKeepsCoveredWritesClean(t *testing.T) {
+	clean := []struct{ name, text, params string }{
+		{"list comprehension in SET on a covered label", "MERGE (n:Function {uid: $u}) SET n.tags = [t IN $tags WHERE t <> ''], n.id = $id", ""},
+		{"EXISTS in SET on a covered label", "MERGE (n:Function {uid: $u}) SET n.flag = EXISTS { MATCH (n)-[:R]->() }, n.id = $u", ""},
+		{"conjunction with a covered label", "CREATE (n:Function&Other {id: $id})", ""},
+		{"relationship id map is not a node write", "MATCH (a:Function), (b:Function) MERGE (a)-[r:LINKS {id: $id}]->(b)", ""},
+		{"relationship id with a bracketed index", "MATCH (a:Function), (b:Function) MERGE (a)-[r:LINKS {id: $ids[0]}]->(b)", ""},
+		{"dynamic key proven not to be id", "MERGE (n:Unconstrained {uid: $u}) SET n[$k] = $v", `{"u":"u","k":"name","v":"x"}`},
+		{"a list literal in a read", "MATCH (n:Unconstrained) WITH [n] AS ns RETURN ns", ""},
+	}
+	for _, tc := range clean {
+		t.Run(tc.name, func(t *testing.T) {
+			report := check(t, tc.text, tc.params)
+			if len(report.Findings) != 0 {
+				t.Fatalf("clean statement flagged: %+v", report.Findings)
+			}
+		})
+	}
+}

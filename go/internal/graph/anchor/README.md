@@ -36,19 +36,34 @@ anchor/
   proof.go             parameter proof that a dynamic map has no id key
   census.go            Classify, CensusCypher, Census, EvaluateCensus
   reader.go            ReaderCensus: the census over a single-row graph read port
-  sweep_test.go        static sweep of go/ literals plus a planted violation
+  sweep_test.go        static sweep of go/ Cypher literals, planted violations
+  sweep_literals_test.go  which literals the sweep admits and how it folds them
+  sweep_allowlist_test.go  the named list of dynamic-label writers
   census_live_test.go  live Neo4j proof of the census Cypher
 ```
 
 ## What CheckWriters does and does not see
 
 It reads Cypher text. Over a replay recording it sees what ran, including
-labels chosen at run time. Over Go source (`sweep_test.go`) it sees string
-literals and constant `+` concatenations only, so a statement whose label is
-built from a variable is invisible to the static sweep and is covered by the
-replay half. A statement the replay never executes is covered by the static
-sweep if it is a literal, and by neither if it is both dynamic and unexecuted.
-That gap is why the census gate and the census gauge exist as well.
+labels chosen at run time.
+
+Over Go source the static sweep admits a string literal, or a `+` chain of
+literals and non-literal operands (a non-literal operand reads as `%s`, like a
+fmt verb), that has a write keyword (`MERGE`, `CREATE`, `SET`), an `id` token or
+a `+=` map write, and a node pattern: labeled (`(n:Label`), unlabeled with an
+`id` key in its map (`(n {id: ...})`), or with a placeholder label
+(`(n:%s`). DDL (`CREATE CONSTRAINT/INDEX ... FOR (n:%s)`) is skipped. Static
+labels go through `CheckWriters`. A placeholder-label writer cannot be decided
+statically, so each one must be a named row in `sweep_allowlist_test.go`, with a
+reason and the proof that covers it. A new dynamic-label writer, or an edit to a
+listed template, fails the sweep until the row is added or re-read. The 13
+listed writers are the canonical and semantic entity upsert templates, the
+`internal/graph` batch helpers, and the read-API latency seed tool.
+
+What stays uncovered is a dynamic-label writer the corpus replay does not
+execute and the sweep cannot see (a label built by a function call the fold
+cannot read, or a statement assembled outside a `+` chain or a fmt template). The
+census check and the census gauge are the backstop for that class.
 
 ## Operational notes
 

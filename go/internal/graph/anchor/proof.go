@@ -109,3 +109,19 @@ func containsIDKey(value any) bool {
 	}
 	return false
 }
+
+// parameterKeyIsNotID reports whether the key of a dynamic `SET n[<key>] = v`
+// is a bound parameter whose string value is not "id". Any other key
+// expression, including a literal (the scan blanks literals), is not proven.
+func parameterKeyIsNotID(keyExpression, parameters string) bool {
+	m := parameterExpression.FindStringSubmatch(strings.TrimSpace(keyExpression))
+	if m == nil || m[2] != "" || strings.TrimSpace(parameters) == "" {
+		return false
+	}
+	var bound map[string]any
+	if err := json.Unmarshal([]byte(parameters), &bound); err != nil {
+		return false
+	}
+	key, ok := bound[m[1]].(string)
+	return ok && key != "id"
+}

@@ -12,11 +12,15 @@
 
 - **One definition.** `Classify` and `CensusCypher` must agree. Change one and
   the other in the same commit, and run `census_live_test.go` on Neo4j before
-  you claim they agree (CI's live-backend job runs it).
-- **Fail closed.** `CheckWriters` reports an unlabeled variable and an
-  unprovable dynamic map as findings. Do not turn either into a skip. A new
-  false red is fixed by teaching `parse.go` the shape, with a test, not by an
-  allowlist.
+  you claim they agree. The live-backend CI job runs it from
+  `specs/live-tests.v1.yaml` (Neo4j only; it self-skips elsewhere).
+- **Fail closed.** `CheckWriters` reports an unlabeled variable, an unprovable
+  dynamic map or dynamic key, a label expression it cannot reduce, and an `id`
+  key left in a MERGE or CREATE clause after the recognized patterns are masked,
+  as findings. Do not turn any of them into a skip. A new false red is fixed by
+  teaching `parse.go` the shape, with a test row first, not by an allowlist.
+- **The dynamic-label allowlist is a review point.** Add a row to
+  `sweep_allowlist_test.go` only with a reason that names what covers the writer.
 - **A gate that sees nothing must fail.** Zero statements, or zero id writes,
   is a failure in the gate phase. Keep that when you edit the phase.
 - **No ids in output.** Failures print label sets and counts, never an entity

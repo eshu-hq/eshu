@@ -101,7 +101,11 @@ func analyze(statement Statement, anchorLabels map[string]bool) (int, []Finding)
 		}
 		key := write.variable + "\x00" + write.kind
 		if write.kind == KindDynamicMap && !covered {
-			if parametersProveNoID(write.expression, parsed.unwindAliases, statement.Parameters) {
+			if write.keyExpression != "" {
+				if parameterKeyIsNotID(write.keyExpression, statement.Parameters) {
+					continue
+				}
+			} else if parametersProveNoID(write.expression, parsed.unwindAliases, statement.Parameters) {
 				continue
 			}
 		}
