@@ -3,13 +3,15 @@
 
 -- #7635: durable producer-activation obligations. ProjectorQueue.Ack
 -- inserts one row for the scope generation it activates, inside the Ack
--- transaction, when the activated scope is a producer for a correlation
--- consumer domain (see the per-domain dependency index). The obligation
+-- transaction, for every activated generation. The obligation
 -- exists exactly when the activation commits and never for a rejected,
 -- stale, duplicate or superseded Ack. A leased consumer claims rows (FOR NO
 -- KEY UPDATE SKIP LOCKED, lease owner plus a monotonic claim_token),
--- reopens the succeeded consumer items that wait on the owed producer
--- generation, and completes the row only under a token fence. See
+-- retires generations without producer evidence as inapplicable, reopens
+-- the succeeded consumer items that wait on the owed producer
+-- generation, and completes the row only under a token fence. Ack owes
+-- unconditionally because the producer probe plans in ~8.4 ms per call and
+-- belongs on the background runner, not in Ack (F1). See
 -- go/internal/storage/postgres/activation.
 --
 -- This table mirrors activation_obligations (#7584) deliberately: a second

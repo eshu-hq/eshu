@@ -3,6 +3,11 @@
 
 package postgres
 
+import (
+	"regexp"
+	"strings"
+)
+
 // Producer-activation dependency index SQL (#7635). The per-domain table lives
 // in ingestion_producer_activation.go; this file holds the queries the index
 // runs. All key extraction is inline SQL composed from the fragments below —
@@ -190,6 +195,13 @@ WHERE owed_fact.scope_id = $1
 // candidate scopes' active facts, never the corpus. The owed keys arrive as
 // arrays ($3 digests, $4/$5 the (repo_key, tag) pairs in lockstep) fetched
 // once by producerOwedOCIKeysQuery.
+//
+// Clock skew: $2 is DB clock_timestamp() while work.updated_at is the
+// multi-host app clock, so the bound assumes NTP-bounded skew. Reducer-ahead
+// skew skips linked items that completed in the skew window (missed replay
+// until the next commit-driven epoch pass); DB-ahead skew double-pays
+// post-Ack items the epoch pass already reopened (drift). The next epoch
+// pass backstops both directions; no margin, per arbiter R2-A's exact bound.
 var producerOCILinkageConjunct = `
   AND work.updated_at < $2::timestamptz
   AND EXISTS (
@@ -229,7 +241,9 @@ WHERE state_fact.scope_id = $1
 // owed generation's terraform_state_resource ARNs ($3, fetched once by
 // producerOwedDriftARNsQuery), completed before the obligation was owed
 // ($2). It reads the item's own generation, mirroring the sealed-generation
-// drift evidence query, not the scope's active one.
+// drift evidence query, not the scope's active one. The $2 staleness bound
+// carries the same NTP-skew assumption documented on
+// producerOCILinkageConjunct above.
 const producerDriftLinkageConjunct = `
   AND work.updated_at < $2::timestamptz
   AND EXISTS (
@@ -265,24 +279,84 @@ var listProducerDependentDriftItemsQuery = deriveQueryAtMarker(
 	producerDriftLinkageConjunct,
 )
 
+// producerEvidenceCoreSQL is the producer-evidence predicate: identity-filter
+// facts (embedded verbatim with the loader's own 'fact' alias, mirroring
+// the loader including its tombstone filter) or terraform_state_resource
+// facts with a joinable ARN (mirroring the drift reader, which has no
+// tombstone filter).
+var producerEvidenceCoreSQL = `(` + identityFactFilterSQL + ` AND fact.is_tombstone = FALSE)
+      OR (fact.fact_kind = 'terraform_state_resource'
+          AND btrim(COALESCE(fact.payload->'attributes'->>'arn', '')) <> '')`
+
+// producerEvidenceFactKindPattern finds the fact_kind literals the identity
+// filter matches: the IN-list arm and the equality arms.
+var producerEvidenceFactKindPattern = regexp.MustCompile(`fact_kind\s+IN\s*\(([^)]*)\)|fact_kind\s*=\s*'([^']*)'`)
+
+// producerEvidenceFactKindsFromFilter extracts every fact_kind literal the
+// identity filter can match, in filter order. The probe's kind prefilter is
+// derived from the filter text itself, never hand-copied, so a new filter
+// arm cannot silently fall outside the prefilter.
+func producerEvidenceFactKindsFromFilter(filter string) []string {
+	var kinds []string
+	for _, match := range producerEvidenceFactKindPattern.FindAllStringSubmatch(filter, -1) {
+		if match[1] != "" {
+			for _, item := range strings.Split(match[1], ",") {
+				kinds = append(kinds, strings.Trim(strings.TrimSpace(item), "'"))
+			}
+			continue
+		}
+		kinds = append(kinds, match[2])
+	}
+	return kinds
+}
+
+// producerEvidenceFactKindListSQL is the comma-separated quoted kind list
+// for the probe's prefilter: every kind the identity filter matches plus
+// the drift arm's kind. Every OR arm below pins fact_kind, so the prefilter
+// is implied by the predicate and cannot change the probe outcome (pinned
+// by TestProducerEvidenceKindPrefilterDifferential); it lets the planner
+// seek fact_records_scope_generation_idx on
+// (scope_id, generation_id, fact_kind) instead of fetching the generation's
+// non-producer facts only to filter them out (F1: a 5000-row non-producer
+// generation costs 882 buffers unprefiltered, 4 prefiltered).
+func producerEvidenceFactKindListSQL() string {
+	kinds := append(producerEvidenceFactKindsFromFilter(identityFactFilterSQL), "terraform_state_resource")
+	quoted := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		quoted = append(quoted, "'"+kind+"'")
+	}
+	return strings.Join(quoted, ", ")
+}
+
 // producerEvidenceExistsQuery reports whether the generation carries
-// evidence a correlation consumer reads: identity-filter facts (embedded
-// verbatim with the loader's own 'fact' alias, mirroring the loader
-// including its tombstone filter) or terraform_state_resource facts with a
-// joinable ARN (mirroring the drift reader, which has no tombstone filter).
-// Ack owes the producer obligation exactly when this is true; the settle
-// re-probes it to retire tombstoned-between-Ack-and-settle generations as
-// inapplicable.
+// evidence a correlation consumer reads. The settle runs it once per
+// obligation and retires generations without producer evidence as
+// inapplicable; Ack owes unconditionally and never runs it (F1: ~8.4 ms of
+// planning per call belongs on the background runner, not in Ack).
 var producerEvidenceExistsQuery = `
 SELECT EXISTS (
   SELECT 1
   FROM fact_records AS fact
   WHERE fact.scope_id = $1
     AND fact.generation_id = $2
+    AND fact.fact_kind IN (` + producerEvidenceFactKindListSQL() + `)
     AND (
-      (` + identityFactFilterSQL + ` AND fact.is_tombstone = FALSE)
-      OR (fact.fact_kind = 'terraform_state_resource'
-          AND btrim(COALESCE(fact.payload->'attributes'->>'arn', '')) <> '')
+      ` + producerEvidenceCoreSQL + `
+    )
+)`
+
+// producerEvidenceExistsUnprefilteredQuery is the probe without the kind
+// prefilter. It exists only for
+// TestProducerEvidenceKindPrefilterDifferential, which proves the prefilter
+// never changes the outcome over a corpus carrying every arm kind.
+var producerEvidenceExistsUnprefilteredQuery = `
+SELECT EXISTS (
+  SELECT 1
+  FROM fact_records AS fact
+  WHERE fact.scope_id = $1
+    AND fact.generation_id = $2
+    AND (
+      ` + producerEvidenceCoreSQL + `
     )
 )`
 

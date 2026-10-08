@@ -377,3 +377,242 @@ func seedProducerDependentCostCorpus(t *testing.T, ctx context.Context, database
 		}
 	}
 }
+
+// fileHeavyProducerProbeFacts is the representative file-heavy generation
+// for the Ack probe cost proof: enough parsed file facts to expose a full
+// generation scan, with payloads shaped like real parsed files.
+const fileHeavyProducerProbeFacts = 2000
+
+// TestProducerEvidenceProbeCostLive is the F1 settle-probe cost proof: it runs
+// the exact producerEvidenceExistsQuery the producer settle executes per
+// obligation against representative generations (file-heavy with no producer
+// evidence, non-producer noise, OCI producer, drift producer, empty,
+// all-arms) and logs the EXPLAIN (ANALYZE, BUFFERS) plan for each. The test
+// asserts the probe outcome per generation; the plans and buffer counts are
+// the evidence the README's No-Regression note cites, not gated assertions.
+// The probe deliberately runs in the settle, not in Ack: it plans in ~8.4 ms
+// per call through the Go driver, which belongs on the background runner.
+func TestProducerEvidenceProbeCostLive(t *testing.T) {
+	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
+		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
+	}
+	database := openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_probe_cost")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	seedProducerEvidenceProbeCorpus(t, ctx, database)
+
+	for _, generation := range []struct {
+		id   string
+		want bool
+	}{
+		{"probe-file-heavy", false},
+		{"probe-noise", false},
+		{"probe-producer", true},
+		{"probe-drift", true},
+		{"probe-empty", false},
+		{"probe-all-arms", true},
+	} {
+		got, err := GenerationCarriesProducerEvidence(ctx, SQLDB{DB: database}, "git:probe", generation.id)
+		if err != nil {
+			t.Fatalf("probe producer evidence %s: %v", generation.id, err)
+		}
+		if got != generation.want {
+			t.Fatalf("probe producer evidence %s = %v, want %v", generation.id, got, generation.want)
+		}
+		planRows, err := database.QueryContext(ctx,
+			"EXPLAIN (ANALYZE, BUFFERS) "+producerEvidenceExistsQuery, "git:probe", generation.id)
+		if err != nil {
+			t.Fatalf("explain producer probe %s: %v", generation.id, err)
+		}
+		var plan strings.Builder
+		for planRows.Next() {
+			var line string
+			if err := planRows.Scan(&line); err != nil {
+				t.Fatalf("scan explain row %s: %v", generation.id, err)
+			}
+			plan.WriteString(line + "\n")
+		}
+		_ = planRows.Close()
+		if err := planRows.Err(); err != nil {
+			t.Fatalf("explain producer probe %s rows: %v", generation.id, err)
+		}
+		t.Logf("producer probe plan %s:\n%s", generation.id, plan.String())
+	}
+}
+
+// TestProducerEvidenceKindPrefilterDifferential proves the probe's kind
+// prefilter never changes the outcome: the shipped prefiltered query and
+// the unprefiltered query agree on every corpus generation, including one
+// carrying every identity-filter arm kind, so a derivation miss for any arm
+// would show up as a disagreement.
+func TestProducerEvidenceKindPrefilterDifferential(t *testing.T) {
+	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
+		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
+	}
+	database := openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_probe_diff")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	seedProducerEvidenceProbeCorpus(t, ctx, database)
+
+	run := func(query, generation string) bool {
+		t.Helper()
+		var exists bool
+		if err := database.QueryRowContext(ctx, query, "git:probe", generation).Scan(&exists); err != nil {
+			t.Fatalf("run probe variant on %s: %v", generation, err)
+		}
+		return exists
+	}
+	for _, generation := range []string{
+		"probe-file-heavy", "probe-noise", "probe-producer", "probe-drift", "probe-empty", "probe-all-arms",
+		"probe-bulk-1", "probe-bulk-10",
+	} {
+		filtered := run(producerEvidenceExistsQuery, generation)
+		unfiltered := run(producerEvidenceExistsUnprefilteredQuery, generation)
+		if filtered != unfiltered {
+			t.Errorf("probe disagreement on %s: prefiltered=%v unprefiltered=%v", generation, filtered, unfiltered)
+		}
+	}
+}
+
+// TestProducerEvidenceKindDerivation pins the derived kind list: every kind
+// the identity filter matches, in filter order. The drift arm's kind is
+// appended separately by producerEvidenceFactKindListSQL.
+func TestProducerEvidenceKindDerivation(t *testing.T) {
+	want := []string{
+		"oci_registry.image_tag_observation", "oci_registry.image_manifest", "oci_registry.image_index",
+		"aws_image_reference", "azure_image_reference", "gcp_image_reference",
+		"aws_relationship", "content_entity", "file",
+	}
+	if got := producerEvidenceFactKindsFromFilter(identityFactFilterSQL); !reflect.DeepEqual(got, want) {
+		t.Fatalf("derived filter kinds = %v, want %v", got, want)
+	}
+}
+
+// seedProducerEvidenceProbeCorpus builds the settle-probe cost generations: a
+// file-heavy generation with parsed file facts that carry no producer
+// evidence (the worst case: the probe must rule out every arm), a noise
+// generation with non-producer facts the kind prefilter skips, an OCI
+// producer, a drift producer, an empty generation, one generation carrying
+// every identity-filter arm kind, and bulk OCI generations that make the
+// corpus large enough to expose a missing generation anchor.
+func seedProducerEvidenceProbeCorpus(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	statements := []string{
+		`INSERT INTO ingestion_scopes
+		    (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+		     observed_at, ingested_at, status, active_generation_id)
+		 VALUES ('git:probe', 'repository', 'git', 'probe', 'git', 'probe',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'active', 'probe-file-heavy')`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		 SELECT 'probe-bulk-' || s, 'git:probe', 'snapshot',
+		        TIMESTAMPTZ '2026-06-01 00:00:00+00', TIMESTAMPTZ '2026-06-01 00:00:00+00',
+		        'superseded', TIMESTAMPTZ '2026-06-01 00:00:00+00'
+		 FROM generate_series(1, 10) AS s`,
+		`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 SELECT 'probe-bulk-' || s, 'git:probe', 'probe-bulk-' || ((s - 1) / 10000 + 1),
+		        'oci_registry.image_manifest',
+		        'oci_registry.image_manifest:probe-bulk-' || s, 'oci_registry', 'probe-bulk-' || s,
+		        TIMESTAMPTZ '2026-06-01 00:00:00+00', TIMESTAMPTZ '2026-06-01 00:00:00+00', FALSE,
+		        '{"repository_id": "example/bulk", "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"}'::jsonb
+		 FROM generate_series(1, 100000) AS s`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		 VALUES ('probe-file-heavy', 'git:probe', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00',
+		         'active', TIMESTAMPTZ '2026-07-01 00:00:00+00'),
+		        ('probe-producer', 'git:probe', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 01:00:00+00', TIMESTAMPTZ '2026-07-01 01:00:00+00',
+		         'superseded', TIMESTAMPTZ '2026-07-01 01:00:00+00'),
+		        ('probe-drift', 'git:probe', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 02:00:00+00', TIMESTAMPTZ '2026-07-01 02:00:00+00',
+		         'superseded', TIMESTAMPTZ '2026-07-01 02:00:00+00'),
+		        ('probe-empty', 'git:probe', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 03:00:00+00', TIMESTAMPTZ '2026-07-01 03:00:00+00',
+		         'superseded', TIMESTAMPTZ '2026-07-01 03:00:00+00')`,
+		fmt.Sprintf(`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 SELECT 'probe-file-' || s, 'git:probe', 'probe-file-heavy', 'file',
+		        'file:probe-file-' || s, 'git', 'probe-file-' || s,
+		        TIMESTAMPTZ '2026-07-01 00:00:00+00', TIMESTAMPTZ '2026-07-01 00:00:00+00', FALSE,
+		        jsonb_build_object('path', 'src/file-' || s || '.go',
+		            'parsed_file_data', jsonb_build_object('symbols',
+		                (SELECT jsonb_agg(jsonb_build_object('name', 'Sym' || n, 'kind', 'func'))
+		                 FROM generate_series(1, 20) AS n)))
+		 FROM generate_series(1, %d) AS s`, fileHeavyProducerProbeFacts),
+		`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 VALUES ('probe-manifest', 'git:probe', 'probe-producer', 'oci_registry.image_manifest',
+		         'oci_registry.image_manifest:probe-manifest', 'oci_registry', 'probe-manifest',
+		         TIMESTAMPTZ '2026-07-01 01:00:00+00', TIMESTAMPTZ '2026-07-01 01:00:00+00', FALSE,
+		         '{"repository_id": "example/app", "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"}'::jsonb)`,
+		`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 VALUES ('probe-state', 'git:probe', 'probe-drift', 'terraform_state_resource',
+		         'terraform_state_resource:probe-state', 'terraform', 'probe-state',
+		         TIMESTAMPTZ '2026-07-01 02:00:00+00', TIMESTAMPTZ '2026-07-01 02:00:00+00', FALSE,
+		         '{"attributes": {"arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-probe"}}'::jsonb)`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		 VALUES ('probe-noise', 'git:probe', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 05:00:00+00', TIMESTAMPTZ '2026-07-01 05:00:00+00',
+		         'superseded', TIMESTAMPTZ '2026-07-01 05:00:00+00'),
+		        ('probe-all-arms', 'git:probe', 'snapshot',
+		         TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00',
+		         'superseded', TIMESTAMPTZ '2026-07-01 04:00:00+00')`,
+		`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 SELECT 'probe-noise-' || s, 'git:probe', 'probe-noise', 'code_symbol',
+		        'code_symbol:probe-noise-' || s, 'git', 'probe-noise-' || s,
+		        TIMESTAMPTZ '2026-07-01 05:00:00+00', TIMESTAMPTZ '2026-07-01 05:00:00+00', FALSE,
+		        '{"name": "NoiseSymbol"}'::jsonb
+		 FROM generate_series(1, 5000) AS s`,
+		`INSERT INTO fact_records
+		    (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+		     source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+		 VALUES
+		  ('probe-arm-tag', 'git:probe', 'probe-all-arms', 'oci_registry.image_tag_observation',
+		   'oci_registry.image_tag_observation:probe-arm-tag', 'oci_registry', 'probe-arm-tag',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE, '{}'::jsonb),
+		  ('probe-arm-manifest', 'git:probe', 'probe-all-arms', 'oci_registry.image_manifest',
+		   'oci_registry.image_manifest:probe-arm-manifest', 'oci_registry', 'probe-arm-manifest',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE, '{}'::jsonb),
+		  ('probe-arm-index', 'git:probe', 'probe-all-arms', 'oci_registry.image_index',
+		   'oci_registry.image_index:probe-arm-index', 'oci_registry', 'probe-arm-index',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE, '{}'::jsonb),
+		  ('probe-arm-aws', 'git:probe', 'probe-all-arms', 'aws_image_reference',
+		   'aws_image_reference:probe-arm-aws', 'aws', 'probe-arm-aws',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE, '{}'::jsonb),
+		  ('probe-arm-azure', 'git:probe', 'probe-all-arms', 'azure_image_reference',
+		   'azure_image_reference:probe-arm-azure', 'azure', 'probe-arm-azure',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE, '{}'::jsonb),
+		  ('probe-arm-gcp', 'git:probe', 'probe-all-arms', 'gcp_image_reference',
+		   'gcp_image_reference:probe-arm-gcp', 'gcp', 'probe-arm-gcp',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE, '{}'::jsonb),
+		  ('probe-arm-rel', 'git:probe', 'probe-all-arms', 'aws_relationship',
+		   'aws_relationship:probe-arm-rel', 'aws', 'probe-arm-rel',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE,
+		   '{"target_type": "container_image"}'::jsonb),
+		  ('probe-arm-entity', 'git:probe', 'probe-all-arms', 'content_entity',
+		   'content_entity:probe-arm-entity', 'git', 'probe-arm-entity',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE,
+		   '{"entity_metadata": {"container_images": []}}'::jsonb),
+		  ('probe-arm-file', 'git:probe', 'probe-all-arms', 'file',
+		   'file:probe-arm-file', 'git', 'probe-arm-file',
+		   TIMESTAMPTZ '2026-07-01 04:00:00+00', TIMESTAMPTZ '2026-07-01 04:00:00+00', FALSE,
+		   '{"parsed_file_data": {"dockerfile_stages": []}}'::jsonb)`,
+		"ANALYZE",
+	}
+	for _, statement := range statements {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed producer evidence probe corpus: %v", err)
+		}
+	}
+}

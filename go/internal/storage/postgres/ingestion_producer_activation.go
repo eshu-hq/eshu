@@ -72,8 +72,12 @@ var ErrProducerLeaseLost = fmt.Errorf("producer activation obligation lease expi
 
 // GenerationCarriesProducerEvidence reports whether the generation carries
 // evidence a correlation consumer reads: identity-filter facts or
-// terraform_state_resource facts with a joinable ARN. Ack calls it inside
-// its transaction; it is one indexed EXISTS probe.
+// terraform_state_resource facts with a joinable ARN. The producer settle
+// calls it once per obligation; it is one generation-anchored EXISTS probe
+// (TestProducerEvidenceProbeCostLive pins the plan). It must stay out of
+// the Ack transaction: it plans in ~8.4 ms per call through the Go driver
+// (F1), so Ack owes unconditionally and the settle retires non-producers as
+// inapplicable instead.
 func GenerationCarriesProducerEvidence(ctx context.Context, queryer db.Queryer, scopeID, generationID string) (bool, error) {
 	rows, err := queryer.QueryContext(ctx, producerEvidenceExistsQuery, scopeID, generationID)
 	if err != nil {

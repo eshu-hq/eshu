@@ -591,3 +591,122 @@ func TestProducerActivationDriftReopenLive(t *testing.T) {
 		t.Fatalf("obligation state = %q, want completed", state)
 	}
 }
+
+// TestProducerActivationRetentionCascadeLive pins the new table's ON DELETE
+// CASCADE: deleting a generation removes its producer obligation row. The
+// default-off story depends on it (pending obligations wait for retention,
+// not for a consumer), and a one-keyword DDL typo would otherwise break
+// generation retention fleet-wide. Mirror of
+// TestActivationObligationRetentionCascadeLive for activation_obligations.
+func TestProducerActivationRetentionCascadeLive(t *testing.T) {
+	database := openProducerActivationProofDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	now := time.Now().UTC().Truncate(time.Second)
+	for _, step := range []string{
+		`INSERT INTO ingestion_scopes
+		    (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+		     observed_at, ingested_at, status, active_generation_id)
+		VALUES ('t:cascade', 'container_registry_repository', 'oci_registry', 'cascade', 'oci_registry', 'cascade',
+		    $1, $1, 'active', 'gen-cascade-active')`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		VALUES ('gen-cascade-active', 't:cascade', 'snapshot', $1, $1, 'active', $1),
+		       ('gen-cascade-old', 't:cascade', 'snapshot', $1, $1, 'superseded', $1)`,
+	} {
+		if _, err := database.ExecContext(ctx, step, now); err != nil {
+			t.Fatalf("seed cascade scope: %v", err)
+		}
+	}
+	executor := postgres.SQLDB{DB: database}
+	for _, generation := range []string{"gen-cascade-active", "gen-cascade-old"} {
+		if err := activation.InsertProducerActivation(ctx, executor, "t:cascade", generation, "cascade-"+generation); err != nil {
+			t.Fatalf("insert producer obligation %s: %v", generation, err)
+		}
+	}
+	if _, err := database.ExecContext(ctx, `DELETE FROM scope_generations WHERE generation_id = 'gen-cascade-old'`); err != nil {
+		t.Fatalf("delete superseded generation: %v", err)
+	}
+	var remaining []string
+	rows, err := database.QueryContext(ctx, `SELECT generation_id FROM producer_activation_obligations ORDER BY generation_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		remaining = append(remaining, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(remaining, []string{"gen-cascade-active"}) {
+		t.Fatalf("remaining obligations = %v, want only gen-cascade-active", remaining)
+	}
+}
+
+// TestProducerActivationInsertConflictBranchesLive pins the three
+// insertProducerObligationQuery conflict behaviors: an obsolete row is owed
+// again (back to pending), while completed and inapplicable rows stay
+// terminal. Normal duplicate Acks never reach these branches (ackRows != 1
+// rejects them first), so a WHERE typo would otherwise silently revive a
+// terminal obligation and violate exactly-once if recovery or an admin
+// re-Ack ever hit it.
+func TestProducerActivationInsertConflictBranchesLive(t *testing.T) {
+	database := openProducerActivationProofDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	now := time.Now().UTC().Truncate(time.Second)
+	for _, step := range []string{
+		`INSERT INTO ingestion_scopes
+		    (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+		     observed_at, ingested_at, status, active_generation_id)
+		VALUES ('t:conflict', 'container_registry_repository', 'oci_registry', 'conflict', 'oci_registry', 'conflict',
+		    $1, $1, 'active', 'gen-done')`,
+		`INSERT INTO scope_generations
+		    (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+		VALUES ('gen-done', 't:conflict', 'snapshot', $1, $1, 'active', $1),
+		       ('gen-stale', 't:conflict', 'snapshot', $1, $1, 'superseded', $1),
+		       ('gen-empty', 't:conflict', 'snapshot', $1, $1, 'superseded', $1)`,
+		`INSERT INTO producer_activation_obligations
+		    (scope_id, generation_id, state, work_item_id, created_at, finished_at)
+		VALUES ('t:conflict', 'gen-done', 'completed', 'conflict-gen-done', $1, $1),
+		       ('t:conflict', 'gen-stale', 'obsolete', 'conflict-gen-stale', $1, $1),
+		       ('t:conflict', 'gen-empty', 'inapplicable', 'conflict-gen-empty', $1, $1)`,
+	} {
+		if _, err := database.ExecContext(ctx, step, now); err != nil {
+			t.Fatalf("seed conflict scope: %v", err)
+		}
+	}
+	executor := postgres.SQLDB{DB: database}
+	for _, generation := range []string{"gen-done", "gen-stale", "gen-empty"} {
+		if err := activation.InsertProducerActivation(ctx, executor, "t:conflict", generation, "reack-"+generation); err != nil {
+			t.Fatalf("re-insert producer obligation %s: %v", generation, err)
+		}
+	}
+	for generation, want := range map[string]string{
+		"gen-done": "completed", "gen-stale": "pending", "gen-empty": "inapplicable",
+	} {
+		var (
+			state    string
+			finished sql.NullTime
+		)
+		if err := database.QueryRowContext(ctx,
+			`SELECT state, finished_at FROM producer_activation_obligations WHERE scope_id = 't:conflict' AND generation_id = $1`,
+			generation).Scan(&state, &finished); err != nil {
+			t.Fatalf("read producer obligation %s: %v", generation, err)
+		}
+		if state != want {
+			t.Errorf("obligation %s state = %q, want %q", generation, state, want)
+		}
+		if want == "pending" && finished.Valid {
+			t.Errorf("re-owed obligation %s keeps finished_at %v, want NULL", generation, finished.Time)
+		}
+		if want != "pending" && !finished.Valid {
+			t.Errorf("terminal obligation %s lost finished_at, want it kept", generation)
+		}
+	}
+}

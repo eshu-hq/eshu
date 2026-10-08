@@ -59,7 +59,7 @@ import (
 // 160_activation_obligations.sql; #7009 adds 161_status_summary_snapshots.sql;
 // #7620 adds 162_repository_reindex_requests.sql; #7635 adds
 // 163_producer_activation_obligations.sql.
-const goldenBootstrapDefinitionsDigest = "61849d153610a20aebcf321286715f273e33ce94990151029cf4172d35218afe"
+const goldenBootstrapDefinitionsDigest = "6008f25672ccbbe4d7ee4c9b8b633f238d0a287dd2b06376a4dfff5c36a53599"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

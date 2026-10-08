@@ -16,18 +16,15 @@ import (
 )
 
 // oweProducerActivationObligation records one producer-activation obligation
-// (#7635) when the activated generation carries evidence a correlation
-// consumer reads, so a quiet Ack still replays the consumers that wait on
-// it. Generations that carry no producer evidence owe nothing. The caller
-// owns the transaction.
+// (#7635) for every activated generation, inside the Ack transaction, so a
+// quiet Ack still replays the consumers that wait on it. The settle decides
+// whether the generation carries producer evidence and retires the rest as
+// inapplicable. An earlier shape probed in Ack and owed only for producers,
+// but the probe plans in ~8.4 ms per Ack through the Go driver (F1) while
+// the insert costs ~0.1 ms, so probing on the Ack critical path would
+// multiply Ack server time and the scope-row hold; the background settle
+// absorbs the probe instead. The caller owns the transaction.
 func oweProducerActivationObligation(ctx context.Context, tx db.ExecQueryer, scopeID, generationID string) error {
-	producer, err := GenerationCarriesProducerEvidence(ctx, tx, scopeID, generationID)
-	if err != nil {
-		return err
-	}
-	if !producer {
-		return nil
-	}
 	return activation.InsertProducerActivation(ctx, tx, scopeID, generationID, projectorWorkItemID(scopeID, generationID))
 }
 
