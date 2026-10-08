@@ -31,7 +31,7 @@ func Tools() []toolcontract.ToolDefinition {
 func findCodeTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_code",
-		Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names. A row docstring, and every echo of it in the row, is clipped to 512 bytes (docstring_clipped, docstring_total_bytes; the response reports docstring_clip_bytes and docstring_clipped_rows); use get_entity_content with the row's entity_id for the full docstring.",
+		Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names. A row docstring, and every echo of it in the row, is clipped to 512 bytes (docstring_clipped, docstring_total_bytes; the response reports docstring_clip_bytes and docstring_clipped_rows); use get_entity_content with the row's entity_id for the full docstring. A reply is capped at 262,144 bytes (256 KiB). Rows carry up to several KiB each, so a limit near 200 can exceed the cap: the reply is then a page of whole rows with truncated=true, budget_page, and next_offset; pass next_offset as offset to read the remainder. Paging stays inside the first 200 ranked matches (offset must be below 200).",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -59,10 +59,17 @@ func findCodeTool() toolcontract.ToolDefinition {
 				},
 				"limit": map[string]any{
 					"type":        "integer",
-					"description": "Maximum number of results to return",
+					"description": "Maximum number of results to return; the 262,144-byte reply cap can return fewer rows with next_offset",
 					"default":     10,
 					"minimum":     1,
 					"maximum":     200,
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "Zero-based result offset for paging; use next_offset from a truncated reply. Offset plus limit stays inside the first 200 ranked matches",
+					"default":     0,
+					"minimum":     0,
+					"maximum":     199,
 				},
 				"scope": map[string]any{
 					"type":        "string",

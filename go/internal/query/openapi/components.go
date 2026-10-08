@@ -385,6 +385,7 @@ const components = `  "components": {
           },
           "count": {"type": "integer", "description": "Number of rows returned in this page."},
           "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+          "offset": {"type": "integer", "description": "Zero-based start of this page; present only when the request set a positive offset."},
           "truncated": {"type": "boolean", "description": "True when at least one additional matching row exists beyond this page."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
           "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},

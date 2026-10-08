@@ -139,8 +139,7 @@ embedded resource holding the complete canonical envelope or plain JSON. When
 the duplicate copies exceed the budget but the complete resource-only result
 fits, dispatch omits `structuredContent` and returns `isError=false`; clients
 must parse the resource's JSON `text` when the structured copy is absent. When
-the resource-only result also exceeds the budget, dispatch replaces the payload
-with a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
+the resource-only result also exceeds the budget, `find_code` and `search_entity_content` (budgetPagedTools) answer with the largest first run of whole rows that fits (`truncated=true`, `next_offset`, `budget_page`, `truth.omissions`; #7725); every other tool, and a first row that is over budget alone, gets a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
 carrying `response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name,
 and narrowing guidance. Per-route token budgets such as the relationship-story
 `token_budget` still apply first; this is the outer, tool-agnostic guard, the
@@ -155,9 +154,9 @@ Observability Evidence: the resource-only path emits `mcp tool response resource
 fallback` with `tool`, `response_bytes`, `emitted_bytes`, and `budget_bytes`.
 Refusal emits `mcp tool response over budget` and returns budget accounting and
 narrowing guidance in `error.details`. Per-tool `eshu_dp_mcp_response_bytes`,
-`eshu_dp_mcp_response_resource_fallback_total`, and
+`eshu_dp_mcp_response_resource_fallback_total`, `eshu_dp_mcp_response_budget_page_total` (log `mcp tool response budget page` carries `rows_returned`, `rows_available`), and
 `eshu_dp_mcp_response_over_budget_total` distinguish the attempted size,
-successful fallback, and refusal (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
+successful fallback, budget page, and refusal (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
 
 ## Tool groups
 

@@ -100,9 +100,12 @@
 // includes both structuredContent and a complete embedded resource. If those
 // copies exceed the budget together but the resource-only result fits, dispatch
 // omits structuredContent and returns success with the full payload in the
-// resource. If the resource-only result also exceeds the budget, dispatch
-// returns the mcp_response_over_budget error envelope with budget accounting
-// and narrowing guidance. Per-route token budgets still apply first.
+// resource. If the resource-only result also exceeds the budget, find_code and
+// search_entity_content return the largest first run of whole rows that fits,
+// with truncated=true and next_offset (trimToBudgetPage, #7725); any other
+// tool, or a request whose first row alone is over budget, gets the
+// mcp_response_over_budget error envelope with budget accounting and narrowing
+// guidance. Per-route token budgets still apply first.
 //
 // In HTTP mode the transport is wrapped with the caller-supplied credential
 // middleware when the server is constructed with WithTransportAuth (issue

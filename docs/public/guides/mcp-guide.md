@@ -21,8 +21,10 @@ authoritative. Most responses carry the complete envelope in both
 `structuredContent` and the resource. If that duplicate exceeds the 256 KiB MCP
 response budget but the resource alone fits, the successful response omits
 `structuredContent`; the resource still holds the full envelope. If the resource
-alone exceeds the budget, the result carries `mcp_response_over_budget` and
-narrowing guidance. Do not parse the text summary.
+alone exceeds the budget, `find_code` and `search_entity_content` return a page
+of whole rows with `truncated=true` and `next_offset`; every other tool, and a
+single row that is over budget by itself, carries `mcp_response_over_budget`
+and narrowing guidance. Do not parse the text summary.
 
 Important envelope fields:
 

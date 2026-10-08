@@ -166,7 +166,7 @@ func contentTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_entity_content",
-			Description: "Search cached entity source snippets across repositories (default 10 rows). Each row's source_cache is clipped to 4,096 bytes and a clipped row carries source_cache_clipped; the response reports source_cache_clip_bytes and source_cache_clipped_rows. A docstring is clipped to 512 bytes the same way (docstring_clipped, docstring_total_bytes, docstring_clip_bytes, docstring_clipped_rows). Use get_entity_content with the row's entity_id for the full body and docstring.",
+			Description: "Search cached entity source snippets across repositories (default 10 rows). Each row's source_cache is clipped to 4,096 bytes and a clipped row carries source_cache_clipped; the response reports source_cache_clip_bytes and source_cache_clipped_rows. A docstring is clipped to 512 bytes the same way (docstring_clipped, docstring_total_bytes, docstring_clip_bytes, docstring_clipped_rows). Use get_entity_content with the row's entity_id for the full body and docstring. A reply is capped at 262,144 bytes (256 KiB). Rows carry up to several KiB each, so a limit near 200 can exceed the cap: the reply is then a page of whole rows with truncated=true, budget_page, and next_offset; pass next_offset as offset to read the remainder.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -181,14 +181,14 @@ func contentTools() []ToolDefinition {
 					},
 					"limit": map[string]any{
 						"type":        "integer",
-						"description": "Maximum search results to return",
+						"description": "Maximum search results to return; the 262,144-byte reply cap can return fewer rows with next_offset",
 						"default":     10,
 						"minimum":     1,
 						"maximum":     200,
 					},
 					"offset": map[string]any{
 						"type":        "integer",
-						"description": "Zero-based result offset for paging",
+						"description": "Zero-based result offset for paging; use next_offset from a truncated reply",
 						"default":     0,
 						"minimum":     0,
 						"maximum":     10000,

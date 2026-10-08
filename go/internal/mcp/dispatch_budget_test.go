@@ -40,13 +40,17 @@ func bigRowsHandler(t *testing.T, rowCount, rowBytes int) http.Handler {
 	})
 }
 
+// dispatchWithBudget dispatches find_symbol, a tool that does not page, so the
+// tests built on it keep exercising the over-budget error envelope. The paging
+// tools (budgetPagedTools) answer an over-budget reply with a page instead and
+// are covered by dispatch_budget_page_test.go.
 func dispatchWithBudget(t *testing.T, handler http.Handler, budget int) (*dispatchResult, error) {
 	t.Helper()
 	return dispatchToolWithOptions(
 		context.Background(),
 		handler,
-		"find_code",
-		map[string]any{"query": "Handle", "limit": 5},
+		"find_symbol",
+		map[string]any{"symbol": "Handle", "limit": 5},
 		"",
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		dispatchOptions{responseByteBudget: budget},
@@ -303,8 +307,8 @@ func TestDefaultDispatchAppliesResponseBudget(t *testing.T) {
 	result, err := dispatchTool(
 		context.Background(),
 		handler,
-		"find_code",
-		map[string]any{"query": "Handle", "limit": 5},
+		"find_symbol",
+		map[string]any{"symbol": "Handle", "limit": 5},
 		"",
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)

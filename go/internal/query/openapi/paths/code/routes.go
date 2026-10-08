@@ -25,6 +25,7 @@ const Routes = `
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
                   "language": {"type": "string", "description": "Optional language filter"},
                   "limit": {"type": "integer", "description": "Maximum returned page size (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200},
+                  "offset": {"type": "integer", "description": "Zero-based start of the page inside the first 200 ranked matches; the effective limit shrinks so offset plus limit stays within 200.", "default": 0, "minimum": 0, "maximum": 199},
                   "exact": {"type": "boolean", "description": "When true, require a complete case-sensitive entity-name match. Exact global searches may be shorter than 3 characters.", "default": false}
                 }
               }

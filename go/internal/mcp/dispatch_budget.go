@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // defaultToolResponseByteBudget caps the serialized mcpToolResult, excluding
@@ -41,7 +42,10 @@ const errorCodeResponseOverBudget query.ErrorCode = "mcp_response_over_budget"
 // result. When budget <= 0 the guard is disabled and the result is returned
 // unchanged. If both complete copies exceed the budget but the full embedded
 // resource fits, the structured copy is omitted. If the resource also exceeds
-// the budget, a bounded error envelope replaces the result.
+// the budget and the tool pages (budgetPagedTools), the result becomes the
+// largest page of whole rows that fits, marked truncated with a next_offset
+// (trimToBudgetPage). Otherwise, or when the first row alone is over budget,
+// a bounded error envelope replaces the result.
 //
 // The replacement is itself an error envelope (IsError=true) so MCP clients and
 // summarizers treat it as a structured failure, not partial data. A structured
@@ -72,6 +76,20 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 			)
 		}
 		return result
+	}
+	if page, ok := trimToBudgetPage(result, toolName, budget); ok {
+		recordResponseBudgetPage(toolName)
+		if logger != nil {
+			logger.Info("mcp tool response budget page",
+				"tool", toolName,
+				"response_bytes", size,
+				"emitted_bytes", page.bytes,
+				"budget_bytes", budget,
+				"rows_returned", page.rowsReturned,
+				"rows_available", page.rowsAvailable,
+			)
+		}
+		return page.result
 	}
 	recordResponseOverBudget(toolName)
 	if logger != nil {
@@ -165,6 +183,7 @@ type dispatchBudgetInstruments struct {
 	bytes            metric.Int64Histogram
 	overBudget       metric.Int64Counter
 	resourceFallback metric.Int64Counter
+	budgetPage       metric.Int64Counter
 }
 
 var (
@@ -197,6 +216,12 @@ func dispatchBudgetMetrics() *dispatchBudgetInstruments {
 			metric.WithDescription("MCP tool responses whose full resource was preserved by omitting oversized structuredContent, labeled by tool"),
 		); err == nil {
 			inst.resourceFallback = counter
+		}
+		if counter, err := meter.Int64Counter(
+			"eshu_dp_mcp_response_budget_page_total",
+			metric.WithDescription("MCP tool responses trimmed to a page of whole rows with truncated=true and a next_offset because the full result exceeded the response budget, labeled by tool"),
+		); err == nil {
+			inst.budgetPage = counter
 		}
 		dispatchBudgetInst = inst
 	})
@@ -238,4 +263,151 @@ func recordResponseResourceFallback(toolName string) {
 	if inst := dispatchBudgetMetrics(); inst.resourceFallback != nil {
 		inst.resourceFallback.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
 	}
+}
+
+// recordResponseBudgetPage counts one over-budget response answered as a page
+// of whole rows instead of the over-budget error envelope.
+func recordResponseBudgetPage(toolName string) {
+	if inst := dispatchBudgetMetrics(); inst.budgetPage != nil {
+		inst.budgetPage.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
+	}
+}
+
+// budgetPageReason is the reason string a budget page reports in
+// data.budget_page.reason and in the truth.omissions detail.
+const budgetPageReason = "response_byte_budget"
+
+// budgetPagedTools names the tools whose data.results rows are independent,
+// ordered, and re-readable through the data.offset the same tool accepts.
+// Only these tools can answer an over-budget request with a page: a client
+// that gets next_offset can pass it back as offset and read the remainder, so
+// no row is lost. Every other tool keeps the over-budget error envelope.
+var budgetPagedTools = map[string]struct{}{
+	"find_code":             {},
+	"search_entity_content": {},
+}
+
+// budgetPage is the outcome of trimming an over-budget response to a page.
+type budgetPage struct {
+	result        *dispatchResult
+	rowsReturned  int
+	rowsAvailable int
+	bytes         int
+}
+
+// trimToBudgetPage trims an over-budget success envelope to the largest page
+// of whole rows that fits budget in its single-copy (resource-only) form. It
+// reports false when the tool does not page, the response is not a row list,
+// or even the first row alone is over budget; the caller then keeps the
+// over-budget error envelope.
+//
+// The trim runs on the serialized-size measure the budget itself uses
+// (estimateResponseBytes), not on an estimate, so a returned page is within
+// budget by construction. The page keeps the first rows in handler order,
+// marks data.truncated, and sets data.next_offset to the offset of the first
+// dropped row, so offset-paging the same request reads every row exactly once.
+// The cut is a binary search over whole rows; a row is never split.
+func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budgetPage, bool) {
+	if _, paged := budgetPagedTools[toolName]; !paged || result == nil || result.IsError {
+		return budgetPage{}, false
+	}
+	envelope := result.Envelope
+	if envelope == nil || envelope.Error != nil || envelope.Truth == nil {
+		return budgetPage{}, false
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		return budgetPage{}, false
+	}
+	rows, ok := data["results"].([]any)
+	if !ok || len(rows) < 2 {
+		return budgetPage{}, false
+	}
+	offset := pageOffset(data["offset"])
+	candidate := func(keep int) *dispatchResult {
+		page := budgetPageEnvelope(envelope, data, rows, keep, offset, budget)
+		return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
+	}
+	if size := estimateResponseBytes(candidate(1)); size <= 0 || size > budget {
+		return budgetPage{}, false
+	}
+	// The full row set is known to be over budget in this form, so the answer
+	// lies in [1, len(rows)-1]; keep is the largest count known to fit.
+	keep, over := 1, len(rows)
+	for over-keep > 1 {
+		middle := keep + (over-keep)/2
+		if size := estimateResponseBytes(candidate(middle)); size > 0 && size <= budget {
+			keep = middle
+		} else {
+			over = middle
+		}
+	}
+	page := candidate(keep)
+	return budgetPage{
+		result:        page,
+		rowsReturned:  keep,
+		rowsAvailable: len(rows),
+		bytes:         estimateResponseBytes(page),
+	}, true
+}
+
+// budgetPageEnvelope returns a copy of envelope that carries only the first
+// keep rows. The original envelope and its data map are left untouched. The
+// copy reports truncated, the next offset, a budget_page block, a
+// truth.omissions entry, and clip counts recomputed over the kept rows.
+func budgetPageEnvelope(
+	envelope *query.ResponseEnvelope,
+	data map[string]any,
+	rows []any,
+	keep, offset, budget int,
+) *query.ResponseEnvelope {
+	page := make(map[string]any, len(data)+2)
+	for key, value := range data {
+		page[key] = value
+	}
+	kept := rows[:keep]
+	page["results"] = kept
+	page["count"] = keep
+	page["truncated"] = true
+	page["next_offset"] = offset + keep
+	page["budget_page"] = map[string]any{
+		"reason":         budgetPageReason,
+		"budget_bytes":   budget,
+		"rows_returned":  keep,
+		"rows_available": len(rows),
+	}
+	recountClipped(page, "source_cache_clipped_rows", "source_cache_clipped", kept)
+	recountClipped(page, "docstring_clipped_rows", "docstring_clipped", kept)
+
+	truth := *envelope.Truth
+	truth.Omissions = append(append([]querycontract.TruthOmission(nil), truth.Omissions...), querycontract.TruthOmission{
+		Section: "results",
+		Detail:  budgetPageReason,
+		Total:   len(rows),
+	})
+	return &query.ResponseEnvelope{Data: page, Truth: &truth, Error: envelope.Error}
+}
+
+// recountClipped rewrites a response-level clipped-row count over the kept
+// rows. It does nothing when the response never carried the count.
+func recountClipped(page map[string]any, countKey, rowKey string, rows []any) {
+	if _, present := page[countKey]; !present {
+		return
+	}
+	clipped := 0
+	for _, row := range rows {
+		if fields, ok := row.(map[string]any); ok && fields[rowKey] == true {
+			clipped++
+		}
+	}
+	page[countKey] = clipped
+}
+
+// pageOffset reads the page's start offset from the decoded JSON data block.
+// A missing, non-numeric, or negative value is offset zero.
+func pageOffset(value any) int {
+	if number, ok := value.(float64); ok && number > 0 {
+		return int(number)
+	}
+	return 0
 }

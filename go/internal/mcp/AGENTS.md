@@ -119,6 +119,13 @@
   paths like `/api/v0/services/workload:name/context` which no handler
   matches.
 
+- **Over-budget paging is limited to two tools** — `budgetPagedTools` in
+  `dispatch_budget.go` lists `find_code` and `search_entity_content`. Only
+  tools whose `data.results` rows are ordered, independent, and re-readable by
+  the `offset` they accept may be added; the page's `next_offset` is the offset
+  of the first dropped row. Adding a tool whose rows cannot be re-read by offset
+  would lose the dropped rows silently.
+
 - **SSE buffer drop / closed session is non-fatal** — `sseSession.send`
   (`server_sse.go`) returns false when the session channel is full OR the
   session has already been closed (client disconnected mid-dispatch);

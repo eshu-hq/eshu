@@ -162,7 +162,19 @@ no rows removed. For example, a large canonical result has this shape:
 }
 ```
 
-If even the resource-only result exceeds 256 KiB, MCP returns the
+If even the resource-only result exceeds 256 KiB, two row-list tools, `find_code`
+and `search_entity_content`, return a page instead: the first whole rows that
+fit the budget, never a split row. The page sets `data.truncated=true`,
+`data.next_offset` (pass it back as `offset` to read the remainder),
+`data.budget_page` (`reason=response_byte_budget`, `budget_bytes`,
+`rows_returned`, `rows_available`), and a `truth.omissions` entry for the
+`results` section. `data.count` and the clipped-row counts describe the rows
+returned. A request at the advertised `limit` maximum of 200 can therefore
+return fewer than 200 rows; size `limit` down (rows that carry source text run
+a few KiB each) or follow `next_offset`. `find_code` accepts `offset` and pages
+inside its first 200 ranked matches (`offset` below 200; the effective `limit`
+shrinks so `offset + limit` stays within 200). Every other tool, and a request
+whose first row alone exceeds the budget, returns the
 `mcp_response_over_budget` error envelope with narrowing guidance. Programmatic
 clients should read `structuredContent` when present, then fall back to the
 embedded resource's JSON `text`. The human text block is only a summary and

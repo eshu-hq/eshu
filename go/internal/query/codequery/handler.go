@@ -6,6 +6,7 @@ package codequery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -113,6 +114,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		RepoID     string `json:"repo_id"`
 		Language   string `json:"language"`
 		Limit      int    `json:"limit"`
+		Offset     int    `json:"offset"`
 		Exact      bool   `json:"exact"`
 		SearchType string `json:"search_type"`
 	}
@@ -135,7 +137,17 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.Limit > entity.EntityNameSearchMaxLimit {
 		req.Limit = entity.EntityNameSearchMaxLimit
 	}
-	probeLimit := codemodel.CodeSearchProbeLimit(req.Limit)
+	// A page can start inside the ranked window only. The effective limit
+	// shrinks so offset+limit stays within it, which keeps the store probe at
+	// or below one maximum page plus the truncation row.
+	offset := codemodel.CodeSearchPageWindowOffset(req.Offset)
+	pageLimit, inWindow := codemodel.CodeSearchPageWindow(offset, req.Limit)
+	if !inWindow {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("offset must be less than %d", codemodel.CodeSearchRankedWindow))
+		return
+	}
+	req.Limit = pageLimit
+	probeLimit := codemodel.CodeSearchProbeLimit(offset + req.Limit)
 	if req.RepoID == "" && !req.Exact && len([]rune(req.Query)) < 3 {
 		WriteError(w, http.StatusBadRequest, "global substring code search requires at least 3 Unicode characters")
 		return
@@ -162,8 +174,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayload(
-			"content", "postgres_content_name_index", req.Query, "", results, req.Limit,
+		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
+			"content", "postgres_content_name_index", req.Query, "", results, req.Limit, offset,
 		), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, "resolved from the current content entity name index"))
 		return
 	}
@@ -183,8 +195,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// If graph search returns results, return them
 	if len(graphResults) > 0 {
-		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayload(
-			"graph", "graph", req.Query, req.RepoID, graphResults, req.Limit,
+		WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
+			"graph", "graph", req.Query, req.RepoID, graphResults, req.Limit, offset,
 		), BuildTruthEnvelope(h.profile(), capability, TruthBasisAuthoritativeGraph, "resolved from graph-backed entity search"))
 		return
 	}
@@ -213,8 +225,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayload(
-		"content", sourceBackend, req.Query, req.RepoID, contentResults, req.Limit,
+	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
+		"content", sourceBackend, req.Query, req.RepoID, contentResults, req.Limit, offset,
 	), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
 }
 

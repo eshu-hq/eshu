@@ -36,7 +36,7 @@ func TestSearchGraphEntitiesExecutesBuilderBytes(t *testing.T) {
 		{
 			name: "repository anchored", repoID: "repository:r_proof", exact: true,
 			body:       `{"query":"proof","repo_id":"repository:r_proof","limit":9,"exact":true}`,
-			wantSHA256: "428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3",
+			wantSHA256: "1e27e10a316e7b3e99983f74e9ee83f7d1d6b9420ba6885373be986fe3fc4fdf",
 		},
 	}
 
@@ -80,7 +80,7 @@ func assertQueryplanBaselineSHA256(t *testing.T, cypher string, want string) {
 	t.Helper()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(cypher)))
 	if got != want {
-		t.Fatalf("production Cypher SHA-256 = %s, want immutable pre-extraction digest %s\nquery=%q", got, want, cypher)
+		t.Fatalf("production Cypher SHA-256 = %s, want the pinned digest (re-derived on purpose by #7725: ORDER BY e.name, e.id) %s\nquery=%q", got, want, cypher)
 	}
 }
 
