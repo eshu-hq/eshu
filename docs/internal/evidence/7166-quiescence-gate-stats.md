@@ -19,10 +19,10 @@ Migration 165 adds a functional-dependency statistics object on
 `(scope_id, generation_id)` of `graph_projection_phase_state` plus
 `ANALYZE`, following the migration-119 precedent. The gate SQL text is
 unchanged. A new `eshu_dp_shared_projection_lane_gate_seconds`
-histogram records one probe-latency point per gate consultation
-(code_calls, repo_dependency), held or open. Code-call cycles
-short-circuited by active reducer-graph work return before the probe
-and emit nothing.
+histogram records one probe-latency point per successful gate
+consultation (code_calls, repo_dependency), held or open. Code-call
+cycles short-circuited by active reducer-graph work return before
+the probe and emit nothing, as do failed consultations.
 
 ## Measurement
 
@@ -90,14 +90,15 @@ kept for the #7419 retention cascade.
 
 ## Observability Evidence (#7166):
 
-Two hermetic tests pin the new signal: the code-call lane emits 4
+Four hermetic tests pin the new signal: the code-call lane emits 4
 probe-latency points across held+open consultations through the
 production `processOnce` path, and the repo-dependency lane pins the
 `eshu_dp_shared_projection_lane_gate_seconds` point with
-`(domain, reason)` labels. `scripts/verify-telemetry-coverage.sh`
+`(domain, reason)` labels; one test per lane pins that a failed
+probe emits nothing. `scripts/verify-telemetry-coverage.sh`
 passes with the new coverage row. Code-call cycles short-circuited
-by active reducer-graph work emit nothing, and the deployable-unit
-edge path has no instruments handle and stays dark; both are
-documented in the coverage row. Post-merge, the shim-to-production
-transfer is judged from this histogram, not from the shim numbers
-above.
+by active reducer-graph work emit nothing, as do failed
+consultations, and the deployable-unit edge path has no instruments
+handle and stays dark; all are documented in the coverage row.
+Post-merge, the shim-to-production transfer is judged from this
+histogram, not from the shim numbers above.

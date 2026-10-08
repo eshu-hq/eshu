@@ -27,6 +27,7 @@ import (
 type describingQuiescence struct {
 	mu          sync.Mutex
 	uncommitted bool
+	probeErr    error
 	total       int
 	ids         []string
 	describeErr error
@@ -36,7 +37,7 @@ type describingQuiescence struct {
 func (d *describingQuiescence) HasUncommittedCanonicalCodeScopes(context.Context) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.uncommitted, nil
+	return d.uncommitted, d.probeErr
 }
 
 func (d *describingQuiescence) DescribeUncommittedCanonicalCodeScopes(_ context.Context, limit int) (int, []string, error) {
@@ -238,9 +239,9 @@ func TestCodeCallProjectionRunnerReportsQuiescenceBlock(t *testing.T) {
 }
 
 // TestCodeCallProjectionRunnerRecordsGateProbeLatency pins the #7166 gate-cost
-// signal: every lane poll cycle records one quiescence-probe latency point,
-// whether the gate holds the lane or lets it run, so the probe's own cost
-// stays visible on a free-running lane.
+// signal: every successful gate consultation records one quiescence-probe
+// latency point, whether the gate holds the lane or lets it run, so the
+// probe's own cost stays visible on a free-running lane.
 func TestCodeCallProjectionRunnerRecordsGateProbeLatency(t *testing.T) {
 	t.Parallel()
 
@@ -254,7 +255,24 @@ func TestCodeCallProjectionRunnerRecordsGateProbeLatency(t *testing.T) {
 	h.process(t)
 
 	if got := gateDurationPointCount(h.metrics(t), BlockedReasonCanonicalCodeQuiescence); got != 4 {
-		t.Fatalf("lane_gate_seconds{canonical_code_quiescence} count = %d, want 4 (one per cycle, held or open)", got)
+		t.Fatalf("lane_gate_seconds{canonical_code_quiescence} count = %d, want 4 (one per successful consultation, held or open)", got)
+	}
+}
+
+// TestCodeCallProjectionRunnerSkipsGateProbeLatencyOnError pins that a
+// failed gate consultation emits no latency point: the histogram covers
+// only consultations that produced an answer.
+func TestCodeCallProjectionRunnerSkipsGateProbeLatencyOnError(t *testing.T) {
+	t.Parallel()
+
+	gate := &describingQuiescence{probeErr: errors.New("probe boom")}
+	h := newBlockedTelemetryHarness(t, func(r *Runner) { r.CanonicalQuiescence = gate })
+
+	if _, err := h.runner.processOnce(context.Background(), time.Now().UTC()); err == nil {
+		t.Fatal("processOnce() error = nil, want probe error")
+	}
+	if got := gateDurationPointCount(h.metrics(t), BlockedReasonCanonicalCodeQuiescence); got != 0 {
+		t.Fatalf("lane_gate_seconds{canonical_code_quiescence} count after failed probe = %d, want 0", got)
 	}
 }
 

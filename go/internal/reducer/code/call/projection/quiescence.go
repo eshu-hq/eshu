@@ -54,13 +54,13 @@ func (r *Runner) projectionLaneBlocked(ctx context.Context) (string, error) {
 }
 
 // timedQuiescenceProbe consults the canonical-code gate and records the
-// probe's latency (#7166) on every consultation, held or open. Cycles
-// short-circuited by active reducer-graph work return before the probe
-// and emit nothing.
+// probe's latency (#7166) on every successful consultation, held or open.
+// Cycles short-circuited by active reducer-graph work return before the
+// probe and emit nothing, as do failed consultations.
 func (r *Runner) timedQuiescenceProbe(ctx context.Context, checker CanonicalCodeQuiescenceChecker) (bool, error) {
 	start := time.Now()
 	uncommitted, err := checker.HasUncommittedCanonicalCodeScopes(ctx)
-	if r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
+	if err == nil && r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
 		r.Instruments.SharedProjectionLaneGateDuration.Record(
 			ctx, time.Since(start).Seconds(), laneAttributes(BlockedReasonCanonicalCodeQuiescence),
 		)

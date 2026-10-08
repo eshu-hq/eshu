@@ -161,14 +161,14 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	if r.CanonicalQuiescence != nil {
 		gateStart := time.Now()
 		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
+		if err != nil {
+			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
 		if r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
 			r.Instruments.SharedProjectionLaneGateDuration.Record(ctx, time.Since(gateStart).Seconds(), metric.WithAttributes(
 				telemetry.AttrDomain(DomainRepoDependency),
 				telemetry.AttrReason(projection.BlockedReasonCanonicalCodeQuiescence),
 			))
-		}
-		if err != nil {
-			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
 		}
 		if uncommitted {
 			r.recordRepoDependencyQuiescenceBlocked(ctx, cycleStart)

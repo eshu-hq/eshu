@@ -267,13 +267,14 @@ type Instruments struct {
 	// themselves are in the runner's "lane blocked" log line, never a label.
 	SharedProjectionLaneBlockerCount metric.Int64Gauge
 	// SharedProjectionLaneGateDuration records one lane-wide gate probe's
-	// latency per gate consultation (#7166): every consultation, open or
-	// held, so the gate's own cost is visible even when the lane runs
-	// free. Labels: domain and reason, as for SharedProjectionLaneBlocked.
-	// Emitted by the code-call and repo-dependency poll loops only; the
-	// deployable-unit edge path has no instruments handle and stays dark.
-	// Code-call cycles short-circuited by active reducer-graph work return
-	// before the probe and emit nothing.
+	// latency per successful gate consultation (#7166): every consultation
+	// that produced an answer, open or held, so the gate's own cost is
+	// visible even when the lane runs free. Labels: domain and reason, as
+	// for SharedProjectionLaneBlocked. Emitted by the code-call and
+	// repo-dependency poll loops only; the deployable-unit edge path has
+	// no instruments handle and stays dark. Code-call cycles
+	// short-circuited by active reducer-graph work return before the probe
+	// and emit nothing, as do failed consultations.
 	SharedProjectionLaneGateDuration metric.Float64Histogram
 	GenerationRetentionPruned        metric.Int64Counter
 	GenerationRetentionRowsPruned    metric.Int64Counter
@@ -2471,7 +2472,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	laneGateBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 	inst.SharedProjectionLaneGateDuration, err = meter.Float64Histogram(
 		"eshu_dp_shared_projection_lane_gate_seconds",
-		metric.WithDescription("One lane-wide gate probe's latency per gate consultation, by domain and bounded reason; recorded on every consultation so the gate's own cost is visible even when the lane runs free (#7166)"),
+		metric.WithDescription("One lane-wide gate probe's latency per successful gate consultation, by domain and bounded reason; recorded on every consultation that produced an answer so the gate's own cost is visible even when the lane runs free (#7166)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(laneGateBuckets...),
 	)

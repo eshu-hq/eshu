@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -92,6 +93,43 @@ func TestRepoDependencyProjectionRunnerRecordsQuiescenceBlockedCycle(t *testing.
 	// #7166: the gate probe's own latency is recorded on the same cycle.
 	if !quiescenceGateDurationHasPoint(resources) {
 		t.Fatal("blocked cycle left no lane-gate-duration point for domain repo_dependency")
+	}
+}
+
+// TestRepoDependencyProjectionRunnerSkipsGateProbeLatencyOnError pins that a
+// failed gate consultation emits no latency point: the histogram covers
+// only consultations that produced an answer.
+func TestRepoDependencyProjectionRunnerSkipsGateProbeLatencyOnError(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	intentStore := &fakeRepoDependencyIntentStore{leaseGranted: true}
+	runner := RepoDependencyProjectionRunner{
+		Instruments:         instruments,
+		IntentReader:        intentStore,
+		LeaseManager:        intentStore,
+		AcceptanceUnitGate:  intentStore,
+		CanonicalQuiescence: staticReducerGraphDrain{err: errors.New("probe boom")},
+		Config:              RepoDependencyProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	if _, err := runner.processOnce(context.Background(), time.Now().UTC()); err == nil {
+		t.Fatal("processOnce() error = nil, want probe error")
+	}
+
+	var resources metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &resources); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if quiescenceGateDurationHasPoint(resources) {
+		t.Fatal("failed probe left a lane-gate-duration point for domain repo_dependency, want none")
 	}
 }
 
