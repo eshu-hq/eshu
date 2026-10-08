@@ -1879,7 +1879,7 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
-  - file: go/internal/storage/postgres/facts_active_code_call_symbols_ahead_manifest_live_test.go
+  - file: go/internal/storage/postgres/active_code_call_symbols_ahead_manifest_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#7609 disposable PostgreSQL 18 proof of the generation-anchored manifest read: ahead manifests keep every producer candidate, the supersede-then-delta hole stays covered, and dirty non-producer scopes stay gated; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
