@@ -59,13 +59,42 @@ failed`. Each is recorded on the request span. A reader fence on these reads
 answers the retryable `503` with `Retry-After`; the content routes and the
 service story's ci/cd and supply-chain reads previously answered `500`.
 
+## Platform impact read failures
+
+The `POST /api/v0/impact/*` routes answer a failed graph or content read with
+`500` and a fixed message for the step that failed, recorded on the request
+span, instead of `500` with the backend error text (#7674). The routes are
+`blast-radius`, `change-surface`, `change-surface/investigate`, `pre-change`,
+`developer-change-plan`, `contracts`, `entity-map`, `resource-investigation`,
+`trace-resource-to-code`, `explain-dependency-path`, `trace-exposure-path`,
+`trace-deployment-chain`, and `deployment-config-influence`. A route with
+several reads names the step, for example `entity map start resolution
+failed`, `dependency path ownership check failed`, or `deployment trace k8s
+resource query failed`.
+
+A reader fence on any read that fails one of these routes answers the
+retryable `503` with `Retry-After`. The `trace-deployment-chain` k8s resource and GitOps evidence
+steps, and the code-evidence reads on `change-surface/investigate`,
+`pre-change`, and `developer-change-plan`, previously answered `500` or `503`
+with the error text. Those code-evidence reads keep their `503` for any other
+failure, now with a fixed message such as `change surface code evidence read
+failed`. The `contracts` route's unavailable-graph `503` answers `graph
+backend is unavailable`, never a wrapped error.
+
+`POST /api/v0/impact/trace-exposure-path` answered a failed source lookup with
+`400` and the content store's error text. That lookup now answers `500` with
+`exposure path source read failed`, or the reader-fence `503`. A source name
+that matches several entities still answers `400` naming them. An ambiguous
+workload selector on `trace-deployment-chain` and
+`deployment-config-influence` still answers `409` with the selector.
+
 ## Client cancels
 
 A client that cancels its request while one of the post-selector reads above
-runs, or while a selector lookup runs through the shared selector helper, gets
-`499` with the
-same fixed message, and the request span is not marked as an error; the span
-carries an `eshu.request.client_canceled` event instead. No route documents
-`499` in the OpenAPI spec, because the client has already gone. Other routes
-still answer a client cancel with `500` until #7674 lands. The telemetry
-effects are in [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
+runs, while a selector lookup runs through the shared selector helper, or
+while a platform impact read runs, gets `499` with the same fixed message, and
+the request span is not marked as an error; the span carries an
+`eshu.request.client_canceled` event instead. No route documents `499` in the
+OpenAPI spec, because the client has already gone. Other routes still answer
+a client cancel with `500` until #7674 lands. The telemetry effects are in
+[Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).

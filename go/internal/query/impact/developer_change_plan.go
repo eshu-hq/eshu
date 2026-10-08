@@ -14,8 +14,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// Fixed failure bodies for the developer change plan route. The backend error
+// goes to the request span, never the body (#7674).
+const (
+	developerChangePlanQueryFailedMessage        = "developer change plan query failed"
+	developerChangePlanCodeEvidenceFailedMessage = "developer change plan code evidence read failed"
+)
+
 func (h *Handler) developerChangePlan(w http.ResponseWriter, r *http.Request) {
-	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(queryHandlerTracer,
 		r,
 		telemetry.SpanQueryChangeSurfaceInvestigation,
 		"POST /api/v0/impact/developer-change-plan",
@@ -52,7 +59,7 @@ func (h *Handler) developerChangePlan(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, developerChangePlanCapability) {
 			return
 		}
-		querycontract.WriteError(w, preChangeImpactErrorStatus(err), err.Error())
+		writePreChangeImpactFailure(w, r, err, developerChangePlanQueryFailedMessage, developerChangePlanCodeEvidenceFailedMessage)
 		return
 	}
 	truth := querycontract.BuildTruthEnvelope(

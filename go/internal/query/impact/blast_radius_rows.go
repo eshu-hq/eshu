@@ -17,6 +17,11 @@ import (
 // query-owner symbol the queryplan manifest keys on (blastRadiusAffected,
 // enrichBlastRadiusTiers).
 
+// blastRadiusQueryFailedMessage is the fixed 500 body for a failed blast-radius
+// read; it lives here because blast_radius.go is at the file cap. The backend
+// error goes to the request span, never the body (#7674).
+const blastRadiusQueryFailedMessage = "blast radius query failed"
+
 // distinctRepoIDs returns the unique non-empty repo ids from the rows. Used to
 // anchor the terraform_module dependents traversal on concrete source-repo ids
 // rather than names, so same-named-but-unrelated repos are not pulled in.

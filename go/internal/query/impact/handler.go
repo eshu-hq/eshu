@@ -12,8 +12,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/ownership"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// queryHandlerTracer opens the impact routes' own handler spans. It is a
+// package var so a non-parallel test can swap in a recording tracer.
+var queryHandlerTracer = tracing.HandlerTracer()
 
 // Handler serves HTTP endpoints for impact analysis queries including
 // blast radius, change surface, resource-to-code tracing, and dependency paths.
@@ -260,7 +265,7 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.resource_to_code") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, resourceToCodeStartFailedMessage)
 		return
 	}
 	startInfo := map[string]any{"id": req.Start}
@@ -285,7 +290,7 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 			if querycontract.WriteGraphReadError(w, r, rerr, "platform_impact.resource_to_code") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, rerr.Error())
+			tracing.WriteServerFailure(w, r, rerr, http.StatusInternalServerError, resourceToCodePathsFailedMessage)
 			return
 		}
 		// truncated comes from the raw row count, before the grant filter.
@@ -300,7 +305,7 @@ func (h *Handler) traceResourceToCode(w http.ResponseWriter, r *http.Request) {
 				if querycontract.WriteGraphReadError(w, r, err, "platform_impact.resource_to_code") {
 					return
 				}
-				querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+				tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, resourceToCodeOwnershipFailedMessage)
 				return
 			}
 			truncated = truncated || capped
@@ -382,7 +387,7 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, dependencyPathEndpointsFailedMessage)
 		return
 	}
 	if sourceNode == nil || targetNode == nil {
@@ -410,7 +415,7 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, dependencyPathQueryFailedMessage)
 		return
 	}
 
@@ -432,7 +437,7 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 			if querycontract.WriteGraphReadError(w, r, ferr, "platform_impact.dependency_path") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, ferr.Error())
+			tracing.WriteServerFailure(w, r, ferr, http.StatusInternalServerError, dependencyPathOwnershipFailedMessage)
 			return
 		}
 		pathVisible = filter.Kept() == 1

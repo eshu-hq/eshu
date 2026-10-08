@@ -30,6 +30,11 @@ const (
 
 var errContractImpactGraphUnavailable = errors.New("graph backend is unavailable")
 
+// contractImpactQueryFailedMessage is the fixed 500 body for a failed contract
+// impact read. The backend error goes to the request span, never the body
+// (#7674).
+const contractImpactQueryFailedMessage = "contract impact query failed"
+
 type contractImpactRequest struct {
 	Family         string `json:"family"`
 	ProviderRepoID string `json:"provider_repo_id"`
@@ -43,7 +48,7 @@ type contractImpactRequest struct {
 }
 
 func (h *Handler) contractImpact(w http.ResponseWriter, r *http.Request) {
-	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(queryHandlerTracer,
 		r,
 		telemetry.SpanQueryChangeSurfaceInvestigation,
 		"POST /api/v0/impact/contracts",
@@ -78,13 +83,13 @@ func (h *Handler) contractImpact(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.contractImpactResponse(r.Context(), normalized)
 	if err != nil {
 		if errors.Is(err, errContractImpactGraphUnavailable) {
-			querycontract.WriteError(w, http.StatusServiceUnavailable, err.Error())
+			querycontract.WriteError(w, http.StatusServiceUnavailable, errContractImpactGraphUnavailable.Error())
 			return
 		}
 		if querycontract.WriteGraphReadError(w, r, err, contractImpactCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contractImpactQueryFailedMessage)
 		return
 	}
 	truth := querycontract.BuildTruthEnvelope(

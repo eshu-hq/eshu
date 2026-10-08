@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // Blast-radius queries are written to the NornicDB-safe single-clause /
@@ -369,7 +370,7 @@ func (h *Handler) findBlastRadius(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.blast_radius") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, blastRadiusQueryFailedMessage)
 		return
 	}
 	affected = deployment.FilterRowsByRepoIDForAccess(affected, access)

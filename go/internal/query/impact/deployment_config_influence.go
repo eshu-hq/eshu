@@ -13,9 +13,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const deploymentConfigInfluenceCapability = "platform_impact.deployment_config_influence"
+
+// Fixed failure bodies for the deployment config influence route. The backend
+// error goes to the request span, never the body (#7674).
+const (
+	deploymentConfigInfluenceQueryFailedMessage      = "deployment config influence query failed"
+	deploymentConfigInfluenceEnrichmentFailedMessage = "deployment config influence enrichment failed"
+)
 
 type deploymentConfigInfluenceRequest struct {
 	ServiceName string `json:"service_name"`
@@ -68,7 +76,7 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 		if querycontract.WriteGraphReadError(w, r, err, deploymentConfigInfluenceCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, deploymentConfigInfluenceQueryFailedMessage)
 		return
 	}
 	if ctx == nil {
@@ -80,7 +88,7 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 			if querycontract.WriteGraphReadError(w, r, err, deploymentConfigInfluenceCapability) {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, deploymentConfigInfluenceEnrichmentFailedMessage)
 			return
 		}
 	}

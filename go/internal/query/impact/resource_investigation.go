@@ -24,6 +24,13 @@ const (
 	ResourceInvestigationMaxDepth     = 8
 )
 
+// Fixed failure bodies for the resource investigation route. The backend error
+// goes to the request span, never the body (#7674).
+const (
+	resourceInvestigationTargetFailedMessage   = "resource investigation target resolution failed"
+	resourceInvestigationSectionsFailedMessage = "resource investigation section read failed"
+)
+
 // ResourceInvestigationRequest is the resource-investigation query. Exported
 // because root live-backend and backend-parity tests build it; the home stays
 // this package. See #6060.
@@ -56,7 +63,7 @@ type ResourceInvestigationCandidate struct {
 }
 
 func (h *Handler) investigateResource(w http.ResponseWriter, r *http.Request) {
-	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(queryHandlerTracer,
 		r,
 		telemetry.SpanQueryResourceInvestigation,
 		"POST /api/v0/impact/resource-investigation",
@@ -109,7 +116,7 @@ func (h *Handler) investigateResource(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, resourceInvestigationCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, resourceInvestigationTargetFailedMessage)
 		return
 	}
 	if selected == nil {
@@ -130,7 +137,7 @@ func (h *Handler) investigateResource(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, resourceInvestigationCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, resourceInvestigationSectionsFailedMessage)
 		return
 	}
 

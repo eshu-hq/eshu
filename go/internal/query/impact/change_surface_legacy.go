@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -23,6 +24,13 @@ const (
 	// the path frontier at repo scale (issue #3384); clamping keeps the worst
 	// case bounded while preserving the documented 8-hop reach.
 	changeSurfaceLegacyMaxDepth = 8
+)
+
+// Fixed failure bodies for the legacy change-surface route. The backend error
+// goes to the request span, never the body (#7674).
+const (
+	changeSurfaceLegacyTargetFailedMessage    = "legacy change surface target resolution failed"
+	changeSurfaceLegacyTraversalFailedMessage = "legacy change surface impact traversal failed"
 )
 
 // findChangeSurface analyzes the legacy entity-anchored change surface.
@@ -87,7 +95,7 @@ func (h *Handler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.change_surface") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, changeSurfaceLegacyTargetFailedMessage)
 		return
 	}
 
@@ -101,7 +109,7 @@ func (h *Handler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
 			if querycontract.WriteGraphReadError(w, r, traversalErr, "platform_impact.change_surface") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, traversalErr.Error())
+			tracing.WriteServerFailure(w, r, traversalErr, http.StatusInternalServerError, changeSurfaceLegacyTraversalFailedMessage)
 			return
 		}
 		impacted = rows
