@@ -236,12 +236,15 @@ func listGitHubOrgRepositories(
 const githubListingPageSize = 100
 
 // listGitHubOrgRepositoriesFrom pages through baseURL's org repository
-// listing at githubListingPageSize and trims the result to repoLimit. The bool
-// reports a complete listing: true only when a page returned fewer than
-// githubListingPageSize items while the listed count was still below
-// repoLimit; that short page (empty included) ends the listing. A listing that
-// reaches repoLimit is incomplete, even when the org holds exactly repoLimit
-// repositories, so a cut listing is never mistaken for the whole org.
+// listing at githubListingPageSize and trims the result to repoLimit. Only an
+// empty page or reaching repoLimit ends the listing; a short page mid-listing
+// does not, so the repositories after it are still synced. The bool reports a
+// complete listing: true only when an empty page ended it while the listed
+// count was below repoLimit and that page's Link header had no rel="next". A
+// listing that reaches repoLimit is incomplete, even when the org holds
+// exactly repoLimit repositories, so a cut listing is never mistaken for the
+// whole org. A missing Link header never ends the listing and never blocks
+// completeness, because proxies may strip it.
 func listGitHubOrgRepositoriesFrom(
 	ctx context.Context,
 	client *http.Client,
@@ -287,6 +290,10 @@ func listGitHubOrgRepositoriesFrom(
 		if decodeErr != nil {
 			return nil, false, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
 		}
+		if len(payload) == 0 {
+			complete = !linkHeaderHasNext(response.Header.Values("Link"))
+			break
+		}
 		for _, item := range payload {
 			repoID := normalizeRepositoryID(item.FullName)
 			if repoID == "" {
@@ -298,15 +305,35 @@ func listGitHubOrgRepositoriesFrom(
 				Archived: item.Archived,
 			})
 		}
-		if len(payload) < githubListingPageSize {
-			complete = len(repositories) < repoLimit
-			break
-		}
+	}
+	if len(repositories) >= repoLimit {
+		complete = false
 	}
 	if len(repositories) > repoLimit {
 		repositories = repositories[:repoLimit]
 	}
 	return repositories, complete, nil
+}
+
+// linkHeaderHasNext reports whether any RFC 8288 Link header value names a
+// rel="next" target.
+func linkHeaderHasNext(values []string) bool {
+	for _, value := range values {
+		for _, link := range strings.Split(value, ",") {
+			for _, param := range strings.Split(link, ";")[1:] {
+				name, rel, ok := strings.Cut(strings.TrimSpace(param), "=")
+				if !ok || !strings.EqualFold(strings.TrimSpace(name), "rel") {
+					continue
+				}
+				for _, relType := range strings.Fields(strings.Trim(strings.TrimSpace(rel), `"`)) {
+					if strings.EqualFold(relType, "next") {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func mintGitHubAppToken(ctx context.Context, config RepoSyncConfig) (string, error) {
