@@ -77,7 +77,7 @@ func githubOrgSelectionRequest(
 		rules = append(rules, membership.Rule{Kind: rule.Kind, Value: rule.Value})
 	}
 	return membership.Request{
-		Selector:       membership.NewGitHubOrgSelector(config.SourceMode, config.GithubOrg, rules, config.IncludeArchivedRepos),
+		Selector:       membership.NewGitHubOrgSelector(config.SourceMode, config.GithubOrg, rules, config.IncludeArchivedRepos, ""),
 		SourceMode:     config.SourceMode,
 		RepoShardCount: config.RepoShardCount,
 		RepoLimit:      config.RepoLimit,

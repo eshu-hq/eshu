@@ -47,12 +47,15 @@ type Store interface {
 }
 
 // Request is one cycle's evaluation request from the git collector.
+// LivenessWindow is the configured ESHU_REPO_SELECTION_LIVENESS_WINDOW; zero
+// means DefaultLivenessWindow.
 type Request struct {
 	Selector       Selector
 	SourceMode     string
 	RepoShardCount int
 	RepoLimit      int
 	Now            time.Time
+	LivenessWindow time.Duration
 	Listing        Listing
 }
 
@@ -60,34 +63,54 @@ type Request struct {
 // returns an error: a store failure is logged, counted as store_error, and the
 // collector cycle continues with today's behavior.
 type Observer struct {
-	Store Store
-	// MinimumInterval is the evaluation interval floor; zero means
-	// DefaultMinimumInterval.
-	MinimumInterval time.Duration
-	Instruments     *telemetry.Instruments
-	Logger          *slog.Logger
+	Store       Store
+	Instruments *telemetry.Instruments
+	Logger      *slog.Logger
 }
 
 // Observe evaluates req, writes the batch when the evaluation passes every
-// rail, and emits the evaluation counter, the scope gauge (evaluated cycles
-// only), and the git_repository_selection_* logs.
+// rail, and emits the evaluation counter, the scope gauge (evaluated
+// github_org cycles only), and the git_repository_selection_* logs. When the
+// gap since the selector's previous evaluation exceeds the liveness window it
+// also logs git_repository_selection_liveness_lapsed: the selector's rows had
+// expired and read as unknown until this evaluation.
 func (o Observer) Observe(ctx context.Context, req Request) Result {
 	result, failureClass, err := o.evaluate(ctx, req)
 	if failureClass != "" {
 		result.Outcome = OutcomeStoreError
 		o.warn(ctx, "git_repository_selection_store_failed",
 			slog.String("selector_id", req.Selector.ID),
+			slog.String("selector_kind", req.Selector.Kind),
 			log.FailureClass(failureClass),
 			log.Err(err),
 		)
 	}
-	o.record(ctx, result)
-	o.logEvaluated(ctx, req, result)
+	o.record(ctx, req.Selector.Kind, result)
+	gap := evaluationGap(req.Now, result.PreviousEvaluatedAt)
+	window := livenessWindow(req.LivenessWindow)
+	if !result.PreviousEvaluatedAt.IsZero() && gap > window {
+		o.warn(ctx, "git_repository_selection_liveness_lapsed",
+			slog.String("selector_id", req.Selector.ID),
+			slog.String("selector_kind", req.Selector.Kind),
+			slog.Int64("evaluation_gap_seconds", int64(gap/time.Second)),
+			slog.Int64("liveness_window_seconds", int64(window/time.Second)),
+		)
+	}
+	o.logEvaluated(ctx, req, result, gap, window)
 	return result
 }
 
+// evaluationGap is the time since the selector's previous evaluation, zero on
+// its first evaluation.
+func evaluationGap(now, previous time.Time) time.Duration {
+	if previous.IsZero() {
+		return 0
+	}
+	return now.UTC().Truncate(time.Microsecond).Sub(previous)
+}
+
 func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, error) {
-	in := Input{Selector: req.Selector, Now: req.Now, MinimumInterval: o.MinimumInterval, Listing: req.Listing}
+	in := Input{Selector: req.Selector, Now: req.Now, LivenessWindow: req.LivenessWindow, Listing: req.Listing}
 	if !req.Listing.Complete {
 		result := Evaluate(in)
 		o.warn(ctx, "git_repository_selection_listing_truncated",
@@ -132,17 +155,21 @@ func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, er
 	return result, "", nil
 }
 
-func (o Observer) record(ctx context.Context, result Result) {
+func (o Observer) record(ctx context.Context, selectorKind string, result Result) {
 	if o.Instruments == nil {
 		return
 	}
 	if o.Instruments.RepositorySelectionEvaluations != nil {
 		o.Instruments.RepositorySelectionEvaluations.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrCollectorKind(collectorKind),
+			telemetry.AttrSelectorKind(selectorKind),
 			telemetry.AttrOutcome(string(result.Outcome)),
 		))
 	}
-	if result.Outcome != OutcomeEvaluated || o.Instruments.RepositorySelectionScopes == nil {
+	// The gauge describes an org's known scopes; an explicit selector writes
+	// only selected rows for its own list, so it would overwrite the org's
+	// sample with a partial count.
+	if result.Outcome != OutcomeEvaluated || selectorKind != KindGitHubOrg || o.Instruments.RepositorySelectionScopes == nil {
 		return
 	}
 	for state, value := range map[string]int{
@@ -159,13 +186,14 @@ func (o Observer) record(ctx context.Context, result Result) {
 	}
 }
 
-func (o Observer) logEvaluated(ctx context.Context, req Request, result Result) {
+func (o Observer) logEvaluated(ctx context.Context, req Request, result Result, gap, window time.Duration) {
 	if o.Logger == nil {
 		return
 	}
 	o.Logger.InfoContext(ctx, "git_repository_selection_evaluated",
 		log.CollectorKind(collectorKind),
 		slog.String("selector_id", req.Selector.ID),
+		slog.String("selector_kind", req.Selector.Kind),
 		slog.String("source_mode", req.SourceMode),
 		slog.Int("repo_shard_count", req.RepoShardCount),
 		slog.Bool("listing_complete", req.Listing.Complete),
@@ -177,7 +205,8 @@ func (o Observer) logEvaluated(ctx context.Context, req Request, result Result) 
 		slog.Int("newly_unlisted_count", result.Counts.NewlyUnlisted),
 		slog.Int("not_listed_count", result.Counts.NotListed),
 		slog.Int("relisted_count", result.Counts.Relisted),
-		slog.Int64("evaluation_interval_seconds", int64(result.Batch.Interval/time.Second)),
+		slog.Int64("evaluation_gap_seconds", int64(gap/time.Second)),
+		slog.Int64("liveness_window_seconds", int64(window/time.Second)),
 		slog.String("outcome", string(result.Outcome)),
 		slog.Any("not_listed_sample", result.NotListedSample),
 	)

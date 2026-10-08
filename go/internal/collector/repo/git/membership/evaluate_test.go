@@ -8,12 +8,14 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
 )
 
 var (
-	cycleOne        = time.Date(2026, 10, 8, 6, 0, 0, 0, time.UTC)
-	testSelector    = NewGitHubOrgSelector("githubOrg", "boatsgroup", nil, false)
-	minimumInterval = 5 * time.Minute
+	cycleOne     = time.Date(2026, 10, 8, 6, 0, 0, 0, time.UTC)
+	testSelector = NewGitHubOrgSelector("githubOrg", "boatsgroup", nil, false, GitHubAppPrincipal("1", "2"))
+	testWindow   = 48 * time.Hour
 )
 
 func scopeIDFor(slug string) string { return "git-repository-scope:" + slug }
@@ -51,17 +53,18 @@ func qaFixture() ([]KnownScope, Listing) {
 	return known, listing
 }
 
-func TestEvaluateQAFixtureConfirmsDroppedReposOnlyAfterTwoCycles(t *testing.T) {
+func evaluateAt(now time.Time, known []KnownScope, listing Listing, prior []Observation) Result {
+	return Evaluate(Input{Selector: testSelector, Now: now, LivenessWindow: testWindow, Listing: listing, Known: known, Prior: prior})
+}
+
+func TestEvaluateQAFixtureConfirmsOnlyOnTheSecondEvaluation(t *testing.T) {
 	t.Parallel()
 
 	known, listing := qaFixture()
 	if len(known) != 802 || len(listing.Repositories) != 779 {
 		t.Fatalf("fixture = %d known, %d listed; want 802 and 779", len(known), len(listing.Repositories))
 	}
-	first := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval,
-		Listing: listing, Known: known,
-	})
+	first := evaluateAt(cycleOne, known, listing, nil)
 	if first.Outcome != OutcomeEvaluated {
 		t.Fatalf("cycle 1 outcome = %q, want %q", first.Outcome, OutcomeEvaluated)
 	}
@@ -77,8 +80,13 @@ func TestEvaluateQAFixtureConfirmsDroppedReposOnlyAfterTwoCycles(t *testing.T) {
 	if first.Counts.Listed != 779 || first.Counts.Selectable != 778 || first.Counts.ArchivedExcluded != 1 || first.Counts.Known != 802 {
 		t.Fatalf("cycle 1 listing counts = %+v", first.Counts)
 	}
-	if first.Batch.Interval != minimumInterval {
-		t.Fatalf("cycle 1 interval = %v, want the %v floor with no prior evaluation", first.Batch.Interval, minimumInterval)
+	if first.Batch.LivenessWindow != testWindow || !first.PreviousEvaluatedAt.IsZero() {
+		t.Fatalf("cycle 1 window %v previous %v, want %v and no previous evaluation", first.Batch.LivenessWindow, first.PreviousEvaluatedAt, testWindow)
+	}
+	for _, observation := range first.Projected {
+		if Confirmed(observation) {
+			t.Fatalf("first evaluation confirmed %+v; a first evaluation confirms nothing", observation)
+		}
 	}
 	assertRowState(t, first, "boatsgroup/script-node-bulk-feed", StateNotListed)
 	assertRowState(t, first, "boatsgroup/script-node-bulk-feed-v2", StateSelected)
@@ -87,64 +95,139 @@ func TestEvaluateQAFixtureConfirmsDroppedReposOnlyAfterTwoCycles(t *testing.T) {
 		t.Fatalf("not_listed_sample = %v, want 10 sorted slugs", first.NotListedSample)
 	}
 
-	second := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne.Add(minimumInterval), MinimumInterval: minimumInterval,
-		Listing: listing, Known: known, Prior: first.Projected,
-	})
-	if second.Outcome != OutcomeEvaluated {
-		t.Fatalf("cycle 2 outcome = %q, want %q", second.Outcome, OutcomeEvaluated)
-	}
+	second := evaluateAt(cycleOne.Add(selection.ConfirmationMinSpan), known, listing, first.Projected)
 	if want := (ScopeCounts{Selected: 776, NotListed: 25, ArchivedExcluded: 1}); second.Scopes != want {
 		t.Fatalf("cycle 2 scopes = %+v, want %+v", second.Scopes, want)
 	}
-	if second.Counts.NewlyUnlisted != 0 {
-		t.Fatalf("cycle 2 newly unlisted = %d, want 0", second.Counts.NewlyUnlisted)
+	if second.Counts.NewlyUnlisted != 0 || !second.PreviousEvaluatedAt.Equal(cycleOne) {
+		t.Fatalf("cycle 2 newly unlisted %d previous %v, want 0 and %v", second.Counts.NewlyUnlisted, second.PreviousEvaluatedAt, cycleOne)
 	}
 	for _, observation := range second.Projected {
-		if observation.State == StateNotListed && !Confirmed(observation) {
-			t.Fatalf("cycle 2 not_listed %s is unconfirmed: %+v", observation.ScopeID, observation)
+		if observation.State != StateSelected && !Confirmed(observation) {
+			t.Fatalf("cycle 2 %s %s is unconfirmed: %+v", observation.State, observation.ScopeID, observation)
 		}
-		if observation.State != StateNotListed && Confirmed(observation) {
-			t.Fatalf("cycle 2 %s scope %s reports confirmed", observation.State, observation.ScopeID)
+		if observation.StateCycleCount != 2 || !observation.StateSince.Equal(cycleOne) {
+			t.Fatalf("cycle 2 %s = %+v, want two cycles since %v", observation.ScopeID, observation, cycleOne)
 		}
 	}
 }
 
-func TestEvaluateTwoQuickCyclesDoNotConfirmBeforeTheInterval(t *testing.T) {
+func TestEvaluateTwoQuickEvaluationsDoNotConfirm(t *testing.T) {
 	t.Parallel()
 
 	known, listing := qaFixture()
-	first := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
-	second := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne.Add(time.Minute), MinimumInterval: minimumInterval,
-		Listing: listing, Known: known, Prior: first.Projected,
-	})
+	first := evaluateAt(cycleOne, known, listing, nil)
+	second := evaluateAt(cycleOne.Add(time.Minute), known, listing, first.Projected)
 	if second.Scopes.NotListed != 0 || second.Scopes.NotListedPending != 25 {
 		t.Fatalf("scopes one minute later = %+v, want 25 still pending", second.Scopes)
 	}
-	third := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne.Add(minimumInterval), MinimumInterval: minimumInterval,
-		Listing: listing, Known: known, Prior: second.Projected,
-	})
+	third := evaluateAt(cycleOne.Add(selection.ConfirmationMinSpan), known, listing, second.Projected)
 	if third.Scopes.NotListed != 25 {
-		t.Fatalf("scopes at the interval = %+v, want 25 confirmed", third.Scopes)
+		t.Fatalf("scopes at the minimum span = %+v, want 25 confirmed", third.Scopes)
 	}
 }
 
-func TestEvaluateIntervalTracksTheGapSincePriorEvaluation(t *testing.T) {
+// TestEvaluateAfterDowntimeConfirmsWithoutInflatingTheWindow is the
+// amendment's downtime case: a not_listed row written before a 50h outage is
+// confirmed by the first evaluation after it, the stored window stays 48h,
+// and the 50h gap is reported for the lapse warning.
+func TestEvaluateAfterDowntimeConfirmsWithoutInflatingTheWindow(t *testing.T) {
 	t.Parallel()
 
 	known, listing := qaFixture()
-	first := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
-	later := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne.Add(40 * time.Minute), MinimumInterval: minimumInterval,
-		Listing: listing, Known: known, Prior: first.Projected,
-	})
-	if later.Batch.Interval != 40*time.Minute {
-		t.Fatalf("interval = %v, want the 40m gap since the prior evaluation", later.Batch.Interval)
+	before := evaluateAt(cycleOne, known, listing, nil)
+	after := evaluateAt(cycleOne.Add(50*time.Hour), known, listing, before.Projected)
+	if after.Batch.LivenessWindow != testWindow {
+		t.Fatalf("window after a 50h gap = %v, want it unchanged at %v", after.Batch.LivenessWindow, testWindow)
 	}
-	if defaulted := Evaluate(Input{Selector: testSelector, Now: cycleOne, Listing: listing, Known: known}); defaulted.Batch.Interval != DefaultMinimumInterval {
-		t.Fatalf("interval without a floor = %v, want %v", defaulted.Batch.Interval, DefaultMinimumInterval)
+	if !after.PreviousEvaluatedAt.Equal(cycleOne) {
+		t.Fatalf("previous evaluation = %v, want %v", after.PreviousEvaluatedAt, cycleOne)
+	}
+	if after.Scopes.NotListed != 25 || after.Scopes.NotListedPending != 0 {
+		t.Fatalf("scopes after the outage = %+v, want the 25 pre-downtime misses confirmed", after.Scopes)
+	}
+}
+
+func TestEvaluateDefaultsTheLivenessWindow(t *testing.T) {
+	t.Parallel()
+
+	known, listing := qaFixture()
+	result := Evaluate(Input{Selector: testSelector, Now: cycleOne, Listing: listing, Known: known})
+	if result.Batch.LivenessWindow != DefaultLivenessWindow || DefaultLivenessWindow != 48*time.Hour {
+		t.Fatalf("window without config = %v, want the 48h default", result.Batch.LivenessWindow)
+	}
+}
+
+func TestEvaluateStateChangeResetsAndRepeatIncrements(t *testing.T) {
+	t.Parallel()
+
+	since := cycleOne.Add(-72 * time.Hour)
+	prior := func(slug string, state State, cycles int) Observation {
+		return Observation{
+			ScopeID: scopeIDFor(slug), State: state, LastListedAt: cycleOne.Add(-time.Hour),
+			StateSince: since, StateCycleCount: cycles, EvaluatedAt: cycleOne.Add(-time.Hour), LivenessWindow: testWindow,
+		}
+	}
+	listed := func(slug string, id int64, state State) ListedRepository {
+		return ListedRepository{ScopeID: scopeIDFor(slug), Slug: slug, GitHubID: id, State: state}
+	}
+	known := []KnownScope{
+		{ScopeID: scopeIDFor("boatsgroup/back"), Slug: "boatsgroup/back"},
+		{ScopeID: scopeIDFor("boatsgroup/flip"), Slug: "boatsgroup/flip"},
+		{ScopeID: scopeIDFor("boatsgroup/same"), Slug: "boatsgroup/same"},
+		{ScopeID: scopeIDFor("boatsgroup/gone"), Slug: "boatsgroup/gone"},
+	}
+	result := evaluateAt(cycleOne, known, Listing{Complete: true, Repositories: []ListedRepository{
+		listed("boatsgroup/back", 7, StateSelected),
+		listed("boatsgroup/flip", 8, StateRuleExcluded),
+		listed("boatsgroup/same", 9, StateSelected),
+	}}, []Observation{
+		prior("boatsgroup/back", StateNotListed, 3),
+		prior("boatsgroup/flip", StateArchivedExcluded, 2),
+		prior("boatsgroup/same", StateSelected, 4),
+		prior("boatsgroup/gone", StateNotListed, 5),
+	})
+	if result.Counts.Relisted != 1 {
+		t.Fatalf("relisted = %d, want 1", result.Counts.Relisted)
+	}
+	got := map[string]Observation{}
+	for _, observation := range result.Projected {
+		got[observation.ScopeID] = observation
+	}
+	for slug, want := range map[string]struct {
+		state  State
+		since  time.Time
+		cycles int
+	}{
+		"boatsgroup/back": {StateSelected, cycleOne, 1},
+		"boatsgroup/flip": {StateRuleExcluded, cycleOne, 1},
+		"boatsgroup/same": {StateSelected, since, 5},
+		"boatsgroup/gone": {StateNotListed, since, 6},
+	} {
+		o := got[scopeIDFor(slug)]
+		if o.State != want.state || !o.StateSince.Equal(want.since) || o.StateCycleCount != want.cycles {
+			t.Fatalf("%s = %+v, want %s since %v for %d cycles", slug, o, want.state, want.since, want.cycles)
+		}
+	}
+	if back := got[scopeIDFor("boatsgroup/back")]; !back.LastListedAt.Equal(cycleOne) || back.GitHubRepoID != 7 {
+		t.Fatalf("relisted projection = %+v, want last listed now with GitHub id 7", back)
+	}
+	if gone := got[scopeIDFor("boatsgroup/gone")]; !gone.LastListedAt.Equal(cycleOne.Add(-time.Hour)) {
+		t.Fatalf("still-unlisted projection = %+v, want last_listed_at kept", gone)
+	}
+}
+
+func TestEvaluateReplayAtTheSameTimeLeavesTheProjectionUnchanged(t *testing.T) {
+	t.Parallel()
+
+	known, listing := qaFixture()
+	first := evaluateAt(cycleOne, known, listing, nil)
+	replay := evaluateAt(cycleOne, known, listing, first.Projected)
+	if !slices.Equal(replay.Projected, first.Projected) {
+		t.Fatal("replaying the same evaluated_at changed the projected observations")
+	}
+	if replay.Scopes != first.Scopes {
+		t.Fatalf("replay scopes = %+v, want %+v", replay.Scopes, first.Scopes)
 	}
 }
 
@@ -153,7 +236,7 @@ func TestEvaluateIgnoresScopesOutsideTheSelectorOrg(t *testing.T) {
 
 	known, listing := qaFixture()
 	known = append(known, KnownScope{ScopeID: scopeIDFor("boatsgroup-archive/transferred-00"), Slug: "boatsgroup-archive/transferred-00"})
-	result := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
+	result := evaluateAt(cycleOne, known, listing, nil)
 	for _, row := range result.Batch.Rows {
 		if row.ScopeID == scopeIDFor("boatsgroup-archive/transferred-00") {
 			t.Fatalf("evaluator wrote a row for another org's scope: %+v", row)
@@ -173,14 +256,9 @@ func TestEvaluateIgnoresListedRecordsThatClaimNotListed(t *testing.T) {
 			listing.Repositories[i].State = StateNotListed
 		}
 	}
-	result := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
+	result := evaluateAt(cycleOne, known, listing, nil)
 	if result.Counts.Listed != 778 || result.Counts.NewlyUnlisted != 26 {
 		t.Fatalf("counts = %+v, want 778 listed and 26 newly unlisted (the bogus record ignored)", result.Counts)
-	}
-	for _, observation := range result.Projected {
-		if observation.ScopeID == scopeIDFor("boatsgroup/repo-000") && observation.UnlistedCycleCount != 1 {
-			t.Fatalf("repo-000 = %+v, want one unlisted cycle", observation)
-		}
 	}
 }
 
@@ -189,7 +267,7 @@ func TestEvaluateTruncatedListingWritesNothing(t *testing.T) {
 
 	known, listing := qaFixture()
 	listing.Complete = false
-	result := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
+	result := evaluateAt(cycleOne, known, listing, nil)
 	if result.Outcome != OutcomeListingTruncated || len(result.Batch.Rows) != 0 {
 		t.Fatalf("truncated result = %q with %d rows, want %q with none", result.Outcome, len(result.Batch.Rows), OutcomeListingTruncated)
 	}
@@ -207,7 +285,7 @@ func TestEvaluateMassMissGuardWritesNothing(t *testing.T) {
 			listing.Repositories = append(listing.Repositories, ListedRepository{ScopeID: scopeIDFor(slug), Slug: slug, State: StateSelected})
 		}
 	}
-	tripped := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
+	tripped := evaluateAt(cycleOne, known, listing, nil)
 	if tripped.Outcome != OutcomeGuardTripped || len(tripped.Batch.Rows) != 0 {
 		t.Fatalf("11 of 100 unlisted = %q with %d rows, want %q with none", tripped.Outcome, len(tripped.Batch.Rows), OutcomeGuardTripped)
 	}
@@ -216,15 +294,15 @@ func TestEvaluateMassMissGuardWritesNothing(t *testing.T) {
 	}
 
 	listing.Repositories = append(listing.Repositories, ListedRepository{ScopeID: scopeIDFor("boatsgroup/repo-000"), Slug: "boatsgroup/repo-000", State: StateSelected})
-	if passed := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known}); passed.Outcome != OutcomeEvaluated {
+	if passed := evaluateAt(cycleOne, known, listing, nil); passed.Outcome != OutcomeEvaluated {
 		t.Fatalf("10 of 100 unlisted = %q, want %q", passed.Outcome, OutcomeEvaluated)
 	}
 
-	empty := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: Listing{Complete: true}, Known: known[:3]})
+	empty := evaluateAt(cycleOne, known[:3], Listing{Complete: true}, nil)
 	if empty.Outcome != OutcomeGuardTripped || len(empty.Batch.Rows) != 0 {
 		t.Fatalf("empty listing over 3 known = %q with %d rows, want %q with none", empty.Outcome, len(empty.Batch.Rows), OutcomeGuardTripped)
 	}
-	if none := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: Listing{Complete: true}}); none.Outcome != OutcomeEvaluated {
+	if none := evaluateAt(cycleOne, nil, Listing{Complete: true}, nil); none.Outcome != OutcomeEvaluated {
 		t.Fatalf("empty listing with no known scopes = %q, want %q", none.Outcome, OutcomeEvaluated)
 	}
 }
@@ -240,81 +318,50 @@ func TestEvaluateGuardCountsOnlyNewlyUnlistedScopes(t *testing.T) {
 		known = append(known, KnownScope{ScopeID: scopeIDFor(slug), Slug: slug})
 		if i < 20 {
 			prior = append(prior, Observation{
-				ScopeID: scopeIDFor(slug), State: StateNotListed, UnlistedCycleCount: 1,
-				FirstUnlistedAt: cycleOne.Add(-time.Hour), EvaluatedAt: cycleOne.Add(-time.Hour), EvaluationInterval: minimumInterval,
+				ScopeID: scopeIDFor(slug), State: StateNotListed, StateCycleCount: 1,
+				StateSince: cycleOne.Add(-time.Hour), EvaluatedAt: cycleOne.Add(-time.Hour), LivenessWindow: testWindow,
 			})
 			continue
 		}
 		listing.Repositories = append(listing.Repositories, ListedRepository{ScopeID: scopeIDFor(slug), Slug: slug, State: StateSelected})
 	}
-	result := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known, Prior: prior})
+	result := evaluateAt(cycleOne, known, listing, prior)
 	if result.Outcome != OutcomeEvaluated || result.Counts.NewlyUnlisted != 0 || result.Counts.NotListed != 20 {
 		t.Fatalf("20 already-unlisted scopes = %q, counts %+v; want evaluated with 0 newly unlisted", result.Outcome, result.Counts)
 	}
 }
 
-func TestEvaluateRelistedScopeResetsCounters(t *testing.T) {
+// TestEvaluateExplicitWritesOnlySelectedRows covers explicit mode: rows only
+// for configured repositories that already have a scope, every row selected,
+// no not_listed rows for other known scopes, and no mass-miss guard.
+func TestEvaluateExplicitWritesOnlySelectedRows(t *testing.T) {
 	t.Parallel()
 
-	slug := "boatsgroup/back"
-	prior := []Observation{{
-		ScopeID: scopeIDFor(slug), State: StateNotListed, UnlistedCycleCount: 3,
-		FirstUnlistedAt: cycleOne.Add(-2 * time.Hour), EvaluatedAt: cycleOne.Add(-time.Hour), EvaluationInterval: minimumInterval,
+	selector := NewExplicitSelector("explicit", "boatsgroup", []Rule{{Kind: "exact", Value: "boatsgroup/repo-001"}}, TokenPrincipal("t"))
+	known, _ := qaFixture()
+	listing := Listing{Complete: true, Repositories: []ListedRepository{
+		{ScopeID: scopeIDFor("boatsgroup/repo-001"), Slug: "boatsgroup/repo-001", State: StateSelected},
+		{ScopeID: scopeIDFor("boatsgroup/repo-002"), Slug: "boatsgroup/repo-002", State: StateSelected},
+		{ScopeID: scopeIDFor("boatsgroup/never-indexed"), Slug: "boatsgroup/never-indexed", State: StateSelected},
 	}}
-	result := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval,
-		Listing: Listing{Complete: true, Repositories: []ListedRepository{{ScopeID: scopeIDFor(slug), Slug: slug, GitHubID: 7, State: StateSelected}}},
-		Known:   []KnownScope{{ScopeID: scopeIDFor(slug), Slug: slug}},
-		Prior:   prior,
-	})
-	if result.Counts.Relisted != 1 {
-		t.Fatalf("relisted = %d, want 1", result.Counts.Relisted)
+	result := Evaluate(Input{Selector: selector, Now: cycleOne, LivenessWindow: testWindow, Listing: listing, Known: known})
+	if result.Outcome != OutcomeEvaluated {
+		t.Fatalf("explicit outcome = %q, want %q", result.Outcome, OutcomeEvaluated)
 	}
-	got := result.Projected[0]
-	if got.State != StateSelected || got.UnlistedCycleCount != 0 || !got.FirstUnlistedAt.IsZero() || !got.LastListedAt.Equal(cycleOne) || got.GitHubRepoID != 7 {
-		t.Fatalf("relisted projection = %+v, want selected with reset counters, last listed now, GitHub id 7", got)
+	want := []Row{
+		{ScopeID: scopeIDFor("boatsgroup/repo-001"), State: StateSelected},
+		{ScopeID: scopeIDFor("boatsgroup/repo-002"), State: StateSelected},
 	}
-}
+	if !slices.Equal(result.Batch.Rows, want) {
+		t.Fatalf("explicit rows = %+v, want %+v", result.Batch.Rows, want)
+	}
+	if result.Counts.NotListed != 0 || result.Counts.NewlyUnlisted != 0 || len(result.NotListedSample) != 0 {
+		t.Fatalf("explicit counts = %+v, want no unlisted scopes", result.Counts)
+	}
 
-func TestEvaluateReplayAtTheSameTimeLeavesTheProjectionUnchanged(t *testing.T) {
-	t.Parallel()
-
-	known, listing := qaFixture()
-	first := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known})
-	replay := Evaluate(Input{Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval, Listing: listing, Known: known, Prior: first.Projected})
-	if !slices.Equal(replay.Projected, first.Projected) {
-		t.Fatal("replaying the same evaluated_at changed the projected observations")
-	}
-	if replay.Scopes != first.Scopes {
-		t.Fatalf("replay scopes = %+v, want %+v", replay.Scopes, first.Scopes)
-	}
-}
-
-func TestConfirmedNeedsTwoCyclesAndTheInterval(t *testing.T) {
-	t.Parallel()
-
-	base := Observation{
-		State: StateNotListed, UnlistedCycleCount: 2,
-		FirstUnlistedAt: cycleOne, EvaluatedAt: cycleOne.Add(minimumInterval), EvaluationInterval: minimumInterval,
-	}
-	if !Confirmed(base) {
-		t.Fatalf("Confirmed(%+v) = false, want true", base)
-	}
-	oneCycle := base
-	oneCycle.UnlistedCycleCount = 1
-	oneCycle.FirstUnlistedAt = cycleOne.Add(-time.Hour)
-	if Confirmed(oneCycle) {
-		t.Fatalf("Confirmed(one cycle spanning an hour) = true, want false")
-	}
-	tooSoon := base
-	tooSoon.EvaluatedAt = cycleOne.Add(minimumInterval - time.Second)
-	if Confirmed(tooSoon) {
-		t.Fatalf("Confirmed(two cycles inside the interval) = true, want false")
-	}
-	archived := base
-	archived.State = StateArchivedExcluded
-	if Confirmed(archived) {
-		t.Fatalf("Confirmed(archived_excluded) = true, want false")
+	empty := Evaluate(Input{Selector: selector, Now: cycleOne, LivenessWindow: testWindow, Listing: Listing{Complete: true}, Known: known})
+	if empty.Outcome != OutcomeEvaluated || len(empty.Batch.Rows) != 0 {
+		t.Fatalf("explicit with nothing configured = %q with %d rows, want evaluated with none (no guard)", empty.Outcome, len(empty.Batch.Rows))
 	}
 }
 
