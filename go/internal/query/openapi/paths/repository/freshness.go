@@ -11,7 +11,7 @@ const Freshness = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get per-repository commit receipt and build-completeness verdict",
-        "description": "Answers two questions for one repository: did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, or unknown. verdict=current speaks to BUILD COMPLETENESS for the resolved generation, not necessarily a commit receipt: observed_commit may be an empty string while verdict is still honestly current. An empty observed_commit is legitimate for non-git scopes, for pre-delta-baseline git generations that predate the source_commit_sha column, and for snapshot-trigger git generations (trigger_kind=snapshot: a cassette-replayed or otherwise non-live-git-sync source with no commit to report, as opposed to a push/delta-triggered sync) -- represented explicitly rather than fabricated. The optional expected_commit query parameter is compared as an opaque string (no format validation); when it does not match observed_commit the verdict is behind regardless of whether a generation is actively progressing. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
+        "description": "Answers two questions for one repository: did eshu pick up its latest commit, and is the evidence for that commit fully built. verdict is one of current, building, behind, unobserved, not_selected, or unknown. verdict=not_selected (#7625) means every live githubOrg selector that observes this repository's scope has settled evidence that it no longer selects it (archived or rule excluded, or missing from two complete org listings spanning the evaluation interval), so no newer commit will arrive; it outranks every verdict except unknown. It is evidence only: nothing is hidden or deleted. selection reports that evidence and is null when no selector evaluated the scope within three of its evaluation intervals, in which case the verdict is computed exactly as before. verdict=current speaks to BUILD COMPLETENESS for the resolved generation, not necessarily a commit receipt: observed_commit may be an empty string while verdict is still honestly current. An empty observed_commit is legitimate for non-git scopes, for pre-delta-baseline git generations that predate the source_commit_sha column, and for snapshot-trigger git generations (trigger_kind=snapshot: a cassette-replayed or otherwise non-live-git-sync source with no commit to report, as opposed to a push/delta-triggered sync) -- represented explicitly rather than fabricated. The optional expected_commit query parameter is compared as an opaque string (no format validation); when it does not match observed_commit the verdict is behind regardless of whether a generation is actively progressing. shared_enrichment reports cross-repo materialization backlog referencing this repository's generation as a separate axis from stages, so a different repository's shared backlog is never attributed here. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
         "operationId": "getRepositoryFreshness",
         "x-scoped-token-support": true,
         "parameters": [
@@ -37,7 +37,7 @@ const Freshness = `
                   "properties": {
                     "repository": {"$ref": "#/components/schemas/RepositoryRef"},
                     "scope_id": {"type": "string"},
-                    "verdict": {"type": "string", "enum": ["current", "building", "behind", "unobserved", "unknown"]},
+                    "verdict": {"type": "string", "enum": ["current", "building", "behind", "unobserved", "not_selected", "unknown"]},
                     "observed_commit": {"type": "string", "description": "May be empty for non-git scopes, pre-delta-baseline generations, or snapshot-trigger git generations (trigger_kind=snapshot). An empty value with verdict=current means build completeness for this generation, not a commit receipt."},
                     "observed_at": {"type": "string", "nullable": true},
                     "generation": {
@@ -94,6 +94,18 @@ const Freshness = `
                         "target_sha": {"type": "string"},
                         "ref": {"type": "string"},
                         "received_at": {"type": "string", "nullable": true}
+                      }
+                    },
+                    "selection": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Collector selection evidence from the scope's live selector observations (#7625). Null when no selector evaluated the scope within three of its evaluation intervals.",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["selected", "not_selected", "pending"], "description": "selected when any live selector selects the scope; not_selected when every live observation is settled exclusion evidence; pending when a missing-from-listing observation has not yet been confirmed over two cycles."},
+                        "reason": {"type": "string", "nullable": true, "enum": ["not_listed", "archived_excluded", "rule_excluded", null], "description": "Null when selected; not_listed when pending; for not_selected, the state of the most recently evaluated live observation."},
+                        "last_listed_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Newest time a deciding selector's complete listing named the repository; null if never."},
+                        "unlisted_since": {"type": "string", "format": "date-time", "nullable": true, "description": "Earliest first missing-from-listing time among live observations; null when selected or never missing."},
+                        "evaluated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Newest evaluation time among the deciding observations."}
                       }
                     },
                     "as_of": {"type": "string"},
