@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
@@ -28,6 +29,9 @@ type RepositoryFreshnessStore struct {
 	// stay source-compatible; NewInstrumentedRepositoryFreshnessStore is the
 	// wiring entry point that wants the duration/error signals.
 	Instruments *telemetry.Instruments
+	// now is the clock selection liveness is judged against; nil means
+	// time.Now.
+	now func() time.Time
 }
 
 // NewRepositoryFreshnessStore constructs a read-only repository freshness
@@ -47,14 +51,16 @@ func NewInstrumentedRepositoryFreshnessStore(queryer db.Queryer, instruments *te
 // ReadRepositoryFreshness reads the freshness snapshot for one canonical
 // repository id: the composite single-scope read (resolve -> generation ->
 // stage counts -> shared-enrichment pending), then the separate bounded
-// webhook-trigger lookup. It is one instrumented Go-level composite read
-// backed by four tightly-scoped, index-bound SQL statements -- see this
-// package's README, "Repo freshness single-scope composite read (#5143)",
-// for the measured shape.
+// webhook-trigger lookup, then the scope's selection observations (#7625).
+// It is one instrumented Go-level composite read backed by tightly-scoped,
+// index-bound SQL statements -- see this package's README, "Repo freshness
+// single-scope composite read (#5143)", for the measured shape.
 //
 // A repoID that resolves to no scope returns a snapshot with Resolved=false
 // and a nil error: an unresolved repository is not a query failure, it is
-// evidence the verdict function represents as "unknown".
+// evidence the verdict function represents as "unknown". Any sub-query
+// error, the selection lookup included, fails the whole read; the caller
+// never receives a snapshot with evidence silently missing.
 func (s RepositoryFreshnessStore) ReadRepositoryFreshness(ctx context.Context, repoID string) (statuspkg.RepositoryFreshnessSnapshot, error) {
 	start := time.Now()
 	snapshot, err := s.readRepositoryFreshness(ctx, repoID)
@@ -126,7 +132,63 @@ func (s RepositoryFreshnessStore) readRepositoryFreshness(ctx context.Context, r
 		snapshot.UnobservedPush = unobserved
 	}
 
+	observations, err := s.readSelection(ctx, scopeID)
+	if err != nil {
+		return snapshot, err
+	}
+	if summary, ok := selection.Summarize(observations, s.clock()); ok {
+		snapshot.Selection = &summary
+	}
+
 	return snapshot, nil
+}
+
+func (s RepositoryFreshnessStore) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+// readSelection returns every selector's stored selection observation for
+// scopeID, live or not; selection.Summarize decides which rows count. SQL
+// NULL timestamps become zero values.
+func (s RepositoryFreshnessStore) readSelection(ctx context.Context, scopeID string) ([]selection.Observation, error) {
+	rows, err := s.queryer.QueryContext(ctx, repositoryFreshnessSelectionQuery, scopeID)
+	if err != nil {
+		return nil, fmt.Errorf("read repository freshness: read selection: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []selection.Observation
+	for rows.Next() {
+		var (
+			o               selection.Observation
+			state           string
+			lastListedAt    sql.NullTime
+			firstUnlistedAt sql.NullTime
+			intervalSeconds int64
+		)
+		if scanErr := rows.Scan(
+			&o.SelectorID, &state, &lastListedAt, &firstUnlistedAt,
+			&o.UnlistedCycleCount, &o.EvaluatedAt, &intervalSeconds,
+		); scanErr != nil {
+			return nil, fmt.Errorf("read repository freshness: read selection: %w", scanErr)
+		}
+		o.State = selection.State(state)
+		if lastListedAt.Valid {
+			o.LastListedAt = lastListedAt.Time
+		}
+		if firstUnlistedAt.Valid {
+			o.FirstUnlistedAt = firstUnlistedAt.Time
+		}
+		o.EvaluationInterval = time.Duration(intervalSeconds) * time.Second
+		out = append(out, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read repository freshness: read selection: %w", err)
+	}
+	return out, nil
 }
 
 func (s RepositoryFreshnessStore) resolveScope(ctx context.Context, repoID string) (scopeID, generationID string, resolved bool, err error) {
