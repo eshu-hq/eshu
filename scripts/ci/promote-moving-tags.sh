@@ -142,6 +142,12 @@ fi
 attempt=1
 while [[ "${attempt}" -le "${attempts}" ]]; do
 	echo "promote: attempt ${attempt}/${attempts}"
+	# The checkout may predate the commit :main already carries
+	# (out-of-order completion). Refresh before every ancestry decision so a
+	# stale clone cannot misread a descendant as unrelated. A failed refresh
+	# is not fatal: the attempt proceeds on what the clone has, and a commit
+	# that never resolves exhausts as non-convergence below.
+	git fetch -q origin main 2>/dev/null || true
 	sha_now="$(tag_digest_of "sha-${my_sha}" 2>/dev/null)" || sha_now=""
 	current=""
 	rc=0
@@ -172,9 +178,11 @@ while [[ "${attempt}" -le "${attempts}" ]]; do
 		echo "promote: :main carries ancestor ${current}; promoting"
 		promote_and_verify && exit 0
 		echo "promote: verify failed after push; waiting ${interval}s"
-	else
+	elif git cat-file -e "${current}" 2>/dev/null && git cat-file -e "${my_sha}" 2>/dev/null; then
 		echo "::error::promote: :main carries ${current}, unrelated to ${my_sha}; refusing to move it" >&2
 		exit 1
+	else
+		echo "promote: cannot resolve ${current}; refreshing and waiting ${interval}s"
 	fi
 	attempt=$((attempt + 1))
 	sleep "${interval}"

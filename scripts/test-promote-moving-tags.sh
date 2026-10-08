@@ -68,8 +68,12 @@ for t in "${tags[@]}"; do
 done
 STUB
 
-# Fake git: merge-base --is-ancestor over ${STUB_DIR}/ancestors ("child parent"
-# per line, transitive). Anything else is an error.
+# Fake git (fixtures/promote-moving-tags-stub-git.sh): merge-base
+# --is-ancestor over ${STUB_DIR}/ancestors ("child parent" per line,
+# transitive), exiting 128 for unknown objects like real git; fetch appends
+# ${STUB_DIR}/fetch-add when a case provides it; cat-file -e reports
+# existence. Anything else is an error. The stub lives in a fixture file
+# because its body exceeds the heredoc budget (#5074).
 cp "${repo_root}/scripts/fixtures/promote-moving-tags-stub-git.sh" "${work}/bin/git"
 chmod +x "${work}/bin/curl" "${work}/bin/docker" "${work}/bin/git"
 
@@ -162,10 +166,13 @@ check "ancestor main exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] &
 check "ancestor main moves both tags in one create" "$(single_dual_tag_create && echo 0 || echo 1)"
 check "ancestor main leaves tags on the digest" "$(tag_is main "${D_MINE}" && tag_is latest "${D_MINE}" && echo 0 || echo 1)"
 
-# 5. Unrelated history fails loudly without pushing.
+# 5. Unrelated history fails loudly without pushing. Both commits are known
+# to the clone (siblings under SHA_OLD) so this case proves the truly
+# unrelated branch, not the unknown-object path.
 fresh_case unrelated
 printf '%s' "${D_X}" >"${STUB_DIR}/tags/main"
 printf '%s' "${SHA_X}" >"${STUB_DIR}/revs/$(san "${D_X}")"
+printf '%s %s\n%s %s\n' "${MY_SHA}" "${SHA_OLD}" "${SHA_X}" "${SHA_OLD}" >"${STUB_DIR}/ancestors"
 run_promote "refs/heads/main" 3
 check "unrelated main exits non-zero (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" != "0" ] && echo 0 || echo 1)"
 check "unrelated main pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
@@ -213,6 +220,33 @@ printf '%s' "${D_NOLABEL}" >"${STUB_DIR}/tags/main"
 run_promote "refs/heads/main" 1
 check "missing label exits non-zero (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" != "0" ] && echo 0 || echo 1)"
 check "missing label pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
+
+# 11. Out-of-order completion: main already carries a commit this shallow
+# clone has never seen. The refresh fetch resolves it, the next ancestry
+# check sees the descendant, and the run skips green instead of refusing.
+fresh_case staleclone
+printf '%s' "${D_NEWER}" >"${STUB_DIR}/tags/main"
+printf '%s' "${D_NEWER}" >"${STUB_DIR}/tags/latest"
+printf '%s' "${SHA_NEWER}" >"${STUB_DIR}/revs/$(san "${D_NEWER}")"
+printf '%s %s\n' "${MY_SHA}" "${SHA_OLD}" >"${STUB_DIR}/ancestors"
+printf '%s %s\n' "${SHA_NEWER}" "${MY_SHA}" >"${STUB_DIR}/fetch-add"
+run_promote "refs/heads/main" 3
+check "stale clone exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
+check "stale clone pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
+check "stale clone refreshed before deciding" "$(grep -q '^git fetch' "${STUB_DIR}/git.log" && echo 0 || echo 1)"
+check "stale clone reports the newer commit" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'newer commit' && echo 0 || echo 1)"
+
+# 12. A commit that never resolves is a transient fetch problem, not proof
+# of unrelated history: the attempts exhaust as non-convergence.
+fresh_case ghost
+printf '%s' "${D_X}" >"${STUB_DIR}/tags/main"
+printf '%s' "${SHA_X}" >"${STUB_DIR}/revs/$(san "${D_X}")"
+printf '%s %s\n' "${MY_SHA}" "${SHA_OLD}" >"${STUB_DIR}/ancestors"
+run_promote "refs/heads/main" 2
+check "ghost main exits non-zero (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" != "0" ] && echo 0 || echo 1)"
+check "ghost main pushes nothing" "$([ "$(creates)" == "0" ] && echo 0 || echo 1)"
+check "ghost main reports non-convergence" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'did not converge' && echo 0 || echo 1)"
+check "ghost main never claims unrelated" "$(printf '%s' "${PROMOTE_OUTPUT}" | grep -q 'unrelated' && echo 1 || echo 0)"
 
 printf 'test-promote-moving-tags: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" == "0" ]
