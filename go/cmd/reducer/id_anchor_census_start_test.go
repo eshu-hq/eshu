@@ -85,3 +85,26 @@ func TestStartIDAnchorCensusDoesNotReadWhenNotApplicable(t *testing.T) {
 		}
 	}
 }
+
+func TestIDAnchorCensusReaderPrefersTheRawRunnerOverTheCaptureDecorator(t *testing.T) {
+	raw := &censusReader{}
+	decorated := &censusReader{}
+	got := idAnchorCensusReader(rawReaderAdapter{raw}, decorated)
+	if _, err := got.RunSingle(context.Background(), "q", nil); err != nil {
+		t.Fatal(err)
+	}
+	if raw.reads.Load() != 1 || decorated.reads.Load() != 0 {
+		t.Fatalf("raw reads=%d decorated reads=%d, want the raw runner only (a decorated read would be recorded in the differential capture)", raw.reads.Load(), decorated.reads.Load())
+	}
+	if idAnchorCensusReader(nil, nil) != nil {
+		t.Error("no reader configured must yield nil, not a typed-nil interface")
+	}
+}
+
+// rawReaderAdapter lets a censusReader stand in for the raw session runner,
+// which is both a CypherReader and a row reader.
+type rawReaderAdapter struct{ *censusReader }
+
+func (rawReaderAdapter) QueryCypherExists(context.Context, string, map[string]any) (bool, error) {
+	return false, nil
+}

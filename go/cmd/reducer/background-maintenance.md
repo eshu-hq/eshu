@@ -56,7 +56,7 @@ reason distinguishes missing initial backfill from a fresh old-writer mutation.
 entity-context anchor it measures is a Neo4j statement. It takes one pass at
 startup, so the startup log line carries the count, then one pass per
 `ESHU_ID_ANCHOR_CENSUS_POLL_INTERVAL` (default one hour). Each pass is one
-read-only `AllNodesScan` through the reducer's graph read port under a
+read-only `AllNodesScan` through the reducer's raw graph session runner (not the differential-capture decorator, so a golden-corpus capture never records it) under a
 `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` deadline (default two minutes): about 1.95 s
 over 1,130,424 nodes on ops-qa (image sha-57167b0, 2026-10-08). The scan is
 read-only and idempotent, so replicas need no lease; each reports the same
