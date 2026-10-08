@@ -73,6 +73,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/cmd/golden-corpus-gate/anchor_census_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded proof of the gate's id-anchor census check (#7212) through its own Bolt reader on a fresh Neo4j with the production schema, with planted id-only and null-uid nodes; the check is Neo4j-only, so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
+    backends: neo4j
   - file: go/cmd/golden-corpus-gate/drains_residual_breakdown_live_test.go
     tag: ~
     class: scheduled
@@ -127,6 +132,11 @@ tests:
     tag: perf5854_head || perf5854_main
     class: scheduled
     reason: slow or environment-bound by nature (perf/SLO/theory); runs in the scheduled live lane, not blocking
+  - file: go/cmd/reducer/id_anchor_census_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded proof of the reducer id-anchor census startup pass (#7212) through the raw session runner, a real OTel reader, and the log line, with one planted id-only node; Neo4j-only, so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
+    backends: neo4j
   - file: go/cmd/reducer/ifa_group_retry_live_test.go
     tag: ifafaultinjection
     class: scheduled
@@ -520,6 +530,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/graph/anchor/census_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: deterministic seeded proof of the id-anchor census Cypher (#7212) against the reference classification, with a planted id-only node and a null-uid node; the census is Neo4j-only, so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
+    backends: neo4j
   - file: go/internal/query/entity/context_anchor_neo4j_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

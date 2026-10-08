@@ -50,6 +50,9 @@ func TestLiveAnchorCensus(t *testing.T) {
 	if uri == "" {
 		t.Fatal("ESHU_NEO4J_URI is required")
 	}
+	if backend := strings.ToLower(strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_BACKEND"))); backend != "neo4j" {
+		t.Skip("the id-anchor census is a Neo4j statement; NornicDB keeps the unlabeled fallback (#7212)")
+	}
 	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
 	if database == "" {
 		database = "neo4j"
@@ -114,7 +117,59 @@ func TestLiveAnchorCensus(t *testing.T) {
 	if got := planted.Residual - clean.Residual; got != 2 {
 		t.Fatalf("residual moved by %d after planting two unreachable nodes, want 2", got)
 	}
-	if verdict := EvaluateCensus(ctx, source); before.Residual == 0 && verdict.OK {
+	if verdict := EvaluateCensus(ctx, source); verdict.OK {
 		t.Fatalf("EvaluateCensus passed with planted nodes: %s", verdict.Detail)
+	}
+
+	// The Cypher must agree with the reference classification on every seeded
+	// shape: read the seeded nodes back and classify them in Go.
+	uid, id := map[string]bool{}, map[string]bool{}
+	for _, l := range UIDLabels() {
+		uid[l] = true
+	}
+	for _, l := range IDLabels() {
+		id[l] = true
+	}
+	result, err := neo4jdriver.ExecuteQuery(ctx, driver,
+		`MATCH (n) WHERE n.id STARTS WITH $p OR n.uid STARTS WITH $p RETURN labels(n) AS labels, n.id AS id, n.uid AS uid`,
+		map[string]any{"p": liveCensusPrefix}, neo4jdriver.EagerResultTransformer, neo4jdriver.ExecuteQueryWithDatabase(database))
+	if err != nil {
+		t.Fatalf("read seeded nodes: %v", err)
+	}
+	var want Census
+	for _, rec := range result.Records {
+		node := Node{}
+		rawLabels, _ := rec.Get("labels")
+		for _, l := range rawLabels.([]any) {
+			node.Labels = append(node.Labels, l.(string))
+		}
+		if v, _ := rec.Get("id"); v != nil {
+			s := v.(string)
+			node.ID = &s
+		}
+		if v, _ := rec.Get("uid"); v != nil {
+			s := v.(string)
+			node.UID = &s
+		}
+		switch Classify(node, uid, id) {
+		case ReachViaID:
+			want.IDBearing++
+			want.ViaID++
+		case ReachViaUID:
+			want.IDBearing++
+			want.ViaUIDOnly++
+		case Unreachable:
+			want.IDBearing++
+			want.Residual++
+		}
+	}
+	got := Census{
+		IDBearing:  planted.IDBearing - before.IDBearing,
+		ViaID:      planted.ViaID - before.ViaID,
+		ViaUIDOnly: planted.ViaUIDOnly - before.ViaUIDOnly,
+		Residual:   planted.Residual - before.Residual,
+	}
+	if got != want {
+		t.Fatalf("census delta = %+v, reference classification of the seeded nodes = %+v", got, want)
 	}
 }

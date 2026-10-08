@@ -17,9 +17,9 @@ import (
 // Runner samples the id-anchor census on an interval (#7212): the
 // number of graph nodes with an id that the labeled Neo4j entity-context anchor
 // cannot reach. The scan is read-only and idempotent, so replicas need no
-// lease: each reports the same snapshot, and the cost is one bounded scan per
-// replica per interval. The result is recorded after the pass, never during a
-// metrics scrape.
+// lease: each reports its own snapshot, read at its own time, and the cost is
+// one bounded scan per replica per interval. The result is recorded after the
+// pass, never during a metrics scrape.
 type Runner struct {
 	Source      anchor.CensusSource
 	Instruments *telemetry.Instruments

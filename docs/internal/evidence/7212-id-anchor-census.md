@@ -54,10 +54,19 @@ and a capture that never sees an id write, both fail, because either would pass 
 blind analyzer. All four capture legs join, because the writers are the same
 code on both backends.
 
-**Static sweep** (`TestEveryProductionIDWriterNamesAnAnchorLabel`). An
-independent test over the Cypher string literals and constant concatenations in
-`go/`. It does not depend on what a replay executes. A statement whose label is
-built at run time is invisible to it; the replay half covers those.
+**Static sweep** (`TestEveryProductionIDWriterNamesAnAnchorLabel`,
+`TestEveryDynamicLabelWriterIsNamed`). An independent test over the Cypher
+literals in `go/`. It does not depend on what a replay executes. It admits a
+string literal or a `+` chain (a non-literal operand reads as a placeholder) with
+a write keyword, an `id` token or `+=`, and a node pattern that is labeled,
+unlabeled with an `id` key, or has a placeholder label. On the clean tree it
+admits 109 sites. Static-label sites go through `CheckWriters` (90 id writes, none
+uncovered). The 13 placeholder-label sites (the canonical and semantic entity
+upsert templates, the `internal/graph` batch helpers, the read-API latency seed
+tool) cannot be decided statically, so each is a named allowlist row with a
+reason, and a new or edited one fails the sweep. A dynamic-label writer outside
+these shapes that the replay does not execute is covered only by the census
+check and gauge.
 
 **Census check** (`graph/anchor_census`, graph phase, Neo4j leg). After the
 replay, the count of nodes with an id that are not anchor-reachable must be zero,
@@ -110,14 +119,15 @@ interval that is under 0.1% of one core. The two-minute timeout is about 60
 times the measured scan, so a graph that grows several-fold still finishes and a
 wedged read cannot hold the loop. The scan does not write, takes no lock the
 write path waits on under read-committed isolation, and needs no lease because
-each replica reports the same snapshot. The golden-corpus check runs the same
-statement once per Neo4j leg on a corpus far smaller than ops-qa.
+each replica reports its own snapshot (read at its own time; alert on the
+maximum across replicas). The golden-corpus check runs the same statement once
+per Neo4j leg on a corpus far smaller than ops-qa.
 
 The statement was not re-profiled in this change: the figure above is the
 measured pass of the same pattern, and the Cypher here adds only the per-row
-label tests. `NOT_CHECKED`: the plan and db hits of this exact statement on
-Neo4j; `TestLiveAnchorCensus` (tag `live_nornicdb_answer_truth`) and the
-`golden-corpus-gate-neo4j` leg run it in CI.
+label tests. The statement ran on a real Neo4j for the first time in this
+change (see Observability Evidence). `NOT_CHECKED`: the plan and db hits of this
+exact statement on a graph the size of ops-qa.
 
 ## Observability Evidence
 
@@ -131,17 +141,41 @@ label that grows with data. The tests in
 runner against a real OpenTelemetry SDK manual reader and assert the gauge value,
 the last-success time, the pass counter, the duration histogram, the startup log
 line (`snapshot=true`, `first_pass=true`, the counts), the WARN on a residual,
-and that a failed pass or a timeout keeps the last good snapshot. The signal was
-not observed in a local reducer run: that needs a Neo4j container, which this
-change did not start. `NOT_CHECKED`: the gauge on a live reducer, and whether the
-ops-qa and ops-prod scrape configurations collect it.
+and that a failed pass or a timeout keeps the last good snapshot.
+
+The signal was also observed against a real Neo4j (`neo4j:2026-community`, the
+digest pinned in `docker-compose.live-backend-neo4j.yml`, server 2026.08.1), on a
+throwaway container on a free port, through the production wiring
+(`startIDAnchorCensus` with the raw session runner and an OpenTelemetry SDK
+reader). `TestLiveIDAnchorCensusStartup` ran the startup pass on an empty graph,
+then after canonical shapes, then after one planted id-only node:
+
+```text
+startup pass, graph before seed: gauge=0 ok_passes=1
+level=INFO msg="id anchor census" snapshot=true first_pass=true id_bearing_nodes=0 via_uid_nodes=0 via_id_nodes=0 unreachable_nodes=0 duration_seconds=0.0046
+startup pass, one id-only node planted: gauge=1
+level=WARN msg="id anchor census" snapshot=true first_pass=true id_bearing_nodes=3 via_uid_nodes=1 via_id_nodes=1 unreachable_nodes=1 duration_seconds=0.0023
+```
+
+`TestLiveAnchorCensus` agreed with the reference classification on every seeded
+shape and failed when the `coalesce` was removed (the null-uid node vanished from
+the count, residual moved by 1 instead of 2). `TestLiveAnchorCensusCheck` ran the
+gate's own Bolt reader with the production schema applied: canonical shapes
+passed (`id-bearing 2, via uid 1, via id 1, residual 0`), and two planted
+unreachable nodes failed with `residual 2` and the label sets
+`labels=[Function] nodes=1; labels=[Unconstrained] nodes=1` and no id. The
+transcripts were captured locally. `NOT_CHECKED`: a running reducer process
+scraped over `/metrics`, and whether the ops-qa and ops-prod scrape
+configurations collect the gauge.
 
 ## What only CI exercises
 
-- The census Cypher against a real Neo4j (`TestLiveAnchorCensus`, and the graph
-  phase of `golden-corpus-gate-neo4j`).
+- The census check against a real replay's graph (the graph phase of
+  `golden-corpus-gate-neo4j`). The three live tests are rows in
+  `specs/live-tests.v1.yaml` (class `ci`, Neo4j only, self-skipping elsewhere), so
+  the live-backend CI job also runs them.
 - The writer-coverage phase over a real replay's recordings. The analyzer is
-  proved on recorded-session fixtures and on every Cypher literal in `go/`, not
-  on a full replay.
+  proved on recorded-session fixtures and by the static sweep, not on a full
+  replay.
 - Whether a clean replay leaves a residual of zero. The census check is
   required; a residual in the corpus fails the leg and is a finding to root-cause.
