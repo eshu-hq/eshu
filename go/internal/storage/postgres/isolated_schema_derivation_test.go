@@ -96,9 +96,17 @@ func isolatedSchemaCurrentSchema(t *testing.T, ctx context.Context, db *sql.DB) 
 }
 
 // isolatedSchemaInventoryQuery lists every comparable object in one schema.
-// Index and constraint definitions are compared by structure (name, table,
-// access method, key columns, predicate), never by pg_get_*def text, which
-// embeds the schema name and would differ between two identical schemas.
+// Constraint, trigger, routine, and index fingerprints compare definitions,
+// not just names (#7693): a CHECK with an altered predicate, a retargeted
+// foreign key, a rebound trigger, an edited routine body, or a changed index
+// expression must fail the comparison.
+//
+// pg_get_constraintdef renders schema-free under the pinned search_path each
+// proof handle carries, and md5(prosrc) is schema-free by construction, so
+// both compare directly. pg_get_triggerdef and pg_get_indexdef embed the
+// schema name (ON <schema>.<table>), so the arms strip "<schema>." before
+// comparing. Isolated schema names are prefix_<unixnanos>, which cannot
+// appear in a definition except as a qualifier.
 // Extension-owned objects are excluded (see the guard's doc comment).
 const isolatedSchemaInventoryQuery = `
 SELECT 'rel:' || c.relname || ':' || c.relkind::text
@@ -116,7 +124,7 @@ WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
 UNION ALL
 SELECT 'idx:' || c.relname || ':' || tc.relname || ':' || am.amname || ':' || i.indisunique::text || ':' || i.indkey::text ||
-       ':' || COALESCE(pg_get_expr(i.indpred, i.indrelid), '')
+       ':' || COALESCE(pg_get_expr(i.indpred, i.indrelid), '') || ':' || replace(pg_get_indexdef(c.oid), $1 || '.', '')
 FROM pg_class c
 JOIN pg_index i ON i.indexrelid = c.oid
 JOIN pg_class tc ON tc.oid = i.indrelid
@@ -131,20 +139,20 @@ JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = $1 AND c.relkind = 'S'
   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
 UNION ALL
-SELECT 'fn:' || p.proname || ':' || pg_get_function_identity_arguments(p.oid) || ':' || p.prorettype::regtype::text
+SELECT 'fn:' || p.proname || ':' || pg_get_function_identity_arguments(p.oid) || ':' || p.prorettype::regtype::text || ':' || md5(p.prosrc)
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = $1
   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
 UNION ALL
-SELECT 'trg:' || t.tgname || ':' || c.relname || ':' || t.tgtype::text
+SELECT 'trg:' || t.tgname || ':' || c.relname || ':' || t.tgtype::text || ':' || replace(pg_get_triggerdef(t.oid), $1 || '.', '')
 FROM pg_trigger t
 JOIN pg_class c ON c.oid = t.tgrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = $1 AND NOT t.tgisinternal
   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e')
 UNION ALL
-SELECT 'con:' || c.conname || ':' || t.relname || ':' || c.contype::text || ':' || c.confdeltype::text || ':' || c.confupdtype::text
+SELECT 'con:' || c.conname || ':' || t.relname || ':' || c.contype::text || ':' || c.confdeltype::text || ':' || c.confupdtype::text || ':' || pg_get_constraintdef(c.oid)
 FROM pg_constraint c
 JOIN pg_class t ON t.oid = c.conrelid
 JOIN pg_namespace n ON n.oid = c.connamespace
