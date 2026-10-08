@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -179,22 +180,26 @@ func repositoryFreshnessSharedEnrichmentToMap(enrichment status.RepositoryFreshn
 }
 
 // repositoryFreshnessSelectionToMap renders the #7625 collector selection
-// evidence. A nil selection (no live selector observes the scope) renders as
-// null; reason and unlisted_since render as null when they do not apply.
-func repositoryFreshnessSelectionToMap(sel *status.RepositoryFreshnessSelection) map[string]any {
-	if sel == nil {
-		return nil
+// evidence. The block is always present: a scope with no live selector, or a
+// read that stopped before the selection lookup, renders state unknown with
+// zero live selectors and null fields. reason is null for selected and
+// unknown; absent timestamps render as null.
+func repositoryFreshnessSelectionToMap(sel status.RepositoryFreshnessSelection) map[string]any {
+	state := sel.State
+	if state == "" {
+		state = selection.AggregateUnknown
 	}
 	var reason any
-	if sel.Reason != "" {
+	if sel.Reason != "" && state != selection.AggregateSelected && state != selection.AggregateUnknown {
 		reason = string(sel.Reason)
 	}
 	return map[string]any{
-		"state":          string(sel.State),
-		"reason":         reason,
-		"last_listed_at": querycontract.NullableRFC3339(sel.LastListedAt),
-		"unlisted_since": querycontract.NullableRFC3339(sel.UnlistedSince),
-		"evaluated_at":   querycontract.NullableRFC3339(sel.EvaluatedAt),
+		"state":               string(state),
+		"reason":              reason,
+		"state_since":         querycontract.NullableRFC3339(sel.StateSince),
+		"last_listed_at":      querycontract.NullableRFC3339(sel.LastListedAt),
+		"evaluated_at":        querycontract.NullableRFC3339(sel.EvaluatedAt),
+		"live_selector_count": sel.LiveSelectorCount,
 	}
 }
 

@@ -28,81 +28,122 @@ func serveRepositoryFreshness(t *testing.T, snapshot status.RepositoryFreshnessS
 	return testutil.DecodeResponseBody(t, w)
 }
 
+func assertSelection(t *testing.T, resp map[string]any, want map[string]any) {
+	t.Helper()
+	sel := testutil.MustMapField(t, resp, "selection")
+	if len(sel) != len(want) {
+		t.Fatalf("selection = %#v, want exactly the keys %v", sel, want)
+	}
+	for key, value := range want {
+		if sel[key] != value {
+			t.Fatalf("selection.%s = %#v, want %#v (selection %#v)", key, sel[key], value, sel)
+		}
+	}
+}
+
 // TestGetRepositoryFreshnessRendersNotSelected verifies the #7625 verdict and
-// the additive selection object for a scope a live selector no longer lists.
+// the selection block for a scope every live selector confirmed as excluded.
 func TestGetRepositoryFreshnessRendersNotSelected(t *testing.T) {
 	t.Parallel()
 
 	evaluatedAt := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
-	snapshot.Selection = &status.RepositoryFreshnessSelection{
-		State:         selection.AggregateNotSelected,
-		Reason:        selection.StateNotListed,
-		LastListedAt:  evaluatedAt.Add(-15 * time.Minute),
-		UnlistedSince: evaluatedAt.Add(-10 * time.Minute),
-		EvaluatedAt:   evaluatedAt,
+	snapshot.Selection = status.RepositoryFreshnessSelection{
+		State:             selection.AggregateNotSelected,
+		Reason:            selection.StateNotListed,
+		StateSince:        evaluatedAt.Add(-10 * time.Minute),
+		LastListedAt:      evaluatedAt.Add(-15 * time.Minute),
+		EvaluatedAt:       evaluatedAt,
+		LiveSelectorCount: 2,
 	}
 
 	resp := serveRepositoryFreshness(t, snapshot)
 	if got, want := resp["verdict"], "not_selected"; got != want {
 		t.Fatalf("verdict = %#v, want %#v", got, want)
 	}
-	sel := testutil.MustMapField(t, resp, "selection")
-	want := map[string]any{
-		"state":          "not_selected",
-		"reason":         "not_listed",
-		"last_listed_at": "2026-10-08T11:45:00Z",
-		"unlisted_since": "2026-10-08T11:50:00Z",
-		"evaluated_at":   "2026-10-08T12:00:00Z",
+	assertSelection(t, resp, map[string]any{
+		"state":               "not_selected",
+		"reason":              "not_listed",
+		"state_since":         "2026-10-08T11:50:00Z",
+		"last_listed_at":      "2026-10-08T11:45:00Z",
+		"evaluated_at":        "2026-10-08T12:00:00Z",
+		"live_selector_count": float64(2),
+	})
+}
+
+// TestGetRepositoryFreshnessSelectionUnknownWithoutLiveRows verifies the
+// selection block is always rendered: with no live selector observation, or
+// when the read stopped before the selection lookup, it is state unknown,
+// zero live selectors, and null everywhere else, and the verdict is
+// unchanged.
+func TestGetRepositoryFreshnessSelectionUnknownWithoutLiveRows(t *testing.T) {
+	t.Parallel()
+
+	unknown := map[string]any{
+		"state": "unknown", "reason": nil, "state_since": nil, "last_listed_at": nil,
+		"evaluated_at": nil, "live_selector_count": float64(0),
 	}
-	if len(sel) != len(want) {
-		t.Fatalf("selection = %#v, want exactly the keys %v", sel, want)
-	}
-	for key, value := range want {
-		if sel[key] != value {
-			t.Fatalf("selection.%s = %#v, want %#v", key, sel[key], value)
+	for name, sel := range map[string]status.RepositoryFreshnessSelection{
+		"no live rows":           {State: selection.AggregateUnknown},
+		"selection never looked": {},
+	} {
+		snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
+		snapshot.Selection = sel
+		resp := serveRepositoryFreshness(t, snapshot)
+		assertSelection(t, resp, unknown)
+		if got, want := resp["verdict"], "current"; got != want {
+			t.Fatalf("%s: verdict = %#v, want %#v", name, got, want)
 		}
 	}
 }
 
-// TestGetRepositoryFreshnessSelectionNullWithoutLiveRows verifies the
-// backwards-compatible shape: with no live selector observation the
-// selection key is present and null, and the verdict is unchanged.
-func TestGetRepositoryFreshnessSelectionNullWithoutLiveRows(t *testing.T) {
-	t.Parallel()
-
-	resp := serveRepositoryFreshness(t, testutil.FullyBuiltRepositoryFreshnessSnapshot())
-	value, present := resp["selection"]
-	if !present || value != nil {
-		t.Fatalf("selection = %#v (present=%v), want present and null", value, present)
-	}
-	if got, want := resp["verdict"], "current"; got != want {
-		t.Fatalf("verdict = %#v, want %#v", got, want)
-	}
-}
-
 // TestGetRepositoryFreshnessSelectedRendersNullReason verifies a selected
-// scope renders null reason and unlisted_since and keeps verdict current.
+// scope renders a null reason and keeps verdict current.
 func TestGetRepositoryFreshnessSelectedRendersNullReason(t *testing.T) {
 	t.Parallel()
 
 	evaluatedAt := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
-	snapshot.Selection = &status.RepositoryFreshnessSelection{
-		State:        selection.AggregateSelected,
-		LastListedAt: evaluatedAt,
-		EvaluatedAt:  evaluatedAt,
+	snapshot.Selection = status.RepositoryFreshnessSelection{
+		State:             selection.AggregateSelected,
+		StateSince:        evaluatedAt.Add(-time.Hour),
+		LastListedAt:      evaluatedAt,
+		EvaluatedAt:       evaluatedAt,
+		LiveSelectorCount: 1,
 	}
 
 	resp := serveRepositoryFreshness(t, snapshot)
 	if got, want := resp["verdict"], "current"; got != want {
 		t.Fatalf("verdict = %#v, want %#v", got, want)
 	}
-	sel := testutil.MustMapField(t, resp, "selection")
-	if sel["state"] != "selected" || sel["reason"] != nil || sel["unlisted_since"] != nil {
-		t.Fatalf("selection = %#v, want state selected with null reason and unlisted_since", sel)
+	assertSelection(t, resp, map[string]any{
+		"state": "selected", "reason": nil, "state_since": "2026-10-08T11:00:00Z",
+		"last_listed_at": "2026-10-08T12:00:00Z", "evaluated_at": "2026-10-08T12:00:00Z",
+		"live_selector_count": float64(1),
+	})
+}
+
+// TestGetRepositoryFreshnessExcludedStillIngestedKeepsTheVerdict verifies
+// the excluded_still_ingested state renders its reason while the verdict
+// falls through to the build-based answer.
+func TestGetRepositoryFreshnessExcludedStillIngestedKeepsTheVerdict(t *testing.T) {
+	t.Parallel()
+
+	evaluatedAt := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	snapshot := testutil.FullyBuiltRepositoryFreshnessSnapshot()
+	snapshot.Selection = status.RepositoryFreshnessSelection{
+		State:             selection.AggregateExcludedStillIngested,
+		Reason:            selection.StateRuleExcluded,
+		StateSince:        evaluatedAt.Add(-time.Hour),
+		LastListedAt:      evaluatedAt,
+		EvaluatedAt:       evaluatedAt,
+		LiveSelectorCount: 1,
 	}
-	if sel["last_listed_at"] != "2026-10-08T12:00:00Z" {
-		t.Fatalf("selection.last_listed_at = %#v, want 2026-10-08T12:00:00Z", sel["last_listed_at"])
+	resp := serveRepositoryFreshness(t, snapshot)
+	if got, want := resp["verdict"], "current"; got != want {
+		t.Fatalf("verdict = %#v, want %#v", got, want)
+	}
+	if sel := testutil.MustMapField(t, resp, "selection"); sel["state"] != "excluded_still_ingested" || sel["reason"] != "rule_excluded" {
+		t.Fatalf("selection = %#v, want excluded_still_ingested/rule_excluded", sel)
 	}
 }

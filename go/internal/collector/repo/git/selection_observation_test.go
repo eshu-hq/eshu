@@ -73,7 +73,7 @@ func TestNativeRepositorySelectorObservesTheFullListingOnShardZero(t *testing.T)
 	if !request.Listing.Complete || request.RepoShardCount != 3 || request.RepoLimit != 4000 || request.SourceMode != "githubOrg" {
 		t.Fatalf("request = %+v, want complete listing, 3 shards, repo limit 4000, githubOrg", request)
 	}
-	wantSelector := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "regex", Value: "^acme/(api|old)"}}, false)
+	wantSelector := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "regex", Value: "^acme/(api|old)"}}, false, "anonymous")
 	if request.Selector != wantSelector {
 		t.Fatalf("selector = %+v, want %+v", request.Selector, wantSelector)
 	}
@@ -129,6 +129,21 @@ func TestNativeRepositorySelectorObservesOnlyOnShardZeroInGitHubOrgMode(t *testi
 	}
 	if len(explicit.requests) != 0 {
 		t.Fatalf("explicit-mode observations = %d, want 0", len(explicit.requests))
+	}
+}
+
+// TestSelectorNormalizesExactRulesLikeMatching pins membership's copy of
+// normalizeRepositoryID to this package's: an exact rule hashes to the same
+// selector id whether or not the collector already normalized its value.
+func TestSelectorNormalizesExactRulesLikeMatching(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"acme/web", " /acme//web/ ", `acme\web`, "./acme/./web", "acme/../web", "Acme/Web", "", "  ", "/"} {
+		got := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "exact", Value: raw}}, false, "")
+		want := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "exact", Value: normalizeRepositoryID(raw)}}, false, "")
+		if got.ID != want.ID {
+			t.Fatalf("exact rule %q hashes to %s, want %s (the collector-normalized value)", raw, got.ID, want.ID)
+		}
 	}
 }
 

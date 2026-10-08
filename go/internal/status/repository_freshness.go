@@ -28,9 +28,9 @@ const (
 )
 
 // RepositoryFreshnessSelection is the scope's collector selection evidence
-// (#7625): whether the live githubOrg selectors that observe this scope still
-// select it. It is selection.Summary, computed by selection.Summarize over
-// the scope's live repository_selection_observations rows.
+// (#7625): whether the live selectors that observe this scope still select
+// it. It is selection.Summary, computed by selection.Summarize over the
+// scope's live repository_selection_observations rows.
 type RepositoryFreshnessSelection = selection.Summary
 
 // RepositoryFreshnessGeneration is the resolved generation lifecycle snapshot
@@ -135,9 +135,11 @@ type RepositoryFreshnessSnapshot struct {
 	// UnobservedPush is nil when no queued/claimed webhook push evidence
 	// exists for this repository.
 	UnobservedPush *RepositoryFreshnessUnobservedPush
-	// Selection is nil when no live selector observes this scope, which
-	// leaves the verdict exactly as it was before #7625.
-	Selection *RepositoryFreshnessSelection
+	// Selection is the scope's selection summary. Its State is
+	// selection.AggregateUnknown when no live selector observes the scope,
+	// and empty when the read stopped before the selection lookup
+	// (unresolved or ungenerated); neither changes the verdict.
+	Selection RepositoryFreshnessSelection
 }
 
 // ComputeRepositoryFreshnessVerdict derives the coarse verdict from a
@@ -151,13 +153,16 @@ type RepositoryFreshnessSnapshot struct {
 //  1. unknown: no scope/generation resolved for this repository, or the
 //     resolved scope is not a git ("repository") scope and carries no
 //     commit -- freshness-by-commit is not a meaningful question for it.
-//  2. not_selected (#7625): the scope has at least one live selector
-//     observation, none of them selects it, and every one is settled
-//     exclusion evidence (archived or rule excluded, or not_listed confirmed
-//     over two cycles) -- see selection.Summarize. The collector no longer
-//     picks this repository up, so no later commit will arrive; that
-//     outranks every commit- and build-based answer below. Without a live
-//     observation (nil Selection) this rule never fires.
+//  2. not_selected (#7625): Selection.State is not_selected -- the scope
+//     has at least one live selector observation, none of them selects it,
+//     every one is confirmed exclusion evidence (the same state over at
+//     least two evaluations spanning selection.ConfirmationMinSpan), and no
+//     generation of the scope was observed after the newest exclusion
+//     started -- see selection.Summarize. The collector no longer picks this
+//     repository up, so no later commit will arrive; that outranks every
+//     commit- and build-based answer below. Every other selection state
+//     (unknown, selected, pending_confirmation, excluded_still_ingested)
+//     falls through to the rules below unchanged.
 //  3. unobserved: a queued/claimed webhook push exists whose target commit
 //     does not match the observed commit -- eshu has not even started
 //     building it.
@@ -184,7 +189,7 @@ func ComputeRepositoryFreshnessVerdict(snapshot RepositoryFreshnessSnapshot, exp
 	if snapshot.ObservedCommit == "" && snapshot.ScopeKind != "" && snapshot.ScopeKind != "repository" {
 		return RepositoryFreshnessUnknown
 	}
-	if snapshot.Selection != nil && snapshot.Selection.State == selection.AggregateNotSelected {
+	if snapshot.Selection.State == selection.AggregateNotSelected {
 		return RepositoryFreshnessNotSelected
 	}
 	if snapshot.UnobservedPush != nil {

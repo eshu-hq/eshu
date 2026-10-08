@@ -26,28 +26,27 @@ import (
 //  1. KnownScopes reads only the org's git repository scopes, matching the
 //     org case-insensitively and excluding other orgs, repository_ref scopes,
 //     and other collectors.
-//  2. Over three cycles (first miss, confirming miss, relist) the stored rows
-//     equal the projection membership.Evaluate computed, so the gauge needs
-//     no read back.
+//  2. Over three cycles (first miss, repeated miss, relist) the stored rows
+//     equal the projection membership.Evaluate computed: a repeated state
+//     keeps state_since and adds a cycle, a changed state restarts both. So
+//     project() equals the upsert SQL and the gauge needs no read back.
 //  3. Replaying a batch, or writing an older one, changes nothing.
-//  4. Two selectors on one org keep separate rows, and concurrent replicas of
-//     one selector writing the same evaluation in opposite row orders neither
-//     deadlock nor double-count.
+//  4. An explicit selector's selected rows pass the selector_kind CHECK and
+//     sit beside the org selector's rows.
+//  5. Two selectors on one org keep separate rows, and eight replicas
+//     released together by a start barrier neither deadlock nor double-count:
+//     four write the same selector A evaluation, four write selector B at
+//     distinct times. validateBatch sorts every batch by scope_id, so all
+//     replicas lock rows in one order; the barrier makes them contend.
 //
 // It runs in the live-postgres-readiness runner. Run locally with a disposable
 // PostgreSQL 18 administrative database:
 //
 //	ESHU_GENERATION_RETENTION_PROOF_DSN=postgresql://postgres:postgres@localhost:<port>/postgres?sslmode=disable \
 //	ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1 \
-//	  go test ./internal/storage/postgres/membership -run ObservationStoreLive -count=1
+//	  go test ./internal/storage/postgres/membership -run 'ObservationStoreLive|LiveFilterParity' -count=1
 func TestObservationStoreLive(t *testing.T) {
-	dsn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")
-	optIn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE")
-	ctx, sqlDB := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
-	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: sqlDB}); err != nil {
-		t.Fatalf("apply bootstrap schema: %v", err)
-	}
-	store := membershipstore.NewObservationStore(postgres.SQLDB{DB: sqlDB})
+	ctx, sqlDB, store := openLiveStore(t)
 
 	for i := range 20 {
 		org := "acme"
@@ -68,7 +67,7 @@ func TestObservationStoreLive(t *testing.T) {
 		t.Fatalf("KnownScopes() = %d scopes, want the 20 acme git repository scopes: %+v", len(known), known)
 	}
 
-	selectorA := membership.NewGitHubOrgSelector("githubOrg", "acme", nil, false)
+	selectorA := membership.NewGitHubOrgSelector("githubOrg", "acme", nil, false, membership.GitHubAppPrincipal("1", "2"))
 	start := time.Date(2026, 10, 8, 6, 0, 0, 0, time.UTC)
 	listing := func(missing ...int) membership.Listing {
 		out := membership.Listing{Complete: true}
@@ -90,7 +89,7 @@ func TestObservationStoreLive(t *testing.T) {
 			t.Fatalf("cycle %d Observations() error = %v", cycle, err)
 		}
 		last = membership.Evaluate(membership.Input{
-			Selector: selectorA, Now: start.Add(time.Duration(cycle) * 10 * time.Minute),
+			Selector: selectorA, Now: start.Add(time.Duration(cycle) * 10 * time.Minute), LivenessWindow: testWindow,
 			Listing: listing(missing...), Known: known, Prior: prior,
 		})
 		if last.Outcome != membership.OutcomeEvaluated {
@@ -102,11 +101,17 @@ func TestObservationStoreLive(t *testing.T) {
 		assertStoredEqualsProjection(ctx, t, store, selectorA.ID, last.Projected)
 	}
 	stored := readByScope(ctx, t, store, selectorA.ID)
-	if got := stored["scope:acme-07"]; !membership.Confirmed(got) || !got.LastListedAt.IsZero() {
-		t.Fatalf("scope:acme-07 after three misses = %+v, want confirmed not_listed with no listing ever", got)
+	if got := stored["scope:acme-07"]; !membership.Confirmed(got) || !got.LastListedAt.IsZero() ||
+		got.StateCycleCount != 3 || !got.StateSince.Equal(start) {
+		t.Fatalf("scope:acme-07 after three misses = %+v, want confirmed not_listed for 3 cycles since %v", got, start)
 	}
-	if got := stored["scope:acme-03"]; got.State != membership.StateSelected || got.UnlistedCycleCount != 0 || !got.FirstUnlistedAt.IsZero() || got.GitHubRepoID != 103 {
-		t.Fatalf("relisted scope:acme-03 = %+v, want selected with reset counters and id 103", got)
+	relistedAt := start.Add(20 * time.Minute)
+	if got := stored["scope:acme-03"]; got.State != membership.StateSelected || got.StateCycleCount != 1 ||
+		!got.StateSince.Equal(relistedAt) || got.GitHubRepoID != 103 {
+		t.Fatalf("relisted scope:acme-03 = %+v, want selected for 1 cycle since %v with id 103", got, relistedAt)
+	}
+	if got := stored["scope:acme-00"]; got.StateCycleCount != 3 || !got.StateSince.Equal(start) {
+		t.Fatalf("always-listed scope:acme-00 = %+v, want 3 cycles since %v", got, start)
 	}
 
 	if err := store.UpsertObservations(ctx, last.Batch); err != nil {
@@ -119,21 +124,44 @@ func TestObservationStoreLive(t *testing.T) {
 	}
 	assertStoredEqualsProjection(ctx, t, store, selectorA.ID, last.Projected)
 
-	selectorB := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "regex", Value: "^acme/repo-0"}}, false)
+	explicit := membership.NewExplicitSelector("explicit", "acme", nil, membership.TokenPrincipal("token"))
+	explicitResult := membership.Evaluate(membership.Input{
+		Selector: explicit, Now: start, LivenessWindow: time.Hour, Known: known,
+		Listing: membership.Listing{Complete: true, Repositories: listing().Repositories[:2]},
+	})
+	if err := store.UpsertObservations(ctx, explicitResult.Batch); err != nil {
+		t.Fatalf("explicit UpsertObservations() error = %v", err)
+	}
+	assertStoredEqualsProjection(ctx, t, store, explicit.ID, explicitResult.Projected)
+
+	selectorB := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "regex", Value: "^acme/repo-0"}}, false, membership.GitHubAppPrincipal("1", "2"))
 	upsertReplicasConcurrently(ctx, t, store, selectorA, selectorB, known, start.Add(time.Hour))
 	if got := len(readByScope(ctx, t, store, selectorB.ID)); got != 20 {
 		t.Fatalf("selector B rows = %d, want 20", got)
 	}
 	for scopeID, observation := range readByScope(ctx, t, store, selectorA.ID) {
-		if observation.State == membership.StateNotListed && observation.UnlistedCycleCount != 4 {
-			t.Fatalf("selector A %s = %+v, want exactly one more miss from eight concurrent replicas", scopeID, observation)
+		if observation.State == membership.StateNotListed && observation.StateCycleCount != 4 {
+			t.Fatalf("selector A %s = %+v, want exactly one more cycle from four concurrent replicas", scopeID, observation)
 		}
 	}
 }
 
-// upsertReplicasConcurrently has eight goroutines write one evaluation each
-// for selectorA (identical evaluated_at, rows in opposite orders) and
-// selectorB (distinct evaluated_at), all at once.
+// openLiveStore opens a disposable bootstrapped database, or skips the test
+// when the DSN gate is unset.
+func openLiveStore(t *testing.T) (context.Context, *sql.DB, membershipstore.ObservationStore) {
+	t.Helper()
+	dsn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DSN")
+	optIn := os.Getenv("ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE")
+	ctx, sqlDB := postgresproof.OpenDisposableDatabase(t, dsn, optIn, 2*time.Minute)
+	if err := postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: sqlDB}); err != nil {
+		t.Fatalf("apply bootstrap schema: %v", err)
+	}
+	return ctx, sqlDB, membershipstore.NewObservationStore(postgres.SQLDB{DB: sqlDB})
+}
+
+// upsertReplicasConcurrently releases eight goroutines at once through a
+// start barrier: four write one identical selectorA evaluation, four write
+// selectorB at distinct evaluated_at times.
 func upsertReplicasConcurrently(
 	ctx context.Context,
 	t *testing.T,
@@ -151,25 +179,23 @@ func upsertReplicasConcurrently(
 		}
 		rows = append(rows, membership.Row{ScopeID: scope.ScopeID, State: state})
 	}
-	reversed := slices.Clone(rows)
-	slices.Reverse(reversed)
 
+	start := make(chan struct{})
 	var wg sync.WaitGroup
 	errs := make([]error, 8)
 	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			batch := membership.Batch{Selector: selectorA, EvaluatedAt: at, Interval: 10 * time.Minute, Rows: rows}
-			if i%2 == 1 {
-				batch.Rows = reversed
-			}
+			batch := membership.Batch{Selector: selectorA, EvaluatedAt: at, LivenessWindow: testWindow, Rows: rows}
 			if i >= 4 {
-				batch = membership.Batch{Selector: selectorB, EvaluatedAt: at.Add(time.Duration(i) * time.Second), Interval: 10 * time.Minute, Rows: rows}
+				batch = membership.Batch{Selector: selectorB, EvaluatedAt: at.Add(time.Duration(i) * time.Second), LivenessWindow: testWindow, Rows: rows}
 			}
+			<-start
 			errs[i] = store.UpsertObservations(ctx, batch)
 		}(i)
 	}
+	close(start)
 	wg.Wait()
 	for i, err := range errs {
 		if err != nil {
@@ -220,8 +246,8 @@ func assertStoredEqualsProjection(ctx context.Context, t *testing.T, store membe
 	for i := range want {
 		got, exp := stored[i], want[i]
 		if got.ScopeID != exp.ScopeID || got.State != exp.State || got.GitHubRepoID != exp.GitHubRepoID ||
-			got.UnlistedCycleCount != exp.UnlistedCycleCount || got.EvaluationInterval != exp.EvaluationInterval ||
-			!got.LastListedAt.Equal(exp.LastListedAt) || !got.FirstUnlistedAt.Equal(exp.FirstUnlistedAt) ||
+			got.StateCycleCount != exp.StateCycleCount || got.LivenessWindow != exp.LivenessWindow ||
+			!got.LastListedAt.Equal(exp.LastListedAt) || !got.StateSince.Equal(exp.StateSince) ||
 			!got.EvaluatedAt.Equal(exp.EvaluatedAt) {
 			t.Fatalf("stored %+v, projected %+v", got, exp)
 		}

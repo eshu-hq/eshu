@@ -24,35 +24,37 @@ const (
 
 // Observation is the stored selection evidence for one scope under one
 // selector. Zero times and a zero GitHubRepoID stand for SQL NULL.
+// StateSince is when the row entered State and StateCycleCount is how many
+// evaluations in a row have written State; LivenessWindow is the window the
+// writing collector was configured with.
 type Observation struct {
-	ScopeID            string
-	State              State
-	GitHubRepoID       int64
-	LastListedAt       time.Time
-	FirstUnlistedAt    time.Time
-	UnlistedCycleCount int
-	EvaluatedAt        time.Time
-	EvaluationInterval time.Duration
+	ScopeID         string
+	State           State
+	GitHubRepoID    int64
+	LastListedAt    time.Time
+	StateSince      time.Time
+	StateCycleCount int
+	EvaluatedAt     time.Time
+	LivenessWindow  time.Duration
 }
 
-// Confirmed reports whether a not_listed observation passed two-cycle
-// confirmation. It applies selection.Confirmed, the one definition the
-// freshness reader also uses, so the gauge and the not_selected verdict
-// cannot disagree.
+// Confirmed reports whether an excluded observation passed confirmation. It
+// applies selection.Confirmed, the one definition the freshness reader also
+// uses, so the gauge and the not_selected verdict cannot disagree.
 func Confirmed(o Observation) bool {
 	return selection.Confirmed(selection.Observation{
-		State:              o.State,
-		LastListedAt:       o.LastListedAt,
-		FirstUnlistedAt:    o.FirstUnlistedAt,
-		UnlistedCycleCount: o.UnlistedCycleCount,
-		EvaluatedAt:        o.EvaluatedAt,
-		EvaluationInterval: o.EvaluationInterval,
+		State:           o.State,
+		LastListedAt:    o.LastListedAt,
+		StateSince:      o.StateSince,
+		StateCycleCount: o.StateCycleCount,
+		EvaluatedAt:     o.EvaluatedAt,
+		LivenessWindow:  o.LivenessWindow,
 	})
 }
 
 // Row is one scope's input to the batched observation upsert. The store
-// derives last_listed_at, first_unlisted_at, and the unlisted cycle counter
-// from the stored row and the batch time.
+// derives last_listed_at, state_since, and state_cycle_count from the stored
+// row and the batch time.
 type Row struct {
 	ScopeID      string
 	State        State
@@ -60,47 +62,46 @@ type Row struct {
 }
 
 // Batch is one evaluation's upsert: every row shares the selector, the
-// evaluation time, and the evaluation interval. A stored row only advances
-// when EvaluatedAt is later than its own evaluated_at.
+// evaluation time, and the liveness window. A stored row only advances when
+// EvaluatedAt is later than its own evaluated_at.
 type Batch struct {
-	Selector    Selector
-	EvaluatedAt time.Time
-	Interval    time.Duration
-	Rows        []Row
+	Selector       Selector
+	EvaluatedAt    time.Time
+	LivenessWindow time.Duration
+	Rows           []Row
 }
 
 // project returns the observation the store holds after applying row at now
-// over prior. It mirrors the upsert SQL so the gauge reports the post-write
-// state without a read back: an advance-only no-op when prior is not older,
-// counters advanced on a repeated miss, and reset on any listing.
-func project(prior Observation, hasPrior bool, row Row, now time.Time, interval time.Duration) Observation {
+// over prior. It mirrors the upsert SQL exactly, so the gauge reports the
+// post-write state without a read back: an advance-only no-op when prior is
+// not older; otherwise state_since and state_cycle_count carry over (plus one
+// cycle) when the state repeats and restart at now and 1 when it changes or
+// the row is new; last_listed_at moves to now on any listing.
+func project(prior Observation, hasPrior bool, row Row, now time.Time, window time.Duration) Observation {
 	if hasPrior && !prior.EvaluatedAt.Before(now) {
 		return prior
 	}
 	next := Observation{
-		ScopeID:            row.ScopeID,
-		State:              row.State,
-		GitHubRepoID:       row.GitHubRepoID,
-		EvaluatedAt:        now,
-		EvaluationInterval: interval,
+		ScopeID:         row.ScopeID,
+		State:           row.State,
+		GitHubRepoID:    row.GitHubRepoID,
+		StateSince:      now,
+		StateCycleCount: 1,
+		EvaluatedAt:     now,
+		LivenessWindow:  window,
 	}
 	if hasPrior {
 		next.LastListedAt = prior.LastListedAt
 		if next.GitHubRepoID == 0 {
 			next.GitHubRepoID = prior.GitHubRepoID
 		}
+		if prior.State == row.State {
+			next.StateSince = prior.StateSince
+			next.StateCycleCount = prior.StateCycleCount + 1
+		}
 	}
 	if row.State != StateNotListed {
 		next.LastListedAt = now
-		return next
-	}
-	next.UnlistedCycleCount = 1
-	next.FirstUnlistedAt = now
-	if hasPrior {
-		next.UnlistedCycleCount = prior.UnlistedCycleCount + 1
-		if !prior.FirstUnlistedAt.IsZero() {
-			next.FirstUnlistedAt = prior.FirstUnlistedAt
-		}
 	}
 	return next
 }

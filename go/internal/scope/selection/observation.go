@@ -11,8 +11,9 @@ import "time"
 type State string
 
 const (
-	// StateSelected means the complete listing names the repository and the
-	// selector's rules select it.
+	// StateSelected means the selector selects the repository: a complete
+	// org listing names it and a rule matches, or an explicit collector is
+	// configured with it.
 	StateSelected State = "selected"
 	// StateArchivedExcluded means the listing names the repository as
 	// archived and the selector does not include archived repositories.
@@ -21,58 +22,51 @@ const (
 	// configured rule matches it.
 	StateRuleExcluded State = "rule_excluded"
 	// StateNotListed means a complete listing did not name the repository.
-	// It is evidence only after two-cycle confirmation; see Confirmed.
 	StateNotListed State = "not_listed"
 )
 
-// LiveIntervals is how many of its own evaluation intervals an observation
-// stays live after evaluated_at. A row older than that belongs to a selector
-// that stopped evaluating (removed, reconfigured, or down) and must not
-// decide anything.
-const LiveIntervals = 3
+// ConfirmationMinSpan is the shortest time a row must hold an exclusion state
+// across at least two evaluations before Confirmed accepts it. It guards
+// against two evaluations in quick succession (a restart, a replica) both
+// seeing the same transient listing gap.
+const ConfirmationMinSpan = 5 * time.Minute
 
 // Observation is the selection evidence one selector stored for one scope.
 // Zero times stand for SQL NULL.
 type Observation struct {
-	SelectorID         string
-	State              State
-	LastListedAt       time.Time
-	FirstUnlistedAt    time.Time
-	UnlistedCycleCount int
-	EvaluatedAt        time.Time
-	EvaluationInterval time.Duration
+	SelectorID string
+	State      State
+	// LastListedAt is the newest evaluation whose listing named the scope.
+	LastListedAt time.Time
+	// StateSince is the evaluation at which the row entered State.
+	StateSince time.Time
+	// StateCycleCount is how many evaluations in a row stored State,
+	// counting the one at StateSince as 1.
+	StateCycleCount int
+	EvaluatedAt     time.Time
+	// LivenessWindow is how long after EvaluatedAt the row still counts; the
+	// writing collector stores its ESHU_REPO_SELECTION_LIVENESS_WINDOW.
+	LivenessWindow time.Duration
 }
 
-// Live reports whether o was evaluated within LiveIntervals of its own
-// evaluation interval before now. An observation without a positive interval
-// is never live.
+// Live reports whether o still counts at now: evaluated_at + liveness window
+// >= now. A row past its window belongs to a selector that stopped evaluating
+// (removed, reconfigured, or down) and decides nothing. A row without a
+// positive window is never live. The repository freshness read filters rows
+// with the same predicate in SQL; a live Postgres test keeps the two equal.
 func Live(o Observation, now time.Time) bool {
-	if o.EvaluationInterval <= 0 {
+	if o.LivenessWindow <= 0 {
 		return false
 	}
-	return !o.EvaluatedAt.Before(now.Add(-LiveIntervals * o.EvaluationInterval))
+	return !o.EvaluatedAt.Add(o.LivenessWindow).Before(now)
 }
 
-// Confirmed reports whether a not_listed observation passed two-cycle
-// confirmation: at least two consecutive unlisted cycles spanning at least
-// the stored evaluation interval. Positive listing evidence (archived or
-// rule excluded) needs no confirmation and is never "confirmed" here.
+// Confirmed reports whether o is settled exclusion evidence: any state other
+// than selected, held for at least two evaluations spanning at least
+// ConfirmationMinSpan. The rule is the same for not_listed, archived_excluded,
+// and rule_excluded, so a first evaluation never confirms anything.
 func Confirmed(o Observation) bool {
-	return o.State == StateNotListed &&
-		o.UnlistedCycleCount >= 2 &&
-		o.EvaluatedAt.Sub(o.FirstUnlistedAt) >= o.EvaluationInterval
-}
-
-// Excluded reports whether o is settled evidence that its selector no longer
-// selects the scope: an archived or rule exclusion, which applies
-// immediately, or a confirmed not_listed observation.
-func Excluded(o Observation) bool {
-	switch o.State {
-	case StateArchivedExcluded, StateRuleExcluded:
-		return true
-	case StateNotListed:
-		return Confirmed(o)
-	default:
-		return false
-	}
+	return o.State != StateSelected &&
+		o.StateCycleCount >= 2 &&
+		o.EvaluatedAt.Sub(o.StateSince) >= ConfirmationMinSpan
 }

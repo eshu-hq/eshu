@@ -18,8 +18,10 @@ import (
 )
 
 var (
-	testSelector = membership.NewGitHubOrgSelector("githubOrg", "acme", nil, false)
-	evaluatedAt  = time.Date(2026, 10, 8, 6, 0, 0, 0, time.FixedZone("EDT", -4*3600))
+	testPrincipal = membership.GitHubAppPrincipal("1", "2")
+	testSelector  = membership.NewGitHubOrgSelector("githubOrg", "acme", nil, false, testPrincipal)
+	evaluatedAt   = time.Date(2026, 10, 8, 6, 0, 0, 0, time.FixedZone("EDT", -4*3600))
+	testWindow    = 48 * time.Hour
 )
 
 func TestObservationStoreKnownScopesReadsTheOrgPartition(t *testing.T) {
@@ -61,20 +63,19 @@ func TestObservationStoreObservationsMapsNullsAndUTC(t *testing.T) {
 	t.Parallel()
 
 	listedAt := time.Date(2026, 10, 8, 5, 0, 0, 0, time.FixedZone("EDT", -4*3600))
+	since := listedAt.Add(-time.Hour)
 	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{
 		{
 			"git-repository-scope:a", "selected",
 			sql.NullInt64{Int64: 7, Valid: true},
 			sql.NullTime{Time: listedAt, Valid: true},
-			sql.NullTime{},
-			0, evaluatedAt, 300,
+			since, 3, evaluatedAt, 172800,
 		},
 		{
 			"git-repository-scope:b", "not_listed",
 			sql.NullInt64{},
 			sql.NullTime{},
-			sql.NullTime{Time: listedAt, Valid: true},
-			2, evaluatedAt, 300,
+			listedAt, 2, evaluatedAt, 3600,
 		},
 	}}}}
 	got, err := membershipstore.NewObservationStore(database).Observations(context.Background(), testSelector.ID)
@@ -84,11 +85,12 @@ func TestObservationStoreObservationsMapsNullsAndUTC(t *testing.T) {
 	want := []membership.Observation{
 		{
 			ScopeID: "git-repository-scope:a", State: membership.StateSelected, GitHubRepoID: 7,
-			LastListedAt: listedAt.UTC(), EvaluatedAt: evaluatedAt.UTC(), EvaluationInterval: 5 * time.Minute,
+			LastListedAt: listedAt.UTC(), StateSince: since.UTC(), StateCycleCount: 3,
+			EvaluatedAt: evaluatedAt.UTC(), LivenessWindow: testWindow,
 		},
 		{
 			ScopeID: "git-repository-scope:b", State: membership.StateNotListed,
-			FirstUnlistedAt: listedAt.UTC(), UnlistedCycleCount: 2, EvaluatedAt: evaluatedAt.UTC(), EvaluationInterval: 5 * time.Minute,
+			StateSince: listedAt.UTC(), StateCycleCount: 2, EvaluatedAt: evaluatedAt.UTC(), LivenessWindow: time.Hour,
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -104,9 +106,9 @@ func TestObservationStoreUpsertBindsOneSortedStatement(t *testing.T) {
 
 	database := &fake.ExecQueryer{}
 	err := membershipstore.NewObservationStore(database).UpsertObservations(context.Background(), membership.Batch{
-		Selector:    testSelector,
-		EvaluatedAt: evaluatedAt,
-		Interval:    5 * time.Minute,
+		Selector:       testSelector,
+		EvaluatedAt:    evaluatedAt,
+		LivenessWindow: testWindow,
 		Rows: []membership.Row{
 			{ScopeID: "git-repository-scope:c", State: membership.StateNotListed},
 			{ScopeID: "git-repository-scope:a", State: membership.StateSelected, GitHubRepoID: 11},
@@ -121,13 +123,30 @@ func TestObservationStoreUpsertBindsOneSortedStatement(t *testing.T) {
 		t.Fatalf("exec count = %d, want one statement per batch", got)
 	}
 	want := []any{
-		testSelector.ID, membership.KindGitHubOrg, "acme", evaluatedAt.UTC(), int64(300),
+		testSelector.ID, membership.KindGitHubOrg, "acme", evaluatedAt.UTC(), int64(172800),
 		[]string{"git-repository-scope:a", "git-repository-scope:b", "git-repository-scope:c"},
 		[]string{"selected", "archived_excluded", "not_listed"},
 		[]int64{11, 12, 0},
 	}
 	if got := database.Execs[0].Args; !reflect.DeepEqual(got, want) {
 		t.Fatalf("bound args = %#v, want %#v", got, want)
+	}
+}
+
+func TestObservationStoreUpsertAcceptsExplicitSelectedRows(t *testing.T) {
+	t.Parallel()
+
+	explicit := membership.NewExplicitSelector("explicit", "acme", nil, testPrincipal)
+	database := &fake.ExecQueryer{}
+	err := membershipstore.NewObservationStore(database).UpsertObservations(context.Background(), membership.Batch{
+		Selector: explicit, EvaluatedAt: evaluatedAt, LivenessWindow: testWindow,
+		Rows: []membership.Row{{ScopeID: "git-repository-scope:a", State: membership.StateSelected}},
+	})
+	if err != nil || len(database.Execs) != 1 {
+		t.Fatalf("explicit upsert = %v with %d execs, want one statement", err, len(database.Execs))
+	}
+	if got := database.Execs[0].Args[1]; got != membership.KindExplicit {
+		t.Fatalf("bound selector kind = %v, want %q", got, membership.KindExplicit)
 	}
 }
 
@@ -141,8 +160,9 @@ func TestObservationStoreUpsertQueryIsAdvanceOnlyAndOrdered(t *testing.T) {
 		"NULLIF(s.github_repo_id, 0)",
 		"ORDER BY s.scope_id",
 		"ON CONFLICT (scope_id, selector_id) DO UPDATE",
-		"o.unlisted_cycle_count + 1",
-		"COALESCE(o.first_unlisted_at, EXCLUDED.evaluated_at)",
+		"state_since = CASE WHEN o.state = EXCLUDED.state THEN o.state_since ELSE EXCLUDED.state_since END",
+		"state_cycle_count = CASE WHEN o.state = EXCLUDED.state THEN o.state_cycle_count + 1 ELSE 1 END",
+		"liveness_window_seconds = EXCLUDED.liveness_window_seconds",
 		"WHERE o.evaluated_at < EXCLUDED.evaluated_at",
 	} {
 		if !strings.Contains(upsertSQL, want) {
@@ -156,7 +176,7 @@ func TestObservationStoreUpsertWithNoRowsWritesNothing(t *testing.T) {
 
 	database := &fake.ExecQueryer{}
 	err := membershipstore.NewObservationStore(database).UpsertObservations(context.Background(), membership.Batch{
-		Selector: testSelector, EvaluatedAt: evaluatedAt, Interval: 5 * time.Minute,
+		Selector: testSelector, EvaluatedAt: evaluatedAt, LivenessWindow: testWindow,
 	})
 	if err != nil || len(database.Execs) != 0 {
 		t.Fatalf("UpsertObservations(empty) = %v with %d execs, want nil and none", err, len(database.Execs))
@@ -168,23 +188,33 @@ func TestObservationStoreRejectsInvalidInputWithoutWriting(t *testing.T) {
 
 	valid := func() membership.Batch {
 		return membership.Batch{
-			Selector: testSelector, EvaluatedAt: evaluatedAt, Interval: 5 * time.Minute,
+			Selector: testSelector, EvaluatedAt: evaluatedAt, LivenessWindow: testWindow,
 			Rows: []membership.Row{{ScopeID: "git-repository-scope:a", State: membership.StateSelected}},
 		}
 	}
+	explicit := membership.NewExplicitSelector("explicit", "acme", nil, testPrincipal)
 	cases := map[string]func(*membership.Batch){
 		"blank selector id": func(b *membership.Batch) { b.Selector.ID = " " },
 		"unknown kind":      func(b *membership.Batch) { b.Selector.Kind = "gitlab_group" },
 		"blank owner":       func(b *membership.Batch) { b.Selector.Owner = "" },
 		"zero evaluated_at": func(b *membership.Batch) { b.EvaluatedAt = time.Time{} },
-		"sub-second":        func(b *membership.Batch) { b.Interval = time.Millisecond },
+		"sub-second window": func(b *membership.Batch) { b.LivenessWindow = time.Millisecond },
+		"zero window":       func(b *membership.Batch) { b.LivenessWindow = 0 },
+		"window too large":  func(b *membership.Batch) { b.LivenessWindow = 1 << 62 },
 		"blank scope id":    func(b *membership.Batch) { b.Rows[0].ScopeID = "" },
 		"unknown state":     func(b *membership.Batch) { b.Rows[0].State = "hidden" },
 		"negative id":       func(b *membership.Batch) { b.Rows[0].GitHubRepoID = -1 },
 		"conflicting rows": func(b *membership.Batch) {
 			b.Rows = append(b.Rows, membership.Row{ScopeID: "git-repository-scope:a", State: membership.StateNotListed})
 		},
-		"interval too large": func(b *membership.Batch) { b.Interval = 1 << 62 },
+		"explicit not_listed row": func(b *membership.Batch) {
+			b.Selector = explicit
+			b.Rows[0].State = membership.StateNotListed
+		},
+		"explicit excluded row": func(b *membership.Batch) {
+			b.Selector = explicit
+			b.Rows[0].State = membership.StateRuleExcluded
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -221,7 +251,7 @@ func TestObservationStoreRequiresDatabase(t *testing.T) {
 		t.Fatal("Observations() error = nil without a database")
 	}
 	batch := membership.Batch{
-		Selector: testSelector, EvaluatedAt: evaluatedAt, Interval: time.Minute,
+		Selector: testSelector, EvaluatedAt: evaluatedAt, LivenessWindow: testWindow,
 		Rows: []membership.Row{{ScopeID: "git-repository-scope:a", State: membership.StateSelected}},
 	}
 	if err := store.UpsertObservations(context.Background(), batch); err == nil {
@@ -229,16 +259,25 @@ func TestObservationStoreRequiresDatabase(t *testing.T) {
 	}
 }
 
-func TestObservationSchemaMatchesEmbeddedMigration(t *testing.T) {
+// TestObservationSchemaEqualsEmbeddedMigration keeps the store's DDL and
+// migration 163 identical: the migration with its leading comment block and
+// blank lines removed must equal schemaSQL.
+func TestObservationSchemaEqualsEmbeddedMigration(t *testing.T) {
 	t.Parallel()
 
 	for _, definition := range postgres.BootstrapDefinitions() {
-		if strings.HasSuffix(definition.Path, "/163_repository_selection_observations.sql") {
-			if !strings.Contains(definition.SQL, strings.TrimSpace(membershipstore.SchemaSQL)) {
-				t.Fatalf("migration 163 does not contain the store's DDL:\n%s", membershipstore.SchemaSQL)
-			}
-			return
+		if !strings.HasSuffix(definition.Path, "/163_repository_selection_observations.sql") {
+			continue
 		}
+		lines := strings.Split(definition.SQL, "\n")
+		for len(lines) > 0 && (strings.HasPrefix(lines[0], "--") || strings.TrimSpace(lines[0]) == "") {
+			lines = lines[1:]
+		}
+		got := strings.TrimSpace(strings.Join(lines, "\n"))
+		if want := strings.TrimSpace(membershipstore.SchemaSQL); got != want {
+			t.Fatalf("migration 163 DDL differs from the store's schemaSQL:\nmigration:\n%s\nstore:\n%s", got, want)
+		}
+		return
 	}
 	t.Fatal("migration 163_repository_selection_observations.sql is not embedded")
 }

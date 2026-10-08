@@ -160,21 +160,17 @@ ORDER BY received_at DESC, trigger_id DESC
 LIMIT 5
 `
 
-// repositoryFreshnessSelectionQuery reads every selector's selection
-// observation for the resolved scope (#7625). scope_id is the leading column
-// of the repository_selection_observations primary key, so this is a
-// single-scope index read bounded by the number of selectors that ever
-// observed the scope (Performance Evidence: storage/postgres/membership's
-// README, "Freshness read": 0.020 ms, 8 buffers, at 20,000 rows).
-//
-// The query deliberately returns stale rows too. Liveness and two-cycle
-// confirmation are applied in Go by selection.Summarize, the one definition
-// the collector's gauge also uses; a SQL copy of either predicate would be a
-// second definition that could drift.
-const repositoryFreshnessSelectionQuery = `
-SELECT selector_id, state, last_listed_at, first_unlisted_at,
-       unlisted_cycle_count, evaluated_at, evaluation_interval_seconds
-FROM repository_selection_observations
+// repositoryFreshnessLatestGenerationQuery reads rule (d)'s G for #7625: the
+// newest observed_at over every generation of the scope, any status. The
+// resolved active-else-newest generation is not enough, because a superseded
+// or failed generation observed after a selector stopped selecting still
+// proves something ingests the scope. It is issued only after rules (a)-(c)
+// hold, so a selected or pending scope never pays for it. It is a bitmap scan
+// of scope_generation_idx (migration 002) bounded by the scope's retained
+// generations; no new index (Performance Evidence: storage/postgres/
+// membership's README, "Latest generation read").
+const repositoryFreshnessLatestGenerationQuery = `
+SELECT MAX(observed_at)
+FROM scope_generations
 WHERE scope_id = $1
-ORDER BY selector_id
 `

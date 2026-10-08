@@ -12,18 +12,20 @@ func TestLive(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	interval := 10 * time.Minute
+	window := 48 * time.Hour
 
 	tests := []struct {
 		name string
 		obs  Observation
 		want bool
 	}{
-		{name: "evaluated now", obs: Observation{EvaluatedAt: now, EvaluationInterval: interval}, want: true},
-		{name: "exactly three intervals old", obs: Observation{EvaluatedAt: now.Add(-30 * time.Minute), EvaluationInterval: interval}, want: true},
-		{name: "older than three intervals", obs: Observation{EvaluatedAt: now.Add(-30*time.Minute - time.Second), EvaluationInterval: interval}, want: false},
-		{name: "evaluated after the read clock", obs: Observation{EvaluatedAt: now.Add(time.Minute), EvaluationInterval: interval}, want: true},
-		{name: "zero interval is never live", obs: Observation{EvaluatedAt: now}, want: false},
+		{name: "evaluated now", obs: Observation{EvaluatedAt: now, LivenessWindow: window}, want: true},
+		{name: "20h gap inside a 48h window", obs: Observation{EvaluatedAt: now.Add(-20 * time.Hour), LivenessWindow: window}, want: true},
+		{name: "exactly the window old", obs: Observation{EvaluatedAt: now.Add(-window), LivenessWindow: window}, want: true},
+		{name: "one microsecond past the window", obs: Observation{EvaluatedAt: now.Add(-window - time.Microsecond), LivenessWindow: window}, want: false},
+		{name: "50h gap past a 48h window", obs: Observation{EvaluatedAt: now.Add(-50 * time.Hour), LivenessWindow: window}, want: false},
+		{name: "evaluated after the read clock", obs: Observation{EvaluatedAt: now.Add(time.Minute), LivenessWindow: window}, want: true},
+		{name: "zero window is never live", obs: Observation{EvaluatedAt: now}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,34 +40,24 @@ func TestLive(t *testing.T) {
 func TestConfirmed(t *testing.T) {
 	t.Parallel()
 
-	first := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	interval := 5 * time.Minute
+	since := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	row := func(state State, cycles int, span time.Duration) Observation {
+		return Observation{State: state, StateCycleCount: cycles, StateSince: since, EvaluatedAt: since.Add(span), LivenessWindow: 48 * time.Hour}
+	}
 
 	tests := []struct {
 		name string
 		obs  Observation
 		want bool
 	}{
-		{
-			name: "two cycles spanning the interval",
-			obs:  Observation{State: StateNotListed, UnlistedCycleCount: 2, FirstUnlistedAt: first, EvaluatedAt: first.Add(interval), EvaluationInterval: interval},
-			want: true,
-		},
-		{
-			name: "one cycle is pending",
-			obs:  Observation{State: StateNotListed, UnlistedCycleCount: 1, FirstUnlistedAt: first, EvaluatedAt: first.Add(time.Hour), EvaluationInterval: interval},
-			want: false,
-		},
-		{
-			name: "two cycles inside one interval are pending",
-			obs:  Observation{State: StateNotListed, UnlistedCycleCount: 2, FirstUnlistedAt: first, EvaluatedAt: first.Add(interval - time.Second), EvaluationInterval: interval},
-			want: false,
-		},
-		{
-			name: "archived exclusion is positive evidence, not confirmation",
-			obs:  Observation{State: StateArchivedExcluded, UnlistedCycleCount: 5, EvaluatedAt: first.Add(time.Hour), EvaluationInterval: interval},
-			want: false,
-		},
+		{name: "not_listed for two cycles spanning the minimum", obs: row(StateNotListed, 2, ConfirmationMinSpan), want: true},
+		{name: "archived for two cycles spanning the minimum", obs: row(StateArchivedExcluded, 2, ConfirmationMinSpan), want: true},
+		{name: "rule excluded for two cycles spanning the minimum", obs: row(StateRuleExcluded, 2, time.Hour), want: true},
+		{name: "first evaluation confirms nothing", obs: row(StateNotListed, 1, 0), want: false},
+		{name: "first evaluation of an archived repository confirms nothing", obs: row(StateArchivedExcluded, 1, 0), want: false},
+		{name: "one cycle is pending however long ago", obs: row(StateRuleExcluded, 1, time.Hour), want: false},
+		{name: "two cycles inside the minimum span are pending", obs: row(StateNotListed, 2, ConfirmationMinSpan-time.Second), want: false},
+		{name: "selected is never confirmed", obs: row(StateSelected, 9, time.Hour), want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,29 +67,7 @@ func TestConfirmed(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestExcluded(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-	interval := 5 * time.Minute
-	confirmed := Observation{State: StateNotListed, UnlistedCycleCount: 2, FirstUnlistedAt: now.Add(-interval), EvaluatedAt: now, EvaluationInterval: interval}
-	pending := Observation{State: StateNotListed, UnlistedCycleCount: 1, FirstUnlistedAt: now, EvaluatedAt: now, EvaluationInterval: interval}
-
-	for _, tt := range []struct {
-		obs  Observation
-		want bool
-	}{
-		{Observation{State: StateSelected}, false},
-		{Observation{State: StateArchivedExcluded}, true},
-		{Observation{State: StateRuleExcluded}, true},
-		{confirmed, true},
-		{pending, false},
-		{Observation{State: "unknown_state"}, false},
-	} {
-		if got := Excluded(tt.obs); got != tt.want {
-			t.Fatalf("Excluded(%+v) = %v, want %v", tt.obs, got, tt.want)
-		}
+	if ConfirmationMinSpan != 5*time.Minute {
+		t.Fatalf("ConfirmationMinSpan = %v, want 5m", ConfirmationMinSpan)
 	}
 }

@@ -29,12 +29,6 @@ const (
 	OutcomeStoreError Outcome = telemetry.RepositorySelectionOutcomeStoreError
 )
 
-// DefaultMinimumInterval is the evaluation interval floor when the caller
-// sets none: the shortest span two unlisted cycles must cover before a
-// not_listed scope is confirmed, and the unit of the read-side liveness
-// window.
-const DefaultMinimumInterval = 5 * time.Minute
-
 const (
 	// notListedSampleLimit caps the slugs the evaluated log carries.
 	notListedSampleLimit = 10
@@ -68,15 +62,15 @@ type KnownScope struct {
 }
 
 // Input is everything one evaluation reads. Now is the cycle's observation
-// time; MinimumInterval is the evaluation interval floor (zero means
-// DefaultMinimumInterval).
+// time; LivenessWindow is the configured window every written row carries
+// (zero or negative means DefaultLivenessWindow).
 type Input struct {
-	Selector        Selector
-	Now             time.Time
-	MinimumInterval time.Duration
-	Listing         Listing
-	Known           []KnownScope
-	Prior           []Observation
+	Selector       Selector
+	Now            time.Time
+	LivenessWindow time.Duration
+	Listing        Listing
+	Known          []KnownScope
+	Prior          []Observation
 }
 
 // Counts are the evaluation's log counters. Listed, Selectable,
@@ -104,24 +98,29 @@ type ScopeCounts struct {
 
 // Result is one evaluation's decision. Batch.Rows and Projected are set only
 // for OutcomeEvaluated; Projected is the post-write observation per row.
+// PreviousEvaluatedAt is the selector's newest prior evaluated_at, zero on
+// its first evaluation.
 type Result struct {
-	Outcome         Outcome
-	Batch           Batch
-	Projected       []Observation
-	Counts          Counts
-	Scopes          ScopeCounts
-	NotListedSample []string
-	GuardThreshold  int
+	Outcome             Outcome
+	Batch               Batch
+	Projected           []Observation
+	PreviousEvaluatedAt time.Time
+	Counts              Counts
+	Scopes              ScopeCounts
+	NotListedSample     []string
+	GuardThreshold      int
 }
 
 // Evaluate decides one selector's observation batch from a listing, the known
-// scopes in the selector's org, and the selector's prior observations. It is
+// scopes in the selector's owner, and the selector's prior observations. It is
 // pure: the same input always yields the same result.
 //
-// The evaluation interval is the gap since the selector's newest prior
-// evaluation, floored at the minimum interval and truncated to whole seconds
-// (the stored precision), so two-cycle confirmation and the read-side
-// liveness window track the collector's actual cycle cadence.
+// A github_org selector writes one row per known scope: the listed state, or
+// not_listed when the complete listing missed it, held back by the mass-miss
+// guard. An explicit selector writes a selected row only for each listed
+// repository that already has a scope, never not_listed or excluded rows, so
+// it skips the guard. Every row carries the liveness window truncated to
+// whole seconds, the stored precision.
 func Evaluate(in Input) Result {
 	var result Result
 	listed := indexListing(in.Listing.Repositories, &result.Counts)
@@ -133,15 +132,18 @@ func Evaluate(in Input) Result {
 	known := partitionKnown(in.Known, in.Selector.Owner)
 	result.Counts.Known = len(known)
 	prior := make(map[string]Observation, len(in.Prior))
-	var latest time.Time
 	for _, observation := range in.Prior {
 		prior[observation.ScopeID] = observation
-		if observation.EvaluatedAt.After(latest) {
-			latest = observation.EvaluatedAt
+		if observation.EvaluatedAt.After(result.PreviousEvaluatedAt) {
+			result.PreviousEvaluatedAt = observation.EvaluatedAt
 		}
 	}
-	interval := evaluationInterval(in.MinimumInterval, latest, now)
-	result.Batch = Batch{Selector: in.Selector, EvaluatedAt: now, Interval: interval}
+	window := livenessWindow(in.LivenessWindow)
+	result.Batch = Batch{Selector: in.Selector, EvaluatedAt: now, LivenessWindow: window}
+	if in.Selector.Kind == KindExplicit {
+		evaluateExplicit(&result, known, listed, prior)
+		return result
+	}
 
 	rows := make([]Row, 0, len(known))
 	projected := make([]Observation, 0, len(known))
@@ -164,7 +166,7 @@ func Evaluate(in Input) Result {
 			}
 		}
 		rows = append(rows, row)
-		projected = append(projected, project(previous, hasPrior, row, now, interval))
+		projected = append(projected, project(previous, hasPrior, row, now, window))
 	}
 	slices.Sort(sample)
 	result.NotListedSample = sample[:min(len(sample), notListedSampleLimit)]
@@ -247,15 +249,27 @@ func slugOwner(slug string) string {
 	return owner
 }
 
-func evaluationInterval(floor time.Duration, latest, now time.Time) time.Duration {
-	if floor <= 0 {
-		floor = DefaultMinimumInterval
+// evaluateExplicit fills result for an explicit selector: one selected row per
+// listed repository that already has a scope, in scope id order. A configured
+// repository without a scope gets no row, and a known scope that is not
+// configured is left alone: an explicit list says nothing about it.
+func evaluateExplicit(result *Result, known []KnownScope, listed map[string]ListedRepository, prior map[string]Observation) {
+	rows := make([]Row, 0, len(listed))
+	projected := make([]Observation, 0, len(listed))
+	for _, scope := range known {
+		entry, isListed := listed[scope.ScopeID]
+		if !isListed || entry.State != StateSelected {
+			continue
+		}
+		row := Row{ScopeID: scope.ScopeID, State: StateSelected, GitHubRepoID: entry.GitHubID}
+		previous, hasPrior := prior[scope.ScopeID]
+		rows = append(rows, row)
+		projected = append(projected, project(previous, hasPrior, row, result.Batch.EvaluatedAt, result.Batch.LivenessWindow))
 	}
-	interval := floor
-	if !latest.IsZero() && now.Sub(latest) > interval {
-		interval = now.Sub(latest)
-	}
-	return interval.Truncate(time.Second)
+	result.Outcome = OutcomeEvaluated
+	result.Batch.Rows = rows
+	result.Projected = projected
+	result.Scopes = countScopes(projected)
 }
 
 func countScopes(projected []Observation) ScopeCounts {

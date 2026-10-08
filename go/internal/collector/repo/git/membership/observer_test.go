@@ -19,6 +19,7 @@ import (
 )
 
 type fakeStore struct {
+	selector   Selector
 	known      []KnownScope
 	prior      []Observation
 	knownErr   error
@@ -29,9 +30,16 @@ type fakeStore struct {
 	upserts    []Batch
 }
 
+func (s *fakeStore) expected() Selector {
+	if s.selector.ID == "" {
+		return testSelector
+	}
+	return s.selector
+}
+
 func (s *fakeStore) KnownScopes(_ context.Context, owner string) ([]KnownScope, error) {
 	s.knownCalls++
-	if owner != testSelector.Owner {
+	if owner != s.expected().Owner {
 		return nil, errors.New("unexpected owner " + owner)
 	}
 	return s.known, s.knownErr
@@ -39,7 +47,7 @@ func (s *fakeStore) KnownScopes(_ context.Context, owner string) ([]KnownScope, 
 
 func (s *fakeStore) Observations(_ context.Context, selectorID string) ([]Observation, error) {
 	s.priorCalls++
-	if selectorID != testSelector.ID {
+	if selectorID != s.expected().ID {
 		return nil, errors.New("unexpected selector " + selectorID)
 	}
 	return s.prior, s.priorErr
@@ -66,7 +74,7 @@ func newObserverHarness(t *testing.T, store Store) observerHarness {
 	logs := &bytes.Buffer{}
 	return observerHarness{
 		observer: Observer{
-			Store: store, MinimumInterval: minimumInterval, Instruments: inst,
+			Store: store, Instruments: inst,
 			Logger: slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		},
 		reader: reader,
@@ -75,7 +83,7 @@ func newObserverHarness(t *testing.T, store Store) observerHarness {
 }
 
 func qaRequest(listing Listing) Request {
-	return Request{Selector: testSelector, SourceMode: "githubOrg", RepoShardCount: 1, RepoLimit: 4000, Now: cycleOne, Listing: listing}
+	return Request{Selector: testSelector, SourceMode: "githubOrg", RepoShardCount: 1, RepoLimit: 4000, Now: cycleOne, LivenessWindow: testWindow, Listing: listing}
 }
 
 func TestObserverTruncatedListingNeverTouchesTheStore(t *testing.T) {
@@ -181,16 +189,23 @@ func TestObserverEvaluatedWritesOneBatchAndSamplesTheGauge(t *testing.T) {
 	}
 	info := h.logLine(t, "git_repository_selection_evaluated")
 	want := map[string]any{
-		"level": "INFO", "collector_kind": "git", "selector_id": testSelector.ID, "source_mode": "githubOrg",
-		"repo_shard_count": float64(1), "listing_complete": true, "listed_count": float64(779),
+		"level": "INFO", "collector_kind": "git", "selector_id": testSelector.ID, "selector_kind": "github_org",
+		"source_mode": "githubOrg", "repo_shard_count": float64(1), "listing_complete": true, "listed_count": float64(779),
 		"selectable_count": float64(778), "archived_excluded_count": float64(1), "rule_excluded_count": float64(0),
 		"known_scope_count": float64(802), "newly_unlisted_count": float64(25), "not_listed_count": float64(25),
-		"relisted_count": float64(0), "outcome": "evaluated", "evaluation_interval_seconds": float64(300),
+		"relisted_count": float64(0), "outcome": "evaluated",
+		"evaluation_gap_seconds": float64(0), "liveness_window_seconds": float64(172800),
 	}
 	for key, value := range want {
 		if info[key] != value {
 			t.Fatalf("evaluated log %s = %v, want %v (log %v)", key, info[key], value, info)
 		}
+	}
+	if _, ok := info["evaluation_interval_seconds"]; ok {
+		t.Fatalf("evaluated log still carries evaluation_interval_seconds: %v", info)
+	}
+	if h.hasLog(t, "git_repository_selection_liveness_lapsed") {
+		t.Fatal("a first evaluation has no gap and must not log liveness_lapsed")
 	}
 	if sample, ok := info["not_listed_sample"].([]any); !ok || len(sample) != 10 {
 		t.Fatalf("not_listed_sample = %v, want 10 slugs", info["not_listed_sample"])
@@ -235,26 +250,49 @@ func (h observerHarness) collect(t *testing.T) metricdata.ResourceMetrics {
 	return rm
 }
 
+func (h observerHarness) hasLog(t *testing.T, msg string) bool {
+	t.Helper()
+	for _, line := range strings.Split(strings.TrimSpace(h.logs.String()), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode log line %q: %v", line, err)
+		}
+		if record["msg"] == msg {
+			return true
+		}
+	}
+	return false
+}
+
 func (h observerHarness) assertOutcomeCount(t *testing.T, outcome Outcome, want int64) {
+	t.Helper()
+	h.assertKindOutcomeCount(t, KindGitHubOrg, outcome, want)
+}
+
+// assertKindOutcomeCount asserts the counter sample for selectorKind and
+// outcome, and that it is the only evaluation sample recorded.
+func (h observerHarness) assertKindOutcomeCount(t *testing.T, selectorKind string, outcome Outcome, want int64) {
 	t.Helper()
 	for _, scope := range h.collect(t).ScopeMetrics {
 		for _, m := range scope.Metrics {
 			if m.Name != "eshu_dp_collector_repository_selection_evaluations_total" {
 				continue
 			}
-			for _, dp := range m.Data.(metricdata.Sum[int64]).DataPoints {
-				kind, _ := dp.Attributes.Value(telemetry.MetricDimensionCollectorKind)
-				got, _ := dp.Attributes.Value(telemetry.MetricDimensionOutcome)
-				if kind.AsString() == "git" && got.AsString() == string(outcome) {
-					if dp.Value != want {
-						t.Fatalf("outcome %s count = %d, want %d", outcome, dp.Value, want)
-					}
-					return
-				}
+			points := m.Data.(metricdata.Sum[int64]).DataPoints
+			if len(points) != 1 {
+				t.Fatalf("evaluation counter has %d samples, want 1", len(points))
 			}
+			dp := points[0]
+			collector, _ := dp.Attributes.Value(telemetry.MetricDimensionCollectorKind)
+			kind, _ := dp.Attributes.Value(telemetry.MetricDimensionSelectorKind)
+			got, _ := dp.Attributes.Value(telemetry.MetricDimensionOutcome)
+			if collector.AsString() != "git" || kind.AsString() != selectorKind || got.AsString() != string(outcome) || dp.Value != want {
+				t.Fatalf("evaluation sample = %v value %d, want git/%s/%s value %d", dp.Attributes.ToSlice(), dp.Value, selectorKind, outcome, want)
+			}
+			return
 		}
 	}
-	t.Fatalf("no evaluation counter sample for outcome %s", outcome)
+	t.Fatalf("no evaluation counter sample for %s outcome %s", selectorKind, outcome)
 }
 
 func (h observerHarness) gauge(t *testing.T) map[string]int64 {

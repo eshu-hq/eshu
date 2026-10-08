@@ -14,3 +14,7 @@ const KnownScopesQuery = knownScopesQuery
 // UpsertObservationsQuery exposes upsertObservationsQuery so external tests
 // can assert on its shape.
 const UpsertObservationsQuery = upsertObservationsQuery
+
+// LiveScopeObservationsQuery exposes liveScopeObservationsQuery so external
+// tests can assert on its live filter.
+const LiveScopeObservationsQuery = liveScopeObservationsQuery

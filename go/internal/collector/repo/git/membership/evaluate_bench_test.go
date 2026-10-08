@@ -3,24 +3,22 @@
 
 package membership
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/scope/selection"
+)
 
 // BenchmarkEvaluateQAFixtureSteadyState measures one steady-state cycle over
 // the 802-scope QA corpus with a full prior projection, the per-cycle cost
 // shard 0 pays in githubOrg mode before its single upsert.
 func BenchmarkEvaluateQAFixtureSteadyState(b *testing.B) {
 	known, listing := qaFixture()
-	first := Evaluate(Input{
-		Selector: testSelector, Now: cycleOne, MinimumInterval: minimumInterval,
-		Listing: listing, Known: known,
-	})
-	input := Input{
-		Selector: testSelector, Now: cycleOne.Add(minimumInterval), MinimumInterval: minimumInterval,
-		Listing: listing, Known: known, Prior: first.Projected,
-	}
+	first := evaluateAt(cycleOne, known, listing, nil)
+	next := cycleOne.Add(selection.ConfirmationMinSpan)
 	b.ReportAllocs()
 	for b.Loop() {
-		if result := Evaluate(input); result.Outcome != OutcomeEvaluated {
+		if result := evaluateAt(next, known, listing, first.Projected); result.Outcome != OutcomeEvaluated {
 			b.Fatalf("outcome = %q, want %q", result.Outcome, OutcomeEvaluated)
 		}
 	}
