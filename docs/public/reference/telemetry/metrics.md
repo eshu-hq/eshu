@@ -178,6 +178,8 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_facts_committed_total` | Durable fact commit volume. |
 | `eshu_dp_generation_fact_count` | Fact volume per scope generation. |
 | `eshu_dp_collector_delta_baseline_fallback_total` | Git delta syncs that fell back to a full snapshot, by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`, `baseline_lookup_error`, `default_branch_changed`). |
+| `eshu_dp_collector_repository_selection_evaluations_total` | githubOrg repository selection evaluations on shard 0 (#7625), by `collector_kind` and `outcome` (`evaluated`, `listing_truncated`, `guard_tripped`, `store_error`). |
+| `eshu_dp_collector_repository_selection_scopes` | Gauge of the org's known repository scopes by selection `state` (`selected`, `not_listed_pending`, `not_listed`, `archived_excluded`, `rule_excluded`) after the last `evaluated` cycle (#7625). |
 | `eshu_dp_git_repo_sync_failures_total` | Per-repository git sync operations (`clone`, `fetch`, `list_refs`) that failed and were isolated to that one repository for the cycle rather than aborting the rest of the fleet, by bounded `operation` (issue #7001). A `list_refs` spike points at remote/DNS trouble for the affected repos; a rate near the fleet size points at an auth or network outage. |
 | `eshu_dp_collector_reconciliation_full_snapshots_total` | Git scopes forced to a full reconciliation snapshot to retract delta-path drift, by `reason` (including `graph_dirty`, #7389, and `reindex_requested` and `repository_reindex_requested`, #7620). |
 | `eshu_dp_collector_reconciliation_suppressed_total` | Reconciliation sweep evaluations held off because a full generation is in flight or in retry backoff, by `reason`. |
