@@ -402,7 +402,7 @@ const Admin = `
                   "scope_id": {"type": "string", "description": "Ingestion scope id or source key."},
                   "reason": {"type": "string", "description": "Why the reopen is safe."},
                   "idempotency_key": {"type": "string", "description": "Makes the reopen safe under retries and concurrent delivery."},
-                  "limit": {"type": "integer", "description": "Maximum rows to reopen. Defaults to 1000."}
+                  "limit": {"type": "integer", "description": "Maximum rows to reopen. Defaults to 1000; larger values are clamped to 1000."}
                 }
               }
             }

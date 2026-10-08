@@ -370,6 +370,26 @@ func TestReopenDomainsPinCanonicalNames(t *testing.T) {
 	}
 }
 
+func TestReopenHugeLimitIsClampedToDefault(t *testing.T) {
+	audit := &testutil.FakeGovernanceAuditAppender{}
+	stub := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}}
+	h := &Handler{Store: stub, Audit: audit}
+	body := reopenBody()
+	body["limit"] = 1 << 30
+	rec := postReopen(t, h, body, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if stub.reopenFilter.Limit != DefaultReopenLimit {
+		t.Fatalf("reopen filter limit = %d, want clamped %d", stub.reopenFilter.Limit, DefaultReopenLimit)
+	}
+	// The handler fingerprints req.limit(), so a huge limit and the
+	// default must agree there for idempotent replay to agree.
+	if got := (reopenRequest{Limit: 1 << 30}).limit(); got != DefaultReopenLimit {
+		t.Fatalf("clamped limit = %d, want %d", got, DefaultReopenLimit)
+	}
+}
+
 func TestReopenFingerprintSeparatesOperations(t *testing.T) {
 	a := reopenRequestFingerprint("workload_materialization", "repo:acme/api", 100)
 	b := reopenRequestFingerprint("submodule_pin", "repo:acme/api", 100)

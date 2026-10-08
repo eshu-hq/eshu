@@ -310,6 +310,12 @@ func (r reopenRequest) limit() int {
 	if r.Limit <= 0 {
 		return DefaultReopenLimit
 	}
+	// Clamp here as well as in the store: the fingerprint below is
+	// computed from this value, so two requests with the same effect
+	// must share a fingerprint for idempotent replay to agree.
+	if r.Limit > DefaultReopenLimit {
+		return DefaultReopenLimit
+	}
 	return r.Limit
 }
 

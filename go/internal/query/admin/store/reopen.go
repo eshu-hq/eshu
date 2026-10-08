@@ -200,8 +200,11 @@ func (s *postgresStore) ReopenCompletedWork(ctx context.Context, f admin.ReopenF
 	}
 	result.GenerationID = generationID
 
+	// The store is authoritative for the bound: direct callers bypass
+	// the handler, so a huge limit must not reopen an arbitrarily
+	// large set in one transaction.
 	limit := f.Limit
-	if limit <= 0 {
+	if limit <= 0 || limit > admin.DefaultReopenLimit {
 		limit = admin.DefaultReopenLimit
 	}
 

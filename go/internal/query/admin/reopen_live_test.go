@@ -70,6 +70,9 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 	intent2 := fmt.Sprintf("i-reopen-2-%d", suffix)
 	intent3 := fmt.Sprintf("i-reopen-3-%d", suffix)
 	intentPending := fmt.Sprintf("i-reopen-pending-%d", suffix)
+	unit4 := fmt.Sprintf("repo:reopen/u4-%d", suffix)
+	run4 := fmt.Sprintf("run-reopen-4-%d", suffix)
+	intentStale := fmt.Sprintf("i-reopen-stale-%d", suffix)
 	keyReducer := fmt.Sprintf("reopen-live-reducer-%d", suffix)
 	keyIntent := fmt.Sprintf("reopen-live-intent-%d", suffix)
 
@@ -82,6 +85,7 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 		runOld: runOld, intentOld: intentOld, intentNew: intentNew,
 		intentOldRun: intentOldRun, intent2: intent2,
 		intent3: intent3, intentPending: intentPending,
+		unit4: unit4, run4: run4, intentStale: intentStale,
 	})
 
 	h := &admin.Handler{Store: store.NewStore(db), Audit: &testutil.FakeGovernanceAuditAppender{}}
@@ -146,8 +150,10 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 
 	// Phase 4: reopen the repo_dependency domain by canonical scope id. One
 	// row per acceptance unit reopens: the newest completed row of U1 (the
-	// older completed row stays completed), the single row of U2. The unit
-	// without an acceptance row and the already-pending intent are untouched.
+	// older completed row stays completed), the single row of U2, and the
+	// superseded-generation row of U4 (intent selection follows the
+	// accepted run across generations). The unit without an acceptance row
+	// and the already-pending intent are untouched.
 	w = testutil.PostJSON(mux, "/api/v0/admin/reopen", map[string]any{
 		"domain":          "repo_dependency",
 		"scope_id":        scopeID,
@@ -158,12 +164,15 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 		t.Fatalf("reopen intent status = %d, want 200; body: %s", w.Code, w.Body.String())
 	}
 	got = testutil.DecodeResponseBody(t, w)
-	if got["reopened_intent_count"] != float64(2) {
-		t.Fatalf("reopened_intent_count = %v, want 2: %s", got["reopened_intent_count"], w.Body.String())
+	if got["reopened_intent_count"] != float64(3) {
+		t.Fatalf("reopened_intent_count = %v, want 3: %s", got["reopened_intent_count"], w.Body.String())
+	}
+	if got["generation_id"] != generationID {
+		t.Fatalf("generation_id = %v, want active generation %s", got["generation_id"], generationID)
 	}
 	units, ok := got["reopened_units"].([]any)
-	if !ok || len(units) != 2 {
-		t.Fatalf("reopened_units = %v, want 2 units", got["reopened_units"])
+	if !ok || len(units) != 3 {
+		t.Fatalf("reopened_units = %v, want 3 units", got["reopened_units"])
 	}
 	byUnit := map[string]map[string]any{}
 	for _, raw := range units {
@@ -176,11 +185,15 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 	if byUnit[unit2]["source_run_id"] != run2 || byUnit[unit2]["intent_id"] != intent2 {
 		t.Fatalf("unit2 = %v, want accepted run %s with intent %s", byUnit[unit2], run2, intent2)
 	}
+	if byUnit[unit4]["source_run_id"] != run4 || byUnit[unit4]["intent_id"] != intentStale {
+		t.Fatalf("unit4 = %v, want accepted run %s with stale intent %s", byUnit[unit4], run4, intentStale)
+	}
 	assertReopenLiveIntentPending(t, ctx, db, intentNew, true)
 	assertReopenLiveIntentPending(t, ctx, db, intentOld, false)
 	assertReopenLiveIntentPending(t, ctx, db, intentOldRun, false)
 	assertReopenLiveIntentPending(t, ctx, db, intent3, false)
 	assertReopenLiveIntentPending(t, ctx, db, intentPending, true)
+	assertReopenLiveIntentPending(t, ctx, db, intentStale, true)
 
 	// Phase 5: repeating the reducer call with the same key is a no-op. Both
 	// rows are succeeded again after the phase-3 Acks, so a re-execution
@@ -211,12 +224,13 @@ type reopenLiveIDs struct {
 	scopeID, sourceKey, generationID, staleGenerationID string
 	workA, workB, workPin, workClaimed, workStale       string
 	unit1, unit2, unit3, run1, run2, runOld             string
+	unit4, run4, intentStale                            string
 	intentOld, intentNew, intentOldRun                  string
 	intent2, intent3, intentPending                     string
 }
 
 // seedReopenLiveFixture inserts the scope (with the active generation
-// pinned), two generations, five reducer rows, five intents, and two
+// pinned), two generations, five reducer rows, six intents, and four
 // acceptance rows. Succeeded reducer rows carry a stale lease-free shape
 // with attempt history; the claimed row holds a live lease.
 func seedReopenLiveFixture(t *testing.T, ctx context.Context, db *sql.DB, ids reopenLiveIDs) {
@@ -301,6 +315,18 @@ INSERT INTO shared_projection_intents (
 			t.Fatalf("insert intent %s: %v", intent.id, err)
 		}
 	}
+	// U4's only intent was written by the superseded generation: its
+	// acceptance is still the newest for the unit, so intent selection
+	// (which follows the accepted run, not the active generation) must
+	// reopen it while reporting the active generation.
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO shared_projection_intents (
+    intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id,
+    repository_id, source_run_id, generation_id, payload, created_at, completed_at
+) VALUES ($1, 'repo_dependency', 'p0', $2, $3, 'repo-stale', $4, $5, '{}'::jsonb, $6, $7)
+`, ids.intentStale, ids.scopeID, ids.unit4, ids.run4, ids.staleGenerationID, past, now); err != nil {
+		t.Fatalf("insert stale intent %s: %v", ids.intentStale, err)
+	}
 	// U1 carries two accepted runs so the phase-4 assertion pins the
 	// newest-accepted tie-break: the reopen must report run1, not runOld.
 	for _, acc := range []struct {
@@ -310,6 +336,7 @@ INSERT INTO shared_projection_intents (
 		{ids.unit1, ids.run1, now},
 		{ids.unit2, ids.run2, now},
 		{ids.unit1, ids.runOld, past},
+		{ids.unit4, ids.run4, now},
 	} {
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO shared_projection_acceptance (

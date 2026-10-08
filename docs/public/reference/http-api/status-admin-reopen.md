@@ -26,7 +26,12 @@ before the idempotency claim so the key stays usable for a corrected retry.
 (On a resolve race after the claim the same refused body is returned and the
 key stays in progress.)
 Reducer reopens run against the resolved active generation; intent reopens
-select by accepted source run. Selection locks with `SKIP LOCKED` under a
+select by accepted source run. Intent selection deliberately follows the
+accepted run across generations: the newest acceptance for a unit may point
+at an intent written by a non-active generation, and that row is the one
+reopened. The reported `generation_id` is informational for
+`repo_dependency` (scope context, not a selection key). Selection locks
+with `SKIP LOCKED` under a
 5 s `lock_timeout`, and the reducer reset sets every state column the claim
 path reads, as `replaySucceededReducerDomainQuery` does.
 
