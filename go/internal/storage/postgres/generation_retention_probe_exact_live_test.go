@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
@@ -50,21 +51,15 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 			// probe's full 28-table coverage (13 + 15).
 			legacyTables := map[string]bool{}
 			for key := range groupedCounts {
-				for i := len(key) - 1; i >= 0; i-- {
-					if key[i] == '|' {
-						legacyTables[key[i+1:]] = true
-						break
-					}
+				if i := strings.LastIndexByte(key, '|'); i >= 0 {
+					legacyTables[key[i+1:]] = true
 				}
 			}
 			probeLegacy := map[string]int64{}
 			for key, n := range probeCounts {
-				for i := len(key) - 1; i >= 0; i-- {
-					if key[i] == '|' {
-						if legacyTables[key[i+1:]] {
-							probeLegacy[key] = n
-						}
-						break
+				if i := strings.LastIndexByte(key, '|'); i >= 0 {
+					if legacyTables[key[i+1:]] {
+						probeLegacy[key] = n
 					}
 				}
 			}
