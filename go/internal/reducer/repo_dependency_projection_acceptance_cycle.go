@@ -171,6 +171,42 @@ func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationRequest(
 	return WorkloadMaterializationReplayNotScheduled, nil
 }
 
+// replayWorkloadMaterializationFenceRequest sends one fenced replay request
+// and reports the closed outcome. A replayer that does not implement
+// [WorkloadMaterializationFenceOutcomeReplayer] reports only a boolean, so
+// its unscheduled answer stays [WorkloadMaterializationReplayNotScheduled]
+// and the caller fails closed on it.
+func replayWorkloadMaterializationFenceRequest(
+	ctx context.Context,
+	replayer WorkloadMaterializationFenceReplayer,
+	request workloadMaterializationFenceRequest,
+) (WorkloadMaterializationReplayOutcome, error) {
+	if replayer, ok := replayer.(WorkloadMaterializationFenceOutcomeReplayer); ok {
+		return replayer.ReplayWorkloadMaterializationForFenceOutcome(
+			ctx, request.scopeID, request.generationID, request.entityKey, request.repoID, request.fence,
+		)
+	}
+	replayed, err := replayer.ReplayWorkloadMaterializationForFence(
+		ctx, request.scopeID, request.generationID, request.entityKey, request.repoID, request.fence,
+	)
+	if err != nil {
+		return WorkloadMaterializationReplayNotScheduled, err
+	}
+	if replayed {
+		return WorkloadMaterializationReplayScheduled, nil
+	}
+	return WorkloadMaterializationReplayNotScheduled, nil
+}
+
+func errRepoDependencyFencedReplayNotScheduled(request workloadMaterializationFenceRequest) error {
+	return fmt.Errorf(
+		"workload materialization fenced replay was not scheduled for scope %q generation %q entity %q",
+		request.scopeID,
+		request.generationID,
+		request.entityKey,
+	)
+}
+
 // repoDependencyGenerationFreshness answers, for one acceptance-unit cycle,
 // whether a scope generation is still the scope's active generation (#7670).
 // The acceptance row the runner reads is written once and not rewritten when
@@ -331,23 +367,40 @@ func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationForFence(
 		return 0, fmt.Errorf("repo dependency RUNS_ON workload replayer does not support readiness fences")
 	}
 	for i, request := range requests {
-		replayed, err := replayer.ReplayWorkloadMaterializationForFence(
-			ctx,
-			request.scopeID,
-			request.generationID,
-			request.entityKey,
-			request.repoID,
-			request.fence,
-		)
+		outcome, err := replayWorkloadMaterializationFenceRequest(ctx, replayer, request)
 		if err != nil {
 			return i + 1, err
 		}
-		if !replayed {
-			// The fenced path reports only a boolean. Re-check freshness
-			// without the cache: a supersede that landed after the first
-			// check retires the request, so it is skipped. On the active
-			// generation the replay is owed and cannot run: count it and fail
-			// closed.
+		switch outcome {
+		case WorkloadMaterializationReplayScheduled:
+		case WorkloadMaterializationReplaySuperseded:
+			// A superseded stable item is nothing to replay only when the
+			// generation is retired. Re-check, because a supersede can land
+			// between the first check and this replay. On the active
+			// generation the queue never revives the item, so the owed
+			// materialization cannot run: count it on the shared anomaly and
+			// fail closed.
+			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
+			if err != nil {
+				return i + 1, err
+			}
+			if retiredNow {
+				if freshness.firstSkip(request.workloadMaterializationReplayRequest) {
+					r.recordRepoDependencyReplaySkipped(ctx, request.workloadMaterializationReplayRequest, true)
+				}
+				continue
+			}
+			r.recordRepoDependencyGenerationAnomaly(
+				ctx, request.scopeID, request.generationID, request.entityKey,
+				telemetry.RepoDependencyAnomalySupersededItemOnActiveGeneration, 1,
+			)
+			return i + 1, errRepoDependencyFencedReplayNotScheduled(request)
+		default:
+			// Any other unscheduled replay keeps failing. Re-check
+			// freshness without the cache: a supersede that landed after
+			// the first check retires the request, so it is skipped. On
+			// the active generation the replay is owed and cannot run:
+			// count it and fail closed.
 			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
 			if err != nil {
 				return i + 1, err
@@ -362,12 +415,7 @@ func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationForFence(
 				ctx, request.scopeID, request.generationID, request.entityKey,
 				telemetry.RepoDependencyAnomalyUnscheduledFencedReplayOnActiveGeneration, 1,
 			)
-			return i + 1, fmt.Errorf(
-				"workload materialization fenced replay was not scheduled for scope %q generation %q entity %q",
-				request.scopeID,
-				request.generationID,
-				request.entityKey,
-			)
+			return i + 1, errRepoDependencyFencedReplayNotScheduled(request)
 		}
 	}
 	return len(requests), nil

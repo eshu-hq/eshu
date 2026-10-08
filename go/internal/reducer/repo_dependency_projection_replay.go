@@ -51,6 +51,20 @@ type WorkloadMaterializationFenceReplayer interface {
 	) (bool, error)
 }
 
+// WorkloadMaterializationFenceOutcomeReplayer is the optional fenced replayer
+// extension that distinguishes a superseded stable work item from other
+// unscheduled outcomes. A replayer without it reports only a boolean.
+type WorkloadMaterializationFenceOutcomeReplayer interface {
+	ReplayWorkloadMaterializationForFenceOutcome(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+		entityKey string,
+		repoID string,
+		fence string,
+	) (WorkloadMaterializationReplayOutcome, error)
+}
+
 // RepoDependencyReadinessFenceSourceRunID returns the exact source-run
 // identity used by token-scoped workload readiness publications.
 func RepoDependencyReadinessFenceSourceRunID(fence string) string {

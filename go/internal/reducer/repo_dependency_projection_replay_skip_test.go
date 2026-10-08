@@ -50,6 +50,51 @@ func (r *outcomeWorkloadReplayer) ReplayWorkloadMaterializationOutcome(
 	return WorkloadMaterializationReplayScheduled, nil
 }
 
+// outcomeFenceWorkloadReplayer is a RUNS_ON fenced replayer that also reports
+// the closed replay outcome, keyed by generation id. It mirrors
+// outcomeWorkloadReplayer for the readiness path.
+type outcomeFenceWorkloadReplayer struct {
+	mu       sync.Mutex
+	calls    []workloadMaterializationReplayCall
+	outcomes map[string]WorkloadMaterializationReplayOutcome
+}
+
+func (r *outcomeFenceWorkloadReplayer) ReplayWorkloadMaterializationForFence(
+	ctx context.Context,
+	scopeID, generationID, entityKey, repoID, fence string,
+) (bool, error) {
+	outcome, err := r.ReplayWorkloadMaterializationForFenceOutcome(ctx, scopeID, generationID, entityKey, repoID, fence)
+	return outcome == WorkloadMaterializationReplayScheduled, err
+}
+
+func (r *outcomeFenceWorkloadReplayer) ReplayWorkloadMaterialization(
+	_ context.Context,
+	scopeID, generationID, entityKey string,
+) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, workloadMaterializationReplayCall{
+		scopeID: scopeID, generationID: generationID, entityKey: entityKey,
+	})
+	return true, nil
+}
+
+func (r *outcomeFenceWorkloadReplayer) ReplayWorkloadMaterializationForFenceOutcome(
+	_ context.Context,
+	scopeID, generationID, entityKey, repoID, fence string,
+) (WorkloadMaterializationReplayOutcome, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, workloadMaterializationReplayCall{
+		scopeID: scopeID, generationID: generationID, entityKey: entityKey,
+		repoID: repoID, fence: fence, fenced: true,
+	})
+	if outcome, ok := r.outcomes[generationID]; ok {
+		return outcome, nil
+	}
+	return WorkloadMaterializationReplayScheduled, nil
+}
+
 // freshnessByGeneration answers the generation freshness check per generation
 // id and counts every lookup.
 type freshnessByGeneration struct {
