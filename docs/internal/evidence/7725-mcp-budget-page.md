@@ -142,8 +142,17 @@ limit 201. `SearchEntitiesByLanguageAndType` still orders by
 left as is.
 
 The trim cost: `BenchmarkTrimToBudgetPage` (200 rows of about 5 KiB, Apple M5
-Max) takes 4.2 ms and 9.8 MB per trim. It runs only on a response that returned
-an error before this change.
+Max, `-benchtime=2s -count=3`) takes 3.1 to 3.4 ms, 9.2 MB and 2,740 allocations
+per trim on a quiet-ish host (an earlier busier run gave 4.2 ms and 9.8 MB). It
+runs only on a response that returned an error before this change.
+
+Before figure, same 200-row input: the path the old dispatcher took for it
+(measure both copies, measure the resource-only copy, build the over-budget
+error) costs 3.8 to 4.1 ms, 13.0 to 14.8 MB and 3,662 allocations per call,
+measured with a scratch benchmark that calls `estimateResponseBytes` twice and
+`overBudgetResult` (those functions are unchanged by this change). The trim is
+not slower than the error path it replaces, and it returns rows instead of an
+error.
 
 No-Regression Evidence: a request that fits the budget is unchanged, with one
 opt-in exception: the `find_code` repository content fallback with the hybrid
