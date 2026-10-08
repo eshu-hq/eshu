@@ -67,14 +67,14 @@ func TestOpenAPIRepositoryFreshnessVerdictEnumMatchesStatus(t *testing.T) {
 }
 
 // TestOpenAPIRepositoryFreshnessSelectionSchema pins the #7625 selection
-// object: nullable, the exact keys the handler renders, and enums that match
-// the selection package.
+// object: always present, the exact keys the handler renders, and enums that
+// match the selection package.
 func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 	t.Parallel()
 
 	sel := testutil.MustMapField(t, repositoryFreshnessResponseProperties(t), "selection")
-	if sel["nullable"] != true {
-		t.Fatalf("selection.nullable = %#v, want true: no live selector renders null", sel["nullable"])
+	if _, nullable := sel["nullable"]; nullable {
+		t.Fatalf("selection.nullable = %#v, want absent: the block is always rendered, unknown when no row is live", sel["nullable"])
 	}
 	properties := testutil.MustMapField(t, sel, "properties")
 	keys := make([]string, 0, len(properties))
@@ -82,13 +82,19 @@ func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
-	if want := []string{"evaluated_at", "last_listed_at", "reason", "state", "unlisted_since"}; !slices.Equal(keys, want) {
+	if want := []string{"evaluated_at", "last_listed_at", "live_selector_count", "reason", "state", "state_since"}; !slices.Equal(keys, want) {
 		t.Fatalf("selection properties = %v, want %v", keys, want)
 	}
 
-	wantStates := []string{string(selection.AggregateNotSelected), string(selection.AggregatePending), string(selection.AggregateSelected)}
+	wantStates := []string{
+		string(selection.AggregateExcludedStillIngested), string(selection.AggregateNotSelected),
+		string(selection.AggregatePendingConfirmation), string(selection.AggregateSelected), string(selection.AggregateUnknown),
+	}
 	if got, _ := stringEnum(t, testutil.MustMapField(t, properties, "state")); !slices.Equal(got, wantStates) {
 		t.Fatalf("selection.state enum = %v, want %v", got, wantStates)
+	}
+	if count := testutil.MustMapField(t, properties, "live_selector_count"); count["type"] != "integer" || count["nullable"] != nil {
+		t.Fatalf("selection.live_selector_count = %#v, want a non-nullable integer", count)
 	}
 	reason := testutil.MustMapField(t, properties, "reason")
 	wantReasons := []string{string(selection.StateArchivedExcluded), string(selection.StateNotListed), string(selection.StateRuleExcluded)}
@@ -100,7 +106,7 @@ func TestOpenAPIRepositoryFreshnessSelectionSchema(t *testing.T) {
 	if reason["nullable"] != true || !hasNull {
 		t.Fatalf("selection.reason = %#v, want nullable with null in its enum", reason)
 	}
-	for _, key := range []string{"last_listed_at", "unlisted_since", "evaluated_at"} {
+	for _, key := range []string{"last_listed_at", "state_since", "evaluated_at"} {
 		if field := testutil.MustMapField(t, properties, key); field["nullable"] != true || field["format"] != "date-time" {
 			t.Fatalf("selection.%s = %#v, want a nullable date-time", key, field)
 		}
