@@ -74,7 +74,7 @@ func TestSplitCoveredByFullSuccessorRowsDrainsOnlyCovered(t *testing.T) {
 	}
 }
 
-func TestSplitCoveredByFullSuccessorRowsSkipsLookupWhenNothingCovered(t *testing.T) {
+func TestSplitCoveredByFullSuccessorRowsKeepsAllWhenNothingCovered(t *testing.T) {
 	t.Parallel()
 
 	reader := &coveredSuccessorFakeReader{covered: map[string]struct{}{}}
