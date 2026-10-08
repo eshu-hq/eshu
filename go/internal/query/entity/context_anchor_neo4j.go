@@ -154,7 +154,11 @@ func buildNeo4jEntityContextAnchor() string {
 // unlabeled fallback (#7380). On NornicDB, and for the zero value, it is the
 // per-label loop from entityContextAnchors, because a label disjunction or a
 // many-branch UNION is unreliable there (#7006).
-func (h *Handler) entityContextStatements(access querycontract.RepositoryAccessFilter) []string {
+//
+// EntityContextStatements is exported so the backend-divergence allowlist pin
+// (go/internal/graph/capture) can excuse exactly the statements this handler
+// runs; it reads only the handler's GraphBackend field.
+func (h *Handler) EntityContextStatements(access querycontract.RepositoryAccessFilter) []string {
 	if h.GraphBackend == querycontract.GraphBackendNeo4j {
 		if anchor := neo4jEntityContextAnchor(); anchor != "" {
 			return []string{

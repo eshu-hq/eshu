@@ -121,7 +121,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			querycontract.WithGraphQueryName(r.Context(), "entity.context"),
 		)
 		defer cancel()
-		statements := h.entityContextStatements(access)
+		statements := h.EntityContextStatements(access)
 		res.statementsTotal = len(statements)
 		labelsAttempted := 0
 		for _, statement := range statements {
