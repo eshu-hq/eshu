@@ -236,6 +236,11 @@ parser emits `package:` call keys yet, so resolution output is unchanged until
 the JavaScript and TypeScript parser change lands. Measurements are in
 `docs/internal/evidence/7601-anchored-symbol-definition-loader.md`.
 
+Both scans read each file's `parsed_file_data` once, in a `LATERAL` subquery in
+the shared query head, and match the five definition arrays from that value.
+`OFFSET 0` keeps the planner from folding the subquery back in, which would
+detoast the payload ten times per file again.
+
 ## Java imported receiver resolution (issue #3004)
 
 No-Regression Evidence: `go test ./internal/reducer/code/call -run 'TestResolveGenericCalleeUsesJava(ImportedReceiverBeforeAmbiguousRepoName|ReceiverTypeBeforeRepoUniqueName)|TestResolveGenericCalleeLeavesAmbiguousJavaImportedReceiverUnresolved|TestExtractCodeCallRowsResolvesJava' -count=1` failed before Java imported receiver calls could beat ambiguous repository-wide same-name candidates and before duplicate import-bound class files stayed unresolved, then passed after the Java resolver used parser import rows plus the existing prescan `imports_map` to bind `inferred_obj_type` to one imported class file. `go test ./internal/reducer/code/call -run 'TestResolveGenericCallee(LeavesDuplicateJavaImportBindingUnresolvedBeforeMethodLookup|DoesNotBindQualifiedJavaReceiverToConflictingImport)' -count=1` proves duplicate import-bound class files block weak fallback before method lookup and qualified receiver declarations do not bind to conflicting same-leaf imports. `go test ./internal/parser/java -run TestParseEmitsQualifiedJavaReceiverType -count=1` proves the parser preserves qualified receiver evidence for that reducer guard. `go test ./internal/resolutionparity -run 'TestGoldenCallGraphCorrectnessHarness/java_import_binding|TestResolutionTierGoldens' -count=1` proves the source-derived Java fixture emits the exact imported target as `import_binding` and the existing tier distribution remains stable.

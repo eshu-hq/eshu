@@ -247,3 +247,90 @@ NOT_CHECKED:
   lines on the shared QA environment, build `sha-5d77d69`. The same lines are
   the proof after the change.
 - Primary-side cache state. The replica numbers above are the only timings.
+
+## Reading parsed_file_data once
+
+Layer: after the anchor, what was left in the scan was CPU in the per-file
+match, not I/O and not the plan. The match reads each file's
+`parsed_file_data` ten times (a type check and a value read for each of five
+definition arrays). The value is large and stored compressed out of line, so
+each read detoasts it again. That cost about 0.27 ms per producer file fact. A
+consumer whose producers hold 1,367 files took 366 ms.
+
+The change extracts the value once in a `LATERAL` subquery in the shared query
+head, and the match reads it from there. The match is otherwise unchanged, so
+the returned rows are exactly the old ones and the key comparison keeps its
+hashed `= ANY($1::text[])` lookup. `OFFSET 0` is the fence that keeps the
+planner from folding the subquery back into its callers; without it the scan
+took 801 and 858 ms against 140 and 121 ms.
+
+Rejected: one `jsonb_path_exists` per file with the keys passed as a jsonb
+document. On the replica it beat the old scan by 1.5 to 2.3 times on the
+heaviest consumer and 4.7 times on the median, but it was 3.2 times slower than
+this change on the heaviest consumer, 5.8 times on the synthetic 7,096-file
+producer, and 1.1 times on the median. Its cost grows with the number of
+requested keys: 151 keys took 391 ms and 1,000 keys took 1,960 ms on the same
+files, where the old scan and this change stay flat (16 times slower than this
+change at 1,000 keys). By how jsonpath compares values, it also cannot match a
+key field that is not a string, which the old text comparison does, and it
+matched package ids and export names as two sets, so it returned extra rows for
+package keys. A review on a real Postgres reproduced both.
+
+Performance Evidence: measured 2026-10-07 on the ops-qa read replica
+(PostgreSQL 18.3), read-only. Each statement was prepared with real parameters
+and timed with `EXPLAIN (ANALYZE, TIMING OFF, BUFFERS)`, in interleaved rounds,
+warm. "Old" is the statement on `main` at `1277f0429`.
+
+| Consumer | Keys | Producer files | Old (ms) | This change (ms) | Rows |
+| --- | --- | --- | --- | --- | --- |
+| Heaviest real (151 package keys, 16 producer scopes) | 151 | 2,893 | 900, 622, 633, 866 | 122, 140, 121, 123 | 9, same set |
+| Median | 29 | 119 | 35.4 | 6.8 | 11, same set |
+| Most keys | 240 | 263 | 117, 104, 107 | 18, 25, 18 | 0 |
+| Heaviest producers, 1,000 keys | 1,000 | 2,893 | 853, 625, 642 | 122, 139, 121 | 9, same set |
+| Synthetic 7,096-file producer | 151 | 7,096 | 2,278, 2,129, 2,145 | 354, 410, 358 | 0 |
+
+The generic plan (`= ANY ($1`) gave the same numbers, so the gain does not
+depend on the plan the driver picks. Reading buffers fell from about 129,000 to
+19,600 on the heaviest consumer. Just touching `payload->'parsed_file_data'`
+costs 118 to 122 ms on those 2,893 files and 311 ms on the 7,096, so this
+change sits at the detoast floor: matching adds 0 to 25 ms on the real heaviest
+consumer.
+
+The 92 anchored consumers have 1 to 240 package keys (median 24.5) and 6 to
+2,893 producer files (median 112). No consumer names the 7,096-file producer
+today, so that row is a labelled synthetic case. With the manifest read, the
+heaviest real consumer loads its definitions in about 180 to 200 ms.
+
+The corpus-wide scan for Go and SCIP keys (#7623) shares this match. One
+consumer with 115 keys took 29.2 to 31.5 s before and 5.6 to 6.3 s after (two
+single samples, three rows returned in each form). That is still far
+from 500 ms: it needs a producer anchor, not a cheaper match.
+
+Correctness proof: a real-Postgres differential against the frozen old
+predicate over every key field, all five arrays, both package-pair spellings,
+number-valued key fields and malformed payloads. A second real-Postgres test
+reads the plan with `EXPLAIN (VERBOSE)` and fails when any of the five
+`jsonb_array_elements` calls reads `fact.payload`. Four scratch mutants each
+failed a test: dropping `OFFSET 0`, reading `fact.payload` directly for one
+array, emptying the `classes` array, and dropping the `symbol` field.
+
+Observability Evidence: no new signal. The existing `code call materialization
+completed` log fields `load_symbol_definitions_duration_seconds` and
+`symbol_definition_fact_count` show the effect. The count stays exact because
+the row set is unchanged.
+
+Concurrency: none needed. The statement is a plain read and touches no lease,
+claim, queue, lock, or write path.
+
+NOT_CHECKED:
+
+- Post-deploy loader times in the reducer log. Capture them after the build is
+  pinned on ops-qa.
+- Cold-cache timing of this change. The statements ran in rotating order, and
+  only the first round started cold, so every figure here is warm.
+- The producer-manifest read costs 57 to 59 ms now (a nested loop of 802 passes
+  over the scope join). A `LATERAL ... LIMIT 1` probe of `scope_generations`
+  measured 18 to 20 ms with the same 464 rows. It is not part of this change.
+- If a producer of about 7,000 files ever has a consumer, the next step below
+  the detoast floor is `ALTER TABLE fact_records ALTER COLUMN payload SET
+  COMPRESSION lz4`. Its gain is unmeasured.
