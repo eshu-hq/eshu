@@ -242,8 +242,12 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 			t, ctx, db, workItemID, scopeID, generation,
 			owner, now.Add(time.Minute), now,
 		)
+		// #7691: stamp the synthetic claim the way a real claim would; the
+		// seed predates the ack attempt fence.
+		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 		intents = append(intents, reducer.Intent{
-			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity, ClaimEpoch: 1,
+			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
+			ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
 		})
 	}
 	for index := range 2 {
@@ -256,8 +260,10 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 			t, ctx, db, workItemID, scopeID, generation,
 			reducer.DomainCICDRunCorrelation, owner, now,
 		)
+		claimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 		intents = append(intents, reducer.Intent{
 			IntentID: workItemID, Domain: reducer.DomainCICDRunCorrelation,
+			ClaimedAt: &claimedAt,
 		})
 	}
 	queue := ReducerQueue{

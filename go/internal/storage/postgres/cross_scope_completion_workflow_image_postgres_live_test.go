@@ -116,10 +116,14 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(time.Minute) },
 	}
+	// #7691: stamp the synthetic claim the way a real claim would; the seed
+	// predates the ack attempt fence.
+	identityClaimedAt, identityEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, identityID)
 	identityIntent := reducer.Intent{
 		IntentID:   identityID,
 		Domain:     reducer.DomainContainerImageIdentity,
-		ClaimEpoch: 1,
+		ClaimEpoch: identityEpoch,
+		ClaimedAt:  &identityClaimedAt,
 	}
 	if err := queue.Ack(ctx, identityIntent, reducer.Result{}); err != nil {
 		t.Fatalf("ack workflow-triggered identity producer: %v", err)

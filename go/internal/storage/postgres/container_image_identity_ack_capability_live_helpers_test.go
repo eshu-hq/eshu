@@ -107,6 +107,37 @@ WHERE work_item_id = $1
 	}
 }
 
+// stampContainerImageIdentityAckClaim stamps a hand-seeded producer row the way
+// a real queue claim would (#7691, same family as #7494): last_attempt_at plus
+// a DB-clock-relative lease. The ack fence compares last_attempt_at against
+// the intent's ClaimedAt and requires a live claim_until, so a seeded row
+// without the stamp is legitimately rejected. The stamp explicitly advances
+// the identity claim epoch: the migration 088 trigger auto-advances only
+// pre-cutover rows and rejects a stamp that leaves the epoch unchanged once
+// the v2 cutover marker exists. The returned epoch is the post-stamp value the
+// ack intent must carry. For other domains the trigger does not fire and the
+// bumped epoch column is unread by the ack fence.
+func stampContainerImageIdentityAckClaim(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	workItemID string,
+) (claimedAt time.Time, claimEpoch int64) {
+	t.Helper()
+	claimedAt = time.Now().UTC().Truncate(time.Microsecond)
+	if err := db.QueryRowContext(ctx, `
+UPDATE fact_work_items
+SET last_attempt_at = $1,
+    claim_until = clock_timestamp() + INTERVAL '1 minute',
+    container_image_identity_claim_epoch = container_image_identity_claim_epoch + 1
+WHERE work_item_id = $2
+RETURNING container_image_identity_claim_epoch
+`, claimedAt, workItemID).Scan(&claimEpoch); err != nil {
+		t.Fatalf("stamp ACK attempt fence claim %s: %v", workItemID, err)
+	}
+	return claimedAt, claimEpoch
+}
+
 func insertContainerImageIdentityCutoverMarker(
 	t *testing.T,
 	ctx context.Context,
