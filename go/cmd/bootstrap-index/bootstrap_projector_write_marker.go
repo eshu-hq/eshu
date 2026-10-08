@@ -37,7 +37,7 @@ func markBootstrapProjectionWriteStarted(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (bool, error) {
-	err := projector.MarkProjectionWriteStarted(heartbeatCtx, marker, work,
+	err := projector.MarkProjectionWriteStarted(heartbeatCtx, marker, work, instruments,
 		projector.WriteMarkerDeferredLogger(itemCtx, logger, work, workerID))
 	if err == nil {
 		return false, nil

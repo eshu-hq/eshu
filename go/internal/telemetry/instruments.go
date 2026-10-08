@@ -184,6 +184,25 @@ type Instruments struct {
 	// claim_lost, or failed. Acks that never waited record nothing, so the
 	// distribution describes busy-scope waits rather than normal Ack latency.
 	ProjectorAckWaitDuration metric.Float64Histogram
+	// ProjectorWriteMarkerDeferrals counts projector write-marker attempts
+	// deferred because a busy generation row held the lock (#7470), recorded
+	// by projector.MarkProjectionWriteStarted once per deferred attempt. The
+	// closed outcome label says what the wait loop did next: retried (the
+	// loop ran the marker again), gave_up
+	// (DefaultWriteMarkerMaxAttempts ran out), or shutdown (the worker
+	// context had ended). A rising gave_up rate means a generation row
+	// stayed locked for the whole bound and the item goes through the
+	// queue's Fail path for a later retry.
+	ProjectorWriteMarkerDeferrals metric.Int64Counter
+	// ProjectorWriteMarkerWaitDuration records how long
+	// projector.MarkProjectionWriteStarted waited for a busy generation row,
+	// from the first marker attempt to the loop's exit, only for markers
+	// deferred at least once (#7470). The closed outcome label is the
+	// terminal result: written, gave_up, shutdown, superseded, claim_lost,
+	// or failed. Markers that never waited record nothing, so the
+	// distribution describes busy-generation waits rather than normal marker
+	// latency.
+	ProjectorWriteMarkerWaitDuration metric.Float64Histogram
 	// ReducerRetrySurge counts every reducer intent retry scheduled via
 	// ReducerQueue.failIntent's retry path (#4450), labeled by failure_class
 	// only (a bounded closed set — the same self-classified or fallback
@@ -2238,6 +2257,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProjectorAckWaitDuration histogram: %w", err)
+	}
+
+	inst.ProjectorWriteMarkerDeferrals, err = meter.Int64Counter(
+		"eshu_dp_projector_write_marker_deferrals_total",
+		metric.WithDescription("Total projector write-marker attempts deferred by a busy generation row, labeled by what the wait loop did next: retried, gave_up, or shutdown (#7470)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorWriteMarkerDeferrals counter: %w", err)
+	}
+
+	writeMarkerWaitBuckets := []float64{1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600}
+	inst.ProjectorWriteMarkerWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_projector_write_marker_wait_seconds",
+		metric.WithDescription("Time a projector write marker waited for a busy generation row, recorded only for deferred markers and labeled by terminal outcome (#7470)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(writeMarkerWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorWriteMarkerWaitDuration histogram: %w", err)
 	}
 
 	inst.ReducerRetrySurge, err = meter.Int64Counter(

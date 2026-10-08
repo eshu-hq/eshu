@@ -408,7 +408,7 @@ projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same bound
   `eshu_dp_canonical_writes_total` and `eshu_dp_canonical_write_duration_seconds` —
   canonical graph write counters; `eshu_dp_reducer_intents_enqueued_total` — intent
   queue output; `eshu_dp_large_repo_semaphore_wait_seconds` — semaphore wait for
-  high-fact-count generations; `eshu_dp_projector_ack_deferrals_total` and `eshu_dp_projector_ack_wait_seconds` — Ack waits behind a busy scope (#6803)
+  high-fact-count generations; `eshu_dp_projector_ack_deferrals_total` and `eshu_dp_projector_ack_wait_seconds` — Ack waits behind a busy scope (#6803); `eshu_dp_projector_write_marker_deferrals_total` and `eshu_dp_projector_write_marker_wait_seconds` — write-marker waits behind a busy generation row (#7470)
 - Spans: `telemetry.SpanProjectorRun` (`projector.run`) wraps each claim cycle;
   `telemetry.SpanCanonicalProjection` (`canonical.projection`) wraps the
   canonical write; `telemetry.SpanReducerIntentEnqueue` (`reducer_intent.enqueue`)

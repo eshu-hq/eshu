@@ -11,6 +11,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -69,6 +73,11 @@ func (writeMarkerRetryableError) Retryable() bool { return true }
 // relies on the caller's heartbeat to keep the lease meanwhile. onDeferred,
 // when set, is called with the retry number after each deferral.
 //
+// When instruments is set, each deferral increments
+// eshu_dp_projector_write_marker_deferrals_total and a marker that waited
+// records its wait in eshu_dp_projector_write_marker_wait_seconds; both
+// carry a closed outcome (#7470). A nil instruments disables both.
+//
 // It returns nil when projection may write. failure.ErrWorkSuperseded and
 // failure.ErrWorkClaimLost pass through unchanged: the caller drops the work
 // without writing. A canceled ctx returns the context error. Any other
@@ -78,29 +87,108 @@ func MarkProjectionWriteStarted(
 	ctx context.Context,
 	marker ProjectionWriteMarker,
 	work ScopeGenerationWork,
+	instruments *telemetry.Instruments,
 	onDeferred func(retry int),
-) error {
+) (err error) {
 	if marker == nil {
 		return errWriteMarkerMissing
 	}
+	start := time.Now()
+	deferrals := 0
+	// stopOutcome pins the classification of a wait the loop itself ended, so
+	// the counter and histogram agree even if ctx is canceled in between.
+	stopOutcome := ""
+	defer func() {
+		if deferrals == 0 {
+			return
+		}
+		outcome := stopOutcome
+		if outcome == "" {
+			outcome = writeMarkerWaitOutcome(ctx, err)
+		}
+		recordWriteMarkerWait(ctx, instruments, time.Since(start), outcome)
+	}()
 	for attempt := 1; ; attempt++ {
-		err := marker.MarkProjectionWriteStarted(ctx, work)
+		err = marker.MarkProjectionWriteStarted(ctx, work)
 		switch {
 		case err == nil:
 			return nil
 		case errors.Is(err, failure.ErrWorkSuperseded), errors.Is(err, failure.ErrWorkClaimLost):
 			return err
 		case ctx.Err() != nil:
+			if errors.Is(err, failure.ErrWorkWriteMarkerDeferred) {
+				stopOutcome = writeMarkerOutcomeShutdown
+				deferrals++
+				recordWriteMarkerDeferral(ctx, instruments, stopOutcome)
+			}
 			return fmt.Errorf("mark projection write started: %w", errors.Join(ctx.Err(), err))
 		case !errors.Is(err, failure.ErrWorkWriteMarkerDeferred):
 			return writeMarkerRetryableError{fmt.Errorf("mark projection write started: %w", err)}
 		case attempt >= DefaultWriteMarkerMaxAttempts:
+			stopOutcome = writeMarkerOutcomeGaveUp
+			deferrals++
+			recordWriteMarkerDeferral(ctx, instruments, stopOutcome)
 			return writeMarkerRetryableError{fmt.Errorf("mark projection write started after %d attempts: %w", attempt, err)}
 		}
+		deferrals++
+		recordWriteMarkerDeferral(ctx, instruments, writeMarkerOutcomeRetried)
 		if onDeferred != nil {
 			onDeferred(attempt)
 		}
 	}
+}
+
+// Closed outcome values for the write-marker wait metrics.
+const (
+	writeMarkerOutcomeRetried    = "retried"
+	writeMarkerOutcomeGaveUp     = "gave_up"
+	writeMarkerOutcomeShutdown   = "shutdown"
+	writeMarkerOutcomeWritten    = "written"
+	writeMarkerOutcomeSuperseded = "superseded"
+	writeMarkerOutcomeClaimLost  = "claim_lost"
+	writeMarkerOutcomeFailed     = "failed"
+)
+
+// writeMarkerWaitOutcome maps MarkProjectionWriteStarted's return to the
+// terminal outcome of a wait. A deferral error means the retry bound ran out,
+// mirroring how the callers classify it.
+func writeMarkerWaitOutcome(ctx context.Context, err error) string {
+	switch {
+	case err == nil:
+		return writeMarkerOutcomeWritten
+	case errors.Is(err, failure.ErrWorkSuperseded):
+		return writeMarkerOutcomeSuperseded
+	case errors.Is(err, failure.ErrWorkClaimLost):
+		return writeMarkerOutcomeClaimLost
+	case ctx.Err() != nil:
+		return writeMarkerOutcomeShutdown
+	case errors.Is(err, failure.ErrWorkWriteMarkerDeferred):
+		return writeMarkerOutcomeGaveUp
+	default:
+		return writeMarkerOutcomeFailed
+	}
+}
+
+// recordWriteMarkerDeferral counts one deferred marker attempt. It records on
+// an uncanceled context so a shutdown deferral is still exported.
+func recordWriteMarkerDeferral(ctx context.Context, instruments *telemetry.Instruments, outcome string) {
+	if instruments == nil {
+		return
+	}
+	instruments.ProjectorWriteMarkerDeferrals.Add(context.WithoutCancel(ctx), 1, metric.WithAttributes(
+		attribute.String(telemetry.MetricDimensionOutcome, outcome),
+	))
+}
+
+// recordWriteMarkerWait records how long a deferred marker waited before its
+// terminal outcome.
+func recordWriteMarkerWait(ctx context.Context, instruments *telemetry.Instruments, wait time.Duration, outcome string) {
+	if instruments == nil {
+		return
+	}
+	instruments.ProjectorWriteMarkerWaitDuration.Record(context.WithoutCancel(ctx), wait.Seconds(), metric.WithAttributes(
+		attribute.String(telemetry.MetricDimensionOutcome, outcome),
+	))
 }
 
 // markProjectionWriteStarted runs MarkProjectionWriteStarted for processWork
@@ -117,7 +205,7 @@ func (s Service) markProjectionWriteStarted(
 	start time.Time,
 	workerID int,
 ) (bool, error) {
-	err := MarkProjectionWriteStarted(projectCtx, s.WriteMarker, work,
+	err := MarkProjectionWriteStarted(projectCtx, s.WriteMarker, work, s.Instruments,
 		WriteMarkerDeferredLogger(workCtx, s.Logger, work, workerID))
 	if err == nil {
 		return false, nil
