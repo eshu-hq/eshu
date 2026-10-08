@@ -85,7 +85,7 @@ Current extraction families:
 | Terragrunt | dependency `config_path`, helper/local config asset paths, module sources | `DISCOVERS_CONFIG_IN`, `USES_MODULE`, `PROVISIONS_DEPENDENCY_FOR` |
 | Helm | chart metadata and values references | `DEPLOYS_FROM` |
 | Kustomize | `resources`, `components`, and `bases` references, Helm chart refs, image refs | `DEPLOYS_FROM` |
-| Argo CD | Application sources, ApplicationSet discovery and deploy sources, destination platform hints | `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `RUNS_ON` |
+| Argo CD | Application sources, ApplicationSet discovery, deploy sources and template sources (a template source that is the generator's own config repository), destination platform hints | `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `RUNS_ON` |
 | Flux (cross-repo) | a `FluxGitRepository`'s `spec.url`, resolved by STRICT `repositoryidentity.NormalizeRemoteURL` equality against the target repository's catalog `RemoteURL` -- never the fuzzy alias/token matcher (issue #5483 C2) | `DEPLOYS_FROM` |
 | GitHub Actions | reusable workflows, checkout repositories, repo-bearing workflow inputs, action repositories, local reusable workflows | `DEPLOYS_FROM`, `DEPENDS_ON` |
 | Jenkins / Groovy | shared-library refs and explicit GitHub repository URLs in controller automation | `DEPENDS_ON` and read-side controller context |

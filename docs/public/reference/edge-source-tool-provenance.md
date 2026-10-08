@@ -170,8 +170,9 @@ same enum across both axes.
 
 ## `EvidenceKind` → `source_tool` mapping
 
-The 34 persisted `EvidenceKind` constants (`go/internal/relationships/models.go:20-99`)
-collapse to 14 tools. This is the family→tool map #3999 implements (distinct
+The 37 `EvidenceKind` constants (`go/internal/relationships/models.go:20-112`)
+collapse to 15 tools; 36 appear in the table, and `HELM_TEMPLATE_VALUE_REFERENCE`
+resolves to `helm` through the `HELM_` prefix fallback. This is the family→tool map #3999 implements (distinct
 from the existing `evidenceKindToType` sub-kind map, which keeps each kind
 separate).
 
@@ -182,7 +183,7 @@ separate).
 | `TERRAGRUNT_DEPENDENCY_CONFIG_PATH`, `TERRAGRUNT_CONFIG_ASSET_PATH` | `terragrunt` |
 | `HELM_CHART_REFERENCE`, `HELM_VALUES_REFERENCE` | `helm` |
 | `KUSTOMIZE_RESOURCE_REFERENCE`, `KUSTOMIZE_HELM_CHART_REFERENCE`, `KUSTOMIZE_IMAGE_REFERENCE` | `kustomize` |
-| `ARGOCD_APPLICATION_SOURCE`, `ARGOCD_APPLICATIONSET_DISCOVERY`, `ARGOCD_APPLICATIONSET_DEPLOY_SOURCE`, `ARGOCD_DESTINATION_PLATFORM` | `argocd` |
+| `ARGOCD_APPLICATION_SOURCE`, `ARGOCD_APPLICATIONSET_DISCOVERY`, `ARGOCD_APPLICATIONSET_DEPLOY_SOURCE`, `ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE`, `ARGOCD_DESTINATION_PLATFORM` | `argocd` |
 | `FLUX_GIT_REPOSITORY_SOURCE` | `flux` |
 | `GITHUB_ACTIONS_REUSABLE_WORKFLOW`, `GITHUB_ACTIONS_LOCAL_REUSABLE_WORKFLOW`, `GITHUB_ACTIONS_CHECKOUT_REPOSITORY`, `GITHUB_ACTIONS_WORKFLOW_INPUT_REPOSITORY`, `GITHUB_ACTIONS_ACTION_REPOSITORY` | `github_actions` |
 | `JENKINS_SHARED_LIBRARY`, `JENKINS_GITHUB_REPOSITORY` | `jenkins` |

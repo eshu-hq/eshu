@@ -210,6 +210,20 @@ var goldenSet = []goldenCase{
 		Rationale: "template parameter is a cluster-scoped variable with no catalog mapping",
 	},
 
+	// ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE (prior 0.95; neg 0.836)
+	{
+		ID: "appset-template-src-pos-1", Kind: EvidenceKindArgoCDApplicationSetTemplateSource, Label: goldenPositive, GoldenConfidence: 0.95,
+		Rationale: "template source repoURL read from the generator's own config.yaml names the config repository itself",
+	},
+	{
+		ID: "appset-template-src-pos-2", Kind: EvidenceKindArgoCDApplicationSetTemplateSource, Label: goldenPositive, GoldenConfidence: 0.95,
+		Rationale: "structured ApplicationSet whose template_source_repos equals its generator_source_repos",
+	},
+	{
+		ID: "appset-template-src-neg-1", Kind: EvidenceKindArgoCDApplicationSetTemplateSource, Label: goldenNegative, GoldenConfidence: 0.836,
+		Rationale: "template source repoURL is a template variable the generator config does not resolve",
+	},
+
 	// ARGOCD_DESTINATION_PLATFORM (prior 0.97; neg 0.8536)
 	{
 		ID: "argocd-dest-pos-1", Kind: EvidenceKindArgoCDDestinationPlatform, Label: goldenPositive, GoldenConfidence: 0.97,

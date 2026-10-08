@@ -263,7 +263,11 @@ Domain and intent helpers:
   contains the Application to the deployed repository in `repoURL`.
   Workload-instance materialization reverses that edge when selecting the
   deployed repository, while ApplicationSet deploy-source evidence keeps its
-  existing reverse-normalized direction. The committed production/stage
+  existing reverse-normalized direction. ApplicationSet template-source
+  evidence (`ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE`, the template source is
+  the generator's own config repository) also runs control repository to
+  deployed repository and is reversed the same way, with provenance
+  `argocd_applicationset_template_source`. The committed production/stage
   fixture test proves both canonical environment instances and their
   `INSTANCE_OF` and `DEPLOYMENT_SOURCE` graph writes. This direction correction
   adds no query or loop, and existing workload materialization logs and stats

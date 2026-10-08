@@ -16,6 +16,7 @@ func discoverArgoCDDocumentEvidence(
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 	contentIndex evidenceContentIndex,
+	stats *DiscoveryStats,
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
@@ -74,17 +75,32 @@ func discoverArgoCDDocumentEvidence(
 				)...,
 			) {
 				for _, deployedRepo := range matchingCatalogEntries(templateSource, matcher) {
-					if deployedRepo.RepoID == configRepo.RepoID || deployedRepo.RepoID == controlRepoID {
+					if deployedRepo.RepoID == controlRepoID {
+						recordApplicationSetSkipOnce(
+							stats, seen, evidenceKeySkippedControlRepo,
+							ApplicationSetTemplateSourceOutcomeSkippedControlRepo,
+							controlRepoID, deployedRepo.RepoID, filePath,
+						)
 						continue
 					}
-					evidence = append(evidence, appendDeploySourceEvidence(
-						controlRepoID, deployedRepo, configRepo, filePath, discovery.path, templateSource, seen,
-					)...)
-					for _, destination := range argocdDocumentDestinations(document) {
-						evidence = append(evidence, appendDestinationPlatformEvidence(
-							deployedRepo.RepoID, filePath, destination, seen,
+					if deployedRepo.RepoID == configRepo.RepoID {
+						evidence = append(evidence, appendSelfReferenceEvidence(
+							controlRepoID, deployedRepo, filePath, discovery.path, templateSource,
+							argocdDocumentDestinations(document), seen, stats,
 						)...)
+						continue
 					}
+					deploySource := appendDeploySourceEvidence(
+						controlRepoID, deployedRepo, configRepo, filePath, discovery.path, templateSource, seen,
+					)
+					if len(deploySource) > 0 {
+						stats.recordApplicationSetTemplateSource(ApplicationSetTemplateSourceOutcomeDeploySource)
+					}
+					evidence = append(evidence, deploySource...)
+					evidence = append(evidence, appendApplicationSetPlatformEvidence(
+						controlRepoID, deployedRepo.RepoID, filePath,
+						argocdDocumentDestinations(document), seen, stats,
+					)...)
 				}
 			}
 		}
@@ -177,6 +193,55 @@ func appendDeploySourceEvidence(
 			"matched_alias":         firstAlias(deployedRepo),
 		},
 	}}
+}
+
+// appendSelfReferenceEvidence records an ApplicationSet whose template source
+// is the same repository its generator reads config from. A deploy-source fact
+// would run from that repository to itself, so the deployed repository is
+// recorded as a DEPLOYS_FROM from the control repository instead, together with
+// the platform of each literal destination. Both the YAML and the structured
+// ApplicationSet paths call it so the two cannot drift. The caller guarantees
+// deployedRepo is not the control repository.
+func appendSelfReferenceEvidence(
+	controlRepoID string,
+	deployedRepo CatalogEntry,
+	filePath, discoveryPath, templateSource string,
+	destinations []argocdDestination,
+	seen map[evidenceKey]struct{},
+	stats *DiscoveryStats,
+) []EvidenceFact {
+	var evidence []EvidenceFact
+	key := evidenceKey{
+		EvidenceKind: EvidenceKindArgoCDApplicationSetTemplateSource,
+		SourceRepoID: controlRepoID,
+		TargetRepoID: deployedRepo.RepoID,
+		Path:         filePath,
+	}
+	if _, ok := seen[key]; !ok {
+		seen[key] = struct{}{}
+		stats.recordApplicationSetTemplateSource(ApplicationSetTemplateSourceOutcomeSelfReference)
+		evidence = append(evidence, EvidenceFact{
+			EvidenceKind:     EvidenceKindArgoCDApplicationSetTemplateSource,
+			RelationshipType: RelDeploysFrom,
+			SourceRepoID:     controlRepoID,
+			TargetRepoID:     deployedRepo.RepoID,
+			Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDApplicationSetTemplateSource),
+			Rationale:        "ArgoCD ApplicationSet template source is the repository its generator reads config from",
+			Details: map[string]any{
+				"path":                  filePath,
+				"control_plane_repo_id": controlRepoID,
+				"config_repo_id":        deployedRepo.RepoID,
+				"discovery_path":        discoveryPath,
+				"deploy_repo_url":       templateSource,
+				"extractor":             "argocd",
+				"matched_alias":         firstAlias(deployedRepo),
+				"self_reference":        true,
+			},
+		})
+	}
+	return append(evidence, appendApplicationSetPlatformEvidence(
+		controlRepoID, deployedRepo.RepoID, filePath, destinations, seen, stats,
+	)...)
 }
 
 func appendDestinationPlatformEvidence(

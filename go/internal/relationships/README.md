@@ -80,10 +80,10 @@ Argo CD Application evidence accepts the legacy singular `source_repo` field and
 the positional `source_repos`, `source_paths`, `source_roots`, and
 `source_revisions` fields emitted by the YAML parser. Each matched source
 repository produces its own `EvidenceKindArgoCDAppSource` fact without shifting
-path, root, or revision details across source indexes. The
-ApplicationSet extractor keeps generator discovery sources separate from
-template deploy sources so the reducer can preserve discovery versus deployment
-intent.
+path, root, or revision details across source indexes. The ApplicationSet
+extractor keeps discovery sources separate from template deploy sources. If a
+template source is the repo its generator reads config from, it emits
+`EvidenceKindArgoCDApplicationSetTemplateSource` (control to deployed repo).
 
 Schema-driven Terraform extraction (`discoverTerraformSchemaEvidence`) uses
 `RegisterSchemaDrivenTerraformExtractors` to bootstrap extractors from
@@ -153,12 +153,12 @@ overridable place instead of scattered literals.
   `DiscoveryStats` tally `DiscoverEvidenceWithStats` returns.
 - `DiscoverEvidenceWithStats(envelopes, catalog)` — same scan as
   `DiscoverEvidence`, plus a `DiscoveryStats` tally for outcomes an extractor
-  intentionally does not turn into an `EvidenceFact` (today: the Flux
-  cross-repo url resolution linked/unresolved/ambiguous/self counters). A new
-  seam rather than a widened `DiscoverEvidence` signature, so every existing
-  caller stays untouched; only the Postgres ingestion commit path calls it
-  directly to emit `eshu_dp_flux_cross_repo_url_resolution_total`
-  (`evidence.go`, issue #5483 C2)
+  intentionally does not turn into an `EvidenceFact` (today: the Flux url
+  resolution counters and the ApplicationSet template-source outcomes, one per
+  distinct fact). A new seam, so every existing caller stays untouched; only
+  the Postgres ingestion commit path calls it, to emit
+  `eshu_dp_flux_cross_repo_url_resolution_total` and
+  `eshu_dp_argocd_applicationset_template_source_total` (`evidence.go`, #5483, #7767)
 - `Resolve(evidenceFacts, assertions, confidenceThreshold)` — group evidence
   into `[]Candidate`, apply `Assertion` overrides, filter by confidence, and
   return both slices (`resolver.go:62`)

@@ -40,6 +40,10 @@ repository_relationships:
   - type: DISCOVERS_CONFIG_IN
     source: delivery-argocd
     target: deployment-kustomize
+  - type: DEPLOYS_FROM
+    source: delivery-argocd
+    target: deployment-kustomize
+    evidence_type: argocd_applicationset_template_source
   - type: DEPENDS_ON
     source: service-edge-api
     target: service-worker-jobs
@@ -63,6 +67,11 @@ platform_relationships:
       kind: ecs
       provider: aws
       name: legacy-edge
+  - type: RUNS_ON
+    source: deployment-kustomize
+    target:
+      kind: kubernetes
+      name: modern
 workload_relationships:
   - type: DEFINES
     source_repo: service-edge-api

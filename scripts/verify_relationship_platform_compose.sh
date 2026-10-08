@@ -430,6 +430,11 @@ verify_graph_state() {
         "deployment-kustomize repository should have a DEPLOYS_FROM edge to service-edge-api" \
         "$GRAPH_QUERY_FILE"
     eshu_neo4j_count_equals \
+        "MATCH (:Repository {name:'delivery-argocd'})-[:DEPLOYS_FROM]->(:Repository {name:'deployment-kustomize'}) RETURN count(*)" \
+        "1" \
+        "delivery-argocd repository should have a DEPLOYS_FROM edge to deployment-kustomize (ApplicationSet template source equals its generator config repository)" \
+        "$GRAPH_QUERY_FILE"
+    eshu_neo4j_count_equals \
         "MATCH (:Repository {name:'service-edge-api'})-[:DEPLOYS_FROM]->(:Repository {name:'delivery-legacy-automation'}) RETURN count(*)" \
         "1" \
         "service-edge-api repository should retain reusable-workflow DEPLOYS_FROM evidence to delivery-legacy-automation" \

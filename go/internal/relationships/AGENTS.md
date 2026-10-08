@@ -106,6 +106,21 @@
   supplied envelopes; ensure generator config files for the ApplicationSet
   repository are included.
 
+- Symptom: a service repo that holds its own ApplicationSet config has a
+  discovery edge but no deploy-source edge → by design: a template source equal
+  to the config repo would be a self-loop, so `appendSelfReferenceEvidence`
+  emits a control-to-deployed `EvidenceKindArgoCDApplicationSetTemplateSource`
+  DEPLOYS_FROM (0.95) plus the destination platform instead. The reducer reads
+  it as control-repo-originated, so the deployed repo stays the app.
+
+- Symptom: the ApplicationSet template-source counter
+  (`eshu_dp_argocd_applicationset_template_source_total`) shows a
+  `skipped_*` outcome → the extractor matched a template source but dropped a
+  fact on purpose (control repo, or a templated destination). It tallies in
+  `ApplicationSetTemplateSourceStats` via `DiscoverEvidenceWithStats`; the emit
+  outcomes count newly emitted facts, so keep any new branch's tally beside its
+  fact and never count a template source that matches no catalog repo.
+
 ## Anti-patterns specific to this package
 
 - **Inventing deployment truth** — do not synthesize relationships from

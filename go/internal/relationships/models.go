@@ -46,6 +46,11 @@ const (
 	EvidenceKindArgoCDApplicationSetDiscovery EvidenceKind = "ARGOCD_APPLICATIONSET_DISCOVERY"
 	// EvidenceKindArgoCDApplicationSetDeploySource is an ApplicationSet deploy-source reference.
 	EvidenceKindArgoCDApplicationSetDeploySource EvidenceKind = "ARGOCD_APPLICATIONSET_DEPLOY_SOURCE"
+	// EvidenceKindArgoCDApplicationSetTemplateSource is an ApplicationSet
+	// template source that names the same repository the generator reads its
+	// config from. It runs from the control repository to that repository,
+	// because a deploy-source fact for it would be a self-loop.
+	EvidenceKindArgoCDApplicationSetTemplateSource EvidenceKind = "ARGOCD_APPLICATIONSET_TEMPLATE_SOURCE"
 	// EvidenceKindArgoCDDestinationPlatform is an ApplicationSet destination-platform reference.
 	EvidenceKindArgoCDDestinationPlatform EvidenceKind = "ARGOCD_DESTINATION_PLATFORM"
 	// EvidenceKindGitHubActionsReusableWorkflow is a reusable workflow repo reference.

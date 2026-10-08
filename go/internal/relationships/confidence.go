@@ -159,6 +159,10 @@ func defaultConfidenceEntries() map[EvidenceKind]ConfidenceEntry {
 			Confidence: 0.99, Tier: TierDirectBinding,
 			Rationale: "an ApplicationSet template binds a generated app to one deploy source",
 		},
+		EvidenceKindArgoCDApplicationSetTemplateSource: {
+			Confidence: 0.95, Tier: TierDirectBinding,
+			Rationale: "an ApplicationSet template source rendered from the generator's own config names the deployed repository",
+		},
 		EvidenceKindArgoCDDestinationPlatform: {
 			Confidence: 0.97, Tier: TierDirectBinding,
 			Rationale: "an ApplicationSet destination names the concrete target platform",
