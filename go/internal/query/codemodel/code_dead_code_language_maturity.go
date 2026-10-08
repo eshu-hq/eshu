@@ -215,6 +215,81 @@ func DeadCodeLanguageExactnessBlockerReport() map[string][]string {
 	return report
 }
 
+// deadCodeModeledFrameworks maps a normalized language to the frameworks for
+// which dead-code has a root model: framework-specific root kinds the query
+// honors (php.zf1_controller_action for zend_framework_1, route-backed kinds
+// for laravel/slim/symfony, php.wordpress_hook_callback for wordpress).
+// Languages without an entry are not evaluated: an observed framework stays
+// silent rather than guessed. Extend the entry when a new framework root
+// model lands.
+var deadCodeModeledFrameworks = map[string]map[string]struct{}{
+	"php": {
+		"laravel":          {},
+		"slim":             {},
+		"symfony":          {},
+		"wordpress":        {},
+		"zend_framework_1": {},
+	},
+}
+
+// deadCodeFrameworksWithoutRootModel reports, per normalized language, the
+// observed result frameworks that have no dead-code root model. A framework
+// is observed from result metadata; it is unmodeled when its language has a
+// deadCodeModeledFrameworks entry that does not contain it.
+func deadCodeFrameworksWithoutRootModel(results []map[string]any) map[string][]string {
+	observed := make(map[string]map[string]struct{})
+	for _, result := range results {
+		language := normalizeDeadCodeLanguage(querycontract.StringVal(result, "language"))
+		if language == "" {
+			continue
+		}
+		modeled, ok := deadCodeModeledFrameworks[language]
+		if !ok {
+			continue
+		}
+		metadata, _ := result["metadata"].(map[string]any)
+		framework := strings.ToLower(strings.TrimSpace(querycontract.StringVal(metadata, "framework")))
+		if framework == "" {
+			continue
+		}
+		if _, ok := modeled[framework]; ok {
+			continue
+		}
+		if observed[language] == nil {
+			observed[language] = make(map[string]struct{})
+		}
+		observed[language][framework] = struct{}{}
+	}
+
+	report := make(map[string][]string, len(observed))
+	for language, frameworks := range observed {
+		values := make([]string, 0, len(frameworks))
+		for framework := range frameworks {
+			values = append(values, framework)
+		}
+		slices.Sort(values)
+		report[language] = values
+	}
+	return report
+}
+
+// deadCodeNoRootModelNote renders the human-readable notice for frameworks
+// observed without a root model. Languages and frameworks render sorted so
+// the note is deterministic.
+func deadCodeNoRootModelNote(unmodeled map[string][]string) string {
+	languages := make([]string, 0, len(unmodeled))
+	for language := range unmodeled {
+		languages = append(languages, language)
+	}
+	slices.Sort(languages)
+	pairs := make([]string, 0, len(languages))
+	for _, language := range languages {
+		pairs = append(pairs, language+"("+strings.Join(unmodeled[language], ", ")+")")
+	}
+	return "dead-code has no root model for frameworks in use: " + strings.Join(pairs, ", ") +
+		"; convention-dispatched entry points of those frameworks may be misreported as dead"
+}
+
 func deadCodeObservedExactnessBlockerReport(results []map[string]any) map[string][]string {
 	observed := make(map[string]map[string]struct{})
 	for _, result := range results {

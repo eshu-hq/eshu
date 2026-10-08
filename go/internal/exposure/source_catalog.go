@@ -117,6 +117,7 @@ var sourceCatalog = []SourceSpec{
 			"ruby.rails_controller_action",
 			"php.route_handler",
 			"php.framework_controller_action",
+			"php.zf1_controller_action",
 			"php.symfony_route_attribute",
 			"elixir.phoenix_controller_action",
 			"scala.play_controller_action",
@@ -281,7 +282,7 @@ func RankSourceExposure(spec SourceSpec, endpointReachesInternet bool) ExposureR
 // sourceCatalogVersionGolden pins the current content hash of the taint-source
 // catalog. The well-formedness/version test fails when the catalog changes
 // without a deliberate update, the taintModelVersion discipline.
-const sourceCatalogVersionGolden = "74deeb6ae003577c9441e75b407ee970fc445e204324dce4c03abffd8c98b12f"
+const sourceCatalogVersionGolden = "90dc93861e4b57ceb9e870496c75807c19595501b2fc741a462b5505d691ad0a"
 
 // SourceCatalogVersion returns a deterministic content hash over the curated
 // taint-source catalog so cached reachability findings can be invalidated when
