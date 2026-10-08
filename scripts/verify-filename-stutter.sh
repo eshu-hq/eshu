@@ -210,8 +210,9 @@ sib_hits=$'\n'
 # sib_fill <dir> <lowered dir>: record one sib_hits line per non-dot
 # subdirectory of <dir>. Git modes read the base tree, so only a sibling
 # that pre-exists the change counts; --files mode has no base tree and
-# reads the worktree instead. Marks the dir scanned either way: a missing
-# dir (or a failed listing) simply has no siblings.
+# reads the worktree instead. Basenames are lowercased with `-` folded to
+# `_`, matching the file-stem comparison. Marks the dir scanned either
+# way: a missing dir (or a failed listing) simply has no siblings.
 sib_fill() {
   local dir="$1" ldir="$2" out line rest type name lname e
   out=""
@@ -227,6 +228,7 @@ sib_fill() {
       name="${line##*$'\t'}"
       case "$name" in .*) continue ;; esac
       lname="$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z')"
+      lname="${lname//-/_}"
       sib_hits="${sib_hits}${ldir}"$'\t'"${lname}"$'\n'
     done <<<"$out"
   else
@@ -236,6 +238,7 @@ sib_fill() {
         name="${e%/}"
         name="${name##*/}"
         lname="$(printf '%s' "$name" | LC_ALL=C tr 'A-Z' 'a-z')"
+        lname="${lname//-/_}"
         sib_hits="${sib_hits}${ldir}"$'\t'"${lname}"$'\n'
       done
     fi
@@ -361,6 +364,13 @@ check_file() {
   first="${lbase%%_*}"
   if [ -n "$first" ] && sib_has "${path%/*}" "$ldir" "$first"; then
     printf 'filename-stutter: %s repeats sibling directory %s (naming rule 3: move the file into that directory or drop the repeated word)\n' "$path" "$first" >&2
+    failures=$((failures + 1))
+  # A hyphenated sibling is invisible to the first-word match (the first
+  # word holds neither separator after the fold-and-split), so the whole
+  # folded stem is compared too: x/foo-bar.go beside x/foo-bar/ fails.
+  # The elif keeps a single-word stem from counting twice.
+  elif [ "$lbase" != "$first" ] && sib_has "${path%/*}" "$ldir" "$lbase"; then
+    printf 'filename-stutter: %s repeats sibling directory %s (naming rule 3: move the file into that directory or drop the repeated word)\n' "$path" "$lbase" >&2
     failures=$((failures + 1))
   fi
 }

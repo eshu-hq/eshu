@@ -604,6 +604,33 @@ git -C "$repo38" add -A
 rc="$(run_gate --staged)"
 check "conventional README beside readme/ sibling is GREEN" 0 "$rc"
 
+# 34. RED: a hyphenated sibling dir matches after the -/_ fold -- the folded
+# stem equals the folded basename (x/foo-bar.go beside x/foo-bar/). The fold
+# alone cannot do this (the first word holds neither separator after the
+# fold-and-split), so the gate also compares the whole folded stem.
+repo39="$(new_repo)"
+mkdir -p "$repo39/x/foo-bar"
+printf 'x\n' > "$repo39/x/foo-bar/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo39"
+rc="$(run_gate --files x/foo-bar.go)"
+check "--files hyphenated stem-equals-sibling is RED" 1 "$rc"
+rc="$(run_gate --files x/other-bar.go)"
+check "--files hyphenated sibling mismatch is GREEN" 0 "$rc"
+git -C "$repo39" add -A && git -C "$repo39" commit -qm base
+printf 'x\n' > "$repo39/x/foo-bar.go"
+git -C "$repo39" add -A
+rc="$(run_gate --staged)"
+check "staged hyphenated stem-equals-sibling is RED" 1 "$rc"
+
+# 35. RED: the _test strip happens before the sibling comparison, so
+# storage/postgres/activation_x_test.go beside activation/ fails too.
+repo40="$(new_repo)"
+mkdir -p "$repo40/storage/postgres/activation"
+printf 'x\n' > "$repo40/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo40"
+rc="$(run_gate --files storage/postgres/activation_x_test.go)"
+check "--files _test stem sibling-dir match is RED" 1 "$rc"
+
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2
   exit 1

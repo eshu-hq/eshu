@@ -60,8 +60,12 @@ refactored today.
      file belongs in that directory, or needs a name that does not repeat
      it. First word means the stem split on `-`/`_` after extension and
      `_test` stripping, case-insensitive, so `activation_x_test.go` fails
-     too. The sibling must pre-exist the change; a same-PR dir+file pair
-     is the review "Naming surface" pass's shape, not the gate's.
+     too. The sibling basename gets the same `-`/`_` fold, and the whole
+     folded stem is compared as well so a hyphenated sibling matches:
+     `x/foo-bar.go` beside `x/foo-bar/` fails. In git modes the sibling
+     must pre-exist the change (base tree); `--files` mode reads the
+     worktree and flags same-PR pairs. A same-PR dir+file pair in git
+     modes is the review "Naming surface" pass's shape, not the gate's.
    - **Exempt.** `README.md`, `AGENTS.md`, `CLAUDE.md`, `doc.go`, a file
      named for its own directory, dot-directories such as `.codex`, and the
      structural parents `go`, `internal`, `cmd`, `docs`, `scripts`, `specs`,
