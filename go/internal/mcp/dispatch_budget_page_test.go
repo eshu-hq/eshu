@@ -160,6 +160,9 @@ func TestBudgetPageAtAdvertisedMaximumReturnsAPage(t *testing.T) {
 				numberValue(page["rows_available"]) <= len(ids) || page["reason"] != "response_byte_budget" {
 				t.Fatalf("budget_page = %#v, want rows_returned %d, the budget, more rows available, reason response_byte_budget", page, len(ids))
 			}
+			if !result.Envelope.Truth.Truncated {
+				t.Fatalf("truth.truncated = false, want true on a budget page")
+			}
 			omissions := result.Envelope.Truth.Omissions
 			if len(omissions) != 1 || omissions[0].Section != "results" || omissions[0].Detail != "response_byte_budget" ||
 				omissions[0].Total != numberValue(page["rows_available"]) {
@@ -283,6 +286,9 @@ func TestBudgetPageLeavesFittingResponsesUnchanged(t *testing.T) {
 			}
 			if _, present := data["next_offset"]; present {
 				t.Fatalf("fitting response carries next_offset %v", data["next_offset"])
+			}
+			if budgeted.Envelope.Truth.Truncated {
+				t.Fatalf("fitting response carries truth.truncated")
 			}
 			if len(budgeted.Envelope.Truth.Omissions) != 0 {
 				t.Fatalf("fitting response carries truth.omissions %#v", budgeted.Envelope.Truth.Omissions)

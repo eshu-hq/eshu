@@ -18,6 +18,23 @@ measured the single-copy (resource-only) size the guard compares to the budget.
 | `search_entity_content` | 200 | 1,038,916 | 5,194 | about 50 |
 | `find_code` | 200 | 1,486,172 | 7,430 | about 35 |
 
+### Production row sizes (read-only, ops-prod)
+
+The arbiter required real sizes. The `search_entity_content` shape for pattern
+`decode` with no repository (limit 200, the sweep's call index 1 and 9) was run
+as a read-only SELECT on the PG reader (`default_transaction_read_only=on`,
+`statement_timeout=25s`) with the row shaped by the route's clip rules
+(`source_cache` 4,096, `docstring` 512, fingerprint keys stripped) and only
+sizes returned. The 200 rows serialize to 447,180 bytes in the embedded
+resource form (mean 2,228, max 6,342 bytes per row), against 262,144, so 133 of
+200 rows fit. The sizes agree with the observed 884,737-byte two-copy reply
+(about 404 KB structured plus 447 KB escaped resource plus envelope) within 4%.
+`find_code` for query `decode`, language php, repository `r_957cd853` takes the
+graph path, which Postgres cannot reproduce. Its page size is derived from the
+observed 610,762-byte two-copy reply, not measured: about 1.6 KB per row, so
+about 160 of 200 rows fit. The trim does not depend on either number; it
+measures each candidate page.
+
 Both calls returned the over-budget error before the change. The model is
 therefore "whole rows by serialized size", not a fixed row count: the fit count
 varies with the row, so the trim measures the real size.

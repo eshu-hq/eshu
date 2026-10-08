@@ -32,6 +32,7 @@ Important envelope fields:
 | --- | --- |
 | `data` | Tool-specific result payload. |
 | `truth.level` | Exact, derived, fallback, or another profile-specific truth level. |
+| `truth.truncated` | Present and `true` when the answer is a page and the rest is reachable by paging (`data.next_offset`). |
 | `truth.capability` | Capability ID from the query contract. |
 | `truth.profile` | Runtime profile, such as local or production. |
 | `truth.freshness.state` | Fresh, stale, building, or unavailable evidence. |

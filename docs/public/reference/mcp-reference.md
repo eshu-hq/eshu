@@ -167,8 +167,8 @@ and `search_entity_content`, return a page instead: the first whole rows that
 fit the budget, never a split row. The page sets `data.truncated=true`,
 `data.next_offset` (pass it back as `offset` to read the remainder),
 `data.budget_page` (`reason=response_byte_budget`, `budget_bytes`,
-`rows_returned`, `rows_available`), and a `truth.omissions` entry for the
-`results` section. `data.count` and the clipped-row counts describe the rows
+`rows_returned`, `rows_available`), `truth.truncated=true`, and a
+`truth.omissions` entry for the `results` section. `data.count` and the clipped-row counts describe the rows
 returned. A request at the advertised `limit` maximum of 200 can therefore
 return fewer than 200 rows; size `limit` down (rows that carry source text run
 a few KiB each) or follow `next_offset`. `find_code` accepts `offset` and pages

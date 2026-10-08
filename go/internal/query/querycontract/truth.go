@@ -77,6 +77,11 @@ type TruthEnvelope struct {
 	Backend    GraphBackend   `json:"backend,omitempty"`
 	Freshness  TruthFreshness `json:"freshness"`
 	Reason     string         `json:"reason,omitempty"`
+	// Truncated is true when the answer is a page of the rows the route held
+	// and the rest can be read by paging (the MCP response-budget page sets it
+	// together with data.next_offset). It is absent on the wire when false, so
+	// a response that returned every row keeps its existing bytes.
+	Truncated bool `json:"truncated,omitempty"`
 	// Omissions lists the response sections a route withheld or reduced to
 	// handle rows under the caller's selection, so a partial answer never
 	// reads as a complete one. Empty (and absent on the wire) when the

@@ -380,6 +380,7 @@ func budgetPageEnvelope(
 	recountClipped(page, "docstring_clipped_rows", "docstring_clipped", kept)
 
 	truth := *envelope.Truth
+	truth.Truncated = true
 	truth.Omissions = append(append([]querycontract.TruthOmission(nil), truth.Omissions...), querycontract.TruthOmission{
 		Section: "results",
 		Detail:  budgetPageReason,
