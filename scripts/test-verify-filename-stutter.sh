@@ -491,6 +491,146 @@ for kind in file symlink; do
   unset ESHU_STUTTER_UPSTREAM
 done
 
+# Issue #7648: sibling-directory shape -- an Added or Renamed file whose
+# first stem word equals the basename of a sibling directory that already
+# exists (naming rule 3: the #7645 activation_*.go family beside
+# storage/postgres/activation/). A same-PR dir+file pair stays quiet here;
+# the review "Naming surface" pass owns that shape.
+
+# 25. RED via --files (the trivial seed: sibling dir on disk, no commits).
+repo30="$(new_repo)"
+mkdir -p "$repo30/storage/postgres/activation"
+printf 'x\n' > "$repo30/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo30"
+rc="$(run_gate --files storage/postgres/activation_x.go)"
+check "--files first-word sibling-dir match is RED" 1 "$rc"
+rc="$(run_gate --files storage/postgres/other_x.go)"
+check "--files first-word mismatch is GREEN" 0 "$rc"
+rc="$(run_gate --files storage/postgres/activationx.go)"
+check "--files glued whole-stem near-miss is GREEN" 0 "$rc"
+rc="$(run_gate --files storage/postgres/activation.go)"
+check "--files single-word stem equal to sibling dir is RED" 1 "$rc"
+set +e
+out="$(bash "$gate" --files storage/postgres/activation_x.go 2>&1)"
+rc=$?
+set -e
+check "--files sibling diagnostic run is RED" 1 "$rc"
+case "$out" in
+  *storage/postgres/activation_x.go*activation*) printf 'ok   sibling diagnostic names the path and directory\n' ;;
+  *) printf 'FAIL sibling diagnostic names the path and directory: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
+# 26. Sibling must be a directory: a same-named FILE does not flag.
+repo31="$(new_repo)"
+mkdir -p "$repo31/storage/postgres"
+printf 'x\n' > "$repo31/storage/postgres/activation"
+export ESHU_STUTTER_REPO_ROOT="$repo31"
+rc="$(run_gate --files storage/postgres/activation_x.go)"
+check "--files sibling file (not dir) is GREEN" 0 "$rc"
+
+# 27. No sibling dir at all: GREEN.
+repo32="$(new_repo)"
+mkdir -p "$repo32/storage/postgres"
+export ESHU_STUTTER_REPO_ROOT="$repo32"
+rc="$(run_gate --files storage/postgres/activation_x.go)"
+check "--files with no sibling dir is GREEN" 0 "$rc"
+
+# 28. RED via --staged: sibling dir committed at base, file staged new.
+repo33="$(new_repo)"
+mkdir -p "$repo33/storage/postgres/activation"
+printf 'x\n' > "$repo33/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo33"
+git -C "$repo33" add -A && git -C "$repo33" commit -qm base
+printf 'x\n' > "$repo33/storage/postgres/activation_x.go"
+git -C "$repo33" add -A
+rc="$(run_gate --staged)"
+check "staged first-word sibling-dir match is RED" 1 "$rc"
+
+# 29. GREEN via --staged: first word differs from the committed sibling dir.
+repo34="$(new_repo)"
+mkdir -p "$repo34/storage/postgres/activation"
+printf 'x\n' > "$repo34/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo34"
+git -C "$repo34" add -A && git -C "$repo34" commit -qm base
+printf 'x\n' > "$repo34/storage/postgres/other_x.go"
+git -C "$repo34" add -A
+rc="$(run_gate --staged)"
+check "staged first-word mismatch is GREEN" 0 "$rc"
+
+# 30. RED via --staged, case-insensitive: Activation_X.go beside activation/.
+repo35="$(new_repo)"
+mkdir -p "$repo35/storage/postgres/activation"
+printf 'x\n' > "$repo35/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo35"
+git -C "$repo35" add -A && git -C "$repo35" commit -qm base
+printf 'x\n' > "$repo35/storage/postgres/Activation_X.go"
+git -C "$repo35" add -A
+rc="$(run_gate --staged)"
+check "staged mixed-case sibling-dir match is RED" 1 "$rc"
+
+# 31. RED via --range: commit adding the file on top of a base with the dir.
+repo36="$(new_repo)"
+mkdir -p "$repo36/storage/postgres/activation"
+printf 'x\n' > "$repo36/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo36"
+git -C "$repo36" add -A && git -C "$repo36" commit -qm base
+printf 'x\n' > "$repo36/storage/postgres/activation_x.go"
+git -C "$repo36" add -A && git -C "$repo36" commit -qm sibling
+rc="$(run_gate --range HEAD~1)"
+check "--range first-word sibling-dir match is RED" 1 "$rc"
+
+# 32. GREEN: same-PR pair -- dir and file both new, dir not at base. The
+# gate deliberately stays quiet; the review "Naming surface" pass owns it.
+repo37="$(new_repo)"
+mkdir -p "$repo37/storage/postgres/activation"
+printf 'x\n' > "$repo37/storage/postgres/activation/keep.go"
+printf 'x\n' > "$repo37/storage/postgres/activation_x.go"
+export ESHU_STUTTER_REPO_ROOT="$repo37"
+git -C "$repo37" add -A
+rc="$(run_gate --staged)"
+check "staged same-PR dir+file pair is GREEN" 0 "$rc"
+git -C "$repo37" commit -qm pair
+rc="$(run_gate --range HEAD~1)"
+check "--range same-PR dir+file pair is GREEN" 0 "$rc"
+
+# 33. GREEN: conventional names stay exempt on the sibling axis (README.md
+# beside a readme/ sibling would otherwise match first-word == basename).
+repo38="$(new_repo)"
+mkdir -p "$repo38/docs/internal/p/readme"
+printf 'x\n' > "$repo38/docs/internal/p/readme/keep.txt"
+printf 'x\n' > "$repo38/docs/internal/p/README.md"
+export ESHU_STUTTER_REPO_ROOT="$repo38"
+git -C "$repo38" add -A
+rc="$(run_gate --staged)"
+check "conventional README beside readme/ sibling is GREEN" 0 "$rc"
+
+# 34. RED: a hyphenated sibling dir matches after the -/_ fold -- the folded
+# stem equals the folded basename (x/foo-bar.go beside x/foo-bar/). The fold
+# alone cannot do this (the first word holds neither separator after the
+# fold-and-split), so the gate also compares the whole folded stem.
+repo39="$(new_repo)"
+mkdir -p "$repo39/x/foo-bar"
+printf 'x\n' > "$repo39/x/foo-bar/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo39"
+rc="$(run_gate --files x/foo-bar.go)"
+check "--files hyphenated stem-equals-sibling is RED" 1 "$rc"
+rc="$(run_gate --files x/other-bar.go)"
+check "--files hyphenated sibling mismatch is GREEN" 0 "$rc"
+git -C "$repo39" add -A && git -C "$repo39" commit -qm base
+printf 'x\n' > "$repo39/x/foo-bar.go"
+git -C "$repo39" add -A
+rc="$(run_gate --staged)"
+check "staged hyphenated stem-equals-sibling is RED" 1 "$rc"
+
+# 35. RED: the _test strip happens before the sibling comparison, so
+# storage/postgres/activation_x_test.go beside activation/ fails too.
+repo40="$(new_repo)"
+mkdir -p "$repo40/storage/postgres/activation"
+printf 'x\n' > "$repo40/storage/postgres/activation/keep.go"
+export ESHU_STUTTER_REPO_ROOT="$repo40"
+rc="$(run_gate --files storage/postgres/activation_x_test.go)"
+check "--files _test stem sibling-dir match is RED" 1 "$rc"
+
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2
   exit 1

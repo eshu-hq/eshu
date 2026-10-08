@@ -69,6 +69,9 @@ Package-move mechanics, in order:
   was supposed to carry are still discovered, catching a test file left
   behind under a build tag or an old package name that compiles clean but
   registers nothing.
+- When a PR creates a subpackage, its tests live in that package (an
+  external `_test` package if they need the parent), never as a `<pkg>_*`
+  family in the parent.
 
 `go build/vet/test ./...` silently skips any file behind a `//go:build` tag
 that no workflow, Makefile target, or script ever passes — a moved or renamed
