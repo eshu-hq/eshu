@@ -122,6 +122,13 @@ type StoredTrigger struct {
 	DuplicateCount int
 	ReceivedAt     time.Time
 	UpdatedAt      time.Time
+	// ClaimFencingToken climbs by one on every claim (#7661). A handoff
+	// completion only lands when the presented token still matches the
+	// row, so a holder whose lease expired and was reaped cannot
+	// complete a claim another owner re-claimed. It also counts claim
+	// attempts: a reap fails the row once the token reaches the
+	// attempt cap instead of requeueing a poison row forever.
+	ClaimFencingToken int64
 }
 
 // IncidentFreshnessTrigger is a verified incident-source webhook wake-up for

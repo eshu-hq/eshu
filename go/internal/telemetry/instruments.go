@@ -1424,6 +1424,15 @@ type Instruments struct {
 	// WebhookStoreOperations counts durable trigger upserts attempted by the
 	// webhook listener, labeled by provider, outcome, and stored status.
 	WebhookStoreOperations metric.Int64Counter
+	// WebhookTriggerClaimReaps counts stale webhook trigger claims the git
+	// collector recovered per tick, labeled by outcome: requeued (below
+	// the attempt cap, back to queued) or exhausted (at the cap, failed
+	// with claim_lease_exhausted) (#7661).
+	WebhookTriggerClaimReaps metric.Int64Counter
+	// WebhookTriggerStaleClaims is the residual rows stuck in claimed past
+	// the lease window after the tick's reap sweep: a nonzero value means
+	// stale claims arrived faster than one reap limit per tick (#7661).
+	WebhookTriggerStaleClaims metric.Int64Gauge
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -4292,6 +4301,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WebhookStoreOperations counter: %w", err)
+	}
+
+	inst.WebhookTriggerClaimReaps, err = meter.Int64Counter(
+		"eshu_dp_webhook_trigger_claim_reaps_total",
+		metric.WithDescription("Total stale webhook trigger claims recovered by outcome (requeued or exhausted)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookTriggerClaimReaps counter: %w", err)
+	}
+
+	inst.WebhookTriggerStaleClaims, err = meter.Int64Gauge(
+		"eshu_dp_webhook_trigger_stale_claims",
+		metric.WithDescription("Webhook trigger rows stuck in claimed past the lease window after the reap sweep"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WebhookTriggerStaleClaims gauge: %w", err)
 	}
 
 	// Register histograms with explicit bucket boundaries where specified
