@@ -14,7 +14,7 @@ a scope because of them.
 
 This package owns the table DDL text (kept byte-identical by a test to the
 DDL that follows the leading comment block of migration
-`164_repository_selection_observations.sql`; the embedded migration
+`166_repository_selection_observations.sql`; the embedded migration
 is the bootstrap source of truth), the org partition read of
 `ingestion_scopes`, the selector read, and the batched upsert.
 `go/internal/collector/repo/git/membership` owns the evaluation, the
