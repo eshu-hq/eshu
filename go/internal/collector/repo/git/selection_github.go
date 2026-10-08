@@ -14,7 +14,80 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 )
+
+// RepositorySelectionObserver evaluates one complete githubOrg listing
+// against the org's known repository scopes and records selection
+// observations (#7625). Implementations must not fail the collector cycle:
+// the result reports the outcome, including store errors.
+type RepositorySelectionObserver interface {
+	Observe(ctx context.Context, request membership.Request) membership.Result
+}
+
+// observeGitHubOrgSelection hands the full pre-shard githubOrg listing to the
+// configured observer. Only shard 0 observes, because every shard lists the
+// same org and N writers would race on the same observation rows; the other
+// source modes have no authoritative listing to compare against.
+func (s NativeRepositorySelector) observeGitHubOrgSelection(
+	ctx context.Context,
+	discovered RepositorySelection,
+	observedAt time.Time,
+) {
+	if s.SelectionObserver == nil || s.Config.SourceMode != "githubOrg" || s.Config.RepoShardIndex != 0 {
+		return
+	}
+	s.SelectionObserver.Observe(ctx, githubOrgSelectionRequest(s.Config, discovered, observedAt))
+}
+
+// githubOrgSelectionRequest maps a githubOrg discovery result to an
+// observation request. Each listed repository gets the scope id a git sync of
+// it would write, so listed slugs join stored scopes without a checkout.
+func githubOrgSelectionRequest(
+	config RepoSyncConfig,
+	discovered RepositorySelection,
+	observedAt time.Time,
+) membership.Request {
+	archived := make(map[string]struct{}, len(discovered.ArchivedRepositoryIDs))
+	for _, repoID := range discovered.ArchivedRepositoryIDs {
+		archived[repoID] = struct{}{}
+	}
+	ruleExcluded := make(map[string]struct{}, len(discovered.RuleExcludedRepositoryIDs))
+	for _, repoID := range discovered.RuleExcludedRepositoryIDs {
+		ruleExcluded[repoID] = struct{}{}
+	}
+	listed := make([]membership.ListedRepository, 0, len(discovered.ListedRepositories))
+	for _, record := range discovered.ListedRepositories {
+		state := membership.StateSelected
+		if _, ok := archived[record.RepoID]; ok {
+			state = membership.StateArchivedExcluded
+		} else if _, ok := ruleExcluded[record.RepoID]; ok {
+			state = membership.StateRuleExcluded
+		}
+		listed = append(listed, membership.ListedRepository{
+			ScopeID:  gitScopeIDForRepositoryID(config, record.RepoID),
+			Slug:     record.RepoID,
+			GitHubID: record.GitHubID,
+			State:    state,
+		})
+	}
+	rules := make([]membership.Rule, 0, len(config.RepositoryRules))
+	for _, rule := range config.RepositoryRules {
+		rules = append(rules, membership.Rule{Kind: rule.Kind, Value: rule.Value})
+	}
+	return membership.Request{
+		Selector:       membership.NewGitHubOrgSelector(config.SourceMode, config.GithubOrg, rules, config.IncludeArchivedRepos),
+		SourceMode:     config.SourceMode,
+		RepoShardCount: config.RepoShardCount,
+		RepoLimit:      config.RepoLimit,
+		Now:            observedAt,
+		Listing: membership.Listing{
+			Complete:     discovered.ListingComplete,
+			Repositories: listed,
+		},
+	}
+}
 
 func discoverSelection(
 	ctx context.Context,
@@ -45,11 +118,13 @@ func discoverSelection(
 		if strings.TrimSpace(token) == "" {
 			return RepositorySelection{}, fmt.Errorf("githubOrg source mode requires GitHub token or App auth")
 		}
-		repositories, err := listGitHubOrgRepositories(ctx, config.GithubOrg, config.RepoLimit, token)
+		repositories, complete, err := listGitHubOrgRepositories(ctx, config.GithubOrg, config.RepoLimit, token)
 		if err != nil {
 			return RepositorySelection{}, err
 		}
-		return selectGitHubRepositoryIDs(repositories, config.RepositoryRules, config.IncludeArchivedRepos), nil
+		selection := selectGitHubRepositoryIDs(repositories, config.RepositoryRules, config.IncludeArchivedRepos)
+		selection.ListingComplete = complete
+		return selection, nil
 	default:
 		return RepositorySelection{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", config.SourceMode)
 	}
@@ -72,14 +147,33 @@ func resolveGitToken(ctx context.Context, config RepoSyncConfig) (string, error)
 	}
 }
 
+// listGitHubOrgRepositories lists the org's repositories from the GitHub API,
+// up to repoLimit. See listGitHubOrgRepositoriesFrom for the completeness flag.
 func listGitHubOrgRepositories(
 	ctx context.Context,
 	org string,
 	repoLimit int,
 	token string,
-) ([]GitHubRepositoryRecord, error) {
+) ([]GitHubRepositoryRecord, bool, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
+	return listGitHubOrgRepositoriesFrom(ctx, client, "https://api.github.com", org, repoLimit, token)
+}
+
+// listGitHubOrgRepositoriesFrom pages through baseURL's org repository
+// listing. The bool reports a complete listing: true only when the loop ended
+// on an empty or short page before reaching repoLimit. Stopping at repoLimit
+// after a full page is incomplete even when the org holds exactly repoLimit
+// repositories, because the next page was never read.
+func listGitHubOrgRepositoriesFrom(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	org string,
+	repoLimit int,
+	token string,
+) ([]GitHubRepositoryRecord, bool, error) {
 	repositories := make([]GitHubRepositoryRecord, 0)
+	complete := false
 	for page := 1; len(repositories) < repoLimit; page++ {
 		perPage := repoLimit - len(repositories)
 		if perPage > 100 {
@@ -88,11 +182,11 @@ func listGitHubOrgRepositories(
 		request, err := http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("https://api.github.com/orgs/%s/repos?per_page=%d&page=%d&type=all", org, perPage, page),
+			fmt.Sprintf("%s/orgs/%s/repos?per_page=%d&page=%d&type=all", baseURL, org, perPage, page),
 			nil,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("build GitHub org repos request: %w", err)
+			return nil, false, fmt.Errorf("build GitHub org repos request: %w", err)
 		}
 		request.Header.Set("Accept", "application/vnd.github+json")
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -101,23 +195,25 @@ func listGitHubOrgRepositories(
 
 		response, err := client.Do(request)
 		if err != nil {
-			return nil, fmt.Errorf("list GitHub org repositories: %w", err)
+			return nil, false, fmt.Errorf("list GitHub org repositories: %w", err)
 		}
 		if response.Body == nil {
 			response.Close = true
 		}
 		var payload []struct {
+			ID       int64  `json:"id"`
 			FullName string `json:"full_name"`
 			Archived bool   `json:"archived"`
 		}
 		decodeErr := json.NewDecoder(response.Body).Decode(&payload)
 		_ = response.Body.Close()
 		if response.StatusCode >= 300 {
-			return nil, fmt.Errorf("list GitHub org repositories: status %d", response.StatusCode)
+			return nil, false, fmt.Errorf("list GitHub org repositories: status %d", response.StatusCode)
 		}
 		if decodeErr != nil {
-			return nil, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
+			return nil, false, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
 		}
+		complete = len(payload) < perPage
 		if len(payload) == 0 {
 			break
 		}
@@ -128,6 +224,7 @@ func listGitHubOrgRepositories(
 			}
 			repositories = append(repositories, GitHubRepositoryRecord{
 				RepoID:   repoID,
+				GitHubID: item.ID,
 				Archived: item.Archived,
 			})
 		}
@@ -135,7 +232,7 @@ func listGitHubOrgRepositories(
 	if len(repositories) > repoLimit {
 		repositories = repositories[:repoLimit]
 	}
-	return repositories, nil
+	return repositories, complete, nil
 }
 
 func mintGitHubAppToken(ctx context.Context, config RepoSyncConfig) (string, error) {

@@ -24,6 +24,7 @@ git/                     selection + snapshot + source (the tangled core)
   service/catalog/       service catalog manifest facts (hook)
   tfstate/               Terraform backend-expression warnings
   workflow/image/        CI workflow container image evidence
+  membership/            githubOrg repository selection observations (#7625)
 ```
 
 Imports run one way: `git -> leaf -> model`. No leaf imports `git`.
@@ -155,6 +156,23 @@ increment of `eshu_dp_collector_delta_baseline_fallback_total` with
 `skip_reason=default_branch_changed`; `TestUpdateRepositoryFollowsDeletedDefaultBranch`
 and `TestUpdateRepositoryFollowsMovedDefaultBranch` assert both against a real
 git remote. Steady-state syncs emit nothing new.
+
+## Repository selection observations
+
+In githubOrg mode, `NativeRepositorySelector` hands the full pre-shard org
+listing to its `SelectionObserver` right after discovery, on shard 0 only
+(#7625). `githubOrgSelectionRequest` maps each listed repository to the scope
+ID a sync of it would write (`gitScopeIDForRepositoryID`) and to a state:
+`selected`, `archived_excluded`, or `rule_excluded`. The `membership`
+subpackage compares that listing with the org's known repository scopes and
+records `not_listed` evidence; it never deletes, hides, or writes the graph.
+`listGitHubOrgRepositories` reports the listing complete only when its last
+page came back short, so a listing cut at `ESHU_REPO_LIMIT` is never evaluated.
+A store failure is logged and counted, and the cycle carries on. The webhook
+selector never observes. Telemetry: the
+`eshu_dp_collector_repository_selection_evaluations_total` counter, the
+`eshu_dp_collector_repository_selection_scopes` gauge, and the
+`git_repository_selection_*` logs; see `membership/README.md`.
 
 ## Two-phase content
 
