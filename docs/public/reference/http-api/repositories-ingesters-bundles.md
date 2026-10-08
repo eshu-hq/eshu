@@ -345,13 +345,15 @@ asks whether a specific commit SHA is reflected; a mismatch always renders
 `behind`, whether or not a generation is actively progressing.
 `unobserved_push` reports a queued or claimed webhook refresh trigger whose
 target commit does not match the observed commit. `not_selected` (#7625)
-outranks all but `unknown`: every live githubOrg selector observing the scope
-has settled evidence it no longer selects the repository (archived, rule
-excluded, or missing from two complete listings). `selection` (`state`,
-`reason`, `last_listed_at`, `unlisted_since`, `evaluated_at`) carries that
-evidence; it is `null`, and the verdict unchanged, when no selector evaluated
-the scope within three of its intervals. Scoped tokens get the same shape; a
-repository outside the grant 404s like every other repository route.
+outranks all but `unknown`: every live selector (row younger than
+`ESHU_REPO_SELECTION_LIVENESS_WINDOW`) has confirmed evidence it no longer
+selects the repository (archived, rule excluded, or unlisted, for two cycles
+spanning five minutes), and no generation was observed after that state
+began. The always-present `selection` block carries `state` (`selected`,
+`not_selected`, `pending_confirmation`, `excluded_still_ingested`, `unknown`),
+`reason`, `state_since`, `last_listed_at`, `evaluated_at`, and
+`live_selector_count`; only `not_selected` changes the verdict. Scoped tokens
+get the same shape; a repository outside the grant 404s like every route.
 
 Performance Evidence: the single-scope composite read (resolve scope,
 generation lookup, stage counts, shared-projection pending) is proven at
