@@ -199,23 +199,39 @@ const languageCgo = 1
 ' \
   fail
 
-# O: code_dead_code_language_maturity.go also matches is_language_query_source's
-# glob (no explicit exclusion there, unlike *language_inventory.go and
-# content_reader_language.go) and always fired the language rule
-# unconditionally before this exemption existed, on top of its own
-# dead-code rule. The exemption must not change that: even a comment-only
-# edit to this exact file still fires BOTH rules.
+# O: code_dead_code_language_maturity.go lives at
+# go/internal/query/codemodel/ (the matcher used to point at a
+# go/internal/query/ path that never existed) and is excluded from
+# is_language_query_source like the other filename-token collisions, so a
+# comment-only edit fires the dead-code rule ONLY -- never the language rule.
 o_repo="$(init_repo dsl-o-deadcode-comment)"
-printf 'package query\n\n// maturity one\nconst deadCodeX = 1\n' >"${o_repo}/go/internal/query/code_dead_code_language_maturity.go"
+mkdir -p "${o_repo}/go/internal/query/codemodel"
+printf 'package query\n\n// maturity one\nconst deadCodeX = 1\n' >"${o_repo}/go/internal/query/codemodel/code_dead_code_language_maturity.go"
 git -C "${o_repo}" add . && git -C "${o_repo}" commit -q -m 'dead-code maturity baseline'
-printf 'package query\n\n// maturity two\nconst deadCodeX = 1\n' >"${o_repo}/go/internal/query/code_dead_code_language_maturity.go"
+printf 'package query\n\n// maturity two\nconst deadCodeX = 1\n' >"${o_repo}/go/internal/query/codemodel/code_dead_code_language_maturity.go"
 git -C "${o_repo}" add . && git -C "${o_repo}" commit -q -m 'dead-code maturity comment-only edit'
 expect_fail "${o_repo}"
 if ! rg -qF 'dead-code maturity map changed' /tmp/eshu-parser-relationship-kit.err; then
-  printf 'dsl-o-deadcode-comment: expected the dead-code rule to also fire\n' >&2
+  printf 'dsl-o-deadcode-comment: expected the dead-code rule to fire\n' >&2
   sed -n '1,160p' /tmp/eshu-parser-relationship-kit.err >&2
   exit 1
 fi
+if rg -qF 'without Language Query DSL' /tmp/eshu-parser-relationship-kit.err; then
+  printf 'dsl-o-deadcode-comment: the language rule must not fire on the maturity map\n' >&2
+  sed -n '1,160p' /tmp/eshu-parser-relationship-kit.err >&2
+  exit 1
+fi
+
+# O2: the same maturity edit paired with its maturity doc satisfies the
+# dead-code rule, and no language-doc demand remains.
+o2_repo="$(init_repo dsl-o2-deadcode-with-doc)"
+mkdir -p "${o2_repo}/go/internal/query/codemodel"
+printf 'package query\n\n// maturity one\nconst deadCodeX = 1\n' >"${o2_repo}/go/internal/query/codemodel/code_dead_code_language_maturity.go"
+git -C "${o2_repo}" add . && git -C "${o2_repo}" commit -q -m 'dead-code maturity baseline'
+printf 'package query\n\n// maturity two\nconst deadCodeX = 1\n' >"${o2_repo}/go/internal/query/codemodel/code_dead_code_language_maturity.go"
+printf '# Dead Code Language Maturity\n\nUpdated.\n' >"${o2_repo}/docs/public/reference/dead-code-language-maturity.md"
+git -C "${o2_repo}" add . && git -C "${o2_repo}" commit -q -m 'dead-code maturity edit with doc'
+expect_pass "${o2_repo}"
 
 # W: the exemption reads base and head from git, never the worktree. A
 # committed code change, with the worktree then dirtied back to look
