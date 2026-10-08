@@ -32,7 +32,7 @@ Important envelope fields:
 | --- | --- |
 | `data` | Tool-specific result payload. |
 | `truth.level` | Exact, derived, fallback, or another profile-specific truth level. |
-| `truth.truncated` | Present and `true` only on a response-budget page: the reply was cut to fit the byte budget and the rest is reachable by `data.next_offset`. `data.next_offset` is absent past the offset cap (10,000 for `search_entity_content`, 200 for `find_code`). A page the handler cut at `limit` reports `data.truncated` instead and leaves this key absent. |
+| `truth.truncated` | Present and `true` only on a response-budget page: the reply was cut to fit the byte budget and the rest is reachable by `data.next_offset`. `data.next_offset` is absent past the `search_entity_content` offset cap (10,000). A page the handler cut at `limit` reports `data.truncated` instead and leaves this key absent. |
 | `truth.capability` | Capability ID from the query contract. |
 | `truth.profile` | Runtime profile, such as local or production. |
 | `truth.freshness.state` | Fresh, stale, building, or unavailable evidence. |
