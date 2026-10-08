@@ -138,8 +138,11 @@ runs on every PR and push that triggers the image build lane. It:
 1. Checks out the source and computes `SOURCE_DATE_EPOCH` from the HEAD commit.
 2. Builds the Docker image for `linux/amd64` with `--no-cache` and
    `--output type=local,dest=/tmp/out1`.
-3. Builds again with the same arguments to `/tmp/out2`.
-4. Extracts sha256 digests of all files in `/usr/local/bin/` from both outputs
+3. Runs `scripts/test-verify-runtime-image-tools.sh`, then
+   `scripts/verify-runtime-image-tools.sh /tmp/out1`, which fails when the
+   built runtime rootfs is missing `git`, `ssh`, or `curl` (#7762).
+4. Builds again with the same arguments to `/tmp/out2`.
+5. Extracts sha256 digests of all files in `/usr/local/bin/` from both outputs
    and diffs them.
 
 If any Go binary differs, the job fails and blocks the merge. A summary of

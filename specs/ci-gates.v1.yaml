@@ -5044,14 +5044,19 @@ gates:
 
   - id: runtime-image-tools
     name: Runtime image ships required tools
-    category: build
+    # exactness, not build: the local runners select registry gates by
+    # category (exactness/telemetry/hygiene/docs), so a build row with a
+    # local command would never run locally.
+    category: exactness
     layer: contract
     purpose: "Fails when the built runtime image is missing git, ssh, or curl, the external tools the collector and HEALTHCHECK exec."
     tier: pre-pr
     blocking: true
-    # The primary local command is the hermetic RED/GREEN suite: it needs no
-    # Docker. CI runs the same suite, then the verifier against the rootfs the
-    # verify-reproducibility job builds (#7762); same workflow, same job, two
+    # Locally this runs only the hermetic RED/GREEN suite for the verifier: it
+    # needs no Docker and does not inspect an image, so a Dockerfile edit that
+    # drops a tool stays green locally. The image itself is checked only in CI:
+    # verify-reproducibility runs the suite, then the verifier against the
+    # linux/amd64 rootfs that job builds (#7762); same workflow, same job, two
     # more steps.
     triggers:
       - "Dockerfile"
@@ -5060,6 +5065,7 @@ gates:
       - "scripts/test-verify-runtime-image-tools.sh"
     local:
       command: "bash scripts/test-verify-runtime-image-tools.sh"
+      pre_push: floor
     ci:
       workflow: docker-publish.yml
       job: "verify-reproducibility"

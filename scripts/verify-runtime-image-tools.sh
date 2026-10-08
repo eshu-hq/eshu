@@ -17,7 +17,10 @@
 # A tool passes when <rootfs>/{usr/bin,bin,usr/local/bin}/<tool> resolves,
 # inside the rootfs, to an executable regular file. Symlinks are followed
 # relative to the rootfs, never the host, so an absolute link target cannot
-# false-green against a host binary.
+# false-green against a host binary. Resolution is textual on the tool's own
+# link chain: a parent directory that is itself an absolute symlink is not
+# rewritten into the rootfs. Alpine's /usr/bin, /bin, and /usr/local/bin are
+# real directories, so the runtime image never hits that case.
 #
 # Exit codes: 0 every tool present; 1 one or more tools missing; 2 the input
 # is unusable (missing argument, not a directory, or not an image rootfs).
