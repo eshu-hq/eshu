@@ -229,7 +229,7 @@ WHERE scope_id <> 'eshu:global' AND domain <> $1 AND status IN ('pending', 'retr
 		t.Fatalf("pass 2 RunDeferredRelationshipMaintenance() error = %v", err)
 	}
 	if afterSecond := memoHitReopenRelationshipSnapshot(t, p, p.whole, "gcp-2"); afterSecond != beforeSecond {
-		t.Fatalf("pass 2 changed memo-hit relationship rows; drained items must not reopen again:\n%s", afterSecond)
+		t.Fatalf("pass 2 changed memo-hit relationship rows; drained items must not reopen again:\nbefore:\n%safter:\n%s", beforeSecond, afterSecond)
 	}
 	// Pre-existing boundaries, pinned so the exclusion above cannot hide a
 	// regression: the memo-miss generation reopens its relationship items
