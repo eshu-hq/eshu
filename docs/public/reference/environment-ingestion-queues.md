@@ -16,8 +16,8 @@ queue, or graph-write evidence.
 | `ESHU_REPO_SHARD_COUNT` | `1` | collector selector | Deterministic repository shard count. Values greater than `1` filter discovered repository IDs before filesystem or Git sync. |
 | `ESHU_REPO_SHARD_INDEX` | `0` | collector selector | Zero-based shard index; must be less than `ESHU_REPO_SHARD_COUNT`. Helm sets shard count from `ingester.replicas` and shard index from the StatefulSet pod ordinal when horizontal ingesters are enabled. |
 | `ESHU_CLONE_DEPTH` | `1` | collector | Git clone depth. |
-| `ESHU_GIT_AUTH_METHOD` | `githubApp` | collector | Git auth mode. |
-| `ESHU_GIT_TOKEN`, `GITHUB_TOKEN` | unset | collector | Token auth credential. |
+| `ESHU_GIT_AUTH_METHOD` | `githubApp` | collector | Git auth mode: `githubApp`, `token`, `ssh`, or `none`. `githubApp` authenticates only to github.com. |
+| `ESHU_GIT_TOKEN`, `GITHUB_TOKEN` | unset | collector | Token auth credential. Sent as HTTP Basic auth only to the host of the repository being cloned or fetched: github.com (username `x-access-token`), gitlab.com (`oauth2`, for personal, group, or project access tokens), or bitbucket.org (`x-token-auth`). The provider comes from the repository ID prefix (`gitlab/...`, `bitbucket/...`); an ID with no prefix is GitHub. One token is used for every selected repository, so select repositories from a single provider per collector. |
 | `ESHU_GITHUB_APP_ID`, `GITHUB_APP_ID` | unset | collector | GitHub App ID. |
 | `ESHU_GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_INSTALLATION_ID` | unset | collector | GitHub App installation ID. |
 | `ESHU_GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_PRIVATE_KEY` | unset | collector | GitHub App private key. |

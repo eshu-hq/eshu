@@ -6,7 +6,6 @@ package git
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -420,9 +419,4 @@ func normalizePrivateKeyPEM(privateKey string) string {
 		body = append(body, stripped)
 	}
 	return "-----BEGIN RSA PRIVATE KEY-----\n" + strings.Join(body, "\n") + "\n-----END RSA PRIVATE KEY-----\n"
-}
-
-func githubHTTPExtraHeader(token string) string {
-	encoded := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
-	return "AUTHORIZATION: basic " + encoded
 }
