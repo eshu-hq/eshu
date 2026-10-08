@@ -49,6 +49,15 @@ func TestLiveOrphanSweepReachesSourcelessEvidenceArtifact(t *testing.T) {
 		`MATCH (n) WHERE n.id IN $ids OR n.name = $env DETACH DELETE n`,
 		map[string]any{"ids": append([]string{sourceID, targetID}, artifactIDs...), "env": envName},
 	)
+	// Prefix-scoped pre-clean: a prior crashed run leaves marked nodes
+	// behind (the fixed test clock ages them under any later run's
+	// cutoff), which would inflate the exact Deleted counts below. Clear
+	// every leftover carrying this test's id prefixes first; the
+	// per-run cleanup above still scopes to the current run's ids.
+	_ = boltWriteStatement(ctx, runner,
+		`MATCH (n) WHERE n.id STARTS WITH '7322-artifact-' OR n.id STARTS WITH '7322-source-' OR n.id STARTS WITH '7322-target-' OR n.name STARTS WITH '7322-env-' DETACH DELETE n`,
+		map[string]any{},
+	)
 
 	seed := func(cypher string, params map[string]any) {
 		t.Helper()
