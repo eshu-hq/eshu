@@ -514,7 +514,7 @@ func TestBuildIngesterCollectorServiceThreadsWebhookLeaseKnobs(t *testing.T) {
 	source := service.Source.(*git.GitSource)
 	selector, ok := source.Selector.(git.WebhookTriggerRepositorySelector)
 	if !ok {
-		t.Fatalf("buildIngesterCollectorService() selector type = %T, want collector.WebhookTriggerRepositorySelector", source.Selector)
+		t.Fatalf("buildIngesterCollectorService() selector type = %T, want git.WebhookTriggerRepositorySelector", source.Selector)
 	}
 	if selector.ClaimLeaseWindow != 30*time.Minute {
 		t.Fatalf("ClaimLeaseWindow = %v, want 30m", selector.ClaimLeaseWindow)

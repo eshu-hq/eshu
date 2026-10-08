@@ -244,14 +244,14 @@ func TestBuildCollectorServiceThreadsWebhookLeaseKnobs(t *testing.T) {
 	source := service.Source.(*git.GitSource)
 	priority, ok := source.Selector.(git.PriorityRepositorySelector)
 	if !ok {
-		t.Fatalf("buildCollectorService() selector type = %T, want collector.PriorityRepositorySelector", source.Selector)
+		t.Fatalf("buildCollectorService() selector type = %T, want git.PriorityRepositorySelector", source.Selector)
 	}
 	if len(priority.Selectors) == 0 {
 		t.Fatal("buildCollectorService() priority selectors empty, want webhook selector first")
 	}
 	selector, ok := priority.Selectors[0].(git.WebhookTriggerRepositorySelector)
 	if !ok {
-		t.Fatalf("buildCollectorService() first selector type = %T, want collector.WebhookTriggerRepositorySelector", priority.Selectors[0])
+		t.Fatalf("buildCollectorService() first selector type = %T, want git.WebhookTriggerRepositorySelector", priority.Selectors[0])
 	}
 	if selector.ClaimLeaseWindow != 30*time.Minute {
 		t.Fatalf("ClaimLeaseWindow = %v, want 30m", selector.ClaimLeaseWindow)
