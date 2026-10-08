@@ -3,6 +3,16 @@
 
 package postgres
 
+import (
+	"context"
+	"fmt"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
 const enqueueProjectorWorkQuery = `
 INSERT INTO fact_work_items (
     work_item_id,
@@ -228,6 +238,39 @@ const projectorAckGenerationSupersededClass = "projector_ack_generation_supersed
 // records when it stops running work whose own generation is already
 // superseded (#7130), as opposed to work a newer pending generation replaces.
 const projectorHeartbeatGenerationSupersededClass = "projector_heartbeat_generation_superseded"
+
+// recordSupersededGenerationFence counts work a superseded-generation fence
+// stopped, labeled by its closed failure_class. Nil instruments are a no-op.
+func recordSupersededGenerationFence(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	failureClass string,
+	count int,
+) {
+	if instruments == nil || instruments.SupersededGenerationFence == nil || count <= 0 {
+		return
+	}
+	instruments.SupersededGenerationFence.Add(context.WithoutCancel(ctx), int64(count),
+		metric.WithAttributes(telemetry.AttrFailureClass(failureClass)))
+}
+
+// projectorWorkSupersededError is failure.ErrWorkSuperseded carrying the
+// failure_class the queue wrote on the work row. The projector service logs
+// that class, so a log search for a row's class finds its refusal.
+type projectorWorkSupersededError struct {
+	failureClass string
+}
+
+// Error reports the superseded outcome and its failure class.
+func (e projectorWorkSupersededError) Error() string {
+	return fmt.Sprintf("%s (failure_class=%s)", failure.ErrWorkSuperseded, e.failureClass)
+}
+
+// Unwrap keeps errors.Is(err, failure.ErrWorkSuperseded) true for callers.
+func (e projectorWorkSupersededError) Unwrap() error { return failure.ErrWorkSuperseded }
+
+// FailureClass returns the bounded failure_class recorded on the work row.
+func (e projectorWorkSupersededError) FailureClass() string { return e.failureClass }
 
 // markProjectorAckSupersededQuery ends a claimed projector work item whose
 // generation Ack refused to activate. It runs after the Ack transaction rolled

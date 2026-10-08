@@ -1594,6 +1594,16 @@ type Instruments struct {
 	// superseded-generation work reached a worker.
 	SupersededGenerationFence metric.Int64Counter
 
+	// ProjectorZombieHeal counts active-generation heal attempts after a
+	// zombie refusal (#7209), labeled by a closed outcome: healed (the
+	// active row was re-opened), skipped_in_flight (a live claim owns the
+	// active row), skipped_already_open (the active row is already open),
+	// skipped_no_write_marker (the refused generation never wrote),
+	// skipped_no_active_generation (no other active generation exists),
+	// error (the heal statement failed). A nonzero error rate means
+	// refused zombies may have left canonical nodes missing.
+	ProjectorZombieHeal metric.Int64Counter
+
 	// ProjectorDeltaBaselineFence counts delta-baseline fence decisions
 	// (#7319), labeled by phase (preflight, ack) and a closed outcome:
 	// matched, unfenced, already_active, refused_active_differs,
@@ -5003,6 +5013,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupersededGenerationFence counter: %w", err)
+	}
+
+	inst.ProjectorZombieHeal, err = meter.Int64Counter(
+		"eshu_dp_projector_zombie_heal_total",
+		metric.WithDescription("Active-generation heal attempts after a zombie refusal, labeled by outcome (#7209)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorZombieHeal counter: %w", err)
 	}
 
 	postgresBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
