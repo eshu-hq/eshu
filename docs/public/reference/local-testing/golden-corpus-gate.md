@@ -304,6 +304,24 @@ cd go && go run ./cmd/golden-corpus-gate -phase=statement-coverage \
   -coverage-dirs=/tmp/diff-capture/neo4j
 ```
 
+### Id writer coverage and the anchor census
+
+The Neo4j entity-context anchor reaches a node through a uid-constrained label
+with `uid = id`, or through an id-constrained label. Two checks keep every
+id-bearing node inside that set.
+
+The `writer-coverage` phase reads the same capture recordings and fails when a
+statement that writes a node id names no label from those two sets. A dynamic
+`SET n += <map>` on an uncovered label fails unless the recorded parameters
+prove the map has no `id` key. An empty capture, or one with no id write, also
+fails. The `graph/anchor_census` check runs in the graph phase on the Neo4j
+leg and fails when any node with an id is unreachable by the anchor.
+
+```bash
+cd go && go run ./cmd/golden-corpus-gate -phase=writer-coverage \
+  -coverage-dirs=/tmp/diff-capture/nornicdb,/tmp/diff-capture/neo4j
+```
+
 ### The cross-run lock
 
 The gate binds **fixed host ports** (Postgres, api, mcp) and a compose project

@@ -9,6 +9,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 // run is the gate entrypoint: parse flags, load the snapshot, execute the
@@ -63,6 +65,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	if phases["statement-coverage"] {
 		if err := runStatementCoverage(o, stdout, &r); err != nil {
 			return fmt.Errorf("statement-coverage phase: %w", err)
+		}
+	}
+	if phases["writer-coverage"] {
+		if err := runWriterCoverage(o, stdout, &r); err != nil {
+			return fmt.Errorf("writer-coverage phase: %w", err)
 		}
 	}
 	var snap Snapshot
@@ -227,7 +234,17 @@ func runGraph(ctx context.Context, o options, getenv func(string) string, snap S
 		pipeline = pq
 	}
 
-	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, resolveBlockingCorrelations(o.requiredCorrelations, snap.Graph.RequiredCorrelations), pipeline, r)
+	if err := checkGraph(ctx, counter, snap, o.graphRequiredOnly, resolveBlockingCorrelations(o.requiredCorrelations, snap.Graph.RequiredCorrelations), pipeline, r); err != nil {
+		return err
+	}
+	// The anchor census (#7212) runs after every other graph assertion, on the
+	// graph the replay left behind.
+	backend, err := runtimecfg.LoadGraphBackend(getenv)
+	if err != nil {
+		return fmt.Errorf("resolve graph backend for the anchor census: %w", err)
+	}
+	checkAnchorCensus(ctx, counter, backend == runtimecfg.GraphBackendNeo4j, r)
+	return nil
 }
 
 // splitCSV splits a comma-separated flag into trimmed, non-empty values.
@@ -309,9 +326,9 @@ func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, 
 }
 
 // phaseSet expands the comma-separated phase flag, treating "all" as every phase.
-// backend-diff and statement-coverage are opt-in and excluded from "all":
-// they need capture directories, which a normal single-backend B-7 run
-// never has.
+// backend-diff, statement-coverage, and writer-coverage are opt-in and
+// excluded from "all": they need capture directories, which a normal
+// single-backend B-7 run never has.
 func phaseSet(raw string) map[string]bool {
 	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true}
 	out := map[string]bool{}
@@ -325,7 +342,7 @@ func phaseSet(raw string) map[string]bool {
 			}
 			continue
 		}
-		if all[p] || p == "backend-diff" || p == "statement-coverage" {
+		if all[p] || p == "backend-diff" || p == "statement-coverage" || p == "writer-coverage" {
 			out[p] = true
 		}
 	}
@@ -333,12 +350,11 @@ func phaseSet(raw string) map[string]bool {
 }
 
 // needsSnapshot reports whether any requested phase reads the golden
-// snapshot. backend-diff and statement-coverage compare capture
-// recordings, so pure -phase=backend-diff or -phase=statement-coverage
-// invocations skip the snapshot load.
+// snapshot. backend-diff, statement-coverage, and writer-coverage read capture
+// recordings, so pure invocations of those phases skip the snapshot load.
 func needsSnapshot(phases map[string]bool) bool {
 	for p := range phases {
-		if p != "backend-diff" && p != "statement-coverage" {
+		if p != "backend-diff" && p != "statement-coverage" && p != "writer-coverage" {
 			return true
 		}
 	}
