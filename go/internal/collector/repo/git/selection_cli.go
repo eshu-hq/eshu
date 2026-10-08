@@ -101,6 +101,9 @@ func syncGitRepositoriesWithLogger(
 						deltaByRepoPath[repoPath] = delta
 					}
 					sourceSHAByRepoPath[repoPath] = sourceSHA
+					if delta.DefaultBranchChanged {
+						reconcileByRepoPath[repoPath] = true
+					}
 					if forceReconcile {
 						reconcileByRepoPath[repoPath] = true
 						reconciledThisCycle++
@@ -204,7 +207,8 @@ func cloneRepository(
 // working-copy HEAD. Diffing from local HEAD is unsafe: if a prior projection
 // failed after its checkout advanced HEAD, the next sync would skip the
 // unprojected changes. When baselineSHA is empty (no projected generation yet)
-// or unreachable in the local checkout (shallow-clone prune or divergence) the
+// or unreachable in the local checkout (shallow-clone prune or divergence), or
+// when the remote default branch changed (#7678, see fetchDefaultBranch), the
 // sync falls back to a full snapshot — an empty delta — and reports the reason
 // through onFallback so operators can watch the delta-skip rate. onFallback may
 // be nil.
@@ -285,7 +289,7 @@ func updateRepository(
 		return false, GitSyncDelta{}, "", err
 	}
 	logGitSyncCompleted(ctx, logger, event, true)
-	return true, GitSyncDelta{}, remoteSHA, nil
+	return true, GitSyncDelta{DefaultBranchChanged: detection != ""}, remoteSHA, nil
 }
 
 func checkoutRemoteBranch(

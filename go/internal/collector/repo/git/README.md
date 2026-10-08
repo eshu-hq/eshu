@@ -115,13 +115,27 @@ the next sync. `updateRepository` then takes a full snapshot with
 `skip_reason=default_branch_changed` and logs the WARN
 `git repository default branch changed`. A remote `HEAD` that names no branch
 drops the probe and syncs the tracked branch as before. Detection matches
-git's English stderr; any other message stays a plain fetch error.
+git's stderr text, so `gitCommandEnv` sets `LC_ALL=C` on every managed git
+command.
+
+A forced reconciliation or a failed baseline lookup passes no fallback
+callback, so a change found there is logged but not counted in
+`skip_reason=default_branch_changed`. The returned `GitSyncDelta` sets
+`DefaultBranchChanged`, and the sync marks the repository in
+`ReconcileByRepoPath`. Its generation therefore carries an empty freshness
+hint: the snapshot hint does not fold git refs, so a rename that kept the tree
+would otherwise be dropped as unchanged and leave the old `default_branch` on
+the repository fact. The mark spends no sweep budget and does not count in
+`eshu_dp_collector_reconciliation_full_snapshots_total`.
 
 Performance Evidence (#7678): the extra refspec rides the existing fetch.
 Scratch remotes measured 2 protocol requests over `file://` with or without
 it on git 2.56 and 2.47.2, and 3 HTTPS requests in steady state against
 GitHub with or without it. The unchanged path adds no process: the tracked
-tip and the probe resolve in one `rev-parse`.
+tip and the probe resolve in one `rev-parse`. Two unusual remotes cost more
+each cycle: a remote `HEAD` that names no branch costs a second fetch, and a
+remote `HEAD` that resolves to a commit other than the tracked tip, while
+naming the same branch, costs one `ls-remote`.
 
 ## Two-phase content
 

@@ -142,7 +142,9 @@ no trustworthy baseline exists or a delta would be wrong:
   `refs/remotes/origin/HEAD` at it, logs the WARN
   `git repository default branch changed` (`previous_branch`, `branch`,
   `detection` of `moved` or `missing_ref`), and takes a full snapshot of the
-  new branch (#7678). The scope keeps its ID, which derives from the remote
+  new branch (#7678). That snapshot is projected as a reconciliation with an
+  empty freshness hint, so a rename that kept the tree still re-projects the
+  new default branch. The scope keeps its ID, which derives from the remote
   URL.
 Each fallback increments `eshu_dp_collector_delta_baseline_fallback_total`,
 labeled by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`,

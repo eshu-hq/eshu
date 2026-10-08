@@ -65,6 +65,10 @@ type GitSyncDelta struct {
 	// BaselineCommitSHA is the commit the diff was taken from (#7319). The
 	// projector refuses the delta unless it is still the active commit.
 	BaselineCommitSHA string
+	// DefaultBranchChanged marks a full snapshot taken because the remote
+	// default branch changed (#7678). The sync marks it a reconciliation so
+	// the unchanged-generation skip cannot drop a rename that kept the tree.
+	DefaultBranchChanged bool
 }
 
 func selectGitHubRepositoryIDs(

@@ -32,8 +32,12 @@ func buildSSHCommand(config RepoSyncConfig) string {
 	))
 }
 
+// gitCommandEnv returns the environment for a managed git command: the
+// process environment, auth settings for config's method, and LC_ALL=C.
+// Callers match git stderr by its English text (gitMissingRemoteRef,
+// recoverStaleGitShallowLock), so messages must never be translated.
 func gitCommandEnv(config RepoSyncConfig, token string) []string {
-	env := os.Environ()
+	env := append(os.Environ(), "LC_ALL=C")
 	authMethod := strings.ToLower(strings.TrimSpace(config.GitAuthMethod))
 	switch authMethod {
 	case "token", "githubapp":

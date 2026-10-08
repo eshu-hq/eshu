@@ -144,9 +144,8 @@ func remoteDefaultBranch(ctx context.Context, config RepoSyncConfig, repoPath st
 }
 
 // gitMissingRemoteRef reports whether a fetch failed because the remote does
-// not have ref. It matches git's English "couldn't find remote ref" message;
-// any other failure, including a localized one, is reported as a plain fetch
-// error, which is the pre-#7678 behavior.
+// not have ref. It matches git's "couldn't find remote ref" message, which
+// gitCommandEnv keeps untranslated with LC_ALL=C.
 func gitMissingRemoteRef(err error, ref string) bool {
 	if err == nil {
 		return false

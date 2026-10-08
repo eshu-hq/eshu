@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const defaultBranchChangedMsg = `"msg":"git repository default branch changed"`
@@ -98,8 +99,8 @@ func assertFollowedMain(t *testing.T, f defaultBranchFixture, r *updateResult, m
 	if want := []string{deltaFallbackDefaultBranchChanged}; !slices.Equal(r.fallbacks, want) {
 		t.Fatalf("fallback reasons = %v, want %v", r.fallbacks, want)
 	}
-	if !r.delta.IsEmpty() || r.delta.BaselineCommitSHA != "" {
-		t.Fatalf("delta = %+v; a default-branch change must take a full snapshot", r.delta)
+	if !r.delta.IsEmpty() || r.delta.BaselineCommitSHA != "" || !r.delta.DefaultBranchChanged {
+		t.Fatalf("delta = %+v; a default-branch change must take a flagged full snapshot", r.delta)
 	}
 	if r.sourceSHA != mainTip {
 		t.Fatalf("sourceCommitSHA = %q, want main tip %q", r.sourceSHA, mainTip)
@@ -138,6 +139,43 @@ func TestUpdateRepositoryFollowsMovedDefaultBranch(t *testing.T) {
 	mainTip := f.moveDefaultToMain(t)
 
 	assertFollowedMain(t, f, runUpdate(f, f.oldTip), mainTip, defaultBranchDetectionMoved)
+}
+
+// TestSyncMarksDefaultBranchChangeAsReconcile proves the cycle marks a
+// default-branch change as a reconciliation, so its generation carries an
+// empty freshness hint: a rename that keeps the tree would otherwise match the
+// last full generation's hint and be dropped as unchanged, leaving the old
+// default_branch on the repository fact. It must not spend the sweep budget.
+func TestSyncMarksDefaultBranchChangeAsReconcile(t *testing.T) {
+	f := newDefaultBranchFixture(t)
+	mainTip := f.moveDefaultToMain(t)
+	reposDir := t.TempDir()
+	repoPath := filepath.Join(reposDir, "github", "org", "big")
+	runGit(t, reposDir, "clone", "-q", "--depth=1", "--single-branch", "--branch", "old", "file://"+f.remote, repoPath)
+	runGit(t, repoPath, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/old")
+
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	world := &reconcileWorld{generations: []reconcileWorldGeneration{{
+		sha: f.oldTip, status: "active", activated: true, ingestedAt: now.Add(-time.Hour),
+	}}}
+	synced, err := syncGitRepositoriesWithLogger(context.Background(), reconcileTestConfig(reposDir),
+		[]string{"github/org/big"}, discardLogger(), gitDeltaBaseline{
+			Resolver:  world,
+			Reconcile: reconcilePolicy{Interval: 24 * time.Hour, MaxPerCycle: 10},
+			Now:       func() time.Time { return now },
+		})
+	if err != nil {
+		t.Fatalf("syncGitRepositoriesWithLogger() error = %v", err)
+	}
+	if !slices.Contains(synced.SelectedRepoPaths, repoPath) || synced.SourceCommitSHAByRepoPath[repoPath] != mainTip {
+		t.Fatalf("selected %v source %q; want %s at main tip %q", synced.SelectedRepoPaths, synced.SourceCommitSHAByRepoPath[repoPath], repoPath, mainTip)
+	}
+	if _, isDelta := synced.DeltaByRepoPath[repoPath]; isDelta {
+		t.Fatalf("default-branch change produced a delta: %+v", synced.DeltaByRepoPath[repoPath])
+	}
+	if !synced.ReconcileByRepoPath[repoPath] {
+		t.Fatalf("ReconcileByRepoPath = %v; a default-branch change must bypass the freshness-hint skip", synced.ReconcileByRepoPath)
+	}
 }
 
 // TestUpdateRepositoryUnchangedDefaultBranch keeps the common path: an
@@ -181,6 +219,71 @@ func TestGitMissingRemoteRef(t *testing.T) {
 	}
 }
 
+// TestUpdateRepositoryAdoptFetchFailureKeepsOriginHead proves a failed fetch
+// of the new default branch leaves refs/remotes/origin/HEAD on the old branch,
+// so the next sync detects the change again instead of tracking a branch it
+// never fetched.
+func TestUpdateRepositoryAdoptFetchFailureKeepsOriginHead(t *testing.T) {
+	binDir := t.TempDir()
+	calls := filepath.Join(binDir, "calls.log")
+	script := `#!/bin/sh
+printf '%s\n' "$*" >> '` + calls + `'
+case "$*" in
+	*"symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/"*)
+		;;
+	*"symbolic-ref refs/remotes/origin/HEAD"*)
+		printf "refs/remotes/origin/old\n"
+		;;
+	*"fetch --progress origin +refs/heads/old:"*)
+		echo "fatal: couldn't find remote ref refs/heads/old" >&2
+		exit 128
+		;;
+	*"ls-remote --symref origin HEAD"*)
+		printf "ref: refs/heads/main\tHEAD\nnewsha\tHEAD\n"
+		;;
+	*"fetch --progress origin +refs/heads/main:"*)
+		echo "fatal: unable to access 'https://github.com/o/r/': Could not resolve host" >&2
+		exit 128
+		;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(binDir, "git"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	updated, _, _, err := updateRepository(context.Background(), baselineTestConfig(), t.TempDir(), "",
+		discardLogger(), baselineTestEvent(), "oldsha", nil)
+	if err == nil || updated || !strings.Contains(err.Error(), "Could not resolve host") {
+		t.Fatalf("updateRepository() updated=%v err=%v; want the adopt fetch error", updated, err)
+	}
+	log, readErr := os.ReadFile(calls)
+	if readErr != nil {
+		t.Fatalf("read fake git calls: %v", readErr)
+	}
+	if strings.Contains(string(log), "symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main") {
+		t.Fatalf("origin/HEAD was repointed despite the failed fetch; calls:\n%s", log)
+	}
+}
+
+// TestGitCommandEnvPinsCLocale keeps git messages untranslated: default-branch
+// detection and shallow-lock recovery match stderr text.
+func TestGitCommandEnvPinsCLocale(t *testing.T) {
+	t.Setenv("LC_ALL", "de_DE.UTF-8")
+	for _, method := range []string{"none", "token", "githubapp", "ssh"} {
+		env := gitCommandEnv(RepoSyncConfig{GitAuthMethod: method}, "")
+		last := ""
+		for _, kv := range env {
+			if value, ok := strings.CutPrefix(kv, "LC_ALL="); ok {
+				last = value
+			}
+		}
+		if last != "C" {
+			t.Errorf("%s: effective LC_ALL = %q, want C", method, last)
+		}
+	}
+}
+
 // TestUpdateRepositoryRemoteHeadUnresolved keeps syncing a repository whose
 // remote HEAD names no branch: the HEAD probe is dropped and the tracked
 // branch still updates as a delta.
@@ -196,7 +299,7 @@ func TestUpdateRepositoryRemoteHeadUnresolved(t *testing.T) {
 	if r.err != nil || !r.updated || len(r.fallbacks) != 0 {
 		t.Fatalf("updateRepository() updated=%v err=%v fallbacks=%v; want a delta update", r.updated, r.err, r.fallbacks)
 	}
-	if r.sourceSHA != newTip || r.delta.BaselineCommitSHA != f.oldTip {
+	if r.sourceSHA != newTip || r.delta.BaselineCommitSHA != f.oldTip || r.delta.DefaultBranchChanged {
 		t.Fatalf("sourceSHA=%q baseline=%q; want %q as a delta from %q", r.sourceSHA, r.delta.BaselineCommitSHA, newTip, f.oldTip)
 	}
 	if strings.Contains(r.logs.String(), defaultBranchChangedMsg) {
