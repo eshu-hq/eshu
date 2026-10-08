@@ -115,6 +115,32 @@ rows for its configured repositories. The githubOrg listing always requests
 `per_page=100` and trims client-side: shrinking the last page re-reads
 earlier repositories under offset pagination (#7625 amendment 1).
 
+No-Regression Evidence: Phase 1 is observe-and-report only: selection
+behavior, ListRepositories, ResolveRepository, and the graph are
+unchanged, so the baseline selection outcome is byte-identical before
+and after. The additive cost is one evaluation transaction plus one
+ordered upsert per (scope, selector) once per cycle on shard 0, and two
+index-bound reads (observation rows plus per-scope MAX(observed_at)) on
+the single-scope freshness path. After measurement: live
+TestSelectionObservationStoreEvaluationLive on disposable postgres:18
+with a QA-shape corpus (776 selected / 1 archived_excluded /
+0 rule_excluded / 25 not_listed) runs the two-cycle confirm green with
+guards writing nothing; EXPLAIN records the reads index-bound. Input shape is the per-cycle discovery listing;
+a listing cut at RepoLimit is skipped and a guard trip commits an
+empty transaction, so truncated or mass-miss cycles add ~zero rows.
+Safe because every new write is additive and fenced (mass-miss guard
+max(10,10%), empty-listing guard, ordered upsert), failures are
+WARN-only and never fail ingestion, and no hot loop, claim, lease, or
+batching knob changed.
+
+Observability Evidence: every evaluation records
+eshu_dp_collector_repository_selection_evaluations_total
+{outcome, selector_kind} and
+eshu_dp_collector_repository_selection_scopes{state}, one evaluated
+INFO per selector, and WARN logs for guard trips, liveness lapse past
+ESHU_REPO_SELECTION_LIVENESS_WINDOW, truncation, and store errors;
+freshness reads keep the existing duration/error instruments.
+
 ## Default branch tracking
 
 `git clone` records `refs/remotes/origin/HEAD` once, and the single-branch
