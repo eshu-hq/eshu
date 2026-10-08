@@ -1514,6 +1514,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code_reachability_upgrade_backfill_live_test.go
     tag: ~
     class: scheduled

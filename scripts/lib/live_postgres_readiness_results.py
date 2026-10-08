@@ -17,6 +17,7 @@ QUERY_PACKAGE = "./internal/query"
 SUMMARY_PACKAGE = "./internal/storage/postgres/status/summary"
 WRITER_PACKAGE = "./internal/reducer/status/summary"
 ADMIN_PACKAGE = "./internal/query/admin"
+REACHABILITY_PACKAGE = "./internal/storage/postgres/code/reachability"
 
 # Expected files and tests per Go package (relative to the go/ module root).
 # The runner invokes one go test per package, each with its own events file
@@ -256,6 +257,11 @@ PACKAGES = {
     ADMIN_PACKAGE: {
         "go/internal/query/admin/reopen_live_test.go": (
             "TestAdminHandler_ReopenLive",
+        ),
+    },
+    REACHABILITY_PACKAGE: {
+        "go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go": (
+            "TestLoadCodeReachabilityEdgesReadsConsumerScopeOnly",
         ),
     },
 }

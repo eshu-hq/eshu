@@ -136,4 +136,6 @@ jobs:
           ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE: '1'
           ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE: '1'
+          ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh
