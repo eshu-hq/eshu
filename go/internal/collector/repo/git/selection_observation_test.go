@@ -120,16 +120,6 @@ func TestNativeRepositorySelectorObservesOnlyOnShardZeroInGitHubOrgMode(t *testi
 	if len(unsharded.requests) != 1 {
 		t.Fatalf("unsharded observations = %d, want 1", len(unsharded.requests))
 	}
-
-	explicit := &recordingSelectionObserver{}
-	selector := githubOrgObservationSelector(t, 1, 0, explicit)
-	selector.Config.SourceMode = "explicit"
-	if _, err := selector.SelectRepositories(context.Background()); err != nil {
-		t.Fatalf("explicit SelectRepositories() error = %v", err)
-	}
-	if len(explicit.requests) != 0 {
-		t.Fatalf("explicit-mode observations = %d, want 0", len(explicit.requests))
-	}
 }
 
 // TestSelectorNormalizesExactRulesLikeMatching pins membership's copy of

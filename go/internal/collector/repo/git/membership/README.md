@@ -23,6 +23,15 @@ discovery, with the full pre-shard listing, on shard 0 only. Every shard lists
 the same org, so a single writer avoids N-way races on the same rows. The
 webhook selector never observes: a webhook batch is not a listing.
 
+In explicit mode the selector calls `Observe` once per owner of the full
+pre-shard configured list, also on shard 0 only, with a complete listing in
+which every repository is `selected`. Each repository carries the scope ID and
+repo slug a sync of it writes, and its owner is the slug's first segment. The
+explicit selector (`NewExplicitSelector`, kind `explicit`) writes a `selected`
+row only for a configured repository that already has a scope. It never writes
+`not_listed` or excluded rows, so it skips the mass-miss guard, and it does not
+sample the scope gauge. Filesystem mode and bootstrap-index never observe.
+
 ## Exported surface
 
 - `NewGitHubOrgSelector`, `Selector`, `Rule`: the selector identity. The id
@@ -82,8 +91,10 @@ On an Apple M1 Max, `BenchmarkEvaluateQAFixtureSteadyState` (802 known scopes,
 19 allocs/op over three 2 s runs. `BenchmarkGitHubOrgSelectionRequest` in the
 git package (800 listed repositories, one scope ID derivation each, no disk or
 network I/O) measured 3.27–3.36 ms/op. The store adds two reads and one upsert
-per cycle; see `go/internal/storage/postgres/membership/README.md`. Other shards
-and other source modes run none of it.
+per cycle; see `go/internal/storage/postgres/membership/README.md`. Explicit
+mode runs the same two reads and one upsert once per configured owner, over
+only the configured repositories. Other shards and filesystem mode run none of
+it.
 
 Observability Evidence (#7625): every cycle increments
 `eshu_dp_collector_repository_selection_evaluations_total` with its `outcome`

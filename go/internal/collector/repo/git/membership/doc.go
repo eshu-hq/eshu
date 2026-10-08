@@ -4,7 +4,8 @@
 // Package membership decides, once per githubOrg collector cycle, which known
 // repository scopes are still members of the org listing the collector
 // selects from, and records that decision as repository selection
-// observations (#7625).
+// observations (#7625). In explicit mode it records only selected rows, one
+// per configured repository that already has a scope.
 //
 // Evaluate is pure: it compares one complete listing against the org's known
 // repository scopes and the selector's prior observations, and returns the

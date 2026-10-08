@@ -9,7 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,27 +20,79 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 )
 
-// RepositorySelectionObserver evaluates one complete githubOrg listing
-// against the org's known repository scopes and records selection
-// observations (#7625). Implementations must not fail the collector cycle:
-// the result reports the outcome, including store errors.
+// RepositorySelectionObserver evaluates one selector's listing against the
+// owner's known repository scopes and records selection observations (#7625).
+// Implementations must not fail the collector cycle: the result reports the
+// outcome, including store errors.
 type RepositorySelectionObserver interface {
 	Observe(ctx context.Context, request membership.Request) membership.Result
 }
 
-// observeGitHubOrgSelection hands the full pre-shard githubOrg listing to the
-// configured observer. Only shard 0 observes, because every shard lists the
-// same org and N writers would race on the same observation rows; the other
-// source modes have no authoritative listing to compare against.
-func (s NativeRepositorySelector) observeGitHubOrgSelection(
+// observeSelection hands the cycle's full pre-shard selection to the
+// configured observer: the githubOrg listing as one request, or the explicit
+// configured list as one request per owner. Only shard 0 observes, because
+// every shard sees the same selection and N writers would race on the same
+// observation rows. Filesystem mode has no remote identity to observe.
+func (s NativeRepositorySelector) observeSelection(
 	ctx context.Context,
 	discovered RepositorySelection,
 	observedAt time.Time,
 ) {
-	if s.SelectionObserver == nil || s.Config.SourceMode != "githubOrg" || s.Config.RepoShardIndex != 0 {
+	if s.SelectionObserver == nil || s.Config.RepoShardIndex != 0 {
 		return
 	}
-	s.SelectionObserver.Observe(ctx, githubOrgSelectionRequest(s.Config, discovered, observedAt))
+	switch s.Config.SourceMode {
+	case "githubOrg":
+		s.SelectionObserver.Observe(ctx, githubOrgSelectionRequest(s.Config, discovered, observedAt))
+	case "explicit":
+		for _, request := range explicitSelectionRequests(s.Config, discovered.RepositoryIDs, observedAt) {
+			s.SelectionObserver.Observe(ctx, request)
+		}
+	}
+}
+
+// explicitSelectionRequests maps the configured explicit repositories to one
+// complete, all-selected listing per owner, in owner order. Each repository
+// gets the scope id and repo slug a git sync of it would write, and its owner
+// is the slug's first segment, the same partition the store's known-scope
+// read uses. A repository whose identity or slug cannot be derived is skipped.
+// The explicit selector writes rows only for repositories that already have a
+// scope, so a configured repository that was never synced gets none.
+func explicitSelectionRequests(config RepoSyncConfig, repositoryIDs []string, observedAt time.Time) []membership.Request {
+	type ownerSelection struct {
+		rules  []membership.Rule
+		listed []membership.ListedRepository
+	}
+	byOwner := make(map[string]*ownerSelection)
+	for _, repoID := range repositoryIDs {
+		scopeID, slug := gitScopeIdentityForRepositoryID(config, repoID)
+		owner, _, found := strings.Cut(slug, "/")
+		owner = strings.ToLower(strings.TrimSpace(owner))
+		if scopeID == "" || !found || owner == "" {
+			continue
+		}
+		group := byOwner[owner]
+		if group == nil {
+			group = &ownerSelection{}
+			byOwner[owner] = group
+		}
+		group.rules = append(group.rules, membership.Rule{Kind: "exact", Value: repoID})
+		group.listed = append(group.listed, membership.ListedRepository{ScopeID: scopeID, Slug: slug, State: membership.StateSelected})
+	}
+	principal := selectionPrincipal(config)
+	requests := make([]membership.Request, 0, len(byOwner))
+	for _, owner := range slices.Sorted(maps.Keys(byOwner)) {
+		group := byOwner[owner]
+		requests = append(requests, membership.Request{
+			Selector:       membership.NewExplicitSelector(config.SourceMode, owner, group.rules, principal),
+			SourceMode:     config.SourceMode,
+			RepoShardCount: config.RepoShardCount,
+			Now:            observedAt,
+			LivenessWindow: config.SelectionLivenessWindow,
+			Listing:        membership.Listing{Complete: true, Repositories: group.listed},
+		})
+	}
+	return requests
 }
 
 // githubOrgSelectionRequest maps a githubOrg discovery result to an
@@ -90,7 +144,7 @@ func githubOrgSelectionRequest(
 	}
 }
 
-// selectionPrincipal names the credential the githubOrg listing ran with,
+// selectionPrincipal names the credential the collector selected with,
 // following resolveGitToken's choice: the GitHub App installation for
 // githubApp auth, otherwise the salted token hash of the configured token, or
 // blank (anonymous) when there is none. The token itself never leaves
