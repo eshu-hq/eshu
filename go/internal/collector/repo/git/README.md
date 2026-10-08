@@ -171,8 +171,12 @@ observer as one all-`selected` listing per owner
 (`explicitSelectionRequests`), with scope IDs and slugs from
 `gitScopeIdentityForRepositoryID`; only configured repositories that already
 have scopes get rows.
-`listGitHubOrgRepositories` reports the listing complete only when its last
-page came back short, so a listing cut at `ESHU_REPO_LIMIT` is never evaluated.
+`listGitHubOrgRepositories` requests every page at `per_page=100`, because
+GitHub pages by offset and a smaller page would re-read earlier repositories,
+and trims to `ESHU_REPO_LIMIT` client-side. It reports the listing complete
+only when a short page arrives before the limit; a listing that reaches the
+limit is truncated even when the org holds exactly that many repositories, so
+a listing cut at `ESHU_REPO_LIMIT` is never evaluated.
 A store failure is logged and counted, and the cycle carries on. The webhook
 selector never observes. Telemetry: the
 `eshu_dp_collector_repository_selection_evaluations_total` counter, the

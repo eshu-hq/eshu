@@ -229,11 +229,19 @@ func listGitHubOrgRepositories(
 	return listGitHubOrgRepositoriesFrom(ctx, client, "https://api.github.com", org, repoLimit, token)
 }
 
+// githubListingPageSize is the per_page of every org listing request. GitHub
+// pages by offset (page N at per_page P covers items (N-1)*P+1..N*P), so the
+// page size must never change mid-listing: a smaller last page would re-read
+// earlier repositories instead of reaching the next ones.
+const githubListingPageSize = 100
+
 // listGitHubOrgRepositoriesFrom pages through baseURL's org repository
-// listing. The bool reports a complete listing: true only when the loop ended
-// on an empty or short page before reaching repoLimit. Stopping at repoLimit
-// after a full page is incomplete even when the org holds exactly repoLimit
-// repositories, because the next page was never read.
+// listing at githubListingPageSize and trims the result to repoLimit. The bool
+// reports a complete listing: true only when a page returned fewer than
+// githubListingPageSize items while the listed count was still below
+// repoLimit; that short page (empty included) ends the listing. A listing that
+// reaches repoLimit is incomplete, even when the org holds exactly repoLimit
+// repositories, so a cut listing is never mistaken for the whole org.
 func listGitHubOrgRepositoriesFrom(
 	ctx context.Context,
 	client *http.Client,
@@ -245,14 +253,10 @@ func listGitHubOrgRepositoriesFrom(
 	repositories := make([]GitHubRepositoryRecord, 0)
 	complete := false
 	for page := 1; len(repositories) < repoLimit; page++ {
-		perPage := repoLimit - len(repositories)
-		if perPage > 100 {
-			perPage = 100
-		}
 		request, err := http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("%s/orgs/%s/repos?per_page=%d&page=%d&type=all", baseURL, org, perPage, page),
+			fmt.Sprintf("%s/orgs/%s/repos?per_page=%d&page=%d&type=all", baseURL, org, githubListingPageSize, page),
 			nil,
 		)
 		if err != nil {
@@ -283,10 +287,6 @@ func listGitHubOrgRepositoriesFrom(
 		if decodeErr != nil {
 			return nil, false, fmt.Errorf("decode GitHub org repositories: %w", decodeErr)
 		}
-		complete = len(payload) < perPage
-		if len(payload) == 0 {
-			break
-		}
 		for _, item := range payload {
 			repoID := normalizeRepositoryID(item.FullName)
 			if repoID == "" {
@@ -297,6 +297,10 @@ func listGitHubOrgRepositoriesFrom(
 				GitHubID: item.ID,
 				Archived: item.Archived,
 			})
+		}
+		if len(payload) < githubListingPageSize {
+			complete = len(repositories) < repoLimit
+			break
 		}
 	}
 	if len(repositories) > repoLimit {
