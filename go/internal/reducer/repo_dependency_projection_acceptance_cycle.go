@@ -198,6 +198,34 @@ func replayWorkloadMaterializationFenceRequest(
 	return WorkloadMaterializationReplayNotScheduled, nil
 }
 
+// skipFencedReplayIfRetired re-checks freshness without the cache: a
+// supersede that landed after the first check retires the request, so it is
+// skipped. On the active generation the replay is owed and cannot run: it is
+// counted under reason and the caller fails closed. It reports whether the
+// request was skipped.
+func (r *RepoDependencyProjectionRunner) skipFencedReplayIfRetired(
+	ctx context.Context,
+	freshness *repoDependencyGenerationFreshness,
+	request workloadMaterializationFenceRequest,
+	reason string,
+) (bool, error) {
+	retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
+	if err != nil {
+		return false, err
+	}
+	if retiredNow {
+		if freshness.firstSkip(request.workloadMaterializationReplayRequest) {
+			r.recordRepoDependencyReplaySkipped(ctx, request.workloadMaterializationReplayRequest, true)
+		}
+		return true, nil
+	}
+	r.recordRepoDependencyGenerationAnomaly(
+		ctx, request.scopeID, request.generationID, request.entityKey,
+		reason, 1,
+	)
+	return false, nil
+}
+
 func errRepoDependencyFencedReplayNotScheduled(request workloadMaterializationFenceRequest) error {
 	return fmt.Errorf(
 		"workload materialization fenced replay was not scheduled for scope %q generation %q entity %q",
@@ -380,41 +408,25 @@ func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationForFence(
 			// generation the queue never revives the item, so the owed
 			// materialization cannot run: count it on the shared anomaly and
 			// fail closed.
-			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
+			skipped, err := r.skipFencedReplayIfRetired(ctx, freshness, request, telemetry.RepoDependencyAnomalySupersededItemOnActiveGeneration)
 			if err != nil {
 				return i + 1, err
 			}
-			if retiredNow {
-				if freshness.firstSkip(request.workloadMaterializationReplayRequest) {
-					r.recordRepoDependencyReplaySkipped(ctx, request.workloadMaterializationReplayRequest, true)
-				}
+			if skipped {
 				continue
 			}
-			r.recordRepoDependencyGenerationAnomaly(
-				ctx, request.scopeID, request.generationID, request.entityKey,
-				telemetry.RepoDependencyAnomalySupersededItemOnActiveGeneration, 1,
-			)
 			return i + 1, errRepoDependencyFencedReplayNotScheduled(request)
 		default:
-			// Any other unscheduled replay keeps failing. Re-check
-			// freshness without the cache: a supersede that landed after
-			// the first check retires the request, so it is skipped. On
-			// the active generation the replay is owed and cannot run:
-			// count it and fail closed.
-			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
+			// Any other unscheduled replay keeps failing: re-check, skip
+			// when retired, else count it under the fenced reason and fail
+			// closed.
+			skipped, err := r.skipFencedReplayIfRetired(ctx, freshness, request, telemetry.RepoDependencyAnomalyUnscheduledFencedReplayOnActiveGeneration)
 			if err != nil {
 				return i + 1, err
 			}
-			if retiredNow {
-				if freshness.firstSkip(request.workloadMaterializationReplayRequest) {
-					r.recordRepoDependencyReplaySkipped(ctx, request.workloadMaterializationReplayRequest, true)
-				}
+			if skipped {
 				continue
 			}
-			r.recordRepoDependencyGenerationAnomaly(
-				ctx, request.scopeID, request.generationID, request.entityKey,
-				telemetry.RepoDependencyAnomalyUnscheduledFencedReplayOnActiveGeneration, 1,
-			)
 			return i + 1, errRepoDependencyFencedReplayNotScheduled(request)
 		}
 	}
