@@ -404,6 +404,11 @@ func hostLoad1() float64 {
 	if len(fields) == 0 {
 		return -1
 	}
-	v, _ := strconv.ParseFloat(fields[0], 64)
+	// Unparseable output reads as unreadable, not as zero: a silent 0.0
+	// would pass the headroom check for a host that proved nothing.
+	v, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil {
+		return -1
+	}
 	return v
 }

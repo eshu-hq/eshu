@@ -174,6 +174,12 @@ func runScaleTimingRounds(t *testing.T, ctx context.Context, raw *sql.DB, store 
 			waitForScaleQuiet(hostLoad1, pd.threshold, time.Minute, stopAt, func(waited float64) {
 				emit(t, map[string]any{"event": "g7_wait", "load1": waited})
 			})
+			// A timed-out wait must not fall through to a full round: the
+			// operator deadline has passed, so stop instead of overshooting
+			// it with one more canary plus statements.
+			if !time.Now().Before(stopAt) {
+				break
+			}
 		}
 		names := []string{"bare_b", "l1b", "root"}
 		rotated := append(names[round%3:], names[:round%3]...)
@@ -351,6 +357,12 @@ func concurrencyRound(t *testing.T, ctx context.Context, raw *sql.DB, store post
 		load = waitForScaleQuiet(hostLoad1, pd.threshold, time.Minute, stopAt, func(waited float64) {
 			emit(t, map[string]any{"event": "g8_wait", "n": n, "round": round, "load1": waited})
 		})
+		// A timed-out wait must not fall through to the probe, window, and
+		// canary: the operator deadline has passed, so report the window
+		// invalid and let the loop exit instead of overshooting it.
+		if !stopAt.IsZero() && !time.Now().Before(stopAt) {
+			return false
+		}
 	}
 	probeStop := make(chan struct{})
 	var probe []float64
