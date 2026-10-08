@@ -40,7 +40,7 @@ func scrapeMetrics(h http.Handler) (int, string) {
 }
 
 // TestScrapeSurvivesAttributeSetsThatVaryAcrossCalls pins the negative result of
-// the #7752 investigation: one instrument recorded with different attribute key
+// the #7723 investigation: one instrument recorded with different attribute key
 // sets is NOT a gather error. A fix keyed on label-dimension drift would be
 // chasing a defect that does not exist.
 func TestScrapeSurvivesAttributeSetsThatVaryAcrossCalls(t *testing.T) {
@@ -205,4 +205,16 @@ func TestMetricsHandlerFailsWhenNothingCanBeGathered(t *testing.T) {
 	code, _ := scrapeMetrics(handler)
 	require.Equal(t, http.StatusInternalServerError, code)
 	require.Contains(t, logs.String(), EventMetricsGatherFailed)
+}
+
+// TestCleanScrapeExposesGatherErrorSeries pins that the gather-error counter
+// exists from provider creation. Prometheus increase() cannot see a series that
+// first appears already above zero, so an alert on the counter would miss the
+// first failure unless a zero baseline is exported before any error happens.
+func TestCleanScrapeExposesGatherErrorSeries(t *testing.T) {
+	providers := newTestProviders(t)
+
+	code, body := scrapeMetrics(providers.PrometheusHandler)
+	require.Equal(t, http.StatusOK, code, body)
+	require.Regexp(t, `(?m)^`+MetricsGatherErrorsMetricName+`\{[^}]*\} 0$`, body)
 }

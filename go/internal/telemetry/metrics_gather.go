@@ -77,13 +77,19 @@ func reservedAttributeView() sdkmetric.View {
 // provider's own meter. It lives with the handler it serves because the handler
 // is built before any binary calls NewInstruments.
 func registerMetricsGatherErrors(meter metric.Meter) (metric.Int64Counter, error) {
+	// The name is a literal, not the constant, so the telemetry-coverage
+	// verifier can see the registration.
 	counter, err := meter.Int64Counter(
-		MetricsGatherErrorsMetricName,
+		"eshu_dp_metrics_gather_errors_total",
 		metric.WithDescription("Series the /metrics scrape could not gather; the failing instrument is named in the telemetry.metrics.gather_failed error log"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register %s counter: %w", MetricsGatherErrorsMetricName, err)
 	}
+	// Export a zero baseline now. A counter first recorded at its first error
+	// appears above zero, which Prometheus increase() cannot count, so the first
+	// failure would not fire an alert on the counter.
+	counter.Add(context.Background(), 0)
 	return counter, nil
 }
 
