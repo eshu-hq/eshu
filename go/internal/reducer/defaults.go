@@ -208,25 +208,21 @@ type DefaultHandlers struct {
 	// on ReadinessLookup so edges never resolve against uncommitted nodes.
 	CloudResourceEdgeWriter CloudResourceEdgeWriter
 
-	// CloudResourceContainerImageEdgeWriter projects lambda_function_uses_image
-	// aws_relationship facts into canonical CloudResource -> ContainerImage
-	// edges (issue #5450), an additive sibling of CloudResourceEdgeWriter for
-	// the cross-label target CloudResourceEdgeWriter cannot resolve (a
-	// container image is not a CloudResource). It must be non-nil alongside
-	// FactLoader for the registry to register DomainAWSCloudImageMaterialization;
-	// missing either one would keep ecs_task_definition_uses_image /
-	// lambda_function_uses_image evidence stuck as a graph no-op rather than
-	// resolving to a real :ContainerImage node. The handler also gates on
-	// ReadinessLookup so edges never resolve against an uncommitted source.
+	// CloudResourceContainerImageEdgeWriter projects lambda_function_uses_image and
+	// ecs_task_definition_uses_image aws_relationship facts into canonical
+	// CloudResource -> ContainerImage edges (issue #5450), the additive sibling
+	// of CloudResourceEdgeWriter for cross-label targets (an image is not a
+	// CloudResource). Non-nil alongside FactLoader registers
+	// DomainAWSCloudImageMaterialization; the handler gates on ReadinessLookup
+	// so edges never resolve against an uncommitted source.
 	CloudResourceContainerImageEdgeWriter CloudResourceContainerImageEdgeWriter
 
 	// RefreshAffectedGraph runs the value-flow refresh emit gate (issue #6785)
-	// over each producer's committed keys. It is the shared graph query
-	// runner: the four producer handlers consult it after their graph writes
-	// commit, so the gate reads the run's own edges. Optional: a nil value
-	// keeps every gate failed open (a spurious refresh is a bounded extra
-	// solve; a missed one is silent accuracy loss); production wires the
-	// durable graph-backed runner.
+	// over each producer's committed keys. The four producer handlers consult
+	// it after their graph writes commit, so the gate reads the run's own
+	// edges. Optional: a nil value keeps every gate failed open (a spurious
+	// refresh is a bounded extra solve; a missed one is silent accuracy loss);
+	// production wires the durable graph-backed runner.
 	RefreshAffectedGraph affected.Runner
 
 	// ContainerImageExistence reports which candidate target ContainerImage
@@ -380,6 +376,10 @@ type DefaultHandlers struct {
 	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
+
+	// ContainerImageIdentityGenerationCheck disambiguates an activation-epoch miss (issue #6502):
+	// pending defers, superseded acks superseded, missing surfaces loudly. Nil keeps the legacy loud error.
+	ContainerImageIdentityGenerationCheck GenerationFreshnessCheck
 
 	// PackageProvenanceEdgeWriter projects exact/derived package-ownership and
 	// package-publication decisions into canonical PUBLISHES graph edges

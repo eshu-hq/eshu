@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Run the readiness, dead-code incoming, status route-selection,
-# quiet-generation, activation obligation, #7584 targeted-maintenance and
-# reindex watermark plan/correctness proofs listed in
-# scripts/lib/live_postgres_readiness_results.py on disposable PostgreSQL 18,
-# one go test per package.
+# quiet-generation, activation obligation, #7584 targeted-maintenance,
+# reindex watermark plan/correctness, and container image identity epoch-gate
+# proofs listed in scripts/lib/live_postgres_readiness_results.py on
+# disposable PostgreSQL 18, one go test per package.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,7 +31,8 @@ for name in \
   ESHU_ADMIN_REOPEN_PROOF_DSN \
   ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN \
   ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN \
-  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN; do
+  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN \
+  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
@@ -51,7 +52,8 @@ for name in \
   ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE \
   ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE \
   ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE \
-  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE; do
+  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE \
+  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 
