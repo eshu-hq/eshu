@@ -156,7 +156,10 @@ WHERE work_item_id = $2
 // ReplayWorkloadMaterializationForFence schedules workload materialization
 // carrying the deterministic RUNS_ON input fence that its successful handler
 // pass must publish. A concurrent first insert is followed by one update retry
-// so the winning row cannot retain an older token.
+// so the winning row cannot retain an older token. It reports only whether
+// the replay was scheduled; use
+// [ReducerQueue.ReplayWorkloadMaterializationForFenceOutcome] to tell a
+// superseded stable item from every other unscheduled replay.
 func (q ReducerQueue) ReplayWorkloadMaterializationForFence(
 	ctx context.Context,
 	scopeID string,
@@ -165,17 +168,37 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForFence(
 	repoID string,
 	fence string,
 ) (bool, error) {
+	outcome, err := q.ReplayWorkloadMaterializationForFenceOutcome(ctx, scopeID, generationID, entityKey, repoID, fence)
+	return outcome == reducer.WorkloadMaterializationReplayScheduled, err
+}
+
+// ReplayWorkloadMaterializationForFenceOutcome schedules the same fenced
+// replay as ReplayWorkloadMaterializationForFence and reports the closed
+// outcome the repo-dependency runner uses to tell a superseded stable item
+// (nothing to replay, #7670) from every other unscheduled replay, which
+// must keep failing. It mirrors
+// [ReducerQueue.ReplayWorkloadMaterializationOutcome]; the one extra step is
+// this path's single update retry after an enqueue conflict, which stays so
+// a concurrent first insert cannot retain an older fence token.
+func (q ReducerQueue) ReplayWorkloadMaterializationForFenceOutcome(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	entityKey string,
+	repoID string,
+	fence string,
+) (reducer.WorkloadMaterializationReplayOutcome, error) {
 	if err := q.validateEnqueue(); err != nil {
-		return false, err
+		return reducer.WorkloadMaterializationReplayNotScheduled, err
 	}
 	if strings.TrimSpace(entityKey) == "" {
-		return false, errors.New("workload materialization fenced replay entity key is required")
+		return reducer.WorkloadMaterializationReplayNotScheduled, errors.New("workload materialization fenced replay entity key is required")
 	}
 	if strings.TrimSpace(repoID) == "" {
-		return false, errors.New("workload materialization fenced replay repository id is required")
+		return reducer.WorkloadMaterializationReplayNotScheduled, errors.New("workload materialization fenced replay repository id is required")
 	}
 	if strings.TrimSpace(fence) == "" {
-		return false, errors.New("workload materialization fenced replay token is required")
+		return reducer.WorkloadMaterializationReplayNotScheduled, errors.New("workload materialization fenced replay token is required")
 	}
 
 	intent := runtime.ReducerIntent{
@@ -192,18 +215,27 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForFence(
 	}
 	workItemID := reducerWorkItemID(intent)
 	matched, err := q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID)
-	if err != nil || matched {
-		return matched, err
+	if err != nil {
+		return reducer.WorkloadMaterializationReplayNotScheduled, err
+	}
+	if matched {
+		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
 	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
 	if err != nil {
-		return false, fmt.Errorf("schedule fenced workload materialization replay: %w", err)
+		return reducer.WorkloadMaterializationReplayNotScheduled, fmt.Errorf("schedule fenced workload materialization replay: %w", err)
 	}
 	if inserted > 0 {
-		return true, nil
+		return reducer.WorkloadMaterializationReplayScheduled, nil
+	}
+	if retryMatched, retryErr := q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID); retryErr != nil || retryMatched {
+		if retryErr != nil {
+			return reducer.WorkloadMaterializationReplayNotScheduled, retryErr
+		}
+		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
 
-	return q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID)
+	return q.workloadMaterializationReplayOutcome(ctx, workItemID)
 }
 
 func (q ReducerQueue) scheduleWorkloadMaterializationFencedReplay(

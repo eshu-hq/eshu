@@ -65,11 +65,14 @@ func TestReducerQueueReplayWorkloadMaterializationForFenceRetriesConcurrentInser
 func TestReducerQueueReplayWorkloadMaterializationForFenceRejectsTerminalWork(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{execResults: []sql.Result{
-		rowsAffectedResult{},
-		rowsAffectedResult{},
-		rowsAffectedResult{},
-	}}
+	db := &fakeExecQueryer{
+		execResults: []sql.Result{
+			rowsAffectedResult{},
+			rowsAffectedResult{},
+			rowsAffectedResult{},
+		},
+		queryResponses: []queueFakeRows{{rows: [][]any{{"dead_letter"}}}},
+	}
 	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayWorkloadMaterializationForFence(
