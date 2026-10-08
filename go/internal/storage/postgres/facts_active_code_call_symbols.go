@@ -16,6 +16,12 @@ import (
 
 // codeCallSymbolDefinitionFactsSelect is the shared head of the definition
 // scans: active, non-tombstoned file facts of each scope's active generation.
+//
+// The LATERAL subquery reads the file's parsed_file_data once. Reading it
+// through fact.payload in each of the ten places the match uses it detoasts the
+// large out-of-line payload ten times per file, which was most of the scan's
+// cost (about 0.27 ms per producer file fact on the shared QA replica, #7601).
+// OFFSET 0 stops the planner from folding the subquery back into its callers.
 const codeCallSymbolDefinitionFactsSelect = `
 SELECT
     fact.fact_id,
@@ -41,6 +47,10 @@ JOIN ingestion_scopes AS scope
 JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
+CROSS JOIN LATERAL (
+  SELECT fact.payload->'parsed_file_data' AS pfd
+  OFFSET 0
+) AS parsed
 WHERE fact.fact_kind = 'file'
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
@@ -55,8 +65,8 @@ const codeCallSymbolDefinitionFactsMatch = `  AND EXISTS (
       SELECT definition.item
       FROM jsonb_array_elements(
         CASE
-          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'functions') = 'array'
-          THEN fact.payload->'parsed_file_data'->'functions'
+          WHEN jsonb_typeof(parsed.pfd->'functions') = 'array'
+          THEN parsed.pfd->'functions'
           ELSE '[]'::jsonb
         END
       ) AS definition(item)
@@ -64,8 +74,8 @@ const codeCallSymbolDefinitionFactsMatch = `  AND EXISTS (
       SELECT definition.item
       FROM jsonb_array_elements(
         CASE
-          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'classes') = 'array'
-          THEN fact.payload->'parsed_file_data'->'classes'
+          WHEN jsonb_typeof(parsed.pfd->'classes') = 'array'
+          THEN parsed.pfd->'classes'
           ELSE '[]'::jsonb
         END
       ) AS definition(item)
@@ -73,8 +83,8 @@ const codeCallSymbolDefinitionFactsMatch = `  AND EXISTS (
       SELECT definition.item
       FROM jsonb_array_elements(
         CASE
-          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'structs') = 'array'
-          THEN fact.payload->'parsed_file_data'->'structs'
+          WHEN jsonb_typeof(parsed.pfd->'structs') = 'array'
+          THEN parsed.pfd->'structs'
           ELSE '[]'::jsonb
         END
       ) AS definition(item)
@@ -82,8 +92,8 @@ const codeCallSymbolDefinitionFactsMatch = `  AND EXISTS (
       SELECT definition.item
       FROM jsonb_array_elements(
         CASE
-          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'interfaces') = 'array'
-          THEN fact.payload->'parsed_file_data'->'interfaces'
+          WHEN jsonb_typeof(parsed.pfd->'interfaces') = 'array'
+          THEN parsed.pfd->'interfaces'
           ELSE '[]'::jsonb
         END
       ) AS definition(item)
@@ -91,8 +101,8 @@ const codeCallSymbolDefinitionFactsMatch = `  AND EXISTS (
       SELECT definition.item
       FROM jsonb_array_elements(
         CASE
-          WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'type_aliases') = 'array'
-          THEN fact.payload->'parsed_file_data'->'type_aliases'
+          WHEN jsonb_typeof(parsed.pfd->'type_aliases') = 'array'
+          THEN parsed.pfd->'type_aliases'
           ELSE '[]'::jsonb
         END
       ) AS definition(item)

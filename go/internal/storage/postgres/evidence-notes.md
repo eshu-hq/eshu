@@ -44,7 +44,7 @@ No-Regression Evidence: `go test ./internal/storage/postgres -run
 'TestFactStoreLoadActiveCodeCallSymbolDefinitionFacts' -count=1` failed before
 the loader guarded non-array parsed definition fields, then passed after
 `functions`, `classes`, `structs`, `interfaces`, and `type_aliases` are
-expanded only when `jsonb_typeof(...) = 'array'`. The live Helm proof on the
+expanded only when `jsonb_typeof(...) = 'array'`. (#7601 reads the field once in a `LATERAL` subquery; the guard is unchanged.) The live Helm proof on the
 public `eshu-hq/eshu` repository exercised 8,681 active file facts with 703
 symbol-definition fact rows; before the fix `code_call_materialization`
 dead-lettered with Postgres `SQLSTATE 22023`, and after the fix it succeeded

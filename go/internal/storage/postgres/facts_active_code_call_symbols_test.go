@@ -60,8 +60,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 		"generation.status = 'active'",
 		"fact.fact_kind = 'file'",
 		"fact.is_tombstone = FALSE",
-		"jsonb_typeof(fact.payload->'parsed_file_data'->'functions') = 'array'",
-		"jsonb_typeof(fact.payload->'parsed_file_data'->'type_aliases') = 'array'",
+		"jsonb_typeof(parsed.pfd->'functions') = 'array'",
+		"jsonb_typeof(parsed.pfd->'type_aliases') = 'array'",
 		"code_definition.item->>'scip_symbol' = ANY($1::text[])",
 		"code_definition.item->>'package_export_symbol' = ANY($1::text[])",
 		"'package:' || (code_definition.item->>'package_id') || '#'",
@@ -92,7 +92,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsGuardsNonArrayDefinitio
 
 	query := db.queries[0].query
 	for _, field := range []string{"functions", "classes", "structs", "interfaces", "type_aliases"} {
-		want := "jsonb_typeof(fact.payload->'parsed_file_data'->'" + field + "') = 'array'"
+		want := "jsonb_typeof(parsed.pfd->'" + field + "') = 'array'"
 		if !strings.Contains(query, want) {
 			t.Fatalf("query must guard %s before jsonb_array_elements; missing %q:\n%s", field, want, query)
 		}
