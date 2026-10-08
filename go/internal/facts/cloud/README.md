@@ -80,6 +80,45 @@ and pure lookups only.
   `specs/fact-kind-registry.v1.yaml` entry, and a `schemaVersionFamilies`
   row in the facts root once it is wired to reference this package.
 
+## Evidence
+
+No-Regression Evidence (#6950 batch 2, cloud-posture family): this change
+moves the sixteen `cloud.*` posture compat entries' Go importers (eight
+fact-kind and schema-version constants plus the eight
+`<Family>FactKinds`/`<Family>SchemaVersion` accessors) off the transitional
+`facts.<Posture>` compat spellings and deletes the emptied
+`compat_cloud_posture.go`. No fact-kind string, payload shape, registry
+entry, or executable statement changes: across 75 files, every production
+hunk requalifies an identifier or import path only, every other hunk is a
+package-doc rewording, a ledger row, or the compat file's own deletion, and
+the build resolves with no dangling reference.
+Measurement: identical before/after outcomes
+(ledger:6950-cloud-posture-batch2-before,
+ledger:6950-cloud-posture-batch2-after). The command is `go test -count=1`
+over the 19 affected recursive package targets (per-side counts in the
+cited rows) on baseline `a0830a6826` vs measurement commit `a3773f91ad`
+(this Evidence section, the two ledger rows, and a content-identical rebase
+onto the merge tip are the only later changes): 436 packages ok, 0 fail on
+both sides, with the ok-package set byte-identical after timing strip.
+`go test -list` inventory is identical on both sides. Backend/version:
+go1.26.6 linux/amd64, in-memory; no backend touched. Input shape: n/a (no
+runtime input). Terminal queue/row counts: none — no queue, lease, Cypher,
+or SQL path is touched. Contract gates green on the branch:
+`verify-fact-kind-registry.sh` (generated artifacts byte-identical),
+`verify-factschema-diff.sh` (all four posture schemas, no breaking
+changes), `verify-payload-usage-manifest.sh`, and
+`verify-contracttest.sh`. The change is safe because it cannot alter
+runtime behavior: the compiler resolves the same constants through their
+new paths, and the compat deletion is compile-enforced total — any missed
+caller would fail the build.
+
+No-Observability-Change (#6950 batch 2, cloud-posture family): this package
+carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in any
+touched package. The collector, reducer, and projector telemetry that reads
+and writes facts of these kinds is untouched; operator signals are identical
+before and after.
+
 ## Related docs
 
 - `docs/public/reference/fact-schema-versioning.md`
