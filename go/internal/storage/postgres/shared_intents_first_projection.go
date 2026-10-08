@@ -194,3 +194,118 @@ func (s *SharedIntentStore) SupersededGenerationIDs(
 	}
 	return superseded, nil
 }
+
+// coveredByEmittedFullSuccessorSQL returns which of the batch's generation ids
+// sit on superseded scope generations a newer emitted full generation covers
+// (#7165). A covered generation's pending rows are redundant: the newer full
+// generation re-emits every unit's edges when its own rows project, so the
+// lane may drain the older rows instead of replaying them as real
+// retract/write cycles.
+//
+// A generation G is covered when all of these hold:
+//
+//   - G.status is 'superseded' (the terminal-status keying #7121 uses, never
+//     "not the scope's active generation", which would race activation);
+//   - a newer full generation F exists in the same scope: F.is_delta is false
+//     and (F.ingested_at, F.generation_id) sorts after G's, the order
+//     activation, supersession, and acceptance advance in (#6686). A delta
+//     successor carries only changed-file facts, so only a full successor
+//     re-emits an untouched file's edge. The newest full generation has no
+//     newer full generation, so it and every generation after it are kept;
+//   - F has emitted shared intents for the lane's domain: at least one
+//     shared_projection_intents row carries (F.scope_id, F.generation_id,
+//     domain). Both lanes emit atomically per generation (one UpsertIntents
+//     call in one transaction), so one row proves F covered every unit. The
+//     domain predicate is load-bearing: acceptance units are repository ids
+//     in both lanes, so an unscoped emission check would let one lane's
+//     emission falsely cover the other's;
+//   - G has no in-flight producer, with the #7121 NOT EXISTS clauses verbatim:
+//     a producer already running when the successor activated can still
+//     publish, so it defers the drain to a later pass.
+//
+// The scope_generations_scope_latest_lookup_idx (scope_id, ingested_at DESC,
+// generation_id DESC) index serves the newer-full probe, and
+// shared_projection_intents_acceptance_lookup_idx serves the (scope_id,
+// projection_domain) emission slice with generation_id as a bounded post-scan
+// filter. A disposable-Postgres-18 shim at the ops-qa mean scope shape (1,500
+// intents) measured 15 shared-buffer hits on the covering side with no new
+// index (see the #7165 evidence note).
+//
+// Accepted residual, shared with #7121: a superseded generation the projector
+// Ack reactivates (#7130) drains rows whose edges the successor already
+// re-emitted, so a reactivated generation replays only the successor's truth.
+// The drain re-evaluates every pass, so a generation that stops being
+// superseded stops draining on the next pass.
+const coveredByEmittedFullSuccessorSQL = `
+SELECT g.generation_id
+FROM scope_generations AS g
+WHERE g.generation_id = ANY($1::text[])
+  AND g.status = 'superseded'
+  AND EXISTS (
+    SELECT 1
+    FROM scope_generations AS f
+    WHERE f.scope_id = g.scope_id
+      AND f.is_delta = false
+      AND (f.ingested_at, f.generation_id) > (g.ingested_at, g.generation_id)
+      AND EXISTS (
+        SELECT 1
+        FROM shared_projection_intents AS i
+        WHERE i.scope_id = f.scope_id
+          AND i.generation_id = f.generation_id
+          AND i.projection_domain = $2
+      )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM fact_work_items AS w
+    WHERE w.scope_id = g.scope_id
+      AND w.generation_id = g.generation_id
+      AND (
+        (w.stage = 'reducer' AND w.status IN ('claimed', 'running'))
+        OR (w.stage = 'projector' AND w.status IN ('pending', 'retrying', 'claimed', 'running'))
+      )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM graph_projection_phase_repair_queue AS r
+    WHERE r.scope_id = g.scope_id
+      AND r.generation_id = g.generation_id
+  )
+`
+
+// CoveredByEmittedFullSuccessorIDs returns the subset of generationIDs whose
+// scope generation is superseded and covered by a newer emitted full
+// generation for the domain (see coveredByEmittedFullSuccessorSQL). The
+// code_calls and repo_dependency lanes drain those generations' rows instead
+// of replaying them (#7165); a superseded generation with a claimed or running
+// producer, or with no emitted full successor, is left out and re-checked on
+// a later pass. An empty input performs no query; a query error is returned
+// so the caller fails the selection instead of guessing.
+func (s *SharedIntentStore) CoveredByEmittedFullSuccessorIDs(
+	ctx context.Context,
+	domain string,
+	generationIDs []string,
+) (map[string]struct{}, error) {
+	if len(generationIDs) == 0 {
+		return nil, nil
+	}
+
+	sqlRows, err := s.database.QueryContext(ctx, coveredByEmittedFullSuccessorSQL, generationIDs, domain)
+	if err != nil {
+		return nil, fmt.Errorf("query generations covered by emitted full successor: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	covered := make(map[string]struct{})
+	for sqlRows.Next() {
+		var generationID string
+		if err := sqlRows.Scan(&generationID); err != nil {
+			return nil, fmt.Errorf("scan covered generation: %w", err)
+		}
+		covered[generationID] = struct{}{}
+	}
+	if err := sqlRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate covered generations: %w", err)
+	}
+	return covered, nil
+}
