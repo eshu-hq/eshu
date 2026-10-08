@@ -99,10 +99,45 @@ func NearestPackageName(repoRoot string, path string) string {
 // the (path, stat) cache.
 func DeclaredDependencies(repoRoot string, path string) map[string]struct{} {
 	declared := map[string]struct{}{}
+	for name := range declaredDependencySpecs(repoRoot, path) {
+		declared[name] = struct{}{}
+	}
+	return declared
+}
+
+// NpmAliasTargets maps the npm-alias dependencies (`"alias": "npm:target@range"`)
+// visible from path to the target package a producer publishes. It walks the
+// same manifests as DeclaredDependencies, nearest first, so a nested manifest
+// wins when two manifests declare one alias. An alias whose target does not
+// parse as a bare package specifier maps to "", and callers must leave such a
+// call unresolved: keying the alias would miss at best and match an unrelated
+// publisher of the alias at worst.
+func NpmAliasTargets(repoRoot string, path string) map[string]string {
+	targets := map[string]string{}
+	for name, spec := range declaredDependencySpecs(repoRoot, path) {
+		if !strings.HasPrefix(spec, "npm:") {
+			continue
+		}
+		target, ok := parseNpmAliasTarget(spec)
+		if !ok {
+			targets[name] = ""
+			continue
+		}
+		targets[name] = target
+	}
+	return targets
+}
+
+// declaredDependencySpecs returns the raw version specs of every dependency
+// declared on the path from path's directory up to repoRoot, walking the same
+// manifests as DeclaredDependencies nearest first. A name declared by two
+// manifests keeps the nearest spec; a non-string spec decodes as "".
+func declaredDependencySpecs(repoRoot string, path string) map[string]string {
+	specs := map[string]string{}
 	repoRoot = CleanPath(repoRoot)
 	path = CleanPath(path)
 	if repoRoot == "" || path == "" {
-		return declared
+		return specs
 	}
 	dir := path
 	if info, err := os.Stat(path); err != nil || !info.IsDir() {
@@ -117,8 +152,13 @@ func DeclaredDependencies(repoRoot string, path string) map[string]struct{} {
 				manifest.OptionalDependencies,
 			} {
 				dependencies, _ := field.(map[string]any)
-				for name := range dependencies {
-					declared[strings.TrimSpace(name)] = struct{}{}
+				for name, raw := range dependencies {
+					name = strings.TrimSpace(name)
+					if _, seen := specs[name]; seen {
+						continue
+					}
+					spec, _ := raw.(string)
+					specs[name] = strings.TrimSpace(spec)
 				}
 			}
 		}
@@ -128,7 +168,45 @@ func DeclaredDependencies(repoRoot string, path string) map[string]struct{} {
 		}
 		dir = parent
 	}
-	return declared
+	return specs
+}
+
+// parseNpmAliasTarget returns the target package of an `npm:` dependency spec
+// (`npm:bar@1` -> `bar`, `npm:@scope/bar@^2` -> `@scope/bar`), or false when
+// the target is not a bare package specifier.
+func parseNpmAliasTarget(spec string) (string, bool) {
+	rest := strings.TrimSpace(strings.TrimPrefix(spec, "npm:"))
+	if rest == "" {
+		return "", false
+	}
+	target := rest
+	if strings.HasPrefix(target, "@") {
+		if at := strings.Index(target[1:], "@"); at >= 0 {
+			target = target[:1+at]
+		}
+	} else if at := strings.Index(target, "@"); at >= 0 {
+		target = target[:at]
+	}
+	if !isBareNpmPackageName(target) {
+		return "", false
+	}
+	return target, true
+}
+
+// isBareNpmPackageName reports whether name is a whole package (`pkg` or
+// `@scope/pkg`) rather than a subpath, relative path, URL, or protocol form.
+func isBareNpmPackageName(name string) bool {
+	if name == "" || strings.ContainsAny(name, " \t\r\n\\:") {
+		return false
+	}
+	switch name[0] {
+	case '.', '/', '#':
+		return false
+	}
+	if scope, rest, ok := strings.Cut(name, "/"); ok {
+		return strings.HasPrefix(scope, "@") && len(scope) > 1 && rest != "" && !strings.Contains(rest, "/")
+	}
+	return !strings.HasPrefix(name, "@")
 }
 
 // PackagePublicSourcePaths returns absolute source paths exposed through the

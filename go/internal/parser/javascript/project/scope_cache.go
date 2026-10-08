@@ -230,10 +230,10 @@ func (c *ScopeCache[V]) evictLocked() {
 var tsConfigCache = NewScopeCache[tsConfigOptions]()
 
 // cachedTSConfigCompilerOptions returns the parsed compilerOptions for the
-// tsconfig.json at configPath, computing and caching them at most once per
-// distinct (path, mtime, size) generation, with concurrent same-generation
-// callers coalesced onto the one in-flight computation (see the ScopeCache
-// doc comment).
+// tsconfig.json or jsconfig.json at configPath, computing and caching them at
+// most once per distinct (path, mtime, size) generation, with concurrent
+// same-generation callers coalesced onto the one in-flight computation (see
+// the ScopeCache doc comment).
 func cachedTSConfigCompilerOptions(configPath string) tsConfigOptions {
 	stat, ok := StatFor(configPath)
 	if !ok {

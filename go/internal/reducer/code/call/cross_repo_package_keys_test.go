@@ -165,3 +165,64 @@ func TestExtractRowsLeavesParsedJavaScriptPackageImportUnresolvedWhenTwoProducer
 		}
 	}
 }
+
+// An npm alias dependency resolves the consumer's call to the producer that
+// publishes the TARGET name: the parser keys the call package:bar#widget for
+// `"foo": "npm:bar@1"`, and the reducer joins it to bar's export (#7613).
+func TestExtractRowsResolvesNpmAliasImportToTargetProducer(t *testing.T) {
+	t.Parallel()
+
+	producer := parsePackageKeyRepo(t, "repo-lib", map[string]string{
+		"package.json": `{"name": "lib", "main": "dist/index.js"}`,
+		"src/index.js": "export function widget() { return 1; }\n",
+	})
+	consumer := parsePackageKeyRepo(t, "repo-app", map[string]string{
+		"package.json": `{"name": "acme-app", "dependencies": {"w": "npm:lib@1.0.0"}}`,
+		"src/page.js": `import { widget } from "w";
+
+export function render() {
+  widget();
+}
+`,
+	})
+
+	_, rows := ExtractRows(append(consumer.envelopes, producer.envelopes...))
+	fromRender := callRowsFrom(rows, "uid:repo-app:render")
+	row, ok := fromRender["uid:repo-lib:widget"]
+	if !ok {
+		t.Fatalf("no CALLS row render -> uid:repo-lib:widget; rows from render = %#v", fromRender)
+	}
+	if got := payloadcore.AnyToString(row["resolution_method"]); got != string(codeprovenance.MethodImportBinding) {
+		t.Errorf("resolution_method = %q, want %q", got, codeprovenance.MethodImportBinding)
+	}
+}
+
+// A jsconfig baseUrl alias that shares its name with a declared dependency
+// resolves inside the consumer repository, so the call must not gain a
+// cross-repository row to the unrelated corpus publisher of that name (#7613).
+func TestExtractRowsLeavesJSConfigAliasOnDeclaredNameInsideItsRepository(t *testing.T) {
+	t.Parallel()
+
+	producer := parsePackageKeyRepo(t, "repo-api", map[string]string{
+		"package.json": `{"name": "api", "main": "dist/index.js"}`,
+		"src/index.js": "export function getUser() { return 1; }\n",
+	})
+	consumer := parsePackageKeyRepo(t, "repo-app", map[string]string{
+		"package.json":     `{"name": "web-app", "dependencies": {"api": "1.0.0"}}`,
+		"jsconfig.json":    `{"compilerOptions": {"baseUrl": "src"}}`,
+		"src/api/index.js": "export function getUser() { return 2; }\n",
+		"src/page.jsx": `import { getUser } from "api";
+
+export function render() {
+  getUser();
+}
+`,
+	})
+
+	_, rows := ExtractRows(append(consumer.envelopes, producer.envelopes...))
+	for callee := range callRowsFrom(rows, "uid:repo-app:render") {
+		if callee == "uid:repo-api:getUser" {
+			t.Errorf("jsconfig alias call resolved to the foreign publisher %s, want no cross-repository row", callee)
+		}
+	}
+}

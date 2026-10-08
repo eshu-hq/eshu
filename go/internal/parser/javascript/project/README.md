@@ -25,7 +25,9 @@ one. It is a leaf package: nothing here may import `javascript`.
 
 - `NewTSConfigImportResolver(repoRoot, path) TSConfigImportResolver` and
   `TSConfigImportResolver.ResolveSource(source) string` — resolve a TypeScript
-  import specifier against the nearest tsconfig.json's `baseUrl`/`paths`.
+  or JavaScript import specifier against the nearest tsconfig.json or
+  jsconfig.json `baseUrl`/`paths` (tsconfig.json wins when one directory
+  carries both).
 - `TSConfigSourceCandidates(basePath) []string` — deterministic extension/
   index-file candidates for resolving an extensionless import.
 - `PackageFileRootKinds(repoRoot, path) []string` — package-level dead-code
@@ -37,6 +39,9 @@ one. It is a leaf package: nothing here may import `javascript`.
 - `DeclaredDependencies(repoRoot, path) map[string]struct{}` — union of the
   dependency, dev, peer, and optional dependency names of every `package.json`
   from the file up to the repo root (#7601 consumer keys).
+- `NpmAliasTargets(repoRoot, path) map[string]string` — npm-alias dependencies
+  (`"alias": "npm:target@range"`) mapped to the target package the producer
+  publishes; an unparseable target maps to `""` and stays unkeyed (#7613).
 - `PackagePublicSourcePaths(repoRoot, path) []string` — absolute source paths
   exposed through the nearest `package.json`'s `exports`/`types` fields.
 - `RelativeSlashPath(repoRoot, path) (string, bool)`, `CleanPath(path) string`,

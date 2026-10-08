@@ -3,10 +3,11 @@
 
 // Package project resolves a JavaScript or TypeScript source file's project
 // context from the surrounding repository layout: the nearest tsconfig.json
-// and its baseUrl/paths import-alias mappings (TSConfigImportResolver), the
+// or jsconfig.json and its baseUrl/paths import-alias mappings
+// (TSConfigImportResolver), the
 // nearest package.json and the entry points it declares (PackageFileRootKinds,
 // NearestPackageRoot, NearestPackageName, DeclaredDependencies,
-// PackagePublicSourcePaths), repo-relative path
+// NpmAliasTargets, PackagePublicSourcePaths), repo-relative path
 // normalization (RelativeSlashPath, CleanPath, PathWithin), and the
 // stat-keyed cache (ScopeCache) that keeps those filesystem lookups off the
 // parser's hot path (issue #4515 P2a, issue #6771).
@@ -14,7 +15,7 @@
 // This package is a leaf: it must not import the parent javascript package.
 // The javascript adapter calls in the other direction while walking one
 // file's AST, using the exported resolvers here to answer "which tsconfig.json
-// and package.json own this file, and what do they say."
+// or jsconfig.json and package.json own this file, and what do they say."
 //
 // tsconfig.json, package.json, and the scope cache are one mutually recursive
 // unit: NewTSConfigImportResolver reads a cached tsconfig.json through

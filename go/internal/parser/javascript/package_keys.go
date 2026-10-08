@@ -121,7 +121,10 @@ type packageImportBinding struct {
 // to a bare package import that a package.json between the file and repoRoot
 // declares as a dependency (project.DeclaredDependencies). An undeclared bare
 // name may be a bundler or jsconfig alias or a Node.js built-in that resolves
-// inside the repository, so it is never keyed. Two shapes are keyed: `local(`, `new Local(`,
+// inside the repository, so it is never keyed. An npm alias dependency
+// (`"alias": "npm:target@range") is keyed under the target package, which is
+// what the producer publishes; an alias whose target does not parse stays
+// unkeyed. Two shapes are keyed: `local(`, `new Local(`,
 // `<Local />` for a named or default import, and `ns.member(` (also with new
 // or JSX) for a namespace import. A deeper chain, a member of a non-namespace
 // binding, and any name the file declares again are left unkeyed.
@@ -149,6 +152,8 @@ func annotatePackageImportCalls(
 	}
 	var keyed []keyedCall
 	var declared map[string]struct{} // read once, at the first candidate
+	var aliases map[string]string    // npm alias targets, read with declared
+	aliasesRead := false
 	usedNames := map[string]packageImportBinding{}
 	for _, call := range calls {
 		callKind, _ := call["call_kind"].(string)
@@ -177,8 +182,19 @@ func annotatePackageImportCalls(
 		if _, ok := declared[binding.source]; !ok {
 			continue
 		}
+		keyPackage := binding.source
+		if !aliasesRead {
+			aliases = project.NpmAliasTargets(repoRoot, path)
+			aliasesRead = true
+		}
+		if target, isAlias := aliases[binding.source]; isAlias {
+			if target == "" {
+				continue // unparseable npm alias target: unresolved, never keyed wrong
+			}
+			keyPackage = target
+		}
 		usedNames[localName] = binding
-		keyed = append(keyed, keyedCall{call: call, localName: localName, key: "package:" + binding.source + "#" + exportName})
+		keyed = append(keyed, keyedCall{call: call, localName: localName, key: "package:" + keyPackage + "#" + exportName})
 	}
 	if len(keyed) == 0 {
 		return

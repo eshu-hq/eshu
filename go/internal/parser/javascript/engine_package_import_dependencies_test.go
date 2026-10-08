@@ -147,3 +147,84 @@ odd();
 		}
 	}
 }
+
+// A jsconfig baseUrl alias wins over a declared dependency of the same name,
+// exactly like the tsconfig paths alias in
+// TestDefaultEngineParsePathTypeScriptKeysOnlyDeclaredDependencies: the import
+// resolves inside the repository, so the call gets no package key (#7613).
+func TestDefaultEngineParsePathJavaScriptJSConfigAliasWinsOverDeclaredDependency(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "name": "web-app",
+  "dependencies": {"api": "1.0.0"}
+}`)
+	writeTestFile(t, filepath.Join(repoRoot, "jsconfig.json"), `{"compilerOptions": {"baseUrl": "src"}}`)
+	writeTestFile(t, filepath.Join(repoRoot, "src", "api", "index.js"), "export function getUser() {}\n")
+	filePath := filepath.Join(repoRoot, "src", "page.jsx")
+	writeTestFile(t, filePath, `import { getUser } from "api";
+
+getUser();
+`)
+
+	got := parsePackageKeyFixture(t, repoRoot, filePath)
+	if resolved := importResolvedSource(t, got, "api"); resolved != "src/api/index.js" {
+		t.Errorf(`import "api" resolved_source = %q, want %q`, resolved, "src/api/index.js")
+	}
+	if key := callPackageKey(t, got, "getUser", "function_call"); key != "" {
+		t.Errorf("getUser package_export_symbol = %q, want none: the jsconfig alias resolves in-repo", key)
+	}
+}
+
+// An npm alias dependency keys the call under the target package, which is
+// what the producer publishes; keying the alias would miss at best and match
+// an unrelated publisher of the alias at worst (#7613).
+func TestDefaultEngineParsePathJavaScriptNpmAliasKeysTargetName(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{
+  "name": "web-app",
+  "dependencies": {"foo": "npm:bar@1.2.3", "scoped": "npm:@acme/real@^2.0.0", "broken": "npm:"}
+}`)
+	filePath := filepath.Join(repoRoot, "src", "page.js")
+	writeTestFile(t, filePath, `import { widget } from "foo";
+import { gadget } from "scoped";
+import { thing } from "broken";
+
+widget();
+gadget();
+thing();
+`)
+
+	got := parsePackageKeyFixture(t, repoRoot, filePath)
+	for _, tc := range []struct {
+		fullName string
+		want     string
+	}{
+		{"widget", "package:bar#widget"},
+		{"gadget", "package:@acme/real#gadget"},
+		{"thing", ""}, // an unparseable alias target is left unresolved, never keyed wrong
+	} {
+		if key := callPackageKey(t, got, tc.fullName, "function_call"); key != tc.want {
+			t.Errorf("%s package_export_symbol = %q, want %q", tc.fullName, key, tc.want)
+		}
+	}
+}
+
+// importResolvedSource returns the resolved_source of the one import row with
+// the given source, failing when the row is missing.
+func importResolvedSource(t *testing.T, payload map[string]any, source string) string {
+	t.Helper()
+
+	imports, _ := payload["imports"].([]map[string]any)
+	for _, entry := range imports {
+		if entry["source"] == source {
+			resolved, _ := entry["resolved_source"].(string)
+			return resolved
+		}
+	}
+	t.Fatalf("imports has no row with source %q in %#v", source, imports)
+	return ""
+}
