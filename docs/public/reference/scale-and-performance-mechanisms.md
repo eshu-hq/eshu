@@ -121,7 +121,7 @@ Repository context loaded workload display names from `fact_records`. Those
 names are identity hints from reducer intents. They are not materialized
 workloads, so they are not a count. The route reports the distinct `Workload`
 nodes reached through `DEFINES` edges. After the count-port fix (#7654) it reads
-only the platform and dependency count scalars and no longer loads the names.
+only the scope, platform, and dependency counts and no longer loads the names.
 Story and entity reads still load them.
 
 The names read dominated the slow traces. In the two slowest traces it took

@@ -125,8 +125,8 @@ had an autoanalyze at 19:31 UTC in between. No code changed.
 Both runs used the original saved argument sets. The control probe is a
 `/health` call used as a load check.
 
-The same two sweeps had other routes at or over 1 s. The `change-surface` rows
-are graph reads, so planner statistics do not apply. The source did not record
+The same two sweeps had other routes near or over 1 s. Host load is as in the
+tables above. The `change-surface` rows are graph reads, so planner statistics do not apply. The source did not record
 planner statistics for `deployment-config-influence`.
 
 | Route and replay | Cold | Warm p95 |
@@ -242,8 +242,8 @@ Five notes on this table.
 - In epoch 2 of cohort 6 the order reversed. MCP ran first at 0.649 s. API ran
   second, 11 s later, at 0.567 s. The two epochs used the same build after one
   rollout restart.
-- Cohorts 1 to 5 have n=1 per surface. Cohort 6 has n=2 per surface (one per
-  epoch). None of these rows is a cold p95.
+- Cohorts 1 to 5 have n=1 per surface in their first-call rows. Cohort 6 has n=2
+  per surface (one per epoch). None of these rows is a cold p95.
 
 ## Repository context
 
@@ -273,8 +273,8 @@ run 1 was not process-cold either, because the API and MCP wrappers had already
 run on those pods. In run 2 the pods were warm.
 
 Run 3 followed one rollout restart of the API and MCP pods. A one-call
-graph-summary wrapper ran on those pods first, so the first calls in run 3 are
-not process-cold. The database cache was not cold. The database primary had
+graph-summary wrapper ran on those pods first, so this page treats the first
+calls in run 3 as not process-cold. The database cache was not cold. The database primary had
 restarted earlier and autoprewarm had run, and a pod restart does not clear the
 cache. The 5-minute and 15-minute load averages were still about 14 to 16.
 Traces showed `repository_context_counts` spans and no
