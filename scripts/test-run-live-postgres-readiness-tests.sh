@@ -363,7 +363,7 @@ write_events
 : >"${fake}/calls"
 out="$(run_runner)" || fail "runner did not follow the verifier package list: ${out}"
 [[ "${out}" == *"${dropped_total}/${dropped_total} PASS"* ]] || fail "reduced summary missing: ${out}"
-rg -qxF -- "${last_pkg}" "${fake}/calls" && fail "runner invoked ${last_pkg}, dropped from PACKAGES"
+grep -qxF -- "${last_pkg}" "${fake}/calls" && fail "runner invoked ${last_pkg}, dropped from PACKAGES"
 [[ "$(wc -l <"${fake}/calls" | tr -d '[:space:]')" -eq "${dropped_packages}" ]] ||
   fail "runner package invocations differ from the verifier list: $(cat "${fake}/calls")"
 runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
