@@ -116,7 +116,7 @@ Findings:
   as an Index Only Scan with 3 to 6 buffers. The gate cost no longer depends on
   where a repository's rows sit in any other index.
 - The gate cost of the forced production shape (51,000 to 55,000 buffers,
-  167 to 204 ms warm) becomes 4 to 5 buffers whenever the planner takes the new
+  167 to 204 ms on the first, cold run) becomes 4 to 5 buffers whenever the planner takes the new
   index. The forced arm hides `repo_id`, so it cannot use the new index and was
   not rerun after the DDL.
 - No case regresses. The repo-empty and corpus-empty cases (S2, S4, S5, S6, S7)
