@@ -82,6 +82,7 @@ func githubOrgSelectionRequest(
 		RepoShardCount: config.RepoShardCount,
 		RepoLimit:      config.RepoLimit,
 		Now:            observedAt,
+		LivenessWindow: config.SelectionLivenessWindow,
 		Listing: membership.Listing{
 			Complete:     discovered.ListingComplete,
 			Repositories: listed,
