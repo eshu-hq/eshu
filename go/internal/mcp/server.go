@@ -375,6 +375,9 @@ func (s *Server) errorResponse(id any, code int, msg string) *jsonrpcResponse {
 // so the tools/list handler and the startup tools count observe the filtered
 // surface. Any profile other than production, including the empty profile
 // when this option is absent, keeps the full ReadOnlyTools surface.
+// The option filters s.tools at application time, so it must be applied
+// after any ServerOption that mutates s.tools; a later option that appends
+// or replaces the tool list would otherwise re-advertise hidden tools.
 func WithQueryProfile(profile querycontract.QueryProfile) ServerOption {
 	return func(s *Server) {
 		s.tools = filterToolsForProfile(s.tools, profile)
