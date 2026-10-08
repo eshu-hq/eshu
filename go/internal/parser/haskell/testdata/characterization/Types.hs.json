@@ -1,14 +1,14 @@
 {
   "classes": [
     {
-      "end_line": 3,
+      "end_line": 6,
       "lang": "haskell",
       "line_number": 3,
       "name": "Shape",
       "semantic_kind": "data"
     },
     {
-      "end_line": 8,
+      "end_line": 11,
       "lang": "haskell",
       "line_number": 8,
       "name": "Person",
@@ -29,7 +29,7 @@
       "semantic_kind": "type"
     },
     {
-      "end_line": 17,
+      "end_line": 18,
       "lang": "haskell",
       "line_number": 17,
       "name": "Describable",

@@ -223,7 +223,7 @@ func (e *swiftExtractor) handleProperty(node *tree_sitter.Node, scope swiftTypeS
 		"context":       contextName,
 		"class_context": contextName,
 		"line_number":   shared.NodeLine(node),
-		"end_line":      shared.NodeLine(node),
+		"end_line":      shared.NodeEndLine(node),
 		"lang":          "swift",
 	}
 	if rootKinds := swiftVariableDeadCodeRootKinds(name, varType, contextName, e.facts); len(rootKinds) > 0 {

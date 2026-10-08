@@ -24,6 +24,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Import declarations | `import-declarations` | supported | `imports` | `name, line_number` | `relationship:IMPORTS` | `go/internal/parser/haskell/parser_test.go::TestParseCapturesHaskellDeadCodeRootsAndCalls` | Compose-backed fixture verification | - |
 | Function call expressions | `function-call-expressions` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/haskell/parser_test.go::TestParseCapturesHaskellDeadCodeRootsAndCalls` | Compose-backed fixture verification | Bounded lexical calls from function right-hand sides |
 | Property/binding declarations | `property-binding-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_long_tail_test.go::TestDefaultEngineParsePathHaskellFixtures` | Compose-backed fixture verification | - |
+| Declaration spans | `declaration-spans` | supported | `classes, functions, variables` | `name, line_number, end_line` | `node:Class, node:Function, node:Variable` | `go/internal/parser/haskell/ast_extract_test.go::TestParseRecordsFullDeclarationSpans`, `go/internal/parser/haskell/ast_extract_test.go::TestParseRecordsFullWhereLocalSpan` | Compose-backed fixture verification | Data/newtype/type declarations, typeclasses, typeclass methods, and where-block locals record their full `end_line` span. |
 
 ## Dead-code Support
 

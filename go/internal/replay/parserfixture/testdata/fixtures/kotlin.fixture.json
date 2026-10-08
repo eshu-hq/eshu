@@ -15,7 +15,7 @@
           "parsed_file_data": {
             "classes": [
               {
-                "end_line": 3,
+                "end_line": 14,
                 "lang": "kotlin",
                 "line_number": 3,
                 "name": "OrderService"
