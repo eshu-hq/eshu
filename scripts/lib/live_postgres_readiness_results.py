@@ -45,6 +45,9 @@ PACKAGES = {
         ),
     },
     STORAGE_PACKAGE: {
+        "go/internal/storage/postgres/code_drifted_evidence_live_test.go": (
+            "TestDriftedPathologicalBucketSkippedLive",
+        ),
         "go/internal/storage/postgres/ingestion_targeted_maintenance_terminal_live_test.go": (
             "TestActivationObligationInapplicableCollisionLoserLive",
         ),

@@ -18,6 +18,16 @@ const DriftedSimilarityThreshold = 0.7
 // counted in telemetry, never silently dropped.
 const MaxCandidatesPerEntity = 200
 
+// MaxBandBucketSize caps the band buckets the nomination joins: a
+// (band_no, band_hash) bucket with more members than the per-entity
+// budget nominates no pairs (#7228). A bucket that big hands every
+// member more same-bucket partners than the budget verifies, so it is
+// non-discriminating by the query's own semantics (an LSH stop band),
+// and joining it is quadratic in the bucket size. Buckets at or under
+// the cap nominate exactly as before. Skipped buckets are counted in
+// telemetry, never silently dropped.
+const MaxBandBucketSize = MaxCandidatesPerEntity
+
 // Jaccard returns the exact Jaccard similarity |A∩B|/|A∪B| over two shingle
 // identity sets. It is order-independent (map intersection, not merge-join)
 // so rows persisted before the sorted encoding stay verifiable. Two empty

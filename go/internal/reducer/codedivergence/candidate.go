@@ -24,6 +24,11 @@ const ReasonSimilarityBelowThreshold = "similarity_below_threshold"
 // by budget rather than by evidence.
 const ReasonBudgetExhausted = "candidate_budget_exhausted"
 
+// ReasonSkippedBucket counts band buckets the nomination skipped for
+// exceeding MaxBandBucketSize (#7228): overfull buckets are
+// non-discriminating and nominating them is quadratic in the bucket size.
+const ReasonSkippedBucket = "skipped_band_bucket"
+
 // RuleAdmitDrifted is the rule-dimension value for admitted pairs on the
 // shared correlation counters: the pair survived verification and every
 // suppression rule.
@@ -102,6 +107,16 @@ type CandidateStats struct {
 	// EqualityDuplicates counts band pairs excluded as equality findings
 	// (shared fp_exact or fp_renamed): the #6836 read surface owns them.
 	EqualityDuplicates int
+	// SkippedBuckets counts band buckets the nomination skipped for
+	// exceeding MaxBandBucketSize (#7228).
+	SkippedBuckets int
+	// MaxBucketSize is the largest band bucket seen for the repo,
+	// skipped or not: the 3AM signal for how close the repo came to
+	// the quadratic cliff.
+	MaxBucketSize int
+	// PairsConsidered counts nominated pairs before per-entity budget
+	// ranking: the denominator the kept pairs were cut from.
+	PairsConsidered int
 }
 
 // CandidatePage is one loader result for a repo: the within-budget pairs

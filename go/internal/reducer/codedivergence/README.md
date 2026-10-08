@@ -52,6 +52,7 @@ generation.
 | `Admitted` | threshold gate: pair becomes a drifted finding |
 | `DriftedSimilarityThreshold` | ship threshold 0.7 |
 | `MaxCandidatesPerEntity` | per-entity verification budget 200 |
+| `MaxBandBucketSize` | band-bucket skip cap 200: overfull buckets nominate no pairs (#7228) |
 
 ## Benchmark Evidence: worst-case single-intent drain
 

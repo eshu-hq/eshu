@@ -26,12 +26,12 @@ func TestPostgresCodeDriftedEvidenceLoaderAssemblesPairs(t *testing.T) {
 	fake := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				// e1, e2, shared, c1, c2: e1 holds 201 partners (exhausted).
-				{"e1", "e2", 9, 201, 1},
+				// e1, e2, shared, c1, c2, total: e1 holds 201 partners (exhausted).
+				{"e1", "e2", 9, 201, 1, 12},
 				// e3's member row below carries a corrupt shingle hex.
-				{"e1", "e3", 4, 201, 1},
+				{"e1", "e3", 4, 201, 1, 12},
 				// e9 has no member row: the pair must drop.
-				{"e2", "e9", 7, 1, 1},
+				{"e2", "e9", 7, 1, 1, 12},
 			}},
 			{rows: [][]any{
 				{"e1", "exact-1", "renamed-1", shinglesA, 64, "big", "Function", "a.go", "go", 10, 40},
@@ -43,6 +43,9 @@ func TestPostgresCodeDriftedEvidenceLoaderAssemblesPairs(t *testing.T) {
 			}},
 			{rows: [][]any{
 				{3},
+			}},
+			{rows: [][]any{
+				{1, 307},
 			}},
 		},
 	}
@@ -70,11 +73,14 @@ func TestPostgresCodeDriftedEvidenceLoaderAssemblesPairs(t *testing.T) {
 	if page.Stats.BelowFloor != 2 || page.Stats.NoShingles != 3 || page.Stats.EqualityDuplicates != 3 {
 		t.Fatalf("stats = %+v, want below_floor 2, no_shingles 1 row + 1 corrupt + 1 churned, equality 3", page.Stats)
 	}
-	if len(fake.queries) != 4 {
-		t.Fatalf("queries issued = %d, want 4 (pairs, members, exclusions, equality)", len(fake.queries))
+	if page.Stats.PairsConsidered != 12 || page.Stats.SkippedBuckets != 1 || page.Stats.MaxBucketSize != 307 {
+		t.Fatalf("bucket stats = %+v, want considered 12, skipped 1, max 307", page.Stats)
 	}
-	if args := fake.queries[0].args; len(args) < 3 || args[0] != "repo-1" {
-		t.Fatalf("pairs query args = %v, want repo first", args)
+	if len(fake.queries) != 5 {
+		t.Fatalf("queries issued = %d, want 5 (pairs, members, exclusions, equality, buckets)", len(fake.queries))
+	}
+	if args := fake.queries[0].args; len(args) < 4 || args[0] != "repo-1" {
+		t.Fatalf("pairs query args = %v, want repo first and bucket cap bound", args)
 	}
 	if !strings.Contains(fake.queries[0].query, "code_fingerprint_band") {
 		t.Fatal("pairs query must read the band side table, never source_cache")
@@ -129,6 +135,26 @@ func TestCodeDriftedQueriesCarryLoadBearingClauses(t *testing.T) {
 	} {
 		if !strings.Contains(countCodeDriftedEqualityDuplicatesQuery, want) {
 			t.Fatalf("equality query missing load-bearing clause %q", want)
+		}
+	}
+}
+
+// TestCodeDriftedPairsQueriesSkipOverfullBuckets is the hermetic shape
+// guard for the #7228 bucket cap: both pair-nominating queries must carry
+// the kept-buckets prefilter (a bucket bigger than the per-entity budget
+// nominates no pairs). It reads the shipped constants, never a hand copy.
+func TestCodeDriftedPairsQueriesSkipOverfullBuckets(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"kept_buckets",
+		"HAVING COUNT(*) <=",
+	} {
+		if !strings.Contains(listCodeDriftedPairsQuery, want) {
+			t.Fatalf("pairs query missing overfull-bucket skip %q", want)
+		}
+		if !strings.Contains(countCodeDriftedEqualityDuplicatesQuery, want) {
+			t.Fatalf("equality query missing overfull-bucket skip %q", want)
 		}
 	}
 }

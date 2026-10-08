@@ -5,7 +5,8 @@ package postgres
 
 // listCodeDriftedPairsQuery nominates drifted-pair candidates for one repo
 // from the LSH band side table (epic #6833, child #6837). $1 is the repo_id,
-// $2 the token floor, $3 the per-entity candidate budget.
+// $2 the token floor, $3 the per-entity candidate budget, $4 the band
+// bucket cap: buckets with more members nominate no pairs (#7228).
 //
 // Shape: keep the band self-join's equi-join on all three of
 // (repo_id, band_no, band_hash), the predicate shape the #6834 EXPLAIN
@@ -14,24 +15,40 @@ package postgres
 // scans on a vacuumed table, a sequential scan or code_fingerprint_band_entity_idx
 // bitmap scans on a table with an empty visibility map, and the migration 111
 // lookup index only under a generic plan (docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md,
-// #7254). Pairs sharing an equality fingerprint
+// #7254). Buckets over the cap are skipped before the self-join: joining
+// them is quadratic in the bucket size and a bucket bigger than the budget
+// is non-discriminating (every member's partners from that band alone
+// overflow the budget). Pairs sharing an equality fingerprint
 // (fp_exact or fp_renamed) are excluded before ranking: the #6836 read
 // surface owns them, and counting them against the budget would drop genuine
 // drift below the cut. Ranking is per-entity by shared-band count desc with
 // ROW_NUMBER window counts; a pair verifies when EITHER endpoint ranks it
 // within budget (union semantics preserve the measured 100% ship-band
 // recall at K = 200). The c1/c2 partner totals ride along so the loader can
-// flag budget-exhausted entities for telemetry without a second pass.
+// flag budget-exhausted entities for telemetry without a second pass, and
+// total_nominated carries the pre-ranking pair count for the same reason.
 const listCodeDriftedPairsQuery = `
-WITH pairs AS (
+WITH bands AS (
+    SELECT band_no, band_hash, entity_id
+    FROM code_fingerprint_band
+    WHERE repo_id = $1
+),
+kept_buckets AS (
+    SELECT band_no, band_hash
+    FROM bands
+    GROUP BY band_no, band_hash
+    HAVING COUNT(*) <= $4
+),
+pairs AS (
     SELECT a.entity_id AS e1, b.entity_id AS e2, COUNT(*) AS shared
-    FROM code_fingerprint_band AS a
-    JOIN code_fingerprint_band AS b
-      ON b.repo_id = a.repo_id
-     AND b.band_no = a.band_no
+    FROM bands AS a
+    JOIN bands AS b
+      ON b.band_no = a.band_no
      AND b.band_hash = a.band_hash
      AND b.entity_id > a.entity_id
-    WHERE a.repo_id = $1
+    JOIN kept_buckets AS k
+      ON k.band_no = a.band_no
+     AND k.band_hash = a.band_hash
     GROUP BY a.entity_id, b.entity_id
 ),
 nominated AS (
@@ -49,10 +66,11 @@ ranked AS (
         ROW_NUMBER() OVER (PARTITION BY n.e1 ORDER BY n.shared DESC, n.e2 ASC) AS r1,
         ROW_NUMBER() OVER (PARTITION BY n.e2 ORDER BY n.shared DESC, n.e1 ASC) AS r2,
         COUNT(*) OVER (PARTITION BY n.e1) AS c1,
-        COUNT(*) OVER (PARTITION BY n.e2) AS c2
+        COUNT(*) OVER (PARTITION BY n.e2) AS c2,
+        COUNT(*) OVER () AS total_nominated
     FROM nominated AS n
 )
-SELECT e1, e2, shared, c1, c2
+SELECT e1, e2, shared, c1, c2, total_nominated
 FROM ranked
 WHERE r1 <= $3 OR r2 <= $3
 ORDER BY shared DESC, e1 ASC, e2 ASC
@@ -95,19 +113,32 @@ WHERE repo_id = $1
 // countCodeDriftedEqualityDuplicatesQuery counts band pairs the ownership
 // exclusion removes: pairs that pass the floor and shingle gates but share
 // an equality fingerprint, so the #6836 surface owns them. $1 is the
-// repo_id, $2 the token floor. It mirrors the pairs CTE of
-// listCodeDriftedPairsQuery without the ranking: same nomination, opposite
-// filter.
+// repo_id, $2 the token floor, $3 the band bucket cap (same skip as the
+// pairs query: overfull buckets are quadratic there too). It mirrors the
+// pairs CTE of listCodeDriftedPairsQuery without the ranking: same
+// nomination, opposite filter.
 const countCodeDriftedEqualityDuplicatesQuery = `
-WITH pairs AS (
+WITH bands AS (
+    SELECT band_no, band_hash, entity_id
+    FROM code_fingerprint_band
+    WHERE repo_id = $1
+),
+kept_buckets AS (
+    SELECT band_no, band_hash
+    FROM bands
+    GROUP BY band_no, band_hash
+    HAVING COUNT(*) <= $3
+),
+pairs AS (
     SELECT a.entity_id AS e1, b.entity_id AS e2
-    FROM code_fingerprint_band AS a
-    JOIN code_fingerprint_band AS b
-      ON b.repo_id = a.repo_id
-     AND b.band_no = a.band_no
+    FROM bands AS a
+    JOIN bands AS b
+      ON b.band_no = a.band_no
      AND b.band_hash = a.band_hash
      AND b.entity_id > a.entity_id
-    WHERE a.repo_id = $1
+    JOIN kept_buckets AS k
+      ON k.band_no = a.band_no
+     AND k.band_hash = a.band_hash
     GROUP BY a.entity_id, b.entity_id
 )
 SELECT COUNT(*) AS equality_duplicates
@@ -117,4 +148,21 @@ JOIN code_function_fingerprint AS fb ON fb.entity_id = p.e2
 WHERE fa.token_count >= $2 AND fb.token_count >= $2
   AND fa.shingles IS NOT NULL AND fb.shingles IS NOT NULL
   AND (fa.fp_exact = fb.fp_exact OR fa.fp_renamed = fb.fp_renamed)
+`
+
+// countCodeDriftedBucketStatsQuery reports the band-bucket shape for one
+// repo: how many buckets the nomination skipped ($2 is the same bucket cap
+// the pairs queries take) and the largest bucket seen. One grouped scan of
+// the repo's band rows; the loader runs it for telemetry, never for
+// nomination, so it stays out of the pair queries' plans.
+const countCodeDriftedBucketStatsQuery = `
+SELECT
+    COUNT(*) FILTER (WHERE c > $2) AS skipped_buckets,
+    COALESCE(MAX(c), 0) AS max_bucket_size
+FROM (
+    SELECT COUNT(*) AS c
+    FROM code_fingerprint_band
+    WHERE repo_id = $1
+    GROUP BY band_no, band_hash
+) AS buckets
 `

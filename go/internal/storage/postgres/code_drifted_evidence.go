@@ -22,11 +22,12 @@ import (
 )
 
 // PostgresCodeDriftedEvidenceLoader builds the LSH-nominated candidate
-// pairs the code_drifted reducer handler verifies. It runs four narrow
+// pairs the code_drifted reducer handler verifies. It runs five narrow
 // queries per repo, all served by the migration-111 indexes and the entity
 // primary key: the band self-join with per-entity budget ranking, the member
-// row lookup for kept pairs, and the two exclusion counters. It never reads
-// source_cache: verification runs over the persisted shingle sets only.
+// row lookup for kept pairs, the two exclusion counters, and the bucket
+// shape counter. It never reads source_cache: verification runs over the
+// persisted shingle sets only.
 type PostgresCodeDriftedEvidenceLoader struct {
 	DB db.Queryer
 	// Tracer wraps LoadCandidates in a single span. Optional; nil disables
@@ -62,7 +63,7 @@ func (l PostgresCodeDriftedEvidenceLoader) LoadCandidates(
 		defer span.End()
 	}
 
-	pairs, exhausted, err := l.loadPairs(ctx, repoID)
+	pairs, exhausted, considered, err := l.loadPairs(ctx, repoID)
 	if err != nil {
 		return reducercodedivergence.CandidatePage{}, err
 	}
@@ -73,6 +74,7 @@ func (l PostgresCodeDriftedEvidenceLoader) LoadCandidates(
 	page := reducercodedivergence.CandidatePage{Stats: reducercodedivergence.CandidateStats{
 		BudgetExhausted: exhausted,
 		NoShingles:      len(corrupt),
+		PairsConsidered: considered,
 	}}
 	for _, p := range pairs {
 		a, okA := members[p.e1]
@@ -104,25 +106,31 @@ type driftedPairRow struct {
 
 // loadPairs runs the band self-join nomination and collects the distinct
 // budget-exhausted entity IDs: an entity with more partners than the budget
-// appears in its kept top-K rows carrying the over-budget total.
+// appears in its kept top-K rows carrying the over-budget total. It also
+// returns the pre-ranking nominated count the query carries on every row
+// (zero when no pair nominates): the denominator the kept pairs cut from.
 func (l PostgresCodeDriftedEvidenceLoader) loadPairs(
 	ctx context.Context,
 	repoID string,
-) ([]driftedPairRow, []string, error) {
+) ([]driftedPairRow, []string, int, error) {
 	rows, err := l.DB.QueryContext(ctx, listCodeDriftedPairsQuery,
-		repoID, querycodedivergence.TokenFloor, reducercodedivergence.MaxCandidatesPerEntity)
+		repoID, querycodedivergence.TokenFloor, reducercodedivergence.MaxCandidatesPerEntity,
+		reducercodedivergence.MaxBandBucketSize)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list drifted pairs for repo %q: %w", repoID, err)
+		return nil, nil, 0, fmt.Errorf("list drifted pairs for repo %q: %w", repoID, err)
 	}
 	defer func() { _ = rows.Close() }()
 	pairs := []driftedPairRow{}
 	exhausted := map[string]bool{}
+	considered := 0
 	for rows.Next() {
 		var p driftedPairRow
-		if err := rows.Scan(&p.e1, &p.e2, &p.shared, &p.c1, &p.c2); err != nil {
-			return nil, nil, fmt.Errorf("scan drifted pair for repo %q: %w", repoID, err)
+		var total int
+		if err := rows.Scan(&p.e1, &p.e2, &p.shared, &p.c1, &p.c2, &total); err != nil {
+			return nil, nil, 0, fmt.Errorf("scan drifted pair for repo %q: %w", repoID, err)
 		}
 		pairs = append(pairs, p)
+		considered = total
 		if p.c1 > reducercodedivergence.MaxCandidatesPerEntity {
 			exhausted[p.e1] = true
 		}
@@ -131,14 +139,14 @@ func (l PostgresCodeDriftedEvidenceLoader) loadPairs(
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	flagged := make([]string, 0, len(exhausted))
 	for id := range exhausted {
 		flagged = append(flagged, id)
 	}
 	sort.Strings(flagged)
-	return pairs, flagged, nil
+	return pairs, flagged, considered, nil
 }
 
 // loadMembers fetches the member rows for every entity the kept pairs
@@ -203,7 +211,8 @@ func (l PostgresCodeDriftedEvidenceLoader) loadMembers(
 }
 
 // loadExclusions fills the row-shaped and pair-shaped pipeline filter
-// counts: below-floor and shingle-less rows plus equality-owned pairs.
+// counts: below-floor and shingle-less rows, equality-owned pairs, and the
+// band-bucket shape the nomination skipped over.
 func (l PostgresCodeDriftedEvidenceLoader) loadExclusions(
 	ctx context.Context,
 	repoID string,
@@ -229,7 +238,7 @@ func (l PostgresCodeDriftedEvidenceLoader) loadExclusions(
 		return err
 	}
 	dups, err := l.DB.QueryContext(ctx, countCodeDriftedEqualityDuplicatesQuery,
-		repoID, querycodedivergence.TokenFloor)
+		repoID, querycodedivergence.TokenFloor, reducercodedivergence.MaxBandBucketSize)
 	if err != nil {
 		return fmt.Errorf("count drifted equality duplicates for repo %q: %w", repoID, err)
 	}
@@ -240,5 +249,20 @@ func (l PostgresCodeDriftedEvidenceLoader) loadExclusions(
 	if err := dups.Scan(&stats.EqualityDuplicates); err != nil {
 		return fmt.Errorf("scan drifted equality duplicates for repo %q: %w", repoID, err)
 	}
-	return dups.Err()
+	if err := dups.Err(); err != nil {
+		return err
+	}
+	buckets, err := l.DB.QueryContext(ctx, countCodeDriftedBucketStatsQuery,
+		repoID, reducercodedivergence.MaxBandBucketSize)
+	if err != nil {
+		return fmt.Errorf("count drifted bucket stats for repo %q: %w", repoID, err)
+	}
+	defer func() { _ = buckets.Close() }()
+	if !buckets.Next() {
+		return fmt.Errorf("count drifted bucket stats for repo %q: no row", repoID)
+	}
+	if err := buckets.Scan(&stats.SkippedBuckets, &stats.MaxBucketSize); err != nil {
+		return fmt.Errorf("scan drifted bucket stats for repo %q: %w", repoID, err)
+	}
+	return buckets.Err()
 }
