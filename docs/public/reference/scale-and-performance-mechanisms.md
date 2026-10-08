@@ -183,7 +183,7 @@ third bullet is a speed change.
   path order. A page with a row past the 5,000-file limit reports
   `candidate_pool_status=unknown_at_limit` (#7676). Before that change, any
   full page did, so a repository with exactly 5,000 files also read as
-  unknown. Zero workloads with that marker means `state=unknown`, not absence.
+  unknown. Zero workflows with that marker means `state=unknown`, not absence.
   See [CI/CD workflow coverage](http-api/workflow-coverage.md) and
   `docs/internal/evidence/7250-capped-workflow-coverage.md`.
 - Change-planning responses report known topic-pool caps. The pool holds up to

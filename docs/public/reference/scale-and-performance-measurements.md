@@ -102,12 +102,14 @@ The source also lists `POST /api/v0/impact/explain-dependency-path`: cold
 ## Change-planning routes after the fixes
 
 Source: #7246 comments of 2026-10-05 18:21 UTC (first replay) and 19:36 UTC
-(second replay). Process fresh: the pods were new at the start of the first
-replay. Each cold value there is the first call of that route on a fresh
-process. Earlier routes in the sweep had already run on it. Each route counter
-read 0 before and 11 after on both pods. For the second replay the answer is
-no: it used the same pods about 75 minutes later, so its cold values are not
-process-cold. It lists warm p95 for every route. It lists cold values for the
+(second replay). Process fresh: no. The pods were new at the start of the
+sweep, but the graph-summary cold calls of cohort 4 (see the graph summary
+section) had already run on them before the first replay, and earlier routes
+in the sweep had run before each later route. Each cold value in the first
+replay is the first call of that route on new pods that had already served
+other requests. Each route counter read 0 before and 11 after on both pods. The
+second replay used the same pods about 75 minutes later, so its cold values are
+not process-cold either. It lists warm p95 for every route. It lists cold values for the
 two `change-surface` routes only.
 
 The next table shows the first replay after the topic-search fix (#7617). Four
@@ -160,8 +162,8 @@ The `change-surface` traversal is a graph read. The label fix addresses it. See
 
 Source: #7246 comment of 2026-10-06 17:55 UTC and #7250 comment of
 2026-10-06 17:56 UTC. Process fresh: at the start of the sweep. Each cold value
-is the first call of that route on a fresh process. Earlier routes in the sweep
-had already run on it.
+is the first call of that route on a process that was fresh at the start of the
+sweep. Earlier routes in the sweep had already run on it.
 
 This replay ran after the scoped code-topic fix (#7649) was deployed. The API
 and MCP processes were fresh at the start. The route counter read 0 before and
@@ -258,9 +260,12 @@ Seven notes on this table.
 - Cohort 3 has no first-call row. Its source gives two initial observed times,
   0.648145 s and 0.667154 s, and says neither is a qualified cold sample. The
   table omits them. Both are inside the range of the first-call rows.
-- Cohort 4's cold calls ran at 18:15 UTC on pods that started at 18:06 UTC. The
-  change-planning replay that began at 18:21 UTC ran on the same pods after
-  them, so the cohort 4 rows are process-first for the graph-summary route.
+- Cohort 4's cold calls were sent at 18:15 UTC on pods that started at 18:06 UTC
+  (#7251 comment of 2026-10-08 UTC, which quotes the run receipts). The wrapper
+  ran first after the sync, and the change-planning replay ran on the same pods
+  after those calls and before its results were posted at 18:21 UTC. The
+  receipts check the graph-summary series only. These rows are cold, process-first
+  by the wrapper order.
 - The 1.0006 s API value is 0.6 ms over the 1 s line. Its server-side time was
   0.895 s.
 - The Postgres reader had been restarted before that sample. Its
