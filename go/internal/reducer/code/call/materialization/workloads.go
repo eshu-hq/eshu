@@ -85,7 +85,6 @@ func buildRunsInIntentRows(
 		}
 		relativePath := payloadcore.PayloadStr(env.Payload, "relative_path")
 		rawPath := payloadcore.AnyToString(fileData["path"])
-		pathKeys := shared.PathKeys(rawPath, relativePath)
 
 		for _, entry := range handlesRouteEntries(fileData) {
 			handler := strings.TrimSpace(payloadcore.AnyToString(entry["handler"]))
@@ -94,7 +93,7 @@ func buildRunsInIntentRows(
 				continue
 			}
 			framework := strings.TrimSpace(payloadcore.AnyToString(entry["framework"]))
-			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
+			functionID, method := resolveHandlesRouteFunction(index, repositoryID, rawPath, relativePath, framework, handler)
 			if functionID == "" {
 				continue
 			}

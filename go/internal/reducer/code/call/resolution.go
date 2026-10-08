@@ -63,7 +63,7 @@ func resolveGenericCallee(
 	if entityID := javascript.ResolveDynamicCallee(index, repositoryID, rawPath, relativePath, fileData, call); entityID != "" {
 		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodTypeInferred
 	}
-	if entityID := shared.ResolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
+	if entityID := shared.ResolveSameFileCalleeEntityID(index, repositoryID, rawPath, relativePath, call); entityID != "" {
 		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
 	}
 	if shared.PrefersImportedTargetBeforeRepoFallback(call, language) {

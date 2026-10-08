@@ -12,16 +12,27 @@ import (
 // ResolveSameFileCalleeEntityID resolves a call to a same-file entity by
 // exact candidate names first, then (when the call has no qualified scope) by
 // broader candidate names.
+//
+// The lookup uses only the call file's own identity: (repositoryID,
+// normalized full path) and (repositoryID, normalized relative path). It
+// never consults a bare file name or another repository's path, so a call
+// whose name is defined only in a same-named file elsewhere resolves to ""
+// instead of binding across files (#7642).
 func ResolveSameFileCalleeEntityID(
 	index EntityIndex,
+	repositoryID string,
 	rawPath string,
 	relativePath string,
 	call map[string]any,
 ) string {
 	language := CallLanguage(call, rawPath, relativePath)
+	fullKey, relativeKey := FileKeys(rawPath, relativePath)
 	for _, name := range ExactCandidateNames(call, language) {
-		for _, pathKey := range PathKeys(rawPath, relativePath) {
-			if entityID := index.UniqueNameByPath(pathKey, name); entityID != "" {
+		for _, fileKey := range [2]string{fullKey, relativeKey} {
+			if fileKey == "" {
+				continue
+			}
+			if entityID := index.UniqueNameByRepoPath(repositoryID, fileKey, name); entityID != "" {
 				return entityID
 			}
 		}
@@ -30,8 +41,11 @@ func ResolveSameFileCalleeEntityID(
 		return ""
 	}
 	for _, name := range BroadCandidateNames(call, language) {
-		for _, pathKey := range PathKeys(rawPath, relativePath) {
-			if entityID := index.UniqueNameByPath(pathKey, name); entityID != "" {
+		for _, fileKey := range [2]string{fullKey, relativeKey} {
+			if fileKey == "" {
+				continue
+			}
+			if entityID := index.UniqueNameByRepoPath(repositoryID, fileKey, name); entityID != "" {
 				return entityID
 			}
 		}

@@ -48,6 +48,12 @@ type RelationshipExtraction struct {
 	// Those calls emit no CALLS row, so this count explains a drop in
 	// CodeCallRows (#7640).
 	UnresolvedCallerCount int
+	// UnresolvedCalleeCount counts calls dropped because no callee
+	// resolved: the name bound to no declaration through any same-file,
+	// repository, language-specific, or import-binding branch. Those calls
+	// emit no CALLS row, so this count explains a drop in CodeCallRows
+	// (#7642).
+	UnresolvedCalleeCount int
 }
 
 // ExtractAllRelationshipRowsWithIndex builds code-call and metaclass edge
@@ -98,7 +104,7 @@ func ExtractRelationships(envelopes []facts.Envelope) RelationshipExtraction {
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
-	ccRepoIDs, ccRows, unresolvedCallers := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	ccRepoIDs, ccRows, unresolvedCallers, unresolvedCallees := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	mcRepoIDs, mcRows := python.ExtractMetaclassRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports)
 	return RelationshipExtraction{
 		CodeCallRepoIDs:       ccRepoIDs,
@@ -108,6 +114,7 @@ func ExtractRelationships(envelopes []facts.Envelope) RelationshipExtraction {
 		EntityIndex:           entityIndex,
 		Quarantined:           quarantined,
 		UnresolvedCallerCount: unresolvedCallers,
+		UnresolvedCalleeCount: unresolvedCallees,
 	}
 }
 
@@ -131,7 +138,7 @@ func ExtractRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	entityIndex := shared.BuildEntityIndex(validEnvelopes)
 	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
 	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
-	repoIDs, rows, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
+	repoIDs, rows, _, _ := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	return repoIDs, rows
 }
 
@@ -201,18 +208,20 @@ func partitionCodegraphFileFacts(envelopes []facts.Envelope) ([]facts.Envelope, 
 // ParsedFileData stays untyped: the returned struct's inner AST keys are read
 // exactly as before this conversion (issue #4750 defers typing them). The
 // third result is the total unresolved-caller count across every file (see
-// [RelationshipExtraction.UnresolvedCallerCount]).
+// [RelationshipExtraction.UnresolvedCallerCount]), and the fourth the total
+// unresolved-callee count (see [RelationshipExtraction.UnresolvedCalleeCount]).
 func extractCodeCallRowsWithIndex(
 	envelopes []facts.Envelope,
 	repositoryIDs []string,
 	entityIndex shared.EntityIndex,
 	repositoryImports map[string]map[string][]string,
 	reexportIndex shared.ReexportIndex,
-) ([]string, []map[string]any, int) {
+) ([]string, []map[string]any, int, int) {
 	shared.CacheRepositoryImportPaths(&entityIndex, repositoryImports)
 	seenRows := make(map[string]struct{})
 	rows := make([]map[string]any, 0)
 	unresolvedCallers := 0
+	unresolvedCallees := 0
 
 	for _, env := range envelopes {
 		if env.FactKind != factload.FactKindFile {
@@ -233,7 +242,7 @@ func extractCodeCallRowsWithIndex(
 		relativePath := file.RelativePath
 
 		rows = append(rows, extractSCIPCodeCallRows(repositoryID, entityIndex, seenRows, fileData)...)
-		genericRows, fileUnresolved := extractGenericCodeCallRows(
+		genericRows, fileUnresolvedCallers, fileUnresolvedCallees := extractGenericCodeCallRows(
 			repositoryID,
 			relativePath,
 			payloadcore.AnyToString(fileData["path"]),
@@ -244,7 +253,8 @@ func extractCodeCallRowsWithIndex(
 			fileData,
 		)
 		rows = append(rows, genericRows...)
-		unresolvedCallers += fileUnresolved
+		unresolvedCallers += fileUnresolvedCallers
+		unresolvedCallees += fileUnresolvedCallees
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
@@ -257,7 +267,7 @@ func extractCodeCallRowsWithIndex(
 	})
 
 	recordCodeCallSelfLoopWritten(rows)
-	return repositoryIDs, rows, unresolvedCallers
+	return repositoryIDs, rows, unresolvedCallers, unresolvedCallees
 }
 
 // recordCodeCallSelfLoopWritten observes a materialized code-call row whose

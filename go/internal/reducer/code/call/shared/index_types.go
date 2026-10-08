@@ -13,7 +13,12 @@ package shared
 // invariant survives the package boundary; a per-language resolver package
 // reads them through the accessor methods below instead of the raw fields.
 type EntityIndex struct {
-	entitiesByPathLine map[string]string
+	// entitiesByRepoPathLine maps repositoryID -> "path#line" -> the entity
+	// declared at that line of that file. A file is keyed only by its own
+	// normalized full path and normalized relative path (see [FileKeys]);
+	// never by a bare file name, so a path/line lookup cannot cross into a
+	// same-named file of another directory or another repository (#7642).
+	entitiesByRepoPathLine map[string]map[string]string
 	// spansByFile maps repositoryID -> file key -> function spans in that
 	// file. A file is keyed only by its own normalized full path and
 	// normalized relative path (see [FileKeys]); never by a bare file name,
@@ -27,15 +32,29 @@ type EntityIndex struct {
 	// uniqueNameByPath maps a normalized file path key to the function/type
 	// names that resolve to exactly one entity within that path. A name absent
 	// from the inner map was ambiguous (declared more than once) in that file
-	// and must not be resolved from it.
+	// and must not be resolved from it. The keys aggregate every repository
+	// in the generation, so this map backs only cross-file import lookups
+	// that probe an explicitly matched target path; same-file lookups use
+	// uniqueNameByRepoPath instead (#7642).
 	uniqueNameByPath map[string]map[string]string
+	// uniqueNameByRepoPath maps repositoryID -> file key -> the
+	// function/type names that resolve to exactly one entity within that
+	// file. A file is keyed only by its own normalized full path and
+	// normalized relative path (see [FileKeys]); never by a bare file
+	// name, so a same-file callee cannot bind to a same-named file of
+	// another directory or another repository (#7642).
+	uniqueNameByRepoPath map[string]map[string]map[string]string
 	// uniqueNameByRepo maps a repository ID to the function/type names that
 	// resolve to exactly one entity across the whole repository. A name absent
 	// from the inner map was ambiguous repository-wide and must not be
 	// resolved from it.
-	uniqueNameByRepo        map[string]map[string]string
-	uniqueNameByRepoDir     map[string]map[string]map[string]string
-	constructorByPath       map[string]map[string]string
+	uniqueNameByRepo    map[string]map[string]string
+	uniqueNameByRepoDir map[string]map[string]map[string]string
+	// constructorByRepoPath maps repositoryID -> file key -> class name ->
+	// the constructor entity declared for that class in that file. The
+	// file keying matches uniqueNameByRepoPath: the file's own keys only,
+	// never a bare file name (#7642).
+	constructorByRepoPath   map[string]map[string]map[string]string
 	goMethodReturnTypes     map[string]map[string]string
 	rustTraitMethodsByRepo  map[string]map[string]string
 	pythonClassBasesByRepo  map[string]map[string][]string
@@ -181,6 +200,16 @@ func (idx EntityIndex) RepositoryImportPathsByRepo(repositoryID string) []string
 // unique-name index BuildEntityIndex fills.
 func (idx EntityIndex) UniqueNameByPath(pathKey, name string) string {
 	return idx.uniqueNameByPath[pathKey][name]
+}
+
+// UniqueNameByRepoPath returns the entity ID of the function or type named
+// name when that name is unique within the file whose own key (one of the
+// [FileKeys] values) is fileKey in repository repositoryID, or "" when the
+// name is absent or ambiguous there. A bare file name never matches, so a
+// same-file lookup through this accessor cannot bind to a same-named file
+// elsewhere (#7642).
+func (idx EntityIndex) UniqueNameByRepoPath(repositoryID, fileKey, name string) string {
+	return idx.uniqueNameByRepoPath[repositoryID][fileKey][name]
 }
 
 // UniqueNameByRepo returns the entity ID of the function or type named name

@@ -13,17 +13,27 @@
 // package read them through the accessor methods on EntityIndex
 // (EntityFileByID, UniqueNameByRepoDir, GoMethodReturnTypes,
 // GoExportByImportPath, JavaScriptAliasesByFile, PythonClassBasesByRepo,
-// RustTraitMethodsByRepo, SpansByFile, TypeScriptInterfaceMethodsByRepo) so
-// the read-only invariant survives the package boundary.
+// RustTraitMethodsByRepo, SpansByFile, TypeScriptInterfaceMethodsByRepo,
+// UniqueNameByRepoPath) so the read-only invariant survives the package
+// boundary.
 //
 // Span lookups are repository- and file-scoped (#7640): function and type
 // spans and the JavaScript alias cache are stored per repository under only
 // the file's own [FileKeys] (normalized full path and normalized relative
 // path), never under a bare file name. [ResolveContainingEntityID] therefore
 // returns "" for a call with no enclosing span in its own file instead of
-// borrowing a span from a same-named file elsewhere. Do not add mutation
-// methods; the symbol-runtime builders in the reducer root share the same
-// instance.
+// borrowing a span from a same-named file elsewhere.
+//
+// Same-file callee lookups are repository- and file-scoped too (#7642):
+// path/line identities, per-file unique names, and constructor bindings are
+// stored per repository under only the file's own [FileKeys].
+// [ResolveEntityID], [ResolveSameFileCalleeEntityID], and
+// [ResolveConstructorMethodCalleeID] therefore return "" when the name or
+// line has no declaration in the lookup file itself instead of binding to a
+// same-named file elsewhere. The repository-aggregated uniqueNameByPath map
+// remains for cross-file import lookups that probe an explicitly matched
+// target path. Do not add mutation methods; the symbol-runtime builders in
+// the reducer root share the same instance.
 //
 // Dependency rule: this package imports only the shared reducer tier
 // (contract, factload, factdecode, schemadecode, sharedintent, payloadcore)

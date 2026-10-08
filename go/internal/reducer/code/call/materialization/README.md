@@ -78,10 +78,58 @@ carries the same number as `code_call_unresolved_caller_count`: calls whose
 callee resolved but whose caller has no containing entity in the call file's
 own repository and path (#7640), so they emitted no `CALLS` row. A drop in
 `code_call_row_count` with a matching rise here is that containment rule
-working, not lost input. `unresolved_cloud_action_callers`
+working, not lost input. `unresolved_callee_calls`
+(`SubSignalUnresolvedCalleeCalls`, log field
+`code_call_unresolved_callee_count`) counts the mirror image: calls dropped
+because no callee resolved through any same-file, repository,
+language-specific, or import-binding branch (#7642). A drop in
+`code_call_row_count` with a matching rise here is the same-file scoping
+rule working — those calls previously bound a foreign file's declaration —
+not lost input. `unresolved_cloud_action_callers`
 (`SubSignalUnresolvedCloudActionCallers`, log field
 `code_call_unresolved_cloud_action_caller_count`) is the same count for SDK
 calls that would have emitted an `INVOKES_CLOUD_ACTION` intent.
+
+No-Regression Evidence (#7642): same-file callee lookups are
+repository- and file-scoped, so a `same_file` callee can no longer bind a
+same-named file's declaration in another directory or repository; the
+probe builds no key slice where `PathKeys` built one, and the index
+writes each path/line entry under at most two keys instead of up to four.
+`go test ./internal/reducer/code/call/... ./internal/resolutionparity/... -count=1`
+passes; the new `TestResolveSameFileCalleeStaysInsideTheCallFile`,
+`TestResolveEntityIDStaysInsideTheIndexedFile`,
+`TestResolveConstructorMethodCalleeStaysInsideTheCalleeFile`,
+`TestExtractRowsDropsForeignSameFileCallee`,
+`TestExtractRowsDropsSCIPCalleeFromAnotherRepositorysSameNamedFile`,
+`TestResolveDynamicCalleeTargetStaysInsideTheCallFile`,
+`TestExtractMetaclassRowsTargetStaysInsideTheClassFile`,
+`TestExtractMetaclassRowsSourceStaysInsideTheClassFile`, and
+`TestBuildHandlesRouteIntentRowsHandlerStaysInsideTheRouteFile` failed at
+the base commit with a foreign entity as the callee and pass after the
+change. In-process microbenchmarks on a shared host (AMD EPYC 9R14, Linux,
+Go 1.26.2), base `b1f8cdc52` against this change, `go test
+./internal/reducer/code/call/ -run '^$' -bench . -benchmem -count=3 -cpu 1`,
+median ns/op: `ExtractCodeCallRowsLargeJavaScriptDynamicCalls` 13,236,053
+to 12,868,043 (-2.8%, ranges do not overlap),
+`ExtractCodeCallRowsRepositoryImportBarrier` 14,451,186 to 14,477,376
+(+0.2%, inside run-to-run spread, no measurable difference),
+`ResolveDynamicJavaScriptCalleeAnonymousFunctionSource` 1,805 to 1,554
+(-13.9%), `ResolveDynamicJavaScriptCalleeNoAliasFunctionSource` 1,434 to
+1,243 (-13.3%). Bytes and allocations per op fall on all four (for
+example 1,516,057 to 1,422,333 B/op and 28,692 to 27,210 allocs/op on the
+large dynamic-calls extract). These are synthetic-fixture microbenchmarks,
+so they show no end-to-end reducer wall time, and no many-repository
+fan-out shape was benchmarked.
+
+Observability Evidence (#7642): the existing `code call materialization
+completed` log now carries `code_call_unresolved_callee_count`, and
+`Result.SubSignals` carries `unresolved_callee_calls` (rendered as
+`sub_signal_unresolved_callee_calls`): calls dropped because no callee
+resolved through any same-file, repository, language-specific, or
+import-binding branch, so they emitted no row. A drop in
+`code_call_row_count` with a matching rise here is this rule working. The
+change adds no metric instrument, metric label, span, route, runtime knob,
+queue table, or graph backend branch.
 
 ## Gotchas / invariants
 

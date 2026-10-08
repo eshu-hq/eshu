@@ -85,7 +85,7 @@ fun helper(): String = "top-level"
 	if !ok || len(calls) != 1 {
 		t.Fatalf("function_calls = %#v, want exactly one Kotlin call", callerPayload["function_calls"])
 	}
-	if got := shared.ResolveSameFileCalleeEntityID(entityIndex, callerPath, "Worker.kt", calls[0]); got == "" {
+	if got := shared.ResolveSameFileCalleeEntityID(entityIndex, "repo-kotlin", callerPath, "Worker.kt", calls[0]); got == "" {
 		t.Fatalf(
 			"resolved same-file callee: %q (names=%v)",
 			got,

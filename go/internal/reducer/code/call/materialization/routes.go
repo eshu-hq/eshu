@@ -69,7 +69,6 @@ func buildHandlesRouteIntentRows(
 		}
 		relativePath := payloadcore.PayloadStr(env.Payload, "relative_path")
 		rawPath := payloadcore.AnyToString(fileData["path"])
-		pathKeys := shared.PathKeys(rawPath, relativePath)
 
 		for _, entry := range handlesRouteEntries(fileData) {
 			handler := strings.TrimSpace(payloadcore.AnyToString(entry["handler"]))
@@ -78,7 +77,7 @@ func buildHandlesRouteIntentRows(
 				continue
 			}
 			framework := strings.TrimSpace(payloadcore.AnyToString(entry["framework"]))
-			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
+			functionID, method := resolveHandlesRouteFunction(index, repositoryID, rawPath, relativePath, framework, handler)
 			if functionID == "" {
 				continue
 			}
@@ -150,21 +149,28 @@ func BuildRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []sharedinten
 // Function entity id. It first normalizes the parser-emitted handler token via
 // handlesRouteHandlerCandidateNames; for Laravel, that adds dotted candidates
 // for short Class@method string callables. It then tries a same-file unique
-// match across the route file's path keys, followed by a repository-wide unique
+// match across the route file's own (repositoryID, full path) and
+// (repositoryID, relative path) keys, followed by a repository-wide unique
 // name. It returns the entity id and provenance method, or an empty id when the
 // name is unknown or ambiguous. The index maps retain a name only when it is
-// unique in that scope.
+// unique in that scope. The same-file match never consults a bare file name
+// or another repository's path (#7642).
 func resolveHandlesRouteFunction(
 	index shared.EntityIndex,
 	repositoryID string,
-	pathKeys []string,
+	rawPath string,
+	relativePath string,
 	framework string,
 	handler string,
 ) (string, codeprovenance.Method) {
 	candidateNames := handlesRouteHandlerCandidateNames(framework, handler)
-	for _, pathKey := range pathKeys {
+	fullKey, relativeKey := shared.FileKeys(rawPath, relativePath)
+	for _, fileKey := range [2]string{fullKey, relativeKey} {
+		if fileKey == "" {
+			continue
+		}
 		for _, candidateName := range candidateNames {
-			if entityID := index.UniqueNameByPath(pathKey, candidateName); entityID != "" {
+			if entityID := index.UniqueNameByRepoPath(repositoryID, fileKey, candidateName); entityID != "" {
 				return entityID, codeprovenance.MethodSameFile
 			}
 		}
