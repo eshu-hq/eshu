@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # #7637 theory shim runner. Seeds 900x25, then counts + EXPLAINs old vs floored
-# listings. Queries are extracted mechanically from Go source (no hand copies).
+# listings. Shared fragments are extracted mechanically from Go source; only
+# the one-line domain predicate is emitted (printf).
 set -euo pipefail
 # Usage: PGHOST=... PGPORT=... PGUSER=... PGPASSWORD=... PGDATABASE=... bash 7637-reopen-bound-shim.sh [repo-root] [old-ref]
 # The OLD listing text is extracted from old-ref (default: the pre-fix base),
@@ -26,7 +27,9 @@ git -C "$REPO_ROOT" show "$OLD_REF:go/internal/storage/postgres/ingestion_querie
   listSucceededDeploymentMappingWorkItemsQuery $TMP/old-dm.sql
 # Floored shape = the shared scopeReplayFloor fragments reassembled exactly as
 # the relationship query const composes them (CTE + refs select + joins +
-# domain line + bound). No hand-copied SQL: every fragment is extracted.
+# domain line + bound). Every shared fragment is extracted; only the one-line
+# domain predicate below is emitted (printf), so a Go change to that line
+# needs a matching shim update.
 CORR="$REPO_ROOT/go/internal/storage/postgres/ingestion_reopen_correlation.go"
 extract_const "$CORR" scopeReplayFloorCTE $TMP/frag-cte.sql
 extract_const "$CORR" scopeReplayFloorSelectWorkItemRefs $TMP/frag-select.sql

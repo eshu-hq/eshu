@@ -16,8 +16,9 @@ extraction, since removed).
 Seeded shim (`7637-reopen-bound-shim.sh` + `7637-reopen-bound-seed.sql`
 beside this file; raw output in `7637-reopen-bound-shim-output.txt`): queries are
 extracted mechanically from the Go source — the old text from the pre-fix
-base ref, the new text by reassembling the shared fragments — no hand
-copies. Fixture: 898 active scopes, 1 never-activated scope, 1 scope whose
+base ref, the new text by reassembling the extracted shared fragments plus
+the one-line domain predicate. Fixture: 898 active scopes, 1 never-activated
+scope, 1 scope whose
 latest generation failed. One succeeded row per (scope, generation, domain),
 the shape the shipped comment documents.
 
