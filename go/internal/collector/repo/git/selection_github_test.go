@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -17,6 +18,26 @@ import (
 // GitHub page/per_page offset arithmetic, every tenth one archived.
 func newGitHubOrgListingServer(t *testing.T, total int) *httptest.Server {
 	t.Helper()
+	return newRecordingGitHubOrgListingServer(t, total, nil, nil)
+}
+
+// githubListingRequest is one page request the fake GitHub received.
+type githubListingRequest struct {
+	perPage int
+	page    int
+}
+
+// newRecordingGitHubOrgListingServer is newGitHubOrgListingServer that also
+// appends every page request to requests (when non-nil) and cuts page N to
+// shortPages[N] items, as GitHub may when it returns a short page early.
+func newRecordingGitHubOrgListingServer(
+	t *testing.T,
+	total int,
+	shortPages map[int]int,
+	requests *[]githubListingRequest,
+) *httptest.Server {
+	t.Helper()
+	var mu sync.Mutex
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/orgs/acme/repos" {
 			http.NotFound(w, r)
@@ -28,9 +49,18 @@ func newGitHubOrgListingServer(t *testing.T, total int) *httptest.Server {
 		}
 		perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		if requests != nil {
+			mu.Lock()
+			*requests = append(*requests, githubListingRequest{perPage: perPage, page: page})
+			mu.Unlock()
+		}
 		start := (page - 1) * perPage
+		end := start + perPage
+		if short, ok := shortPages[page]; ok {
+			end = start + short
+		}
 		items := make([]map[string]any, 0, perPage)
-		for i := start; i < start+perPage && i < total; i++ {
+		for i := start; i < end && i < total; i++ {
 			items = append(items, map[string]any{
 				"id":        int64(1000 + i),
 				"full_name": fmt.Sprintf("acme/repo-%03d", i),
@@ -79,6 +109,65 @@ func TestListGitHubOrgRepositoriesReportsCompletenessAndDecodesIDs(t *testing.T)
 			}
 			if got := records[9]; got.GitHubID != 1009 || !got.Archived {
 				t.Fatalf("records[9] = %+v, want GitHub id 1009, archived", got)
+			}
+		})
+	}
+}
+
+// TestListGitHubOrgRepositoriesPagesAtAFixedPerPage pins the offset-paging
+// contract: page N at per_page P covers items (N-1)*P+1..N*P, so every
+// request must use per_page=100 and the limit is applied client-side. A
+// smaller per_page on a later page would re-read earlier repositories.
+func TestListGitHubOrgRepositoriesPagesAtAFixedPerPage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		total        int
+		repoLimit    int
+		shortPages   map[int]int
+		wantCount    int
+		wantComplete bool
+		wantPages    int
+	}{
+		{name: "limit above a small org", total: 120, repoLimit: 160, wantCount: 120, wantComplete: true, wantPages: 2},
+		{name: "limit above a large org", total: 820, repoLimit: 850, wantCount: 820, wantComplete: true, wantPages: 9},
+		{name: "org larger than the limit", total: 250, repoLimit: 100, wantCount: 100, wantComplete: false, wantPages: 1},
+		{name: "limit not on a page boundary", total: 250, repoLimit: 150, wantCount: 150, wantComplete: false, wantPages: 2},
+		{name: "org exactly the limit stays truncated", total: 150, repoLimit: 150, wantCount: 150, wantComplete: false, wantPages: 2},
+		{name: "short page mid-listing ends it", total: 300, repoLimit: 250, shortPages: map[int]int{2: 40}, wantCount: 140, wantComplete: true, wantPages: 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var requests []githubListingRequest
+			server := newRecordingGitHubOrgListingServer(t, tc.total, tc.shortPages, &requests)
+			records, complete, err := listGitHubOrgRepositoriesFrom(
+				context.Background(), server.Client(), server.URL, "acme", tc.repoLimit, "token-1",
+			)
+			if err != nil {
+				t.Fatalf("listGitHubOrgRepositoriesFrom() error = %v", err)
+			}
+			if got := len(records); got != tc.wantCount || complete != tc.wantComplete {
+				t.Fatalf("listed %d complete %v, want %d complete %v", got, complete, tc.wantCount, tc.wantComplete)
+			}
+			seen := make(map[string]struct{}, len(records))
+			for i, record := range records {
+				if want := fmt.Sprintf("acme/repo-%03d", i); record.RepoID != want {
+					t.Fatalf("records[%d] = %s, want %s (each repository once, in listing order)", i, record.RepoID, want)
+				}
+				if _, dup := seen[record.RepoID]; dup {
+					t.Fatalf("records list %s twice", record.RepoID)
+				}
+				seen[record.RepoID] = struct{}{}
+			}
+			if len(requests) != tc.wantPages {
+				t.Fatalf("requests = %+v, want %d pages", requests, tc.wantPages)
+			}
+			for i, request := range requests {
+				if request.perPage != 100 || request.page != i+1 {
+					t.Fatalf("request %d = %+v, want per_page=100 page=%d", i, request, i+1)
+				}
 			}
 		})
 	}
