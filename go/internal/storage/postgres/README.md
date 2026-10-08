@@ -3438,9 +3438,9 @@ bounded to one repository via a `WHERE` filter over the existing
 `fact_records_active_repository_idx` partial index rather than a new index),
 then read the generation lifecycle row, group outstanding `fact_work_items`
 by `(stage, status)`, group outstanding `shared_projection_intents` by
-`projection_domain`, and separately look up queued/claimed
-`webhook_refresh_triggers` for the repo's display identity. Four
-tightly-scoped SQL statements, one instrumented Go-level composite read.
+`projection_domain`, look up queued/claimed `webhook_refresh_triggers` for the
+repo's display identity, and read the scope's selection rows (#7625; evidence
+in `membership/README.md`, "Freshness read"). One instrumented composite read.
 
 Accuracy fix: a live Compose proof caught `repositoryFreshnessStageCountsQuery`
 returning `succeeded` rows in `outstanding_by_stage` for a fully-drained

@@ -79,6 +79,43 @@ org scope; the evaluation transaction held only `AccessShareLock` on
 `scope_id` (the phase-two freshness read) measured 0.019 ms on the primary
 key. The work runs once per githubOrg cycle on shard 0 only.
 
+### Freshness read
+
+The repository freshness reader (`repositoryFreshnessSelectionQuery` in
+`go/internal/storage/postgres/repository_freshness_sql.go`) reads this table
+by `scope_id` alone and returns every selector's row for the scope, live or
+stale. `selection.Summarize` (`go/internal/scope/selection`) then applies
+liveness and two-cycle confirmation in Go, so the collector gauge and the
+`not_selected` verdict share one definition. A lookup error fails the whole
+freshness read; the API answers 500 instead of a verdict missing evidence.
+
+Observability Evidence (#7625 phase B): no new signal. A selection lookup
+failure increments `eshu_dp_repository_freshness_query_errors_total`, and the
+lookup's time is inside `eshu_dp_repository_freshness_query_duration_seconds`,
+both recorded once per `ReadRepositoryFreshness` call.
+
+Performance Evidence (#7625 phase B, prove-theory-first): PostgreSQL 18 at
+127.0.0.1:25432, a scratch schema with 20,000 rows (4,000 scopes x 5
+selectors, one selector stale, mixed states), the exact production statement
+prepared and executed twice:
+
+```text
+Sort (actual time=0.016..0.017 rows=5 loops=1)  Sort Key: selector_id
+  Buffers: shared hit=8
+  ->  Bitmap Heap Scan on repository_selection_observations (rows=5)
+        Recheck Cond: (scope_id = 'git-repository-scope:repository:r_001700')
+        Heap Blocks: exact=5
+        ->  Bitmap Index Scan on repository_selection_observations_pkey
+              Index Cond: (scope_id = ...)  Index Searches: 1  Buffers: shared hit=3
+Execution Time: 0.044 ms cold, 0.020 ms warm; a missing scope 0.019 ms (3 buffers)
+```
+
+Pushing liveness into SQL (`evaluated_at >= now() - 3 * interval`) only adds a
+residual filter over the same 5 heap blocks (0.040 ms, 8 buffers), so keeping
+the predicate in Go costs nothing. The rows per scope are bounded by the
+selectors that ever observed it. No new index: the primary key prefix serves
+the lookup. The rest of the freshness read is unchanged.
+
 Observability Evidence (#7625): the store has no signal of its own by design.
 Every failure surfaces through `membership.Observer` as the
 `git_repository_selection_store_failed` WARN with a closed `failure_class` and
