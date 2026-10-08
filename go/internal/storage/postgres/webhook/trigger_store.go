@@ -203,10 +203,10 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 
 // ReapExpiredTriggerClaims recovers claimed rows whose claimed_at predates
 // staleBefore: rows below maxAttempts go back to queued, rows at or past
-// the cap go to failed with the claim_lease_exhausted reason (#7661). It
-// returns the requeued and exhausted rows in claimed_at order. Two
+// the cap go to failed with the claim_lease_exhausted reason (#7661). Two
 // reclaimers racing split the stale set via SKIP LOCKED; callers pass a
-// positive limit bounding one sweep.
+// positive per-statement limit, so one sweep touches at most 2×limit rows
+// across the requeue and exhaust statements.
 func (s *WebhookTriggerStore) ReapExpiredTriggerClaims(
 	ctx context.Context,
 	staleBefore time.Time,

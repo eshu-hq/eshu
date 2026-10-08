@@ -8,7 +8,12 @@
 // webhook_refresh_triggers table, moves a prior ignored row back to queued
 // when a later accepted delivery carries the same refresh key, claims queued
 // triggers with FOR UPDATE SKIP LOCKED in received_at order, and records
-// handed-off or failed rows. Webhook payloads remain trigger evidence only:
+// handed-off or failed rows. Every claim bumps the row's fencing token;
+// handoff completions match (trigger_id, token) so a holder whose lease
+// expired and was reaped completes zero rows instead of the new owner's
+// claim (#7661). ReapExpiredTriggerClaims returns stale claims to queued
+// (or fails poison rows past the attempt cap), and CountStaleClaims feeds
+// the stuck-claim gauge. Webhook payloads remain trigger evidence only:
 // storing a trigger never marks graph or repository truth fresh.
 //
 // The SQL text lives in trigger_store_sql.go and the DDL in

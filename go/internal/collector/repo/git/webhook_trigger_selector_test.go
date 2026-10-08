@@ -325,15 +325,16 @@ func TestLoadWebhookTriggerHandoffConfig(t *testing.T) {
 }
 
 type stubWebhookTriggerStore struct {
-	claimed     []webhook.StoredTrigger
-	handedOff   []string
-	failed      []string
-	failedCalls []webhookTriggerFailureCall
-	reapCalls   int
-	reapErr     error
-	requeued    []webhook.StoredTrigger
-	exhausted   []webhook.StoredTrigger
-	staleCount  int64
+	claimed       []webhook.StoredTrigger
+	handedOff     []string
+	failed        []string
+	failedCalls   []webhookTriggerFailureCall
+	reapCalls     int
+	reapErr       error
+	requeued      []webhook.StoredTrigger
+	exhausted     []webhook.StoredTrigger
+	staleCount    int64
+	staleCountErr error
 }
 
 func remoteURLsFromSelectedRepositories(repositories []SelectedRepository) []string {
@@ -398,6 +399,9 @@ func (s *stubWebhookTriggerStore) CountStaleClaims(
 	_ context.Context,
 	_ time.Time,
 ) (int64, error) {
+	if s.staleCountErr != nil {
+		return 0, s.staleCountErr
+	}
 	return s.staleCount, nil
 }
 

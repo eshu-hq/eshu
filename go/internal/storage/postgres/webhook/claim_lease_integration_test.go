@@ -35,7 +35,10 @@ func webhookLeaseProofStore(t *testing.T) (*webhookstore.WebhookTriggerStore, *s
 	if err != nil {
 		t.Fatalf("open proof connection: %v", err)
 	}
-	defer func() { _ = bootstrap.Close() }()
+	// LIFO cleanups: drop the schema before the bootstrap pool closes.
+	// Closing here via defer would run at helper return, leaving the
+	// later DROP to fail silently on a closed pool and leak the schema.
+	t.Cleanup(func() { _ = bootstrap.Close() })
 	ctx := context.Background()
 	schemaName := fmt.Sprintf("webhook_claim_lease_proof_%d", time.Now().UnixNano())
 	if _, err := bootstrap.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
@@ -304,6 +307,43 @@ func TestWebhookTriggerStoreExhaustedClaimsFailWithReason(t *testing.T) {
 	if len(requeued) != 0 || len(exhausted) != 0 {
 		t.Fatalf("final requeued/exhausted = %d/%d, want 0/0", len(requeued), len(exhausted))
 	}
+}
+
+// TestWebhookTriggerStoreReapRequeuesTokenZeroDeployRow proves the #7661
+// deploy shape: every row stuck at rollout carries claim_fencing_token 0
+// (the pre-migration default), so the first reap must requeue it, never
+// exhaust it.
+func TestWebhookTriggerStoreReapRequeuesTokenZeroDeployRow(t *testing.T) {
+	store, db := webhookLeaseProofStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
+	staleBefore := now.Add(-5 * time.Minute)
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO webhook_refresh_triggers (
+    trigger_id, delivery_key, refresh_key, provider, event_kind, decision,
+    delivery_id, repository_external_id, repository_full_name, default_branch,
+    ref, target_sha, status, received_at, updated_at, claimed_by, claimed_at,
+    claim_fencing_token
+) VALUES (
+    'deploy-stuck', 'delivery-deploy-stuck', 'refresh-deploy-stuck',
+    'github', 'push', 'accepted', 'delivery-deploy-stuck', 'repo',
+    'org/repo', 'main', 'refs/heads/main', 'sha', 'claimed',
+    $1, $1, 'owner-dead', $1, 0
+)`, now.Add(-time.Hour)); err != nil {
+		t.Fatalf("seed token-0 stuck row: %v", err)
+	}
+
+	requeued, exhausted, err := store.ReapExpiredTriggerClaims(ctx, staleBefore, 3, 100, now)
+	if err != nil {
+		t.Fatalf("ReapExpiredTriggerClaims() error = %v", err)
+	}
+	if len(requeued) != 1 || requeued[0].TriggerID != "deploy-stuck" {
+		t.Fatalf("requeued = %v, want the token-0 row", triggerIDs(requeued))
+	}
+	if len(exhausted) != 0 {
+		t.Fatalf("exhausted = %v, want none", triggerIDs(exhausted))
+	}
+	assertWebhookTriggerStatus(t, db, "deploy-stuck", "queued")
 }
 
 // TestWebhookTriggerStoreConcurrentClaimersSplitQueued proves two

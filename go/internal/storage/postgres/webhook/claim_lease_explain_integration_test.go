@@ -72,7 +72,10 @@ func openClaimLeaseExplainDB(t *testing.T, ctx context.Context, dsn string) *sql
 	if err != nil {
 		t.Fatalf("open proof connection: %v", err)
 	}
-	defer func() { _ = bootstrap.Close() }()
+	// LIFO cleanups: drop the schema before the bootstrap pool closes.
+	// Closing here via defer would run at helper return, leaving the
+	// later DROP to fail silently on a closed pool and leak the schema.
+	t.Cleanup(func() { _ = bootstrap.Close() })
 	schemaName := fmt.Sprintf("webhook_claim_lease_plan_%d", time.Now().UnixNano())
 	if _, err := bootstrap.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)

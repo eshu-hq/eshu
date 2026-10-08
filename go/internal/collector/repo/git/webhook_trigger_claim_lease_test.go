@@ -6,6 +6,7 @@ package git
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -64,6 +65,24 @@ func TestWebhookTriggerRepositorySelectorReapsExpiredClaimsBeforeClaiming(t *tes
 		}
 		if len(store.handedOff) != 0 || len(store.failed) != 0 {
 			t.Fatalf("handedOff/failed = %#v/%#v, want no handoff after reap failure", store.handedOff, store.failed)
+		}
+	})
+
+	t.Run("gauge error does not fail selection", func(t *testing.T) {
+		t.Parallel()
+		store := &stubWebhookTriggerStore{claimed: claimed, staleCountErr: errors.New("count boom")}
+		selector := newSelector(store)
+		reader := sdkmetric.NewManualReader()
+		inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+		if err != nil {
+			t.Fatalf("NewInstruments() error = %v", err)
+		}
+		selector.Instruments = inst
+		if _, err := selector.SelectRepositories(context.Background()); err != nil {
+			t.Fatalf("SelectRepositories() error = %v, want nil despite gauge failure", err)
+		}
+		if !reflect.DeepEqual(store.handedOff, []string{"trigger-1"}) {
+			t.Fatalf("handedOff = %#v, want the claimed trigger", store.handedOff)
 		}
 	})
 }

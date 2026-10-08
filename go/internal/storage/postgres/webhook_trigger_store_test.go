@@ -178,7 +178,7 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 				"delivery-1", "42", "eshu-hq/eshu", "main", "refs/heads/main",
 				"before", "after", "", "linuxdynasty",
 				"", "", "",
-				string(webhook.TriggerStatusClaimed), 0, now, now,
+				string(webhook.TriggerStatusClaimed), 0, now, now, int64(1),
 			}}},
 		},
 	}
@@ -193,6 +193,9 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	}
 	if triggers[0].Status != webhook.TriggerStatusClaimed {
 		t.Fatalf("Status = %q, want %q", triggers[0].Status, webhook.TriggerStatusClaimed)
+	}
+	if triggers[0].ClaimFencingToken != 1 {
+		t.Fatalf("ClaimFencingToken = %d, want 1", triggers[0].ClaimFencingToken)
 	}
 	if !strings.Contains(db.queries[0].query, "FOR UPDATE SKIP LOCKED") {
 		t.Fatalf("claim query missing SKIP LOCKED: %s", db.queries[0].query)
@@ -221,7 +224,12 @@ func TestWebhookTriggerStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *t
 	store := webhookstore.NewWebhookTriggerStore(db)
 	now := time.Date(2026, time.May, 12, 14, 0, 0, 0, time.UTC)
 
-	err := store.MarkTriggersHandedOff(context.Background(), []string{"trigger-2", "trigger-1", "trigger-2"}, now)
+	triggers := []webhook.StoredTrigger{
+		{TriggerID: "trigger-2", ClaimFencingToken: 1},
+		{TriggerID: "trigger-1", ClaimFencingToken: 2},
+		{TriggerID: "trigger-2", ClaimFencingToken: 1},
+	}
+	err := store.MarkTriggersHandedOff(context.Background(), triggers, now)
 	if err != nil {
 		t.Fatalf("MarkTriggersHandedOff() error = %v, want nil", err)
 	}
@@ -231,17 +239,21 @@ func TestWebhookTriggerStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *t
 	if strings.Contains(db.execs[0].query, "ANY($1)") {
 		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)
 	}
-	if !strings.Contains(db.execs[0].query, "trigger_id IN ($1, $2)") {
-		t.Fatalf("query missing individual id placeholders: %s", db.execs[0].query)
+	if !strings.Contains(db.execs[0].query, "($1, $2::bigint), ($3, $4::bigint), ($5, $6::bigint)") {
+		t.Fatalf("query missing individual fenced placeholders: %s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[0], "trigger-2"; got != want {
-		t.Fatalf("arg 0 = %v, want %v", got, want)
+	if !strings.Contains(db.execs[0].query, "trigger.claim_fencing_token = fenced.fencing_token") {
+		t.Fatalf("query missing fencing predicate: %s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[1], "trigger-1"; got != want {
-		t.Fatalf("arg 1 = %v, want %v", got, want)
-	}
-	if got, want := db.execs[0].args[2], now; got != want {
-		t.Fatalf("arg 2 = %v, want %v", got, want)
+	wantArgs := []any{"trigger-2", int64(1), "trigger-1", int64(2), "trigger-2", int64(1), now}
+	if got := db.execs[0].args; len(got) != len(wantArgs) {
+		t.Fatalf("arg count = %d, want %d", len(got), len(wantArgs))
+	} else {
+		for i, want := range wantArgs {
+			if got[i] != want {
+				t.Fatalf("arg %d = %v, want %v", i, got[i], want)
+			}
+		}
 	}
 }
 
@@ -252,7 +264,8 @@ func TestWebhookTriggerStoreMarkTriggersFailedPersistsFailureDetails(t *testing.
 	store := webhookstore.NewWebhookTriggerStore(db)
 	now := time.Date(2026, time.May, 12, 14, 0, 0, 0, time.UTC)
 
-	err := store.MarkTriggersFailed(context.Background(), []string{"trigger-1"}, now, "sync_git_failed", "git unavailable")
+	triggers := []webhook.StoredTrigger{{TriggerID: "trigger-1", ClaimFencingToken: 4}}
+	err := store.MarkTriggersFailed(context.Background(), triggers, now, "sync_git_failed", "git unavailable")
 	if err != nil {
 		t.Fatalf("MarkTriggersFailed() error = %v, want nil", err)
 	}
@@ -262,17 +275,27 @@ func TestWebhookTriggerStoreMarkTriggersFailedPersistsFailureDetails(t *testing.
 	if !strings.Contains(db.execs[0].query, "status = 'failed'") {
 		t.Fatalf("query missing failed status: %s", db.execs[0].query)
 	}
-	if !strings.Contains(db.execs[0].query, "failed_at = $4") {
+	if !strings.Contains(db.execs[0].query, "failed_at = $5") {
 		t.Fatalf("query missing failed_at timestamp: %s", db.execs[0].query)
 	}
 	if strings.Contains(db.execs[0].query, "ANY($1)") {
 		t.Fatalf("query still uses array parameter: %s", db.execs[0].query)
 	}
-	if !strings.Contains(db.execs[0].query, "trigger_id IN ($1)") {
-		t.Fatalf("query missing individual id placeholder: %s", db.execs[0].query)
+	if !strings.Contains(db.execs[0].query, "($1, $2::bigint)") {
+		t.Fatalf("query missing fenced placeholder pair: %s", db.execs[0].query)
 	}
-	if got := db.execs[0].args[1]; got != "sync_git_failed" {
-		t.Fatalf("failure class arg = %v, want sync_git_failed", got)
+	if !strings.Contains(db.execs[0].query, "trigger.claim_fencing_token = fenced.fencing_token") {
+		t.Fatalf("query missing fencing predicate: %s", db.execs[0].query)
+	}
+	wantArgs := []any{"trigger-1", int64(4), "sync_git_failed", "git unavailable", now}
+	if got := db.execs[0].args; len(got) != len(wantArgs) {
+		t.Fatalf("arg count = %d, want %d", len(got), len(wantArgs))
+	} else {
+		for i, want := range wantArgs {
+			if got[i] != want {
+				t.Fatalf("arg %d = %v, want %v", i, got[i], want)
+			}
+		}
 	}
 }
 
@@ -284,6 +307,6 @@ func webhookTriggerRow(trigger webhook.Trigger, status webhook.TriggerStatus, no
 		trigger.DeliveryID, trigger.RepositoryExternalID, trigger.RepositoryFullName,
 		trigger.DefaultBranch, trigger.Ref, trigger.BeforeSHA, trigger.TargetSHA,
 		trigger.Action, trigger.Sender, trigger.PullRequestNumber, trigger.PullRequestURL,
-		trigger.PullRequestTitle, string(status), 0, now, now,
+		trigger.PullRequestTitle, string(status), 0, now, now, int64(3),
 	}}}
 }
