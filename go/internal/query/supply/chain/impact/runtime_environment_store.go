@@ -15,6 +15,16 @@ import (
 // correlated inside LATERAL. PostgreSQL otherwise flattens the 200 candidates
 // behind the environment index, multiplying a hot fact set by every candidate.
 // The measured shape performs one artifact-digest index search per candidate.
+//
+// The fact probe below is fenced with OFFSET 0 (#7552). Without the fence the
+// planner multiplies the transitively implied scope join clauses (rows=1
+// estimated for 901 actual active pairs), plans scope-first, and probes per
+// candidate once per active pair (180,200 probes at 901 pairs). The fence keeps
+// the artifact-index probe on the outer side of the lateral nest loop; the
+// scope tables are then reached by indexed lookup from each matched fact row.
+// Row-set equivalence with the unfenced shape is pinned by
+// TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive and the
+// #7552 evidence note.
 const selectSupplyChainImpactRuntimeEnvironmentEvidenceQueryTemplate = `
 WITH candidate_pairs AS MATERIALIZED (
   SELECT DISTINCT BTRIM(candidate.digest) AS digest,
@@ -33,7 +43,17 @@ CROSS JOIN LATERAL (
              THEN 'deploy_event'
            ELSE 'declared'
          END AS environment_evidence
-  FROM fact_records AS fact
+  FROM (
+    SELECT fact.*
+    FROM fact_records AS fact
+    WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
+      AND fact.is_tombstone = FALSE
+      AND fact.payload->>'artifact_digest' = candidate.digest
+      AND BTRIM(COALESCE(fact.payload->>'environment', '')) = candidate.environment
+      AND BTRIM(COALESCE(fact.payload->>'outcome', '')) IN ('', 'exact', 'derived')
+      AND LOWER(BTRIM(COALESCE(fact.payload->>'provenance_only', ''))) <> 'true'
+    OFFSET 0
+  ) AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
    AND scope.active_generation_id = fact.generation_id
@@ -41,13 +61,7 @@ CROSS JOIN LATERAL (
     ON generation.scope_id = fact.scope_id
    AND generation.generation_id = fact.generation_id
 %s
-  WHERE fact.fact_kind = 'reducer_ci_cd_run_correlation'
-    AND fact.is_tombstone = FALSE
-    AND fact.payload->>'artifact_digest' = candidate.digest
-    AND BTRIM(COALESCE(fact.payload->>'environment', '')) = candidate.environment
-    AND generation.status = 'active'
-    AND BTRIM(COALESCE(fact.payload->>'outcome', '')) IN ('', 'exact', 'derived')
-    AND LOWER(BTRIM(COALESCE(fact.payload->>'provenance_only', ''))) <> 'true'
+  WHERE generation.status = 'active'
     AND (
           (
             COALESCE(cardinality($3::text[]), 0) = 0

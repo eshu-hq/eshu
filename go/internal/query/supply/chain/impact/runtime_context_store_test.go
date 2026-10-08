@@ -451,6 +451,7 @@ func TestRuntimeEnvironmentEvidenceQueryUsesCurrentAuthorizedExactPairs(t *testi
 		"BOOL_OR",
 		"HAVING COUNT(*) > 0",
 		"ORDER BY candidate.digest, candidate.environment",
+		"OFFSET 0",
 	} {
 		if !strings.Contains(selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery, want) {
 			t.Errorf("runtime environment evidence query missing %q", want)

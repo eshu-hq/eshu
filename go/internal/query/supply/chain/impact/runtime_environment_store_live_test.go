@@ -357,3 +357,113 @@ func runtimeEnvironmentEvidencePlanIndex(
 	}
 	return runtimeEnvironmentEvidencePlanNode{}, false
 }
+
+// TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive proves the production
+// SQL keeps one artifact-index probe per candidate when the active
+// scope/generation pair count reaches ops-qa scale (#7552: 819 pairs there).
+// Without the fenced fact probe the planner multiplies the transitively implied
+// scope join clauses (rows=1 estimated for 901 actual pairs) and plans
+// scope-first: 200 candidates x 901 pairs = 180,200 probes. It is opt-in
+// because it writes about 202,000 disposable rows into a production-schema
+// PostgreSQL database in a database created and dropped by the helper.
+func TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive(t *testing.T) {
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN"),
+		os.Getenv("ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE"),
+		15*time.Minute,
+	)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply production Postgres schema: %v", err)
+	}
+	seedRuntimeEnvironmentEvidenceManyPairs(t, ctx, db)
+	requireRuntimeEnvironmentEvidenceActivePairs(t, ctx, db, 819)
+
+	candidates, digests, environments := runtimeEnvironmentEvidenceLiveCandidates()
+	assertRuntimeEnvironmentEvidenceIndexPlan(
+		t,
+		ctx,
+		db,
+		selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery,
+		digests,
+		environments,
+	)
+
+	got, err := (PostgresFindingStore{DB: db}).
+		ListSupplyChainImpactRuntimeEnvironmentEvidence(ctx, candidates, nil, nil)
+	if err != nil {
+		t.Fatalf("ListSupplyChainImpactRuntimeEnvironmentEvidence(): %v", err)
+	}
+	if len(got) != len(candidates) {
+		t.Fatalf("confirmed digests = %d, want %d", len(got), len(candidates))
+	}
+	if got[digests[0]]["prod"] != RuntimeEnvironmentEvidenceDeployEvent {
+		t.Fatalf("digest %s evidence = %#v, want deploy_event fold", digests[0], got[digests[0]])
+	}
+}
+
+// seedRuntimeEnvironmentEvidenceManyPairs seeds 900 active scope/generation
+// pairs (901 with the bootstrap global pair), 200 candidate digests each with
+// 10 matching facts, and 200,000 background facts, then analyzes every table
+// the production query joins. Digest 1 matches deploy_event facts so the fold
+// is exercised; all other matches are declared.
+func seedRuntimeEnvironmentEvidenceManyPairs(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	for _, statement := range []string{
+		`INSERT INTO ingestion_scopes (
+  scope_id, scope_kind, source_system, source_key, collector_kind,
+  partition_key, observed_at, ingested_at, status, active_generation_id
+)
+SELECT 'scope:runtime-environment-many-' || n, 'repository', 'proof', 'proof', 'proof',
+  'proof', clock_timestamp(), clock_timestamp(), 'active', 'generation:runtime-environment-many-' || n
+FROM generate_series(1, 900) AS n`,
+		`INSERT INTO scope_generations (
+  generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+)
+SELECT 'generation:runtime-environment-many-' || n, 'scope:runtime-environment-many-' || n,
+  'proof', clock_timestamp(), clock_timestamp(), 'active', clock_timestamp()
+FROM generate_series(1, 900) AS n`,
+		`INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at,
+  is_tombstone, payload
+)
+SELECT 'runtime-environment-many:' || d || ':' || s,
+       'scope:runtime-environment-many-' || s, 'generation:runtime-environment-many-' || s,
+       'reducer_ci_cd_run_correlation', 'runtime-environment-many:' || d || ':' || s,
+       'proof', 'proof', 'runtime-environment-many:' || d || ':' || s,
+       clock_timestamp(), clock_timestamp(), FALSE,
+       jsonb_build_object(
+         'repository_id', 'repository:r_runtime_environment_many',
+         'artifact_digest', 'sha256:' || lpad(to_hex(d), 64, '0'),
+         'environment', 'prod',
+         'environment_evidence', CASE WHEN d = 1 THEN 'deploy_event' ELSE 'declared' END,
+         'outcome', 'exact'
+       )
+FROM generate_series(1, 200) AS d CROSS JOIN generate_series(1, 10) AS s`,
+		`INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at,
+  is_tombstone, payload
+)
+SELECT 'runtime-environment-many-background:' || n,
+       'scope:runtime-environment-many-' || ((n - 1) % 900 + 1),
+       'generation:runtime-environment-many-' || ((n - 1) % 900 + 1),
+       'reducer_ci_cd_run_correlation', 'runtime-environment-many-background:' || n,
+       'proof', 'proof', 'runtime-environment-many-background:' || n,
+       clock_timestamp(), clock_timestamp(), FALSE,
+       jsonb_build_object(
+         'repository_id', 'repository:r_runtime_environment_many',
+         'artifact_digest', 'sha256:background:' || n,
+         'environment', 'prod', 'environment_evidence', 'declared', 'outcome', 'exact'
+       )
+FROM generate_series(1, 200000) AS n`,
+		`ANALYZE fact_records`,
+		`ANALYZE ingestion_scopes`,
+		`ANALYZE scope_generations`,
+	} {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed runtime environment many-pairs proof: %v", err)
+		}
+	}
+}
