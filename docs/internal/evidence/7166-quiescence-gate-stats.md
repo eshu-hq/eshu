@@ -19,14 +19,17 @@ Migration 165 adds a functional-dependency statistics object on
 `(scope_id, generation_id)` of `graph_projection_phase_state` plus
 `ANALYZE`, following the migration-119 precedent. The gate SQL text is
 unchanged. A new `eshu_dp_shared_projection_lane_gate_seconds`
-histogram records one probe-latency point per poll cycle per lane
-(code_calls, repo_dependency), held or open.
+histogram records one probe-latency point per gate consultation
+(code_calls, repo_dependency), held or open. Code-call cycles
+short-circuited by active reducer-graph work return before the probe
+and emit nothing.
 
 ## Measurement
 
 PostgreSQL 18, production DDL for the four gate tables, 619,320 facts /
 794 scopes / 119,100 phases / 19,850 generations, `VACUUM ANALYZE`d,
-custom plans, three back-to-back runs each (stable to the buffer):
+custom plans, three back-to-back runs each (stable within ±2 buffers
+across identical reruns; the table shows the repeated value):
 
 | Gate text | Stats | Buffers | Time | Phase probe |
 | --- | --- | --- | --- | --- |
@@ -66,3 +69,35 @@ re-measured: ship statistics + telemetry, drop the rewrite.
   repairs this probe's estimate.
 - Production effect is judged from the new lane-gate histogram,
   not from this shim.
+
+## Performance Evidence (#7166):
+
+Baseline (shipped gate text, no extended statistics): 726,673
+buffers, 4,871 ms, pkey without pushdown, rows=1 estimated vs 75.50
+actual. After (same text, `dependencies` statistics on
+`(scope_id, generation_id)`): 603,253 buffers, 427-455 ms, pkey with
+all 5 quals pushed, rows=1.00 exact. Backend: PostgreSQL 18, local
+shim with production DDL for the four gate tables. Input shape:
+619,320 facts / 794 scopes / 119,100 phases / 19,850 generations,
+`VACUUM ANALYZE`d, custom plans, three back-to-back runs per cell.
+Terminal counts: the probe returns one boolean; the phase probe
+matches 75-150 rows per evaluation. The change is safe because the
+gate SQL text is unchanged (answers cannot change), the statistics
+object is additive planner metadata (worst case is a plan no-op),
+migration 165 holds only ShareUpdateExclusiveLock and reruns cleanly
+(exit 0 with NOTICE skip), and migration 156's `generation_idx` is
+kept for the #7419 retention cascade.
+
+## Observability Evidence (#7166):
+
+Two hermetic tests pin the new signal: the code-call lane emits 4
+probe-latency points across held+open consultations through the
+production `processOnce` path, and the repo-dependency lane pins the
+`eshu_dp_shared_projection_lane_gate_seconds` point with
+`(domain, reason)` labels. `scripts/verify-telemetry-coverage.sh`
+passes with the new coverage row. Code-call cycles short-circuited
+by active reducer-graph work emit nothing, and the deployable-unit
+edge path has no instruments handle and stays dark; both are
+documented in the coverage row. Post-merge, the shim-to-production
+transfer is judged from this histogram, not from the shim numbers
+above.
