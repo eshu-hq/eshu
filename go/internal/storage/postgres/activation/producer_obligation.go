@@ -210,8 +210,11 @@ func (s *ProducerSettleTx) Complete(ctx context.Context, reopened int) (Producer
 
 // Retire runs one token-fenced terminal write (obsolete or inapplicable) and
 // commits it. A fence that matched no row means the lease moved on; nothing
-// is committed.
+// is committed. Any other outcome is a caller bug and fails without writing.
 func (s *ProducerSettleTx) Retire(ctx context.Context, outcome ProducerOutcome) (ProducerSettleResult, error) {
+	if outcome != ProducerObsolete && outcome != ProducerInapplicable {
+		return ProducerSettleResult{}, fmt.Errorf("settle producer activation obligation: retire %q: not a terminal outcome", outcome)
+	}
 	query := obsoleteProducerObligationQuery
 	if outcome == ProducerInapplicable {
 		query = inapplicableProducerObligationQuery

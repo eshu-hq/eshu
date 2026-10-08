@@ -71,6 +71,9 @@ Live tests (`internal/storage/postgres/activation`,
   unfinished and inapplicable rows).
 - `TestProducerActivationRunnerStoreSettlesThroughThePort` plus
   `TestProducerSettleErrorMapsPortSentinels` (port outcome and error mapping).
+- `TestCommittedSettleCountsEmptyUnlessCompleted` (reopen counts are
+  nonzero only on a completed outcome; a rolled-back settle reports empty
+  counts so the retry counts the rows once).
 - `TestProducerActivationRunner*` (4 runner tests on a fake store: outcome
   and per-domain reopened counts, lease-loss/lock-timeout/error
   classification, cycle bound plus housekeeping, config validation).

@@ -232,7 +232,9 @@ func (s IngestionStore) SettleOneProducerActivation(ctx context.Context, owner s
 // obligation under the caller's lease fence, in one transaction. A scope
 // that moved to another generation retires obsolete; a generation with no
 // producer evidence left retires inapplicable. It reports reopened rows by
-// consumer domain and the closed settle outcome.
+// consumer domain and the closed settle outcome. The counts are nonzero
+// only on a completed outcome: a lost lease rolls the reopen back, so a
+// not_owner outcome reports empty counts and the retry counts the rows.
 func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, work activation.ProducerObligation) (map[string]int, activation.ProducerOutcome, error) {
 	store, err := s.producerActivationStore()
 	if err != nil {
@@ -324,7 +326,17 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 	if err != nil {
 		return nil, "", err
 	}
-	return counts, completed.Outcome, nil
+	return committedSettleCounts(counts, completed.Outcome), completed.Outcome, nil
+}
+
+// committedSettleCounts reports the reopen counts for a closed settle. Only
+// a completed settle committed its reopen; any other outcome rolled back,
+// so it reports empty counts and the retry counts the rows.
+func committedSettleCounts(counts map[string]int, outcome activation.ProducerOutcome) map[string]int {
+	if outcome != activation.ProducerCompleted {
+		return map[string]int{}
+	}
+	return counts
 }
 
 // listProducerDependentItemIDs runs one dependency-index listing for the owed

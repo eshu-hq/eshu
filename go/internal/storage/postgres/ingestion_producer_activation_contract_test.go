@@ -95,6 +95,28 @@ func TestProducerSettleErrorMapsPortSentinels(t *testing.T) {
 	}
 }
 
+// TestCommittedSettleCountsEmptyUnlessCompleted pins the reopen-count
+// contract: only a completed settle committed its reopen, so only it
+// reports nonzero counts. A lost lease rolls back; the not_owner outcome
+// reports empty counts and the retry counts the rows (#7635 review F1).
+func TestCommittedSettleCountsEmptyUnlessCompleted(t *testing.T) {
+	t.Parallel()
+	counts := map[string]int{"kubernetes_correlation_materialization": 2}
+	if got := committedSettleCounts(counts, activation.ProducerCompleted); !reflect.DeepEqual(got, counts) {
+		t.Fatalf("completed counts = %v, want %v", got, counts)
+	}
+	for _, outcome := range []activation.ProducerOutcome{
+		activation.ProducerNotOwner,
+		activation.ProducerObsolete,
+		activation.ProducerInapplicable,
+		activation.ProducerMissing,
+	} {
+		if got := committedSettleCounts(counts, outcome); len(got) != 0 {
+			t.Fatalf("%s counts = %v, want empty", outcome, got)
+		}
+	}
+}
+
 // TestProducerListingsDeriveFromShipped pins that both #7635 dependency-index
 // listings are the shipped correlation reopen listing plus exactly the
 // linkage conjunct, never a hand-copied second query. The shipped text before

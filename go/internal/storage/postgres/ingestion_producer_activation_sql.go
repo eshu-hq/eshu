@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -45,8 +46,6 @@ import (
 // or padded tags/digests may link in SQL where Go misses or vice versa; the
 // miss direction degrades to the epoch whole pass and the match direction
 // replays idempotently. The parity test covers realistic references.
-
-import "fmt"
 
 // producerPayloadStr mirrors payloadcore.PayloadStr for a top-level string
 // field: the JSON string value space-trimmed, NULL when missing or blank.
