@@ -187,6 +187,17 @@ duplicate-instrument error from the OTEL SDK.
   bypasses the bridge and those metrics will not appear on the Eshu `/metrics`
   endpoint.
 
+- **Passing `service.name` or `service.namespace` as a metric attribute** —
+  the Prometheus exporter already puts both on every series as constant
+  labels, so a point-level copy sanitizes to a duplicate label name and
+  client_golang rejects the series. `reservedAttributeView` in
+  `metrics_gather.go` drops these keys before export; do not rely on it.
+  `TestScrapeSurvivesAttributesThatShadowResourceLabels` is the regression.
+  A single failing series no longer fails the scrape: `newMetricsHandler`
+  serves the rest, logs `telemetry.metrics.gather_failed`, and counts
+  `eshu_dp_metrics_gather_errors_total`. Alert on that counter rather than
+  assuming a green scrape means every series is present.
+
 - **Dropping `WithResourceAsConstantLabels` from the Prometheus exporter**
   — `provider.go` keys the allow-keys filter to `service.name` and
   `service.namespace` so both reach Prometheus as labels on every

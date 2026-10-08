@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -121,7 +120,6 @@ func recordSemanticSearchDegraded(ctx context.Context, queryType, reason string)
 		metric.WithAttributes(
 			attribute.String("query_type", queryType),
 			attribute.String("reason", reason),
-			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
 		),
 	)
 }

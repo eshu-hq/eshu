@@ -29,8 +29,7 @@ func resetSemanticSearchInstrumentsForTest() {
 }
 
 // degradedCounterValue sums the eshu_dp_search_hybrid_degraded_total datapoints
-// whose attributes include every key/value in want (extra attributes such as
-// service.namespace are ignored).
+// whose attributes include every key/value in want (extra attributes are ignored).
 func degradedCounterValue(t *testing.T, rm metricdata.ResourceMetrics, want map[string]string) int64 {
 	t.Helper()
 	var total int64
