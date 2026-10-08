@@ -38,8 +38,10 @@ const (
 // one statement and only advances rows older than the batch.
 type Store interface {
 	// KnownScopes returns the git default-branch repository scopes whose
-	// stored repo slug belongs to owner, case-insensitively.
-	KnownScopes(ctx context.Context, owner string) ([]KnownScope, error)
+	// stored repo slug belongs to owner, case-insensitively. A non-empty
+	// host also requires the scope's stored remote_url host to equal it; a
+	// scope without a remote then never matches.
+	KnownScopes(ctx context.Context, owner, host string) ([]KnownScope, error)
 	// Observations returns every stored observation for selectorID.
 	Observations(ctx context.Context, selectorID string) ([]Observation, error)
 	// UpsertObservations writes batch.
@@ -125,7 +127,7 @@ func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, er
 	if o.Store == nil {
 		return listingOnly, FailureClassStoreMissing, errors.New("repository selection store is not configured")
 	}
-	known, err := o.Store.KnownScopes(ctx, req.Selector.Owner)
+	known, err := o.Store.KnownScopes(ctx, req.Selector.Owner, KnownScopeHost(req.Selector.Kind))
 	if err != nil {
 		return listingOnly, FailureClassKnownScopesRead, fmt.Errorf("read known repository scopes for org %q: %w", req.Selector.Owner, err)
 	}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -59,7 +60,7 @@ func TestObservationStoreLive(t *testing.T) {
 	seedScope(ctx, t, sqlDB, "scope:acme-ref", "repository_ref", "git", "acme/repo-00")
 	seedScope(ctx, t, sqlDB, "scope:acme-webhook", "repository", "github_webhook", "acme/repo-00")
 
-	known, err := store.KnownScopes(ctx, "ACME")
+	known, err := store.KnownScopes(ctx, "ACME", membership.KnownScopeHost(membership.KindGitHubOrg))
 	if err != nil {
 		t.Fatalf("KnownScopes() error = %v", err)
 	}
@@ -204,13 +205,23 @@ func upsertReplicasConcurrently(
 	}
 }
 
+// seedScope seeds a github.com repository scope with the remote_url
+// repositoryidentity.MetadataFor stores.
 func seedScope(ctx context.Context, t *testing.T, sqlDB *sql.DB, scopeID, kind, collectorKind, slug string) {
+	t.Helper()
+	seedScopeRemote(ctx, t, sqlDB, scopeID, kind, collectorKind, slug, "https://github.com/"+strings.ToLower(slug))
+}
+
+// seedScopeRemote seeds a scope with an explicit remote_url; an empty
+// remoteURL stores no remote_url key.
+func seedScopeRemote(ctx context.Context, t *testing.T, sqlDB *sql.DB, scopeID, kind, collectorKind, slug, remoteURL string) {
 	t.Helper()
 	if _, err := sqlDB.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status, payload)
-VALUES ($1, $2, 'git', $1, $3, $1, now(), now(), 'active', jsonb_build_object('repo_slug', $4::text))`,
-		scopeID, kind, collectorKind, slug); err != nil {
+VALUES ($1, $2, 'git', $1, $3, $1, now(), now(), 'active',
+    jsonb_strip_nulls(jsonb_build_object('repo_slug', $4::text, 'remote_url', NULLIF($5::text, ''))))`,
+		scopeID, kind, collectorKind, slug, remoteURL); err != nil {
 		t.Fatalf("seed scope %s: %v", scopeID, err)
 	}
 }

@@ -152,7 +152,7 @@ func TestWebhookTriggerSelectorCarriesNoSelectionObserver(t *testing.T) {
 
 type failingSelectionStore struct{}
 
-func (failingSelectionStore) KnownScopes(context.Context, string) ([]membership.KnownScope, error) {
+func (failingSelectionStore) KnownScopes(context.Context, string, string) ([]membership.KnownScope, error) {
 	return nil, errors.New("postgres unavailable")
 }
 

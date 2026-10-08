@@ -28,6 +28,11 @@ type fakeStore struct {
 	knownCalls int
 	priorCalls int
 	upserts    []Batch
+	// knownHosts records every KnownScopes host argument. When knownByHost
+	// is non-nil, KnownScopes returns knownByHost[host] instead of known,
+	// the way the Postgres store filters by remote host.
+	knownHosts  []string
+	knownByHost map[string][]KnownScope
 }
 
 func (s *fakeStore) expected() Selector {
@@ -37,10 +42,14 @@ func (s *fakeStore) expected() Selector {
 	return s.selector
 }
 
-func (s *fakeStore) KnownScopes(_ context.Context, owner string) ([]KnownScope, error) {
+func (s *fakeStore) KnownScopes(_ context.Context, owner, host string) ([]KnownScope, error) {
 	s.knownCalls++
+	s.knownHosts = append(s.knownHosts, host)
 	if owner != s.expected().Owner {
 		return nil, errors.New("unexpected owner " + owner)
+	}
+	if s.knownByHost != nil {
+		return s.knownByHost[host], s.knownErr
 	}
 	return s.known, s.knownErr
 }

@@ -41,6 +41,8 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
   configurations or credentials on one owner never share rows.
 - `Evaluate`, `Input`, `Result`, `Counts`, `ScopeCounts`: the pure evaluation.
 - `Observer`, `Store`, `Request`: the per-cycle wrapper and its storage port.
+- `KnownScopeHost`: the remote host a selector kind's known scopes must carry
+  (`github.com` for `github_org`, none for explicit).
   The Postgres implementation is
   `go/internal/storage/postgres/membership`.
 - `Observation`, `Row`, `Batch`, `State`, `Confirmed`: the row contract.
@@ -53,7 +55,7 @@ sample the scope gauge. Filesystem mode and bootstrap-index never observe.
 | Rule | Behavior |
 | --- | --- |
 | Complete listing only | `Listing.Complete == false` writes nothing; outcome `listing_truncated`. |
-| Owner partition | Known scopes are the org's `repository` scopes, matched case-insensitively on the repo slug org. `repository_ref` scopes are excluded. |
+| Owner partition | Known scopes are the org's `repository` scopes, matched case-insensitively on the repo slug org. A `github_org` selector also requires the stored `remote_url` host to be `github.com` (`KnownScopeHost`), so a gitlab.com or GitHub Enterprise scope with the same slug owner is never judged by a github.com listing. Explicit selectors use no host filter. `repository_ref` scopes are excluded. |
 | Mass-miss guard | More newly unlisted scopes than `max(10, ceil(0.10 * known))`, or an empty listing while known scopes exist, writes nothing; outcome `guard_tripped`. |
 | State tracking | Each row stores `state_since` and `state_cycle_count`. The same state as the stored row keeps `state_since` and adds one to the count; a different state, or a new row, sets `state_since` to this evaluation and the count to 1. |
 | Confirmation | Any state other than `selected` (`not_listed`, `archived_excluded`, `rule_excluded`) is `Confirmed` only when `state_cycle_count >= 2` and `evaluated_at - state_since >= ConfirmationMinSpan` (5 minutes). A first evaluation never confirms anything. |
@@ -76,7 +78,9 @@ Known limits: filesystem-mode collectors write no rows, so a repository only
 they ingest is covered only by the freshness rule that no generation was
 observed after the exclusion began. If a repository's other producer stops
 without its selector's rows expiring first, the scope fails open to `unknown`
-or keeps its last evidence label until the window passes.
+or keeps its last evidence label until the window passes. GitHub Enterprise
+and other non-`github.com` orgs are not evaluated: their scopes get no
+`github_org` rows and read `unknown`.
 
 ## When the guard trips every cycle
 
