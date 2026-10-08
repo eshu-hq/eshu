@@ -132,4 +132,6 @@ jobs:
           ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE: '1'
           ESHU_ADMIN_REOPEN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE: '1'
+          ESHU_SELECTION_OBSERVATION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_SELECTION_OBSERVATION_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

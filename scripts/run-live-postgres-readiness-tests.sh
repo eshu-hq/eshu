@@ -28,7 +28,8 @@ for name in \
   ESHU_DEFERRED_PARTITION_PROOF_DSN \
   ESHU_TARGETED_MAINTENANCE_PROOF_DSN \
   ESHU_STATUS_SUMMARY_PROOF_DSN \
-  ESHU_ADMIN_REOPEN_PROOF_DSN; do
+  ESHU_ADMIN_REOPEN_PROOF_DSN \
+  ESHU_SELECTION_OBSERVATION_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
@@ -45,7 +46,8 @@ for name in \
   ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE \
   ESHU_TARGETED_MAINTENANCE_PROOF_DISPOSABLE \
   ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE \
-  ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE; do
+  ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE \
+  ESHU_SELECTION_OBSERVATION_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 
