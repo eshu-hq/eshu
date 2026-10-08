@@ -208,6 +208,10 @@ type DecodeQualifiers map[string]struct{}
 var KnownDecodeQualifiers = DecodeQualifiers{
 	"schemadecode": {},
 	"factschema":   {},
+	// "workitemdecode" (go/internal/query/decode/workitem, #6623) is the
+	// shared work-item decode leaf both query read paths call through;
+	// without it their qualified seams are unattributed.
+	"workitemdecode": {},
 }
 
 // decodeCallName returns the decode-function identity a call expression's Fun

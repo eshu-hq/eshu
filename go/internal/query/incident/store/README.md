@@ -14,10 +14,10 @@ Layout:
   decoded rows.
 - `decode.go`, `factschema_decode_incident.go` — the incident row decoders
   and the incident-specific factschema decode wrappers.
-- `decode_workitem.go` — the forked work-item decode substrate (cited
-  per symbol; adopted from the shared home once the work-item lane lands
-  it).
 - `authorizer.go` — the durable owning-repository authorizer.
+- Work-item decoding comes from the shared
+  `internal/query/decode/workitem` leaf (#6623), imported as
+  `workitemdecode`.
 
 The response types live in `incident/model/`, the query text in
 `incident/sql/`, the HTTP surface in `incident/`. The service-catalog,
@@ -44,8 +44,10 @@ sources plus the incident-owned `factschema_decode_incident.go` wrappers);
 only the package clause, the `model` / `incidentsql` / `querycontract`
 qualifications, the destuttered file and constant names, and the
 constructor-to-ports change differ. The work-item decode substrate the
-review reads need is forked verbatim into `decode_workitem.go` with source
-citations (shared with the work-item lane, which still owns it).
+review reads need was forked verbatim into `decode_workitem.go` with source
+citations (shared with the work-item lane, which still owns it); #6623
+then deleted that fork and repointed this package at the shared
+`internal/query/decode/workitem` leaf with no logic change.
 
 No-Regression Evidence: baseline `459b83f4c` vs this branch —
 `go test ./internal/query/...` passes with 0 failures (counts in the lane

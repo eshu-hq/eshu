@@ -7,13 +7,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
-	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
+	workitemdecode "github.com/eshu-hq/eshu/go/internal/query/decode/workitem"
 )
 
 const (
@@ -232,9 +231,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 
 	switch fact.FactKind {
 	case "work_item.record":
-		record, err := decodeWorkItemRecord(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		record, err := workitemdecode.DecodeRecord(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = record.Provider
@@ -252,9 +251,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.RedactionPolicyVersion = decode.DerefString(record.RedactionPolicyVersion)
 
 	case "work_item.transition":
-		transition, err := decodeWorkItemTransition(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		transition, err := workitemdecode.DecodeTransition(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = transition.Provider
@@ -264,13 +263,13 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.Field = decode.DerefString(transition.Field)
 		base.From = decode.DerefString(transition.From)
 		base.To = decode.DerefString(transition.To)
-		base.ValueRedacted = derefBool(transition.ValueRedacted)
+		base.ValueRedacted = workitemdecode.DerefBool(transition.ValueRedacted)
 		base.RedactionPolicyVersion = decode.DerefString(transition.RedactionPolicyVersion)
 
 	case "work_item.external_link":
-		link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		link, err := workitemdecode.DecodeExternalLink(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = link.Provider
@@ -282,19 +281,19 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.ApplicationType = decode.DerefString(link.ApplicationType)
 		base.Relationship = decode.DerefString(link.Relationship)
 		base.URLFingerprint = decode.DerefString(link.URLFingerprint)
-		base.URLPresent = derefBool(link.URLPresent)
-		base.URLRedacted = derefBool(link.URLRedacted)
-		base.TitlePresent = derefBool(link.TitlePresent)
-		base.SummaryPresent = derefBool(link.SummaryPresent)
+		base.URLPresent = workitemdecode.DerefBool(link.URLPresent)
+		base.URLRedacted = workitemdecode.DerefBool(link.URLRedacted)
+		base.TitlePresent = workitemdecode.DerefBool(link.TitlePresent)
+		base.SummaryPresent = workitemdecode.DerefBool(link.SummaryPresent)
 		base.AnchorClass = decode.DerefString(link.AnchorClass)
 		base.ProviderSupportState = decode.DerefString(link.ProviderSupportState)
 		base.RedactionPolicyVersion = decode.DerefString(link.RedactionPolicyVersion)
 		base.LinkedRepositoryID = decode.DerefString(link.LinkedRepositoryID)
 
 	case "work_item.project_metadata":
-		metadata, err := decodeWorkItemProjectMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		metadata, err := workitemdecode.DecodeProjectMetadata(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
@@ -303,9 +302,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.issue_type_metadata":
-		metadata, err := decodeWorkItemIssueTypeMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		metadata, err := workitemdecode.DecodeIssueTypeMetadata(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
@@ -314,9 +313,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.status_metadata":
-		metadata, err := decodeWorkItemStatusMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		metadata, err := workitemdecode.DecodeStatusMetadata(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
@@ -326,9 +325,9 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.workflow_metadata":
-		metadata, err := decodeWorkItemWorkflowMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		metadata, err := workitemdecode.DecodeWorkflowMetadata(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
@@ -336,18 +335,18 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.field_metadata":
-		metadata, err := decodeWorkItemFieldMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		metadata, err := workitemdecode.DecodeFieldMetadata(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
 		base.RedactionPolicyVersion = decode.DerefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.metadata_warning":
-		warning, err := decodeWorkItemMetadataWarning(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
+		warning, err := workitemdecode.DecodeMetadataWarning(workitemdecode.DecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
-			logWorkItemEvidenceDecodeDrop(err)
+			workitemdecode.LogEvidenceDecodeDrop(err)
 			return EvidenceRow{}, false
 		}
 		base.Provider = warning.Provider
@@ -366,33 +365,6 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool)
 
 	base.EvidenceState = workItemEvidenceState(fact)
 	return base, true
-}
-
-// logWorkItemEvidenceDecodeDrop emits an operator-diagnosable debug log for a
-// work-item evidence fact dropped from a list response because its payload
-// failed typed decode. This is a read-path best-effort drop, not a durable
-// dead-letter queue entry (there is no queue on this path), so a debug-level
-// structured log is the visibility contract: an operator can search fact_id,
-// fact_kind, and classification to find exactly which malformed fact was
-// excluded and why. EVERY decode drop is a *decode.Error, so fact_id and
-// fact_kind are logged for all of them (a missing/null required field via
-// input_invalid AND an unsupported schema major alike); missing_field is added
-// only when the failure is attributable to one field.
-func logWorkItemEvidenceDecodeDrop(err error) {
-	var decodeErr *decode.Error
-	if !errors.As(err, &decodeErr) {
-		slog.Debug("work-item evidence fact dropped from list: decode error", slog.String("error", err.Error()))
-		return
-	}
-	attrs := []any{
-		slog.String("fact_id", decodeErr.FactID),
-		slog.String("fact_kind", decodeErr.FactKind),
-		slog.String("classification", decodeErr.Classification),
-	}
-	if decodeErr.Field != "" {
-		attrs = append(attrs, slog.String("missing_field", decodeErr.Field))
-	}
-	slog.Debug("work-item evidence fact dropped from list", attrs...)
 }
 
 func workItemURLFingerprint(raw string) string {

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
+	workitemdecode "github.com/eshu-hq/eshu/go/internal/query/decode/workitem"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
@@ -40,7 +41,7 @@ import (
 // into a decode wrapper. Bundling FactID, SourceRecordID, SchemaVersion, and
 // Payload into a single parameter keeps the one-argument shape the
 // payload-usage manifest gate's seam parser recognizes (see
-// workItemDecodeInput). SourceRecordID is used only by the three kinds whose
+// workitemdecode.DecodeInput). SourceRecordID is used only by the three kinds whose
 // collector-emitted identity field predates being made required
 // (incidentIdentityFallback); it is unused, but harmless, for kinds with no
 // fallback.
@@ -60,13 +61,13 @@ type incidentContextDecodeInput struct {
 // the payload key. A payload missing BOTH provider_incident_id and a usable
 // source_record_id still dead-letters as input_invalid.
 func decodeIncidentRecord(in incidentContextDecodeInput) (incidentv1.IncidentRecord, error) {
-	record, err := factschema.DecodeIncidentRecord(workItemSchemaEnvelope(factschema.FactKindIncidentRecord, in.SchemaVersion, in.Payload))
+	record, err := factschema.DecodeIncidentRecord(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentRecord, in.SchemaVersion, in.Payload))
 	if err == nil {
 		return record, nil
 	}
 	if fallback := incidentIdentityFallback(err, "provider_incident_id", in.SourceRecordID); fallback != "" {
 		payload := incidentPayloadWithFallbackIdentity(in.Payload, "provider_incident_id", fallback)
-		retried, retryErr := factschema.DecodeIncidentRecord(workItemSchemaEnvelope(factschema.FactKindIncidentRecord, in.SchemaVersion, payload))
+		retried, retryErr := factschema.DecodeIncidentRecord(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentRecord, in.SchemaVersion, payload))
 		if retryErr == nil {
 			return retried, nil
 		}
@@ -80,13 +81,13 @@ func decodeIncidentRecord(in incidentContextDecodeInput) (incidentv1.IncidentRec
 // source_record_id, mirroring decodeIncidentRecord's fallback for the same
 // reason (see incidentIdentityFallback).
 func decodeIncidentLifecycleEvent(in incidentContextDecodeInput) (incidentv1.LifecycleEvent, error) {
-	event, err := factschema.DecodeIncidentLifecycleEvent(workItemSchemaEnvelope(factschema.FactKindIncidentLifecycleEvent, in.SchemaVersion, in.Payload))
+	event, err := factschema.DecodeIncidentLifecycleEvent(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentLifecycleEvent, in.SchemaVersion, in.Payload))
 	if err == nil {
 		return event, nil
 	}
 	if fallback := incidentIdentityFallback(err, "provider_event_id", in.SourceRecordID); fallback != "" {
 		payload := incidentPayloadWithFallbackIdentity(in.Payload, "provider_event_id", fallback)
-		retried, retryErr := factschema.DecodeIncidentLifecycleEvent(workItemSchemaEnvelope(factschema.FactKindIncidentLifecycleEvent, in.SchemaVersion, payload))
+		retried, retryErr := factschema.DecodeIncidentLifecycleEvent(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentLifecycleEvent, in.SchemaVersion, payload))
 		if retryErr == nil {
 			return retried, nil
 		}
@@ -100,13 +101,13 @@ func decodeIncidentLifecycleEvent(in incidentContextDecodeInput) (incidentv1.Lif
 // source_record_id, mirroring decodeIncidentRecord's fallback for the same
 // reason (see incidentIdentityFallback).
 func decodeChangeRecord(in incidentContextDecodeInput) (incidentv1.ChangeRecord, error) {
-	record, err := factschema.DecodeChangeRecord(workItemSchemaEnvelope(factschema.FactKindChangeRecord, in.SchemaVersion, in.Payload))
+	record, err := factschema.DecodeChangeRecord(workitemdecode.SchemaEnvelope(factschema.FactKindChangeRecord, in.SchemaVersion, in.Payload))
 	if err == nil {
 		return record, nil
 	}
 	if fallback := incidentIdentityFallback(err, "provider_change_id", in.SourceRecordID); fallback != "" {
 		payload := incidentPayloadWithFallbackIdentity(in.Payload, "provider_change_id", fallback)
-		retried, retryErr := factschema.DecodeChangeRecord(workItemSchemaEnvelope(factschema.FactKindChangeRecord, in.SchemaVersion, payload))
+		retried, retryErr := factschema.DecodeChangeRecord(workitemdecode.SchemaEnvelope(factschema.FactKindChangeRecord, in.SchemaVersion, payload))
 		if retryErr == nil {
 			return retried, nil
 		}
@@ -120,7 +121,7 @@ func decodeChangeRecord(in incidentContextDecodeInput) (incidentv1.ChangeRecord,
 // A missing required field (see incidentv1.AppliedPagerDutyResource) yields a
 // self-classifying *decode.Error.
 func decodeIncidentRoutingAppliedPagerDutyResource(in incidentContextDecodeInput) (incidentv1.AppliedPagerDutyResource, error) {
-	resource, err := factschema.DecodeIncidentRoutingAppliedPagerDutyResource(workItemSchemaEnvelope(factschema.FactKindIncidentRoutingAppliedPagerDutyResource, in.SchemaVersion, in.Payload))
+	resource, err := factschema.DecodeIncidentRoutingAppliedPagerDutyResource(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentRoutingAppliedPagerDutyResource, in.SchemaVersion, in.Payload))
 	if err != nil {
 		return incidentv1.AppliedPagerDutyResource{}, decode.New(factschema.FactKindIncidentRoutingAppliedPagerDutyResource, in.FactID, err)
 	}
@@ -132,7 +133,7 @@ func decodeIncidentRoutingAppliedPagerDutyResource(in incidentContextDecodeInput
 // A missing required field (see incidentv1.ObservedPagerDutyService) yields a
 // self-classifying *decode.Error.
 func decodeIncidentRoutingObservedPagerDutyService(in incidentContextDecodeInput) (incidentv1.ObservedPagerDutyService, error) {
-	service, err := factschema.DecodeIncidentRoutingObservedPagerDutyService(workItemSchemaEnvelope(factschema.FactKindIncidentRoutingObservedPagerDutyService, in.SchemaVersion, in.Payload))
+	service, err := factschema.DecodeIncidentRoutingObservedPagerDutyService(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentRoutingObservedPagerDutyService, in.SchemaVersion, in.Payload))
 	if err != nil {
 		return incidentv1.ObservedPagerDutyService{}, decode.New(factschema.FactKindIncidentRoutingObservedPagerDutyService, in.FactID, err)
 	}
@@ -144,7 +145,7 @@ func decodeIncidentRoutingObservedPagerDutyService(in incidentContextDecodeInput
 // required field (see incidentv1.CoverageWarning) yields a self-classifying
 // *decode.Error.
 func decodeIncidentRoutingCoverageWarning(in incidentContextDecodeInput) (incidentv1.CoverageWarning, error) {
-	warning, err := factschema.DecodeIncidentRoutingCoverageWarning(workItemSchemaEnvelope(factschema.FactKindIncidentRoutingCoverageWarning, in.SchemaVersion, in.Payload))
+	warning, err := factschema.DecodeIncidentRoutingCoverageWarning(workitemdecode.SchemaEnvelope(factschema.FactKindIncidentRoutingCoverageWarning, in.SchemaVersion, in.Payload))
 	if err != nil {
 		return incidentv1.CoverageWarning{}, decode.New(factschema.FactKindIncidentRoutingCoverageWarning, in.FactID, err)
 	}
@@ -157,7 +158,7 @@ func decodeIncidentRoutingCoverageWarning(in incidentContextDecodeInput) (incide
 // so this never dead-letters on a missing field; an unsupported schema major
 // still returns a classified *decode.Error.
 func decodeServiceCatalogOperationalLink(in incidentContextDecodeInput) (servicecatalogv1.OperationalLink, error) {
-	link, err := factschema.DecodeServiceCatalogOperationalLink(workItemSchemaEnvelope(factschema.FactKindServiceCatalogOperationalLink, in.SchemaVersion, in.Payload))
+	link, err := factschema.DecodeServiceCatalogOperationalLink(workitemdecode.SchemaEnvelope(factschema.FactKindServiceCatalogOperationalLink, in.SchemaVersion, in.Payload))
 	if err != nil {
 		return servicecatalogv1.OperationalLink{}, decode.New(factschema.FactKindServiceCatalogOperationalLink, in.FactID, err)
 	}
@@ -201,8 +202,8 @@ func incidentPayloadWithFallbackIdentity(payload map[string]any, field, value st
 
 // logIncidentContextDecodeDrop emits an operator-diagnosable debug log for an
 // incident-context evidence fact dropped from a read because its payload
-// failed typed decode, mirroring logWorkItemEvidenceDecodeDrop for this read
-// model's decode sites.
+// failed typed decode, mirroring workitemdecode.LogEvidenceDecodeDrop for this
+// read model's decode sites.
 func logIncidentContextDecodeDrop(err error) {
 	var decodeErr *decode.Error
 	if !errors.As(err, &decodeErr) {

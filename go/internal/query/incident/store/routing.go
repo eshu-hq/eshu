@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/decode"
+	workitemdecode "github.com/eshu-hq/eshu/go/internal/query/decode/workitem"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -253,9 +254,9 @@ func buildIncidentObservedPagerDutyRouting(row incidentContextFactRow) (incident
 		DriftCandidateReason:      decode.DerefString(service.DriftCandidateReason),
 		RedactionState:            service.RedactionState,
 		SourceURL:                 decode.DerefString(service.SourceURL),
-		Disabled:                  workItemDerefBool(service.Disabled),
-		Deleted:                   workItemDerefBool(service.Deleted),
-		ManuallyCreated:           workItemDerefBool(service.ManuallyCreated),
+		Disabled:                  workitemdecode.DerefBool(service.Disabled),
+		Deleted:                   workitemdecode.DerefBool(service.Deleted),
+		ManuallyCreated:           workitemdecode.DerefBool(service.ManuallyCreated),
 		ObservedAt:                formatIncidentContextTime(row.ObservedAt),
 	}, true
 }
