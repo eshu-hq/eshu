@@ -162,6 +162,11 @@ per pass, files an issue before the default flip. No new metric was added now.
   live read, the fallback matrix (missing, version, stale, decode, row_count,
   not_installed, and a foreign version with an undecodable payload is `version`),
   per-model decisions, and no row read when the route skips the evidence.
+- `status/summary/reader_read_total_labels_test.go`: one read through the
+  production `StatusStore` with both models on leaves exactly one
+  `eshu_dp_status_summary_read_total` point per `model_key` (`active_work_summary`
+  served from the model, `terraform_state` a live fallback for a missing row),
+  checked by label so a read recorded under the wrong `model_key` fails.
 - Live (PostgreSQL 18, in the reducer-contention-gate step):
   `TestTerraformModelServedEqualToLiveLive` (empty, serials only, a few states,
   past the per-locator rank cap, git backend warnings plus malformed generations,

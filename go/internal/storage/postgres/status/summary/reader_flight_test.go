@@ -211,6 +211,6 @@ func TestReaderRecordsTheModelReadUnderItsOwnLabel(t *testing.T) {
 		t.Fatalf("read samples = %v, want one active_work_summary_model and no live active_work_summary", reads)
 	}
 	if counted != 2 {
-		t.Fatalf("eshu_dp_status_summary_read_total = %d, want 2: one read per model (active work served, terraform_state missing)", counted)
+		t.Fatalf("eshu_dp_status_summary_read_total = %d, want 2 reads in all (active work served, terraform_state missing); the per-model_key labels are proven by TestReaderCountsEachModelReadUnderItsOwnModelKey", counted)
 	}
 }
