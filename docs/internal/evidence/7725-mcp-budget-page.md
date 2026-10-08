@@ -150,9 +150,14 @@ Before figure, same 200-row input: the path the old dispatcher took for it
 (measure both copies, measure the resource-only copy, build the over-budget
 error) costs 3.8 to 4.1 ms, 13.0 to 14.8 MB and 3,662 allocations per call,
 measured with a scratch benchmark that calls `estimateResponseBytes` twice and
-`overBudgetResult` (those functions are unchanged by this change). The trim is
-not slower than the error path it replaces, and it returns rows instead of an
-error.
+`overBudgetResult` (those functions are unchanged by this change). The trim runs
+after the same two size measurements, so it replaces only the error build, not
+the measurements. End to end, an independent run of the whole `applyResponseBudget`
+on the same 200-row input (`-benchtime=2s -count=3`) gives 7.9 to 9.3 ms, 31.9 MB
+and 6,414 allocations at this change, against 4.1 to 4.3 ms, 13.1 MB and 3,671
+allocations before: about twice the time and 2.4 times the memory, on a path that
+used to return an error and now returns rows. This is accepted; a response that
+fits the budget does not reach the trim.
 
 No-Regression Evidence: a request that fits the budget is unchanged, with two
 opt-in exceptions, both only when the hybrid ranker is on: (1) the `find_code`
