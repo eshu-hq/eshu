@@ -5,6 +5,7 @@ package graph
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"testing"
 )
@@ -48,5 +49,39 @@ func TestHasUIDUniquenessConstraintMatchesSchemaDDL(t *testing.T) {
 		if HasUIDUniquenessConstraint(label) {
 			t.Errorf("HasUIDUniquenessConstraint(%q) = true, want false", label)
 		}
+	}
+}
+
+// TestUIDUniquenessConstrainedLabelsIsTheSchemaDDLSet pins the enumeration the
+// Neo4j entity-context anchor seeks on uid (#7212): exactly the labels each
+// backend's DDL gives a single-property uid uniqueness constraint, sorted,
+// once each, and a fresh copy on every call.
+func TestUIDUniquenessConstrainedLabelsIsTheSchemaDDLSet(t *testing.T) {
+	t.Parallel()
+
+	got := UIDUniquenessConstrainedLabels()
+	if !slices.IsSorted(got) || len(slices.Compact(slices.Clone(got))) != len(got) {
+		t.Fatalf("UIDUniquenessConstrainedLabels() = %v, want sorted and without duplicates", got)
+	}
+	uidRe := regexp.MustCompile(`FOR \((\w+):(\w+)\) REQUIRE (\w+)\.uid IS UNIQUE`)
+	for _, backend := range []SchemaBackend{SchemaBackendNeo4j, SchemaBackendNornicDB} {
+		stmts, err := SchemaStatementsForBackend(backend)
+		if err != nil {
+			t.Fatalf("SchemaStatementsForBackend(%q) error = %v", backend, err)
+		}
+		var want []string
+		for _, stmt := range stmts {
+			if m := uidRe.FindStringSubmatch(stmt); m != nil && m[1] == m[3] && !slices.Contains(want, m[2]) {
+				want = append(want, m[2])
+			}
+		}
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: UIDUniquenessConstrainedLabels() = %v (%d), want the DDL set %v (%d)", backend, got, len(got), want, len(want))
+		}
+	}
+	got[0] = "Mutated"
+	if UIDUniquenessConstrainedLabels()[0] == "Mutated" {
+		t.Error("UIDUniquenessConstrainedLabels() shares its backing array with callers")
 	}
 }

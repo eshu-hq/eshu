@@ -4,6 +4,7 @@
 package entity
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,15 +30,19 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // needs the documented Neo4j 5.23 floor) that plans as one
 // NodeUniqueIndexSeek per label:
 //
-//   - a uid branch over every EntityContextAnchorLabels entry with a schema uid
-//     uniqueness constraint (graph.HasUIDUniquenessConstraint), anchored
-//     `{uid: $entity_id}` with the id equality kept in a WHERE so it matches
-//     only what the old `e.id = $entity_id` read matched (a File carries a uid
-//     and no id and must not match), exactly as entityContextAnchors does;
-//   - an id branch over the remaining entries that have a schema id uniqueness
-//     constraint (graph.HasIDUniquenessConstraint: Repository, Workload,
-//     WorkloadInstance).
+//   - a uid branch over every label with a schema uid uniqueness constraint
+//     (graph.UIDUniquenessConstrainedLabels), anchored `{uid: $entity_id}`
+//     with the id equality kept in a WHERE so it matches only what the old
+//     `e.id = $entity_id` read matched (a File carries a uid and no id and must
+//     not match), exactly as entityContextAnchors does;
+//   - an id branch over every other label with a schema id uniqueness
+//     constraint (graph.IDUniquenessConstrainedLabels: Repository, Workload,
+//     WorkloadInstance, CloudAction, Endpoint, EvidenceArtifact, Platform).
 //
+// Issue #7212 widened both sets from EntityContextAnchorLabels to every
+// constrained label in the schema (117 uid and 7 id labels when it landed):
+// an id on a label outside the old 15, such as a TerraformVariable, used to
+// miss the anchor and pay the unlabeled whole-graph fallback on every request.
 // Both sets are derived from the schema tables, not hand-listed. A label with
 // neither constraint (Directory, keyed by path; the canonical writer never
 // sets Directory.id) has no index to seek, so it is left to the unlabeled
@@ -52,31 +57,61 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // The loop stopped at the first label, in EntityContextAnchorLabels order,
 // that had a row, and RunSingle takes the first row. A union has no such
 // order, so each candidate is ranked by the position of its first label in
-// that order and only the best-ranked one is kept (ORDER BY anchor_rank
-// LIMIT 1). An id shared by two labels therefore still resolves to the label
-// the loop tried first, deterministically. It also bounds the tail
-// (the OPTIONAL MATCHes and the aggregation) to one anchor node.
+// one deterministic, schema-derived order (neo4jAnchorRankOrder) and only the
+// best-ranked one is kept (ORDER BY anchor_rank LIMIT 1). An id shared by two
+// of the old labels therefore still resolves to the label the loop tried
+// first. It also bounds the tail (the OPTIONAL MATCHes and the aggregation)
+// to one anchor node.
 //
-// Measured cost (quiet 16-CPU amd64 host, load1 below 8 for every reported
-// round; docs/internal/evidence/7380-entity-context-single-anchor.md): a miss
-// or a late-label hit is about 6x to 10x faster with a warm JVM and a cleared
-// plan cache (1209 to 190 ms and 1136 to 118 ms median) and about 2.2x after a
-// restart (3169 to 1415 ms). A hit on the first label (Function) is slower
-// while the anchor's plan is not cached: +41 ms paired mean (SD 9, n=10) with
-// a warm JVM and a cleared plan cache, about +296 ms (SD 18, n=10) as the
-// first query after a restart. With the plan cached the two are equal (12.1
-// against 13.6 ms median). Neo4j keeps a plan until its statistics diverge
-// (dbms.cypher.statistics_divergence_threshold, checked at most every
-// dbms.cypher.min_replan_interval), so at most one request per caller shape
-// pays that per plan epoch, and only label position 1 loses: a hit on the
-// second label is already faster. With a warm JVM the extra cost vanishes once
-// plans are cached, which points at planning the larger union; the
-// planning-versus-first-execution split after a restart is not proven.
+// Measured cost of the 15-label form (quiet 16-CPU amd64 host;
+// docs/internal/evidence/7380-entity-context-single-anchor.md): a miss or a
+// late-label hit is about 6x to 10x faster than the loop with a warm JVM and a
+// cleared plan cache, and a first-label hit pays about +41 ms while the plan
+// is not cached. The widened form's cost (cold compile, warm paired delta,
+// ops-qa PROFILE) is in
+// docs/internal/evidence/7212-wide-entity-anchor.md. Neo4j keeps a plan until
+// its statistics diverge (dbms.cypher.statistics_divergence_threshold,
+// checked at most every dbms.cypher.min_replan_interval), so at most one
+// request per caller shape pays the compile per plan epoch.
 func neo4jEntityContextAnchor() string { return neo4jContextAnchor }
+
+// neo4jAnchorRankOrder returns every label the Neo4j anchor seeks, in its
+// precedence order: first the EntityContextAnchorLabels entries that carry a
+// uid or id uniqueness constraint, in the loop's own order (Function, Class,
+// Struct, Interface, TypeAlias, File, Repository, Module, Enum, Union, Macro,
+// TypeAnnotation, Workload, WorkloadInstance), then every other constrained
+// label alphabetically. Directory has neither constraint and is excluded by
+// construction. The order is fixed by the schema tables alone, so the anchor
+// text, and with it the Neo4j plan-cache key, is the same in every process.
+func neo4jAnchorRankOrder() []string {
+	constrained := map[string]bool{}
+	for _, label := range graph.UIDUniquenessConstrainedLabels() {
+		constrained[label] = true
+	}
+	for _, label := range graph.IDUniquenessConstrainedLabels() {
+		constrained[label] = true
+	}
+	order := make([]string, 0, len(constrained))
+	ranked := make(map[string]bool, len(constrained))
+	for _, label := range EntityContextAnchorLabels {
+		if constrained[label] && !ranked[label] {
+			order = append(order, label)
+			ranked[label] = true
+		}
+	}
+	var rest []string
+	for label := range constrained {
+		if !ranked[label] {
+			rest = append(rest, label)
+		}
+	}
+	slices.Sort(rest)
+	return append(order, rest...)
+}
 
 func buildNeo4jEntityContextAnchor() string {
 	var uidLabels, idLabels, rankOrder []string
-	for _, label := range EntityContextAnchorLabels {
+	for _, label := range neo4jAnchorRankOrder() {
 		switch {
 		case graph.HasUIDUniquenessConstraint(label):
 			uidLabels = append(uidLabels, label)
