@@ -51,7 +51,7 @@ func TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelat
 	}
 	seedMemoProofScopesAndFacts(t, ctx, db, fixtures, map[string]string{"repo-a": "beta-service"}, base)
 
-	domain := string(reducer.DomainSupplyChainImpact)
+	domain := string(reducer.DomainContainerImageIdentity)
 
 	// The churn shape: the scope's ACTIVE generation failed, so its status is
 	// 'failed' and active_generation_id is NULL. gen-failed-2 is both the latest

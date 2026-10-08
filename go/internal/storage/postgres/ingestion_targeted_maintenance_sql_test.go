@@ -35,14 +35,14 @@ func TestTargetedMaintenanceQueriesDeriveFromShippedQueries(t *testing.T) {
 			name:     "deployment_mapping reopen bounded by partition",
 			shipped:  listSucceededDeploymentMappingWorkItemsQuery,
 			derived:  listSucceededDeploymentMappingWorkItemsForPartitionsQuery,
-			marker:   relationshipReopenStageMarker,
+			marker:   correlationReopenStageMarker,
 			conjunct: relationshipReopenPartitionConjunct,
 		},
 		{
 			name:     "code_import_repo_edge reopen bounded by partition",
 			shipped:  listSucceededCodeImportRepoEdgeWorkItemsQuery,
 			derived:  listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery,
-			marker:   relationshipReopenStageMarker,
+			marker:   correlationReopenStageMarker,
 			conjunct: relationshipReopenPartitionConjunct,
 		},
 		{
@@ -112,8 +112,8 @@ func TestTargetedMaintenanceMarkersOpenAnAndOnlyWhereClause(t *testing.T) {
 
 	for name, tc := range map[string]struct{ shipped, marker string }{
 		"active repository generations": {activeRepositoryGenerationsQuery, activeRepositoryGenerationsRepoMarker},
-		"deployment_mapping reopen":     {listSucceededDeploymentMappingWorkItemsQuery, relationshipReopenStageMarker},
-		"code_import_repo_edge reopen":  {listSucceededCodeImportRepoEdgeWorkItemsQuery, relationshipReopenStageMarker},
+		"deployment_mapping reopen":     {listSucceededDeploymentMappingWorkItemsQuery, correlationReopenStageMarker},
+		"code_import_repo_edge reopen":  {listSucceededCodeImportRepoEdgeWorkItemsQuery, correlationReopenStageMarker},
 		"correlation reopen":            {listSucceededReducerWorkItemsByDomainQuery, correlationReopenStageMarker},
 	} {
 		start := strings.Index(tc.shipped, tc.marker)

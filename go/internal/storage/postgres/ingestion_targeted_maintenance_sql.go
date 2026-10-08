@@ -58,19 +58,17 @@ var activeRepositoryGenerationsForPartitionsQuery = "SELECT repo_id, scope_id, g
 	") AS active_repository_generation\n" +
 	"WHERE (scope_id, generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))\n"
 
-// relationshipReopenStageMarker is the stage line shared by the
-// deployment_mapping and code_import_repo_edge reopen listings.
-const relationshipReopenStageMarker = "WHERE stage = 'reducer'\n"
-
 // relationshipReopenPartitionConjunct restricts a relationship-domain listing
-// to the exact (scope_id, generation_id) partitions in ($1, $2).
-const relationshipReopenPartitionConjunct = "  AND (scope_id, generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))\n"
+// to the exact (scope_id, generation_id) partitions in ($1, $2). The columns
+// are qualified to the work alias: the floored listings join
+// scope_generations, which carries the same column names.
+const relationshipReopenPartitionConjunct = "  AND (work.scope_id, work.generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))\n"
 
 // listSucceededDeploymentMappingWorkItemsForPartitionsQuery is the shipped
 // deployment_mapping reopen listing AND an exact-partition predicate.
 var listSucceededDeploymentMappingWorkItemsForPartitionsQuery = deriveQueryAtMarker(
 	listSucceededDeploymentMappingWorkItemsQuery,
-	relationshipReopenStageMarker,
+	correlationReopenStageMarker,
 	relationshipReopenPartitionConjunct,
 )
 
@@ -78,14 +76,16 @@ var listSucceededDeploymentMappingWorkItemsForPartitionsQuery = deriveQueryAtMar
 // code_import_repo_edge reopen listing AND an exact-partition predicate.
 var listSucceededCodeImportRepoEdgeWorkItemsForPartitionsQuery = deriveQueryAtMarker(
 	listSucceededCodeImportRepoEdgeWorkItemsQuery,
-	relationshipReopenStageMarker,
+	correlationReopenStageMarker,
 	relationshipReopenPartitionConjunct,
 )
 
-// correlationReopenStageMarker is the stage line of
-// listSucceededReducerWorkItemsByDomainQuery. The inserted conjunct keeps the
-// shipped replay floor and failed-generation exclusion, then narrows to the
-// exact (scope_id, generation_id) partitions in ($2, $3).
+// correlationReopenStageMarker is the stage line shared by all three floored
+// reopen listings: listSucceededReducerWorkItemsByDomainQuery and the two
+// relationship listings, which compose the same scopeReplayFloor fragments
+// (#7637). The inserted conjunct keeps the shipped replay floor and
+// failed-generation exclusion, then narrows to the exact (scope_id,
+// generation_id) partitions in ($2, $3).
 const correlationReopenStageMarker = "WHERE work.stage = 'reducer'\n"
 
 // listSucceededReducerWorkItemsByDomainForPartitionsQuery is the shipped

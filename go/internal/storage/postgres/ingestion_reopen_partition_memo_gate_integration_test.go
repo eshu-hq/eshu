@@ -366,5 +366,17 @@ func provisionReopenPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 	if _, err := db.ExecContext(ctx, reopenPartitionMemoProofSchemaSQL); err != nil {
 		t.Fatalf("create proof tables: %v", err)
 	}
+	// The hand-rolled fact_work_items above predates the capability columns
+	// production reopen SQL writes (migration 088's reopened_at plus the
+	// container-image/provenance columns in
+	// reducerClaimCapabilityColumnsSchemaSQL). Layer them on so the REAL
+	// ReopenSucceeded statement runs instead of failing with SQLSTATE 42703.
+	if _, err := db.ExecContext(ctx, reducerClaimCapabilityColumnsSchemaSQL); err != nil {
+		t.Fatalf("add queue capability columns: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ NULL`); err != nil {
+		t.Fatalf("add reopened_at column: %v", err)
+	}
 	return schemaName
 }

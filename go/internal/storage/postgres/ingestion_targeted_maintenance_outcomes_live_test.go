@@ -97,8 +97,11 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 			// so both publish for the failed latest generation (the
 			// consumer's finalize reads the raw pointer and retires it).
 			published: partitionSet("git:tgt", "tgt-2"),
-			// The correlation listing excludes failed generations in both arms.
-			reopened: workIDs("tgt-2", "deployment_mapping", "code_import_repo_edge"),
+			// Every floored listing excludes failed generations in both arms:
+			// the correlation listing always did, and #7637 extends the same
+			// floor to deployment_mapping and code_import_repo_edge. tgt-2
+			// failed through the real projector Fail above, so nothing reopens.
+			reopened: nil,
 		})
 	})
 

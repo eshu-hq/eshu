@@ -91,6 +91,68 @@ func CrossScopeCorrelationReopenDomains() []string {
 	return domains
 }
 
+// The scopeReplayFloor fragments are the single definition of the reopen
+// bound: the per-scope replay floor CTE plus the joins, failed-generation
+// exclusion, floor tuple predicate, and ordering every floored reopen listing
+// shares. listSucceededReducerWorkItemsByDomainQuery composes them unchanged
+// (its text is byte-identical to the shipped literal), and the
+// deployment_mapping and code_import_repo_edge listings in
+// ingestion_queries.go (#7637) compose the same fragments with their own
+// select list and domain line. There is exactly one floor text: a future edit
+// cannot fix the bound for one listing and silently leave the others on a
+// hand copy that drifted.
+const scopeReplayFloorCTE = `
+WITH scope_replay_floor AS MATERIALIZED (
+  SELECT scope.scope_id,
+         COALESCE(active_generation.ingested_at, latest_generation.ingested_at) AS floor_ingested_at,
+         COALESCE(active_generation.generation_id, latest_generation.generation_id) AS floor_generation_id
+  FROM ingestion_scopes AS scope
+  LEFT JOIN scope_generations AS active_generation
+    ON active_generation.scope_id = scope.scope_id
+   AND active_generation.generation_id = scope.active_generation_id
+  LEFT JOIN LATERAL (
+      SELECT candidate.ingested_at, candidate.generation_id
+      FROM scope_generations AS candidate
+      WHERE candidate.scope_id = scope.scope_id
+      ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
+      LIMIT 1
+  ) AS latest_generation ON true
+)
+`
+
+// scopeReplayFloorSelectWorkItemIDs is the correlation listing's select list:
+// bare IDs, because the correlation reopen applies no partition-memo gate.
+const scopeReplayFloorSelectWorkItemIDs = `SELECT work.work_item_id
+`
+
+// scopeReplayFloorSelectWorkItemRefs is the relationship listings' select
+// list: IDs plus the (scope_id, generation_id) partition columns the reopen
+// partition-memo gate keys on (issue #4770).
+const scopeReplayFloorSelectWorkItemRefs = `SELECT work.work_item_id, work.scope_id, work.generation_id
+`
+
+// scopeReplayFloorJoinsAndStage joins the work item to its generation row and
+// the scope's floor row, then opens the WHERE clause on the reducer stage.
+const scopeReplayFloorJoinsAndStage = `FROM fact_work_items AS work
+JOIN scope_generations AS work_generation
+  ON work_generation.scope_id = work.scope_id
+ AND work_generation.generation_id = work.generation_id
+JOIN scope_replay_floor AS floor
+  ON floor.scope_id = work.scope_id
+WHERE work.stage = 'reducer'
+`
+
+// scopeReplayFloorBound is the shared tail of every floored reopen listing:
+// succeeded rows only, the failed-generation exclusion, the floor tuple
+// predicate, and the stable reopen order. Each listing inserts its own domain
+// line between scopeReplayFloorJoinsAndStage and this fragment.
+const scopeReplayFloorBound = `  AND work.status = 'succeeded'
+  AND work_generation.status <> 'failed'
+  AND (work_generation.ingested_at, work_generation.generation_id)
+      >= (floor.floor_ingested_at, floor.floor_generation_id)
+ORDER BY work.updated_at ASC, work.work_item_id ASC
+`
+
 // listSucceededReducerWorkItemsByDomainQuery selects the succeeded reducer work
 // items for one domain that are still worth replaying. It is the
 // domain-parameterized form of the deployment_mapping / code_import_repo_edge
@@ -251,38 +313,12 @@ func CrossScopeCorrelationReopenDomains() []string {
 // TestCorrelationReopenPerDrainCostProof for the measurement and for the part
 // no shim measures: the reducer re-executing every reopened item on every
 // drain, forever.
-const listSucceededReducerWorkItemsByDomainQuery = `
-WITH scope_replay_floor AS MATERIALIZED (
-  SELECT scope.scope_id,
-         COALESCE(active_generation.ingested_at, latest_generation.ingested_at) AS floor_ingested_at,
-         COALESCE(active_generation.generation_id, latest_generation.generation_id) AS floor_generation_id
-  FROM ingestion_scopes AS scope
-  LEFT JOIN scope_generations AS active_generation
-    ON active_generation.scope_id = scope.scope_id
-   AND active_generation.generation_id = scope.active_generation_id
-  LEFT JOIN LATERAL (
-      SELECT candidate.ingested_at, candidate.generation_id
-      FROM scope_generations AS candidate
-      WHERE candidate.scope_id = scope.scope_id
-      ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
-      LIMIT 1
-  ) AS latest_generation ON true
-)
-SELECT work.work_item_id
-FROM fact_work_items AS work
-JOIN scope_generations AS work_generation
-  ON work_generation.scope_id = work.scope_id
- AND work_generation.generation_id = work.generation_id
-JOIN scope_replay_floor AS floor
-  ON floor.scope_id = work.scope_id
-WHERE work.stage = 'reducer'
-  AND work.domain = $1
-  AND work.status = 'succeeded'
-  AND work_generation.status <> 'failed'
-  AND (work_generation.ingested_at, work_generation.generation_id)
-      >= (floor.floor_ingested_at, floor.floor_generation_id)
-ORDER BY work.updated_at ASC, work.work_item_id ASC
-`
+const listSucceededReducerWorkItemsByDomainQuery = scopeReplayFloorCTE +
+	scopeReplayFloorSelectWorkItemIDs +
+	scopeReplayFloorJoinsAndStage +
+	`  AND work.domain = $1
+` +
+	scopeReplayFloorBound
 
 // ReopenSucceededReducerWorkItems replays succeeded reducer work items for the
 // given domains so they re-run once the cross-scope facts, resolved

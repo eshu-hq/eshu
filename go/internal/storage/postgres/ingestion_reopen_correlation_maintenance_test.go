@@ -108,7 +108,7 @@ func TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems(t
 	// generation, so gen-old's succeeded rows are dead history.
 	seedSupersedingActiveGeneration(t, ctx, db, "git:scope-a", "gen-new", base.Add(time.Hour))
 
-	domain := string(reducer.DomainSupplyChainImpact)
+	domain := string(reducer.DomainContainerImageIdentity)
 	seedSucceededReopenWorkItem(t, ctx, db, "work-stale", "git:scope-a", "gen-old", domain, base)
 	seedSucceededReopenWorkItem(t, ctx, db, "work-active", "git:scope-a", "gen-new", domain, base)
 	// A scope that has never activated a generation must still reopen: this is
@@ -256,7 +256,7 @@ func TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGenerat
 	}
 	seedMemoProofScopesAndFacts(t, ctx, db, fixtures, map[string]string{"repo-a": "beta-service"}, base)
 
-	domain := string(reducer.DomainSupplyChainImpact)
+	domain := string(reducer.DomainContainerImageIdentity)
 
 	// A scope re-ingested three times that has never activated a generation.
 	seedScopeGeneration(t, ctx, db, "git:scope-unactivated", "gen-unactivated-1", base, false)
