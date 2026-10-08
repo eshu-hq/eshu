@@ -327,8 +327,8 @@ with `stage=repository_lookup` and `stage=content_coverage`, including
 for one repository: did eshu pick up its latest commit, and is the evidence
 for that commit fully built. `verdict=current` speaks to build completeness
 for the resolved generation, not necessarily a commit receipt. The response
-carries `verdict` (one of `current`, `building`, `behind`, `unobserved`, or
-`unknown`), `observed_commit` (the active generation's source commit SHA --
+carries `verdict` (one of `current`, `building`, `behind`, `unobserved`,
+`not_selected`, or `unknown`), `observed_commit` (the active generation's source commit SHA --
 legitimately empty for non-git scopes, pre-delta-baseline generations, and
 snapshot-trigger git generations (`trigger_kind=snapshot`, for example a
 cassette-replayed source with no commit to report, as opposed to a
@@ -342,11 +342,16 @@ materialization backlog referencing this repository's generation, kept as a
 separate axis so one repository's freshness never blames another
 repository's shared backlog). An optional `expected_commit` query parameter
 asks whether a specific commit SHA is reflected; a mismatch always renders
-`behind`, whether or not a generation is
-actively progressing. `unobserved_push` reports a queued or claimed webhook
-refresh trigger for this repository whose target commit does not match the
-observed commit. Scoped tokens receive the same shape; a repository outside
-the caller's grant 404s like every other repository route.
+`behind`, whether or not a generation is actively progressing.
+`unobserved_push` reports a queued or claimed webhook refresh trigger whose
+target commit does not match the observed commit. `not_selected` (#7625)
+outranks all but `unknown`: every live githubOrg selector observing the scope
+has settled evidence it no longer selects the repository (archived, rule
+excluded, or missing from two complete listings). `selection` (`state`,
+`reason`, `last_listed_at`, `unlisted_since`, `evaluated_at`) carries that
+evidence; it is `null`, and the verdict unchanged, when no selector evaluated
+the scope within three of its intervals. Scoped tokens get the same shape; a
+repository outside the grant 404s like every other repository route.
 
 Performance Evidence: the single-scope composite read (resolve scope,
 generation lookup, stage counts, shared-projection pending) is proven at

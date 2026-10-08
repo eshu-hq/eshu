@@ -105,7 +105,7 @@ func repositoryFreshnessTruth(profile querycontract.QueryProfile, verdict status
 // shape documented in issue #5143. Every field the underlying snapshot did
 // not resolve is rendered explicitly (empty string, null, or false) rather
 // than omitted, so the contract shape is stable across current, building,
-// behind, unobserved, and unknown verdicts.
+// behind, unobserved, not_selected, and unknown verdicts.
 func repositoryFreshnessToMap(
 	repo any,
 	snapshot status.RepositoryFreshnessSnapshot,
@@ -124,6 +124,7 @@ func repositoryFreshnessToMap(
 		"outstanding_by_stage": repositoryFreshnessOutstandingToSlice(snapshot.Outstanding),
 		"shared_enrichment":    repositoryFreshnessSharedEnrichmentToMap(snapshot.SharedEnrichment),
 		"unobserved_push":      repositoryFreshnessUnobservedPushToMap(snapshot.UnobservedPush),
+		"selection":            repositoryFreshnessSelectionToMap(snapshot.Selection),
 		"as_of":                asOf.Format(time.RFC3339),
 		"scoped":               scoped,
 	}
@@ -174,6 +175,26 @@ func repositoryFreshnessSharedEnrichmentToMap(enrichment status.RepositoryFreshn
 	return map[string]any{
 		"pending":         enrichment.Pending,
 		"pending_domains": domains,
+	}
+}
+
+// repositoryFreshnessSelectionToMap renders the #7625 collector selection
+// evidence. A nil selection (no live selector observes the scope) renders as
+// null; reason and unlisted_since render as null when they do not apply.
+func repositoryFreshnessSelectionToMap(sel *status.RepositoryFreshnessSelection) map[string]any {
+	if sel == nil {
+		return nil
+	}
+	var reason any
+	if sel.Reason != "" {
+		reason = string(sel.Reason)
+	}
+	return map[string]any{
+		"state":          string(sel.State),
+		"reason":         reason,
+		"last_listed_at": querycontract.NullableRFC3339(sel.LastListedAt),
+		"unlisted_since": querycontract.NullableRFC3339(sel.UnlistedSince),
+		"evaluated_at":   querycontract.NullableRFC3339(sel.EvaluatedAt),
 	}
 }
 
