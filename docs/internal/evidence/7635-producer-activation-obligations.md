@@ -116,6 +116,18 @@ Performance Evidence: the dependent OCI listing returns exactly 1 row from
 probes and no corpus scan; the production settle reopens exactly that row
 and a second settle reopens nothing (TestProducerDependentListingCostLive).
 
+A settle executes this OCI listing twice per owed generation — once for
+`container_image_identity` and once for
+`kubernetes_correlation_materialization`, with identical owed-key args
+and only the domain marker differing — plus one drift-arm listing with
+its own linkage conjuncts. Accepted deliberately (#7708 review): the
+settle is a background default-off path (~7.3k buffers per settle on this
+corpus for the doubled listing), the per-arm shape keeps each listing
+derived from its own shipped query with per-domain reopen counts, and
+folding the two OCI executions into one marker-parameterized query would
+trade that derivation for planner-shape risk with no user-visible
+latency at stake.
+
 ## F1: the probe lives in the settle, not in Ack
 
 An earlier shape probed in Ack (`GenerationCarriesProducerEvidence` inside

@@ -303,12 +303,15 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 			return nil, "", err
 		}
 		for _, id := range ids {
-			if _, err := queue.ReopenSucceeded(ctx, id); err != nil {
+			reopened, err := queue.ReopenSucceeded(ctx, id)
+			if err != nil {
 				return nil, "", fmt.Errorf("reopen %s producer dependents: %w", dependent.domain, err)
 			}
-		}
-		if len(ids) > 0 {
-			counts[string(dependent.domain)] = len(ids)
+			// Count transitions, not listings: an item a concurrent
+			// epoch pass already reopened must not count here.
+			if reopened {
+				counts[string(dependent.domain)]++
+			}
 		}
 	}
 	owned, err := settle.StillOwned(ctx)

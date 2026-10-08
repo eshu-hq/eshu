@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -511,6 +512,100 @@ func TestProducerEvidenceKindDerivation(t *testing.T) {
 	if got := producerEvidenceFactKindsFromFilter(identityFactFilterSQL); !reflect.DeepEqual(got, want) {
 		t.Fatalf("derived filter kinds = %v, want %v", got, want)
 	}
+}
+
+// TestProducerEvidenceKindDerivationCoversEveryMention fails closed on
+// future filter arms. Every fact_kind mention in the identity filter must
+// satisfy three guards: it is consumed by the derivation pattern (so a
+// LIKE or unparseable arm breaks the test), its operator is a positive IN
+// or equality (so != or <> cannot hide behind the = inside it), and every
+// derived kind is a plain literal (so a subquery or nested IN cannot yield
+// garbage that silently shrinks the prefilter and retires a producer
+// generation inapplicable, #7708 review).
+// producerDerivedKindLiteralPattern accepts only plain fact_kind
+// literals: letters, digits, dots, underscores. A derived kind outside
+// this shape is regex garbage from an arm the derivation cannot express
+// (subquery or nested IN), not a kind the prefilter may list.
+var producerDerivedKindLiteralPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
+
+func TestProducerEvidenceKindDerivationCoversEveryMention(t *testing.T) {
+	t.Parallel()
+	if err := checkFilterDerivationCoversEveryMention(identityFactFilterSQL); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestCheckFilterDerivationCoversEveryMention pins the fail-closed guards:
+// each hostile arm shape a future identity-filter edit could introduce
+// must trip the checker, never silently shrink the prefilter.
+func TestCheckFilterDerivationCoversEveryMention(t *testing.T) {
+	t.Parallel()
+	hostile := map[string]string{
+		"like arm":          `(fact.fact_kind LIKE 'oci_registry.%')`,
+		"negated equality":  `(fact.fact_kind != 'file')`,
+		"not-prefixed arm":  `(NOT fact.fact_kind = 'file')`,
+		"subquery IN":       `(fact.fact_kind IN (SELECT kind FROM producer_kinds))`,
+		"nested IN":         `(fact.fact_kind IN ('file', ('content_entity')))`,
+		"double-quoted arm": `(fact.fact_kind = "file")`,
+	}
+	for name, filter := range hostile {
+		if err := checkFilterDerivationCoversEveryMention(filter); err == nil {
+			t.Errorf("%s: checker accepted an arm the derivation cannot express", name)
+		}
+	}
+}
+
+// checkFilterDerivationCoversEveryMention reports whether every fact_kind
+// mention in filter is safely consumed by the derivation: covered by the
+// pattern, positively operated, unnegated, and yielding plain literals.
+func checkFilterDerivationCoversEveryMention(filter string) error {
+	matches := producerEvidenceFactKindPattern.FindAllStringIndex(filter, -1)
+	if len(matches) == 0 {
+		return errors.New("derivation pattern matched nothing in the identity filter")
+	}
+	covered := func(at int) bool {
+		for _, span := range matches {
+			if at >= span[0] && at < span[1] {
+				return true
+			}
+		}
+		return false
+	}
+	rest, base := filter, 0
+	for {
+		at := strings.Index(rest, "fact_kind")
+		if at < 0 {
+			break
+		}
+		pos := base + at
+		context := rest[at:]
+		if len(context) > 60 {
+			context = context[:60]
+		}
+		if !covered(pos) {
+			return fmt.Errorf("fact_kind mention at offset %d is outside the derivation pattern: %q", pos, context)
+		}
+		after := rest[at+len("fact_kind"):]
+		trimmed := strings.TrimLeft(after, " \t\n")
+		positive := strings.HasPrefix(trimmed, "=") ||
+			(strings.HasPrefix(trimmed, "IN") && len(trimmed) > 2 &&
+				(trimmed[2] == '(' || trimmed[2] == ' ' || trimmed[2] == '\t' || trimmed[2] == '\n'))
+		if !positive {
+			return fmt.Errorf("fact_kind mention at offset %d uses an operator the derivation cannot express positively: %q", pos, context)
+		}
+		before := strings.TrimRight(strings.TrimSuffix(filter[:pos], "fact."), " \t\n")
+		if strings.HasSuffix(before, "NOT") || strings.HasSuffix(before, "!") ||
+			strings.HasSuffix(before, "<") || strings.HasSuffix(before, ">") {
+			return fmt.Errorf("fact_kind mention at offset %d is negated, which the derivation cannot express: %q", pos, context)
+		}
+		rest, base = after, pos+len("fact_kind")
+	}
+	for _, kind := range producerEvidenceFactKindsFromFilter(filter) {
+		if !producerDerivedKindLiteralPattern.MatchString(kind) {
+			return fmt.Errorf("derived kind %q is not a plain literal; the filter arm needs a derivation the regex cannot express", kind)
+		}
+	}
+	return nil
 }
 
 // seedProducerEvidenceProbeCorpus builds the settle-probe cost generations: a
