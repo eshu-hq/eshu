@@ -31,3 +31,32 @@ same-repository workspace package keeps its fallback (#7610).
 Imports `code/call/shared` only. Never `code/call` or a sibling language
 leaf (including `code/call/typescript`, despite the shared root-caller
 logic — TypeScript's own resolver lives separately).
+
+## Performance evidence (#7610)
+
+No-Regression Evidence: the `BlocksRepoFallback` barrier adds one map-field read per JavaScript-family
+call that reaches the repo-fallback gate (unkeyed calls fail open with no
+further work), one bounded string parse plus one inlined map lookup per keyed
+call, and one guarded set insert per stamped file at index-build time. The
+resolved-call path (symbol, same-file, import binding) runs before the barrier
+and is untouched. Backend: in-memory Go resolution only, no graph, queue, or
+storage path; measured with go1.26.2 linux/amd64 on AMD EPYC 9R14.
+
+Input shape: `BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls`
+(large JavaScript dynamic-call extraction), `-benchtime 100x -count 5`:
+
+- Baseline (base `28c20c20a2`): 10.90 / 10.74 / 9.86 / 9.82 / 10.77 ms/op.
+- After (this change): 9.44 / 9.90 / 10.05 / 9.77 / 9.74 ms/op.
+
+The ranges overlap fully (after-tree mean below the baseline mean), so the
+barrier adds no measurable cost. `go build -gcflags=-m` confirms
+`inlining call to shared.EntityIndex.RepoPublishesNodePackage` at the
+barrier call site. Row counts: the barrier only removes false-positive
+`repo_unique_name` edges (promoted golden
+`package_import_unresolved_falls_back_to_local_name`); true edges are
+unchanged (workspace carve-out goldens and end-to-end parser tests green).
+
+No-Observability-Change: the barrier emits no metric, span, or log; newly
+unresolved calls surface through the existing unresolved-callee
+completion-log count and `SubSignalUnresolvedCalleeCalls`, and kept edges
+carry `resolution_method=repo_unique_name` provenance.
