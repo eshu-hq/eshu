@@ -186,7 +186,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	seedGenerationRetentionMigratedFixture(t, ctx, database)
 
 	want := map[string]int64{
-		"fact_records":                        2,
+		"fact_records":                        3,
 		"fact_work_items":                     2,
 		"fact_replay_events":                  1,
 		"semantic_extraction_jobs":            0,
@@ -196,7 +196,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"iac_reachability_rows":               2,
 		"shared_projection_intents":           1,
 		"content_file_references":             2,
-		"content_entities":                    1,
+		"content_entities":                    2,
 		"infra_resource_entities":             1,
 		"content_files":                       1,
 		// #7396: the cascade children of scope_generations the count
@@ -309,6 +309,15 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		if doomed != 0 {
 			t.Errorf("pruned %s entity-1 rows after prune = %d, want 0", table, doomed)
 		}
+		if table == "content_entities" {
+			var doomedMirrorless int
+			if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table+" WHERE entity_id = 'entity-2'").Scan(&doomedMirrorless); err != nil {
+				t.Fatalf("count pruned %s: %v", table, err)
+			}
+			if doomedMirrorless != 0 {
+				t.Errorf("pruned %s entity-2 rows after prune = %d, want 0", table, doomedMirrorless)
+			}
+		}
 	}
 }
 
@@ -369,6 +378,18 @@ VALUES ('entity-1', 'repo-1', 'main.tf', 'TerraformResource', 'r', now())`,
 VALUES ('entity-3', 'repo-1', 'main.tf', 'TerraformResource', 'r3', 1, 2, 'x', now())`,
 		`INSERT INTO infra_resource_entities (entity_id, repo_id, relative_path, label, entity_name, updated_at)
 VALUES ('entity-3', 'repo-1', 'main.tf', 'TerraformResource', 'r3', now())`,
+		// Review P2 (#7756): a mirror-less prunable entity, restoring the
+		// retired test's discrimination. gen-old holds entity-2 as a content
+		// fact plus a content_entities row with no infra row, so
+		// content_entities = 2 while infra_resource_entities stays 1: an
+		// infra arm that regressed to counting content rows fails here.
+		`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, payload) VALUES
+('fact-entity-2', 'scope-1', 'gen-old', 'content_entity', 'k-entity-2', 'git', 'k-entity-2', now(), now(),
+    '{"repo_id":"repo-1","entity_id":"entity-2"}'::jsonb)`,
+		`INSERT INTO content_entities (entity_id, repo_id, relative_path, entity_type, entity_name,
+    start_line, end_line, source_cache, indexed_at)
+VALUES ('entity-2', 'repo-1', 'main.tf', 'TerraformResource', 'r2', 1, 2, 'x', now())`,
 		// #7396: one row in each cascade child of scope_generations the
 		// row-count query must cover. The cutover guard needs a live
 		// container_image_identity work item, which the final flip retires
