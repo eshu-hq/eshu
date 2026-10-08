@@ -166,6 +166,12 @@ PACKAGES = {
         ),
     },
     MEMBERSHIP_PACKAGE: {
+        "go/internal/storage/postgres/membership/known_scopes_live_test.go": (
+            "TestKnownScopesHostFilterLive",
+        ),
+        "go/internal/storage/postgres/membership/live_read_live_test.go": (
+            "TestLiveFilterParityLive",
+        ),
         "go/internal/storage/postgres/membership/observations_live_test.go": (
             "TestObservationStoreLive",
         ),
