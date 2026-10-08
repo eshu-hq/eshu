@@ -224,3 +224,28 @@ cd go && ESHU_POSTGRES_TEST_DSN=postgres://... go test ./internal/storage/postgr
 
 The live tests clone a bootstrapped template database per test. They need
 PostgreSQL 18.
+
+### Scale harness (G7/G8) load rule
+
+`scale_live_test.go` enforces rule PD of
+`docs/internal/timing-proof-rules.md`, mirroring the PD1-PD5 shape of
+`docs/internal/evidence/7127-ledger-retention-timing.sh`: the round waits for
+load1 below half the CPU count, samples load1 every second through the round,
+and runs a base-binary canary each round. The round counts only when every
+sample is below the threshold and the canary ran within its bound
+(`scale_load_rule_test.go`; unit tests in
+`scale_load_rule_unit_test.go` use injected samples).
+
+The canary is the `bare_b` aggregate through a test binary built at the base
+ref: `buildScaleBaseBinary` adds a detached worktree at the ref, copies the
+current scale-harness test files into it (so the `TestLinkScaleCanary` entry
+exists whatever the base predates), and runs `go test -c` on this package.
+The worktree is removed by `t.Cleanup`. A failed build fails the test: a
+scale run without its control proves nothing.
+
+| Knob | Default | Meaning |
+| --- | --- | --- |
+| `ESHU_CHANGED_SINCE_LINK_SCALE_LOAD_THRESHOLD` | `NumCPU()/2` | PD headroom bound |
+| `ESHU_CHANGED_SINCE_LINK_SCALE_CONTROL_MAX_SECONDS` | `12` | Canary bound, derived from the committed G7 `bare_b` spread (max 8.50s) |
+| `ESHU_CHANGED_SINCE_LINK_SCALE_BASE_REF` | merge base with `origin/main`, else `HEAD` | Ref the canary binary is built from |
+| `ESHU_CHANGED_SINCE_LINK_SCALE_GATE_FILE` | unset (no record) | PD1 gate file for the `uptime`/`docker ps` record |
