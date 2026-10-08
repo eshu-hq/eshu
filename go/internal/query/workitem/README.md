@@ -11,9 +11,8 @@ version, or service identity.
 ## Ownership boundary
 
 Owns the `Handler` struct, its HTTP dispatch, the `EvidenceStore` Postgres
-implementation, the typed `work_item.*` fact decode wrappers, and the
-evidence-state classification, pagination, and span-attribute shaping this
-route reports. Does not own the scoped-token grant type or context helpers
+implementation, and the evidence-state classification, pagination, and
+span-attribute shaping this route reports. Does not own the scoped-token grant type or context helpers
 (`auth`), the content-model types, capability registry, or HTTP/error
 envelope helpers (`querycontract`), the classified decode-error type
 (`decode`), or the shared work-item decode substrate

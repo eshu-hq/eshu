@@ -40,5 +40,6 @@ loudly via `UnmappedSeamFactKinds`).
 From `go/`: `go test ./internal/query/... ./internal/payloadusage/...
 -count=1`, then `bash scripts/verify-payload-usage-manifest.sh` and `bash
 scripts/verify-factschema-diff.sh` from the repo root. After any logic
-touch, re-run the wiring mutation (break `DerefBool`, confirm both
-consumers' suites fail RED, revert to green).
+touch, re-run the wiring mutation (force `DecodeRecord` to return an
+error, confirm the leaf and both consumers' suites fail RED, revert to
+green).

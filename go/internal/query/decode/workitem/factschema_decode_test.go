@@ -12,9 +12,8 @@ import (
 )
 
 // TestDecodeWrappersDecodeValidRows pins the shared decode contract: every
-// wrapper decodes a minimal valid payload into the typed struct. Moved here
-// with the wrappers for #6623; it fails if any wrapper's success mapping
-// mutates.
+// wrapper decodes a minimal valid payload into the typed struct. Added with
+// the leaf for #6623; it fails if any wrapper's success mapping mutates.
 func TestDecodeWrappersDecodeValidRows(t *testing.T) {
 	t.Parallel()
 
