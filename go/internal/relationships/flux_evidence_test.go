@@ -4,6 +4,7 @@
 package relationships
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -63,8 +64,12 @@ func TestDiscoverStructuredFluxEvidenceUniqueURLMatchLinksAcrossRepos(t *testing
 	if got := fact.Details["flux_git_repository_namespace"]; got != "flux-system" {
 		t.Fatalf("details[flux_git_repository_namespace] = %#v, want flux-system", got)
 	}
-	if got := fact.SourceEntityID; got != "FluxGitRepository\x00flux-system\x00app-source" {
-		t.Fatalf("SourceEntityID = %q, want qualified identity", got)
+	wantEntityID := "FluxGitRepository:v1:" +
+		hex.EncodeToString([]byte("repo-config")) + ":" +
+		hex.EncodeToString([]byte("flux-system")) + ":" +
+		hex.EncodeToString([]byte("app-source"))
+	if got := fact.SourceEntityID; got != wantEntityID {
+		t.Fatalf("SourceEntityID = %q, want %q", got, wantEntityID)
 	}
 	if got := fact.Details["url"]; got != "https://github.com/myorg/payments-deploy.git" {
 		t.Fatalf("details[url] = %#v, want raw url preserved", got)
