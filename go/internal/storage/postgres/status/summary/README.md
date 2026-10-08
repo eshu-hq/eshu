@@ -162,8 +162,10 @@ payload through the production `activeWorkSummary.add`. Live PostgreSQL 18 tests
 guard going back never, two writers that genuinely overlap (one waits on the
 other's uncommitted row, proved from `pg_stat_activity`), single-row crash
 safety, the empty and missing-table reads, migration idempotency, the applied
-reloptions, and 4,000-upsert bloat (compressible and TOASTed payloads). They run
-as a blocking step of the reducer contention gate, fail-closed through
+reloptions, and 4,000-upsert bloat (compressible and TOASTed payloads; the
+bloat proofs turn autovacuum off for their table and its TOAST relation and
+vacuum by hand, so a background vacuum cannot change the size they compare).
+They run as a blocking step of the reducer contention gate, fail-closed through
 `ESHU_REQUIRE_STATUS_SUMMARY_PROOF`, and in the `live-postgres-readiness` lane
 the live-test ledger requires. `gate_enrollment_test.go` keeps the workflow
 step with the tests. The environment names are in the test headers.

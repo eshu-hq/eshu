@@ -104,19 +104,39 @@ ruling puts at about 35 KB. This proof's entries are larger than ops-qa's
 (about 490 bytes each with full 64-character hashes and generation ids), so
 two sizes were measured, each with 4,000 upserts and a `VACUUM` after each
 2,000. Both keep one heap page and 100% HOT updates. The dead-tuple count is a
-`pg_stat` sample that depends on when autovacuum runs: it was 0 and 0 in the
-first measurement and 5 and 5 (35 KB) or 0 and 0 (69 KB) when rerun after the
-rebase onto main, and no test pins the exact value (`runBloatProof` bounds dead tuples at 100 after the vacuum and the round-two TOAST size at 1.25 times round one). The TOAST relation size in the second
-round also depends on when vacuum runs: 4,001 to 4,447 pages in one run and
-4,001 to 1,266 in a later run at 69 KB. Either way it is bounded by the write
-volume between vacuums, not by the number of updates. The keyed read touches
-only `status_summary_snapshots`, and its buffer counts were the same in every
-run.
+`pg_stat` sample taken after the vacuum, and no test pins the exact value: it
+was between 0 and 14 across the runs on record, and `runBloatProof` bounds it at
+100 and the round-two TOAST size at 1.25 times round one.
+
+The first version of that proof left autovacuum on, and the merge-group run of
+the reducer contention gate failed on the TOAST bound: round one measured 1,967
+pages and round two 4,221. Autovacuum had vacuumed the TOAST relation during
+round one, so the round-one baseline came out at less than half of what one
+round of unvacuumed writes leaves (4,001 pages), and round two landed at the
+normal size. Earlier local reruns had shown the same spread (4,001 to 4,447
+pages in one run, 4,001 to 1,266 in another). The cause was shown by test, not
+read off the log: on a private PostgreSQL 18.6 server with `autovacuum_naptime`
+set to 3 s, 5 of 12 runs of `TestStatusSummaryBloatTerraformLive` failed with
+this bound, with round one at 37 to 1,303 pages and round two at 4,006 to
+4,147. With the default settings (naptime 60 s) all 5 runs gave 4,001 and
+4,447. The proof now sets `autovacuum_enabled = false` and
+`toast.autovacuum_enabled = false` on `status_summary_snapshots` right after the
+migration, so the manual `VACUUM` is the only reclaim. With that change, 12 runs
+at naptime 3 s and 5 runs with continuous aggressive autovacuum
+(`autovacuum_naptime` 1 s, zero scale factor, threshold 50, zero cost delay) all
+gave 4,001 and 4,447 pages at 69 KB. Removing the manual `VACUUM` between
+rounds makes the bound fail (4,001 to 8,002 pages), so the proof still detects
+a lack of space reuse. In production the TOAST relation stays under autovacuum;
+the table's own reloptions do not reach it, and autovacuum's defaults vacuum it
+on far less volume per cycle than the proof writes. The size is bounded by the
+write volume between vacuums, not by the number of updates. The keyed read
+touches only `status_summary_snapshots`, and its buffer counts were the same in
+every run.
 
 | payload | test | TOAST pages (round 1 / 2) | read buffers (plan / TOAST) | pinned at |
 | --- | --- | --- | --- | --- |
 | 34,583 bytes, 72 entries (the ops-qa size) | `TestStatusSummaryBloatTerraformOpsQaScaleLive` | 2,225 / 2,446 | 1 / 12 | 8 / 20 |
-| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (one run), 4,001 / 1,266 (a later run) | 1 / 13 | 8 / 30 |
+| 68,883 bytes, 141 entries | `TestStatusSummaryBloatTerraformLive` | 4,001 / 4,447 (identical in all 18 runs with autovacuum disabled on the table) | 1 / 13 | 8 / 30 |
 
 The `rows = CASE ...` option the ruling allowed was not needed.
 

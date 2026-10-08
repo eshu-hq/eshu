@@ -80,14 +80,26 @@ func runBloatProof(t *testing.T, makeRow func(i int) summary.Row, bounds bloatBo
 	applySummaryMigration(ctx, t, database)
 	store := summary.NewStore(poolStore{database})
 
+	// Autovacuum is off for the proof's table and its TOAST relation so the
+	// manual VACUUM below is the only reclaim and the sizes are deterministic.
+	// The Terraform proof takes seconds per round on a loaded CI host (69 KB
+	// payloads), long enough for autovacuum to vacuum the TOAST relation in the
+	// middle of round one. That shrinks the round-one baseline and breaks the
+	// relative bound on round two (a merge-group run measured 1,967 then 4,221
+	// pages). The table's reloptions do not reach the TOAST relation, hence the
+	// toast. prefix.
+	if _, err := database.ExecContext(ctx,
+		`ALTER TABLE status_summary_snapshots SET (autovacuum_enabled = false, toast.autovacuum_enabled = false)`); err != nil {
+		t.Fatalf("disable autovacuum for the proof table: %v", err)
+	}
+
 	// Two rounds of 2,000 upserts, each followed by VACUUM. The first round
 	// shows the size after the writer's churn; the second shows that the size
 	// is bounded by the write volume between vacuums, not by the number of
 	// updates: VACUUM makes the dead versions' space reusable. The proof runs
-	// VACUUM by hand because 4,000 upserts finish in about a second, long before
-	// autovacuum's naptime; in production the TOAST relation (which does not
-	// inherit the table's autovacuum reloptions) is vacuumed by autovacuum's
-	// defaults on far less volume per cycle.
+	// VACUUM by hand and turns autovacuum off for this table (above) so no
+	// background vacuum lands between rounds; in production the TOAST relation
+	// is vacuumed by autovacuum's defaults on far less volume per cycle.
 	const (
 		upserts = 2000
 		rounds  = 2
