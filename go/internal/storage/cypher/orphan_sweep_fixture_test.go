@@ -178,10 +178,12 @@ func (g *fakeOrphanGraph) Run(_ context.Context, cypher string, params map[strin
 	defer g.mu.Unlock()
 	nodes := g.nodes[label]
 
-	if strings.Contains(cypher, "UNWIND $keys AS candidate_key") && strings.Contains(cypher, "-[r]-(m)") {
+	if strings.Contains(cypher, "UNWIND $keys AS candidate_key") && (strings.Contains(cypher, "-[r]-(m)") || strings.Contains(cypher, "<-[r:HAS_DEPLOYMENT_EVIDENCE]-")) {
 		// S2: connected-keys read. Anchored on the key the statement reads a
 		// node back as, so two nodes the statement cannot tell apart answer
-		// for each other here exactly as they would in the graph.
+		// for each other here exactly as they would in the graph. The
+		// EvidenceArtifact S2' (#7322) uses the typed directed source-edge
+		// pattern; a seed's connected flag means "has a source edge" there.
 		g.s2Calls[label]++
 		wanted := make(map[string]bool)
 		for _, k := range fakeOrphanParamKeys(params) {

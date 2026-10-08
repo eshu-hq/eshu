@@ -98,8 +98,10 @@ type OrphanSweepResult struct {
 // status as a Go-side anti-join between two concrete-relationship-variable
 // reads: candidates (S1, a label+evidence_source scan) and connected keys
 // (S2, `MATCH (n:Label {key: k})-[r]-(m)`, the only relationship primitive
-// proven reliable on both pinned backends). See orphan_sweep_queries.go for
-// the read builders and orphan_sweep_writes.go for the key-anchored writes.
+// proven reliable on both pinned backends). For EvidenceArtifact the S2
+// read checks the typed incoming source edge instead (#7322). See
+// orphan_sweep_queries.go for the read builders and
+// orphan_sweep_writes.go for the key-anchored writes.
 type OrphanSweepStore struct {
 	Executor   Executor
 	Reader     OrphanSweepReader
@@ -279,7 +281,8 @@ func (s *OrphanSweepStore) runOrphanSweepCycle(
 	// deleted, immediately before the delete. A node can regain a
 	// relationship between the top-of-cycle S2 read and this delete; this
 	// cheap, BatchLimit-bounded re-read (only on a sweeping cycle) drops any
-	// key that reconnected in that window instead of deleting it.
+	// key that reconnected in that window instead of deleting it. For
+	// EvidenceArtifact only a regained source edge reconnects (#7322).
 	reverifyConnected, err := s.readConnectedKeys(ctx, label, toSweep)
 	if err != nil {
 		return out, err

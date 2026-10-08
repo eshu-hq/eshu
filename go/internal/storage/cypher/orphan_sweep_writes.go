@@ -12,7 +12,11 @@ import (
 // mark, S5 sweep). Each takes the exact key list orphan_sweep.go computed
 // from the S1/S2 anti-join and applies via UNWIND $keys AS candidate_key
 // MATCH (n:Label {key: candidate_key}) -- never a relationship-existence
-// predicate, dynamic label, or DETACH DELETE.
+// predicate or dynamic label. S5 uses plain DELETE except for
+// EvidenceArtifact (#7322), whose orphans may still carry target or
+// environment edges: there S5 detaches, with the same guard and
+// marker+age rechecks, because plain DELETE would fail on every
+// still-attached orphan instead of sweeping it.
 //
 // A label whose identity is more than one property (Module: name plus lang)
 // binds its anchor property inline in the MATCH pattern, so the write still
@@ -93,19 +97,31 @@ func BuildMarkOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey
 }
 
 // BuildSweepOrphanNodesStatement builds the S5 write: deletes every supplied
-// key without DETACH DELETE. Callers pass keys already known to be orphaned,
-// marked, aged past the TTL cutoff, and re-verified disconnected by the TOCTOU
-// guard immediately before this statement is issued. The write re-applies the
-// ownership/class guard, the full identity binding, and the marker+age
-// predicate so a key that changed ownership (e.g. re-created by canonical
-// projection) or lost its marker between the read and this delete is skipped,
-// not deleted.
+// key. Callers pass keys already known to be orphaned, marked, aged past the
+// TTL cutoff, and re-verified disconnected by the TOCTOU guard immediately
+// before this statement is issued. The write re-applies the ownership/class
+// guard, the full identity binding, and the marker+age predicate so a key
+// that changed ownership (e.g. re-created by canonical projection) or lost
+// its marker between the read and this delete is skipped, not deleted.
+//
+// EvidenceArtifact (#7322) detaches: its orphans are defined by the missing
+// source edge, not by full disconnection, so they may still carry target or
+// environment edges that plain DELETE would fail on. Only the artifact node
+// and its own edges are removed; target and environment nodes are untouched.
+// A source edge re-created between the TOCTOU re-verify and this delete is
+// removed with the artifact, and the idempotent writer MERGEs it back on the
+// next cycle -- the same self-healing window the plain-DELETE labels close
+// by failing instead.
 func BuildSweepOrphanNodesStatement(label OrphanSweepLabel, keys []orphanSweepKey, cutoffUnix int64) (Statement, bool) {
+	mutation := "DELETE n"
+	if label == OrphanSweepLabelEvidenceArtifact {
+		mutation = "DETACH DELETE n"
+	}
 	return buildKeyAnchoredOrphanStatement(label, keys,
 		[]string{
 			"n.eshu_orphan_observed_at_unix IS NOT NULL",
 			"n.eshu_orphan_observed_at_unix <= $cutoff_unix",
 		},
-		"DELETE n",
+		mutation,
 		map[string]any{"cutoff_unix": cutoffUnix})
 }

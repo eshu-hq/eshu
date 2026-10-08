@@ -178,11 +178,11 @@ EOF
 # (guards the runs-loop field split: the tests field holds |-joined
 # names, so a left-anchored split silently dropped multi-Test files)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "56" ]] || fail "planned runs ${#plan[@]}, want 56 (28 nornicdb + 28 neo4j)"
+[[ "${#plan[@]}" == "58" ]] || fail "planned runs ${#plan[@]}, want 58 (29 nornicdb + 29 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
-[[ "${#plan_nornicdb[@]}" == "28" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 28"
+[[ "${#plan_nornicdb[@]}" == "29" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 29"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "28" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 28"
+[[ "${#plan_neo4j[@]}" == "29" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 29"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {
