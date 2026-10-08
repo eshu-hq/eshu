@@ -97,7 +97,7 @@ counter. The benchmark itself asserts the HTTP status and reports `stmts/op`.
 
 ## Performance Evidence
 
-Performance Evidence: per request, the change adds 2 allocs/op and 128 B/op with no instruments or recording span, and 8 allocs/op and about 489 B/op in the production shape, against 48 to 171 allocs/op before; statements sent per request are unchanged in every case, and ns/op deltas are inside the noise of an oversubscribed host.
+Performance Evidence: per request, the change adds 2 allocs/op and 128 B/op with no instruments or recording span, and 8 allocs/op and about 489 B/op in the production shape, against 48 to 171 allocs/op before; statements sent per request are unchanged in every case, and ns/op could not be sized on an oversubscribed host (the instrumented medians were higher after the change in every case, so a small CPU cost is expected and unmeasured).
 
 `allocs/op` and `B/op` are deterministic and are the primary figure. Medians of
 ten runs per tree; `B/op` varied by at most 2 bytes between runs of one tree.
@@ -152,6 +152,8 @@ four Neo4j cases and by +0.3 to +0.7 in the two NornicDB cases, within the
 spread of the runs. The expectation is that this is small next to a graph round
 trip of milliseconds, but no live backend measured that: NOT_CHECKED.
 
+Reproduce with: cd go && env -u GOROOT go test -run '^$' -bench BenchmarkGetEntityContextResolution -benchmem -count=10 -benchtime=2000x -cpu=1 ./internal/query/entity/ on this branch and on a detached worktree of the base commit, alternating the two trees run by run (the numbers above used ten runs of 2000 iterations each).
+
 NOT_CHECKED: ns/op on a quiet host, the cost against a live Neo4j or NornicDB,
 the cost on a deployed environment under the real request mix, and the
 allocation attribution by call site.
@@ -159,8 +161,8 @@ allocation attribution by call site.
 Why no larger proof is needed: the change adds no statement, no loop, no lock,
 no goroutine, no queue or lease use, and no graph or SQL write. The request-local
 record is never shared across goroutines. The statement count per request is
-the same on both trees in every case, which is the quantity that dominates the
-real latency. The change is on the read-only query path and touches no worker,
+the same on both trees in every case, which is expected to dominate the real
+latency (the #7212 sweep points that way but is context here, not proof). The change is on the read-only query path and touches no worker,
 batch size, or concurrency setting.
 
 ## Observability Evidence
@@ -211,4 +213,5 @@ references list the new instrument and attributes.
 - The counter has four label values, fixed in the code, so series cardinality is
   bounded at four. The span attributes are an integer and one of the same four
   strings.
-- The cost is the allocations measured above and nothing else.
+- The measured cost is the allocations above. A small CPU cost from them is
+  expected and was not sized (see NOT_CHECKED).
