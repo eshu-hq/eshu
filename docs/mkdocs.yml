@@ -280,6 +280,7 @@ nav:
       - Local Data Root Spec: reference/local-data-root-spec.md
       - Local Host Lifecycle: reference/local-host-lifecycle.md
       - Performance SLO Contract: reference/performance-slo-contract.md
+      - Scale And Performance Reference: reference/scale-and-performance-measurements.md
       - Local Performance Envelope: reference/local-performance-envelope.md
       - Collector Performance Envelope: reference/collector-performance-envelope.md
       - Parse Scale Evidence: reference/parse-scale-evidence.md
