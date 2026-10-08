@@ -152,7 +152,13 @@ four Neo4j cases and by +0.3 to +0.7 in the two NornicDB cases, within the
 spread of the runs. The expectation is that this is small next to a graph round
 trip of milliseconds, but no live backend measured that: NOT_CHECKED.
 
-Reproduce with: cd go && env -u GOROOT go test -run '^$' -bench BenchmarkGetEntityContextResolution -benchmem -count=10 -benchtime=2000x -cpu=1 ./internal/query/entity/ on this branch and on a detached worktree of the base commit, alternating the two trees run by run (the numbers above used ten runs of 2000 iterations each).
+Reproduce with the command below, once on this branch and once on a detached
+worktree of the base commit, alternating the two trees run by run (the numbers
+above used ten runs of 2000 iterations each):
+
+```
+cd go && env -u GOROOT go test -run '^$' -bench BenchmarkGetEntityContextResolution -benchmem -count=10 -benchtime=2000x -cpu=1 ./internal/query/entity/
+```
 
 NOT_CHECKED: ns/op on a quiet host, the cost against a live Neo4j or NornicDB,
 the cost on a deployed environment under the real request mix, and the
