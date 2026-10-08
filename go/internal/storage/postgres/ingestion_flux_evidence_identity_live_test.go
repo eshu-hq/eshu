@@ -5,13 +5,15 @@ package postgres
 
 // Native Flux evidence identity proof for issue #7543.
 //
-// The Flux GitRepository producer derives SourceEntityID with NUL separators
-// (flux_evidence.go), and insertEvidenceFactBatch binds it unchanged to the
-// source_entity_id TEXT column, so a native commit carrying Flux evidence
-// fails with SQLSTATE 22021. This test drives the real
+// Before the #7543 fix the Flux GitRepository producer derived
+// SourceEntityID with NUL separators (flux_evidence.go), and
+// insertEvidenceFactBatch bound it unchanged to the source_entity_id TEXT
+// column, so a native commit carrying Flux evidence failed with SQLSTATE
+// 22021 (RED). This test drives the real
 // IngestionStore.CommitScopeGeneration -> DiscoverEvidenceWithStats ->
 // RelationshipStore.UpsertEvidenceFacts path against a live Postgres and
-// requires the commit to succeed with one NUL-free persisted evidence row.
+// requires the commit to succeed with one NUL-free persisted evidence row
+// (GREEN).
 
 import (
 	"context"
