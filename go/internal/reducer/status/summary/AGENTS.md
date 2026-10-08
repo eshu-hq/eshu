@@ -11,9 +11,18 @@
 
 ## Invariants
 
-- One pass is one transaction: READ COMMITTED, jit off, try-lock, clock, statement, upsert,
+- One model row is one transaction: READ COMMITTED, jit off, try-lock, clock, statement, upsert,
   commit. Never split the lock and the upsert across transactions: the lock is
   transaction scoped and the single-writer guarantee ends with it.
+- A companion model (`Runner.Companions`) is written in its own transaction
+  after the first model's commit, with the same READ COMMITTED, jit-off,
+  try-lock, own database clock, statement, upsert and commit sequence. Never fold
+  models into one transaction or add a savepoint: a companion failure or
+  deadline must not discard the first model's row. A first model that skipped on
+  the lock or the missing table leaves the companions unattempted with the same
+  outcome. `validateCompanions` rejects a blank key, digest or compute, and a
+  duplicate key. A companion that breaks the per-tick bounds moves to its own
+  `Runner` with its own lock key; never reduce workers, batch size or cadence.
 - Keep the pass at READ COMMITTED (`setReadCommittedSQL`, the first
   statement). Under REPEATABLE READ the guarded upsert raises 40001 when
   another writer committed the row after the pass's snapshot.

@@ -62,6 +62,11 @@ type RawSnapshot struct {
 	// and latest-failure sections came from the stored summary or the live
 	// statement (#7009). Zero when the reader reports none.
 	ActiveWorkSource ActiveWorkSource
+	// TerraformStateSource records where TerraformStateLastSerials and
+	// TerraformStateRecentWarnings came from: the stored terraform_state
+	// summary row or the live statements (#7009). Zero when the reader
+	// reports none or the selection skipped the Terraform-state reads.
+	TerraformStateSource ActiveWorkSource
 }
 
 // SnapshotSelection controls which optional, expensive sections a status reader
@@ -256,6 +261,9 @@ type Report struct {
 	TerraformState tfstate.Report
 	// ActiveWorkSource carries RawSnapshot.ActiveWorkSource through unchanged.
 	ActiveWorkSource ActiveWorkSource
+	// TerraformStateSource carries RawSnapshot.TerraformStateSource through
+	// unchanged.
+	TerraformStateSource ActiveWorkSource
 }
 
 // DefaultOptions returns the baseline operator heuristics for this first live

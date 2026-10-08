@@ -18,6 +18,10 @@
 - Keep `ReadTerraformStateAdminEvidence` and `TerraformStateAdminEvidence`
   exported until the status leaf moves; the root status family reads
   through them.
+- `SummaryEntries` must call the live statements and decoder unchanged. Any
+  change to a statement or to the entry encoding changes
+  `SummarySourceSHA256` and bumps `summaryEncodingTag` when the stored shape
+  changes, so a reader falls back to the live read on a digest mismatch.
 - Keep the package clause as `package statestore`; callers import the
   `storage/postgres/terraform/state` path without an alias.
 - Never import the parent `postgres` package from here.

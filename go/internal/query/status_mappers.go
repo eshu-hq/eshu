@@ -97,6 +97,7 @@ func statusReportToMapWithAWS(
 	}
 	result["terraform_state"] = terraformStateStatusToMap(r.TerraformState)
 	withActiveWorkSource(result, r.ActiveWorkSource)
+	withTerraformStateSource(result, r.TerraformStateSource)
 
 	return result
 }

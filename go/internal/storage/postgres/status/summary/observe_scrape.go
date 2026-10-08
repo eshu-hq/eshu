@@ -48,15 +48,15 @@ func ObserveScrape(ctx context.Context, instruments *telemetry.Instruments, o Sc
 		))
 	}
 	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(attribute.String(spanAttrSource, source))
+	span.SetAttributes(attribute.String(defaultSpanPrefix+spanAttrSource, source))
 	if !o.AsOf.IsZero() {
-		span.SetAttributes(attribute.Float64(spanAttrAgeSeconds, o.Age.Seconds()))
+		span.SetAttributes(attribute.Float64(defaultSpanPrefix+spanAttrAgeSeconds, o.Age.Seconds()))
 	}
 	if o.Source == SourceModel {
 		return
 	}
-	span.SetAttributes(attribute.String(spanAttrFallbackWhy, reason))
-	if scrapeLimiter.allow(o.Reason, time.Now()) {
+	span.SetAttributes(attribute.String(defaultSpanPrefix+spanAttrFallbackWhy, reason))
+	if scrapeLimiter.allow(reason, time.Now()) {
 		slog.Default().WarnContext(ctx, "status summary row not served fresh on the metrics scrape; serving the newest decodable row or the zero summary",
 			slog.String("model_key", o.ModelKey),
 			slog.String("source", source),

@@ -53,7 +53,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   and how old they are (#7009). `RawSnapshot.ActiveWorkSource` carries it from
   the storage reader through `BuildReport` to `Report` and to the
   `active_work_source` JSON object (`JSON()` returns nil, so no key is emitted,
-  when a reader reports none)
+  when a reader reports none). `RawSnapshot.TerraformStateSource` and
+  `Report.TerraformStateSource` reuse the type for the `terraform_state`
+  section's own marker (`terraform_state_source`); they stay zero, and so emit
+  no key, on a read that skips Terraform-state evidence
 - `Report` — operator-facing projection of `RawSnapshot`; the fields below are
   the stable output surface
 - `Reader` — two-method interface that storage implementations satisfy:

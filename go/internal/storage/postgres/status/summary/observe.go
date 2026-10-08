@@ -19,10 +19,13 @@ import (
 // Span attribute names the status snapshot span carries for the active-work
 // read, next to #7647's status.active_work.summary_mode.
 const (
-	spanAttrSource      = "status.active_work.source"
-	spanAttrAgeSeconds  = "status.active_work.as_of_age_seconds"
-	spanAttrFallbackWhy = "status.active_work.fallback_reason"
-	spanAttrSignedAge   = "status.active_work.as_of_age_signed_seconds"
+	// defaultSpanPrefix names the active-work attributes; another model sets
+	// Observation.SpanPrefix (status.terraform_state, for one).
+	defaultSpanPrefix   = "status.active_work"
+	spanAttrSource      = ".source"
+	spanAttrAgeSeconds  = ".as_of_age_seconds"
+	spanAttrFallbackWhy = ".fallback_reason"
+	spanAttrSignedAge   = ".as_of_age_signed_seconds"
 )
 
 // fallbackWarnEvery bounds how often one process logs a fallback of one reason.
@@ -32,6 +35,9 @@ const fallbackWarnEvery = time.Minute
 type Observation struct {
 	// ModelKey is the model the read selected.
 	ModelKey string
+	// SpanPrefix prefixes the span attribute names for this model; empty means
+	// status.active_work.
+	SpanPrefix string
 	// Source says where the answer came from.
 	Source Source
 	// Reason explains Source.
@@ -64,18 +70,22 @@ func Observe(ctx context.Context, instruments *telemetry.Instruments, o Observat
 				metric.WithAttributes(telemetry.AttrModelKey(o.ModelKey)))
 		}
 	}
+	prefix := o.SpanPrefix
+	if prefix == "" {
+		prefix = defaultSpanPrefix
+	}
 	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(attribute.String(spanAttrSource, source))
+	span.SetAttributes(attribute.String(prefix+spanAttrSource, source))
 	if !o.AsOf.IsZero() {
 		span.SetAttributes(
-			attribute.Float64(spanAttrAgeSeconds, o.Age.Seconds()),
-			attribute.Float64(spanAttrSignedAge, o.SignedAge.Seconds()),
+			attribute.Float64(prefix+spanAttrAgeSeconds, o.Age.Seconds()),
+			attribute.Float64(prefix+spanAttrSignedAge, o.SignedAge.Seconds()),
 		)
 	}
 	if o.Source == SourceLiveFallback {
-		span.SetAttributes(attribute.String(spanAttrFallbackWhy, reason))
-		if fallbackLimiter.allow(o.Reason, time.Now()) {
-			slog.Default().WarnContext(ctx, "status summary row not served; running the live active-work statement",
+		span.SetAttributes(attribute.String(prefix+spanAttrFallbackWhy, reason))
+		if fallbackLimiter.allow(o.ModelKey+"/"+reason, time.Now()) {
+			slog.Default().WarnContext(ctx, "status summary row not served; running the live statement",
 				slog.String("model_key", o.ModelKey),
 				slog.String("source", source),
 				slog.String("reason", reason),
@@ -86,23 +96,23 @@ func Observe(ctx context.Context, instruments *telemetry.Instruments, o Observat
 	}
 }
 
-// fallbackLimiter spaces the per-process fallback Warn by reason.
+// fallbackLimiter spaces the per-process fallback Warn by model and reason.
 var fallbackLimiter warnLimiter
 
-// warnLimiter allows one log per reason per fallbackWarnEvery.
+// warnLimiter allows one log per key (model and reason) per fallbackWarnEvery.
 type warnLimiter struct {
 	mu   sync.Mutex
-	last map[Reason]time.Time
+	last map[string]time.Time
 }
 
-func (l *warnLimiter) allow(reason Reason, now time.Time) bool {
+func (l *warnLimiter) allow(reason string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if previous, ok := l.last[reason]; ok && now.Sub(previous) < fallbackWarnEvery {
 		return false
 	}
 	if l.last == nil {
-		l.last = make(map[Reason]time.Time)
+		l.last = make(map[string]time.Time)
 	}
 	l.last[reason] = now
 	return true

@@ -18,7 +18,7 @@ const Routes = `
             "description": "Pipeline status",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}}}
+                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"}}}
               }
             }
           },
@@ -235,6 +235,7 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"},
                     "status": {"type": "string"},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
                     "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},
@@ -357,6 +358,7 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                    "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"},
                     "status": {"type": "string"},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
                     "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},

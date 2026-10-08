@@ -5,6 +5,7 @@ package summary_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"sync"
@@ -59,6 +60,17 @@ func (r *readerRows) Scan(dest ...any) error {
 			*d = row[i].(float64)
 		case *time.Time:
 			*d = row[i].(time.Time)
+		case *sql.NullTime:
+			switch v := row[i].(type) {
+			case sql.NullTime:
+				*d = v
+			case nil:
+				*d = sql.NullTime{}
+			case time.Time:
+				*d = sql.NullTime{Time: v, Valid: true}
+			default:
+				return fmt.Errorf("readerRows: %T is not a time for a NullTime", v)
+			}
 		case *[]byte:
 			*d = row[i].([]byte)
 		default:
@@ -82,9 +94,17 @@ type sourceQueryer struct {
 	liveStage   int
 	labels      []string
 	liveStarted chan struct{}
+
+	// tfRow is the stored terraform_state row (nil means none); tfSerials and
+	// tfWarnings are the rows the live Terraform-state statements return.
+	tfRow       []any
+	tfSerials   [][]any
+	tfWarnings  [][]any
+	tfLiveRuns  atomic.Int32
+	tfModelRead atomic.Int32
 }
 
-func (q *sourceQueryer) QueryContext(ctx context.Context, query string, _ ...any) (db.Rows, error) {
+func (q *sourceQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "to_regclass('status_summary_snapshots')"):
 		q.clockReads.Add(1)
@@ -93,14 +113,26 @@ func (q *sourceQueryer) QueryContext(ctx context.Context, query string, _ ...any
 		}
 		return &readerRows{rows: [][]any{{sourceTestNow, q.installed}}}, nil
 	case strings.Contains(query, "FROM status_summary_snapshots"):
-		q.modelReads.Add(1)
 		q.mu.Lock()
 		q.labels = append(q.labels, db.QuerySummaryFromContext(ctx))
 		q.mu.Unlock()
-		if q.row == nil {
+		row := q.row
+		if len(args) == 1 && args[0] == summary.ModelTerraformState {
+			q.tfModelRead.Add(1)
+			row = q.tfRow
+		} else {
+			q.modelReads.Add(1)
+		}
+		if row == nil {
 			return &readerRows{}, nil
 		}
-		return &readerRows{rows: [][]any{q.row}}, nil
+		return &readerRows{rows: [][]any{row}}, nil
+	case strings.Contains(query, "ranked_generations"):
+		q.tfLiveRuns.Add(1)
+		return &readerRows{rows: q.tfSerials}, nil
+	case strings.Contains(query, "raw_warning_rows"):
+		q.tfLiveRuns.Add(1)
+		return &readerRows{rows: q.tfWarnings}, nil
 	case strings.Contains(query, "active_work_stage"):
 		q.liveRuns.Add(1)
 		if q.liveStarted != nil {

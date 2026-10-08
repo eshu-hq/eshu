@@ -39,6 +39,14 @@ func fixtureDuration(n int) time.Duration {
 func maxRawSnapshot() RawSnapshot {
 	return RawSnapshot{
 		AsOf: fixtureTime(0),
+		// Both source markers (#7009) so the wire-key lock covers them.
+		ActiveWorkSource: ActiveWorkSource{
+			Source: ActiveWorkSourceModel, Reason: ActiveWorkReasonFresh,
+			AsOf: fixtureTime(0).Add(-9 * time.Second), Age: 9 * time.Second,
+		},
+		TerraformStateSource: ActiveWorkSource{
+			Source: ActiveWorkSourceLiveFallback, Reason: ActiveWorkReasonStale, AsOf: fixtureTime(0),
+		},
 		ScopeCounts: []NamedCount{
 			{Name: "active", Count: 11},
 			{Name: "pending", Count: 4},

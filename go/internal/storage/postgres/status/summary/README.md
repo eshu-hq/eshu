@@ -30,7 +30,7 @@ Migration `161_status_summary_snapshots.sql` creates one row per `model_key`:
 
 | column | meaning |
 | --- | --- |
-| `model_key` | which summary the row holds; primary key (`active_work_summary`) |
+| `model_key` | which summary the row holds; primary key (`active_work_summary`, `terraform_state`) |
 | `schema_version` | encoding version of `rows` (`SchemaVersion`, 1) |
 | `source_sha256` | sha256 of the statement text the writer ran |
 | `as_of` | the clock value the writer bound as the statement's `$1` |
@@ -96,8 +96,14 @@ storage parameters with a new `ALTER TABLE ... SET` migration.
   waiting on that `Flight` and capped only indirectly by the API's concurrency
   and the database pool). The process builds one reader (and so one `Flight`) at startup; a
   store built per transaction must not own one.
-- `Observe`: the read counter, the served-age histogram, the
-  `status.active_work.*` span attributes, and the rate-limited fallback Warn.
+- `Observe`: the read counter, the served-age histogram, the span attributes
+  (`status.active_work.*` or `status.terraform_state.*`, from
+  `Observation.SpanPrefix`), and the rate-limited fallback Warn (once per model
+  and reason).
+- `ModelTerraformState`: the key of the second model. The Terraform-state rows
+  carry no clock, so `Select` serves them with no age correction. Each model has
+  its own `ModelReader` and `Flight`, so one model can be served while the other
+  falls back.
 
 ## Writer contract
 
@@ -156,8 +162,10 @@ payload through the production `activeWorkSummary.add`. Live PostgreSQL 18 tests
 guard going back never, two writers that genuinely overlap (one waits on the
 other's uncommitted row, proved from `pg_stat_activity`), single-row crash
 safety, the empty and missing-table reads, migration idempotency, the applied
-reloptions, and 4,000-upsert bloat (compressible and TOASTed payloads). They run
-as a blocking step of the reducer contention gate, fail-closed through
+reloptions, and 4,000-upsert bloat (compressible and TOASTed payloads; the
+bloat proofs turn autovacuum off for their table and its TOAST relation and
+vacuum by hand, so a background vacuum cannot change the size they compare).
+They run as a blocking step of the reducer contention gate, fail-closed through
 `ESHU_REQUIRE_STATUS_SUMMARY_PROOF`, and in the `live-postgres-readiness` lane
 the live-test ledger requires. `gate_enrollment_test.go` keeps the workflow
 step with the tests. The environment names are in the test headers.

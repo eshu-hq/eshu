@@ -23,6 +23,10 @@ const SchemaVersion = 1
 // result of the status snapshot's active-work statement.
 const ModelActiveWorkSummary = "active_work_summary"
 
+// ModelTerraformState is the model key of the Terraform-state admin evidence:
+// the last serial per state locator and the recent warnings (#7009).
+const ModelTerraformState = "terraform_state"
+
 // Entry is one tuple of a stored statement result: the section name, the
 // ordinal within that section, and the section row as its JSON text. A reader
 // feeds the tuples, in stored order, to the same decoder that reads the live

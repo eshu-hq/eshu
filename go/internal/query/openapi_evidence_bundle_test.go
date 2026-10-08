@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
@@ -119,4 +120,67 @@ func assertEnum(t *testing.T, field map[string]any, want ...string) {
 			t.Fatalf("enum %v is missing %q", raw, value)
 		}
 	}
+}
+
+// TestOpenAPIDocumentsTheTerraformStateSource proves the terraform_state_source
+// object (#7009) is its own component with the same keys and closed enums as
+// ActiveWorkSource, and that exactly the three routes that render the
+// terraform_state section declare it: no other route does.
+func TestOpenAPIDocumentsTheTerraformStateSource(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+	schemas := testutil.MustMapField(t, testutil.MustMapField(t, spec, "components"), "schemas")
+	active := testutil.MustMapField(t, testutil.MustMapField(t, schemas, "ActiveWorkSource"), "properties")
+	terraform := testutil.MustMapField(t, testutil.MustMapField(t, schemas, "TerraformStateSource"), "properties")
+	for _, field := range []string{"source", "reason", "as_of", "age_seconds", "stale"} {
+		testutil.MustMapField(t, terraform, field)
+	}
+	if len(terraform) != 5 {
+		t.Fatalf("TerraformStateSource has %d properties, want the same five as ActiveWorkSource", len(terraform))
+	}
+	assertEnum(t, testutil.MustMapField(t, terraform, "source"), "model", "live", "live_fallback")
+	assertEnum(t, testutil.MustMapField(t, terraform, "reason"),
+		"fresh", "flag_off", "missing", "not_installed", "version", "row_count", "stale", "decode")
+	for _, field := range []string{"source", "reason"} {
+		if got, want := testutil.MustMapField(t, terraform, field)["enum"], testutil.MustMapField(t, active, field)["enum"]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("TerraformStateSource %s enum = %v, want ActiveWorkSource's %v", field, got, want)
+		}
+	}
+
+	withMarker := map[string]bool{
+		"/api/v0/status/pipeline": true,
+		"/api/v0/status/index":    true,
+		"/api/v0/index-status":    true,
+	}
+	paths := testutil.MustMapField(t, spec, "paths")
+	for route := range paths {
+		get, ok := testutil.MustMapField(t, paths, route)["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		props := okResponseProperties(get)
+		field, declared := props["terraform_state_source"].(map[string]any)
+		switch {
+		case withMarker[route] && (!declared || field["$ref"] != "#/components/schemas/TerraformStateSource"):
+			t.Fatalf("%s terraform_state_source = %#v, want a $ref to the TerraformStateSource component", route, field)
+		case !withMarker[route] && declared:
+			t.Fatalf("%s declares terraform_state_source although the route skips Terraform-state evidence", route)
+		}
+	}
+}
+
+// okResponseProperties returns the 200 response's JSON object properties of an
+// operation, or nil when it declares none.
+func okResponseProperties(get map[string]any) map[string]any {
+	responses, _ := get["responses"].(map[string]any)
+	ok, _ := responses["200"].(map[string]any)
+	content, _ := ok["content"].(map[string]any)
+	media, _ := content["application/json"].(map[string]any)
+	schema, _ := media["schema"].(map[string]any)
+	props, _ := schema["properties"].(map[string]any)
+	return props
 }

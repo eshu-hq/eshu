@@ -46,6 +46,11 @@
 // zero summary, marked stale (SourceLastRow, SourceZero). ObserveScrape records
 // its counter, span attributes, and rate-limited warning.
 //
+// A second model key, ModelTerraformState, holds the Terraform-state admin
+// evidence (last serial per locator and recent warnings). It has its own
+// ModelReader and Flight, and no age correction because its statements carry no
+// clock.
+//
 // The package depends only on the storage db contracts, never on the parent
 // postgres package, so the status store can import it without a cycle.
 package summary

@@ -38,6 +38,49 @@ evidence note for #7009).
 | `age_seconds` | How old the served data was at the read, from the database clock. `0` for a live read. |
 | `stale` | `true` when the served data is older than the limit. A stored row that is too old is never served, so this is `false` on every route above; `reason: stale` says the live statement answered because the row was too old. It is `true` only on the runtime `/metrics` scrape, which never reaches this payload (see below). |
 
+## Terraform state source
+
+`GET /api/v0/status/pipeline`, `GET /api/v0/status/index` (and
+`GET /api/v0/index-status`, which the MCP `get_index_status` tool calls), and the
+runtime `/admin/status` JSON also carry a `terraform_state_source` object. It has
+the same five keys and the same `source` and `reason` values as
+`active_work_source`, and says where the `terraform_state` section (the last
+observed serial per state locator and the recent warnings per locator) came
+from. It is present on these routes even when the section is empty. It is
+absent on every route that skips Terraform-state evidence: the ingester, operations,
+hosted-readiness, collector, collector-readiness, control-plane,
+freshness-causality, governance, semantic-extraction and answer-narration
+routes, the live evidence bundle, the runtime `/metrics` scrape, and a scoped
+caller of the index route. With the reader off it reads `source: live`,
+`reason: flag_off`.
+
+```json
+{
+  "terraform_state_source": {
+    "source": "model",
+    "reason": "fresh",
+    "as_of": "2026-10-07T09:30:48Z",
+    "age_seconds": 12,
+    "stale": false
+  }
+}
+```
+
+The reducer writes this row apart from the active-work row, so the two markers
+are independent: one report can serve active work from `live` and Terraform state
+from `model`. `as_of` is the database clock the writer read after taking its
+lock, just before it ran the two Terraform-state statements. Each statement sees
+the rows committed when it started, so the stored row can include rows committed
+between `as_of` and that statement, and it omits anything committed later. The
+two statements run on two snapshots, so the stored row and a live read can
+differ by the rows committed in that gap, bounded by one writer pass. On the API
+and the MCP server the live read runs both statements in one REPEATABLE READ
+snapshot; a runtime that reads status on a plain connection runs each statement
+on its own snapshot. `observed_at` values are the collector's clock, not the
+database's, so an `observed_at` can be later than `as_of`. No value in the
+section is an age, so nothing is advanced at read. The row shares the `ESHU_STATUS_SUMMARY_STALE_AFTER` limit and the other settings below,
+and `stale` is `false` for the same reason as above.
+
 ## Staleness contract
 
 A stored row is never served older than `ESHU_STATUS_SUMMARY_STALE_AFTER`
@@ -64,8 +107,8 @@ statement aborts it.
 
 ## Compatibility
 
-The `active_work_source` key is present on these routes from the release that
-adds it, whatever the reader flag says: with the reader off it reads
+The `active_work_source` and `terraform_state_source` keys are present on their routes from the release that
+adds them, whatever the reader flag says: with the reader off it reads
 `source: live`, `reason: flag_off`. It is an additive field.
 
 ## Turning the reader on

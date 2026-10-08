@@ -383,8 +383,9 @@ Important env vars:
 - `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` (default `5m`, wait between cycles)
 - `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` (default `500`, repositories per cycle)
 - `ESHU_STATUS_SUMMARY_WRITER_ENABLED` (default `false`): run the periodic
-  status summary writer (#7009), which stores the active-work summary in
-  `status_summary_snapshots`. One replica computes per tick under a
+  status summary writer (#7009), which stores the active-work summary and the
+  Terraform-state admin evidence in `status_summary_snapshots` (two rows, each
+  in its own transaction in one pass). One replica computes per tick under a
   transaction advisory lock; the others skip.
 - `ESHU_STATUS_SUMMARY_WRITER_INTERVAL` (default `10s`, minimum `5s`; values
   below `5s` or unparsable values fail startup)

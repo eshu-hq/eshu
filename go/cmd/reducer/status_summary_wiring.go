@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	snapshots "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
+	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -76,7 +78,9 @@ func withStatusSummaryWriter(
 	return service, nil
 }
 
-// statusSummaryWriterFor builds the active-work summary writer, or returns
+// statusSummaryWriterFor builds the status summary writer (the active-work
+// summary and, as a companion row of the same pass, the Terraform-state admin
+// evidence), or returns
 // nil when ESHU_STATUS_SUMMARY_WRITER_ENABLED is not true, so the default
 // reducer starts no writer goroutine and issues no writer SQL. The statement
 // and its digest come from the storage package; the database must open
@@ -106,6 +110,15 @@ func statusSummaryWriterFor(
 			SourceSHA256: postgres.ActiveWorkSummarySourceSHA256(),
 			Compute:      postgres.ReadActiveWorkSummaryEntries,
 		},
+		// The Terraform-state admin evidence is a second row in the same pass
+		// (#7009): its own digest, as_of guard and compute time.
+		Companions: []statussummary.Statement{{
+			ModelKey:     snapshots.ModelTerraformState,
+			SourceSHA256: statestore.SummarySourceSHA256(),
+			Compute: func(ctx context.Context, queryer db.Queryer, _ time.Time) ([]snapshots.Entry, error) {
+				return statestore.SummaryEntries(ctx, queryer)
+			},
+		}},
 		Interval:    cfg.Interval,
 		Tracer:      tracer,
 		Instruments: instruments,

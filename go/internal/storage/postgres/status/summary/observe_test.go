@@ -142,16 +142,16 @@ func TestWarnLimiterAllowsOncePerMinutePerReason(t *testing.T) {
 
 	var limiter warnLimiter
 	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
-	if !limiter.allow(ReasonStale, start) {
+	if !limiter.allow(string(ReasonStale), start) {
 		t.Fatal("the first stale fallback must log")
 	}
-	if limiter.allow(ReasonStale, start.Add(59*time.Second)) {
+	if limiter.allow(string(ReasonStale), start.Add(59*time.Second)) {
 		t.Fatal("a second stale fallback inside a minute logged again")
 	}
-	if !limiter.allow(ReasonMissing, start.Add(time.Second)) {
+	if !limiter.allow(string(ReasonMissing), start.Add(time.Second)) {
 		t.Fatal("a different reason shares the stale reason's budget")
 	}
-	if !limiter.allow(ReasonStale, start.Add(time.Minute)) {
+	if !limiter.allow(string(ReasonStale), start.Add(time.Minute)) {
 		t.Fatal("the stale fallback did not log again after a minute")
 	}
 }
@@ -174,5 +174,87 @@ func TestObserveLogsAFallbackButNotAServedOrFlagOffRead(t *testing.T) {
 		if !strings.Contains(line, want) {
 			t.Fatalf("log line %s is missing %s", line, want)
 		}
+	}
+}
+
+func TestObserveUsesTheModelsSpanPrefixAndWarnsOncePerModelAndReason(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+	ctx, span := tracer.Start(context.Background(), "postgres.status_snapshot")
+	asOf := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	fallbackLimiter.reset()
+
+	Observe(ctx, nil, Observation{ModelKey: ModelActiveWorkSummary, Source: SourceModel, Reason: ReasonFresh, AsOf: asOf, Age: time.Second})
+	Observe(ctx, nil, Observation{
+		ModelKey: ModelTerraformState, SpanPrefix: "status.terraform_state", Source: SourceLiveFallback, Reason: ReasonStale,
+		AsOf: asOf, Age: 40 * time.Second, SignedAge: 40 * time.Second,
+	})
+	span.End()
+
+	attrs := map[string]attribute.Value{}
+	for _, kv := range recorder.Ended()[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value
+	}
+	if attrs["status.active_work.source"].AsString() != "model" {
+		t.Fatalf("active work source attr = %v", attrs["status.active_work.source"])
+	}
+	if attrs["status.terraform_state.source"].AsString() != "live_fallback" ||
+		attrs["status.terraform_state.fallback_reason"].AsString() != "stale" ||
+		attrs["status.terraform_state.as_of_age_seconds"].AsFloat64() != 40 {
+		t.Fatalf("terraform attrs = %v", attrs)
+	}
+
+	// The same reason on another model is its own Warn: one noisy model must
+	// not hide the other's.
+	Observe(context.Background(), nil, Observation{ModelKey: ModelActiveWorkSummary, Source: SourceLiveFallback, Reason: ReasonStale, Age: 41 * time.Second})
+	Observe(context.Background(), nil, Observation{ModelKey: ModelActiveWorkSummary, Source: SourceLiveFallback, Reason: ReasonStale, Age: 42 * time.Second})
+	if got := strings.Count(buf.String(), "status summary row not served"); got != 2 {
+		t.Fatalf("fallback warnings = %d, want 2 (one per model, the repeat suppressed): %s", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), `"model_key":"terraform_state"`) || !strings.Contains(buf.String(), `"model_key":"active_work_summary"`) {
+		t.Fatalf("warnings did not name both models: %s", buf.String())
+	}
+}
+
+// TestObserveKeepsEachModelsSpanAttributesApartInEitherOrder: two models
+// observed on one span, in both orders, leave each model's source, age and
+// fallback reason under its own prefix. An observation that lost its prefix
+// would overwrite the other model's attributes.
+func TestObserveKeepsEachModelsSpanAttributesApartInEitherOrder(t *testing.T) {
+	asOf := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	active := Observation{ModelKey: ModelActiveWorkSummary, Source: SourceModel, Reason: ReasonFresh, AsOf: asOf, Age: time.Second, SignedAge: time.Second}
+	terraform := Observation{
+		ModelKey: ModelTerraformState, SpanPrefix: "status.terraform_state", Source: SourceLiveFallback, Reason: ReasonStale,
+		AsOf: asOf, Age: 40 * time.Second, SignedAge: 40 * time.Second,
+	}
+	for name, order := range map[string][]Observation{"active then terraform": {active, terraform}, "terraform then active": {terraform, active}} {
+		t.Run(name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test")
+			ctx, span := tracer.Start(context.Background(), "postgres.status_snapshot")
+			for _, o := range order {
+				Observe(ctx, nil, o)
+			}
+			span.End()
+			attrs := map[string]attribute.Value{}
+			for _, kv := range recorder.Ended()[0].Attributes() {
+				attrs[string(kv.Key)] = kv.Value
+			}
+			if attrs["status.active_work.source"].AsString() != "model" || attrs["status.active_work.as_of_age_seconds"].AsFloat64() != 1 {
+				t.Fatalf("active-work attributes were overwritten: %v", attrs)
+			}
+			if _, present := attrs["status.active_work.fallback_reason"]; present {
+				t.Fatalf("active-work carries the terraform model's fallback reason: %v", attrs)
+			}
+			if attrs["status.terraform_state.source"].AsString() != "live_fallback" ||
+				attrs["status.terraform_state.fallback_reason"].AsString() != "stale" ||
+				attrs["status.terraform_state.as_of_age_seconds"].AsFloat64() != 40 {
+				t.Fatalf("terraform attributes = %v", attrs)
+			}
+		})
 	}
 }

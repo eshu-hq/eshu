@@ -18,29 +18,41 @@ import (
 	store "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 )
 
-// fakeDatabase is a hermetic db.Beginner that answers the writer pass's
-// statements and records what the pass did, in order.
+// fakeDatabase is a hermetic db.Beginner that answers the writer's per-model
+// transactions and records what they did, in order.
 type fakeDatabase struct {
 	mu sync.Mutex
 
-	lockAcquired   bool
-	tableInstalled bool
-	clock          time.Time
-	upsertAffected int64
-	upsertErr      error
-	beginErr       error
-	commitErr      error
-	execErr        error
+	lockAcquired bool
+	// lockAcquiredSeq, when set, gives the advisory lock result of the nth
+	// transaction (1-based Begin order); later transactions use lockAcquired.
+	lockAcquiredSeq []bool
+	tableInstalled  bool
+	clock           time.Time
+	upsertAffected  int64
+	// upsertAffectedSeq, when set, gives the affected-row count of the nth
+	// upsert in a pass; later upserts use upsertAffected.
+	upsertAffectedSeq []int64
+	upsertErr         error
+	// upsertErrSeq, when set, gives the error of the nth upsert in the
+	// database's life; later upserts use upsertErr.
+	upsertErrSeq []error
+	beginErr     error
+	commitErr    error
+	execErr      error
 
 	begun      int
 	committed  int
 	rolledBack int
 	statements []string
-	// txOf records which transaction (1-based Begin order) ran each
-	// statement, so a test can prove the lock and the upsert share one.
+	// txOf records which transaction (1-based Begin order, one per model per
+	// pass) ran each statement, so a test can prove one model's lock and upsert
+	// share a transaction and that two models do not.
 	txOf       map[string][]int
 	upsertArgs []any
-	lockArgs   []any
+	// upsertCalls holds the arguments of every upsert, in order.
+	upsertCalls [][]any
+	lockArgs    []any
 }
 
 func newFakeDatabase(clock time.Time) *fakeDatabase {
@@ -69,7 +81,8 @@ func (d *fakeDatabase) snapshot() []string {
 	return append([]string(nil), d.statements...)
 }
 
-// fakeTx is one pass transaction on fakeDatabase.
+// fakeTx is one transaction on fakeDatabase: one model's, since a pass opens one
+// transaction per model.
 type fakeTx struct {
 	db   *fakeDatabase
 	id   int
@@ -91,9 +104,17 @@ func (t *fakeTx) ExecContext(ctx context.Context, query string, args ...any) (sq
 		t.record("upsert")
 		t.db.mu.Lock()
 		t.db.upsertArgs = args
+		t.db.upsertCalls = append(t.db.upsertCalls, args)
+		nth := len(t.db.upsertCalls) - 1
 		t.db.mu.Unlock()
+		if nth < len(t.db.upsertErrSeq) && t.db.upsertErrSeq[nth] != nil {
+			return nil, t.db.upsertErrSeq[nth]
+		}
 		if t.db.upsertErr != nil {
 			return nil, t.db.upsertErr
+		}
+		if nth < len(t.db.upsertAffectedSeq) {
+			return driverResult(t.db.upsertAffectedSeq[nth]), nil
 		}
 		return driverResult(t.db.upsertAffected), nil
 	}
@@ -110,7 +131,11 @@ func (t *fakeTx) QueryContext(ctx context.Context, query string, args ...any) (d
 		t.db.mu.Lock()
 		t.db.lockArgs = args
 		t.db.mu.Unlock()
-		return &fakeRows{rows: [][]any{{t.db.lockAcquired}}}, nil
+		acquired := t.db.lockAcquired
+		if t.id-1 < len(t.db.lockAcquiredSeq) {
+			acquired = t.db.lockAcquiredSeq[t.id-1]
+		}
+		return &fakeRows{rows: [][]any{{acquired}}}, nil
 	case strings.Contains(query, "clock_timestamp()"):
 		t.record("clock")
 		return &fakeRows{rows: [][]any{{t.db.clock, t.db.tableInstalled}}}, nil

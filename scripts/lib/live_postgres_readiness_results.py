@@ -183,6 +183,11 @@ PACKAGES = {
             "TestStatusSummaryBloatLive",
             "TestStatusSummaryBloatIncompressibleLive",
         ),
+        "go/internal/storage/postgres/status/summary/bloat_terraform_live_test.go": (
+            "TestStatusSummaryBloatTerraformLive",
+            "TestStatusSummaryBloatTerraformOpsQaScaleLive",
+            "TestStatusSummaryBloatTerraformWorstCaseLive",
+        ),
         "go/internal/storage/postgres/status/summary/select_live_test.go": (
             "TestStatusSummarySelectLive",
         ),
@@ -208,6 +213,10 @@ PACKAGES = {
             "TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive",
             "TestScrapeStatementInventoryOnAnEmptyStoreLive",
             "TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive",
+        ),
+        "go/internal/reducer/status/summary/terraform_live_test.go": (
+            "TestTerraformModelServedEqualToLiveLive",
+            "TestWriterKilledMidCompanionKeepsThePrimaryRowLive",
         ),
     },
 }

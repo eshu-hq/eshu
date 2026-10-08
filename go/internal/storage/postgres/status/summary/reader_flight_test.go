@@ -178,8 +178,8 @@ func TestReaderRecordsTheModelReadUnderItsOwnLabel(t *testing.T) {
 	store.Instruments = instruments
 	readSnapshot(t, store)
 
-	if len(q.labels) != 1 || q.labels[0] != "active_work_summary_model" {
-		t.Fatalf("the row read carried labels %q, want active_work_summary_model", q.labels)
+	if len(q.labels) != 2 || q.labels[0] != "active_work_summary_model" || q.labels[1] != "terraform_state_model" {
+		t.Fatalf("the row reads carried labels %q, want active_work_summary_model then terraform_state_model", q.labels)
 	}
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &collected); err != nil {
@@ -210,7 +210,7 @@ func TestReaderRecordsTheModelReadUnderItsOwnLabel(t *testing.T) {
 	if reads["active_work_summary_model"] != 1 || reads["active_work_summary"] != 0 {
 		t.Fatalf("read samples = %v, want one active_work_summary_model and no live active_work_summary", reads)
 	}
-	if counted != 1 {
-		t.Fatalf("eshu_dp_status_summary_read_total = %d, want 1", counted)
+	if counted != 2 {
+		t.Fatalf("eshu_dp_status_summary_read_total = %d, want 2 reads in all (active work served, terraform_state missing); the per-model_key labels are proven by TestReaderCountsEachModelReadUnderItsOwnModelKey", counted)
 	}
 }

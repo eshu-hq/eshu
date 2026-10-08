@@ -127,13 +127,17 @@ sum for that table.
 ## Status Summary Writer
 
 The reducer's periodic writer of the `status_summary_snapshots` read model
-(#7009), on only when `ESHU_STATUS_SUMMARY_WRITER_ENABLED=true`. Every metric
-carries `model_key` (`active_work_summary`).
+(#7009), on only when `ESHU_STATUS_SUMMARY_WRITER_ENABLED=true`. One pass
+writes two rows, each in its own transaction under the same advisory lock, the
+active-work row first: `active_work_summary` and `terraform_state`.
+`passes_total`, `pass_duration_seconds` and `writer_up` carry `model_key`
+(`active_work_summary` or `terraform_state`); `overrun_total` carries the first
+model's key only.
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_status_summary_writer_passes_total` | counter | Writer passes by `outcome`: `ok` (row advanced), `skipped_lock` (another replica held the advisory lock this tick; expected on every replica but one), `skipped_missing_table` (migration 161 not applied yet), `rejected_guard` (a stored row was as new or newer; nothing changed), `error` (rolled back; the next tick retries). |
-| `eshu_dp_status_summary_writer_pass_duration_seconds` | histogram | Duration of one pass transaction, by `outcome`. The `ok` samples are the cost the writer adds to the primary every interval. |
+| `eshu_dp_status_summary_writer_passes_total` | counter | Writer passes by `model_key` and `outcome`, one sample per model transaction (a companion that was not attempted because the first model skipped on the lock or the missing table counts with that outcome): `ok` (row advanced), `skipped_lock` (another replica held the advisory lock this tick; expected on every replica but one), `skipped_missing_table` (migration 161 not applied yet), `rejected_guard` (a stored row was as new or newer; nothing changed), `error` (rolled back; the next tick retries). |
+| `eshu_dp_status_summary_writer_pass_duration_seconds` | histogram | Duration of one model's own writer transaction (Begin to Commit or Rollback), by `model_key` and `outcome`. The `ok` samples are the cost each model adds to the primary every interval; a rise on `model_key="terraform_state"` and not on the active-work model points at `fact_records`. |
 | `eshu_dp_status_summary_writer_overrun_total` | counter | Passes longer than `ESHU_STATUS_SUMMARY_WRITER_INTERVAL`. The next pass then starts on the following interval boundary, so a steady rise means the stored row ages past one interval. |
 | `eshu_dp_status_summary_writer_up` | gauge | 1 while this reducer's writer loop runs, 0 after it stops. Absent when the writer is disabled. |
 
@@ -147,7 +151,7 @@ hosted runtimes. With the flag off, each read counts once as `source=live`,
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_status_summary_read_total` | counter | Status snapshot reads of the active-work summary by `model_key`, `source` (`model`: the stored row was served; `live`: the reader is off; `live_fallback`: the live statement answered because the row could not be served) and `reason` (`fresh`, `flag_off`, `missing`, `not_installed`, `version`, `row_count`, `stale`, `decode`). A steady `live_fallback` share means the writer is down, slow, or on another statement version; `stale` points at a slow or stopped writer, `version` at a rolling upgrade. |
+| `eshu_dp_status_summary_read_total` | counter | Status snapshot reads of a stored summary by `model_key` (`active_work_summary`, `terraform_state`), `source` (`model`: the stored row was served; `live`: the reader is off; `live_fallback`: the live statement answered because the row could not be served) and `reason` (`fresh`, `flag_off`, `missing`, `not_installed`, `version`, `row_count`, `stale`, `decode`). A steady `live_fallback` share means the writer is down, slow, or on another statement version; `stale` points at a slow or stopped writer, `version` at a rolling upgrade. |
 | `eshu_dp_status_summary_read_age_seconds` | histogram | Age of the stored row, from the database clock, at each read that served it (`source=model` only). Compare its upper buckets with `ESHU_STATUS_SUMMARY_STALE_AFTER` (default `33s`): a p95 near the limit predicts fallbacks. |
 | `eshu_dp_status_summary_scrape_total` | counter | Runtime `/metrics` scrapes of the active-work summary by `model_key`, `source` (`model`: a fresh stored row; `last_row`: the newest row this process can decode, now stale, including a stale row found at startup; `zero`: the empty summary because the process can decode no row) and `reason` (`fresh`, `missing`, `not_installed`, `version`, `row_count`, `stale`, `decode`). A scrape never runs the live statement, so `last_row` or `zero` is the whole signal that the writer is down, slow, or on another version; the per-scrape gauges `eshu_runtime_status_summary_stale` and `eshu_runtime_status_summary_age_seconds` carry the same state. Emitted only while the reader is on. |
 
@@ -158,9 +162,10 @@ On the runtime `/metrics` scrape the same span attributes carry `source` `model`
 The `postgres.status_snapshot` span carries `status.active_work.source`,
 `status.active_work.as_of_age_seconds`, `status.active_work.as_of_age_signed_seconds`
 (the age before the clamp at zero), and, on a fallback,
-`status.active_work.fallback_reason`. A fallback logs
-`status summary row not served; running the live active-work statement` at Warn,
-at most once a minute per reason per process, with `model_key`, `source`,
+`status.active_work.fallback_reason`; the Terraform-state model sets the same
+four attributes under `status.terraform_state.`. A fallback logs
+`status summary row not served; running the live statement` at Warn,
+at most once a minute per model and reason per process, with `model_key`, `source`,
 `reason`, `age_seconds`, and `failure_class=status_summary_fallback`.
 
 ## Infra Read Model Reconcile
