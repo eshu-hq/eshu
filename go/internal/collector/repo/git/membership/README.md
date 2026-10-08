@@ -67,11 +67,48 @@ at least the floor, and tracks the actual cadence when cycles are slow.
 `project` mirrors the SQL counter math in the Postgres upsert so the state
 gauge needs no read-back. The live store test asserts the two agree.
 
+## When the guard trips every cycle
+
+A tripped guard writes nothing, so the missing scopes are still "newly
+unlisted" on the next cycle and the guard trips again. A small org reaches this
+quickly: the threshold is `max(10, ceil(0.10 * known))`, so with 40 known
+scopes eleven missing repositories hold every write.
+
+What the operator sees each cycle: WARN `git_repository_selection_guard_tripped`
+with `selector_id`, `listed_count`, `known_scope_count`,
+`newly_unlisted_count`, and `guard_threshold`; the INFO
+`git_repository_selection_evaluated` line with `outcome=guard_tripped` and up
+to ten missing slugs in `not_listed_sample`; and the evaluation counter rising
+under `outcome="guard_tripped"`. The scope gauge keeps its last `evaluated`
+sample. Because the selector's rows are no longer refreshed, they expire after
+the liveness window. Unless another selector still has live rows for them, the
+org's scopes then read selection `unknown`, which leaves their freshness
+verdict where it was before #7625. Nothing is deleted.
+
+To confirm the cause, check the `not_listed_sample` slugs on GitHub:
+
+- If the repositories still exist in the org, the listing lost access. Usually
+  the GitHub App installation's repository access was narrowed or the token
+  lost scope. Restore access. The next cycle lists them again and the guard
+  clears. This is the false positive the guard exists to stop.
+- If they really were transferred, renamed, or deleted, the departure is real.
+  This phase has no override and no knob for it. The thresholds are the
+  `guardMinimum` and `guardFraction` constants in `evaluate.go`, not
+  configuration, and no supported operation removes a repository scope from
+  `ingestion_scopes`. Repository removal is the later tombstone phase in
+  `docs/public/reference/hosted-retention-deletion-policy.md`. Until then the
+  guard keeps tripping and those scopes stay `unknown`. Narrowing the
+  repository rules does not help. Rules change which listed repositories are
+  selected, not which known scopes are missing from the listing, and a rule
+  change starts a new selector with no prior rows.
+
 ## Telemetry
 
 - Counter `eshu_dp_collector_repository_selection_evaluations_total`
-  `{collector_kind="git",outcome}`, outcomes `evaluated`, `listing_truncated`,
-  `guard_tripped`, `store_error`.
+  `{collector_kind="git",selector_kind,outcome}`, selector kinds `github_org`
+  and `explicit`, outcomes `evaluated`, `listing_truncated`, `guard_tripped`,
+  `store_error`. The `explicit` kind only reports `evaluated` and
+  `store_error`.
 - Gauge `eshu_dp_collector_repository_selection_scopes`
   `{collector_kind="git",state}`, states `selected`, `not_listed_pending`,
   `not_listed`, `archived_excluded`, `rule_excluded`. Sampled only on
