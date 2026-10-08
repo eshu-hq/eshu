@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -77,7 +78,7 @@ func (l stubCodeFunctionSummaryLoader) summaryEnvelopes() []facts.Envelope {
 		}
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   "summary:" + string(id),
-			FactKind: facts.CodeFunctionSummaryFactKind,
+			FactKind: code.FunctionSummaryFactKind,
 			Payload:  payload,
 		})
 	}
@@ -232,7 +233,7 @@ func (l stubCodeFunctionSourceLoader) LoadCodeFunctionSourceFacts(context.Contex
 	for _, src := range l.sources {
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   "source:" + string(src.Port.Func),
-			FactKind: facts.CodeFunctionSourceFactKind,
+			FactKind: code.FunctionSourceFactKind,
 			Payload: map[string]any{
 				"function_id": string(src.Port.Func),
 				"kind":        src.Kind,
@@ -340,7 +341,7 @@ func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDFacts(context.Cont
 		}
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   "summary:" + string(id),
-			FactKind: facts.CodeFunctionSummaryFactKind,
+			FactKind: code.FunctionSummaryFactKind,
 			Payload:  payload,
 		})
 	}

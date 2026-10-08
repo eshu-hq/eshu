@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestFactRecordSchemaIncludesCodeFlowRepoIndex proves the schema registers the
@@ -44,16 +44,16 @@ func TestFactRecordSchemaIncludesCodeFlowRepoIndex(t *testing.T) {
 	// The partial predicate must cover EXACTLY the canonical code-flow read set.
 	// Extracting and set-comparing (rather than a substring check) fails when a
 	// kind is missing OR when an extra kind drifts in, so the index predicate,
-	// the query's literal conjunct, and facts.CodeFlowReadFactKinds cannot drift
+	// the query's literal conjunct, and code.FlowReadFactKinds cannot drift
 	// independently across the query/postgres package boundary (#5284). Without
 	// this, adding a 4th kind to the read + query literal while forgetting the
 	// index WHERE would silently over-fetch that kind through the old all-scope
 	// heap filter while the write path still paid the index maintenance cost.
 	got := extractIndexFactKindInList(t, idx)
-	want := facts.CodeFlowReadFactKinds()
+	want := code.FlowReadFactKinds()
 	sort.Strings(want)
 	if !codeFlowIndexEqualKinds(got, want) {
-		t.Fatalf("code-flow repo index fact_kind set = %v, want the canonical facts.CodeFlowReadFactKinds() = %v", got, want)
+		t.Fatalf("code-flow repo index fact_kind set = %v, want the canonical code.FlowReadFactKinds() = %v", got, want)
 	}
 }
 

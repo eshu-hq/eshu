@@ -146,8 +146,8 @@ excludes every `.go` file in a package named `documentation`; see
 `docs/doc.go`. `supply/chain/` is nested rather than glued as `supplychain`
 per `docs/internal/naming.md` rule 3, matching `internal/query/supply/chain`.
 
-`compat_cloud.go`, `compat_cloud_posture.go`, `compat_code.go`,
-`compat_docs.go`, and `compat_supply_chain.go` are this package's
+`compat_cloud.go`, `compat_cloud_posture.go`, `compat_docs.go`, and
+`compat_supply_chain.go` are this package's
 transitional compatibility surface for those moves: every entry is an alias
 or a thin forwarder, so a caller that spells a moved name `facts.X` gets the
 same type and the same value it did before. Each entry is deleted once its

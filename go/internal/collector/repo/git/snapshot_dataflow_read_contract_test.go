@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // reachingDefPayloadKeys are the code_dataflow_function payload keys the
@@ -64,12 +65,12 @@ func TestRealParserDataflowFactCarriesTheReachingDefReadContract(t *testing.T) {
 
 	var dataflowFacts []facts.Envelope
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.CodeDataflowFunctionFactKind {
+		if envelope.FactKind == code.DataflowFunctionFactKind {
 			dataflowFacts = append(dataflowFacts, envelope)
 		}
 	}
 	if len(dataflowFacts) == 0 {
-		t.Fatalf("no %s fact emitted from a real parser snapshot", facts.CodeDataflowFunctionFactKind)
+		t.Fatalf("no %s fact emitted from a real parser snapshot", code.DataflowFunctionFactKind)
 	}
 
 	var withDefUse int

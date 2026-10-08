@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
@@ -19,7 +20,7 @@ func benchmarkCodeTaintEvidenceCorpus(count int) []facts.Envelope {
 	for i := 0; i < count; i++ {
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("taint-%d", i),
-			FactKind: facts.CodeTaintEvidenceFactKind,
+			FactKind: code.TaintEvidenceFactKind,
 			Payload: map[string]any{
 				"function_uid":  fmt.Sprintf("uid:fn-%d", i),
 				"repo_id":       fmt.Sprintf("repo-%d", i%50),
@@ -64,7 +65,7 @@ func benchmarkCodeInterprocEvidenceCorpus(count int) []facts.Envelope {
 	for i := 0; i < count; i++ {
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("interproc-%d", i),
-			FactKind: facts.CodeInterprocEvidenceFactKind,
+			FactKind: code.InterprocEvidenceFactKind,
 			Payload: map[string]any{
 				"source_function_uid":  fmt.Sprintf("uid:source-%d", i),
 				"sink_function_uid":    fmt.Sprintf("uid:sink-%d", i),

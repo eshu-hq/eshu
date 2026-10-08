@@ -48,14 +48,9 @@ Every current caller — `go/internal/storage/postgres`,
 `go/internal/projector/code/*`, `go/internal/projector/runtime`,
 `go/internal/collector/repo/git`, `go/internal/query/codequery`,
 `go/internal/query/codemodel`, `go/internal/reducer/code/*`, and the
-`go/internal/reducer` root — still references the pre-move,
-non-destuttered names on `facts.Code*FactKind`. Those names still resolve:
-the facts root's transitional `compat_code.go` forwards each one to its
-destuttered `code.<Name>` counterpart. None of these call sites has been
-updated to `code.<Name>` directly yet; that migration is the same tracked
-importer-migration follow-up on issue #6776 described in the facts root and
-`cloud` package docs, not something this package's contract can fix on its
-own.
+`go/internal/reducer` root — references the destuttered `code.<Name>`
+names directly. The pre-move `facts.Code*` spellings were retired with
+the transitional `compat_code.go` in #6950 once the last caller moved.
 
 ## Telemetry
 
@@ -79,10 +74,9 @@ own their own telemetry (see their READMEs).
   every kind this function returns, or the index silently stops covering a
   kind the read still queries.
 - Every exported name here was destuttered from its pre-move `Code*` form
-  (`docs/internal/naming.md` rule 4). The facts root's `compat_code.go`
-  forwards every pre-move `facts.Code*` spelling to its `code.<Name>`
-  counterpart, so a caller may still requalify to `code.<Name>` at its own
-  pace rather than on a hard cutover.
+  (`docs/internal/naming.md` rule 4). The pre-move `facts.Code*` spellings
+  no longer resolve; the transitional `compat_code.go` was deleted in
+  #6950 after the last caller requalified to `code.<Name>`.
 
 ## Related docs
 

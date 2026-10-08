@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -367,7 +368,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		// back to this marker as their trigger.
 		{
 			FactID: "code-dataflow-marker-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.CodeDataflowScannedFactKind, CollectorKind: "git",
+			FactKind: code.DataflowScannedFactKind, CollectorKind: "git",
 			Payload: map[string]any{"repo_id": "repo-fanout"},
 		},
 
@@ -375,7 +376,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		// prefers a finding fact over the marker above when both are present.
 		{
 			FactID: "code-function-summary-1", ScopeID: scopeID, GenerationID: generationID,
-			FactKind: facts.CodeFunctionSummaryFactKind, CollectorKind: "git",
+			FactKind: code.FunctionSummaryFactKind, CollectorKind: "git",
 			Payload: map[string]any{"function_id": "repo-fanout\x1fpkg\x1f\x1fHandle"},
 		},
 

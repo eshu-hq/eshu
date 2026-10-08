@@ -18,7 +18,8 @@
 // Import discipline: this package may import dependency-neutral leaves --
 // codemodel, querycontract, auth, tracing, rows,
 // selector, testutil, contentread, entitysemantics, codeshaping,
-// codeprovenance, facts, parser, reducer, the internal/search* ranking
+// codeprovenance, facts, facts/code, parser, reducer, the internal/search*
+// ranking
 // packages, telemetry, and package/registry (only its exported
 // VersionCountsByPackageID, which the bundles read reuses for its page's
 // version counts; package/registry imports no codequery) -- but NEVER root

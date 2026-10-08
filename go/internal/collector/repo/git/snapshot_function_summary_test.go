@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestBuildFunctionSummariesReadsBucket proves the dataflow_summaries bucket rows
@@ -86,7 +86,7 @@ func TestFunctionSummaryFactEmittedAndCounted(t *testing.T) {
 	}
 	found := false
 	for _, e := range envelopes {
-		if e.FactKind == facts.CodeFunctionSummaryFactKind {
+		if e.FactKind == code.FunctionSummaryFactKind {
 			found = true
 			if e.Payload["function_id"] != "repo-1\x1fpkg\x1f\x1fview" {
 				t.Fatalf("summary fact missing function_id: %+v", e.Payload)
@@ -107,7 +107,7 @@ func TestFunctionSummaryFactEnvelopeStableKey(t *testing.T) {
 	s := FunctionSummarySnapshot{FunctionID: "repo-1\x1fpkg\x1f\x1fview", Language: "go"}
 	a := functionSummaryFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at, s)
 	b := functionSummaryFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at, s)
-	if a.FactKind != facts.CodeFunctionSummaryFactKind {
+	if a.FactKind != code.FunctionSummaryFactKind {
 		t.Fatalf("FactKind = %q", a.FactKind)
 	}
 	if a.StableFactKey != "code_function_summary:repo-1:repo-1\x1fpkg\x1f\x1fview" {

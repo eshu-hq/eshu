@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
@@ -84,7 +85,7 @@ func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, stri
 func codeTaintEvidenceEnvelope(in taint.EvidenceInput) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "taint:" + in.FunctionUID,
-		FactKind: facts.CodeTaintEvidenceFactKind,
+		FactKind: code.TaintEvidenceFactKind,
 		Payload: map[string]any{
 			"function_uid":  in.FunctionUID,
 			"function_name": in.FunctionName,
@@ -246,7 +247,7 @@ func codeInterprocEvidenceEnvelope(in taint.InterprocEvidenceInput) facts.Envelo
 	}
 	return facts.Envelope{
 		FactID:   "interproc:" + in.SourceFunctionUID + ":" + in.SinkFunctionUID,
-		FactKind: facts.CodeInterprocEvidenceFactKind,
+		FactKind: code.InterprocEvidenceFactKind,
 		Payload:  payload,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // LoadCodeFunctionSummaryFacts implements reducer.CodeFunctionSummaryLoader by
@@ -22,7 +23,7 @@ func (s FactStore) LoadCodeFunctionSummaryFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeFunctionSummaryFactKind})
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{code.FunctionSummaryFactKind})
 }
 
 // LoadCodeFunctionGraphIDFacts implements reducer.CodeFunctionGraphIDLoader by
@@ -35,5 +36,5 @@ func (s FactStore) LoadCodeFunctionGraphIDFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return s.ListFactsByKind(ctx, scopeID, generationID, []string{facts.CodeFunctionSummaryFactKind})
+	return s.ListFactsByKind(ctx, scopeID, generationID, []string{code.FunctionSummaryFactKind})
 }

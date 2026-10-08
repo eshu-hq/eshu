@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -34,7 +35,7 @@ func TestBuildReducerIntentFromFact(t *testing.T) {
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
-		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "interproc-fact-1", CollectorKind: "git"},
+		{FactKind: code.InterprocEvidenceFactKind, FactID: "interproc-fact-1", CollectorKind: "git"},
 	})
 	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
@@ -61,7 +62,7 @@ func TestBuildReducerIntentSkipsFunctionSummaryFact(t *testing.T) {
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
-		{FactKind: facts.CodeFunctionSummaryFactKind, FactID: "summary-fact-1", CollectorKind: "git"},
+		{FactKind: code.FunctionSummaryFactKind, FactID: "summary-fact-1", CollectorKind: "git"},
 	})
 	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued direct interproc intent for code_function_summary fact")
@@ -75,7 +76,7 @@ func TestBuildReducerIntentFromMarkerOnly(t *testing.T) {
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
-		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
+		{FactKind: code.DataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
 	})
 	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
@@ -98,8 +99,8 @@ func TestBuildReducerIntentPrefersFindingProvenance(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
-		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "finding-1", CollectorKind: "git"},
+		{FactKind: code.DataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
+		{FactKind: code.InterprocEvidenceFactKind, FactID: "finding-1", CollectorKind: "git"},
 	})
 	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
@@ -119,7 +120,7 @@ func TestBuildReducerIntentTrimsCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.CodeInterprocEvidenceFactKind,
+		FactKind:      code.InterprocEvidenceFactKind,
 		FactID:        "interproc-fact-1",
 		CollectorKind: "  git  ",
 		SourceRef:     facts.Ref{SourceSystem: "source-ref-system"},

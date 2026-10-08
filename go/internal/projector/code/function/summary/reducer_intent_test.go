@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -24,7 +25,7 @@ func TestBuildReducerIntentFromFact(t *testing.T) {
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{
-			FactKind:      facts.CodeFunctionSummaryFactKind,
+			FactKind:      code.FunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"function_id": "repo-1\x1fpkg\x1f\x1fHandle"},
@@ -52,7 +53,7 @@ func TestBuildReducerIntentSkipsInvalidSummaryRepoID(t *testing.T) {
 	t.Parallel()
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
-			FactKind:      facts.CodeFunctionSummaryFactKind,
+			FactKind:      code.FunctionSummaryFactKind,
 			FactID:        "summary-fact-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-1"},
@@ -71,7 +72,7 @@ func TestBuildReducerIntentFromMarkerOnly(t *testing.T) {
 	t.Parallel()
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
-			FactKind:      facts.CodeDataflowScannedFactKind,
+			FactKind:      code.DataflowScannedFactKind,
 			FactID:        "marker-1",
 			CollectorKind: "git",
 			Payload:       map[string]any{"repo_id": "repo-1"},

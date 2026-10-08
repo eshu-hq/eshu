@@ -13,8 +13,9 @@
 // surface. It may import only dependency-neutral leaves -- querycontract
 // (envelopes, capabilities, row-value decoders, repository access filter),
 // auth (request auth bounds), tracing (span plumbing), the
-// internal/search* hybrid ranking packages, internal/facts, and
-// internal/codeprovenance -- never on root package query itself, which
+// internal/search* hybrid ranking packages, internal/facts,
+// internal/facts/code, and internal/codeprovenance -- never on root
+// package query itself, which
 // would create an import cycle: root's family_code_shim.go imports this
 // package for the compatibility aliases the staying code family still
 // uses.

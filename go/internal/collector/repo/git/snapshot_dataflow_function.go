@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // DataflowFunctionSnapshot is one parser-emitted function-level dataflow record.
@@ -99,7 +100,7 @@ func dataflowFunctionFactEnvelope(
 	function DataflowFunctionSnapshot,
 ) facts.Envelope {
 	payload := map[string]any{
-		"graph_kind":    facts.CodeDataflowFunctionFactKind,
+		"graph_kind":    code.DataflowFunctionFactKind,
 		"repo_id":       repoID,
 		"relative_path": function.RelativePath,
 		"function_name": function.FunctionName,
@@ -132,11 +133,11 @@ func dataflowFunctionFactEnvelope(
 		payload["overflow_reason"] = function.OverflowReason
 	}
 
-	factKey := facts.CodeDataflowFunctionFactKind + ":" + repoID + ":" +
+	factKey := code.DataflowFunctionFactKind + ":" + repoID + ":" +
 		function.RelativePath + ":" + function.FunctionName + ":" +
 		strconv.Itoa(function.LineNumber)
 	return model.FactEnvelope(
-		facts.CodeDataflowFunctionFactKind,
+		code.DataflowFunctionFactKind,
 		scopeID,
 		generationID,
 		observedAt,

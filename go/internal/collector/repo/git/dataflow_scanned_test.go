@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
 // TestDataflowScannedMarkerEmittedWithoutFindings proves that when the value-flow
@@ -32,7 +32,7 @@ func TestDataflowScannedMarkerEmittedWithoutFindings(t *testing.T) {
 	}
 	markers := 0
 	for _, e := range envelopes {
-		if e.FactKind == facts.CodeDataflowScannedFactKind {
+		if e.FactKind == code.DataflowScannedFactKind {
 			markers++
 		}
 	}
@@ -60,7 +60,7 @@ func TestDataflowScannedMarkerAbsentWhenGateOff(t *testing.T) {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
 	for _, e := range envelopes {
-		if e.FactKind == facts.CodeDataflowScannedFactKind {
+		if e.FactKind == code.DataflowScannedFactKind {
 			t.Fatalf("marker emitted with gate off: %+v", e)
 		}
 	}
@@ -88,7 +88,7 @@ func TestDataflowScannedMarkerAbsentOnDelta(t *testing.T) {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
 	}
 	for _, e := range envelopes {
-		if e.FactKind == facts.CodeDataflowScannedFactKind {
+		if e.FactKind == code.DataflowScannedFactKind {
 			t.Fatalf("marker must not be emitted on a delta generation: %+v", e)
 		}
 	}
@@ -102,8 +102,8 @@ func TestDataflowScannedMarkerStableKey(t *testing.T) {
 	at := time.Date(2026, time.June, 18, 0, 0, 0, 0, time.UTC)
 	a := dataflowScannedFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at)
 	b := dataflowScannedFactEnvelope("/repo", "repo-1", "scope-1", "gen-1", at)
-	if a.FactKind != facts.CodeDataflowScannedFactKind {
-		t.Fatalf("FactKind = %q, want %q", a.FactKind, facts.CodeDataflowScannedFactKind)
+	if a.FactKind != code.DataflowScannedFactKind {
+		t.Fatalf("FactKind = %q, want %q", a.FactKind, code.DataflowScannedFactKind)
 	}
 	if a.StableFactKey != "code_dataflow_scanned:repo-1" {
 		t.Fatalf("StableFactKey = %q", a.StableFactKey)

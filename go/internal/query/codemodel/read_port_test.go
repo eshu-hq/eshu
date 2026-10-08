@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -56,7 +56,7 @@ func (r *flowReadRows) Next() bool {
 func (r *flowReadRows) Scan(dest ...any) error {
 	*dest[0].(*string) = "fact-1"
 	*dest[1].(*string) = "generation-1"
-	*dest[2].(*string) = facts.CodeDataflowFunctionFactKind
+	*dest[2].(*string) = code.DataflowFunctionFactKind
 	*dest[3].(*time.Time) = time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC)
 	*dest[4].(*[]byte) = []byte(`{"repo_id":"repo","relative_path":"flow.js","function_name":"f","language":"js"}`)
 	return nil
@@ -71,7 +71,7 @@ func TestCodeFlowGuardedReadPortDecodesAndCloses(t *testing.T) {
 	if err != nil || len(got.Functions) != 1 || !rows.closed {
 		t.Fatalf("result %v, error %v, closed %v", got, err, rows.closed)
 	}
-	if got.Functions[0].EvidenceHandle != "fact://"+facts.CodeDataflowFunctionFactKind+"/fact-1" || got.Functions[0].Language != "javascript" {
+	if got.Functions[0].EvidenceHandle != "fact://"+code.DataflowFunctionFactKind+"/fact-1" || got.Functions[0].Language != "javascript" {
 		t.Fatalf("decoded function %v", got.Functions[0])
 	}
 }

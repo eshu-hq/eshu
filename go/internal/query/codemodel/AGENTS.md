@@ -23,7 +23,8 @@ Scope: the code-model query leaf, split out of root package `query`
 Allowed imports: stdlib, `querycontract`/`auth`/`tracing`, and
 the already-present internal leaves (`searchbench`, `searchdocs`,
 `searchembed`, `searchhybrid`, `searchretrieval`, `facts`,
-`codeprovenance`, and the narrow `storage/postgres/db` read port). NEVER import root package `query` (cycle).
+`facts/code`, `codeprovenance`, and the narrow `storage/postgres/db`
+read port). NEVER import root package `query` (cycle).
 `gofmt -l` MUST be clean; keep the stdlib/eshu import grouping.
 
 ## Export discipline (export-minimal)

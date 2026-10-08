@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -21,7 +22,7 @@ func TestBuildProjectionQueuesBothEvidenceDomainsFromMarker(t *testing.T) {
 
 	scopeValue, generation := incidentRoutingProjectionScope()
 	envelopes := []facts.Envelope{{
-		FactKind:      facts.CodeDataflowScannedFactKind,
+		FactKind:      code.DataflowScannedFactKind,
 		FactID:        "marker-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
@@ -54,7 +55,7 @@ func TestBuildProjectionQueuesCodeTaintEvidence(t *testing.T) {
 
 	scopeValue, generation := incidentRoutingProjectionScope()
 	envelopes := []facts.Envelope{{
-		FactKind:      facts.CodeTaintEvidenceFactKind,
+		FactKind:      code.TaintEvidenceFactKind,
 		FactID:        "taint-fact-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,

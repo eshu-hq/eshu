@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
@@ -17,7 +18,7 @@ func TestCodeFunctionSummaryEffectsMapsAllFields(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload: map[string]any{
 			"function_id":      "repo-1:pkg::view",
 			"param_to_return":  []any{float64(0), float64(2)},
@@ -63,7 +64,7 @@ func TestCodeFunctionSummaryEffectsTrimsCallee(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload: map[string]any{
 			"function_id": "repo-1:pkg::view",
 			"param_to_call_arg": []any{map[string]any{
@@ -89,7 +90,7 @@ func TestCodeFunctionSummaryEffectsMissingFunctionIDReturnsError(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload:  map[string]any{"repo_id": "repo-1"},
 	}
 	if _, _, _, err := codeFunctionSummaryEffects(envelope); err == nil {
@@ -107,7 +108,7 @@ func TestCodeFunctionSummaryEffectsBlankFunctionIDReturnsNotOKNoError(t *testing
 
 	for _, functionID := range []string{"", "   "} {
 		envelope := facts.Envelope{
-			FactKind: facts.CodeFunctionSummaryFactKind,
+			FactKind: code.FunctionSummaryFactKind,
 			Payload:  map[string]any{"function_id": functionID, "repo_id": "repo-1"},
 		}
 		_, _, ok, err := codeFunctionSummaryEffects(envelope)
@@ -128,7 +129,7 @@ func TestCodeFunctionGraphIDMapsFields(t *testing.T) {
 	t.Parallel()
 
 	resolved := facts.Envelope{
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload: map[string]any{
 			"function_id": "repo-1:pkg::view",
 			"graph_uid":   "uid:view-fn",
@@ -140,7 +141,7 @@ func TestCodeFunctionGraphIDMapsFields(t *testing.T) {
 	}
 
 	unresolved := facts.Envelope{
-		FactKind: facts.CodeFunctionSummaryFactKind,
+		FactKind: code.FunctionSummaryFactKind,
 		Payload:  map[string]any{"function_id": "repo-1:pkg::orphan"},
 	}
 	id, uid, ok, err = codeFunctionGraphID(unresolved)
@@ -156,7 +157,7 @@ func TestCodeFunctionSourceMapsFields(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeFunctionSourceFactKind,
+		FactKind: code.FunctionSourceFactKind,
 		Payload: map[string]any{
 			"function_id": "repo-1:pkg::handle",
 			"param_index": float64(2),
@@ -179,7 +180,7 @@ func TestCodeFunctionSourceMissingKindReturnsError(t *testing.T) {
 	t.Parallel()
 
 	envelope := facts.Envelope{
-		FactKind: facts.CodeFunctionSourceFactKind,
+		FactKind: code.FunctionSourceFactKind,
 		Payload: map[string]any{
 			"function_id": "repo-1:pkg::handle",
 			"param_index": float64(0),
@@ -197,7 +198,7 @@ func TestCodeFunctionSourceBlankFieldsReturnNotOKNoError(t *testing.T) {
 	t.Parallel()
 
 	blankFunctionID := facts.Envelope{
-		FactKind: facts.CodeFunctionSourceFactKind,
+		FactKind: code.FunctionSourceFactKind,
 		Payload: map[string]any{
 			"function_id": "   ",
 			"kind":        "http_request",
@@ -209,7 +210,7 @@ func TestCodeFunctionSourceBlankFieldsReturnNotOKNoError(t *testing.T) {
 	}
 
 	blankKind := facts.Envelope{
-		FactKind: facts.CodeFunctionSourceFactKind,
+		FactKind: code.FunctionSourceFactKind,
 		Payload: map[string]any{
 			"function_id": "repo-1:pkg::handle",
 			"kind":        "",

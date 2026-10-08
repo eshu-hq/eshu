@@ -6,8 +6,8 @@ the root `AGENTS.md` still applies.
 ## Invariants
 
 - **Must never import `go/internal/facts`.** Same one-way rule as `cloud`
-  and `encode`: the facts root's transitional `compat_code.go` already
-  imports this package, so the reverse import cycles.
+  and `encode`: the dependency runs root → family, never back, so shared
+  substrate belongs in `internal/facts/encode`.
 - **These kinds are unversioned by design.** Do not add a schema-version
   constant or a `specs/fact-kind-registry.v1.yaml` entry for a kind here
   without first confirming with the owner that the kind is joining the
