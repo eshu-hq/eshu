@@ -115,6 +115,8 @@ var coreEntries = []Entry{
 	// collector
 	{Name: "ESHU_REPO_RECONCILE_INTERVAL_HOURS", Type: VarInt, Default: "24", Subsystem: "collector", Description: "Hours a git scope may go without a full reconciliation sweep before the ingester's repo-selection collector forces one to retract drift the incremental delta path missed (epic #2340). An explicit 0 disables reconciliation; unset or invalid falls back to the default. Clamped to whole hours."},
 	{Name: "ESHU_REPO_RECONCILE_MAX_PER_CYCLE", Type: VarInt, Default: "10", Subsystem: "collector", Description: "Maximum git scopes forced to a full reconciliation snapshot in one repo-selection cycle (epic #2340). An explicit 0 removes the per-cycle cap while reconciliation stays interval-gated; unset or invalid falls back to the default."},
+	{Name: "ESHU_WEBHOOK_TRIGGER_CLAIM_LEASE_WINDOW", Type: VarDuration, Default: "15m", Subsystem: "collector", Description: "Stale-claim lease for webhook refresh triggers: a claim older than this without a handoff goes back to queued, or to failed past the attempt cap (#7661). Empty or invalid keeps the default."},
+	{Name: "ESHU_WEBHOOK_TRIGGER_MAX_CLAIM_ATTEMPTS", Type: VarInt, Default: "3", Subsystem: "collector", Description: "Lifetime claim attempts per webhook refresh trigger before a reap fails it with claim_lease_exhausted (#7661). Empty or below 1 keeps the default."},
 
 	// reducer
 	{Name: "ESHU_CODE_VALUE_FLOW_STALE_CLEANUP_DELETE_BATCH_LIMIT", Type: VarInt, Default: "500", Subsystem: "reducer", Description: "Maximum stale value-flow evidence nodes or edges deleted per active scope and family in one reducer cleanup pass."},
