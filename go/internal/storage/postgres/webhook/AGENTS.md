@@ -28,8 +28,10 @@
 - Every DDL change also needs a new bootstrap migration that adds the same
   column or index. Only `webhook-listener` runs `EnsureSchema`; the ingester
   and `collector-git` rely on the migrations (#7777).
-  `TestWebhookTriggerStoreRunsOnBootstrapSchemaLive` fails when the two
-  drift.
+  `TestWebhookTriggerStoreRunsOnBootstrapSchemaLive` fails when the columns
+  or indexes the two build differ (name, type, nullability, default, or
+  index definition). It does not compare constraints other than the primary
+  key, or triggers.
 - Change claim predicates only with the SKIP LOCKED contention test and an
   idempotency proof.
 

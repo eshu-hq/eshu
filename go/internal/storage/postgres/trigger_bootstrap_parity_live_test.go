@@ -24,6 +24,9 @@ import (
 // claim, fenced handoff, and stale-claim reap must work on the migrations
 // alone, and EnsureSchema must find nothing left to add: the same columns and
 // the same indexes on webhook_refresh_triggers before and after it runs.
+// Because the store DDL uses IF NOT EXISTS throughout, that second check
+// cannot see an object both sides define differently, so the bootstrap shape
+// must also equal the shape EnsureSchema builds alone on an empty schema.
 //
 // It runs in the live-postgres-readiness runner. Run locally against a
 // disposable PostgreSQL:
@@ -49,27 +52,21 @@ func TestWebhookTriggerStoreRunsOnBootstrapSchemaLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
-	schema := fmt.Sprintf("eshu_7777_webhook_%d", time.Now().UnixNano())
 	adminDB := openActiveOCIWarningIndexProofDB(t, dsn)
-	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
-		t.Fatalf("create proof schema: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		if _, err := adminDB.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
-			t.Errorf("drop proof schema: %v", err)
-		}
-	})
-	database, err := sql.Open("pgx", activeOCIWarningIndexSchemaDSN(t, dsn, schema))
-	if err != nil {
-		t.Fatalf("open proof database: %v", err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
+	schema, database := openWebhookParityProofSchema(ctx, t, adminDB, dsn, "bootstrap")
 	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 	bootstrapShape := webhookTriggerTableShape(ctx, t, database, schema)
+
+	storeOnlySchema, storeOnlyDB := openWebhookParityProofSchema(ctx, t, adminDB, dsn, "store")
+	if err := webhookstore.NewWebhookTriggerStore(SQLDB{DB: storeOnlyDB}).EnsureSchema(ctx); err != nil {
+		t.Fatalf("EnsureSchema() on an empty schema: %v", err)
+	}
+	if storeOnlyShape := webhookTriggerTableShape(ctx, t, storeOnlyDB, storeOnlySchema); !slices.Equal(bootstrapShape, storeOnlyShape) {
+		t.Fatalf("webhook_refresh_triggers differs between the bootstrap migrations and a store-only schema\nbootstrap:  %v\nstore-only: %v",
+			bootstrapShape, storeOnlyShape)
+	}
 
 	store := webhookstore.NewWebhookTriggerStore(SQLDB{DB: database})
 	base := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
@@ -105,6 +102,36 @@ func TestWebhookTriggerStoreRunsOnBootstrapSchemaLive(t *testing.T) {
 		t.Fatalf("webhook_refresh_triggers differs between the bootstrap migrations and the store schema\nbootstrap: %v\nensured:   %v",
 			bootstrapShape, ensuredShape)
 	}
+}
+
+// openWebhookParityProofSchema creates a uniquely named scratch schema that is
+// dropped at cleanup and returns it with a connection whose search_path is
+// that schema.
+func openWebhookParityProofSchema(
+	ctx context.Context,
+	t *testing.T,
+	adminDB *sql.DB,
+	dsn string,
+	label string,
+) (string, *sql.DB) {
+	t.Helper()
+	schema := fmt.Sprintf("eshu_7777_webhook_%s_%d", label, time.Now().UnixNano())
+	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
+		t.Fatalf("create %s proof schema: %v", label, err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		if _, err := adminDB.ExecContext(cleanupCtx, "DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE"); err != nil {
+			t.Errorf("drop %s proof schema: %v", label, err)
+		}
+	})
+	database, err := sql.Open("pgx", activeOCIWarningIndexSchemaDSN(t, dsn, schema))
+	if err != nil {
+		t.Fatalf("open %s proof database: %v", label, err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	return schema, database
 }
 
 func storeBootstrapProofTrigger(

@@ -49,8 +49,9 @@ the instrumented handle and the callers own observability.
   `claim_fencing_token` and the `claimed_at` reap index, so every trigger
   write failed until a listener started. The live test
   `TestWebhookTriggerStoreRunsOnBootstrapSchemaLive` runs the lifecycle on a
-  bootstrap-only schema and fails if `EnsureSchema` would add any column or
-  index.
+  bootstrap-only schema. It fails if `EnsureSchema` would add any column or
+  index there, or if the columns and indexes differ from the ones
+  `EnsureSchema` builds alone on an empty schema.
 - Do not import the parent `postgres` package: that is an import cycle.
   Root tests exercise this package through its exported constructors.
 
