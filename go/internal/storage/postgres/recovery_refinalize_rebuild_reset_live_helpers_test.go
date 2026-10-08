@@ -21,7 +21,7 @@ import (
 //
 // A rebuild-from-facts throws the graph away, keeps Postgres, and replays every
 // active generation through the projector. Before this change it rebuilt only
-// the source-local part of the graph, because three pieces of Postgres state
+// the source-local part of the graph, because five pieces of Postgres state
 // that survive a graph wipe told the pipeline the work was already done:
 //
 //   - succeeded reducer work items, which a re-projection cannot re-open because
@@ -29,7 +29,13 @@ import (
 //   - shared projection intents with completed_at set, which the partition
 //     workers skip and the upsert deliberately never reopens;
 //   - graph projection phase rows, which claim canonical nodes are committed for
-//     a graph that no longer has any.
+//     a graph that no longer has any;
+//   - active relationship generations, which the phase wipe does not touch, so
+//     the re-projection's resolved read keeps serving the prior wave's rows;
+//   - shared projection acceptance rows (#7673), which grant the
+//     repo_dependency lane projection authority for the refinalized
+//     generation, so the lane keeps writing edges for history instead of
+//     rebuilding.
 //
 // These tests pin the reset to exactly the generations being refinalized. The
 // two guard proofs at the bottom pin the opposite: that ordinary enqueue and

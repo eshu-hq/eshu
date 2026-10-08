@@ -7,7 +7,7 @@
 // Eshu's graph is a projection: throw it away, keep Postgres, and a refinalize
 // replays every recoverable generation to rebuild it: each active scope's active
 // generation, and each failed scope's newest failed generation (#7116). That worked for source-local
-// structure and stopped there, because four pieces of Postgres state outlive a
+// structure and stopped there, because five pieces of Postgres state outlive a
 // graph wipe and each one tells the pipeline the work is already done.
 //
 //  1. Succeeded reducer work items. A re-projection re-derives every reducer
@@ -25,6 +25,11 @@
 //  4. Active relationship generations. The phase wipe does not touch
 //     relationship_generations, so without retirement the re-projection's
 //     resolved read keeps serving the prior wave's rows as current truth.
+//  5. Shared projection acceptance rows (#7673). They grant the
+//     repo_dependency lane projection authority for the refinalized
+//     generation, so without clearing them the lane keeps writing edges for
+//     history instead of rebuilding. The re-projection's intent commits
+//     re-advance them from first principles.
 //
 // Both dedup guards stay exactly as they are. They are correct for ordinary
 // operation, where every shard drain, reopen, and retry depends on completed

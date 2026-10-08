@@ -307,8 +307,11 @@ type Counts struct {
 // projector work. Passing it in rather than re-selecting it is the point: under
 // READ COMMITTED a re-selection could pick up a generation the enqueue never saw.
 //
-// All four statements touch terminal state only, so no live lease is taken away
-// and no claimed item can double-execute.
+// All four statements touch only state the fenced refinalize owns — terminal
+// rows (succeeded work, completed intents, stale phases) plus the acceptance
+// watermarks for the refinalized generations, which the drain and claim fence
+// hold still while the reset runs — so no live lease is taken away and no
+// claimed item can double-execute.
 func ApplyPreRetirement(
 	ctx context.Context,
 	tx Execer,
