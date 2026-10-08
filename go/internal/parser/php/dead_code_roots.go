@@ -423,14 +423,16 @@ func phpIsControllerAction(contextName string, name string, isPublic bool, route
 // Framework 1's conventional dispatcher: a public *Action method on a class
 // that directly extends Zend_Controller_Action. ZF1 appends "Action" to the
 // requested action name, so a bare "Action" method is never dispatched.
-// Only direct same-file bases are visible here; a controller inheriting
-// through an intermediate base class is a known miss.
+// PHP method and class names are case-insensitive, so both the suffix and
+// the base comparison fold case. Only direct same-file bases are visible
+// here; a controller inheriting through an intermediate base class is a
+// known miss.
 func phpIsZF1ControllerAction(contextName string, name string, isPublic bool, facts phpDeadCodeFacts) bool {
-	if !isPublic || name == "Action" || !strings.HasSuffix(name, "Action") || strings.HasPrefix(name, "__") {
+	if !isPublic || strings.EqualFold(name, "Action") || !strings.HasSuffix(strings.ToLower(name), "action") || strings.HasPrefix(name, "__") {
 		return false
 	}
 	for _, base := range facts.typeBases[contextName] {
-		if strings.TrimPrefix(strings.TrimSpace(base), `\`) == "Zend_Controller_Action" {
+		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(base), `\`), "Zend_Controller_Action") {
 			return true
 		}
 	}

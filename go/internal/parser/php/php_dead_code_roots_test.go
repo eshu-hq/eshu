@@ -339,10 +339,21 @@ class UserController extends Zend_Controller_Action {
 
     public function Action(): void {
     }
+
+    public function action(): void {
+    }
+
+    public function contactaction(): void {
+    }
 }
 
 class AdminController extends \Zend_Controller_Action {
     public function listAction(): void {
+    }
+}
+
+class CaseController extends \zend_controller_action {
+    public function viewAction(): void {
     }
 }
 
@@ -374,6 +385,8 @@ class IndirectController extends MidBase {
 	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "indexAction", "UserController"), "dead_code_root_kinds", "php.zf1_controller_action")
 	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "showAction", "UserController"), "dead_code_root_kinds", "php.zf1_controller_action")
 	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "listAction", "AdminController"), "dead_code_root_kinds", "php.zf1_controller_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "contactaction", "UserController"), "dead_code_root_kinds", "php.zf1_controller_action")
+	parsertest.AssertStringSliceContains(t, parsertest.AssertFunctionByNameAndClass(t, got, "viewAction", "CaseController"), "dead_code_root_kinds", "php.zf1_controller_action")
 
 	for _, tc := range []struct {
 		name         string
@@ -382,6 +395,7 @@ class IndirectController extends MidBase {
 		{name: "helperMethod", classContext: "UserController"},
 		{name: "secretAction", classContext: "UserController"},
 		{name: "Action", classContext: "UserController"},
+		{name: "action", classContext: "UserController"},
 		{name: "indexAction", classContext: "PlainController"},
 		// IndirectController inherits the Zend base through MidBase in the
 		// same file; only direct same-file bases are visible, so its action
