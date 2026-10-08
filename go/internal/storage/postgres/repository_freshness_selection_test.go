@@ -53,7 +53,7 @@ func TestReadRepositoryFreshnessSelectionConfirmedNotListed(t *testing.T) {
 	since := freshnessSelectionNow.Add(-10 * time.Minute)
 	lastListed := since.Add(-5 * time.Minute)
 	queryer := freshnessSelectionQueryer(fakeRows{rows: [][]any{
-		selectionRow("sel-boatsgroup", "not_listed", lastListed, since, 3, freshnessSelectionNow),
+		selectionRow("sel-acme", "not_listed", lastListed, since, 3, freshnessSelectionNow),
 	}}, latestGenerationRow(since))
 
 	snapshot, err := freshnessSelectionStore(queryer).ReadRepositoryFreshness(context.Background(), "repo-1")

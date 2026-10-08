@@ -14,16 +14,16 @@ import (
 
 var (
 	cycleOne     = time.Date(2026, 10, 8, 6, 0, 0, 0, time.UTC)
-	testSelector = NewGitHubOrgSelector("githubOrg", "boatsgroup", nil, false, GitHubAppPrincipal("1", "2"))
+	testSelector = NewGitHubOrgSelector("githubOrg", "acme", nil, false, GitHubAppPrincipal("1", "2"))
 	testWindow   = 48 * time.Hour
 )
 
 func scopeIDFor(slug string) string { return "git-repository-scope:" + slug }
 
-// qaFixture mirrors the QA corpus behind #7625: 802 known boatsgroup scopes,
+// qaFixture mirrors the QA corpus behind #7625: 802 known acme scopes,
 // of which 776 are listed and selectable (one under a renamed repository's
-// new name), 24 were transferred out of the org, fsbo-hapi-patched is listed
-// but archived, and script-node-bulk-feed is the renamed repository's old
+// new name), 24 were transferred out of the org, archived-service is listed
+// but archived, and renamed-service is the renamed repository's old
 // name. The listing also carries two selectable repositories that were never
 // indexed and so have no scope.
 func qaFixture() ([]KnownScope, Listing) {
@@ -36,20 +36,20 @@ func qaFixture() ([]KnownScope, Listing) {
 		})
 	}
 	for i := range 775 {
-		slug := fmt.Sprintf("boatsgroup/repo-%03d", i)
+		slug := fmt.Sprintf("acme/repo-%03d", i)
 		addKnown(slug)
 		addListed(slug, int64(10_000+i), StateSelected)
 	}
-	addKnown("boatsgroup/script-node-bulk-feed-v2")
-	addListed("boatsgroup/script-node-bulk-feed-v2", 20_000, StateSelected)
+	addKnown("acme/renamed-service-v2")
+	addListed("acme/renamed-service-v2", 20_000, StateSelected)
 	for i := range 24 {
-		addKnown(fmt.Sprintf("boatsgroup/transferred-%02d", i))
+		addKnown(fmt.Sprintf("acme/transferred-%02d", i))
 	}
-	addKnown("boatsgroup/fsbo-hapi-patched")
-	addListed("boatsgroup/fsbo-hapi-patched", 30_000, StateArchivedExcluded)
-	addKnown("boatsgroup/script-node-bulk-feed")
-	addListed("boatsgroup/never-indexed-a", 40_000, StateSelected)
-	addListed("boatsgroup/never-indexed-b", 40_001, StateSelected)
+	addKnown("acme/archived-service")
+	addListed("acme/archived-service", 30_000, StateArchivedExcluded)
+	addKnown("acme/renamed-service")
+	addListed("acme/never-indexed-a", 40_000, StateSelected)
+	addListed("acme/never-indexed-b", 40_001, StateSelected)
 	return known, listing
 }
 
@@ -88,9 +88,9 @@ func TestEvaluateQAFixtureConfirmsOnlyOnTheSecondEvaluation(t *testing.T) {
 			t.Fatalf("first evaluation confirmed %+v; a first evaluation confirms nothing", observation)
 		}
 	}
-	assertRowState(t, first, "boatsgroup/script-node-bulk-feed", StateNotListed)
-	assertRowState(t, first, "boatsgroup/script-node-bulk-feed-v2", StateSelected)
-	assertRowState(t, first, "boatsgroup/fsbo-hapi-patched", StateArchivedExcluded)
+	assertRowState(t, first, "acme/renamed-service", StateNotListed)
+	assertRowState(t, first, "acme/renamed-service-v2", StateSelected)
+	assertRowState(t, first, "acme/archived-service", StateArchivedExcluded)
 	if got := len(first.NotListedSample); got != 10 || !slices.IsSorted(first.NotListedSample) {
 		t.Fatalf("not_listed_sample = %v, want 10 sorted slugs", first.NotListedSample)
 	}
@@ -172,20 +172,20 @@ func TestEvaluateStateChangeResetsAndRepeatIncrements(t *testing.T) {
 		return ListedRepository{ScopeID: scopeIDFor(slug), Slug: slug, GitHubID: id, State: state}
 	}
 	known := []KnownScope{
-		{ScopeID: scopeIDFor("boatsgroup/back"), Slug: "boatsgroup/back"},
-		{ScopeID: scopeIDFor("boatsgroup/flip"), Slug: "boatsgroup/flip"},
-		{ScopeID: scopeIDFor("boatsgroup/same"), Slug: "boatsgroup/same"},
-		{ScopeID: scopeIDFor("boatsgroup/gone"), Slug: "boatsgroup/gone"},
+		{ScopeID: scopeIDFor("acme/back"), Slug: "acme/back"},
+		{ScopeID: scopeIDFor("acme/flip"), Slug: "acme/flip"},
+		{ScopeID: scopeIDFor("acme/same"), Slug: "acme/same"},
+		{ScopeID: scopeIDFor("acme/gone"), Slug: "acme/gone"},
 	}
 	result := evaluateAt(cycleOne, known, Listing{Complete: true, Repositories: []ListedRepository{
-		listed("boatsgroup/back", 7, StateSelected),
-		listed("boatsgroup/flip", 8, StateRuleExcluded),
-		listed("boatsgroup/same", 9, StateSelected),
+		listed("acme/back", 7, StateSelected),
+		listed("acme/flip", 8, StateRuleExcluded),
+		listed("acme/same", 9, StateSelected),
 	}}, []Observation{
-		prior("boatsgroup/back", StateNotListed, 3),
-		prior("boatsgroup/flip", StateArchivedExcluded, 2),
-		prior("boatsgroup/same", StateSelected, 4),
-		prior("boatsgroup/gone", StateNotListed, 5),
+		prior("acme/back", StateNotListed, 3),
+		prior("acme/flip", StateArchivedExcluded, 2),
+		prior("acme/same", StateSelected, 4),
+		prior("acme/gone", StateNotListed, 5),
 	})
 	if result.Counts.Relisted != 1 {
 		t.Fatalf("relisted = %d, want 1", result.Counts.Relisted)
@@ -199,20 +199,20 @@ func TestEvaluateStateChangeResetsAndRepeatIncrements(t *testing.T) {
 		since  time.Time
 		cycles int
 	}{
-		"boatsgroup/back": {StateSelected, cycleOne, 1},
-		"boatsgroup/flip": {StateRuleExcluded, cycleOne, 1},
-		"boatsgroup/same": {StateSelected, since, 5},
-		"boatsgroup/gone": {StateNotListed, since, 6},
+		"acme/back": {StateSelected, cycleOne, 1},
+		"acme/flip": {StateRuleExcluded, cycleOne, 1},
+		"acme/same": {StateSelected, since, 5},
+		"acme/gone": {StateNotListed, since, 6},
 	} {
 		o := got[scopeIDFor(slug)]
 		if o.State != want.state || !o.StateSince.Equal(want.since) || o.StateCycleCount != want.cycles {
 			t.Fatalf("%s = %+v, want %s since %v for %d cycles", slug, o, want.state, want.since, want.cycles)
 		}
 	}
-	if back := got[scopeIDFor("boatsgroup/back")]; !back.LastListedAt.Equal(cycleOne) || back.GitHubRepoID != 7 {
+	if back := got[scopeIDFor("acme/back")]; !back.LastListedAt.Equal(cycleOne) || back.GitHubRepoID != 7 {
 		t.Fatalf("relisted projection = %+v, want last listed now with GitHub id 7", back)
 	}
-	if gone := got[scopeIDFor("boatsgroup/gone")]; !gone.LastListedAt.Equal(cycleOne.Add(-time.Hour)) {
+	if gone := got[scopeIDFor("acme/gone")]; !gone.LastListedAt.Equal(cycleOne.Add(-time.Hour)) {
 		t.Fatalf("still-unlisted projection = %+v, want last_listed_at kept", gone)
 	}
 }
@@ -235,10 +235,10 @@ func TestEvaluateIgnoresScopesOutsideTheSelectorOrg(t *testing.T) {
 	t.Parallel()
 
 	known, listing := qaFixture()
-	known = append(known, KnownScope{ScopeID: scopeIDFor("boatsgroup-archive/transferred-00"), Slug: "boatsgroup-archive/transferred-00"})
+	known = append(known, KnownScope{ScopeID: scopeIDFor("acme-archive/transferred-00"), Slug: "acme-archive/transferred-00"})
 	result := evaluateAt(cycleOne, known, listing, nil)
 	for _, row := range result.Batch.Rows {
-		if row.ScopeID == scopeIDFor("boatsgroup-archive/transferred-00") {
+		if row.ScopeID == scopeIDFor("acme-archive/transferred-00") {
 			t.Fatalf("evaluator wrote a row for another org's scope: %+v", row)
 		}
 	}
@@ -252,7 +252,7 @@ func TestEvaluateIgnoresListedRecordsThatClaimNotListed(t *testing.T) {
 
 	known, listing := qaFixture()
 	for i := range listing.Repositories {
-		if listing.Repositories[i].Slug == "boatsgroup/repo-000" {
+		if listing.Repositories[i].Slug == "acme/repo-000" {
 			listing.Repositories[i].State = StateNotListed
 		}
 	}
@@ -279,7 +279,7 @@ func TestEvaluateMassMissGuardWritesNothing(t *testing.T) {
 	known := make([]KnownScope, 0, 100)
 	listing := Listing{Complete: true}
 	for i := range 100 {
-		slug := fmt.Sprintf("boatsgroup/repo-%03d", i)
+		slug := fmt.Sprintf("acme/repo-%03d", i)
 		known = append(known, KnownScope{ScopeID: scopeIDFor(slug), Slug: slug})
 		if i >= 11 {
 			listing.Repositories = append(listing.Repositories, ListedRepository{ScopeID: scopeIDFor(slug), Slug: slug, State: StateSelected})
@@ -293,7 +293,7 @@ func TestEvaluateMassMissGuardWritesNothing(t *testing.T) {
 		t.Fatalf("guard threshold %d newly %d, want 10 and 11", tripped.GuardThreshold, tripped.Counts.NewlyUnlisted)
 	}
 
-	listing.Repositories = append(listing.Repositories, ListedRepository{ScopeID: scopeIDFor("boatsgroup/repo-000"), Slug: "boatsgroup/repo-000", State: StateSelected})
+	listing.Repositories = append(listing.Repositories, ListedRepository{ScopeID: scopeIDFor("acme/repo-000"), Slug: "acme/repo-000", State: StateSelected})
 	if passed := evaluateAt(cycleOne, known, listing, nil); passed.Outcome != OutcomeEvaluated {
 		t.Fatalf("10 of 100 unlisted = %q, want %q", passed.Outcome, OutcomeEvaluated)
 	}
@@ -314,7 +314,7 @@ func TestEvaluateGuardCountsOnlyNewlyUnlistedScopes(t *testing.T) {
 	prior := make([]Observation, 0, 20)
 	listing := Listing{Complete: true}
 	for i := range 100 {
-		slug := fmt.Sprintf("boatsgroup/repo-%03d", i)
+		slug := fmt.Sprintf("acme/repo-%03d", i)
 		known = append(known, KnownScope{ScopeID: scopeIDFor(slug), Slug: slug})
 		if i < 20 {
 			prior = append(prior, Observation{
@@ -337,20 +337,20 @@ func TestEvaluateGuardCountsOnlyNewlyUnlistedScopes(t *testing.T) {
 func TestEvaluateExplicitWritesOnlySelectedRows(t *testing.T) {
 	t.Parallel()
 
-	selector := NewExplicitSelector("explicit", "boatsgroup", []Rule{{Kind: "exact", Value: "boatsgroup/repo-001"}}, TokenPrincipal("t"))
+	selector := NewExplicitSelector("explicit", "acme", []Rule{{Kind: "exact", Value: "acme/repo-001"}}, TokenPrincipal("t"))
 	known, _ := qaFixture()
 	listing := Listing{Complete: true, Repositories: []ListedRepository{
-		{ScopeID: scopeIDFor("boatsgroup/repo-001"), Slug: "boatsgroup/repo-001", State: StateSelected},
-		{ScopeID: scopeIDFor("boatsgroup/repo-002"), Slug: "boatsgroup/repo-002", State: StateSelected},
-		{ScopeID: scopeIDFor("boatsgroup/never-indexed"), Slug: "boatsgroup/never-indexed", State: StateSelected},
+		{ScopeID: scopeIDFor("acme/repo-001"), Slug: "acme/repo-001", State: StateSelected},
+		{ScopeID: scopeIDFor("acme/repo-002"), Slug: "acme/repo-002", State: StateSelected},
+		{ScopeID: scopeIDFor("acme/never-indexed"), Slug: "acme/never-indexed", State: StateSelected},
 	}}
 	result := Evaluate(Input{Selector: selector, Now: cycleOne, LivenessWindow: testWindow, Listing: listing, Known: known})
 	if result.Outcome != OutcomeEvaluated {
 		t.Fatalf("explicit outcome = %q, want %q", result.Outcome, OutcomeEvaluated)
 	}
 	want := []Row{
-		{ScopeID: scopeIDFor("boatsgroup/repo-001"), State: StateSelected},
-		{ScopeID: scopeIDFor("boatsgroup/repo-002"), State: StateSelected},
+		{ScopeID: scopeIDFor("acme/repo-001"), State: StateSelected},
+		{ScopeID: scopeIDFor("acme/repo-002"), State: StateSelected},
 	}
 	if !slices.Equal(result.Batch.Rows, want) {
 		t.Fatalf("explicit rows = %+v, want %+v", result.Batch.Rows, want)

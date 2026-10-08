@@ -166,8 +166,8 @@ func TestSummarizePredicateTable(t *testing.T) {
 }
 
 // TestSummarizeQAShape is the #7625 QA corpus: 25 scopes that dropped out of
-// the boatsgroup listing (24 transferred plus the renamed repository's old
-// name) and fsbo-hapi-patched, listed but archived. After two cycles every
+// the acme listing (24 transferred plus the renamed repository's old
+// name) and archived-service, listed but archived. After two cycles every
 // one of the 26 renders not_selected, because none of them has a generation
 // observed after its exclusion started.
 func TestSummarizeQAShape(t *testing.T) {
@@ -175,9 +175,9 @@ func TestSummarizeQAShape(t *testing.T) {
 
 	scopes := make(map[string]Observation, 26)
 	for i := range 25 {
-		scopes[fmt.Sprintf("boatsgroup/dropped-%02d", i)] = confirmedRow("sel-boatsgroup", StateNotListed)
+		scopes[fmt.Sprintf("acme/dropped-%02d", i)] = confirmedRow("sel-acme", StateNotListed)
 	}
-	scopes["boatsgroup/fsbo-hapi-patched"] = confirmedRow("sel-boatsgroup", StateArchivedExcluded)
+	scopes["acme/archived-service"] = confirmedRow("sel-acme", StateArchivedExcluded)
 
 	counts := map[Aggregate]int{}
 	for slug, row := range scopes {

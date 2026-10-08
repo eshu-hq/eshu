@@ -25,7 +25,7 @@ import (
 
 // TestReadRepositoryFreshnessSelectionLiveDB is the #7625 QA shape: the old
 // scope of a renamed repository and a transferred repository drop out of the
-// complete boatsgroup listing, an archived repository is excluded, and a
+// complete acme listing, an archived repository is excluded, and a
 // fourth repository stays listed. After one cycle nothing changes; after a
 // second cycle at least selection.ConfirmationMinSpan later the dropped and
 // archived scopes render not_selected unless a generation was observed after
@@ -45,7 +45,7 @@ func TestReadRepositoryFreshnessSelectionLiveDB(t *testing.T) {
 	window := 48 * time.Hour
 	cycle1 := time.Date(2026, time.October, 8, 12, 0, 0, 0, time.UTC)
 	cycle2 := cycle1.Add(selection.ConfirmationMinSpan)
-	selector := membership.NewGitHubOrgSelector("githubOrg", "boatsgroup", nil, false, membership.GitHubAppPrincipal("1", "2"))
+	selector := membership.NewGitHubOrgSelector("githubOrg", "acme", nil, false, membership.GitHubAppPrincipal("1", "2"))
 
 	fixtures := map[string]freshnessScopeFixture{}
 	for _, name := range []string{"renamed-old", "transferred", "listed", "archived", "reingested", "unobserved"} {
@@ -53,7 +53,7 @@ func TestReadRepositoryFreshnessSelectionLiveDB(t *testing.T) {
 			scopeID:        "scope-sel-" + name,
 			generationID:   "gen-sel-" + name,
 			repoID:         "repository:sel-" + name,
-			repoSlug:       "boatsgroup/" + name,
+			repoSlug:       "acme/" + name,
 			observedCommit: "c0ffee" + name,
 			now:            cycle1.Add(-time.Hour),
 		}
