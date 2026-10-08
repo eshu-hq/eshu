@@ -135,10 +135,20 @@ no trustworthy baseline exists or a delta would be wrong:
 - **Baseline lookup error**: the resolver read against Postgres failed; rather
   than trust the local HEAD as a delta base, the sync logs
   `git_delta_baseline_lookup_failed` and takes a full snapshot.
+- **Default branch changed**: each fetch also stores the remote `HEAD` commit
+  under `refs/eshu/remote-head` in the same round trip. When it differs from
+  the tracked branch tip, or the tracked branch no longer exists on the remote,
+  the sync re-resolves the remote default branch, repoints
+  `refs/remotes/origin/HEAD` at it, logs the WARN
+  `git repository default branch changed` (`previous_branch`, `branch`,
+  `detection` of `moved` or `missing_ref`), and takes a full snapshot of the
+  new branch (#7678). The scope keeps its ID, which derives from the remote
+  URL.
 Each fallback increments `eshu_dp_collector_delta_baseline_fallback_total`,
 labeled by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`,
-`baseline_lookup_error`), so operators can watch the delta-skip rate and tell a
-fleet of cold first syncs apart from a Postgres outage.
+`baseline_lookup_error`, `default_branch_changed`), so operators can watch the
+delta-skip rate and tell a fleet of cold first syncs apart from a Postgres
+outage.
 
 The projector keeps the baseline honest with a write-through contract: an
 attempt records `projection_write_started_at` on its generation before its

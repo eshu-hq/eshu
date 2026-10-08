@@ -102,6 +102,27 @@ network I/O. `TestRepositoryReindexTargetedScopeIsNotStarved` fails without
 the reordering (the requested 30th repository is not forced in the first
 cycle with a budget of 10) and passes with it, still forcing exactly 10.
 
+## Default branch tracking
+
+`git clone` records `refs/remotes/origin/HEAD` once, and the single-branch
+fetch never refreshes it. `fetchDefaultBranch` (`selection_delta.go`) adds
+`+HEAD:refs/eshu/remote-head` to the branch fetch (#7678). A probe commit
+different from the tracked tip (`moved`), or a fetch that fails with
+`couldn't find remote ref refs/heads/<branch>` (`missing_ref`), triggers
+`ls-remote --symref origin HEAD`. A different branch is fetched first, and
+only then is `origin/HEAD` repointed, so a failed fetch is detected again on
+the next sync. `updateRepository` then takes a full snapshot with
+`skip_reason=default_branch_changed` and logs the WARN
+`git repository default branch changed`. A remote `HEAD` that names no branch
+drops the probe and syncs the tracked branch as before. Detection matches
+git's English stderr; any other message stays a plain fetch error.
+
+Performance Evidence (#7678): the extra refspec rides the existing fetch.
+Scratch remotes measured 2 protocol requests over `file://` with or without
+it on git 2.56 and 2.47.2, and 3 HTTPS requests in steady state against
+GitHub with or without it. The unchanged path adds no process: the tracked
+tip and the probe resolve in one `rev-parse`.
+
 ## Two-phase content
 
 Snapshotting collects content file *metadata* first (bodies are temporary), then

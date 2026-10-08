@@ -87,6 +87,9 @@ const (
 	deltaFallbackBaselineUnreachable = "baseline_unreachable"
 	// deltaFallbackBaselineLookupError: the baseline lookup failed.
 	deltaFallbackBaselineLookupError = "baseline_lookup_error"
+	// deltaFallbackDefaultBranchChanged: the remote default branch changed, so
+	// the projected commit belongs to another branch's history (#7678).
+	deltaFallbackDefaultBranchChanged = "default_branch_changed"
 )
 
 // reconcilePolicyFromConfig lifts the reconciliation knobs off RepoSyncConfig

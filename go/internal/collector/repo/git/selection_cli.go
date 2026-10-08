@@ -236,19 +236,22 @@ func updateRepository(
 
 	event.Branch = branch
 	logGitSyncStarted(ctx, logger, event)
-	if err := gitFetchBranch(ctx, config, repoPath, branch, token, logger, event); err != nil {
-		logGitSyncFailed(ctx, logger, event, err)
-		return false, GitSyncDelta{}, "", err
-	}
-	remoteRef := "refs/remotes/origin/" + branch
-	remoteSHA, err := gitRevParse(ctx, repoPath, remoteRef, config, token)
+	previousBranch := branch
+	branch, remoteSHA, detection, err := fetchDefaultBranch(ctx, config, repoPath, token, branch, logger, event)
 	if err != nil {
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, GitSyncDelta{}, "", err
 	}
+	remoteRef := "refs/remotes/origin/" + branch
+	event.Branch = branch
 
 	baseline := strings.TrimSpace(baselineSHA)
 	switch {
+	case detection != "":
+		// The projected commit belongs to the previous default branch's
+		// history; re-observe fully rather than diff across branches.
+		logDefaultBranchChanged(ctx, logger, event, previousBranch, detection)
+		notifyDeltaFallback(onFallback, deltaFallbackDefaultBranchChanged)
 	case baseline == "":
 		// No projected generation yet: there is no trustworthy baseline, so the
 		// whole repository must be re-observed.
@@ -328,40 +331,12 @@ func resolveDefaultBranch(
 			return branch, nil
 		}
 	}
-
-	output, err = gitRun(
-		ctx,
-		repoPath,
-		config,
-		token,
-		"ls-remote",
-		"--symref",
-		"origin",
-		"HEAD",
-	)
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "ref: refs/heads/") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 || fields[0] != "ref:" {
-			continue
-		}
-		branch, branchErr := normalizeGitBranchName(strings.TrimPrefix(fields[1], "refs/heads/"))
-		if branchErr != nil {
-			return "", branchErr
-		}
-		if branch != "" {
-			return branch, nil
-		}
-	}
-	return "", nil
+	return remoteDefaultBranch(ctx, config, repoPath, token)
 }
 
+// gitFetchBranch fetches one remote branch into refs/remotes/origin. A
+// non-empty probeRef also stores the remote HEAD commit there in the same
+// fetch, at no extra network round trip.
 func gitFetchBranch(
 	ctx context.Context,
 	config RepoSyncConfig,
@@ -370,42 +345,26 @@ func gitFetchBranch(
 	token string,
 	logger *slog.Logger,
 	event gitSyncLogEvent,
+	probeRef string,
 ) error {
 	branch, err := normalizeGitBranchName(branch)
 	if err != nil {
 		return err
 	}
-	_, err = gitRunWithStderrWriter(
-		ctx,
-		repoPath,
-		config,
-		token,
-		newGitProgressWriter(ctx, logger, event, nil),
-		"fetch",
-		"--progress",
-		"origin",
-		fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch),
-		fmt.Sprintf("--depth=%d", config.CloneDepth),
-	)
-	if err == nil {
-		return nil
+	args := []string{"fetch", "--progress", "origin", fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)}
+	if probeRef != "" {
+		args = append(args, "+HEAD:"+probeRef)
 	}
-	if !recoverStaleGitShallowLock(repoPath, err) {
+	args = append(args, fmt.Sprintf("--depth=%d", config.CloneDepth))
+	fetch := func() error {
+		_, err := gitRunWithStderrWriter(ctx, repoPath, config, token,
+			newGitProgressWriter(ctx, logger, event, nil), args...)
 		return err
 	}
-	_, err = gitRunWithStderrWriter(
-		ctx,
-		repoPath,
-		config,
-		token,
-		newGitProgressWriter(ctx, logger, event, nil),
-		"fetch",
-		"--progress",
-		"origin",
-		fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch),
-		fmt.Sprintf("--depth=%d", config.CloneDepth),
-	)
-	return err
+	if err = fetch(); err == nil || !recoverStaleGitShallowLock(repoPath, err) {
+		return err
+	}
+	return fetch()
 }
 
 func normalizeGitBranchName(branch string) (string, error) {
