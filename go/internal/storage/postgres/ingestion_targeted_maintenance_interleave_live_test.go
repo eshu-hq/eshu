@@ -27,10 +27,10 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			owed:     owedPartitions("git:tgt", "tgt-2"),
 			compared: partitionSet("git:tgt", "tgt-2"),
 			// tgt-3 activates before the first batch: the batch guard skips
-			// tgt, so no evidence and no phase; tgt-2's relationship items
-			// reopen in both arms, its correlation items are now below the
-			// replay floor in both arms.
-			reopened: workIDs("tgt-2", "deployment_mapping", "code_import_repo_edge"),
+			// tgt, so no evidence and no phase; tgt-2's relationship and
+			// correlation items are all below the replay floor in both
+			// arms (#7637 extended the floor to the relationship
+			// listings), so nothing reopens.
 			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
 				return &hookBeginner{onBegin: func(n int) error {
@@ -53,8 +53,9 @@ func TestTargetedMaintenanceInterleavingsMatchWholePass(t *testing.T) {
 			owed:        owedPartitions("git:tgt", "tgt-2"),
 			compared:    partitionSet("git:tgt", "tgt-2"),
 			newEvidence: []string{"repo-tgt->repo-dep"},
-			reopened:    workIDs("tgt-2", "deployment_mapping", "code_import_repo_edge"),
-			outcomes:    map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
+			// tgt-2 is superseded mid-pass: its relationship items stay
+			// succeeded under the #7637 replay floor, so nothing reopens.
+			outcomes: map[string]TargetedMaintenanceOutcomeKind{"git:tgt/tgt-2": TargetedMaintenanceRetry},
 			hooks: func(_ string, database *sql.DB) *hookBeginner {
 				fired := false
 				return &hookBeginner{onQuery: func(query string, args []any) error {

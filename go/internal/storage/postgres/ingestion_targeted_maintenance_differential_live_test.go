@@ -28,12 +28,13 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			published:   partitionSet("git:tgt", "tgt-2"),
 			reopened:    workIDs("tgt-2"),
 			// The whole pass also rewrites the untouched dep partition's phase
-			// and memo, reopens its correlation items, and reopens the stale
-			// tgt-1 relationship items (that listing has no replay floor).
+			// and memo and reopens its correlation items. The stale tgt-1
+			// relationship items stay succeeded: #7637 gave the relationship
+			// listings the same per-scope replay floor the correlation
+			// listing already had.
 			wholeOutside: outsideKeys(concatIDs(
 				[]string{phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1")},
 				workKeys(correlationIDs("dep-1")),
-				workKeys(workIDs("tgt-1", "deployment_mapping", "code_import_repo_edge")),
 			)...),
 		})
 	})
@@ -54,10 +55,11 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			// in-1 is a same-pass memo hit: its relationship items stay
 			// succeeded in both arms; its correlation items reopen in both.
 			reopened: concatIDs(workIDs("tgt-2"), correlationIDs("in-1")),
+			// No stale tgt-1 relationship reopen: the #7637 replay floor
+			// covers the relationship listings too.
 			wholeOutside: outsideKeys(concatIDs(
 				[]string{phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1")},
 				workKeys(correlationIDs("dep-1")),
-				workKeys(workIDs("tgt-1", "deployment_mapping", "code_import_repo_edge")),
 			)...),
 		})
 	})
@@ -117,10 +119,11 @@ func TestTargetedMaintenanceMatchesWholePass(t *testing.T) {
 			newEvidence: []string{"repo-tgt->repo-dep"},
 			published:   partitionSet("git:tgt", "tgt-2", "git:gsrc", "gsrc-1"),
 			reopened:    concatIDs(workIDs("tgt-2"), correlationIDs("gsrc-1")),
+			// No stale tgt-1 relationship reopen: the #7637 replay floor
+			// covers the relationship listings too.
 			wholeOutside: outsideKeys(concatIDs(
 				[]string{phaseKey("git:dep", "dep-1"), memoKey("git:dep", "dep-1")},
 				workKeys(correlationIDs("dep-1")),
-				workKeys(workIDs("tgt-1", "deployment_mapping", "code_import_repo_edge")),
 			)...),
 		})
 		if _, loaded := owedSet(outcome.result.Loaded)[scopeGenerationPartition{ScopeID: targetedGCPScope, GenerationID: "gcp-1"}]; !loaded {
