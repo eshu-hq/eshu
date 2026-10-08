@@ -50,15 +50,17 @@ reports.
   issues and PRs.
 - **Paragraphs.** One topic each. Keep one under about 600 characters. Split a
   longer one or turn it into a list.
-- **Lists and tables.** Use a list for 3 or more steps, or for 3 or more conditions. Use a table
-  to compare before and after, or claim and evidence.
-- **Pictures.** Use a Mermaid diagram for a flow, a dependency, or a before
-  and after that has 3 or more nodes. Label each node with the real
-  identifier. Use a file tree or a `diff` block for a layout change. The
-  `show-me` skill, when your harness has it, helps choose the view.
-- **Collapse the data.** Put a log, command output, verbatim reviewer or
-  arbiter text, or a file list inside `<details>` when it runs past 10 lines. The summary line says what is
-  inside. Keep the claim that the data supports outside the fold.
+- **Lists and tables.** Use a list for 3 or more steps, or for 3 or more
+  conditions. Use a table to compare before and after, or claim and evidence.
+- **Pictures.** Use a Mermaid diagram when a flow, a dependency, or a before
+  and after has 3 or more nodes. Label each node with the real identifier.
+  Use a file tree or a `diff` block for a layout change. The `show-me` skill,
+  when your harness has it, helps choose the view.
+- **Collapse the data.** Always put gate output, quoted reviewer or arbiter
+  text, and the evidence section inside `<details>`. Put any other log,
+  command output, or file list inside `<details>` when it has more than 10
+  lines. The summary line says what is inside. Keep the claim that the data
+  supports outside the fold.
 - **Confidence.** Mark each claim as `Proven`, `Inferred`, or `NOT_CHECKED`, and
   give the command or source for `Proven`. End with a `NOT_CHECKED` line.
 - **Scale to the change.** Delete a section that has nothing to say.

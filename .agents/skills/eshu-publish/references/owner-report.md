@@ -9,7 +9,7 @@ wording. The chat message stays short and points to it.
 - Use the page for a status update, a result, a plan, a proposal, or a
   comparison.
 - Answer in chat when the owner asks you to explain something in plain English,
-  or asks a direct question. Write the page after, if the answer runs past 10 lines.
+  or asks a direct question. Write the page after, if the answer has more than 10 lines.
 - Coordination messages between agents stay plain text.
 
 ## Steps

@@ -26,7 +26,7 @@ last 30 PRs was about 70 words. Keep to that range.
 
 When a review has more than 3 findings, do not write one block.
 
-1. Lead: the verdict and the count. `Not ready: 1 P1, 2 P2.`
+1. Lead: the verdict and the count. `Not ready: 1 P1, 3 P2.`
 2. A list. One finding per item: severity, the claim, the file, the fix.
 3. Put verbatim evidence and tool output in `<details>`.
 
@@ -61,4 +61,4 @@ order:
 4. What you did not check, as a `NOT_CHECKED` list.
 
 Use the Wording rules. Do not add a bold lead, a diagram, or a `<details>` block
-unless the note runs past 10 lines.
+unless the note has more than 10 lines.
