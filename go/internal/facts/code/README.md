@@ -85,13 +85,16 @@ seven `code.*` compat entries' Go importers (six fact-kind constants and
 the `FlowReadFactKinds` function) off the transitional
 `facts.Code*` compat spellings and deletes the emptied `compat_code.go`. No
 fact-kind string, payload shape, registry entry, or executable statement
-changes: across 44 files, every production hunk requalifies an identifier or
-import path only, every other hunk is a package-doc rewording or the compat
-file's own deletion, and the build resolves with no dangling reference.
-Measurement: `go test -count=1` over the 13 changed Go packages on baseline
-`57167b009` vs after `49be8f597` (the measurement commit; this Evidence
-section is the only later change) gives identical outcomes — the same 11
-packages ok on both sides, with the single failing package
+changes: across 45 files, every production hunk requalifies an identifier or
+import path only, every other hunk is a package-doc rewording, a ledger row,
+or the compat file's own deletion, and the build resolves with no dangling
+reference.
+Measurement: identical before/after outcomes (ledger:6950-code-batch1-before, ledger:6950-code-batch1-after).
+The command is `go test -count=1` over the changed Go packages (per-side
+counts in the cited rows) on baseline `57167b009` vs measurement commit
+`49be8f597` (this Evidence section, the two ledger rows, and a
+content-identical rebase onto `862aaa6ef` are the only later changes): the
+same packages ok on both sides, with the single failing package
 (`internal/collector/repo/git`, `TestFetchChurnZombiesDrainedByReaper`)
 failing identically before and after (it fails on the clean baseline on this
 host too; its test file and the git constructor it exercises are untouched by
