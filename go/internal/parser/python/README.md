@@ -201,6 +201,11 @@ internals:
   `engine_python_flask_blueprint_test.go` cover exact framework route entries.
 - `engine_python_handler_test.go` covers FastAPI/Flask handler binding after
   stacked or commented decorators.
+- `engine_python_framework_tags_test.go` covers per-function `framework`
+  propagation from single-framework route files; multi-framework files stay
+  untagged and the dead-code no-root-model notice fires for observed
+  frameworks without a root model (django/drf/aiohttp/tornado), while
+  fastapi and flask are modeled (#7712).
 - `engine_python_generator_test.go`, `engine_python_lambda_assignment_test.go`,
   `engine_python_annotation_assignment_test.go`,
   `engine_python_metaclass_test.go`, `engine_python_rationale_test.go`,

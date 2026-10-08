@@ -89,6 +89,19 @@ func goHTTPFrameworkSemantics(
 	return semantics, true
 }
 
+// goSingleFileFramework returns the file's framework when the route semantics
+// name exactly one, so every function in the file can carry it as observed
+// framework evidence. Zero or several frameworks return "": ambiguous stays
+// silent rather than guessing, since the dead-code no-root-model notice must
+// never fire on a misattribution.
+func goSingleFileFramework(semantics map[string]any) string {
+	frameworks, ok := semantics["frameworks"].([]string)
+	if !ok || len(frameworks) != 1 {
+		return ""
+	}
+	return strings.TrimSpace(frameworks[0])
+}
+
 func goHTTPRouteEntry(
 	node *tree_sitter.Node,
 	source []byte,

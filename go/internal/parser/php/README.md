@@ -20,6 +20,10 @@ are literal, and bounded `dead_code_root_kinds` for PHP entrypoints,
 constructors, known magic methods, same-file interface and trait methods,
 route-backed controller actions, ZF1 convention-dispatched actions, literal
 route handlers, Symfony route attributes, and WordPress hook callbacks.
+Functions also carry `framework` when exactly one framework's evidence
+touches them (a Symfony Route attribute, a WordPress hook callback name, or
+a ZF1 controller action); ambiguous functions stay untagged so the dead-code
+no-root-model notice never fires on a misattribution (#7712).
 
 The engine-level PHP regressions live in this directory as the `php_*_test.go`
 family (18 files in the external `php_test` package: 16 test files, the

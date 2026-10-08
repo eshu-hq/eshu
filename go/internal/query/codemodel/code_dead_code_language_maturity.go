@@ -222,6 +222,18 @@ func DeadCodeLanguageExactnessBlockerReport() map[string][]string {
 // Languages without an entry are not evaluated: an observed framework stays
 // silent rather than guessed. Extend the entry when a new framework root
 // model lands.
+//
+// Census (#7712): go models net_http (registration roots plus
+// go.net_http_handler_signature) and chi (no chi-specific kind, but chi
+// handlers are net/http HandlerFuncs so the signature shape roots them;
+// listing chi unmodeled would fire a false notice). gin/echo/fiber are
+// observed with no root model, so they fire. cobra and controller-runtime
+// have root models but no producer: adding one must add the table entry in
+// the same change or it fires a false notice. groovy models jenkins, the
+// only framework it emits. python models fastapi and flask (decorator
+// roots); django/drf/aiohttp/tornado are observed with no root model, so
+// they fire. celery/click/typer have decorator roots but no producer: the
+// same same-change discipline as cobra applies.
 var deadCodeModeledFrameworks = map[string]map[string]struct{}{
 	"php": {
 		"laravel":          {},
@@ -229,6 +241,17 @@ var deadCodeModeledFrameworks = map[string]map[string]struct{}{
 		"symfony":          {},
 		"wordpress":        {},
 		"zend_framework_1": {},
+	},
+	"go": {
+		"net_http": {},
+		"chi":      {},
+	},
+	"groovy": {
+		"jenkins": {},
+	},
+	"python": {
+		"fastapi": {},
+		"flask":   {},
 	},
 }
 
