@@ -62,15 +62,93 @@ varies with the row, so the trim measures the real size.
   is not a total order, so tied rows could swap across the page edge between
   calls. The global content path already ends its sort on `entity_id`.
 
+## Page order with the hybrid re-rank
+
+The independent review (F1) found that a budget page lost and repeated rows when
+the hybrid re-ranker was on. `next_offset` is a position the `offset` parameter
+reads, but the trim cut the re-ranked order, and `find_code` re-ranked the whole
+probe window, whose size changes from page to page.
+
+Invariant: `offset` is a position in the lexical (offset) order, and the
+hybrid re-rank only orders rows inside one page. A page is always the window
+`[offset, offset + n)` of the offset order, so the union of the windows along a
+walk is every row exactly once, whatever the limit or the re-rank did.
+
+- `find_code` content fallback cuts the page from the offset order first
+  (`codemodel.CodeSearchPageRows`), then re-ranks inside the page. A re-rank
+  over `offset + limit + 1` rows changed with the window, so the order a client
+  paged through changed per page; the in-page re-rank does not.
+- `search_entity_content` already re-ranked inside the SQL page. Each row of a
+  re-ranked page now carries `page_position`, its place in the offset order
+  (set only when the re-rank changed the order, so other responses keep their
+  bytes). The trim keeps the rows with the smallest `page_position` in their
+  displayed order, and `next_offset = offset + keep` is then exact.
+- A page whose `page_position` values are not a permutation of `0..n-1` is not
+  cut: the dispatcher keeps the over-budget error envelope rather than guess.
+- Alternatives rejected: (ii) re-rank one fixed 201-row window on every page
+  would add an 8x store fetch for small limits and cannot apply to
+  `search_entity_content`, whose offset reaches 10,000; (iii) disabling the
+  re-rank when `offset > 0` or on a trim changes ranking that clients see.
+- Behaviour change to note: with a ranker on and more than `limit` rows, the
+  `find_code` content fallback page is the first `limit` rows of the lexical
+  merge, re-ranked, where before it was the top `limit` of a re-rank over up to
+  `2 * (limit + 1)` rows. A request whose rows all fit the page is unchanged.
+
+Proof: `TestRerankedBudgetPagesLoseAndRepeatNoRow` walks both tools with rankers
+that reverse a window and that move the last row to the front (the row at the
+cut), at limits 200 and 25, by `next_offset` under a forced small budget and by
+plain offset. It requires every id exactly once, each page to be a contiguous
+window of the offset order, and an identical second walk. Before the change it
+failed on both tools (for example `find_code` limit 25: page 1 held
+`entity-025` and the reverse of the window).
+
+## Tie-break cost evidence
+
+Neo4j (ops-prod, 2026.08.1, read-only shim, `PROFILE`, same statement text apart
+from `ORDER BY e.name` versus `ORDER BY e.name, e.id`):
+
+| Repo (files / rows before Top) | Db hits old / new | Delta | Warm time |
+| --- | --- | --- | --- |
+| 758 files / 1,190 rows | 30,578 / 31,567 | +3.2% | equal (133 vs 131 ms cold, 55 vs 56 ms) |
+| 12,402 files / 19,477 rows | 229,539 / 248,815 | +8.4% | +7% to +13%: profiled 158-164 ms became 176-179 ms; unprofiled warm 119 ms became 132 ms (about 13-17 ms) |
+
+Both plans have the same operator tree and use `Top` (`Top name ASC LIMIT 201`
+becomes `Top name ASC, entity_id ASC LIMIT 201`), with no `Sort` and no scan or
+expand change. The one new cost is the `e.id` property read on every row before
+`Top`. `LIMIT` stays 201 at limit 200: the 200-row window caps the fetch, so a
+request at offset 100 sends the same statement as offset 0 and the larger-fetch
+half of the theory does not exist. The result is marginal against the +10% time
+bar on the largest repo and is accepted because without `e.id` the order is not
+total and tied rows can swap across a page edge.
+
+Limits of this evidence: the shim graph is not the sweep's state (the sweep's
+`decode`/php repository has 0 matches there, so it proves nothing); no repo with
+100k or more matching entities (cost is about one db hit per pre-`Top` row);
+one client on a host that was not quiet (profiled n=3, warm n=2), so this is not
+a timing proof; no NornicDB; no Go-path run against Neo4j; the live
+`query-plan-regression` gate is not run here (CI-only, expected to pass because
+the anchor `NodeUniqueIndexSeek` is unchanged).
+
+The repository content fallback read `SearchEntitiesByName` ordered by
+`relative_path, start_line` only. It now ends on `entity_id`, like
+`SearchEntityContent` and the candidate queries. A throwaway PostgreSQL 18.6
+table (400,000 rows, the `repo_id`, `relative_path` and trigram indexes, about
+10,000 rows matching the repo and the name) gave the same plan before and after
+(`Incremental Sort` on the presorted `relative_path`, one `Index Scan` on
+`content_entities_path_idx`), the same 1,082 buffers at limit 26 and 8,125 at
+limit 201. `SearchEntitiesByLanguageAndType` still orders by
+`relative_path, start_line, entity_name`; `find_code` does not read it, so it is
+left as is.
+
+The trim cost: `BenchmarkTrimToBudgetPage` (200 rows of about 5 KiB, Apple M5
+Max) takes 4.2 ms and 9.8 MB per trim. It runs only on a response that returned
+an error before this change.
+
 No-Regression Evidence: a request that fits the budget is unchanged. The test
 `TestBudgetPageLeavesFittingResponsesUnchanged` compares the rendered result
-with the guard on and off and requires equal bytes and no `budget_page`,
-`next_offset`, or `truth.omissions`. The one Cypher change adds `e.id` as a
-second sort key to `BuildSearchGraphEntitiesQuery` (anchor
-`(r:Repository {id: $repo_id})`, bounded by `LIMIT $limit`, at most 201 rows):
-the sort already runs over the filtered rows and `e.id` is a property already
-read, so the plan shape is the same. A live Neo4j `PROFILE` before and after was
-not run in this change.
+with the guard on and off and requires equal bytes, no `budget_page`,
+`next_offset`, or `truth.omissions`, and no `truncated` or `omissions` key in the
+rendered truth (removing `omitempty` from `TruthEnvelope.Truncated` fails it).
 
 Observability Evidence: `eshu_dp_mcp_response_budget_page_total{tool}` counts
 pages. The `mcp tool response budget page` log carries `tool`, `response_bytes`,

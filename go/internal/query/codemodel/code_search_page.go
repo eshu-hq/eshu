@@ -70,6 +70,16 @@ func CodeSearchPagePayloadAt(
 	publicLimit int,
 	offset int,
 ) map[string]any {
+	page, truncated := CodeSearchPageRows(rows, publicLimit, offset)
+	return CodeSearchPagePayloadFromPage(source, sourceBackend, query, repositoryID, page, truncated, publicLimit, offset)
+}
+
+// CodeSearchPageRows cuts the page that starts offset rows into the probe
+// window rows: the first offset rows are skipped and the page is trimmed to
+// publicLimit. truncated reports that rows existed past the page. The cut is
+// made on the offset order, before any hybrid re-rank, so a page is always the
+// same window of rows whatever the request limit was on earlier pages.
+func CodeSearchPageRows(rows []map[string]any, publicLimit, offset int) ([]map[string]any, bool) {
 	if offset > len(rows) {
 		offset = len(rows)
 	}
@@ -80,6 +90,23 @@ func CodeSearchPagePayloadAt(
 	if truncated {
 		rows = rows[:publicLimit]
 	}
+	return rows, truncated
+}
+
+// CodeSearchPagePayloadFromPage shapes an already cut page into the paged
+// response envelope. offset is the offset the client requested, echoed as
+// asked even when it lies past the rows found. The read-time clips run here,
+// after any hybrid re-rank, which reads the full stored body.
+func CodeSearchPagePayloadFromPage(
+	source string,
+	sourceBackend string,
+	query string,
+	repositoryID string,
+	rows []map[string]any,
+	truncated bool,
+	publicLimit int,
+	offset int,
+) map[string]any {
 	if rows == nil {
 		rows = []map[string]any{}
 	}

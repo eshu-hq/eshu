@@ -173,8 +173,14 @@ returned. A request at the advertised `limit` maximum of 200 can therefore
 return fewer than 200 rows; size `limit` down (rows that carry source text run
 a few KiB each) or follow `next_offset`. `find_code` accepts `offset` and pages
 inside its first 200 ranked matches (`offset` below 200; the effective `limit`
-shrinks so `offset + limit` stays within 200). Every other tool, and a request
-whose first row alone exceeds the budget, returns the
+shrinks so `offset + limit` stays within 200). `offset` is a position in the
+lexical (offset) order. When the hybrid re-rank reorders a page, it reorders
+only that page's rows, and each such row carries `page_position`, its place in
+the offset order; a budget page keeps the rows with the smallest
+`page_position`, so `next_offset` always resumes at the first row it dropped
+and a walk by `next_offset` reads every row exactly once. `search_entity_content`
+leaves `next_offset` out when it would pass its 10,000 offset cap. Every other
+tool, and a request whose first row alone exceeds the budget, returns the
 `mcp_response_over_budget` error envelope with narrowing guidance. Programmatic
 clients should read `structuredContent` when present, then fall back to the
 embedded resource's JSON `text`. The human text block is only a summary and

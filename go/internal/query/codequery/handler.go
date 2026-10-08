@@ -211,22 +211,30 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-rank the lexical content results by fused BM25+vector relevance when a
-	// hybrid ranker is configured. The ranker is bounded to the already-retrieved
-	// result set and falls back to lexical order when no vector/lexical signal is
-	// available, so the response never drops a row or invents canonical truth.
+	// Cut the page on the offset order first, then re-rank inside it when a
+	// hybrid ranker is configured. A page is always the same window of the
+	// offset order, so the order a client pages through is the same on every
+	// request: a re-rank over the whole probe window would change with the
+	// window size and lose or repeat rows across pages (#7725). The ranker is
+	// bounded to the page, falls back to lexical order when no vector/lexical
+	// signal is available, and never drops a row or invents canonical truth.
+	// Each re-ranked row keeps its offset position so the MCP budget page can
+	// cut back to a prefix of the offset order.
+	page, truncated := codemodel.CodeSearchPageRows(contentResults, req.Limit, offset)
 	sourceBackend := "postgres_content_store"
 	truthDetail := "resolved from content index fallback"
 	if h.HybridRanker != nil && !req.Exact {
-		if reranked, applied := h.HybridRanker.Rerank(ctx, req.RepoID, req.Query, contentResults); applied {
-			contentResults = reranked
+		querycontract.StampRowPagePositions(page)
+		if reranked, applied := h.HybridRanker.Rerank(ctx, req.RepoID, req.Query, page); applied {
+			page = reranked
 			sourceBackend = "hybrid_content_store"
 			truthDetail = "resolved from content index fallback ranked by hybrid BM25+vector retrieval"
 		}
+		querycontract.SettleRowPagePositions(page)
 	}
 
-	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadAt(
-		"content", sourceBackend, req.Query, req.RepoID, contentResults, req.Limit, offset,
+	WriteSuccess(w, r, http.StatusOK, codemodel.CodeSearchPagePayloadFromPage(
+		"content", sourceBackend, req.Query, req.RepoID, page, truncated, req.Limit, offset,
 	), BuildTruthEnvelope(h.profile(), capability, TruthBasisContentIndex, truthDetail))
 }
 

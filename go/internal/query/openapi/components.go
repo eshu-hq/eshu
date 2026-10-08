@@ -308,6 +308,7 @@ const components = `  "components": {
           "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."},
           "source_handle": {"type": "object", "additionalProperties": true, "description": "Present on search_entity_content rows: {repo_id, file_path, start_line, end_line} locator for the full body via get_entity_content(entity_id) or get_file_lines."},
           "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on search_entity_content rows reordered by the bounded fused BM25+vector re-rank; absent when the lexical content-index order was served."},
+          "page_position": {"type": "integer", "minimum": 0, "description": "Present only on a page the hybrid re-rank reordered: this row's zero-based position inside the page's offset-ordered window. The MCP response-budget page keeps the rows with the smallest positions, so next_offset resumes at the first dropped row."},
           "metadata": {
             "type": "object",
             "additionalProperties": true,
@@ -353,6 +354,7 @@ const components = `  "components": {
           "docstring_clip_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the read-time docstring ceiling in bytes (512)."},
           "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."},
           "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on find_code content-fallback rows reordered by fused BM25+vector retrieval; absent when the lexical content order was served."},
+          "page_position": {"type": "integer", "minimum": 0, "description": "Present only on a page the hybrid re-rank reordered: this row's zero-based position inside the page's offset-ordered window. The MCP response-budget page keeps the rows with the smallest positions, so next_offset resumes at the first dropped row."},
           "semantic_summary": {
             "type": "string",
             "description": "Optional first-class semantic summary synthesized from parser metadata."

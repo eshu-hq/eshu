@@ -230,6 +230,20 @@ func TestContentReaderSearchEntityContentOrdersTiedRowsByID(t *testing.T) {
 	}
 }
 
+func TestContentReaderSearchEntitiesByNameOrdersTiedRowsByID(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{"entity_id", "repo_id", "relative_path", "entity_type", "entity_name", "start_line", "end_line", "language", "source_cache", "metadata"},
+	}})
+	if _, err := NewContentReader(db).SearchEntitiesByName(context.Background(), "repo-1", "", "a", 15); err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder.queries) != 1 || !strings.Contains(recorder.queries[0], "ORDER BY relative_path, start_line, entity_id") {
+		t.Fatalf("query lacks a stable page-boundary tie-breaker: %v", recorder.queries)
+	}
+}
+
 func TestContentReaderListRepoEntitiesIncludesMetadata(t *testing.T) {
 	t.Parallel()
 

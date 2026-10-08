@@ -281,10 +281,12 @@ const budgetPageReason = "response_byte_budget"
 // ordered, and re-readable through the data.offset the same tool accepts.
 // Only these tools can answer an over-budget request with a page: a client
 // that gets next_offset can pass it back as offset and read the remainder, so
-// no row is lost. Every other tool keeps the over-budget error envelope.
-var budgetPagedTools = map[string]struct{}{
-	"find_code":             {},
-	"search_entity_content": {},
+// no row is lost. Every other tool keeps the over-budget error envelope. The
+// value is the largest offset the tool accepts (0 when the page window bounds
+// it already): a next_offset past it would be rejected, so it is not emitted.
+var budgetPagedTools = map[string]int{
+	"find_code":             0,
+	"search_entity_content": query.ContentSearchMaxOffset,
 }
 
 // budgetPage is the outcome of trimming an over-budget response to a page.
@@ -303,12 +305,18 @@ type budgetPage struct {
 //
 // The trim runs on the serialized-size measure the budget itself uses
 // (estimateResponseBytes), not on an estimate, so a returned page is within
-// budget by construction. The page keeps the first rows in handler order,
-// marks data.truncated, and sets data.next_offset to the offset of the first
-// dropped row, so offset-paging the same request reads every row exactly once.
-// The cut is a binary search over whole rows; a row is never split.
+// budget by construction. The page keeps the first rows of the page's offset
+// order, in the order the handler displayed them, marks data.truncated, and
+// sets data.next_offset to the offset of the first dropped row, so
+// offset-paging the same request reads every row exactly once. When the
+// handler re-ranked the page, each row carries page_position, its place in the
+// offset order, and the cut keeps the rows with the smallest positions: the
+// cursor is a position in the offset order, so the kept rows must be a prefix
+// of it, not a prefix of the re-ranked order (#7725). The cut is a binary
+// search over whole rows; a row is never split.
 func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budgetPage, bool) {
-	if _, paged := budgetPagedTools[toolName]; !paged || result == nil || result.IsError {
+	maxOffset, paged := budgetPagedTools[toolName]
+	if !paged || result == nil || result.IsError {
 		return budgetPage{}, false
 	}
 	envelope := result.Envelope
@@ -323,9 +331,13 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 	if !ok || len(rows) < 2 {
 		return budgetPage{}, false
 	}
+	positions, ok := rowPagePositions(rows)
+	if !ok {
+		return budgetPage{}, false
+	}
 	offset := pageOffset(data["offset"])
 	candidate := func(keep int) *dispatchResult {
-		page := budgetPageEnvelope(envelope, data, rows, keep, offset, budget)
+		page := budgetPageEnvelope(envelope, data, offsetPrefix(rows, positions, keep), len(rows), keep, offset, maxOffset, budget)
 		return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
 	}
 	if size := estimateResponseBytes(candidate(1)); size <= 0 || size > budget {
@@ -351,30 +363,75 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 	}, true
 }
 
-// budgetPageEnvelope returns a copy of envelope that carries only the first
-// keep rows. The original envelope and its data map are left untouched. The
-// copy reports truncated, the next offset, a budget_page block, a
-// truth.omissions entry, and clip counts recomputed over the kept rows.
+// rowPagePositions returns each row's position in the page's offset order. A
+// page the handler did not re-rank carries no page_position key, so row i sits
+// at position i. A re-ranked page must give every row a distinct integer
+// position in [0, len(rows)); anything else reports false, and the caller
+// keeps the over-budget error envelope rather than cut at a position it
+// cannot prove.
+func rowPagePositions(rows []any) ([]int, bool) {
+	positions := make([]int, len(rows))
+	seen := make([]bool, len(rows))
+	keyed := 0
+	for index, row := range rows {
+		fields, _ := row.(map[string]any)
+		raw, present := fields[querycontract.PagePositionKey]
+		if !present {
+			positions[index] = index
+			continue
+		}
+		keyed++
+		number, isNumber := raw.(float64)
+		position := int(number)
+		if !isNumber || float64(position) != number || position < 0 || position >= len(rows) || seen[position] {
+			return nil, false
+		}
+		seen[position] = true
+		positions[index] = position
+	}
+	return positions, keyed == 0 || keyed == len(rows)
+}
+
+// offsetPrefix returns the rows whose offset position is below keep, in the
+// order the handler displayed them. For a page that was not re-ranked this is
+// rows[:keep].
+func offsetPrefix(rows []any, positions []int, keep int) []any {
+	kept := make([]any, 0, keep)
+	for index, row := range rows {
+		if positions[index] < keep {
+			kept = append(kept, row)
+		}
+	}
+	return kept
+}
+
+// budgetPageEnvelope returns a copy of envelope that carries only kept, the
+// keep rows at the front of the page's offset order. The original envelope and
+// its data map are left untouched. The copy reports truncated, the next
+// offset, a budget_page block, a truth.omissions entry, and clip counts
+// recomputed over the kept rows. next_offset is left out when it would exceed
+// maxOffset, because the tool would reject it.
 func budgetPageEnvelope(
 	envelope *query.ResponseEnvelope,
 	data map[string]any,
-	rows []any,
-	keep, offset, budget int,
+	kept []any,
+	available, keep, offset, maxOffset, budget int,
 ) *query.ResponseEnvelope {
 	page := make(map[string]any, len(data)+2)
 	for key, value := range data {
 		page[key] = value
 	}
-	kept := rows[:keep]
 	page["results"] = kept
 	page["count"] = keep
 	page["truncated"] = true
-	page["next_offset"] = offset + keep
+	if maxOffset == 0 || offset+keep <= maxOffset {
+		page["next_offset"] = offset + keep
+	}
 	page["budget_page"] = map[string]any{
 		"reason":         budgetPageReason,
 		"budget_bytes":   budget,
 		"rows_returned":  keep,
-		"rows_available": len(rows),
+		"rows_available": available,
 	}
 	recountClipped(page, "source_cache_clipped_rows", "source_cache_clipped", kept)
 	recountClipped(page, "docstring_clipped_rows", "docstring_clipped", kept)
@@ -384,7 +441,7 @@ func budgetPageEnvelope(
 	truth.Omissions = append(append([]querycontract.TruthOmission(nil), truth.Omissions...), querycontract.TruthOmission{
 		Section: "results",
 		Detail:  budgetPageReason,
-		Total:   len(rows),
+		Total:   available,
 	})
 	return &query.ResponseEnvelope{Data: page, Truth: &truth, Error: envelope.Error}
 }

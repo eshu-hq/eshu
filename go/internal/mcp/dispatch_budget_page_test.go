@@ -293,6 +293,22 @@ func TestBudgetPageLeavesFittingResponsesUnchanged(t *testing.T) {
 			if len(budgeted.Envelope.Truth.Omissions) != 0 {
 				t.Fatalf("fitting response carries truth.omissions %#v", budgeted.Envelope.Truth.Omissions)
 			}
+			// The claim on the wire: a fitting response keeps its existing
+			// bytes, so the rendered truth carries neither key. Dropping
+			// omitempty from TruthEnvelope.Truncated would add "truncated":false
+			// to both renders, leave the equality above true, and fail here.
+			rendered := renderToolResult(call.tool, budgeted)
+			var wire struct {
+				Truth map[string]json.RawMessage `json:"truth"`
+			}
+			if err := json.Unmarshal([]byte(rendered.Content[1].Resource.Text), &wire); err != nil || wire.Truth == nil {
+				t.Fatalf("decode rendered truth: %v (truth=%v)", err, wire.Truth)
+			}
+			for _, key := range []string{"truncated", "omissions"} {
+				if value, present := wire.Truth[key]; present {
+					t.Fatalf("fitting response renders truth.%s = %s, want the key absent", key, value)
+				}
+			}
 		})
 	}
 }

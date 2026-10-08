@@ -51,7 +51,7 @@ limit defaults to 50 and is capped at 200. Every response includes `count`,
 `limit`, and `truncated`; the handler reads one extra row internally so
 `truncated=true` means at least one additional ordered match exists beyond the
 returned page. `matches` removed; read `results`. Content rows clip `source_cache` ([read clip](source-cache-clip.md)).
-On graph-empty repository search, content fallback filters language and exact names before `LIMIT`; fuzzy matching ignores case. `offset` (default 0, below 200) pages inside the first 200 ranked matches: the effective `limit` shrinks so `offset + limit` stays within 200, graph rows sort by name then entity id, and `offset` is echoed only when positive.
+On graph-empty repository search, content fallback filters language and exact names before `LIMIT`; fuzzy matching ignores case. `offset` (default 0, below 200) pages inside the first 200 ranked matches: the effective `limit` shrinks so `offset + limit` stays within 200, graph rows sort by name then entity id, the hybrid re-rank orders rows inside a page only (a reordered row carries `page_position`, its place in the offset order), and `offset` is echoed as requested, only when positive.
 
 `POST /api/v0/code/symbols/search` accepts `symbol` or `query`, optional
 `match_mode`, repository/language/entity filters, `limit`, and `offset`.
