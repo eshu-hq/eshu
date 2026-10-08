@@ -143,7 +143,7 @@ procedure and the incident behind each rule below.
 - If an edit lands outside the intended feature worktree, stop editing there and
   report the paths. Recover without discarding the work of others. Use the
   arbiter model for a non-obvious plan. MUST NOT recover silently.
-- MUST use `rg` for all text searches. NEVER use `grep`.
+- MUST use `rg` for all text searches. NEVER use `grep`. Corroborate census counts from a subdirectory search root with `git grep` or `git ls-files`: an anchored `.gitignore` line can hide tracked files from `rg` with exit 0 (#7750; the gitignore-rg-parity gate pins every fixed root, `.claude/` stays uncovered in #7771).
 - MUST use `rg --files` or globbing for file discovery. NEVER use `find`.
 - Use local docs to establish the relevant contract. Read source or external
   documentation as needed to settle the real uncertainty of the task.

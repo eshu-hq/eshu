@@ -55,6 +55,9 @@ jobs:
       - name: Run filename-stutter gate test mirror
         run: scripts/test-verify-filename-stutter.sh
 
+      - name: Run gitignore-rg-parity gate test mirror
+        run: scripts/test-verify-gitignore-rg-parity.sh
+
       - name: Run agent hooks test mirror
         run: scripts/test-agent-hooks.sh
 
@@ -121,3 +124,6 @@ jobs:
             range="${{ github.event.before }}"
           fi
           scripts/verify-filename-stutter.sh --range "$range"
+
+      - name: Tracked files visible to ripgrep from every search root
+        run: scripts/verify-gitignore-rg-parity.sh
