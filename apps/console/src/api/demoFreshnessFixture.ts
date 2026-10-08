@@ -14,10 +14,19 @@
 // landed but indexing has not started -- the console never fabricates
 // progress for a repository outside the demo corpus). Timestamps are
 // relative to call time so the "current" copy's relative observed_at reads
-// correctly for any session length.
+// correctly for any session length. The two demo-corpus repositories report
+// selected collector evidence; any other id reports no live selector.
 export function demoFreshnessWire(repoId: string): Record<string, unknown> {
   const now = Date.now();
   const ago = (minutes: number): string => new Date(now - minutes * 60_000).toISOString();
+  const selected = {
+    state: "selected",
+    reason: null,
+    state_since: ago(60 * 24),
+    last_listed_at: ago(3),
+    evaluated_at: ago(3),
+    live_selector_count: 1,
+  };
   const base = {
     scope_id: `scope:${repoId}`,
     verdict: "unobserved",
@@ -28,6 +37,14 @@ export function demoFreshnessWire(repoId: string): Record<string, unknown> {
     outstanding_by_stage: [] as readonly Record<string, unknown>[],
     shared_enrichment: { pending: false, pending_domains: [] },
     unobserved_push: null as Record<string, unknown> | null,
+    selection: {
+      state: "unknown",
+      reason: null,
+      state_since: null as string | null,
+      last_listed_at: null as string | null,
+      evaluated_at: null as string | null,
+      live_selector_count: 0,
+    },
     as_of: new Date(now).toISOString(),
     scoped: false,
   };
@@ -45,6 +62,7 @@ export function demoFreshnessWire(repoId: string): Record<string, unknown> {
         activated_at: ago(2),
       },
       stages: { collected: true, reduced: true, projected: true, materialized: true },
+      selection: selected,
     };
   }
   if (repoId === "repository:payments-api") {
@@ -62,6 +80,7 @@ export function demoFreshnessWire(repoId: string): Record<string, unknown> {
       },
       stages: { collected: true, reduced: true, projected: false, materialized: false },
       outstanding_by_stage: [{ stage: "project", status: "running", count: 7 }],
+      selection: selected,
     };
   }
   return {

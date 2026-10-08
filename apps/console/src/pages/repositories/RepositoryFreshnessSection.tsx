@@ -1,7 +1,8 @@
 // pages/repositories/RepositoryFreshnessSection.tsx
 // Fuller freshness surface for the repo source detail page (issue #5143):
-// verdict chip, stage checklist, outstanding-by-stage counts, and the
-// cross-repo shared-enrichment note. Lazy-loaded from RepoSourcePage.tsx
+// verdict chip, stage checklist, outstanding-by-stage counts, the
+// cross-repo shared-enrichment note, and the collector selection evidence
+// (#7773). Lazy-loaded from RepoSourcePage.tsx
 // (mirrors OperationsLiveBoard.tsx, issue #5137) so its code and the
 // repositoryFreshness adapter ship in their own chunk instead of growing the
 // eagerly loaded main bundle.
@@ -9,7 +10,8 @@
 // Polls GET /api/v0/repositories/{id}/freshness only while the verdict is
 // "building" or "unobserved" -- the states where the answer is expected to
 // change soon. Polling stops once the repository reaches "current",
-// "behind", or "unknown", or when the read degrades to unavailable, so an
+// "behind", "not_selected", or "unknown", or when the read degrades to
+// unavailable, so an
 // idle or broken repo does not keep the network busy.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
@@ -19,6 +21,11 @@ import {
   type RepositoryFreshness,
   type RepositoryFreshnessStages,
 } from "../../api/repositoryFreshness";
+import {
+  selectionReasonLabel,
+  selectionStateLabel,
+  type RepositoryFreshnessSelection,
+} from "../../api/repositoryFreshnessSelection";
 import { Badge, Panel } from "../../components/atoms";
 import { FreshnessChip } from "../../components/FreshnessChip";
 
@@ -36,7 +43,8 @@ const STAGE_ROWS: readonly {
 
 // shouldKeepPolling reports whether the pipeline is still actively catching
 // up (building) or hasn't started on a known push yet (unobserved) --
-// "current", "behind", and "unknown" are stable answers that only change on
+// "current", "behind", "not_selected", and "unknown" are stable answers that
+// only change on
 // the next push/webhook, so re-polling them on a timer would waste cycles for
 // no visible change.
 function shouldKeepPolling(freshness: RepositoryFreshness | null): boolean {
@@ -237,7 +245,39 @@ export function RepositoryFreshnessSection({
             : ""}
         </p>
       ) : null}
+      <SelectionEvidence selection={freshness.selection} />
     </Panel>
+  );
+}
+
+// SelectionEvidence renders the collector selection block: the state badge,
+// the reason when the state carries one, and how many live selectors back it.
+function SelectionEvidence({
+  selection,
+}: {
+  readonly selection: RepositoryFreshnessSelection;
+}): React.JSX.Element {
+  const { label, tone } = selectionStateLabel(selection.state);
+  const reason = selectionReasonLabel(selection.reason);
+  const facts = [
+    reason,
+    selection.stateSince ? `since ${selection.stateSince}` : "",
+    selection.liveSelectorCount > 0
+      ? `${selection.liveSelectorCount} live selector${selection.liveSelectorCount === 1 ? "" : "s"}`
+      : "",
+  ].filter((fact) => fact !== "");
+  return (
+    <>
+      <div className="section-label" style={{ marginTop: 12 }}>
+        Collector selection
+      </div>
+      <p>
+        <Badge tone={tone} dot>
+          {label}
+        </Badge>
+        {facts.length > 0 ? <span className="t-mut"> {facts.join(" · ")}</span> : null}
+      </p>
+    </>
   );
 }
 
