@@ -64,6 +64,27 @@ run_gate() {
 	printf '%s' "$rc"
 }
 
+# Capability probe: RED cases 1 and 3 need an rg that relativizes anchored
+# parent-.gitignore patterns under subdirectory search roots (rg 14.1.1
+# does; rg 15.2.0 does not -- upstream fixed the relativization). CI pins
+# checksum-verified rg 14.1.1 via scripts/ci/install-apt-packages.sh, so the
+# RED cases always run there. On a fixed rg the gate cannot go RED on these
+# fixtures, so SKIP the RED assertions with a notice instead of failing a
+# healthy tree. GREEN cases run everywhere: they pass on both behaviors.
+# The probe asks rg directly (not via the gate) so a broken gate that always
+# exits 0 cannot flip the RED cases to SKIP and mask its own regression.
+probe_repo="$(new_repo)"
+mkdir -p "$probe_repo/go/cmd/tool"
+printf 'go/tool\n' >"$probe_repo/.gitignore"
+printf 'package tool\n' >"$probe_repo/go/cmd/tool/main.go"
+git -C "$probe_repo" add -A
+red_supported=0
+if (cd "$probe_repo" && rg --files --hidden go/ 2>/dev/null | rg -q 'go/cmd/tool/main\.go'); then
+	printf 'SKIP RED cases 1+3 need relativizing rg, have %s\n' "$(rg --version | awk 'NR==1')"
+else
+	red_supported=1
+fi
+
 # 1. RED: the #7750 shape -- anchored `go/tool` prunes go/cmd/tool/ from a
 # go/-rooted search while git still tracks it.
 repo="$(new_repo)"
@@ -73,12 +94,16 @@ printf 'package tool\n' >"$repo/go/cmd/tool/main.go"
 printf 'package cmd\n' >"$repo/go/cmd/other.go"
 git -C "$repo" add -A
 export ESHU_RG_PARITY_REPO_ROOT="$repo"
-err="$(mktemp)"
-rc="$(run_gate "$err")"
-check "anchored go/binary pruning a source dir is RED" 1 "$rc"
-check_contains "RED names the hidden file" "go/cmd/tool/main.go" "$err"
-check_contains "RED names the go/ root" "root=go/" "$err"
-rm -f "$err"
+if [ "$red_supported" = "1" ]; then
+	err="$(mktemp)"
+	rc="$(run_gate "$err")"
+	check "anchored go/binary pruning a source dir is RED" 1 "$rc"
+	check_contains "RED names the hidden file" "go/cmd/tool/main.go" "$err"
+	check_contains "RED names the go/ root" "root=go/" "$err"
+	rm -f "$err"
+else
+	printf 'SKIP anchored go/binary pruning a source dir is RED\n'
+fi
 
 # 2. GREEN: the bare dir negation re-includes the source dir.
 printf 'go/tool\n!tool/\n' >"$repo/.gitignore"
@@ -95,11 +120,15 @@ printf 'go/cmd/tool\n' >"$repo3/.gitignore"
 printf 'package tool\n' >"$repo3/go/cmd/other/tool/deep.go"
 git -C "$repo3" add -A
 export ESHU_RG_PARITY_REPO_ROOT="$repo3"
-err="$(mktemp)"
-rc="$(run_gate "$err")"
-check "deeper anchored pattern is RED" 1 "$rc"
-check_contains "RED names the go/cmd/ root" "root=go/cmd/" "$err"
-rm -f "$err"
+if [ "$red_supported" = "1" ]; then
+	err="$(mktemp)"
+	rc="$(run_gate "$err")"
+	check "deeper anchored pattern is RED" 1 "$rc"
+	check_contains "RED names the go/cmd/ root" "root=go/cmd/" "$err"
+	rm -f "$err"
+else
+	printf 'SKIP deeper anchored pattern is RED\n'
+fi
 
 # 4. GREEN: the deeper shape is fixable the same way.
 printf 'go/cmd/tool\n!tool/\n' >"$repo3/.gitignore"

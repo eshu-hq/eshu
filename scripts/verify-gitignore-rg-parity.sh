@@ -3,16 +3,22 @@
 #
 # Regression gate for #7750: anchored .gitignore lines of the form
 # `go/<binary>` relativize to bare basenames when ripgrep runs rooted at a
-# subdirectory, silently pruning same-named source directories (3,345 tracked
-# files under go/ were invisible to `rg ... go/` while `git check-ignore`
-# correctly reported them as tracked). A new `go/<binary>` line whose
-# basename collides with a source directory would reintroduce the prune with
-# exit code 0 and no warning.
+# subdirectory, silently pruning same-named source directories (3,352 tracked
+# files under go/ invisible to `rg ... go/` on rg 14.1.1 at 825d9335634e, while
+# `git check-ignore` correctly reported them as tracked; the count grows
+# with the tree). A new `go/<binary>` line whose basename collides with a
+# source directory would reintroduce the prune with exit code 0 and no
+# warning. The prune needs a relativizing rg (14.1.1 does; 15.2.0 does not);
+# CI pins checksum-verified 14.1.1 via scripts/ci/install-apt-packages.sh.
 #
 # The check walks every search root where an anchored pattern can relativize:
 # the repo root, every top-level directory, and every second-level directory
 # under go/ (the `go/<binary>` family relativizes at root `go/`; a deeper
-# `go/<sub>/<binary>` shape would relativize at root `go/<sub>/`). At each
+# `go/<sub>/<binary>` shape would relativize at root `go/<sub>/`). Depth
+# boundary: a three-level anchored pattern (go/a/b/bin) would relativize at
+# go/a/b/, which is never walked, so the gate would stay GREEN on that prune
+# -- likewise for anchored lines in nested .gitignore files below go/*/. No
+# such pattern exists today; extend the walk if one is ever added. At each
 # root, every path `git ls-files` reports must also appear in
 # `rg --files --hidden`. Only the tracked-but-hidden direction is compared:
 # untracked files (including genuinely ignored build outputs) never fail the
