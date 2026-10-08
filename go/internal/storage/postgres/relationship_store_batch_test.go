@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -61,6 +62,57 @@ func TestUpsertEvidenceFactsBatchesInserts(t *testing.T) {
 	if totalArgs != factCount*evidenceInsertColumns {
 		t.Fatalf("batched inserts bound %d args, want %d (%d facts x %d columns)",
 			totalArgs, factCount*evidenceInsertColumns, factCount, evidenceInsertColumns)
+	}
+}
+
+// TestUpsertEvidenceFactsCountedSumsBatchInsertCounts pins the #7636
+// counting contract: the counted upsert sums RowsAffected across its chunked
+// INSERT statements, so a batch that inserted nothing (every row skipped by
+// ON CONFLICT DO NOTHING) contributes 0 and a re-upsert of identical
+// evidence reports 0 overall. The deferred maintenance pass relies on that
+// zero to keep quiet memo-hit partitions skipped.
+func TestUpsertEvidenceFactsCountedSumsBatchInsertCounts(t *testing.T) {
+	t.Parallel()
+
+	facts := []relationships.EvidenceFact{
+		{
+			EvidenceKind:     relationships.EvidenceKind("terraform_module"),
+			RelationshipType: relationships.RelationshipType("depends_on"),
+			SourceRepoID:     "repo-source",
+			TargetRepoID:     "repo-target",
+			Confidence:       0.9,
+			Rationale:        "module reference",
+		},
+	}
+
+	fake := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	store := NewRelationshipStore(fake)
+	inserted, err := store.UpsertEvidenceFactsCounted(context.Background(), "gen-1", facts)
+	if err != nil {
+		t.Fatalf("UpsertEvidenceFactsCounted() error = %v, want nil", err)
+	}
+	if inserted != 1 {
+		t.Fatalf("UpsertEvidenceFactsCounted() inserted = %d, want 1", inserted)
+	}
+
+	// A re-upsert whose statement inserts nothing reports 0, not an error.
+	fake.execResults = []sql.Result{rowsAffectedResult{rowsAffected: 0}}
+	inserted, err = store.UpsertEvidenceFactsCounted(context.Background(), "gen-1", facts)
+	if err != nil {
+		t.Fatalf("UpsertEvidenceFactsCounted() re-upsert error = %v, want nil", err)
+	}
+	if inserted != 0 {
+		t.Fatalf("UpsertEvidenceFactsCounted() re-upsert inserted = %d, want 0", inserted)
+	}
+
+	// Empty input short-circuits with no statement at all.
+	execsBefore := len(fake.execs)
+	inserted, err = store.UpsertEvidenceFactsCounted(context.Background(), "gen-1", nil)
+	if err != nil || inserted != 0 {
+		t.Fatalf("UpsertEvidenceFactsCounted(nil) = (%d, %v), want (0, nil)", inserted, err)
+	}
+	if len(fake.execs) != execsBefore {
+		t.Fatalf("UpsertEvidenceFactsCounted(nil) issued %d statements, want 0", len(fake.execs)-execsBefore)
 	}
 }
 

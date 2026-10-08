@@ -61,20 +61,22 @@ func (s IngestionStore) targetedMaintenanceSkipSet(
 // in bounded per-repository batches with the repo-bounded under-lock read, and
 // then publishes readiness and memo rows through the unchanged fan-in, which
 // runs only after every batch of this pass committed. Shared instruments are
-// off: the targeted pass has its own (see recordTargetedMaintenance).
+// off: the targeted pass has its own (see recordTargetedMaintenance). The
+// second return carries the per-partition actually-inserted evidence row
+// counts for the pass's memo-hit skip-set revision (issue #7636).
 func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	ctx context.Context,
 	closure targetedMaintenanceClosure,
 	evidenceBySourceRepo map[string][]relationships.EvidenceFact,
 	snapshot map[string]string,
 	catalogFingerprint string,
-) (int, error) {
+) (int, map[scopeGenerationPartition]int64, error) {
 	repoIDs := make([]string, 0, len(closure.affectedRepos))
 	for repoID := range closure.affectedRepos {
 		repoIDs = append(repoIDs, repoID)
 	}
 	if len(repoIDs) == 0 {
-		return 0, nil
+		return 0, nil, nil
 	}
 	sort.Strings(repoIDs)
 	batchSize := s.maintenanceBatchSize
@@ -88,17 +90,21 @@ func (s IngestionStore) writeTargetedMaintenanceEvidence(
 	workers := max(s.maintenanceWorkers, 1)
 	workers = min(workers, len(bounds))
 
-	contributions, err := s.runDeferredBackfillBatchesWith(
+	contributions, insertedRows, err := s.runDeferredBackfillBatchesWith(
 		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshot, nil,
 		loadActiveRepositoryGenerationsForRepos,
 	)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("partition-scoped maintenance canceled before readiness publication: %w", err)
+		return 0, nil, fmt.Errorf("partition-scoped maintenance canceled before readiness publication: %w", err)
 	}
-	return s.publishDeferredBackfillPartitions(ctx, contributions, snapshot, catalogFingerprint, workers, nil)
+	published, err := s.publishDeferredBackfillPartitions(ctx, contributions, snapshot, catalogFingerprint, workers, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	return published, insertedRows, nil
 }
 
 // reopenTargetedMaintenanceWorkItems reopens, in ONE transaction, the

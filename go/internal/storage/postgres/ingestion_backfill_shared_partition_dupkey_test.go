@@ -87,7 +87,7 @@ func TestDeferredBackfillPublishesOneRowPerPartitionHermetic(t *testing.T) {
 	store.maintenanceBatchSize = 1
 	store.maintenanceWorkers = 1
 
-	published, err := store.writeDeferredBackfillInBatches(
+	published, _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,
@@ -140,7 +140,7 @@ func TestDeferredBackfillWithholdsPublicationForSupersededGenerationHermetic(t *
 	store.maintenanceBatchSize = 1
 	store.maintenanceWorkers = 1
 
-	published, err := store.writeDeferredBackfillInBatches(
+	published, _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,
@@ -232,7 +232,7 @@ func TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition(t *tes
 	store.maintenanceBatchSize = 1
 	store.maintenanceWorkers = 1
 
-	published, err := store.writeDeferredBackfillInBatches(
+	published, _, err := store.writeDeferredBackfillInBatches(
 		ctx,
 		map[string][]relationships.EvidenceFact{},
 		nil,
@@ -281,7 +281,7 @@ func TestDeferredBackfillDistinctScopesPublishOneRowEach(t *testing.T) {
 	store.maintenanceBatchSize = 1
 	store.maintenanceWorkers = 1
 
-	published, err := store.writeDeferredBackfillInBatches(
+	published, _, err := store.writeDeferredBackfillInBatches(
 		ctx,
 		map[string][]relationships.EvidenceFact{},
 		nil,

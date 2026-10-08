@@ -119,11 +119,17 @@ VALUES ('tgt-2/projector', 'git:tgt', 'tgt-2', 'projector', 'source_local', 'run
 		p.terraformRef("a-1-ref", "git:a", "a-1", "shared", "a.tf", "orders-api")
 		p.workItems("git:a", "a-1")
 		p.run("owed_repo_id_collision_loser", targetedDiffCase{
-			owed:        owedPartitions("git:a", "a-1"),
-			compared:    partitionSet("git:b", "b-1"),
+			owed:     owedPartitions("git:a", "a-1"),
+			compared: partitionSet("git:b", "b-1"),
+			// The new shared->repo-dep evidence (from a-1's terraform fact)
+			// lands under b-1's generation: the catalog keeps git:b for the
+			// collided repo_id. b-1's own facts are unchanged, so it is a
+			// memo hit — but the inbound evidence is genuinely new, so both
+			// arms reopen its relationship items too (issue #7636: the
+			// skip set is revised with the rows actually inserted).
 			newEvidence: []string{"shared->repo-dep"},
 			published:   partitionSet("git:b", "b-1"),
-			reopened:    correlationIDs("b-1"),
+			reopened:    workIDs("b-1"),
 			outcomes:    map[string]TargetedMaintenanceOutcomeKind{"git:a/a-1": TargetedMaintenanceInapplicable},
 		})
 	})

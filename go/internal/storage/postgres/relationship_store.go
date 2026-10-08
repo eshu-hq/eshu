@@ -223,39 +223,6 @@ func (s *RelationshipStore) IsGenerationActive(
 	return true, rows.Err()
 }
 
-// UpsertEvidenceFacts persists evidence facts for a generation in bounded
-// multi-row INSERT batches. Each batch is one idempotent
-// `INSERT ... ON CONFLICT (evidence_id) DO NOTHING` statement, so re-running the
-// backfill converges to the same rows and the per-row round-trips that made the
-// corpus-wide backfill the client-side long pole (issue #3704) are gone. Row
-// identity (evidence_id) is unchanged, so the persisted evidence is byte-identical
-// to the prior per-row path.
-func (s *RelationshipStore) UpsertEvidenceFacts(
-	ctx context.Context,
-	generationID string,
-	facts []relationships.EvidenceFact,
-) error {
-	if len(facts) == 0 {
-		return nil
-	}
-	facts = relationships.DedupeEvidenceFacts(facts)
-	if len(facts) == 0 {
-		return nil
-	}
-
-	now := time.Now().UTC()
-	for start := 0; start < len(facts); start += evidenceInsertBatchRows {
-		end := start + evidenceInsertBatchRows
-		if end > len(facts) {
-			end = len(facts)
-		}
-		if err := s.insertEvidenceFactBatch(ctx, generationID, facts[start:end], now); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // ListEvidenceFacts returns stored evidence facts for a generation.
 func (s *RelationshipStore) ListEvidenceFacts(
 	ctx context.Context,

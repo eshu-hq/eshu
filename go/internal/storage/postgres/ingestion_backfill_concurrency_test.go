@@ -148,7 +148,7 @@ func TestWriteDeferredBackfillInBatchesRunsConcurrently(t *testing.T) {
 	store.maintenanceBatchSize = 4 // 64 repos / 4 = 16 batches
 	store.maintenanceWorkers = 6
 
-	readiness, err := store.writeDeferredBackfillInBatches(
+	readiness, _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,
@@ -201,7 +201,7 @@ func TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne(t *testing.T) {
 	store.maintenanceBatchSize = 4
 	store.maintenanceWorkers = 1
 
-	if _, err := store.writeDeferredBackfillInBatches(
+	if _, _, err := store.writeDeferredBackfillInBatches(
 		context.Background(),
 		map[string][]relationships.EvidenceFact{},
 		nil,

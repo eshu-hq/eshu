@@ -77,7 +77,7 @@ func TestWriteDeferredBackfillSkipsReadinessWhenGenerationAdvanced(t *testing.T)
 			store := NewIngestionStore(&concurrencyProbeDB{activeGenRows: activeGen})
 			store.Now = func() time.Time { return time.Unix(0, 0).UTC() }
 
-			readiness, err := store.writeDeferredBackfillInBatches(
+			readiness, _, err := store.writeDeferredBackfillInBatches(
 				context.Background(),
 				map[string][]relationships.EvidenceFact{},
 				tc.snapshot,
