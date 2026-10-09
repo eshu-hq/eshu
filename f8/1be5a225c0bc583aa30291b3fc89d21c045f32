@@ -1,0 +1,27 @@
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_f571422afb8474 2882,2884
+scripts/test-methodology-scale-resource-observer.sh
+  s_29175cf8c573b8::t_7c38533f787a8a 37
+  s_29175cf8c573b8::t_7c381b3b9402e4 31-35,39,41,45,56,66,68
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_7c38533f787a8a 129-133,153-158
+  s_29175cf8c573b8::t_f571422afb8474 48,189
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_89bee345220804 275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f81be5a225c0bc583aa30291b3fc89d21c045f32",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
