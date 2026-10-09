@@ -488,7 +488,7 @@ the cache for the current epoch, the waiter is served that set as a hit. Otherwi
 with the retryable `identity_epoch_unstable` class, counted as
 `flight_waiter_total{outcome="gave_up_flights"}` or `{outcome="gave_up_wall"}`. When
 `gave_up_flights` dominates, the epoch is churning; when `gave_up_wall` dominates, a single
-flight is slow but stable (a load longer than about 30 s). A call's time inside the identity cache is bounded by one heartbeat interval plus two load attempts; a call that has exhausted its wait budget (3 flights or one heartbeat interval) never starts a load: it fails retryably with identity_epoch_unstable and the next caller leads with a fresh budget.
+flight is slow but stable (a load longer than about 30 s). A call's time inside the identity cache is bounded by one heartbeat interval plus two load attempts and a few epoch probes; a call that has exhausted its wait budget (3 flights or one heartbeat interval) never starts a load: it fails retryably with identity_epoch_unstable and the next caller leads with a fresh budget.
 A waiter never starts a load after its budget is gone. Without these bounds, sustained epoch
 churn parked every worker of the pool on a flight and the pool stalled.
 

@@ -96,8 +96,12 @@ Reading the table.
   inside the repair and maintenance-reopen windows. At one change per 5 s against a
   7 to 13 s load, every flight tears, no cache entry survives, and every item
   dead-letters after 3 attempts with class `identity_epoch_unstable`. The run
-  terminates. That is the F21 case and the reason for #7825. The operator runbook
-  requeues those dead letters per cycle.
+  terminates. That is the F21 case and the reason for #7825. Dead letters with
+  class `identity_epoch_unstable` are requeued per cycle through the deployment
+  runbook. The eshu docs describe the guarded manual replay by `failure_class`
+  (3 AM runbook, "Symptom: deadletter growth"); the class is not in the
+  unsafe-replay list, so no `force` is needed. The eshu docs do not describe a
+  per-cycle requeue, and none is added here.
 - Most failures are waiters, and mostly `gave_up_wall`. With loads this slow, a
   waiter's 30 s budget runs out on a flight that is still loading or still torn.
   `gave_up_flights` dominant would mean churn on its own; here the slow host makes
@@ -112,7 +116,7 @@ Reading the table.
   to 32.6 s (the 30 s wait plus the final probe). A call that waited and then led
   took up to 64.6 s: 30 s of waiting plus up to two loads, each slower than the
   calibrated single load because 8 workers load at once. That is the bound: one
-  heartbeat interval plus two load attempts. The earlier 49.5 s figure was this
+  heartbeat interval plus two load attempts and a few epoch probes. The earlier 49.5 s figure was this
   same case under the previous rule. Calls that exhausted their wait budget never
   start a load.
 
@@ -154,7 +158,7 @@ taken from the same claim lease the queue uses, no new setting) fails the
 waiter's item with the same retryable `identity_epoch_unstable` as a leader, so
 the queue re-runs it under the existing attempt limit. The leader is bounded by
 its two load attempts and is not cut off by wall time, so a slow healthy load
-still finishes. Invariant: A call's time inside the identity cache is bounded by one heartbeat interval plus two load attempts; a call that has exhausted its wait budget (3 flights or one heartbeat interval) never starts a load: it fails retryably with identity_epoch_unstable and the next caller leads with a fresh budget.
+still finishes. Invariant: A call's time inside the identity cache is bounded by one heartbeat interval plus two load attempts and a few epoch probes (at most about five); a call that has exhausted its wait budget (3 flights or one heartbeat interval) never starts a load: it fails retryably with identity_epoch_unstable and the next caller leads with a fresh budget.
 A caller that still has budget may lead (at most 2 load attempts). Waiter failures split
 into two labels on one counter: `gave_up_flights` dominant means sustained churn,
 `gave_up_wall` dominant means a slow stable flight (a load longer than about 30 s also
@@ -220,33 +224,50 @@ change. Unit tests
 Torn means any epoch move, and what that costs (F21, deferred by arbiter ruling).
 The epoch fingerprint hashes the active generation of every scope, so a
 generation activation in any scope, identity-relevant or not, moves the epoch
-and can tear an in-flight load. A leader item fails retryably with
-`identity_epoch_unstable` only when the epoch moves during both of its two load
-attempts. At the measured churn that is about 0.3 percent per leader item; if
-one activation landed per load, it is about 6 percent. The item is retried under
-the normal lease and retry policy. A dead letter needs three consecutive torn
-attempts (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3), which is rare at those odds
-and impossible unless the epoch keeps moving. Measured production churn today is
-one activation in 24 hours (a read-only count on the reader). The elevated
-windows are the delta-active repair and maintenance reopens, which activate many
-scopes in a short time. A repeatedly torn item is findable: the dead-letter row
-and `eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}`
-carry the class. No code changes for this in this PR. Follow-up: narrow the
-epoch fingerprint to identity-relevant activations only.
+and can tear an in-flight load. Two kinds of caller fail with
+`identity_epoch_unstable`, and both are counted in the churn table above.
+
+- A leader fails when the epoch moves during both of its two load attempts. At
+  the churn measured in production that is about 0.3 percent per leader item; if
+  one activation landed per load, about 6 percent.
+- A waiter fails when 3 flights in a row do not serve it, or when it has waited
+  one heartbeat interval (30 s) in total, and a final probe finds no usable set.
+  This path needs no churn. A set that stays over the cache cap is never cached,
+  so every caller loads it; if one such load takes longer than about 30 s, every
+  waiter of that load fails with `gave_up_wall` even though the epoch never moved.
+  A slow but stable flight therefore dead-letters its waiters on the same
+  attempts as churn does.
+
+Either kind retries under the normal lease and retry policy. A dead letter needs
+three consecutive failures of one item (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3).
+At the production churn that is rare for the leader path. It is not impossible
+for the waiter path while loads stay slower than about 30 s with the set
+uncached. The measured rates are in the churn table: at 5 s churn on a loaded
+host, 91 leader failures and 299 waiter give-ups ended with all 130 items
+dead-lettered. Measured production churn today is one activation in 24 hours (a
+read-only count on the reader). The elevated windows are the delta-active repair
+and maintenance reopens, which activate many scopes in a short time.
+
+A repeatedly failing item is findable: the dead-letter row and
+`eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}`
+carry the class, and `flight_waiter_total{outcome=gave_up_flights|gave_up_wall}`
+says whether churn or a slow flight caused it. No code changes for this in this
+PR. Follow-up: narrow the epoch fingerprint to identity-relevant activations only.
 Follow-up: #7825
 
 Raw outputs are attached to the PR (no private paths). File names:
 `red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-noreprobe-mutation.txt`,
 `red-probeerr-mutation.txt`, `red-noclass-mutation.txt`,
-`green-unit-r3.txt`, `green-live-r3.txt`, `red-live-epoch.txt`,
-`red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
-`red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
-`after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
-`after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`,
 `red-noflightbound-mutation.txt`, `red-nowallbound-mutation.txt`,
-`red-wallleads-mutation.txt`, `red-nofinalprobe-mutation.txt`, `red-heartbeat-wiring-mutation.txt`,
-`green-unit-r6.txt`,
-`postgres-race-r3.txt`, `gates-r3.txt`.
+`red-wallleads-mutation.txt`, `red-nofinalprobe-mutation.txt`,
+`red-heartbeat-wiring-mutation.txt`, `red-live-epoch.txt`,
+`red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
+`red-keyset-live-mutation.txt`, `green-unit-r7.txt`, `green-live-r7.txt`,
+`before-load.txt`, `after-load-final.txt`, `after-drain-head-superseded.txt`,
+`after-drain-final-active-10s.txt`, `after-drain-final-active-7s.txt`,
+`after-drain-final-active-5s.txt`, `gates-r7.txt`. The captures `green-unit-r6.txt`,
+`green-live-r6.txt`, and `gates-r6.txt` are the earlier run at the same logic;
+the r7 files were taken after the final context change in the give-up probe.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
 (Cypher) reads only, so it has no entry for this query. The guard is

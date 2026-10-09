@@ -456,7 +456,13 @@ func (c *IdentityEpochCache) giveUp(
 	outcome string,
 	reason string,
 ) ([]facts.Envelope, error) {
-	probe, err := store.probeIdentityEpoch(context.WithoutCancel(ctx))
+	// The final probe runs on the caller's own context, so the caller's
+	// deadline still bounds it. A caller whose context has ended gets its own
+	// context error, not a give-up.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	probe, err := store.probeIdentityEpoch(ctx)
 	if err == nil {
 		c.mu.Lock()
 		if c.facts != nil && c.epoch == probe {
