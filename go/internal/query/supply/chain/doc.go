@@ -24,6 +24,11 @@
 // compat_supply_chain.go imports this package for the compatibility
 // aliases cmd/api and cmd/mcp-server still use.
 //
+// A handler-owned failure answers a fixed per-step message, never the
+// backend error text (#7674): writeStageFailure logs stage_failed, or
+// stage_canceled for a client cancel, and tracing.WriteServerFailure writes
+// 500 or 499 and marks the handler span.
+//
 // Three contracts callers must hold. Every list route requires a bounded
 // scope or an explicit limit: an unscoped read over a whole fact corpus is
 // rejected before any store runs. The runtime-evidence probes (cloud,

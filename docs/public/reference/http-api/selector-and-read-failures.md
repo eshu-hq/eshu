@@ -122,3 +122,24 @@ the request span is not marked as an error; the span carries an
 OpenAPI spec, because the client has already gone. Other routes still answer
 a client cancel with `500` until #7674 lands. The telemetry effects are in
 [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
+
+## Supply-chain read failures
+
+The `/api/v0/supply-chain/*` query routes, the impact investigation packet,
+and the suppression mutation answer a failed store read or runtime probe with
+`500` and a fixed message for the step that failed, instead of `500` with the
+backend error text (#7674). Examples are `supply-chain impact findings read
+failed`, `supply-chain impact runtime context probe failed`, `advisory catalog
+read failed`, and `security alert reconciliation count read failed`. The
+security-alert repository selector's catalog match and provider scope lookup
+answer `repository selector lookup failed`, as its exact resolution already
+did. The handler span records the error once and carries the step's message as
+its Error description. A reader fence still answers the retryable `503` with
+`Retry-After`.
+
+A client cancel on these routes answers `499` with the same fixed message. The
+route logs one INFO `supply_chain_query.stage_canceled` line for the stage and
+no `supply_chain_query.stage_failed` line, so a client walking away does not
+page at ERROR. A `context.Canceled` from an inner context while the request is
+still live is a server fault and answers `500` with `stage_failed`. See
+[Logging](../logging.md) for both events.
