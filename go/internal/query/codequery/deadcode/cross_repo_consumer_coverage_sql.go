@@ -146,6 +146,7 @@ WITH matched AS MATERIALIZED (
               WHERE work.scope_id = scope.scope_id
                 AND work.generation_id = scope.active_generation_id
                 AND work.stage = 'reducer'
+                -- Twin of the intent probe's projection_domain list above; update both together.
                 AND work.domain IN ('code_call_materialization', 'inheritance_materialization')
                 AND work.status <> 'succeeded'
               LIMIT 1), false))
@@ -224,6 +225,7 @@ WHERE scope.scope_kind = 'repository'
             WHERE work.scope_id = scope.scope_id
               AND work.generation_id = scope.active_generation_id
               AND work.stage = 'reducer'
+              -- Twin of the intent probe's projection_domain list above; update both together.
               AND work.domain IN ('code_call_materialization', 'inheritance_materialization')
               AND work.status <> 'succeeded'
             LIMIT 1), false))
