@@ -63,8 +63,8 @@ type Store interface {
 // LivenessWindow is the configured ESHU_REPO_SELECTION_LIVENESS_WINDOW; zero
 // means DefaultLivenessWindow. SweepExpired asks Observe to run the
 // expired-row sweep after this evaluation; the collector sets it on exactly
-// one request per cycle, so a cycle sweeps at most once whatever its number
-// of explicit owners.
+// one request in a cycle that issues any, so a cycle sweeps at most once
+// whatever its number of explicit owners.
 type Request struct {
 	Selector       Selector
 	SourceMode     string

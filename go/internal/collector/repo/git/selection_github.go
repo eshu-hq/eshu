@@ -30,8 +30,10 @@ type RepositorySelectionObserver interface {
 
 // observeSelection hands the cycle's full pre-shard selection to the
 // configured observer: the githubOrg listing as one request, or the explicit
-// configured list as one request per owner. Exactly one request per cycle
-// carries SweepExpired, so the expired-row sweep runs at most once per cycle.
+// configured list as one request per owner. Exactly one request carries
+// SweepExpired in a cycle that issues any, so the expired-row sweep runs at
+// most once per cycle; filesystem mode and an explicit list with no owners
+// issue none.
 // Only shard 0 observes, because
 // every shard sees the same selection and N writers would race on the same
 // observation rows. Filesystem mode has no remote identity to observe.
