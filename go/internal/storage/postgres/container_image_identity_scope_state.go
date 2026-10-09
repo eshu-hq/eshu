@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -36,7 +37,10 @@ func NewContainerImageIdentityScopeStateStore(database db.Queryer) ContainerImag
 }
 
 // ContainerImageIdentityActivationEpoch returns the exact current epoch for a
-// scope generation. A missing or duplicate row is a hard lifecycle error.
+// scope generation. A missing row wraps
+// [reducercontract.ErrContainerImageIdentityGenerationNotActive] so the
+// handler can disambiguate a pending generation from a superseded or missing
+// one; a duplicate row or an invalid epoch stays a hard lifecycle error.
 func (s ContainerImageIdentityScopeStateStore) ContainerImageIdentityActivationEpoch(
 	ctx context.Context,
 	scopeID string,
@@ -59,7 +63,7 @@ func (s ContainerImageIdentityScopeStateStore) ContainerImageIdentityActivationE
 		if err := rows.Err(); err != nil {
 			return 0, fmt.Errorf("read container image identity activation epoch: %w", err)
 		}
-		return 0, fmt.Errorf("container image identity generation is not active")
+		return 0, reducercontract.ErrContainerImageIdentityGenerationNotActive
 	}
 	var epoch int64
 	if err := rows.Scan(&epoch); err != nil {

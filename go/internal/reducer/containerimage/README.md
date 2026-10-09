@@ -146,6 +146,16 @@ telemetry-coverage rows point at changed.
 - **`ParsedContainerImageRef.RepositoryKey` must match the OCI registry
   collector's own normalization**, or a digest observation never joins its
   Git/CI-sourced reference.
+- **An activation-epoch miss is classified, never failed blindly (#6502).**
+  The epoch join returns no row for a pending, superseded, or missing
+  generation alike, and the store reports that miss as
+  `contract.ErrContainerImageIdentityGenerationNotActive`. Handle routes it
+  through `gatedActivationEpoch` and the handler's `GenerationCheck`: a
+  pending generation defers with `GenerationNotYetActiveError` (the queue
+  retries without counting), a superseded one returns an early `superseded`
+  `Result`, and a generation the check still calls current re-reads once
+  before surfacing loudly. A nil check keeps the legacy loud error, so every
+  production assembly must wire the check.
 
 ## Related docs
 
