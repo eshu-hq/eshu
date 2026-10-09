@@ -2937,8 +2937,9 @@ gates:
       - "scripts/test-refresh-read-api-work-budgets.sh"
       - "scripts/extend-read-api-work-budgets.sh"
       - "scripts/test-extend-read-api-work-budgets.sh"
+      - "scripts/test-methodology-scale-resource-observer.sh"
     local:
-      command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh"
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh"
       test_command: ""
       pre_push: floor
     ci:

@@ -28,14 +28,21 @@ fi
 SH
 cat > "$work/bin/docker" <<'SH'
 #!/usr/bin/env bash
+if [[ "$1" == ps ]]; then
+ [[ "$*" == *'label=com.docker.compose.project=eshu-methodology-scale-ci'* ]] || exit 98
+ printf 'postgres-id\nneo4j-id\n'
+ exit 0
+fi
 [[ "$1" == stats ]] || exit 99
+[[ "$*" == *'postgres-id neo4j-id'* ]] || exit 97
 case "$DOCKER_MODE" in
- valid) printf 'eshu-api CPU=1.00%% memory=10MiB / 1GiB\n' ;;
+ valid) printf 'eshu-methodology-scale-ci-postgres-1 CPU=1.00%% memory=10MiB / 1GiB\neshu-methodology-scale-ci-neo4j-1 CPU=1.00%% memory=10MiB / 1GiB\n' ;;
  empty) ;;
+ unrelated) printf 'peer-service CPU=1.00%% memory=10MiB / 1GiB\n' ;;
  fail-after-sample)
   if [[ -e "$RUNNER_TEMP/stats-seen" ]]; then touch "$RUNNER_TEMP/stats-failed"; exit 7; fi
   touch "$RUNNER_TEMP/stats-seen"
-  printf 'eshu-api CPU=1.00%% memory=10MiB / 1GiB\n' ;;
+  printf 'eshu-methodology-scale-ci-postgres-1 CPU=1.00%% memory=10MiB / 1GiB\neshu-methodology-scale-ci-neo4j-1 CPU=1.00%% memory=10MiB / 1GiB\n' ;;
 esac
 SH
 cat > "$work/bin/sleep" <<'SH'
@@ -46,7 +53,7 @@ chmod +x "$work/scripts/verify-read-api-latency-gate.sh" "$work/bin/docker" "$wo
 run_case() {
  local name="$1" docker_mode="$2" gate_mode="$3" expected="$4" status=0
  mkdir -p "$work/$name"
- (cd "$work" && RUNNER_TEMP="$work/$name" DOCKER_MODE="$docker_mode" GATE_MODE="$gate_mode" PATH="$work/bin:$PATH" bash --noprofile --norc -e -o pipefail "$work/step.sh") > "$work/$name.out" 2>&1 || status=$?
+ (cd "$work" && RUNNER_TEMP="$work/$name" GATE_COMPOSE_PROJECT=eshu-methodology-scale-ci DOCKER_MODE="$docker_mode" GATE_MODE="$gate_mode" PATH="$work/bin:$PATH" bash --noprofile --norc -e -o pipefail "$work/step.sh") > "$work/$name.out" 2>&1 || status=$?
  [[ -s "$work/$name/methodology-resources.txt" ]] || { printf '%s lost resource report\n' "$name" >&2; exit 1; }
  if [[ "$expected" == pass && "$status" -ne 0 || "$expected" == fail && "$status" -eq 0 ]]; then
   printf '%s: unexpected exit %s (expected %s)\n' "$name" "$status" "$expected" >&2
@@ -56,7 +63,8 @@ run_case() {
 }
 run_case valid valid pass pass
 run_case missing-sample empty pass fail
+run_case unrelated-sample unrelated pass fail
 run_case observer-failure fail-after-sample pass fail
-rg -q 'eshu-api CPU=1.00% memory=' "$work/observer-failure/methodology-resources.txt" || { printf 'observer failure fixture did not sample first\n' >&2; exit 1; }
+rg -q 'eshu-methodology-scale-ci-postgres-1 CPU=1.00% memory=' "$work/observer-failure/methodology-resources.txt" || { printf 'observer failure fixture did not sample first\n' >&2; exit 1; }
 run_case gate-failure valid fail fail
 printf 'test-methodology-scale-resource-observer: pass\n'

@@ -45,6 +45,7 @@ on:
       - 'scripts/test-refresh-read-api-work-budgets.sh'
       - 'scripts/extend-read-api-work-budgets.sh'
       - 'scripts/test-extend-read-api-work-budgets.sh'
+      - 'scripts/test-methodology-scale-resource-observer.sh'
       - 'scripts/compare-backend-latency.sh'
       - 'scripts/test-compare-backend-latency.sh'
       - 'scripts/lib/test-compare-backend-latency-report.json'
@@ -125,7 +126,11 @@ jobs:
             while [[ ! -e "$observer_stop" ]]; do
               date -u +%FT%TZ
               cat /proc/loadavg
-              timeout 20s docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}'
+              owned_ids="$(docker ps -q --filter "label=com.docker.compose.project=${GATE_COMPOSE_PROJECT}")"
+              if [[ -n "$owned_ids" ]]; then
+                mapfile -t containers <<< "$owned_ids"
+                timeout 20s docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}' "${containers[@]}"
+              fi
               for _ in {1..10}; do
                 [[ ! -e "$observer_stop" ]] || break
                 sleep 1
@@ -145,10 +150,12 @@ jobs:
             printf 'methodology resource observer failed: exit %s\n' "$observer_status" >&2
             [[ "$gate_status" -ne 0 ]] || gate_status=1
           fi
-          if ! rg -q '^[^[:space:]]+ CPU=[0-9]+([.][0-9]+)?% memory=[0-9]' "$resource_report"; then
-            printf 'methodology resource observer recorded no container CPU/memory sample\n' >&2
-            [[ "$gate_status" -ne 0 ]] || gate_status=1
-          fi
+          for service in postgres neo4j; do
+            if ! rg -q "^${GATE_COMPOSE_PROJECT}-${service}-[0-9]+ CPU=[0-9]+([.][0-9]+)?% memory=[0-9]" "$resource_report"; then
+              printf 'methodology resource observer recorded no %s CPU/memory sample\n' "$service" >&2
+              [[ "$gate_status" -ne 0 ]] || gate_status=1
+            fi
+          done
           exit "$gate_status"
       - name: Archive scale proof
         if: always()
@@ -179,7 +186,7 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep jq
 
       - name: Test the work budget refresh script
-        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh
+        run: bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh
 
   # #6965 phase 6: scripts/compare-backend-latency.sh reads two -latency-report
   # JSON legs and never runs the live gate itself, so its formulas and
