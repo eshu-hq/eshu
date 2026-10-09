@@ -13,8 +13,17 @@ restores only those files. This change does three things:
   scope. It uses the same statement as `POST /api/v0/admin/reindex`.
 - The responses carry `delta_active_scopes` and `reindex_requests_written`.
 
-On its next scheduled sync cycle, the git ingester forces a full snapshot for
-each requested repository.
+A git ingester's scheduled selection forces a full snapshot when it next syncs
+a requested repository, at most `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` per cycle
+and later while an in-flight or recently failed full holds the scope. A
+webhook-only ingester forces it only when a webhook triggers that repository.
+
+The upsert runs after `AcquireReducerClaimFence` and `EnqueueProjectorWork`
+and before `ApplyPreRetirement`, not after the retirement. The lock set is the
+same in either position, because the transaction already holds `EXCLUSIVE` on
+`fact_work_items` and keeps every lock to commit; the reindex row locks are
+only held through the two reset steps, and the contention test below proves no
+lock cycle.
 
 ## Performance
 

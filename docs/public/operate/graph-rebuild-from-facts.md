@@ -255,8 +255,8 @@ After a graph wipe, the rebuild re-projects only that delta generation, and the
 graph gets only the changed files. The content store in Postgres stays complete.
 
 Every performed refinalize reports these scopes in two objects (issue #7797).
-Both are always present, with zero counts when no re-projected generation was
-a delta:
+Both are always present. Counts are exact; each `scope_ids` list names at most
+10 scopes, and the full set is in `repository_reindex_requests`:
 
 ```json
 "delta_active_scopes": {
@@ -273,9 +273,6 @@ a delta:
   "scope_ids": ["git-repository-scope:repo-a"]
 }
 ```
-
-`reindex_requests_written.count` is exact. `scope_ids` names up to 10 scopes;
-the full set is in `repository_reindex_requests`.
 
 | Outcome | What the rebuild did | What the operator does |
 | --- | --- | --- |
@@ -300,19 +297,25 @@ the repair window:
 | `ESHU_REPO_RECONCILE_INTERVAL_HOURS` | `0` | Only scopes with a reindex row, or behind an unsatisfied fleet reindex watermark, are forced to a full snapshot. The default `24` also forces every scope without a full in the last 24 hours. |
 | `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` | `10` (default) or `0` | Forced fulls per cycle. `N` requested repositories need `ceil(N / cap)` cycles; `0` removes the cap. |
 
-`ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` can stay `true`: queued webhook
-triggers are still served first. Restore the previous values when the
-requests are satisfied.
+`ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` can stay `true`; queued triggers are
+still served first. Restore the previous values when the requests are satisfied.
 
 The rebuild logs one Warn line per delta-active scope, with `scope_id`,
 `generation_id`, and `outcome`. It counts the scopes in
 `eshu_dp_recovery_delta_active_scopes_total{outcome}` and sets
 `eshu.recovery.delta_active_scopes` on the request span. Watch the repair with
 `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`.
-A reindex request is satisfied when a full generation activates. There is no
-separate completion status. To check one repository, compare the
-`requested_at` of its `repository_reindex_requests` row with the newest
-activated full generation (`is_delta = false`) in `scope_generations`. The
+A reindex request is satisfied when a full generation ingested at or after its
+`requested_at` activates; there is no separate completion status. To check one
+repository, compare `requested_at` with the `ingested_at` of the newest
+activated full generation (`is_delta = false`) in `scope_generations`. A scope
+whose newest full is pending or recently failed is held off; see
+`eshu_dp_collector_reconciliation_suppressed_total{reason}`.
+
+Every refinalize writes these rows, not only a rebuild after a wipe. On an
+intact graph each delta-active repository therefore costs one forced full. A
+webhook push to a repository with an unsatisfied row also forces a full for
+that repository. The
 [reconciliation sweep](../reference/reconciliation-sweep.md#per-repository-reindex-requests)
 page describes how the ingester reads the watermark.
 

@@ -248,8 +248,11 @@ scopes whose generation is a delta. A delta carries only the files that changed
 since its baseline, so after a graph wipe those scopes stay incomplete until a
 full generation activates. For each git default-branch scope (outcome
 `reindex_requested`) the refinalize records a per-repository reindex watermark
-in the same transaction, so the owning git ingester forces a full re-parse on
-its next sync cycle. A git ref scope or another collector's scope gets outcome
+in the same transaction. A git ingester's scheduled selection forces a full
+re-parse when it next syncs the repository, at most
+`ESHU_REPO_RECONCILE_MAX_PER_CYCLE` per cycle and later while an in-flight or
+recently failed full holds the scope; a webhook-only ingester forces it only
+when a webhook triggers that repository. A git ref scope or another collector's scope gets outcome
 `reindex_unsupported` and no reindex request: a pinned ref gets a full snapshot
 from the next scheduled sync cycle, and another collector's scope needs a full
 collection from that collector.

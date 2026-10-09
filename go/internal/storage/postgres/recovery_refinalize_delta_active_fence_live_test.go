@@ -116,7 +116,8 @@ func TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction(t *testing.T) {
 //     uncommitted row; and
 //   - the admin reindex upsert of the same scope must wait on the row lock
 //     (proved from pg_stat_activity), then succeed after the refinalize
-//     commits, with no deadlock and the watermark never moved backward.
+//     commits, with no deadlock. Monotonicity is proved by
+//     TestRefinalizeDeltaActiveConvergesAcrossTwoCalls.
 func TestRefinalizeDeltaActiveReindexLockContention(t *testing.T) {
 	database, ctx := refinalizeDeltaActiveLiveDB(t)
 	suffix := testSuffix(t)

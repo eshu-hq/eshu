@@ -24,7 +24,7 @@ import (
 // it carries only the files that changed since its baseline, so a rebuild onto
 // an empty graph restores only those files. The refinalize must say so, and
 // for a git default-branch scope it must record a per-repository reindex
-// watermark in the same transaction so the next sync cycle forces a full
+// watermark in the same transaction so a scheduled sync forces a full
 // re-parse.
 //
 // Run with:

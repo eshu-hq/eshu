@@ -12,8 +12,12 @@ import "sort"
 const (
 	// DeltaActiveOutcomeReindexRequested means the scope is a git
 	// default-branch repository scope, and the refinalize recorded a
-	// per-repository reindex watermark for it in the same transaction. The
-	// next sync cycle of the owning git ingester forces a full re-parse.
+	// per-repository reindex watermark for it in the same transaction. A git
+	// ingester's scheduled selection forces a full re-parse when it next syncs
+	// the repository, at most ESHU_REPO_RECONCILE_MAX_PER_CYCLE per cycle and
+	// later while an in-flight or recently failed full holds the scope; a
+	// webhook-only ingester forces it only when a webhook triggers that
+	// repository.
 	DeltaActiveOutcomeReindexRequested = "reindex_requested"
 
 	// DeltaActiveOutcomeReindexUnsupported means the scope is not a git
@@ -32,9 +36,11 @@ const DeltaActiveScopeSampleLimit = 10
 const DeltaActiveDetail = "A delta generation carries only the files that changed since its baseline, so " +
 	"re-projecting it onto an empty graph restores only those files. The graph for these scopes is " +
 	"incomplete until a full generation activates. For reindex_requested scopes a per-repository reindex " +
-	"watermark was recorded: the owning git ingester forces a full re-parse on its next sync cycle, and " +
-	"the request waits while that ingester runs no sync cycles. reindex_unsupported scopes need a full " +
-	"generation from their own collector."
+	"watermark was recorded. A git ingester's scheduled selection forces a full re-parse when it next syncs " +
+	"the repository, at most ESHU_REPO_RECONCILE_MAX_PER_CYCLE repositories per cycle, later while an " +
+	"in-flight or recently failed full holds the scope; a webhook-only ingester forces it only when a " +
+	"webhook triggers that repository. A request is satisfied when a full generation ingested at or after " +
+	"its requested_at activates. reindex_unsupported scopes need a full generation from their own collector."
 
 // DeltaActiveScopes reports the scopes a refinalize re-projected through a
 // delta generation, grouped by outcome. Without it a rebuild of a

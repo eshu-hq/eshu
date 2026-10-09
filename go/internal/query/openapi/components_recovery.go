@@ -15,7 +15,7 @@ const componentsRecovery = `      "DeltaActiveScopesReport": {
           "total": {"type": "integer", "description": "Scopes re-projected through a delta generation across every outcome."},
           "by_outcome": {
             "type": "object",
-            "description": "Exact count per outcome. Outcomes: reindex_requested (a git default-branch repository scope; the refinalize recorded a per-repository reindex watermark in the same transaction, so the owning git ingester forces a full re-parse on its next sync cycle, and the request waits while that ingester runs no sync cycles), reindex_unsupported (a git ref scope or another collector's scope; no reindex watermark can force it, so only that collector's next full generation repairs the graph).",
+            "description": "Exact count per outcome. Outcomes: reindex_requested (a git default-branch repository scope; the refinalize recorded a per-repository reindex watermark in the same transaction; a git ingester's scheduled selection forces a full re-parse when it next syncs the repository, at most ESHU_REPO_RECONCILE_MAX_PER_CYCLE per cycle and later while an in-flight or recently failed full holds the scope, and a webhook-only ingester forces it only when a webhook triggers that repository), reindex_unsupported (a git ref scope or another collector's scope; no reindex watermark can force it, so only that collector's next full generation repairs the graph).",
             "additionalProperties": {"type": "integer"}
           },
           "sample_scope_ids": {
@@ -28,7 +28,7 @@ const componentsRecovery = `      "DeltaActiveScopesReport": {
       },
       "ReindexRequestsWrittenReport": {
         "type": "object",
-        "description": "Per-repository reindex watermarks this refinalize wrote to repository_reindex_requests in its own transaction, one per delta-active git default-branch scope (#7797). The same rows POST /api/v0/admin/reindex with scope repository writes. A git ingester honors a row on its next scheduled sync cycle; a webhook-only ingester honors it only for a repository a webhook triggers.",
+        "description": "Per-repository reindex watermarks this refinalize wrote to repository_reindex_requests in its own transaction, one per delta-active git default-branch scope (#7797). The same rows POST /api/v0/admin/reindex with scope repository writes. A git ingester's scheduled selection honors a row when it next syncs the repository, at most ESHU_REPO_RECONCILE_MAX_PER_CYCLE per cycle and subject to the in-flight and retry-backoff throttle; a webhook-only ingester honors it only for a repository a webhook triggers. A row is satisfied when a full generation ingested at or after its requested_at activates.",
         "required": ["count", "scope_ids"],
         "properties": {
           "count": {"type": "integer", "description": "Exact number of scopes that got a reindex watermark."},
