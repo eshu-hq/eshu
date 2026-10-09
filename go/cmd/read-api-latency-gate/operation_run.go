@@ -32,6 +32,10 @@ func selectedOperations(inventory capabilitycatalog.SurfaceInventory, includePil
 }
 
 func validateOperationOptions(opts runOptions) error {
+	if opts.concurrentWorkers != 0 && (opts.concurrentWorkers < 2 || opts.concurrentWorkers > 16 ||
+		opts.concurrentRequests < opts.concurrentWorkers || opts.concurrentRequests > 1000) {
+		return fmt.Errorf("concurrent sweep requires 2..16 workers and workers..1000 requests")
+	}
 	if opts.concurrentReport != "" && opts.concurrentWorkers == 0 {
 		return fmt.Errorf("-concurrent-report requires -concurrent-workers")
 	}
