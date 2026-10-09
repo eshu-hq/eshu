@@ -57,10 +57,15 @@ edit, never a reformatted table.
 
 ## Citation gate
 
-`scripts/verify-measurement-citations.sh` (test mirror:
-`scripts/test-verify-measurement-citations.sh`) diffs the base commit against
-HEAD — `HEAD~1` locally, `origin/$GITHUB_BASE_REF` in CI, matching
-`verify-performance-evidence.sh`'s convention — and requires every ADDED line
+`scripts/verify-measurement-citations.sh` (test mirrors:
+`scripts/test-verify-measurement-citations.sh` and
+`scripts/test-verify-measurement-citations-wrapper.sh`) diffs the base commit
+against HEAD. The base is the immutable common-ancestor commit of HEAD and the
+explicit `ESHU_MEASUREMENT_CITATIONS_BASE`, the CI PR base, or local
+`origin/main`. If the base ref or shared history is unavailable, the gate
+fails and asks for history to be fetched. This keeps rows appended on main
+after the branch split out of the branch's append-only comparison and checks
+every commit on the feature branch. It requires every ADDED line
 matching one of two narrow patterns to carry a `ledger:<id>` token that
 resolves to a real row in the ledger:
 

@@ -2018,14 +2018,18 @@ gates:
       - "go/**/evidence-*.md"
       - "scripts/verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations.sh"
+      - "scripts/test-verify-measurement-citations-wrapper.sh"
+      - "scripts/dev/precommit-go.sh"
       - "specs/ci-gates.v1.yaml"
       - ".github/workflows/static-contract-gates.yml"
     self_test_triggers:
       - "scripts/verify-measurement-citations.sh"
       - "scripts/test-verify-measurement-citations.sh"
+      - "scripts/test-verify-measurement-citations-wrapper.sh"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/verify-measurement-citations.sh"
-      test_command: "bash scripts/test-verify-measurement-citations.sh"
+      test_command: "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-verify-measurement-citations-wrapper.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify measurement-citations gate"

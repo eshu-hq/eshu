@@ -13,9 +13,8 @@ set -euo pipefail
 # See docs/internal/measurement-ledger.md for the schema, the exact patterns
 # this gate matches, and what it deliberately does not catch.
 #
-# Base-commit resolution mirrors scripts/verify-performance-evidence.sh:
-# explicit env override, then CI's PR base, then the merge base with
-# origin/main locally, with HEAD~1 only as a last resort.
+# Resolve an explicit base, CI PR base, or origin/main to its common ancestor
+# with HEAD. Use that one commit for ledger and prose comparisons.
 
 repo_root="${ESHU_MEASUREMENT_CITATIONS_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
@@ -47,37 +46,30 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   # HEAD~1, so CI scanned only the last commit of a multi-commit PR and passed
   # green on everything before it. verify-performance-evidence.sh carried the
   # identical bug until #5869; this adopts that fix rather than repeating it.
-  git -C "$repo_root" fetch --no-tags --depth=1 origin \
-    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-  if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    base="origin/$GITHUB_BASE_REF"
-  fi
-fi
-# Fall back to the merge base with origin/main, NOT HEAD~1 -- the same trap
-# fixed in verify-performance-evidence.sh and verify-root-cause-evidence.sh. A
-# HEAD~1 default scopes the gate to the last commit alone, so an uncited
-# measurement claim added in an earlier commit of a multi-commit branch escapes
-# whenever the tip commit is innocuous. scripts/dev/precommit-go.sh pins
-# origin/main for its own call, but a direct invocation gets this default.
-if [ -z "$base" ]; then
-  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
-    merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
-    # A merge base equal to HEAD means the branch adds no commits of its own,
-    # so the window would be empty -- narrower than HEAD~1. Leave base unset.
-    if [ -n "$merge_base" ] &&
-      [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
-      base="$merge_base"
-    fi
-  fi
-fi
-# Last resort only: shallow clone, no origin remote, or a fresh fixture repo.
-if [ -z "$base" ]; then
-  if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-    base="HEAD~1"
+  if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+    git -C "$repo_root" fetch --no-tags --unshallow origin \
+      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 \
+      || { printf 'verify-measurement-citations: cannot fetch full CI base history\n' >&2; exit 2; }
   else
-    printf 'verify-measurement-citations: no base commit available, skipping\n'
-    exit 0
+    git -C "$repo_root" fetch --no-tags origin \
+      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 \
+      || { printf 'verify-measurement-citations: cannot refresh CI base\n' >&2; exit 2; }
   fi
+  base="origin/$GITHUB_BASE_REF"
+fi
+if [ -z "$base" ]; then
+  git -C "$repo_root" fetch --no-tags origin \
+    main:refs/remotes/origin/main >/dev/null 2>&1 \
+    || { printf 'verify-measurement-citations: cannot refresh origin/main\n' >&2; exit 2; }
+  base=origin/main
+fi
+if ! base_commit="$(git -C "$repo_root" rev-parse --verify "${base}^{commit}" 2>/dev/null)"; then
+  printf 'verify-measurement-citations: base %s is unavailable\n' "$base" >&2
+  exit 2
+fi
+if ! comparison_commit="$(git -C "$repo_root" merge-base "$base_commit" HEAD 2>/dev/null)"; then
+  printf 'verify-measurement-citations: no common ancestor between %s and HEAD; fetch history before retrying\n' "$base" >&2
+  exit 2
 fi
 
 ledger_rel_path="docs/internal/measurements.jsonl"
@@ -166,7 +158,7 @@ violations=()
 # constant number of subprocesses, and pays the per-row `rg` lookup below
 # only for rows `comm` actually flags as missing or changed -- which should
 # be zero on almost every push.
-if git -C "${repo_root}" show "${base}:${ledger_rel_path}" >"${old_ledger_path}" 2>/dev/null; then
+if git -C "${repo_root}" show "${comparison_commit}:${ledger_rel_path}" >"${old_ledger_path}" 2>/dev/null; then
   if [ -f "${ledger_abs_path}" ]; then
     comm -23 <(sort "${old_ledger_path}") <(sort "${ledger_abs_path}") >"${missing_or_changed_path}" || true
   else
@@ -186,11 +178,7 @@ if git -C "${repo_root}" show "${base}:${ledger_rel_path}" >"${old_ledger_path}"
   done <"${missing_or_changed_path}"
 fi
 
-if git -C "$repo_root" diff -U0 --no-color "$base"...HEAD >"${diff_path}" 2>/dev/null; then
-  :
-else
-  git -C "$repo_root" diff -U0 --no-color "$base" HEAD >"${diff_path}"
-fi
+git -C "$repo_root" diff -U0 --no-color "$comparison_commit" HEAD >"${diff_path}"
 
 # Narrow by design: only these two shapes count as a "measurement-shaped
 # claim" that needs a citation. See the agent guide for the rationale and the
