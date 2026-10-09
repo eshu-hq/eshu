@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: payments-service
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/myorg/payments-service
+        revision: main
+        files:
+          - path: "argocd/payments/overlays/*/config.yaml"
+  template:
+    metadata:
+      name: "payments-{{ .path.basename }}"
+    spec:
+      project: platform
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: payments
+      sources:
+        - repoURL: "{{ .helm.repoURL }}"
+          chart: "{{ .helm.chart }}"
+          targetRevision: 1.0.0
+        - repoURL: "{{ .git.repoURL }}"
+          targetRevision: main
+          ref: values

@@ -184,6 +184,7 @@ func inferCandidateRuntimePlatformKind(candidate WorkloadCandidate) string {
 		candidate.Provenance,
 		"argocd_application_source",
 		"argocd_applicationset_deploy_source",
+		"argocd_applicationset_template_source",
 		"kustomize_resource",
 		"helm_deployment",
 	) {

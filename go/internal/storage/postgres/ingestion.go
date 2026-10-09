@@ -316,6 +316,7 @@ func (s IngestionStore) commitScopeGeneration(
 			}
 			evidence, discoveryStats := relationships.DiscoverEvidenceWithStats(batch, catalog)
 			recordFluxCrossRepoURLResolutionStats(ctx, s.Instruments, discoveryStats.FluxCrossRepoURLResolution)
+			recordArgoCDApplicationSetTemplateSourceStats(ctx, s.Instruments, discoveryStats.ApplicationSetTemplateSource)
 			if len(evidence) == 0 {
 				return nil
 			}

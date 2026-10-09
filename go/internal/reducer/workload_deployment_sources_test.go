@@ -357,3 +357,43 @@ func TestLogDeploymentSourceGuardStatsNoOpOnEmptyResolved(t *testing.T) {
 		t.Fatalf("expected no log output for an empty resolved slice, got:\n%s", logs.String())
 	}
 }
+
+// TestApplyResolvedDeploymentSourcesBindsTemplateSourceControlToApp guards the
+// #7767 edge: an ApplicationSet whose config repository is also its template
+// source resolves to DEPLOYS_FROM control -> deployed. The deployed repository
+// must be the app and the control repository its deployment repository.
+func TestApplyResolvedDeploymentSourcesBindsTemplateSourceControlToApp(t *testing.T) {
+	t.Parallel()
+
+	candidates := []WorkloadCandidate{{
+		RepoID:         "repo-app",
+		RepoName:       "app-service",
+		Classification: "service",
+		Confidence:     0.84,
+		Provenance:     []string{"dockerfile_runtime"},
+	}}
+	resolved := []relationships.ResolvedRelationship{{
+		SourceRepoID:     "repo-gitops",
+		TargetRepoID:     "repo-app",
+		RelationshipType: relationships.RelDeploysFrom,
+		Confidence:       0.95,
+		Details: map[string]any{
+			"evidence_kinds": []string{string(relationships.EvidenceKindArgoCDApplicationSetTemplateSource)},
+		},
+	}}
+
+	enriched := applyResolvedDeploymentSources(candidates, resolved)
+	if len(enriched) != 1 {
+		t.Fatalf("len(enriched) = %d, want 1", len(enriched))
+	}
+	candidate := enriched[0]
+	if got, want := candidate.DeploymentRepoID, "repo-gitops"; got != want {
+		t.Fatalf("DeploymentRepoID = %q, want %q", got, want)
+	}
+	if got, want := candidate.Confidence, 0.95; got != want {
+		t.Fatalf("Confidence = %f, want %f", got, want)
+	}
+	if !hasProvenance(candidate.Provenance, "argocd_applicationset_template_source") {
+		t.Fatalf("Provenance = %v, want argocd_applicationset_template_source", candidate.Provenance)
+	}
+}

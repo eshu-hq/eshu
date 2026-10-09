@@ -47,3 +47,40 @@ func recordFluxCrossRepoURLResolutionOutcome(
 	}
 	counter.Add(ctx, int64(count), metric.WithAttributes(telemetry.AttrOutcome(outcome)))
 }
+
+// recordArgoCDApplicationSetTemplateSourceStats emits
+// eshu_dp_argocd_applicationset_template_source_total once per non-zero outcome
+// for one batch's relationships.DiscoverEvidenceWithStats tally (issue #7767),
+// following the Flux cross-repo precedent. The tally counts distinct facts, not
+// every considered url (see relationships.ApplicationSetTemplateSourceStats).
+// It is a no-op when instruments or the counter are absent, so callers that
+// never wire Instruments (most unit tests) never panic. It is called from the
+// Postgres ingestion commit path (CommitScopeGeneration's per-batch callback)
+// BEFORE the batch's evidence-empty early return, so a skipped_* outcome
+// tallies even on a batch that emits zero evidence facts.
+func recordArgoCDApplicationSetTemplateSourceStats(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	stats relationships.ApplicationSetTemplateSourceStats,
+) {
+	if instruments == nil || instruments.ArgoCDApplicationSetTemplateSource == nil {
+		return
+	}
+	counter := instruments.ArgoCDApplicationSetTemplateSource
+	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeDeploySource, stats.DeploySource)
+	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeSelfReference, stats.SelfReference)
+	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeSkippedControlRepo, stats.SkippedControlRepo)
+	recordApplicationSetTemplateSourceOutcome(ctx, counter, relationships.ApplicationSetTemplateSourceOutcomeSkippedTemplatedDestination, stats.SkippedTemplatedDestination)
+}
+
+func recordApplicationSetTemplateSourceOutcome(
+	ctx context.Context,
+	counter metric.Int64Counter,
+	outcome string,
+	count int,
+) {
+	if count <= 0 {
+		return
+	}
+	counter.Add(ctx, int64(count), metric.WithAttributes(telemetry.AttrOutcome(outcome)))
+}

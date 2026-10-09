@@ -2046,6 +2046,22 @@ type Instruments struct {
 	// lineage is under-linking, without inspecting graph state directly.
 	FluxCrossRepoURLResolution metric.Int64Counter
 
+	// ArgoCDApplicationSetTemplateSource counts the ApplicationSet template
+	// sources that resolved to a catalog repository during evidence discovery
+	// (go/internal/storage/postgres/ingestion.go), labeled by outcome
+	// (deploy_source, template_source_self_reference, skipped_control_repo,
+	// skipped_templated_destination; issue #7767). The first two count newly
+	// emitted facts and the skips count once per (control repository, deployed
+	// repository, file), so the series matches the persisted facts rather than
+	// every considered url as the Flux counter does. skipped_templated_destination
+	// is a per-matched-repository extra on top of the first two, not a
+	// partition. skipped_control_repo is a designed skip. A sustained
+	// skipped_templated_destination rate means platform edges are not being
+	// recorded because destinations are templated; the repository edge was
+	// still emitted. The series does not cover an ApplicationSet whose
+	// generator reads config from the control repository itself (#7778).
+	ArgoCDApplicationSetTemplateSource metric.Int64Counter
+
 	// RepoDependencyGateDecisions counts per-key gate decisions emitted from
 	// GateAcceptedGenerationOnActive, labeled by the bounded decision enum
 	// bypassed, deferred_inactive, deferred_error, active. It increments once per
@@ -5792,6 +5808,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register FluxCrossRepoURLResolution counter: %w", err)
+	}
+
+	inst.ArgoCDApplicationSetTemplateSource, err = meter.Int64Counter(
+		"eshu_dp_argocd_applicationset_template_source_total",
+		metric.WithDescription(
+			"Total Argo CD ApplicationSet template sources resolved to a catalog repository by outcome "+
+				"(deploy_source, template_source_self_reference, skipped_control_repo, skipped_templated_destination); "+
+				"skipped_templated_destination is a per-matched-repository extra, not a partition",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ArgoCDApplicationSetTemplateSource counter: %w", err)
 	}
 
 	inst.RepoDependencyGateDecisions, err = meter.Int64Counter(

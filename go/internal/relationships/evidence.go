@@ -36,12 +36,14 @@ func DiscoverEvidence(envelopes []facts.Envelope, catalog []CatalogEntry) []Evid
 }
 
 // DiscoveryStats aggregates DiscoverEvidenceWithStats outcomes that are not
-// representable as an EvidenceFact row -- today, only the Flux cross-repo URL
-// resolution tally (issue #5483 C2). It is additive so future extractors can
+// representable as an EvidenceFact row -- the Flux cross-repo URL resolution
+// tally (issue #5483 C2) and the ApplicationSet template-source tally (issue
+// #7767). It is additive so future extractors can
 // grow their own tally without widening DiscoverEvidence's signature for
 // every caller.
 type DiscoveryStats struct {
-	FluxCrossRepoURLResolution FluxCrossRepoURLResolutionStats
+	FluxCrossRepoURLResolution   FluxCrossRepoURLResolutionStats
+	ApplicationSetTemplateSource ApplicationSetTemplateSourceStats
 }
 
 // DiscoverEvidenceWithStats is DiscoverEvidence plus the DiscoveryStats tally
@@ -145,7 +147,7 @@ func discoverFromEnvelopeWithIndex(
 			sourceRepoID, filePath, parsedFileData, matcher, seen,
 		)...)
 		evidence = append(evidence, discoverStructuredArgoCDEvidence(
-			sourceRepoID, filePath, parsedFileData, matcher, seen,
+			sourceRepoID, filePath, parsedFileData, matcher, seen, stats,
 		)...)
 		evidence = append(evidence, discoverStructuredFluxEvidence(
 			sourceRepoID, filePath, parsedFileData, matcher, seen, stats,
@@ -200,7 +202,7 @@ func discoverFromEnvelopeWithIndex(
 		)...)
 	case isArgoCDArtifact(artifactType, content):
 		evidence = append(evidence, discoverArgoCDEvidence(
-			sourceRepoID, filePath, content, matcher, seen, contentIndex,
+			sourceRepoID, filePath, content, matcher, seen, contentIndex, stats,
 		)...)
 	case isJenkinsArtifact(filePath):
 		evidence = append(evidence, discoverJenkinsEvidence(
@@ -334,11 +336,12 @@ func discoverArgoCDEvidence(
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 	contentIndex evidenceContentIndex,
+	stats *DiscoveryStats,
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 	for _, document := range parseYAMLDocuments(content) {
 		evidence = append(evidence, discoverArgoCDDocumentEvidence(
-			sourceRepoID, filePath, document, matcher, seen, contentIndex,
+			sourceRepoID, filePath, document, matcher, seen, contentIndex, stats,
 		)...)
 	}
 

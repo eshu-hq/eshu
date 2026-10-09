@@ -128,6 +128,7 @@ func TestRelationshipPlatformFixtureApplicationSetEmitsGitOpsDiscoveryEvidence(t
 			},
 		},
 		[]CatalogEntry{
+			{RepoID: "delivery-argocd", Aliases: []string{"delivery-argocd"}},
 			{RepoID: "deployment-kustomize", Aliases: []string{"deployment-kustomize"}},
 		},
 	)
@@ -141,6 +142,37 @@ func TestRelationshipPlatformFixtureApplicationSetEmitsGitOpsDiscoveryEvidence(t
 	}
 	if got, want := appSetEvidence.RelationshipType, RelDiscoversConfigIn; got != want {
 		t.Fatalf("applicationset relationship type = %q, want %q", got, want)
+	}
+
+	// The fixture's generator repo and template source are both
+	// deployment-kustomize, so the deployed repository is recorded as a
+	// DEPLOYS_FROM from the control repository, never as a self-loop (#7767).
+	if got := evidenceOfKind(evidence, EvidenceKindArgoCDApplicationSetDiscovery); len(got) != 1 {
+		t.Fatalf("discovery evidence = %d, want 1: %#v", len(got), got)
+	}
+	templateSource := evidenceOfKind(evidence, EvidenceKindArgoCDApplicationSetTemplateSource)
+	if len(templateSource) != 1 {
+		t.Fatalf("template-source evidence = %d, want 1: %#v", len(templateSource), templateSource)
+	}
+	if got := templateSource[0]; got.RelationshipType != RelDeploysFrom ||
+		got.SourceRepoID != "delivery-argocd" || got.TargetRepoID != "deployment-kustomize" ||
+		got.Confidence != 0.95 {
+		t.Fatalf("template source = %s %s -> %s (%v), want DEPLOYS_FROM delivery-argocd -> deployment-kustomize (0.95)",
+			got.RelationshipType, got.SourceRepoID, got.TargetRepoID, got.Confidence)
+	}
+	if got := evidenceOfKind(evidence, EvidenceKindArgoCDApplicationSetDeploySource); len(got) != 0 {
+		t.Fatalf("deploy-source evidence = %#v, want none (it would be a self-loop)", got)
+	}
+	platform := evidenceOfKind(evidence, EvidenceKindArgoCDDestinationPlatform)
+	if len(platform) != 1 || platform[0].RelationshipType != RelRunsOn ||
+		platform[0].SourceRepoID != "deployment-kustomize" ||
+		platform[0].TargetEntityID != "platform:kubernetes:none:cluster/modern:none:none" {
+		t.Fatalf("platform evidence = %#v, want one RUNS_ON deployment-kustomize -> cluster/modern", platform)
+	}
+	for _, fact := range evidence {
+		if fact.SourceRepoID != "" && fact.SourceRepoID == fact.TargetRepoID {
+			t.Fatalf("self-loop evidence %s %s -> %s", fact.EvidenceKind, fact.SourceRepoID, fact.TargetRepoID)
+		}
 	}
 }
 

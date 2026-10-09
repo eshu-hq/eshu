@@ -273,7 +273,12 @@ func evaluateDeployableUnitCandidates(
 
 func deployableUnitRulePack(candidate WorkloadCandidate) rules.RulePack {
 	switch {
-	case hasProvenance(candidate.Provenance, "argocd_application_source", "argocd_applicationset_deploy_source"):
+	case hasProvenance(
+		candidate.Provenance,
+		"argocd_application_source",
+		"argocd_applicationset_deploy_source",
+		"argocd_applicationset_template_source",
+	):
 		return rules.ArgoCDRulePack()
 	case hasProvenance(candidate.Provenance, "kustomize_resource"):
 		return rules.KustomizeRulePack()
