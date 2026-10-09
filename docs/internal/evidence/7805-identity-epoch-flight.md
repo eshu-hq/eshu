@@ -124,11 +124,13 @@ change. Unit tests
 `...LeaderPanicReleasesWaiters` cover these paths under `-race`.
 
 Raw outputs are attached to the PR (no private paths). File names:
-`red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-torn-leader-mutation.txt`,
+`red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-noreprobe-mutation.txt`,
+`red-probeerr-mutation.txt`, `red-noclass-mutation.txt`,
 `green-unit-r3.txt`, `green-live-r3.txt`, `red-live-epoch.txt`,
-`red-plan-mutation.txt`, `red-plan-keyset-mutation.txt`, `before-load.txt`,
-`after-load-final.txt`, `after-drain-final-superseded.txt`,
-`after-drain-final-active.txt`, `gates-r3.txt`.
+`red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
+`red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
+`after-drain-final-superseded.txt`, `after-drain-final-active.txt`,
+`postgres-race-r3.txt`, `gates-r3.txt`.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
 (Cypher) reads only, so it has no entry for this query. The guard is
