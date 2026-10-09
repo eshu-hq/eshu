@@ -41,9 +41,9 @@ func nornicDBUIDLookupIndexes() []string {
 
 // EnsureSchema creates all constraints and indexes required by the platform
 // context graph. Each statement is executed individually; failures are logged
-// as warnings but do not abort the remaining statements. Full-text index
-// creation automatically falls back to modern syntax when the procedure-based
-// API is unavailable.
+// as warnings but do not abort the remaining statements. Each backend runs
+// its single full-text form: modern CREATE FULLTEXT INDEX on Neo4j, the
+// procedure form on NornicDB (#7675).
 func EnsureSchema(ctx context.Context, executor CypherExecutor, logger *slog.Logger) error {
 	return EnsureSchemaWithBackend(ctx, executor, logger, SchemaBackendNeo4j)
 }
@@ -64,7 +64,6 @@ func EnsureSchemaWithBackendStrict(ctx context.Context, executor CypherExecutor,
 type schemaDialect struct {
 	backend                   SchemaBackend
 	constraint                func(string) string
-	skipFulltextFallback      bool
 	includeMergeLookupIndexes bool
 	// includeNeo4jUIDLookupIndexes adds neo4jUIDLookupIndexes (#7057).
 	includeNeo4jUIDLookupIndexes bool
@@ -95,12 +94,22 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 		return schemaDialect{
 			backend:                   normalized,
 			constraint:                nornicDBSchemaConstraint,
-			skipFulltextFallback:      true,
 			includeMergeLookupIndexes: true,
 			retiredConstraints:        nornicDBRetiredUniqueConstraints,
 		}, nil
 	}
 	return schemaDialect{}, fmt.Errorf("unsupported schema backend %q", backend)
+}
+
+// fulltextForms returns the full-text index statements to attempt in order
+// (#7675). Neo4j runs only the modern CREATE FULLTEXT INDEX form: the
+// procedure API was removed in Neo4j 5.0, so attempting it wastes a round
+// trip on every apply. NornicDB runs only the procedure form.
+func (d schemaDialect) fulltextForms(ft fulltextIndex) []string {
+	if d.backend == SchemaBackendNornicDB {
+		return []string{ft.primary}
+	}
+	return []string{ft.fallback}
 }
 
 func normalizeSchemaBackend(backend SchemaBackend) (SchemaBackend, error) {
