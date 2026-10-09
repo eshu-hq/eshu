@@ -131,6 +131,7 @@ func TestPilotOperationsRejectWrongSuccessfulPayloads(t *testing.T) {
 	}{
 		{"ingester", Operation{Method: http.MethodGet, Path: "/ingester", Expect: "ingester_status"}, `{"ingester":"other","queue":{}}`},
 		{"catalog", Operation{Method: http.MethodPost, Path: "/catalog", Expect: "relationships_catalog"}, `{"verbs":[],"verb_count":2,"total_edges":0,"layer_count":0}`},
+		{"catalog_invented", Operation{Method: http.MethodPost, Path: "/catalog", Expect: "relationships_catalog"}, `{"verbs":[{"verb":"nonsense","layer":"made-up","count":0}],"verb_count":1,"layer_count":1,"total_edges":0}`},
 		{"no_content", Operation{Method: http.MethodGet, Path: "/ingester", Expect: "ingester_status"}, ``},
 		{"mcp", Operation{Method: http.MethodPost, Path: "/mcp/message", MCP: true, Expect: "mcp_index_status"}, `{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"repository_count":"bad"}}}`},
 	}

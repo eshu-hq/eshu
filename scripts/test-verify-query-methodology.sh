@@ -48,11 +48,12 @@ if SHIM_OMIT=postgres run_shim stale --live; then printf 'old artifact concealed
 if SHIM_FAIL=postgres run_shim failing --live; then printf 'failed producer passed\n' >&2; exit 1; fi
 # The real selector must cover query-only, schema-only and combined tree paths.
 (cd "$repo_root/go" && go build -o "$work/ci-gates" ./cmd/ci-gates)
-for family in query graph-schema postgres-schema combined; do
+for family in query graph-schema postgres-schema live-helper combined; do
  case "$family" in
   query) printf '%s\n' go/internal/query/cloud_resource_list_store.go > "$work/paths" ;;
   graph-schema) printf '%s\n' go/internal/graph/schema_neo4j.go > "$work/paths" ;;
   postgres-schema) printf '%s\n' go/internal/storage/postgres/migrations/070_cloud_resource_owner_page_index.sql > "$work/paths" ;;
+  live-helper) printf '%s\n' scripts/lib/live-gate-lock.sh > "$work/paths" ;;
   combined) printf '%s\n' go/internal/query/cloud_resource_list_store.go go/internal/graph/schema_neo4j.go go/internal/storage/postgres/migrations/070_cloud_resource_owner_page_index.sql > "$work/paths" ;;
  esac
  "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"

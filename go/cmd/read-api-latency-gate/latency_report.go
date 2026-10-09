@@ -76,8 +76,9 @@ type LatencyReportRoute struct {
 	HardFailedBody string         `json:"hard_failed_body,omitempty"`
 	Metered        bool           `json:"metered"`
 	Work           workReportWork `json:"work"`
-	// ColdSamplesMS is RouteLatency.Samples (the run-1 cold pass) in
-	// milliseconds, request order. Empty when the route was not exercised.
+	// ColdSamplesMS retains the version-1 field name for RouteLatency.Samples:
+	// the first counted pass after discarded warmups, not a cold-cache proof.
+	// Values are milliseconds in request order; empty when not exercised.
 	ColdSamplesMS []float64 `json:"cold_samples_ms,omitempty"`
 	// WarmSamplesMS is RouteLatency.WarmSamples pooled across runs 2..Runs,
 	// in milliseconds, run then request order. Empty when Runs <= 1.
@@ -248,7 +249,7 @@ func latencyReportIdentityFrom(opts runOptions) LatencyReportIdentity {
 }
 
 // writeLatencyReportFile writes the full latency report (identity block plus
-// every route's cold/warm samples and warm distribution stats) to path, or
+// every route's first/later samples and later distribution stats) to path, or
 // does nothing when path is empty.
 func writeLatencyReportFile(path string, opts runOptions, results []RouteLatency) error {
 	if path == "" {

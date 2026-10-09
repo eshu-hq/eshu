@@ -65,14 +65,10 @@ type SweepOptions struct {
 	// whose warmup probe returns a 4xx is not exercised and is not sampled
 	// further.
 	Iterations int
-	// Runs is the number of independent counted sweeps per route: run 1 is
-	// the COLD pass (immediately after warmupRequests, no additional warmup
-	// before it), and runs 2..Runs are WARM passes (no warmup between them
-	// either — the connection and caches are already hot from run 1). Zero
-	// or one behaves exactly like the original single-pass gate: RouteLatency.P95
-	// is computed from run 1's samples alone and WarmSamples/WarmRunP95s stay
-	// empty, so a caller that never sets Runs (every existing caller, and CI
-	// via -runs' default of 1) gets byte-for-byte unchanged output.
+	// Runs is the number of counted sweeps per route. Run 1 follows the
+	// discarded warmups; runs 2..Runs have no additional warmup. None proves
+	// a cold cache. With zero or one, RouteLatency.P95 uses run 1 alone and
+	// WarmSamples/WarmRunP95s stay empty.
 	Runs int
 	// Timeout bounds each individual request.
 	Timeout time.Duration
@@ -202,12 +198,9 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 		warmRunP95s = append(warmRunP95s, p95(runSamples))
 	}
 
-	// official is the sample set RouteLatency.P95 is computed from: the first
-	// pass alone when there is no later data (Runs<=1, so this is
-	// byte-for-byte what the gate has always computed), otherwise the pooled
-	// warm samples — the cold pass's cache-cold connection makes it
-	// unrepresentative of steady state, the same reasoning warmupRequests
-	// already applies one level up.
+	// Preserve the existing P95 selection: use the first counted pass when
+	// there is no later data, otherwise pool runs 2..Runs. The first pass is
+	// also warmed; the legacy coldSamples name does not describe cache state.
 	official := coldSamples
 	if len(warmSamples) > 0 {
 		official = warmSamples

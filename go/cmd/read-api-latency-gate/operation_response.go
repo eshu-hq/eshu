@@ -80,12 +80,24 @@ func validateIndexStatus(payload map[string]any) error {
 }
 
 func validateRelationshipCatalog(payload map[string]any) error {
+	// This independently specified fixture is deliberately not read from the
+	// production catalog. The latency seed creates nodes, never typed edges.
+	expected := map[string]string{
+		"CALLS": "code", "IMPORTS": "code", "INHERITS": "code",
+		"REFERENCES": "code", "OVERRIDES": "code", "QUERIES_TABLE": "code",
+		"DEPLOYS_FROM": "deploy", "INSTANCE_OF": "deploy", "RECONCILES_FROM": "deploy",
+		"PROVISIONS_DEPENDENCY_FOR": "infra", "USES_MODULE": "infra",
+		"DISCOVERS_CONFIG_IN": "infra", "MANAGES": "infra",
+		"ATLANTIS_DEPENDS_ON": "infra", "USES_WORKFLOW": "infra",
+		"RUNS_ON": "runtime", "AWS_lambda_function_uses_image": "runtime", "DEPENDS_ON": "runtime",
+		"INVOKES_CLOUD_ACTION": "security", "READS_CONFIG_FROM": "ops", "TAINT_FLOWS_TO": "ops",
+	}
 	verbs, ok := payload["verbs"].([]any)
-	if !ok || len(verbs) == 0 || payload["verb_count"] != float64(len(verbs)) {
+	if !ok || len(verbs) != len(expected) || payload["verb_count"] != float64(len(expected)) {
 		return fmt.Errorf("catalog verbs/count mismatch")
 	}
 	layers := map[string]bool{}
-	total := 0.0
+	seen := map[string]bool{}
 	for _, value := range verbs {
 		verb, ok := value.(map[string]any)
 		if !ok {
@@ -93,17 +105,17 @@ func validateRelationshipCatalog(payload map[string]any) error {
 		}
 		name, nameOK := verb["verb"].(string)
 		layer, layerOK := verb["layer"].(string)
-		if !nameOK || name == "" || !layerOK || layer == "" {
-			return fmt.Errorf("catalog verb identity missing")
+		if !nameOK || !layerOK || expected[name] != layer || layer == "" || seen[name] {
+			return fmt.Errorf("catalog verb %q identity/layer differs from seeded contract", name)
 		}
+		seen[name] = true
 		count, ok := verb["count"].(float64)
-		if !ok || count < 0 || count != float64(int(count)) {
-			return fmt.Errorf("catalog count is invalid")
+		if !ok || count != 0 {
+			return fmt.Errorf("catalog verb %q has edges in the zero-edge seed", name)
 		}
-		total += count
 		layers[layer] = true
 	}
-	if payload["total_edges"] != total || payload["layer_count"] != float64(len(layers)) {
+	if payload["total_edges"] != float64(0) || payload["layer_count"] != float64(len(layers)) {
 		return fmt.Errorf("catalog total or layer count mismatch")
 	}
 	return nil
