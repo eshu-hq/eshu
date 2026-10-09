@@ -37,8 +37,9 @@ are specific to published text:
 
 ## Shape
 
-This section covers issues, PR bodies, replies, decision records, and owner
-reports.
+This section covers issues, PR bodies, decision records, and owner reports.
+Replies, closes, and status comments follow [replies](references/replies.md).
+They answer first and need no bold lead, glance table, or `<details>` block.
 
 - **Lead.** The first sentence says what is broken or what changed, and why the
   reader cares. Bold it. It must make sense with no other context.
@@ -46,9 +47,9 @@ reports.
   `| At a glance | |` and 4 rows of one sentence each. The rows depend on the
   kind of PR. See the templates. Put counts by package and lists of files in
   `<details>`, not in this table.
-- **Decisions and blockers** come directly after the lead. Settle a decision
-  with evidence or the arbiter first. Raise it to the owner only for an act that
-  only the owner can authorize.
+- **Decisions and blockers** come after the lead. In a PR, they come after the
+  At a glance table. Settle a decision with evidence or the arbiter first. Raise
+  it to the owner only for an act that only the owner can authorize.
 - **Headings.** Use `Problem`, `Expected`, `Acceptance criteria` for issues and
   `Problem`, `What changed`, `Proof` for PRs. These match the best existing
   issues and PRs.
@@ -66,8 +67,10 @@ reports.
   command output, or file list inside `<details>` when it has more than 10
   lines. The summary line says what is inside. Keep the claim that the data
   supports outside the fold.
-- **Confidence.** Mark each claim as `Proven`, `Inferred`, or `NOT_CHECKED`, and
-  give the command or source for `Proven`. End with a `NOT_CHECKED` line.
+- **Confidence.** In an owner report, tag each claim `Proven`, `Inferred`, or
+  `NOT_CHECKED`, and give the command or source for `Proven`. In a PR or an
+  issue, label a theory as a theory and put the evidence in the Proof or Problem
+  section. End a PR with a `NOT_CHECKED` line.
 - **Scale to the change.** Delete a section that has nothing to say.
 - **No decoration.** Skip bold for emphasis, emoji, alerts, forced triples, and
   praise words. Do not explain at a child's level.
@@ -98,7 +101,10 @@ breaks them first.
 1. Read the lead alone. Does it stand without the rest?
 2. Run the shape check on the draft, before you capture the review receipt. It
    fails a PR body without a `Refs #N.` first line, a bold lead, or the glance
-   table, and any prose paragraph over 800 bytes. Fix every `FAIL` line.
+   table, and any prose paragraph over 800 bytes. Fix every `FAIL` line. Skip
+   the check for an issue made from an issue form, for a revert, and for an edit
+   that changes no text. `AGENTS.md` owns this rule. A body under 600 characters
+   with no heading may omit the glance table.
 
 ```bash
 bash .agents/skills/eshu-publish/scripts/check-shape.sh --pr body.md

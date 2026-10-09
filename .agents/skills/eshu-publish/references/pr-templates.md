@@ -2,7 +2,8 @@
 
 Pick the template for your kind of PR. Copy it. Replace every `REPLACE:` line.
 Delete a section that has nothing to say. Then run
-`scripts/check-shape.sh --pr <file>` on the text.
+`scripts/check-shape.sh --pr <file>` on the text. Skip the check for a revert. A
+body under 600 characters with no heading may omit the glance table.
 
 Rules for all four:
 
