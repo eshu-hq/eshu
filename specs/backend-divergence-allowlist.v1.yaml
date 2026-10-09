@@ -1,5 +1,5 @@
 version: backend-divergence-allowlist/v1
-updated_at: 2026-10-08
+updated_at: 2026-10-09
 issue: 6782
 parent_issue: 6788
 owners:
@@ -233,7 +233,7 @@ entries:
   reason: "Neo4j single-statement TypeAnnotation semantic upsert; NornicDB decomposes it into phased MATCH/SET (paired entry) for the identical element set (118/118 overlap measured)."
   upstream: https://github.com/eshu-hq/eshu/issues/6782
   owner: graph
-- statement: "UNWIND $keys AS candidate_key MATCH (n:EvidenceArtifact {id: candidate_key})-[r]-(m) RETURN DISTINCT n.id AS key"
+- statement: "UNWIND $keys AS candidate_key MATCH (n:EvidenceArtifact {id: candidate_key})<-[r:HAS_DEPLOYMENT_EVIDENCE]-(source) RETURN DISTINCT n.id AS key"
   tier: missing
   reason: "Orphan-sweep page keys are sha1 over the run's resolved id, so pages are disjoint per run by construction (15/15 elements measured, zero overlap). Orphan truth verifies through the paired orphan-scan reads."
   upstream: https://github.com/eshu-hq/eshu/issues/6782

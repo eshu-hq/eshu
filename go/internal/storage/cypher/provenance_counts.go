@@ -76,10 +76,15 @@ func (s *ProvenanceCountStore) EdgesBySourceTool(ctx context.Context) (map[strin
 		// parameterized in Cypher. LIMIT bounds the distinct source_tool groups
 		// returned per type — applied after grouping so per-tool counts stay exact
 		// — a safety valve against stale or non-canonical tokens bloating a scrape.
+		// ORDER BY carries a source_tool tiebreaker (#7711): the group key
+		// makes tied counts deliver in a backend-undefined order, which
+		// flips the order-sensitive backend-diff digest while the counted
+		// multiset agrees. The consumer folds rows into a map, so the
+		// tiebreaker only stabilizes delivery, never the counts.
 		cypher := fmt.Sprintf(`MATCH ()-[r:%s]->()
 WHERE r.source_tool IS NOT NULL
 RETURN r.source_tool AS source_tool, count(r) AS cnt
-ORDER BY cnt DESC
+ORDER BY cnt DESC, source_tool
 LIMIT $limit`, verb)
 		rows, err := s.Reader.Run(ctx, cypher, map[string]any{"limit": limit})
 		if err != nil {
@@ -104,10 +109,12 @@ func (s *ProvenanceCountStore) FilesByLanguage(ctx context.Context) (map[string]
 	if s == nil || s.Reader == nil {
 		return nil, fmt.Errorf("provenance count reader is required")
 	}
+	// ORDER BY carries a language tiebreaker (#7711): same tied-count
+	// delivery-order rationale as EdgesBySourceTool above.
 	cypher := `MATCH (f:File)
 WHERE f.language IS NOT NULL
 RETURN f.language AS language, count(f) AS cnt
-ORDER BY cnt DESC
+ORDER BY cnt DESC, language
 LIMIT $limit`
 	rows, err := s.Reader.Run(ctx, cypher, map[string]any{"limit": s.groupLimit()})
 	if err != nil {

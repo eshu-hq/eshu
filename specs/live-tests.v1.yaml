@@ -1395,6 +1395,10 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: deterministic seeded answer-truth proof; runs on both backends in the live-backend CI job
+  - file: go/internal/storage/cypher/provenance_counts_tiebreak_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7711 deterministic seeded proof that the provenance count reads deliver tied groups in tiebreaker order on each backend leg (exact row sequence asserted); local run 0.03 s on NornicDB, 0.52 s on Neo4j"
   - file: go/internal/storage/cypher/retrying_executor_live_test.go
     tag: ~
     class: scheduled

@@ -104,12 +104,21 @@ MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 		builder.WriteString(strings.Join(entityWhere, " AND "))
 		builder.WriteString("\n")
 	}
+	// line_count pre-aliases its operands (#7711): the pinned NornicDB
+	// drops a function-call subtrahend in `coalesce(a) - coalesce(b)`
+	// (evaluates 30 - 0 instead of 30 - 1), while Neo4j answers 29.
+	// Aliased `end_line - start_line + 1` agrees on both backends.
+	// Upstream NornicDB executor bug: #7815 — remove the pre-alias once the
+	// pinned image includes its fix.
 	builder.WriteString(`
 WITH e, f, repo,
      coalesce(e.cyclomatic_complexity, 0) as complexity,
      coalesce(e.parameter_count, 0) as parameter_count,
      coalesce(e.parameter_count, 0) as argument_count,
-     coalesce(e.end_line, 0) - coalesce(e.start_line, 0) + 1 as line_count
+     coalesce(e.end_line, 0) as end_line,
+     coalesce(e.start_line, 0) as start_line
+WITH e, f, repo, complexity, parameter_count, argument_count,
+     end_line - start_line + 1 as line_count
 `)
 	builder.WriteString(MetricFilter(req.Check))
 	builder.WriteString(`

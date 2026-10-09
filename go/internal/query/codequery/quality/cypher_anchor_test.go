@@ -75,3 +75,27 @@ func TestBuildCypherKeepsFunctionFirstAnchorWhenFullyUnscoped(t *testing.T) {
 		t.Fatalf("fully unscoped cypher lost its Function-first anchor:\n%s", cypher)
 	}
 }
+
+// TestBuildCypherPreAliasesLineCountOperands pins the #7711 workaround: the
+// pinned NornicDB drops a function-call subtrahend in
+// `coalesce(a) - coalesce(b)` (30 - 0 instead of 30 - 1), so line_count
+// must compute from pre-aliased operands, which agree on both backends.
+func TestBuildCypherPreAliasesLineCountOperands(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Check: CheckRefactor, Limit: 10, MinLines: 20, MinArguments: 5, MinComplexity: 10}
+	cypher, _ := BuildCypher(req, querycontract.RepositoryAccessFilter{AllScopes: true})
+
+	if strings.Contains(cypher, "coalesce(e.end_line, 0) - coalesce(e.start_line, 0)") {
+		t.Fatalf("cypher subtracts inline coalesce calls (NornicDB drops the subtrahend):\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "coalesce(e.end_line, 0) as end_line") {
+		t.Fatalf("cypher missing the end_line pre-alias:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "coalesce(e.start_line, 0) as start_line") {
+		t.Fatalf("cypher missing the start_line pre-alias:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "end_line - start_line + 1 as line_count") {
+		t.Fatalf("cypher must compute line_count from pre-aliased operands:\n%s", cypher)
+	}
+}
