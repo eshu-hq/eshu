@@ -113,8 +113,11 @@ from inside the server still reads as a fault. The routes covered are the
 selector lookups that answer through `selector.WriteLookupFailure`, the content
 read and search routes, repository stats and coverage, the service context,
 investigation, and story routes, the `POST /api/v0/impact/*` routes, the IaC,
-AWS runtime drift, and replatforming routes, and the supply-chain query routes
-and vulnerability suppression mutation (#7674). The impact
+AWS runtime drift, and replatforming routes, the supply-chain query routes
+and vulnerability suppression mutation, the package-registry and
+secrets/IAM routes, and the CI/CD, codeowners, dependency, freshness,
+incident, Kubernetes, metrics, observability coverage, service catalog,
+Terraform drift, and work-item routes (#7674). The impact
 code-evidence reads that answer `503` mark the span the
 same way a fault does. Other routes still answer a cancel with `500` until
 #7674 lands.

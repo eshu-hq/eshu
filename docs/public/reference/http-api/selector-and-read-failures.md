@@ -112,11 +112,71 @@ composed plan that fails its own contract check with `composed replatforming
 plan failed contract validation`; the old body quoted finding ids from the
 validation error.
 
+## Package registry and secrets/IAM read failures
+
+The `GET /api/v0/package-registry/*` routes (`packages`, `versions`,
+`dependencies`, `correlations`, `dependency-chains`, `packages/count`,
+`packages/inventory`) and the `GET /api/v0/secrets-iam/*` routes
+(`identity-trust-chains`, `privilege-posture-observations`,
+`secret-access-paths`, `posture-gaps`, `posture-summary`) answer a failed
+store or graph read with `500` and a fixed message for the step that failed,
+recorded on the handler span, instead of `500` with the backend error text
+(#7674). Example messages are `package registry package query failed`,
+`package dependency chain query failed`, `secrets/IAM posture gap query
+failed`, and `secrets/IAM posture summary query failed`.
+
+The package-registry scoped-access probes run for a scoped caller before a
+row is shown. A probe failure answers `500` with one fixed access-check
+message per route, for example `package registry package access check
+failed`, and never the empty page, `403`, or `404` a denial answers, so a
+failure neither fails open nor reveals whether a package or version exists.
+
+A reader fence answers the retryable `503` with `Retry-After` on every one of
+these reads. The `correlations` and `dependency-chains` reads and all five
+secrets/IAM reads previously answered `500`.
+
+## Other read routes
+
+These routes answer a failed store or graph read with `500` and a fixed
+message, recorded on the handler span, instead of `500` with the backend
+error text (#7674):
+
+- `GET /api/v0/ci-cd/run-correlations`, `.../count`, and `.../inventory`, for
+  example `count CI/CD run correlations failed`.
+- `GET /api/v0/codeowners/ownership`: `codeowners ownership graph read failed`
+  or `resolve effective repository owner failed`.
+- `GET /api/v0/dependencies`: `dependency graph read failed`.
+- `GET /api/v0/freshness/changed-since`, `.../generations`, and
+  `.../services/changed-since`, for example `list generation lifecycle
+  failed`.
+- `GET /api/v0/incidents/{incident_id}/context`: `read incident context
+  failed`. A failed scoped authorization check answers `incident context
+  authorization failed` and stays fail-closed.
+- `GET /api/v0/kubernetes/correlations`, `GET
+  /api/v0/observability/coverage/correlations`, `GET
+  /api/v0/service-catalog/correlations`, and `GET
+  /api/v0/work-items/evidence`, for example `list kubernetes correlations
+  failed`.
+- `GET /api/v0/metrics/timeseries`: `metrics query failed`.
+- `POST /api/v0/terraform/config-state-drift/findings`: `count Terraform
+  config-vs-state drift findings failed` or `list Terraform config-vs-state
+  drift findings failed`.
+
+A reader fence on these reads answers the retryable `503` with `Retry-After`.
+The metrics route reads Prometheus, which cannot produce a fence today. The OpenAPI spec now declares that `503` on the CI/CD, service catalog,
+Terraform drift, and metrics routes. An incident that is not found answers
+`404` with the fixed not-found text, not the wrapped lookup error.
+
+A shared selector helper error that is neither an unmatched nor an ambiguous
+selector answers the fixed `500` `repository selector lookup failed`, never a
+`400` with the error text.
+
 ## Client cancels
 
 A client that cancels its request while one of the post-selector reads above
 runs, while a selector lookup runs through the shared selector helper, or
-while a platform impact or IaC read runs, gets `499` with the same fixed message, and
+while a read on any route in the sections above runs, gets `499` with the
+same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
 OpenAPI spec, because the client has already gone. Other routes still answer
