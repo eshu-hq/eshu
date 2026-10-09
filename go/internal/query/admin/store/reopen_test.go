@@ -9,10 +9,11 @@ import (
 )
 
 // TestReopenReducerWorkQuerySetsEveryClaimColumn pins the reopen UPDATE's
-// SET list to the replaySucceededReducerDomainQuery assignments
-// (reducer_queue_replay.go): every state column the reducer claim path
-// reads. This hermetic guard runs in CI; the cross-query structural parity
-// itself is #7731.
+// shape: the shared ReopenSucceededReducerSetClause assignments plus its own
+// locked-selection WHERE. The cross-query parity itself is structural (#7731):
+// this query composes the same clause const as the replay queries, so the
+// SET lists cannot drift. The WHEN refs are bare column names (single-table
+// UPDATE, identical resolution to the former work.-qualified refs).
 func TestReopenReducerWorkQuerySetsEveryClaimColumn(t *testing.T) {
 	t.Parallel()
 
@@ -21,9 +22,9 @@ func TestReopenReducerWorkQuerySetsEveryClaimColumn(t *testing.T) {
 		"status = 'pending'",
 		"attempt_count = 0",
 		"container_image_identity_v2_authorized_status = CASE",
-		"WHEN work.container_image_identity_v2_required THEN 'pending'",
+		"WHEN container_image_identity_v2_required THEN 'pending'",
 		"container_image_identity_v3_authorized_status = CASE",
-		"WHEN work.container_image_identity_v3_required THEN 'pending'",
+		"WHEN container_image_identity_v3_required THEN 'pending'",
 		"lease_owner = NULL",
 		"claim_until = NULL",
 		"visible_at = $1",

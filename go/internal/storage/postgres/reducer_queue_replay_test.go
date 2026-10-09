@@ -467,3 +467,33 @@ func TestReducerQueueValidateClaimRequiresDBWithClaimSideMarker(t *testing.T) {
 		t.Fatalf("error = %q, must not carry enqueue-side marker on claim path", err.Error())
 	}
 }
+
+// TestReopenSucceededReducerSetClauseCoversClaimColumns pins the shared
+// reopen SET clause (#7731) to every state column the reducer claim path
+// reads. The three reopen queries compose this clause, so dropping an
+// assignment here fails hermetically instead of silently narrowing a reopen.
+func TestReopenSucceededReducerSetClauseCoversClaimColumns(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"status = 'pending'",
+		"attempt_count = 0",
+		"container_image_identity_v2_authorized_status = CASE",
+		"WHEN container_image_identity_v2_required THEN 'pending'",
+		"container_image_identity_v3_authorized_status = CASE",
+		"WHEN container_image_identity_v3_required THEN 'pending'",
+		"lease_owner = NULL",
+		"claim_until = NULL",
+		"visible_at = $1",
+		"next_attempt_at = NULL",
+		"updated_at = $1",
+		"reopened_at = $1",
+		"failure_class = NULL",
+		"failure_message = NULL",
+		"failure_details = NULL",
+	} {
+		if !strings.Contains(ReopenSucceededReducerSetClause, want) {
+			t.Fatalf("shared reopen SET clause missing %q:\n%s", want, ReopenSucceededReducerSetClause)
+		}
+	}
+}

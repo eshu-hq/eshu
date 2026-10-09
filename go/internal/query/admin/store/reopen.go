@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
@@ -73,33 +74,15 @@ FOR UPDATE SKIP LOCKED
 `
 
 // reopenReducerWorkQuery resets succeeded reducer rows to pending. The SET
-// list is the replaySucceededReducerDomainQuery list verbatim (status,
-// attempt_count, the identity authorization statuses, lease columns,
-// visible_at, failure evidence, updated_at, reopened_at): every state column
-// the reducer claim path reads. The WHERE re-checks the full selection
-// predicate after the lock, so EvalPlanQual drops rows a concurrent writer
-// moved. It returns the reopened ids in stable order.
+// list is ReopenSucceededReducerSetClause, shared with the replay queries,
+// so the lists cannot drift (#7731). The WHEN refs are bare column names:
+// this is a single-table UPDATE, so they resolve identically to the former
+// work.-qualified refs. The WHERE re-checks the full selection predicate
+// after the lock, so EvalPlanQual drops rows a concurrent writer moved. It
+// returns the reopened ids in stable order.
 const reopenReducerWorkQuery = `
 UPDATE fact_work_items AS work
-SET status = 'pending',
-    attempt_count = 0,
-    container_image_identity_v2_authorized_status = CASE
-        WHEN work.container_image_identity_v2_required THEN 'pending'
-        ELSE ''
-    END,
-    container_image_identity_v3_authorized_status = CASE
-        WHEN work.container_image_identity_v3_required THEN 'pending'
-        ELSE ''
-    END,
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = $1,
-    next_attempt_at = NULL,
-    updated_at = $1,
-    reopened_at = $1,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL
+SET ` + postgres.ReopenSucceededReducerSetClause + `
 WHERE work.work_item_id = ANY($2)
   AND work.scope_id = $3
   AND work.generation_id = $4
