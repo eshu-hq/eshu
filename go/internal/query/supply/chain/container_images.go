@@ -19,6 +19,10 @@ import (
 // on every stage event this route emits (query_timing.go).
 const supplyChainContainerImageIdentityOperation = "supply_chain_container_image_identity_read"
 
+// containerImageIdentityReadFailedMessage is this route's fixed failure body (#7674); the
+// response never carries err.Error().
+const containerImageIdentityReadFailedMessage = "container image identity read failed"
+
 func (h *Handler) listContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -94,12 +98,11 @@ func (h *Handler) listContainerImageIdentities(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ContainerImageIdentitiesCapability) {
 			return
 		}
-		failStage(r.Context(), span, identityTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, identityTimer, err, containerImageIdentityReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

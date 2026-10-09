@@ -20,6 +20,16 @@ import (
 // every stage event this route emits (query_timing.go).
 const supplyChainImpactFindingsOperation = "supply_chain_impact_findings_list"
 
+// Fixed failure messages for the impact-findings route (#7674). The three
+// probe messages name the probe step and are shared with the explanation
+// route, which runs the same probes; the response body is never err.Error().
+const (
+	impactFindingsReadFailedMessage     = "supply-chain impact findings read failed"
+	cloudRuntimeProbeFailedMessage      = "supply-chain impact runtime evidence probe failed"
+	kubernetesRuntimeProbeFailedMessage = "supply-chain impact kubernetes runtime evidence probe failed"
+	runtimeContextProbeFailedMessage    = "supply-chain impact runtime context probe failed"
+)
+
 func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -144,12 +154,12 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7548: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope, like the runtime probes below. The mapped
-		// verdict is not a handler-owned 500, so it returns before failStage.
+		// verdict is not a handler-owned 500, so it returns before
+		// writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
 			return
 		}
-		failStage(r.Context(), span, findingsTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, findingsTimer, err, impactFindingsReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
@@ -170,8 +180,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, cloudRuntimeErr, ImpactFindingsCapability) {
 			return
 		}
-		failStage(r.Context(), span, cloudRuntimeTimer, cloudRuntimeErr)
-		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
+		writeStageFailure(w, r, cloudRuntimeTimer, cloudRuntimeErr, cloudRuntimeProbeFailedMessage)
 		return
 	}
 	// #5834: independently probe exact RUNS_IMAGE digest edges and gate each
@@ -184,8 +193,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, k8sRuntimeErr, ImpactFindingsCapability) {
 			return
 		}
-		failStage(r.Context(), span, k8sRuntimeTimer, k8sRuntimeErr)
-		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
+		writeStageFailure(w, r, k8sRuntimeTimer, k8sRuntimeErr, kubernetesRuntimeProbeFailedMessage)
 		return
 	}
 	// #5746: resolve each finding's runtime context (workloads, services,
@@ -205,8 +213,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, runtimeContextErr, ImpactFindingsCapability) {
 			return
 		}
-		failStage(r.Context(), span, runtimeContextTimer, runtimeContextErr)
-		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
+		writeStageFailure(w, r, runtimeContextTimer, runtimeContextErr, runtimeContextProbeFailedMessage)
 		return
 	}
 	resolvedContextCount := 0

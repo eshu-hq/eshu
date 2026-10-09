@@ -17,6 +17,13 @@ import (
 // every stage event these routes emit (query_timing.go).
 const supplyChainImpactAggregateOperation = "supply_chain_impact_aggregate_read"
 
+// Fixed failure bodies for this route's reads (#7674); the response never
+// carries err.Error().
+const (
+	impactCountReadFailedMessage     = "supply-chain impact finding count read failed"
+	impactInventoryReadFailedMessage = "supply-chain impact inventory read failed"
+)
+
 // ImpactAggregateCapability is the capability string that gates the
 // cheap-summary impact-findings aggregate routes (count and inventory),
 // distinct from ImpactFindingsCapability's row-level list route: a caller
@@ -89,12 +96,11 @@ func (h *Handler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ImpactAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, countTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, countTimer, err, impactCountReadFailedMessage)
 		return
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -190,12 +196,11 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ImpactAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, inventoryTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, inventoryTimer, err, impactInventoryReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

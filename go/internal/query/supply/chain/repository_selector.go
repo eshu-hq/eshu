@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type securityAlertProviderRepositoryScopeStore interface {
@@ -23,8 +23,10 @@ type securityAlertProviderRepositoryScopeStore interface {
 // resolveSupplyChainRepositorySelector resolves rawSelector exactly once the
 // catalog has no match. The resolution reruns the catalog read and issues the
 // graph reads, so it runs as the repository_selector_resolve stage: a fence or
-// graph-availability verdict maps to 503/504 first, and any other lookup
-// failure is a handler-owned 500 with one stage_failed record (#7626).
+// graph-availability verdict maps to 503/504 first, an unmatched selector
+// answers 404 and an ambiguous one 400 from the unwrapped sentinel, and any
+// other failure goes through writeStageFailure with the fixed
+// selector.LookupFailureMessage (#7626, #7674).
 func (h *Handler) resolveSupplyChainRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -45,27 +47,28 @@ func (h *Handler) resolveSupplyChainRepositorySelector(
 		if querycontract.WriteGraphReadError(w, r, err, capability) {
 			return "", false
 		}
-		if selector.IsLookupFailure(err) {
-			failStage(r.Context(), route.span, resolveTimer, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, selector.LookupFailureMessage)
-			return "", false
+		var notFound selector.NotFoundError
+		var ambiguous selector.AmbiguousError
+		switch {
+		case errors.As(err, &notFound):
+			querycontract.WriteError(w, http.StatusNotFound, notFound.Error())
+		case errors.As(err, &ambiguous):
+			querycontract.WriteError(w, http.StatusBadRequest, ambiguous.Error())
+		default:
+			writeStageFailure(w, r, resolveTimer, err, selector.LookupFailureMessage)
 		}
-		status := http.StatusBadRequest
-		if selector.IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		querycontract.WriteError(w, status, err.Error())
 		return "", false
 	}
 	return repoID, true
 }
 
 // securityAlertSelectorRoute names the route that owns a security-alert
-// selector read: the handler span and stage-log operation failStage reports
-// against. The capability stays a plain string parameter so the root
-// WriteGraphReadError capability sweep can resolve it through the callers.
+// selector read: the stage-log operation its stage events report against.
+// The handler span is the one in the request context, which
+// writeStageFailure marks. The capability stays a plain string parameter so
+// the root WriteGraphReadError capability sweep can resolve it through the
+// callers.
 type securityAlertSelectorRoute struct {
-	span      trace.Span
 	operation string
 }
 
@@ -91,8 +94,7 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 			if querycontract.WriteGraphReadError(w, r, err, capability) {
 				return "", nil, false
 			}
-			failStage(r.Context(), route.span, matchTimer, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeStageFailure(w, r, matchTimer, err, selector.LookupFailureMessage)
 			return "", nil, false
 		}
 		matches := selector.CatalogMatches(entries, rawSelector)
@@ -123,7 +125,7 @@ func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 func (h *Handler) securityAlertRepositoryScopeIDsForCatalog(
 	w http.ResponseWriter,
 	r *http.Request,
-	selector string,
+	rawSelector string,
 	repositoryID string,
 	entries []querycontract.RepositoryCatalogEntry,
 	capability string,
@@ -139,15 +141,14 @@ func (h *Handler) securityAlertRepositoryScopeIDsForCatalog(
 			if querycontract.WriteGraphReadError(w, r, err, capability) {
 				return nil, false
 			}
-			failStage(r.Context(), route.span, lookupTimer, err)
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeStageFailure(w, r, lookupTimer, err, selector.LookupFailureMessage)
 			return nil, false
 		}
 	}
 	scopes = UniqueSortedNonEmpty(scopes)
 	if len(scopes) > 1 {
 		querycontract.WriteError(w, http.StatusBadRequest, securityAlertProviderScopeAmbiguousError{
-			Selector: selector,
+			Selector: rawSelector,
 			Scopes:   scopes,
 		}.Error())
 		return nil, false

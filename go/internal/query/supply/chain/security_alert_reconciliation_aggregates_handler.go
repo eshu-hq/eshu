@@ -11,12 +11,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // supplyChainSecurityAlertAggregateOperation names the log.Operation attribute
 // on every stage event these routes emit (query_timing.go).
 const supplyChainSecurityAlertAggregateOperation = "supply_chain_security_alert_aggregate_read"
+
+// Fixed failure bodies for this route's reads (#7674); the response never
+// carries err.Error().
+const (
+	securityAlertCountReadFailedMessage     = "security alert reconciliation count read failed"
+	securityAlertInventoryReadFailedMessage = "security alert reconciliation inventory read failed"
+)
 
 // SecurityAlertReconciliationAggregateCapability keys the capability-matrix
 // row that gates the security-alert reconciliation count route. It is a
@@ -76,7 +82,7 @@ func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *ht
 		h.writeEmptySecurityAlertReconciliationCount(w, r)
 		return
 	}
-	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, span, access)
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -86,12 +92,11 @@ func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *ht
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, SecurityAlertReconciliationAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, countTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, countTimer, err, securityAlertCountReadFailedMessage)
 		return
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -173,7 +178,7 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 		h.writeEmptySecurityAlertReconciliationInventory(w, r, dimension, limit, offset)
 		return
 	}
-	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, span, access)
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r, access)
 	if !ok {
 		return
 	}
@@ -184,12 +189,11 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, SecurityAlertReconciliationAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, inventoryTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, inventoryTimer, err, securityAlertInventoryReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
@@ -217,12 +221,11 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 func (h *Handler) securityAlertReconciliationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
-	span trace.Span,
 	access querycontract.RepositoryAccessFilter,
 ) (SecurityAlertReconciliationAggregateFilter, bool) {
 	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(
 		w, r, querycontract.QueryParam(r, "repository_id"), SecurityAlertReconciliationAggregateCapability,
-		securityAlertSelectorRoute{span: span, operation: supplyChainSecurityAlertAggregateOperation},
+		securityAlertSelectorRoute{operation: supplyChainSecurityAlertAggregateOperation},
 	)
 	if !ok {
 		return SecurityAlertReconciliationAggregateFilter{}, false

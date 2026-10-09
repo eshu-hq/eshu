@@ -19,6 +19,10 @@ import (
 // every stage event this route emits (query_timing.go).
 const supplyChainAdvisoryEvidenceOperation = "supply_chain_advisory_evidence_read"
 
+// advisoryEvidenceReadFailedMessage is this route's fixed failure body (#7674); the
+// response never carries err.Error().
+const advisoryEvidenceReadFailedMessage = "advisory evidence read failed"
+
 func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -91,12 +95,11 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, advisory.EvidenceCapability) {
 			return
 		}
-		failStage(r.Context(), span, evidenceTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, evidenceTimer, err, advisoryEvidenceReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

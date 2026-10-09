@@ -18,6 +18,10 @@ import (
 // every stage event this route emits (query_timing.go).
 const supplyChainAdvisoryCatalogOperation = "supply_chain_advisory_catalog_read"
 
+// advisoryCatalogReadFailedMessage is this route's fixed failure body (#7674); the
+// response never carries err.Error().
+const advisoryCatalogReadFailedMessage = "advisory catalog read failed"
+
 // listAdvisoryCatalog returns a bounded, browsable page of the known
 // vulnerability-intelligence catalog from active vulnerability source facts.
 //
@@ -91,12 +95,11 @@ func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, advisory.CatalogCapability) {
 			return
 		}
-		failStage(r.Context(), span, catalogTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, catalogTimer, err, advisoryCatalogReadFailedMessage)
 		return
 	}
 	rows := page.Rows

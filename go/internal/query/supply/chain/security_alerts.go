@@ -18,6 +18,10 @@ import (
 // attribute on every stage event this route emits (query_timing.go).
 const supplyChainSecurityAlertReconciliationOperation = "supply_chain_security_alert_reconciliation_read"
 
+// securityAlertReadFailedMessage is this route's fixed failure body (#7674); the
+// response never carries err.Error().
+const securityAlertReadFailedMessage = "security alert reconciliation read failed"
+
 func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -56,7 +60,7 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 	}
 	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(
 		w, r, querycontract.QueryParam(r, "repository_id"), SecurityAlertReconciliationsCapability,
-		securityAlertSelectorRoute{span: span, operation: supplyChainSecurityAlertReconciliationOperation},
+		securityAlertSelectorRoute{operation: supplyChainSecurityAlertReconciliationOperation},
 	)
 	if !ok {
 		return
@@ -101,12 +105,11 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, SecurityAlertReconciliationsCapability) {
 			return
 		}
-		failStage(r.Context(), span, reconciliationTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, reconciliationTimer, err, securityAlertReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

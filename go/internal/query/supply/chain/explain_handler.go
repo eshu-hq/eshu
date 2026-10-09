@@ -11,23 +11,25 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // supplyChainImpactExplanationOperation names the log.Operation attribute on
 // every stage event this route emits (query_timing.go).
 const supplyChainImpactExplanationOperation = "supply_chain_impact_explanation_read"
 
+// impactExplanationReadFailedMessage is the fixed body for a failed
+// explanation store read (#7674); the probes share the findings route's
+// probe messages.
+const impactExplanationReadFailedMessage = "supply-chain impact explanation read failed"
+
 // failExplanationRead answers a failed explanation store read or runtime
 // probe: a reader-fence verdict becomes the retryable 503, and any other
-// error becomes a handler-owned 500 carrying msg with the stage_failed
-// signal (#7549).
-func failExplanationRead(w http.ResponseWriter, r *http.Request, span trace.Span, timer supplyChainQueryStageTimer, err error, msg string) {
+// error goes through writeStageFailure with the fixed msg (#7549, #7674).
+func failExplanationRead(w http.ResponseWriter, r *http.Request, timer supplyChainQueryStageTimer, err error, msg string) {
 	if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
 		return
 	}
-	failStage(r.Context(), span, timer, err)
-	querycontract.WriteError(w, http.StatusInternalServerError, msg)
+	writeStageFailure(w, r, timer, err, msg)
 }
 
 func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
@@ -136,8 +138,9 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope, like the sibling probes below. The mapped
-		// verdict is not a handler-owned 500, so it returns before failStage.
-		failExplanationRead(w, r, span, explanationTimer, err, err.Error())
+		// verdict is not a handler-owned 500, so it returns before
+		// writeStageFailure.
+		failExplanationRead(w, r, explanationTimer, err, impactExplanationReadFailedMessage)
 		return
 	}
 
@@ -152,14 +155,14 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		// #7549: this probe never called WriteGraphReadError, unlike the
 		// findings route's cloud-runtime branch (#7548). Route it the same
 		// way so a reader fence failure answers the retryable 503.
-		failExplanationRead(w, r, span, cloudRuntimeTimer, cloudRuntimeErr, "supply-chain impact runtime evidence probe failed")
+		failExplanationRead(w, r, cloudRuntimeTimer, cloudRuntimeErr, cloudRuntimeProbeFailedMessage)
 		return
 	}
 	k8sRuntimeTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactExplanationOperation, filter.RepositoryID, "kubernetes_runtime_evidence")
 	k8sRuntimeErr := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows)
 	k8sRuntimeTimer.Done(r.Context(), slog.Bool("error", k8sRuntimeErr != nil))
 	if k8sRuntimeErr != nil {
-		failExplanationRead(w, r, span, k8sRuntimeTimer, k8sRuntimeErr, "supply-chain impact kubernetes runtime evidence probe failed")
+		failExplanationRead(w, r, k8sRuntimeTimer, k8sRuntimeErr, kubernetesRuntimeProbeFailedMessage)
 		return
 	}
 	// Same shape, same root cause as the cloud-runtime probe above:
@@ -177,7 +180,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	runtimeContextErr := h.applySupplyChainRuntimeContext(r.Context(), rows, access)
 	runtimeContextTimer.Done(r.Context(), slog.Bool("error", runtimeContextErr != nil))
 	if runtimeContextErr != nil {
-		failExplanationRead(w, r, span, runtimeContextTimer, runtimeContextErr, "supply-chain impact runtime context probe failed")
+		failExplanationRead(w, r, runtimeContextTimer, runtimeContextErr, runtimeContextProbeFailedMessage)
 		return
 	}
 	row.Finding = rows[0]
