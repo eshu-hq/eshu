@@ -463,7 +463,13 @@ func (c *IdentityEpochCache) giveUp(
 		return nil, err
 	}
 	probe, err := store.probeIdentityEpoch(ctx)
-	if err == nil {
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			// The caller's context ended during the probe: that is the
+			// caller's own cancellation, not a give-up.
+			return nil, ctxErr
+		}
+	} else {
 		c.mu.Lock()
 		if c.facts != nil && c.epoch == probe {
 			result := defensiveCopyEnvelopes(c.facts)
