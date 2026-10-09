@@ -270,11 +270,11 @@ Raw outputs are attached to the PR (no private paths). File names:
 `after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
 `after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`, and, from
 the final-head recapture directory `final-r10/`: `exit-codes.txt`,
-`unit-race-with-overlay.txt`, `postgres-package-race-with-overlay.txt`,
-`live-proofs-with-overlay.txt`, `cmd-reducer-wiring.txt`, `registry-gates.txt`,
+`unit-race.txt`, `postgres-package-race.txt`, `vet-all.txt`,
+`live-proofs.txt`, `cmd-reducer-wiring.txt`, `registry-gates.txt`,
 `verify-live-tests-ledger.txt`, `verify-ledger-results.txt`,
 `test-verify-live-tests-ledger.txt`, `test-run-live-postgres-readiness.txt`,
-`telemetry-coverage.txt`, `docs-cli-env-refs.txt`. Every green capture in
+`test-verify-ifa-fault-injection.txt`, `telemetry-coverage.txt`, `docs-cli-env-refs.txt`. Every green capture in
 `final-r10/` was taken on the final head (`binding.txt` names it). The RED
 mutation captures and the drains were taken earlier on the same cache logic: the
 cache, patience, test and wiring sources are byte-identical between the head they
