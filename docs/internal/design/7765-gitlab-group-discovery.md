@@ -1,9 +1,10 @@
 # GitLab Group Discovery Source Mode (#7765)
 
 Status: proposed. Implements the #7765 obligations of the #7765/#7766 arbiter
-ruling (Option C) within its non-goals. Source check: origin/main 195337b97,
-2026-10-08. Depends on PR #7821 (token auth host scope, open) and consumes
-the GitLab host through one function that #7764 will make configurable.
+ruling (Option C) within its non-goals. Source check: origin/main 7be568e44,
+2026-10-09. Depends on PR #7821 (token auth host scope, open, head f727f0080)
+and consumes the GitLab host through one function that #7764 will make
+configurable.
 
 This page holds the decision and the contracts. The prove-first plan, test plan
 and PR breakdown are in
@@ -27,31 +28,30 @@ writes the graph, and it never retires, hides or deletes anything.
 
 ### Corrections to the arbiter ruling
 
-The ruling was verified read-only, and four of its premises were imprecise
-against origin/main 195337b97. This design follows the code, not the ruling's
-wording, on each:
+The ruling was verified read-only. Four of its premises were imprecise against
+origin/main, and this design follows the code on each:
 
 1. **Gauge label.** The ruling puts `selector_kind="gitlab_group"` on the counter
    and the gauge. The gauge has no such label (`observer.go:184-187`) and is
    sampled only for `github_org` (`observer.go:174`). The label goes on the
    counter only, and the gauge condition widens to `gitlab_group`.
-2. **Keyset pagination.** Keyset paging is documented for `GET /projects`. The
-   keyset "Supported resources" table at https://docs.gitlab.com/api/rest/ does
-   not list `GET /groups/:id/projects`, so this design uses offset paging with
+2. **Keyset pagination.** Keyset paging is documented for `GET /projects`, but
+   the "Supported resources" table at https://docs.gitlab.com/api/rest/ does not
+   list `GET /groups/:id/projects`. This design uses offset paging with
    `order_by=id&sort=asc`.
-3. **Listing completeness.** The ruling says an empty page or an absent
-   `rel="next"` ends the listing. The GitHub code ends only on an empty page; an
-   absent `rel="next"` on a non-empty page does not end it
-   (`selection_github.go:293-296`). The design mirrors the code.
-4. **Host through `KnownScopeHost`.** `KnownScopeHost("gitlab_group")` cannot
-   return the host through `repoProviderHost`, because `membership` is a leaf and
-   must not import `git` (`membership/AGENTS.md`). The git package passes
-   `repoProviderHost("gitlab")` in `Selector.Host`, hashed with `omitempty` so
-   `github_org` and `explicit` IDs stay byte-identical.
+3. **Listing completeness.** The ruling ends a listing on an empty page or an
+   absent `rel="next"`. The GitHub code ends only on an empty page, and an absent
+   `rel="next"` on a non-empty page does not end it (`selection_github.go:293-296`).
+   The design mirrors the code.
+4. **Host through `KnownScopeHost`.** `membership` is a leaf and must not import
+   `git` (`membership/AGENTS.md`), so `KnownScopeHost("gitlab_group")` cannot call
+   `repoProviderHost`. The git package passes `repoProviderHost("gitlab")` in
+   `Selector.Host`, hashed with `omitempty` so `github_org` and `explicit` IDs
+   stay byte-identical.
 
-Two items on the ruling's "Not verified" list are now closed. Migration 166 does
-constrain `selector_kind` (`166_repository_selection_observations.sql:32`), so a
-new guarded migration is required. `githubOrg` does no fork filtering
+Two items on the ruling's "Not verified" list are closed. Migration 166
+constrains `selector_kind` (`166_repository_selection_observations.sql:32`), so
+a new guarded migration is required. `githubOrg` does no fork filtering
 (`selection_github.go:262` uses `type=all`; `:280-284` decodes no fork field).
 
 ## Current contract this builds on
@@ -64,10 +64,10 @@ new guarded migration is required. `githubOrg` does no fork filtering
   It syncs git modes in `case "explicit", "githubOrg"` (`selection_native.go:136`).
 - **GitHub listing.** It pages at a fixed 100 (`selection_github.go:236`) with
   `type=all` (`:262`) and decodes only `id`, `full_name` and `archived` (`:280-284`).
-  Only an empty page ends the listing. The listing is complete only if that
-  empty page has no `rel="next"` (`:293-296`). Reaching `RepoLimit` always
-  makes it incomplete (`:309-311`). **It does no fork filtering**, so parity
-  means GitLab forks inside the group are listed too.
+  Only an empty page ends it, and it is complete only if that page has no
+  `rel="next"` (`:293-296`). Reaching `RepoLimit` always makes it incomplete
+  (`:309-311`). **It does no fork filtering**, so GitLab forks inside the group
+  are listed too.
 - **Selection.** `selectGitHubRepositoryIDs` (`selection_discovery.go:90-157`)
   applies the archive policy. An exact rule re-admits an archived repository
   (`:112-113`). Rules then split the rest into selected and rule-excluded.
@@ -99,68 +99,50 @@ new guarded migration is required. `githubOrg` does no fork filtering
   - The store accepts only the two kinds (`observations.go:233`).
   - Migration 166 constrains `selector_kind IN ('github_org','explicit')`
     (`migrations/166_repository_selection_observations.sql:32`).
-- **Telemetry.** The counter `eshu_dp_collector_repository_selection_evaluations_total`
-  carries `selector_kind`. The gauge `eshu_dp_collector_repository_selection_scopes`
-  carries only `collector_kind` and `state`
-  (`telemetry/instruments_repository_selection.go:70-81`), and only `github_org`
-  samples it (`membership/observer.go:174`).
-- **Webhooks.** The webhook selector maps a GitLab trigger to
-  `gitlab/` + `path_with_namespace` (`webhook_trigger_selector.go:298-311`,
-  `internal/webhook/normalizer_gitlab.go:97`). That is the same ID shape this mode uses.
+- **Telemetry and webhooks.** The gauge `eshu_dp_collector_repository_selection_scopes`
+  has no `selector_kind` label (`telemetry/instruments_repository_selection.go:70-81`).
+  A GitLab webhook trigger maps to `gitlab/` + `path_with_namespace`
+  (`webhook_trigger_selector.go:298-311`), the ID shape this mode uses.
 
 ## Configuration
 
 | Variable | Meaning in `gitlabGroup` |
 | --- | --- |
 | `ESHU_REPO_SOURCE_MODE=gitlabGroup` | New mode. |
-| `ESHU_GITLAB_GROUP` (new) | Required. The group's full path (`acme/platform`) or numeric ID. Every cycle resolves it with `GET /groups/:id?with_projects=false` to `full_path`, which becomes the partition and selector owner (lowercased). A 404 fails the cycle. |
+| `ESHU_GITLAB_GROUP` (new) | Required. The group's full path (`acme/platform`) or numeric ID. Every cycle resolves it with `GET /groups/:id?with_projects=false` to `full_path`, which becomes the partition and selector owner (lowercased). A 404 fails the cycle (`group_not_found`). |
 | `ESHU_INCLUDE_ARCHIVED_REPOS` | Reused (`selection_config.go:158`). |
 | `ESHU_REPOSITORY_RULES_JSON` | Reused. Exact and regex rules both allowed, like `githubOrg`. |
 | `ESHU_REPO_LIMIT` | Reused (default 4000, `selection_config.go:140`). |
 | `ESHU_GIT_AUTH_METHOD` | Must be `token`. Config load rejects `githubApp` (it mints a GitHub token, `selection_github.go:213-214`), `ssh` and `none`. |
 | `ESHU_GIT_TOKEN` | Required. **`GITHUB_TOKEN` is not accepted as a fallback in this mode** (`selection_config.go:159` reads both). That fallback would send a GitHub credential to gitlab.com. |
 
-Config load also rejects any exact rule that does not start with
-`gitlab/<group full path>/`, compared case-insensitively. Such a rule could never
-match, and every project would silently read `rule_excluded`. Regex rules match
-the full `gitlab/...` ID and cannot be checked statically, so the docs say so.
+An exact rule must start with `gitlab/<group full path>/`, compared
+case-insensitively. One that does not could never match, and every project would
+silently read `rule_excluded`. Where the check runs depends on the group's form:
 
-To keep the git package's files small, the checks live in the new leaf
-(`gitlab.ValidateConfig`, see "GitLab listing client"), and `LoadRepoSyncConfig`
-calls it when the mode is `gitlabGroup`.
+- A numeric ID has no known prefix at config load, so the authoritative check
+  runs in `discoverSelection` right after `ResolveGroup`, against the resolved
+  `full_path` and before the project listing. A mismatch fails the cycle with
+  `failure_class=config_invalid` and writes no rows.
+- A path-form group may also be checked at config load, as an early error with
+  the same message.
+
+Regex rules match the full `gitlab/...` ID and cannot be checked statically, so
+the docs say so.
+
+To keep the git package's files small, the config-load checks
+(`gitlab.ValidateConfig`) and the post-resolve prefix check
+(`gitlab.CheckExactRules`) live in the new leaf (see "GitLab listing client").
+`LoadRepoSyncConfig` calls the first when the mode is `gitlabGroup`.
 
 **SSH is rejected.** Cloning over SSH would still need a separate API credential
 for the listing, and the chart renders `ESHU_GIT_TOKEN` only for `token` auth
 (`deploy/helm/eshu/templates/statefulset.yaml:139-140`). The one-credential model
 also keeps the selector principal identical to the clone credential.
 
-**Env registry.**
-- Add `ESHU_GITLAB_GROUP` (VarString, subsystem `collector`) to
-  `go/internal/envregistry/entries.go`, beside
-  `ESHU_REPO_SELECTION_LIVENESS_WINDOW` (`:117`).
-- Add `ESHU_REPO_SOURCE_MODE` as a VarEnum
-  (`githubOrg|explicit|filesystem|gitlabGroup`, default `githubOrg`), so a typo
-  fails `eshu config validate`.
-- `selection_config.go` is not in `coreScanFiles` (`coverage_test.go:19-50`), so
-  this is declarative. It is still needed because `docs-cli-env-refs` treats an
-  unregistered variable in docs as new debt.
-- Regenerate `docs/public/reference/env-registry.md`.
-
-**Helm.**
-- `values.yaml:1177-1184`: add `repoSync.source.gitlabGroup: ""`.
-- `values.schema.json:1323-1326`: add `gitlabGroup` to the mode enum.
-- `statefulset.yaml:85-100`: render `ESHU_GITLAB_GROUP`.
-- `_validation_core.tpl:67-69`: keep the ssh rule's wording ("ssh requires
-  explicit or filesystem"). Add two fails:
-  - `mode=gitlabGroup` requires `auth.method=token`, so `githubApp` and `ssh`
-    both fail with a message naming the mode;
-  - `mode=gitlabGroup` requires a non-empty `source.gitlabGroup`.
-- Update `docs/public/deploy/kubernetes/helm-runtime-values.md:212-216`.
-
-**Compose.** `docker-compose.yaml:181-184` hardcodes `ESHU_GIT_AUTH_METHOD: none`
-and never supported `githubOrg`, so no compose file changes.
-`docs/public/run-locally/docker-compose.md` gets one paragraph: `gitlabGroup`
-needs a token and an override file, like `githubOrg`.
+**Env registry, Helm and Compose.** The registry entries, chart changes and
+compose note are listed on
+[the proof and rollout page](7765-gitlab-group-discovery-proof-and-rollout.md#rollout-surfaces).
 
 ## GitLab listing client
 
@@ -176,6 +158,8 @@ in `selection_github.go`, 441 in `selection_discovery.go`, 445 in
 - `ListGroupProjects(ctx, client, apiBase, fullPath, limit, token) (Listing, error)`
   - `Listing{Projects []Project, Complete bool, Pages int, OutsideGroup int}`
   - `Project{ID int64, PathWithNamespace string, Archived bool}`
+- `CheckExactRules(fullPath string, exactRuleIDs []string) error`, the
+  post-resolve prefix check from "Configuration" (`config_invalid`)
 
 `apiBase` is `"https://" + repoProviderHost("gitlab") + "/api/v4"`, built in the
 git package. That keeps one host function, which #7764 replaces.
@@ -231,10 +215,12 @@ docs page, so they never enter the listing even if `with_shared` were ignored.
   HTTPS) ([token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/)).
 - Recommend a group access token: its `read_repository` covers "all
   repositories in the group".
-- Clone auth is PR #7821: the HTTP Basic extraheader is scoped to the clone
-  host. For `gitlab/...` checkout paths that is gitlab.com with username
-  `oauth2` (`tokenAuthProvider` and `tokenAuthUsername` in that PR's
-  `selection_ssh.go`). GitLab accepts any non-empty username
+- Clone auth is PR #7821 (head f727f0080): the HTTP Basic extraheader is scoped
+  to the clone host. For `gitlab/...` checkout paths that is gitlab.com with
+  username `oauth2` (`tokenAuthProvider` and `tokenAuthUsername` in that PR's
+  `selection_ssh.go`). Token auth fails closed, with no header, only for a path
+  outside `ReposDir` or inside `.eshu-ref-worktrees`. A managed path with no
+  provider prefix still resolves to github, which the webhook guard covers. GitLab accepts any non-empty username
   ([personal access tokens](https://docs.gitlab.com/user/profile/personal_access_tokens/)).
 - **Without #7821, private projects clone anonymously and fail.** The wiring
   PR must merge after #7821.
@@ -262,6 +248,7 @@ does (`selection_github.go:287-289`). The class rides on `failure_class`.
 | `auth_failed` | 401 |
 | `forbidden` | 403, usually the token lacks `read_api` |
 | `group_not_found` | 404 |
+| `config_invalid` | An exact rule outside the resolved group prefix |
 | `rate_limited` | 429 after retries |
 | `upstream_error` | Other 5xx after retries |
 | `transport_error` | Network failure |
@@ -328,8 +315,18 @@ Consequences, stated as contract:
   - `github_org`: `{owner, "github.com", false}`
   - `explicit`: `{owner, "", false}`
   - `gitlab_group`: `{owner, host, true}`
-- `Store.KnownScopes(ctx, Partition)` replaces `(ctx, owner, host)`. The only
-  caller is `observer.go:130`, plus test fakes.
+- `Store.KnownScopes(ctx, Partition)` replaces `(ctx, owner, host)`. The one
+  production caller is `observer.go:130`. The test fakes and direct callers need
+  a mechanical signature update; their assertions do not change (the file list
+  is in PR 1 on
+  [the proof and rollout page](7765-gitlab-group-discovery-proof-and-rollout.md#pr-breakdown)).
+- **Why not an optional prefix interface.** A store that lacks it would fall
+  back to the first-segment read for a `gitlab_group` selector, the
+  mass-`not_listed` hazard in a quiet form. One required signature makes the
+  compiler reject a store that cannot serve a prefix partition.
+- The Postgres store's `Partition` path keeps today's input rules: it trims and
+  lowercases the owner and host and rejects a blank owner before any query
+  (`observations.go:120-130`, pinned by `observations_test.go:34` and `:236`).
 - In Go, `partitionKnown(known, Partition)`:
   - first-segment mode keeps today's `strings.EqualFold(slugOwner(slug), owner)`;
   - prefix mode uses `strings.HasPrefix(strings.ToLower(slug), owner+"/")`.
@@ -361,14 +358,16 @@ Consequences, stated as contract:
 **The `github_repo_id` column.**
 - Store the GitLab project ID in it, as is. It already means "the selector's
   provider numeric ID".
-- Its only readers are the COALESCE in the upsert and `Observations`
-  (`observations.go:91`, `:180`). Nothing interprets it.
+- Its readers are the COALESCE in the upsert, `Observations`
+  (`observations.go:91`, `:180`) and the carry-forward of a prior row's value
+  (`observation.go:95-96`). Nothing interprets it.
 - The new migration adds `COMMENT ON COLUMN` to say so.
 - A rename is rejected (see "Risks, rejected alternatives, open questions").
 
 **Migration.**
-- Add `167_repository_selection_observations_gitlab_group.sql` (number assigned
-  at PR time). It uses the guarded `DO $$` pattern of `112_value_flow_refresh_producer_domains.sql`:
+- Add `169_repository_selection_observations_gitlab_group.sql`. The highest
+  migration on origin/main is 168 and no fetched remote branch holds 169, but
+  the number is assigned at PR time. It uses the guarded `DO $$` pattern of `112_value_flow_refresh_producer_domains.sql`:
   if the constraint `repository_selection_observations_selector_kind_check`
   exists and its definition lacks `gitlab_group`, drop it and re-add it with the
   three kinds. Then the comment.
@@ -376,7 +375,7 @@ Consequences, stated as contract:
 - 166 and `schemaSQL` stay untouched. The parity test compares 166 only
   (`observations_test.go:265-279`).
 - Live tests apply the full bootstrap (`observations_live_test.go:157`), so they
-  see 167.
+  see 169.
 
 **Fork parity.** GitLab forks that live in the group are listed and selected
 like any other project, matching GitHub's lack of fork filtering.
@@ -412,43 +411,29 @@ like any other project, matching GitHub's lack of fork filtering.
     therefore sync a project inside the group that the rules exclude; the next
     listing records it as `rule_excluded`, which is truthful. A project outside
     the group is never judged and reads `unknown`.
-  - No change in #7765.
+  - **Provider guard (credential safety).** `repositoryIDFromWebhookTrigger`
+    returns a bare `org/repo` for a GitHub trigger (`:303-305`) and
+    `bitbucket/org/repo` for a Bitbucket one, with no source-mode check. In
+    `gitlabGroup` mode that ID is cloned from another host with the GitLab token
+    in `config.GitToken`. PR #7821 (head f727f0080) does not stop it: its
+    fail-closed rule (`tokenAuthProvider` returns `ok=false`) covers only paths
+    outside `ReposDir` and the `.eshu-ref-worktrees` namespace. A webhook-derived
+    path under `ReposDir` is a managed checkout, a bare `org/repo` resolves to
+    provider `github`, and the header is scoped to github.com.
+  - So in `gitlabGroup` mode the webhook selector drops every trigger whose
+    provider is not `gitlab` before it builds a repository ID, marking it failed
+    with the bounded reason `provider_not_selected` (a new constant beside
+    `webhookTriggerFailureUnsupportedProvider`, `:37-39`). It reuses the split in
+    `supportedWebhookRefreshTriggers` (`:260-275`) and the failure marking at
+    `:135-140`. Other modes are unchanged.
 
 ## Telemetry
 
-- **Counter.** `selector_kind="gitlab_group"` on
-  `eshu_dp_collector_repository_selection_evaluations_total`. Add the constant
-  `RepositorySelectionSelectorKindGitLabGroup` beside the existing two
-  (`instruments_repository_selection.go:35-42`) and update the description
-  (`:72`) and `contract.go:73`.
-- **Gauge.** `eshu_dp_collector_repository_selection_scopes` has **no
-  `selector_kind` label** (`:76-81`, `observer.go:184-187`). Extend the
-  condition at `observer.go:174` to sample `gitlab_group` evaluated cycles too.
-  One collector process runs one source mode, so no two kinds share a series.
-  No label is added, because that would be a metric contract change. The
-  description becomes "githubOrg or gitlabGroup selector".
-- **New counter** `eshu_dp_collector_repository_listing_requests_total{collector_kind="git",provider="gitlab",outcome}`.
-  - Outcomes are closed: `success`, `retried`, `rate_limited`, `http_error`,
-    `transport_error`, `decode_error`.
-  - It lets an operator see throttling without logs. The GitHub listing is
-    unchanged here (follow-up).
-- **Logs.**
-  - INFO `git_gitlab_group_listing_completed`: `group_path`, `pages`,
-    `listed_count`, `outside_group_count`, `listing_complete`, `duration_seconds`.
-  - WARN `git_gitlab_group_listing_retry`: `status_code`, `attempt`,
-    `retry_after_seconds`.
-  - Failures are returned with `failure_class` (see "GitLab listing client").
-  - `selector_kind` already rides on every `git_repository_selection_*` log
-    (`observer.go:198`).
-- **Spans.** No new span. Selection runs inside `scope.assign` and
-  `eshu_dp_scope_assign_duration_seconds` (`source_processing.go:32-48`).
-- **Status.** The freshness `not_selected` verdict reads every live row by scope
-  ID, whatever its kind (`storage/postgres/membership/live_read.go:22-29`), so
-  it needs no change.
-- **Docs, in the same PR.** `docs/public/reference/telemetry/metrics-ingestion-collectors.md:34`
-  (465 lines, so split it if the new row crosses 500), `metrics.md:181`, the
-  discovery row in `docs/public/observability/telemetry-coverage.md:622` (the
-  `telemetry-coverage` gate), and both membership READMEs.
+The counter gains `selector_kind="gitlab_group"`, the scope gauge (which has no
+`selector_kind` label) is sampled for `gitlab_group` cycles, and a new
+`eshu_dp_collector_repository_listing_requests_total` counter plus two log
+lines cover the GitLab listing. The full contract and the docs to update are in
+[the proof and rollout page](7765-gitlab-group-discovery-proof-and-rollout.md#telemetry).
 
 ## Risks, rejected alternatives, open questions
 
@@ -470,6 +455,17 @@ like any other project, matching GitHub's lack of fork filtering.
 - One parameterized SQL for all kinds: changes the `github_org` plan and text.
 - `LIKE` prefix: `_` wildcard bug.
 - Keyset pagination: undocumented for this endpoint.
+- Reusing `gitlabciruntime.GitLabClient` for the listing. It is bound to the
+  CI pipeline `TargetConfig`, makes a single request with no retry, reads
+  `X-Total` (unusable past 10,000 records), returns untyped maps, and lives
+  under the `cicdrun` family. The leaf keeps its own small client but **reuses
+  the helpers**: `sdk.ParseRetryAfter` (seconds or HTTP-date, 0 when absent or
+  past, `collector/sdk/http.go:111`) feeds the retry wait, which the leaf then
+  clamps to [1s, 60s], and `sdk.ParseBaseURL` (`:88`) validates `apiBase`.
+  `sdk` imports no Eshu package, so the leaf stays a leaf. `sdk.DoJSON` is not
+  used because it hides response headers (`Link`) from the caller, and
+  `sdk.ShouldRetryStatus` retries every 5xx where this design retries only 502,
+  503 and 504. The `PRIVATE-TOKEN` header matches that client's.
 - GraphQL `group.projects`: a second client stack for no gain.
 - SSH clone plus a separate `ESHU_GITLAB_TOKEN`: two credentials and chart
   changes. Deferred.
@@ -487,10 +483,17 @@ like any other project, matching GitHub's lack of fork filtering.
 **NOT_CHECKED.**
 - Whether `simple=true` returns `archived` (not used), and whether GitLab's
   maximum-offset pagination limit applies to `/groups/:id/projects`.
+- Whether omitting `archived` returns both archived and active projects. The
+  Groups API docs leave that default unstated, and the design relies on it. A
+  live check against a group with an archived project settles it; the
+  `Archived` decode test cannot.
+- Whether a renamed configured group path returns 404 or a redirect. Go's HTTP
+  client follows redirects, so a redirect would resolve the new `full_path`
+  silently instead of failing the cycle.
 - Whether GitLab namespace routing is case-insensitive. The design compares
   lowercased paths and keeps GitLab's case in rule IDs.
 - The auto-generated name of the `selector_kind` CHECK constraint (verify with
-  `\d` before writing the migration), and the next free migration number (165
-  is absent on main and might be held by an open PR, so 167 is a placeholder).
+  `\d` before writing the migration), and whether an open PR claims migration
+  169 (no fetched remote branch does).
 - Whether PR #7821 changes before merge. The design reads branch
-  `fix/7763-token-auth-host-scope` at `08d04b242`.
+  `fix/7763-token-auth-host-scope` at `f727f0080`.
