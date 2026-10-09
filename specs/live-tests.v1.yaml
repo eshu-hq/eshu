@@ -747,6 +747,10 @@ tests:
     class: ci
     reason: deterministic seeded answer-truth proof; nornicdb-only in the live-backend CI job (hardcodes the "nornic" database)
     backends: nornicdb
+  - file: go/internal/query/package/registry/version_counts_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#7816 deterministic seeded proof that the version-count read returns no row for a version-less id on each backend leg (phantom empty-group row filtered); local run 0.01 s on NornicDB, 0.04 s on Neo4j"
   - file: go/internal/query/package_registry_nornicdb_live_test.go
     tag: ~
     class: scheduled

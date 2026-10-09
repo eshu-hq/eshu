@@ -61,9 +61,20 @@ LIMIT $limit`, params
 // UNWIND + HAS_VERSION statement was correct but measured about 260 ms at 51
 // ids and 1 s at 201 ids uncached (p50, 3,000 packages); this one measures
 // 3 ms and 6 ms.
+//
+// The post-aggregation null-key filter (WITH ... WHERE package_id IS NOT
+// NULL) is load-bearing, not defensive: on the pinned NornicDB build a
+// grouping aggregate over an empty match emits a phantom (NULL, 0) group
+// row instead of zero rows, so a page whose ids all lack versions came
+// back with a "" key and tripped the backend-diff quorum 1-vs-0 (#7816).
+// Neo4j never emits that row and the filter is a no-op there. A package
+// uid is never legitimately empty, so the filter drops only the phantom.
+// See docs/public/reference/nornicdb-empty-group-phantom.md.
 func packageRegistryVersionCountsCypher(packageIDs []string) (string, map[string]any) {
 	return `MATCH (v:PackageVersion) WHERE v.package_id IN $package_ids
-RETURN v.package_id AS package_id, count(v) AS version_count`, map[string]any{"package_ids": packageIDs}
+WITH v.package_id AS package_id, count(v) AS version_count
+WHERE package_id IS NOT NULL
+RETURN package_id, version_count`, map[string]any{"package_ids": packageIDs}
 }
 
 // packageRegistryPackagesScopedEcosystemCypher is the scoped-caller variant

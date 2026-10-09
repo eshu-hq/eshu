@@ -574,10 +574,10 @@ RETURN v.package_id AS package_id, count(v) AS version_count
 ```
 
 Any package uid absent from this result has zero versions; the caller zero-fills
-it (`registry.VersionCountsByPackageID`, `packageRegistryVersionCountsCypher`).
-Do not reintroduce `OPTIONAL MATCH` + aggregate over an anchor's own projected
-columns on this backend; do not "fix" it with a pattern comprehension or a
-`WITH`+`collect` without proving it live first, both silently under-count in a
+it (`registry.VersionCountsByPackageID`, `packageRegistryVersionCountsCypher`). On
+NornicDB, filter the null group key after the aggregation; see [Empty-Group Phantom](nornicdb-empty-group-phantom.md).
+Do not reintroduce `OPTIONAL MATCH` + aggregate over an anchor's own projected columns on this backend; do not "fix" it
+with a pattern comprehension or a `WITH`+`collect` without proving it live first, both silently under-count in a
 way that looks correct on a same-cardinality-only fixture.
 
 ### Validation
