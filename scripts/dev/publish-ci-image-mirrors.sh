@@ -45,7 +45,7 @@ publish_one() {
 
   if observed="$("${crane_bin}" digest "${target}" 2>/dev/null)"; then
     if [[ "${observed}" != "${expected}" ]]; then
-      printf '%s existing tag conflict: got %s, want %s\n' "${name}" "${observed}" "${expected}" >&2
+      printf '%s existing digest conflict: got %s, want %s\n' "${name}" "${observed}" "${expected}" >&2
       exit 1
     fi
     printf 'already published %s %s %s\n' "${name}" "${target}" "${observed}"
@@ -58,8 +58,8 @@ publish_one() {
     exit 1
   fi
 
-  # A pre-existing tag cannot be overwritten. If another publisher wins the
-  # race after our precheck, accept only its exact expected digest.
+  # The destination is a digest reference, never a mutable tag. If another
+  # publisher wins the race after our precheck, accept only the exact digest.
   if ! "${crane_bin}" cp --no-clobber "${source}" "${target}"; then
     if ! observed="$("${crane_bin}" digest "${target}" 2>/dev/null)" ||
         [[ "${observed}" != "${expected}" ]]; then
@@ -88,13 +88,13 @@ verify_public_one() {
 if [[ "$1" == publish ]]; then
   publish_one postgres-alpine \
     "mirror.gcr.io/library/postgres:18-alpine@${alpine_digest}" \
-    ghcr.io/eshu-hq/ci-postgres-alpine:18 "${alpine_digest}"
+    "ghcr.io/eshu-hq/ci-postgres-alpine@${alpine_digest}" "${alpine_digest}"
   publish_one postgres-bookworm \
     "mirror.gcr.io/library/postgres:18.6-bookworm@${bookworm_digest}" \
-    ghcr.io/eshu-hq/ci-postgres-bookworm:18.6 "${bookworm_digest}"
+    "ghcr.io/eshu-hq/ci-postgres-bookworm@${bookworm_digest}" "${bookworm_digest}"
   publish_one neo4j-community \
     "mirror.gcr.io/library/neo4j:2026-community@${neo4j_digest}" \
-    ghcr.io/eshu-hq/ci-neo4j-community:2026 "${neo4j_digest}"
+    "ghcr.io/eshu-hq/ci-neo4j-community@${neo4j_digest}" "${neo4j_digest}"
   printf 'New GHCR packages may be private. Make all three public, then run verify-public before changing consumers.\n'
   exit 0
 fi
@@ -104,6 +104,6 @@ fi
 anonymous_config="$(mktemp -d)"
 trap 'rm -r -- "${anonymous_config}"' EXIT
 export DOCKER_CONFIG="${anonymous_config}"
-verify_public_one postgres-alpine ghcr.io/eshu-hq/ci-postgres-alpine:18 "${alpine_digest}"
-verify_public_one postgres-bookworm ghcr.io/eshu-hq/ci-postgres-bookworm:18.6 "${bookworm_digest}"
-verify_public_one neo4j-community ghcr.io/eshu-hq/ci-neo4j-community:2026 "${neo4j_digest}"
+verify_public_one postgres-alpine "ghcr.io/eshu-hq/ci-postgres-alpine@${alpine_digest}" "${alpine_digest}"
+verify_public_one postgres-bookworm "ghcr.io/eshu-hq/ci-postgres-bookworm@${bookworm_digest}" "${bookworm_digest}"
+verify_public_one neo4j-community "ghcr.io/eshu-hq/ci-neo4j-community@${neo4j_digest}" "${neo4j_digest}"
