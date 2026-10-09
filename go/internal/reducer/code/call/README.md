@@ -77,9 +77,10 @@ graph is identical before and after.
 - Baseline: `cb5fa4a515`, `go test -count=1 ./internal/reducer/
   ./internal/reducer/code/call/ ./internal/accuracygate/
   ./internal/resolutionparity/`: 4 ok, 0 fail.
-- After: measurement commit `4650317280`, same command: 4 ok, 0 fail
-  (identical ok-package set; input shape is the unchanged test corpus,
-  terminal row counts unchanged because no projection code moved).
+- After: measurement commit `2597f816de` (pushed head), same command:
+  4 ok, 0 fail (identical ok-package set; input shape is the unchanged
+  test corpus, terminal row counts unchanged because no projection code
+  moved).
 - Backend/version: go1.26.9 linux/amd64, in-memory test backends.
 - Telemetry/status evidence: no new metric, span, or log; the retired alias
   emitted none, and the golden call-graph tests plus the accuracy-golden gate
