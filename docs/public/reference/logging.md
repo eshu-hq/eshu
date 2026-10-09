@@ -70,17 +70,26 @@ drift/extraction, and query-stage timing events. Examples include:
 - `supply_chain_query.stage_started`
 - `supply_chain_query.stage_completed`
 - `supply_chain_query.stage_failed`
+- `supply_chain_query.stage_canceled`
 
 `supply_chain_query.stage_failed` is an ERROR event emitted once when any
-supply-chain query route answers HTTP 500 from its own store-read code. It carries
+supply-chain query route answers HTTP 500 from its own store-read code. It is
+never emitted for a client cancel. It carries
 `operation`, `stage`, `repo_id`, `duration_seconds`, the error text cut to 256 bytes, and two
 closed-set labels that never contain error text: `error_site` (`reader_stale`,
 `reader_unavailable`, `other`) and `error_cause` (`deadline_exceeded`,
 `canceled`, `conn_done`, `eof`, `conn_refused`, `conn_reset`, `net_timeout`,
 `sqlstate_<class>`, `unknown`). Reader-fence verdicts the shared graph-read
 helper maps to a retryable `503`/`504` are not handler-owned 500s and emit no
-event. A `canceled` cause is usually a client that
-disconnected.
+event. A `canceled` cause is a `context.Canceled` from an inner context while
+the request was still live, which is a server fault.
+
+`supply_chain_query.stage_canceled` is an INFO event emitted once, in place of
+`stage_failed`, when the caller canceled its own request during a stage (the
+error wraps `context.Canceled` and the request context is canceled). The route
+answers HTTP 499. It carries `operation`, `stage`, `repo_id`, and
+`duration_seconds`, and no error text or error classes, so a canceled stage
+still has a terminal line after its `stage_started` without paging at ERROR.
 
 The `supply_chain_query.stage_completed` event for stage `impact_findings_query`
 also carries `reader_borrow_seconds`, `reader_identity_seconds`,

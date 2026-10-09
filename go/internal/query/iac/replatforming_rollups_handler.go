@@ -19,6 +19,13 @@ import (
 // unsupported_capability rather than a downgraded answer.
 const ReplatformingRollupsCapability = "replatforming.rollups.readiness"
 
+// Fixed bodies for a failed rollup findings read. The store error is recorded
+// on the request span, never written to the client (#7674).
+const (
+	replatformingRollupsCountFailedMessage = "count replatforming rollup findings failed"
+	replatformingRollupsListFailedMessage  = "list replatforming rollup findings failed"
+)
+
 func (h *Handler) handleReplatformingRollups(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -60,12 +67,12 @@ func (h *Handler) handleReplatformingRollups(w http.ResponseWriter, r *http.Requ
 
 	totalFindings, err := h.Management.CountUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ReplatformingRollupsCapability, replatformingRollupsCountFailedMessage)
 		return
 	}
 	findings, err := h.Management.ListUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ReplatformingRollupsCapability, replatformingRollupsListFailedMessage)
 		return
 	}
 	findings = normalizeIaCManagementFindingsSafety(findings)

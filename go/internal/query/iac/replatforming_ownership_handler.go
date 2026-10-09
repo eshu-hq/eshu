@@ -21,6 +21,13 @@ import (
 // than a downgraded answer.
 const ReplatformingOwnershipCapability = "replatforming.ownership.candidates"
 
+// Fixed bodies for a failed ownership-packet findings read. The store error is
+// recorded on the request span, never written to the client (#7674).
+const (
+	replatformingOwnershipCountFailedMessage = "count replatforming ownership findings failed"
+	replatformingOwnershipListFailedMessage  = "list replatforming ownership findings failed"
+)
+
 func (h *Handler) handleReplatformingOwnershipPackets(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -62,12 +69,12 @@ func (h *Handler) handleReplatformingOwnershipPackets(w http.ResponseWriter, r *
 
 	totalFindings, err := h.Management.CountUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ReplatformingOwnershipCapability, replatformingOwnershipCountFailedMessage)
 		return
 	}
 	findings, err := h.Management.ListUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ReplatformingOwnershipCapability, replatformingOwnershipListFailedMessage)
 		return
 	}
 	findings = normalizeIaCManagementFindingsSafety(findings)

@@ -5,6 +5,7 @@ package iac
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -28,6 +29,21 @@ type managementEvidenceGroup struct {
 	Evidence []ManagementEvidenceRow `json:"evidence"`
 }
 
+// Fixed bodies for a failed exact management-finding read. The store error is
+// recorded on the request span, never written to the client (#7674).
+const (
+	managementStatusReadFailedMessage      = "IaC management status read failed"
+	managementExplanationReadFailedMessage = "IaC management explanation read failed"
+
+	// managementStoreRequiredMessage is the 503 body when no management
+	// store is wired.
+	managementStoreRequiredMessage = "IaC management store is required"
+)
+
+// errManagementStoreRequired tells readExactIaCManagementFilter's caller that
+// the 503 for a missing management store was already written.
+var errManagementStoreRequired = errors.New(managementStoreRequiredMessage)
+
 func (h *Handler) handleIaCManagementStatus(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -43,7 +59,7 @@ func (h *Handler) handleIaCManagementStatus(w http.ResponseWriter, r *http.Reque
 	}
 	finding, total, err := h.loadExactIaCManagementFinding(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ManagementStatusCapability, managementStatusReadFailedMessage)
 		return
 	}
 
@@ -90,7 +106,7 @@ func (h *Handler) handleIaCManagementExplanation(w http.ResponseWriter, r *http.
 	}
 	finding, total, err := h.loadExactIaCManagementFinding(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ManagementExplainCapability, managementExplanationReadFailedMessage)
 		return
 	}
 
@@ -155,9 +171,8 @@ func (h *Handler) readExactIaCManagementFilter(
 	filter.Offset = 0
 	filter = bindIaCManagementFilterAccess(r.Context(), filter)
 	if h == nil || h.Management == nil {
-		err := fmt.Errorf("IaC management store is required")
-		querycontract.WriteError(w, http.StatusServiceUnavailable, err.Error())
-		return ManagementFilter{}, err
+		querycontract.WriteError(w, http.StatusServiceUnavailable, managementStoreRequiredMessage)
+		return ManagementFilter{}, errManagementStoreRequired
 	}
 	return filter, nil
 }

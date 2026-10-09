@@ -4,6 +4,7 @@
 package iac
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -25,7 +27,19 @@ const (
 	// list is a hot graph read, so limit is required and capped.
 	resourcesDefaultLimit = 50
 	resourcesMaxLimit     = 200
+
+	// Fixed bodies for a failed resource-list read. The store or graph
+	// error is recorded on the request span, never written to the client
+	// (#7674).
+	iacResourcesSearchFailedMessage  = "IaC resource inventory search failed"
+	iacResourcesGraphFailedMessage   = "IaC resource graph read failed"
+	iacResourcesSummaryFailedMessage = "IaC resource inventory summary failed"
+	iacResourcesMismatchMessage      = "current inventory and graph projection disagree"
 )
+
+// errIaCResourcesMismatch is the server fault recorded on the request span
+// when the graph hydration does not match the current inventory candidates.
+var errIaCResourcesMismatch = errors.New(iacResourcesMismatchMessage)
 
 // resourceKind selects which Terraform/IaC graph label the list endpoint
 // scans. The kinds map to a single canonical label each so the read stays
@@ -165,7 +179,7 @@ func (h *Handler) listResources(w http.ResponseWriter, r *http.Request) {
 	candidates, err := searchActiveIaCInventory(r.Context(), h.Inventory, kind, query, filter, access)
 	if err != nil {
 		metrics.recordError(r.Context(), string(kind), "inventory_search_error")
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ResourcesCapability, iacResourcesSearchFailedMessage)
 		return
 	}
 	filter.CandidateIDs = make([]string, 0, len(candidates))
@@ -179,15 +193,12 @@ func (h *Handler) listResources(w http.ResponseWriter, r *http.Request) {
 		rows, err = h.Graph.Run(r.Context(), cypher, params)
 		if err != nil {
 			metrics.recordError(r.Context(), string(kind), "graph_error")
-			if querycontract.WriteGraphReadError(w, r, err, ResourcesCapability) {
-				return
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeIaCReadFailure(w, r, err, ResourcesCapability, iacResourcesGraphFailedMessage)
 			return
 		}
 		if !searchHydrationMatches(candidates, rows) {
 			metrics.recordError(r.Context(), string(kind), "inventory_graph_mismatch")
-			querycontract.WriteError(w, http.StatusInternalServerError, "current inventory and graph projection disagree")
+			tracing.WriteServerFailure(w, r, errIaCResourcesMismatch, http.StatusInternalServerError, iacResourcesMismatchMessage)
 			return
 		}
 	}
@@ -212,7 +223,7 @@ func (h *Handler) listResources(w http.ResponseWriter, r *http.Request) {
 		summary, err := h.Inventory.Summary(r.Context(), access, inventoryFacetLimit)
 		if err != nil {
 			metrics.recordError(r.Context(), string(kind), "inventory_summary_error")
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeIaCReadFailure(w, r, err, ResourcesCapability, iacResourcesSummaryFailedMessage)
 			return
 		}
 		body["summary"] = summary

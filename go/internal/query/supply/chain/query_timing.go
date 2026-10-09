@@ -10,15 +10,15 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"syscall"
 	"time"
 	"unicode/utf8"
 
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // stageFailedErrorMaxBytes bounds the error attribute of the stage_failed
@@ -26,13 +26,6 @@ import (
 // string, so the cap is a backstop against an unbounded driver message, not a
 // routine truncation.
 const stageFailedErrorMaxBytes = 256
-
-// stageFailedSpanStatus is the fixed, bounded status description set on the
-// handler span for a handler-owned 5xx; the error itself is recorded as a span
-// event, never in the status text. It names the supply-chain query family,
-// not one route: failStage serves every sibling route (#7549), and the
-// per-route operation rides on the stage_failed log event instead.
-const stageFailedSpanStatus = "supply-chain query stage failed"
 
 // supplyChainQueryStageTimer emits per-backing-read stage timings for
 // supply-chain query routes, mirroring the repository_query/service_query
@@ -113,7 +106,8 @@ func readerStageAttrs(timings *db.StageTimings) []slog.Attr {
 }
 
 // Failed emits ONE ERROR-level supply_chain_query.stage_failed event for a
-// handler-owned 5xx on this stage (#7546). It carries the stage, repository,
+// handler-owned 5xx on this stage (#7546), never for a client cancel, which
+// writeStageFailure sends to Canceled instead. It carries the stage, repository,
 // the error text bounded to 256 bytes, and the closed-set error_site and
 // error_cause classes from classifyReaderFailure. querycontract.WriteError
 // never logs, so without this event a 500 left no attributable log line. A nil
@@ -136,13 +130,40 @@ func (t supplyChainQueryStageTimer) Failed(ctx context.Context, err error) {
 	)
 }
 
-// failStage records a handler-owned 5xx on the handler span and logs the
-// failed stage. The span carries the error as an exception event and a fixed
-// Error status so the next occurrence is findable by trace (#7546).
-func failStage(ctx context.Context, span trace.Span, timer supplyChainQueryStageTimer, err error) {
-	span.RecordError(err)
-	span.SetStatus(codes.Error, stageFailedSpanStatus)
-	timer.Failed(ctx, err)
+// Canceled emits ONE INFO-level supply_chain_query.stage_canceled event when
+// the caller canceled its own request during this stage (#7674). It is the
+// stage's terminal line in place of stage_failed, so an operator can tell a
+// client walking away from a hung stage without an ERROR page. It carries no
+// error text and no error classes. A nil logger makes the call a no-op.
+func (t supplyChainQueryStageTimer) Canceled(ctx context.Context) {
+	if t.logger == nil {
+		return
+	}
+	t.logger.LogAttrs(
+		ctx, slog.LevelInfo, "supply chain query stage canceled",
+		telemetry.EventAttr("supply_chain_query.stage_canceled"),
+		log.Operation(t.operation),
+		slog.String("stage", t.stage),
+		slog.String("repo_id", t.repoID),
+		slog.Float64("duration_seconds", time.Since(t.startedAt).Seconds()),
+	)
+}
+
+// writeStageFailure answers a handler-owned failure of timer's stage with the
+// route's fixed message (#7674). A client cancel (tracing.ClientCanceled on
+// the request context) logs stage_canceled; anything else, including a
+// context.Canceled from an inner context on a live request, logs
+// stage_failed. tracing.WriteServerFailure then writes 499 or 500 and is the
+// only thing that marks the handler span, so the log line and the status
+// share one cancel predicate. Call it after querycontract.WriteGraphReadError
+// and the route's own 4xx sentinels.
+func writeStageFailure(w http.ResponseWriter, r *http.Request, timer supplyChainQueryStageTimer, err error, message string) {
+	if tracing.ClientCanceled(r.Context(), err) {
+		timer.Canceled(r.Context())
+	} else {
+		timer.Failed(r.Context(), err)
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
 }
 
 // boundedErrorText returns err's text cut to at most maxBytes without

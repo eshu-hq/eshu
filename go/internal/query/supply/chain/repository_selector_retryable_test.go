@@ -16,11 +16,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/selector"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
-	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -209,8 +209,9 @@ func TestRepositorySelectorReadsAnswerRetryable503(t *testing.T) {
 }
 
 // TestRepositorySelectorHandlerOwned500RecordsSpanError pins the span half of
-// failStage on the selector reads: a handler-owned 500 sets the route's
-// handler span to Error and records the error as an exception event.
+// writeStageFailure on the selector reads: a handler-owned 500 sets the
+// route's handler span to Error with the fixed selector.LookupFailureMessage
+// and records the error as exactly one exception event (#7674).
 func TestRepositorySelectorHandlerOwned500RecordsSpanError(t *testing.T) {
 	// Not parallel: swaps the package-global queryHandlerTracer.
 	recorder := tracetest.NewSpanRecorder()
@@ -229,27 +230,11 @@ func TestRepositorySelectorHandlerOwned500RecordsSpanError(t *testing.T) {
 				if rec.Code != http.StatusInternalServerError {
 					t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
 				}
-				var handlerSpan sdktrace.ReadOnlySpan
-				for _, span := range recorder.Ended()[spansBefore:] {
-					if span.Name() == route.spanName {
-						handlerSpan = span
-					}
+				if !detailEquals(rec.Body.Bytes(), selector.LookupFailureMessage) || strings.Contains(rec.Body.String(), "read store") {
+					t.Fatalf("body = %s, want the fixed %q and no error text", rec.Body.String(), selector.LookupFailureMessage)
 				}
-				if handlerSpan == nil {
-					t.Fatalf("no ended %s span", route.spanName)
-				}
-				if handlerSpan.Status().Code != codes.Error {
-					t.Fatalf("handler span status = %v, want Error", handlerSpan.Status().Code)
-				}
-				hasException := false
-				for _, event := range handlerSpan.Events() {
-					if event.Name == "exception" {
-						hasException = true
-					}
-				}
-				if !hasException {
-					t.Fatalf("handler span has no recorded exception event; events=%#v", handlerSpan.Events())
-				}
+				handlerSpan := supplyHandlerSpan(t, recorder.Ended()[spansBefore:], route.spanName)
+				assertFaultSpan(t, handlerSpan, selector.LookupFailureMessage)
 			})
 		}
 	}

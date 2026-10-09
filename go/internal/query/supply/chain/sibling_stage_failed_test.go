@@ -19,7 +19,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
-	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -261,7 +260,8 @@ func serveSiblingRoute(t *testing.T, handler *Handler, target string) *httptest.
 // 500 with no attributable log line (querycontract.WriteError never logs).
 // Each branch below must now emit exactly one ERROR
 // supply_chain_query.stage_failed record with its operation, stage, and
-// bounded error, and record the error on the handler span with Error status.
+// bounded error, and record the error once on the handler span with the
+// branch's fixed message as its Error description (#7674).
 func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 	ensureSiblingAdvisoryCapabilities()
 	// Not parallel: swaps the package-global queryHandlerTracer.
@@ -279,6 +279,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 		spanName  string
 		operation string
 		stage     string
+		message   string
 		build     func() *Handler
 	}{
 		{
@@ -287,6 +288,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactExplanation,
 			operation: supplyChainImpactExplanationOperation,
 			stage:     "impact_explanation_query",
+			message:   impactExplanationReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ImpactExplanations: errExplanationStore{err: boom}}
 			},
@@ -297,6 +299,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactExplanation,
 			operation: supplyChainImpactExplanationOperation,
 			stage:     "cloud_runtime_evidence",
+			message:   cloudRuntimeProbeFailedMessage,
 			build: func() *Handler {
 				digest := failedStageRow().SubjectDigest
 				cloudGraph := &graph.FakeCloudRuntimeGraph{RowsByDigest: map[string][]map[string]any{
@@ -315,6 +318,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactExplanation,
 			operation: supplyChainImpactExplanationOperation,
 			stage:     "kubernetes_runtime_evidence",
+			message:   kubernetesRuntimeProbeFailedMessage,
 			build: func() *Handler {
 				digest := failedStageRow().SubjectDigest
 				return &Handler{
@@ -332,6 +336,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactExplanation,
 			operation: supplyChainImpactExplanationOperation,
 			stage:     "runtime_context",
+			message:   runtimeContextProbeFailedMessage,
 			build: func() *Handler {
 				return &Handler{
 					ImpactExplanations: errExplanationStore{row: siblingProbeExplanationRow()},
@@ -348,6 +353,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactExplanation,
 			operation: supplyChainImpactPacketOperation,
 			stage:     "impact_explanation_query",
+			message:   impactPacketReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ImpactExplanations: errExplanationStore{err: boom}, PacketResponder: stubImpactPacketResponder{}}
 			},
@@ -358,6 +364,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactAggregate,
 			operation: supplyChainImpactAggregateOperation,
 			stage:     "impact_aggregate_count",
+			message:   impactCountReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ImpactAggregates: errImpactAggregateStore{countErr: boom}}
 			},
@@ -368,6 +375,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainImpactAggregate,
 			operation: supplyChainImpactAggregateOperation,
 			stage:     "impact_aggregate_inventory",
+			message:   impactInventoryReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ImpactAggregates: errImpactAggregateStore{inventoryErr: boom}}
 			},
@@ -378,6 +386,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQueryContainerImageIdentityAggregate,
 			operation: supplyChainContainerImageAggregateOperation,
 			stage:     "container_image_aggregate_count",
+			message:   containerImageCountReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ContainerImageAggregates: errContainerImageAggregateStore{countErr: boom}}
 			},
@@ -388,6 +397,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQueryContainerImageIdentityAggregate,
 			operation: supplyChainContainerImageAggregateOperation,
 			stage:     "container_image_aggregate_inventory",
+			message:   containerImageInventoryReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ContainerImageAggregates: errContainerImageAggregateStore{inventoryErr: boom}}
 			},
@@ -398,6 +408,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySBOMAttestationAttachmentAggregate,
 			operation: supplyChainSBOMAttachmentAggregateOperation,
 			stage:     "sbom_attachment_aggregate_count",
+			message:   sbomAttachmentCountReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{SBOMAttachmentAggregates: errSBOMAttachmentAggregateStore{countErr: boom}}
 			},
@@ -408,6 +419,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySBOMAttestationAttachmentAggregate,
 			operation: supplyChainSBOMAttachmentAggregateOperation,
 			stage:     "sbom_attachment_aggregate_inventory",
+			message:   sbomAttachmentInventoryReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{SBOMAttachmentAggregates: errSBOMAttachmentAggregateStore{inventoryErr: boom}}
 			},
@@ -418,6 +430,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySecurityAlertReconciliationAggregate,
 			operation: supplyChainSecurityAlertAggregateOperation,
 			stage:     "security_alert_aggregate_count",
+			message:   securityAlertCountReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{SecurityAlertAggregates: errSecurityAlertAggregateStore{countErr: boom}}
 			},
@@ -428,6 +441,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySecurityAlertReconciliationAggregate,
 			operation: supplyChainSecurityAlertAggregateOperation,
 			stage:     "security_alert_aggregate_inventory",
+			message:   securityAlertInventoryReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{SecurityAlertAggregates: errSecurityAlertAggregateStore{inventoryErr: boom}}
 			},
@@ -438,6 +452,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQueryAdvisoryCatalog,
 			operation: supplyChainAdvisoryCatalogOperation,
 			stage:     "advisory_catalog_query",
+			message:   advisoryCatalogReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{AdvisoryCatalog: errAdvisoryCatalogStore{err: boom}}
 			},
@@ -448,6 +463,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQueryAdvisoryEvidence,
 			operation: supplyChainAdvisoryEvidenceOperation,
 			stage:     "advisory_evidence_query",
+			message:   advisoryEvidenceReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{AdvisoryEvidence: errAdvisoryEvidenceStore{err: boom}}
 			},
@@ -458,6 +474,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQueryAdvisoryEvidence,
 			operation: supplyChainVulnerabilityDetailOperation,
 			stage:     "vulnerability_detail_query",
+			message:   vulnerabilityDetailReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{AdvisoryEvidence: errAdvisoryEvidenceStore{err: boom}}
 			},
@@ -468,6 +485,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQueryContainerImageIdentities,
 			operation: supplyChainContainerImageIdentityOperation,
 			stage:     "container_image_identity_query",
+			message:   containerImageIdentityReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{ContainerImageIdentities: errContainerImageStore{err: boom}}
 			},
@@ -478,6 +496,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySBOMAttestationAttachments,
 			operation: supplyChainSBOMAttachmentOperation,
 			stage:     "sbom_attachment_query",
+			message:   sbomAttachmentReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{SBOMAttachments: errSBOMAttachmentStore{err: boom}}
 			},
@@ -488,6 +507,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 			spanName:  telemetry.SpanQuerySupplyChainSecurityAlerts,
 			operation: supplyChainSecurityAlertReconciliationOperation,
 			stage:     "security_alert_reconciliation_query",
+			message:   securityAlertReadFailedMessage,
 			build: func() *Handler {
 				return &Handler{SecurityAlerts: errSecurityAlertStore{err: boom}}
 			},
@@ -522,27 +542,7 @@ func TestSiblingRoutesLogFailedStageOnHandlerOwned500(t *testing.T) {
 					record["error_site"], record["error_cause"])
 			}
 
-			var handlerSpan sdktrace.ReadOnlySpan
-			for _, span := range recorder.Ended()[spansBefore:] {
-				if span.Name() == branch.spanName {
-					handlerSpan = span
-				}
-			}
-			if handlerSpan == nil {
-				t.Fatalf("no ended %s span", branch.spanName)
-			}
-			if handlerSpan.Status().Code != codes.Error {
-				t.Fatalf("handler span status = %v, want Error", handlerSpan.Status().Code)
-			}
-			hasException := false
-			for _, event := range handlerSpan.Events() {
-				if event.Name == "exception" {
-					hasException = true
-				}
-			}
-			if !hasException {
-				t.Fatalf("handler span has no recorded exception event; events=%#v", handlerSpan.Events())
-			}
+			assertFaultSpan(t, supplyHandlerSpan(t, recorder.Ended()[spansBefore:], branch.spanName), branch.message)
 		})
 	}
 }

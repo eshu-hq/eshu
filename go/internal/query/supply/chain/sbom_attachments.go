@@ -19,6 +19,10 @@ import (
 // every stage event this route emits (query_timing.go).
 const supplyChainSBOMAttachmentOperation = "supply_chain_sbom_attachment_read"
 
+// sbomAttachmentReadFailedMessage is this route's fixed failure body (#7674); the
+// response never carries err.Error().
+const sbomAttachmentReadFailedMessage = "SBOM attestation attachment read failed"
+
 // SBOMAttestationAttachmentResult is one reducer-owned SBOM or attestation
 // attachment row returned by the public API.
 type SBOMAttestationAttachmentResult struct {
@@ -156,12 +160,11 @@ func (h *Handler) listSBOMAttachments(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, SBOMAttestationAttachmentsCapability) {
 			return
 		}
-		failStage(r.Context(), span, attachmentTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, attachmentTimer, err, sbomAttachmentReadFailedMessage)
 		return
 	}
 	rows := page.Attachments

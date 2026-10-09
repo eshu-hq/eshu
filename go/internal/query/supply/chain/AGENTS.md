@@ -38,9 +38,17 @@ Read `doc.go` and `README.md` first.
 - The packet route MUST compose through `ImpactPacketResponder`
   and MUST NOT name lane-B packet types. If lane-B moves the envelope to
   a leaf, collapse this seam to direct calls and delete the responder.
+- Every handler-owned 500 MUST answer through `writeStageFailure` with a
+  fixed per-step message constant, never `err.Error()` or a string built
+  from `err` (#7674). `writeStageFailure` is the only span marker (through
+  `tracing.WriteServerFailure`) and the only place the cancel split lives
+  (`tracing.ClientCanceled`): do not call `RecordError`/`SetStatus` or
+  `timer.Failed` beside it, or the span gets two `exception` events and a
+  client cancel logs at ERROR. A selector 404/400 renders the unwrapped
+  `selector.NotFoundError`/`AmbiguousError`, never the wrapped `err`.
 - Every handler-owned 500 store-read branch on every sibling route MUST call
-  `querycontract.WriteGraphReadError` first and return before `failStage`
-  when it reports true (#7548 for the findings route, #7549 for all nineteen
+  `querycontract.WriteGraphReadError` first and return before
+  `writeStageFailure` when it reports true (#7548 for the findings route, #7549 for all nineteen
   sibling branches): a stale or timed-out guarded PostgreSQL reader
   is a retryable 503 with `Retry-After`, not a 500, and the mapped verdict is
   deliberately not logged as `stage_failed`. The readiness read is the
@@ -48,11 +56,11 @@ Read `doc.go` and `README.md` first.
   security-alert repository selector's reads (`repository_selector.go`,
   #7567) follow the same order as stages `repository_catalog_match` and
   `provider_repository_scope_lookup`, and its exact-resolution fallback as
-  `repository_selector_resolve` (#7626: `failStage` only when
-  `selector.IsLookupFailure`, so 404/400 selector answers emit no
-  `stage_failed` record; their completion still carries `error=true`),
-  reporting against the calling route's
-  span and operation through `securityAlertSelectorRoute`. Keep the
+  `repository_selector_resolve` (#7626: `writeStageFailure` only after the
+  404/400 sentinels, so those selector answers emit no `stage_failed`
+  record; their completion still carries `error=true`),
+  reporting against the calling route's operation through
+  `securityAlertSelectorRoute`. Keep the
   capability a plain string parameter: root's
   `TestWriteGraphReadErrorCapabilitiesExistInMatrix` resolves a parameter
   through its callers but not a struct field. Their `repo_id`
@@ -142,9 +150,17 @@ or suite-local doubles):
 
 - the probe suites: cloud probe, Kubernetes probe + fair + bench
   (apply side) + perf live, findings freshness + winners-read;
+- the server-failure tables (`server_failure_test.go`,
+  `server_failure_routes_test.go`, #7674): every converted step answers a
+  canary fault with its fixed body (500, one `exception`, one ERROR
+  `stage_failed`), a client cancel with 499 (unset span, the cancel event,
+  one INFO `stage_canceled`, no `stage_failed`), an inner-context cancel as
+  a 500 fault with `error_cause=canceled`, and a reader fence with the
+  retryable 503. Add a row there for any new failure step;
 - the sibling error-path suites (`sibling_stage_failed_test.go`,
   `sibling_reader_retryable_test.go`): every sibling store-read branch
-  answers a handler-owned 500 with exactly one `stage_failed` record, and
+  answers a handler-owned 500 with exactly one `stage_failed` record and
+  its fixed message as the span's Error description, and
   fence verdicts answer retryable 503s with `Retry-After` and no record
   (#7549). Their advisory branches register the advisory capabilities
   through the file-local `ensureSiblingAdvisoryCapabilities` helper, and

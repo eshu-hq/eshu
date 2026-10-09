@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -119,6 +120,44 @@ func TestServerFailureEnvelope(t *testing.T) {
 			}
 			assertServerFailureSpan(t, recorder.Ended(), tc)
 		})
+	}
+}
+
+// TestClientCanceled pins the shared cancel predicate: only a canceled error
+// on a canceled request is a client cancel, and for every server-failure case
+// the predicate agrees with the 499 WriteServerFailure answers, so a caller
+// that logs on ClientCanceled cannot drift from the status it writes.
+func TestClientCanceled(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range serverFailureCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if tc.cancelRequest {
+				cancel()
+			}
+			want := tc.wantStatus == querycontract.StatusClientClosedRequest
+			if got := ClientCanceled(ctx, tc.err); got != want {
+				t.Fatalf("ClientCanceled() = %v, want %v", got, want)
+			}
+		})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if ClientCanceled(ctx, nil) {
+		t.Fatal("ClientCanceled(canceled ctx, nil) = true, want false")
+	}
+	if !ClientCanceled(ctx, fmt.Errorf("read: %w", errors.Join(errors.New(serverFailureSecret), context.Canceled))) {
+		t.Fatal("ClientCanceled(canceled ctx, joined canceled error) = false, want true")
+	}
+	deadlineCtx, deadlineCancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer deadlineCancel()
+	if ClientCanceled(deadlineCtx, context.Canceled) {
+		t.Fatal("ClientCanceled(deadline-exceeded ctx, Canceled) = true, want false")
 	}
 }
 

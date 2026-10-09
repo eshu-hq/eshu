@@ -138,10 +138,9 @@ emit `stage_failed` for its `repository_selector_resolve` stage. It carries `ope
 
 - `error`: the error text, cut to 256 bytes on a UTF-8 boundary. The guarded
   PostgreSQL reader's errors already carry a fixed site string such as
-  `PostgreSQL reader connection unavailable`. For the findings read this is the
-  same text the response body returns; the cloud-runtime, Kubernetes-runtime and
-  runtime-context branches return a fixed body, so there the log carries the
-  underlying error text, still cut to 256 bytes.
+  `PostgreSQL reader connection unavailable`. Every branch answers a fixed
+  per-step body (#7674), so this attribute and the span's `exception` event
+  are the only places the error text appears.
 - `error_site`, a closed set from the error chain: `reader_stale`,
   `reader_unavailable`, `other`. The writer-side and topology sentinels
   (`ErrWriterUnavailable`, `ErrMissingCheckpoint`, `ErrWrongTopology`) live in
@@ -153,21 +152,30 @@ emit `stage_failed` for its `repository_selector_resolve` stage. It carries `ope
   The SQLSTATE class comes from an `interface{ SQLState() string }` found with
   `errors.As`, and only a well-formed two-character class is kept.
 
-The same branches record the error on the handler span (`RecordError`) and set
-its status to Error with the fixed description
-`supply-chain query stage failed`. The graph and
+The same branches answer through `writeStageFailure` (`query_timing.go`),
+which logs the stage line and then calls `tracing.WriteServerFailure`, the
+only code that marks the handler span: one `exception` event and an Error
+status whose description is the step's fixed message (#7674). A client
+cancel (`tracing.ClientCanceled`: the error wraps `context.Canceled` and the
+request context is canceled) answers 499 with the same fixed body, leaves the
+span status unset with only the `eshu.request.client_canceled` event, and
+logs ONE INFO-level `supply_chain_query.stage_canceled` event (`operation`,
+`stage`, `repo_id`, `duration_seconds`, no error attributes) in place of
+`stage_failed`, so a canceled stage still has a terminal line and never pages
+at ERROR. A `context.Canceled` from an inner context on a live request is a
+server fault: 500 and `stage_failed` with `error_cause=canceled`. The graph and
 reader-fence verdicts that `querycontract.WriteGraphReadError` maps to 503/504
-are not handler-owned 500s and are not logged by this event. The unchanged wire
-contract (status codes and response bodies) is pinned by
-`TestListImpactFindingsLogsFailedStageOnHandlerOwned500`, and the silence and
-unchanged status of the mapped verdicts by
+are not handler-owned 500s and log neither event. The fixed bodies are pinned
+by `TestListImpactFindingsLogsFailedStageOnHandlerOwned500` and the
+four-case tables in `server_failure_routes_test.go`; the silence and status of
+the mapped verdicts by
 `TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged`. The sibling
 routes carry the same invariant, pinned by
 `TestSiblingRoutesLogFailedStageOnHandlerOwned500` and
 `TestSiblingStoreReadsAnswerRetryable503` (#7549).
 
 Every backing store read on every sibling route calls `querycontract.WriteGraphReadError`
-BEFORE `failStage`, including the findings read and the cloud-runtime probe
+BEFORE `writeStageFailure`, including the findings read and the cloud-runtime probe
 read (#7548) and all nineteen sibling store-read branches (#7549): a stale guarded PostgreSQL reader (`db.ErrReaderStale`), or one
 whose connection acquisition or identity check timed out inside the replay
 window (`db.ErrReaderUnavailable` joined with `context.DeadlineExceeded`),
@@ -189,7 +197,9 @@ logged) and `provider_repository_scope_lookup`
 (`SecurityAlertProviderRepositoryScopes`, logged with the resolved canonical
 repository id). A fence verdict answers the retryable `503` with no
 `stage_failed` line; any other failure answers `500` with exactly one
-`stage_failed` line and the handler span set to Error. Pinned by
+`stage_failed` line, the handler span set to Error, and the fixed
+`selector.LookupFailureMessage` body (a client cancel answers 499 with
+`stage_canceled` instead). Pinned by
 `TestRepositorySelectorReadsAnswerRetryable503` and
 `TestRepositorySelectorHandlerOwned500RecordsSpanError`.
 
@@ -201,9 +211,31 @@ with an empty `repo_id` (#7626). A fence or graph-availability verdict answers
 one answers `500` with exactly one `stage_failed` line and the handler span set
 to Error; its body is the fixed `selector.LookupFailureMessage`, never the
 backend error text or the selector. An unmatched selector stays `404` and an
-ambiguous one `400`. Pinned
+ambiguous one `400`, each rendered from the unwrapped `selector.NotFoundError`
+or `selector.AmbiguousError`, which name only the caller's own selector and
+the matched repository ids. Pinned
 by `TestRepositorySelectorResolveLookupFailureAnswers500` and
 `TestRepositorySelectorResolveLookupFailureRecordsSpanError`.
+
+The suppression mutation (`suppression_mutation.go`) is a writer upsert with
+no stage timer and no reader fence: a store error answers 500 with the fixed
+`persist vulnerability suppression` body through `tracing.WriteServerFailure`
+(499 for a client cancel), and the 400s echo only the caller's own JSON.
+
+No-Regression Evidence (#7674): only failure branches changed. Success paths,
+Cypher, SQL, parameters, and read counts are untouched, and
+`go test ./internal/queryplan/...` keeps every query-source digest. Request
+validation 400s (`PriorityFilter`, `OptionalMinPriorityScore`, the
+suppression JSON and field checks) still echo only the caller's input.
+
+Observability Evidence (#7674): each converted step emits exactly one
+terminal stage line, `stage_failed` (ERROR) for a fault or `stage_canceled`
+(INFO) for a client cancel, and the handler span carries one `exception`
+event with the step's fixed message as its Error description, or the
+`eshu.request.client_canceled` event and an unset status for a cancel. Pinned
+by `TestImpactFindingsServerFailures`, `TestSiblingRoutesServerFailures`,
+`TestRepositorySelectorServerFailures`, and
+`TestSuppressionMutationServerFailures`.
 
 ## Move evidence (#6060)
 

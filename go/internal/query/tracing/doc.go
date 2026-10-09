@@ -21,5 +21,7 @@
 // on the span and sets its status to Error. A client cancel, meaning the error
 // wraps context.Canceled and the request context itself is canceled, answers
 // querycontract.StatusClientClosedRequest (499), leaves the span status unset,
-// and adds only the ClientCanceledEvent span event.
+// and adds only the ClientCanceledEvent span event. ClientCanceled is that
+// predicate, exported so a route that logs a failure classifies a cancel the
+// same way the helpers choose 499.
 package tracing

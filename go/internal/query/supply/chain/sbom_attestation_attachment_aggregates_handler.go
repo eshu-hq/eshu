@@ -16,6 +16,13 @@ import (
 // attribute on every stage event these routes emit (query_timing.go).
 const supplyChainSBOMAttachmentAggregateOperation = "supply_chain_sbom_attachment_aggregate_read"
 
+// Fixed failure bodies for this route's reads (#7674); the response never
+// carries err.Error().
+const (
+	sbomAttachmentCountReadFailedMessage     = "SBOM attestation attachment count read failed"
+	sbomAttachmentInventoryReadFailedMessage = "SBOM attestation attachment inventory read failed"
+)
+
 // SBOMAttestationAttachmentAggregateCapability keys the capability-matrix
 // row that gates the SBOM attestation attachment count route. It is a
 // separate capability from SBOMAttestationAttachmentsCapability, which
@@ -83,12 +90,11 @@ func (h *Handler) countSBOMAttestationAttachments(w http.ResponseWriter, r *http
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, SBOMAttestationAttachmentAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, countTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, countTimer, err, sbomAttachmentCountReadFailedMessage)
 		return
 	}
 	body := map[string]any{
@@ -179,12 +185,11 @@ func (h *Handler) sbomAttestationAttachmentInventory(w http.ResponseWriter, r *h
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, SBOMAttestationAttachmentAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, inventoryTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, inventoryTimer, err, sbomAttachmentInventoryReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

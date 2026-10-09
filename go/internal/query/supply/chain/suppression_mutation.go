@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 	"go.opentelemetry.io/otel/attribute"
@@ -25,6 +26,9 @@ import (
 const (
 	vulnerabilitySuppressionRequestMaxBytes    = 64 << 10
 	vulnerabilitySuppressionMutationCapability = "supply_chain.vulnerability_suppression_mutation"
+	// persistSuppressionFailedMessage is the fixed body for a failed
+	// suppression upsert (#7674); the response never carries err.Error().
+	persistSuppressionFailedMessage = "persist vulnerability suppression"
 )
 
 // VulnerabilitySuppressionMutationStore persists operator-authored
@@ -99,8 +103,10 @@ func (h *Handler) createVulnerabilitySuppression(w http.ResponseWriter, r *http.
 	result, err := h.SuppressionMutations.UpsertVulnerabilitySuppression(r.Context(), value)
 	if err != nil {
 		outcome = telemetry.VulnerabilitySuppressionMutationOutcomeStoreError
-		span.RecordError(err)
-		querycontract.WriteError(w, http.StatusInternalServerError, "persist vulnerability suppression")
+		// A writer upsert, not a guarded-reader or graph read, so there is no
+		// fence verdict to map first; its capability is also not a read
+		// capability in the compatibility matrix.
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, persistSuppressionFailedMessage)
 		return
 	}
 

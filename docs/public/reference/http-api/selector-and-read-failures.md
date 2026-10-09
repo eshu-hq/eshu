@@ -88,13 +88,59 @@ that matches several entities still answers `400` naming them. An ambiguous
 workload selector on `trace-deployment-chain` and
 `deployment-config-influence` still answers `409` with the selector.
 
+## IaC read failures
+
+The IaC, AWS runtime drift, and replatforming routes answer a failed store or
+graph read with `500` and a fixed message for the step that failed, recorded
+on the handler span, instead of `500` with the backend error text (#7674). The
+routes are `POST /api/v0/iac/dead`, `/iac/unmanaged-resources`,
+`/iac/management-status`, `/iac/management-status/explain`, and
+`/iac/terraform-import-plan/candidates`; `GET /api/v0/iac/resources`;
+`POST /api/v0/aws/runtime-drift/findings`; and the
+`/api/v0/replatforming/*` routes (`plans`, `rollups`, `ownership-packets`,
+and `GET .../selectors`). Example messages are `count unmanaged cloud
+resources failed`, `list AWS runtime drift findings failed`, `IaC resource
+graph read failed`, and `read dead-IaC repository files failed`. The selector
+inventory keeps its `internal_error` envelope with the capability and
+profiles, and its fixed `replatforming selector inventory failed` message.
+
+A reader fence on any of these reads answers the retryable `503`
+`backend_unavailable` with `Retry-After`; the routes other than
+`POST /api/v0/iac/dead` and the graph read of `GET /api/v0/iac/resources`
+previously answered `500`. `POST /api/v0/replatforming/plans` answers a
+composed plan that fails its own contract check with `composed replatforming
+plan failed contract validation`; the old body quoted finding ids from the
+validation error.
+
 ## Client cancels
 
 A client that cancels its request while one of the post-selector reads above
 runs, while a selector lookup runs through the shared selector helper, or
-while a platform impact read runs, gets `499` with the same fixed message, and
+while a platform impact or IaC read runs, gets `499` with the same fixed message, and
 the request span is not marked as an error; the span carries an
 `eshu.request.client_canceled` event instead. No route documents `499` in the
 OpenAPI spec, because the client has already gone. Other routes still answer
 a client cancel with `500` until #7674 lands. The telemetry effects are in
 [Failed and canceled query reads](../telemetry/traces.md#failed-and-canceled-query-reads-7626).
+
+## Supply-chain read failures
+
+The `/api/v0/supply-chain/*` query routes, the impact investigation packet,
+and the suppression mutation answer a failed store read or runtime probe with
+`500` and a fixed message for the step that failed, instead of `500` with the
+backend error text (#7674). Examples are `supply-chain impact findings read
+failed`, `supply-chain impact runtime context probe failed`, `advisory catalog
+read failed`, and `security alert reconciliation count read failed`. The
+security-alert repository selector's catalog match and provider scope lookup
+answer `repository selector lookup failed`, as its exact resolution already
+did. The handler span records the error once and carries the step's message as
+its Error description. A reader fence still answers the retryable `503` with
+`Retry-After`.
+
+A client cancel on these routes answers `499` with the same fixed message. A
+query route logs one INFO `supply_chain_query.stage_canceled` line for the
+stage and no `supply_chain_query.stage_failed` line, so a client walking away
+does not page at ERROR. The suppression mutation has no stage timer and writes
+neither line. A `context.Canceled` from an inner context while the request is
+still live is a server fault and answers `500` with `stage_failed`. See
+[Logging](../logging.md) for both events.

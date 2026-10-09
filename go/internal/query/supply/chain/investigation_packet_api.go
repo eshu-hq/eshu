@@ -17,6 +17,10 @@ import (
 // stage event this route emits (query_timing.go).
 const supplyChainImpactPacketOperation = "supply_chain_impact_packet_read"
 
+// impactPacketReadFailedMessage is this route's fixed failure body (#7674); the
+// response never carries err.Error().
+const impactPacketReadFailedMessage = "supply-chain impact packet read failed"
+
 // ImpactPacketResponder composes and writes the portable
 // investigation packet for a supply-chain impact explanation. Root package
 // query implements it from the lane-B packet envelope
@@ -156,12 +160,11 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
 			return
 		}
-		failStage(r.Context(), span, explanationTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, explanationTimer, err, impactPacketReadFailedMessage)
 		return
 	}
 

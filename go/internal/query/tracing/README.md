@@ -20,8 +20,8 @@ failure message and decides the call order around the helpers.
 ## Exported surface
 
 `HandlerTracer`, `StartHandlerSpanWith`, `WriteServerFailure`,
-`ServerFailureEnvelope`, and `ClientCanceledEvent`, described in
-[doc.go](doc.go).
+`ServerFailureEnvelope`, `ClientCanceled`, and `ClientCanceledEvent`,
+described in [doc.go](doc.go).
 
 ## Dependencies
 
@@ -71,7 +71,10 @@ package-local var from it.
 A client cancel needs both halves of the test: the error wraps
 `context.Canceled` and the request context is canceled. A `context.Canceled`
 from an inner context while the request is still live is a server fault and
-answers 500 with a span error.
+answers 500 with a span error. `ClientCanceled` is that conjunction, and
+`WriteServerFailure` uses it for the 499 decision. A route that also logs a
+failure (for example the supply-chain stage log) calls the same predicate, so
+its log line and its status cannot disagree about what was a cancel.
 
 No-Regression Evidence: the seam is proven live by mutation, not by the tests
 merely passing. Rewriting `StartHandlerSpanWith` to call `HandlerTracer()`

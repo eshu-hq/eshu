@@ -23,7 +23,9 @@ functions; almost every change here is a contract change.
   Cypher, hosts, and credentials (#7626). The client-cancel test MUST stay a
   conjunction: `err` wraps `context.Canceled` AND the request context is
   canceled. Dropping the second half turns an inner-context cancel on a live
-  request into a 499 with no span error, hiding a real server fault.
+  request into a 499 with no span error, hiding a real server fault. The
+  conjunction lives in `ClientCanceled` only; `markServerFailure` and every
+  route that logs on a cancel MUST call it rather than restating it.
 - A client cancel MUST NOT call `RecordError` or set the span status, and the
   `eshu.request.client_canceled` event MUST carry no attributes or error text.
 - This package MAY import `querycontract`; `querycontract` MUST NOT import this

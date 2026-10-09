@@ -27,7 +27,7 @@ import (
 // maps to the bounded 503/504 envelope (graph outage, graph deadline, a stale
 // or timed-out guarded reader) is NOT a handler-owned 500, so it must keep its
 // status and must not emit a stage_failed record or mark the handler span as
-// failed. A regression that moved failStage above WriteGraphReadError would
+// failed. A regression that moved writeStageFailure above WriteGraphReadError would
 // double-log these verdicts and stay green without this test.
 func TestListImpactFindingsMappedVerdictsStaySilentAndUnchanged(t *testing.T) {
 	// Not parallel: swaps the package-global queryHandlerTracer.

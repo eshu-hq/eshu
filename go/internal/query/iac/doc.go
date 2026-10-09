@@ -33,6 +33,12 @@
 // binding it into the query, and reports a bounded, deterministically
 // ordered, truncation-aware result.
 //
+// A failed store or graph read answers a fixed message per route step and
+// records the backend error on the handler span; the error text never reaches
+// the response body (#7674). A stale or timed-out PostgreSQL reader answers
+// the retryable 503 through querycontract.WriteGraphReadError, and a client
+// cancel answers 499 with no span error.
+//
 // Currency for the resource browse: scoped and pre-ready reads resolve the
 // active generation's facts through the current-inventory CTE, while
 // unscoped reads served from infra_resource_entities serve last-projected

@@ -121,6 +121,15 @@ type ReachabilityFindingRow struct {
 	Limitations  []string
 }
 
+// Fixed bodies for a failed dead-IaC read step. The store error is recorded on
+// the request span, never written to the client (#7674).
+const (
+	deadIaCCountFailedMessage     = "count dead-IaC findings failed"
+	deadIaCListFailedMessage      = "list dead-IaC findings failed"
+	deadIaCRowsCheckFailedMessage = "check dead-IaC materialized rows failed"
+	deadIaCFilesFailedMessage     = "read dead-IaC repository files failed"
+)
+
 func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryDeadIaC, "POST /api/v0/iac/dead", DeadCapability)
 	defer span.End()
@@ -167,7 +176,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 			req.IncludeAmbiguous,
 		)
 		if err != nil {
-			writeDeadIaCReadError(w, r, err)
+			writeIaCReadFailure(w, r, err, DeadCapability, deadIaCCountFailedMessage)
 			return
 		}
 		rows, err := h.Reachability.ListLatestCleanupFindings(
@@ -179,7 +188,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 			req.Offset,
 		)
 		if err != nil {
-			writeDeadIaCReadError(w, r, err)
+			writeIaCReadFailure(w, r, err, DeadCapability, deadIaCListFailedMessage)
 			return
 		}
 		if len(rows) > 0 {
@@ -192,7 +201,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 		}
 		hasRows, err := h.Reachability.HasLatestRows(r.Context(), repoIDs, families)
 		if err != nil {
-			writeDeadIaCReadError(w, r, err)
+			writeIaCReadFailure(w, r, err, DeadCapability, deadIaCRowsCheckFailedMessage)
 			return
 		}
 		if hasRows {
@@ -209,7 +218,7 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 
 	filesByRepo, err := loadIaCDeadFiles(r.Context(), h.Content, repoIDs)
 	if err != nil {
-		writeDeadIaCReadError(w, r, err)
+		writeIaCReadFailure(w, r, err, DeadCapability, deadIaCFilesFailedMessage)
 		return
 	}
 	findings := analyzeDeadIaC(filesByRepo, iacreachability.FamilyFilter(families), req.IncludeAmbiguous)
@@ -234,17 +243,6 @@ func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
 			"exact dead-IaC requires reducer-materialized usage rows",
 		},
 	}, querycontract.BuildTruthEnvelope(h.profile(), DeadCapability, querycontract.TruthBasisContentIndex, "derived from bounded IaC content references"))
-}
-
-// writeDeadIaCReadError answers a failed dead-IaC store read. A stale reader, or
-// one whose connection acquisition (pool wait or dial) or identity check timed
-// out inside the replay window, is a retryable 503 with Retry-After (#7523); any
-// other failure, including a non-timeout reader failure, stays a 500.
-func writeDeadIaCReadError(w http.ResponseWriter, r *http.Request, err error) {
-	if querycontract.WriteGraphReadError(w, r, err, DeadCapability) {
-		return
-	}
-	querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 }
 
 func writeMaterializedDeadIaC(

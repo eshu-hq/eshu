@@ -16,6 +16,13 @@ import (
 // attribute on every stage event these routes emit (query_timing.go).
 const supplyChainContainerImageAggregateOperation = "supply_chain_container_image_aggregate_read"
 
+// Fixed failure bodies for this route's reads (#7674); the response never
+// carries err.Error().
+const (
+	containerImageCountReadFailedMessage     = "container image identity count read failed"
+	containerImageInventoryReadFailedMessage = "container image identity inventory read failed"
+)
+
 // ContainerImageIdentityAggregateCapability is the capability string that
 // gates the cheap-summary container-image-identity aggregate (count) route,
 // distinct from ContainerImageIdentitiesCapability's row-level list route: a
@@ -86,12 +93,11 @@ func (h *Handler) countContainerImageIdentities(w http.ResponseWriter, r *http.R
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ContainerImageIdentityAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, countTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, countTimer, err, containerImageCountReadFailedMessage)
 		return
 	}
 	body := map[string]any{
@@ -184,12 +190,11 @@ func (h *Handler) containerImageIdentityInventory(w http.ResponseWriter, r *http
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
-		// 500, so it returns before failStage.
+		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, ContainerImageIdentityAggregateCapability) {
 			return
 		}
-		failStage(r.Context(), span, inventoryTimer, err)
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeStageFailure(w, r, inventoryTimer, err, containerImageInventoryReadFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

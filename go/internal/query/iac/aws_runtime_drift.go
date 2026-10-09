@@ -25,6 +25,13 @@ const (
 	awsRuntimeDriftPromotionRejected    = "rejected"
 )
 
+// Fixed bodies for a failed AWS runtime drift findings read. The store error
+// is recorded on the request span, never written to the client (#7674).
+const (
+	awsRuntimeDriftCountFailedMessage = "count AWS runtime drift findings failed"
+	awsRuntimeDriftListFailedMessage  = "list AWS runtime drift findings failed"
+)
+
 // AWSRuntimeDriftFindingRow exposes one active AWS runtime drift finding with
 // query-facing outcome and promotion status fields.
 type AWSRuntimeDriftFindingRow struct {
@@ -98,12 +105,12 @@ func (h *Handler) handleAWSRuntimeDriftFindings(w http.ResponseWriter, r *http.R
 
 	totalFindings, err := h.Management.CountUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, AWSRuntimeDriftFindingsCapability, awsRuntimeDriftCountFailedMessage)
 		return
 	}
 	findings, err := h.Management.ListUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, AWSRuntimeDriftFindingsCapability, awsRuntimeDriftListFailedMessage)
 		return
 	}
 	findings = normalizeIaCManagementFindingsSafety(findings)

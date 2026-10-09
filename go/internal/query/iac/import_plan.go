@@ -56,6 +56,13 @@ type terraformImportPlanSummary struct {
 	Refused    int
 }
 
+// Fixed bodies for a failed Terraform import-plan findings read. The store
+// error is recorded on the request span, never written to the client (#7674).
+const (
+	terraformImportPlanCountFailedMessage = "count Terraform import-plan findings failed"
+	terraformImportPlanListFailedMessage  = "list Terraform import-plan findings failed"
+)
+
 func (h *Handler) handleTerraformImportPlanCandidates(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -99,12 +106,12 @@ func (h *Handler) handleTerraformImportPlanCandidates(w http.ResponseWriter, r *
 	}
 	totalFindings, err := h.Management.CountUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, TerraformImportCapability, terraformImportPlanCountFailedMessage)
 		return
 	}
 	findings, err := h.Management.ListUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, TerraformImportCapability, terraformImportPlanListFailedMessage)
 		return
 	}
 	summary := buildTerraformImportPlanCandidates(normalizeIaCManagementFindingsSafety(findings), filter)

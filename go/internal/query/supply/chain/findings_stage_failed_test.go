@@ -23,7 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
-	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -94,8 +93,9 @@ func failedStageRow() impact.FindingRow {
 // left no attributable log (querycontract.WriteError never logs, and the
 // findings stage completion carried no error attribute). Each 5xx branch must
 // now emit exactly one ERROR supply_chain_query.stage_failed record with the
-// stage, repository, and a bounded error, record the error on the handler
-// span, and leave the wire response unchanged.
+// stage, repository, and a bounded error, record the error once on the
+// handler span, and answer the step's fixed message, never the error text
+// (#7674).
 func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 	// Not parallel: swaps the package-global queryHandlerTracer.
 	recorder := tracetest.NewSpanRecorder()
@@ -126,7 +126,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				}}
 			},
 			stage:      "impact_findings_query",
-			wantDetail: "PostgreSQL reader connection unavailable",
+			wantDetail: impactFindingsReadFailedMessage,
 			wantLogErr: "PostgreSQL reader connection unavailable",
 		},
 		{
@@ -139,7 +139,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				}}}
 			},
 			stage:      "impact_findings_query",
-			wantDetail: "PostgreSQL reader connection unavailable",
+			wantDetail: impactFindingsReadFailedMessage,
 			wantLogErr: "PostgreSQL reader connection unavailable",
 			wantSite:   "reader_unavailable",
 			wantCause:  "conn_reset",
@@ -150,7 +150,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				return &Handler{ImpactFindings: failingImpactFindingsStore{err: errors.New(longASCII)}}
 			},
 			stage:      "impact_findings_query",
-			wantDetail: longASCII,
+			wantDetail: impactFindingsReadFailedMessage,
 			wantLogErr: longASCII[:failedStageLogErrorMax],
 			truncated:  true,
 		},
@@ -160,7 +160,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				return &Handler{ImpactFindings: failingImpactFindingsStore{err: errors.New(longMultiByte)}}
 			},
 			stage:      "impact_findings_query",
-			wantDetail: longMultiByte,
+			wantDetail: impactFindingsReadFailedMessage,
 			wantLogErr: strings.Repeat("é", failedStageLogErrorMax/2),
 			truncated:  true,
 		},
@@ -178,7 +178,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				}
 			},
 			stage:      "cloud_runtime_evidence",
-			wantDetail: "supply-chain impact runtime evidence probe failed",
+			wantDetail: cloudRuntimeProbeFailedMessage,
 			wantLogErr: "ledger unavailable",
 		},
 		{
@@ -195,7 +195,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				}
 			},
 			stage:      "kubernetes_runtime_evidence",
-			wantDetail: "supply-chain impact kubernetes runtime evidence probe failed",
+			wantDetail: kubernetesRuntimeProbeFailedMessage,
 			wantLogErr: "filter current authorized kubernetes runtime workloads: owner ledger unavailable",
 		},
 		{
@@ -207,7 +207,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				}}
 			},
 			stage:      "runtime_context",
-			wantDetail: "supply-chain impact runtime context probe failed",
+			wantDetail: runtimeContextProbeFailedMessage,
 			wantLogErr: "postgres: connection reset",
 		},
 	}
@@ -220,7 +220,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 
 			rec := serveImpactFindings(t, handler)
 
-			// (a) wire behavior is unchanged.
+			// (a) the body is the step's fixed message.
 			if rec.Code != http.StatusInternalServerError {
 				t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
 			}
@@ -265,7 +265,7 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 			if len(gotErr) > failedStageLogErrorMax || !utf8.ValidString(gotErr) || strings.ContainsRune(gotErr, utf8.RuneError) {
 				t.Fatalf("stage_failed error is not bounded valid UTF-8: len=%d", len(gotErr))
 			}
-			if tt.truncated && len(gotErr) == len(tt.wantDetail) {
+			if tt.truncated && len(gotErr) >= len(longASCII) {
 				t.Fatalf("stage_failed error was not truncated")
 			}
 
@@ -281,28 +281,10 @@ func TestListImpactFindingsLogsFailedStageOnHandlerOwned500(t *testing.T) {
 				}
 			}
 
-			// (f) the handler span records the error with Error status.
-			var handlerSpan sdktrace.ReadOnlySpan
-			for _, span := range recorder.Ended()[spansBefore:] {
-				if span.Name() == telemetry.SpanQuerySupplyChainImpactFindings {
-					handlerSpan = span
-				}
-			}
-			if handlerSpan == nil {
-				t.Fatalf("no ended %s span", telemetry.SpanQuerySupplyChainImpactFindings)
-			}
-			if handlerSpan.Status().Code != codes.Error {
-				t.Fatalf("handler span status = %v, want Error", handlerSpan.Status().Code)
-			}
-			hasException := false
-			for _, event := range handlerSpan.Events() {
-				if event.Name == "exception" {
-					hasException = true
-				}
-			}
-			if !hasException {
-				t.Fatalf("handler span has no recorded exception event; events=%#v", handlerSpan.Events())
-			}
+			// (f) the handler span records the error once with the step's
+			// fixed message as its Error description.
+			handlerSpan := supplyHandlerSpan(t, recorder.Ended()[spansBefore:], telemetry.SpanQuerySupplyChainImpactFindings)
+			assertFaultSpan(t, handlerSpan, tt.wantDetail)
 		})
 	}
 }
@@ -355,7 +337,7 @@ func TestListImpactFindingsNilLoggerStillFailsWith500(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "reader unavailable") {
-		t.Fatalf("body = %s, want the unchanged detail", rec.Body.String())
+	if !detailEquals(rec.Body.Bytes(), impactFindingsReadFailedMessage) || strings.Contains(rec.Body.String(), "reader unavailable") {
+		t.Fatalf("body = %s, want the fixed detail %q and no error text", rec.Body.String(), impactFindingsReadFailedMessage)
 	}
 }

@@ -100,12 +100,27 @@
 ## Postgres reader failures (#7523)
 
 `handleDeadIaC` routes every reader and content failure through
-`writeDeadIaCReadError` (and the selector failure through
+`writeIaCReadFailure` (and the selector failure through
 `querycontract.WriteGraphReadError`) so a stale guarded PostgreSQL reader, or one
 whose connection acquisition (pool wait or dial) or identity check timed out
 inside the replay window (a reader failure that is not a timeout stays a 500),
-answers a retryable 503 `backend_unavailable` with `Retry-After`. The other handlers in this package still write store errors as
-500 and have not been moved to the helper.
+answers a retryable 503 `backend_unavailable` with `Retry-After`.
+
+## Failed reads (#7674)
+
+Every store or graph read failure goes through `writeIaCReadFailure`
+(`handler_tracing.go`): `querycontract.WriteGraphReadError` first (fence 503,
+graph 503/504), then `tracing.WriteServerFailure` with a fixed message
+constant for that route step (500, or 499 for a client cancel). Declare a new
+step's message as a `const` next to its handler. The selector inventory keeps
+its contract envelope: build it with `tracing.ServerFailureEnvelope` and add
+the profiles, never `WriteContractError` with a 500. Fixed-text 500s with no
+`err` (the inventory/graph mismatch, the plan contract check) still go through
+`tracing.WriteServerFailure` so the span is marked. Never write `err.Error()`
+or a message formatted with `err` to a 5xx body; the query error-text guard
+holds every file in this package at zero sites. `server_failure*_test.go`
+covers each route and step with a canary fault, a client cancel, and a stale
+reader.
 
 The dead-IaC selector branch keeps the shared selector order (#7626):
 `querycontract.WriteGraphReadError` (fence, 503), then
