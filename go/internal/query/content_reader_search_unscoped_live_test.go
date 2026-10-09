@@ -154,7 +154,7 @@ func TestSearchFilesUnscopedMatchesOldStatementLive(t *testing.T) {
 		"upper case": strings.ToUpper(liveMediumToken),
 	}
 	for name, pattern := range classes {
-		for _, page := range []struct{ limit, offset int }{{10, 0}, {10, 10}, {10, 20}, {50, 0}} {
+		for _, page := range []struct{ limit, offset int }{{10, 0}, {10, 10}, {10, 20}, {50, 0}, {2, 0}, {3, 0}} {
 			oldStart := time.Now()
 			want := oracleKeys(t, ctx, db, pattern, page.limit+1, page.offset)
 			oldWall := time.Since(oldStart)
@@ -419,12 +419,20 @@ func TestSearchFilesUnscopedEdgeRowsAreExactLive(t *testing.T) {
 	}
 	searchLiveUntil(t, ctx, db, liveEdgeToken, 200,
 		func(walk liveWalk) {
+			got := pageKeys(walk.page.Files)
 			if walk.page.Partial != nil {
-				return // a cut-short walk is not the exactness case; rows are a prefix
+				// A cut-short walk returns an ordered prefix of the exact answer.
+				if len(got) > len(want) || strings.Join(got, ",") != strings.Join(want[:len(got)], ",") {
+					t.Fatalf("budget %d ms: partial rows %v are not a prefix of the old rows", walk.budget.Milliseconds(), got)
+				}
+				return
 			}
-			if got := pageKeys(walk.page.Files); strings.Join(got, ",") != strings.Join(want, ",") {
+			if strings.Join(got, ",") != strings.Join(want, ",") {
 				t.Fatalf("budget %d ms: walk rows (%d) != old statement rows (%d)\nwalk: %v\nold:  %v",
 					walk.budget.Milliseconds(), len(got), len(want), got, want)
+			}
+			if walk.page.More {
+				t.Fatalf("budget %d ms: More=true but the old statement has no row past the %d it returned", walk.budget.Milliseconds(), len(want))
 			}
 		},
 		func(walk liveWalk) bool {
@@ -447,6 +455,10 @@ func TestSearchFilesUnscopedTailFilledPageKeepsMoreLive(t *testing.T) {
 		searchLiveUntil(t, ctx, db, liveRareToken, limit,
 			func(walk liveWalk) {
 				if walk.page.Partial != nil {
+					got := pageKeys(walk.page.Files)
+					if len(got) > limit || strings.Join(got, ",") != strings.Join(old[:len(got)], ",") {
+						t.Fatalf("limit %d budget %d ms: partial rows %v are not a prefix of the old rows", limit, walk.budget.Milliseconds(), got)
+					}
 					return
 				}
 				if got, want := pageKeys(walk.page.Files), old[:limit]; strings.Join(got, ",") != strings.Join(want, ",") {

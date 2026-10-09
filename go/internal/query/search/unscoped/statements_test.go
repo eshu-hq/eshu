@@ -121,3 +121,36 @@ func TestSearchTailFilledPageReportsMore(t *testing.T) {
 		t.Fatalf("More=%v Partial=%+v, want a complete page with a further match", page.More, page.Partial)
 	}
 }
+
+// An answer with exactly limit matches in the whole key space is complete:
+// More is false and nothing marks it partial. One more match makes More true.
+// The look-ahead flag is "a row exists past the page", so an off-by-one in
+// either direction would report a further row that does not exist or hide one
+// that does.
+func TestSearchExactlyFullAnswerIsComplete(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		matches  map[int]bool
+		wantMore bool
+	}{
+		{"exactly limit matches in the table", map[int]bool{10: true, 70: true, 140: true}, false},
+		{"one match past the page", map[int]bool{10: true, 70: true, 140: true, 149: true}, true},
+	} {
+		corpus := newCorpus(150, 50*time.Microsecond, func(i int) bool { return tc.matches[i] })
+		page, _, _, err := run(t, corpus, 3, 0, querycontract.SearchCursor{})
+		if err != nil {
+			t.Fatalf("%s: Search() error = %v", tc.name, err)
+		}
+		if page.Partial != nil {
+			t.Fatalf("%s: Partial = %+v, want a complete answer", tc.name, page.Partial)
+		}
+		if len(page.Files) != 3 {
+			t.Fatalf("%s: %d files, want 3", tc.name, len(page.Files))
+		}
+		if page.More != tc.wantMore {
+			t.Fatalf("%s: More = %v, want %v", tc.name, page.More, tc.wantMore)
+		}
+	}
+}
