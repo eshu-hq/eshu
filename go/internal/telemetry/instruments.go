@@ -1104,6 +1104,13 @@ type Instruments struct {
 	// successful census pass. It is a snapshot, not a point in time, and it keeps
 	// its last good value when a later pass fails (#7212).
 	GraphIDAnchorUnreachableNodes metric.Int64Gauge
+	// GraphIDAnchorIDBearingNodes is the number of graph nodes that carry an id,
+	// recorded from the same successful census pass as
+	// GraphIDAnchorUnreachableNodes. An empty graph reads zero unreachable
+	// nodes, so a metrics-based rollout gate reads "unreachable = 0 AND
+	// id-bearing > 0" from this pair. A failed pass keeps its last good value
+	// (#7212).
+	GraphIDAnchorIDBearingNodes metric.Int64Gauge
 	// GraphIDAnchorCensusLastSuccess is the Unix second of the last successful
 	// census pass; time() minus this gauge is the age of the snapshot.
 	GraphIDAnchorCensusLastSuccess metric.Int64Gauge

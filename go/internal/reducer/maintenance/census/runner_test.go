@@ -128,6 +128,7 @@ func newCensusTelemetry(t *testing.T) *censusTelemetry {
 
 const (
 	unreachableGauge = "eshu_dp_graph_id_anchor_unreachable_nodes"
+	idBearingGauge   = "eshu_dp_graph_id_anchor_id_bearing_nodes"
 	lastSuccessGauge = "eshu_dp_graph_id_anchor_census_last_success_unixtime"
 )
 
@@ -140,6 +141,9 @@ func TestIDAnchorCensusPassRecordsGaugeAndStartupLine(t *testing.T) {
 
 	if v, ok := ct.gauge(t, unreachableGauge); !ok || v != 0 {
 		t.Fatalf("unreachable gauge = %d (present %t), want 0", v, ok)
+	}
+	if v, ok := ct.gauge(t, idBearingGauge); !ok || v != 898874 {
+		t.Fatalf("id-bearing gauge = %d (present %t), want the pass's 898874", v, ok)
 	}
 	if v, ok := ct.gauge(t, lastSuccessGauge); !ok || v <= 0 {
 		t.Fatalf("last-success gauge = %d (present %t), want a unix time", v, ok)
@@ -158,6 +162,25 @@ func TestIDAnchorCensusPassRecordsGaugeAndStartupLine(t *testing.T) {
 	}
 }
 
+// An empty graph reads zero unreachable nodes too, so the rollout gate
+// "unreachable_nodes = 0 AND id_bearing_nodes > 0" must be readable from the
+// metrics alone: the id-bearing gauge is recorded in the same pass and reads
+// zero for an empty graph, where a healthy graph reads its id-bearing count.
+func TestIDAnchorCensusEmptyGraphReadsZeroIDBearingBesideZeroUnreachable(t *testing.T) {
+	ct := newCensusTelemetry(t)
+	source := &fakeCensusSource{results: []censusResult{{census: anchor.Census{}}}}
+	runner := Runner{Source: source, Instruments: ct.inst, Logger: ct.logger, Timeout: time.Second}
+
+	runner.RunOnce(context.Background(), true)
+
+	if v, ok := ct.gauge(t, unreachableGauge); !ok || v != 0 {
+		t.Fatalf("unreachable gauge = %d (present %t), want 0", v, ok)
+	}
+	if v, ok := ct.gauge(t, idBearingGauge); !ok || v != 0 {
+		t.Fatalf("id-bearing gauge = %d (present %t), want a recorded 0 for an empty graph", v, ok)
+	}
+}
+
 // A residual is the alarm: the gauge carries the count and the line is a
 // warning, so an operator sees it without reading the gauge.
 func TestIDAnchorCensusResidualWarnsAndSetsGauge(t *testing.T) {
@@ -169,6 +192,9 @@ func TestIDAnchorCensusResidualWarnsAndSetsGauge(t *testing.T) {
 
 	if v, _ := ct.gauge(t, unreachableGauge); v != 3 {
 		t.Fatalf("unreachable gauge = %d, want 3", v)
+	}
+	if v, _ := ct.gauge(t, idBearingGauge); v != 10 {
+		t.Fatalf("id-bearing gauge = %d, want 10", v)
 	}
 	if line := ct.logs.String(); !strings.Contains(line, "level=WARN") || !strings.Contains(line, "unreachable_nodes=3") {
 		t.Fatalf("a residual must log at WARN with the count:\n%s", line)
@@ -196,6 +222,9 @@ func TestIDAnchorCensusFailedPassKeepsLastGoodSnapshot(t *testing.T) {
 
 	if v, _ := ct.gauge(t, unreachableGauge); v != 0 {
 		t.Fatalf("unreachable gauge = %d after a failed pass, want the last good 0", v)
+	}
+	if v, _ := ct.gauge(t, idBearingGauge); v != 5 {
+		t.Fatalf("id-bearing gauge = %d after a failed pass, want the last good 5", v)
 	}
 	if v, _ := ct.gauge(t, lastSuccessGauge); v != firstSuccess {
 		t.Fatalf("last-success moved from %d to %d on a failed pass", firstSuccess, v)

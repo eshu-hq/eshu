@@ -31,6 +31,7 @@ Never `internal/reducer`.
 ## Telemetry
 
 - Metrics: `eshu_dp_graph_id_anchor_unreachable_nodes` (gauge),
+  `eshu_dp_graph_id_anchor_id_bearing_nodes` (gauge, same pass),
   `eshu_dp_graph_id_anchor_census_last_success_unixtime` (gauge),
   `eshu_dp_graph_id_anchor_census_passes_total{outcome}` (counter),
   `eshu_dp_graph_id_anchor_census_duration_seconds{outcome}` (histogram)

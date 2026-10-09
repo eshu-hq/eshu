@@ -49,8 +49,10 @@ func (r *Runner) Run(ctx context.Context) error {
 }
 
 // RunOnce takes one census under its own deadline and records the outcome. A
-// failed pass leaves the gauge and the last-success time at their last good
-// values. first marks the startup pass in the log line.
+// failed pass leaves the unreachable and id-bearing gauges and the last-success
+// time at their last good values; a successful pass records the pair together,
+// so a metrics reader can tell a healthy zero (id-bearing above zero) from an
+// empty graph. first marks the startup pass in the log line.
 func (r *Runner) RunOnce(ctx context.Context, first bool) {
 	passCtx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
@@ -70,6 +72,7 @@ func (r *Runner) RunOnce(ctx context.Context, first bool) {
 		r.Instruments.GraphIDAnchorCensusDuration.Record(ctx, duration.Seconds(), attrs)
 		if err == nil {
 			r.Instruments.GraphIDAnchorUnreachableNodes.Record(ctx, census.Residual)
+			r.Instruments.GraphIDAnchorIDBearingNodes.Record(ctx, census.IDBearing)
 			r.Instruments.GraphIDAnchorCensusLastSuccess.Record(ctx, r.clock().Unix())
 		}
 	}

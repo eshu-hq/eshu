@@ -67,7 +67,7 @@ func TestLiveIDAnchorCensusStartup(t *testing.T) {
 
 	// The reducer wires the raw session runner as its census read port.
 	runner := neo4jSessionRunner{Driver: driver, DatabaseName: database}
-	census := func() (gauge int64, lastSuccess int64, okPasses int64, logs string) {
+	census := func() (gauge int64, idBearing int64, lastSuccess int64, okPasses int64, logs string) {
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		inst, err := telemetry.NewInstruments(provider.Meter("live"))
@@ -82,7 +82,7 @@ func TestLiveIDAnchorCensusStartup(t *testing.T) {
 		deadline := time.After(time.Minute)
 		for {
 			if v := readCensusMetrics(t, reader); v.okPasses > 0 {
-				gauge, lastSuccess, okPasses = v.gauge, v.lastSuccess, v.okPasses
+				gauge, idBearing, lastSuccess, okPasses = v.gauge, v.idBearing, v.lastSuccess, v.okPasses
 				break
 			}
 			select {
@@ -93,23 +93,29 @@ func TestLiveIDAnchorCensusStartup(t *testing.T) {
 		}
 		stop()
 		wait()
-		return gauge, lastSuccess, okPasses, buf.String()
+		return gauge, idBearing, lastSuccess, okPasses, buf.String()
 	}
 
-	baseGauge, baseLast, basePasses, baseLogs := census()
-	t.Logf("startup pass, graph before seed: gauge=%d last_success_unixtime=%d ok_passes=%d", baseGauge, baseLast, basePasses)
+	baseGauge, baseBearing, baseLast, basePasses, baseLogs := census()
+	t.Logf("startup pass, graph before seed: gauge=%d id_bearing=%d last_success_unixtime=%d ok_passes=%d", baseGauge, baseBearing, baseLast, basePasses)
 	t.Logf("startup log line: %s", strings.TrimSpace(baseLogs))
 
 	write(`CREATE (:Function {id: '` + censusLiveStartupPrefix + `fn', uid: '` + censusLiveStartupPrefix + `fn'})`)
 	write(`CREATE (:Repository {id: '` + censusLiveStartupPrefix + `repo'})`)
-	cleanGauge, _, _, _ := census()
+	cleanGauge, cleanBearing, _, _, _ := census()
 	if cleanGauge != baseGauge {
 		t.Fatalf("gauge moved from %d to %d on canonical seeds", baseGauge, cleanGauge)
 	}
+	if cleanBearing != baseBearing+2 {
+		t.Fatalf("id-bearing gauge = %d after two canonical seeds, want %d", cleanBearing, baseBearing+2)
+	}
 
 	write(`CREATE (:Unconstrained {id: '` + censusLiveStartupPrefix + `planted'})`)
-	plantedGauge, plantedLast, _, plantedLogs := census()
-	t.Logf("startup pass, one id-only node planted: gauge=%d last_success_unixtime=%d", plantedGauge, plantedLast)
+	plantedGauge, plantedBearing, plantedLast, _, plantedLogs := census()
+	t.Logf("startup pass, one id-only node planted: gauge=%d id_bearing=%d last_success_unixtime=%d", plantedGauge, plantedBearing, plantedLast)
+	if plantedBearing != cleanBearing+1 {
+		t.Fatalf("id-bearing gauge = %d after planting one node, want %d", plantedBearing, cleanBearing+1)
+	}
 	t.Logf("startup log line: %s", strings.TrimSpace(plantedLogs))
 	if plantedGauge != baseGauge+1 {
 		t.Fatalf("gauge = %d after planting one unreachable node, want %d", plantedGauge, baseGauge+1)
@@ -124,7 +130,7 @@ func TestLiveIDAnchorCensusStartup(t *testing.T) {
 	}
 }
 
-type censusMetricValues struct{ gauge, lastSuccess, okPasses int64 }
+type censusMetricValues struct{ gauge, idBearing, lastSuccess, okPasses int64 }
 
 func readCensusMetrics(t *testing.T, reader *sdkmetric.ManualReader) censusMetricValues {
 	t.Helper()
@@ -138,6 +144,8 @@ func readCensusMetrics(t *testing.T, reader *sdkmetric.ManualReader) censusMetri
 			switch m.Name {
 			case "eshu_dp_graph_id_anchor_unreachable_nodes":
 				out.gauge = m.Data.(metricdata.Gauge[int64]).DataPoints[0].Value
+			case "eshu_dp_graph_id_anchor_id_bearing_nodes":
+				out.idBearing = m.Data.(metricdata.Gauge[int64]).DataPoints[0].Value
 			case "eshu_dp_graph_id_anchor_census_last_success_unixtime":
 				out.lastSuccess = m.Data.(metricdata.Gauge[int64]).DataPoints[0].Value
 			case "eshu_dp_graph_id_anchor_census_passes_total":

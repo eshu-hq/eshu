@@ -21,6 +21,12 @@ func registerGraphIDAnchorCensusInstruments(meter metric.Meter, inst *Instrument
 	); err != nil {
 		return fmt.Errorf("register GraphIDAnchorUnreachableNodes gauge: %w", err)
 	}
+	if inst.GraphIDAnchorIDBearingNodes, err = meter.Int64Gauge(
+		"eshu_dp_graph_id_anchor_id_bearing_nodes",
+		metric.WithDescription("Snapshot of graph nodes that carry an id, from the same successful id-anchor census pass as the unreachable-nodes gauge; zero unreachable nodes proves the invariant only while this gauge is above zero, because an empty graph also reads zero unreachable, and a failed pass keeps the last good value"),
+	); err != nil {
+		return fmt.Errorf("register GraphIDAnchorIDBearingNodes gauge: %w", err)
+	}
 	if inst.GraphIDAnchorCensusLastSuccess, err = meter.Int64Gauge(
 		"eshu_dp_graph_id_anchor_census_last_success_unixtime",
 		metric.WithDescription("Unix second of the last successful id-anchor census pass; time() minus this gauge is the age of the unreachable-nodes snapshot"),

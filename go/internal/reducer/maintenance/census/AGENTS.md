@@ -11,8 +11,10 @@ transitively.
 
 ## What must stay conservative
 
-- `Runner` (#7212) MUST record the unreachable-nodes gauge and the
-  last-success time only from a successful pass, so a failed or timed-out
+- `Runner` (#7212) MUST record the unreachable-nodes gauge, the
+  id-bearing-nodes gauge (the pair a metrics-based rollout gate reads, since an
+  empty graph also reads zero unreachable), and the last-success time only
+  from a successful pass, so a failed or timed-out
   pass keeps the last good snapshot and the snapshot age grows. It runs one
   bounded AllNodesScan per pass under its own deadline and never on a scrape
   path. It takes no lease: the scan is read-only and idempotent.
