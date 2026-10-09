@@ -1887,7 +1887,7 @@ tests:
   - file: go/internal/storage/postgres/content_files_generation_tag_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7760 disposable PostgreSQL 18 proof of the content_files generation tag: ahead, dangling, null, and manifest-less tags read dirty, activated tags read clean, the writer stamps every row, and the migration-169 backfill attributes only clean scopes; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    reason: "#7760 disposable PostgreSQL 18 proof of the content_files generation tag: ahead, dangling, null, and manifest-less tags read dirty on both the package and gomod reads, activated tags read clean, the writer stamps every row, and the migration-169 backfill attributes only clean scopes; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/facts_active_container_image_ci_owner_live_test.go
     tag: integration

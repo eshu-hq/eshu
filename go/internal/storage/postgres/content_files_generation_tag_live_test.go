@@ -133,6 +133,19 @@ INSERT INTO content_files (
 	}
 }
 
+// seedGenerationTagGoMod stores one go.mod manifest with an explicit
+// generation tag, mirroring seedGenerationTagManifest for the gomod read.
+func seedGenerationTagGoMod(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, module string, tag any, indexedAt time.Time) {
+	t.Helper()
+	content := "module " + module + "\n\ngo 1.24\n"
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO content_files (
+    repo_id, relative_path, content, content_hash, line_count, language, indexed_at, generation_id
+) VALUES ($1, $2, $3, md5($3), 3, 'gomod', $4, $5)`, repoID, relativePath, content, indexedAt, tag); err != nil {
+		t.Fatalf("insert go.mod %s/%s: %v", repoID, relativePath, err)
+	}
+}
+
 // queryGenerationTagProducerRows runs a producers manifest read and returns
 // each row's scope id with its content and tag outcome.
 func queryGenerationTagProducerRows(t *testing.T, ctx context.Context, database db.Queryer, query string) map[string]generationTagProducerRow {
@@ -397,5 +410,38 @@ func TestReducerContentionGateContentFilesBackfillAttributesOnlyCleanScopes(t *t
 	}
 	if tagged != 1 || untagged != 5 {
 		t.Fatalf("tagged/untagged after re-run = %d/%d, want 1/5", tagged, untagged)
+	}
+}
+
+// TestReducerContentionGateContentGenerationTagGoModDirtLegs proves the
+// go.mod read applies the same tag rule as the package read: a go.mod stored
+// by a never-activated generation resolves dirty (unactivated_tag) instead
+// of resolving its ahead content alone, a scope with no go.mod but a pending
+// generation resolves dirty through the manifest-less leg, and an
+// activated tag resolves clean by content and stays out of an unpublished
+// module's producer set.
+func TestReducerContentionGateContentGenerationTagGoModDirtLegs(t *testing.T) {
+	ctx, database := openContentGenerationTagSchema(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	seedGenerationTagScope(t, ctx, database, "scope-goahead", "repo-goahead", "generation-goahead-active", now)
+	seedGenerationTagGeneration(t, ctx, database, "scope-goahead", "generation-goahead-refused", "pending", nil, now)
+	seedGenerationTagGoMod(t, ctx, database, "repo-goahead", "go.mod", "github.com/acme/goahead", "generation-goahead-refused", now.Add(time.Minute))
+	seedGenerationTagScope(t, ctx, database, "scope-goclean", "repo-goclean", "generation-goclean-active", now)
+	seedGenerationTagGoMod(t, ctx, database, "repo-goclean", "go.mod", "github.com/acme/goclean", "generation-goclean-active", now)
+	seedGenerationTagScope(t, ctx, database, "scope-goless", "repo-goless", "generation-goless-active", now)
+	seedGenerationTagGeneration(t, ctx, database, "scope-goless", "generation-goless-pending", "pending", nil, now)
+
+	rows := queryGenerationTagProducerRows(t, ctx, SQLDB{DB: database}, producerstore.GoModuleManifestsQuery)
+	requireGenerationTagRow(t, rows, "scope-goahead", "unactivated_tag", true)
+	requireGenerationTagRow(t, rows, "scope-goclean", "clean", false)
+	requireGenerationTagRow(t, rows, "scope-goless", "manifest_less", true)
+
+	store := producerstore.New(SQLDB{DB: database})
+	scopes, err := store.GoModuleScopeIDs(ctx, []string{"scip-go gomod github.com/acme/nowhere/x Do()."})
+	if err != nil {
+		t.Fatalf("GoModuleScopeIDs() error = %v, want nil", err)
+	}
+	if len(scopes) != 2 || scopes[0] != "scope-goahead" || scopes[1] != "scope-goless" {
+		t.Fatalf("GoModuleScopeIDs(unpublished) = %v, want [scope-goahead scope-goless]: both dirt legs join, the clean scope stays out", scopes)
 	}
 }

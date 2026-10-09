@@ -330,9 +330,11 @@ INSERT INTO ingestion_scopes (
 	}
 	// Both generations carry activated_at, matching production: the stale row
 	// is an ex-active generation, and Ack stamps activated_at on activation.
-	// A scope seeded this way is clean under the #7609 dirty predicate, so
-	// tests that need dirt add their own never-activated generation or a
-	// manifest newer than the activation.
+	// Tests that need dirt tag a manifest with a never-activated generation
+	// (or leave it NULL/dangling), or pair no manifest with a pending
+	// generation for the manifest-less leg: under the #7760 tag rule the
+	// tag's activated_at decides, never the manifest's age, so a manifest
+	// newer than the activation still reads clean when its tag activated.
 	for _, generation := range []struct {
 		id          string
 		status      string

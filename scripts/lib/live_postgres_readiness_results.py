@@ -165,6 +165,7 @@ PACKAGES = {
             "TestReducerContentionGateContentGenerationTagDangledAndNullTagReadDirty",
             "TestReducerContentionGateContentWriterStampsGenerationTag",
             "TestReducerContentionGateContentFilesBackfillAttributesOnlyCleanScopes",
+            "TestReducerContentionGateContentGenerationTagGoModDirtLegs",
         ),
     },
     ACTIVATION_PACKAGE: {
