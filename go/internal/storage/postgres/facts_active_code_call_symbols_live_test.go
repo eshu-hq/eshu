@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -21,12 +22,13 @@ const activeCodeCallSymbolProofKey = "scip-go gomod github.com/acme/lib Client#R
 // contention job; the hermetic workflow guard pins that enrollment.
 func TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository(t *testing.T) {
 	// The content schema carries content_files, which the loader's go.mod
-	// manifest read needs. No go.mod is seeded, so the Go proof key falls
-	// back to the corpus-wide scan.
+	// manifest read needs; the library repository declares the module the Go
+	// proof key belongs to.
 	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-api", "generation-api", now)
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:repo-lib", "go.mod", "github.com/acme/lib", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-api-caller", "repository:repo-api", "generation-api", "api.go", "scip-go gomod github.com/acme/api Handler#Serve().", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now.Add(time.Second))
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-stale", "repository:repo-lib", "generation-lib-stale", "old_client.go", activeCodeCallSymbolProofKey, now.Add(-time.Second))
@@ -174,7 +176,7 @@ INSERT INTO scope_generations (
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
 	if got, want := queryer.queries, []string{
-		listActiveCodeCallPackageManifestsQuery,
+		producerstore.PackageManifestsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("issued %d queries, want the manifest read then the anchored scan only", len(got))
@@ -187,18 +189,20 @@ INSERT INTO scope_generations (
 
 // TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 // proves a package key that no stored manifest publishes runs only the
-// manifest read and never the definition scan, while a Go key in the same
-// request still loads through the corpus-wide fallback scan.
+// manifest read and never the definition scan, while a key no manifest anchors
+// (a scip-java symbol) in the same request still loads through the corpus-wide
+// scan.
 func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer(t *testing.T) {
+	const unanchoredKey = "scip-java maven org.acme/lib org.acme/Client#request()."
 	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now)
+	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.java", unanchoredKey, now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-unpublished", "repository:repo-lib", "generation-lib", "index.js", "@acme/unpublished", "run", now.Add(time.Second))
 
 	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
 	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
-		activeCodeCallSymbolProofKey,
+		unanchoredKey,
 		"package:@acme/unpublished#run",
 	})
 	if err != nil {
@@ -208,11 +212,10 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
 	if got, want := queryer.queries, []string{
-		listActiveCodeCallGoModuleManifestsQuery,
 		listActiveCodeCallSymbolDefinitionFactsQuery,
-		listActiveCodeCallPackageManifestsQuery,
+		producerstore.PackageManifestsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the go.mod manifest read, the corpus fallback scan, then the package manifest read only", len(got))
+		t.Fatalf("issued %d queries, want the corpus-wide scan then the package manifest read only", len(got))
 	}
 }
 
@@ -289,152 +292,8 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForVendoredOnly
 	if len(loaded) != 0 {
 		t.Fatalf("loaded fact ids = %#v, want none", factIDs(loaded))
 	}
-	if got, want := queryer.queries, []string{listActiveCodeCallPackageManifestsQuery}; !reflect.DeepEqual(got, want) {
+	if got, want := queryer.queries, []string{producerstore.PackageManifestsQuery}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("issued %d queries, want the manifest read only", len(got))
-	}
-}
-
-// TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsGoKeysOnModules
-// proves on real Postgres that a `scip-go gomod <import_path> ...` key loads
-// only the active file facts of the scopes whose stored go.mod manifests
-// declare that import path's module (#7623): a duplicate-module pair returns
-// both producers while a stale generation and a lookalike module
-// (github.com/acme/libext against github.com/acme/lib) are excluded.
-func TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsGoKeysOnModules(t *testing.T) {
-	ctx, database := openActiveCodeCallSymbolContentSchema(t)
-	now := time.Now().UTC()
-
-	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:golib", "repository:r_golib", "generation-golib", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_golib", "go.mod", "github.com/acme/lib", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-golib-active", "scope:golib", "generation-golib", "client.go", activeCodeCallSymbolProofKey, now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-golib-stale", "scope:golib", "generation-golib-stale", "old_client.go", activeCodeCallSymbolProofKey, now.Add(-time.Second))
-
-	// A fork declares the same module: both producers must load.
-	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:gofork", "repository:r_gofork", "generation-gofork", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_gofork", "go.mod", "github.com/acme/lib", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-gofork-active", "scope:gofork", "generation-gofork", "client.go", activeCodeCallSymbolProofKey, now.Add(time.Second))
-
-	// A nested module is its own producer for keys under it.
-	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:gosub", "repository:r_gosub", "generation-gosub", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_gosub", "sub/go.mod", "github.com/acme/lib/sub", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-gosub-active", "scope:gosub", "generation-gosub", "sub/pkg.go", "scip-go gomod github.com/acme/lib/sub Pkg#Fn().", now.Add(2*time.Second))
-
-	// Lookalike module shares a string prefix but no path boundary: excluded.
-	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:goext", "repository:r_goext", "generation-goext", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_goext", "go.mod", "github.com/acme/libext", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-goext-active", "scope:goext", "generation-goext", "other.go", "scip-go gomod github.com/acme/libext Other#Thing().", now.Add(3*time.Second))
-
-	keys := []string{
-		activeCodeCallSymbolProofKey,
-		"scip-go gomod github.com/acme/lib/sub Pkg#Fn().",
-	}
-	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
-	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, keys)
-	if err != nil {
-		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
-	}
-	want := []string{"fact-golib-active", "fact-gofork-active", "fact-gosub-active"}
-	if got := factIDs(loaded); !reflect.DeepEqual(got, want) {
-		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
-	}
-	if got, want := queryer.queries, []string{
-		listActiveCodeCallGoModuleManifestsQuery,
-		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
-	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the go.mod manifest read then the anchored scan only", len(got))
-	}
-	wantScopes := []string{"scope:gofork", "scope:golib", "scope:gosub"}
-	if got := queryer.args[1][4]; !reflect.DeepEqual(got, wantScopes) {
-		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, wantScopes)
-	}
-
-	// Differential: on consistent fixtures the anchored answer is exactly the
-	// corpus-wide answer.
-	corpus, err := NewFactStore(queryer).loadActiveCodeCallSymbolDefinitionFacts(ctx, listActiveCodeCallSymbolDefinitionFactsQuery, keys, nil)
-	if err != nil {
-		t.Fatalf("corpus-wide scan error = %v, want nil", err)
-	}
-	if got := factIDs(corpus); !reflect.DeepEqual(got, want) {
-		t.Fatalf("corpus-wide fact ids = %#v, want %#v (anchored answer must equal it)", got, want)
-	}
-}
-
-// TestReducerContentionGateActiveCodeCallSymbolLoaderGoKeyFallbackMatchesCorpus
-// proves a Go key whose module no stored go.mod declares loads exactly the
-// corpus-wide answer: the loader falls back to the unanchored scan instead of
-// leaving the key unresolved.
-func TestReducerContentionGateActiveCodeCallSymbolLoaderGoKeyFallbackMatchesCorpus(t *testing.T) {
-	ctx, database := openActiveCodeCallSymbolContentSchema(t)
-	now := time.Now().UTC()
-	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:goorphan", "repository:r_goorphan", "generation-goorphan", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:r_goorphan", "go.mod", "github.com/acme/orphan", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-goorphan", "scope:goorphan", "generation-goorphan", "main.go", "scip-go gomod fmt Printf().", now)
-
-	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
-	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
-		"scip-go gomod fmt Printf().",
-	})
-	if err != nil {
-		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
-	}
-	if got, want := factIDs(loaded), []string{"fact-goorphan"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
-	}
-	if got, want := queryer.queries, []string{
-		listActiveCodeCallGoModuleManifestsQuery,
-		listActiveCodeCallSymbolDefinitionFactsQuery,
-	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the go.mod manifest read then the corpus fallback scan", len(got))
-	}
-}
-
-// TestReducerContentionGateActiveCodeCallSymbolLoaderPagesScanPerPage measures
-// the per-page cost the #7623 issue infers from the code: every 500-row page
-// of a definition load re-runs the whole scan with a new keyset cursor. With
-// 1,200 matching facts and no declaring module, one load issues the manifest
-// read plus three full corpus scans.
-func TestReducerContentionGateActiveCodeCallSymbolLoaderPagesScanPerPage(t *testing.T) {
-	ctx, database := openActiveCodeCallSymbolContentSchema(t)
-	now := time.Now().UTC()
-	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:gopages", "repository:r_gopages", "generation-gopages", now)
-	if _, err := database.ExecContext(ctx, `
-INSERT INTO fact_records (
-    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-    source_system, source_fact_key, observed_at, ingested_at, payload
-)
-SELECT 'fact-gopages-' || g,
-    'scope:gopages', 'generation-gopages', 'file',
-    'file:scope:gopages:page' || g || '.go',
-    'git', 'page' || g || '.go',
-    $1::timestamptz + (g || ' seconds')::interval, $1::timestamptz + (g || ' seconds')::interval,
-    jsonb_build_object(
-        'repo_id', 'scope:gopages',
-        'relative_path', 'page' || g || '.go',
-        'parsed_file_data', jsonb_build_object(
-            'functions', jsonb_build_array(jsonb_build_object('uid', 'uid:page:' || g, 'scip_symbol', $2::text))
-        )
-    )
-FROM generate_series(1, 1200) AS g`, now, "scip-go gomod fmt Printf()."); err != nil {
-		t.Fatalf("seed page facts: %v", err)
-	}
-
-	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
-	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
-		"scip-go gomod fmt Printf().",
-	})
-	if err != nil {
-		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
-	}
-	if got, want := len(loaded), 1200; got != want {
-		t.Fatalf("loaded %d facts, want %d", got, want)
-	}
-	if got, want := queryer.queries, []string{
-		listActiveCodeCallGoModuleManifestsQuery,
-		listActiveCodeCallSymbolDefinitionFactsQuery,
-		listActiveCodeCallSymbolDefinitionFactsQuery,
-		listActiveCodeCallSymbolDefinitionFactsQuery,
-	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the manifest read plus one full scan per 500-row page", len(got))
 	}
 }
 

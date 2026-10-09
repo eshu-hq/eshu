@@ -242,8 +242,9 @@ manifests in `content_files` name that package, nested workspace manifests
 included. Only those scopes' active file facts are scanned. A package published
 by two or more repositories loads every producer, so the unique-or-unresolved
 rule still leaves the key unresolved. A package key with no producer manifest
-issues no definition scan and stays unresolved. Every other key (SCIP symbols,
-malformed Go keys) keeps the corpus-wide scan unchanged. No
+issues no definition scan and stays unresolved. Every other key (SCIP symbols
+from other indexers, a `scip-go gomod` key without a symbol) keeps the
+corpus-wide scan unchanged. No
 parser emits `package:` call keys yet, so resolution output is unchanged until
 the JavaScript and TypeScript parser change lands. Measurements are in
 `docs/internal/evidence/7601-anchored-symbol-definition-loader.md`.
@@ -257,9 +258,20 @@ path boundary so `github.com/acme/libext` never answers for
 `github.com/acme/lib`. Only those scopes' active file facts are scanned. A
 module declared by two or more repositories loads every producer, so the
 unique-or-unresolved rule still leaves the key unresolved. A Go key whose
-module no stored manifest declares falls back to the corpus-wide scan with
-the same keys, so the answer stays exactly the full-scan answer.
-Measurements are in
+module no stored `go.mod` declares, such as a standard library package, issues
+no definition scan and stays unresolved, like a package key with no producer.
+The Go parser builds a definition's import path from its nearest `go.mod`
+module path, so the defining repository always stores a `go.mod` that matches;
+the loader reads the `module` line with the parser's own rule
+(`internal/storage/postgres/code/producers`, pinned by a parity test against
+the import path the parser stamps). A definition whose `go.mod` content is not in
+`content_files` is not found by the anchor: that happens when an ignore rule
+drops `go.mod` from the content store or the store is out of step with the
+active generation. The key is usually then unresolved, but if the missing
+repository was one of several declaring the same module, the remaining one can
+become the only candidate and the key resolves to it. Package, Go, and other keys run as three separate scans.
+The loader logs one `code call symbol definition load` line per load with the
+key and producer-scope counts and the per-leg durations. Measurements are in
 `docs/internal/evidence/7623-go-module-anchored-loader.md`.
 
 Both scans read each file's `parsed_file_data` once, in a `LATERAL` subquery in
