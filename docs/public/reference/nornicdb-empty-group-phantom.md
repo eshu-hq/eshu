@@ -64,3 +64,37 @@ container per backend (`ESHU_NEO4J_URI`, `ESHU_LIVE_GRAPH_BACKEND`): the
 version-less single-id page resolves to an empty map with no `""` key on
 both legs, and the seeded id still counts 1. RED before the filter on
 NornicDB (`map[:0]`), green after; Neo4j green throughout.
+
+## No-regression evidence
+
+No-Regression Evidence: pure correctness fix measured on the same input
+shape before and after. Anchor unchanged: `MATCH (v:PackageVersion) WHERE
+v.package_id IN $package_ids` on the `package_version_package_id` index;
+the added `WITH ... WHERE package_id IS NOT NULL` filters at most one
+group row per page id (pages hold at most 200 keys per
+`query-source-coverage.yaml`) after the aggregation, with no `ORDER BY`,
+`LIMIT`, or second `MATCH`.
+
+- Backends: `nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...`
+  (self-reports 1.3.3) and `neo4j:2026-community`, warm containers on one
+  shared host; timings are live-test wall time (driver round trip
+  dominated), same fixture, same seeded state both directions.
+- Baseline (old statement, base code): NornicDB FAIL in 0.01 s (the
+  phantom row trips the assertion; the statement itself executes);
+  Neo4j PASS in 0.03 s.
+- After (filtered statement): NornicDB PASS in 0.01 s and 0.00 s (two
+  runs); Neo4j PASS in 0.05 s and 0.02 s (two runs, run-to-run band
+  0.02-0.05 s on the shared host).
+- Row counts: version-less page NornicDB 1 row -> 0 rows, Neo4j 0 -> 0;
+  seeded page 1 row with count 1 on both legs before and after.
+
+No measurable regression on either leg: the NornicDB leg is identical to
+the centisecond, and the Neo4j after-band straddles the baseline. No
+full benchmark: the change adds no scan, no hop, and no extra round
+trip, and the empty-page fast path (caller skips the query) is
+untouched.
+
+No-Observability-Change: row-level correctness fix with no new
+telemetry. The phantom `""` key never reached any API/MCP envelope (both
+callers zero-fill by package id), so no response shape, metric, span,
+log, or status output changes on either backend.
