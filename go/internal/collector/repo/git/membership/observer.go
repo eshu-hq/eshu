@@ -92,18 +92,20 @@ type Observer struct {
 // also logs git_repository_selection_liveness_lapsed: the selector's rows had
 // expired and read as unknown until this evaluation.
 //
-// When req.SweepExpired is set and the store reads succeeded (an evaluated or
-// guard-tripped outcome), it then sweeps rows of every selector that expired
-// more than ExpiredObservationGrace ago, never not_listed rows. A sweep
-// failure is logged as the expired_sweep failure class and leaves the outcome
-// unchanged.
+// When req.SweepExpired is set, a store is wired, and no store call failed
+// (an evaluated, guard-tripped, or listing-truncated outcome), it then sweeps
+// rows of every selector that expired more than ExpiredObservationGrace ago,
+// never not_listed rows. A truncated listing still sweeps: the predicate is
+// time-based and independent of the listing, so a repo limit held below the
+// org size cannot stop the drain. A sweep failure is logged as the
+// expired_sweep failure class and leaves the outcome unchanged.
 func (o Observer) Observe(ctx context.Context, req Request) Result {
 	result, failureClass, err := o.evaluate(ctx, req)
 	if failureClass != "" {
 		result.Outcome = OutcomeStoreError
 		o.storeFailed(ctx, req, failureClass, err)
 	}
-	if req.SweepExpired && (result.Outcome == OutcomeEvaluated || result.Outcome == OutcomeGuardTripped) {
+	if req.SweepExpired && o.Store != nil && sweepsAfter(result.Outcome) {
 		result.ExpiredDeleted, err = o.Store.DeleteExpiredObservations(ctx, req.Now, ExpiredObservationGrace)
 		if err != nil {
 			o.storeFailed(ctx, req, FailureClassExpiredSweep, err)
@@ -122,6 +124,17 @@ func (o Observer) Observe(ctx context.Context, req Request) Result {
 	}
 	o.logEvaluated(ctx, req, result, gap, window)
 	return result
+}
+
+// sweepsAfter reports whether a request with this outcome may run the
+// expired-row sweep: every outcome except a store failure.
+func sweepsAfter(outcome Outcome) bool {
+	switch outcome {
+	case OutcomeEvaluated, OutcomeGuardTripped, OutcomeListingTruncated:
+		return true
+	default:
+		return false
+	}
 }
 
 // evaluationGap is the time since the selector's previous evaluation, zero on

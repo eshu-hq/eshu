@@ -15,7 +15,8 @@
 - It records evidence only. Do not add scope deletion, hiding, retirement, or
   graph writes here. The one deletion is the #7774 sweep of observation rows
   past their window plus `ExpiredObservationGrace`, run once per cycle on the
-  request marked `SweepExpired` after an evaluated or guard-tripped outcome.
+  request marked `SweepExpired` after any outcome but a store error,
+  including a truncated listing, so a held-low repo limit cannot stop it.
   It never deletes `not_listed` rows: the mass-miss guard reads them, and
   deleting them can hold a recovered selector's guard tripped forever. Do not
   remove that exclusion, and keep exactly one `SweepExpired` request per cycle.

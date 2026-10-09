@@ -15,7 +15,7 @@
 //
 // The package only records evidence. It never deletes, hides, or retires a
 // scope and never writes the graph. Once per cycle, on the request marked
-// SweepExpired and after an evaluated or guard-tripped outcome, Observer asks
+// SweepExpired and after any outcome but a store error, Observer asks
 // the Store to delete observation rows that stayed expired for
 // ExpiredObservationGrace past their own liveness window (#7774). The Store
 // never deletes not_listed rows, because the mass-miss guard reads them.

@@ -111,7 +111,7 @@ func qaRequest(listing Listing) Request {
 	return Request{Selector: testSelector, SourceMode: "githubOrg", RepoShardCount: 1, RepoLimit: 4000, Now: cycleOne, LivenessWindow: testWindow, Listing: listing, SweepExpired: true}
 }
 
-func TestObserverTruncatedListingNeverTouchesTheStore(t *testing.T) {
+func TestObserverTruncatedListingNeverEvaluatesAgainstTheStore(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{}

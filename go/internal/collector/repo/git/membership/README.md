@@ -152,13 +152,18 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
 
 The collector marks exactly one request per cycle with `Request.SweepExpired`:
 the githubOrg request, or the last owner's request in explicit mode. After that
-request's `evaluated` or `guard_tripped` outcome, `Observer` calls
+request's `evaluated`, `guard_tripped`, or `listing_truncated` outcome, `Observer` calls
 `Store.DeleteExpiredObservations(now, ExpiredObservationGrace)` once. That
 deletes rows of every selector whose `evaluated_at` plus their own liveness
 window plus `ExpiredObservationGrace` has passed (#7774), except `not_listed`
 rows, which are never deleted. Rows orphaned by a credential rotation, rules
-change, or owner change are the target. A truncated listing, a failed store
-read, or a failed upsert on that request skips the sweep for the cycle.
+change, or owner change are the target. A failed store read or a failed upsert
+on that request skips the sweep for the cycle. A truncated listing still
+sweeps: it writes no rows, and the predicate is time-based and never reads the
+listing, so an `ESHU_REPO_LIMIT` held below the org size cannot stop the drain.
+While truncation lasts, the selector's own rows age out too and, past their
+window plus the grace, are deleted like those of a paused selector (see
+below); they already read `unknown` once expired.
 
 `not_listed` rows stay because the mass-miss guard reads them: a scope whose
 prior row is `not_listed` is not newly unlisted, and a relist is counted only

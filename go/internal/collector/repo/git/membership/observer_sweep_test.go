@@ -49,26 +49,59 @@ func TestObserverSweepsAfterAGuardTrip(t *testing.T) {
 	h.assertDeletedCount(t, 4)
 }
 
-func TestObserverSkipsTheSweepWithoutASuccessfulStoreRead(t *testing.T) {
+// A persistently truncated githubOrg listing must still drain expired rows:
+// the sweep predicate is time-based and never reads the cycle's listing.
+func TestObserverSweepsAfterATruncatedListing(t *testing.T) {
+	t.Parallel()
+
+	_, listing := qaFixture()
+	listing.Complete = false
+	store := &fakeStore{sweepDeleted: 7}
+	h := newObserverHarness(t, store)
+	result := h.observer.Observe(context.Background(), qaRequest(listing))
+	if result.Outcome != OutcomeListingTruncated || len(store.sweeps) != 1 || result.ExpiredDeleted != 7 {
+		t.Fatalf("truncated = %q with %d sweeps and %d deleted, want %q with one sweep deleting 7",
+			result.Outcome, len(store.sweeps), result.ExpiredDeleted, OutcomeListingTruncated)
+	}
+	if store.knownCalls+store.priorCalls+len(store.upserts) != 0 {
+		t.Fatalf("store calls = %d known, %d prior, %d upserts; a truncated listing must not evaluate against the store",
+			store.knownCalls, store.priorCalls, len(store.upserts))
+	}
+	if info := h.logLine(t, "git_repository_selection_evaluated"); info["expired_deleted_count"] != float64(7) {
+		t.Fatalf("evaluated log expired_deleted_count = %v, want 7 (log %v)", info["expired_deleted_count"], info)
+	}
+	h.assertDeletedCount(t, 7)
+}
+
+func TestObserverTruncatedListingWithoutAStoreDoesNotSweep(t *testing.T) {
+	t.Parallel()
+
+	h := newObserverHarness(t, nil)
+	_, listing := qaFixture()
+	listing.Complete = false
+	if result := h.observer.Observe(context.Background(), qaRequest(listing)); result.Outcome != OutcomeListingTruncated || result.ExpiredDeleted != 0 {
+		t.Fatalf("result = %q with %d deleted, want %q with none", result.Outcome, result.ExpiredDeleted, OutcomeListingTruncated)
+	}
+	h.assertNoDeletedCount(t)
+}
+
+func TestObserverSkipsTheSweepAfterAStoreFailure(t *testing.T) {
 	t.Parallel()
 
 	known, listing := qaFixture()
-	truncated := listing
-	truncated.Complete = false
 	cases := []struct {
-		name    string
-		store   *fakeStore
-		listing Listing
+		name  string
+		store *fakeStore
 	}{
-		{name: "truncated listing", store: &fakeStore{known: known}, listing: truncated},
-		{name: "known scopes read failed", store: &fakeStore{knownErr: errors.New("conn reset")}, listing: listing},
-		{name: "upsert failed", store: &fakeStore{known: known, upsertErr: errors.New("deadline")}, listing: listing},
+		{name: "known scopes read failed", store: &fakeStore{knownErr: errors.New("conn reset")}},
+		{name: "observations read failed", store: &fakeStore{known: known, priorErr: errors.New("conn reset")}},
+		{name: "upsert failed", store: &fakeStore{known: known, upsertErr: errors.New("deadline")}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			h := newObserverHarness(t, tc.store)
-			h.observer.Observe(context.Background(), qaRequest(tc.listing))
+			h.observer.Observe(context.Background(), qaRequest(listing))
 			if len(tc.store.sweeps) != 0 {
 				t.Fatalf("sweeps = %d, want none", len(tc.store.sweeps))
 			}
