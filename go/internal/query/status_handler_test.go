@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // fakeStatusReader is an unexported adapter over testutil.FakeStatusReader
@@ -185,7 +186,7 @@ func TestStatusHandlerIndexStatusExposesAWSMaterializationBuckets(t *testing.T) 
 						Retrying:    9,
 					},
 				},
-				QueueBlockages: []statuspkg.QueueBlockage{
+				QueueBlockages: []queue.Blockage{
 					{
 						Stage:          "reducer",
 						Domain:         "iam_can_perform_materialization",
@@ -262,7 +263,7 @@ func TestStatusHandlerIndexStatusIncludesAWSMaterializationBeyondBacklogCap(t *t
 					Domain:      "iam_can_perform_materialization",
 					Outstanding: 3,
 				}),
-				QueueBlockages: []statuspkg.QueueBlockage{
+				QueueBlockages: []queue.Blockage{
 					{
 						Stage:          "reducer",
 						Domain:         "iam_can_perform_materialization",
@@ -316,7 +317,7 @@ func TestStatusHandlerIndexStatusUsesDistinctBlockedWorkItems(t *testing.T) {
 						Outstanding: 1,
 					},
 				},
-				QueueBlockages: []statuspkg.QueueBlockage{
+				QueueBlockages: []queue.Blockage{
 					{
 						Stage:          "reducer",
 						Domain:         "security_group_reachability_materialization",

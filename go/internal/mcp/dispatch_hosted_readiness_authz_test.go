@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestDispatchToolHostedReadinessAllowsScopedRoute(t *testing.T) {
@@ -45,7 +46,7 @@ func TestDispatchToolHostedReadinessAllowsScopedRoute(t *testing.T) {
 					}},
 					CompletenessCounts: []statuspkg.NamedCount{{Name: "completed", Count: 1}},
 				},
-				QueueBlockages: []statuspkg.QueueBlockage{{
+				QueueBlockages: []queue.Blockage{{
 					Stage:       "collector",
 					Domain:      "hosted_collection",
 					ConflictKey: privateConflictKey,

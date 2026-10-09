@@ -16,6 +16,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -433,7 +434,7 @@ func appendNamedCountMap(builder *strings.Builder, counts map[string]int) {
 	}
 }
 
-func localHostProgressFailureText(failure *statuspkg.QueueFailureSnapshot) string {
+func localHostProgressFailureText(failure *queue.FailureSnapshot) string {
 	if failure == nil {
 		return ""
 	}

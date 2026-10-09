@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestDispatchToolCollectorStatusAllowsScopedRoute(t *testing.T) {
@@ -52,7 +53,7 @@ func TestDispatchToolCollectorStatusAllowsScopedRoute(t *testing.T) {
 					LastObservedAt:   now,
 					UpdatedAt:        now,
 				}},
-				QueueBlockages: []statuspkg.QueueBlockage{{
+				QueueBlockages: []queue.Blockage{{
 					Stage:       "collector",
 					Domain:      "hosted_collection",
 					ConflictKey: privateConflictKey,

@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // This file keeps the pre-#6794 standalone status reads as a test oracle.
@@ -201,14 +202,14 @@ func listReducerConflictBlockages(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
-) ([]statuspkg.QueueBlockage, error) {
+) ([]queue.Blockage, error) {
 	rows, err := queryer.QueryContext(ctx, reducerConflictBlockageQuery, asOf)
 	if err != nil {
 		return nil, fmt.Errorf("list reducer conflict blockages: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	blockages := []statuspkg.QueueBlockage{}
+	blockages := []queue.Blockage{}
 	for rows.Next() {
 		var stage string
 		var domain string
@@ -226,7 +227,7 @@ func listReducerConflictBlockages(
 		); scanErr != nil {
 			return nil, fmt.Errorf("list reducer conflict blockages: %w", scanErr)
 		}
-		blockages = append(blockages, statuspkg.QueueBlockage{
+		blockages = append(blockages, queue.Blockage{
 			Stage:          stage,
 			Domain:         domain,
 			ConflictDomain: conflictDomain,
@@ -245,7 +246,7 @@ func listReducerConflictBlockages(
 func readLatestQueueFailure(
 	ctx context.Context,
 	queryer db.Queryer,
-) (*statuspkg.QueueFailureSnapshot, error) {
+) (*queue.FailureSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, latestQueueFailureQuery)
 	if err != nil {
 		return nil, fmt.Errorf("read latest queue failure: %w", err)
@@ -259,7 +260,7 @@ func readLatestQueueFailure(
 		return nil, nil
 	}
 
-	var snapshot statuspkg.QueueFailureSnapshot
+	var snapshot queue.FailureSnapshot
 	var updatedAt sql.NullTime
 	if scanErr := rows.Scan(
 		&snapshot.Stage,

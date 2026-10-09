@@ -41,7 +41,7 @@ type IndexStatus struct {
 	SemanticExtraction SemanticExtractionState `json:"semantic_extraction"`
 }
 
-// QueueBlockage decodes one queue_blockages entry. status.QueueBlockage
+// QueueBlockage decodes one queue_blockages entry. queue.Blockage
 // carries Blocked as an int count of gated rows, not a flag, so the API
 // serializes a number here (go/internal/query/status_mappers.go). Decoding it
 // as a bool aborted the export with a json error precisely when blockage

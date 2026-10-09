@@ -63,6 +63,45 @@ normalizes and renders rows the status reader already gathered.
   `FailureText` above are their post-move exported names). All four must be
   exported on the move or root's call sites will not compile.
 
+## Evidence
+
+No-Regression Evidence (#6949 batch 2, queue family): this change moves
+the two `queue.*` compat entries' Go importers (`QueueBlockage` and
+`QueueFailureSnapshot`, reached as both `status.*` and `statuspkg.*`)
+off the transitional compat spellings onto `queue.Blockage` and
+`queue.FailureSnapshot`, and deletes the emptied `compat_queue.go`. No
+type shape, wire field, SQL text, or executable statement changes:
+across 28 files, every production hunk requalifies an identifier or
+import path only, every other hunk is a package-doc rewording, a
+ledger row, or the compat file's own deletion, and the build resolves
+with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6949-queue-batch2-before,
+ledger:6949-queue-batch2-after). The command is `go test -count=1` over
+the 7 affected package targets (`./internal/status/...`,
+`./internal/query/`, `./internal/mcp/`, `./internal/cli/evbundle/`,
+`./internal/cli/localsupervisor/`, `./internal/storage/postgres/`,
+`./cmd/eshu/`) on baseline `92c17e1457` vs measurement commit
+`a96b7d0b9a` (this Evidence section, the two ledger rows, and
+content-identical rebases tracking main are the only later changes):
+7 packages ok, 0 fail on both sides, with the ok-package set
+byte-identical after timing strip. `go test -list` inventory is
+identical on both sides (6764 tests). Backend/version: go1.26.9
+linux/amd64, in-memory; no backend touched. Input shape: n/a (no
+runtime input). Terminal queue/row counts: none — no queue, lease,
+Cypher, or SQL path is touched. Contract gates green on the branch:
+`verify-openapi.sh` (261/261 routes), `verify-contracttest.sh`, and
+`verify-package-docs.sh`. The change is safe because it cannot alter
+runtime behavior: the compiler resolves the same types through their
+new paths, and the compat deletion is compile-enforced total — any
+missed caller would fail the build.
+
+No-Observability-Change (#6949 batch 2, queue family): this package
+carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in
+any touched package. The status readers, query handlers, cli/mcp
+surfaces, and postgres readers that use these types are untouched;
+operator signals are identical before and after.
+
 ## Related docs
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
