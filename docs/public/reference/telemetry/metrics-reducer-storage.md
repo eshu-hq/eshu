@@ -462,7 +462,7 @@ whether callers are sharing one load or queueing behind many.
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_identity_cache_reload_total` | counter | Loads started, retries inside a flight included. |
+| `eshu_dp_identity_cache_reload_total` | counter | Load attempts, including the one in-flight retry after an epoch move. |
 | `eshu_dp_identity_cache_load_retry_total` | counter | Loads discarded and repeated inside one flight because the epoch moved during the paged load (at most one retry per flight). |
 | `eshu_dp_identity_cache_reload_duration_seconds` | histogram | Duration of every load, cached or not. |
 | `eshu_dp_identity_cache_passthrough_total` | counter | Loads that were not cached. Label `reason`: `cap_exceeded` and `size_unknown` serve the consistent set to its callers uncached; `epoch_moved` and `probe_error` discard an unvalidated set (the leader's item fails with the `identity_epoch_unstable` failure class). |
@@ -471,10 +471,15 @@ whether callers are sharing one load or queueing behind many.
 | `eshu_dp_identity_cache_probe_duration_seconds` | histogram | Duration of the epoch probe, which runs on every call. |
 
 A leader whose epoch moved on both load attempts fails its item with the retryable
-failure class `identity_epoch_unstable`. It appears as `failure_class` on the reducer retry,
-failure and dead-letter metrics and in the work item's `failure_class` column, and it counts
-claim attempts, so the existing attempt limit bounds it. Waiters of that flight show as
-`flight_waiter_total{outcome="torn_set"}`. No item is decided on such a set.
+failure class `identity_epoch_unstable`. No item is decided on such a set. The class is
+the `failure_class` label of `eshu_dp_reducer_retry_surge_total` (every scheduled retry) and, if the
+item exhausts `ESHU_REDUCER_MAX_ATTEMPTS`, of `eshu_dp_queue_dead_letters_total` with
+`queue="reducer"`; the dead-letter row keeps the same class in its `failure_class` column,
+because a self-classifying error keeps its own class when the queue dead-letters it. To
+count repeatedly torn items, use
+`sum(increase(eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}[1h]))`.
+The class counts claim attempts, so the existing attempt limit bounds it. Waiters of that
+flight show as `flight_waiter_total{outcome="torn_set"}`.
 
 A healthy domain shows many `shared` waiters per `reload_total`. A high
 `passthrough_total{reason="epoch_moved"}` means the active set changes faster
