@@ -21,6 +21,15 @@ indexes, alternatives, and justified exceptions. Define:
 An exception needs its affected family, reason, measured cost and proof. A
 sequential scan can be appropriate on small tables or low-selectivity reads.
 Do not require one exact plan when several satisfy the contract and budget.
+The pilot's `max_result_payload_bytes` bounds canonical JSON for one measured
+statement result. It does not include an HTTP or MCP response envelope. The
+validator compares each actual result with this ceiling after checking the
+independent oracle; changing the fixture or page shape requires new measurement
+and a contract update. `selectivity` describes the declared fixture's filters
+and output, not a production-wide estimate. Index-cost notes distinguish
+measured read work from unchanged-schema incremental write/storage cost; they
+do not claim an unmeasured absolute write or storage benefit. Any accepted
+planner exception names its exact emitted variant, cost and evidence artifact.
 
 ## Pilot boundary
 

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -66,6 +67,81 @@ func TestPilotPostgresRegistryMatchesSource(t *testing.T) {
 	}
 	if len(manifest.PilotPostgresFiles) != 1 {
 		t.Fatal("PostgreSQL pilot scope changed without required coverage")
+	}
+}
+
+func TestPilotRegistryDeclaresMeasuredWorkloadShape(t *testing.T) {
+	manifest, err := LoadManifestFile("testdata/handler-hot-cypher.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range manifest.Entries {
+		if entry.Contract == nil {
+			continue
+		}
+		data, err := json.Marshal(entry.Contract.Workload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var workload struct {
+			Selectivity           string `json:"selectivity"`
+			MaxResultPayloadBytes int    `json:"max_result_payload_bytes"`
+		}
+		if err := json.Unmarshal(data, &workload); err != nil {
+			t.Fatal(err)
+		}
+		if workload.Selectivity == "" || workload.MaxResultPayloadBytes <= 0 {
+			t.Errorf("%s: selectivity and measured payload bytes required: %+v", entry.ID, workload)
+		}
+	}
+}
+
+func TestPilotEvidenceRejectsOversizeResultPayload(t *testing.T) {
+	manifest, evidence := pilotEvidenceFixture()
+	if err := ValidatePilotEvidence(manifest, &evidence); err != nil {
+		t.Fatalf("valid fixture evidence: %v", err)
+	}
+	manifest.Entries[0].Contract.Workload.MaxResultPayloadBytes = 22
+	evidence.Entries[0].ContractSHA256 = PilotContractSHA256(*manifest.Entries[0].Contract)
+	if err := ValidatePilotEvidence(manifest, &evidence); err == nil || !strings.Contains(err.Error(), "result payload") {
+		t.Fatalf("oversize result payload accepted: %v", err)
+	}
+}
+
+func TestPilotWorkloadRequiredFieldsFailClosed(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*PilotWorkload)
+		want   string
+	}{
+		{"missing selectivity", func(workload *PilotWorkload) { workload.Selectivity = "" }, "selectivity"},
+		{"missing payload size", func(workload *PilotWorkload) { workload.MaxResultPayloadBytes = 0 }, "max_result_payload_bytes"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manifest, _ := pilotEvidenceFixture()
+			tc.change(&manifest.Entries[0].Contract.Workload)
+			if err := ValidatePilotContracts(manifest); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("invalid workload accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestPilotRegistryDesignPatternsAreFamilySpecific(t *testing.T) {
+	manifest, err := LoadManifestFile("testdata/handler-hot-cypher.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]string)
+	for _, entry := range manifest.Entries {
+		if entry.Contract == nil {
+			continue
+		}
+		pattern := strings.Join(entry.Contract.Patterns, "|") + "|" + entry.Contract.Rationale
+		if earlier, ok := seen[pattern]; ok {
+			t.Errorf("%s reuses %s design pattern and rationale", entry.ID, earlier)
+		}
+		seen[pattern] = entry.ID
 	}
 }
 

@@ -54,13 +54,15 @@ type PilotScopePredicate struct {
 
 // PilotWorkload records representative corpus shape and explicit budgets.
 type PilotWorkload struct {
-	Cardinality string `yaml:"cardinality" json:"cardinality"`
-	Skew        string `yaml:"skew" json:"skew"`
-	Depth       string `yaml:"depth" json:"depth"`
-	Fanout      string `yaml:"fanout" json:"fanout"`
-	Payload     string `yaml:"payload" json:"payload"`
-	QueryCount  string `yaml:"query_count" json:"query_count"`
-	Budgets     string `yaml:"budgets" json:"budgets"`
+	Cardinality           string `yaml:"cardinality" json:"cardinality"`
+	Selectivity           string `yaml:"selectivity" json:"selectivity"`
+	Skew                  string `yaml:"skew" json:"skew"`
+	Depth                 string `yaml:"depth" json:"depth"`
+	Fanout                string `yaml:"fanout" json:"fanout"`
+	Payload               string `yaml:"payload" json:"payload"`
+	MaxResultPayloadBytes int    `yaml:"max_result_payload_bytes" json:"max_result_payload_bytes"`
+	QueryCount            string `yaml:"query_count" json:"query_count"`
+	Budgets               string `yaml:"budgets" json:"budgets"`
 }
 
 // PilotBudget holds explicit per-case normal-run ceilings. NoiseTolerance
@@ -176,7 +178,7 @@ func validatePilotContract(entry Entry) []string {
 		"duplicates": c.Duplicates, "ordering": c.Ordering,
 		"pagination": c.Pagination, "partial": c.Partial,
 		"rationale": c.Rationale, "index_cost": c.IndexCost,
-		"cardinality": c.Workload.Cardinality, "skew": c.Workload.Skew,
+		"cardinality": c.Workload.Cardinality, "selectivity": c.Workload.Selectivity, "skew": c.Workload.Skew,
 		"depth": c.Workload.Depth, "fanout": c.Workload.Fanout,
 		"payload": c.Workload.Payload, "query_count": c.Workload.QueryCount,
 		"budgets": c.Workload.Budgets,
@@ -188,6 +190,9 @@ func validatePilotContract(entry Entry) []string {
 		if strings.TrimSpace(value) == "" {
 			violations = append(violations, fmt.Sprintf("%s: missing pilot %s", entry.ID, label))
 		}
+	}
+	if c.Workload.MaxResultPayloadBytes <= 0 {
+		violations = append(violations, fmt.Sprintf("%s: measured max_result_payload_bytes must be positive", entry.ID))
 	}
 	if len(c.Patterns) == 0 || len(c.Alternatives) == 0 {
 		violations = append(violations, fmt.Sprintf("%s: patterns and alternatives are required", entry.ID))

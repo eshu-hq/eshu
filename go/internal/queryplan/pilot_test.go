@@ -27,7 +27,7 @@ func pilotEvidenceFixture() (Manifest, PilotEvidenceArtifact) {
 		Duplicates: "one row per uid", Ordering: "uid ascending", Pagination: "keyset",
 		Partial: "fail closed", Patterns: []string{"owner ledger"}, Rationale: "bounded page",
 		Alternatives: []string{"graph scan"}, IndexCost: "one owner index",
-		Workload:      PilotWorkload{Cardinality: "20000", Skew: "hot owner", Depth: "0", Fanout: "1", Payload: "uid", QueryCount: "1", Budgets: "2s"},
+		Workload:      PilotWorkload{Cardinality: "20000", Selectivity: "one UID among 20000 owners", Skew: "hot owner", Depth: "0", Fanout: "1", Payload: "uid", MaxResultPayloadBytes: 23, QueryCount: "1", Budgets: "2s"},
 		Budget:        PilotBudget{MaxNormalMilliseconds: 2000, MaxQueryCount: 1, MaxWork: map[string]float64{"shared_blocks": 100}, NoiseTolerance: "fixture samples below ceiling"},
 		Environment:   PilotEnvironment{Engine: "postgres", Version: "18", Schema: "schema-v1", Indexes: "owner-index", Fixture: "fixture-v1", Oracle: "fixture-oracle", Runner: "sql-runner"},
 		RequiredCases: []PilotCase{{VariantID: "v1", CaseID: "normal", ScopeMode: "all_scopes", QuerySHA256: queryHash}},

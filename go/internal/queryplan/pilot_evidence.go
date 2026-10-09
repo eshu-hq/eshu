@@ -278,6 +278,19 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 		if !jsonEqual(candidate.Expected, candidate.Base.Result) || !jsonEqual(candidate.Expected, candidate.Candidate.Result) || !jsonEqual(candidate.Actual, candidate.Candidate.Result) {
 			violations = append(violations, fmt.Sprintf("%s/%s: base/candidate results differ from independent expected rows", entry.ID, key))
 		}
+		if json.Valid(candidate.Actual) {
+			var decoded any
+			if err := json.Unmarshal(candidate.Actual, &decoded); err != nil {
+				violations = append(violations, fmt.Sprintf("%s/%s: result payload cannot be decoded: %v", entry.ID, key, err))
+			} else {
+				canonical, err := json.Marshal(decoded)
+				if err != nil {
+					violations = append(violations, fmt.Sprintf("%s/%s: result payload cannot be encoded: %v", entry.ID, key, err))
+				} else if len(canonical) > entry.Contract.Workload.MaxResultPayloadBytes {
+					violations = append(violations, fmt.Sprintf("%s/%s: result payload %d bytes exceeds declared %d-byte maximum", entry.ID, key, len(canonical), entry.Contract.Workload.MaxResultPayloadBytes))
+				}
+			}
+		}
 		if candidate.Base.ColdPreparation != coldMode || candidate.Candidate.ColdPreparation != coldMode {
 			violations = append(violations, fmt.Sprintf("%s/%s: cold preparation differs from environment declaration", entry.ID, key))
 		}
