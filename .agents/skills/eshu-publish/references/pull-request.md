@@ -55,7 +55,8 @@ guess` beats `fix #5572`.
 - Counts by package, lists of files, and hashes go in `<details>`. The reader
   needs the total and the risk, not the breakdown.
 - Omit a section that has nothing to say. A one-line docs PR needs a lead and
-  a proof line, not nine headings.
+  a proof line, not nine headings. The glance table is optional for a body
+  under 600 characters with no heading.
 - After you capture the `ci-gates review-attest` claims file, do not edit the
   title or body.
 

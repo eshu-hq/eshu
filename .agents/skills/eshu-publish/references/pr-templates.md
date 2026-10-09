@@ -6,7 +6,8 @@ Delete a section that has nothing to say. Then run
 
 Rules for all four:
 
-- The first line is `Refs #N.` or `Fixes #N.`.
+- The first line is `Refs #N.`. Use `Fixes #N.` only when the issue must close on
+  merge.
 - The lead is bold and has 45 words or fewer.
 - The glance table has the header `| At a glance | |` and 4 rows. Each row is one
   sentence. Put counts by package, file lists, and hashes in `<details>`, not in

@@ -52,7 +52,8 @@ reports.
 - **Headings.** Use `Problem`, `Expected`, `Acceptance criteria` for issues and
   `Problem`, `What changed`, `Proof` for PRs. These match the best existing
   issues and PRs.
-- **Paragraphs.** One topic each. Keep one under about 600 characters. Split a
+- **Paragraphs.** One topic each. Keep one under about 600 characters. The
+  shape check warns above 600 bytes and fails above 800. Split a
   longer one or turn it into a list.
 - **Lists and tables.** Use a list for 3 or more steps, or for 3 or more
   conditions. Use a table to compare before and after, or claim and evidence.
@@ -95,9 +96,9 @@ breaks them first.
 ## Check the draft
 
 1. Read the lead alone. Does it stand without the rest?
-2. Run the shape check on the exact text. It fails a PR body without a
-   `Refs #N.` first line, a bold lead, or the glance table, and any prose
-   paragraph over 600 characters. Fix every `FAIL` line.
+2. Run the shape check on the draft, before you capture the review receipt. It
+   fails a PR body without a `Refs #N.` first line, a bold lead, or the glance
+   table, and any prose paragraph over 800 bytes. Fix every `FAIL` line.
 
 ```bash
 bash .agents/skills/eshu-publish/scripts/check-shape.sh --pr body.md
