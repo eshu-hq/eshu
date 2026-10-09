@@ -97,10 +97,16 @@ RETURN
 // ResidualByLabelsCypher groups the unreachable nodes by label set, so a
 // failing census names the shape without printing any id. It is bounded by
 // LIMIT and runs only after [CensusCypher] reports a residual.
+//
+// The two reachability booleans are computed in a WITH, never in the WHERE: a
+// quantifier over labels() inside a WHERE is a label predicate NornicDB does
+// not evaluate (#6786 X11), and the WHERE here holds only boolean variables.
 const ResidualByLabelsCypher = `MATCH (n)
 WHERE n.id IS NOT NULL
-  AND NOT any(l IN labels(n) WHERE l IN $id_labels)
-  AND NOT (coalesce(n.uid = n.id, false) AND any(l IN labels(n) WHERE l IN $uid_labels))
+WITH n,
+  any(l IN labels(n) WHERE l IN $id_labels) AS via_id,
+  (coalesce(n.uid = n.id, false) AND any(l IN labels(n) WHERE l IN $uid_labels)) AS via_uid
+WHERE NOT via_id AND NOT via_uid
 RETURN labels(n) AS labels, count(*) AS nodes
 ORDER BY nodes DESC
 LIMIT 20`
