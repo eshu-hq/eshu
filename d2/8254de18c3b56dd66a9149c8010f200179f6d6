@@ -1,0 +1,21 @@
+scripts/dev/test-docker-publish-ci-mirror-mode.sh
+  s_b0d7e3abc26c5a::t_42c7986b7870ff 44-51,98,110-111,118-120
+  s_b0d7e3abc26c5a::t_457a1096abdaa3 234-247
+  s_b0d7e3abc26c5a::t_fdf4327eaad297 248-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d28254de18c3b56dd66a9149c8010f200179f6d6",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
