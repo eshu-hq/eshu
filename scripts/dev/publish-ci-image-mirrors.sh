@@ -43,15 +43,30 @@ fi
 publish_one() {
   local name="$1" source="$2" target="$3" expected="$4" observed
 
+  if observed="$("${crane_bin}" digest "${target}" 2>/dev/null)"; then
+    if [[ "${observed}" != "${expected}" ]]; then
+      printf '%s existing tag conflict: got %s, want %s\n' "${name}" "${observed}" "${expected}" >&2
+      exit 1
+    fi
+    printf 'already published %s %s %s\n' "${name}" "${target}" "${observed}"
+    return 0
+  fi
+
   observed="$("${crane_bin}" digest "${source}")"
   if [[ "${observed}" != "${expected}" ]]; then
     printf '%s source digest mismatch: got %s, want %s\n' "${name}" "${observed}" "${expected}" >&2
     exit 1
   fi
 
-  # no-clobber makes a pre-existing tag with the wrong bytes an error, not an
-  # overwrite. Crane copies the complete OCI index and its child manifests.
-  "${crane_bin}" cp --no-clobber "${source}" "${target}"
+  # A pre-existing tag cannot be overwritten. If another publisher wins the
+  # race after our precheck, accept only its exact expected digest.
+  if ! "${crane_bin}" cp --no-clobber "${source}" "${target}"; then
+    if ! observed="$("${crane_bin}" digest "${target}" 2>/dev/null)" ||
+        [[ "${observed}" != "${expected}" ]]; then
+      printf '%s copy failed and destination is not the approved digest\n' "${name}" >&2
+      exit 1
+    fi
+  fi
   observed="$("${crane_bin}" digest "${target}")"
   if [[ "${observed}" != "${expected}" ]]; then
     printf '%s destination digest mismatch: got %s, want %s\n' "${name}" "${observed}" "${expected}" >&2

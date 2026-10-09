@@ -50,11 +50,19 @@ case "${command_name}" in
   cp)
     [[ "$1" == '--no-clobber' ]] || exit 3
     case "$3" in
-      *ci-postgres-alpine:18) touch "${CRANE_STATE}/alpine" ;;
-      *ci-postgres-bookworm:18.6) touch "${CRANE_STATE}/bookworm" ;;
-      *ci-neo4j-community:2026) touch "${CRANE_STATE}/neo4j" ;;
+      *ci-postgres-alpine:18) name=alpine ;;
+      *ci-postgres-bookworm:18.6) name=bookworm ;;
+      *ci-neo4j-community:2026) name=neo4j ;;
       *) exit 4 ;;
     esac
+    [[ ! -f "${CRANE_STATE}/${name}" ]] || exit 1
+    if [[ "${CRANE_COPY_FAIL_ON:-}" == "${name}" ]]; then
+      exit 1
+    fi
+    touch "${CRANE_STATE}/${name}"
+    if [[ "${CRANE_RACE_TARGET:-}" == "${name}" ]]; then
+      exit 1
+    fi
     ;;
   *) exit 5 ;;
 esac
@@ -116,7 +124,29 @@ rg -q '^cp --no-clobber mirror.gcr.io/library/neo4j:2026-community@sha256:eabfbb
 # to bootstrap the packages before consumers depend on them.
 export GITHUB_REF=refs/heads/fix/ci-owned-image-mirror-20261009
 bash "${publisher}" publish > "${scratch}/out"
-[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 6 ]] || fail 'bootstrap branch could not copy all three images'
+[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'same-byte rerun tried to overwrite existing tags'
+
+export CRANE_BAD_DEST=true
+expect_failure bash "${publisher}" publish
+[[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'wrong-byte existing tag was copied over'
+unset CRANE_BAD_DEST
+
+# A first run may stop after one tag; the next run must preserve it and resume.
+rm -- "${scratch}/bookworm" "${scratch}/neo4j"
+export CRANE_COPY_FAIL_ON=bookworm
+expect_failure bash "${publisher}" publish
+unset CRANE_COPY_FAIL_ON
+[[ -f "${scratch}/alpine" && ! -f "${scratch}/bookworm" && ! -f "${scratch}/neo4j" ]] ||
+  fail 'partial first run changed unexpected tags'
+bash "${publisher}" publish > "${scratch}/out"
+[[ -f "${scratch}/bookworm" && -f "${scratch}/neo4j" ]] || fail 'partial run did not resume'
+
+# A concurrent publisher can win between the precheck and no-clobber copy.
+rm -- "${scratch}/neo4j"
+export CRANE_RACE_TARGET=neo4j
+bash "${publisher}" publish > "${scratch}/out"
+unset CRANE_RACE_TARGET
+[[ -f "${scratch}/neo4j" ]] || fail 'race winner not accepted after digest recheck'
 
 export CRANE_BAD_DEST=true
 expect_failure bash "${publisher}" verify-public
