@@ -72,6 +72,9 @@ PACKAGES = {
         "go/internal/storage/postgres/package_manifest_consumption_migration_upgrade_live_test.go": (
             "TestPackageManifestConsumptionMigrationsUpgradeAfterSecretLinesLive",
         ),
+        "go/internal/storage/postgres/prefetch_batch_plan_live_test.go": (
+            "TestPrefetchBatchQueriesUsePrimaryKeyLive",
+        ),
         "go/internal/storage/postgres/ingestion_flux_evidence_identity_live_test.go": (
             "TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively",
             "TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist",
