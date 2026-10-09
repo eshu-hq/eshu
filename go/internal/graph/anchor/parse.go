@@ -42,8 +42,8 @@ type parsedStatement struct {
 	writes        []idWrite
 	occurrences   map[string][]occurrence
 	unwindAliases map[string]string
-	// adds and removals are the SET n:L and REMOVE n:L label operations.
-	adds, removals []labelOp
+	// removals are the REMOVE n:L label operations.
+	removals []labelOp
 }
 
 // labelsOf returns the sorted labels of the write's variable: the labels of
@@ -184,13 +184,12 @@ func parseStatement(raw string) parsedStatement {
 				}
 				offset += len(item) + 1
 			}
-			parsed.adds = append(parsed.adds, parseLabelItems(text[clause.end:end], clause.end)...)
 		case "REMOVE":
 			parsed.removals = append(parsed.removals, parseLabelItems(text[clause.end:end], clause.end)...)
 		case "MERGE", "CREATE":
-			// Fail closed: an id key left in a write clause after the node
-			// patterns and relationship brackets are masked sits in a shape the
-			// parser did not place, so no label can be proven for it.
+			// An id key left in a write clause after the node patterns and
+			// relationship brackets are masked sits in a shape the parser did not
+			// place, so no label can be proven for it: report it.
 			if idKeyInMap.MatchString(maskedSpan(text, clause.end, end, nodeRanges)) {
 				parsed.writes = append(parsed.writes, idWrite{kind: KindMapKey, pos: clause.end})
 			}

@@ -150,10 +150,17 @@ func backtickMask(text string) []bool {
 	return mask
 }
 
-// removalFindings returns a finding for each REMOVE n:L of an anchor label that
-// leaves n with no anchor label: labels still on n from its pattern, plus labels
-// the statement adds, minus every label the statement removes from n.
+// removalFindings returns a finding for each REMOVE n:L of an anchor label in a
+// statement that also writes n's id (a map key, a SET property, or a dynamic
+// map), unless n still carries an anchor label from a pattern in the same
+// statement after every removal. A REMOVE in a statement that writes no id (the
+// tfstate label swap) is not reported: the scan cannot say the node carries an
+// id.
 func removalFindings(p parsedStatement, statement Statement, anchorLabels map[string]bool) []Finding {
+	writesID := make(map[string]bool)
+	for _, write := range p.writes {
+		writesID[write.variable] = true
+	}
 	removed := make(map[string]map[string]bool)
 	for _, op := range p.removals {
 		if removed[op.variable] == nil {
@@ -166,21 +173,18 @@ func removalFindings(p parsedStatement, statement Statement, anchorLabels map[st
 	var findings []Finding
 	reported := make(map[string]bool)
 	for _, op := range p.removals {
+		if !writesID[op.variable] || reported[op.variable] {
+			continue
+		}
 		stripsAnchor := false
 		for _, label := range op.labels {
 			stripsAnchor = stripsAnchor || anchorLabels[label]
 		}
-		if !stripsAnchor || reported[op.variable] {
+		if !stripsAnchor {
 			continue
 		}
-		remaining := p.labelsOf(idWrite{variable: op.variable, pos: op.pos})
-		for _, add := range p.adds {
-			if add.variable == op.variable {
-				remaining = append(remaining, add.labels...)
-			}
-		}
 		stillAnchored := false
-		for _, label := range remaining {
+		for _, label := range p.labelsOf(idWrite{variable: op.variable, pos: op.pos}) {
 			if anchorLabels[label] && !removed[op.variable][label] {
 				stillAnchored = true
 			}

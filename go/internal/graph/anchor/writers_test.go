@@ -103,7 +103,7 @@ func TestCheckWriters(t *testing.T) {
 			wantWrites: 0,
 		},
 		{
-			name:       "a dynamic map on an unconstrained label fails closed without parameters",
+			name:       "a dynamic map on an unconstrained label is a finding without parameters",
 			text:       "UNWIND $rows AS row MERGE (n:Unconstrained {uid: row.uid}) SET n += row.props",
 			wantWrites: 1,
 			wantKinds:  []string{"dynamic_map"},
@@ -133,7 +133,7 @@ func TestCheckWriters(t *testing.T) {
 			wantWrites: 0,
 		},
 		{
-			name:       "an unresolvable dynamic map expression fails closed",
+			name:       "an unresolvable dynamic map expression is a finding",
 			text:       "MERGE (n:Unconstrained {uid: $uid}) SET n += apoc.map.merge($a, $b)",
 			params:     `{"uid":"u","a":{},"b":{}}`,
 			wantWrites: 1,
@@ -192,7 +192,7 @@ func TestLabelsIsTheUnionOfBothConstraintSets(t *testing.T) {
 
 // Shapes the first parser read wrongly and failed open on (review F4). Each is
 // a real Cypher write of an id on an uncovered label; each must be a finding.
-func TestCheckWritersFailsClosedOnShapesItCannotParse(t *testing.T) {
+func TestCheckWritersUnparsedShapes(t *testing.T) {
 	tests := []struct {
 		name   string
 		text   string
@@ -241,12 +241,12 @@ func TestCheckWritersFailsClosedOnShapesItCannotParse(t *testing.T) {
 			kind:   KindDynamicMap,
 		},
 		{
-			name: "a dynamic property key without parameters fails closed",
+			name: "a dynamic property key without parameters is a finding",
 			text: "MERGE (n:Unconstrained {uid: $u}) SET n[$k] = $v",
 			kind: KindDynamicMap,
 		},
 		{
-			name: "a property map with a nested map is not placed, and its id key still fails closed",
+			name: "a property map with a nested map is not placed, and its id key is still reported",
 			text: "MERGE (n:Function {id: $id, meta: {a: 1}})",
 			kind: KindMapKey,
 		},
@@ -297,10 +297,10 @@ func TestCheckWritersStricterParserKeepsCoveredWritesClean(t *testing.T) {
 	}
 }
 
-// Round-2 shapes (review F4-r2): each is valid Cypher that writes an id on a
+// Pattern-context, parameter-map, SET-target, rebinding, and backtick shapes: each is valid Cypher that writes an id on a
 // node with no anchor label, and each must be a finding. Rows are grouped by
 // the parser mechanism they exercise.
-func TestCheckWritersRound2FailOpenShapes(t *testing.T) {
+func TestCheckWritersPatternContextShapes(t *testing.T) {
 	tests := []struct {
 		name   string
 		text   string
@@ -349,7 +349,7 @@ func TestCheckWritersRound2FailOpenShapes(t *testing.T) {
 
 // Counterpart rows: the stricter parser keeps covered writes, proven writes,
 // and a rebound variable that stays covered clean.
-func TestCheckWritersRound2KeepsCoveredWritesClean(t *testing.T) {
+func TestCheckWritersPatternContextKeepsCoveredWritesClean(t *testing.T) {
 	clean := []struct{ name, text, params string }{
 		{"A covered pattern after a comprehension", "CREATE (a:Function {uid: [x IN $l WHERE x <> ''][0]}), (n:Function {id: $id})", ""},
 		{"B parameter map proven without id", "CREATE (n:Unconstrained $props)", `{"props":{"name":"x"}}`},
@@ -369,10 +369,9 @@ func TestCheckWritersRound2KeepsCoveredWritesClean(t *testing.T) {
 	}
 }
 
-// Hunt rows (round 2): more shapes in the same families as the reviewer's
-// table, found by walking clause context, SET targets, property maps, and
+// Rebinding, SET-target, and procedure shapes found by walking clause context, SET targets, property maps, and
 // variable rebinding. Each must be a finding.
-func TestCheckWritersRound2HuntRows(t *testing.T) {
+func TestCheckWritersRebindingAndProcedureShapes(t *testing.T) {
 	tests := []struct{ name, text, params string }{
 		{"rebound by WITH AS to an uncovered node", "MATCH (n:Function {uid: $u}) MATCH (m:Unconstrained {uid: $v}) WITH m AS n SET n.id = $v", ""},
 		{"SET target is a list index expression", "MERGE (n:Unconstrained {uid: $u}) SET [n][0].id = $u", ""},

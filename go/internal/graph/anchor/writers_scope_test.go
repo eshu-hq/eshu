@@ -5,10 +5,10 @@ package anchor
 
 import "testing"
 
-// Round-3 shapes (review F4-r3): valid Cypher that leaves an id on a node with
+// Scope, SET-target, and label-removal shapes: valid Cypher that leaves an id on a node with
 // no anchor label. Each row must be a finding of the named kind; the clean rows
 // beside them keep the stricter parser from turning production writes red.
-func TestCheckWritersRound3FailOpenShapes(t *testing.T) {
+func TestCheckWritersScopeTargetAndRemovalShapes(t *testing.T) {
 	tests := []struct {
 		name   string
 		text   string
@@ -29,7 +29,7 @@ func TestCheckWritersRound3FailOpenShapes(t *testing.T) {
 		{"REMOVE the anchor label then SET id", "MATCH (n:Function {uid: $u}) REMOVE n:Function SET n.id = $u", "", KindLabelRemoval},
 		{"SET id then REMOVE the anchor label", "MATCH (n:Function {uid: $u}) SET n.id = $u REMOVE n:Function", "", KindLabelRemoval},
 		{"CREATE with id then REMOVE the label", "CREATE (n:Function {id: $id}) REMOVE n:Function", "", KindLabelRemoval},
-		{"REMOVE one of several labels names it", "MATCH (n:Function:Repository) REMOVE n:Function, n:Repository", "", KindLabelRemoval},
+		{"REMOVE every anchor label of an id-written node", "MATCH (n:Function:Repository {uid: $u}) SET n.id = $u REMOVE n:Function, n:Repository", "", KindLabelRemoval},
 		// D: an unlabeled re-declaration after a WITH that does not project the name.
 		{"unlabeled MATCH after WITH drops n", "MATCH (n:Function {uid: $u}) WITH n.uid AS u MATCH (n) WHERE n.uid = u SET n.id = u", "", KindSetProperty},
 		{"unlabeled MATCH after UNION", "MATCH (n:Function) RETURN n.uid AS u UNION MATCH (n) SET n.id = 1 RETURN n.uid AS u", "", KindSetProperty},
@@ -52,13 +52,15 @@ func TestCheckWritersRound3FailOpenShapes(t *testing.T) {
 	}
 }
 
-func TestCheckWritersRound3KeepsProductionShapesClean(t *testing.T) {
+func TestCheckWritersScopeTargetAndRemovalKeepProductionClean(t *testing.T) {
 	clean := []struct{ name, text, params string }{
 		{"relationship id write is still skipped", "MATCH (a:Function)-[r:R]->(b:Function) SET r.id = $id", ""},
 		{"relationship id map is still skipped", "MATCH (a:Function), (b:Function) MERGE (a)-[r:LINKS {id: $id}]->(b)", ""},
 		{"backtick property of a plain variable", "MERGE (n:Function {uid: $u}) SET n.`my prop` = 1, n.name = $x", ""},
 		{"non-ASCII property of a plain variable", "MERGE (n:Function {uid: $u}) SET n.é = 1", ""},
-		{"label swap that keeps an anchor label (the tfstate migration)", "MATCH (r:Function) WHERE r.uid IN $uids SET r:Repository REMOVE r:Function", ""},
+		{"label swap that writes no id (the tfstate migration shape)", "MATCH (r:Function) WHERE r.uid IN $uids AND r.evidence_source = 'projector/tfstate' SET r:Repository REMOVE r:Function", ""},
+		{"REMOVE of one anchor label while another stays on an id-written node", "MATCH (n:Function:Repository {uid: $u}) SET n.id = $u REMOVE n:Function", ""},
+		{"REMOVE of an anchor label in a statement that writes no id", "MATCH (n:Function) REMOVE n:Function", ""},
 		{"REMOVE of a non-anchor label", "MATCH (n:Unconstrained) REMOVE n:Unconstrained", ""},
 		{"REMOVE of a property", "MATCH (n:Function) REMOVE n.stale", ""},
 		{"WITH projects the variable", "MATCH (n:Function {uid: $u}) WITH n, count(*) AS c SET n.id = $u", ""},

@@ -119,7 +119,7 @@ func TestSweepSeesTheShapesItWasTaught(t *testing.T) {
 		},
 		{
 			name:        "label removal that strands the node",
-			source:      "package planted\n\nconst planted = `MATCH (n:Function {uid: $u}) REMOVE n:Function`\n",
+			source:      "package planted\n\nconst planted = `MATCH (n:Function {uid: $u}) SET n.id = $u REMOVE n:Function`\n",
 			wantFailure: true,
 		},
 		{
