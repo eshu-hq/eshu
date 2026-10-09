@@ -117,6 +117,39 @@ touched package. The collector, reducer, and projector telemetry that reads
 and writes facts of these kinds is untouched; operator signals are identical
 before and after.
 
+No-Regression Evidence (#6950 batch 4a, cloud kubernetes_live stanza): this
+change moves the ten `cloud.*` kubernetes_live compat entries' Go importers
+(eight fact-kind and schema-version constants plus the
+`KubernetesLiveFactKinds`/`KubernetesLiveSchemaVersion` accessors) off the
+transitional `facts.Kubernetes*` compat spellings and deletes the emptied
+stanza from `compat_cloud.go`. No fact-kind string, payload shape, registry
+entry, or executable statement changes: across 37 files, every production
+hunk requalifies an identifier or import path only, every other hunk is this
+note, a ledger row, or the stanza's own deletion, and the build resolves
+with no dangling reference.
+Measurement: identical before/after outcomes (ledger:6950-cloud-batch4a-before, ledger:6950-cloud-batch4a-after). The command is `go test -count=1`
+over the 9 affected package targets (per-side counts in the
+cited rows) on baseline `ee0d7d5e5b` vs measurement commit `305c506c8d`
+(this Evidence note and the two ledger rows are the only later changes):
+14 packages ok, 0 fail on both sides, with the ok-package set byte-identical
+after timing strip. `go test -list` inventory is identical on both sides
+(1431 names). Backend/version: go1.26.9 linux/amd64, in-memory; no backend
+touched. Input shape: n/a (no runtime input). Terminal queue/row counts:
+none — no queue, lease, Cypher, or SQL path is touched. Contract gates green
+on the branch: `verify-fact-kind-registry.sh` (generated artifacts
+byte-identical), `verify-factschema-diff.sh` (no breaking changes),
+`verify-payload-usage-manifest.sh`, and `verify-contracttest.sh`. The change
+is safe because it cannot alter runtime behavior: the compiler resolves the
+same constants through their new paths, and the compat deletion is
+compile-enforced total — any missed caller would fail the build.
+
+No-Observability-Change (#6950 batch 4a, cloud kubernetes_live stanza): this
+package carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in any
+touched package. The collector, reducer, and projector telemetry that reads
+and writes facts of these kinds is untouched; operator signals are identical
+before and after.
+
 ## Related docs
 
 - `docs/public/reference/fact-schema-versioning.md`
