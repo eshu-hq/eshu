@@ -65,8 +65,9 @@ const identityFactFilterSQL = `(
 // rides on the ordered scan of fact_records_identity_epoch_idx_v2 and the
 // LIMIT stops that scan after about one page of rows. PostgreSQL folds the
 // constant away during planning, so it costs nothing at run time.
-// TestIdentityPageQueryPlanRidesOrderedIndexLive pins the plan on a real
-// server (verified on PostgreSQL 18); the text-shape asserts in
+// TestIdentityPageQueryPlanRidesOrderedIndexLive pins the plan, first page and
+// mid-load page, on a real server in the postgres_ci lane (verified on
+// PostgreSQL 18); the text-shape asserts in
 // TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 // only keep the "OR FALSE" from being deleted.
 //

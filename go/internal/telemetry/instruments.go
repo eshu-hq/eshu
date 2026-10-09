@@ -2374,9 +2374,10 @@ type Instruments struct {
 	IdentityCacheMissTotal metric.Int64Counter
 	// IdentityCacheReloadTotal counts identity-fact cache reloads (singleflight leader) (#5438).
 	IdentityCacheReloadTotal metric.Int64Counter
-	// IdentityCachePassthroughTotal counts identity-fact loads served to their
-	// flight without being cached, by reason (epoch_moved, cap_exceeded,
-	// size_unknown, probe_error) (#5438, #7805).
+	// IdentityCachePassthroughTotal counts identity-fact loads that were not
+	// cached, by reason: cap_exceeded and size_unknown serve the consistent set
+	// uncached; epoch_moved and probe_error discard an unvalidated set (#5438,
+	// #7805).
 	IdentityCachePassthroughTotal metric.Int64Counter
 	// IdentityCacheFlightWaiterTotal counts callers that arrived while an
 	// identity-fact load was in flight, by outcome (shared, shared_error,
@@ -6179,7 +6180,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IdentityCachePassthroughTotal, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_passthrough_total",
-		metric.WithDescription("Total identity-fact loads served to their flight without being cached, by reason (epoch_moved, cap_exceeded, size_unknown, probe_error)"),
+		metric.WithDescription("Total identity-fact loads that were not cached, by reason: cap_exceeded and size_unknown serve the consistent set uncached; epoch_moved and probe_error discard an unvalidated set"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCachePassthroughTotal counter: %w", err)

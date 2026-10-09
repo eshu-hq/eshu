@@ -26,6 +26,7 @@ import (
 // was served from.
 type flightQueryer struct {
 	epoch       atomic.Int64
+	probeCalls  atomic.Int64
 	loadCalls   atomic.Int64
 	loadStarted chan struct{}
 	gate        chan struct{}
@@ -35,6 +36,19 @@ type flightQueryer struct {
 	loadErr   error
 	// loadPanic makes a load panic once its gate opens.
 	loadPanic bool
+	// parkProbeCall, when non-zero, parks the numbered epoch probe (1-based)
+	// AFTER it has read the epoch value: it signals probeReached, waits for
+	// probeRelease, then returns the value it read. A test uses it to hold a
+	// leader between its validating post-load probe and the end of its flight.
+	parkProbeCall int64
+	probeReached  chan struct{}
+	probeRelease  chan struct{}
+	// failProbeAfterLoad makes the first epoch probe issued after a load page
+	// has been served return an error (once). That is the leader's validating
+	// post-load probe; waiters probe before the load is released.
+	failProbeAfterLoad bool
+	loadsServed        atomic.Int64
+	probeFailed        atomic.Bool
 }
 
 func newFlightQueryer(epoch int64) *flightQueryer {
@@ -52,8 +66,17 @@ func (q *flightQueryer) ExecContext(context.Context, string, ...any) (sql.Result
 
 func (q *flightQueryer) QueryContext(ctx context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "LIMIT") {
+		n := q.probeCalls.Add(1)
+		if q.failProbeAfterLoad && q.loadsServed.Load() > 0 && q.probeFailed.CompareAndSwap(false, true) {
+			return nil, errors.New("probe unavailable")
+		}
+		epoch := q.epoch.Load()
+		if q.parkProbeCall != 0 && n == q.parkProbeCall {
+			q.probeReached <- struct{}{}
+			<-q.probeRelease
+		}
 		return &queueFakeRows{rows: [][]any{{
-			q.epoch.Load(),
+			epoch,
 			time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 			"",
 		}}}, nil
@@ -73,6 +96,7 @@ func (q *flightQueryer) QueryContext(ctx context.Context, query string, _ ...any
 	if q.loadPanic {
 		panic("identity load exploded")
 	}
+	q.loadsServed.Add(1)
 	if q.loadErr != nil {
 		return nil, q.loadErr
 	}
@@ -234,10 +258,11 @@ func TestIdentityEpochCacheRetriesInsideFlightWhenEpochMovesDuringLoad(t *testin
 	}
 }
 
-// TestIdentityEpochCacheNeverDeliversTornSetToWaiters pins the F6 contract: if
-// the epoch is still moving after the flight's bounded attempts, the leader
-// keeps its last set uncached, but no waiter receives either unvalidated set.
-// The waiters re-probe and are served by a fresh, validated load.
+// TestIdentityEpochCacheNeverDeliversTornSetToWaiters pins the F6 and F17
+// contract: if the epoch is still moving after the flight's bounded attempts,
+// nobody decides on either unvalidated set. The waiters re-probe and are served
+// by a fresh, validated load, and the leader's own item fails with a retryable
+// error so the queue re-runs it.
 func TestIdentityEpochCacheNeverDeliversTornSetToWaiters(t *testing.T) {
 	t.Parallel()
 
@@ -256,7 +281,15 @@ func TestIdentityEpochCacheNeverDeliversTornSetToWaiters(t *testing.T) {
 	q.epoch.Store(3) // the epoch moves again during the retry
 	close(secondGate)
 
-	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-2")
+	gotLeader := collectFlightCaller(t, "leader", leader)
+	var retryable interface{ Retryable() bool }
+	if !errors.As(gotLeader.err, &retryable) || !retryable.Retryable() || len(gotLeader.rows) != 0 {
+		t.Fatalf("leader = rows %v err %v, want no rows and a retryable error", gotLeader.rows, gotLeader.err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(gotLeader.err, &classified) || classified.FailureClass() != IdentityEpochUnstableFailureClass {
+		t.Fatalf("leader err %v lacks the identity_epoch_unstable failure class", gotLeader.err)
+	}
 	for i, ch := range followers {
 		name := fmt.Sprintf("waiter %d", i)
 		requireFactID(t, name, collectFlightCaller(t, name, ch), "fact-load-3")
@@ -264,6 +297,74 @@ func TestIdentityEpochCacheNeverDeliversTornSetToWaiters(t *testing.T) {
 	if got := q.loadCalls.Load(); got != 3 {
 		t.Fatalf("loader executions = %d, want 3 (two bounded attempts, then one validated load for the waiters)", got)
 	}
+}
+
+// TestIdentityEpochCacheLateCallerAfterValidatingProbeDoesNotJoinFlight pins
+// the joinable rule on its own (#7805, arbiter ruling). The leader's validating
+// post-load probe has already returned the start epoch, so the flight is
+// cacheable and no in-flight retry can run. A commit then lands before the
+// flight finishes (the window includes sizing the whole set for the cache cap).
+// A caller that probes inside that window sees the moved epoch. It must not be
+// served the flight's set, which may lack its own trigger; it must be served by
+// a load that starts after its probe. Without the joinable check the late
+// caller receives the first flight's rows, so this test fails under that
+// mutation.
+func TestIdentityEpochCacheLateCallerAfterValidatingProbeDoesNotJoinFlight(t *testing.T) {
+	t.Parallel()
+
+	q := newFlightQueryer(1)
+	q.parkProbeCall = 2 // call 1 is the leader's pre-load probe, call 2 its validating probe
+	q.probeReached = make(chan struct{}, 1)
+	q.probeRelease = make(chan struct{})
+	close(q.gate) // the first load does not block
+	store := newFactStoreWithCache(q, 0)
+
+	leader := startFlightCaller(context.Background(), store)
+	select {
+	case <-q.probeReached:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the leader never reached its validating probe")
+	}
+	// The leader holds a validated epoch of 1. A commit lands now.
+	q.epoch.Store(2)
+	late := startFlightWaiters(t, store, 1)[0]
+	close(q.probeRelease)
+
+	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-1")
+	requireFactID(t, "late caller", collectFlightCaller(t, "late caller", late), "fact-load-2")
+	if got := q.loadCalls.Load(); got != 2 {
+		t.Fatalf("loader executions = %d, want 2 (the late caller loads after its own probe)", got)
+	}
+}
+
+// TestIdentityEpochCacheFailedPostLoadProbeIsTornNotServed pins the rule that a
+// set whose post-load probe could not run is unvalidated and is never decided
+// on (#7805, arbiter ruling). The leader's item fails with the retryable
+// identity_epoch_unstable error, the joined waiter re-probes and is served by a
+// fresh validated load, and nothing is cached from the unvalidated set.
+func TestIdentityEpochCacheFailedPostLoadProbeIsTornNotServed(t *testing.T) {
+	t.Parallel()
+
+	q := newFlightQueryer(1)
+	q.failProbeAfterLoad = true
+	store := newFactStoreWithCache(q, 0)
+
+	leader := startFlightCaller(context.Background(), store)
+	awaitLoadStarted(t, q)
+	waiter := startFlightWaiters(t, store, 1)[0]
+	close(q.gate)
+
+	gotLeader := collectFlightCaller(t, "leader", leader)
+	var retryable interface{ Retryable() bool }
+	if !errors.As(gotLeader.err, &retryable) || !retryable.Retryable() || len(gotLeader.rows) != 0 {
+		t.Fatalf("leader = rows %v err %v, want no rows and a retryable error", gotLeader.rows, gotLeader.err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(gotLeader.err, &classified) || classified.FailureClass() != IdentityEpochUnstableFailureClass {
+		t.Fatalf("leader err %v lacks failure class %q", gotLeader.err, IdentityEpochUnstableFailureClass)
+	}
+	awaitLoadStarted(t, q) // the waiter re-probed and leads a fresh load
+	requireFactID(t, "waiter", collectFlightCaller(t, "waiter", waiter), "fact-load-2")
 }
 
 // TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight guards accuracy: a

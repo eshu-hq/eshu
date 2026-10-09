@@ -67,12 +67,16 @@ type identityFlight struct {
 	leaderCanceled bool
 	// torn marks a flight whose set could not be validated against a stable
 	// epoch (the epoch kept moving through every attempt, or the post-load
-	// probe failed). Only the leader keeps those rows; waiters re-probe.
+	// probe failed). Nobody uses its rows: waiters re-probe and the leader's
+	// item is retried.
 	torn bool
 }
 
 // Reason values for eshu_dp_identity_cache_passthrough_total: why a finished
-// load was served to its flight without being cached.
+// load was not cached. cap_exceeded and size_unknown still serve the consistent
+// set to its flight uncached. epoch_moved and probe_error mean the set could not
+// be validated: it is discarded, never served, and the leader's item fails with
+// identityLoadUnstableError.
 const (
 	identityDiscardEpochMoved  = "epoch_moved"
 	identityDiscardCapExceeded = "cap_exceeded"
@@ -187,7 +191,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 // served=false when the caller must retry from the top: its probe predates a
 // newer active set than the flight started from, or the leader gave up on its
 // own context and its error belongs to the leader alone, or the flight's set
-// could not be validated (torn) and only the leader keeps it.
+// could not be validated (torn) and was discarded.
 func (c *IdentityEpochCache) settleWaiter(
 	ctx context.Context,
 	flight *identityFlight,
@@ -224,8 +228,9 @@ func (c *IdentityEpochCache) settleWaiter(
 // drop out, new-generation rows before the cursor are never read). The
 // post-load probe detects such a flip; the flight then loads once more from
 // the moved epoch. A flight whose epoch is still moving after this many loads
-// stops retrying: its leader keeps the last set uncached and the waiters
-// re-probe, so a torn set is never delivered as truth to a waiter (#7805).
+// stops retrying: the waiters re-probe and the leader's item fails with a
+// retryable identityLoadUnstableError, so a possibly torn set is never used to
+// decide any item (#7805).
 const maxIdentityLoadAttempts = 2
 
 // lead runs the load for a flight this caller created, publishes the outcome to
@@ -275,8 +280,17 @@ func (c *IdentityEpochCache) lead(
 			c.inst.IdentityCachePassthroughTotal.Add(ctx, 1,
 				metric.WithAttributes(telemetry.AttrReason(verdict.reason)))
 		}
+		if verdict.retry || verdict.reason == identityDiscardProbeError {
+			// The set could not be validated against a stable epoch. Nobody
+			// decides on it: the waiters re-probe, and the leader's own item
+			// gets a retryable error so the queue re-runs it from a fresh
+			// probe (F17).
+			flight.torn = true
+			finished = true
+			c.finish(flight, nil)
+			return nil, newIdentityLoadUnstableError(verdict.reason)
+		}
 		flight.rows = loaded
-		flight.torn = verdict.retry || verdict.reason == identityDiscardProbeError
 		finished = true
 		c.finish(flight, func() {
 			if verdict.cacheable {
@@ -289,6 +303,37 @@ func (c *IdentityEpochCache) lead(
 		return defensiveCopyEnvelopes(loaded), nil
 	}
 }
+
+// IdentityEpochUnstableFailureClass is the durable failure_class of
+// identityLoadUnstableError. It labels the reducer retry and failure metrics and
+// the queue's failure_class column. It is deliberately NOT one of the
+// non-counting retry classes: each retry consumes a claim attempt, so a
+// persistently moving epoch ends in the normal dead-letter policy instead of an
+// unbounded loop (#7805).
+const IdentityEpochUnstableFailureClass = "identity_epoch_unstable"
+
+// identityLoadUnstableError reports that the identity fact set kept changing
+// (or could not be re-validated) while it was being paged, so no consistent set
+// exists to decide on. It is retryable and carries a failure class: the reducer
+// queue re-runs the item, which re-enters the cache with a fresh epoch probe.
+type identityLoadUnstableError struct {
+	reason string
+}
+
+func newIdentityLoadUnstableError(reason string) error {
+	return identityLoadUnstableError{reason: reason}
+}
+
+// Error implements error.
+func (e identityLoadUnstableError) Error() string {
+	return "identity fact set changed while it was loaded (" + e.reason + "); the item will be retried"
+}
+
+// Retryable marks the failure as one the durable queue should retry.
+func (identityLoadUnstableError) Retryable() bool { return true }
+
+// FailureClass names the failure for queue status and operator triage.
+func (identityLoadUnstableError) FailureClass() string { return IdentityEpochUnstableFailureClass }
 
 // loadVerdict is the outcome of validating one finished load against the
 // active set. retry means the epoch moved during the load, so the set may be

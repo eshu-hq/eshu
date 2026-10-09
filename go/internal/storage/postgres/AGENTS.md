@@ -944,8 +944,9 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   and retries; a cancelled leader never fails a waiter; a load error is shared.
   If the post-load probe differs, the flight loads once more from the moved
   epoch (max 2 attempts); a flight still moving after that, or whose post-load
-  probe failed, is "torn": the leader keeps it uncached and waiters re-probe, so
-  a possibly mixed-generation set never reaches a waiter. Cached only when the
+  probe failed, is "torn": waiters re-probe and the leader's item fails with a
+  retryable `identityLoadUnstableError`, so no item is decided on a possibly
+  mixed-generation set. Cached only when the
   post-load probe equals `startEpoch` and the set fits the cap. Signals:
   `..._passthrough_total{reason}`, `..._flight_waiter_total{outcome}`,
   `..._load_retry_total`. Evidence: docs/internal/evidence/7805-identity-epoch-flight.md.
