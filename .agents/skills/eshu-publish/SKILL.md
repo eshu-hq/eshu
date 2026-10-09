@@ -12,7 +12,7 @@ the product. Pick the artifact, then read its reference.
 | Artifact | Reference |
 |---|---|
 | Issue (new, or a rewrite) | [issue](references/issue.md) |
-| PR title and body | [pull request](references/pull-request.md) |
+| PR title and body | [pull request](references/pull-request.md), then the skeleton for your kind of PR in [templates](references/pr-templates.md) |
 | Review reply, issue close, status comment, resume note | [replies](references/replies.md) |
 | Design or decision record | [decision record](references/decision-record.md) |
 | Report back to the owner | [owner report](references/owner-report.md) |
@@ -42,13 +42,18 @@ reports.
 
 - **Lead.** The first sentence says what is broken or what changed, and why the
   reader cares. Bold it. It must make sense with no other context.
+- **At a glance (PRs).** Directly after the lead, a table with the header
+  `| At a glance | |` and 4 rows of one sentence each. The rows depend on the
+  kind of PR. See the templates. Put counts by package and lists of files in
+  `<details>`, not in this table.
 - **Decisions and blockers** come directly after the lead. Settle a decision
   with evidence or the arbiter first. Raise it to the owner only for an act that
   only the owner can authorize.
 - **Headings.** Use `Problem`, `Expected`, `Acceptance criteria` for issues and
   `Problem`, `What changed`, `Proof` for PRs. These match the best existing
   issues and PRs.
-- **Paragraphs.** One topic each. Keep one under about 600 characters. Split a
+- **Paragraphs.** One topic each. Keep one under about 600 characters. The
+  shape check warns above 600 bytes and fails above 800. Split a
   longer one or turn it into a list.
 - **Lists and tables.** Use a list for 3 or more steps, or for 3 or more
   conditions. Use a table to compare before and after, or claim and evidence.
@@ -91,7 +96,16 @@ breaks them first.
 ## Check the draft
 
 1. Read the lead alone. Does it stand without the rest?
-2. Run the linter when it is available. It checks semicolons, long sentences,
+2. Run the shape check on the draft, before you capture the review receipt. It
+   fails a PR body without a `Refs #N.` first line, a bold lead, or the glance
+   table, and any prose paragraph over 800 bytes. Fix every `FAIL` line.
+
+```bash
+bash .agents/skills/eshu-publish/scripts/check-shape.sh --pr body.md
+bash .agents/skills/eshu-publish/scripts/check-shape.sh --issue issue.md
+```
+
+3. Run the wording linter when it is available. It checks semicolons, long sentences,
    phrasal verbs, passive voice, and synonym rotation. It is a heuristic.
    Fix hard findings. Judge advisory findings.
 
@@ -99,4 +113,4 @@ breaks them first.
 python3 -I ~/os-repos/asd-ste100-skill/scripts/ste-lint.py draft.md
 ```
 
-3. Compare every number and claim in the draft with the diff and the proof.
+4. Compare every number and claim in the draft with the diff and the proof.

@@ -4,6 +4,9 @@ The title and body must describe the final diff. When review changes the work,
 rewrite both. A body that describes your first attempt sends reviewers to code
 that is not there.
 
+Start from the skeleton for your kind of PR in [templates](pr-templates.md).
+Fill in the blanks. Then run `scripts/check-shape.sh --pr <file>` on the text.
+
 ## Title
 
 Say what changed, in the repo's `type(scope): summary` form. Do not use a ticket
@@ -15,25 +18,29 @@ guess` beats `fix #5572`.
 1. `Fixes #N.` or `Refs #N.` as the first line. Use a closing keyword only when
    the issue must close on merge. `scripts/dev/pre-enqueue-check.sh` fails a
    body that has no `#N` reference.
-2. **Lead.** One or two bold sentences: what was broken, what this PR does, and
-   why it matters. A reader who stops here still knows the change.
-3. A decision or blocker for the reviewer, when there is one.
-4. `## Problem`. How it broke, not only that it broke. A table suits "test and
+2. **Lead.** One or two bold sentences, 45 words or fewer: what was broken, what
+   this PR does, and why it matters. A reader who stops here still knows the
+   change.
+3. **At a glance.** A table whose header is `| At a glance | |`, with 4 rows of
+   one sentence each. The rows depend on the PR type. See the templates. A
+   reader who stops here also knows the risk and the proof.
+4. A decision or blocker for the reviewer, when there is one.
+5. `## Problem`. How it broke, not only that it broke. A table suits "test and
    failure". Say `sed exited 0 having replaced nothing`, not `the fixture did
    not land`.
-5. A Mermaid diagram when the Pictures rule in `SKILL.md` applies. Use a file
+6. A Mermaid diagram when the Pictures rule in `SKILL.md` applies. Use a file
    tree or `diff` block for a layout change.
-6. `## What changed`. One bullet per change: the verb, the object, and the why.
+7. `## What changed`. One bullet per change: the verb, the object, and the why.
    Name a rejected alternative only when it explains a tradeoff that is still in
    the diff.
-7. `## Proof`. A table of check, before, after. Give the command, the exit code,
+8. `## Proof`. A table of check, before, after. Give the command, the exit code,
    and the number with its source. Put full gate output in `<details>`. For a
    runtime change, add the performance impact and the telemetry an operator
    can use, or write `none` and the reason. Name the docs you updated for a
    changed contract.
-8. `## Review`. One line per finding: severity, what changed, the SHA. Put
+9. `## Review`. One line per finding: severity, what changed, the SHA. Put
    quoted reviewer or arbiter text in `<details>`.
-9. `**NOT_CHECKED:**` One line. Name what you did not run, and why.
+10. `**NOT_CHECKED:**` One line. Name what you did not run, and why.
 
 ## Rules
 
@@ -45,8 +52,11 @@ guess` beats `fix #5572`.
   for readability, the long unbroken blocks were verbatim arbiter rulings and
   deferred findings. Collapse them.
 - Keep at most 3 identifiers in one sentence.
+- Counts by package, lists of files, and hashes go in `<details>`. The reader
+  needs the total and the risk, not the breakdown.
 - Omit a section that has nothing to say. A one-line docs PR needs a lead and
-  a proof line, not nine headings.
+  a proof line, not nine headings. The glance table is optional for a body
+  under 600 characters with no heading.
 - After you capture the `ci-gates review-attest` claims file, do not edit the
   title or body.
 
@@ -62,6 +72,13 @@ Fixes #7695.
 **Two Postgres retention tests ran on a hand-built schema outside every CI
 lane, and both rotted. This PR runs them on the real bootstrap schema. It
 also deletes the one test that the other now covers.**
+
+| At a glance | |
+|---|---|
+| Behavior change | None in product code. All changes are tests. |
+| Size | 6 files, +283 and -372 lines |
+| Proof | The ported scale test passes: 100 generations, 50,000 facts pruned, 3.4 s |
+| Review | Author self-review of a test-only diff: P0=0, P1=0, P2-blocking=0 |
 
 ## Problem
 
