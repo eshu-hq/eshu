@@ -154,7 +154,7 @@ func TestRowLimitSkipReason(t *testing.T) {
 		want string
 	}{
 		{"ledger pushes over", map[string]int64{"fact_records": 5, "changed_since_link_deltas": 3}, "row_limit_ledger"},
-		{"facts alone over", map[string]int64{"fact_records": 9, "changed_since_link_deltas": 3}, "row_limit"},
+		{"facts alone over", map[string]int64{"fact_records": 9, "changed_since_link_deltas": 3}, "row_limit_own_rows"},
 		{"fits alone, batch full", map[string]int64{"fact_records": 5, "changed_since_link_deltas": 1}, "row_limit"},
 	} {
 		if got := rowLimitSkipReason(tc.rows, 7); got != tc.want {

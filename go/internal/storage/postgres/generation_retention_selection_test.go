@@ -96,7 +96,7 @@ func TestSelectCandidatesWithinRowLimitCases(t *testing.T) {
 			"own rows over the limit skip (ADR #2248)",
 			[]map[string]int64{{"fact_records": 70}, {"fact_records": 5}},
 			[]string{"g1"},
-			[]string{"row_limit"},
+			[]string{"row_limit_own_rows"},
 		},
 		{"first candidate over only by ledger is admitted alone", []map[string]int64{
 			{"fact_records": 5, "changed_since_link_deltas": 90}, {"fact_records": 1},
