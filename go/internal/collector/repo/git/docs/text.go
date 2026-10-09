@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -27,14 +27,14 @@ func extractTextDocumentation(
 	commitSHA string,
 	body []byte,
 	format string,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	bodyText, warnings := boundedDocumentationBody(body)
 	lines := plainDocumentationLines(bodyText)
 	sections := textSections(documentID, revisionID, relativePath, lines, format)
 	title := documentationTitle(relativePath, sections)
-	document := facts.DocumentationDocumentPayload{
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -72,7 +72,7 @@ func textSections(
 	relativePath string,
 	lines []markdownLine,
 	format string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	switch format {
 	case "asciidoc":
 		return asciidocSections(documentID, revisionID, relativePath, lines, format)
@@ -91,7 +91,7 @@ func plainTextSections(
 	relativePath string,
 	lines []markdownLine,
 	format string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	heading := documentationTitle(relativePath, nil)
 	headingLine := 0
 	start := -1
@@ -135,7 +135,7 @@ func asciidocSections(
 	relativePath string,
 	lines []markdownLine,
 	format string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	drafts := []markdownSectionDraft{}
 	current := -1
 	for _, line := range lines {
@@ -162,7 +162,7 @@ func rstSections(
 	relativePath string,
 	lines []markdownLine,
 	format string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	drafts := []markdownSectionDraft{}
 	current := -1
 	for i := 0; i < len(lines); i++ {
@@ -192,7 +192,7 @@ func fallbackTextSections(
 	relativePath string,
 	lines []markdownLine,
 	format string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	return fallbackTextSectionsWithHeading(
 		documentID,
 		revisionID,
@@ -210,7 +210,7 @@ func fallbackTextSectionsWithHeading(
 	lines []markdownLine,
 	format string,
 	heading string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	drafts := []markdownSectionDraft{}
 	var chunk *markdownSectionDraft
 	for _, line := range lines {
@@ -328,9 +328,9 @@ func unsupportedDocumentationDirective(line string) bool {
 
 func textDocumentationLinks(
 	relativePath string,
-	sections []facts.DocumentationSectionPayload,
-) []facts.DocumentationLinkPayload {
-	links := []facts.DocumentationLinkPayload{}
+	sections []docs.SectionPayload,
+) []docs.LinkPayload {
+	links := []docs.LinkPayload{}
 	seen := map[string]bool{}
 	for _, section := range sections {
 		for _, match := range asciidocLinkPattern.FindAllStringSubmatch(section.Content, -1) {
@@ -339,7 +339,7 @@ func textDocumentationLinks(
 				continue
 			}
 			seen[section.SectionID+"|"+target] = true
-			links = append(links, facts.DocumentationLinkPayload{
+			links = append(links, docs.LinkPayload{
 				DocumentID:     section.DocumentID,
 				RevisionID:     section.RevisionID,
 				SectionID:      section.SectionID,
@@ -356,7 +356,7 @@ func textDocumentationLinks(
 				continue
 			}
 			seen[section.SectionID+"|"+target] = true
-			links = append(links, facts.DocumentationLinkPayload{
+			links = append(links, docs.LinkPayload{
 				DocumentID:     section.DocumentID,
 				RevisionID:     section.RevisionID,
 				SectionID:      section.SectionID,

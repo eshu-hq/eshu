@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestIncidentMediaExactEvidencePreservesProvenance(t *testing.T) {
@@ -36,14 +36,14 @@ func TestIncidentMediaExactEvidencePreservesProvenance(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
-	if got, want := mention.ResolutionStatus, facts.DocumentationMentionResolutionExact; got != want {
+	mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
+	if got, want := mention.ResolutionStatus, docs.MentionResolutionExact; got != want {
 		t.Fatalf("mention resolution = %q, want %q", got, want)
 	}
 	assertIncidentMediaMetadata(t, "mention", mention.SourceMetadata, section)
 
-	claim := onlyPayload[facts.DocumentationClaimCandidatePayload](t, result.Envelopes, facts.DocumentationClaimCandidateFactKind)
-	if got, want := claim.Authority, facts.DocumentationClaimAuthorityDocumentEvidence; got != want {
+	claim := onlyPayload[docs.ClaimCandidatePayload](t, result.Envelopes, docs.ClaimCandidateFactKind)
+	if got, want := claim.Authority, docs.ClaimAuthorityDocumentEvidence; got != want {
 		t.Fatalf("claim authority = %q, want %q", got, want)
 	}
 	assertIncidentMediaMetadata(t, "claim", claim.SourceMetadata, section)
@@ -87,7 +87,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 				return section
 			}(),
 			wantMentions:    1,
-			wantStatus:      facts.DocumentationMentionResolutionAmbiguous,
+			wantStatus:      docs.MentionResolutionAmbiguous,
 			wantRefs:        2,
 			wantClaims:      0,
 			wantMetadataKey: "media_correlation_state",
@@ -98,7 +98,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			entities:     nil,
 			section:      incidentHintOnlySection("diagram_label", "orphan-dashboard", "service", "unmatched"),
 			wantMentions: 1,
-			wantStatus:   facts.DocumentationMentionResolutionUnmatched,
+			wantStatus:   docs.MentionResolutionUnmatched,
 			wantRefs:     0,
 			wantClaims:   0,
 		},
@@ -109,7 +109,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			},
 			section:      incidentHintOnlySection("diagram_label", "checkout-repo", "repository", "exact"),
 			wantMentions: 1,
-			wantStatus:   facts.DocumentationMentionResolutionExact,
+			wantStatus:   docs.MentionResolutionExact,
 			wantRefs:     1,
 			wantClaims:   0,
 		},
@@ -120,7 +120,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			},
 			section:      incidentHintOnlySection("diagram_label", "checkout workload", "workload", "exact"),
 			wantMentions: 1,
-			wantStatus:   facts.DocumentationMentionResolutionExact,
+			wantStatus:   docs.MentionResolutionExact,
 			wantRefs:     1,
 			wantClaims:   0,
 		},
@@ -131,7 +131,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			},
 			section:      incidentHintOnlySection("diagram_label", "checkout-lb", "cloud_resource", "exact"),
 			wantMentions: 1,
-			wantStatus:   facts.DocumentationMentionResolutionExact,
+			wantStatus:   docs.MentionResolutionExact,
 			wantRefs:     1,
 			wantClaims:   0,
 		},
@@ -142,7 +142,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			},
 			section:      incidentHintOnlySection("transcript_chunk", "checkout prod deploy", "deployment", "exact"),
 			wantMentions: 1,
-			wantStatus:   facts.DocumentationMentionResolutionExact,
+			wantStatus:   docs.MentionResolutionExact,
 			wantRefs:     1,
 			wantClaims:   0,
 		},
@@ -153,15 +153,15 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			},
 			section: func() doctruth.SectionInput {
 				section := incidentHintOnlySection("transcript_chunk", "incident review", "incident", "stale")
-				section.SourceACLState = facts.SourceACLStateStale
+				section.SourceACLState = docs.SourceACLStateStale
 				section.SourceMetadata["media_freshness_state"] = "stale"
 				return section
 			}(),
 			wantMentions:    1,
-			wantStatus:      facts.DocumentationMentionResolutionExact,
+			wantStatus:      docs.MentionResolutionExact,
 			wantRefs:        1,
 			wantClaims:      0,
-			wantACLState:    facts.SourceACLStateStale,
+			wantACLState:    docs.SourceACLStateStale,
 			wantMetadataKey: "media_freshness_state",
 			wantMetadataVal: "stale",
 		},
@@ -170,7 +170,7 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			entities:         nil,
 			section:          incidentHintOnlySection("ocr_region", "[redacted-value]", "cloud_resource", "redacted"),
 			wantMentions:     1,
-			wantStatus:       facts.DocumentationMentionResolutionUnmatched,
+			wantStatus:       docs.MentionResolutionUnmatched,
 			wantRefs:         0,
 			wantClaims:       0,
 			wantMetadataKey:  "redaction_state",
@@ -195,17 +195,17 @@ func TestIncidentMediaEdgeFixturesStayEvidenceOnly(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Extract() error = %v, want nil", err)
 			}
-			if got := countKind(result.Envelopes, facts.DocumentationEntityMentionFactKind); got != tt.wantMentions {
+			if got := countKind(result.Envelopes, docs.EntityMentionFactKind); got != tt.wantMentions {
 				t.Fatalf("mention envelopes = %d, want %d", got, tt.wantMentions)
 			}
-			if got := countKind(result.Envelopes, facts.DocumentationClaimCandidateFactKind); got != tt.wantClaims {
+			if got := countKind(result.Envelopes, docs.ClaimCandidateFactKind); got != tt.wantClaims {
 				t.Fatalf("claim envelopes = %d, want %d", got, tt.wantClaims)
 			}
 			if tt.wantMentions == 0 {
 				return
 			}
 
-			mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
+			mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
 			if got := mention.ResolutionStatus; got != tt.wantStatus {
 				t.Fatalf("mention resolution = %q, want %q", got, tt.wantStatus)
 			}

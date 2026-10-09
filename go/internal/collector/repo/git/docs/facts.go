@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -90,14 +91,14 @@ func GitDocumentationEnvelopesForContentFile(
 	document, sections, links := extractGitDocumentation(ctx, repo, sourceURI, digest, commitSHA, body, format)
 	out := make([]facts.Envelope, 0, 1+1+len(sections)+len(links))
 	if emitSource {
-		sourcePayload := facts.DocumentationSourcePayload{
+		sourcePayload := docs.SourcePayload{
 			SourceID:     gitDocumentationSourceID(repo.ID),
 			SourceSystem: "git",
 			ExternalID:   repo.ID,
 			DisplayName:  model.FirstNonEmptyString(repo.Name, repo.RepoSlug, repo.ID),
 			BaseURI:      repo.RemoteURL,
 			SourceType:   gitDocumentationSourceType,
-			ACLSummary: &facts.DocumentationACLSummary{
+			ACLSummary: &docs.ACLSummary{
 				Visibility:    "repository",
 				IsPartial:     true,
 				PartialReason: "repository_acl_not_collected",
@@ -115,8 +116,8 @@ func GitDocumentationEnvelopesForContentFile(
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationSourceFactKind,
-			facts.DocumentationSourceStableID(sourcePayload),
+			docs.SourceFactKind,
+			docs.SourceStableID(sourcePayload),
 			sourcePayload,
 			repoPath,
 		))
@@ -128,8 +129,8 @@ func GitDocumentationEnvelopesForContentFile(
 		scopeID,
 		generationID,
 		observedAt,
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationDocumentStableID(document),
+		docs.DocumentFactKind,
+		docs.DocumentStableID(document),
 		document,
 		sourceFile,
 	))
@@ -140,8 +141,8 @@ func GitDocumentationEnvelopesForContentFile(
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationSectionFactKind,
-			facts.DocumentationSectionStableID(section),
+			docs.SectionFactKind,
+			docs.SectionStableID(section),
 			section,
 			sourceFile,
 		))
@@ -153,8 +154,8 @@ func GitDocumentationEnvelopesForContentFile(
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationLinkFactKind,
-			facts.DocumentationLinkStableID(link),
+			docs.LinkFactKind,
+			docs.LinkStableID(link),
 			link,
 			sourceFile,
 		))
@@ -230,14 +231,14 @@ func extractMarkdownDocumentationWithFormat(
 	commitSHA string,
 	body []byte,
 	format string,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	bodyText, warnings := boundedDocumentationBody(body)
 	lines := markdownContentLines(bodyText)
 	sections := markdownSections(documentID, revisionID, relativePath, lines, format)
 	title := documentationTitle(relativePath, sections)
-	document := facts.DocumentationDocumentPayload{
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -308,10 +309,10 @@ func gitDocumentationEnvelope(
 		"entity_id":   repoID,
 	}}
 	envelope := model.FactEnvelope(factKind, scopeID, generationID, observedAt, factKey, payloadMap, sourceURI)
-	if factKind == facts.DocumentationSectionFactKind {
-		envelope.SchemaVersion = facts.DocumentationSectionFactSchemaVersion
+	if factKind == docs.SectionFactKind {
+		envelope.SchemaVersion = docs.SectionFactSchemaVersion
 	} else {
-		envelope.SchemaVersion = facts.DocumentationFactSchemaVersion
+		envelope.SchemaVersion = docs.FactSchemaVersion
 	}
 	if sourceURI == repoPath {
 		envelope.SourceRef.SourceRecordID = factKey

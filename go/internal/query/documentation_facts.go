@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -342,7 +343,7 @@ func documentationFactRequestFilter(
 // keeps the internal/facts dependency out of querycontract, which stays
 // dependency-neutral.
 func documentationFactFilterHasScopeOrAnchor(f documentationFactFilter) bool {
-	if f.FactKind == facts.DocumentationSourceFactKind {
+	if f.FactKind == docs.SourceFactKind {
 		return true
 	}
 	return strings.TrimSpace(f.ScopeID) != "" ||
@@ -358,18 +359,18 @@ func normalizeDocumentationFactKind(raw string) (string, bool) {
 	switch strings.TrimSpace(raw) {
 	case "":
 		return "", true
-	case "source", facts.DocumentationSourceFactKind:
-		return facts.DocumentationSourceFactKind, true
-	case "document", facts.DocumentationDocumentFactKind:
-		return facts.DocumentationDocumentFactKind, true
-	case "section", facts.DocumentationSectionFactKind:
-		return facts.DocumentationSectionFactKind, true
-	case "link", facts.DocumentationLinkFactKind:
-		return facts.DocumentationLinkFactKind, true
-	case "entity_mention", facts.DocumentationEntityMentionFactKind:
-		return facts.DocumentationEntityMentionFactKind, true
-	case "claim_candidate", facts.DocumentationClaimCandidateFactKind:
-		return facts.DocumentationClaimCandidateFactKind, true
+	case "source", docs.SourceFactKind:
+		return docs.SourceFactKind, true
+	case "document", docs.DocumentFactKind:
+		return docs.DocumentFactKind, true
+	case "section", docs.SectionFactKind:
+		return docs.SectionFactKind, true
+	case "link", docs.LinkFactKind:
+		return docs.LinkFactKind, true
+	case "entity_mention", docs.EntityMentionFactKind:
+		return docs.EntityMentionFactKind, true
+	case "claim_candidate", docs.ClaimCandidateFactKind:
+		return docs.ClaimCandidateFactKind, true
 	case documentationFactKindAliasSemanticObservation,
 		documentationFactKindAliasDocumentationObservation,
 		documentationFactKindAliasSemanticDocumentationObservation,

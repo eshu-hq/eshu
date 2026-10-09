@@ -3,7 +3,9 @@
 
 package query
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+)
 
 // sourceACLStateResponseKey is the wire field name used to surface the bounded
 // source-ACL-state observation on content, documentation-evidence, and
@@ -19,7 +21,7 @@ const sourceACLStateResponseKey = "source_acl_state"
 // surface.
 //
 // It reads payload.acl_summary.source_acl_state and validates it against
-// facts.ValidSourceACLState. It fails closed: an absent, empty, or non-bounded
+// docs.ValidSourceACLState. It fails closed: an absent, empty, or non-bounded
 // value yields the empty string so a corrupt or future value can never surface
 // as an authoritative ACL claim. This helper only EXPOSES the value the reducer
 // and collector already carry; it never upgrades a non-allowed observation to
@@ -31,7 +33,7 @@ const sourceACLStateResponseKey = "source_acl_state"
 // enforcement and alters no returned rows.
 func boundedSourceACLState(payload map[string]any) string {
 	state := nestedString(payload, "acl_summary", sourceACLStateResponseKey)
-	if !facts.ValidSourceACLState(state) {
+	if !docs.ValidSourceACLState(state) {
 		return ""
 	}
 	return state

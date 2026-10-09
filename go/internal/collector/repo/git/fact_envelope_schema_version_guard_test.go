@@ -28,6 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestGitEmittedFactEnvelopeSchemaVersionGuard(t *testing.T) {
@@ -47,9 +48,9 @@ func TestGitEmittedFactEnvelopeSchemaVersionGuard(t *testing.T) {
 		t.Parallel()
 		envelopes := emitDocumentationFacts(t)
 		for _, kind := range []string{
-			facts.DocumentationSourceFactKind,
-			facts.DocumentationDocumentFactKind,
-			facts.DocumentationSectionFactKind,
+			docs.SourceFactKind,
+			docs.DocumentFactKind,
+			docs.SectionFactKind,
 		} {
 			assertSchemaVersionStamped(t, envelopes, registry, kind)
 		}

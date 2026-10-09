@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsDOCXDocumentationSections(t *testing.T) {
@@ -35,7 +36,7 @@ func TestStreamFactsEmitsDOCXDocumentationSections(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "migration-plan.docx"), string(body))
 
 	envelopes := streamDocumentFacts(t, repoPath, "docs/migration-plan.docx")
-	document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, envelopes, docs.DocumentFactKind)
 	if got, want := model.PayloadString(document.Payload, "format"), "docx"; got != want {
 		t.Fatalf("document format = %q, want %q", got, want)
 	}
@@ -56,7 +57,7 @@ func TestStreamFactsEmitsDOCXDocumentationSections(t *testing.T) {
 	}
 	assertDocumentationFactLinkedRepository(t, document, "repository:r_12345678")
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, docs.SectionFactKind)
 	if got, want := len(sections), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -101,7 +102,7 @@ func TestStreamFactsKeepsDOCXAnnotationsMetadataOnly(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "security-review.docx"), string(body))
 
 	envelopes := streamDocumentFacts(t, repoPath, "docs/security-review.docx")
-	document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, envelopes, docs.DocumentFactKind)
 	assertPayloadWarning(t, document.Payload, "annotation_text_skipped")
 	if got, want := payloadSourceMetadataValue(document.Payload, "comment_count"), "1"; got != want {
 		t.Fatalf("comment_count = %q, want %q", got, want)
@@ -109,7 +110,7 @@ func TestStreamFactsKeepsDOCXAnnotationsMetadataOnly(t *testing.T) {
 	if got, want := payloadSourceMetadataValue(document.Payload, "tracked_change_count"), "1"; got != want {
 		t.Fatalf("tracked_change_count = %q, want %q", got, want)
 	}
-	section := singleFact(t, envelopes, facts.DocumentationSectionFactKind)
+	section := singleFact(t, envelopes, docs.SectionFactKind)
 	content := model.PayloadString(section.Payload, "content")
 	for _, forbidden := range []string{"review-only comment text", "tracked reviewer draft"} {
 		if strings.Contains(content, forbidden) {
@@ -137,14 +138,14 @@ func TestStreamFactsHandlesMalformedAndUnsafeDOCXPackages(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "embedded.docx"), string(embeddedBody))
 
 	envelopes := streamMultipleDocumentFacts(t, repoPath, []string{"docs/broken.docx", "docs/unsafe.docx", "docs/embedded.docx"})
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, docs.DocumentFactKind)
 	if got, want := len(documents), 3; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertDocumentPathWarning(t, documents, "docs/broken.docx", "malformed_container")
 	assertDocumentPathWarning(t, documents, "docs/unsafe.docx", "external_relationship")
 	assertDocumentPathWarning(t, documents, "docs/embedded.docx", "embedded_object_present")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, docs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -39,7 +40,7 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 	}{
 		{
 			name:  "findings",
-			kinds: []string{facts.DocumentationFindingFactKind},
+			kinds: []string{docs.FindingFactKind},
 			build: func(scope, generation string) (string, []any) {
 				return buildDocumentationFindingsSQL(documentationFindingFilter{
 					ScopeID: scope, GenerationID: generation, Limit: 20,
@@ -49,8 +50,8 @@ func TestDocumentationRelatedReadsBindActiveGenerationLive(t *testing.T) {
 		{
 			name: "target facts",
 			kinds: []string{
-				facts.DocumentationEntityMentionFactKind,
-				facts.DocumentationClaimCandidateFactKind,
+				docs.EntityMentionFactKind,
+				docs.ClaimCandidateFactKind,
 				facts.SemanticDocumentationObservationFactKind,
 			},
 			build: func(scope, generation string) (string, []any) {
@@ -264,9 +265,9 @@ SELECT
     'source', jsonb_build_object('source_id', 'source:related-generation')
   )
 FROM unnest($3::text[]) AS kinds(kind)`, pair.scope, pair.generation, []string{
-			facts.DocumentationFindingFactKind,
-			facts.DocumentationEntityMentionFactKind,
-			facts.DocumentationClaimCandidateFactKind,
+			docs.FindingFactKind,
+			docs.EntityMentionFactKind,
+			docs.ClaimCandidateFactKind,
 			facts.SemanticDocumentationObservationFactKind,
 			facts.SemanticCodeHintFactKind,
 		})

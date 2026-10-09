@@ -11,10 +11,11 @@
 // names lost the redundant Documentation prefix (docs/internal/naming.md
 // rule 4): what the facts root spelled DocumentationSourcePayload is
 // [SourcePayload] here, and EncodeDocumentationSection is [EncodeSection].
-// Every pre-move spelling is still reachable as facts.Documentation* through
-// the root's transitional compat_docs.go, which aliases these declarations
-// rather than redefining them, so the two spellings are the same type and
-// the same value.
+// Every pre-move spelling used to be reachable as facts.Documentation*
+// through the root's transitional compat_docs.go, which aliased these
+// declarations rather than redefining them. That surface was retired in
+// #6950 batch 3 once the last caller moved; these declarations are now the
+// only spelling.
 //
 // The package is named docs, not documentation, because go/build excludes
 // every .go file in a package literally named documentation from the build

@@ -12,6 +12,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestServiceDocumentationEvidenceKeyIsGenerationIndependent(t *testing.T) {
@@ -83,7 +84,7 @@ func TestBuildServiceDocumentationEvidenceDropsIncompleteIdentity(t *testing.T) 
 	t.Parallel()
 
 	evidence := buildServiceDocumentationEvidence([]ServiceDocumentationRecord{
-		{SourceSystem: "confluence", SourceRecordID: "section:a", DocumentID: "doc:1", FactKind: facts.DocumentationEntityMentionFactKind},
+		{SourceSystem: "confluence", SourceRecordID: "section:a", DocumentID: "doc:1", FactKind: docs.EntityMentionFactKind},
 		// Missing document id: cannot be keyed, must be dropped rather than keyed
 		// on an empty identity.
 		{SourceSystem: "confluence", SourceRecordID: "section:b"},
@@ -123,7 +124,7 @@ func TestServiceDocumentationEvidencePayloadExcludesGenerationFields(t *testing.
 		SourceSystem:    "confluence",
 		SourceRecordID:  "section:deploy",
 		DocumentID:      "doc:runbook",
-		FactKind:        facts.DocumentationClaimCandidateFactKind,
+		FactKind:        docs.ClaimCandidateFactKind,
 		SourceURI:       "https://wiki/runbook#deploy",
 		ObservationHash: "hash-1",
 	})
@@ -151,7 +152,7 @@ func TestServiceMaterializationWriterCommitsDocsFamily(t *testing.T) {
 			{OwnerRef: "team-payments", Payload: map[string]any{"tier": "gold"}},
 		},
 		Docs: []ServiceDocumentationEvidence{
-			{Identity: "confluence:section:deploy:doc:runbook", Payload: map[string]any{"fact_kind": facts.DocumentationEntityMentionFactKind}},
+			{Identity: "confluence:section:deploy:doc:runbook", Payload: map[string]any{"fact_kind": docs.EntityMentionFactKind}},
 		},
 	})
 	if err != nil {
@@ -287,7 +288,7 @@ func TestServiceCatalogHandlerCommitsDocsFamilyWhenWired(t *testing.T) {
 	docsLoader := &fakeServiceScopedDocsLoader{
 		byService: map[string][]ServiceDocumentationRecord{
 			"svc-checkout": {
-				{SourceSystem: "confluence", SourceRecordID: "section:deploy", DocumentID: "doc:runbook", FactKind: facts.DocumentationEntityMentionFactKind},
+				{SourceSystem: "confluence", SourceRecordID: "section:deploy", DocumentID: "doc:runbook", FactKind: docs.EntityMentionFactKind},
 			},
 		},
 	}

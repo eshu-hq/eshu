@@ -6,7 +6,7 @@ package servicecatalog
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestDocsEvidencePayloadCarriesObservedSourceACLState proves the bounded
@@ -18,11 +18,11 @@ func TestDocsEvidencePayloadCarriesObservedSourceACLState(t *testing.T) {
 	t.Parallel()
 
 	states := []string{
-		facts.SourceACLStateAllowed,
-		facts.SourceACLStateDenied,
-		facts.SourceACLStatePartial,
-		facts.SourceACLStateMissing,
-		facts.SourceACLStateStale,
+		docs.SourceACLStateAllowed,
+		docs.SourceACLStateDenied,
+		docs.SourceACLStatePartial,
+		docs.SourceACLStateMissing,
+		docs.SourceACLStateStale,
 	}
 	for _, state := range states {
 		state := state
@@ -32,7 +32,7 @@ func TestDocsEvidencePayloadCarriesObservedSourceACLState(t *testing.T) {
 				SourceSystem:   "confluence",
 				SourceRecordID: "section:deploy",
 				DocumentID:     "doc:runbook",
-				FactKind:       facts.DocumentationEntityMentionFactKind,
+				FactKind:       docs.EntityMentionFactKind,
 				SourceACLState: state,
 			})
 			got, ok := payload["source_acl_state"]
@@ -58,7 +58,7 @@ func TestDocsEvidencePayloadOmitsUnobservedSourceACLState(t *testing.T) {
 		SourceSystem:   "confluence",
 		SourceRecordID: "section:deploy",
 		DocumentID:     "doc:runbook",
-		FactKind:       facts.DocumentationClaimCandidateFactKind,
+		FactKind:       docs.ClaimCandidateFactKind,
 		// SourceACLState intentionally empty: no access-posture signal observed.
 	})
 	if got, present := payload["source_acl_state"]; present {
@@ -82,7 +82,7 @@ func TestDocsEvidencePayloadDropsUnknownSourceACLState(t *testing.T) {
 				SourceSystem:   "confluence",
 				SourceRecordID: "section:deploy",
 				DocumentID:     "doc:runbook",
-				FactKind:       facts.DocumentationEntityMentionFactKind,
+				FactKind:       docs.EntityMentionFactKind,
 				SourceACLState: bad,
 			})
 			if got, present := payload["source_acl_state"]; present {
@@ -104,11 +104,11 @@ func TestDocsEvidenceSourceACLStateFlipsRowHash(t *testing.T) {
 		SourceSystem:   "confluence",
 		SourceRecordID: "section:deploy",
 		DocumentID:     "doc:runbook",
-		FactKind:       facts.DocumentationEntityMentionFactKind,
-		SourceACLState: facts.SourceACLStateAllowed,
+		FactKind:       docs.EntityMentionFactKind,
+		SourceACLState: docs.SourceACLStateAllowed,
 	}
 	denied := base
-	denied.SourceACLState = facts.SourceACLStateDenied
+	denied.SourceACLState = docs.SourceACLStateDenied
 
 	allowedRows := buildServiceDocumentationEvidence([]ServiceDocumentationRecord{base})
 	deniedRows := buildServiceDocumentationEvidence([]ServiceDocumentationRecord{denied})

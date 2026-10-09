@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/docs"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsPPTXSlideDocumentation(t *testing.T) {
@@ -46,7 +46,7 @@ func TestStreamFactsEmitsPPTXSlideDocumentation(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "release-review.pptx"), string(body))
 
 	envelopes := streamDocumentFacts(t, repoPath, "docs/release-review.pptx")
-	document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, envelopes, factsdocs.DocumentFactKind)
 	if got, want := model.PayloadString(document.Payload, "format"), "pptx"; got != want {
 		t.Fatalf("document format = %q, want %q", got, want)
 	}
@@ -76,7 +76,7 @@ func TestStreamFactsEmitsPPTXSlideDocumentation(t *testing.T) {
 	assertPayloadWarning(t, document.Payload, "hidden_content_skipped")
 	assertDocumentationFactLinkedRepository(t, document, "repository:r_12345678")
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -140,14 +140,14 @@ func TestStreamFactsHandlesMalformedAndUnsafePPTXPackages(t *testing.T) {
 		"docs/unsafe.pptx",
 		"docs/embedded.pptx",
 	})
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 3; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertDocumentPathWarning(t, documents, "docs/broken.pptx", "malformed_container")
 	assertDocumentPathWarning(t, documents, "docs/unsafe.pptx", "external_relationship")
 	assertDocumentPathWarning(t, documents, "docs/embedded.pptx", "embedded_object_present")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }
@@ -172,7 +172,7 @@ func TestStreamFactsBoundsLargePPTXDeck(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "large-review.pptx"), string(body))
 
 	envelopes := streamDocumentFacts(t, repoPath, "docs/large-review.pptx")
-	document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, envelopes, factsdocs.DocumentFactKind)
 	assertPayloadWarning(t, document.Payload, "resource_limit_exceeded")
 	assertPayloadWarning(t, document.Payload, "hidden_content_skipped")
 	if got, want := payloadSourceMetadataValue(document.Payload, "slide_count"), fmt.Sprintf("%d", docs.PptxMaxSlides+1); got != want {
@@ -184,7 +184,7 @@ func TestStreamFactsBoundsLargePPTXDeck(t *testing.T) {
 	if got, want := payloadSourceMetadataValue(document.Payload, "hidden_slide_count"), "1"; got != want {
 		t.Fatalf("hidden_slide_count = %q, want %q", got, want)
 	}
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), docs.PptxMaxSlides; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -215,12 +215,12 @@ func TestStreamFactsKeepsPPTXRootHiddenSlidesMetadataOnly(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "root-hidden-review.pptx"), string(body))
 
 	envelopes := streamDocumentFacts(t, repoPath, "docs/root-hidden-review.pptx")
-	document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, envelopes, factsdocs.DocumentFactKind)
 	assertPayloadWarning(t, document.Payload, "hidden_content_skipped")
 	if got, want := payloadSourceMetadataValue(document.Payload, "hidden_slide_count"), "1"; got != want {
 		t.Fatalf("hidden_slide_count = %q, want %q", got, want)
 	}
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -253,12 +253,12 @@ func TestStreamFactsRejectsUnexpectedPPTXSlideRelationshipTarget(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "unexpected-target.pptx"), string(body))
 
 	envelopes := streamDocumentFacts(t, repoPath, "docs/unexpected-target.pptx")
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "malformed_presentation")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }

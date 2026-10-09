@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsGitMarkdownDocumentationFacts(t *testing.T) {
@@ -47,7 +48,7 @@ Run the rollback checklist.
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	sourceFacts := factsByKind(envelopes, facts.DocumentationSourceFactKind)
+	sourceFacts := factsByKind(envelopes, docs.SourceFactKind)
 	if got, want := len(sourceFacts), 1; got != want {
 		t.Fatalf("documentation_source count = %d, want %d", got, want)
 	}
@@ -58,7 +59,7 @@ Run the rollback checklist.
 		t.Fatalf("source_type = %#v, want %#v", got, want)
 	}
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, docs.DocumentFactKind)
 	if got, want := len(documentFacts), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -77,7 +78,7 @@ Run the rollback checklist.
 		t.Fatalf("document SourceURI = %q, want %q", got, want)
 	}
 
-	sectionFacts := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sectionFacts := factsByKind(envelopes, docs.SectionFactKind)
 	if got, want := len(sectionFacts), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -95,7 +96,7 @@ Run the rollback checklist.
 		t.Fatalf("rollback parent_section_id = %#v, want %#v", got, want)
 	}
 
-	linkFacts := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	linkFacts := factsByKind(envelopes, docs.LinkFactKind)
 	if got, want := len(linkFacts), 1; got != want {
 		t.Fatalf("documentation_link count = %d, want %d", got, want)
 	}
@@ -129,7 +130,7 @@ func TestStreamFactsEmitsDocumentationTruthMentionsAndClaimCandidates(t *testing
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	mentionFacts := factsByKind(envelopes, facts.DocumentationEntityMentionFactKind)
+	mentionFacts := factsByKind(envelopes, docs.EntityMentionFactKind)
 	if got, want := len(mentionFacts), 1; got != want {
 		t.Fatalf("documentation_entity_mention count = %d, want %d", got, want)
 	}
@@ -138,14 +139,14 @@ func TestStreamFactsEmitsDocumentationTruthMentionsAndClaimCandidates(t *testing
 	}
 	assertDocumentationFactLinkedRepository(t, mentionFacts[0], "repository:r_12345678")
 
-	claimFacts := factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)
+	claimFacts := factsByKind(envelopes, docs.ClaimCandidateFactKind)
 	if got, want := len(claimFacts), 3; got != want {
 		t.Fatalf("documentation_claim_candidate count = %d, want %d", got, want)
 	}
 	claimTypes := map[string]bool{}
 	for _, claim := range claimFacts {
 		claimTypes[model.PayloadString(claim.Payload, "claim_type")] = true
-		if got, want := model.PayloadString(claim.Payload, "authority"), facts.DocumentationClaimAuthorityDocumentEvidence; got != want {
+		if got, want := model.PayloadString(claim.Payload, "authority"), docs.ClaimAuthorityDocumentEvidence; got != want {
 			t.Fatalf("claim authority = %q, want %q", got, want)
 		}
 		assertDocumentationFactLinkedRepository(t, claim, "repository:r_12345678")
@@ -179,7 +180,7 @@ func TestStreamFactsEmitsDocumentationDocumentsForMarkdownFamily(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, docs.DocumentFactKind)
 	if got, want := len(documentFacts), 3; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -188,7 +189,7 @@ func TestStreamFactsEmitsDocumentationDocumentsForMarkdownFamily(t *testing.T) {
 			t.Fatalf("canonical_uri used digest as GitHub blob revision: %#v", envelope.Payload["canonical_uri"])
 		}
 	}
-	sectionFacts := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sectionFacts := factsByKind(envelopes, docs.SectionFactKind)
 	if got, want := len(sectionFacts), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -220,7 +221,7 @@ func TestStreamFactsDisambiguatesDuplicateMarkdownHeadingAnchors(t *testing.T) {
 	}
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
-	sections := factsByKind(drainFactChannel(collected.Facts), facts.DocumentationSectionFactKind)
+	sections := factsByKind(drainFactChannel(collected.Facts), docs.SectionFactKind)
 	if got, want := len(sections), 3; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}

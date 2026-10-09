@@ -29,7 +29,7 @@ package mcp
 //     literals (e.g. "reducer_kubernetes_correlation"), Cypher node-label
 //     anchors (e.g. ":ContainerImage"), or the facts.<Kind>FactKind
 //     identifier when the query builds its SQL from the Go constant instead
-//     of an inline literal (e.g. "facts.DocumentationSourceFactKind").
+//     of an inline literal (e.g. "docs.SourceFactKind").
 //   - StoreTypes are the query-layer store interface types whose
 //     implementations read this domain's rows; a route "uses" one only when
 //     the handler struct declares a field of that type AND the registered
@@ -71,8 +71,8 @@ type domainDataSignature struct {
 // intra-group distinction has no route boundary to cross.
 var domainDataSignatures = map[string]domainDataSignature{
 	// documentation_read_model.go builds its IN (...) list from the
-	// facts.Documentation*FactKind constants, not inline literals.
-	"documentation_materialization": {Markers: []string{"facts.DocumentationSourceFactKind", "facts.DocumentationDocumentFactKind"}},
+	// docs.*FactKind constants, not inline literals.
+	"documentation_materialization": {Markers: []string{"docs.SourceFactKind", "docs.DocumentFactKind"}},
 
 	// The three provider inventory domains converge into ONE reducer-owned
 	// canonical kind: projector/cloud/inventory/reducer_intent.go admits

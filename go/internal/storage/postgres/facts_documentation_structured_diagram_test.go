@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
@@ -29,7 +30,7 @@ func TestFactStoreRoundTripsStructuredDiagramDocumentationFacts(t *testing.T) {
 		context.Background(),
 		"scope-structured-diagram",
 		"gen-structured-diagram",
-		[]string{facts.DocumentationSectionFactKind, facts.DocumentationLinkFactKind},
+		[]string{docs.SectionFactKind, docs.LinkFactKind},
 	)
 	if err != nil {
 		t.Fatalf("ListFactsByKind() error = %v, want nil", err)
@@ -48,7 +49,7 @@ func TestFactStoreRoundTripsStructuredDiagramDocumentationFacts(t *testing.T) {
 func structuredDiagramDocumentationEnvelopes(t *testing.T) []facts.Envelope {
 	t.Helper()
 
-	section := facts.DocumentationSectionPayload{
+	section := docs.SectionPayload{
 		DocumentID:       "doc:git:repository:r_diagram:docs/architecture.svg",
 		RevisionID:       "abc123",
 		SectionID:        "section:diagram",
@@ -64,7 +65,7 @@ func structuredDiagramDocumentationEnvelopes(t *testing.T) []facts.Envelope {
 		SourceMetadata:   map[string]string{"path": "docs/architecture.svg", "format_family": "diagram", "diagram_format": "svg"},
 		ContainsWarnings: false,
 	}
-	link := facts.DocumentationLinkPayload{
+	link := docs.LinkPayload{
 		DocumentID:     section.DocumentID,
 		RevisionID:     section.RevisionID,
 		SectionID:      section.SectionID,
@@ -76,8 +77,8 @@ func structuredDiagramDocumentationEnvelopes(t *testing.T) []facts.Envelope {
 	}
 	observedAt := time.Date(2026, time.June, 9, 7, 50, 0, 0, time.UTC)
 	return []facts.Envelope{
-		structuredDiagramEnvelope(t, facts.DocumentationSectionFactKind, facts.DocumentationSectionStableID(section), section, observedAt),
-		structuredDiagramEnvelope(t, facts.DocumentationLinkFactKind, facts.DocumentationLinkStableID(link), link, observedAt),
+		structuredDiagramEnvelope(t, docs.SectionFactKind, docs.SectionStableID(section), section, observedAt),
+		structuredDiagramEnvelope(t, docs.LinkFactKind, docs.LinkStableID(link), link, observedAt),
 	}
 }
 
@@ -88,9 +89,9 @@ func structuredDiagramEnvelope(t *testing.T, kind string, key string, payload an
 	if err != nil {
 		t.Fatalf("structuredDiagramPayloadMap() error = %v, want nil", err)
 	}
-	version := facts.DocumentationFactSchemaVersion
-	if kind == facts.DocumentationSectionFactKind {
-		version = facts.DocumentationSectionFactSchemaVersion
+	version := docs.FactSchemaVersion
+	if kind == docs.SectionFactKind {
+		version = docs.SectionFactSchemaVersion
 	}
 	return facts.Envelope{
 		FactID:           key,
@@ -124,7 +125,7 @@ func structuredDiagramPayloadMap(payload any) (map[string]any, error) {
 
 func structuredDiagramAnyMap(payload any) map[string]any {
 	switch typed := payload.(type) {
-	case facts.DocumentationSectionPayload:
+	case docs.SectionPayload:
 		return map[string]any{
 			"document_id":       typed.DocumentID,
 			"revision_id":       typed.RevisionID,
@@ -141,7 +142,7 @@ func structuredDiagramAnyMap(payload any) map[string]any {
 			"source_metadata":   typed.SourceMetadata,
 			"contains_warnings": typed.ContainsWarnings,
 		}
-	case facts.DocumentationLinkPayload:
+	case docs.LinkPayload:
 		return map[string]any{
 			"document_id":      typed.DocumentID,
 			"revision_id":      typed.RevisionID,

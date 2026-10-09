@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
@@ -48,7 +49,7 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 		t.Fatalf("Media.DurationMillis = %d, want positive duration", engine.lastMedia.DurationMillis)
 	}
 
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	if got, want := document["format"], "media_transcript"; got != want {
 		t.Fatalf("document.format = %#v, want %#v", got, want)
 	}
@@ -71,7 +72,7 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 		t.Fatalf("document.content_hash = %#v, want source hash", got)
 	}
 
-	section := payloadByKind(t, result.Envelopes, facts.DocumentationSectionFactKind)
+	section := payloadByKind(t, result.Envelopes, docs.SectionFactKind)
 	if got, want := section["content"], "Restore the service from the runbook."; got != want {
 		t.Fatalf("section.content = %#v, want %#v", got, want)
 	}
@@ -102,7 +103,7 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 
 	for _, envelope := range result.Envelopes {
 		switch envelope.FactKind {
-		case facts.DocumentationEntityMentionFactKind, facts.DocumentationClaimCandidateFactKind:
+		case docs.EntityMentionFactKind, docs.ClaimCandidateFactKind:
 			t.Fatalf("unexpected truth fact kind from transcript text: %s", envelope.FactKind)
 		}
 	}
@@ -155,7 +156,7 @@ func TestExtractRecordsSkippedMediaAsDocumentWarnings(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Extract() error = %v, want nil", err)
 			}
-			document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+			document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 			metadata := stringMapValue(t, document, "source_metadata")
 			if got := metadata["transcript_status"]; got != "skipped" {
 				t.Fatalf("transcript_status = %q, want skipped", got)
@@ -166,7 +167,7 @@ func TestExtractRecordsSkippedMediaAsDocumentWarnings(t *testing.T) {
 			if engine.calls != 0 {
 				t.Fatalf("Transcribe() calls = %d, want 0 for skipped preflight", engine.calls)
 			}
-			if got := countKind(result.Envelopes, facts.DocumentationSectionFactKind); got != 0 {
+			if got := countKind(result.Envelopes, docs.SectionFactKind); got != 0 {
 				t.Fatalf("section fact count = %d, want 0", got)
 			}
 		})
@@ -191,12 +192,12 @@ func TestExtractRecordsNoTranscriptText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	metadata := stringMapValue(t, document, "source_metadata")
 	if got := metadata["transcript_status"]; got != "no_text" {
 		t.Fatalf("transcript_status = %q, want no_text", got)
 	}
-	if got := countKind(result.Envelopes, facts.DocumentationSectionFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.SectionFactKind); got != 0 {
 		t.Fatalf("section fact count = %d, want 0", got)
 	}
 }
@@ -217,7 +218,7 @@ func TestExtractRedactsSensitiveTranscriptText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	section := payloadByKind(t, result.Envelopes, facts.DocumentationSectionFactKind)
+	section := payloadByKind(t, result.Envelopes, docs.SectionFactKind)
 	if content := section["content"].(string); strings.Contains(content, "credential_marker") {
 		t.Fatalf("section.content leaked sensitive transcript text: %q", content)
 	}
@@ -261,7 +262,7 @@ func TestExtractRedactsUnsafeMediaSourceIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	encoded, err := json.Marshal(document)
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v, want nil", err)

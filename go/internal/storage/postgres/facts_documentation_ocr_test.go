@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ocrdoc"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
 
@@ -35,13 +36,13 @@ func TestFactStoreUpsertFactsPersistsOCRDocumentationFacts(t *testing.T) {
 	if got, want := len(db.execs[0].args), columnsPerFactRow*len(envelopes); got != want {
 		t.Fatalf("arg count = %d, want %d", got, want)
 	}
-	if got, want := db.execs[0].args[3], facts.DocumentationDocumentFactKind; got != want {
+	if got, want := db.execs[0].args[3], docs.DocumentFactKind; got != want {
 		t.Fatalf("first fact_kind arg = %q, want %q", got, want)
 	}
-	if got, want := db.execs[0].args[columnsPerFactRow+3], facts.DocumentationSectionFactKind; got != want {
+	if got, want := db.execs[0].args[columnsPerFactRow+3], docs.SectionFactKind; got != want {
 		t.Fatalf("second fact_kind arg = %q, want %q", got, want)
 	}
-	if got, want := db.execs[0].args[columnsPerFactRow+5], facts.DocumentationSectionFactSchemaVersion; got != want {
+	if got, want := db.execs[0].args[columnsPerFactRow+5], docs.SectionFactSchemaVersion; got != want {
 		t.Fatalf("section schema_version arg = %q, want %q", got, want)
 	}
 	payloadJSON, ok := db.execs[0].args[columnsPerFactRow+16].([]byte)
@@ -57,8 +58,8 @@ func TestFactStoreUpsertFactsPersistsOCRDocumentationFacts(t *testing.T) {
 
 	db.queryResponses = []queueFakeRows{{rows: factRowsFromEnvelopes(t, envelopes)}}
 	loaded, err := store.ListFactsByKind(context.Background(), envelopes[0].ScopeID, envelopes[0].GenerationID, []string{
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationSectionFactKind,
+		docs.DocumentFactKind,
+		docs.SectionFactKind,
 	})
 	if err != nil {
 		t.Fatalf("ListFactsByKind() error = %v, want nil", err)
@@ -67,7 +68,7 @@ func TestFactStoreUpsertFactsPersistsOCRDocumentationFacts(t *testing.T) {
 		t.Fatalf("ListFactsByKind() len = %d, want %d", got, want)
 	}
 	section := loaded[1]
-	if got, want := section.FactKind, facts.DocumentationSectionFactKind; got != want {
+	if got, want := section.FactKind, docs.SectionFactKind; got != want {
 		t.Fatalf("loaded section FactKind = %q, want %q", got, want)
 	}
 	if got, want := section.Payload["content"], "Architecture dashboard"; got != want {

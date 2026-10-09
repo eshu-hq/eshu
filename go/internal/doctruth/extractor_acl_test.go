@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestExtractorPropagatesBoundedSourceACLStateOntoEvidence proves a bounded
@@ -19,10 +19,10 @@ func TestExtractorPropagatesBoundedSourceACLStateOntoEvidence(t *testing.T) {
 	t.Parallel()
 
 	for _, state := range []string{
-		facts.SourceACLStateDenied,
-		facts.SourceACLStatePartial,
-		facts.SourceACLStateMissing,
-		facts.SourceACLStateStale,
+		docs.SourceACLStateDenied,
+		docs.SourceACLStatePartial,
+		docs.SourceACLStateMissing,
+		docs.SourceACLStateStale,
 	} {
 		state := state
 		t.Run(state, func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestExtractorPropagatesBoundedSourceACLStateOntoEvidence(t *testing.T) {
 				t.Fatalf("Extract() error = %v, want nil", err)
 			}
 
-			mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
+			mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
 			if mention.ACLSummary == nil {
 				t.Fatalf("mention ACLSummary = nil, want source_acl_state %q", state)
 			}
@@ -54,7 +54,7 @@ func TestExtractorPropagatesBoundedSourceACLStateOntoEvidence(t *testing.T) {
 				t.Fatalf("mention source_acl_state = %q, want %q (verbatim)", got, state)
 			}
 
-			claim := onlyPayload[facts.DocumentationClaimCandidatePayload](t, result.Envelopes, facts.DocumentationClaimCandidateFactKind)
+			claim := onlyPayload[docs.ClaimCandidatePayload](t, result.Envelopes, docs.ClaimCandidateFactKind)
 			if claim.ACLSummary == nil {
 				t.Fatalf("claim ACLSummary = nil, want source_acl_state %q", state)
 			}
@@ -90,7 +90,7 @@ func TestExtractorOmitsSourceACLStateWhenUnobserved(t *testing.T) {
 				t.Fatalf("Extract() error = %v, want nil", err)
 			}
 
-			mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
+			mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
 			if mention.ACLSummary != nil {
 				t.Fatalf("mention ACLSummary = %#v, want nil for unobserved state %q", mention.ACLSummary, state)
 			}

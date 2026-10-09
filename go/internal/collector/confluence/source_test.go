@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -62,15 +63,15 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 	}
 
 	envelopes := drainFacts(t, collected.Facts)
-	assertFactCount(t, envelopes, facts.DocumentationSourceFactKind, 1)
-	assertFactCount(t, envelopes, facts.DocumentationDocumentFactKind, 2)
-	assertFactCount(t, envelopes, facts.DocumentationSectionFactKind, 2)
-	assertFactCount(t, envelopes, facts.DocumentationLinkFactKind, 1)
+	assertFactCount(t, envelopes, docs.SourceFactKind, 1)
+	assertFactCount(t, envelopes, docs.DocumentFactKind, 2)
+	assertFactCount(t, envelopes, docs.SectionFactKind, 2)
+	assertFactCount(t, envelopes, docs.LinkFactKind, 1)
 	if collected.FactCount() != len(envelopes) {
 		t.Fatalf("FactCount = %d, want %d", collected.FactCount(), len(envelopes))
 	}
 
-	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	sourceFact := factsByKind(envelopes, docs.SourceFactKind)[0]
 	aclSummary := payloadMap(sourceFact.Payload, "acl_summary")
 	if got, want := payloadString(aclSummary, "visibility"), "credential_viewable"; got != want {
 		t.Fatalf("source acl visibility = %q, want %q", got, want)
@@ -82,7 +83,7 @@ func TestSourceSyncsSpacePagesIntoDocumentationFacts(t *testing.T) {
 		t.Fatalf("source acl partial_reason = %q, want %q", got, want)
 	}
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, docs.DocumentFactKind)
 	if documents[0].StableFactKey == documents[1].StableFactKey {
 		t.Fatalf("duplicate-title pages produced same stable key %q", documents[0].StableFactKey)
 	}
@@ -162,8 +163,8 @@ func TestSourceSyncsConfiguredSpaceIDAllowlistAsSeparateGenerations(t *testing.T
 	if got, want := nextCycle.Scope.Metadata["space_id"], "100"; got != want {
 		t.Fatalf("next cycle space_id = %q, want %q", got, want)
 	}
-	assertFactCount(t, drainFacts(t, first.Facts), facts.DocumentationDocumentFactKind, 1)
-	assertFactCount(t, drainFacts(t, second.Facts), facts.DocumentationDocumentFactKind, 1)
+	assertFactCount(t, drainFacts(t, first.Facts), docs.DocumentFactKind, 1)
+	assertFactCount(t, drainFacts(t, second.Facts), docs.DocumentFactKind, 1)
 }
 
 func TestSourceEmitsDocumentationTruthMentionsAndClaimsWhenExtractorConfigured(t *testing.T) {
@@ -186,7 +187,7 @@ func TestSourceEmitsDocumentationTruthMentionsAndClaimsWhenExtractorConfigured(t
 			{Kind: "service", ID: "service:payment-api", Aliases: []string{"payment-api"}},
 			{Kind: "repository", ID: "repo:platform-deployments", URIs: []string{"https://github.com/example/platform-deployments"}},
 		}, doctruth.Options{}),
-		TruthClaimHints: func(_ Page, _ facts.DocumentationSectionPayload) []doctruth.ClaimHint {
+		TruthClaimHints: func(_ Page, _ docs.SectionPayload) []doctruth.ClaimHint {
 			return []doctruth.ClaimHint{{
 				ClaimID:     "claim:payment-api:deployment",
 				ClaimType:   "service_deployment",
@@ -206,19 +207,19 @@ func TestSourceEmitsDocumentationTruthMentionsAndClaimsWhenExtractorConfigured(t
 	}
 
 	envelopes := drainFacts(t, collected.Facts)
-	assertFactCount(t, envelopes, facts.DocumentationEntityMentionFactKind, 2)
-	assertFactCount(t, envelopes, facts.DocumentationClaimCandidateFactKind, 1)
-	mentions := factsByKind(envelopes, facts.DocumentationEntityMentionFactKind)
+	assertFactCount(t, envelopes, docs.EntityMentionFactKind, 2)
+	assertFactCount(t, envelopes, docs.ClaimCandidateFactKind, 1)
+	mentions := factsByKind(envelopes, docs.EntityMentionFactKind)
 	for _, mention := range mentions {
-		if got, want := payloadString(mention.Payload, "resolution_status"), facts.DocumentationMentionResolutionExact; got != want {
+		if got, want := payloadString(mention.Payload, "resolution_status"), docs.MentionResolutionExact; got != want {
 			t.Fatalf("resolution_status = %q, want %q", got, want)
 		}
 		if mention.SourceConfidence != facts.SourceConfidenceDerived {
 			t.Fatalf("SourceConfidence = %q, want derived", mention.SourceConfidence)
 		}
 	}
-	claim := factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)[0]
-	section := factsByKind(envelopes, facts.DocumentationSectionFactKind)[0]
+	claim := factsByKind(envelopes, docs.ClaimCandidateFactKind)[0]
+	section := factsByKind(envelopes, docs.SectionFactKind)[0]
 	if got, want := payloadString(claim.Payload, "excerpt_hash"), payloadString(section.Payload, "excerpt_hash"); got != want {
 		t.Fatalf("excerpt_hash = %q, want %q", got, want)
 	}
@@ -252,7 +253,7 @@ func TestSourceSkipsDeletedPagesAndKeepsLatestRevision(t *testing.T) {
 		t.Fatal("Next() ok = false, want true")
 	}
 
-	documents := factsByKind(drainFacts(t, collected.Facts), facts.DocumentationDocumentFactKind)
+	documents := factsByKind(drainFacts(t, collected.Facts), docs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -290,7 +291,7 @@ func TestSourceEnrichesSpacePagesBeforeEmittingFacts(t *testing.T) {
 		t.Fatal("Next() ok = false, want true")
 	}
 
-	documents := factsByKind(drainFacts(t, collected.Facts), facts.DocumentationDocumentFactKind)
+	documents := factsByKind(drainFacts(t, collected.Facts), docs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -331,8 +332,8 @@ func TestSourceContinuesPastPermissionGapsInPageTree(t *testing.T) {
 	}
 
 	envelopes := drainFacts(t, collected.Facts)
-	assertFactCount(t, envelopes, facts.DocumentationDocumentFactKind, 2)
-	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	assertFactCount(t, envelopes, docs.DocumentFactKind, 2)
+	sourceFact := factsByKind(envelopes, docs.SourceFactKind)[0]
 	metadata := payloadMap(sourceFact.Payload, "source_metadata")
 	if got, want := payloadInt(metadata, "failure_count"), 1; got != want {
 		t.Fatalf("failure_count = %d, want %d", got, want)
@@ -403,7 +404,7 @@ func TestSourceUsesPerPageCanonicalURIFallbackWhenWebUILinkIsMissing(t *testing.
 		t.Fatal("Next() ok = false, want true")
 	}
 
-	document := factsByKind(drainFacts(t, collected.Facts), facts.DocumentationDocumentFactKind)[0]
+	document := factsByKind(drainFacts(t, collected.Facts), docs.DocumentFactKind)[0]
 	if got, want := payloadString(document.Payload, "canonical_uri"), "https://example.atlassian.net/wiki/api/v2/pages/root"; got != want {
 		t.Fatalf("canonical_uri = %q, want %q", got, want)
 	}
@@ -435,9 +436,9 @@ func TestSourceReturnsEmptySpaceGeneration(t *testing.T) {
 	}
 
 	envelopes := drainFacts(t, collected.Facts)
-	assertFactCount(t, envelopes, facts.DocumentationSourceFactKind, 1)
-	assertFactCount(t, envelopes, facts.DocumentationDocumentFactKind, 0)
-	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	assertFactCount(t, envelopes, docs.SourceFactKind, 1)
+	assertFactCount(t, envelopes, docs.DocumentFactKind, 0)
+	sourceFact := factsByKind(envelopes, docs.SourceFactKind)[0]
 	metadata := payloadMap(sourceFact.Payload, "source_metadata")
 	if got, want := payloadInt(metadata, "page_count"), 0; got != want {
 		t.Fatalf("page_count = %d, want %d", got, want)

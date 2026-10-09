@@ -6,6 +6,8 @@ package facts
 import (
 	"fmt"
 	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 const (
@@ -337,35 +339,35 @@ type SemanticCodeEntityRef struct {
 
 // SemanticDocumentationObservationPayload describes one redacted documentation observation.
 type SemanticDocumentationObservationPayload struct {
-	ObservationID       string                     `json:"observation_id"`
-	ObservationType     string                     `json:"observation_type"`
-	ObservationText     string                     `json:"observation_text,omitempty"`
-	ObservationHash     string                     `json:"observation_hash"`
-	Source              SemanticSourceRef          `json:"source"`
-	Chunk               SemanticChunkRef           `json:"chunk"`
-	Provider            SemanticProviderRef        `json:"provider"`
-	Confidence          string                     `json:"confidence,omitempty"`
-	ConfidenceRationale string                     `json:"confidence_rationale,omitempty"`
-	MissingEvidence     []string                   `json:"missing_evidence,omitempty"`
-	UnsupportedReason   string                     `json:"unsupported_reason,omitempty"`
-	FreshnessState      string                     `json:"freshness_state"`
-	PolicyState         string                     `json:"policy_state"`
-	RedactionState      string                     `json:"redaction_state"`
-	RedactionSummary    string                     `json:"redaction_summary,omitempty"`
-	AdmissionState      string                     `json:"admission_state"`
-	EvidenceRefs        []DocumentationEvidenceRef `json:"evidence_refs,omitempty"`
+	ObservationID       string              `json:"observation_id"`
+	ObservationType     string              `json:"observation_type"`
+	ObservationText     string              `json:"observation_text,omitempty"`
+	ObservationHash     string              `json:"observation_hash"`
+	Source              SemanticSourceRef   `json:"source"`
+	Chunk               SemanticChunkRef    `json:"chunk"`
+	Provider            SemanticProviderRef `json:"provider"`
+	Confidence          string              `json:"confidence,omitempty"`
+	ConfidenceRationale string              `json:"confidence_rationale,omitempty"`
+	MissingEvidence     []string            `json:"missing_evidence,omitempty"`
+	UnsupportedReason   string              `json:"unsupported_reason,omitempty"`
+	FreshnessState      string              `json:"freshness_state"`
+	PolicyState         string              `json:"policy_state"`
+	RedactionState      string              `json:"redaction_state"`
+	RedactionSummary    string              `json:"redaction_summary,omitempty"`
+	AdmissionState      string              `json:"admission_state"`
+	EvidenceRefs        []docs.EvidenceRef  `json:"evidence_refs,omitempty"`
 	// ACLSummary carries the bounded source access posture observed for the
 	// document this observation was extracted from, propagated verbatim from
 	// the owning documentation source/document fact (see
-	// DocumentationACLSummary.SourceACLState). It is additive evidence
+	// docs.ACLSummary.SourceACLState). It is additive evidence
 	// metadata: an observation inherits its document's observed
 	// source_acl_state so the docs-evidence projection and readbacks carry the
 	// posture end-to-end. It is omitted when the document asserted no bounded
 	// ACL claim (absence means "no ACL claim"); a denied, partial, missing, or
 	// stale observation is never upgraded to allowed. It is factual
 	// propagation only and never decides disclosure or enforcement.
-	ACLSummary *DocumentationACLSummary `json:"acl_summary,omitempty"`
-	ObservedAt string                   `json:"observed_at,omitempty"`
+	ACLSummary *docs.ACLSummary `json:"acl_summary,omitempty"`
+	ObservedAt string           `json:"observed_at,omitempty"`
 }
 
 // SemanticCodeHintPayload describes one non-canonical code relationship hint.

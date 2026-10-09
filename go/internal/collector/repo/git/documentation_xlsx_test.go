@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsXLSXWorkbookDocumentation(t *testing.T) {
@@ -44,7 +45,7 @@ func TestStreamFactsEmitsXLSXWorkbookDocumentation(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "service-inventory.xlsx"), string(body))
 
 	envelopes := streamSpreadsheetFacts(t, repoPath, "docs/service-inventory.xlsx")
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -66,7 +67,7 @@ func TestStreamFactsEmitsXLSXWorkbookDocumentation(t *testing.T) {
 	}
 	assertPayloadWarning(t, document.Payload, "hidden_content_skipped")
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -133,7 +134,7 @@ func TestStreamFactsBoundsLargeXLSXWorkbook(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "large-inventory.xlsx"), string(body))
 
 	envelopes := streamSpreadsheetFacts(t, repoPath, "docs/large-inventory.xlsx")
-	section := singleFact(t, envelopes, facts.DocumentationSectionFactKind)
+	section := singleFact(t, envelopes, factsdocs.SectionFactKind)
 	assertPayloadWarning(t, section.Payload, "row_limit_exceeded")
 	assertPayloadWarning(t, section.Payload, "column_limit_exceeded")
 	if got, want := payloadSourceMetadataValue(section.Payload, "row_count"), fmt.Sprintf("%d", docs.SpreadsheetMaxRows); got != want {
@@ -175,13 +176,13 @@ func TestStreamFactsHandlesMalformedAndLegacyXLSWorkbooks(t *testing.T) {
 	)
 	envelopes := drainFactChannel(collected.Facts)
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertDocumentPathWarning(t, documents, "docs/broken.xlsx", "malformed_container")
 	assertDocumentPathWarning(t, documents, "docs/legacy.xls", "unsupported_legacy_binary")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }
@@ -225,12 +226,12 @@ func TestStreamFactsRejectsUnexpectedXLSXWorksheetRelationshipTarget(t *testing.
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "unexpected-target.xlsx"), string(body))
 
 	envelopes := streamSpreadsheetFacts(t, repoPath, "docs/unexpected-target.xlsx")
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "malformed_spreadsheet")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }

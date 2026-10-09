@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -333,8 +334,8 @@ func newDocumentationTargetFactsParts(filter documentationFindingFilter) documen
 // is_tombstone = FALSE Postgres can prove the index covers the branch. Adding
 // a kind here that the index predicate lacks silently disables the index (#7126).
 var documentationTargetIndexedKindsClause = "fact_records.fact_kind IN ('" +
-	facts.DocumentationEntityMentionFactKind + "', '" +
-	facts.DocumentationClaimCandidateFactKind + "')"
+	docs.EntityMentionFactKind + "', '" +
+	docs.ClaimCandidateFactKind + "')"
 
 // documentationTargetSemanticKindClause is the fact_kind predicate of the
 // semantic branch. semantic.documentation_observation is deliberately absent

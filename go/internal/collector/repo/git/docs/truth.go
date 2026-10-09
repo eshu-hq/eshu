@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -21,9 +22,9 @@ func gitDocumentationTruthEnvelopes(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-	document facts.DocumentationDocumentPayload,
-	sections []facts.DocumentationSectionPayload,
-	links []facts.DocumentationLinkPayload,
+	document docs.DocumentPayload,
+	sections []docs.SectionPayload,
+	links []docs.LinkPayload,
 ) []facts.Envelope {
 	extractor := doctruth.NewExtractor([]doctruth.Entity{gitDocumentationRepositoryEntity(repo)}, doctruth.Options{})
 	subjectText := gitDocumentationTruthSubject(repo)
@@ -54,7 +55,7 @@ func gitDocumentationTruthEnvelopes(
 			MentionHints:   mentionHints,
 			ClaimHints:     claimHints,
 			ObservedAt:     observedAt,
-			SourceACLState: facts.BoundedSourceACLState(document.ACLSummary),
+			SourceACLState: docs.BoundedSourceACLState(document.ACLSummary),
 		})
 		if err != nil {
 			continue
@@ -87,10 +88,10 @@ func gitDocumentationTruthSubject(repo repositoryidentity.Metadata) string {
 }
 
 func gitDocumentationLinksForSection(
-	links []facts.DocumentationLinkPayload,
+	links []docs.LinkPayload,
 	sectionID string,
-) []facts.DocumentationLinkPayload {
-	out := make([]facts.DocumentationLinkPayload, 0, len(links))
+) []docs.LinkPayload {
+	out := make([]docs.LinkPayload, 0, len(links))
 	for _, link := range links {
 		if link.SectionID == sectionID {
 			out = append(out, link)

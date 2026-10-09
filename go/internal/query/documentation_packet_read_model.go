@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -191,7 +191,7 @@ func buildDocumentationEvidencePacketByPacketSQL(filter documentationEvidencePac
 
 func documentationEvidencePacketBaseClauses() []string {
 	return []string{
-		"fact_records.fact_kind = '" + facts.DocumentationEvidencePacketFactKind + "'",
+		"fact_records.fact_kind = '" + docs.EvidencePacketFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
 	}
 }

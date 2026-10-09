@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 const maxSectionBytes = 16 * 1024
@@ -47,8 +48,8 @@ func Collect(ctx context.Context, req Request) (Result, error) {
 		scopeID,
 		generationID,
 		observedAt,
-		facts.DocumentationSourceFactKind,
-		facts.DocumentationSourceStableID(sourcePayload),
+		docs.SourceFactKind,
+		docs.SourceStableID(sourcePayload),
 		sourcePayload,
 		decoded.SourceSystem,
 		"export-manifest:"+safeFingerprint(req.ManifestName),
@@ -88,8 +89,8 @@ func collectFile(decoded exportManifest, file manifestFile, body []byte, scopeID
 		scopeID,
 		generationID,
 		observedAt,
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationDocumentStableID(document),
+		docs.DocumentFactKind,
+		docs.DocumentStableID(document),
 		document,
 		decoded.SourceSystem,
 		"export-file:"+safeFingerprint(file.Path),
@@ -109,8 +110,8 @@ func collectFile(decoded exportManifest, file manifestFile, body []byte, scopeID
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationSectionFactKind,
-			facts.DocumentationSectionStableID(payload),
+			docs.SectionFactKind,
+			docs.SectionStableID(payload),
 			payload,
 			decoded.SourceSystem,
 			"export-file:"+safeFingerprint(file.Path),
@@ -130,8 +131,8 @@ func collectFile(decoded exportManifest, file manifestFile, body []byte, scopeID
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationLinkFactKind,
-			facts.DocumentationLinkStableID(payload),
+			docs.LinkFactKind,
+			docs.LinkStableID(payload),
 			payload,
 			decoded.SourceSystem,
 			"export-file:"+safeFingerprint(file.Path),

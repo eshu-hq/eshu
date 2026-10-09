@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -47,13 +48,13 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		document.SourceMetadata["transcript_status"] = "skipped"
 		result.Document = document
-		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(document), document))
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
 		return result, err
 	}
 	if skipPreflight(preflight) {
 		document.SourceMetadata["transcript_status"] = skippedStatus(preflight)
 		result.Document = document
-		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(document), document))
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
 		return result, nil
 	}
 	if req.Engine == nil {
@@ -79,9 +80,9 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	document.SourceMetadata["transcript_segment_count"] = strconv.Itoa(len(sections))
 	result.Document = document
 	result.Sections = sections
-	result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(document), document))
+	result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
 	for _, section := range sections {
-		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationSectionFactKind, facts.DocumentationSectionStableID(section), section))
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.SectionFactKind, docs.SectionStableID(section), section))
 	}
 	mentions, err := mentionEnvelopes(ctx, req, document, transcriptSections)
 	if err != nil {
@@ -92,12 +93,12 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 }
 
 type transcriptSection struct {
-	payload      facts.DocumentationSectionPayload
+	payload      docs.SectionPayload
 	mentionHints []doctruth.MentionHint
 	redacted     bool
 }
 
-func buildDocument(req Request, preflight media.Result, sourceHash string) facts.DocumentationDocumentPayload {
+func buildDocument(req Request, preflight media.Result, sourceHash string) docs.DocumentPayload {
 	metadata := map[string]string{
 		"format_family":               formatMediaTranscript,
 		"incident_media_source_class": incidentSourceTranscript,
@@ -141,7 +142,7 @@ func buildDocument(req Request, preflight media.Result, sourceHash string) facts
 	if canonicalRedacted {
 		metadata["canonical_uri_redacted"] = "true"
 	}
-	return facts.DocumentationDocumentPayload{
+	return docs.DocumentPayload{
 		SourceID:       req.SourceID,
 		DocumentID:     documentID,
 		ExternalID:     externalID,
@@ -158,7 +159,7 @@ func buildDocument(req Request, preflight media.Result, sourceHash string) facts
 
 func buildSections(
 	req Request,
-	document facts.DocumentationDocumentPayload,
+	document docs.DocumentPayload,
 	transcript EngineResult,
 	sourceHash string,
 ) []transcriptSection {
@@ -197,7 +198,7 @@ func buildSections(
 		}
 		addWarnings(metadata, warnings...)
 		sections = append(sections, transcriptSection{
-			payload: facts.DocumentationSectionPayload{
+			payload: docs.SectionPayload{
 				DocumentID:       document.DocumentID,
 				RevisionID:       document.RevisionID,
 				SectionID:        "transcript:" + segmentID,
@@ -231,8 +232,8 @@ func safeMentionHints(hints []doctruth.MentionHint) []doctruth.MentionHint {
 	return out
 }
 
-func sectionPayloads(sections []transcriptSection) []facts.DocumentationSectionPayload {
-	out := make([]facts.DocumentationSectionPayload, 0, len(sections))
+func sectionPayloads(sections []transcriptSection) []docs.SectionPayload {
+	out := make([]docs.SectionPayload, 0, len(sections))
 	for _, section := range sections {
 		out = append(out, section.payload)
 	}
@@ -242,7 +243,7 @@ func sectionPayloads(sections []transcriptSection) []facts.DocumentationSectionP
 func mentionEnvelopes(
 	ctx context.Context,
 	req Request,
-	document facts.DocumentationDocumentPayload,
+	document docs.DocumentPayload,
 	sections []transcriptSection,
 ) ([]facts.Envelope, error) {
 	if len(req.Entities) == 0 && !hasMentionHints(sections) {
@@ -274,7 +275,7 @@ func mentionEnvelopes(
 			return nil, fmt.Errorf("extract transcript mentions for %s: %w", section.payload.SectionID, err)
 		}
 		for _, envelope := range result.Envelopes {
-			if envelope.FactKind == facts.DocumentationEntityMentionFactKind {
+			if envelope.FactKind == docs.EntityMentionFactKind {
 				out = append(out, envelope)
 			}
 		}
@@ -363,20 +364,20 @@ func envelope(req Request, kind string, key string, payload any) facts.Envelope 
 
 func documentationPayloadMap(payload any) (map[string]any, error) {
 	switch value := payload.(type) {
-	case facts.DocumentationDocumentPayload:
-		return facts.EncodeDocumentationDocument(value)
-	case facts.DocumentationSectionPayload:
-		return facts.EncodeDocumentationSection(value)
+	case docs.DocumentPayload:
+		return docs.EncodeDocument(value)
+	case docs.SectionPayload:
+		return docs.EncodeSection(value)
 	default:
 		return nil, fmt.Errorf("unsupported media documentation payload type %T", payload)
 	}
 }
 
 func schemaVersion(kind string) string {
-	if kind == facts.DocumentationSectionFactKind {
-		return facts.DocumentationSectionFactSchemaVersion
+	if kind == docs.SectionFactKind {
+		return docs.SectionFactSchemaVersion
 	}
-	return facts.DocumentationFactSchemaVersion
+	return docs.FactSchemaVersion
 }
 
 func warningClasses(warnings []media.Warning) []string {

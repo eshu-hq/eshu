@@ -6,7 +6,7 @@ package query
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -153,20 +153,20 @@ func sourceACLDispositionFor(boundedState string, binaryReadable bool) sourceACL
 		}
 	}
 	switch boundedState {
-	case facts.SourceACLStateDenied:
+	case docs.SourceACLStateDenied:
 		return sourceACLContentDisposition{
 			disposition:      accessDispositionDenied,
 			permissionDenied: true,
 			contentWithheld:  true,
 		}
-	case facts.SourceACLStatePartial:
+	case docs.SourceACLStatePartial:
 		return sourceACLContentDisposition{
 			disposition:     accessDispositionPartial,
 			contentWithheld: true,
 		}
-	case facts.SourceACLStateStale:
+	case docs.SourceACLStateStale:
 		return sourceACLContentDisposition{disposition: accessDispositionStale}
-	case facts.SourceACLStateMissing:
+	case docs.SourceACLStateMissing:
 		return sourceACLContentDisposition{disposition: accessDispositionMissing}
 	default:
 		return sourceACLContentDisposition{disposition: accessDispositionVisible}
@@ -225,7 +225,7 @@ func withholdProtectedContent(row map[string]any) {
 //   - acl_summary.source_acl_state on a nested "payload" body (fact-wrapped
 //     readbacks).
 func rowBoundedSourceACLState(row map[string]any) string {
-	if state := stringFromMap(row, sourceACLStateResponseKey); facts.ValidSourceACLState(state) {
+	if state := stringFromMap(row, sourceACLStateResponseKey); docs.ValidSourceACLState(state) {
 		return state
 	}
 	if state := boundedSourceACLState(row); state != "" {

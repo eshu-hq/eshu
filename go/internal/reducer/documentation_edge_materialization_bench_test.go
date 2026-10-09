@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // benchDocumentationMentionEnvelopes returns n synthetic
@@ -19,13 +20,13 @@ func benchDocumentationMentionEnvelopes(n int) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, n)
 	for i := 0; i < n; i++ {
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.DocumentationEntityMentionFactKind,
+			FactKind: docs.EntityMentionFactKind,
 			FactID:   fmt.Sprintf("fact-mention-%d", i),
 			Payload: map[string]any{
 				"document_id":       fmt.Sprintf("doc:git:repo-%d:README.md", i),
 				"section_id":        fmt.Sprintf("sec-%d", i),
 				"mention_kind":      "code_symbol",
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"candidate_refs": []any{
 					map[string]any{"kind": "entity", "id": fmt.Sprintf("uid:func-%d", i)},
 				},
@@ -81,7 +82,7 @@ func benchDocumentationDeltaEnvelopes(n int) []facts.Envelope {
 	})
 	for i := 0; i < n; i++ {
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.DocumentationDocumentFactKind,
+			FactKind: docs.DocumentFactKind,
 			FactID:   fmt.Sprintf("fact-doc-%d", i),
 			Payload: map[string]any{
 				"document_id": fmt.Sprintf("doc:git:bench-repo:docs/doc-%d.md", i),

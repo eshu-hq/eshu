@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -40,7 +40,7 @@ func extractNotebookDocumentation(
 	digest string,
 	commitSHA string,
 	body []byte,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	bodyText, warnings := boundedNotebookBody(body)
@@ -71,9 +71,9 @@ func notebookDocumentPayload(
 	commitSHA string,
 	bodyText string,
 	warnings []string,
-	sections []facts.DocumentationSectionPayload,
-) facts.DocumentationDocumentPayload {
-	document := facts.DocumentationDocumentPayload{
+	sections []docs.SectionPayload,
+) docs.DocumentPayload {
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   gitDocumentationDocumentID(repo.ID, relativePath),
 		ExternalID:   relativePath,

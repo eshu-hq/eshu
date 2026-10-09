@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestExtractEmitsProvenanceOnlyTranscriptMentions(t *testing.T) {
@@ -57,7 +57,7 @@ func TestExtractEmitsProvenanceOnlyTranscriptMentions(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mentions := payloadsByKind(result.Envelopes, facts.DocumentationEntityMentionFactKind)
+	mentions := payloadsByKind(result.Envelopes, docs.EntityMentionFactKind)
 	if got, want := len(mentions), 3; got != want {
 		t.Fatalf("documentation_entity_mention count = %d, want %d", got, want)
 	}
@@ -79,15 +79,15 @@ func TestExtractEmitsProvenanceOnlyTranscriptMentions(t *testing.T) {
 		}
 	}
 	for text, want := range map[string]string{
-		"gateway-api":     facts.DocumentationMentionResolutionExact,
-		"shared-worker":   facts.DocumentationMentionResolutionAmbiguous,
-		"unknown-service": facts.DocumentationMentionResolutionUnmatched,
+		"gateway-api":     docs.MentionResolutionExact,
+		"shared-worker":   docs.MentionResolutionAmbiguous,
+		"unknown-service": docs.MentionResolutionUnmatched,
 	} {
 		if got := statuses[text]; got != want {
 			t.Fatalf("mention %q resolution_status = %q, want %q", text, got, want)
 		}
 	}
-	if got := countKind(result.Envelopes, facts.DocumentationClaimCandidateFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.ClaimCandidateFactKind); got != 0 {
 		t.Fatalf("documentation_claim_candidate count = %d, want 0 for transcript mentions", got)
 	}
 }
@@ -132,7 +132,7 @@ func TestExtractDoesNotEmitMentionsFromRedactedTranscriptSections(t *testing.T) 
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	if got := countKind(result.Envelopes, facts.DocumentationEntityMentionFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.EntityMentionFactKind); got != 0 {
 		t.Fatalf("documentation_entity_mention count = %d, want 0 for redacted transcript section", got)
 	}
 	encoded, err := json.Marshal(result.Envelopes)

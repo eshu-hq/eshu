@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -49,7 +50,7 @@ func TestStreamFactsEmitsDelimitedSpreadsheetDocumentation(t *testing.T) {
 	)
 	envelopes := drainFactChannel(collected.Facts)
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -64,7 +65,7 @@ func TestStreamFactsEmitsDelimitedSpreadsheetDocumentation(t *testing.T) {
 		}
 	}
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -91,7 +92,7 @@ func TestStreamFactsEmitsDelimitedSpreadsheetDocumentation(t *testing.T) {
 		t.Fatalf("column_count = %q, want %q", got, want)
 	}
 
-	links := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	links := factsByKind(envelopes, factsdocs.LinkFactKind)
 	assertLinkTargetPresent(t, links, "https://docs.example.test/logging")
 }
 
@@ -106,7 +107,7 @@ func TestStreamFactsBoundsLargeDelimitedSpreadsheet(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "large-inventory.csv"), strings.Join(lines, "\n"))
 
 	envelopes := streamSpreadsheetFacts(t, repoPath, "docs/large-inventory.csv")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -131,12 +132,12 @@ func TestStreamFactsHandlesMalformedDelimitedSpreadsheet(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "docs", "broken.csv"), "service,owner\n\"unterminated\n")
 
 	envelopes := streamSpreadsheetFacts(t, repoPath, "docs/broken.csv")
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "malformed_spreadsheet")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }

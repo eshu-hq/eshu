@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func recordArchivePreflightMetadata(metadata map[string]string, result archive.Result) {
@@ -195,7 +195,7 @@ func archiveMemberMetadata(
 }
 
 func decorateArchiveDocument(
-	document *facts.DocumentationDocumentPayload,
+	document *docs.DocumentPayload,
 	outerDocumentID string,
 	outerCanonicalURI string,
 	archiveMetadata map[string]string,
@@ -207,13 +207,13 @@ func decorateArchiveDocument(
 	}
 }
 
-func decorateArchiveSection(section *facts.DocumentationSectionPayload, archiveMetadata map[string]string) {
+func decorateArchiveSection(section *docs.SectionPayload, archiveMetadata map[string]string) {
 	for key, value := range archiveMetadata {
 		section.SourceMetadata[key] = value
 	}
 }
 
-func decorateArchiveLink(link *facts.DocumentationLinkPayload, archiveMetadata map[string]string) {
+func decorateArchiveLink(link *docs.LinkPayload, archiveMetadata map[string]string) {
 	if link.SourceMetadata == nil {
 		link.SourceMetadata = map[string]string{}
 	}

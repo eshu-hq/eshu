@@ -11,12 +11,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const sourceFormat = "documentation_export"
 
-func sourcePayload(decoded exportManifest, scopeID string, fileCount int) facts.DocumentationSourcePayload {
+func sourcePayload(decoded exportManifest, scopeID string, fileCount int) docs.SourcePayload {
 	scopeHash := safeFingerprint(decoded.SourceSystem + ":" + decoded.SourceScopeID)
 	metadata := map[string]string{
 		"source_system":     decoded.SourceSystem,
@@ -33,7 +34,7 @@ func sourcePayload(decoded exportManifest, scopeID string, fileCount int) facts.
 	if cursorHash := safeFingerprintIfPresent(decoded.SourceCursor); cursorHash != "" {
 		metadata["source_cursor"] = cursorHash
 	}
-	return facts.DocumentationSourcePayload{
+	return docs.SourcePayload{
 		SourceID:       scopeID,
 		SourceSystem:   decoded.SourceSystem,
 		ExternalID:     sourceFormat + ":" + scopeHash,
@@ -59,7 +60,7 @@ func addScopeKindMetadata(metadata map[string]string, scopeKind string) {
 	}
 }
 
-func documentPayload(scopeID string, decoded exportManifest, file manifestFile, record exportRecord, warning string, rawRecord string) facts.DocumentationDocumentPayload {
+func documentPayload(scopeID string, decoded exportManifest, file manifestFile, record exportRecord, warning string, rawRecord string) docs.DocumentPayload {
 	itemID := firstNonEmpty(file.SourceItemID, record.ID, file.Path)
 	itemHash := safeFingerprint(decoded.SourceSystem + ":" + decoded.SourceScopeID + ":" + itemID)
 	metadata := map[string]string{
@@ -82,7 +83,7 @@ func documentPayload(scopeID string, decoded exportManifest, file manifestFile, 
 		metadata["metadata_only"] = "true"
 	}
 	title := firstNonEmpty(record.Title, decoded.SourceSystem+" export record")
-	return facts.DocumentationDocumentPayload{
+	return docs.DocumentPayload{
 		SourceID:       scopeID,
 		DocumentID:     "doc:" + sourceFormat + ":" + itemHash,
 		ExternalID:     "export-item:" + itemHash,
@@ -97,7 +98,7 @@ func documentPayload(scopeID string, decoded exportManifest, file manifestFile, 
 	}
 }
 
-func sectionPayload(document facts.DocumentationDocumentPayload, sourceSystem string, section exportSection, index int) facts.DocumentationSectionPayload {
+func sectionPayload(document docs.DocumentPayload, sourceSystem string, section exportSection, index int) docs.SectionPayload {
 	sectionID := "export:" + strconv.Itoa(index+1)
 	metadata := map[string]string{
 		"source_system": sourceSystem,
@@ -117,7 +118,7 @@ func sectionPayload(document facts.DocumentationDocumentPayload, sourceSystem st
 	if content == "" && section.deleted {
 		metadata["content_redacted"] = "true"
 	}
-	return facts.DocumentationSectionPayload{
+	return docs.SectionPayload{
 		DocumentID:       document.DocumentID,
 		RevisionID:       document.RevisionID,
 		SectionID:        sectionID,
@@ -135,14 +136,14 @@ func sectionPayload(document facts.DocumentationDocumentPayload, sourceSystem st
 	}
 }
 
-func linkPayload(document facts.DocumentationDocumentPayload, link recordLink, index int) facts.DocumentationLinkPayload {
+func linkPayload(document docs.DocumentPayload, link recordLink, index int) docs.LinkPayload {
 	target := firstNonEmpty(link.TargetURI, link.Target, link.URL)
 	targetURI, metadata := safeTargetURI(target)
 	if metadata == nil {
 		metadata = map[string]string{}
 	}
 	metadata["source_ref"] = safeFingerprint(firstNonEmpty(link.ID, target))
-	return facts.DocumentationLinkPayload{
+	return docs.LinkPayload{
 		DocumentID:     document.DocumentID,
 		RevisionID:     document.RevisionID,
 		SectionID:      linkSectionID(link.SectionID),
@@ -162,18 +163,18 @@ func linkSectionID(sectionID string) string {
 	return "export:1"
 }
 
-func aclSummary(policy string) *facts.DocumentationACLSummary {
-	summary := &facts.DocumentationACLSummary{Visibility: "unknown"}
+func aclSummary(policy string) *docs.ACLSummary {
+	summary := &docs.ACLSummary{Visibility: "unknown"}
 	switch policy {
 	case manifest.ACLPolicyEvaluated:
 		// The source ACL was evaluated before import: assert allowed. This is
 		// the only documentation producer that observes a complete ACL
 		// evaluation, so it is the only one that may report allowed.
 		summary.PartialReason = ""
-		summary.SourceACLState = facts.SourceACLStateAllowed
+		summary.SourceACLState = docs.SourceACLStateAllowed
 	case manifest.ACLPolicyPartial:
 		summary.IsPartial = true
-		summary.SourceACLState = facts.SourceACLStatePartial
+		summary.SourceACLState = docs.SourceACLStatePartial
 		summary.PartialReason = "acl_partial"
 	default:
 		// ACL evidence is unavailable: no access-posture signal was observed,
@@ -220,26 +221,26 @@ func envelope(scopeID string, generationID string, observedAt time.Time, kind st
 
 func documentationPayloadMap(payload any) (map[string]any, error) {
 	switch value := payload.(type) {
-	case facts.DocumentationSourcePayload:
-		m, err := facts.EncodeDocumentationSource(value)
+	case docs.SourcePayload:
+		m, err := docs.EncodeSource(value)
 		if err != nil {
 			return nil, fmt.Errorf("encode documentation source payload: %w", err)
 		}
 		return m, nil
-	case facts.DocumentationDocumentPayload:
-		m, err := facts.EncodeDocumentationDocument(value)
+	case docs.DocumentPayload:
+		m, err := docs.EncodeDocument(value)
 		if err != nil {
 			return nil, fmt.Errorf("encode documentation document payload: %w", err)
 		}
 		return m, nil
-	case facts.DocumentationSectionPayload:
-		m, err := facts.EncodeDocumentationSection(value)
+	case docs.SectionPayload:
+		m, err := docs.EncodeSection(value)
 		if err != nil {
 			return nil, fmt.Errorf("encode documentation section payload: %w", err)
 		}
 		return m, nil
-	case facts.DocumentationLinkPayload:
-		m, err := facts.EncodeDocumentationLink(value)
+	case docs.LinkPayload:
+		m, err := docs.EncodeLink(value)
 		if err != nil {
 			return nil, fmt.Errorf("encode documentation link payload: %w", err)
 		}
@@ -250,10 +251,10 @@ func documentationPayloadMap(payload any) (map[string]any, error) {
 }
 
 func schemaVersion(kind string) string {
-	if kind == facts.DocumentationSectionFactKind {
-		return facts.DocumentationSectionFactSchemaVersion
+	if kind == docs.SectionFactKind {
+		return docs.SectionFactSchemaVersion
 	}
-	return facts.DocumentationFactSchemaVersion
+	return docs.FactSchemaVersion
 }
 
 func revisionID(decoded exportManifest, fallback string) string {

@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -33,7 +33,7 @@ func extractPresentationDocumentation(
 	digest string,
 	commitSHA string,
 	body []byte,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	document := presentationDocumentPayload(repo, documentID, relativePath, revisionID, digest, commitSHA, body)
@@ -89,8 +89,8 @@ func presentationDocumentPayload(
 	digest string,
 	commitSHA string,
 	body []byte,
-) facts.DocumentationDocumentPayload {
-	document := facts.DocumentationDocumentPayload{
+) docs.DocumentPayload {
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -117,8 +117,8 @@ func pptxSlideSectionPayloads(
 	revisionID string,
 	relativePath string,
 	slides []pptxSlideSummary,
-) []facts.DocumentationSectionPayload {
-	sections := make([]facts.DocumentationSectionPayload, 0, len(slides))
+) []docs.SectionPayload {
+	sections := make([]docs.SectionPayload, 0, len(slides))
 	for _, slide := range slides {
 		content, contentWarnings := boundedDocumentationSectionContent(pptxSlideSectionContent(slide))
 		warnings := append([]string{}, slide.warnings...)
@@ -131,7 +131,7 @@ func pptxSlideSectionPayloads(
 			"table_row_count": strconv.Itoa(slide.tableRowCount),
 		})
 		addDocumentationWarnings(metadata, warnings...)
-		section := facts.DocumentationSectionPayload{
+		section := docs.SectionPayload{
 			DocumentID:       documentID,
 			RevisionID:       revisionID,
 			SectionID:        fmt.Sprintf("section:slide:%d", slide.ordinal),

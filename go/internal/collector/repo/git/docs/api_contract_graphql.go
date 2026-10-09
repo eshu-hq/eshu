@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -21,7 +21,7 @@ func extractGraphQLSDLDocumentation(
 	digest string,
 	commitSHA string,
 	body []byte,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	bodyText, warnings := boundedDocumentationBodyBytes(body, apiContractMaxBodyBytes)
 	drafts := graphqlSectionDrafts(bodyText)
 	if len(drafts) > apiContractMaxSections {

@@ -19,7 +19,7 @@ package mcp
 var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// DocumentationHandler.listFacts reads the collected documentation fact
 	// family from fact_records via (*ContentReader).documentationFacts: the
-	// IN (...) list is built from facts.Documentation*FactKind constants
+	// IN (...) list is built from docs.*FactKind constants
 	// (go/internal/query/documentation_read_model.go:359-367). The list also
 	// includes facts.SemanticDocumentationObservationFactKind (line 366) —
 	// semantic observation rows genuinely return through this route, hence
@@ -37,7 +37,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		Served: []routeServedDomain{{
 			Domain: "documentation_materialization",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/documentation_read_model.go", Marker: "facts.DocumentationSourceFactKind"},
+				{File: "go/internal/query/documentation_read_model.go", Marker: "docs.SourceFactKind"},
 				{File: "go/internal/query/documentation_read_model.go", Marker: "FROM fact_records"},
 			},
 		}},

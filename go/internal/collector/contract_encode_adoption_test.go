@@ -194,47 +194,47 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 		{
 			path: "confluence/source.go",
 			calls: []string{
-				"EncodeDocumentationDocument",
-				"EncodeDocumentationLink",
-				"EncodeDocumentationSection",
-				"EncodeDocumentationSource",
+				"EncodeDocument",
+				"EncodeLink",
+				"EncodeSection",
+				"EncodeSource",
 			},
 		},
 		{
 			path: "document/export/facts.go",
 			calls: []string{
-				"EncodeDocumentationDocument",
-				"EncodeDocumentationLink",
-				"EncodeDocumentationSection",
-				"EncodeDocumentationSource",
+				"EncodeDocument",
+				"EncodeLink",
+				"EncodeSection",
+				"EncodeSource",
 			},
 		},
 		{
 			path: "mediadoc/extract.go",
 			calls: []string{
-				"EncodeDocumentationDocument",
-				"EncodeDocumentationSection",
+				"EncodeDocument",
+				"EncodeSection",
 			},
 		},
 		{
 			path: "ocrdoc/extract.go",
 			calls: []string{
-				"EncodeDocumentationDocument",
-				"EncodeDocumentationSection",
+				"EncodeDocument",
+				"EncodeSection",
 			},
 		},
 		{
 			path: "../doctruth/extractor.go",
 			calls: []string{
-				"EncodeDocumentationClaimCandidate",
-				"EncodeDocumentationEntityMention",
+				"EncodeClaimCandidate",
+				"EncodeEntityMention",
 			},
 		},
 		{
 			path: "../doctruth/verifier.go",
 			calls: []string{
-				"EncodeDocumentationEvidencePacket",
-				"EncodeDocumentationFinding",
+				"EncodeEvidencePacket",
+				"EncodeFinding",
 			},
 		},
 		{

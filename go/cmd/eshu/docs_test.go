@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cli/docs"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -123,7 +124,7 @@ func TestRunDocsVerifyPersistCommitsDocumentationFacts(t *testing.T) {
 	if got, want := commit.scopeValue.CollectorKind, scope.CollectorDocumentation; got != want {
 		t.Fatalf("collector kind = %q, want %q", got, want)
 	}
-	assertCommittedFactKinds(t, commit.envelopes, facts.DocumentationFindingFactKind, facts.DocumentationEvidencePacketFactKind)
+	assertCommittedFactKinds(t, commit.envelopes, factsdocs.FindingFactKind, factsdocs.EvidencePacketFactKind)
 	for _, envelope := range commit.envelopes {
 		if envelope.ScopeID != commit.scopeValue.ScopeID {
 			t.Fatalf("envelope scope = %q, want %q", envelope.ScopeID, commit.scopeValue.ScopeID)
@@ -393,9 +394,9 @@ func storedDocumentationFinding(scopeID, generationID, status string) facts.Enve
 		FactID:           "finding-fact-1",
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.DocumentationFindingFactKind,
+		FactKind:         factsdocs.FindingFactKind,
 		StableFactKey:    "finding-stable-1",
-		SchemaVersion:    facts.DocumentationFactSchemaVersion,
+		SchemaVersion:    factsdocs.FactSchemaVersion,
 		CollectorKind:    string(scope.CollectorDocumentation),
 		SourceConfidence: facts.SourceConfidenceDerived,
 		ObservedAt:       fixedDocsNow(),
@@ -424,9 +425,9 @@ func storedDocumentationPacket(scopeID, generationID string) facts.Envelope {
 		FactID:           "packet-fact-1",
 		ScopeID:          scopeID,
 		GenerationID:     generationID,
-		FactKind:         facts.DocumentationEvidencePacketFactKind,
+		FactKind:         factsdocs.EvidencePacketFactKind,
 		StableFactKey:    "packet-stable-1",
-		SchemaVersion:    facts.DocumentationFactSchemaVersion,
+		SchemaVersion:    factsdocs.FactSchemaVersion,
 		CollectorKind:    string(scope.CollectorDocumentation),
 		SourceConfidence: facts.SourceConfidenceDerived,
 		ObservedAt:       fixedDocsNow(),

@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -84,7 +84,7 @@ func extractAPIContractDocumentation(
 	commitSHA string,
 	body []byte,
 	formatName string,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	if formatName == "graphql_sdl" {
 		return extractGraphQLSDLDocumentation(repo, relativePath, digest, commitSHA, body)
 	}
@@ -116,10 +116,10 @@ func apiContractDocumentPayload(
 	bodyText string,
 	formatName string,
 	warnings []string,
-	sections []facts.DocumentationSectionPayload,
-) facts.DocumentationDocumentPayload {
+	sections []docs.SectionPayload,
+) docs.DocumentPayload {
 	title := documentationTitle(relativePath, sections)
-	document := facts.DocumentationDocumentPayload{
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   gitDocumentationDocumentID(repo.ID, relativePath),
 		ExternalID:   relativePath,
@@ -335,15 +335,15 @@ func apiContractLinks(
 	documentID string,
 	revisionID string,
 	drafts []apiContractLinkDraft,
-	sections []facts.DocumentationSectionPayload,
-) []facts.DocumentationLinkPayload {
+	sections []docs.SectionPayload,
+) []docs.LinkPayload {
 	if len(drafts) == 0 || len(sections) == 0 {
 		return nil
 	}
 	sectionID := sections[0].SectionID
-	links := make([]facts.DocumentationLinkPayload, 0, len(drafts))
+	links := make([]docs.LinkPayload, 0, len(drafts))
 	for i, draft := range drafts {
-		links = append(links, facts.DocumentationLinkPayload{
+		links = append(links, docs.LinkPayload{
 			DocumentID:     documentID,
 			RevisionID:     revisionID,
 			SectionID:      sectionID,

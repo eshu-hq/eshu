@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsZIPArchiveDocumentationPacket(t *testing.T) {
@@ -33,7 +34,7 @@ func TestStreamFactsEmitsZIPArchiveDocumentationPacket(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:archive")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 3; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -73,7 +74,7 @@ func TestStreamFactsEmitsZIPArchiveDocumentationPacket(t *testing.T) {
 		assertDocumentationFactLinkedRepository(t, *doc, "repository:r_12345678")
 	}
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -105,12 +106,12 @@ func TestStreamFactsRejectsUnsafeZIPArchiveMembers(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:unsafe")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "archive_path_escape")
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0", got)
 	}
 	for _, envelope := range envelopes {
@@ -135,13 +136,13 @@ func TestStreamFactsSkipsNestedAndCredentialZIPMembers(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:mixed")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "archive_nested_skipped")
 	assertPayloadWarning(t, documents[0].Payload, "credential_file_skipped")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -172,12 +173,12 @@ func TestStreamFactsSkipsOversizeZIPMembers(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:oversize")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "resource_limit_exceeded")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -205,12 +206,12 @@ func TestStreamFactsSkipsSymlinkZIPMembersWithoutBlockingSafeMembers(t *testing.
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:symlink")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "archive_symlink_skipped")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -238,12 +239,12 @@ func TestStreamFactsBoundsZIPArchiveResources(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:many")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "resource_limit_exceeded")
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0", got)
 	}
 }
@@ -262,12 +263,12 @@ func TestStreamFactsRejectsZIPCompressionRatioHazards(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:ratio")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "compression_ratio_exceeded")
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0", got)
 	}
 }

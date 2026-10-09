@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID proves the
@@ -24,20 +25,20 @@ func TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID(t *testing.T) 
 	t.Parallel()
 
 	malformed := facts.Envelope{
-		FactKind: facts.DocumentationEntityMentionFactKind,
+		FactKind: docs.EntityMentionFactKind,
 		FactID:   "fact-mention-malformed",
 		Payload: map[string]any{
 			// "document_id" intentionally absent.
 			"section_id":        "sec-deploy",
 			"mention_kind":      "code_symbol",
-			"resolution_status": facts.DocumentationMentionResolutionExact,
+			"resolution_status": docs.MentionResolutionExact,
 			"candidate_refs": []any{
 				map[string]any{"kind": "entity", "id": "uid:bad"},
 			},
 		},
 	}
 	valid := documentationMentionEnvelope(
-		facts.DocumentationMentionResolutionExact,
+		docs.MentionResolutionExact,
 		"entity",
 		[]any{map[string]any{"kind": "entity", "id": "uid:good"}},
 	)
@@ -79,13 +80,13 @@ func TestExtractDocumentationEdgeRowsTrimsDocumentAndSectionIDs(t *testing.T) {
 	t.Parallel()
 
 	padded := facts.Envelope{
-		FactKind: facts.DocumentationEntityMentionFactKind,
+		FactKind: docs.EntityMentionFactKind,
 		FactID:   "fact-mention-padded",
 		Payload: map[string]any{
 			"document_id":       "  doc1  ",
 			"section_id":        "  sec1  ",
 			"mention_kind":      "  code_symbol  ",
-			"resolution_status": facts.DocumentationMentionResolutionExact,
+			"resolution_status": docs.MentionResolutionExact,
 			"candidate_refs": []any{
 				map[string]any{"kind": "entity", "id": "uid:target"},
 			},
@@ -133,14 +134,14 @@ func TestExtractDocumentationEdgeRowsUnsupportedMajorIsFatal(t *testing.T) {
 	t.Parallel()
 
 	unsupported := facts.Envelope{
-		FactKind:      facts.DocumentationEntityMentionFactKind,
+		FactKind:      docs.EntityMentionFactKind,
 		FactID:        "fact-mention-badmajor",
 		SchemaVersion: "2.0.0", // unsupported major
 		Payload: map[string]any{
 			"document_id":       "doc1",
 			"section_id":        "sec1",
 			"mention_kind":      "code_symbol",
-			"resolution_status": facts.DocumentationMentionResolutionExact,
+			"resolution_status": docs.MentionResolutionExact,
 			"candidate_refs": []any{
 				map[string]any{"kind": "entity", "id": "uid:target"},
 			},
@@ -180,13 +181,13 @@ func TestExtractDocumentationEdgeRowsSkipsWhitespaceOnlyIDs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			env := facts.Envelope{
-				FactKind: facts.DocumentationEntityMentionFactKind,
+				FactKind: docs.EntityMentionFactKind,
 				FactID:   "fact-mention-ws",
 				Payload: map[string]any{
 					"document_id":       tc.documentID,
 					"section_id":        tc.sectionID,
 					"mention_kind":      "code_symbol",
-					"resolution_status": facts.DocumentationMentionResolutionExact,
+					"resolution_status": docs.MentionResolutionExact,
 					"candidate_refs": []any{
 						map[string]any{"kind": "entity", "id": "uid:target"},
 					},
@@ -214,20 +215,20 @@ func TestDocumentationMaterializationHandlerRecordsQuarantinedMentionInputInvali
 	t.Parallel()
 
 	malformed := facts.Envelope{
-		FactKind: facts.DocumentationEntityMentionFactKind,
+		FactKind: docs.EntityMentionFactKind,
 		FactID:   "fact-mention-malformed",
 		Payload: map[string]any{
 			// "section_id" intentionally absent.
 			"document_id":       "doc-runbook",
 			"mention_kind":      "code_symbol",
-			"resolution_status": facts.DocumentationMentionResolutionExact,
+			"resolution_status": docs.MentionResolutionExact,
 			"candidate_refs": []any{
 				map[string]any{"kind": "entity", "id": "uid:bad"},
 			},
 		},
 	}
 	valid := documentationMentionEnvelope(
-		facts.DocumentationMentionResolutionExact,
+		docs.MentionResolutionExact,
 		"entity",
 		[]any{map[string]any{"kind": "entity", "id": "uid:good"}},
 	)
@@ -289,7 +290,7 @@ func TestBuildDocumentationDeltaScopeWithQuarantineQuarantinesMissingDocumentID(
 		},
 	}
 	malformed := facts.Envelope{
-		FactKind: facts.DocumentationDocumentFactKind,
+		FactKind: docs.DocumentFactKind,
 		FactID:   "fact-doc-malformed",
 		Payload: map[string]any{
 			// "document_id" intentionally absent.
@@ -300,7 +301,7 @@ func TestBuildDocumentationDeltaScopeWithQuarantineQuarantinesMissingDocumentID(
 		},
 	}
 	valid := facts.Envelope{
-		FactKind: facts.DocumentationDocumentFactKind,
+		FactKind: docs.DocumentFactKind,
 		Payload: map[string]any{
 			"document_id": "doc:git:repo-123:README.md",
 			"source_metadata": map[string]any{

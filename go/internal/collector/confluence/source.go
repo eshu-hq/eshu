@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -30,7 +31,7 @@ type Source struct {
 	Logger          *slog.Logger
 	Instruments     *telemetry.Instruments
 	TruthExtractor  *doctruth.Extractor
-	TruthClaimHints func(Page, facts.DocumentationSectionPayload) []doctruth.ClaimHint
+	TruthClaimHints func(Page, docs.SectionPayload) []doctruth.ClaimHint
 
 	drained          bool
 	activeSpaceIndex int
@@ -132,7 +133,7 @@ func (s *Source) factEnvelopes(
 	failureCount int,
 	truncated bool,
 ) ([]facts.Envelope, error) {
-	sourcePayload := facts.DocumentationSourcePayload{
+	sourcePayload := docs.SourcePayload{
 		SourceID:     scopeValue.ScopeID,
 		SourceSystem: "confluence",
 		ExternalID:   firstNonEmpty(spaceValue.ID, s.Config.RootPageID),
@@ -140,13 +141,13 @@ func (s *Source) factEnvelopes(
 		BaseURI:      s.Config.BaseURL,
 		SourceType:   sourceType(s.Config),
 		Labels:       nonEmptyStrings(firstNonEmpty(spaceValue.Key, s.Config.SpaceKey)),
-		ACLSummary: &facts.DocumentationACLSummary{
+		ACLSummary: &docs.ACLSummary{
 			Visibility: "credential_viewable",
 			IsPartial:  true,
 			// Confluence reads are credential-viewable but the per-source
 			// restriction set is not collected, so the ACL read is incomplete
 			// and stays partial (fail closed; never upgraded to allowed).
-			SourceACLState: facts.SourceACLStatePartial,
+			SourceACLState: docs.SourceACLStatePartial,
 			PartialReason:  "confluence_source_restrictions_not_collected",
 		},
 		SourceMetadata: map[string]string{
@@ -157,7 +158,7 @@ func (s *Source) factEnvelopes(
 			"max_total_pages":  strconv.Itoa(maxTotalPages(s.Config.MaxTotalPages)),
 		},
 	}
-	sourceEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationSourceFactKind, facts.DocumentationSourceStableID(sourcePayload), sourcePayload, s.Config.BaseURL, sourcePayload.ExternalID)
+	sourceEnvelope, err := envelope(scopeValue, generationValue, docs.SourceFactKind, docs.SourceStableID(sourcePayload), sourcePayload, s.Config.BaseURL, sourcePayload.ExternalID)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func (s *Source) factEnvelopes(
 
 	for _, page := range pages {
 		documentPayload := documentPayload(scopeValue.ScopeID, s.Config.BaseURL, page)
-		documentEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(documentPayload), documentPayload, documentPayload.CanonicalURI, page.ID)
+		documentEnvelope, err := envelope(scopeValue, generationValue, docs.DocumentFactKind, docs.DocumentStableID(documentPayload), documentPayload, documentPayload.CanonicalURI, page.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -176,8 +177,8 @@ func (s *Source) factEnvelopes(
 			sectionEnvelope, err := envelope(
 				scopeValue,
 				generationValue,
-				facts.DocumentationSectionFactKind,
-				facts.DocumentationSectionStableID(section),
+				docs.SectionFactKind,
+				docs.SectionStableID(section),
 				section,
 				documentPayload.CanonicalURI,
 				page.ID,
@@ -188,7 +189,7 @@ func (s *Source) factEnvelopes(
 			out = append(out, sectionEnvelope)
 		}
 		for _, link := range links {
-			linkEnvelope, err := envelope(scopeValue, generationValue, facts.DocumentationLinkFactKind, facts.DocumentationLinkStableID(link), link, documentPayload.CanonicalURI, page.ID)
+			linkEnvelope, err := envelope(scopeValue, generationValue, docs.LinkFactKind, docs.LinkStableID(link), link, documentPayload.CanonicalURI, page.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -209,9 +210,9 @@ func (s *Source) documentationTruthEnvelopes(
 	ctx context.Context,
 	scopeValue scope.IngestionScope,
 	generationValue scope.ScopeGeneration,
-	documentPayload facts.DocumentationDocumentPayload,
-	sections []facts.DocumentationSectionPayload,
-	links []facts.DocumentationLinkPayload,
+	documentPayload docs.DocumentPayload,
+	sections []docs.SectionPayload,
+	links []docs.LinkPayload,
 	page Page,
 ) ([]facts.Envelope, error) {
 	out := []facts.Envelope{}
@@ -231,7 +232,7 @@ func (s *Source) documentationTruthEnvelopes(
 			Links:          linksForSection(links, section.SectionID),
 			ClaimHints:     s.claimHints(page, section),
 			ObservedAt:     generationValue.ObservedAt,
-			SourceACLState: facts.BoundedSourceACLState(documentPayload.ACLSummary),
+			SourceACLState: docs.BoundedSourceACLState(documentPayload.ACLSummary),
 		})
 		if err != nil {
 			return nil, err
@@ -241,15 +242,15 @@ func (s *Source) documentationTruthEnvelopes(
 	return out, nil
 }
 
-func (s *Source) claimHints(page Page, section facts.DocumentationSectionPayload) []doctruth.ClaimHint {
+func (s *Source) claimHints(page Page, section docs.SectionPayload) []doctruth.ClaimHint {
 	if s.TruthClaimHints == nil {
 		return nil
 	}
 	return s.TruthClaimHints(page, section)
 }
 
-func linksForSection(links []facts.DocumentationLinkPayload, sectionID string) []facts.DocumentationLinkPayload {
-	out := make([]facts.DocumentationLinkPayload, 0, len(links))
+func linksForSection(links []docs.LinkPayload, sectionID string) []docs.LinkPayload {
+	out := make([]docs.LinkPayload, 0, len(links))
 	for _, link := range links {
 		if link.SectionID == sectionID {
 			out = append(out, link)
@@ -333,14 +334,14 @@ func envelope(scopeValue scope.IngestionScope, generationValue scope.ScopeGenera
 
 func documentationPayloadMap(payload any) (map[string]any, error) {
 	switch value := payload.(type) {
-	case facts.DocumentationSourcePayload:
-		return facts.EncodeDocumentationSource(value)
-	case facts.DocumentationDocumentPayload:
-		return facts.EncodeDocumentationDocument(value)
-	case facts.DocumentationSectionPayload:
-		return facts.EncodeDocumentationSection(value)
-	case facts.DocumentationLinkPayload:
-		return facts.EncodeDocumentationLink(value)
+	case docs.SourcePayload:
+		return docs.EncodeSource(value)
+	case docs.DocumentPayload:
+		return docs.EncodeDocument(value)
+	case docs.SectionPayload:
+		return docs.EncodeSection(value)
+	case docs.LinkPayload:
+		return docs.EncodeLink(value)
 	case map[string]any:
 		return value, nil
 	default:
@@ -349,10 +350,10 @@ func documentationPayloadMap(payload any) (map[string]any, error) {
 }
 
 func schemaVersionForFactKind(kind string) string {
-	if kind == facts.DocumentationSectionFactKind {
-		return facts.DocumentationSectionFactSchemaVersion
+	if kind == docs.SectionFactKind {
+		return docs.SectionFactSchemaVersion
 	}
-	return facts.DocumentationFactSchemaVersion
+	return docs.FactSchemaVersion
 }
 
 func latestCurrentPages(pages []Page) []Page {

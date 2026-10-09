@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -123,10 +123,10 @@ JOIN scope_generations AS generation
  AND generation.generation_id = fact.generation_id
 WHERE %s
 `,
-		facts.DocumentationSourceFactKind,
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationSectionFactKind,
-		facts.DocumentationLinkFactKind,
+		docs.SourceFactKind,
+		docs.DocumentFactKind,
+		docs.SectionFactKind,
+		docs.LinkFactKind,
 		activeJoin,
 		strings.Join(clauses, " AND "),
 	), args
@@ -172,26 +172,26 @@ func documentationNoStructuredRefsPredicate(payload string) string {
 
 func documentationSourceOnlyFactKindsList() []string {
 	return []string{
-		facts.DocumentationSourceFactKind,
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationSectionFactKind,
-		facts.DocumentationLinkFactKind,
+		docs.SourceFactKind,
+		docs.DocumentFactKind,
+		docs.SectionFactKind,
+		docs.LinkFactKind,
 	}
 }
 
 func documentationSourceOnlyFactKinds(sourceCount, documentCount, sectionCount, linkCount int) map[string]int {
 	kinds := map[string]int{}
 	if sourceCount > 0 {
-		kinds[facts.DocumentationSourceFactKind] = sourceCount
+		kinds[docs.SourceFactKind] = sourceCount
 	}
 	if documentCount > 0 {
-		kinds[facts.DocumentationDocumentFactKind] = documentCount
+		kinds[docs.DocumentFactKind] = documentCount
 	}
 	if sectionCount > 0 {
-		kinds[facts.DocumentationSectionFactKind] = sectionCount
+		kinds[docs.SectionFactKind] = sectionCount
 	}
 	if linkCount > 0 {
-		kinds[facts.DocumentationLinkFactKind] = linkCount
+		kinds[docs.LinkFactKind] = linkCount
 	}
 	return kinds
 }

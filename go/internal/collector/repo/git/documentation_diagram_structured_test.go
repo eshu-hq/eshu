@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsStructuredDiagramDocumentationFactsAfterPreflight(t *testing.T) {
@@ -68,7 +69,7 @@ end note
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 4; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -89,7 +90,7 @@ end note
 		}
 	}
 
-	sectionFacts := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sectionFacts := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sectionFacts), 4; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -112,7 +113,7 @@ end note
 		assertDocumentationFactLinkedRepository(t, section, "repository:r_12345678")
 	}
 
-	linkFacts := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	linkFacts := factsByKind(envelopes, factsdocs.LinkFactKind)
 	if got, want := len(linkFacts), 4; got != want {
 		t.Fatalf("documentation_link count = %d, want %d: %#v", got, want, linkFacts)
 	}
@@ -121,10 +122,10 @@ end note
 	assertLinkTargetPresent(t, linkFacts, "docs/excalidraw-readback.md")
 	assertLinkTargetPresent(t, linkFacts, "docs/svg-runbook.md")
 	assertStructuredDiagramFactsDoNotLeak(t, envelopes, "tenant.example.invalid", "token=secret-marker")
-	if got := len(factsByKind(envelopes, facts.DocumentationEntityMentionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.EntityMentionFactKind)); got != 0 {
 		t.Fatalf("documentation_entity_mention count = %d, want 0 for structured diagrams", got)
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.ClaimCandidateFactKind)); got != 0 {
 		t.Fatalf("documentation_claim_candidate count = %d, want 0 for structured diagrams", got)
 	}
 }
@@ -159,7 +160,7 @@ component "Unsafe"
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 5; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -177,10 +178,10 @@ component "Unsafe"
 			t.Fatalf("document %q warning = %q, want %q", path, warning, wantWarnings[path])
 		}
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0 for unsafe structured diagrams", got)
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationLinkFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.LinkFactKind)); got != 0 {
 		t.Fatalf("documentation_link count = %d, want 0 for unsafe structured diagrams", got)
 	}
 	assertStructuredDiagramFactsDoNotLeak(t, envelopes, "private.example.invalid")

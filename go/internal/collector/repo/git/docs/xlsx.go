@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -36,7 +36,7 @@ func extractWorkbookDocumentation(
 	commitSHA string,
 	body []byte,
 	format string,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	document := workbookDocumentPayload(repo, documentID, relativePath, revisionID, digest, commitSHA, body, format)
@@ -70,7 +70,7 @@ func extractWorkbookDocumentation(
 	if workbook.hiddenSheets > 0 {
 		addDocumentationWarnings(document.SourceMetadata, xlsxHiddenContentSkippedWarning)
 	}
-	sections := make([]facts.DocumentationSectionPayload, 0, len(workbook.visibleSheets))
+	sections := make([]docs.SectionPayload, 0, len(workbook.visibleSheets))
 	for i, sheet := range workbook.visibleSheets {
 		sections = append(sections, xlsxSheetSectionPayload(documentID, revisionID, relativePath, i+1, sheet))
 	}
@@ -86,8 +86,8 @@ func workbookDocumentPayload(
 	commitSHA string,
 	body []byte,
 	format string,
-) facts.DocumentationDocumentPayload {
-	document := facts.DocumentationDocumentPayload{
+) docs.DocumentPayload {
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -349,7 +349,7 @@ func xlsxSheetSectionPayload(
 	relativePath string,
 	ordinal int,
 	sheet xlsxSheetSummary,
-) facts.DocumentationSectionPayload {
+) docs.SectionPayload {
 	content, contentWarnings := boundedDocumentationSectionContent(xlsxSheetSectionContent(sheet))
 	warnings := append([]string{}, sheet.table.warnings...)
 	warnings = append(warnings, contentWarnings...)
@@ -369,7 +369,7 @@ func xlsxSheetSectionPayload(
 		metadata["formula_hashes"] = strings.Join(sheet.formulaHashes, ",")
 	}
 	addDocumentationWarnings(metadata, warnings...)
-	return facts.DocumentationSectionPayload{
+	return docs.SectionPayload{
 		DocumentID:       documentID,
 		RevisionID:       revisionID,
 		SectionID:        fmt.Sprintf("section:sheet:%d", ordinal),

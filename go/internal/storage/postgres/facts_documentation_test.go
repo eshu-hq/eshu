@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -19,7 +20,7 @@ func TestFactStoreUpsertFactsPersistsDocumentationDocument(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewFactStore(db)
 
-	payload := facts.DocumentationDocumentPayload{
+	payload := docs.DocumentPayload{
 		SourceID:     "doc-source:confluence:platform",
 		DocumentID:   "doc:confluence:12345",
 		ExternalID:   "12345",
@@ -29,10 +30,10 @@ func TestFactStoreUpsertFactsPersistsDocumentationDocument(t *testing.T) {
 		DocumentType: "runbook",
 		Format:       "storage",
 		Labels:       []string{"payments", "deployment"},
-		OwnerRefs: []facts.DocumentationOwnerRef{
+		OwnerRefs: []docs.OwnerRef{
 			{Kind: "group", ID: "team:payments", DisplayName: "Payments"},
 		},
-		ACLSummary: &facts.DocumentationACLSummary{
+		ACLSummary: &docs.ACLSummary{
 			Visibility:   "restricted",
 			ReaderGroups: []string{"platform"},
 		},
@@ -40,12 +41,12 @@ func TestFactStoreUpsertFactsPersistsDocumentationDocument(t *testing.T) {
 		DocumentUpdatedAt: "2026-05-09T12:00:00Z",
 	}
 	envelope := facts.Envelope{
-		FactID:           facts.DocumentationDocumentStableID(payload),
+		FactID:           docs.DocumentStableID(payload),
 		ScopeID:          "documentation-source-confluence-platform",
 		GenerationID:     "confluence-generation-17",
-		FactKind:         facts.DocumentationDocumentFactKind,
-		StableFactKey:    facts.DocumentationDocumentStableID(payload),
-		SchemaVersion:    facts.DocumentationFactSchemaVersion,
+		FactKind:         docs.DocumentFactKind,
+		StableFactKey:    docs.DocumentStableID(payload),
+		SchemaVersion:    docs.FactSchemaVersion,
 		CollectorKind:    string(scope.CollectorDocumentation),
 		FencingToken:     7,
 		SourceConfidence: facts.SourceConfidenceObserved,
@@ -90,10 +91,10 @@ func TestFactStoreUpsertFactsPersistsDocumentationDocument(t *testing.T) {
 	if got, want := len(db.execs[0].args), columnsPerFactRow; got != want {
 		t.Fatalf("arg count = %d, want %d", got, want)
 	}
-	if got, want := db.execs[0].args[3], facts.DocumentationDocumentFactKind; got != want {
+	if got, want := db.execs[0].args[3], docs.DocumentFactKind; got != want {
 		t.Fatalf("fact_kind arg = %q, want %q", got, want)
 	}
-	if got, want := db.execs[0].args[5], facts.DocumentationFactSchemaVersion; got != want {
+	if got, want := db.execs[0].args[5], docs.FactSchemaVersion; got != want {
 		t.Fatalf("schema_version arg = %q, want %q", got, want)
 	}
 	if got, want := db.execs[0].args[6], string(scope.CollectorDocumentation); got != want {
@@ -111,7 +112,7 @@ func TestFactStoreUpsertFactsPersistsDiagramDocumentationFacts(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := NewFactStore(db)
 
-	section := facts.DocumentationSectionPayload{
+	section := docs.SectionPayload{
 		DocumentID:       "doc:git:repository:r_diagram:docs/architecture.mmd",
 		RevisionID:       "abc123",
 		SectionID:        "section:diagram",
@@ -127,7 +128,7 @@ func TestFactStoreUpsertFactsPersistsDiagramDocumentationFacts(t *testing.T) {
 		SourceMetadata:   map[string]string{"path": "docs/architecture.mmd", "format_family": "diagram"},
 		ContainsWarnings: false,
 	}
-	link := facts.DocumentationLinkPayload{
+	link := docs.LinkPayload{
 		DocumentID:     section.DocumentID,
 		RevisionID:     section.RevisionID,
 		SectionID:      section.SectionID,
@@ -139,12 +140,12 @@ func TestFactStoreUpsertFactsPersistsDiagramDocumentationFacts(t *testing.T) {
 	}
 	envelopes := []facts.Envelope{
 		{
-			FactID:           facts.DocumentationSectionStableID(section),
+			FactID:           docs.SectionStableID(section),
 			ScopeID:          "scope-diagram",
 			GenerationID:     "gen-diagram",
-			FactKind:         facts.DocumentationSectionFactKind,
-			StableFactKey:    facts.DocumentationSectionStableID(section),
-			SchemaVersion:    facts.DocumentationSectionFactSchemaVersion,
+			FactKind:         docs.SectionFactKind,
+			StableFactKey:    docs.SectionStableID(section),
+			SchemaVersion:    docs.SectionFactSchemaVersion,
 			CollectorKind:    string(scope.CollectorDocumentation),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       time.Date(2026, time.June, 9, 5, 50, 0, 0, time.UTC),
@@ -174,12 +175,12 @@ func TestFactStoreUpsertFactsPersistsDiagramDocumentationFacts(t *testing.T) {
 			},
 		},
 		{
-			FactID:           facts.DocumentationLinkStableID(link),
+			FactID:           docs.LinkStableID(link),
 			ScopeID:          "scope-diagram",
 			GenerationID:     "gen-diagram",
-			FactKind:         facts.DocumentationLinkFactKind,
-			StableFactKey:    facts.DocumentationLinkStableID(link),
-			SchemaVersion:    facts.DocumentationFactSchemaVersion,
+			FactKind:         docs.LinkFactKind,
+			StableFactKey:    docs.LinkStableID(link),
+			SchemaVersion:    docs.FactSchemaVersion,
 			CollectorKind:    string(scope.CollectorDocumentation),
 			SourceConfidence: facts.SourceConfidenceObserved,
 			ObservedAt:       time.Date(2026, time.June, 9, 5, 50, 0, 0, time.UTC),

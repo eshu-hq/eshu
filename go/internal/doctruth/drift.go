@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -80,8 +81,8 @@ const (
 // ServiceDeploymentTruth is the caller-supplied current Eshu truth for one service.
 type ServiceDeploymentTruth struct {
 	ServiceID         string
-	DeploymentRefs    []facts.DocumentationEvidenceRef
-	EvidenceRefs      []facts.DocumentationEvidenceRef
+	DeploymentRefs    []docs.EvidenceRef
+	EvidenceRefs      []docs.EvidenceRef
 	FreshnessState    FreshnessState
 	ObservedAt        time.Time
 	AmbiguityReasons  []string
@@ -91,8 +92,8 @@ type ServiceDeploymentTruth struct {
 // DeploymentDriftInput contains one documentation claim and its comparable truth.
 type DeploymentDriftInput struct {
 	SourceSystem string
-	Claim        facts.DocumentationClaimCandidatePayload
-	Mentions     []facts.DocumentationEntityMentionPayload
+	Claim        docs.ClaimCandidatePayload
+	Mentions     []docs.EntityMentionPayload
 	Truth        ServiceDeploymentTruth
 }
 
@@ -114,7 +115,7 @@ type DeploymentDriftFinding struct {
 	SubjectMentionID        string
 	DocumentedDeploymentIDs []string
 	CurrentDeploymentIDs    []string
-	EvidenceRefs            []facts.DocumentationEvidenceRef
+	EvidenceRefs            []docs.EvidenceRef
 	AmbiguityReasons        []string
 	UnsupportedReason       string
 	ObservedAt              time.Time
@@ -182,7 +183,7 @@ func (a *DeploymentDriftAnalyzer) findServiceDeploymentDrift(input DeploymentDri
 		ExcerptHash:      claim.ExcerptHash,
 		ServiceID:        strings.TrimSpace(input.Truth.ServiceID),
 		SubjectMentionID: claim.SubjectMentionID,
-		EvidenceRefs:     append([]facts.DocumentationEvidenceRef{}, claim.EvidenceRefs...),
+		EvidenceRefs:     append([]docs.EvidenceRef{}, claim.EvidenceRefs...),
 		ObservedAt:       input.Truth.ObservedAt,
 	}
 	finding.EvidenceRefs = appendRefs(finding.EvidenceRefs, input.Truth.EvidenceRefs)
@@ -192,11 +193,11 @@ func (a *DeploymentDriftAnalyzer) findServiceDeploymentDrift(input DeploymentDri
 		return markUnsupported(finding, unsupportedClaimType)
 	}
 	subjectMention := mentions[claim.SubjectMentionID]
-	if subjectMention.ResolutionStatus == facts.DocumentationMentionResolutionAmbiguous {
+	if subjectMention.ResolutionStatus == docs.MentionResolutionAmbiguous {
 		finding.AmbiguityReasons = append(finding.AmbiguityReasons, ambiguousSubjectMention)
 		return markAmbiguous(finding)
 	}
-	if subjectMention.ResolutionStatus != facts.DocumentationMentionResolutionExact {
+	if subjectMention.ResolutionStatus != docs.MentionResolutionExact {
 		return markUnsupported(finding, unsupportedMissingServiceID)
 	}
 	serviceID := exactMentionEntityID(subjectMention)
@@ -259,7 +260,7 @@ func markAmbiguous(finding DeploymentDriftFinding) DeploymentDriftFinding {
 	return finding
 }
 
-func deploymentDriftFindingID(claim facts.DocumentationClaimCandidatePayload) string {
+func deploymentDriftFindingID(claim docs.ClaimCandidatePayload) string {
 	return "finding:" + facts.StableID(string(FindingTypeServiceDeploymentDrift), map[string]any{
 		"document_id":  claim.DocumentID,
 		"revision_id":  claim.RevisionID,
@@ -270,8 +271,8 @@ func deploymentDriftFindingID(claim facts.DocumentationClaimCandidatePayload) st
 	})
 }
 
-func mentionsByID(mentions []facts.DocumentationEntityMentionPayload) map[string]facts.DocumentationEntityMentionPayload {
-	out := make(map[string]facts.DocumentationEntityMentionPayload, len(mentions))
+func mentionsByID(mentions []docs.EntityMentionPayload) map[string]docs.EntityMentionPayload {
+	out := make(map[string]docs.EntityMentionPayload, len(mentions))
 	for _, mention := range mentions {
 		if strings.TrimSpace(mention.MentionID) == "" {
 			continue
@@ -281,22 +282,22 @@ func mentionsByID(mentions []facts.DocumentationEntityMentionPayload) map[string
 	return out
 }
 
-func exactMentionEntityID(mention facts.DocumentationEntityMentionPayload) string {
-	if mention.ResolutionStatus != facts.DocumentationMentionResolutionExact || len(mention.CandidateRefs) != 1 {
+func exactMentionEntityID(mention docs.EntityMentionPayload) string {
+	if mention.ResolutionStatus != docs.MentionResolutionExact || len(mention.CandidateRefs) != 1 {
 		return ""
 	}
 	return strings.TrimSpace(mention.CandidateRefs[0].ID)
 }
 
 func documentedDeploymentIDs(
-	claim facts.DocumentationClaimCandidatePayload,
-	mentions map[string]facts.DocumentationEntityMentionPayload,
+	claim docs.ClaimCandidatePayload,
+	mentions map[string]docs.EntityMentionPayload,
 ) ([]string, []string) {
 	ids := make([]string, 0, len(claim.ObjectMentionIDs))
 	ambiguityReasons := []string{}
 	for _, mentionID := range claim.ObjectMentionIDs {
 		mention := mentions[mentionID]
-		if mention.ResolutionStatus == facts.DocumentationMentionResolutionAmbiguous {
+		if mention.ResolutionStatus == docs.MentionResolutionAmbiguous {
 			ambiguityReasons = append(ambiguityReasons, ambiguousDeploymentMention)
 			continue
 		}
@@ -309,7 +310,7 @@ func documentedDeploymentIDs(
 	return uniqueSortedStrings(ids), uniqueSortedStrings(ambiguityReasons)
 }
 
-func evidenceRefIDs(refs []facts.DocumentationEvidenceRef) []string {
+func evidenceRefIDs(refs []docs.EvidenceRef) []string {
 	ids := make([]string, 0, len(refs))
 	for _, ref := range refs {
 		if strings.TrimSpace(ref.ID) == "" {

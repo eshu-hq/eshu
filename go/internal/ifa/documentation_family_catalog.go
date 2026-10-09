@@ -5,6 +5,7 @@ package ifa
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
@@ -96,7 +97,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("1-charge", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        documentationFamilySectionID,
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "function",
 				"mention_text":      "Charge",
 				"candidate_refs": []any{
@@ -108,7 +109,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("2-paymentgateway", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        documentationFamilySectionID,
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "class",
 				"mention_text":      "PaymentGateway",
 				"candidate_refs": []any{
@@ -121,7 +122,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("3-duplicate-charge", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        documentationFamilySectionID,
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "function",
 				"mention_text":      "Charge()",
 				"candidate_refs": []any{
@@ -145,7 +146,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("5-multi-candidate", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        documentationFamilySectionID,
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "function",
 				"mention_text":      "Void",
 				"candidate_refs": []any{
@@ -158,7 +159,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("6-service-kind", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        documentationFamilySectionID,
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "service",
 				"mention_text":      "payments service",
 				"candidate_refs": []any{
@@ -172,7 +173,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("7-blank-section", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        "   ",
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "function",
 				"mention_text":      "Settle",
 				"candidate_refs": []any{
@@ -183,7 +184,7 @@ func documentationFamilyOdu() familyodu.CatalogOdu {
 			documentationCatalogMention("8-payments-table", map[string]any{
 				"document_id":       documentationFamilyDocID,
 				"section_id":        documentationFamilySectionID,
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"mention_kind":      "table",
 				"mention_text":      "payments table",
 				"candidate_refs": []any{
@@ -228,7 +229,7 @@ func documentationCatalogFact(kind, stableKey string, payload map[string]any) fa
 // projection of the payload.
 func documentationCatalogMention(stableKeySuffix string, payload map[string]any) facts.Envelope {
 	return documentationCatalogFact(
-		facts.DocumentationEntityMentionFactKind,
+		docs.EntityMentionFactKind,
 		"documentation_entity_mention:"+documentationFamilyDocID+":"+documentationFamilySectionID+":"+stableKeySuffix,
 		payload,
 	)

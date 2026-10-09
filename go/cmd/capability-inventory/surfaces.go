@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -222,7 +223,7 @@ func enumerateMCPTools() []string {
 func collectorFactKinds() map[string][]string {
 	return map[string][]string{
 		string(scope.CollectorGit): appendFactKinds(
-			facts.DocumentationFactKinds(),
+			docs.FactKinds(),
 			facts.ServiceCatalogFactKinds(),
 		),
 		string(scope.CollectorAWS): appendFactKinds(
@@ -239,7 +240,7 @@ func collectorFactKinds() map[string][]string {
 			filterFactKinds(facts.SecretsIAMFactKinds(), "gcp_"),
 		),
 		string(scope.CollectorTerraformState):            facts.TerraformStateFactKinds(),
-		string(scope.CollectorDocumentation):             facts.DocumentationFactKinds(),
+		string(scope.CollectorDocumentation):             docs.FactKinds(),
 		string(scope.CollectorOCIRegistry):               facts.OCIRegistryFactKinds(),
 		string(scope.CollectorPackageRegistry):           facts.PackageRegistryFactKinds(),
 		string(scope.CollectorVulnerabilityIntelligence): facts.VulnerabilityIntelligenceFactKinds(),

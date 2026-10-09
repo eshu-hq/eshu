@@ -31,7 +31,7 @@ import (
 //
 // source_acl_state is the bounded source-ACL-state observation
 // (allowed|denied|partial|missing|stale) the collector emits on the fact's
-// acl_summary (facts.DocumentationACLSummary.SourceACLState). It is read verbatim
+// acl_summary (docs.ACLSummary.SourceACLState). It is read verbatim
 // and COALESCEd to the empty string when the fact carries no ACL summary, so a
 // fact with no observed access-posture signal yields no ACL claim. The reducer
 // validates and projects it; this read never upgrades, defaults, or invents a

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -101,7 +101,7 @@ func resolveDocumentationEdgeMaterializedEdges(odu ifa.Odu, expectedEdgesPath st
 
 	mentionCount := 0
 	for _, env := range odu.Facts {
-		if env.FactKind == facts.DocumentationEntityMentionFactKind {
+		if env.FactKind == docs.EntityMentionFactKind {
 			mentionCount++
 		}
 	}

@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/diagram"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -60,14 +60,14 @@ func extractDiagramDocumentation(
 	commitSHA string,
 	body []byte,
 	format string,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	bodyText, bodyWarnings := boundedDocumentationBody(body)
-	document := facts.DocumentationDocumentPayload{
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -365,7 +365,7 @@ func diagramDocumentationSections(
 	relativePath string,
 	format string,
 	labels []string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	draft := markdownSectionDraft{
 		level:    1,
 		heading:  documentationTitle(relativePath, nil),
@@ -385,12 +385,12 @@ func diagramDocumentationSections(
 func diagramDocumentationLinks(
 	relativePath string,
 	revisionID string,
-	section facts.DocumentationSectionPayload,
+	section docs.SectionPayload,
 	links []diagramLink,
-) []facts.DocumentationLinkPayload {
-	out := make([]facts.DocumentationLinkPayload, 0, len(links))
+) []docs.LinkPayload {
+	out := make([]docs.LinkPayload, 0, len(links))
 	for _, link := range links {
-		out = append(out, facts.DocumentationLinkPayload{
+		out = append(out, docs.LinkPayload{
 			DocumentID:     section.DocumentID,
 			RevisionID:     revisionID,
 			SectionID:      section.SectionID,

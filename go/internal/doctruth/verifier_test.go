@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestVerifierComparesCLIEndpointAndEnvClaims(t *testing.T) {
@@ -51,10 +52,10 @@ func TestVerifierComparesCLIEndpointAndEnvClaims(t *testing.T) {
 	if got, want := len(result.EvidencePackets), 3; got != want {
 		t.Fatalf("len(EvidencePackets) = %d, want %d", got, want)
 	}
-	if got, want := countEnvelopes(result.Envelopes, facts.DocumentationFindingFactKind), 3; got != want {
+	if got, want := countEnvelopes(result.Envelopes, docs.FindingFactKind), 3; got != want {
 		t.Fatalf("documentation finding envelopes = %d, want %d", got, want)
 	}
-	if got, want := countEnvelopes(result.Envelopes, facts.DocumentationEvidencePacketFactKind), 3; got != want {
+	if got, want := countEnvelopes(result.Envelopes, docs.EvidencePacketFactKind), 3; got != want {
 		t.Fatalf("documentation evidence packet envelopes = %d, want %d", got, want)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestDocumentationHandlerDisclosesDeniedFindingOnWire proves the approved
@@ -98,11 +99,11 @@ func TestDocumentationFindingsEnforcementProofMatrix(t *testing.T) {
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
 		columns: []string{"payload"},
 		rows: [][]driver.Value{
-			{row("allowed", facts.SourceACLStateAllowed)},
-			{row("denied", facts.SourceACLStateDenied)},
-			{row("partial", facts.SourceACLStatePartial)},
-			{row("stale", facts.SourceACLStateStale)},
-			{row("missing", facts.SourceACLStateMissing)},
+			{row("allowed", docs.SourceACLStateAllowed)},
+			{row("denied", docs.SourceACLStateDenied)},
+			{row("partial", docs.SourceACLStatePartial)},
+			{row("stale", docs.SourceACLStateStale)},
+			{row("missing", docs.SourceACLStateMissing)},
 		},
 	}})
 	reader := NewContentReader(db)
@@ -142,7 +143,7 @@ func TestDocumentationFindingsEnforcementProofMatrix(t *testing.T) {
 	if denied["freshness_state"] != "fresh" || denied["truth_level"] != "derived" {
 		t.Fatalf("#2138 labels collapsed on denied row: %#v", denied)
 	}
-	if denied["source_acl_state"] != facts.SourceACLStateDenied {
+	if denied["source_acl_state"] != docs.SourceACLStateDenied {
 		t.Fatalf("denied source_acl_state = %#v", denied["source_acl_state"])
 	}
 
@@ -294,7 +295,7 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 		t.Parallel()
 		db := openContentReaderTestDB(t, []contentReaderQueryResult{{
 			columns: []string{"payload"},
-			rows:    [][]driver.Value{{packet(facts.SourceACLStateDenied)}},
+			rows:    [][]driver.Value{{packet(docs.SourceACLStateDenied)}},
 		}})
 		got, err := NewContentReader(db).DocumentationEvidencePacketWithFilter(
 			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:denied"},
@@ -314,7 +315,7 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 		t.Parallel()
 		db := openContentReaderTestDB(t, []contentReaderQueryResult{{
 			columns: []string{"payload"},
-			rows:    [][]driver.Value{{packet(facts.SourceACLStatePartial)}},
+			rows:    [][]driver.Value{{packet(docs.SourceACLStatePartial)}},
 		}})
 		got, err := NewContentReader(db).DocumentationEvidencePacketWithFilter(
 			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:partial"},
@@ -340,7 +341,7 @@ func TestDocumentationEvidencePacketEnforcement(t *testing.T) {
 		t.Parallel()
 		db := openContentReaderTestDB(t, []contentReaderQueryResult{{
 			columns: []string{"payload"},
-			rows:    [][]driver.Value{{packet(facts.SourceACLStateStale)}},
+			rows:    [][]driver.Value{{packet(docs.SourceACLStateStale)}},
 		}})
 		got, err := NewContentReader(db).DocumentationEvidencePacketWithFilter(
 			t.Context(), documentationEvidencePacketFilter{FindingID: "finding:stale"},
@@ -378,7 +379,7 @@ func TestSemanticEvidenceRowEnforcement(t *testing.T) {
 			"admission_state":     facts.SemanticAdmissionPartial,
 			"corroboration_state": "uncorroborated",
 			"evidence_refs":       []any{map[string]any{"kind": "doc", "id": "doc:1"}},
-			"acl_summary":         map[string]any{"source_acl_state": facts.SourceACLStateDenied},
+			"acl_summary":         map[string]any{"source_acl_state": docs.SourceACLStateDenied},
 		},
 	}
 	deniedRow := semanticEvidencePublicRow(deniedRaw)
@@ -401,7 +402,7 @@ func TestSemanticEvidenceRowEnforcement(t *testing.T) {
 	if deniedRow["freshness_state"] != facts.SemanticFreshnessFresh {
 		t.Fatalf("freshness_state collapsed on denied semantic row: %#v", deniedRow)
 	}
-	if deniedRow["source_acl_state"] != facts.SourceACLStateDenied {
+	if deniedRow["source_acl_state"] != docs.SourceACLStateDenied {
 		t.Fatalf("denied semantic source_acl_state = %#v", deniedRow["source_acl_state"])
 	}
 
@@ -411,7 +412,7 @@ func TestSemanticEvidenceRowEnforcement(t *testing.T) {
 		"payload": map[string]any{
 			"observation_type": "deployment_claim",
 			"observation_text": "readable semantic observation",
-			"acl_summary":      map[string]any{"source_acl_state": facts.SourceACLStateAllowed},
+			"acl_summary":      map[string]any{"source_acl_state": docs.SourceACLStateAllowed},
 		},
 	}
 	allowedRow := semanticEvidencePublicRow(allowedRaw)

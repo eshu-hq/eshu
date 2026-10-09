@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -230,8 +231,8 @@ func TestBuildDocumentationTargetFactsSQLIncludesSemanticObservationProvenance(t
 	})
 
 	for _, want := range []string{
-		facts.DocumentationEntityMentionFactKind,
-		facts.DocumentationClaimCandidateFactKind,
+		docs.EntityMentionFactKind,
+		docs.ClaimCandidateFactKind,
 		facts.SemanticDocumentationObservationFactKind,
 	} {
 		if !strings.Contains(query, "'"+want+"'") {

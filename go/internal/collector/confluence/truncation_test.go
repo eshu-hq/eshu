@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestHTTPClientListSpacePagesTruncatesWhenMoreDataExistsPastMaxTotalPages(t *testing.T) {
@@ -340,7 +340,7 @@ func TestSourceEmitsTruncatedCoverageWarningWhenCursorWalkIsBounded(t *testing.T
 	}
 
 	envelopes := drainFacts(t, collected.Facts)
-	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	sourceFact := factsByKind(envelopes, docs.SourceFactKind)[0]
 	metadata := payloadMap(sourceFact.Payload, "source_metadata")
 	if got, want := payloadString(metadata, "coverage_warning"), CoverageWarningTruncated; got != want {
 		t.Fatalf("coverage_warning = %q, want %q", got, want)
@@ -376,7 +376,7 @@ func TestSourceEmitsCompleteCoverageWarningWhenCursorWalkIsNotBounded(t *testing
 	}
 
 	envelopes := drainFacts(t, collected.Facts)
-	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	sourceFact := factsByKind(envelopes, docs.SourceFactKind)[0]
 	metadata := payloadMap(sourceFact.Payload, "source_metadata")
 	if got, want := payloadString(metadata, "coverage_warning"), CoverageWarningComplete; got != want {
 		t.Fatalf("coverage_warning = %q, want %q", got, want)

@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsTARArchiveDocumentationPackets(t *testing.T) {
@@ -45,7 +46,7 @@ func TestStreamFactsEmitsTARArchiveDocumentationPackets(t *testing.T) {
 
 			envelopes := streamArchiveFacts(t, repoPath, tc.path, "sha256:archive")
 
-			documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+			documents := factsByKind(envelopes, docs.DocumentFactKind)
 			if got, want := len(documents), 3; got != want {
 				t.Fatalf("documentation_document count = %d, want %d", got, want)
 			}
@@ -66,7 +67,7 @@ func TestStreamFactsEmitsTARArchiveDocumentationPackets(t *testing.T) {
 			assertTarMemberDocument(t, documents, repoPath, tc.path, "runbook.md")
 			assertTarMemberDocument(t, documents, repoPath, tc.path, "tables/service-inventory.csv")
 
-			sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+			sections := factsByKind(envelopes, docs.SectionFactKind)
 			if got, want := len(sections), 2; got != want {
 				t.Fatalf("documentation_section count = %d, want %d", got, want)
 			}
@@ -91,12 +92,12 @@ func TestStreamFactsRejectsUnsafeTARArchiveMembers(t *testing.T) {
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:unsafe")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, docs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "archive_path_escape")
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, docs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0", got)
 	}
 	for _, envelope := range envelopes {
@@ -124,7 +125,7 @@ func TestStreamFactsSkipsUnsafeTARMembersWithoutBlockingSafeMembers(t *testing.T
 
 	envelopes := streamArchiveFacts(t, repoPath, archivePath, "sha256:mixed")
 
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, docs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -132,7 +133,7 @@ func TestStreamFactsSkipsUnsafeTARMembersWithoutBlockingSafeMembers(t *testing.T
 	assertPayloadWarning(t, documents[0].Payload, "credential_file_skipped")
 	assertPayloadWarning(t, documents[0].Payload, "archive_symlink_skipped")
 	assertPayloadWarning(t, documents[0].Payload, "archive_special_file_skipped")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, docs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}

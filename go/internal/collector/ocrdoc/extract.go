@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -49,13 +50,13 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		document.SourceMetadata["ocr_status"] = "skipped"
 		result.Document = document
-		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(document), document))
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
 		return result, err
 	}
 	if skipPreflight(preflight) {
 		document.SourceMetadata["ocr_status"] = "skipped"
 		result.Document = document
-		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(document), document))
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
 		return result, nil
 	}
 	if req.Engine == nil {
@@ -82,14 +83,14 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	document.SourceMetadata["ocr_region_count"] = strconv.Itoa(len(sections))
 	result.Document = document
 	result.Sections = sections
-	result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationDocumentFactKind, facts.DocumentationDocumentStableID(document), document))
+	result.Envelopes = append(result.Envelopes, envelope(req, docs.DocumentFactKind, docs.DocumentStableID(document), document))
 	for _, section := range sections {
-		result.Envelopes = append(result.Envelopes, envelope(req, facts.DocumentationSectionFactKind, facts.DocumentationSectionStableID(section), section))
+		result.Envelopes = append(result.Envelopes, envelope(req, docs.SectionFactKind, docs.SectionStableID(section), section))
 	}
 	return result, nil
 }
 
-func buildDocument(req Request, preflight picture.Result, sourceHash string) facts.DocumentationDocumentPayload {
+func buildDocument(req Request, preflight picture.Result, sourceHash string) docs.DocumentPayload {
 	metadata := map[string]string{
 		"format_family":               formatImageOCR,
 		"incident_media_source_class": incidentMediaClassOCRRegion,
@@ -135,7 +136,7 @@ func buildDocument(req Request, preflight picture.Result, sourceHash string) fac
 	if canonicalRedacted {
 		metadata["canonical_uri_redacted"] = "true"
 	}
-	return facts.DocumentationDocumentPayload{
+	return docs.DocumentPayload{
 		SourceID:       req.SourceID,
 		DocumentID:     documentID,
 		ExternalID:     externalID,
@@ -152,11 +153,11 @@ func buildDocument(req Request, preflight picture.Result, sourceHash string) fac
 
 func buildSections(
 	req Request,
-	document facts.DocumentationDocumentPayload,
+	document docs.DocumentPayload,
 	ocrResult EngineResult,
 	sourceHash string,
-) []facts.DocumentationSectionPayload {
-	sections := make([]facts.DocumentationSectionPayload, 0, len(ocrResult.Regions))
+) []docs.SectionPayload {
+	sections := make([]docs.SectionPayload, 0, len(ocrResult.Regions))
 	for i, region := range ocrResult.Regions {
 		text := strings.TrimSpace(region.Text)
 		if text == "" {
@@ -188,7 +189,7 @@ func buildSections(
 			warnings = append(warnings, "ocr_low_confidence")
 		}
 		addWarnings(metadata, warnings...)
-		sections = append(sections, facts.DocumentationSectionPayload{
+		sections = append(sections, docs.SectionPayload{
 			DocumentID:       document.DocumentID,
 			RevisionID:       document.RevisionID,
 			SectionID:        "ocr:" + regionID,
@@ -279,20 +280,20 @@ func envelope(req Request, kind string, key string, payload any) facts.Envelope 
 
 func documentationPayloadMap(payload any) (map[string]any, error) {
 	switch value := payload.(type) {
-	case facts.DocumentationDocumentPayload:
-		return facts.EncodeDocumentationDocument(value)
-	case facts.DocumentationSectionPayload:
-		return facts.EncodeDocumentationSection(value)
+	case docs.DocumentPayload:
+		return docs.EncodeDocument(value)
+	case docs.SectionPayload:
+		return docs.EncodeSection(value)
 	default:
 		return nil, fmt.Errorf("unsupported OCR documentation payload type %T", payload)
 	}
 }
 
 func schemaVersion(kind string) string {
-	if kind == facts.DocumentationSectionFactKind {
-		return facts.DocumentationSectionFactSchemaVersion
+	if kind == docs.SectionFactKind {
+		return docs.SectionFactSchemaVersion
 	}
-	return facts.DocumentationFactSchemaVersion
+	return docs.FactSchemaVersion
 }
 
 func warningClasses(warnings []picture.Warning) []string {

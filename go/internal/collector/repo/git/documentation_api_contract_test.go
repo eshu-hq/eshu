@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestStreamFactsEmitsOpenAPIYAMLContractDocumentation(t *testing.T) {
@@ -46,7 +47,7 @@ components:
       type: object
 `
 	envelopes := streamContractDocumentationFacts(t, "openapi.yaml", body)
-	document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, envelopes, docs.DocumentFactKind)
 	if got, want := model.PayloadString(document.Payload, "format"), "openapi"; got != want {
 		t.Fatalf("document format = %q, want %q", got, want)
 	}
@@ -71,7 +72,7 @@ components:
 	if got := model.PayloadString(schema.Payload, "content"); !strings.Contains(got, "A bounded order page.") {
 		t.Fatalf("schema content = %q, want schema description", got)
 	}
-	links := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	links := factsByKind(envelopes, docs.LinkFactKind)
 	if got, want := len(links), 1; got != want {
 		t.Fatalf("documentation_link count = %d, want %d", got, want)
 	}
@@ -186,7 +187,7 @@ type Order {
 			t.Parallel()
 
 			envelopes := streamContractDocumentationFacts(t, tt.relative, tt.body)
-			document := singleFact(t, envelopes, facts.DocumentationDocumentFactKind)
+			document := singleFact(t, envelopes, docs.DocumentFactKind)
 			if got := model.PayloadString(document.Payload, "format"); got != tt.format {
 				t.Fatalf("document format = %q, want %q", got, tt.format)
 			}
@@ -203,7 +204,7 @@ func TestStreamFactsHandlesMalformedAndHugeAPIContractDocs(t *testing.T) {
 	t.Parallel()
 
 	malformed := streamContractDocumentationFacts(t, "openapi.yaml", "openapi: 3.1.0\npaths:\n  /broken: [")
-	document := singleFact(t, malformed, facts.DocumentationDocumentFactKind)
+	document := singleFact(t, malformed, docs.DocumentFactKind)
 	metadata := document.Payload["source_metadata"].(map[string]any)
 	if got := payloadStringFromMap(metadata, "warning"); !strings.Contains(got, "malformed_api_contract") {
 		t.Fatalf("malformed document warning = %q, want malformed_api_contract", got)
@@ -222,11 +223,11 @@ func TestStreamFactsHandlesMalformedAndHugeAPIContractDocs(t *testing.T) {
 		builder.WriteString("\n      summary: Huge operation\n")
 	}
 	huge := streamContractDocumentationFacts(t, "openapi.yaml", builder.String())
-	sections := factsByKind(huge, facts.DocumentationSectionFactKind)
+	sections := factsByKind(huge, docs.SectionFactKind)
 	if got, max := len(sections), 80; got > max {
 		t.Fatalf("documentation_section count = %d, want at most %d", got, max)
 	}
-	hugeDocument := singleFact(t, huge, facts.DocumentationDocumentFactKind)
+	hugeDocument := singleFact(t, huge, docs.DocumentFactKind)
 	hugeMetadata := hugeDocument.Payload["source_metadata"].(map[string]any)
 	if got := payloadStringFromMap(hugeMetadata, "warning"); !strings.Contains(got, "section_limit_exceeded") {
 		t.Fatalf("huge document warning = %q, want section_limit_exceeded", got)
@@ -273,7 +274,7 @@ func singleFact(t *testing.T, envelopes []facts.Envelope, kind string) facts.Env
 func findDocumentationSection(t *testing.T, envelopes []facts.Envelope, heading string) facts.Envelope {
 	t.Helper()
 
-	for _, section := range factsByKind(envelopes, facts.DocumentationSectionFactKind) {
+	for _, section := range factsByKind(envelopes, docs.SectionFactKind) {
 		if model.PayloadString(section.Payload, "heading_text") == heading {
 			return section
 		}

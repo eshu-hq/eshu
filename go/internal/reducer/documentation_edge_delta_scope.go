@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 )
 
@@ -24,8 +25,8 @@ type documentationDeltaScope struct {
 // factload_materialization_bench_test.go reads the same slice.
 var documentationMaterializationFactKinds = []string{
 	factKindRepository,
-	facts.DocumentationDocumentFactKind,
-	facts.DocumentationEntityMentionFactKind,
+	docs.DocumentFactKind,
+	docs.EntityMentionFactKind,
 }
 
 func loadDocumentationMaterializationFacts(
@@ -136,7 +137,7 @@ func buildDocumentationDeltaScopeWithQuarantine(
 	}
 
 	for _, env := range envelopes {
-		if env.FactKind != facts.DocumentationDocumentFactKind || env.IsTombstone {
+		if env.FactKind != docs.DocumentFactKind || env.IsTombstone {
 			continue
 		}
 		document, err := decodeDocumentationDocument(env)
