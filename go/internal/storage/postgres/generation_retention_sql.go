@@ -91,14 +91,14 @@ WHERE generation.status = 'superseded'
 FOR UPDATE OF generation, scope SKIP LOCKED
 `
 
-// Savepoint around candidate selection (arbiter ruling arb-7127-3d-c). Row
-// locks are released by a rollback to a savepoint, so a batch of one
-// generation admitted over BatchRowLimit can give back every scope and
-// generation row the selection locked and keep only its own. SET LOCAL
-// work_mem is issued before the savepoint, so the rollback keeps it.
+// Savepoint around candidate selection (arbiter ruling arb-7127-3d-c, #7334
+// fix 1). Row locks are released by a rollback to a savepoint, so every
+// pass rolls the selection back and holds no lock while it prescreens,
+// counts, and rechecks; the selected set is re-locked afterwards by the
+// targeted lock. SET LOCAL work_mem is issued before the savepoint, so
+// the rollback keeps it.
 const (
 	generationRetentionSavepointStatement         = "SAVEPOINT retention_selection"
-	generationRetentionReleaseSavepointStatement  = "RELEASE SAVEPOINT retention_selection"
 	generationRetentionRollbackSavepointStatement = "ROLLBACK TO SAVEPOINT retention_selection"
 )
 

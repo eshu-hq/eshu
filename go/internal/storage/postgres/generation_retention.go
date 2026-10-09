@@ -143,10 +143,11 @@ type GenerationRetentionResult struct {
 	// pre-count, so a link that commits after the count and names the
 	// generation on its prior side is deleted uncounted: it can understate.
 	RowsOverLimit int64
-	// LockedScopeRows is the distinct scope rows the re-locked batch held
-	// through its prune. Since every pass releases the selection's locks
-	// before planning and re-locks only the selected set (#7334), this is
-	// the pass's full lock set, not a narrowed subset of it.
+	// LockedScopeRows is the distinct scopes of the pruned batch. Since
+	// every pass releases the selection's locks before planning and
+	// re-locks only the selected set (#7334), this is usually the pass's
+	// full lock set; when the under-lock refit skips re-locked members,
+	// those stay held through the commit but uncounted here.
 	LockedScopeRows int
 }
 

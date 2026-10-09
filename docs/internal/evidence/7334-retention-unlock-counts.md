@@ -90,3 +90,29 @@ grouped own-fact pre-screen:
   recheck, ledger, grandchild, hard-ceiling and EPQ proofs): green,
   `go test ./internal/storage/postgres/ -run TestGenerationRetention`,
   93.5s on local Postgres 18.
+
+Performance Evidence: baseline holds the selection's scope and generation
+locks from the candidate query through counts, re-checks and prune to the
+commit (production-shaped log: count_rows 26-29s per cycle with the scope
+lock held nearly throughout; 14 own-rows over-limit generations re-skipped
+every cycle). After, the pass rolls the selection back and plans unlocked,
+so no lock is held during counts; the re-lock covers only the selected set
+in (scope, generation) order with SKIP LOCKED. Backend: local Postgres 18;
+input shape 60,000 seeded fact rows plus content/ledger rows; EXPLAIN
+(ANALYZE, BUFFERS) full 30-arm count 381.309ms / 231,734 buffers versus
+grouped own-fact pre-screen 15.461ms / 1,346 buffers (24.7x, 172x).
+Terminal counts: pre-screened generations never enter the count; the
+committed live unlock probe and the contention probe (423ms wait vs 419ms
+hold) pin the narrowed window. Safe because the recount under the re-lock
+is authoritative, misses drop silently for a later pass, and SKIP LOCKED
+partitions overlapping passes without waiting.
+
+Observability Evidence: skip reasons split three ways on
+eshu_dp_generation_retention_skipped_total (row_limit transient,
+row_limit_own_rows permanent, row_limit_ledger unchanged), so an operator
+can tell a starved permanent backlog from a full batch;
+scope_lock_hold_seconds now spans re-lock to commit (0 when nothing is
+locked) with post-ship acceptance scope_lock_hold_seconds << count_rows on
+skip-heavy cycles; phase timings keep their shape (re-lock under
+select_candidates, recount under count_rows); locked_scope_rows logs the
+pruned batch's distinct scopes.

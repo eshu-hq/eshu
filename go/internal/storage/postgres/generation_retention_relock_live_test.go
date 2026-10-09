@@ -50,6 +50,11 @@ func TestGenerationRetentionPrescreenSkipsOverFactGenerationsLive(t *testing.T) 
 	if got["ps-over-g0"] != 150 || got["ps-under-g0"] != 50 {
 		t.Fatalf("pre-screen counts = %v, want ps-over-g0 150 and ps-under-g0 50", got)
 	}
+	// ps-missing-g0 has no generation row: the LEFT JOIN shape must still
+	// report it with a zero count rather than dropping it.
+	if count, ok := got["ps-missing-g0"]; !ok || count != 0 {
+		t.Fatalf("pre-screen counts = %v, want ps-missing-g0 present with 0", got)
+	}
 
 	store := NewGenerationRetentionStore(SQLDB{DB: database})
 	store.Now = func() time.Time { return now }

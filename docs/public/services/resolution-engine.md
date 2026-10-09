@@ -100,14 +100,17 @@ the limit by that generation's ledger rows and nothing else; while another
 batch is being filled it is deferred with reason `row_limit_ledger` and leads
 a later batch. Each such batch adds one to
 `eshu_dp_generation_retention_over_limit_batches_total`, and the cycle log
-reports `rows_over_batch_row_limit`. A generation whose rows outside the
-ledger exceed the limit is still skipped with reason `row_limit` (ADR #2248).
-A batch of one over the limit holds one scope row and one generation row
-while it deletes: it gives back the other rows its selection locked before the
-delete (a savepoint rollback) and re-locks only its own. The cycle log's
-`locked_scope_rows` counts the scope rows held by the pruned batch, not the
-selection's full lock set: in a general batch the selection can also hold
-other scope rows it locked while choosing, up to `BatchGenerationLimit`.
+reports `rows_over_batch_row_limit`. A generation whose own rows outside the
+ledger already exceed the limit is skipped with reason `row_limit_own_rows`
+and never enters the full count: the pre-screen excludes it before the
+count runs (no recount can ever admit it). The deferred rest keep reason
+`row_limit` (ADR #2248). Every pass rolls its selection back to a
+savepoint, plans unlocked, and re-locks only the selected set in
+`(scope, generation)` order with `SKIP LOCKED` before it recounts and
+deletes. The cycle log's `locked_scope_rows` counts the distinct scopes
+of the pruned batch: usually the pass's full lock set, except when the
+under-lock refit skips members the re-lock holds, which stay held but
+uncounted.
 
 The measured size of such a batch, with the `shared_buffers` it was measured
 under: PostgreSQL 18.6 in a container on an 18-CPU host with at least half its
