@@ -70,6 +70,125 @@ func structuredPilotJSON(raw json.RawMessage) bool {
 	return trimmed[0] == '{' || trimmed[0] == '['
 }
 
+// pilotPlanMetrics accepts only the measured plan shapes emitted by the two
+// pilot backends and derives work from their operator counters.
+func pilotPlanMetrics(raw json.RawMessage, queryKind string) (map[string]float64, bool) {
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return nil, false
+	}
+	if queryKind == queryKindSQLReadModel {
+		list, ok := value.([]any)
+		if !ok || len(list) != 1 {
+			return nil, false
+		}
+		outer, ok := list[0].(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		root, ok := outer["Plan"].(map[string]any)
+		if !ok || !validPilotPostgresOperator(root) {
+			return nil, false
+		}
+		return map[string]float64{
+			"root_buffers_total":     root["Shared Hit Blocks"].(float64) + root["Shared Read Blocks"].(float64) + root["Local Hit Blocks"].(float64) + root["Local Read Blocks"].(float64),
+			"root_temp_blocks_total": root["Temp Read Blocks"].(float64) + root["Temp Written Blocks"].(float64),
+		}, true
+	}
+	if queryKind == queryKindCypher {
+		root, ok := value.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		hits, ok := pilotGraphOperatorHits(root)
+		if !ok {
+			return nil, false
+		}
+		return map[string]float64{"total_operator_db_hits": hits, "root_output_rows": root["rows"].(float64)}, true
+	}
+	return nil, false
+}
+
+func pilotFiniteCounter(value any) (float64, bool) {
+	number, ok := value.(float64)
+	return number, ok && number >= 0 && !math.IsNaN(number) && !math.IsInf(number, 0)
+}
+
+func validPilotPostgresOperator(node map[string]any) bool {
+	name, ok := node["Node Type"].(string)
+	if !ok || strings.TrimSpace(name) == "" {
+		return false
+	}
+	for _, key := range []string{"Actual Rows", "Actual Loops", "Shared Hit Blocks", "Shared Read Blocks", "Local Hit Blocks", "Local Read Blocks", "Temp Read Blocks", "Temp Written Blocks"} {
+		if _, ok := pilotFiniteCounter(node[key]); !ok {
+			return false
+		}
+	}
+	if children, present := node["Plans"]; present {
+		list, ok := children.([]any)
+		if !ok || len(list) == 0 {
+			return false
+		}
+		for _, child := range list {
+			operator, ok := child.(map[string]any)
+			if !ok || !validPilotPostgresOperator(operator) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func pilotGraphOperatorHits(node map[string]any) (float64, bool) {
+	name, ok := node["operator"].(string)
+	if !ok || strings.TrimSpace(name) == "" {
+		return 0, false
+	}
+	hits, hitsOK := pilotFiniteCounter(node["db_hits"])
+	rows, rowsOK := pilotFiniteCounter(node["rows"])
+	arguments, argsOK := node["arguments"].(map[string]any)
+	if !hitsOK || !rowsOK || !argsOK || arguments["DbHits"] != hits || arguments["Rows"] != rows {
+		return 0, false
+	}
+	if children, present := node["children"]; present {
+		if children == nil {
+			return hits, true
+		}
+		list, ok := children.([]any)
+		if !ok {
+			return 0, false
+		}
+		for _, child := range list {
+			operator, ok := child.(map[string]any)
+			if !ok {
+				return 0, false
+			}
+			childHits, ok := pilotGraphOperatorHits(operator)
+			if !ok {
+				return 0, false
+			}
+			hits += childHits
+		}
+	}
+	return hits, true
+}
+
+func validPilotDeclaredAlternatePlan(raw json.RawMessage) bool {
+	var plan struct {
+		Operator string   `json:"operator"`
+		Keys     []string `json:"keys"`
+	}
+	if json.Unmarshal(raw, &plan) != nil || strings.TrimSpace(plan.Operator) == "" || len(plan.Keys) == 0 {
+		return false
+	}
+	for _, key := range plan.Keys {
+		if strings.TrimSpace(key) == "" {
+			return false
+		}
+	}
+	return true
+}
+
 func validPilotAlternateProof(raw json.RawMessage, runner string) bool {
 	var alternate struct {
 		Plan           json.RawMessage `json:"plan"`
@@ -77,7 +196,7 @@ func validPilotAlternateProof(raw json.RawMessage, runner string) bool {
 		Producer       string          `json:"producer"`
 		ArtifactSHA256 string          `json:"artifact_sha256"`
 	}
-	return json.Unmarshal(raw, &alternate) == nil && structuredPilotJSON(alternate.Plan) &&
+	return json.Unmarshal(raw, &alternate) == nil && validPilotDeclaredAlternatePlan(alternate.Plan) &&
 		structuredPilotJSON(alternate.Work) && pilotHasNumber(alternate.Work) &&
 		strings.TrimSpace(alternate.Producer) != "" && strings.TrimSpace(alternate.Producer) != strings.TrimSpace(runner) &&
 		alternate.ArtifactSHA256 == PilotJSONSHA256(alternate.Plan)

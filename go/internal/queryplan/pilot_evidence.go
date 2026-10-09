@@ -294,8 +294,8 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 		if candidate.Base.ColdPreparation != coldMode || candidate.Candidate.ColdPreparation != coldMode {
 			violations = append(violations, fmt.Sprintf("%s/%s: cold preparation differs from environment declaration", entry.ID, key))
 		}
-		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/base", candidate.Base, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner)...)
-		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/candidate", candidate.Candidate, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner)...)
+		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/base", candidate.Base, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner, entry.QueryKind)...)
+		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/candidate", candidate.Candidate, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner, entry.QueryKind)...)
 	}
 	for key := range required {
 		if _, ok := seen[key]; !ok {
@@ -305,9 +305,10 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 	return violations
 }
 
-func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage, budget PilotBudget, runner string) []string {
+func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage, budget PilotBudget, runner, queryKind string) []string {
 	var violations []string
-	useAlternate := !structuredPilotJSON(run.Plan) || !structuredPilotJSON(run.Work) || !pilotHasNumber(run.Work)
+	planMetrics, validPlan := pilotPlanMetrics(run.Plan, queryKind)
+	useAlternate := !validPlan || !structuredPilotJSON(run.Work) || !pilotHasNumber(run.Work)
 	if useAlternate {
 		if strings.TrimSpace(run.PlanUnavailable) == "" || !validPilotAlternateProof(run.AlternateProof, runner) {
 			violations = append(violations, key+": full plan and work or alternate proof required")
@@ -343,6 +344,12 @@ func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage
 		}
 		_ = json.Unmarshal(run.AlternateProof, &alternate)
 		work = alternate.Work
+	} else {
+		for metric, measured := range planMetrics {
+			if claimed, ok := pilotWorkNumber(work, metric); !ok || claimed != measured {
+				violations = append(violations, fmt.Sprintf("%s: work metric %s differs from measured plan", key, metric))
+			}
+		}
 	}
 	if count, ok := pilotWorkNumber(work, "query_count"); !ok || count <= 0 || count > float64(budget.MaxQueryCount) {
 		violations = append(violations, key+": query count absent or exceeds budget")

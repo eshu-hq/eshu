@@ -387,6 +387,9 @@ func methodologyProfile(t *testing.T, ctx context.Context, driver neo4j.DriverWi
 	if profile == nil {
 		t.Fatalf("PROFILE %s has no plan", methodologyHash(capture.cypher))
 	}
+	if err := methodologyValidateProfileCounters(profile, capture.rows); err != nil {
+		t.Fatalf("PROFILE %s: %v", methodologyHash(capture.cypher), err)
+	}
 	if found := queryplanUnboundedVarLengthOperators(profile); len(found) != 0 {
 		t.Fatalf("unbounded PROFILE %s: %v", methodologyHash(capture.cypher), found)
 	}
@@ -398,6 +401,39 @@ func methodologyProfile(t *testing.T, ctx context.Context, driver neo4j.DriverWi
 		}
 	}
 	return methodologyProfileReport{DbHits: methodologyPlanHits(profile), Rows: profile.Records(), Operators: operators, Arguments: profile.Arguments(), Alerts: alerts, Plan: methodologyPlanTree(profile)}
+}
+
+// methodologyValidateProfileCounters verifies raw counters before the pinned
+// driver can turn missing or wrong-typed Bolt fields into zero-valued accessors.
+func methodologyValidateProfileCounters(plan neo4j.ProfiledPlan, capturedRows int) error {
+	if plan == nil {
+		return fmt.Errorf("PROFILE has no plan")
+	}
+	if plan.Records() != int64(capturedRows) {
+		return fmt.Errorf("PROFILE root rows=%d, captured rows=%d", plan.Records(), capturedRows)
+	}
+	var check func(neo4j.ProfiledPlan) error
+	check = func(node neo4j.ProfiledPlan) error {
+		if strings.TrimSpace(node.Operator()) == "" {
+			return fmt.Errorf("PROFILE has unnamed operator")
+		}
+		arguments := node.Arguments()
+		hits, hitsOK := arguments["DbHits"].(int64)
+		rows, rowsOK := arguments["Rows"].(int64)
+		if !hitsOK || !rowsOK || hits < 0 || rows < 0 || hits != node.DbHits() || rows != node.Records() {
+			return fmt.Errorf("PROFILE operator %s lacks matching numeric DbHits and Rows arguments", node.Operator())
+		}
+		for _, child := range node.Children() {
+			if child == nil {
+				return fmt.Errorf("PROFILE operator %s has nil child", node.Operator())
+			}
+			if err := check(child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return check(plan)
 }
 
 func methodologyPlanTree(plan neo4j.ProfiledPlan) methodologyPlanReport {

@@ -49,8 +49,9 @@ func pilotEvidenceFixture() (Manifest, PilotEvidenceArtifact) {
 	workload := json.RawMessage(`{"version":"v1","cases":1}`)
 	fixtureDefinition := "generated fixture uid and owner"
 	run := PilotCaseRun{
-		Result: json.RawMessage(`[{"uid":"fixture-uid"}]`),
-		Plan:   json.RawMessage(`{"Plan":{"Node Type":"Index Scan"}}`), Work: json.RawMessage(`{"rows":1,"shared_blocks":2,"query_count":1}`),
+		Result:           json.RawMessage(`[{"uid":"fixture-uid"}]`),
+		Plan:             json.RawMessage(`[{"Plan":{"Node Type":"Index Scan","Actual Rows":1,"Actual Loops":1,"Shared Hit Blocks":2,"Shared Read Blocks":0,"Local Hit Blocks":0,"Local Read Blocks":0,"Temp Read Blocks":0,"Temp Written Blocks":0}}]`),
+		Work:             json.RawMessage(`{"rows":1,"shared_blocks":2,"root_buffers_total":2,"root_temp_blocks_total":0,"query_count":1}`),
 		ColdMilliseconds: []float64{2, 2.1}, WarmMilliseconds: []float64{1, 1.1},
 		ColdPreparation: "cold_plan_warm_buffers", ColdProof: "new prepared plan, retained fixture buffers",
 		ColdProofSHA256:     fmt.Sprintf("%x", sha256.Sum256([]byte("new prepared plan, retained fixture buffers"))),

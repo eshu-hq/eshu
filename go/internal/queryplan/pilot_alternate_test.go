@@ -17,7 +17,7 @@ func TestPilotAlternateProofRejectsEmptyPlan(t *testing.T) {
 			run.Plan = nil
 			run.PlanUnavailable = "backend does not expose plans"
 			run.AlternateProof = json.RawMessage(raw)
-			if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner"); len(got) == 0 {
+			if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner", queryKindSQLReadModel); len(got) == 0 {
 				t.Fatal("accepted missing plan with empty alternate proof")
 			}
 		})
@@ -35,7 +35,7 @@ func TestPilotAlternateProofBindsPlanProvenance(t *testing.T) {
 	}
 	work := `{"query_count":1,"shared_blocks":2}`
 	run.AlternateProof = proof("independent-probe", PilotJSONSHA256(plan), work)
-	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner"); len(got) != 0 {
+	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner", queryKindSQLReadModel); len(got) != 0 {
 		t.Fatalf("valid alternate: %v", got)
 	}
 	for _, raw := range []json.RawMessage{
@@ -47,7 +47,7 @@ func TestPilotAlternateProofBindsPlanProvenance(t *testing.T) {
 		proof("independent-probe", PilotJSONSHA256(plan), `{"query_count":1}`),
 	} {
 		run.AlternateProof = raw
-		if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner"); len(got) == 0 {
+		if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner", queryKindSQLReadModel); len(got) == 0 {
 			t.Fatalf("accepted invalid alternate %s", raw)
 		}
 	}
@@ -62,19 +62,19 @@ func TestPilotAlternateProofUsesAlternateWorkWhenPlanMissing(t *testing.T) {
 	run.AlternateProof = json.RawMessage(fmt.Sprintf(
 		`{"plan":%s,"producer":"independent-probe","artifact_sha256":%q,"work":{"unrelated":1}}`,
 		plan, PilotJSONSHA256(plan)))
-	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner"); len(got) == 0 {
+	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner", queryKindSQLReadModel); len(got) == 0 {
 		t.Fatal("accepted alternate proof without budgeted work by falling back to run work")
 	}
 	run.AlternateProof = json.RawMessage(fmt.Sprintf(
 		`{"plan":%s,"producer":"independent-probe","artifact_sha256":%q,"work":{"query_count":2,"shared_blocks":101}}`,
 		plan, PilotJSONSHA256(plan)))
-	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner"); len(got) < 2 {
+	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner", queryKindSQLReadModel); len(got) < 2 {
 		t.Fatalf("accepted alternate work over both budgets: %v", got)
 	}
 	run.AlternateProof = json.RawMessage(fmt.Sprintf(
 		`{"plan":%s,"producer":"independent-probe","artifact_sha256":%q,"work":{"query_count":1,"shared_blocks":2}}`,
 		plan, PilotJSONSHA256(plan)))
-	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner"); len(got) != 0 {
+	if got := validatePilotCaseRun("candidate", run, run.Result, manifest.Entries[0].Contract.Budget, "sql-runner", queryKindSQLReadModel); len(got) != 0 {
 		t.Fatalf("rejected valid alternate work with complete run work: %v", got)
 	}
 }
