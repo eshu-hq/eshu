@@ -6,9 +6,9 @@
 with no repository filter. The entity twin, the scoped and multi-repository
 pages, and the oversized-document policy are out of scope. This note records the
 measurements behind the design and the proof of the change. The design and the
-arbiter rulings are not in the repository. The V4c figures are in the comment
-of 2026-10-08 on issue #7730 (issuecomment-6073885986); the transcripts behind
-them are private. This change did not re-run them.
+arbiter rulings are not in the repository. The V4c figures are in the V4c
+comment on issue #7730 (issuecomment-6073885986); the transcripts behind them
+are private. This change did not re-run them.
 
 Performance Evidence: the old single statement, `content ILIKE '%x%' ORDER BY
 repo_id, relative_path LIMIT/OFFSET`, costs the byte mass of the trigram
@@ -70,11 +70,22 @@ selective or zero-match pattern in about a millisecond, and the walk spends its
 continuation cap (0.15 x budget) before the tail runs, so it is slower here.
 On the measured corpus the same two classes stayed inside their bars (table
 above). The walk trades a bounded constant for removing the multi-second tail
-of the old statement; it does not make every class faster. Pages 1, 2 and 3 of the walk
-equal the old statement's `OFFSET 0 / 10 / 20` pages for every class, including
-ILIKE wildcards and case folding, and `truncated` agrees with the old look-ahead
-row (`TestSearchFilesUnscopedMatchesOldStatementLive`, which derives the old
-statement from the shipped tail text and asserts the byte-prefix).
+of the old statement; it does not make every class faster. Pages 1, 2 and 3 of
+the walk equal the old statement's `OFFSET 0 / 10 / 20` pages for every class,
+including ILIKE wildcards and case folding, and `truncated` agrees with the old
+look-ahead row (`TestSearchFilesUnscopedMatchesOldStatementLive`, which runs
+under a large budget so the probe and the continuation answer it). The oracle is
+the shipped tail statement plus only the old OFFSET; the hermetic
+`TestOracleStatementIsDerivedFromShippedTailText` pins that derivation.
+
+A page the trigram tail fills (`TestSearchFilesUnscopedTailFilledPageKeepsMoreLive`,
+limits 2 and 1 under a small budget) returns the old statement's rows and its
+look-ahead flag: the tail is asked for the look-ahead row, so a tail that
+returns every row it was asked for means a further match exists. The unit
+`TestSearchTailFilledPageReportsMore` pins the same for a tail that returns
+exactly the rows it was asked for. Which phases run depends on host speed, so
+the live test tries a series of budgets until the wanted phases ran (and fails
+if none did); rows and `More` are asserted at every budget.
 
 Plan shape (`TestUnscopedSearchPlanShapesLive`): the key-ordered window plans
 as an index walk on `content_files_pkey` with no trigram node; the tail under
