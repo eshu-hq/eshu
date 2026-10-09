@@ -51,7 +51,10 @@ WHERE scope_id = $2
 // supersedeProjectorObsoleteGenerationsQuery is Ack's obsolete-generation
 // supersede. It folds the failure a failed, dead-lettered or retried row carried
 // into failure_details.prior_failure (#7320); failure_class and failure_message
-// stay the supersede marker. See priorFailureStaleSQL.
+// stay the supersede marker. See priorFailureStaleSQL. #7469: it spares a
+// generation that already started writing (projection_write_started_at IS
+// NULL), like the claim sweep's first branch, so a marked generation Acked
+// past is left for its retry, replay, or the graph_dirty full snapshot.
 const supersedeProjectorObsoleteGenerationsQuery = `
 WITH superseded_work AS (
     UPDATE fact_work_items AS stale
@@ -78,6 +81,7 @@ WITH superseded_work AS (
       AND stale_generation.scope_id = stale.scope_id
       AND stale_generation.generation_id = stale.generation_id
       AND stale_generation.status IN ('pending', 'failed')
+      AND stale_generation.projection_write_started_at IS NULL
       AND current_generation.scope_id = stale.scope_id
       AND current_generation.generation_id = $3
       AND current_generation.status IN ('pending', 'active')
