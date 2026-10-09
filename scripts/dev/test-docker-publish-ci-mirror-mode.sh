@@ -87,7 +87,7 @@ verifier_body="$(job_body verify-public-ci-service-mirrors)"
 for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
   body="$(job_body "${job}")"
   crane_step="$(step_body "${body}" 'Install pinned crane')"
-  rg -Fqx -- '        run: GOBIN="${RUNNER_TEMP}" go install github.com/google/go-containerregistry/cmd/crane@v0.20.6' \
+  rg -Fqx -- '        run: GOBIN="${RUNNER_TEMP}" scripts/ci/go-install-retry.sh github.com/google/go-containerregistry/cmd/crane@v0.20.6' \
     <<< "${crane_step}" || fail "${job} lacks the pinned crane install command"
   crane_line="$(rg -n -m1 '^      - name: Install pinned crane$' <<< "${body}")"
   rg -Uq '^      - name: Install ripgrep\n        run: scripts/ci/install-apt-packages.sh ripgrep$' \
