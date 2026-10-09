@@ -103,6 +103,7 @@ for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
 done
 copy_step="$(step_body "${publisher_body}" 'Copy exact upstream indexes')"
 verify_step="$(step_body "${verifier_body}" 'Verify anonymous digests')"
+login_step="$(step_body "${publisher_body}" 'Log in to GHCR')"
 rg -q '^          CRANE_BIN: \$\{\{ runner.temp \}\}/crane$' <<< "${copy_step}" ||
   fail 'publisher copy step lacks the pinned crane binary binding'
 rg -q '^          CRANE_BIN: \$\{\{ runner.temp \}\}/crane$' <<< "${verify_step}" ||
@@ -118,18 +119,18 @@ verify_test_line="$(rg -n -m1 '^      - name: Test publisher safety contract$' <
   fail 'publisher safety test and login must precede the copy'
 [[ -n "${verify_line}" && "${verify_test_line%%:*}" -lt "${verify_line%%:*}" ]] ||
   fail 'public safety test must precede verification'
-rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh publish$' <<< "${publisher_body}" ||
+rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh publish$' <<< "${copy_step}" ||
   fail 'publisher job does not run the pinned publisher'
-rg -q '^          EXPECTED_REVIEWED_SHA: \$\{\{ inputs.expected_sha \}\}$' <<< "${publisher_body}" ||
+rg -q '^          EXPECTED_REVIEWED_SHA: \$\{\{ inputs.expected_sha \}\}$' <<< "${copy_step}" ||
   fail 'publisher job does not bind the reviewed SHA input'
 rg -q '^      packages: write$' <<< "${publisher_body}" ||
   fail 'publisher job lacks package-write permission'
-rg -q '^        uses: docker/login-action@v3$' <<< "${publisher_body}" ||
+rg -q '^        uses: docker/login-action@v3$' <<< "${login_step}" ||
   fail 'publisher job lacks GHCR login'
-rg -q '^          password: \$\{\{ secrets.GITHUB_TOKEN \}\}$' <<< "${publisher_body}" ||
+rg -q '^          password: \$\{\{ secrets.GITHUB_TOKEN \}\}$' <<< "${login_step}" ||
   fail 'publisher login lacks the job-scoped GitHub token'
 
-rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh verify-public$' <<< "${verifier_body}" ||
+rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh verify-public$' <<< "${verify_step}" ||
   fail 'public verifier job does not run anonymous verification'
 rg -q '^      contents: read$' <<< "${verifier_body}" ||
   fail 'public verifier job lacks read-only contents permission'
@@ -196,6 +197,25 @@ if [[ "$#" -eq 0 ]]; then
     "${workflow}" > "${scratch}/no-safety-test.yml"
   if bash "$0" "${scratch}/no-safety-test.yml" > /dev/null 2>&1; then
     fail 'seeded missing publisher safety-test call was not detected'
+  fi
+  awk '
+    /^      - name: Copy exact upstream indexes$/ {
+      print "      - name: Disabled decoy copy"
+      print "        if: false"
+      print "        run: bash scripts/dev/publish-ci-image-mirrors.sh publish"
+      print
+      in_copy = 1
+      next
+    }
+    in_copy && /^        run: bash scripts\/dev\/publish-ci-image-mirrors.sh publish$/ {
+      print "        run: echo bypassed"
+      in_copy = 0
+      next
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/decoy-copy.yml"
+  if bash "$0" "${scratch}/decoy-copy.yml" > /dev/null 2>&1; then
+    fail 'seeded disabled decoy copy hid a bypassed publisher operation'
   fi
   sed "/^  attach-release-sbom:/,/^  package-and-push-chart:/s/github.ref_type == 'tag'/github.ref_type == 'branch'/" \
     "${workflow}" > "${scratch}/sbom-branch.yml"
