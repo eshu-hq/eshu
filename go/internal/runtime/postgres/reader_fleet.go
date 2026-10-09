@@ -132,6 +132,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	excluded := make(map[int]bool)
 	tried := make(map[int]bool)
 	var failures error
+	capacityTimeout := false
 	for bounded.Err() == nil {
 		eligible := make([]int, 0, len(order))
 		for _, member := range order {
@@ -154,6 +155,11 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 		reservation, reserveErr := access.allocator.reserve(bounded, eligible, count)
 		access.observe(ctx, "reader", StageReaderBorrow, borrowed, reserveErr)
 		if reserveErr != nil {
+			// Only an untouched snapshot-set admission wait can use the
+			// caller's fenced single-statement fallback. An allocator timeout
+			// after any setup failure must preserve that failure instead.
+			capacityTimeout = count > 1 && failures == nil && ctx.Err() == nil &&
+				errors.Is(reserveErr, context.DeadlineExceeded) && errors.Is(bounded.Err(), context.DeadlineExceeded)
 			failures = errors.Join(failures, reserveErr)
 			break
 		}
@@ -200,6 +206,9 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	}
 	if errors.Is(bounded.Err(), context.DeadlineExceeded) {
 		failures = errors.Join(failures, replayContextError(bounded.Err()))
+	}
+	if capacityTimeout {
+		failures = errors.Join(failures, db.ErrSnapshotReservationCapacity)
 	}
 	return zero, failures
 }

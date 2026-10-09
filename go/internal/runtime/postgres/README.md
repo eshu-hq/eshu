@@ -124,6 +124,12 @@ checkpoint. Dial, identity, replay, snapshot setup, and business-query errors
 do not trigger that fallback. The legacy permit wait retains the configured
 reader deadline (two seconds by default), so a contended fallback is not a
 subsecond-latency claim.
+Fleet snapshot sets report the same typed capacity error only when an untouched
+multi-connection allocator reservation reaches its internal deadline while the
+caller remains live. A prior member setup failure, caller cancellation, or
+single-reader wait is not capacity fallback eligibility. The allocator removes
+the waiter before classification; the subsequent single-statement read must
+still obtain and fence its own reader connection against the original checkpoint.
 
 ### Local fleet selection evidence
 
