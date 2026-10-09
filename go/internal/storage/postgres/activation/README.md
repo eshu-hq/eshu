@@ -22,8 +22,8 @@ resolution engine:     Claim (SKIP LOCKED, lease + token)
                             -> obsolete (pointer moved or NULL)
                             -> inapplicable (no phase and no repository fact)
                             -> phase_not_ready -> maintenance port -> Finalize again
-                                 port ErrActivationInapplicable -> RetireInapplicable
-                                 port ErrActivationCatalogChanged -> hold lease, retry at lease cadence
+                                 port obligation.ErrInapplicable -> RetireInapplicable
+                                 port obligation.ErrCatalogChanged -> hold lease, retry at lease cadence
                             -> wake <=32 rows -> work_pending | completed
                        CatchUp (bounded scope pages) and Prune (bounded, completed/obsolete rows)
 ```

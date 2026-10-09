@@ -18,7 +18,7 @@ import (
 // to [maintenance] in #6061, but Service.Run's side-runner startup stays a
 // root concern, so this wiring proof stays here; the runner-behavior tests
 // that used to live beside it moved to
-// go/internal/reducer/maintenance/graph_orphan_sweep_runner_test.go.
+// go/internal/reducer/maintenance/orphan/runner_test.go.
 func TestServiceStartsGraphOrphanSweepRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

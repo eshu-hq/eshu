@@ -32,8 +32,8 @@ flowchart TB
   Build --> AdmissionDecisions["AdmissionDecisionWriter\n(admission_decisions)"]
   Build --> Queue["postgres.NewReducerQueue"]
   Build --> Runners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner\nGraphProjectionPhaseRepairer"]
-  Build --> Retention["GenerationRetentionRunner\nbounded superseded-generation cleanup"]
-  Build --> OrphanSweep["GraphOrphanSweepRunner\nbounded zero-relationship graph cleanup"]
+  Build --> Retention["retention.Runner\nbounded superseded-generation cleanup"]
+  Build --> OrphanSweep["orphan.Runner\nbounded zero-relationship graph cleanup"]
   Build --> ValueFlowCleanup["CodeValueFlowStaleCleanupRunner\nbounded stale evidence cleanup"]
   Build --> SearchVectorBuild["SearchVectorBuildRunner\nopt-in local search vector build"]
   Build --> CompletionFanout["CrossScopeCompletionRunner\ndurable producer-to-consumer convergence"]
@@ -460,7 +460,7 @@ The direct process contract includes `eshu-reducer --version` and
 - `internal/reducer` — `Service`, `DefaultHandlers`, all domain handler
   types, `SharedProjectionRunner`, `CodeCallProjectionRunner`,
   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`,
-  `GraphOrphanSweepRunner`, `SearchVectorBuildRunner`
+  `orphan.Runner`, `SearchVectorBuildRunner`
 - `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
   `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,
   `NewGraphProjectionPhaseRepairQueueStore`, `NewGenerationRetentionStore`,

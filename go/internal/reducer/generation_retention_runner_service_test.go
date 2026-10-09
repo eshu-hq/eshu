@@ -19,7 +19,7 @@ import (
 // moved to [maintenance] in #6061, but Service.Run's side-runner startup
 // stays a root concern, so this wiring proof stays here; the runner-behavior
 // tests that used to live beside it moved to
-// go/internal/reducer/maintenance/generation_retention_runner_test.go.
+// go/internal/reducer/maintenance/retention/runner_test.go.
 func TestServiceStartsGenerationRetentionRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

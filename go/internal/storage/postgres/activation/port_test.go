@@ -24,7 +24,7 @@ func TestFinalizeErrorMapsTheConsumerSentinels(t *testing.T) {
 		&pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"})
 	got := finalizeError(lockTimeout)
 	if !errors.Is(got, obligation.ErrFinalizeLockTimeout) {
-		t.Fatalf("55P03 maps to %v, want ErrActivationFinalizeLockTimeout", got)
+		t.Fatalf("55P03 maps to %v, want obligation.ErrFinalizeLockTimeout", got)
 	}
 	var pgErr *pgconn.PgError
 	if !errors.As(got, &pgErr) || pgErr.Code != "55P03" {
@@ -37,7 +37,7 @@ func TestFinalizeErrorMapsTheConsumerSentinels(t *testing.T) {
 	}
 	if got := finalizeError(fmt.Errorf("finalize activation obligation: completion: %w", ErrLeaseLost)); !errors.Is(got, obligation.ErrLeaseLost) ||
 		errors.Is(got, obligation.ErrFinalizeLockTimeout) {
-		t.Fatalf("a lost lease maps to %v, want ErrActivationLeaseLost only", got)
+		t.Fatalf("a lost lease maps to %v, want obligation.ErrLeaseLost only", got)
 	}
 	if got := finalizeError(nil); got != nil {
 		t.Fatalf("nil maps to %v", got)
