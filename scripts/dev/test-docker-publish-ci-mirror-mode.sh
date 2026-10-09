@@ -70,6 +70,11 @@ done
 
 publisher_body="$(job_body publish-ci-service-mirrors)"
 verifier_body="$(job_body verify-public-ci-service-mirrors)"
+for job in publish-ci-service-mirrors verify-public-ci-service-mirrors; do
+  body="$(job_body "${job}")"
+  rg -q '^        run: scripts/ci/install-apt-packages.sh ripgrep$' <<< "${body}" ||
+    fail "${job} lacks the pinned ripgrep installer before its safety test"
+done
 rg -q '^        run: bash scripts/dev/publish-ci-image-mirrors.sh publish$' <<< "${publisher_body}" ||
   fail 'publisher job does not run the pinned publisher'
 rg -q '^          EXPECTED_REVIEWED_SHA: \$\{\{ inputs.expected_sha \}\}$' <<< "${publisher_body}" ||
@@ -102,6 +107,11 @@ if [[ "$#" -eq 0 ]]; then
     >> "${scratch}/extra.yml"
   if bash "$0" "${scratch}/extra.yml" > /dev/null 2>&1; then
     fail 'seeded unguarded tenth job was not detected'
+  fi
+
+  sed '/^      - name: Install ripgrep$/,+1d' "${workflow}" > "${scratch}/no-rg.yml"
+  if bash "$0" "${scratch}/no-rg.yml" > /dev/null 2>&1; then
+    fail 'seeded missing ripgrep installer was not detected'
   fi
 
   sed 's|run: bash scripts/dev/publish-ci-image-mirrors.sh publish|run: echo bypassed|' \
