@@ -228,6 +228,15 @@ LEFT JOIN activation_obligations AS row
  AND row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 UNION ALL
+SELECT candidate.generation_id, 'producer_activation_obligations' AS table_name, COUNT(row.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN producer_activation_obligations AS row
+  ON row.scope_id = generation.scope_id
+ AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
 SELECT candidate.generation_id, 'admission_decisions' AS table_name, COUNT(row.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate
 LEFT JOIN scope_generations AS generation

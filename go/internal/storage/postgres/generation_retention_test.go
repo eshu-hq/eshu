@@ -76,6 +76,7 @@ func TestGenerationRetentionRowCountsAreGenerationAware(t *testing.T) {
 		"SELECT candidate.generation_id, 'eshu_search_index_terms'",
 		"LEFT JOIN eshu_search_index_terms AS row",
 		"SELECT candidate.generation_id, 'activation_obligations'",
+		"SELECT candidate.generation_id, 'producer_activation_obligations'",
 	} {
 		if !strings.Contains(generationRetentionRowCountsQuery, want) {
 			t.Fatalf("row-count query missing %q:\n%s", want, generationRetentionRowCountsQuery)

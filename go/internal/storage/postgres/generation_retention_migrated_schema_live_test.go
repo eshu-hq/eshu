@@ -206,6 +206,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		// migrated schema never contains; activation_obligations landed
 		// after the issue and belongs to the same class.)
 		"activation_obligations":                  1,
+		"producer_activation_obligations":         1,
 		"admission_decisions":                     1,
 		"admission_decision_evidence":             2,
 		"code_reachability_rows":                  2,
@@ -272,12 +273,12 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
-	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
+	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "producer_activation_obligations", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
 		if got := result.RowsPruned[table]; got != want[table] {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
 	}
-	for _, table := range []string{"iac_reachability_rows", "content_file_references", "activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
+	for _, table := range []string{"iac_reachability_rows", "content_file_references", "activation_obligations", "producer_activation_obligations", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts"} {
 		var remaining int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&remaining); err != nil {
 			t.Fatalf("count %s: %v", table, err)
@@ -455,6 +456,7 @@ VALUES ('entity-2', 'repo-1', 'main.tf', 'TerraformResource', 'r2', 1, 2, 'x', n
 		// so gen-old stays prunable (the completion trigger it fires
 		// writes to cross_scope_completion_events, outside retention).
 		`INSERT INTO activation_obligations (generation_id, scope_id, work_item_id) VALUES ('gen-old', 'scope-1', 'work-1')`,
+		`INSERT INTO producer_activation_obligations (generation_id, scope_id, work_item_id) VALUES ('gen-old', 'scope-1', 'work-1')`,
 		`INSERT INTO admission_decisions (decision_id, domain, state, domain_state, scope_id, generation_id, anchor_kind, anchor_id, candidate_kind, candidate_id, confidence_score, confidence_bucket, confidence_basis, freshness_state, freshness_cause, redaction_state, redaction_reason, payload_version, decided_at, updated_at) VALUES ('dec-1', 'd', 'admitted', 'ds', 'scope-1', 'gen-old', 'ak', 'ai', 'ck', 'ci', 0.5, 'b', 'basis', 'fs', 'fc', 'rs', 'rr', 'v1', now(), now())`,
 		// #7700: two evidence rows on the doomed decision (counted and
 		// cascade-deleted) plus one on a retained gen-active decision
