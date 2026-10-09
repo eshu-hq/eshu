@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestAuthMiddlewareWithScopedTokensAllowsIngesterStatusRoutes(t *testing.T) {
@@ -39,7 +40,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsIngesterStatusRoutes(t *testing.T) 
 					}},
 					ActiveClaims: 2,
 				},
-				QueueBlockages: []statuspkg.QueueBlockage{{
+				QueueBlockages: []queue.Blockage{{
 					Stage:       "reducer",
 					Domain:      "repository_projection",
 					ConflictKey: privateConflictKey,

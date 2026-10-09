@@ -29,6 +29,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // parityStatusReader is a deterministic status.Reader fixture: one stage, one
@@ -100,7 +101,7 @@ func evidenceBundleParityRawSnapshot() status.RawSnapshot {
 			{Domain: "supply_chain_materialization", Outstanding: 1},
 			{Domain: "terraform_relationship_materialization", Outstanding: 1},
 		},
-		QueueBlockages: []status.QueueBlockage{
+		QueueBlockages: []queue.Blockage{
 			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k1", Blocked: 3},
 			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k2", Blocked: 2},
 		},

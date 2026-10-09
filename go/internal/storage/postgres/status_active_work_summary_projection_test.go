@@ -18,6 +18,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	summarystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 )
@@ -70,7 +71,7 @@ func TestActiveWorkSummaryDecodesStoredSummaryRowsUnchanged(t *testing.T) {
 		built := activeWorkSummary{
 			StageCounts:    []statuspkg.StageStatusCount{},
 			DomainBacklogs: []statuspkg.DomainBacklog{},
-			Blockages:      []statuspkg.QueueBlockage{},
+			Blockages:      []queue.Blockage{},
 		}
 		for _, entry := range entries {
 			if err := built.add(entry.Section, entry.JSON); err != nil {

@@ -26,7 +26,7 @@
 - **JSON field names are frozen once published.** Adding a field is additive and
   safe. Renaming or removing a field breaks CLI tooling, dashboards, and
   operator automation.
-- **`QueueFailureSnapshot` is status-surface only.** Its `FailureMessage` and
+- **`queue.FailureSnapshot` is status-surface only.** Its `FailureMessage` and
   `FailureDetails` fields are high-cardinality strings from graph backend errors.
   They must never become metric label values.
 - **`ActiveWorkSource` is additive and omitted when empty.** The reason values
@@ -103,7 +103,7 @@
   cancellation on the affected stage.
 
 - **`latest_failure` shows `graph_write_timeout`** → the `FailureClass` field
-  in `QueueFailureSnapshot` maps directly to the durable failure-class recorded
+  in `queue.FailureSnapshot` maps directly to the durable failure-class recorded
   by the projector or reducer. Check `eshu_dp_neo4j_query_duration_seconds` and
   `eshu_dp_canonical_write_duration_seconds` to see whether graph backend latency
   is elevated.
@@ -123,7 +123,7 @@
 
 ## Anti-patterns specific to this package
 
-- **Putting queue failure details in metric labels** — `QueueFailureSnapshot.FailureMessage`
+- **Putting queue failure details in metric labels** — `queue.FailureSnapshot.FailureMessage`
   and `.FailureDetails` can be hundreds of characters from Neo4j error responses.
   They belong in the status payload only.
 

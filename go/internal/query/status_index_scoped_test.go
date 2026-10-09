@@ -17,6 +17,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // indexStatusScopedPaths are both routes that share getIndexStatus.
@@ -84,7 +85,7 @@ func indexStatusOtherTenantSnapshot(asOf time.Time) statuspkg.RawSnapshot {
 	return statuspkg.RawSnapshot{
 		AsOf:  asOf,
 		Queue: statuspkg.QueueSnapshot{Total: 4242, Outstanding: 3131},
-		QueueBlockages: []statuspkg.QueueBlockage{{
+		QueueBlockages: []queue.Blockage{{
 			Stage:       "reducer",
 			Domain:      "repository_projection",
 			ConflictKey: indexStatusScopeB,

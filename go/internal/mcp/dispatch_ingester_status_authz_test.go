@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
@@ -44,7 +45,7 @@ func TestDispatchToolIngesterStatusAllowsScopedRoutes(t *testing.T) {
 					}},
 					ActiveClaims: 1,
 				},
-				QueueBlockages: []statuspkg.QueueBlockage{{
+				QueueBlockages: []queue.Blockage{{
 					Stage:       "reducer",
 					Domain:      "repository_projection",
 					ConflictKey: privateConflictKey,

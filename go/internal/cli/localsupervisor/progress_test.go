@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestRenderLocalHostProgressSnapshotIncludesKnownWorkTableAndQueue(t *testing.T) {
@@ -49,7 +50,7 @@ func TestRenderLocalHostProgressSnapshotIncludesKnownWorkTableAndQueue(t *testin
 				Failed:               0,
 				OldestOutstandingAge: 5*time.Minute + 2*time.Second,
 			},
-			LatestQueueFailure: &statuspkg.QueueFailureSnapshot{
+			LatestQueueFailure: &queue.FailureSnapshot{
 				Stage:          "reducer",
 				Domain:         "code_call_materialization",
 				Status:         "retrying",
@@ -212,7 +213,7 @@ func TestLocalHostProgressFingerprintIgnoresAsOfAndBucketsAge(t *testing.T) {
 	}
 
 	withFailure := base
-	withFailure.LatestQueueFailure = &statuspkg.QueueFailureSnapshot{
+	withFailure.LatestQueueFailure = &queue.FailureSnapshot{
 		Stage:          "reducer",
 		Domain:         "code_call_materialization",
 		Status:         "retrying",

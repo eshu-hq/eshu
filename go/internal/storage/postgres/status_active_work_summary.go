@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // activeWorkSummaryColumns retains wide detail only for rows whose summary
@@ -255,8 +256,8 @@ type activeWorkSummary struct {
 	StageCounts    []statuspkg.StageStatusCount
 	DomainBacklogs []statuspkg.DomainBacklog
 	Queue          statuspkg.QueueSnapshot
-	Blockages      []statuspkg.QueueBlockage
-	LatestFailure  *statuspkg.QueueFailureSnapshot
+	Blockages      []queue.Blockage
+	LatestFailure  *queue.FailureSnapshot
 	// Mode is the gate branch the statement took (activeWorkModeGrouped or
 	// activeWorkModeDetail) and Estimate the live-share estimate it read.
 	// They feed telemetry only; the status snapshot does not carry them.
@@ -276,7 +277,7 @@ func readActiveWorkSummary(ctx context.Context, queryer db.Queryer, asOf time.Ti
 	summary := activeWorkSummary{
 		StageCounts:    []statuspkg.StageStatusCount{},
 		DomainBacklogs: []statuspkg.DomainBacklog{},
-		Blockages:      []statuspkg.QueueBlockage{},
+		Blockages:      []queue.Blockage{},
 	}
 	for rows.Next() {
 		var section string
@@ -337,7 +338,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			OverdueClaims:                         r.count("overdue_claim_count"),
 		}
 	case activeWorkSectionBlockage:
-		s.Blockages = append(s.Blockages, statuspkg.QueueBlockage{
+		s.Blockages = append(s.Blockages, queue.Blockage{
 			Stage:          r.text("stage"),
 			Domain:         r.text("domain"),
 			ConflictDomain: r.text("conflict_domain"),
@@ -346,7 +347,7 @@ func (s *activeWorkSummary) add(section string, raw string) error {
 			OldestAge:      scalars.DurationFromSeconds(r.float("oldest_blocked_age_seconds")),
 		})
 	case activeWorkSectionFailure:
-		failure := statuspkg.QueueFailureSnapshot{
+		failure := queue.FailureSnapshot{
 			Stage:          strings.TrimSpace(r.text("stage")),
 			Domain:         strings.TrimSpace(r.text("domain")),
 			Status:         strings.TrimSpace(r.text("status")),

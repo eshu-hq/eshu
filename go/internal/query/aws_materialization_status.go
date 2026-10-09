@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 var awsMaterializationDomains = map[string]struct{}{
@@ -32,7 +33,7 @@ var awsMaterializationDomains = map[string]struct{}{
 
 func awsMaterializationStatusToMap(
 	domains []status.DomainBacklog,
-	blockages []status.QueueBlockage,
+	blockages []queue.Blockage,
 ) map[string]any {
 	blockedByDomain := queueBlockageCountsByDomain(blockages)
 	domainRows := make([]map[string]any, 0)
@@ -130,7 +131,7 @@ func pendingDomainWork(backlog status.DomainBacklog) int {
 	return pending
 }
 
-func queueBlockageCountsByDomain(blockages []status.QueueBlockage) map[string]int {
+func queueBlockageCountsByDomain(blockages []queue.Blockage) map[string]int {
 	counts := make(map[string]int)
 	for _, blockage := range blockages {
 		if blockage.Blocked > counts[blockage.Domain] {

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func loadStatusReport(
@@ -70,7 +71,7 @@ func statusReportToMapWithRaw(r status.Report, raw status.RawSnapshot) map[strin
 func statusReportToMapWithAWS(
 	r status.Report,
 	awsDomains []status.DomainBacklog,
-	awsBlockages []status.QueueBlockage,
+	awsBlockages []queue.Blockage,
 ) map[string]any {
 	result := map[string]any{
 		"version":                           buildinfo.AppVersion(),
@@ -195,7 +196,7 @@ func stageSummariesToSlice(stages []status.StageSummary) []map[string]any {
 }
 
 // domainBacklogsToSlice converts []DomainBacklog to a slice of maps.
-func domainBacklogsToSlice(domains []status.DomainBacklog, blockages []status.QueueBlockage) []map[string]any {
+func domainBacklogsToSlice(domains []status.DomainBacklog, blockages []queue.Blockage) []map[string]any {
 	if len(domains) == 0 {
 		return []map[string]any{}
 	}
@@ -219,7 +220,7 @@ func domainBacklogsLimitForAPI(r status.Report) int {
 	return r.DomainBacklogsLimit
 }
 
-func queueBlockagesToSlice(blockages []status.QueueBlockage) []map[string]any {
+func queueBlockagesToSlice(blockages []queue.Blockage) []map[string]any {
 	if len(blockages) == 0 {
 		return []map[string]any{}
 	}

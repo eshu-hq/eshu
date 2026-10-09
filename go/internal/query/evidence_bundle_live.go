@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // getLiveEvidenceBundle composes and returns a live evidence_bundle.v1
@@ -201,9 +202,9 @@ func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidenc
 // domain is worst -- and are not meant to reconcile (see
 // evidencebundle.PipelineDomainBacklogSnapshot's Blocked doc). It mirrors
 // internal/cli/evbundle's countBlockedQueueEntries (status.go), operating on
-// the typed status.QueueBlockage this package already has instead of a
+// the typed queue.Blockage this package already has instead of a
 // JSON-decoded copy.
-func sumQueueBlockedCounts(blockages []status.QueueBlockage) int {
+func sumQueueBlockedCounts(blockages []queue.Blockage) int {
 	total := 0
 	for _, blockage := range blockages {
 		if blockage.Blocked > 0 {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestLoadReportBuildsProjectionFromReader(t *testing.T) {
@@ -191,7 +192,7 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 				ProvenanceEdgeIdentityUpgradeRequired: 2,
 				OldestOutstandingAge:                  90 * time.Second,
 			},
-			LatestQueueFailure: &status.QueueFailureSnapshot{
+			LatestQueueFailure: &queue.FailureSnapshot{
 				Stage:          "reducer",
 				Domain:         "code_call_materialization",
 				Status:         "retrying",
@@ -212,7 +213,7 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 					OldestAge:   90 * time.Second,
 				},
 			},
-			QueueBlockages: []status.QueueBlockage{
+			QueueBlockages: []queue.Blockage{
 				{
 					Stage:          "reducer",
 					Domain:         "semantic_entity_materialization",
@@ -415,7 +416,7 @@ func TestRenderJSONIncludesFlowSummaries(t *testing.T) {
 			Queue: status.QueueSnapshot{
 				Outstanding: 1,
 			},
-			LatestQueueFailure: &status.QueueFailureSnapshot{
+			LatestQueueFailure: &queue.FailureSnapshot{
 				Stage:          "reducer",
 				Domain:         "workload_materialization",
 				Status:         "dead_letter",

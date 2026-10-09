@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/status/summary"
 	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
@@ -232,7 +233,7 @@ func decodeActiveWorkEntries(entries []summary.Entry) (activeWorkSummary, error)
 	work := activeWorkSummary{
 		StageCounts:    []statuspkg.StageStatusCount{},
 		DomainBacklogs: []statuspkg.DomainBacklog{},
-		Blockages:      []statuspkg.QueueBlockage{},
+		Blockages:      []queue.Blockage{},
 	}
 	for _, entry := range entries {
 		if err := work.add(entry.Section, entry.JSON); err != nil {

@@ -13,6 +13,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/cloud"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestAuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute(t *testing.T) {
@@ -60,7 +61,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsCollectorStatusRoute(t *testing.T) 
 					LastObservedAt:   now,
 					UpdatedAt:        now,
 				}},
-				QueueBlockages: []statuspkg.QueueBlockage{{
+				QueueBlockages: []queue.Blockage{{
 					Stage:       "collector",
 					Domain:      "hosted_collection",
 					ConflictKey: privateConflictKey,

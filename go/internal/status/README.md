@@ -97,10 +97,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   in-flight, retrying, succeeded, failed, dead-letter, oldest outstanding age,
   overdue claims, plus the migration 096 applied state and current count of
   provenance-edge work still requiring replay
-- `QueueFailureSnapshot` — latest failed work item context (stage, domain,
+- `queue.FailureSnapshot` — latest failed work item context (stage, domain,
   failure class, message, details); rendered in status payloads, never in
   metric labels
-- `QueueBlockage` — conflict-domain-blocked work: stage, domain, conflict
+- `queue.Blockage` — conflict-domain-blocked work: stage, domain, conflict
   domain, conflict key, blocked count, oldest age
 - `CollectorGenerationDeadLetterSnapshot` — commit failures that happened
   before projector work items existed, including dead-lettered count,
@@ -339,7 +339,7 @@ and the CLI.
 ## Telemetry
 
 This package emits no metrics or spans. It is itself an operator-facing signal
-surface. The `QueueFailureSnapshot` values it carries come from the queue-failure
+surface. The `queue.FailureSnapshot` values it carries come from the queue-failure
 records that `internal/storage/postgres` reads; those values must not be
 promoted to metric labels because they carry high-cardinality message and details
 strings.
@@ -374,7 +374,7 @@ and `eshu_dp_postgres_query_duration_seconds`.
   consumed by operators and automation. Changes require coordination with the
   CLI reference doc (`docs/public/reference/cli-reference.md`) and the HTTP API
   doc (`docs/public/reference/http-api.md`).
-- **`QueueFailureSnapshot` must not appear in metrics.** Its fields (`FailureMessage`,
+- **`queue.FailureSnapshot` must not appear in metrics.** Its fields (`FailureMessage`,
   `FailureDetails`) can be multi-hundred-character strings from graph backend
   errors. They are bounded to 240 characters in text rendering but are never
   used as metric label values.
@@ -421,7 +421,7 @@ and `eshu_dp_postgres_query_duration_seconds`.
 - **`DomainBacklogs` are capped.** `BuildReport` applies `topDomainBacklogs`
   with `Options.DomainLimit` (default 5) to prevent unbounded output when the
   reducer has many domains.
-- **`QueueBlockage` rows use `ConflictKey` for prerequisite diagnostics.**
+- **`queue.Blockage` rows use `ConflictKey` for prerequisite diagnostics.**
   Postgres status reads may emit one row per missing prerequisite keyspace, but
   `Blocked` is the distinct work-item count for the domain so aggregate status
   buckets do not double-count a row that waits on multiple prerequisites. The

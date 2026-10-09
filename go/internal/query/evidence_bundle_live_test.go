@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 // evidenceBundleFixtureSnapshot is the shared RawSnapshot fixture for the
@@ -45,7 +46,7 @@ func evidenceBundleFixtureSnapshot() statuspkg.RawSnapshot {
 				OldestAge:   41500 * time.Millisecond,
 			},
 		},
-		QueueBlockages: []statuspkg.QueueBlockage{
+		QueueBlockages: []queue.Blockage{
 			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k1", Blocked: 3},
 			{Stage: "reduce", Domain: "aws_relationship_materialization", ConflictDomain: "aws", ConflictKey: "k2", Blocked: 2},
 		},

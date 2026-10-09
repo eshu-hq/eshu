@@ -12,6 +12,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func operatorControlPlaneRequest(t *testing.T, snapshot statuspkg.RawSnapshot) map[string]any {
@@ -73,7 +74,7 @@ func TestOperatorControlPlaneStuck(t *testing.T) {
 			OverdueClaims:        2,
 			OldestOutstandingAge: 15 * time.Minute,
 		},
-		QueueBlockages: []statuspkg.QueueBlockage{
+		QueueBlockages: []queue.Blockage{
 			{Stage: "reducer", Domain: "workload_materialization", Blocked: 2, OldestAge: 10 * time.Minute},
 		},
 	})
@@ -104,7 +105,7 @@ func TestOperatorControlPlaneDeadLettered(t *testing.T) {
 			{Domain: "deployable_unit_correlation", DeadLetter: 1},
 			{Domain: "cloud_asset_resolution", Outstanding: 1},
 		},
-		LatestQueueFailure: &statuspkg.QueueFailureSnapshot{
+		LatestQueueFailure: &queue.FailureSnapshot{
 			Stage: "reducer", Domain: "workload_materialization", Status: "dead_letter",
 			WorkItemID: "wi-secret-1", ScopeID: "scope-secret-1", GenerationID: "gen-secret-1",
 			FailureClass: "merge_conflict", UpdatedAt: time.Date(2026, 6, 19, 2, 55, 0, 0, time.UTC),
@@ -199,7 +200,7 @@ func TestOperatorControlPlaneScopedRedactsCorrelationIDs(t *testing.T) {
 		DomainBacklogs: []statuspkg.DomainBacklog{
 			{Domain: "workload_materialization", DeadLetter: 2, OldestAge: 5 * time.Minute},
 		},
-		LatestQueueFailure: &statuspkg.QueueFailureSnapshot{
+		LatestQueueFailure: &queue.FailureSnapshot{
 			Stage: "reducer", Domain: "workload_materialization", Status: "dead_letter",
 			WorkItemID: secretWorkItem, ScopeID: secretScope, GenerationID: secretGeneration,
 			FailureClass: "merge_conflict", UpdatedAt: time.Date(2026, 6, 19, 2, 55, 0, 0, time.UTC),

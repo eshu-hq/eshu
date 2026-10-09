@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/queue"
 )
 
 func TestBuildReportClassifiesProgressingQueue(t *testing.T) {
@@ -47,7 +48,7 @@ func TestBuildReportClassifiesProgressingQueue(t *testing.T) {
 					OldestAge:   2 * time.Minute,
 				},
 			},
-			QueueBlockages: []status.QueueBlockage{
+			QueueBlockages: []queue.Blockage{
 				{
 					Stage:          "reducer",
 					Domain:         "semantic_entity_materialization",
