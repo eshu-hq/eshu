@@ -126,7 +126,10 @@ reclaimed_stale_projector_duplicates AS (
 -- measured slower (see the #7130 evidence note). An expired row beside a live
 -- lease can also match the duplicate reclaim above; PostgreSQL applies one of
 -- the two updates, and either way the row ends superseded by the next claim
--- at the latest.
+-- at the latest. #7469: the first branch spares a generation that started
+-- writing (marker set): its retry must run, or a partial overlay strands
+-- until the collector's forced full snapshot. The superseded branch still
+-- sweeps regardless of marker: that retirement already happened.
 supersedable_projector_generations AS (
     SELECT stale.work_item_id,
            stale_generation.generation_id
@@ -138,6 +141,7 @@ supersedable_projector_generations AS (
     WHERE stale.stage = 'projector'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND stale_generation.status IN ('pending', 'failed')
+      AND stale_generation.projection_write_started_at IS NULL
       AND EXISTS (
           SELECT 1
           FROM fact_work_items AS newer
@@ -180,9 +184,17 @@ supersedable_projector_generations AS (
 ),
 -- The generation lock step re-reads the locked generation's status, so the
 -- work rows below carry the status EvalPlanQual saw into failure_details.
+-- #7469: it also carries each row's lock-time marker truth as marker_spared,
+-- so a marker committed after the snapshot spares the row from the sweep and
+-- holds the scope's newer rows, which the snapshot-only pool cannot see.
+-- A superseded generation is never spared: its retirement already happened.
 locked_stale_scope_generations AS (
     SELECT supersedable.work_item_id,
-           stale_generation.status AS generation_status
+           stale_generation.generation_id AS generation_id,
+           stale_generation.status AS generation_status,
+           (stale_generation.status IN ('pending', 'failed')
+               AND stale_generation.projection_write_started_at IS NOT NULL
+           ) AS marker_spared
     FROM scope_generations AS stale_generation
     JOIN supersedable_projector_generations AS supersedable
       ON supersedable.generation_id = stale_generation.generation_id
@@ -198,7 +210,8 @@ locked_stale_projector_generations AS (
     FROM fact_work_items AS stale
     JOIN locked_stale_scope_generations AS locked_generation
       ON locked_generation.work_item_id = stale.work_item_id
-    WHERE stale.stage = 'projector'
+    WHERE NOT locked_generation.marker_spared
+      AND stale.stage = 'projector'
       AND (
           stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
           OR (stale.status IN ('claimed', 'running') AND stale.claim_until <= $1)
@@ -296,6 +309,15 @@ candidate_pool AS MATERIALIZED (
       -- Every concurrent projector claimer for a scope must target the same
       -- oldest ready row. Otherwise FOR UPDATE SKIP LOCKED lets workers skip a
       -- locked older row and start a newer generation for the same repository.
+      -- #7469: the oldest-ready subquery also skips a row held behind an
+      -- older same-scope marked generation with waiting (pending, retrying)
+      -- work, so the holder becomes oldest and its retry is claimed first; a
+      -- guard in this outer WHERE alone stalls when the holder sorts after
+      -- the held row by updated_at. Terminal rows never hold: a dead-lettered
+      -- marked generation heals through the graph_dirty full snapshot. The
+      -- second guard reads the same hold from the sweep's lock-time
+      -- marker_spared flag, for a marker committed after the snapshot. Both
+      -- order comparisons are row-form, identical to the OR tiebreak above.
       AND work.work_item_id = (
           SELECT same.work_item_id
           FROM fact_work_items AS same
@@ -308,6 +330,34 @@ candidate_pool AS MATERIALIZED (
                 SELECT 1
                 FROM superseded_stale_projector_generations AS superseded_same
                 WHERE superseded_same.work_item_id = same.work_item_id
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM fact_work_items AS waiting
+                JOIN scope_generations AS waiting_generation
+                  ON waiting_generation.generation_id = waiting.generation_id
+                JOIN scope_generations AS held_generation
+                  ON held_generation.generation_id = same.generation_id
+                WHERE waiting.stage = 'projector'
+                  AND waiting.scope_id = same.scope_id
+                  AND waiting.work_item_id <> same.work_item_id
+                  AND waiting.status IN ('pending', 'retrying')
+                  AND waiting_generation.status IN ('pending', 'failed')
+                  AND waiting_generation.projection_write_started_at IS NOT NULL
+                  AND (waiting_generation.ingested_at, waiting_generation.generation_id) <
+                      (held_generation.ingested_at, held_generation.generation_id)
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM locked_stale_scope_generations AS spared
+                JOIN scope_generations AS spared_generation
+                  ON spared_generation.generation_id = spared.generation_id
+                JOIN scope_generations AS held_generation
+                  ON held_generation.generation_id = same.generation_id
+                WHERE spared.marker_spared
+                  AND spared_generation.scope_id = same.scope_id
+                  AND (spared_generation.ingested_at, spared_generation.generation_id) <
+                      (held_generation.ingested_at, held_generation.generation_id)
             )
           ORDER BY
             CASE

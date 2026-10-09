@@ -2373,6 +2373,31 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 claim-path contention proof (sixteen workers claim 512 single-generation scopes per round, five rounds against the pre-guard text derived from the shipped constant and five after; asserts correctness only and logs medians as no-regression evidence), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 60s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 EvalPlanQual recheck proof (lock-skipped sweep generation, dropped holder claimed after the snapshot, guard/fence agreement across clocks, marker-vs-sweep race), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 15s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 claim interleave proof (the marked retry always wins its race against the newer generation whether the rival snapshot predates or follows the commit), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 6s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 admission-guard functional proof (invisible and visible marked retries win, unmarked stale generations still supersede, terminal marked generations never hold, Ack keeps marked obsolete generations), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 11s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7469 plan and lock-set proof (index-backed guard probes with no new sequential scans or row locks, at scale on the #7115 harness shape; the held row, spared generation, and ingestion_scopes stay unlocked), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 6s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_claim_scope_chain_live_test.go
     tag: ~
     class: scheduled
