@@ -70,6 +70,19 @@ func structuredPilotJSON(raw json.RawMessage) bool {
 	return trimmed[0] == '{' || trimmed[0] == '['
 }
 
+func validPilotAlternateProof(raw json.RawMessage, runner string) bool {
+	var alternate struct {
+		Plan           json.RawMessage `json:"plan"`
+		Work           json.RawMessage `json:"work"`
+		Producer       string          `json:"producer"`
+		ArtifactSHA256 string          `json:"artifact_sha256"`
+	}
+	return json.Unmarshal(raw, &alternate) == nil && structuredPilotJSON(alternate.Plan) &&
+		structuredPilotJSON(alternate.Work) && pilotHasNumber(alternate.Work) &&
+		strings.TrimSpace(alternate.Producer) != "" && alternate.Producer != runner &&
+		alternate.ArtifactSHA256 == PilotJSONSHA256(alternate.Plan)
+}
+
 func pilotHasNumber(raw json.RawMessage) bool {
 	var value any
 	if json.Unmarshal(raw, &value) != nil {

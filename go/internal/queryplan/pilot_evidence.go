@@ -281,8 +281,8 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 		if candidate.Base.ColdPreparation != coldMode || candidate.Candidate.ColdPreparation != coldMode {
 			violations = append(violations, fmt.Sprintf("%s/%s: cold preparation differs from environment declaration", entry.ID, key))
 		}
-		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/base", candidate.Base, candidate.Expected, entry.Contract.Budget)...)
-		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/candidate", candidate.Candidate, candidate.Expected, entry.Contract.Budget)...)
+		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/base", candidate.Base, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner)...)
+		violations = append(violations, validatePilotCaseRun(entry.ID+"/"+key+"/candidate", candidate.Candidate, candidate.Expected, entry.Contract.Budget, entry.Contract.Environment.Runner)...)
 	}
 	for key := range required {
 		if _, ok := seen[key]; !ok {
@@ -292,10 +292,10 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 	return violations
 }
 
-func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage, budget PilotBudget) []string {
+func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage, budget PilotBudget, runner string) []string {
 	var violations []string
 	if !structuredPilotJSON(run.Plan) || !structuredPilotJSON(run.Work) || !pilotHasNumber(run.Work) {
-		if strings.TrimSpace(run.PlanUnavailable) == "" || len(run.AlternateProof) == 0 || !json.Valid(run.AlternateProof) {
+		if strings.TrimSpace(run.PlanUnavailable) == "" || !validPilotAlternateProof(run.AlternateProof, runner) {
 			violations = append(violations, key+": full plan and work or alternate proof required")
 		}
 	}
@@ -324,7 +324,11 @@ func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage
 	}
 	work := run.Work
 	if !structuredPilotJSON(work) {
-		work = run.AlternateProof
+		var alternate struct {
+			Work json.RawMessage `json:"work"`
+		}
+		_ = json.Unmarshal(run.AlternateProof, &alternate)
+		work = alternate.Work
 	}
 	if count, ok := pilotWorkNumber(work, "query_count"); !ok || count <= 0 || count > float64(budget.MaxQueryCount) {
 		violations = append(violations, key+": query count absent or exceeds budget")
