@@ -213,10 +213,11 @@ alternating origin/main and head on one shared Apple M5 Max host:
 - both: 64 B/op, 1 alloc/op
 
 The ranges overlap and the gap is host noise on code this change does not
-touch. The Neo4j client-deadline wrapper runs only when the timeout is set.
+touch. The Neo4j client-deadline wrapper ran only when the timeout was set at
+the time (since #7471 the `300s` default wraps unset deployments too).
 It adds one `context.WithTimeout` per write, the same cost NornicDB already pays
-on these paths, next to a Bolt round trip. Unset Neo4j deployments get no
-client-deadline wrapper. The `LockClientStopped` change does apply to them: a
+on these paths, next to a Bolt round trip. Unset Neo4j deployments got no
+client-deadline wrapper then. The `LockClientStopped` change does apply to them: a
 write terminated during a lock wait now requeues after one attempt instead of
 after three in-place retries. These figures do not estimate Neo4j throughput. On Neo4j with the
 variable set, a write that previously would have hung now ends at the
