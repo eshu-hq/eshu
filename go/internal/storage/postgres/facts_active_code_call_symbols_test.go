@@ -6,6 +6,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"reflect"
@@ -131,6 +132,12 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsSkipsEmptySymbols(t *te
 	}
 }
 
+// codeCallGoModManifestRow stages one go.mod manifest read row: the leaf
+// scans content as sql.NullString (#7609 dirty scopes arrive as NULL).
+func codeCallGoModManifestRow(scopeID, content string) []any {
+	return []any{scopeID, sql.NullString{String: content, Valid: true}}
+}
+
 func codeCallDefinitionScanRow(factID string) []any {
 	return []any{
 		factID,
@@ -159,8 +166,8 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsGoKeysOnModulePr
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"scope:producer", "module github.com/acme/lib\n\ngo 1.24\n"},
-				{"scope:noise", "module github.com/acme/noise\n"},
+				codeCallGoModManifestRow("scope:producer", "module github.com/acme/lib\n\ngo 1.24\n"),
+				codeCallGoModManifestRow("scope:noise", "module github.com/acme/noise\n"),
 			}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-go-anchored")}},
 		},
@@ -199,7 +206,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesGoAnchoredA
 			// Corpus-wide scan for the other key.
 			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
 			// go.mod read, then the anchored scan for the Go key.
-			{rows: [][]any{{"scope:producer", "module github.com/acme/lib\n\ngo 1.24\n"}}},
+			{rows: [][]any{codeCallGoModManifestRow("scope:producer", "module github.com/acme/lib\n\ngo 1.24\n")}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
 		},
 	}
@@ -222,7 +229,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanForGoKeyWit
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope:noise", "module github.com/acme/noise\n"}}},
+			{rows: [][]any{codeCallGoModManifestRow("scope:noise", "module github.com/acme/noise\n")}},
 		},
 	}
 	store := NewFactStore(db)
@@ -256,7 +263,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadSummary(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{}, // corpus-wide scan for the other key
-			{rows: [][]any{{"scope:producer", "module github.com/acme/lib\n"}}},
+			{rows: [][]any{codeCallGoModManifestRow("scope:producer", "module github.com/acme/lib\n")}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-go")}},
 		},
 	}

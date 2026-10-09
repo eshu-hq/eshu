@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
@@ -77,9 +78,9 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 			{rows: [][]any{codeCallSymbolFactRow("fact-go", "scope-go", observedAt)}},
 			// Manifest read.
 			{rows: [][]any{
-				{"scope-logging", `{"name":"@acme/logging","version":"1.0.0"}`},
-				{"scope-logging", `{"name":"@acme/logging-internal"}`},
-				{"scope-other", `{"name":"@acme/unrelated"}`},
+				{"scope-logging", sql.NullString{String: `{"name":"@acme/logging","version":"1.0.0"}`, Valid: true}},
+				{"scope-logging", sql.NullString{String: `{"name":"@acme/logging-internal"}`, Valid: true}},
+				{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}},
 			}},
 			// Anchored scan for the package key.
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
@@ -135,10 +136,10 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsDuplicateNameProducers(t *t
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"scope-b", `{"name":"@acme/shared"}`},
-				{"scope-a", `{"name":"@acme/shared"}`},
+				{"scope-b", sql.NullString{String: `{"name":"@acme/shared"}`, Valid: true}},
+				{"scope-a", sql.NullString{String: `{"name":"@acme/shared"}`, Valid: true}},
 				// A nested workspace manifest maps its name to its repository.
-				{"scope-mono", `{"name":"@acme/widgets"}`},
+				{"scope-mono", sql.NullString{String: `{"name":"@acme/widgets"}`, Valid: true}},
 			}},
 			{},
 		},
@@ -165,12 +166,12 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsSkipsUnusableManifests(t *testin
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"scope-invalid", `{"name": "@acme/logging",`},
-				{"scope-unnamed", `{"version":"1.0.0"}`},
-				{"scope-blank", `{"name":"   "}`},
-				{"scope-not-object", `["@acme/logging"]`},
-				{"scope-wrong-type", `{"name":42}`},
-				{"scope-nul", `{"name":"@acme/logging","description":"a\u0000b"}`},
+				{"scope-invalid", sql.NullString{String: `{"name": "@acme/logging",`, Valid: true}},
+				{"scope-unnamed", sql.NullString{String: `{"version":"1.0.0"}`, Valid: true}},
+				{"scope-blank", sql.NullString{String: `{"name":"   "}`, Valid: true}},
+				{"scope-not-object", sql.NullString{String: `["@acme/logging"]`, Valid: true}},
+				{"scope-wrong-type", sql.NullString{String: `{"name":42}`, Valid: true}},
+				{"scope-nul", sql.NullString{String: `{"name":"@acme/logging","description":"a\u0000b"}`, Valid: true}},
 			}},
 			{},
 		},
@@ -196,7 +197,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope-other", `{"name":"@acme/unrelated"}`}}},
+			{rows: [][]any{{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}}}},
 		},
 	}
 
@@ -223,6 +224,41 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 	}
 	if got, want := db.queries[0].args, []any(nil); !reflect.DeepEqual(got, want) {
 		t.Fatalf("manifest args = %#v, want none", got)
+	}
+}
+
+func TestLoadActiveCodeCallSymbolDefinitionFactsScansDirtyScopes(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.October, 8, 9, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			// Manifest read: one NULL row marks a dirty scope (#7609), whose
+			// stored content may be ahead of its active generation.
+			{rows: [][]any{
+				{"scope-dirty", sql.NullString{}},
+				{"scope-other", sql.NullString{String: `{"name":"@acme/unrelated"}`, Valid: true}},
+			}},
+			// Anchored scan over the dirty scope.
+			{rows: [][]any{codeCallSymbolFactRow("fact-dirty", "scope-dirty", observedAt)}},
+		},
+	}
+
+	loaded, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(
+		context.Background(),
+		[]string{"package:@acme/shared#Thing"},
+	)
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("queries = %d, want %d (manifest, anchored)", got, want)
+	}
+	if got, want := db.queries[1].args[4], []string{"scope-dirty"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("anchored scan producer scopes ($5) = %#v, want %#v", got, want)
+	}
+	if got, want := len(loaded), 1; got != want {
+		t.Fatalf("loaded len = %d, want %d", got, want)
 	}
 }
 
@@ -265,7 +301,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsPagesAnchoredScan(t *testing.T) 
 	lastObservedAt := start.Add(time.Duration(listFactsByKindPageSize-1) * time.Second)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope-logging", `{"name":"@acme/logging"}`}}},
+			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}}}},
 			{rows: fullPage},
 			{rows: [][]any{codeCallSymbolFactRow("fact-last", "scope-logging", lastObservedAt.Add(time.Second))}},
 		},
@@ -309,7 +345,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
-			{rows: [][]any{{"scope-logging", `{"name":"@acme/logging"}`}}},
+			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
 		},
 	}
@@ -334,7 +370,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsTrimsPackageKeyName(t *testing.T
 		queryResponses: []queueFakeRows{
 			// Manifest names are trimmed when parsed, so a key whose package part
 			// carries stray whitespace must still find its producer.
-			{rows: [][]any{{"scope-logging", `{"name":"@acme/logging"}`}}},
+			{rows: [][]any{{"scope-logging", sql.NullString{String: `{"name":"@acme/logging"}`, Valid: true}}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
 		},
 	}

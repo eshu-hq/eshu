@@ -166,4 +166,6 @@ jobs:
           ESHU_NEO4J_USERNAME: neo4j
           ESHU_NEO4J_PASSWORD: local-proof-only
           ESHU_NEO4J_DATABASE: neo4j
+          ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh

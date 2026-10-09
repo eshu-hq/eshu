@@ -26,7 +26,10 @@ and `internal/parser/go_package_module_import_path.go`.
 - `PackageName` and `PackageManifestName` do the same for `package:` keys and
   package.json manifests.
 - `New(db.Queryer)` returns a `Store` with `PackageScopeIDs` and
-  `GoModuleScopeIDs`.
+  `GoModuleScopeIDs`. The package read also returns every dirty scope (a
+  stored manifest possibly ahead of the active generation, #7609) as a NULL
+  row, so the producer set never drops a candidate; see
+  `docs/internal/evidence/7609-manifest-generation.md`.
 
 ## Why the Go rule is exact
 
