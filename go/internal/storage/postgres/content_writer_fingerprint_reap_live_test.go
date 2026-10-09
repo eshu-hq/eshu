@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -67,6 +68,7 @@ func openFingerprintReapLiveDB(t *testing.T) (context.Context, *sql.DB) {
 		t.Fatalf("open Postgres admin connection: %v", err)
 	}
 	t.Cleanup(func() { _ = adminDB.Close() })
+	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
 	schemaName := fmt.Sprintf("fp_reap_7230_%d", time.Now().UnixNano())
 	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+array.QuoteIdentifier(schemaName)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
@@ -82,7 +84,8 @@ func openFingerprintReapLiveDB(t *testing.T) (context.Context, *sql.DB) {
 		t.Fatalf("parse ESHU_POSTGRES_TEST_DSN: %v", err)
 	}
 	params := targetURL.Query()
-	params.Set("search_path", schemaName)
+	// public stays on the path so the pg_trgm operator classes resolve (#7869).
+	params.Set("search_path", schemaName+",public")
 	targetURL.RawQuery = params.Encode()
 	database, err := sql.Open("pgx", targetURL.String())
 	if err != nil {

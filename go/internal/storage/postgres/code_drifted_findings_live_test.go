@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	codedivergence "github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -38,6 +39,7 @@ func openDriftedLiveDB(t *testing.T) (context.Context, *sql.DB) {
 		t.Fatalf("open Postgres admin connection: %v", err)
 	}
 	t.Cleanup(func() { _ = adminDB.Close() })
+	postgresproof.InstallTrigramExtension(ctx, t, adminDB)
 
 	schemaName := fmt.Sprintf("drifted_6837_%d", time.Now().UnixNano())
 	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+array.QuoteIdentifier(schemaName)); err != nil {
@@ -57,7 +59,8 @@ func openDriftedLiveDB(t *testing.T) (context.Context, *sql.DB) {
 		t.Fatalf("parse ESHU_POSTGRES_TEST_DSN: %v", err)
 	}
 	params := targetURL.Query()
-	params.Set("search_path", schemaName)
+	// public stays on the path so the pg_trgm operator classes resolve (#7869).
+	params.Set("search_path", schemaName+",public")
 	targetURL.RawQuery = params.Encode()
 	db, err := sql.Open("pgx", targetURL.String())
 	if err != nil {
