@@ -5,12 +5,13 @@ Companions: [Repository Retirement](7766-repository-retirement.md),
 [Runner](7766-repository-retirement-runner.md) (2d, 2e, phase 3 act on this
 list), and [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md).
 
-Binding input: the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F6. The
+Binding inputs: the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F6,
+and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), section 4. The
 design's earlier phase 3 text said the scope delete "cascades
 `projector_scope_claim_fences`". That was incomplete: about 30 tables reference
 `ingestion_scopes`, and more are keyed by scope or repo with no FK. This file
 classifies each of them.
-Source check: origin/main 3b03f018e, 2026-10-09, read from
+Source check: origin/main c88c3806a, 2026-10-09, read from
 `go/internal/storage/postgres/migrations/*.sql`.
 
 ## Dispositions
@@ -24,18 +25,25 @@ Source check: origin/main 3b03f018e, 2026-10-09, read from
 | `3+count` | Cascades at phase 3 and the tombstone reports the count | Phase 3, pre-counted inside the transaction |
 | `reaped` | An existing reaper removes it once the scope row is gone | Named reaper |
 | `kept` | Stays, with a reason | Nobody |
+| `not_a_key` | The column name matches the pattern but holds no scope or repo identity (`scope_kind`, `scope_class`, and the like) | Nobody |
+| `foreign_target` | The retired id is only the target of the row: `target_repo_id` without `source_repo_id`, mirroring incoming graph edges | Nobody; kept until the owner re-resolves |
 | `NOT_CHECKED` | Key semantics not read for this design | The census test blocks PR 7 until classified |
 
 The census is not a hand list. `TestRetirementTableCensusClassifiesEveryScopeKeyedTable`
 runs against a migrated schema and queries `information_schema` (and
 `pg_constraint` for the delete rule): every foreign key whose referenced table is
 `ingestion_scopes`, `scope_generations`, `fact_records`, `fact_work_items`, or
-`content_files`, plus every table with a scope- or repo-keyed column and no FK
-(`scope_id`, `*_scope_id`, `repo_id`, `repository_id`, `repo`,
-`partition_key`). Each must appear in the closed classification table in
-`reducer/retirement/census.go` with a disposition and, for `kept`, a reason. The
-test needs a seeded-violation pair: a table added to a scratch schema fails it,
-and the clean tree passes. The counts below are a snapshot, not a contract.
+`content_files`, plus every table with a matching column and no FK. The match is broad on
+purpose: any column whose name contains `repo`, `repository`, or `scope`, plus
+`partition_key`, across every table. A narrow name list missed
+`source_repo_id`, `allowed_scope_ids`, `allowed_repository_ids`, `repository`,
+`repository_full_name`, `repository_external_id`, and the `*_hash` columns. Each
+hit must appear in the closed classification table in
+`reducer/retirement/census.go` with a disposition and, for `kept`, `not_a_key`,
+and `foreign_target`, a reason. The test needs a seeded-violation pair: a
+scratch table with a single `source_repo_id` column and no entry in the closed
+table fails it, and the clean tree passes. The counts below are a snapshot, not a
+contract.
 
 ## Tables That Reference `ingestion_scopes`
 
@@ -168,9 +176,16 @@ design. The census test fails until each has a disposition.
 - `crossplane_satisfied_by_redrive_state` (`xrd_scope_id`) and
   `crossplane_satisfied_by_redrive_target_ledger` (`target_scope_id`);
 - `relationship_candidates`, `relationship_evidence_facts`, and
-  `resolved_relationships` (`source_repo_id`, `target_repo_id`). Rows where the
-  retired repo is the target belong to other repositories' evidence, the same
-  shape as incoming graph edges.
+  `resolved_relationships` (`source_repo_id`, `target_repo_id`;
+  `migrations/010_relationship_tables.sql:31-70`). Their `generation_id` has no
+  `REFERENCES`, so the 2d cascade does not reach them and `2d` is not an available
+  disposition. The final disposition must be `2e` by `source_repo_id` or by the
+  retired scopes' generation ids. Rows where the retired repo is only the target
+  belong to other repositories' evidence, the same shape as incoming graph
+  edges: `foreign_target`. Which of the two applies is unread, so the three
+  tables stay NOT_CHECKED.
+- `relationship_generations` (`scope`, no FK; `010:28-29`) is a column the broad
+  match now flags. Its semantics are unread.
 
 ## Consequences For The Runner
 

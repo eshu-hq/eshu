@@ -1,0 +1,13 @@
+=== RUN   TestProof7766P9HorizonVsHeartbeat
+    proof7766_p9_test.go:297: P9H cycle finished after 4.025s err=<nil> processed=1 writes=1
+    proof7766_p9_test.go:298: P9H horizon (design 7f, taken at t=300ms) = 2026-10-08T23:56:10.859828-06:00
+    proof7766_p9_test.go:300: P9H t=801ms now()>horizon=false lease_owner="proof-p9-worker" lease_expires_at-horizon=+0.50s (worker still inside RetractEdges)
+    proof7766_p9_test.go:300: P9H t=1.501s now()>horizon=true lease_owner="proof-p9-worker" lease_expires_at-horizon=+1.00s (worker still inside RetractEdges)
+    proof7766_p9_test.go:300: P9H t=2.501s now()>horizon=true lease_owner="proof-p9-worker" lease_expires_at-horizon=+2.00s (worker still inside RetractEdges)
+    proof7766_p9_test.go:300: P9H t=3.501s now()>horizon=true lease_owner="proof-p9-worker" lease_expires_at-horizon=+3.00s (worker still inside RetractEdges)
+--- PASS: TestProof7766P9HorizonVsHeartbeat (4.20s)
+=== RUN   TestProof7766P9OrphanStarvation
+    proof7766_p9_test.go:324: P9S 10100 orphan intents (20 distinct acceptance keys, no acceptance rows) + 1 healthy intent: cycle took 10ms err=<nil> processed=1 stale=0 selection_s=0.002 writes=1 healthy_intent_exists=true healthy_completed=true orphans_still_pending=10100
+--- PASS: TestProof7766P9OrphanStarvation (0.25s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	6.877s
