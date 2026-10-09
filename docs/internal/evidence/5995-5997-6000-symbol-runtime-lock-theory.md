@@ -260,7 +260,7 @@ the four `materialized_edges_*` files. The sixth,
 `internal/reducer` and contains production code. `buildSymbolRuntimeIntentRows`
 (now `materialization.BuildIntentRows`) is defined there and runs inside
 `CodeCallMaterializationHandler.Handle`
-(`code_call_materialization.go:175`) on every code-call materialization. A file
+(`code/call/materialization/handler.go`) on every code-call materialization. A file
 holding production code is not a file off the production path; what is off the
 path is the added function, and the claim has to be made at that granularity.
 

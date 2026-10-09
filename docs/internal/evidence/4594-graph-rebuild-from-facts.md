@@ -223,10 +223,10 @@ owns `EvidenceArtifact` and `EVIDENCES_REPOSITORY_RELATIONSHIP`. **That is
 wrong, and it was wrong in a way that pointed at the wrong guard.** Read from
 the writer:
 
-- The nodes are written at `storage/cypher/edge_writer.go:196`, inside
+- The nodes are written at `storage/cypher/edge/writer/writer.go:196`, inside
   `if domain == reducer.DomainRepoDependency`.
 - `DomainRepoDependency` is `"repo_dependency"`, and it is a *shared projection*
-  domain (`reducer/shared_projection.go:16`), not one of the seventeen reducer
+  domain (`reducer/contract/domain.go`), not one of the seventeen reducer
   materialization domains the table above splits.
 - Its intents are emitted by the cross-repo resolver
   (`buildResolvedEdgeIntentRow` in `reducer/crossrepo/cross_repo_intent_row.go` sets
@@ -608,13 +608,13 @@ story fitted to one number. Three things line up:
 2. **Nothing re-checks it.** `WriteEdges` returns a report whose `writtenRows` is
    the count *submitted*, not the count the backend matched, and the runner then
    unconditionally calls `MarkIntentsCompleted`
-   (`reducer/code_call_projection_runner.go:461`). There is no repair queue on
+   (`reducer/code/call/projection/runner.go`). There is no repair queue on
    the code-call family, unlike workload materialization.
 3. **The readiness gate only covers the caller's repository.** `code_calls` is
    gated on canonical-nodes-committed, but the key is built from the intent's own
    `AcceptanceKey()`, which falls back to `row.RepositoryID`
-   (`reducer/shared_projection.go:264`). No readiness key is ever constructed for
-   the *callee's* repository. The design comment at `shared_projection.go:169`
+   (`reducer/sharedintent/intent.go`). No readiness key is ever constructed for
+   the *callee's* repository. The design comment at `reducer/intents/shared/worker/domains.go`
    says so outright: "there is no cross-acceptance-unit dependency to wait on the
    way HANDLES_ROUTE waits on Endpoint materialization."
 
