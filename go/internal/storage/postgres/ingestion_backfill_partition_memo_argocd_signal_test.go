@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -22,7 +23,7 @@ import (
 // does NOT flag a plain file that merely carries the empty keys, while it DOES
 // flag a genuine ArgoCD ApplicationSet.
 func TestArgoCDBearingSignalIgnoresEmptyParsedStructKeys(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)

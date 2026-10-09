@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // This file is the retirement proof lane for issue #1800. It proves, end to end
@@ -155,7 +156,7 @@ func TestProofRetirementSupersededGenerationFactsAreNotReturnedByActiveReads(t *
 	// Generation A holds the evidence that will be retired: fact-old.
 	factOld := retirementRepositoryFact(scopeValue.ScopeID, generationA.GenerationID, "fact-old", "digest-a", generationA.ObservedAt)
 	if err := store.CommitScopeGeneration(
-		context.Background(), scopeValue, generationA, testFactChannel([]facts.Envelope{factOld}),
+		context.Background(), scopeValue, generationA, testfixtures.FactChannel([]facts.Envelope{factOld}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration(A) error = %v, want nil", err)
 	}
@@ -185,7 +186,7 @@ func TestProofRetirementSupersededGenerationFactsAreNotReturnedByActiveReads(t *
 	}
 	factNew := retirementRepositoryFact(scopeValue.ScopeID, generationB.GenerationID, "fact-new", "digest-b", generationB.ObservedAt)
 	if err := store.CommitScopeGeneration(
-		context.Background(), scopeValue, generationB, testFactChannel([]facts.Envelope{factNew}),
+		context.Background(), scopeValue, generationB, testfixtures.FactChannel([]facts.Envelope{factNew}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration(B) error = %v, want nil", err)
 	}
@@ -368,7 +369,7 @@ func TestProofRetirementFirstGenerationFactsAreReturnedAndNotPrematurelyRetired(
 	}
 	factFirst := retirementRepositoryFact(scopeValue.ScopeID, generation.GenerationID, "fact-first", "digest-first", generation.ObservedAt)
 	if err := store.CommitScopeGeneration(
-		context.Background(), scopeValue, generation, testFactChannel([]facts.Envelope{factFirst}),
+		context.Background(), scopeValue, generation, testfixtures.FactChannel([]facts.Envelope{factFirst}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration(first) error = %v, want nil", err)
 	}

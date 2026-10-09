@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestProducerActivationQuietAckLeavesConsumerUnreplayedLive is the #7635
@@ -42,8 +43,8 @@ func TestProducerActivationQuietAckLeavesConsumerUnreplayedLive(t *testing.T) {
 		PartitionKey:  "example/app",
 	}
 	if err := store.CommitScopeGeneration(ctx, producerScope,
-		catalogTestGeneration("oci:producer", "producer-old", base),
-		testFactChannel(producerOCIFacts("oci:producer", "producer-old",
+		testfixtures.CatalogGeneration("oci:producer", "producer-old", base),
+		testfixtures.FactChannel(producerOCIFacts("oci:producer", "producer-old",
 			"sha256:1111111111111111111111111111111111111111111111111111111111111111", "", base))); err != nil {
 		t.Fatalf("commit producer old generation: %v", err)
 	}
@@ -66,8 +67,8 @@ func TestProducerActivationQuietAckLeavesConsumerUnreplayedLive(t *testing.T) {
 	// pending generation and the Ack activates it; nothing commits and no
 	// maintenance runs after this Ack.
 	if err := store.CommitScopeGeneration(ctx, producerScope,
-		catalogTestGeneration("oci:producer", "producer-new", base.Add(time.Minute)),
-		testFactChannel(producerOCIFacts("oci:producer", "producer-new",
+		testfixtures.CatalogGeneration("oci:producer", "producer-new", base.Add(time.Minute)),
+		testfixtures.FactChannel(producerOCIFacts("oci:producer", "producer-new",
 			"sha256:2222222222222222222222222222222222222222222222222222222222222222",
 			"sha256:1111111111111111111111111111111111111111111111111111111111111111", base.Add(time.Minute)))); err != nil {
 		t.Fatalf("commit producer new generation: %v", err)
@@ -98,7 +99,7 @@ func openProducerActivationProofDB(t *testing.T) *sql.DB {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	return openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_activation")
+	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_activation")
 }
 
 // producerOCIFacts is one generation's OCI evidence: the manifest at digest

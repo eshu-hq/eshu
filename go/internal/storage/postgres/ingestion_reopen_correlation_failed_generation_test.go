@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay
@@ -39,7 +40,7 @@ import (
 // NULL active pointer is the activation race the whole replay exists for, and it
 // MUST keep reopening. Losing it would be a far worse regression than the churn.
 func TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)

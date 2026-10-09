@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -36,9 +36,9 @@ func loadGenerationLivenessConfig(getenv func(string) string) generationLiveness
 	}
 	return generationLivenessConfig{
 		Enabled: loadBoolOrDefault(getenv, generationLivenessEnabledEnv, true),
-		Runner: maintenance.GenerationLivenessRunnerConfig{
+		Runner: liveness.Config{
 			PollInterval: pollInterval,
-			Policy: maintenance.GenerationLivenessPolicy{
+			Policy: liveness.Policy{
 				ActivationDeadline: loadDurationOrDefault(getenv, generationLivenessActivationDeadlineEnv, defaultGenerationLivenessActivationDeadline),
 				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, generationLivenessMaxRecoverAttemptsEnv, defaultGenerationLivenessMaxRecoverAttempts),
 				BatchLimit:         loadPositiveIntOrDefault(getenv, generationLivenessBatchLimitEnv, defaultGenerationLivenessBatchLimit),
@@ -66,7 +66,7 @@ func warnGenerationLivenessProgressWindowClamp(ctx context.Context, logger *slog
 }
 
 // postgresGenerationLivenessRecoverer adapts the Postgres liveness store to the
-// reducer's GenerationLivenessRecoverer contract, translating the reducer-side
+// liveness.Recoverer contract, translating the reducer-side
 // policy into the storage-side policy.
 type postgresGenerationLivenessRecoverer struct {
 	store postgres.GenerationLivenessStore
@@ -75,11 +75,11 @@ type postgresGenerationLivenessRecoverer struct {
 func generationLivenessRunnerFor(
 	database db.ExecQueryer,
 	cfg generationLivenessConfig,
-) *maintenance.GenerationLivenessRunner {
+) *liveness.Runner {
 	if !cfg.Enabled {
 		return nil
 	}
-	return &maintenance.GenerationLivenessRunner{
+	return &liveness.Runner{
 		Recoverer: postgresGenerationLivenessRecoverer{
 			store: postgres.NewGenerationLivenessStore(database),
 		},
@@ -89,9 +89,9 @@ func generationLivenessRunnerFor(
 
 func (r postgresGenerationLivenessRecoverer) RecoverWedgedGenerations(
 	ctx context.Context,
-	policy maintenance.GenerationLivenessPolicy,
+	policy liveness.Policy,
 	now time.Time,
-) (maintenance.GenerationLivenessResult, error) {
+) (liveness.Result, error) {
 	result, err := r.store.RecoverWedgedGenerations(ctx, postgres.GenerationLivenessPolicy{
 		ActivationDeadline: policy.ActivationDeadline,
 		MaxRecoverAttempts: policy.MaxRecoverAttempts,
@@ -99,17 +99,17 @@ func (r postgresGenerationLivenessRecoverer) RecoverWedgedGenerations(
 		ProgressWindow:     policy.ProgressWindow,
 	}, now)
 	if err != nil {
-		return maintenance.GenerationLivenessResult{}, err
+		return liveness.Result{}, err
 	}
-	recoveries := make([]maintenance.GenerationLivenessRecovery, 0, len(result.Recoveries))
+	recoveries := make([]liveness.Recovery, 0, len(result.Recoveries))
 	for _, recovery := range result.Recoveries {
-		recoveries = append(recoveries, maintenance.GenerationLivenessRecovery{
+		recoveries = append(recoveries, liveness.Recovery{
 			ScopeID:                  recovery.ScopeID,
 			GenerationID:             recovery.GenerationID,
 			LivenessRecoveryAttempts: recovery.LivenessRecoveryAttempts,
 		})
 	}
-	return maintenance.GenerationLivenessResult{
+	return liveness.Result{
 		Superseded: result.Superseded,
 		Recovered:  result.Recovered,
 		Recoveries: recoveries,

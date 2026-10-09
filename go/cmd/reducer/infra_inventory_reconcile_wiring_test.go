@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/infra"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
@@ -71,7 +71,7 @@ func TestPostgresInfraInventoryReconcilerCarriesTheWalkWrap(t *testing.T) {
 	t.Parallel()
 
 	reconciler := postgresInfraInventoryReconciler{database: &readyEmptyInventoryDB{dirtyRepos: 3}}
-	batch, err := reconciler.ReconcileInfraInventory(context.Background(), maintenance.InfraInventoryReconcileRequest{
+	batch, err := reconciler.ReconcileInfraInventory(context.Background(), infra.Request{
 		Budget:  10,
 		Persist: true,
 	})

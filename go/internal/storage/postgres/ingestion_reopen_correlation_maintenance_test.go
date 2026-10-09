@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains is
@@ -26,7 +27,7 @@ import (
 // forever in normal ingestion, while the golden-corpus gate — which drives
 // eshu-bootstrap-index for its maintenance passes — went green.
 func TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -90,7 +91,7 @@ func TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains(t
 // resolve. A scope that has not activated any generation yet still reopens — its
 // latest generation IS the floor.
 func TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -244,7 +245,7 @@ func TestListSucceededReducerWorkItemsByDomainQueryCarriesReplayFloor(t *testing
 // proven by
 // TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay.
 func TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGeneration(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)

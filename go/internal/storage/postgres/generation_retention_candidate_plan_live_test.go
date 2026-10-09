@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // generationRetentionCandidateQuerySeededPerRowLiveWork is a guard-sensitivity
@@ -66,9 +68,9 @@ func TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive(t *testing.
 
 	for i := 0; i < 10; i++ {
 		scopeID := retentionSelectionScopeID("plan", i)
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, scopeID+"-g0", old)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, scopeID+"-g1", newer)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, scopeID+"-g0", old)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, scopeID+"-g1", newer)
 	}
 	// A handful of live fact_work_items rows, on the newer (rank 1, already
 	// ineligible by rank) generation of a few scopes, so the live_work CTE

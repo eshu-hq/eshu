@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 func TestIngestionStoreCommitScopeGenerationSkipsStreamingGCPRelationshipEvidenceForAccountScope(t *testing.T) {
@@ -60,7 +61,7 @@ func TestIngestionStoreCommitScopeGenerationSkipsStreamingGCPRelationshipEvidenc
 		},
 	}}
 
-	err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testFactChannel(envelopes))
+	err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testfixtures.FactChannel(envelopes))
 	if err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}

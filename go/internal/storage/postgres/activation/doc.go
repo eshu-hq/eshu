@@ -36,7 +36,7 @@
 // per-state census and the oldest open obligation's age for gauges.
 //
 // RunnerStore adapts Store to the resolution engine's consumer port,
-// reducer/maintenance.ActivationObligationStore.
+// reducer/maintenance/obligation.Store.
 //
 // The producer family beside it (InsertProducerActivation,
 // ClaimProducerActivation, BeginProducerSettle, PruneProducer,

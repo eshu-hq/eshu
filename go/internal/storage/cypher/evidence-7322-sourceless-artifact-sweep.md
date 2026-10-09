@@ -84,7 +84,7 @@ DELETE), and the CI live-backend legs cover the sweep suite there.
 Observability Evidence: no new signals. The runner already logs
 `graph orphan sweep cycle completed` with per-label `counts_by_label`,
 `marked_by_label`, `deleted_by_label`, and `skipped_by_label`
-(`go/internal/reducer/maintenance/graph_orphan_sweep_runner.go`), so
+(`go/internal/reducer/maintenance/orphan/runner.go`), so
 EvidenceArtifact mark/delete counts for sourceless artifacts flow through
 the existing operator-visible log. `No-Observability-Change` for new
 instruments; behavior change is visible in the existing per-label counts.

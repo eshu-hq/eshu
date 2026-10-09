@@ -18,7 +18,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -220,7 +220,7 @@ func newLockWaitStore(database *sql.DB) (postgres.IngestionStore, *lockWaitBegin
 // production partition-scoped maintainer, a callback counter and its own
 // metrics.
 type composedConsumer struct {
-	runner *maintenance.ActivationObligationRunner
+	runner *obligation.Runner
 	port   *composedPort
 	reader *sdkmetric.ManualReader
 	locks  *lockWaitBeginner
@@ -230,15 +230,15 @@ type composedConsumer struct {
 // and claimed obligation, and runs an optional hook before the production
 // maintainer.
 type composedPort struct {
-	inner  maintenance.ActivationMaintainer
-	before func(ctx context.Context, work maintenance.ActivationObligation) error
+	inner  obligation.Maintainer
+	before func(ctx context.Context, work obligation.Obligation) error
 	mu     sync.Mutex
 	calls  map[string]int
 	errs   []error
-	seen   []maintenance.ActivationObligation
+	seen   []obligation.Obligation
 }
 
-func (p *composedPort) MaintainActivation(ctx context.Context, work maintenance.ActivationObligation) error {
+func (p *composedPort) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
 	p.mu.Lock()
 	if p.calls == nil {
 		p.calls = map[string]int{}
@@ -289,10 +289,10 @@ func newComposedConsumer(t *testing.T, database *sql.DB, owner string, lease tim
 	store, locks := newLockWaitStore(database)
 	port := &composedPort{inner: postgres.NewActivationMaintainer(store, nil, instruments)}
 	return &composedConsumer{
-		runner: &maintenance.ActivationObligationRunner{
+		runner: &obligation.Runner{
 			Store:       activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 			Maintainer:  port,
-			Config:      maintenance.ActivationObligationRunnerConfig{Owner: owner, Lease: lease, MaxPerCycle: maxPerCycle},
+			Config:      obligation.Config{Owner: owner, Lease: lease, MaxPerCycle: maxPerCycle},
 			Instruments: instruments,
 		},
 		port: port, reader: reader, locks: locks,
@@ -408,7 +408,7 @@ func awaitScopeRowLocked(t *testing.T, ctx context.Context, database *sql.DB, sc
 
 // obligationOf converts a consumer's view of a claimed obligation into the
 // store's.
-func obligationOf(work maintenance.ActivationObligation) activation.Obligation {
+func obligationOf(work obligation.Obligation) activation.Obligation {
 	return activation.Obligation{
 		ScopeID: work.ScopeID, GenerationID: work.GenerationID,
 		LeaseOwner: work.LeaseOwner, LeaseToken: work.LeaseToken, LeaseUntil: work.LeaseUntil,

@@ -53,6 +53,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // ingestionTxLockSplitDSNEnv names the Postgres DSN used by the #4451
@@ -166,7 +167,7 @@ func TestIngestionCommitScopeGenerationHoldsBarrierOnlyForAtomicCommit(t *testin
 	start := time.Now()
 	if err := store.CommitScopeGeneration(
 		ctx, scopeValue, gen,
-		testFactChannel([]facts.Envelope{repoFactEnvelope("fact-commit-default-new", scopeValue.ScopeID, gen.GenerationID, newRepoAlias, gen.ObservedAt)}),
+		testfixtures.FactChannel([]facts.Envelope{repoFactEnvelope("fact-commit-default-new", scopeValue.ScopeID, gen.GenerationID, newRepoAlias, gen.ObservedAt)}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
@@ -233,7 +234,7 @@ func TestIngestionCommitScopeGenerationSurvivesPostCommitBackfillFailure(t *test
 
 	if err := store.CommitScopeGeneration(
 		ctx, scopeValue, gen,
-		testFactChannel([]facts.Envelope{repoFactEnvelope("fact-atomicity-proof-new", scopeValue.ScopeID, gen.GenerationID, newRepoAlias, gen.ObservedAt)}),
+		testfixtures.FactChannel([]facts.Envelope{repoFactEnvelope("fact-atomicity-proof-new", scopeValue.ScopeID, gen.GenerationID, newRepoAlias, gen.ObservedAt)}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil (a post-commit backfill failure must never surface as a commit error)", err)
 	}

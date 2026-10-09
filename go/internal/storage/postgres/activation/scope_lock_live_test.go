@@ -13,11 +13,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // finalizeScopeLockLike matches Finalize's scope lock in pg_stat_activity.
@@ -43,7 +44,7 @@ func holdTgtCommit(t *testing.T, ctx context.Context, database *sql.DB, generati
 				ScopeID: "git:tgt", SourceSystem: "git", ScopeKind: scope.KindRepository,
 				CollectorKind: scope.CollectorGit, PartitionKey: "git:tgt",
 			},
-			catalogTestGeneration("git:tgt", generationID, time.Now().UTC()), held.facts)
+			testfixtures.CatalogGeneration("git:tgt", generationID, time.Now().UTC()), held.facts)
 	}()
 	awaitScopeRowLocked(t, ctx, database, "git:tgt")
 	return held
@@ -73,7 +74,7 @@ func claimPublished(t *testing.T, ctx context.Context, database *sql.DB, lease t
 		t.Fatalf("first Finalize = %+v err=%v, want phase_not_ready", result, err)
 	}
 	if err := postgres.NewActivationMaintainer(postgres.NewIngestionStore(postgres.SQLDB{DB: database}), nil, nil).MaintainActivation(ctx,
-		maintenance.ActivationObligation{ScopeID: work.ScopeID, GenerationID: work.GenerationID}); err != nil {
+		obligation.Obligation{ScopeID: work.ScopeID, GenerationID: work.GenerationID}); err != nil {
 		t.Fatalf("partition-scoped maintenance: %v", err)
 	}
 	return work
@@ -107,7 +108,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		if result.Outcome != activation.OutcomeCompleted || result.Woken != 1 {
 			t.Fatalf("Finalize = %+v, want completed with 1 woken", result)
 		}
-		assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
+		testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
 		assertActivationActivePointer(t, ctx, database, "git:tgt", "tgt-2")
 		if got := activationGenerationStatus(t, ctx, database, "tgt-3"); got != "pending" {
 			t.Fatalf("committed generation status = %q, want pending", got)
@@ -156,8 +157,8 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		if result.Outcome != activation.OutcomeObsolete || result.Woken != 0 {
 			t.Fatalf("Finalize = %+v, want obsolete with nothing woken", result)
 		}
-		assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "obsolete", 1)
-		assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-3", "pending", 0)
+		testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "obsolete", 1)
+		testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-3", "pending", 0)
 		assertActivationActivePointer(t, ctx, database, "git:tgt", "tgt-3")
 		// The superseded generation's waiting row stays a future retry: no
 		// wake for an obsolete obligation.
@@ -195,7 +196,7 @@ func TestActivationObligationIngestionCommitRacesFinalizeLive(t *testing.T) {
 		if _, err := consumer.runner.RunOnce(ctx); err != nil {
 			t.Fatal(err)
 		}
-		assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 2)
+		testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 2)
 		if got := consumer.port.total(); got != 0 {
 			t.Fatalf("maintenance callbacks = %d, want 0 (the phase was already published)", got)
 		}

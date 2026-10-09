@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 )
 
 // TestServiceStartsActivationObligationRunner is the Service.startSideRunners
@@ -20,10 +20,10 @@ func TestServiceStartsActivationObligationRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	store := &wiringActivationStore{claimed: make(chan struct{}, 1)}
-	runner := &maintenance.ActivationObligationRunner{
+	runner := &obligation.Runner{
 		Store:      store,
 		Maintainer: wiringActivationMaintainer{},
-		Config: maintenance.ActivationObligationRunnerConfig{
+		Config: obligation.Config{
 			Owner: "wiring-test", PollInterval: time.Hour,
 		},
 	}
@@ -52,33 +52,33 @@ type wiringActivationStore struct {
 	claimed chan struct{}
 }
 
-func (s *wiringActivationStore) ClaimActivation(context.Context, string, time.Duration) (*maintenance.ActivationObligation, error) {
+func (s *wiringActivationStore) ClaimActivation(context.Context, string, time.Duration) (*obligation.Obligation, error) {
 	s.once.Do(func() { s.claimed <- struct{}{} })
 	return nil, nil
 }
 
-func (s *wiringActivationStore) FinalizeActivation(context.Context, maintenance.ActivationObligation) (maintenance.ActivationFinalizeResult, error) {
-	return maintenance.ActivationFinalizeResult{}, nil
+func (s *wiringActivationStore) FinalizeActivation(context.Context, obligation.Obligation) (obligation.FinalizeResult, error) {
+	return obligation.FinalizeResult{}, nil
 }
 
-func (s *wiringActivationStore) RetireActivationInapplicable(context.Context, maintenance.ActivationObligation) (maintenance.ActivationFinalizeResult, error) {
-	return maintenance.ActivationFinalizeResult{}, nil
+func (s *wiringActivationStore) RetireActivationInapplicable(context.Context, obligation.Obligation) (obligation.FinalizeResult, error) {
+	return obligation.FinalizeResult{}, nil
 }
 
-func (s *wiringActivationStore) CatchUpActivations(context.Context, string, int) (maintenance.ActivationCatchUpPage, error) {
-	return maintenance.ActivationCatchUpPage{}, nil
+func (s *wiringActivationStore) CatchUpActivations(context.Context, string, int) (obligation.CatchUpPage, error) {
+	return obligation.CatchUpPage{}, nil
 }
 
 func (s *wiringActivationStore) PruneActivations(context.Context, time.Duration, int) (int, error) {
 	return 0, nil
 }
 
-func (s *wiringActivationStore) ActivationStats(context.Context) (maintenance.ActivationStats, error) {
-	return maintenance.ActivationStats{}, nil
+func (s *wiringActivationStore) ActivationStats(context.Context) (obligation.Stats, error) {
+	return obligation.Stats{}, nil
 }
 
 type wiringActivationMaintainer struct{}
 
-func (wiringActivationMaintainer) MaintainActivation(context.Context, maintenance.ActivationObligation) error {
+func (wiringActivationMaintainer) MaintainActivation(context.Context, obligation.Obligation) error {
 	return nil
 }

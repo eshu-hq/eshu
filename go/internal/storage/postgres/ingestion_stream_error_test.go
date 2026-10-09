@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -53,7 +54,7 @@ func TestIngestionStoreCommitClaimedScopeGenerationRollsBackOnFactStreamError(t 
 		mutation,
 		scopeValue,
 		generation,
-		testFactChannel([]facts.Envelope{{
+		testfixtures.FactChannel([]facts.Envelope{{
 			FactID:        "fact-claimed-stream-error",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generation.GenerationID,
@@ -121,7 +122,7 @@ func TestIngestionStoreUnchangedGenerationChecksFactStreamError(t *testing.T) {
 		context.Background(),
 		scopeValue,
 		generation,
-		testFactChannel([]facts.Envelope{{
+		testfixtures.FactChannel([]facts.Envelope{{
 			FactID:        "fact-unchanged-stream-error",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generation.GenerationID,

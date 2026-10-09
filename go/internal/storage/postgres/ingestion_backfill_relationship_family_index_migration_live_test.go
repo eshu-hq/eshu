@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestRelationshipFamilyCandidateIndexMigratesExistingDeployment is the
@@ -32,7 +34,7 @@ import (
 // the Flux arm (a new name, so IF NOT EXISTS actually builds it) and 068 drops
 // the legacy index.
 func TestRelationshipFamilyCandidateIndexMigratesExistingDeployment(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	schemaName := provisionDeferredPartitionMemoSchema(t, db)

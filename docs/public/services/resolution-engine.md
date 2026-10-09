@@ -196,9 +196,9 @@ publishes that generation's own `backward_evidence_committed` phase, and its
 one `activation_obligations` row for the generation it activates, inside the Ack
 transaction (migration 160; `go/internal/storage/postgres/activation`).
 
-`maintenance.ActivationObligationRunner` is the consumer. Each worker claims
+`obligation.Runner` is the consumer. Each worker claims
 one obligation (`FOR NO KEY UPDATE SKIP LOCKED`, lease owner and a claim token
-on the database clock), finalizes it, calls the `ActivationMaintainer` port only
+on the database clock), finalizes it, calls the `obligation.Maintainer` port only
 when the exact generation's phase is missing, and finalizes again. Finalize
 locks the scope row before the obligation row (the Ack lock order), retires the
 obligation as `obsolete` when the scope's pointer moved to another generation
@@ -211,9 +211,9 @@ running, and completes it under the lease fence. One worker per process also
 runs a bounded catch-up page (active repository generations with neither an
 obligation nor their phase), a bounded prune of finished rows and the census
 gauges each cycle. Replicas and workers never share an obligation. The
-maintenance port can answer `ErrActivationInapplicable` (no repository maps to
+maintenance port can answer `obligation.ErrInapplicable` (no repository maps to
 the owed partition: the row retires `inapplicable` after one callback) or
-`ErrActivationCatalogChanged` (held: the lease stays, the retry comes at lease
+`obligation.ErrCatalogChanged` (held: the lease stays, the retry comes at lease
 cadence, no fallback pass runs, and the epoch whole pass triggered by the
 catalog-changing commit publishes the phase). `inapplicable` rows are never
 pruned.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // catalogBenchRepoCount models the live platform-qa fleet scale that triggered issue
@@ -96,9 +97,9 @@ func runKnownRepoCommits(b *testing.B, store IngestionStore, commits int, now ti
 		generationID := fmt.Sprintf("gen-%d", i)
 		err := store.CommitScopeGeneration(
 			context.Background(),
-			catalogTestScope("scope-0", "repo-0"),
-			catalogTestGeneration("scope-0", generationID, now),
-			testFactChannel([]facts.Envelope{
+			testfixtures.CatalogScope("scope-0", "repo-0"),
+			testfixtures.CatalogGeneration("scope-0", generationID, now),
+			testfixtures.FactChannel([]facts.Envelope{
 				catalogRepositoryFact("scope-0", generationID, "repo-0", now.Add(-time.Minute)),
 			}),
 		)
@@ -120,9 +121,9 @@ func runOnboardingCommits(b *testing.B, db *countingCatalogDB, store IngestionSt
 		generationID := fmt.Sprintf("gen-onboard-%d", i)
 		err := store.CommitScopeGeneration(
 			context.Background(),
-			catalogTestScope("scope-"+repoID, repoID),
-			catalogTestGeneration("scope-"+repoID, generationID, now),
-			testFactChannel([]facts.Envelope{
+			testfixtures.CatalogScope("scope-"+repoID, repoID),
+			testfixtures.CatalogGeneration("scope-"+repoID, generationID, now),
+			testfixtures.FactChannel([]facts.Envelope{
 				catalogRepositoryFact("scope-"+repoID, generationID, repoID, now.Add(-time.Minute)),
 			}),
 		)

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
 )
 
 func TestLoadGenerationLivenessConfigProgressWindow(t *testing.T) {
@@ -103,5 +103,5 @@ func TestPostgresGenerationLivenessRecovererForwardsProgressWindow(t *testing.T)
 	if got := observer.policy.ProgressWindow; got != 12*time.Minute {
 		t.Fatalf("gauge observer ProgressWindow = %v, want 12m", got)
 	}
-	var _ maintenance.GenerationLivenessRecoverer = postgresGenerationLivenessRecoverer{}
+	var _ liveness.Recoverer = postgresGenerationLivenessRecoverer{}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -27,7 +28,7 @@ func TestIngestionStoreCommitClaimedScopeGenerationLocksTenantGrantBeforeFactWri
 		tenantGrantMutation(now),
 		tenantGrantScope(),
 		tenantGrantGeneration(now),
-		testFactChannel([]facts.Envelope{tenantGrantFact(now)}),
+		testfixtures.FactChannel([]facts.Envelope{tenantGrantFact(now)}),
 	)
 	if err != nil {
 		t.Fatalf("CommitClaimedScopeGeneration() error = %v, want nil", err)

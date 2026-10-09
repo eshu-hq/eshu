@@ -20,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -328,7 +328,7 @@ func newRepoDependencyProjectionRunner(
 	database db.ExecQueryer,
 	edgeWriter *edgewriter.EdgeWriter,
 	workQueue postgres.ReducerQueue,
-	relationshipGenerationActive maintenance.RelationshipGenerationActiveLookup,
+	relationshipGenerationActive accepted.RelationshipGenerationActiveLookup,
 	acceptedGenerationPrefetch reducer.AcceptedGenerationPrefetch,
 	workloadReadinessPrefetch reducer.GraphProjectionReadinessPrefetch,
 	repoDependencyCfg reducer.RepoDependencyProjectionRunnerConfig,
@@ -336,18 +336,18 @@ func newRepoDependencyProjectionRunner(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) *reducer.RepoDependencyProjectionRunner {
-	// GateAcceptedGenerationPrefetchOnActive lives in maintenance
-	// (issue #6061) and is declared over its own local AcceptedGenerationLookup
-	// / AcceptedGenerationPrefetch aliases so a family subpackage never imports
+	// accepted.GatePrefetchOnActive lives in the maintenance/accepted leaf
+	// (issues #6061, #7648) and is declared over its own local Lookup
+	// / Prefetch aliases so a family subpackage never imports
 	// the reducer root. Those aliases interoperate with the reducer-root types
 	// of the same shape (identical underlying types, alias side unnamed) for
-	// AcceptedGenerationLookup alone, but AcceptedGenerationPrefetch nests that
-	// named return type one level down, where the reducer-root and maintenance
+	// Lookup alone, but Prefetch nests that
+	// named return type one level down, where the reducer-root and accepted
 	// spellings are no longer the identical type Go assignability requires. The
 	// two thin closures below adapt across that boundary once, here, rather
 	// than importing the reducer root into maintenance.
-	gatedPrefetch := maintenance.GateAcceptedGenerationPrefetchOnActive(
-		func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (maintenance.AcceptedGenerationLookup, error) {
+	gatedPrefetch := accepted.GatePrefetchOnActive(
+		func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (accepted.Lookup, error) {
 			return acceptedGenerationPrefetch(ctx, intents)
 		},
 		relationshipGenerationActive,
@@ -372,7 +372,7 @@ func newRepoDependencyProjectionRunner(
 		// graph could project edges for a generation that activation has not
 		// yet published, running ahead of the Postgres relationship read
 		// models (which filter on relationship_generations.status = 'active').
-		AcceptedGen: maintenance.GateAcceptedGenerationOnActive(
+		AcceptedGen: accepted.GateOnActive(
 			postgres.NewAcceptedGenerationLookup(database),
 			relationshipGenerationActive,
 			instruments,

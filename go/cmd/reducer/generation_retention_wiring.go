@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	linkstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
@@ -39,9 +39,9 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 	}
 	return generationRetentionConfig{
 		Enabled: loadBoolOrDefault(getenv, generationRetentionEnabledEnv, true),
-		Runner: maintenance.GenerationRetentionRunnerConfig{
+		Runner: retention.Config{
 			PollInterval: loadDurationOrDefault(getenv, generationRetentionPollIntervalEnv, defaultGenerationRetentionPollInterval),
-			Policy: maintenance.GenerationRetentionPolicy{
+			Policy: retention.Policy{
 				MinSupersededGenerations: loadPositiveIntOrDefault(getenv, generationRetentionMinSupersededGenerationsEnv, defaults.MinSupersededGenerations),
 				MaxSupersededAge:         maxAge,
 				HardMaxSupersededAge:     hardMaxAge,
@@ -110,11 +110,11 @@ type postgresGenerationRetentionPruner struct {
 func generationRetentionRunnerFor(
 	database db.ExecQueryer,
 	cfg generationRetentionConfig,
-) *maintenance.GenerationRetentionRunner {
+) *retention.Runner {
 	if !cfg.Enabled {
 		return nil
 	}
-	return &maintenance.GenerationRetentionRunner{
+	return &retention.Runner{
 		Pruner: postgresGenerationRetentionPruner{
 			store: postgres.NewGenerationRetentionStore(database),
 		},
@@ -124,8 +124,8 @@ func generationRetentionRunnerFor(
 
 func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 	ctx context.Context,
-	policy maintenance.GenerationRetentionPolicy,
-) (maintenance.GenerationRetentionResult, error) {
+	policy retention.Policy,
+) (retention.Result, error) {
 	result, err := p.store.PruneSupersededGenerations(ctx, postgres.GenerationRetentionPolicy{
 		MinSupersededGenerations: policy.MinSupersededGenerations,
 		MaxSupersededAge:         policy.MaxSupersededAge,
@@ -138,13 +138,13 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 	if errors.Is(err, postgres.ErrGenerationRetentionKeyIndexUnavailable) {
 		// Carry the storage refusal into the runner's contract so it reports
 		// failure reason key_index_unavailable, not a generic store error.
-		return maintenance.GenerationRetentionResult{}, fmt.Errorf("%w: %w",
-			maintenance.ErrGenerationRetentionKeyIndexUnavailable, err)
+		return retention.Result{}, fmt.Errorf("%w: %w",
+			retention.ErrKeyIndexUnavailable, err)
 	}
 	if err != nil {
-		return maintenance.GenerationRetentionResult{}, err
+		return retention.Result{}, err
 	}
-	return maintenance.GenerationRetentionResult{
+	return retention.Result{
 		GenerationsPruned: result.GenerationsPruned,
 		RowsPruned:        result.RowsPruned,
 		Skipped:           result.Skipped,

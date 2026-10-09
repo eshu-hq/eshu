@@ -11,7 +11,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 )
 
 // TestTargetedMaintenanceErrorsAreMatchableWithStableReasons pins the typed
@@ -126,8 +126,8 @@ func TestActivationMaintainerMapsTheTargetedPassToTheConsumerContract(t *testing
 		{name: "published proceeds to finalize", result: result(TargetedMaintenancePublished), wantNil: true},
 		{name: "not_active proceeds so finalize retires obsolete", result: result(TargetedMaintenanceNotActive), wantNil: true},
 		{name: "not_active wins over a catalog refusal", result: result(TargetedMaintenanceNotActive), err: refused(ErrTargetedMaintenanceCatalogChanged), wantNil: true},
-		{name: "inapplicable retires", result: result(TargetedMaintenanceInapplicable), wantIs: maintenance.ErrActivationInapplicable, wantNoHold: true},
-		{name: "inapplicable wins over a catalog refusal", result: result(TargetedMaintenanceInapplicable), err: refused(ErrTargetedMaintenanceCatalogChanged), wantIs: maintenance.ErrActivationInapplicable, wantNoHold: true},
+		{name: "inapplicable retires", result: result(TargetedMaintenanceInapplicable), wantIs: obligation.ErrInapplicable, wantNoHold: true},
+		{name: "inapplicable wins over a catalog refusal", result: result(TargetedMaintenanceInapplicable), err: refused(ErrTargetedMaintenanceCatalogChanged), wantIs: obligation.ErrInapplicable, wantNoHold: true},
 		{name: "catalog_changed holds", result: result(TargetedMaintenanceRetry), err: refused(ErrTargetedMaintenanceCatalogChanged), wantHold: "catalog_changed"},
 		{name: "no_memo_baseline holds", result: result(TargetedMaintenanceRetry), err: refused(ErrTargetedMaintenanceNoMemoBaseline), wantHold: "no_memo_baseline"},
 		{name: "closure_too_deep holds", result: result(TargetedMaintenanceRetry), err: refused(ErrTargetedMaintenanceClosureTooDeep), wantHold: "closure_too_deep"},
@@ -141,7 +141,7 @@ func TestActivationMaintainerMapsTheTargetedPassToTheConsumerContract(t *testing
 				gotOwed = partitions
 				return tc.result, tc.err
 			}}
-			err := maintainer.MaintainActivation(context.Background(), maintenance.ActivationObligation{
+			err := maintainer.MaintainActivation(context.Background(), obligation.Obligation{
 				ScopeID: owed.ScopeID, GenerationID: owed.GenerationID, LeaseOwner: "o", LeaseToken: 3,
 			})
 			if len(gotOwed) != 1 || gotOwed[0] != owed {
@@ -156,7 +156,7 @@ func TestActivationMaintainerMapsTheTargetedPassToTheConsumerContract(t *testing
 			if err == nil {
 				t.Fatal("MaintainActivation() = nil, want an error")
 			}
-			var hold *maintenance.ActivationHoldError
+			var hold *obligation.HoldError
 			isHold := errors.As(err, &hold)
 			if tc.wantHold != "" && (!isHold || hold.Reason() != tc.wantHold) {
 				t.Fatalf("MaintainActivation() = %v, want a hold with reason %q", err, tc.wantHold)

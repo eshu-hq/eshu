@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // generationRetentionCandidateQueryBlockingLock derives, from the shipped
@@ -47,8 +49,8 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 
 	t.Run("pruned-and-committed-by-another-session", func(t *testing.T) {
 		scopeID, generationID := "epq-del", "epq-del-g0"
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, generationID, old)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, old)
 
 		locked := runGenerationRetentionRaceCase(t, ctx, database, generationID, cutoff, hardCutoff, func(holder *sql.Tx) {
 			if _, err := holder.ExecContext(context.Background(), `DELETE FROM scope_generations WHERE generation_id = $1`, generationID); err != nil {
@@ -62,8 +64,8 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 
 	t.Run("reactivated-by-another-session", func(t *testing.T) {
 		scopeID, generationID := "epq-react", "epq-react-g0"
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, generationID, old)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, old)
 
 		// 'pending', not 'active': scope_generations_active_scope_idx allows
 		// only one 'active' row per scope, and this fixture's scope already
@@ -87,8 +89,8 @@ func TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive(t *testing.T) {
 	// generation the race drops gets zero events, a survivor gets exactly one.
 	t.Run("bystander-gets-exactly-one-event", func(t *testing.T) {
 		scopeID, generationID := "epq-bystander", "epq-bystander-g0"
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, generationID, old)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, old)
 
 		store := NewGenerationRetentionStore(SQLDB{DB: database})
 		store.Now = func() time.Time { return now }

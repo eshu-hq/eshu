@@ -9,7 +9,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -31,7 +32,7 @@ func producerActivationRunnerFor(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (*maintenance.ProducerActivationRunner, error) {
+) (*producer.Runner, error) {
 	if !loadBoolOrDefault(getenv, producerActivationConsumerEnabledEnv, false) {
 		return nil, nil
 	}
@@ -39,12 +40,12 @@ func producerActivationRunnerFor(
 	if !ok {
 		return nil, fmt.Errorf("%s=true requires a database that supports transactions", producerActivationConsumerEnabledEnv)
 	}
-	return &maintenance.ProducerActivationRunner{
+	return &producer.Runner{
 		Store: postgres.ProducerActivationRunnerStore{
 			Activation: activation.NewStore(storeDB),
 			Ingestion:  postgres.NewIngestionStore(database),
 		},
-		Config: maintenance.ProducerActivationRunnerConfig{
+		Config: producer.Config{
 			Owner: loadProcessUniqueProjectionLeaseOwner(getenv, "", "producer-activation-consumer"),
 		},
 		Instruments: instruments,
@@ -58,8 +59,8 @@ func producerActivationRunnerFor(
 // producer activation consumer (#7635). Either runner is nil when its
 // consumer is disabled.
 type activationRunners struct {
-	obligation *maintenance.ActivationObligationRunner
-	producer   *maintenance.ProducerActivationRunner
+	obligation *obligation.Runner
+	producer   *producer.Runner
 }
 
 // activationRunnersFor builds both activation consumers in one call so the

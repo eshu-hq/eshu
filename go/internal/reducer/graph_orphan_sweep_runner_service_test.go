@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
 )
 
 // TestServiceStartsGraphOrphanSweepRunner proves Service.startSideRunners
-// starts the maintenance.GraphOrphanSweepRunner goroutine. The runner moved
+// starts the orphan.Runner goroutine. The runner moved
 // to [maintenance] in #6061, but Service.Run's side-runner startup stays a
 // root concern, so this wiring proof stays here; the runner-behavior tests
 // that used to live beside it moved to
@@ -23,12 +23,12 @@ func TestServiceStartsGraphOrphanSweepRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sweeper := &fakeRootGraphOrphanSweeper{
-		results: []maintenance.GraphOrphanSweepResult{{Deleted: map[string]int64{}}},
+		results: []orphan.Result{{Deleted: map[string]int64{}}},
 	}
 	started := make(chan struct{}, 1)
-	runner := &maintenance.GraphOrphanSweepRunner{
+	runner := &orphan.Runner{
 		Sweeper: sweeper,
-		Config:  maintenance.GraphOrphanSweepRunnerConfig{PollInterval: time.Hour},
+		Config:  orphan.Config{PollInterval: time.Hour},
 		Wait: func(ctx context.Context, _ time.Duration) error {
 			started <- struct{}{}
 			<-ctx.Done()
@@ -63,24 +63,24 @@ func TestServiceStartsGraphOrphanSweepRunner(t *testing.T) {
 }
 
 // fakeRootGraphOrphanSweeper is a minimal single-use double for
-// maintenance.GraphOrphanSweeper, scoped to this file's one wiring test. The
+// orphan.Sweeper, scoped to this file's one wiring test. The
 // full-featured fake used by the runner's own behavior tests lives beside
 // them in maintenance, unexported and out of this package's reach.
 type fakeRootGraphOrphanSweeper struct {
 	mu      sync.Mutex
 	calls   int
-	results []maintenance.GraphOrphanSweepResult
+	results []orphan.Result
 }
 
 func (s *fakeRootGraphOrphanSweeper) SweepOrphanNodes(
 	_ context.Context,
-	_ maintenance.GraphOrphanSweepPolicy,
-) (maintenance.GraphOrphanSweepResult, error) {
+	_ orphan.Policy,
+) (orphan.Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls++
 	if len(s.results) == 0 {
-		return maintenance.GraphOrphanSweepResult{Deleted: map[string]int64{}}, nil
+		return orphan.Result{Deleted: map[string]int64{}}, nil
 	}
 	result := s.results[0]
 	s.results = s.results[1:]

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationLeaseExpiresMidMaintenanceLive (#7584 composed
@@ -25,7 +26,7 @@ func TestActivationObligationLeaseExpiresMidMaintenanceLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "act_lease_mid")
 	setupComposed(t, ctx, database, composedTgt2)
 	first := newComposedConsumer(t, database, "7584-lease-first", 1500*time.Millisecond, 0)
-	first.port.before = func(ctx context.Context, _ maintenance.ActivationObligation) error {
+	first.port.before = func(ctx context.Context, _ obligation.Obligation) error {
 		<-ctx.Done() // a pass slower than the lease
 		return ctx.Err()
 	}
@@ -35,7 +36,7 @@ func TestActivationObligationLeaseExpiresMidMaintenanceLive(t *testing.T) {
 	if got := first.failures(t, ctx, "maintenance_timeout"); got != 1 {
 		t.Fatalf("first owner maintenance_timeout = %d, want 1", got)
 	}
-	assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "leased", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "leased", 1)
 	requireWoken(t, ctx, database, "tgt-2", false)
 	firstWork := obligationOf(first.port.seen[0])
 
@@ -45,7 +46,7 @@ func TestActivationObligationLeaseExpiresMidMaintenanceLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	second.requireNoFailures(t, ctx)
-	assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 2)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 2)
 	if got := second.port.callsFor("tgt-2"); got != 1 {
 		t.Fatalf("second owner callbacks = %d, want 1", got)
 	}
@@ -126,6 +127,6 @@ func TestActivationObligationRestartBeforePhasePublicationLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	second.requireNoFailures(t, ctx)
-	assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 2)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 2)
 	requireComposedState(t, "after the next cycle completes it", composedState(t, ctx, database), reference)
 }

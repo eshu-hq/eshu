@@ -9,7 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -33,7 +33,7 @@ func activationObligationRunnerFor(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (*maintenance.ActivationObligationRunner, error) {
+) (*obligation.Runner, error) {
 	if !loadBoolOrDefault(getenv, activationObligationConsumerEnabledEnv, false) {
 		return nil, nil
 	}
@@ -41,10 +41,10 @@ func activationObligationRunnerFor(
 	if !ok {
 		return nil, fmt.Errorf("%s=true requires a database that supports transactions", activationObligationConsumerEnabledEnv)
 	}
-	return &maintenance.ActivationObligationRunner{
+	return &obligation.Runner{
 		Store:      activation.RunnerStore{Store: activation.NewStore(storeDB)},
 		Maintainer: postgres.NewActivationMaintainer(postgres.NewIngestionStore(database), tracer, instruments),
-		Config: maintenance.ActivationObligationRunnerConfig{
+		Config: obligation.Config{
 			Owner: loadProcessUniqueProjectionLeaseOwner(getenv, "", "activation-obligation-consumer"),
 		},
 		Instruments: instruments,

@@ -46,6 +46,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestDeferredBackfillPublishesOneRowPerPartitionHermetic is the
@@ -332,7 +333,7 @@ func commitSharedPartitionRepositories(
 		ctx,
 		sharedPartitionDupKeyScope(scopeID),
 		sharedPartitionDupKeyGeneration(scopeID, generationID, observedAt),
-		testFactChannel(envelopes),
+		testfixtures.FactChannel(envelopes),
 	); err != nil {
 		t.Fatalf("commit shared-partition repositories %v: CommitScopeGeneration() error = %v, want nil", repoIDs, err)
 	}

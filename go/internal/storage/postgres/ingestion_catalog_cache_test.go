@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // catalogFakeObservedAt is the shared observed_at column value test fakes
@@ -134,27 +134,6 @@ func (t *catalogTx) Rollback() error {
 	return nil
 }
 
-func catalogTestScope(scopeID, repoID string) scope.IngestionScope {
-	return scope.IngestionScope{
-		ScopeID:       scopeID,
-		SourceSystem:  "git",
-		ScopeKind:     scope.KindRepository,
-		CollectorKind: scope.CollectorGit,
-		PartitionKey:  repoID,
-	}
-}
-
-func catalogTestGeneration(scopeID, generationID string, now time.Time) scope.ScopeGeneration {
-	return scope.ScopeGeneration{
-		GenerationID: generationID,
-		ScopeID:      scopeID,
-		ObservedAt:   now.Add(-time.Minute),
-		IngestedAt:   now,
-		Status:       scope.GenerationStatusPending,
-		TriggerKind:  scope.TriggerKindSnapshot,
-	}
-}
-
 func catalogRepositoryFact(scopeID, generationID, repoID string, observedAt time.Time) facts.Envelope {
 	return facts.Envelope{
 		FactID:        "fact-" + repoID,
@@ -195,9 +174,9 @@ func TestIngestionStoreReusesRepositoryCatalogAcrossCommits(t *testing.T) {
 		}
 		err := store.CommitScopeGeneration(
 			context.Background(),
-			catalogTestScope("scope-known", "repo-known"),
-			catalogTestGeneration("scope-known", generationID, now),
-			testFactChannel(envelopes),
+			testfixtures.CatalogScope("scope-known", "repo-known"),
+			testfixtures.CatalogGeneration("scope-known", generationID, now),
+			testfixtures.FactChannel(envelopes),
 		)
 		if err != nil {
 			t.Fatalf("commit %d: CommitScopeGeneration() error = %v, want nil", i, err)
@@ -228,9 +207,9 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 	// Commit 1: a known repo. Loads the catalog once and caches it.
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-1", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-1", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFact("scope-known", "gen-1", "repo-known", now.Add(-time.Minute)),
 		}),
 	); err != nil {
@@ -244,9 +223,9 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 	database.mu.Unlock()
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-new", "repo-new"),
-		catalogTestGeneration("scope-new", "gen-2", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-new", "repo-new"),
+		testfixtures.CatalogGeneration("scope-new", "gen-2", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFact("scope-new", "gen-2", "repo-new", now.Add(-time.Minute)),
 		}),
 	); err != nil {
@@ -257,9 +236,9 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 	// new repo in commit 2, so this commit reuses the refreshed cache.
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-3", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-3", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFact("scope-known", "gen-3", "repo-known", now.Add(-time.Minute)),
 		}),
 	); err != nil {
@@ -311,9 +290,9 @@ func TestIngestionStoreSharedCatalogCacheIsConcurrencySafe(t *testing.T) {
 			generationID := "gen-concurrent-" + string(rune('a'+worker))
 			err := store.CommitScopeGeneration(
 				context.Background(),
-				catalogTestScope("scope-known", "repo-known"),
-				catalogTestGeneration("scope-known", generationID, now),
-				testFactChannel([]facts.Envelope{
+				testfixtures.CatalogScope("scope-known", "repo-known"),
+				testfixtures.CatalogGeneration("scope-known", generationID, now),
+				testfixtures.FactChannel([]facts.Envelope{
 					catalogRepositoryFact("scope-known", generationID, "repo-known", now.Add(-time.Minute)),
 				}),
 			)
@@ -360,9 +339,9 @@ func TestIngestionStoreLoadsCatalogOnOpenTransaction(t *testing.T) {
 	// transaction connection.
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-1", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-1", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFact("scope-known", "gen-1", "repo-known", now.Add(-time.Minute)),
 		}),
 	); err != nil {
@@ -410,9 +389,9 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	// Commit 1: caches the catalog with alias "old-slug".
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-1", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-1", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFactWithSlug("scope-known", "gen-1", "repo-known", "old-slug", now.Add(-time.Minute)),
 		}),
 	); err != nil {
@@ -429,9 +408,9 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	// commit observes the new alias.
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-2", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-2", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFactWithSlug("scope-known", "gen-2", "repo-known", "new-slug", now.Add(-time.Minute)),
 		}),
 	); err != nil {
@@ -441,9 +420,9 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	// Commit 3: reuses the refreshed cache (no further drift).
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-3", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-3", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFactWithSlug("scope-known", "gen-3", "repo-known", "new-slug", now.Add(-time.Minute)),
 		}),
 	); err != nil {

@@ -13,16 +13,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/infra"
 )
 
 type countingInfraInventoryReconciler struct{ calls atomic.Int32 }
 
 func (c *countingInfraInventoryReconciler) ReconcileInfraInventory(
-	context.Context, maintenance.InfraInventoryReconcileRequest,
-) (maintenance.InfraInventoryReconcileBatch, error) {
+	context.Context, infra.Request,
+) (infra.Batch, error) {
 	c.calls.Add(1)
-	return maintenance.InfraInventoryReconcileBatch{Ready: true}, nil
+	return infra.Batch{Ready: true}, nil
 }
 
 // TestServiceStartsInfraInventoryReconcileRunner proves Service.startSideRunners
@@ -32,7 +32,7 @@ func TestServiceStartsInfraInventoryReconcileRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	reconciler := &countingInfraInventoryReconciler{}
-	runner := &maintenance.InfraInventoryReconcileRunner{
+	runner := &infra.Runner{
 		Reconciler: reconciler,
 		Wait: func(ctx context.Context, _ time.Duration) error {
 			<-ctx.Done()

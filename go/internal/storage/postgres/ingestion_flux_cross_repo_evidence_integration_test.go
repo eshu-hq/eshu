@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -71,9 +72,9 @@ func TestIngestionStoreCommitScopeGenerationLinksFluxCrossRepoEvidenceAndEmitsMe
 
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-config", "repo-config"),
-		catalogTestGeneration("scope-config", "gen-config-1", now),
-		testFactChannel([]facts.Envelope{fluxEnvelope}),
+		testfixtures.CatalogScope("scope-config", "repo-config"),
+		testfixtures.CatalogGeneration("scope-config", "gen-config-1", now),
+		testfixtures.FactChannel([]facts.Envelope{fluxEnvelope}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}

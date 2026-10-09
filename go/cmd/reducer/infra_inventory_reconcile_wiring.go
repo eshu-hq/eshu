@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/infra"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -27,7 +27,7 @@ const (
 
 type infraInventoryReconcileConfig struct {
 	Enabled bool
-	Runner  maintenance.InfraInventoryReconcileRunnerConfig
+	Runner  infra.Config
 }
 
 // loadInfraInventoryReconcileConfig reads the reconcile knobs. An unparsable
@@ -36,7 +36,7 @@ type infraInventoryReconcileConfig struct {
 func loadInfraInventoryReconcileConfig(getenv func(string) string) infraInventoryReconcileConfig {
 	return infraInventoryReconcileConfig{
 		Enabled: loadBoolOrDefault(getenv, infraInventoryReconcileEnabledEnv, true),
-		Runner: maintenance.InfraInventoryReconcileRunnerConfig{
+		Runner: infra.Config{
 			PollInterval: loadDurationOrDefault(getenv, infraInventoryReconcileIntervalEnv, defaultInfraInventoryReconcileInterval),
 			RepoBudget:   loadPositiveIntOrDefault(getenv, infraInventoryReconcileRepoBudgetEnv, defaultInfraInventoryReconcileRepoBudget),
 		},
@@ -51,12 +51,12 @@ func infraInventoryReconcileRunnerFor(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) *maintenance.InfraInventoryReconcileRunner {
+) *infra.Runner {
 	cfg := loadInfraInventoryReconcileConfig(getenv)
 	if !cfg.Enabled {
 		return nil
 	}
-	return &maintenance.InfraInventoryReconcileRunner{
+	return &infra.Runner{
 		Reconciler:  postgresInfraInventoryReconciler{database: database},
 		Config:      cfg.Runner,
 		Tracer:      tracer,
@@ -72,8 +72,8 @@ type postgresInfraInventoryReconciler struct {
 }
 
 func (r postgresInfraInventoryReconciler) ReconcileInfraInventory(
-	ctx context.Context, req maintenance.InfraInventoryReconcileRequest,
-) (maintenance.InfraInventoryReconcileBatch, error) {
+	ctx context.Context, req infra.Request,
+) (infra.Batch, error) {
 	batch, err := inventory.ReconcileCycle(ctx, r.database, inventory.ReconcileRequest{
 		Cursor:   req.Cursor,
 		Budget:   req.Budget,
@@ -81,18 +81,18 @@ func (r postgresInfraInventoryReconciler) ReconcileInfraInventory(
 		Persist:  req.Persist,
 	})
 	if err != nil {
-		return maintenance.InfraInventoryReconcileBatch{}, err
+		return infra.Batch{}, err
 	}
-	out := maintenance.InfraInventoryReconcileBatch{
+	out := infra.Batch{
 		Ready:          batch.Ready,
 		NextCursor:     batch.NextCursor,
 		Wrapped:        batch.Wrapped,
 		DirtyRepos:     batch.DirtyRepos,
 		DirtyOldestAge: batch.DirtyOldestAge,
-		Repos:          make([]maintenance.InfraInventoryReconcileRepo, 0, len(batch.Repos)),
+		Repos:          make([]infra.Repo, 0, len(batch.Repos)),
 	}
 	for _, repo := range batch.Repos {
-		out.Repos = append(out.Repos, maintenance.InfraInventoryReconcileRepo{
+		out.Repos = append(out.Repos, infra.Repo{
 			RepoID:      repo.RepoID,
 			Outcome:     repo.Outcome,
 			ContentRows: repo.ContentRows,

@@ -184,7 +184,7 @@ The #7584 activation obligation consumer is **off by default**:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` | `false` | Start `maintenance.ActivationObligationRunner` with the partition-scoped `postgres.ActivationMaintainer` (`activation_obligation_wiring.go`). Requires a transactional database. |
+| `ESHU_ACTIVATION_OBLIGATION_CONSUMER_ENABLED` | `false` | Start `obligation.Runner` with the partition-scoped `postgres.ActivationMaintainer` (`activation_obligation_wiring.go`). Requires a transactional database. |
 
 ### Shared projection
 

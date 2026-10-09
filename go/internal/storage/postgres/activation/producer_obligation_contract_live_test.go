@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // producerContractFixture is one #7635 contract proof's stores: the producer
@@ -59,8 +60,8 @@ func openProducerContractFixture(t *testing.T) *producerContractFixture {
 func (f *producerContractFixture) commitProducerGeneration(t *testing.T, generationID, digest, previousDigest string, at time.Time) {
 	t.Helper()
 	if err := f.store.CommitScopeGeneration(f.ctx, f.producer,
-		catalogTestGeneration("oci:producer", generationID, at),
-		testFactChannel(producerOCIFacts("oci:producer", generationID, digest, previousDigest, at))); err != nil {
+		testfixtures.CatalogGeneration("oci:producer", generationID, at),
+		testfixtures.FactChannel(producerOCIFacts("oci:producer", generationID, digest, previousDigest, at))); err != nil {
 		t.Fatalf("commit producer generation %s: %v", generationID, err)
 	}
 	claimAckQuiet(t, f.ctx, f.queue, "oci:producer", generationID)
@@ -346,7 +347,7 @@ func openProducerContractSchema(t *testing.T, prefix string) *sql.DB {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	return openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), prefix)
+	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), prefix)
 }
 
 // seedProducerContractFixture seeds both differential arms identically:
@@ -372,8 +373,8 @@ func seedProducerContractFixture(t *testing.T, database *sql.DB) {
 	commit := func(generationID, digest, previousDigest string, at time.Time) {
 		t.Helper()
 		if err := store.CommitScopeGeneration(ctx, producer,
-			catalogTestGeneration("oci:producer", generationID, at),
-			testFactChannel(producerOCIFacts("oci:producer", generationID, digest, previousDigest, at))); err != nil {
+			testfixtures.CatalogGeneration("oci:producer", generationID, at),
+			testfixtures.FactChannel(producerOCIFacts("oci:producer", generationID, digest, previousDigest, at))); err != nil {
 			t.Fatalf("commit producer generation %s: %v", generationID, err)
 		}
 		claimAckQuiet(t, ctx, queue, "oci:producer", generationID)
@@ -552,8 +553,8 @@ func TestProducerActivationDriftReopenLive(t *testing.T) {
 	}
 
 	if err := store.CommitScopeGeneration(ctx, producer,
-		catalogTestGeneration("tfstate:producer", "tf-old", base),
-		testFactChannel(producerTerraformFacts("tfstate:producer", "tf-old", producerDriftARN, base))); err != nil {
+		testfixtures.CatalogGeneration("tfstate:producer", "tf-old", base),
+		testfixtures.FactChannel(producerTerraformFacts("tfstate:producer", "tf-old", producerDriftARN, base))); err != nil {
 		t.Fatalf("commit terraform old generation: %v", err)
 	}
 	claimAckQuiet(t, ctx, queue, "tfstate:producer", "tf-old")
@@ -567,8 +568,8 @@ func TestProducerActivationDriftReopenLive(t *testing.T) {
 	seedDriftProducerItems(t, ctx, database, map[string]time.Time{"drift-stale/aws_cloud_runtime_drift": base})
 
 	if err := store.CommitScopeGeneration(ctx, producer,
-		catalogTestGeneration("tfstate:producer", "tf-new", base.Add(time.Minute)),
-		testFactChannel(producerTerraformFacts("tfstate:producer", "tf-new", producerDriftARN, base.Add(time.Minute)))); err != nil {
+		testfixtures.CatalogGeneration("tfstate:producer", "tf-new", base.Add(time.Minute)),
+		testfixtures.FactChannel(producerTerraformFacts("tfstate:producer", "tf-new", producerDriftARN, base.Add(time.Minute)))); err != nil {
 		t.Fatalf("commit terraform new generation: %v", err)
 	}
 	claimAckQuiet(t, ctx, queue, "tfstate:producer", "tf-new")

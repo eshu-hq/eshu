@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationClaimSkipsLockedRowsLive: Claim must never wait on
@@ -46,7 +47,7 @@ FOR NO KEY UPDATE`).Scan(&heldScope, &heldGeneration); err != nil {
 // older than every open one must neither be leased nor hide the open one.
 func TestActivationObligationClaimIgnoresFinishedRowsLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_finished_claim")
-	seedScope(t, ctx, database, "claim-finished")
+	testfixtures.SeedScope(t, ctx, database, "claim-finished")
 	for _, row := range []struct{ generation, state, finished, created string }{
 		{"claim-finished-completed", "completed", "clock_timestamp()", "clock_timestamp() - interval '2 hours'"},
 		{"claim-finished-obsolete", "obsolete", "clock_timestamp()", "clock_timestamp() - interval '90 minutes'"},
