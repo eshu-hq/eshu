@@ -83,8 +83,10 @@ token or a `+=` map write with a node pattern, or a parameter property map
 (`CREATE CONSTRAINT/INDEX ... FOR (n:%s)`) is skipped. Static labels go through
 `CheckWriters`. Planted-source tests: `TestStaticSweepFailsOnAPlantedUnconstrainedIDWriter`,
 `TestSweepSeesTheShapesItWasTaught`, `TestSweepAdmitsTheUnlabeledAndDynamicMapShapes`.
-On the final tree the production sweep reads 92 sites: 79 with a static label and
-13 with a placeholder label (`TestEveryProductionIDWriterNamesAnAnchorLabel`).
+On the final tree the production sweep reads 93 sites: 80 with a static label
+(76 report id writes and 4 report none, among them the tfstate label swap the
+sweep now admits) and 13 with a placeholder label
+(`TestEveryProductionIDWriterNamesAnAnchorLabel`).
 
 A placeholder-label writer cannot be decided statically. Each one carries a marker
 beside it, in the file that owns it:

@@ -97,8 +97,11 @@ sweep reports a template with no marker of its own, a marker naming no test in
 its directory, and a marker with no template of its own under it. The four proofs
 are `TestEntityUpsertTemplateLabelsAreAnchorLabels` (the canonical entity labels
 except Parameter, which the generic entity phase never writes, are anchor
-labels), `TestSemanticEntityUpsertLabelsAreAnchorLabels` (the plan labels, and
-the entity types `buildSemanticEntityRowMap` accepts, are anchor labels),
+labels), `TestSemanticEntityUpsertLabelsAreAnchorLabels` (the plan labels are
+anchor labels, and so is every candidate type it offers `buildSemanticEntityRowMap`
+that the function accepts: the plan labels, the canonical entity labels and four
+probes; a type new to the codebase and added only to that filter is outside the
+proof, and the census on the replay is its backstop),
 `TestEntityMergeHelpersHaveNoProductionCaller` (no production file other than the
 helpers' own calls them), and `TestSeedLabelsAreAnchorLabels`.
 
