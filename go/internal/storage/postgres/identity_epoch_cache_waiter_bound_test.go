@@ -11,9 +11,27 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
+
+// requireUnstableError asserts a caller was failed retryably with the
+// identity_epoch_unstable class and received no rows.
+func requireUnstableError(t *testing.T, name string, got flightCaller) {
+	t.Helper()
+	var retryable interface{ Retryable() bool }
+	if !errors.As(got.err, &retryable) || !retryable.Retryable() || len(got.rows) != 0 {
+		t.Fatalf("%s = rows %v err %v, want no rows and a retryable error", name, got.rows, got.err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(got.err, &classified) || classified.FailureClass() != IdentityEpochUnstableFailureClass {
+		t.Fatalf("%s err %v lacks failure class %q", name, got.err, IdentityEpochUnstableFailureClass)
+	}
+}
 
 // tearGates builds one gate per load so a test can release the loads of a
 // flight one at a time.
@@ -256,17 +274,38 @@ func TestIdentityEpochCacheWaiterWaitBudgetIsCumulative(t *testing.T) {
 	cache.newTimer = clock.newTimer
 	cache.now = clock.now
 
+	// await reads a result with a deadline so a broken bound fails the test
+	// instead of hanging it.
+	await := func(name string, ch <-chan error) error {
+		t.Helper()
+		select {
+		case err := <-ch:
+			return err
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s never returned", name)
+			return nil
+		}
+	}
+	awaitTimers := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(10 * time.Second)
+		for len(clock.timersRequested()) < n {
+			if time.Now().After(deadline) {
+				t.Fatalf("the waiter never asked for timer %d", n)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+
 	flight := &identityFlight{done: make(chan struct{})}
 	var waited time.Duration
 
 	finished := make(chan error, 1)
 	go func() { finished <- cache.waitForFlight(context.Background(), flight, &waited) }()
-	for len(clock.timersRequested()) < 1 {
-		time.Sleep(time.Millisecond)
-	}
+	awaitTimers(1)
 	clock.advance(20 * time.Second)
 	close(flight.done)
-	if err := <-finished; err != nil {
+	if err := await("first wait", finished); err != nil {
 		t.Fatalf("first wait err = %v, want nil", err)
 	}
 	if waited != 20*time.Second {
@@ -275,27 +314,67 @@ func TestIdentityEpochCacheWaiterWaitBudgetIsCumulative(t *testing.T) {
 
 	second := &identityFlight{done: make(chan struct{})}
 	go func() { finished <- cache.waitForFlight(context.Background(), second, &waited) }()
-	for len(clock.timersRequested()) < 2 {
-		time.Sleep(time.Millisecond)
-	}
+	awaitTimers(2)
 	if got := clock.timersRequested(); got[1] != 10*time.Second {
 		t.Fatalf("second wait timer = %v, want the remaining 10s", got[1])
 	}
 	clock.advance(10 * time.Second)
 	clock.fireTimer(1)
-	if err := <-finished; err == nil || !strings.Contains(err.Error(), identityGaveUpWallClock) {
-		t.Fatalf("second wait err = %v, want the wall-clock give-up", err)
+	if err := await("second wait", finished); !errors.Is(err, errIdentityWaitExpired) {
+		t.Fatalf("second wait err = %v, want the wait-expired signal", err)
 	}
-	// With the budget spent, a further wait gives up without waiting at all.
-	if err := cache.waitForFlight(context.Background(), &identityFlight{done: make(chan struct{})}, &waited); err == nil {
-		t.Fatal("a wait with no budget left returned nil")
+	// With the budget spent, a further wait expires without waiting at all.
+	third := make(chan error, 1)
+	go func() {
+		third <- cache.waitForFlight(context.Background(), &identityFlight{done: make(chan struct{})}, &waited)
+	}()
+	if err := await("third wait", third); !errors.Is(err, errIdentityWaitExpired) {
+		t.Fatalf("a wait with no budget left returned %v, want the wait-expired signal", err)
 	}
 }
 
-// TestIdentityEpochCacheCallerCancelIsNotAGiveUp keeps the bound from rewriting
-// a caller's own cancellation: when the caller's context ends first, it gets its
-// own context error, not the retryable unstable error.
-func TestIdentityEpochCacheCallerCancelIsNotAGiveUp(t *testing.T) {
+// TestIdentityEpochCacheWaiterCancelIsNotAGiveUp keeps the bound from rewriting
+// a waiter's own cancellation: when a parked WAITER's context ends, it returns
+// its own context error and the gave_up outcomes stay at zero.
+func TestIdentityEpochCacheWaiterCancelIsNotAGiveUp(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("waiter-cancel"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	cache, err := NewIdentityEpochCache(inst, 0, WithHeartbeatInterval(time.Hour))
+	if err != nil {
+		t.Fatalf("NewIdentityEpochCache: %v", err)
+	}
+	q := newFlightQueryer(1)
+	store := &FactStore{database: q, identityCache: cache}
+
+	leader := startFlightCaller(context.Background(), store)
+	awaitLoadStarted(t, q)
+	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	waiter := startFlightCaller(waiterCtx, store)
+	awaitFlightWaiters(t, cache, 1)
+	cancelWaiter()
+
+	got := collectFlightCaller(t, "waiter", waiter)
+	if !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("waiter err = %v, want context.Canceled", got.err)
+	}
+	outcomes := sumByAttribute(t, reader, "eshu_dp_identity_cache_flight_waiter_total", "outcome")
+	if outcomes[identityWaiterGaveUpFlights] != 0 || outcomes[identityWaiterGaveUpWall] != 0 {
+		t.Fatalf("flight_waiter_total = %v, want no gave_up outcome for a cancelled waiter", outcomes)
+	}
+
+	// The leader is unaffected and still finishes.
+	close(q.gate)
+	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-1")
+}
+
+// TestIdentityEpochCacheLeaderCancelIsNotAGiveUp covers the leader side of the
+// same rule: a cancelled leader returns its own context error.
+func TestIdentityEpochCacheLeaderCancelIsNotAGiveUp(t *testing.T) {
 	t.Parallel()
 
 	q := newFlightQueryer(1)
@@ -312,5 +391,110 @@ func TestIdentityEpochCacheCallerCancelIsNotAGiveUp(t *testing.T) {
 	got := collectFlightCaller(t, "caller", caller)
 	if !errors.Is(got.err, context.Canceled) {
 		t.Fatalf("caller err = %v, want context.Canceled", got.err)
+	}
+}
+
+// TestIdentityEpochCacheWaiterWithWallBudgetSpentDoesNotLead pins that a caller
+// that has used up its wall-clock wait budget never leads (#7805). The waiter
+// joins a flight that tears; the fake clock moves a full heartbeat interval
+// while it waits, but the flight ends on its own before the timer fires. On its
+// re-probe there is no flight and nothing cached, which would make it the leader
+// of a new load. It must instead fail with the retryable identity_epoch_unstable
+// error and start no load; the next caller, with a fresh budget, leads. Without
+// the rule such a waiter led a second load after spending its wait.
+func TestIdentityEpochCacheWaiterWithWallBudgetSpentDoesNotLead(t *testing.T) {
+	t.Parallel()
+
+	const heartbeat = 30 * time.Second
+	clock := &fakeWaitClock{current: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	q := newFlightQueryer(1)
+	secondGate := make(chan struct{})
+	q.loadGates = map[int64]chan struct{}{2: secondGate}
+	cache, err := NewIdentityEpochCache(testInstruments(), 0, WithHeartbeatInterval(heartbeat))
+	if err != nil {
+		t.Fatalf("NewIdentityEpochCache: %v", err)
+	}
+	cache.newTimer = clock.newTimer
+	cache.now = clock.now
+	store := &FactStore{database: q, identityCache: cache}
+
+	leader := startFlightCaller(context.Background(), store)
+	awaitLoadStarted(t, q)
+	waiter := startFlightWaiters(t, store, 1)[0]
+
+	q.epoch.Store(2)
+	close(q.gate) // attempt 1 ends torn; attempt 2 starts
+	awaitLoadStarted(t, q)
+	q.epoch.Store(3) // attempt 2 ends torn as well
+	clock.advance(heartbeat)
+	close(secondGate)
+
+	requireUnstableError(t, "leader", collectFlightCaller(t, "leader", leader))
+	requireUnstableError(t, "waiter", collectFlightCaller(t, "waiter", waiter))
+	if got := q.loadCalls.Load(); got != 2 {
+		t.Fatalf("loader executions = %d, want 2: a waiter with its wall budget spent must not start a load", got)
+	}
+
+	// The next caller arrives with a fresh budget and leads the third load.
+	next := collectFlightCaller(t, "next caller", startFlightCaller(context.Background(), store))
+	requireFactID(t, "next caller", next, "fact-load-3")
+}
+
+// TestIdentityEpochCacheFinalProbeServesAFilledCache pins the one final probe a
+// waiter makes before it gives up (#7805). The waiter waits out three torn
+// flights, so its flight budget is used up. In between, another caller's
+// consistent flight filled the cache. The waiter must be served that set as a
+// hit instead of failing, and must still start no load of its own. Without the
+// final probe it fails retryably although a valid set is cached.
+func TestIdentityEpochCacheFinalProbeServesAFilledCache(t *testing.T) {
+	t.Parallel()
+
+	q := newFlightQueryer(1)
+	gates := tearGates(6)
+	q.loadGates = gates
+	close(q.gate) // load 7 and later do not block
+	store := newFactStoreWithCache(q, 0)
+	cache := store.identityCache
+
+	var leaders []<-chan flightCaller
+	var filled flightCaller
+	cache.afterUnservedFlight = func(waited int) {
+		if waited < maxIdentityWaiterFlights {
+			leaders = append(leaders, startFlightCaller(context.Background(), store))
+			wantLoads := int64(2*waited + 1)
+			deadline := time.Now().Add(10 * time.Second)
+			for q.loadCalls.Load() < wantLoads {
+				if time.Now().After(deadline) {
+					t.Error("the next flight never started")
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
+			return
+		}
+		// After the third torn flight a consistent flight fills the cache. The
+		// epoch is steady now, so this caller's load validates and is cached.
+		filled = collectFlightCaller(t, "filler", startFlightCaller(context.Background(), store))
+	}
+
+	leaders = append(leaders, startFlightCaller(context.Background(), store))
+	awaitLoadStarted(t, q)
+	q.loadStarted <- struct{}{} // tearFlight consumes the first load's token
+	waiter := startFlightCaller(context.Background(), store)
+	awaitFlightWaiters(t, cache, 1)
+
+	tearFlight(t, cache, q, gates, 1, 1)
+	tearFlight(t, cache, q, gates, 3, 3)
+	tearFlight(t, cache, q, gates, 5, 5)
+
+	got := collectFlightCaller(t, "waiter", waiter)
+	requireFactID(t, "filler", filled, "fact-load-7")
+	requireFactID(t, "waiter", got, "fact-load-7")
+	if loads := q.loadCalls.Load(); loads != 7 {
+		t.Fatalf("loader executions = %d, want 7: six torn attempts plus the filler's; the waiter starts none", loads)
+	}
+	for i, ch := range leaders {
+		requireUnstableError(t, "leader", collectFlightCaller(t, "leader", ch))
+		_ = i
 	}
 }

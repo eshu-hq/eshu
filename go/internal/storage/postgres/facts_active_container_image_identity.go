@@ -6,10 +6,14 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // identityFactFilterSQL is the shared 6-arm filter used by both the load query
@@ -348,4 +352,128 @@ func defensiveCopyEnvelopes(src []facts.Envelope) []facts.Envelope {
 		}
 	}
 	return dst
+}
+
+// maxIdentityWaiterFlights is how many flights one caller may wait out without
+// being served before it gives up. Without the bound a caller whose probe never
+// matches a stable flight re-probes and re-joins forever while only the leaders
+// of those flights consume claim attempts. Each such caller holds one worker of
+// the reducer pool for as long as the churn lasts, so under sustained churn the
+// pool stalls (#7805). The leader is bounded by its two load attempts instead.
+const maxIdentityWaiterFlights = 3
+
+// Reasons carried in the error text of a caller that gave up, and the closed
+// waiter outcomes the metric records for it: gave_up_flights dominant means
+// sustained churn, gave_up_wall dominant means a slow but stable flight.
+const (
+	identityGaveUpFlights   = "waited out the maximum number of flights"
+	identityGaveUpWallClock = "waited longer than one heartbeat interval"
+
+	identityWaiterGaveUpFlights = "gave_up_flights"
+	identityWaiterGaveUpWall    = "gave_up_wall"
+)
+
+// errIdentityWaitExpired is the internal signal that a caller's wall-clock wait
+// budget ran out while it was parked on a flight. get turns it into a final
+// probe and, failing that, the retryable identity_epoch_unstable error.
+var errIdentityWaitExpired = errors.New("identity cache wait budget expired")
+
+// IdentityEpochCacheOption tunes an IdentityEpochCache at construction.
+type IdentityEpochCacheOption func(*IdentityEpochCache)
+
+// WithHeartbeatInterval bounds the total time one caller may spend waiting on
+// other callers' flights to one reducer heartbeat interval. Pass the interval
+// the reducer service already derives from its claim lease (LeaseDuration / 2),
+// so the cache adds no knob of its own. A non-positive value disables the
+// wall-clock half of the bound; the flight-count half always applies.
+func WithHeartbeatInterval(interval time.Duration) IdentityEpochCacheOption {
+	return func(c *IdentityEpochCache) {
+		c.heartbeatInterval = interval
+	}
+}
+
+// waitBudgetUsedUp reports whether a caller has spent its whole wall-clock wait
+// budget (one heartbeat interval in total). The flight-count half of the budget
+// is checked by the caller's loop.
+func (c *IdentityEpochCache) waitBudgetUsedUp(waitedFor time.Duration) bool {
+	return c.heartbeatInterval > 0 && waitedFor >= c.heartbeatInterval
+}
+
+// waitForFlight blocks until flight finishes, the caller's context ends, or the
+// caller has spent a full heartbeat interval waiting on flights in total
+// (waitedFor accumulates across calls). It returns nil when the flight finished,
+// the context error when the caller's own context ended, and
+// errIdentityWaitExpired when the wall-clock bound tripped.
+func (c *IdentityEpochCache) waitForFlight(
+	ctx context.Context,
+	flight *identityFlight,
+	waitedFor *time.Duration,
+) error {
+	var expired <-chan time.Time
+	stop := func() bool { return true }
+	if c.heartbeatInterval > 0 {
+		remaining := c.heartbeatInterval - *waitedFor
+		if remaining <= 0 {
+			return errIdentityWaitExpired
+		}
+		if c.newTimer != nil {
+			expired, stop = c.newTimer(remaining)
+		} else {
+			timer := time.NewTimer(remaining)
+			expired, stop = timer.C, timer.Stop
+		}
+	}
+	started := c.clockNow()
+	defer func() {
+		stop()
+		*waitedFor += c.clockNow().Sub(started)
+	}()
+	select {
+	case <-flight.done:
+		return nil
+	case <-expired:
+		return errIdentityWaitExpired
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *IdentityEpochCache) clockNow() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
+// giveUp ends a caller that used up its wait budget. It makes ONE final probe
+// and never starts a load: when the cache now holds a set whose epoch matches
+// the probe (a consistent flight filled it while this caller waited), the caller
+// is served that set as a plain hit; otherwise its item fails with the
+// retryable identity_epoch_unstable error and the given closed outcome.
+func (c *IdentityEpochCache) giveUp(
+	ctx context.Context,
+	store *FactStore,
+	outcome string,
+	reason string,
+) ([]facts.Envelope, error) {
+	probe, err := store.probeIdentityEpoch(context.WithoutCancel(ctx))
+	if err == nil {
+		c.mu.Lock()
+		if c.facts != nil && c.epoch == probe {
+			result := defensiveCopyEnvelopes(c.facts)
+			c.inst.IdentityCacheHitTotal.Add(ctx, 1)
+			c.mu.Unlock()
+			return result, nil
+		}
+		c.mu.Unlock()
+	}
+	return nil, c.gaveUp(ctx, outcome, reason)
+}
+
+// gaveUp records that a caller hit its patience bound and returns the
+// retryable error that fails its item.
+func (c *IdentityEpochCache) gaveUp(ctx context.Context, outcome, reason string) error {
+	c.inst.IdentityCacheFlightWaiterTotal.Add(context.WithoutCancel(ctx), 1,
+		metric.WithAttributes(telemetry.AttrOutcome(outcome)))
+	return newIdentityLoadUnstableError(reason)
 }

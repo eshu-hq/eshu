@@ -5,20 +5,33 @@ package main
 
 import (
 	"testing"
-	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/clock"
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
-// TestIdentityCacheWaitBoundIsOneHeartbeatOfTheClaimLease pins that the bound on
-// how long a waiter blocks inside the identity epoch cache is the reducer's
-// heartbeat interval, derived from the same claim lease the work queue uses
-// (#7805). The cache adds no knob: changing the lease moves both together.
-func TestIdentityCacheWaitBoundIsOneHeartbeatOfTheClaimLease(t *testing.T) {
+// TestIdentityCacheWaitBoundIsOneHeartbeatOfTheQueueLease pins the real wiring,
+// not a constant against its own definition (#7805). The bound on how long a
+// caller waits inside the identity epoch cache is the reducer's heartbeat
+// interval. The work queue the reducer actually builds (configureReducerQueue)
+// must carry a lease whose half is exactly reducerHeartbeatInterval, the value
+// handed to the cache and the value the service heartbeats at. If someone
+// changes the queue's lease without the heartbeat, or the reverse, this fails.
+func TestIdentityCacheWaitBoundIsOneHeartbeatOfTheQueueLease(t *testing.T) {
 	t.Parallel()
 
-	if got, want := reducerHeartbeatInterval, reducerClaimLeaseDuration/2; got != want {
-		t.Fatalf("reducerHeartbeatInterval = %v, want half of the claim lease %v", got, want)
-	}
-	if reducerClaimLeaseDuration != time.Minute {
-		t.Fatalf("claim lease = %v, want the one-minute lease the queue is built with", reducerClaimLeaseDuration)
+	queue := configureReducerQueue(
+		nil,
+		runtimecfg.RetryPolicyConfig{},
+		nil,
+		false,
+		func(string) string { return "" },
+		runtimecfg.GraphBackendNornicDB,
+		clock.System(),
+		nil,
+		nil,
+	)
+	if got, want := queue.LeaseDuration/2, reducerHeartbeatInterval; got != want {
+		t.Fatalf("queue lease / 2 = %v, want reducerHeartbeatInterval %v: the cache bound and the service heartbeat must derive from the queue's own lease", got, want)
 	}
 }

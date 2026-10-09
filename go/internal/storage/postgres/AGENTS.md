@@ -940,21 +940,19 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
 - **Shared state**: `epoch`, `facts`, `loading` (`*identityFlight`), all under
   `mu`, NEVER held across a DB load or an epoch probe.
 - **Shared flight (#7805)**: a caller whose probe equals a running flight's
-  `startEpoch` receives that flight's rows; a caller whose probe differs waits
-  and retries; a cancelled leader never fails a waiter; a load error is shared.
-  If the post-load probe differs, the flight loads once more from the moved
-  epoch (max 2 attempts); a flight still moving after that, or whose post-load
-  probe failed, is "torn": waiters re-probe and the leader's item fails with a
-  retryable `identityLoadUnstableError`, so no item is decided on a possibly
-  mixed-generation set. Cached only when the
-  post-load probe equals `startEpoch` and the set fits the cap. Signals:
-  `..._passthrough_total{reason}`, `..._flight_waiter_total{outcome}`,
-  `..._load_retry_total`. A waiter gives up after 3 unserved flights or one
-  reducer heartbeat interval (30 s, `WithHeartbeatInterval`, derived from the
-  claim lease in `cmd/reducer`) of total waiting, with the same retryable error
-  (`flight_waiter_total{outcome="gave_up"}`); the leader is bounded by its 2
-  load attempts. No worker blocks in the cache longer than one heartbeat.
-  Evidence: docs/internal/evidence/7805-identity-epoch-flight.md.
+  `startEpoch` gets that flight's rows; one whose probe differs waits, retries.
+  If the post-load probe differs the flight loads once more (max 2 attempts); a
+  flight still moving, or whose post-load probe failed, is "torn": waiters
+  re-probe, the leader's item fails with a retryable `identityLoadUnstableError`
+  (class `identity_epoch_unstable`), nothing is decided on it. Cached only when
+  the post-load probe equals `startEpoch` and the set fits the cap. A waiter
+  gives up after 3 unserved flights or one heartbeat interval (30 s,
+  `WithHeartbeatInterval`, from the claim lease in `cmd/reducer`) after ONE
+  final probe that serves a filled cache. Outcomes `gave_up_flights` (churn),
+  `gave_up_wall` (slow flight). A call's time in the cache is bounded by one
+  heartbeat plus two load attempts; a call with its wait budget used up never
+  leads: it fails retryably and the next caller leads. Evidence:
+  docs/internal/evidence/7805-identity-epoch-flight.md.
 - **TOCTOU analysis**: the probe→serve window (between epoch probe and cache
   hit) is a bounded probe-interval gap. Today's baseline does a full paginated
   O(corpus) scan inside every call, mixing facts from different commit
