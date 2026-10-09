@@ -6,17 +6,9 @@ package reset
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
-
-// gitDefaultScopePrefix is the scope ID prefix of a git repository's
-// default-branch scope; a ref scope appends "@<ref>". The git collector keys
-// per-repository reindex watermarks by the default-branch scope ID only (it
-// derives the ID with an empty ref), and POST /api/v0/admin/reindex accepts
-// only those scopes, so only they can be forced to a full re-parse.
-const gitDefaultScopePrefix = "git-repository-scope:"
 
 // RequestReindexQuery records a per-repository reindex watermark for every
 // scope in $1, stamped from the database clock and never moved backward. It is
@@ -85,7 +77,11 @@ func (g Generations) DeltaActive() ([]DeltaActiveGeneration, []string) {
 		}
 		scopeID := g.ScopeIDs[i]
 		outcome := recovery.DeltaActiveOutcomeReindexUnsupported
-		if reindexableGitScope(scopeID) {
+		// The git collector keys per-repository reindex watermarks by the
+		// default-branch scope ID only, and POST /api/v0/admin/reindex
+		// accepts only those scopes, so only they can be forced to a full
+		// re-parse. Both callers share recovery.IsGitDefaultBranchScope.
+		if recovery.IsGitDefaultBranchScope(scopeID) {
 			outcome = recovery.DeltaActiveOutcomeReindexRequested
 			reindexable = append(reindexable, scopeID)
 		}
@@ -96,13 +92,6 @@ func (g Generations) DeltaActive() ([]DeltaActiveGeneration, []string) {
 		})
 	}
 	return delta, reindexable
-}
-
-// reindexableGitScope reports whether scopeID is a git default-branch scope.
-func reindexableGitScope(scopeID string) bool {
-	return strings.HasPrefix(scopeID, gitDefaultScopePrefix) &&
-		len(scopeID) > len(gitDefaultScopePrefix) &&
-		!strings.Contains(scopeID, "@")
 }
 
 // RequestDeltaActiveReindex classifies the refinalized pairs whose generation

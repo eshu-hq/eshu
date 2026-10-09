@@ -94,6 +94,15 @@ backend, or any network connection directly.
   `ReindexRequestsWritten` returns `ReindexRequestsWrittenReport`, the
   `reindex_requests_written` wire form: the exact count of watermarks written
   and up to `DeltaActiveScopeSampleLimit` of their scope ids (never null).
+- `IsGitDefaultBranchScope` / `GitRepositoryScopePrefix` — the one predicate
+  for "this scope id names a git default-branch repository scope", the only
+  kind a per-repository reindex watermark can force. It trims surrounding
+  whitespace, requires the exact prefix and a non-blank remainder, and rejects
+  a ref scope (`@`). The refinalize delta-active classification
+  (`storage/postgres/rebuild/reset`) and the admin reindex route
+  (`query/admin`) both call it; a test in `query/admin` keeps it in agreement
+  with `querycontract.CanonicalRepositoryIDForScopeID`, because this package
+  must not import the query layer.
 - `CollectorGenerationReplayFilter` — filter for collector generation replay
   requests: `CollectorKind` (required and non-blank), `ScopeIDs`,
   `FailureClass`, `Limit`.

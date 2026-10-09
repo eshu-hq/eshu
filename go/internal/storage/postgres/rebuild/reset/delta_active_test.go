@@ -50,9 +50,11 @@ func TestGenerationsDeltaActiveClassifiesReindexableScopes(t *testing.T) {
 	g.AppendSelected("git-repository-scope:repo-b@feature", "gen-b", true)
 	g.AppendSelected("other-collector-scope:repo-c", "gen-c", true)
 	g.AppendSelected("git-repository-scope:", "gen-empty", true)
+	g.AppendSelected("git-repository-scope:  ", "gen-blank", true)
+	g.AppendSelected(" git-repository-scope:repo-padded ", "gen-padded", true)
 
 	delta, reindexable := g.DeltaActive()
-	if got, want := reindexable, []string{"git-repository-scope:repo-a"}; !slices.Equal(got, want) {
+	if got, want := reindexable, []string{"git-repository-scope:repo-a", " git-repository-scope:repo-padded "}; !slices.Equal(got, want) {
 		t.Fatalf("reindexable = %v, want %v", got, want)
 	}
 	got := make([]string, 0, len(delta))
@@ -64,6 +66,8 @@ func TestGenerationsDeltaActiveClassifiesReindexableScopes(t *testing.T) {
 		"git-repository-scope:repo-b@feature|gen-b|" + recovery.DeltaActiveOutcomeReindexUnsupported,
 		"other-collector-scope:repo-c|gen-c|" + recovery.DeltaActiveOutcomeReindexUnsupported,
 		"git-repository-scope:|gen-empty|" + recovery.DeltaActiveOutcomeReindexUnsupported,
+		"git-repository-scope:  |gen-blank|" + recovery.DeltaActiveOutcomeReindexUnsupported,
+		" git-repository-scope:repo-padded |gen-padded|" + recovery.DeltaActiveOutcomeReindexRequested,
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("delta-active pairs = %v, want %v", got, want)

@@ -47,7 +47,8 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   `AppendSelected`; `Args` hands the pair arrays to a statement.
 - `RequestDeltaActiveReindex`, `Generations.DeltaActive`, and `RequestReindex` — classify the covered
   generations that are deltas (`reindex_requested` for a git default-branch
-  scope, `reindex_unsupported` otherwise) and record a per-repository reindex
+  scope as `recovery.IsGitDefaultBranchScope` decides, `reindex_unsupported`
+  otherwise) and record a per-repository reindex
   watermark for the requested ones inside the refinalize transaction.
   `RequestReindexQuery` is byte-identical to the `POST /api/v0/admin/reindex`
   upsert in `storage/postgres/maintenance`; a test there pins the two. It lives

@@ -27,6 +27,8 @@
 // reports, by closed outcome (DeltaActiveOutcome*), each re-enqueued scope whose
 // generation is a delta (#7797): a delta restores only its changed files onto a
 // wiped graph, so those scopes stay incomplete until a full generation activates.
+// IsGitDefaultBranchScope is the shared predicate that decides which delta
+// scopes a reindex watermark can force; the admin reindex route uses it too.
 // DeltaActiveScopes.ReindexRequestsWritten reports the per-repository reindex
 // watermarks the refinalize wrote for them, the reindex_requests_written field.
 // ReplayCollectorGenerations
