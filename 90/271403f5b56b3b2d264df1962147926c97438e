@@ -1,0 +1,20 @@
+docs/internal/ci-service-image-mirrors.md
+  s_b0d7e3abc26c5a::t_86ee8ea1f32aaa 26
+  s_b0d7e3abc26c5a::t_ca45b058d09ec0 27-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90271403f5b56b3b2d264df1962147926c97438e",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

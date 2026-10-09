@@ -1,0 +1,24 @@
+scripts/dev/test-publish-ci-image-mirrors.sh
+  s_b0d7e3abc26c5a::t_1d5a4f6ca0c7fa 19,23,27,53-55,119-121,123-124
+  s_b0d7e3abc26c5a::t_3d1182c99a26c0 122
+scripts/dev/publish-ci-image-mirrors.sh
+  s_b0d7e3abc26c5a::t_ef58d55f05b666 48,61-62,91,94,97,107-109
+docs/internal/ci-service-image-mirrors.md
+  s_b0d7e3abc26c5a::t_b753c8489565f8 8,10-12,18-21,41,62-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "061814c98a0f923f9d18e193fed00fa661bcca37",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

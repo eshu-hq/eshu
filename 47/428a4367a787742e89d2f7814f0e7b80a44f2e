@@ -1,0 +1,30 @@
+specs/ci-gates.v1.yaml
+  s_b0d7e3abc26c5a::t_8b06bf782a5956 5014
+scripts/dev/test-docker-publish-ci-mirror-mode.sh
+  s_b0d7e3abc26c5a::t_10324b719678d7 75-80
+  s_b0d7e3abc26c5a::t_c6a77c6b8292ab 120-134
+scripts/dev/test-publish-ci-image-mirrors.sh
+  s_b0d7e3abc26c5a::t_779e8f7e17b151 10
+scripts/dev/fixtures/ci-image-mirror-crane-stub.sh
+  s_b0d7e3abc26c5a::t_779e8f7e17b151 1-60
+.github/workflows/static-contract-gates.yml
+  s_b0d7e3abc26c5a::t_8b06bf782a5956 446
+docs/public/reference/ci-gates.md
+  s_b0d7e3abc26c5a::t_2238820f1a9206 302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "47428a4367a787742e89d2f7814f0e7b80a44f2e",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
