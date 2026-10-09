@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Verify that every selected readiness proof ran and passed on PostgreSQL."""
 
+from collections import deque
 import json
 import pathlib
 import re
 import sys
-from collections import deque
+
 
 
 IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
