@@ -44,9 +44,41 @@ fail() {
 require_unconditional_step() {
   local step="$1" name="$2"
   [[ -n "${step}" ]] || fail "${name} step is missing"
-  if rg -q '^        (if:|continue-on-error:)' <<< "${step}"; then
+  if rg -q '^        (if|continue-on-error)[[:space:]]*:' <<< "${step}"; then
     fail "${name} step can be skipped or its failure ignored"
   fi
+}
+
+expected_release_condition() {
+  local guard="github.event_name != 'workflow_dispatch' || inputs.mode == 'release'"
+  case "$1" in
+    changes)
+      printf '%s\n' "    if: ${guard}"
+      ;;
+    verify-apk-floors)
+      printf '%s\n' '    if: >-' "      (${guard}) &&" \
+        "      (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))"
+      ;;
+    build-and-push-image|verify-reproducibility)
+      printf '%s\n' '    if: >-' "      (${guard}) &&" \
+        "      (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')"
+      ;;
+    promote-moving-tags)
+      printf '%s\n' '    if: >-' "      (${guard}) &&" \
+        "      needs.changes.outputs.image == 'true' &&" \
+        "      needs.build-and-push-image.result == 'success' &&" \
+        "      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')"
+      ;;
+    attach-release-sbom)
+      printf '%s\n' '    if: >-' "      (${guard}) &&" \
+        "      needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"
+      ;;
+    package-and-push-chart)
+      printf '%s\n' '    if: >-' "      (${guard}) &&" \
+        "      (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')"
+      ;;
+    *) fail "unknown release job: $1" ;;
+  esac
 }
 
 rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
@@ -70,8 +102,8 @@ actual_jobs="$(awk '
 for job in changes verify-apk-floors build-and-push-image promote-moving-tags \
   verify-reproducibility attach-release-sbom package-and-push-chart; do
   condition="$(job_condition "${job}")"
-  [[ "${condition}" == *"github.event_name != 'workflow_dispatch' || inputs.mode == 'release'"* ]] ||
-    fail "${job} does not exclude mirror dispatches and allow release dispatches"
+  [[ "${condition}" == "$(expected_release_condition "${job}")" ]] ||
+    fail "${job} release condition differs from its guarded exact shape"
 done
 sbom_condition="$(job_condition attach-release-sbom)"
 [[ "${sbom_condition}" == *"needs.changes.outputs.image == 'true' && github.ref_type == 'tag'"* ]] ||
@@ -173,6 +205,16 @@ if [[ "$#" -eq 0 ]]; then
   if bash "$0" "${scratch}/comment-only-release.yml" > /dev/null 2>&1; then
     fail 'seeded comment-only release isolation was not detected'
   fi
+  awk '
+    /^    if: github.event_name != '\''workflow_dispatch'\'' \|\| inputs.mode == '\''release'\''$/ {
+      print $0 " || true"
+      next
+    }
+    { print }
+  ' "${workflow}" > "${scratch}/release-bypass.yml"
+  if bash "$0" "${scratch}/release-bypass.yml" > /dev/null 2>&1; then
+    fail 'seeded release condition boolean bypass was not detected'
+  fi
   cp "${workflow}" "${scratch}/extra.yml"
   printf '\n  unguarded-extra-job:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo unexpected\n' \
     >> "${scratch}/extra.yml"
@@ -237,6 +279,13 @@ if [[ "$#" -eq 0 ]]; then
   ' "${workflow}" > "${scratch}/disabled-copy.yml"
   if bash "$0" "${scratch}/disabled-copy.yml" > /dev/null 2>&1; then
     fail 'seeded disabled real publisher copy was not detected'
+  fi
+  awk '
+    { print }
+    /^      - name: Copy exact upstream indexes$/ { print "        if : false" }
+  ' "${workflow}" > "${scratch}/disabled-copy-spaced-colon.yml"
+  if bash "$0" "${scratch}/disabled-copy-spaced-colon.yml" > /dev/null 2>&1; then
+    fail 'seeded spaced-colon disabled publisher copy was not detected'
   fi
   awk '
     { print }
