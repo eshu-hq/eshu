@@ -147,7 +147,7 @@ structured logs, not metric labels.
 | `eshu_dp_oci_registry_tags_observed_total` | `provider`, `result` | Tags accepted into bounded scans. |
 | `eshu_dp_oci_registry_manifests_observed_total` | `provider`, `media_family` | Manifest, index, and descriptor observations. |
 | `eshu_dp_oci_registry_referrers_observed_total` | `provider`, `artifact_family` | SBOM, signature, attestation, vulnerability, or unknown referrer evidence. |
-| `eshu_dp_oci_registry_scan_duration_seconds` | `provider`, `result` | One repository scan before durable commit. `result` is `success`, `failed`, or `retryable_transport` (a connection reset, unexpected EOF, or network timeout; the target is skipped for the cycle and retried on the next poll; the warn log carries `cause_class` and `consecutive_transport_failures`, and 20 consecutive failed cycles return the error as fatal, issue #7110). |
+| `eshu_dp_oci_registry_scan_duration_seconds` | `provider`, `result` | One repository scan before durable commit. `result` is `success`, `failed`, `retryable_transport` (a connection reset, unexpected EOF, or network timeout), or `retryable_status` (an HTTP 408, 5xx, or 429). A skipped target is retried on the next poll; the warn log carries `cause_class` and `consecutive_transport_failures`, and 20 consecutive failed cycles return the error as fatal, issue #7110. |
 | `eshu_dp_package_registry_requests_total` | `ecosystem`, `status_class` | Metadata request attempts. |
 | `eshu_dp_package_registry_facts_emitted_total` | `ecosystem`, `fact_kind` | Parser output volume. |
 | `eshu_dp_package_registry_rate_limited_total` | `ecosystem` | HTTP 429 pressure. |

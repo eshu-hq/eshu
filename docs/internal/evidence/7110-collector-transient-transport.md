@@ -68,3 +68,43 @@ escalation to a fatal error at 20 consecutive failures, which restores the
 crash-loop signal, and the cause class in the warn log. No new instrument or label key is registered; the new
 label values are documented in
 `docs/public/reference/telemetry/metrics-ingestion-collectors.md`.
+
+## Follow-up: OCI direct mode also skips retryable HTTP statuses
+
+The transport half above left one gap open (owner close-out check,
+2026-09-30): in non-claimed mode a registry 503 or 429 on ping still exited
+the collector. `isSkippableTransientError`
+(`go/internal/collector/ociregistry/ociruntime/transport.go`) now also skips
+when the error chain carries an `sdk.HTTPError` whose status
+`collector.RegistryFailureClassForHTTPStatus` marks retryable (408, 5xx) or
+rate-limited (429). Matching on the status, not the failure class, keeps the
+existing guards intact three separate ways: transport-shaped errors (x509 and
+other `registry_retryable_failure` transport failures) carry HTTP status 0,
+which maps to terminal; content errors such as an empty-body decode carry no
+`sdk.HTTPError` at all; and cancelled contexts are rejected by the explicit
+`ctx.Err()` / `context.Canceled` checks before status classification runs.
+The skip reuses the same per-target
+counter and 20-cycle ceiling, and the warn-log `cause_class` carries the
+registry failure class for status skips. Claimed scans are unchanged:
+`ClaimedSource.NextClaimed` calls `scanTarget` directly and never `Next`.
+
+No-Regression Evidence: the status classifier runs only when a scan already
+failed, so the success path executes no new code. Skipped statuses wait one
+existing poll interval like transport skips; there is no new goroutine, lock,
+or shared state. Regression tests:
+`TestSourceNextSkipsRetryableHTTPStatusOnPing` (503 and 429 skip, healthy
+target scans in the same call, `result=retryable_status` recorded),
+`TestSourceNextEscalatesPersistentRetryableStatusToFatal` (fatal at the
+20-cycle ceiling), `TestSourceNextKeepsTerminalHTTPStatusFatal` (400, 401,
+404, and cancelled-context 503 stay fatal), and
+`TestSourceNextRetryableStatusLogCarriesFailureClass`.
+
+Observability Evidence: failed scans with a skipped retryable status record
+the existing `eshu_dp_oci_registry_scan_duration_seconds` with the new
+bounded `result=retryable_status` value (claimed scans share `scanTarget`, so
+a claimed 503 records it too while still returning the error to
+`ClaimedService`). The skip and escalation log lines drop the word
+"transport" since they now also cover statuses; no log key changes. The new
+value is documented in the OCI runtime README,
+`docs/public/reference/telemetry/metrics-ingestion-collectors.md`, and the
+telemetry-coverage row for the OCI skip path.
