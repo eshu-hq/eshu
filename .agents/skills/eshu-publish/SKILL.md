@@ -46,9 +46,9 @@ reports.
   `| At a glance | |` and 4 rows of one sentence each. The rows depend on the
   kind of PR. See the templates. Put counts by package and lists of files in
   `<details>`, not in this table.
-- **Decisions and blockers** come directly after the lead. Settle a decision
-  with evidence or the arbiter first. Raise it to the owner only for an act that
-  only the owner can authorize.
+- **Decisions and blockers** come after the lead. In a PR, they come after the
+  At a glance table. Settle a decision with evidence or the arbiter first. Raise
+  it to the owner only for an act that only the owner can authorize.
 - **Headings.** Use `Problem`, `Expected`, `Acceptance criteria` for issues and
   `Problem`, `What changed`, `Proof` for PRs. These match the best existing
   issues and PRs.
