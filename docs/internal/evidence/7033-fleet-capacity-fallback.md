@@ -5,7 +5,7 @@ a four-reader fleet allocator admission wait reaches its internal deadline
 while the caller is still live and no snapshot setup attempt has failed. It
 adds the existing `ErrSnapshotReservationCapacity` marker, allowing the
 code-topic reader's existing fenced single-statement fallback. It does not
-change pool sizes, deadlines, SQL, result ranking, the HTTP contract, or the
+change pool sizes, deadlines, SQL text, result ranking, the HTTP contract, or the
 healthy snapshot-set path. #7033 remains open for deployed acceptance.
 
 Root-Cause Evidence: On ops-qa, the 2026-10-06 code-topic request returned
