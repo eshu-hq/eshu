@@ -61,6 +61,7 @@ _ifa_det_test_text_match_helper
 determinism_registry="$(sed -n '/^  - id: ifa-determinism$/,/^  - id:/p' "${registry}")"
 fault_registry="$(sed -n '/^  - id: ifa-fault-injection$/,/^  - id:/p' "${registry}")"
 dead_letter_registry="$(sed -n '/^  - id: ifa-dead-letter-matrix$/,/^  - id:/p' "${registry}")"
+static_mirror_registry="$(sed -n '/^  - id: ifa-static-mirror$/,/^  - id:/p' "${registry}")"
 selector_cases_lib="${repo_root}/scripts/lib/ifa_live_gate_selector_cases.sh"
 rg --quiet --fixed-strings --line-regexp -- 'source "${selector_cases_lib}"' "${BASH_SOURCE[0]}" \
 	|| fail "selector cases must be sourced from scripts/lib/ifa_live_gate_selector_cases.sh"
@@ -103,10 +104,13 @@ done
 # negative-cases file names ("a trigger widened on the dead-letter gate fails no
 # assertion anywhere"). Its triggers were satisfied by broader globs in the
 # workflow, so the gate did fire; nothing asserted that it would.
-for gate_id in ifa-determinism ifa-fault-injection ifa-dead-letter-matrix; do
+# ifa-static-mirror joined it with the row that owns the workflow's `static
+# mirror` job: it shares the same paths: filter, so the same invariant applies.
+for gate_id in ifa-determinism ifa-fault-injection ifa-dead-letter-matrix ifa-static-mirror; do
 	case "${gate_id}" in
 	ifa-determinism) gate_block="${determinism_registry}" ;;
 	ifa-dead-letter-matrix) gate_block="${dead_letter_registry}" ;;
+	ifa-static-mirror) gate_block="${static_mirror_registry}" ;;
 	*) gate_block="${fault_registry}" ;;
 	esac
 	while IFS= read -r registry_trigger; do
@@ -121,6 +125,33 @@ for gate_id in ifa-determinism ifa-fault-injection ifa-dead-letter-matrix; do
 		# the first gate to declare check_names fail with a nonsense message
 		# about a path the workflow "never lists".
 	done < <(printf '%s\n' "${gate_block}" \
+		| sed -n '/^    triggers:$/,/^    [a-z_]*:$/p' \
+		| rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
+done
+
+# The static mirror job runs the mirrors of all three live gates, and they read
+# production sources as text (reducer_queue_replay.go in #7807). Its trigger
+# list is therefore the union of the three rows' triggers: a path that arms any
+# live Ifa gate must be in the mirror row's triggers too. The job itself runs
+# whenever the workflow does (one shared paths: filter, no per-job if:), so
+# today no command reads these triggers: `ci-gates select` reports a CI-only
+# row on every path and `ci-gates await` reads blocking rows only. The union
+# keeps a later flip to blocking sound, because await waits for a blocking row
+# only on the paths its triggers match. The union is derived from the
+# committed registry, never from a hand-kept list, so a trigger added to one
+# row and not copied here fails this loop.
+if [[ -z "${static_mirror_registry}" ]]; then
+	fail "registry has no ifa-static-mirror row: the workflow's static mirror job would be an unowned job"
+fi
+static_mirror_triggers="$(printf '%s\n' "${static_mirror_registry}" \
+	| sed -n '/^    triggers:$/,/^    [a-z_]*:$/p' \
+	| rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')"
+for live_block in "${determinism_registry}" "${dead_letter_registry}" "${fault_registry}"; do
+	while IFS= read -r live_trigger; do
+		[[ -n "${live_trigger}" ]] || continue
+		_ifa_det_text_matches "${static_mirror_triggers}" --quiet --fixed-strings --line-regexp -- "${live_trigger}" \
+			|| fail "ifa-static-mirror omits ${live_trigger}, which arms a live Ifa gate; if the row is made blocking, ci-gates await would not wait for the mirror on a change to it"
+	done < <(printf '%s\n' "${live_block}" \
 		| sed -n '/^    triggers:$/,/^    [a-z_]*:$/p' \
 		| rg --only-matching --replace '$1' -- '^\s+- "([^"]+)"\s*$')
 done

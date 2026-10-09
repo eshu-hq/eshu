@@ -120,7 +120,9 @@
 // With --drift it additionally runs (*cigates.Registry).DriftCheck (#4220),
 // which fails if .pre-commit-config.yaml or .github/workflows/ have drifted from
 // the registry — an unregistered local hook, a gate hook_id missing or at the
-// wrong stage, or a workflow that is in neither a gate nor non_gate_workflows.
+// wrong stage, or a workflow that is in neither a gate nor non_gate_workflows,
+// or a job in a blocking gate's workflow that no gate owns and no owned job
+// needs, which await would never wait for.
 //
 // # uncovered
 //

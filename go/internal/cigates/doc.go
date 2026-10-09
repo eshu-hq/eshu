@@ -98,6 +98,19 @@
 // verdict that publisher puts on the head SHA for each await exit code
 // (#6075, #6189).
 //
+// DriftCheck also fails when a job in a workflow that a blocking gate names is
+// owned by no gate and is not a transitive needs dependency of an owned job
+// (jobownership.go). ci-gates await matches only declared check names, so an
+// unowned job could fail without blocking a merge (#7807). Advisory rows and
+// required_status_checks entries count as owners; a dependent whose if:
+// disables the implicit success() (always(), cancelled(), failure(),
+// !cancelled(), or success() combined with || or !) covers only the needs
+// whose result it reads, and not the needs behind them. A blocking CI-only
+// owner row must also list only literal triggers that the workflow's
+// pull_request paths: matches (or that no paths-ignore: entry matches), so a
+// selected check is one the workflow starts (ownerrowtriggers.go). There is no
+// exception list.
+//
 // That last part is not read out of the workflow's text -- it is observed.
 // EvaluatePublisher runs the publisher step's own shell under bash with `gh`
 // replaced by a recorder, once per exit code, and the contract is asserted
