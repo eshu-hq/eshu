@@ -206,19 +206,18 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if searcher, ok := h.unscopedFileSearcher(req); ok {
+		h.searchFilesUnscoped(w, r, req, searcher)
+		return
+	}
+	if req.Cursor != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, errCursorNeedsUnscopedSearch.Error())
+		return
+	}
+
 	results, truncated, err := h.searchFilesByScope(r.Context(), req)
 	if err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-			return
-		}
-		if querycontract.WriteGraphReadError(w, r, err, "code_search.content_search") {
-			return
-		}
-		if errors.Is(err, errUnsupportedPagedFileSearch) {
-			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, contentFileSearchFailedMessage)
+		h.writeFileSearchError(w, r, err)
 		return
 	}
 
@@ -243,6 +242,11 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
 	if err != nil {
 		writeContentSelectorError(w, r, err, "code_search.content_search")
+		return
+	}
+
+	if req.Cursor != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, errCursorNeedsUnscopedSearch.Error())
 		return
 	}
 

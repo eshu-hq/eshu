@@ -19,6 +19,10 @@ type contentSearchRequest struct {
 	Pattern string   `json:"pattern"`
 	Limit   int      `json:"limit"`
 	Offset  int      `json:"offset"`
+	// Cursor resumes an unscoped file search strictly after the named key. It
+	// is the cursor a partial result returned (#7730) and is refused on every
+	// other search shape.
+	Cursor *querycontract.SearchCursor `json:"cursor,omitempty"`
 }
 
 func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {
@@ -37,6 +41,14 @@ func (req contentSearchRequest) validate() error {
 		return fmt.Errorf("offset exceeds maximum of %d", ContentSearchMaxOffset)
 	}
 	return nil
+}
+
+// cursor returns the resume key, or the zero cursor when the request has none.
+func (req contentSearchRequest) cursor() querycontract.SearchCursor {
+	if req.Cursor == nil {
+		return querycontract.SearchCursor{}
+	}
+	return *req.Cursor
 }
 
 func (req contentSearchRequest) repoID() string {
