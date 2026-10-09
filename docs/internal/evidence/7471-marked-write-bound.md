@@ -20,11 +20,11 @@ so nothing signaled how long a marked write had been outstanding.
 - The `graph.write_timeout.unbounded` startup WARN is retained and now fires
   only when the effective timeout is zero, i.e. on explicit opt-out.
 - New `eshu_dp_projector_marked_write_oldest_age_seconds` gauge: the age of
-  the oldest set marker on a non-retired generation with open projector work,
+  the oldest set marker on a non-terminal generation with open projector work,
   served by the reducer from its Postgres gauge snapshot. The marker is
-  monotonic and never cleared in production, so the query excludes retired
-  (`superseded`, `completed`) generations and requires an open projector work
-  row, or stale markers would alarm forever.
+  monotonic and never cleared in production, so the query excludes terminal
+  (`superseded`, `completed`, `failed`) generations and requires an open
+  projector work row, or stale markers would alarm forever.
 
 ## Benchmark Evidence:
 

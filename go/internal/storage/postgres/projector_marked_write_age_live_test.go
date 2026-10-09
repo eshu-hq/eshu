@@ -12,8 +12,11 @@ import (
 // markedWriteOldestAgeSeed plants one marked generation per lifecycle state:
 // gen-marked-live is the stuck write (active, marker 90s old, running work),
 // gen-marked-retry is a marked write awaiting retry, gen-marked-retired is a
-// completed generation whose monotonic marker must not alarm, and gen-unmarked
-// is live work that never started its graph write.
+// completed generation whose monotonic marker must not alarm,
+// gen-marked-failed is a failed generation with a 2-hour-old marker and a
+// replayed pending row (the ReplayFailedWorkItems shape: the generation stays
+// failed while the work returns to pending), and gen-unmarked is live work
+// that never started its graph write.
 const markedWriteOldestAgeSeed = `
 INSERT INTO scope_generations (
     generation_id, scope_id, trigger_kind, observed_at, ingested_at, status,
@@ -24,6 +27,8 @@ INSERT INTO scope_generations (
           now() - interval '4 minutes', 'active', now() - interval '30 seconds'),
          ('gen-marked-retired', 'scope-hb', 'push', now() - interval '2 hours',
           now() - interval '2 hours', 'completed', now() - interval '1 hour'),
+         ('gen-marked-failed', 'scope-hb', 'push', now() - interval '3 hours',
+          now() - interval '3 hours', 'failed', now() - interval '2 hours'),
          ('gen-unmarked', 'scope-hb', 'push', now() - interval '3 minutes',
           now() - interval '3 minutes', 'active', NULL);
 INSERT INTO fact_work_items (
@@ -36,15 +41,19 @@ INSERT INTO fact_work_items (
          ('projector_scope-hb_gen-marked-retry', 'scope-hb', 'gen-marked-retry',
           'projector', 'source_local', 'retrying', 2, 'proof-worker',
           now() - interval '1 minute', now(), '{}'::jsonb, now(), now()),
+         ('projector_scope-hb_gen-marked-failed', 'scope-hb', 'gen-marked-failed',
+          'projector', 'source_local', 'pending', 0, NULL,
+          NULL, now(), '{}'::jsonb, now(), now()),
          ('projector_scope-hb_gen-unmarked', 'scope-hb', 'gen-unmarked',
           'projector', 'source_local', 'pending', 0, NULL,
           NULL, now(), '{}'::jsonb, now(), now());
 `
 
 // TestQueueObserverStoreProjectorMarkedWriteOldestAgeLive proves the #7471
-// stuck-write signal: the age of the oldest set marker on a non-retired
+// stuck-write signal: the age of the oldest set marker on a non-terminal
 // generation with open projector work. The retired generation's hour-old
-// marker and the unmarked generation must not move the gauge.
+// marker, the failed generation's two-hour-old marker behind its replayed
+// pending row, and the unmarked generation must not move the gauge.
 func TestQueueObserverStoreProjectorMarkedWriteOldestAgeLive(t *testing.T) {
 	database := heartbeatProofDB(t, markedWriteOldestAgeSeed)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

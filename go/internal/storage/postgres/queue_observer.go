@@ -184,10 +184,10 @@ WHERE work.stage = 'projector'
 `
 
 // projectorMarkedWriteOldestAgeQuery reports the age of the oldest set
-// projection_write_started_at marker on a non-retired generation with open
+// projection_write_started_at marker on a non-terminal generation with open
 // projector work (#7471). The marker is monotonic and never cleared, so the
-// predicate must exclude retired (superseded, completed) generations or their
-// stale markers would alarm forever; the EXISTS join on the
+// predicate must exclude terminal (superseded, completed, failed) generations
+// or their stale markers would alarm forever; the EXISTS join on the
 // fact_work_items_scope_generation_idx prefix keeps a marked generation with
 // no open projector work (a completed write awaiting Ack) out of the signal.
 // Measured at 200k fact_work_items (2k generations, 3 live marked): nested
@@ -200,7 +200,7 @@ SELECT GREATEST(
 ) AS oldest_age_seconds
 FROM scope_generations AS generation
 WHERE generation.projection_write_started_at IS NOT NULL
-  AND generation.status NOT IN ('superseded', 'completed')
+  AND generation.status NOT IN ('superseded', 'completed', 'failed')
   AND EXISTS (
     SELECT 1
     FROM fact_work_items AS work
