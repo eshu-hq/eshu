@@ -120,6 +120,18 @@ predicate combines two columns with an interval, and an expression index on
 `timestamptz + interval` is not allowed because the operator is only
 `STABLE`.
 
+Observability Evidence (#7774): rows the sweep deletes are counted on
+`eshu_dp_collector_repository_selection_observations_deleted_total{collector_kind}`.
+A sweep with nothing to delete records no sample, and a failed sweep logs
+`git_repository_selection_store_failed` with `failure_class=expired_sweep`
+without changing the evaluation outcome.
+`TestObserverSweepsExpiredRowsAfterAnEvaluation`,
+`TestObserverRecordsNoDeletedSampleWhenNothingExpired`, and
+`TestObserverSweepFailureIsLoggedAndKeepsTheOutcome` pin these. The count
+the observer adds is the value `DeleteExpiredObservations` returns, and
+`TestObservationStoreSweepLive` asserts that value against the rows actually
+removed (10 of 30 in the guard-history case).
+
 ## Evidence
 
 Performance Evidence (#7625), PostgreSQL 18 with 12,000 `ingestion_scopes`
