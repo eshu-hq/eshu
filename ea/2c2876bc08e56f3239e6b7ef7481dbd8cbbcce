@@ -1,0 +1,25 @@
+go/internal/runtime/postgres/reader_fleet.go
+  s_b0d7e3abc26c5a::t_b683620736cb66 135,158-162,210-211
+  s_b0d7e3abc26c5a::t_2da4433c004b3c 212
+go/internal/runtime/postgres/reservation_capacity_test.go
+  s_b0d7e3abc26c5a::t_f69a8b5b969a23 157-192
+  s_b0d7e3abc26c5a::t_978ee3e598d944 62-63,66-72,126-130,135
+  s_b0d7e3abc26c5a::t_058ea49685c888 48-61,64-65,73-125,131-134,136-156
+  s_b0d7e3abc26c5a::t_c974668af88170 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea2c2876bc08e56f3239e6b7ef7481dbd8cbbcce",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
