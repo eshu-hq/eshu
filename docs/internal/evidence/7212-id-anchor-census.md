@@ -216,7 +216,21 @@ gate's own Bolt reader with the production schema applied: canonical shapes
 passed (`id-bearing 2, via uid 1, via id 1, residual 0`), and two planted
 unreachable nodes failed with `residual 2` and the label sets
 `labels=[Function] nodes=1; labels=[Unconstrained] nodes=1` and no id. The
-transcripts were captured locally. `NOT_CHECKED`: a running reducer process
+transcripts were captured locally.
+
+All three live tests were re-run after the residual-by-labels statement moved its
+two reachability booleans into a `WITH` (the NornicDB label-predicate guard
+rejects a quantifier over `labels()` inside a `WHERE`, #6786 X11). The run was at
+commit 4ec4dc37b, on the pinned `neo4j:2026-community` image (server 2026.08.1,
+arm64 container, project `p7212-fix-live`, private host ports), torn down after
+with `down -v`. Later commits change only documentation. `TestLiveAnchorCensus`
+passed. `TestLiveAnchorCensusCheck` passed with the same clean line
+(`id-bearing 2, via uid 1, via id 1, residual 0`) and the same planted result
+(`residual 2`, label sets `labels=[Unconstrained] nodes=1; labels=[Function]
+nodes=1`), which comes from the rewritten statement. `TestLiveIDAnchorCensusStartup`
+passed with the id-bearing gauge read beside the residual (`gauge=0 id_bearing=0`
+on the empty graph, then `gauge=1 id_bearing=3` with one id-only node planted).
+The `coalesce` mutation was not repeated. `NOT_CHECKED`: a running reducer process
 scraped over `/metrics`, and whether the ops-qa and ops-prod scrape
 configurations collect the gauge.
 
