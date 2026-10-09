@@ -399,6 +399,35 @@ describe("loadRepositoryFreshness", () => {
     });
   });
 
+  it("drops an unparseable timestamp and a negative count but keeps valid timestamps", async () => {
+    const freshness = await loadRepositoryFreshness(
+      mockClient({
+        data: baseWire({
+          verdict: "not_selected",
+          selection: {
+            state: "not_selected",
+            reason: "not_listed",
+            state_since: "yesterday-ish",
+            last_listed_at: "2026-06-20T08:55:00Z",
+            evaluated_at: "not a date",
+            live_selector_count: -3,
+          },
+        }),
+      }),
+      "repository:checkout-service",
+      { clock },
+    );
+
+    expect(freshness.selection).toEqual({
+      state: "not_selected",
+      reason: "not_listed",
+      stateSince: null,
+      lastListedAt: "2026-06-20T08:55:00Z",
+      evaluatedAt: null,
+      liveSelectorCount: 0,
+    });
+  });
+
   it("drops a reason the wire contract forbids for a selected or unknown state", async () => {
     const freshness = await loadRepositoryFreshness(
       mockClient({

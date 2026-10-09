@@ -115,7 +115,8 @@ export function selectionReasonLabel(reason: SelectionReason | null): string {
 
 function timestamp(value: unknown): string | null {
   const trimmed = typeof value === "string" ? value.trim() : "";
-  return trimmed === "" ? null : trimmed;
+  if (trimmed === "" || Number.isNaN(Date.parse(trimmed))) return null;
+  return trimmed;
 }
 
 function count(value: unknown): number {
