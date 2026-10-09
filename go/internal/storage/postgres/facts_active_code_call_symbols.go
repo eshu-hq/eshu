@@ -6,9 +6,11 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 )
 
 // codeCallSymbolDefinitionFactsSelect is the shared head of the definition
@@ -129,9 +131,9 @@ LIMIT $4
 `
 
 // listActiveCodeCallSymbolDefinitionFactsQuery scans every active file fact in
-// the corpus. It serves keys whose producer the loader cannot resolve up
-// front (SCIP symbols, malformed Go keys, Go keys with no declaring module),
-// plus Go keys whose module has no stored producer as a fallback.
+// the corpus. It serves only keys no stored manifest can anchor: SCIP symbols
+// from other indexers and a scip-go gomod key without a symbol. A Go key with no
+// declaring module issues no definition scan at all.
 const listActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefinitionFactsSelect +
 	codeCallSymbolDefinitionFactsMatch
 
@@ -145,18 +147,19 @@ const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefin
 // LoadActiveCodeCallSymbolDefinitionFacts loads active file facts whose parsed
 // definitions carry one of the requested stable symbol keys.
 //
-// Keys of the form package:<package_id>#<export_name> are anchored on their
-// producer scopes: the repositories whose stored package.json manifests name
-// that package. Only those scopes' active file facts are scanned, and a
-// package key with no producer issues no definition scan and stays
-// unresolved.
+// Two kinds of key are anchored on the repositories that can define them, so
+// the scan reads only those repositories' active file facts:
 //
-// Go keys of the form `scip-go gomod <import_path> ...` are anchored on the
-// scopes whose stored go.mod manifests declare that import path's module, so
-// the scan follows the producer file facts instead of the whole corpus
-// (#7623). A Go key whose module no stored manifest declares falls back to
-// the corpus-wide scan, so the answer stays exactly the full-scan answer.
-// Every other key keeps the corpus-wide scan.
+//   - package:<package_id>#<export_name> keys, on the repositories whose stored
+//     package.json manifests name that package (#7601);
+//   - scip-go gomod <import path> <symbol> keys, on the repositories whose
+//     stored go.mod module path is that import path or a prefix of it (#7623).
+//     The Go parser builds a definition's import path from its nearest go.mod
+//     module path, so the defining repository always stores such a go.mod.
+//
+// A key with no producer issues no definition scan and stays unresolved. Every
+// other key keeps the corpus-wide scan. The three groups run as separate scans,
+// so a manifest that matches one group never widens another.
 func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	symbolKeys []string,
@@ -170,57 +173,101 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 		return nil, nil
 	}
 
-	packageKeys, restKeys := splitCodeCallPackageSymbolKeys(symbolKeys)
-	goKeys, otherKeys := splitCodeCallGoSymbolKeys(restKeys)
+	packageKeys, goKeys, otherKeys := producerstore.Split(symbolKeys)
+	load := codeCallSymbolLoadStats{
+		otherKeys: len(otherKeys), packageKeys: len(packageKeys), goKeys: len(goKeys),
+	}
+	loaded, err := s.loadCodeCallSymbolDefinitionLegs(ctx, packageKeys, goKeys, otherKeys, &load)
+	load.log(ctx, err)
+	return loaded, err
+}
+
+// loadCodeCallSymbolDefinitionLegs runs the three scans (keys no manifest
+// anchors, package keys, Go keys) and merges their facts, recording each leg's
+// producer scope count and duration in load.
+func (s FactStore) loadCodeCallSymbolDefinitionLegs(
+	ctx context.Context,
+	packageKeys, goKeys, otherKeys []string,
+	load *codeCallSymbolLoadStats,
+) ([]facts.Envelope, error) {
+	producers := producerstore.New(s.database)
 
 	var loaded []facts.Envelope
-	if len(goKeys) > 0 {
-		producerScopeIDs, err := s.listCodeCallGoModuleProducerScopeIDs(ctx, goKeys)
-		if err != nil {
-			return nil, err
-		}
-		if len(producerScopeIDs) == 0 {
-			otherKeys = append(otherKeys, goKeys...)
-		} else {
-			anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-				ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, goKeys, producerScopeIDs,
-			)
-			if err != nil {
-				return nil, err
-			}
-			loaded = append(loaded, anchored...)
-		}
-	}
 	if len(otherKeys) > 0 {
+		started := time.Now()
 		page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
 			ctx, listActiveCodeCallSymbolDefinitionFactsQuery, otherKeys, nil,
 		)
 		if err != nil {
 			return nil, err
 		}
-		// The corpus scan can return a fact the Go-anchored leg already
-		// loaded, so merge unique here rather than at the anchored
-		// append, where loaded is still empty and the call is a no-op.
-		loaded = appendUniqueFactEnvelopes(loaded, page)
+		load.otherScanSeconds = time.Since(started).Seconds()
+		loaded = append(loaded, page...)
 	}
-	if len(packageKeys) == 0 {
-		return loaded, nil
+	for _, leg := range []struct {
+		keys       []string
+		producers  func(context.Context, []string) ([]string, error)
+		scopeCount *int
+		seconds    *float64
+	}{
+		{packageKeys, producers.PackageScopeIDs, &load.packageProducerScopes, &load.packageSeconds},
+		{goKeys, producers.GoModuleScopeIDs, &load.goProducerScopes, &load.goSeconds},
+	} {
+		if len(leg.keys) == 0 {
+			continue
+		}
+		started := time.Now()
+		producerScopeIDs, err := leg.producers(ctx, leg.keys)
+		if err != nil {
+			return nil, err
+		}
+		*leg.scopeCount = len(producerScopeIDs)
+		if len(producerScopeIDs) > 0 {
+			anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
+				ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, leg.keys, producerScopeIDs,
+			)
+			if err != nil {
+				return nil, err
+			}
+			loaded = appendUniqueFactEnvelopes(loaded, anchored)
+		}
+		*leg.seconds = time.Since(started).Seconds()
 	}
+	return loaded, nil
+}
 
-	producerScopeIDs, err := s.listCodeCallPackageProducerScopeIDs(ctx, packageKeys)
+// codeCallSymbolLoadStats records how one definition load split its keys and
+// what each leg cost, so an operator can tell from one log line which scan made
+// a slow code call materialization slow. A producer scope count of zero with
+// keys of that group means no stored manifest names a producer, so that leg
+// issued no definition scan and its keys stay unresolved.
+type codeCallSymbolLoadStats struct {
+	otherKeys, packageKeys, goKeys              int
+	packageProducerScopes, goProducerScopes     int
+	otherScanSeconds, packageSeconds, goSeconds float64
+}
+
+// log emits the load summary at Info, on success and on failure. The loader has
+// no scope id, so correlate with the "code call materialization completed" line
+// of the same consumer by adjacency. On failure the durations and producer scope
+// counts cover only the legs that finished, so read outcome first.
+func (l codeCallSymbolLoadStats) log(ctx context.Context, err error) {
+	attrs := []any{
+		"outcome", "ok",
+		"other_key_count", l.otherKeys,
+		"package_key_count", l.packageKeys,
+		"go_key_count", l.goKeys,
+		"package_producer_scope_count", l.packageProducerScopes,
+		"go_producer_scope_count", l.goProducerScopes,
+		"other_scan_duration_seconds", l.otherScanSeconds,
+		"package_leg_duration_seconds", l.packageSeconds,
+		"go_leg_duration_seconds", l.goSeconds,
+	}
 	if err != nil {
-		return nil, err
+		attrs[1] = "error"
+		attrs = append(attrs, "error", err.Error())
 	}
-	if len(producerScopeIDs) == 0 {
-		return loaded, nil
-	}
-	anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-		ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, packageKeys, producerScopeIDs,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return appendUniqueFactEnvelopes(loaded, anchored), nil
+	slog.Default().InfoContext(ctx, "code call symbol definition load", attrs...)
 }
 
 // loadActiveCodeCallSymbolDefinitionFacts pages one definition scan to the

@@ -73,9 +73,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 	observedAt := time.Date(2026, time.October, 4, 9, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			// No stored go.mod declares the Go key's module: it falls back.
-			{},
-			// Unanchored scan for the Go key.
+			// Unanchored scan for the key no manifest anchors.
 			{rows: [][]any{codeCallSymbolFactRow("fact-go", "scope-go", observedAt)}},
 			// Manifest read.
 			{rows: [][]any{
@@ -87,7 +85,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 			{rows: [][]any{codeCallSymbolFactRow("fact-logging", "scope-logging", observedAt)}},
 		},
 	}
-	goKey := "scip-go gomod github.com/acme/lib Client#Request()."
+	goKey := "scip-java maven org.acme/lib org.acme/Client#request()."
 	packageKey := "package:@acme/logging#Logger"
 
 	loaded, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(
@@ -97,33 +95,27 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 4; got != want {
-		t.Fatalf("queries = %d, want %d (go manifest, unanchored, manifest, anchored)", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("queries = %d, want %d (unanchored, manifest, anchored)", got, want)
 	}
 
-	goManifest := db.queries[0]
-	if !isManifestQuery(goManifest.query) {
-		t.Fatalf("first query must read go.mod manifests:\n%s", goManifest.query)
-	}
-	assertCodeCallManifestShape(t, goManifest.query, "relative_path = 'go.mod'", "relative_path LIKE '%/go.mod'")
-
-	unanchored := db.queries[1]
+	unanchored := db.queries[0]
 	if isManifestQuery(unanchored.query) || isAnchoredDefinitionQuery(unanchored.query) {
-		t.Fatalf("second query must be the unanchored definition scan:\n%s", unanchored.query)
+		t.Fatalf("first query must be the unanchored definition scan:\n%s", unanchored.query)
 	}
 	if got, want := unanchored.args[0], []string{goKey}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("unanchored keys = %#v, want only the non-package keys %#v", got, want)
 	}
 
-	manifest := db.queries[2]
+	manifest := db.queries[1]
 	if !isManifestQuery(manifest.query) {
-		t.Fatalf("third query must read package.json manifests:\n%s", manifest.query)
+		t.Fatalf("second query must read package.json manifests:\n%s", manifest.query)
 	}
 	assertCodeCallManifestShape(t, manifest.query, "relative_path = 'package.json'", "relative_path LIKE '%/package.json'")
 
-	anchored := db.queries[3]
+	anchored := db.queries[2]
 	if !isAnchoredDefinitionQuery(anchored.query) {
-		t.Fatalf("fourth query must be the anchored definition scan:\n%s", anchored.query)
+		t.Fatalf("third query must be the anchored definition scan:\n%s", anchored.query)
 	}
 	if got, want := anchored.args[0], []string{packageKey}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored keys = %#v, want %#v", got, want)
@@ -237,27 +229,27 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsNonPackageKeysUnanchored(t *testing.T) {
 	t.Parallel()
 
-	goKey := "scip-go gomod github.com/acme/lib Client#Request()."
+	// A scip-java symbol and a one-field scip-go key name no producer in any
+	// manifest, so both keep the corpus-wide scan.
+	javaKey := "scip-java maven org.acme/lib org.acme/Client#request()."
 	otherKey := "typescript:@acme/lib#run"
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
+	bareGoKey := "scip-go gomod github.com/acme/lib"
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
 
-	if _, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{goKey, otherKey}); err != nil {
+	if _, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{javaKey, otherKey, bareGoKey}); err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("queries = %d, want %d (go manifest, unanchored)", got, want)
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("queries = %d, want %d (the corpus-wide scan only)", got, want)
 	}
-	if !isManifestQuery(db.queries[0].query) {
-		t.Fatalf("first query must be the go.mod manifest read:\n%s", db.queries[0].query)
-	}
-	query := db.queries[1].query
+	query := db.queries[0].query
 	if isManifestQuery(query) || isAnchoredDefinitionQuery(query) {
-		t.Fatalf("non-package keys must use the unanchored scan:\n%s", query)
+		t.Fatalf("non-anchored keys must use the corpus-wide scan:\n%s", query)
 	}
-	if got, want := db.queries[1].args[0], []string{otherKey, goKey}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("unanchored keys = %#v, want the other keys plus the fallback Go key %#v", got, want)
+	if got, want := db.queries[0].args[0], []string{javaKey, otherKey, bareGoKey}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unanchored keys = %#v, want %#v", got, want)
 	}
-	if got, want := len(db.queries[1].args), 4; got != want {
+	if got, want := len(db.queries[0].args), 4; got != want {
 		t.Fatalf("unanchored args = %d, want %d", got, want)
 	}
 }
@@ -316,8 +308,6 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 	observedAt := time.Date(2026, time.October, 4, 9, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			// No stored go.mod declares the Go key's module: it falls back.
-			{},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
 			{rows: [][]any{{"scope-logging", `{"name":"@acme/logging"}`}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
@@ -326,7 +316,7 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 
 	loaded, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(
 		context.Background(),
-		[]string{"scip-go gomod github.com/acme/lib Client#Request().", "package:@acme/logging#Logger"},
+		[]string{"scip-java maven org.acme/lib org.acme/Client#request().", "package:@acme/logging#Logger"},
 	)
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)

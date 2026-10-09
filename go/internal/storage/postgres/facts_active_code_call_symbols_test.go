@@ -4,11 +4,16 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 )
 
 func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t *testing.T) {
@@ -16,7 +21,6 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{}, // No stored go.mod declares the key's module: the load falls back.
 			{
 				rows: [][]any{{
 					"fact-file-1",
@@ -40,7 +44,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 		},
 	}
 	store := NewFactStore(db)
-	symbolKeys := []string{"scip-go gomod github.com/acme/lib Client#Request()."}
+	symbolKeys := []string{"scip-java maven org.acme/lib org.acme/Client#request()."}
 
 	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), symbolKeys)
 	if err != nil {
@@ -52,16 +56,13 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsUsesActiveGenerations(t
 	if got, want := loaded[0].FactKind, "file"; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("issued %d queries, want the go.mod manifest read then the corpus fallback scan", got)
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("issued %d queries, want the one corpus-wide scan for a key no manifest anchors", got)
 	}
-	if got, want := db.queries[0].query, listActiveCodeCallGoModuleManifestsQuery; got != want {
-		t.Fatalf("first query is the go.mod manifest read:\n%s", got)
+	if !reflect.DeepEqual(db.queries[0].args[0], symbolKeys) {
+		t.Fatalf("symbol arg = %#v, want %#v", db.queries[0].args[0], symbolKeys)
 	}
-	if !reflect.DeepEqual(db.queries[1].args[0], symbolKeys) {
-		t.Fatalf("symbol arg = %#v, want %#v", db.queries[1].args[0], symbolKeys)
-	}
-	query := db.queries[1].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
@@ -85,22 +86,22 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsGuardsNonArrayDefinitio
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{}, {}},
+		queryResponses: []queueFakeRows{{}},
 	}
 	store := NewFactStore(db)
 
 	_, err := store.LoadActiveCodeCallSymbolDefinitionFacts(
 		context.Background(),
-		[]string{"scip-go gomod github.com/acme/lib Client#Request()."},
+		[]string{"scip-java maven org.acme/lib org.acme/Client#request()."},
 	)
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("issued %d queries, want the go.mod manifest read then the corpus fallback scan", got)
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("issued %d queries, want the one corpus-wide scan", got)
 	}
 
-	query := db.queries[1].query
+	query := db.queries[0].query
 	for _, field := range []string{"functions", "classes", "structs", "interfaces", "type_aliases"} {
 		want := "jsonb_typeof(parsed.pfd->'" + field + "') = 'array'"
 		if !strings.Contains(query, want) {
@@ -127,95 +128,6 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsSkipsEmptySymbols(t *te
 	}
 	if len(db.queries) != 0 {
 		t.Fatalf("queries = %d, want 0", len(db.queries))
-	}
-}
-
-func TestSplitCodeCallGoSymbolKeys(t *testing.T) {
-	t.Parallel()
-
-	goFunc := "scip-go gomod github.com/acme/lib Client#Request()."
-	goMethod := "scip-go gomod github.com/acme/lib/pkg Svc#Serve()."
-	packageKey := "package:@acme/logging#Logger"
-	scipPython := "scip-python python . . django/`conf/`settings#DEBUG."
-	goKeys, otherKeys := splitCodeCallGoSymbolKeys([]string{
-		goFunc, packageKey, scipPython, "scip-go gomod", "scip-go gomod  ", goMethod,
-	})
-	if got, want := goKeys, []string{goFunc, goMethod}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("goKeys = %#v, want %#v", got, want)
-	}
-	if got, want := otherKeys, []string{packageKey, scipPython, "scip-go gomod", "scip-go gomod  "}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("otherKeys = %#v, want %#v", got, want)
-	}
-}
-
-func TestCodeCallGoSymbolImportPath(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		key  string
-		want string
-	}{
-		{"scip-go gomod github.com/acme/lib Client#Request().", "github.com/acme/lib"},
-		{"scip-go gomod github.com/acme/lib/pkg Svc#Serve().", "github.com/acme/lib/pkg"},
-		{"scip-go gomod fmt Printf().", "fmt"},
-		{"scip-go gomod", ""},
-		{"scip-go gomod  ", ""},
-		{"scip-go gomod  github.com/acme/lib  Client#Request().", "github.com/acme/lib"},
-		{"package:@acme/logging#Logger", ""},
-		{"", ""},
-	} {
-		if got := codeCallGoSymbolImportPath(tc.key); got != tc.want {
-			t.Errorf("codeCallGoSymbolImportPath(%q) = %q, want %q", tc.key, got, tc.want)
-		}
-	}
-}
-
-func TestCodeCallGoModuleManifestPath(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name    string
-		content string
-		want    string
-	}{
-		{"bare", "module github.com/acme/lib\n\ngo 1.24\n", "github.com/acme/lib"},
-		{"comments first", "// fork of upstream\n\nmodule github.com/acme/fork\n", "github.com/acme/fork"},
-		{"indented", "\tmodule  github.com/acme/spaced  \n", "github.com/acme/spaced"},
-		{"trailing comment", "module github.com/acme/trailing // keep serving\n", "github.com/acme/trailing"},
-		{"no module line", "go 1.24\n\nrequire github.com/acme/lib v1.0.0\n", ""},
-		{"empty", "", ""},
-		{"module with no path", "module\n", ""},
-		{"module prefix only", "modular github.com/acme/nope\n", ""},
-		{"bare CR endings", "\r// fork of upstream\rmodule github.com/acme/cr\r", "github.com/acme/cr"},
-		{"CRLF endings", "\r\n// fork of upstream\r\nmodule github.com/acme/crlf\r\n", "github.com/acme/crlf"},
-	} {
-		if got := codeCallGoModuleManifestPath(tc.content); got != tc.want {
-			t.Errorf("%s: codeCallGoModuleManifestPath() = %q, want %q", tc.name, got, tc.want)
-		}
-	}
-}
-
-func TestCodeCallGoImportPathInModule(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		importPath string
-		module     string
-		want       bool
-	}{
-		{"github.com/acme/lib", "github.com/acme/lib", true},
-		{"github.com/acme/lib/pkg", "github.com/acme/lib", true},
-		{"github.com/acme/lib/pkg/deep", "github.com/acme/lib", true},
-		{"github.com/acme/lib/pkg", "github.com/acme/lib/pkg", true},
-		{"github.com/acme/libext", "github.com/acme/lib", false},
-		{"github.com/acme/lib", "github.com/acme/lib/pkg", false},
-		{"github.com/other/mod", "github.com/acme/lib", false},
-		{"", "github.com/acme/lib", false},
-		{"github.com/acme/lib", "", false},
-	} {
-		if got := codeCallGoImportPathInModule(tc.importPath, tc.module); got != tc.want {
-			t.Errorf("codeCallGoImportPathInModule(%q, %q) = %v, want %v", tc.importPath, tc.module, got, tc.want)
-		}
 	}
 }
 
@@ -265,7 +177,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsGoKeysOnModulePr
 	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("issued %d queries, want the go.mod manifest read then the anchored scan", got)
 	}
-	if got, want := db.queries[0].query, listActiveCodeCallGoModuleManifestsQuery; got != want {
+	if got, want := db.queries[0].query, producerstore.GoModuleManifestsQuery; got != want {
 		t.Fatalf("first query is the manifest read:\n%s", got)
 	}
 	if got, want := db.queries[1].query, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery; got != want {
@@ -283,8 +195,10 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesGoAnchoredA
 	otherKey := "other-namespace-key"
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope:producer", "module github.com/acme/lib\n\ngo 1.24\n"}}},
+			// Corpus-wide scan for the other key.
 			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
+			// go.mod read, then the anchored scan for the Go key.
+			{rows: [][]any{{"scope:producer", "module github.com/acme/lib\n\ngo 1.24\n"}}},
 			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
 		},
 	}
@@ -298,36 +212,104 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesGoAnchoredA
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
 	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("issued %d queries, want manifest read, anchored scan, then corpus scan", got)
+		t.Fatalf("issued %d queries, want corpus scan, go.mod read, then anchored scan", got)
 	}
 }
 
-func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsFallsBackToCorpusScanWithoutModuleProducer(t *testing.T) {
+func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanForGoKeyWithoutModuleProducer(t *testing.T) {
 	t.Parallel()
 
-	stdlibKey := "scip-go gomod fmt Printf()."
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{"scope:noise", "module github.com/acme/noise\n"}}},
-			{rows: [][]any{codeCallDefinitionScanRow("fact-stdlib")}},
 		},
 	}
 	store := NewFactStore(db)
 
-	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{stdlibKey})
+	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(
+		context.Background(), []string{"scip-go gomod fmt Printf()."},
+	)
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := factIDs(loaded), []string{"fact-stdlib"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
+	if len(loaded) != 0 {
+		t.Fatalf("loaded fact ids = %#v, want none: no stored go.mod declares the standard library", factIDs(loaded))
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("issued %d queries, want the go.mod manifest read then the corpus fallback scan", got)
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("issued %d queries, want only the go.mod manifest read and no definition scan", got)
 	}
-	if got, want := db.queries[1].query, listActiveCodeCallSymbolDefinitionFactsQuery; got != want {
-		t.Fatalf("second query is the corpus-wide scan:\n%s", got)
+	if got, want := db.queries[0].query, producerstore.GoModuleManifestsQuery; got != want {
+		t.Fatalf("the one query is the go.mod manifest read:\n%s", got)
 	}
-	if got, want := db.queries[1].args[0], []string{stdlibKey}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("corpus fallback keys = %#v, want %#v", got, want)
+}
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadSummary pins the one log
+// line an operator reads at 3 AM to tell which leg made a materialization slow:
+// the key counts per kind, the producer scope counts, and which legs ran.
+func TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadSummary(t *testing.T) {
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{}, // corpus-wide scan for the other key
+			{rows: [][]any{{"scope:producer", "module github.com/acme/lib\n"}}},
+			{rows: [][]any{codeCallDefinitionScanRow("fact-go")}},
+		},
+	}
+	_, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{
+		"scip-java maven org.acme/lib org.acme/Client#request().",
+		"scip-go gomod github.com/acme/lib Client#Request().",
+		"scip-go gomod fmt Printf().",
+	})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	for _, want := range []string{
+		"msg=\"code call symbol definition load\"",
+		"outcome=ok",
+		"other_key_count=1",
+		"package_key_count=0",
+		"go_key_count=2",
+		"package_producer_scope_count=0",
+		"go_producer_scope_count=1",
+		"other_scan_duration_seconds=",
+		"go_leg_duration_seconds=",
+	} {
+		if !strings.Contains(logged.String(), want) {
+			t.Fatalf("load log is missing %q:\n%s", want, logged.String())
+		}
+	}
+}
+
+// TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadFailure pins that a failed
+// load still logs its summary, marked as an error, so an operator does not read
+// a zero producer scope count on a failed manifest read as "no producer".
+func TestLoadActiveCodeCallSymbolDefinitionFactsLogsLoadFailure(t *testing.T) {
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{err: errors.New("manifest read failed")}},
+	}
+	_, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{
+		"scip-go gomod github.com/acme/lib Client#Request().",
+	})
+	if err == nil {
+		t.Fatal("LoadActiveCodeCallSymbolDefinitionFacts() error = nil, want the manifest read error")
+	}
+	for _, want := range []string{
+		"msg=\"code call symbol definition load\"",
+		"outcome=error",
+		"go_key_count=1",
+		"manifest read failed",
+	} {
+		if !strings.Contains(logged.String(), want) {
+			t.Fatalf("load log is missing %q:\n%s", want, logged.String())
+		}
 	}
 }
