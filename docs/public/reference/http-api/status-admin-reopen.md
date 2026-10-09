@@ -42,6 +42,18 @@ with `SKIP LOCKED` under a
 5 s `lock_timeout`, and the reducer reset sets every state column the claim
 path reads, as `replaySucceededReducerDomainQuery` does.
 
+A rollover between the probe and the commit cannot strand the repair: the
+run transaction locks the scope row (`FOR UPDATE`) and then re-resolves the
+active generation inside the transaction, so a reducer-domain reopen always
+acts on the generation that is active when the transaction locks the scope
+(for `repo_dependency` the fence still serializes the repair but selection
+is scope-level). A rollover
+takes the same row lock to move the pointer, so it serializes against the reopen instead of
+landing mid-run, and the response `generation_id` names the generation that
+was acted on. The fence covers exactly the dangerous case: the supersede
+sweep keys on the active-generation pointer, so a scope with no pinned
+pointer cannot have its reopened rows swept.
+
 ## Guardrails
 
 An explicit `reason` and `idempotency_key` are required (`400` when

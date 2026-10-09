@@ -266,6 +266,9 @@ PACKAGES = {
         "go/internal/query/admin/scope_selector_live_test.go": (
             "TestAdminHandler_ScopeSelectorCollisionLive",
         ),
+        "go/internal/query/admin/reopen_rollover_live_test.go": (
+            "TestAdminHandler_ReopenRolloverActsOnCurrentGenerationLive",
+        ),
     },
     REACHABILITY_PACKAGE: {
         "go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go": (

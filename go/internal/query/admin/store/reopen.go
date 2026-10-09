@@ -141,7 +141,7 @@ func (s *postgresStore) ResolveReopenTarget(ctx context.Context, scopeID string)
 	if err != nil {
 		return "", "", err
 	}
-	generation, err := s.reopenActiveGeneration(ctx, scope)
+	generation, err := s.reopenActiveGeneration(ctx, s.database, scope)
 	if err != nil {
 		return "", "", err
 	}
@@ -169,7 +169,7 @@ func (s *postgresStore) ReopenCompletedWork(ctx context.Context, f admin.ReopenF
 	if err != nil {
 		return result, err
 	}
-	generationID, err := s.reopenActiveGeneration(ctx, scopeID)
+	generationID, err := s.reopenActiveGeneration(ctx, s.database, scopeID)
 	if err != nil {
 		return result, err
 	}
@@ -196,6 +196,26 @@ func (s *postgresStore) ReopenCompletedWork(ctx context.Context, f admin.ReopenF
 	if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '"+reopenLockTimeout+"'"); err != nil {
 		return result, fmt.Errorf("set reopen lock timeout: %w", err)
 	}
+	// Rollover fence (#7734): lock the scope row, then re-resolve the
+	// active generation inside the transaction and act on that for the
+	// reducer domains; for the intent domain the fence still serializes
+	// the repair but selection is scope-level. A rollover moves the
+	// scope's active-generation pointer, which takes the same row lock,
+	// so no rollover can land between this resolve and the commit; a
+	// rollover that landed after the pre-transaction resolve is picked
+	// up here instead of silently repairing the old generation.
+	// The lock covers exactly the dangerous case: the supersede sweep
+	// keys on the pointer, so a scope with no pinned pointer cannot have
+	// its reopened rows swept. Row locks below are all SKIP LOCKED, so
+	// the fence cannot deadlock against workers.
+	if err := s.lockReopenScope(ctx, tx, scopeID); err != nil {
+		return result, err
+	}
+	generationID, err = s.reopenActiveGeneration(ctx, tx, scopeID)
+	if err != nil {
+		return result, err
+	}
+	result.GenerationID = generationID
 
 	if f.Domain == admin.ReopenDomainRepoDependency {
 		if err := s.reopenIntents(ctx, tx, scopeID, f.Domain, limit, &result); err != nil {
@@ -231,9 +251,42 @@ func (s *postgresStore) reopenScopeID(ctx context.Context, scope string) (string
 	return s.resolveScopeID(ctx, scope)
 }
 
-// reopenActiveGeneration resolves the scope's active generation.
-func (s *postgresStore) reopenActiveGeneration(ctx context.Context, scopeID string) (string, error) {
-	rows, err := s.database.QueryContext(ctx, reopenActiveGenerationQuery, scopeID)
+// reopenScopeFenceQuery locks the scope row for the rollover fence. The lock
+// is held until the reopen transaction commits or rolls back, sequencing
+// the reopen against any rollover that moves the active-generation pointer.
+const reopenScopeFenceQuery = `
+SELECT scope.scope_id
+FROM ingestion_scopes AS scope
+WHERE scope.scope_id = $1
+FOR UPDATE
+`
+
+// lockReopenScope takes the rollover-fence lock on the scope row inside the
+// reopen transaction.
+func (s *postgresStore) lockReopenScope(ctx context.Context, tx db.ExecQueryer, scopeID string) error {
+	rows, err := tx.QueryContext(ctx, reopenScopeFenceQuery, scopeID)
+	if err != nil {
+		return fmt.Errorf("lock reopen scope: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("lock reopen scope: %w", err)
+		}
+		return admin.ErrScopeSelectorNotFound
+	}
+	var locked string
+	if err := rows.Scan(&locked); err != nil {
+		return fmt.Errorf("scan reopen scope lock: %w", err)
+	}
+	return rows.Err()
+}
+
+// reopenActiveGeneration resolves the scope's active generation on any
+// queryer: the store connection for the pre-transaction resolve, or the
+// reopen transaction itself for the rollover fence (#7734).
+func (s *postgresStore) reopenActiveGeneration(ctx context.Context, database db.Queryer, scopeID string) (string, error) {
+	rows, err := database.QueryContext(ctx, reopenActiveGenerationQuery, scopeID)
 	if err != nil {
 		return "", fmt.Errorf("resolve reopen generation: %w", err)
 	}

@@ -224,6 +224,11 @@ tests:
     class: postgres_ci
     reason: "#7732 disposable PostgreSQL 18 proof that a scope-id/source-key collision fails closed (409 on skip and reopen, rows untouched); enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/admin/reopen_rollover_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7734 disposable PostgreSQL 18 proof that a reopen whose scope rolls over mid-flight acts on the current generation (scope-row fence plus authoritative in-transaction resolve) instead of the stale pinned pointer; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/query/admin/operator_note_live_test.go
     tag: ~
     class: scheduled
