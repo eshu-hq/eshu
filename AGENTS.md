@@ -88,6 +88,16 @@ Follow the promotion order above. CI must not be the first test of an unproven
 change. If local proof is blocked, report the command and the cause before you
 publish. Do not open a speculative PR to see whether a change works.
 
+## Mandatory PR And Issue Text
+
+Before you run `gh pr create`, `gh pr edit`, `gh issue create`, or
+`gh issue edit`, load the `eshu-publish` skill. Start from its template for your
+kind of PR or issue. Run `.agents/skills/eshu-publish/scripts/check-shape.sh` on
+the exact text, and fix every `FAIL` line. A PR body opens with a `Refs #N.`
+line, a bold lead, and an "At a glance" table. It keeps evidence in `<details>`.
+This rule applies to every harness. Any edit to the title or body after you
+capture a `ci-gates review-attest` receipt voids the receipt.
+
 ## Mandatory Prove-The-Theory-First
 
 Before you build a change that rests on a performance or behavior theory and
