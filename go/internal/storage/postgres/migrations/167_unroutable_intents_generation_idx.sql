@@ -1,0 +1,37 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- Back the generation-only retention probes on
+-- shared_projection_unroutable_intents (#7799).
+-- Evidence: docs/internal/evidence/7799-unroutable-generation-index.md.
+--
+-- WHAT GOES WRONG TODAY. The table carries no foreign keys by design
+-- (migration 098: scope_id may be '' on legacy rows), so retention reaps
+-- it with a generation-only DELETE, while the row-count arm scope-joins
+-- through scope_generations. Any unroutable row whose generation is
+-- prunable but whose scope does not match the prune's scope is deleted
+-- but never counted: the BatchRowLimit charge under-reports. Reshaping
+-- the arm to the reap's generation-only envelope without an index
+-- skip-scans the scope-leading (scope_id, generation_id, ...) index once
+-- per candidate over every scope: measured 902 index searches, 7696
+-- buffers, 11.480 ms for a 20-generation batch over 200k rows across 200
+-- scopes (PG 18.6, 2026-10-09).
+--
+-- THE INDEX. (generation_id) makes both the reshaped count leg and the
+-- reap DELETE a btree probe per candidate: 20 index searches, 61
+-- buffers, 0.229 ms custom plan, and 11 buffers stable across six
+-- generic-plan executions for the same batch; the 5-generation DELETE
+-- drops from 649 to 313 buffers. The key is generation_id alone on
+-- purpose: the count leg needs only that column and the DELETE must
+-- visit the heap row anyway, so INCLUDE columns would only bloat the
+-- index. Write cost is one small btree entry per unroutable insert, and
+-- unroutable rows are recorded only on routing failures.
+--
+-- CONCURRENTLY so bootstrap never blocks the reducer's unroutable
+-- writes; IF NOT EXISTS so every later bootstrap over an install that
+-- has it is a no-op. The lone statement in this file so the migration
+-- coordinator can run it outside a transaction
+-- (coordination.IsSoleConcurrentIndexStatement). A new file per issue
+-- #7002: never edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS shared_projection_unroutable_intents_generation_idx
+    ON shared_projection_unroutable_intents (generation_id);
