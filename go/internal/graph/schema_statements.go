@@ -5,8 +5,8 @@ package graph
 
 import "fmt"
 
-// fulltextIndex pairs a primary procedure-based fulltext statement with
-// its modern CREATE FULLTEXT INDEX fallback.
+// fulltextIndex pairs the procedure-based fulltext statement NornicDB executes
+// with the modern CREATE FULLTEXT INDEX form Neo4j executes (#7675).
 type fulltextIndex struct {
 	primary  string
 	fallback string
@@ -56,7 +56,7 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 		))
 	}
 	for _, ft := range schemaFulltextIndexes {
-		stmts = append(stmts, ft.primary)
+		stmts = append(stmts, dialect.fulltextForms(ft)...)
 	}
 	return stmts, nil
 }

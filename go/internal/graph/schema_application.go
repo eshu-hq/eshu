@@ -84,7 +84,7 @@ const (
 	// The #6793 tf_module/tf_output evidence_source indexes and the Neo4j-only
 	// #7057 Rationale/DocumentationSection uid indexes are additive too, as are
 	// the #7095/#7097 constraint retirements; see schema_predecessors.go.
-	graphSchemaNeo4jFingerprint    = "675dafc901ff633999440f0e02cbefa7c3ff80231832f5a67330aafe565f8d54"
+	graphSchemaNeo4jFingerprint    = "ac31ec4947f1586093c5518a8b2edb31ddc0e2e462e2091e551af776aeee9c3e"
 	graphSchemaNornicDBFingerprint = "8dfe89b1768205432074d1bf45730f897f11515391a80968178d4956b8103944"
 
 	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
@@ -342,79 +342,6 @@ const (
 var graphSchemaPreModuleIdentityFingerprints = map[SchemaBackend]string{
 	SchemaBackendNeo4j:    graphSchemaNeo4jPreModuleIdentityFingerprint,
 	SchemaBackendNornicDB: graphSchemaNornicDBPreModuleIdentityFingerprint,
-}
-
-// graphSchemaCompatibleFingerprints lists additive predecessor schema
-// fingerprints that older graph writers may safely use after bootstrap records
-// the current marker. The key is the schema fingerprint that was applied; the
-// value lists predecessor fingerprints whose writers stay compatible with it.
-// Destructive schema changes, schema changes coupled to new reducer domains,
-// and write-identity cutovers must not list predecessors.
-//
-// The current fingerprint lists only the additive index bumps made since the
-// #6102 Module (name, lang) cutover; the chain stops at that cutover, because
-// it changed what a writer MERGEs on and a writer on any earlier release
-// resolves an import-edge target by module name alone. The pre-cutover entry
-// below is retained, keyed by that schema's own fingerprint rather than the
-// current one, so it can never be reached by the current lookup. It records
-// what that schema admitted, and the fence tests drive the real admission
-// decision with it.
-var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
-	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {
-			graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
-			graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
-			graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
-			graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
-		},
-		graphSchemaNeo4jPreModuleIdentityFingerprint: {
-			graphSchemaNeo4jPreRegistryEventFingerprint,
-			graphSchemaNeo4jPreArtifactFingerprint,
-			graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
-			graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
-			graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
-			graphSchemaNeo4jPreTerraformStateResourceIndexesFingerprint,
-			graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint,
-			graphSchemaNeo4jPreCodeownersOwnershipFingerprint,
-			graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
-			graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
-			graphSchemaNeo4jPreSqlMigrationFingerprint,
-			graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
-			graphSchemaNeo4jPreInheritanceRetractIndexesFingerprint,
-			graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
-			graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
-			graphSchemaNeo4jPreGitlabFingerprint,
-			graphSchemaNeo4jPreContentEntityGraphFingerprint,
-		},
-	},
-	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {
-			graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,
-			graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
-			graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
-		},
-		graphSchemaNornicDBPreModuleIdentityFingerprint: {
-			graphSchemaNornicDBPreRegistryEventFingerprint,
-			graphSchemaNornicDBPreArtifactFingerprint,
-			graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
-			graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,
-			graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,
-			graphSchemaNornicDBPreTerraformStateResourceIndexesFingerprint,
-			graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint,
-			graphSchemaNornicDBPreCodeownersOwnershipFingerprint,
-			graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
-			graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
-			graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
-			graphSchemaNornicDBPreSqlMigrationFingerprint,
-			graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,
-			graphSchemaNornicDBPreShellExecRetractIndexesFingerprint,
-			graphSchemaNornicDBPreInheritanceRetractIndexesFingerprint,
-			graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,
-			graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
-			graphSchemaNornicDBPreGitlabFingerprint,
-			graphSchemaNornicDBPreContentEntityGraphFingerprint,
-		},
-	},
 }
 
 // SchemaApplicationForBackend returns the graph schema fingerprint and

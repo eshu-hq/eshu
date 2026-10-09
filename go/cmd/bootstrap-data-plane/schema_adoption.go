@@ -210,6 +210,17 @@ func graphSchemaObjectName(statement string) (string, error) {
 			return "", fmt.Errorf("cannot adopt unnamed graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
 		}
 		return fields[2], nil
+	case "FULLTEXT":
+		// CREATE FULLTEXT INDEX <name> IF NOT EXISTS ... is the modern
+		// Neo4j form #7675 executes; normalize the possibly quoted name to
+		// match the inspected object names.
+		if len(fields) < 5 || !strings.EqualFold(fields[2], "INDEX") {
+			return "", fmt.Errorf("cannot adopt unsupported graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
+		}
+		if strings.EqualFold(fields[3], "IF") {
+			return "", fmt.Errorf("cannot adopt unnamed graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
+		}
+		return strings.Trim(fields[3], `"`), nil
 	default:
 		return "", fmt.Errorf("cannot adopt unsupported graph schema statement %q", graphSchemaAdoptionStatementSummary(statement))
 	}

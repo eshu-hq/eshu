@@ -347,9 +347,11 @@ var neo4jUIDLookupIndexes = []string{
 	"CREATE INDEX documentation_section_uid IF NOT EXISTS FOR (s:DocumentationSection) ON (s.uid)",
 }
 
-// schemaFulltextIndexes lists Neo4j full-text index creation statements.
-// The primary form uses the procedure-based API; the fallback uses modern
-// CREATE FULLTEXT INDEX syntax for newer Neo4j versions.
+// schemaFulltextIndexes lists full-text index creation statements in both
+// syntaxes. Each dialect executes one form (#7675): Neo4j runs the modern
+// CREATE FULLTEXT INDEX form (the procedure API was removed in Neo4j 5.0);
+// NornicDB runs the procedure form. Both forms must carry the same labels
+// and properties.
 var schemaFulltextIndexes = []fulltextIndex{
 	{
 		primary: "CALL db.index.fulltext.createNodeIndex('code_search_index', " +

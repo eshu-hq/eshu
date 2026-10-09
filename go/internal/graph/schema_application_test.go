@@ -43,8 +43,12 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// unchanged. #7095 drops the Neo4j uniqueness constraints narrower
 			// than the canonical uid identity and adds three path indexes; no
 			// write identity changes, so the #7057 tip stays admitted, and
-			// NornicDB is again unchanged.
+			// NornicDB is again unchanged. #7675 swaps the Neo4j full-text
+			// DDL text to the modern form for the same two indexes (same
+			// names, labels, properties); no write identity changes, so the
+			// #7095 tip stays admitted, and NornicDB is again unchanged.
 			compatible: []string{
+				graphSchemaNeo4jPreFulltextModernFormFingerprint,
 				graphSchemaNeo4jPreRetiredNarrowConstraintsFingerprint,
 				graphSchemaNeo4jPreUnconstrainedUIDIndexFingerprint,
 				graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,

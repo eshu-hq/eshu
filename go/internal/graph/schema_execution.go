@@ -125,20 +125,21 @@ func ensureSchemaWithBackend(
 	}
 
 	for _, ft := range schemaFulltextIndexes {
-		if err := state.execute(ctx, executor, "fulltext_primary", ft.primary); err != nil {
+		var err error
+		for i, cypher := range dialect.fulltextForms(ft) {
+			phase := "fulltext_primary"
+			if i > 0 {
+				phase = "fulltext_fallback"
+			}
+			if err = state.execute(ctx, executor, phase, cypher); err == nil {
+				break
+			}
 			if isSchemaContextFailure(err) {
 				return err
 			}
-			if dialect.skipFulltextFallback {
-				failed++
-				continue
-			}
-			if err2 := state.execute(ctx, executor, "fulltext_fallback", ft.fallback); err2 != nil {
-				if isSchemaContextFailure(err2) {
-					return err2
-				}
-				failed++
-			}
+		}
+		if err != nil {
+			failed++
 		}
 	}
 
@@ -214,9 +215,8 @@ func schemaStatementTotal(dialect schemaDialect) int {
 		total += len(nornicDBUIDLookupIndexes())
 	}
 	total += len(uidConstraintLabels)
-	total += len(schemaFulltextIndexes)
-	if !dialect.skipFulltextFallback {
-		total += len(schemaFulltextIndexes)
+	for _, ft := range schemaFulltextIndexes {
+		total += len(dialect.fulltextForms(ft))
 	}
 	return total
 }
