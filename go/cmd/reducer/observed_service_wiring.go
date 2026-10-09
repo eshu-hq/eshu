@@ -46,7 +46,11 @@ func buildObservedReducerService(
 		Instruments: instruments,
 	}
 	intentStore := postgres.NewSharedIntentStore(instrumentedDB)
-	identityCache, err := postgres.NewIdentityEpochCache(instruments, identityCacheMaxBytes(getenv))
+	identityCache, err := postgres.NewIdentityEpochCache(
+		instruments,
+		identityCacheMaxBytes(getenv),
+		postgres.WithHeartbeatInterval(reducerHeartbeatInterval),
+	)
 	if err != nil {
 		return reducer.Service{}, nil, nil, fmt.Errorf("identity epoch cache: %w", err)
 	}

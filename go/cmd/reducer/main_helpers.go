@@ -34,6 +34,17 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// reducerClaimLeaseDuration is the lease the reducer work queue grants a claimed
+// item. The service heartbeats a running item every half of it, and the identity
+// epoch cache bounds how long one waiter may block on other callers' flights to
+// that same heartbeat interval (#7805). Both derive from this one value so the
+// cache adds no knob of its own.
+const reducerClaimLeaseDuration = time.Minute
+
+// reducerHeartbeatInterval is how often the reducer service heartbeats a
+// running item: half of the claim lease.
+const reducerHeartbeatInterval = reducerClaimLeaseDuration / 2
+
 // configureReducerQueue builds the reducer work queue and applies the retry,
 // claim-domain, projector-drain, and semantic-claim tuning loaded from the
 // environment, logging the source-local-projector and semantic-claim-limit
@@ -50,7 +61,7 @@ func configureReducerQueue(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) postgres.ReducerQueue {
-	workQueue := postgres.NewReducerQueue(database, "reducer", time.Minute)
+	workQueue := postgres.NewReducerQueue(database, "reducer", reducerClaimLeaseDuration)
 	// Injected clock for lease TTL / claim visibility / retry timing (#4121);
 	// clock.System().Now() == time.Now() in production, swappable for replay.
 	workQueue.Now = clk.Now

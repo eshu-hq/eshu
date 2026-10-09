@@ -2383,7 +2383,7 @@ type Instruments struct {
 	IdentityCachePassthroughTotal metric.Int64Counter
 	// IdentityCacheFlightWaiterTotal counts callers that arrived while an
 	// identity-fact load was in flight, by outcome (shared, shared_error,
-	// stale_epoch, leader_canceled, torn_set) (#7805).
+	// stale_epoch, leader_canceled, torn_set, gave_up) (#7805).
 	IdentityCacheFlightWaiterTotal metric.Int64Counter
 	// IdentityCacheLoadRetryTotal counts identity-fact loads discarded and
 	// repeated inside one flight because the epoch moved during the paged load
@@ -6194,7 +6194,8 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 			"shared (served the flight's rows), shared_error (served the flight's error), "+
 			"stale_epoch (caller's epoch probe differs from the flight's start epoch; retried), "+
 			"leader_canceled (flight leader gave up; retried), "+
-			"torn_set (flight could not validate its set; retried)"),
+			"torn_set (flight could not validate its set; retried), "+
+			"gave_up (caller hit its patience bound of 3 flights or half the claim lease; item fails retryably)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheFlightWaiterTotal counter: %w", err)

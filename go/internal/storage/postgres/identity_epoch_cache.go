@@ -5,9 +5,7 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -92,6 +90,7 @@ const (
 	identityWaiterStaleEpoch     = "stale_epoch"
 	identityWaiterLeaderCanceled = "leader_canceled"
 	identityWaiterTornSet        = "torn_set"
+	identityWaiterGaveUp         = "gave_up"
 )
 
 // IdentityEpochCache caches the full set of active container-image identity
@@ -110,13 +109,31 @@ type IdentityEpochCache struct {
 
 	maxBytes int64
 	inst     *telemetry.Instruments
+
+	// heartbeatInterval is the reducer per-item heartbeat interval. A waiter
+	// spends at most this long in total waiting on flights; zero disables the
+	// wall-clock half of the waiter bound. See waitForFlight.
+	heartbeatInterval time.Duration
+	// newTimer and now are the clock a test injects to drive the wall-clock
+	// bound without sleeping. Nil means the real clock.
+	newTimer func(d time.Duration) (<-chan time.Time, func() bool)
+	now      func() time.Time
+	// afterUnservedFlight, when set by a test, runs in the caller's goroutine
+	// each time a flight it waited on did not serve it, before the caller
+	// loops. It is a deterministic seam for the patience tests only.
+	afterUnservedFlight func(waited int)
 }
 
 // NewIdentityEpochCache constructs the identity epoch cache. maxBytes caps
 // the cached set; 0 disables the cap (uses defaultIdentityCacheMaxBytes).
 // Returns (nil, nil) if maxBytes is negative (cache disabled — callers use the
-// uncached path). inst must be non-nil when cache is enabled.
-func NewIdentityEpochCache(inst *telemetry.Instruments, maxBytes int64) (*IdentityEpochCache, error) {
+// uncached path). inst must be non-nil when cache is enabled. Options tune the
+// bound on how long one caller may spend inside the cache.
+func NewIdentityEpochCache(
+	inst *telemetry.Instruments,
+	maxBytes int64,
+	opts ...IdentityEpochCacheOption,
+) (*IdentityEpochCache, error) {
 	if maxBytes < 0 {
 		return nil, nil
 	}
@@ -126,10 +143,14 @@ func NewIdentityEpochCache(inst *telemetry.Instruments, maxBytes int64) (*Identi
 	if inst == nil {
 		return nil, nil
 	}
-	return &IdentityEpochCache{
+	cache := &IdentityEpochCache{
 		maxBytes: maxBytes,
 		inst:     inst,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(cache)
+	}
+	return cache, nil
 }
 
 // get serves the identity fact set, transparently applying the epoch cache
@@ -145,6 +166,8 @@ func NewIdentityEpochCache(inst *telemetry.Instruments, maxBytes int64) (*Identi
 //     active set it observed;
 //   - otherwise the caller becomes the leader of a new flight.
 func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts.Envelope, error) {
+	unserved := 0
+	var waitedFor time.Duration
 	for {
 		// Probe the epoch WITHOUT the lock held, so concurrent callers' probes
 		// overlap instead of serializing behind mu.
@@ -160,13 +183,18 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 			flight.waiters++
 			joinable := flight.startEpoch == probe
 			c.mu.Unlock()
-			select {
-			case <-flight.done:
-			case <-ctx.Done():
-				return nil, ctx.Err()
+			if err := c.waitForFlight(ctx, flight, &waitedFor); err != nil {
+				return nil, err
 			}
 			if rows, served, flightErr := c.settleWaiter(ctx, flight, joinable); served {
 				return rows, flightErr
+			}
+			unserved++
+			if c.afterUnservedFlight != nil {
+				c.afterUnservedFlight(unserved)
+			}
+			if unserved >= maxIdentityWaiterFlights {
+				return nil, c.gaveUp(ctx, identityGaveUpFlights)
 			}
 			continue
 		}
@@ -304,37 +332,6 @@ func (c *IdentityEpochCache) lead(
 	}
 }
 
-// IdentityEpochUnstableFailureClass is the durable failure_class of
-// identityLoadUnstableError. It labels the reducer retry and failure metrics and
-// the queue's failure_class column. It is deliberately NOT one of the
-// non-counting retry classes: each retry consumes a claim attempt, so a
-// persistently moving epoch ends in the normal dead-letter policy instead of an
-// unbounded loop (#7805).
-const IdentityEpochUnstableFailureClass = "identity_epoch_unstable"
-
-// identityLoadUnstableError reports that the identity fact set kept changing
-// (or could not be re-validated) while it was being paged, so no consistent set
-// exists to decide on. It is retryable and carries a failure class: the reducer
-// queue re-runs the item, which re-enters the cache with a fresh epoch probe.
-type identityLoadUnstableError struct {
-	reason string
-}
-
-func newIdentityLoadUnstableError(reason string) error {
-	return identityLoadUnstableError{reason: reason}
-}
-
-// Error implements error.
-func (e identityLoadUnstableError) Error() string {
-	return "identity fact set changed while it was loaded (" + e.reason + "); the item will be retried"
-}
-
-// Retryable marks the failure as one the durable queue should retry.
-func (identityLoadUnstableError) Retryable() bool { return true }
-
-// FailureClass names the failure for queue status and operator triage.
-func (identityLoadUnstableError) FailureClass() string { return IdentityEpochUnstableFailureClass }
-
 // loadVerdict is the outcome of validating one finished load against the
 // active set. retry means the epoch moved during the load, so the set may be
 // torn. cacheable means the set may be retained. reason names the closed
@@ -390,57 +387,85 @@ func (c *IdentityEpochCache) finish(flight *identityFlight, publish func()) {
 	close(flight.done)
 }
 
-// estimateEnvelopesByteSize returns a conservative byte estimate for a set of
-// fact envelopes, used for the cache cap check. It returns an error if any
-// envelope's Payload cannot be sized via json.Marshal (e.g. a NaN/Inf float or
-// another value json.Marshal rejects). Callers MUST treat a non-nil error as
-// "unsizable, do not cache" rather than substituting a 0 or estimated size:
-// silently under-counting an unsizable payload could let it slip under the
-// cache's maxBytes cap.
-func estimateEnvelopesByteSize(loaded []facts.Envelope) (int64, error) {
-	var total int64
-	for _, env := range loaded {
-		total += int64(len(env.FactID))
-		total += int64(len(env.ScopeID))
-		total += int64(len(env.GenerationID))
-		total += int64(len(env.FactKind))
-		total += int64(len(env.StableFactKey))
-		total += int64(len(env.SchemaVersion))
-		total += int64(len(env.CollectorKind))
-		total += int64(len(env.SourceConfidence))
-		total += int64(len(env.SourceRef.SourceSystem))
-		total += int64(len(env.SourceRef.FactKey))
-		total += int64(len(env.SourceRef.SourceURI))
-		total += int64(len(env.SourceRef.SourceRecordID))
-		// Estimate payload as its JSON serialization size.
-		if env.Payload != nil {
-			b, err := json.Marshal(env.Payload)
-			if err != nil {
-				return 0, fmt.Errorf("estimate envelope %s payload size: %w", env.FactID, err)
-			}
-			total += int64(len(b))
-		}
-		// Fixed overhead: each time.Time, int64, bool ~ 40 bytes.
-		total += 40
+// maxIdentityWaiterFlights is how many flights one caller may wait out without
+// being served before it gives up. Without the bound a caller whose probe never
+// matches a stable flight re-probes and re-joins forever while only the leaders
+// of those flights consume claim attempts. Each such caller holds one worker of
+// the reducer pool for as long as the churn lasts, so under sustained churn the
+// pool stalls (#7805). The leader is bounded by its two load attempts instead.
+const maxIdentityWaiterFlights = 3
+
+// Reasons carried in the error text of a caller that gave up. They are not
+// metric labels; the metric records only the closed outcome gave_up.
+const (
+	identityGaveUpFlights   = "waited out the maximum number of flights"
+	identityGaveUpWallClock = "waited longer than one heartbeat interval"
+)
+
+// IdentityEpochCacheOption tunes an IdentityEpochCache at construction.
+type IdentityEpochCacheOption func(*IdentityEpochCache)
+
+// WithHeartbeatInterval bounds the total time one caller may spend waiting on
+// other callers' flights to one reducer heartbeat interval. Pass the interval
+// the reducer service already derives from its claim lease (LeaseDuration / 2),
+// so the cache adds no knob of its own. A non-positive value disables the
+// wall-clock half of the bound; the flight-count half always applies.
+func WithHeartbeatInterval(interval time.Duration) IdentityEpochCacheOption {
+	return func(c *IdentityEpochCache) {
+		c.heartbeatInterval = interval
 	}
-	return total, nil
 }
 
-// defensiveCopyEnvelopes returns a fresh slice with a one-level copy of each
-// envelope's Payload map, so callers cannot mutate the shared cache through
-// top-level payload keys. Nested payload values (e.g. entity_metadata maps)
-// are shared by reference; identity-load callers are read-only by audit, and
-// new callers must not mutate nested payload values.
-func defensiveCopyEnvelopes(src []facts.Envelope) []facts.Envelope {
-	dst := make([]facts.Envelope, len(src))
-	for i, env := range src {
-		dst[i] = env
-		if env.Payload != nil {
-			dst[i].Payload = make(map[string]any, len(env.Payload))
-			for k, v := range env.Payload {
-				dst[i].Payload[k] = v
-			}
+// waitForFlight blocks until flight finishes, the caller's context ends, or the
+// caller has spent a full heartbeat interval waiting on flights in total
+// (waitedFor accumulates across calls). It returns nil when the flight finished,
+// the context error when the caller's own context ended, and the retryable
+// identity_epoch_unstable error when the wall-clock bound tripped.
+func (c *IdentityEpochCache) waitForFlight(
+	ctx context.Context,
+	flight *identityFlight,
+	waitedFor *time.Duration,
+) error {
+	var expired <-chan time.Time
+	stop := func() bool { return true }
+	if c.heartbeatInterval > 0 {
+		remaining := c.heartbeatInterval - *waitedFor
+		if remaining <= 0 {
+			return c.gaveUp(ctx, identityGaveUpWallClock)
+		}
+		if c.newTimer != nil {
+			expired, stop = c.newTimer(remaining)
+		} else {
+			timer := time.NewTimer(remaining)
+			expired, stop = timer.C, timer.Stop
 		}
 	}
-	return dst
+	started := c.clockNow()
+	defer func() {
+		stop()
+		*waitedFor += c.clockNow().Sub(started)
+	}()
+	select {
+	case <-flight.done:
+		return nil
+	case <-expired:
+		return c.gaveUp(ctx, identityGaveUpWallClock)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *IdentityEpochCache) clockNow() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
+// gaveUp records that a caller hit its patience bound and returns the
+// retryable error that fails its item.
+func (c *IdentityEpochCache) gaveUp(ctx context.Context, reason string) error {
+	c.inst.IdentityCacheFlightWaiterTotal.Add(context.WithoutCancel(ctx), 1,
+		metric.WithAttributes(telemetry.AttrOutcome(identityWaiterGaveUp)))
+	return newIdentityLoadUnstableError(reason)
 }
