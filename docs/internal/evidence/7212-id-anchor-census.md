@@ -152,7 +152,8 @@ The gauge is the traffic-independent check that the invariant holds on a
 deployment. The existing `resolved_by` counter stays as the traffic-dependent
 cross-check. The rollout of the second change is gated on `unreachable_nodes = 0
 AND id_bearing_nodes > 0` from the same pass (both are in the `id anchor census`
-log line), on each deployment, or on a read-only census of the same shape under
+log line, and both are gauges on `/metrics`: `eshu_dp_graph_id_anchor_unreachable_nodes`
+and `eshu_dp_graph_id_anchor_id_bearing_nodes`), on each deployment, or on a read-only census of the same shape under
 its own admission. A reading of zero with `id_bearing_nodes = 0` proves nothing:
 an empty graph reads zero. The gauge detects after the fact, with a lag of up to
 one poll interval (default one hour).
@@ -179,15 +180,18 @@ exact statement on a graph the size of ops-qa.
 
 ## Observability Evidence
 
-Observability Evidence: four instruments, all in the reducer maintenance lane:
+Observability Evidence: five instruments, all in the reducer maintenance lane:
 `eshu_dp_graph_id_anchor_unreachable_nodes`,
+`eshu_dp_graph_id_anchor_id_bearing_nodes` (recorded from the same pass, so the
+rollout read `unreachable = 0 AND id_bearing > 0` comes from `/metrics` alone),
 `eshu_dp_graph_id_anchor_census_last_success_unixtime`,
 `eshu_dp_graph_id_anchor_census_passes_total` (closed `outcome`: `ok`,
 `failed`), and `eshu_dp_graph_id_anchor_census_duration_seconds`. None carries a
 label that grows with data. The tests in
 `go/internal/reducer/maintenance/census/runner_test.go` drive the
 runner against a real OpenTelemetry SDK manual reader and assert the gauge value,
-the last-success time, the pass counter, the duration histogram, the startup log
+the id-bearing gauge (the pass's count, a recorded zero on an empty graph, and the
+last good value after a failed pass), the last-success time, the pass counter, the duration histogram, the startup log
 line (`snapshot=true`, `first_pass=true`, the counts), the WARN on a residual,
 and that a failed pass or a timeout keeps the last good snapshot.
 

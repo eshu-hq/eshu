@@ -7,6 +7,12 @@ through a uid-constrained label with `uid` equal to `id`. Zero is the
 invariant: with it, a miss on `GET /api/v0/entities/{entity_id}/context` has no
 node left for an unlabeled scan to find.
 
+An empty graph also reads zero, so a zero alone proves nothing. The reducer
+records `eshu_dp_graph_id_anchor_id_bearing_nodes` from the same pass. The
+healthy reading is `eshu_dp_graph_id_anchor_unreachable_nodes == 0` and
+`eshu_dp_graph_id_anchor_id_bearing_nodes > 0`; both come from `/metrics`, with
+no need to read the log line.
+
 ## How it is sampled
 
 The census is one read-only `AllNodesScan` through the reducer's graph read
@@ -20,13 +26,14 @@ turn it off.
 
 The value is a snapshot of one read transaction, not a point in time. A node
 written during the scan may or may not be counted. A failed or timed-out pass
-keeps the last good value, so read the age beside the count.
+keeps the last good value of both gauges, so read the age beside the count.
 
 ## Signals
 
 | Metric | Type | Use |
 | --- | --- | --- |
 | `eshu_dp_graph_id_anchor_unreachable_nodes` | gauge | Nodes with an id that the anchor cannot reach, from the last successful pass. No labels. |
+| `eshu_dp_graph_id_anchor_id_bearing_nodes` | gauge | Nodes that carry an id, from the same successful pass. Zero beside a zero unreachable count is an empty graph, not a healthy one. No labels. |
 | `eshu_dp_graph_id_anchor_census_last_success_unixtime` | gauge | Unix second of the last successful pass. `time()` minus this is the snapshot age. |
 | `eshu_dp_graph_id_anchor_census_passes_total` | counter | Passes by `outcome`: `ok` or `failed`. |
 | `eshu_dp_graph_id_anchor_census_duration_seconds` | histogram | Pass wall time by `outcome`. |

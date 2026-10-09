@@ -67,7 +67,10 @@ result is recorded after the pass, never during a scrape.
 `eshu_dp_graph_id_anchor_unreachable_nodes` is the count of nodes with an id the
 anchor cannot reach. It is a snapshot of one read transaction, not a point in
 time, and a failed pass leaves it at its last good value while
-`eshu_dp_graph_id_anchor_census_last_success_unixtime` ages. Passes are counted
+`eshu_dp_graph_id_anchor_census_last_success_unixtime` ages. The same pass
+records `eshu_dp_graph_id_anchor_id_bearing_nodes`, the count of nodes that carry
+an id, because an empty graph also reads zero unreachable nodes: the healthy
+reading is unreachable `0` with id-bearing above `0`, both from `/metrics`. Passes are counted
 by `outcome` (`ok`, `failed`) in `eshu_dp_graph_id_anchor_census_passes_total`.
 The pass log line is `id anchor census` with `snapshot=true`, the counts, and
 `first_pass=true` on the startup pass; a nonzero residual logs at WARN. Shutdown
