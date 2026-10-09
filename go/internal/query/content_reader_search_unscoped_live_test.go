@@ -211,10 +211,10 @@ func TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive(t *testing.T) 
 	for _, ms := range []time.Duration{100, 60, 40, 25, 15, 200, 400} {
 		budget := ms * time.Millisecond
 		run := resumeNoTrigramSearch(t, budget, liveResumeCall(ctx, db, budget), want)
-		if run.progressed > 0 {
+		if run.cutTail() {
 			return
 		}
-		tried = append(tried, fmt.Sprintf("%dms (stalls %d)", ms, run.stalls))
+		tried = append(tried, fmt.Sprintf("%dms (stalls %d, abandoned %t)", ms, run.stalls, run.abandoned))
 	}
 	t.Fatalf("no progressed partial page at any budget (%s): the tail always finished or the host scanned nothing, so the cancel path was not exercised", strings.Join(tried, ", "))
 }

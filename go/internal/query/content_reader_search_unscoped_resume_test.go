@@ -4,6 +4,7 @@
 package query
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,14 @@ import (
 // bind it to a scripted fake.
 type resumeSearchCall func(cursor querycontract.SearchCursor) (querycontract.FileSearchPage, error)
 
+// resumeReporter is the part of testing.T the resume helper uses. A hermetic
+// test binds a fake whose Fatalf stops the run, so a failure the helper is
+// meant to raise can be asserted without failing the test binary.
+type resumeReporter interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
 // resumeRun reports what one cursor-resume run saw.
 type resumeRun struct {
 	// progressed counts partial pages that advanced the cursor. Only such a
@@ -27,6 +36,10 @@ type resumeRun struct {
 	// stalled calls in a row, so the rung proved nothing about exactness.
 	abandoned bool
 }
+
+// cutTail reports whether the run proves the budget cut the search short after
+// real work and the rows it gathered were checked against the old rows.
+func (r resumeRun) cutTail() bool { return r.progressed > 0 && !r.abandoned }
 
 const (
 	// maxConsecutiveStalls bounds how often the same request is re-issued
@@ -43,7 +56,7 @@ const (
 // re-issues the same request. The run fails the test unless the rows gathered
 // from a complete run equal the old statement's rows exactly, in order, with
 // no gap and no duplicate.
-func resumeNoTrigramSearch(t *testing.T, budget time.Duration, search resumeSearchCall, want []string) resumeRun {
+func resumeNoTrigramSearch(t resumeReporter, budget time.Duration, search resumeSearchCall, want []string) resumeRun {
 	t.Helper()
 	var run resumeRun
 	var gathered []string
@@ -66,6 +79,9 @@ func resumeNoTrigramSearch(t *testing.T, budget time.Duration, search resumeSear
 			run.stalls++
 			consecutiveStalls++
 			if consecutiveStalls >= maxConsecutiveStalls {
+				if len(gathered) > len(want) || strings.Join(gathered, ",") != strings.Join(want[:len(gathered)], ",") {
+					t.Fatalf("budget %d ms: abandoned run gathered %v, not an ordered prefix of %v", budget.Milliseconds(), gathered, want)
+				}
 				run.abandoned = true
 				return run
 			}
@@ -87,7 +103,7 @@ func resumeNoTrigramSearch(t *testing.T, budget time.Duration, search resumeSear
 // assertNoProgressPartial checks the contract of a partial page that scanned
 // nothing: the cursor is the request cursor, no rows were scanned or matched,
 // the page carries no rows, and the hint tells the client not to resume.
-func assertNoProgressPartial(t *testing.T, budget time.Duration, call int, request querycontract.SearchCursor, page querycontract.FileSearchPage) {
+func assertNoProgressPartial(t resumeReporter, budget time.Duration, call int, request querycontract.SearchCursor, page querycontract.FileSearchPage) {
 	t.Helper()
 	p := page.Partial
 	switch {
@@ -167,5 +183,86 @@ func TestResumeAbandonsARungThatNeverProgresses(t *testing.T) {
 	run := resumeNoTrigramSearch(t, 15*time.Millisecond, scriptedResume(t, pages...), []string{"r/a"})
 	if run.progressed != 0 || run.stalls != maxConsecutiveStalls || !run.abandoned {
 		t.Fatalf("run = %+v, want 0 progressed, %d stalls, abandoned", run, maxConsecutiveStalls)
+	}
+}
+
+// TestResumeDoesNotCountARungAbandonedAfterProgress pins that a rung which made
+// a progressed page and then stalled until it was abandoned did not cut the
+// tail in a way the test checked: the live ladder must not stop on it.
+func TestResumeDoesNotCountARungAbandonedAfterProgress(t *testing.T) {
+	a := scriptedFile("r", "a")
+	atA := querycontract.SearchCursor{RepoID: "r", RelativePath: "a"}
+	pages := []querycontract.FileSearchPage{{
+		Files: []querycontract.FileContent{a},
+		Partial: &querycontract.SearchPartial{
+			Reason: querycontract.SearchPartialCandidateBudgetExceeded, RowsScannedInOrder: 1, RowsMatched: 1,
+			Cursor: atA, Progressed: true, Hint: querycontract.SearchPartialHint,
+		},
+	}}
+	for i := 0; i < maxConsecutiveStalls; i++ {
+		pages = append(pages, stalledPartial(atA))
+	}
+	run := resumeNoTrigramSearch(t, 40*time.Millisecond, scriptedResume(t, pages...), []string{"r/a", "r/b"})
+	if run.progressed != 1 || !run.abandoned {
+		t.Fatalf("run = %+v, want 1 progressed partial and abandoned", run)
+	}
+	if run.cutTail() {
+		t.Fatalf("run = %+v counts as a cut tail, want an abandoned run not to", run)
+	}
+}
+
+// recordingReporter is a resumeReporter whose Fatalf records the message and
+// stops the run, as testing.T does, so a test can assert the failure.
+type recordingReporter struct {
+	failed  bool
+	message string
+}
+
+type reporterStop struct{}
+
+func (r *recordingReporter) Helper() {}
+
+func (r *recordingReporter) Fatalf(format string, args ...any) {
+	r.failed = true
+	r.message = fmt.Sprintf(format, args...)
+	panic(reporterStop{})
+}
+
+// runRecorded runs fn and reports whether the reporter stopped it.
+func runRecorded(r *recordingReporter, fn func()) {
+	defer func() {
+		if v := recover(); v != nil {
+			if _, ok := v.(reporterStop); !ok {
+				panic(v)
+			}
+		}
+	}()
+	fn()
+}
+
+// TestResumeFailsAnAbandonedRunWhoseRowsAreNotAPrefix pins that a rung
+// abandoned after stalls still has to have gathered an ordered prefix of the
+// old statement's rows. A duplicated row, which a keyset edge bug produces,
+// must fail the run instead of passing as an abandoned rung.
+func TestResumeFailsAnAbandonedRunWhoseRowsAreNotAPrefix(t *testing.T) {
+	a := scriptedFile("r", "a")
+	atA := querycontract.SearchCursor{RepoID: "r", RelativePath: "a"}
+	pages := []querycontract.FileSearchPage{{
+		Files: []querycontract.FileContent{a, a},
+		Partial: &querycontract.SearchPartial{
+			Reason: querycontract.SearchPartialCandidateBudgetExceeded, RowsScannedInOrder: 2, RowsMatched: 2,
+			Cursor: atA, Progressed: true, Hint: querycontract.SearchPartialHint,
+		},
+	}}
+	for i := 0; i < maxConsecutiveStalls; i++ {
+		pages = append(pages, stalledPartial(atA))
+	}
+	rec := &recordingReporter{}
+	runRecorded(rec, func() {
+		resumeNoTrigramSearch(rec, 40*time.Millisecond, scriptedResume(t, pages...), []string{"r/z"})
+	})
+	want := "abandoned run gathered [r/a r/a], not an ordered prefix of [r/z]"
+	if !rec.failed || !strings.Contains(rec.message, want) {
+		t.Fatalf("failed = %t, message = %q, want a failure containing %q", rec.failed, rec.message, want)
 	}
 }
