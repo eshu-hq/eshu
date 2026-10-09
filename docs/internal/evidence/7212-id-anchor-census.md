@@ -221,9 +221,11 @@ transcripts were captured locally.
 All three live tests were re-run after the residual-by-labels statement moved its
 two reachability booleans into a `WITH` (the NornicDB label-predicate guard
 rejects a quantifier over `labels()` inside a `WHERE`, #6786 X11). The run was at
-commit 4ec4dc37b, on the pinned `neo4j:2026-community` image (server 2026.08.1,
-arm64 container, project `p7212-fix-live`, private host ports), torn down after
-with `down -v`. Later commits change only documentation. `TestLiveAnchorCensus`
+commit cd8250cb0 after a rebase onto main at 16c8c2a36, on the pinned
+`neo4j:2026-community` image (server 2026.08.1, arm64 container, private host
+ports), torn down after. The same three tests also passed one rebase earlier,
+before the runner moved to its leaf package. Later commits change only
+documentation. `TestLiveAnchorCensus`
 passed. `TestLiveAnchorCensusCheck` passed with the same clean line
 (`id-bearing 2, via uid 1, via id 1, residual 0`) and the same planted result
 (`residual 2`, label sets `labels=[Unconstrained] nodes=1; labels=[Function]
