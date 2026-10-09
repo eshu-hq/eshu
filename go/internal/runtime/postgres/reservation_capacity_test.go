@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"syscall"
 	"testing"
@@ -43,6 +44,35 @@ func TestFleetReservationTimeoutClassifiesCapacityWithLiveCaller(t *testing.T) {
 	probe, err := access.allocator.reserve(ctx, []int{0}, 1)
 	if err != nil {
 		t.Fatalf("single-reader fallback slot unavailable: %v", err)
+	}
+	probe.Release()
+}
+
+func TestFleetSnapshotSetPreservesReservationCapacityThroughPrivateFailure(t *testing.T) {
+	access := reservationCapacityAccess(25 * time.Millisecond)
+	// MaxReadConnections needs a reader handle, but the held allocator slot
+	// prevents snapshot setup from borrowing a database connection.
+	access.reader = &sql.DB{}
+	access.reader.SetMaxOpenConns(4)
+	ctx := reservationCheckpointContext(t.Context(), access)
+	held, err := access.allocator.reserve(ctx, []int{0}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Release()
+
+	set, err := (fencedQueryer{access: access}).BeginReadOnlySnapshotSet(ctx, 4)
+	if set != nil || !errors.Is(err, db.ErrSnapshotReservationCapacity) || ctx.Err() != nil {
+		t.Fatalf("snapshot set = %v, capacity error = %v, caller error = %v", set, err, ctx.Err())
+	}
+	reserved, waiters := access.allocator.pressure()
+	if reserved[0] != 1 || waiters[0] != 0 {
+		t.Fatalf("snapshot timeout leaked reservation or waiter: reserved=%v waiters=%v", reserved, waiters)
+	}
+	held.Release()
+	probe, err := access.allocator.reserve(ctx, []int{0}, 4)
+	if err != nil {
+		t.Fatalf("subsequent snapshot reservation failed: %v", err)
 	}
 	probe.Release()
 }
