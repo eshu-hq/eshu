@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 func TestRenderStatusIncludesAWSFreshnessBacklog(t *testing.T) {
@@ -17,7 +18,7 @@ func TestRenderStatusIncludesAWSFreshnessBacklog(t *testing.T) {
 
 	report := status.BuildReport(status.RawSnapshot{
 		AsOf: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC),
-		AWSFreshness: status.AWSFreshnessSnapshot{
+		AWSFreshness: cloud.AWSFreshnessSnapshot{
 			StatusCounts: []status.NamedCount{
 				{Name: "queued", Count: 2},
 				{Name: "claimed", Count: 1},

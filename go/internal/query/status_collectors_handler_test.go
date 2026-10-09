@@ -13,6 +13,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 func TestStatusHandlerCollectorsRouteExposesCoordinatorInstances(t *testing.T) {
@@ -90,7 +91,7 @@ func TestStatusHandlerCollectorsRouteExposesDirectRuntimeEvidence(t *testing.T) 
 						UpdatedAt:      now.Add(-9 * time.Minute),
 					}},
 				},
-				AWSCloudScans: []statuspkg.AWSCloudScanStatus{{
+				AWSCloudScans: []cloud.AWSScanStatus{{
 					CollectorInstanceID: "collector-aws-direct",
 					AccountID:           "123456789012",
 					Region:              "us-east-1",
@@ -189,7 +190,7 @@ func TestStatusHandlerCollectorsRouteExplainsAWSHealthEvidence(t *testing.T) {
 						UpdatedAt:      now.Add(-19 * time.Minute),
 					}},
 				},
-				AWSCloudScans: []statuspkg.AWSCloudScanStatus{
+				AWSCloudScans: []cloud.AWSScanStatus{
 					{
 						CollectorInstanceID: "collector-aws-claims",
 						AccountID:           "123456789012",

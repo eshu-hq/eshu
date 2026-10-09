@@ -146,10 +146,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   ecosystem for planned, completed, skipped, stale, failed, and rate-limited
   work. Skipped rows come from stable `package_registry.warning` reason codes
   and do not expose package names, registry URLs, or credential material.
-- `AWSCloudScanStatus` — per AWS `(collector_instance_id, account_id, region,
+- `cloud.AWSScanStatus` — per AWS `(collector_instance_id, account_id, region,
   service_kind)` scanner status, commit status, API call count, throttle count,
   warning count, and budget/credential flags
-- `AWSFreshnessSnapshot` — aggregate AWS Config/EventBridge freshness trigger
+- `cloud.AWSFreshnessSnapshot` — aggregate AWS Config/EventBridge freshness trigger
   status counts and oldest queued age; does not expose resource identifiers
 - `VulnerabilitySourceState` — per vulnerability source target checkpoint,
   freshness, retry, result count, warning count, and terminal state; does not
@@ -394,14 +394,14 @@ and `eshu_dp_postgres_query_duration_seconds`.
   source is active. Git repository-ingestion facts are included in the same
   persisted source-fact evidence path so repository observations do not appear
   as zero when repository readbacks are populated.
-- **AWS cloud status separates scan and commit.** `AWSCloudScanStatus.Status`
+- **AWS cloud status separates scan and commit.** `cloud.AWSScanStatus.Status`
   describes scanner-side outcome such as `partial`, `credential_failed`, or
   `failed`; `CommitStatus` describes whether the fenced fact transaction later
   committed. A row with scanner status `succeeded` and commit status
   `committed` is healthy even if older retry metadata is still present; current
   degraded rows must expose the AWS scan-status evidence source and bounded
   failure reason in `CollectorRuntimeStatus.Detail`.
-- **AWS freshness status is aggregate only.** `AWSFreshnessSnapshot` shows
+- **AWS freshness status is aggregate only.** `cloud.AWSFreshnessSnapshot` shows
   queued, claimed, handed-off, and failed trigger counts plus oldest queued age.
   Resource IDs, ARNs, event IDs, and raw payloads stay out of the status
   contract.
