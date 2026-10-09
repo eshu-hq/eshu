@@ -571,7 +571,7 @@ console or API defect.
 ## Durable Admin Controls
 
 - `POST /api/v0/admin/refinalize` re-enqueues scope generations for projection
-  through the durable Go work queue and reports `skipped_scopes` (see below).
+  through the durable Go work queue and reports `skipped_scopes`, `delta_active_scopes`, and `reindex_requests_written` (see below).
 - `POST /api/v0/admin/reindex` records a fleet or per-repository reindex watermark
   for the git ingesters: [Reindex requests](../reconciliation-sweep.md#reindex-requests).
 - `POST /api/v0/admin/recover-generations` is the operator escape hatch for
@@ -597,9 +597,9 @@ console or API defect.
   may be zero with no prior state; unexpected all-zero resets need graph checks.
 
   `skipped_scopes` (`total`, `by_reason`, `sample_scope_ids`; always present)
-  lists scopes not re-enqueued, by reason; see [Rebuild the graph from
+  lists scopes not re-enqueued, by reason. `delta_active_scopes` (`total`, `by_outcome`, `sample_scope_ids`, `detail`; always present, #7797) lists re-enqueued scopes whose generation is a delta: their graph stays incomplete until a full generation activates, and for each git default-branch scope (`reindex_requested`) the call recorded a per-repository reindex watermark in the same transaction; `reindex_unsupported` scopes need a full collection from their own collector. `reindex_requests_written` (`count`, up to 10 `scope_ids`; always present) names those watermarks. See [Rebuild the graph from
   facts](../../operate/graph-rebuild-from-facts.md). A retry returning
-  `duplicate: true` carries neither the five counters nor `skipped_scopes`: the
+  `duplicate: true` carries neither the five counters nor the three reports: the
   `admin_replay_requests` ledger stores only the enqueue outcome. If the
   original response was lost, read the effect from the queue instead: pending
   `projector` rows in `fact_work_items`, and `shared_projection_intents` with

@@ -100,7 +100,10 @@ or log, and no operator signal moves.
   overlapping requests take row locks in one order and cannot deadlock, and a
   duplicate never reaches `ON CONFLICT` twice (which Postgres rejects with
   21000). `GREATEST` keeps each row monotonic, and `RETURNING` reports the
-  stored value. Rows are never claimed or deleted.
+  stored value. Rows are never claimed or deleted. A refinalize writes the same
+  rows for delta-active git scopes (#7797) with `reset.RequestReindexQuery`,
+  which `TestRequestRepositoryReindexQueryMatchesRefinalize` pins
+  byte-identical to this statement.
 - `RepositoryReindexWatermarks` returns the rows later than the given fleet
   watermark. The table has no secondary index: it holds one row per
   repository ever requested, and the read is a sequential scan.

@@ -7,8 +7,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -18,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 )
 
 // countDeadLetterBacklogTemplate counts the terminal rows a replay with the same
@@ -44,6 +50,10 @@ type RecoveryStore struct {
 	// instruments records the superseded-generation replay fence counter.
 	// Nil is a no-op.
 	instruments *telemetry.Instruments
+
+	// logger receives the refinalize delta-active logs (#7797). Nil uses
+	// slog.Default(). It is set with WithRecoveryLogger.
+	logger *slog.Logger
 }
 
 // resetQueryer adapts Transaction to reset.Queryer. The row
@@ -85,6 +95,14 @@ func WithRefinalizeDrainPollInterval(d time.Duration) RecoveryStoreOption {
 func WithRecoveryInstruments(instruments *telemetry.Instruments) RecoveryStoreOption {
 	return func(s *RecoveryStore) {
 		s.instruments = instruments
+	}
+}
+
+// WithRecoveryLogger sets the logger for the refinalize delta-active logs
+// (#7797). Nil keeps slog.Default().
+func WithRecoveryLogger(logger *slog.Logger) RecoveryStoreOption {
+	return func(s *RecoveryStore) {
+		s.logger = logger
 	}
 }
 
@@ -321,11 +339,18 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 // re-projection at source-local structure; the reset subpackage says
 // which state and why each piece blocks a rebuild.
 //
-// All five statements run in one transaction so a refinalize cannot leave the
-// queue re-enqueued while its downstream state still says the work is done; that
-// half-applied state is invisible until the graph comes back short. They all
-// bind one generation set, read once at the top -- see
-// refinalizeAffectedGenerations for why re-deriving it per statement is unsafe.
+// For each re-enqueued generation that is a delta it also records a
+// per-repository reindex watermark when the scope is a git default-branch scope
+// and reports every such scope in the result's DeltaActive field (#7797): a
+// delta restores only its changed files onto a wiped graph, so the full
+// re-parse the watermark forces is what restores the rest.
+//
+// Every statement runs in one transaction so a refinalize cannot leave the
+// queue re-enqueued while its downstream state still says the work is done, or
+// a delta re-projected without its repair request; that half-applied state is
+// invisible until the graph comes back short. They all bind one generation set,
+// read once at the top -- see reset.ReadAffectedGenerations for why re-deriving
+// it per statement is unsafe.
 func (s RecoveryStore) RefinalizeScopeProjections(
 	ctx context.Context,
 	filter recovery.RefinalizeFilter,
@@ -375,6 +400,13 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		return recovery.RefinalizeResult{}, err
 	}
 
+	// A delta generation restores only its changed files; request the full
+	// re-parse that restores the rest in this same transaction (#7797).
+	deltaActive, deltaGenerations, err := reset.RequestDeltaActiveReindex(ctx, rq, generations)
+	if err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+
 	counts, err := reset.ApplyPreRetirement(ctx, tx, generations)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
@@ -395,6 +427,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: commit: %w", err)
 	}
 	committed = true
+	s.reportDeltaActive(ctx, deltaActive, deltaGenerations)
 
 	return recovery.RefinalizeResult{
 		Enqueued:                          len(scopeIDs),
@@ -405,5 +438,31 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		GenerationsRetired:                counts.GenerationsRetired,
 		SharedProjectionAcceptanceCleared: counts.SharedProjectionAcceptanceCleared,
 		Skipped:                           skipped,
+		DeltaActive:                       deltaActive,
 	}, nil
+}
+
+// reportDeltaActive emits the operator signals for one committed refinalize's
+// delta-active scopes (#7797): the count as a span attribute,
+// eshu_dp_recovery_delta_active_scopes_total by outcome, and the logs, whose
+// WARN budget recovery.LogDeltaActive owns. It runs only after the commit, so
+// a rolled-back refinalize reports nothing it did not do.
+func (s RecoveryStore) reportDeltaActive(
+	ctx context.Context,
+	report recovery.DeltaActiveScopes,
+	delta []recovery.DeltaActiveGeneration,
+) {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int(contract.SpanAttrRecoveryDeltaActiveScopes, report.Total()),
+	)
+	recovery.LogDeltaActive(ctx, s.logger, report, delta)
+	if s.instruments == nil || s.instruments.RecoveryDeltaActiveScopes == nil {
+		return
+	}
+	for _, outcome := range report.Outcomes() {
+		s.instruments.RecoveryDeltaActiveScopes.Add(
+			context.WithoutCancel(ctx), int64(report.ByOutcome[outcome]),
+			metric.WithAttributes(telemetry.AttrOutcome(outcome)),
+		)
+	}
 }

@@ -952,6 +952,14 @@ type Instruments struct {
 	// newest_generation_not_failed, no_active_generation, unknown_scope). Never
 	// carries scope ids.
 	RecoveryScopesSkipped metric.Int64Counter
+	// RecoveryDeltaActiveScopes counts scopes an operator refinalize
+	// re-enqueued through a delta generation (issue #7797). A delta carries
+	// only the files that changed since its baseline, so after a graph wipe
+	// those scopes stay incomplete until a full generation activates. Labels:
+	// outcome, the closed recovery.DeltaActiveOutcome* set (reindex_requested,
+	// reindex_unsupported). Never carries scope ids. Registered in
+	// instruments_recovery_delta_active.go.
+	RecoveryDeltaActiveScopes metric.Int64Counter
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -5031,6 +5039,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSharedProjectionCycle(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

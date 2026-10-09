@@ -245,7 +245,8 @@ func ReadAffectedGenerations(
 	seen := make(map[string]struct{})
 	for rows.Next() {
 		var scopeID, generationID, skipReason string
-		if scanErr := rows.Scan(&scopeID, &generationID, &skipReason); scanErr != nil {
+		var isDelta bool
+		if scanErr := rows.Scan(&scopeID, &generationID, &skipReason, &isDelta); scanErr != nil {
 			return Generations{}, recovery.SkippedScopes{}, fmt.Errorf("refinalize affected generations: %w", scanErr)
 		}
 		seen[scopeID] = struct{}{}
@@ -253,7 +254,7 @@ func ReadAffectedGenerations(
 			skipped.Add(skipReason, scopeID)
 			continue
 		}
-		generations.Append(scopeID, generationID)
+		generations.AppendSelected(scopeID, generationID, isDelta)
 	}
 	if err := rows.Err(); err != nil {
 		return Generations{}, recovery.SkippedScopes{}, fmt.Errorf("refinalize affected generations: %w", err)

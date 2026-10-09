@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -21,10 +22,6 @@ const reindexScopeRepository = "repository"
 // maxReindexRepositories bounds one repository-scoped request; each selector
 // costs one catalog lookup.
 const maxReindexRepositories = 100
-
-// gitDefaultScopePrefix is the scope ID prefix of a git repository's
-// default-branch scope. A ref scope appends "@<ref>" to it.
-const gitDefaultScopePrefix = "git-repository-scope:"
 
 // repositoryReindexAcceptedDetail states the per-repository watermark
 // contract the 202 response promises (#7620).
@@ -124,7 +121,7 @@ func gitDefaultScopeMatch(matches []querycontract.RepositoryCatalogEntry) (query
 		return querycontract.RepositoryCatalogEntry{}, "matched multiple repositories: " + strings.Join(ids, ", ")
 	}
 	entry := matches[0]
-	if !strings.HasPrefix(entry.ScopeID, gitDefaultScopePrefix) || strings.Contains(entry.ScopeID, "@") {
+	if !recovery.IsGitDefaultBranchScope(entry.ScopeID) {
 		return querycontract.RepositoryCatalogEntry{}, fmt.Sprintf("not a git default-branch repository (scope %q)", entry.ScopeID)
 	}
 	return entry, ""

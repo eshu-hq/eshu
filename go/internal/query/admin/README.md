@@ -19,7 +19,9 @@ Layout:
 - `reindex_repository.go` — `scope=repository` with 1 to 100 `repositories`
   selectors. Each selector goes through `RepositoryCatalogMatcher` (the query
   `ContentReader`) and must match exactly one git default-branch scope
-  (`git-repository-scope:` prefix, no `@ref`). Otherwise the request is a 400
+  (`recovery.IsGitDefaultBranchScope`: `git-repository-scope:` prefix, a
+  non-blank remainder, no `@ref`; surrounding whitespace is trimmed, the same
+  as `querycontract.CanonicalRepositoryIDForScopeID`). Otherwise the request is a 400
   naming every bad selector, and nothing is recorded. A catalog failure is a
   500, not a 400. Distinct scopes are recorded in one
   `RepositoryReindexRequester` call and returned per repository.

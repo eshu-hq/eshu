@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
 )
 
 func TestRepositoryReindexStoreRequestSortsAndDeduplicatesScopes(t *testing.T) {
@@ -164,4 +165,17 @@ func TestRepositoryReindexSchemaMatchesEmbeddedMigration(t *testing.T) {
 		}
 	}
 	t.Fatal("migration 162_repository_reindex_requests.sql is not embedded")
+}
+
+// TestRequestRepositoryReindexQueryMatchesRefinalize pins the refinalize
+// delta-active reindex request (#7797) to this store's upsert, so the two
+// writers of repository_reindex_requests keep one stamping, monotonicity, and
+// lock-order semantics.
+func TestRequestRepositoryReindexQueryMatchesRefinalize(t *testing.T) {
+	t.Parallel()
+
+	if reset.RequestReindexQuery != maintenancestore.RequestRepositoryReindexQuery {
+		t.Fatalf("refinalize reindex upsert drifted from the admin reindex upsert:\nrefinalize:%s\nadmin:%s",
+			reset.RequestReindexQuery, maintenancestore.RequestRepositoryReindexQuery)
+	}
 }

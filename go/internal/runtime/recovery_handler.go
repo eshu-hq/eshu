@@ -155,6 +155,15 @@ type refinalizeResponse struct {
 	// SkippedScopes reports the scopes the refinalize considered but did not
 	// re-enqueue, by reason (#7116), so a partial rebuild is visible.
 	SkippedScopes recovery.SkippedScopesReport `json:"skipped_scopes"`
+
+	// DeltaActiveScopes reports the re-enqueued scopes whose generation is a
+	// delta, by outcome (#7797): the graph for them stays incomplete until a
+	// full generation activates.
+	DeltaActiveScopes recovery.DeltaActiveScopesReport `json:"delta_active_scopes"`
+
+	// ReindexRequestsWritten reports the per-repository reindex watermarks
+	// the refinalize wrote in its transaction (#7797).
+	ReindexRequestsWritten recovery.ReindexRequestsWrittenReport `json:"reindex_requests_written"`
 }
 
 // handleRefinalize re-enqueues projector work for the specified scopes.
@@ -191,6 +200,8 @@ func (h *RecoveryHandler) handleRefinalize(w http.ResponseWriter, r *http.Reques
 		GenerationsRetired:                result.GenerationsRetired,
 		SharedProjectionAcceptanceCleared: result.SharedProjectionAcceptanceCleared,
 		SkippedScopes:                     result.Skipped.Report(),
+		DeltaActiveScopes:                 result.DeltaActive.Report(),
+		ReindexRequestsWritten:            result.DeltaActive.ReindexRequestsWritten(),
 	})
 }
 

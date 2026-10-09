@@ -81,7 +81,35 @@ backend, or any network connection directly.
   Those five are how an
   operator tells a rebuild that will restore the whole graph from one that will
   come back with only its source-local layer; see
-  `docs/public/operate/graph-rebuild-from-facts.md`.
+  `docs/public/operate/graph-rebuild-from-facts.md`. `Skipped` reports the
+  scopes left out, and `DeltaActive` the re-enqueued scopes whose generation is
+  a delta (#7797).
+- `DeltaActiveScopes` / `DeltaActiveScopesReport` — the delta-active report
+  and its wire form, by the closed outcomes `reindex_requested` (a git
+  default-branch scope; the refinalize recorded a per-repository reindex
+  watermark in its transaction) and `reindex_unsupported`. A delta generation
+  carries only its changed files, so after a graph wipe those scopes stay
+  incomplete until a full generation activates. `Report` always returns
+  non-nil maps; `Detail` is `DeltaActiveDetail` when the total is non-zero.
+  `ReindexRequestsWritten` returns `ReindexRequestsWrittenReport`, the
+  `reindex_requests_written` wire form: the exact count of watermarks written
+  and up to `DeltaActiveScopeSampleLimit` of their scope ids (never null).
+- `DeltaActiveGeneration` / `LogDeltaActive` — one delta-active pair
+  (scope, generation, outcome) and the bounded log writer for a committed
+  refinalize: the first `DeltaActiveScopeSampleLimit` pairs log at WARN, the
+  rest at INFO with the same fields, then one summary WARN ("refinalize
+  re-projected delta generations; ... see the response's delta_active_scopes
+  for samples") with `delta_active_total`, `reindex_requested`,
+  `reindex_unsupported`, `per_scope_warn_limit`, and `per_scope_info_count`. The postgres recovery store calls it after commit.
+- `IsGitDefaultBranchScope` / `GitRepositoryScopePrefix` — the one predicate
+  for "this scope id names a git default-branch repository scope", the only
+  kind a per-repository reindex watermark can force. It trims surrounding
+  whitespace, requires the exact prefix and a non-blank remainder, and rejects
+  a ref scope (`@`). The refinalize delta-active classification
+  (`storage/postgres/rebuild/reset`) and the admin reindex route
+  (`query/admin`) both call it; a test in `query/admin` keeps it in agreement
+  with `querycontract.CanonicalRepositoryIDForScopeID`, because this package
+  must not import the query layer.
 - `CollectorGenerationReplayFilter` — filter for collector generation replay
   requests: `CollectorKind` (required and non-blank), `ScopeIDs`,
   `FailureClass`, `Limit`.

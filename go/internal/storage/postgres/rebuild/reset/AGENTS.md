@@ -32,6 +32,13 @@
   rebuild G1 while a reset cleared G2 — G1 left deduplicated and never rebuilt,
   G2 damaged and never replayed. Read the set once with
   `AffectedGenerationsQuery` and bind the arrays.
+- **Keep `RequestReindexQuery` byte-identical to the admin reindex upsert.**
+  `maintenance/repository_reindex_test.go` pins the two. Both writers must stamp
+  from the database clock, never move a watermark backward, and lock rows in
+  sorted `scope_id` order, or two writers can deadlock (#7797).
+- **Never drop the delta-active reindex request out of the refinalize
+  transaction.** A committed refinalize of a delta generation without its
+  reindex row leaves the graph short with nothing to repair it (#7797).
 - **Never fix a dedup problem by editing `../reducer_queue.go` or
   `../shared_intents_upsert.go`.** Both guards are correct for ordinary
   operation, and the whole design of this package is that recovery pays the cost
