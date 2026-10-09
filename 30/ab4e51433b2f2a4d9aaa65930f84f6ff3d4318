@@ -1,0 +1,49 @@
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_8a09cccff9c17a 281-282,286,290-293
+  s_29175cf8c573b8::t_9594bb79cb098e 283-285,287-289
+go/internal/queryplan/pilot_test.go
+  s_29175cf8c573b8::t_0b68f0b35f5d8f 30
+go/internal/queryplan/testdata/contracts/code-import-packages.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-13,24
+  s_29175cf8c573b8::t_d66ccd6df6f7e3 14-22
+go/internal/queryplan/testdata/contracts/code-import-source-module-rows.yaml
+  s_29175cf8c573b8::t_d66ccd6df6f7e3 14-22
+  s_29175cf8c573b8::t_d8a8cc50160633 10-13,24
+go/internal/queryplan/pilot_registry_test.go
+  s_29175cf8c573b8::t_445d6c4114b671 111-147
+  s_29175cf8c573b8::t_82bff7e774ee56 73-95,108-110
+  s_29175cf8c573b8::t_6a991116c92181 10,96-107
+go/internal/queryplan/testdata/contracts/code-import-cross-module-calls.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-14,16
+go/internal/queryplan/testdata/contracts/cloud-resource-identity-page.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-14,16
+go/internal/queryplan/pilot_contract.go
+  s_29175cf8c573b8::t_f02554612080f8 57-65,181,194-195
+  s_29175cf8c573b8::t_42de72fcc9413a 196
+docs/internal/query-engineering.md
+  s_29175cf8c573b8::t_c7caa62f646158 24-32
+go/internal/queryplan/testdata/contracts/code-import-source-module-files.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-14,16
+go/internal/queryplan/testdata/contracts/code-import-cycle-edges.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-14,16
+go/internal/queryplan/testdata/contracts/code-import-rows-repository.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-14,16
+go/internal/queryplan/testdata/contracts/code-import-target-module-files.yaml
+  s_29175cf8c573b8::t_d8a8cc50160633 10-14,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "30ab4e51433b2f2a4d9aaa65930f84f6ff3d4318",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
