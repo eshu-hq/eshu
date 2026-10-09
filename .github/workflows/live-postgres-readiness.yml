@@ -15,6 +15,11 @@ on:
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
+      - 'go/internal/query/code_topic*.go'
+      - 'go/internal/query/content_reader_code_topic.go'
+      - 'go/internal/query/content_reader_search_page.go'
+      - 'go/internal/query/codetopicparallel/**'
+      - 'go/internal/runtime/postgres/**'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
       - 'go/internal/relationships/**'
@@ -30,10 +35,13 @@ on:
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
+      - 'scripts/lib/live_postgres_readiness_events.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
       - 'scripts/verify-live-tests-ledger.sh'
       - 'scripts/test-verify-live-tests-ledger.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
+      - 'scripts/ci/live-postgres-standby-fixture.sh'
+      - 'scripts/test-live-postgres-standby-fixture.sh'
       - '.github/workflows/live-postgres-readiness.yml'
       - '.github/workflows/required-gates.yml'
   push:
@@ -42,6 +50,11 @@ on:
       - 'go/internal/query/supply/chain/impact/**'
       - 'go/internal/query/admin/**'
       - 'go/internal/query/content_reader_dead_code*.go'
+      - 'go/internal/query/code_topic*.go'
+      - 'go/internal/query/content_reader_code_topic.go'
+      - 'go/internal/query/content_reader_search_page.go'
+      - 'go/internal/query/codetopicparallel/**'
+      - 'go/internal/runtime/postgres/**'
       - 'go/internal/query/status*.go'
       - 'go/internal/status/**'
       - 'go/internal/relationships/**'
@@ -57,10 +70,13 @@ on:
       - 'scripts/run-live-postgres-readiness-tests.sh'
       - 'scripts/test-run-live-postgres-readiness-tests.sh'
       - 'scripts/lib/live_postgres_readiness_results.py'
+      - 'scripts/lib/live_postgres_readiness_events.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
       - 'scripts/verify-live-tests-ledger.sh'
       - 'scripts/test-verify-live-tests-ledger.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
+      - 'scripts/ci/live-postgres-standby-fixture.sh'
+      - 'scripts/test-live-postgres-standby-fixture.sh'
       - '.github/workflows/live-postgres-readiness.yml'
       - '.github/workflows/required-gates.yml'
 
@@ -123,6 +139,12 @@ jobs:
       - name: Check runner fail-closed behavior
         run: bash scripts/test-run-live-postgres-readiness-tests.sh
 
+      - name: Check physical-standby fixture fail-closed behavior
+        run: bash scripts/test-live-postgres-standby-fixture.sh
+
+      - name: Start disposable physical standby
+        run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}'
+
       - name: Run live readiness proofs
         env:
           ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
@@ -163,6 +185,9 @@ jobs:
           ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: '1'
           ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE: '1'
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN: postgres://postgres:local-proof-only@127.0.0.1:15433/postgres?sslmode=disable
+          ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE: '1'
           ESHU_GRAPH_BACKEND: neo4j
           ESHU_NEO4J_URI: neo4j://127.0.0.1:7687
           ESHU_NEO4J_USERNAME: neo4j
@@ -173,3 +198,7 @@ jobs:
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE: '1'
         run: bash scripts/run-live-postgres-readiness-tests.sh
+
+      - name: Stop disposable physical standby
+        if: always()
+        run: bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}'
