@@ -34,3 +34,7 @@ GET /api/v0/status/pipeline	39	59619	80	GREEN-derived work guard
 GET /api/v0/status/semantic-extraction	39	59619	80	GREEN-derived work guard
 GET /api/v0/supply-chain/container-images/identities/count	13	18	14	GREEN-derived work guard
 GET /api/v0/supply-chain/impact/findings/count	13	18	14	GREEN-derived work guard
+
+# Added rows from local #7881 bootstrap GREEN f84fc95b; work report sha256 117ad459298827700d5c0feea3c392b89b5ac3070e67db4cd41f2e176ef54ee4; CI runner calibration pending; existing budgets retained byte-for-byte.
+GET /api/v0/status/ingesters/{ingester}	38	13158	82	GREEN-derived work guard
+MCP get_index_status	42	13215	82	GREEN-derived work guard
