@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"syscall"
 	"testing"
 	"time"
 
@@ -103,6 +104,37 @@ func TestFleetReservationCapacityExcludesSetupFailure(t *testing.T) {
 		t.Fatalf("subsequent snapshot reservation failed: %v", err)
 	}
 	probe.Release()
+}
+
+func TestFleetReservationCapacityExcludesPriorTransientSetupFailure(t *testing.T) {
+	access := &Access{
+		readerMembers: []physicalReaderMember{{ordinal: 0, maxOpen: 4}, {ordinal: 1, maxOpen: 4}},
+		allocator:     newReaderAllocator([]int{4, 4}, 8),
+		replayTimeout: 50 * time.Millisecond,
+		lineage:       newWriterLineage(physicalIdentity{systemID: "1", database: "postgres", incarnation: "1"}, lineageObservation{}, nil),
+	}
+	ctx := reservationCheckpointContext(t.Context(), access)
+	held, err := access.allocator.reserve(ctx, []int{1}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Release()
+
+	attempts := 0
+	_, err = runFleet(access, ctx, 4, func(_ context.Context, _ context.Context, reservation *readerReservation, _ checkpoint) (int, error) {
+		attempts++
+		if reservation.member != 0 {
+			t.Fatalf("setup member = %d, want first member 0", reservation.member)
+		}
+		return 0, syscall.ECONNREFUSED
+	})
+	if attempts != 1 || !errors.Is(err, syscall.ECONNREFUSED) || !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, db.ErrSnapshotReservationCapacity) || ctx.Err() != nil {
+		t.Fatalf("transient setup then capacity wait: attempts=%d err=%v caller=%v", attempts, err, ctx.Err())
+	}
+	reserved, waiters := access.allocator.pressure()
+	if reserved[0] != 0 || reserved[1] != 1 || waiters[0] != 0 || waiters[1] != 0 {
+		t.Fatalf("setup failure and timeout leaked reservation or waiter: reserved=%v waiters=%v", reserved, waiters)
+	}
 }
 
 func TestFleetReservationCancelReleaseRaceDoesNotLeak(t *testing.T) {
