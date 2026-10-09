@@ -29,4 +29,8 @@
 // KubernetesHandler, PostgresKubernetesRuntimeWorkloadStore and both store
 // constructors in kubernetes_alias.go for cmd/api, cmd/mcp-server and the
 // supply-chain port assertion until the #6642 alias sweep.
+//
+// A failed store read never echoes the backend error: a stale or timed-out
+// reader answers the retryable 503, a client cancel 499, and anything else a
+// fixed 500 with the error recorded on the handler span (#7674).
 package kubernetes

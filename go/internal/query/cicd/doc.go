@@ -17,6 +17,10 @@
 // grant is a 404 that leaks nothing. A profile without the capability
 // answers 501.
 //
+// A failed store read never echoes the backend error: a stale or timed-out
+// reader answers the retryable 503, a client cancel 499, and anything else a
+// fixed per-route 500 with the error recorded on the handler span (#7674).
+//
 // Capability, AggregateCapability and Support declare the family's capability
 // rows once: internal/query/contract registers Support() for production and
 // main_test.go registers it for this package's own tests.

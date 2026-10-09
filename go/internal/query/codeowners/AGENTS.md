@@ -37,6 +37,11 @@ Read `doc.go` and `README.md` first.
   branches in `resolveEffectiveRepositoryOwner`.
 - Files must stay under 500 lines. Split by concern rather than growing
   them.
+- A failed graph read answers `querycontract.WriteGraphReadError` first,
+  then `tracing.WriteServerFailure` with the step's fixed message constant.
+  Never write `err.Error()` into a response body (#7674). The constants
+  live in `ownership.go`, not `handler_tracing.go`, because the parity test
+  pins that file's top-level names.
 
 ## Exported symbols and why each is exported
 

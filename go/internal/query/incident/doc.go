@@ -11,4 +11,9 @@
 // the model leaf plus auth, querycontract, tracing, and telemetry;
 // it MUST NOT import the query root or incident/store/ (cycle through the
 // root compatibility aliases).
+//
+// A failed context read or authorization check never echoes the backend
+// error: a stale or timed-out reader answers the retryable 503, a client
+// cancel 499, and anything else a fixed 500 with the error recorded on the
+// handler span. An authorization failure still fails closed (#7674).
 package incident

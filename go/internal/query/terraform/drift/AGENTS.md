@@ -16,6 +16,9 @@ collisions with `internal/storage/postgres` and `internal/reducer/tfconfigstate`
 - Change the capability row only in `capability.go`.
 - This package may import `internal/query/iac` for its paging helpers; it
   must not import the root query package.
+- A failed store read goes through `writeDriftReadFailure` with its step's
+  fixed message constant. Never write `err.Error()` into a response body
+  (#7674).
 
 ## Common changes
 

@@ -24,6 +24,11 @@ gates production does).
   `tracing`, and `telemetry`. It MUST NOT import the query root or
   `incident/store/`.
 - `queryplan` manifests: the incident family has no entries. Keep it zero.
+- A failed context read or authorization check goes through
+  `writeIncidentReadFailure` with its fixed message constant; the
+  authorization failure still fails closed. A missing incident answers the
+  `model.ErrIncidentContextNotFound` text. Never write `err.Error()` of a
+  backend error into a response body (#7674).
 
 ## Naming
 

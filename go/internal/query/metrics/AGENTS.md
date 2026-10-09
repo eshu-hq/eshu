@@ -16,6 +16,10 @@ and streaming invariants.
 - Change the capability row only in `capability.go`.
 - This package must not import the root query package or another handler
   family.
+- A failed source query answers `querycontract.WriteGraphReadError`, then the
+  `errInvalidMetricsRange` 400, then `tracing.WriteServerFailure` with
+  `metricsQueryFailedMessage`. Never write `err.Error()` of a backend error
+  into a response body (#7674).
 
 ## Common changes
 

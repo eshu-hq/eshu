@@ -15,6 +15,9 @@ coupling.
   route-serves-data registry matches it by name.
 - This package must not import the root query package or another handler
   family.
+- A failed store read answers `querycontract.WriteGraphReadError` first, then
+  `tracing.WriteServerFailure` with `coverageCorrelationsListFailedMessage`.
+  Never write `err.Error()` into a response body (#7674).
 
 ## Common changes
 

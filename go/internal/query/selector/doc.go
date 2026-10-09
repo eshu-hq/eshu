@@ -18,7 +18,8 @@
 // graph-availability verdict answers 503/504 through
 // querycontract.WriteGraphReadError, any other LookupError answers 500 with the
 // fixed LookupFailureMessage body and records the error on the request span,
-// NotFoundError answers 404, and anything else answers 400. A caller that maps
+// NotFoundError answers 404, AmbiguousError answers 400, and any other error
+// answers the same fixed 500 as a LookupError (#7674). A caller that maps
 // selector errors itself calls WriteLookupFailure after WriteGraphReadError, so
 // it answers the same 500, fixed body, and span error, never the error text,
 // which carries backend detail. Both answer through tracing.WriteServerFailure,

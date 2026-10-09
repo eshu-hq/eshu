@@ -8,7 +8,9 @@
 // Handler serves only the metric names in its allow-list (ingest_rate,
 // queue_depth, dead_letters, graph_nodes, graph_edges, query_p50, query_p95,
 // query_p99); a missing or unknown metric, or a range the source rejects as
-// invalid, is a 400, and any other source error is a 500. It reads through a
+// invalid, is a 400, and any other source error is a 500 with the fixed
+// "metrics query failed" body and the error recorded on the request span; a
+// client cancel answers 499 (#7674). It reads through a
 // TimeSeriesSource; PrometheusTimeSeriesSource,
 // built by NewPrometheusTimeSeriesSource, is the Prometheus/Mimir
 // query_range implementation. A handler with no source returns empty points

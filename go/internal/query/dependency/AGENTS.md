@@ -13,6 +13,9 @@
   cypher-performance evidence the manifest entry points to.
 - This package must not import the root query package or another handler
   family. Shared types come from `querycontract`.
+- A failed graph read answers `querycontract.WriteGraphReadError` first,
+  then `tracing.WriteServerFailure` with `dependenciesReadFailedMessage`.
+  Never write `err.Error()` into a response body (#7674).
 
 - Change the capability row only in `capability.go`. The matrix and
   `main_test.go` both call `Support()`; do not reintroduce a literal copy.

@@ -66,6 +66,29 @@ qualifiers and names differ.
 No-Observability-Change: same metric names, labels and meter; no span or log
 changes.
 
+## Failed reads (#7674)
+
+A failed source query on `GET /api/v0/metrics/timeseries` answers the fixed
+`metrics query failed`, never the backend error text. The order is
+`querycontract.WriteGraphReadError`, then the `errInvalidMetricsRange` 400
+(its text is window and step validation only), then
+`tracing.WriteServerFailure`: `500` with the error recorded, or `499` when
+the caller canceled the request. The Prometheus source cannot produce a
+reader fence today; the fence check keeps the shared order.
+
+No-Regression Evidence (#7674): the change runs only after a source query has
+already returned an error. No PromQL, query parameter, call count, or success
+path changed. A failure now costs one span `RecordError`/`SetStatus` and a
+fixed-string write instead of formatting the error into the body.
+`go test ./internal/query/... ./internal/queryplan/... -count=1` and
+`go test -race ./internal/query/metrics/...` exit 0.
+
+Observability Evidence (#7674): this route has no handler span, so a server
+fault marks the request span: the backend error as an `exception` event and
+status Error with the fixed message. A client cancel adds
+`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
+`server_failure_test.go` asserts both span shapes with a recording provider.
+
 ## Related docs
 
 - [Remote validation](../../../../docs/internal/remote-validation/prod-metrics-timeseries.md)

@@ -32,4 +32,8 @@
 // forwarders that root and the cmd/api and cmd/mcp-server wiring still use. See
 // README.md for the file layout and move evidence, and AGENTS.md for the
 // per-symbol export rationale.
+//
+// A failed store read never echoes the backend error: a stale or timed-out
+// reader answers the retryable 503, a client cancel 499, and anything else a
+// fixed per-route 500 with the error recorded on the handler span (#7674).
 package freshness

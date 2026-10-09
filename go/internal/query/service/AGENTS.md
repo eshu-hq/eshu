@@ -35,6 +35,11 @@
   external caller has a separately reviewed migration path.
 - The B-7 cassettes and B-12 snapshot must stay byte-identical: move code,
   never Cypher text or queue/projection behavior.
+- A failed service-catalog correlation read answers
+  `querycontract.WriteGraphReadError` first, then `tracing.WriteServerFailure`
+  with `serviceCatalogCorrelationsListFailedMessage`. Never write
+  `err.Error()` into a response body (#7674). `catalogHandlerTracer` is the
+  package-local span seam the failure test swaps; keep it package-local.
 
 ## Verification
 
