@@ -4,6 +4,14 @@
 # has no visible common ancestor with that position. Positions two and three
 # therefore need a bounded deepen before the migration immutability verifier
 # can safely inspect the full queued range.
+#
+# #7859: GitHub deletes the gh-readonly-queue/... branch as soon as a group is
+# dequeued or superseded, but the group's in-flight verify-contracts run keeps
+# going. The verifier reaches this gate minutes into the job, so its HEAD can no
+# longer be deepened through the (now deleted) remote branch. The dequeued-*
+# scenarios below delete the queue branch from the remote after the shallow
+# checkout, exactly as GitHub does, and require the verifier to deepen HEAD by
+# its own commit instead.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,6 +30,10 @@ init_queue_remote() {
   local writer="${tmp_root}/${name}-writer"
 
   git init -q --bare "${remote}"
+  # GitHub serves a commit that no branch advertises any more (it served this
+  # very class of dequeued group commit after the branch was deleted), so the
+  # bare fixture remote must accept want-by-SHA the same way.
+  git -C "${remote}" config uploadpack.allowAnySHA1InWant true
   git init -q "${writer}"
   git -C "${writer}" config user.email "test@example.invalid"
   git -C "${writer}" config user.name "Eshu Test"
@@ -63,6 +75,42 @@ init_queue_remote() {
   printf '%s\n' "${remote}"
 }
 
+# advance_main moves remote main ahead by $2 empty commits, as other merges do
+# while a queue group sits waiting. The queue branches stay based on the old
+# tip.
+advance_main() {
+  local remote="$1"
+  local count="$2"
+  local i
+  # fast-import writes the empty commits without running a commit hook per
+  # commit, which keeps the 250-commit scenario in seconds.
+  {
+    for ((i = 1; i <= count; i++)); do
+      printf 'commit refs/heads/main\n'
+      printf 'committer Eshu Test <test@example.invalid> %d +0000\n' "$((1700000000 + i))"
+      printf 'data <<EOM\nmain: later merge %d\nEOM\n' "${i}"
+      printf 'from refs/heads/main^0\n\n'
+    done
+  } | git -C "${remote}" fast-import --quiet
+}
+
+# dequeue_queue deletes EVERY queue branch from the remote, the way GitHub does
+# once a group and the groups ahead of it are dequeued or merged, while
+# checkouts already made from them keep running. Deleting only one position
+# would leave the others advertised, and a bare `git fetch --deepen` would still
+# deepen HEAD through them, so the scenario could not catch a regression.
+dequeue_queue() {
+  local remote="$1"
+  local ref
+  while read -r ref; do
+    git -C "${remote}" update-ref -d "${ref}"
+  done < <(git -C "${remote}" for-each-ref --format='%(refname)' refs/heads/queue/)
+  if [ -n "$(git -C "${remote}" for-each-ref refs/heads/queue/)" ]; then
+    printf 'expected every queue branch to be gone from %s\n' "${remote}" >&2
+    exit 1
+  fi
+}
+
 shallow_queue_checkout() {
   local remote="$1"
   local position="$2"
@@ -70,6 +118,11 @@ shallow_queue_checkout() {
   local checkout="${tmp_root}/checkout-${checkout_name}-$(basename "${remote}" .git)"
 
   git clone -q --depth 2 --branch "queue/${position}" "file://${remote}" "${checkout}"
+  # A shallow clone implies --single-branch, but actions/checkout configures
+  # the default all-heads refspec. A no-argument fetch then still succeeds
+  # after GitHub deletes the queue branch, deepening nothing, instead of
+  # erroring.
+  git -C "${checkout}" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
   # This is the base ref that actions/checkout makes available to the verifier.
   # The separate depth-1 fetch deliberately leaves the actual merge base outside
   # the queue position's shallow history for positions two and three.
@@ -197,6 +250,34 @@ done
 violating_remote="$(init_queue_remote violating-queue true)"
 expect_fail "$(shallow_queue_checkout "${violating_remote}" p2)" "001_widgets.sql was modified"
 expect_fail "$(shallow_queue_checkout "${violating_remote}" p3)" "001_widgets.sql was modified"
+
+# #7859 RED/GREEN: the group branch is deleted from the remote after the
+# shallow checkout. The clean groups must still pass, deepening HEAD by SHA.
+dequeued_remote="$(init_queue_remote dequeued-queue)"
+dequeued_p2="$(shallow_queue_checkout "${dequeued_remote}" p2)"
+dequeued_p3="$(shallow_queue_checkout "${dequeued_remote}" p3)"
+dequeue_queue "${dequeued_remote}"
+expect_pass "${dequeued_p2}"
+expect_pass "${dequeued_p3}"
+
+# The gate must not go blind when the group is dequeued: an edit in position two
+# is still rejected from the dequeued position-three checkout.
+dequeued_bad_remote="$(init_queue_remote dequeued-violating-queue true)"
+dequeued_bad_p3="$(shallow_queue_checkout "${dequeued_bad_remote}" p3)"
+dequeue_queue "${dequeued_bad_remote}"
+expect_fail "${dequeued_bad_p3}" "001_widgets.sql was modified"
+
+# Remote main is 250 commits past the group base (more than the first
+# 100-commit deepen) when the job's depth-1 origin/main is fetched, and the
+# group branch is gone: the bounded loop must still reach the group base by
+# deepening both sides.
+moved_remote="$(init_queue_remote moved-main-dequeued)"
+advance_main "${moved_remote}" 250
+moved_p3="$(shallow_queue_checkout "${moved_remote}" p3)"
+dequeue_queue "${moved_remote}"
+expect_pass "${moved_p3}"
+
+printf 'merge-group fixture: dequeued group branch resolves by HEAD sha\n'
 
 # The base is reachable in the stale local checkout but no longer represents
 # remote main. The PATH wrapper fails only the explicit base fetch; anonymous

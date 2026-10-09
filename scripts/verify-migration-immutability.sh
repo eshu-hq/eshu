@@ -51,6 +51,18 @@
 #      single-commit repo (root == HEAD == an empty diff), so it needs no
 #      separate "skip, no history" case.
 #
+# merge_group (#7219, #7859): actions/checkout fetches only the group commit at
+# depth 2 and GITHUB_BASE_REF is empty, so branch 3 above applies with whatever
+# depth-1 origin/main an earlier step left. find_merge_base then deepens BOTH
+# sides. HEAD is deepened by its own SHA (deepen_head), because GitHub deletes
+# the gh-readonly-queue/... branch as soon as a group is dequeued while the
+# group's job keeps running, and a bare `git fetch --deepen` deepens nothing
+# once that branch is gone. The range stays the full merge-base range, never the
+# event's merge_group.base_sha: for queue position two or three that SHA is the
+# previous group's commit, and diffing against it would narrow the range below
+# what the fixture requires (an edit in position two must fail at position
+# three).
+#
 # Usage: scripts/verify-migration-immutability.sh
 # Exit codes:
 #   0 - no shipped migration was modified, deleted, or renamed since base
@@ -73,15 +85,75 @@ fi
 
 migrations_dir="go/internal/storage/postgres/migrations"
 
+# deepen_head deepens HEAD's own shallow history by at least $1 commits and
+# returns 0, or returns 1 when it cannot. On pull_request and push this is the
+# same loop as before with one change: its first fetch is this function, which
+# falls back to the old bare fetch. It asks the remote for HEAD's commit
+# by SHA into a private ref, NOT through a bare `git fetch --deepen=N`: that
+# form only deepens whatever the remote still advertises, and GitHub deletes a
+# merge queue's gh-readonly-queue/... branch the moment its group is dequeued
+# or superseded while the group's in-flight job keeps running (#7859). Once the
+# branch is gone the bare fetch exits 0 having deepened nothing, HEAD never
+# reaches the group base, and the gate fails on a "cannot resolve" it had no
+# way to fix. The commit itself is still served by SHA after its branch is
+# deleted, but only with an ABSOLUTE --depth: GitHub silently ignores the
+# relative --deepen for a commit no branch points at (observed against the real
+# remote: --deepen=100 left the group at 2 commits, --depth=102 gave 102). The
+# target depth is therefore the commits already present plus $1, so the call
+# only ever deepens, never re-shallows. --depth counts generations, not
+# commits, so on a merge-commit history the commit count over-states the
+# generations and the call deepens MORE than $1 (measured on the real remote:
+# 2 commits -> 102, then +400 -> 1035, then +1600 -> 3823). That is deliberate:
+# it errs toward finding the base, stays bounded by main's own history, and a
+# smaller computed depth could re-shallow a deeper checkout. The destination
+# refspec is required: with none, git leaves the SHA in FETCH_HEAD and applies
+# no depth at all. A leftover private ref from an aborted earlier run is cleared
+# first: a fetch into a ref that holds unrelated history is REJECTED as
+# non-fast-forward and exits non-zero (reproduced on a file:// remote and on the
+# real GitHub remote), even though the deepened history still arrives. Without
+# the clear, that exit status would send the call down the fallback below for no
+# reason, and fail it outright if the fallback cannot run. No fixture covers
+# this: the history arrives either way, so a test of the end result cannot go
+# RED. The bare fetch stays as the fallback for a remote that refuses
+# want-by-SHA, so the old behavior is never lost.
+deepen_head() {
+  local deepen="$1" head_sha have ref="refs/eshu-migration-immutability/head"
+  git -C "$repo_root" update-ref -d "$ref" >/dev/null 2>&1 || true
+  if head_sha="$(git -C "$repo_root" rev-parse --verify --quiet 'HEAD^{commit}')" &&
+    have="$(git -C "$repo_root" rev-list --count HEAD 2>/dev/null)" &&
+    git -C "$repo_root" fetch --no-tags --depth="$((have + deepen))" origin \
+      "${head_sha}:${ref}" >/dev/null 2>&1; then
+    git -C "$repo_root" update-ref -d "$ref" >/dev/null 2>&1 || true
+    return 0
+  fi
+  git -C "$repo_root" update-ref -d "$ref" >/dev/null 2>&1 || true
+  git -C "$repo_root" fetch --no-tags --deepen="$deepen" >/dev/null 2>&1
+}
+
 # find_merge_base prints a concrete merge-base commit SHA between ref and HEAD
 # on stdout and returns 0, or prints nothing and returns 1. It first tries the
 # direct computation; if that fails and the resolved ref is an origin branch,
 # it makes a bounded number of attempts to deepen both HEAD's own history and
 # that fetched base ref before giving up. This covers both pull_request
 # (GITHUB_BASE_REF) and merge_group: GitHub does not set GITHUB_BASE_REF on the
-# latter, but actions/checkout still exposes origin/main. It never treats
-# "could not compute" as "nothing changed" -- that is the caller's job, and
-# the caller must fail loud on a 1 return, not skip.
+# latter, and actions/checkout fetches only the group commit (depth 2), so
+# origin/main there is whatever an earlier step fetched at depth 1 -- the
+# deepen below is what makes it meet HEAD. It never treats "could not compute"
+# as "nothing changed" -- that is the caller's job, and the caller must fail
+# loud on a 1 return, not skip.
+#
+# The bound (three passes of 100, 400, 1600; a fourth would be 6400, past the
+# 3200 limit of the loop) is cumulative 2100 generations on
+# the origin/main side. The HEAD side adds each pass to the commits it already
+# holds (see deepen_head), so on a merge-commit history it runs ahead of that:
+# measured on the real remote, a group commit reached 102, 1035 and 3823
+# commits over the three passes, capped only by the history that exists. The
+# bound was not what failed merge_group runs (#7859): with HEAD deepened
+# correctly the base is found within the first one or two passes even when main
+# is hundreds of commits past the group base (the fixture proves 250). A base
+# that is truly unreachable still fails closed after every pass, only more
+# slowly (a local run against the real remote took 31 to 87 seconds, not a CI
+# figure).
 find_merge_base() {
   local ref="$1" mb remote branch
   if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
@@ -105,7 +177,7 @@ find_merge_base() {
   fi
   local depth=100
   while [ "$depth" -le 3200 ]; do
-    if ! git -C "$repo_root" fetch --no-tags --deepen="$depth" >/dev/null 2>&1; then
+    if ! deepen_head "$depth"; then
       printf 'verify-migration-immutability: failed to deepen HEAD history while resolving %s.\n' "$ref" >&2
       return 1
     fi
