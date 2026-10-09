@@ -70,8 +70,9 @@ per cycle on shard 0, after any outcome but a store error (a truncated listing
 still sweeps, so a repo limit below the org size cannot stop the drain), in
 batches of at most 500 rows and 10,000 rows per cycle. A cycle with no
 observation request (filesystem mode, an explicit list with no owners, or a
-cycle whose discovery fails) issues no sweep, so rows orphaned by a move into either mode drain only once a
-mode that observes returns; they still read `unknown`. `not_listed` rows are never
+cycle whose discovery fails) issues no sweep, so rows orphaned while no sweep
+runs drain only once a cycle that issues a request runs again; they still read
+`unknown`. `not_listed` rows are never
 deleted, because the mass-miss guard reads them: without that history a
 recovered selector could count scopes it had already confirmed missing as
 newly unlisted and hold every write. Those rows of an abandoned selector
