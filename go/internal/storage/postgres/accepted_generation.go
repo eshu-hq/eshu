@@ -282,6 +282,7 @@ func (s *SharedProjectionAcceptanceStore) LookupBatch(
 			end = len(distinct)
 		}
 		if err := s.lookupAcceptanceChunk(ctx, distinct[i:end], acceptedByKey); err != nil {
+			sharedintent.RecordPrefetch(ctx, sharedintent.PrefetchKindAcceptance, len(distinct), queries, len(acceptedByKey), 0, time.Since(start))
 			return nil, err
 		}
 		queries++

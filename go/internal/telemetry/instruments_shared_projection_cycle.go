@@ -15,9 +15,10 @@ import (
 // counter is the issue's idle-claim-attempt signal: every outcome except
 // backoff_skipped is one partition lease claim attempt.
 const (
-	// SharedProjectionVisitOutcomeVisited means the lease was acquired
-	// and selection ran (including error visits, which hold backoff and
-	// retry next cycle).
+	// SharedProjectionVisitOutcomeVisited means the lease was acquired and
+	// the visit completed without error. Error visits record the error
+	// outcome instead (they hold backoff and retry next cycle); lease
+	// losses record lease_held.
 	SharedProjectionVisitOutcomeVisited = "visited"
 	// SharedProjectionVisitOutcomeBackoffSkipped means per-partition
 	// backoff skipped the cell: no lease claim, no selection.

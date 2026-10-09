@@ -157,7 +157,9 @@ func FilterAuthoritativeIntents(
 // SelectPartitionBatch selects one accepted partition batch, matching the
 // Python _select_partition_batch function. It scans pending intents, filters
 // by partition, checks authoritative generation state, and deduplicates to
-// latest per repo/partition pair.
+// latest per repo/partition pair. On error it returns the partial batch —
+// rounds completed and prefetch stats accumulated so far — so the visit
+// telemetry reports the selection work already issued.
 func SelectPartitionBatch(
 	ctx context.Context,
 	reader IntentReader,
@@ -204,9 +206,15 @@ func SelectPartitionBatch(
 	}
 
 	rounds := 0
+	// Error returns carry the partial batch: rounds completed and prefetch
+	// stats accumulated so far, so a mid-selection failure stays visible
+	// in the visit telemetry instead of reporting zero rounds.
+	fail := func(err error) (PartitionBatchResult, error) {
+		return PartitionBatchResult{IndexedSelection: indexed, SelectionRounds: rounds, PrefetchStats: prefetchStats}, err
+	}
 	for {
 		if err := ctx.Err(); err != nil {
-			return PartitionBatchResult{}, err
+			return fail(err)
 		}
 		rounds++
 
@@ -214,7 +222,7 @@ func SelectPartitionBatch(
 			ctx, reader, domain, partitionID, partitionCount, scanLimit, indexed,
 		)
 		if err != nil {
-			return PartitionBatchResult{}, err
+			return fail(err)
 		}
 
 		seenAll := loadedCount < scanLimit
@@ -226,7 +234,7 @@ func SelectPartitionBatch(
 				if indexed {
 					return PartitionBatchResult{IndexedSelection: indexed, SelectionRounds: rounds, PrefetchStats: prefetchStats}, nil
 				}
-				return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
+				return fail(scanCapError(domain, partitionID, partitionCount))
 			}
 			scanLimit = widenScanLimit(scanLimit)
 			continue
@@ -236,7 +244,7 @@ func SelectPartitionBatch(
 		if prefetch != nil {
 			resolvedLookup, err := prefetch(ctx, partitionRows)
 			if err != nil {
-				return PartitionBatchResult{}, fmt.Errorf("prefetch accepted generations: %w", err)
+				return fail(fmt.Errorf("prefetch accepted generations: %w", err))
 			}
 			lookup = resolvedLookup
 		}
@@ -252,7 +260,7 @@ func SelectPartitionBatch(
 			endpointPresence,
 		)
 		if err != nil {
-			return PartitionBatchResult{}, err
+			return fail(err)
 		}
 
 		// Drain only the rows the readiness gate blocked, and only when their
@@ -275,7 +283,7 @@ func SelectPartitionBatch(
 			readinessLookup, readinessPrefetch, endpointPresence,
 		)
 		if err != nil {
-			return PartitionBatchResult{}, err
+			return fail(err)
 		}
 		blockedRows = drain.Blocked
 		generationSupersededIDs := drain.DrainedIDs
@@ -329,7 +337,7 @@ func SelectPartitionBatch(
 					PrefetchStats:             prefetchStats,
 				}, nil
 			}
-			return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
+			return fail(scanCapError(domain, partitionID, partitionCount))
 		}
 		scanLimit = widenScanLimit(scanLimit)
 	}

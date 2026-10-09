@@ -98,11 +98,12 @@ type PartitionProcessResult struct {
 	// behavior: per-kind keys, queries, rows, readiness cache hits, and
 	// durations (#7724 telemetry: per-visit prefetch stats).
 	PrefetchStats sharedintent.PrefetchStats
-	// PartitionsVisited counts visits that ran (lease acquired, selection
-	// attempted, including error visits). MergePartitionProcessResult
-	// sums these three counters across the cycle so the runner can
-	// report partitions visited vs skipped by reason (#7724 telemetry:
-	// per-cycle visited vs skipped).
+	// PartitionsVisited counts visits that ran and were neither
+	// backoff-skipped nor lease-held: successful visits plus every error
+	// visit, including lease-claim errors that acquired no lease and ran
+	// no selection. MergePartitionProcessResult sums these three counters
+	// across the cycle so the runner can report partitions visited vs
+	// skipped by reason (#7724 telemetry: per-cycle visited vs skipped).
 	PartitionsVisited int
 	// PartitionsBackoffSkipped counts visits skipped by per-partition
 	// backoff.
@@ -196,6 +197,8 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, fmt.Errorf("select batch: %w", err)
 	}
 

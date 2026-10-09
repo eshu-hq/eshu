@@ -237,6 +237,7 @@ func (s *GraphProjectionPhaseStateStore) LookupBatch(
 		}
 		chunkFound, err := s.lookupPhaseChunk(ctx, distinct[i:end], phase)
 		if err != nil {
+			sharedintent.RecordPrefetch(ctx, sharedintent.PrefetchKindReadiness, len(distinct), queries, len(found), 0, time.Since(start))
 			return nil, err
 		}
 		found = append(found, chunkFound...)

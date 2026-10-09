@@ -281,3 +281,35 @@ func TestSelectPartitionBatchPrefetchErrorFailsSelection(t *testing.T) {
 		t.Fatalf("SelectPartitionBatch() error = %v, want prefetch failure", err)
 	}
 }
+
+// TestSelectPartitionBatchErrorReturnsPartialStats proves a mid-selection
+// failure returns the partial batch — rounds completed and prefetch stats
+// accumulated so far — instead of a zero batch, so the visit telemetry
+// reports the selection work already issued (#7848).
+func TestSelectPartitionBatchErrorReturnsPartialStats(t *testing.T) {
+	t.Parallel()
+
+	const domain = reducercontract.DomainSQLRelationships
+	reader := &stubSharedIntentReader{
+		pending: []sharedintent.Row{selectionTestRow(domain, "scope-a", "unit-a", "gen-1", 0)},
+	}
+	recordThenFail := func(ctx context.Context, rows []sharedintent.Row) (sharedintent.AcceptedGenerationLookup, error) {
+		sharedintent.RecordPrefetch(ctx, sharedintent.PrefetchKindAcceptance, len(rows), 1, 0, 0, time.Millisecond)
+		return nil, errors.New("boom")
+	}
+	neverReady := func(_ context.Context, _ []gpphase.PhaseKey, _ gpphase.Phase) (gpphase.ReadinessLookup, error) {
+		return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) { return false, false }, nil
+	}
+
+	batch, err := SelectPartitionBatch(context.Background(), reader, domain, 0, 1, 100,
+		acceptedGenerationFixed("gen-1", true), recordThenFail, nil, neverReady, nil)
+	if err == nil {
+		t.Fatal("SelectPartitionBatch() error = nil, want the prefetch failure")
+	}
+	if batch.SelectionRounds != 1 {
+		t.Fatalf("SelectionRounds = %d, want 1 (the failed round ran)", batch.SelectionRounds)
+	}
+	if batch.PrefetchStats.Acceptance.Queries != 1 || batch.PrefetchStats.Acceptance.Keys != 1 {
+		t.Fatalf("acceptance stats = %+v, want keys=1 queries=1", batch.PrefetchStats.Acceptance)
+	}
+}
