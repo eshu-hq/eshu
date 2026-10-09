@@ -3700,6 +3700,7 @@ gates:
       - "go/internal/storage/postgres/reducer_queue_batch_query.go"
       - "go/internal/storage/postgres/reducer_queue_helpers.go"
       - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/storage/postgres/reducer_queue_replay.go"
       - "go/internal/storage/postgres/reducer_queue_validation.go"
       - "go/internal/storage/postgres/reducer_queue_ack.go"
       - "go/internal/ifa/graphdump/**"
@@ -4322,6 +4323,7 @@ gates:
       - "go/internal/storage/postgres/reducer_queue_batch_query.go"
       - "go/internal/storage/postgres/reducer_queue_helpers.go"
       - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/storage/postgres/reducer_queue_replay.go"
       - "go/internal/storage/postgres/reducer_queue_validation.go"
       - "go/internal/storage/postgres/reducer_queue_ack.go"
       # The ifa package root, not a list of its filenames (#6200). go/cmd/ifa

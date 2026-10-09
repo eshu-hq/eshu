@@ -4,7 +4,7 @@
 # family-scoped baseline, kill/reclaim, and exact graph-write fault cells.
 
 run_ifa_fault_injection_workload_dependency_cases() {
-	local repo_root script live_lib cells_lib registry_row cassette fixture_scope fixture_generation reopen_body production_reopen_body kill_body failgraph_body work_items_schema queue_source readiness_source replay_source
+	local repo_root script live_lib cells_lib registry_row cassette fixture_scope fixture_generation reopen_body production_reopen_body production_reopen_query shared_set_clause kill_body failgraph_body work_items_schema queue_source readiness_source replay_source
 	repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 	live_lib="${repo_root}/scripts/lib/ifa_workload_dependency_live.sh"
@@ -86,7 +86,13 @@ run_ifa_fault_injection_workload_dependency_cases() {
 			|| fail "workload_dependency reopen is not fixture-scoped by ${fixture_filter}"
 	done
 	reopen_body="$(awk '/^ifa_workload_dependency_live_reopen_materialization\(\)/,/^}/' "${live_lib}")"
-	production_reopen_body="$(awk '/^const reopenSucceededReducerWorkQuery = `/,/^`/' "${replay_source}")"
+	production_reopen_query="$(awk '/^const reopenSucceededReducerWorkQuery = `/,/^`/' "${replay_source}")"
+	printf '%s\n' "${production_reopen_query}" | rg --fixed-strings --quiet -- 'ReopenSucceededReducerSetClause' \
+		|| fail "reopenSucceededReducerWorkQuery no longer interpolates ReopenSucceededReducerSetClause"
+	shared_set_clause="$(awk '/^const ReopenSucceededReducerSetClause = `/,/`$/' "${replay_source}" | sed '1s/^const ReopenSucceededReducerSetClause = `//')"
+	[[ -n "${shared_set_clause}" ]] || fail "ReopenSucceededReducerSetClause const missing from ${replay_source}"
+	# The query composes SET + the shared clause (#7807); mirror the composed text.
+	production_reopen_body="SET ${shared_set_clause}"
 	local -a reopen_lifecycle=(
 		"SET status = 'pending'|SET status = 'pending'"
 		"attempt_count = 0|attempt_count = 0"
