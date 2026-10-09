@@ -253,8 +253,48 @@ describe("loadRepositoryFreshness", () => {
       tone: "neutral",
       headline: "Not selected for indexing",
       detail:
-        "The collector no longer selects this repository (archived), so no newer commit will arrive. Answers reflect a1b2c3d4e5, the last indexed commit.",
+        "No live collector selector picks up this repository (archived), so no newer commit will arrive. Answers reflect a1b2c3d4e5, the last indexed commit.",
     });
+  });
+
+  it("says a not_selected repository's last generation is still building when stage work is outstanding", async () => {
+    const client = mockClient({
+      data: baseWire({
+        verdict: "not_selected",
+        stages: { collected: true, reduced: true, projected: false, materialized: false },
+        outstanding_by_stage: [{ stage: "project", status: "running", count: 12 }],
+        selection: { state: "not_selected", reason: "not_listed", live_selector_count: 1 },
+      }),
+    });
+    const freshness = await loadRepositoryFreshness(client, "repository:checkout-service", {
+      clock,
+    });
+
+    expect(freshness.copy.detail).toBe(
+      "No live collector selector picks up this repository (not in the collector's listing), so no newer commit will arrive. Its last generation (a1b2c3d4e5) is still building: projecting — 12 items left.",
+    );
+    expect(freshness.copy.detail).not.toMatch(/Answers reflect/);
+  });
+
+  it("says a not_selected repository's last generation is still building while shared enrichment is pending", async () => {
+    const client = mockClient({
+      data: baseWire({
+        verdict: "not_selected",
+        observed_commit: "",
+        shared_enrichment: {
+          pending: true,
+          pending_domains: [{ domain: "package_registry", count: 3 }],
+        },
+        selection: { state: "not_selected", reason: null, live_selector_count: 1 },
+      }),
+    });
+    const freshness = await loadRepositoryFreshness(client, "repository:checkout-service", {
+      clock,
+    });
+
+    expect(freshness.copy.detail).toBe(
+      "No live collector selector picks up this repository, so no newer commit will arrive. Its last generation is still building: your repo is done; cross-repo enrichment still running.",
+    );
   });
 
   it("does not fabricate a commit for a not_selected verdict with an empty observed_commit", async () => {
@@ -270,7 +310,7 @@ describe("loadRepositoryFreshness", () => {
     });
 
     expect(freshness.copy.detail).toBe(
-      "The collector no longer selects this repository (not in the collector's listing), so no newer commit will arrive. Answers reflect the last indexed generation.",
+      "No live collector selector picks up this repository (not in the collector's listing), so no newer commit will arrive. Answers reflect the last indexed generation.",
     );
   });
 
@@ -327,6 +367,36 @@ describe("loadRepositoryFreshness", () => {
     };
     expect(missing.selection).toEqual(unknownSelection);
     expect(unrecognized.selection).toEqual(unknownSelection);
+  });
+
+  it("sanitizes malformed fields on a recognized state instead of throwing", async () => {
+    const freshness = await loadRepositoryFreshness(
+      mockClient({
+        data: baseWire({
+          verdict: "not_selected",
+          selection: {
+            state: "not_selected",
+            reason: "operator_hold",
+            state_since: 42,
+            last_listed_at: { at: "2026-06-20T08:55:00Z" },
+            evaluated_at: "   ",
+            live_selector_count: 1.5,
+          },
+        }),
+      }),
+      "repository:checkout-service",
+      { clock },
+    );
+
+    expect(freshness.verdict).toBe("not_selected");
+    expect(freshness.selection).toEqual({
+      state: "not_selected",
+      reason: null,
+      stateSince: null,
+      lastListedAt: null,
+      evaluatedAt: null,
+      liveSelectorCount: 0,
+    });
   });
 
   it("drops a reason the wire contract forbids for a selected or unknown state", async () => {

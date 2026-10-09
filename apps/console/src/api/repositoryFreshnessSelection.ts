@@ -113,11 +113,11 @@ export function selectionReasonLabel(reason: SelectionReason | null): string {
   return reason === null ? "" : REASON_LABEL[reason];
 }
 
-function timestamp(value: string | null | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
+function timestamp(value: unknown): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
   return trimmed === "" ? null : trimmed;
 }
 
-function count(value: number | undefined): number {
+function count(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
 }

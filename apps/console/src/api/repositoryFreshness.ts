@@ -367,17 +367,25 @@ interface FreshnessSnapshotForCopy {
   readonly selection: RepositoryFreshnessSelection;
 }
 
-// notSelectedDetail explains a not_selected verdict: the collector stopped
-// selecting the repository, so answers stay at the last indexed commit. An
-// empty observed_commit names the generation instead of a fabricated SHA.
+// notSelectedDetail explains a not_selected verdict: no live selector picks
+// the repository up, so no newer commit will arrive. not_selected outranks
+// building on the API, so the last generation may still have stage or shared
+// work outstanding; that case says the build is incomplete instead of
+// claiming answers reflect it. An empty observed_commit names the generation
+// instead of a fabricated SHA.
 function notSelectedDetail(snapshot: FreshnessSnapshotForCopy): string {
   const reason = selectionReasonLabel(snapshot.selection.reason);
   const why = reason === "" ? "" : ` (${reason})`;
-  const last =
-    snapshot.observedCommit === ""
-      ? "the last indexed generation"
-      : `${shortSha(snapshot.observedCommit)}, the last indexed commit`;
-  return `The collector no longer selects this repository${why}, so no newer commit will arrive. Answers reflect ${last}.`;
+  const lead = `No live collector selector picks up this repository${why}, so no newer commit will arrive.`;
+  const commit = snapshot.observedCommit === "" ? "" : shortSha(snapshot.observedCommit);
+  const incomplete =
+    snapshot.outstandingByStage.some((row) => row.count > 0) || snapshot.sharedEnrichment.pending;
+  if (incomplete) {
+    const generation = commit === "" ? "Its last generation" : `Its last generation (${commit})`;
+    return `${lead} ${generation} is still building: ${buildingDetail(snapshot.outstandingByStage, snapshot.sharedEnrichment)}.`;
+  }
+  const last = commit === "" ? "the last indexed generation" : `${commit}, the last indexed commit`;
+  return `${lead} Answers reflect ${last}.`;
 }
 
 // freshnessCopy renders the end-user-language {tone, headline, detail} for
