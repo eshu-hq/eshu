@@ -6,6 +6,8 @@ package postgres
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive is P1 of
@@ -41,17 +43,17 @@ func TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive(t *testin
 	var blockedGenerations, eligibleOlderGenerations, eligibleNewerGenerations []string
 	for i := 0; i < blockedCount; i++ {
 		scopeID := blockedScopeID(i)
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
 		generationID := scopeID + "-g0"
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, generationID, old)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, old)
 		blockedGenerations = append(blockedGenerations, generationID)
 	}
 	for i := 0; i < eligibleCount; i++ {
 		scopeID := eligibleScopeID(i)
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
 		olderID, newerID := scopeID+"-g0", scopeID+"-g1"
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, olderID, old)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, newerID, newer)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, olderID, old)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, newerID, newer)
 		eligibleOlderGenerations = append(eligibleOlderGenerations, olderID)
 		eligibleNewerGenerations = append(eligibleNewerGenerations, newerID)
 	}

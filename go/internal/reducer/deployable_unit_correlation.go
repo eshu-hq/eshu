@@ -15,7 +15,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -36,17 +36,17 @@ type DeployableUnitCorrelationHandler struct {
 	// a partial resolved set. Nil keeps the gate open for test wiring.
 	// This is the shared relationship-generation fence also backing the
 	// repo-dependency lane, so main.go wires the same lookup value here.
-	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	ResolutionActiveLookup accepted.RelationshipGenerationActiveLookup
 	// ResolutionsCompleteLookup backs the corpus-wide resolution-readiness
 	// gate: the intent defers while any active scope's current relationship
 	// generation is inactive, because the by-repos resolved read merges
 	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
 	// the gate open for test wiring; main.go wires the Postgres lookup here.
-	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
+	ResolutionsCompleteLookup accepted.RelationshipGenerationsCompleteLookup
 	// IncompleteScopesLookup best-effort names the scopes holding the fence
 	// on a deferral, so the error is actionable instead of opaque (#6730).
 	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
-	IncompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup
+	IncompleteScopesLookup accepted.RelationshipGenerationsIncompleteScopesLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 	// Logger receives the bound-expiry WARN emitted when a shared-edge target

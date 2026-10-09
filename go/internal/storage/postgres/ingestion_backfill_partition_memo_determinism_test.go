@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestDeferredBackfillPartitionMemoNoChangeRerunSkipsAndIsIdentical is the (i)
@@ -18,7 +20,7 @@ import (
 // re-derives the evidence to attempt inserting it), and (c) leave the
 // discovered evidence edge set byte-identical between the two passes.
 func TestDeferredBackfillPartitionMemoNoChangeRerunSkipsAndIsIdentical(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)
@@ -85,7 +87,7 @@ func TestDeferredBackfillPartitionMemoNoChangeRerunSkipsAndIsIdentical(t *testin
 // pass must reload all of them (none skipped), even though no partition's own
 // (scope_id, generation_id) changed.
 func TestDeferredBackfillPartitionMemoCatalogChangeInvalidatesAll(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)
@@ -153,7 +155,7 @@ func TestDeferredBackfillPartitionMemoCatalogChangeInvalidatesAll(t *testing.T) 
 // generation is unchanged, under the SAME catalog fingerprint, must be
 // memo-skippable.
 func TestDeferredBackfillPartitionMemoGenerationChangeReloadsOnlyThatPartition(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)

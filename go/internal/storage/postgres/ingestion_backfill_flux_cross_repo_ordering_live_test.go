@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // seedFluxOrderingScopeGenRepo seeds an activated scope/generation plus a
@@ -85,7 +87,7 @@ VALUES ($1, $2, $3, 'file', $1, 'git', $1, $4, $4, $5::jsonb)`,
 // appeared. GREEN after: the Flux carve-out admits the fact and the edge
 // materializes on the catalog change.
 func TestDeferredBackfillRecoversFluxCrossRepoEvidenceOnSourceBeforeTarget(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)
@@ -148,7 +150,7 @@ func TestDeferredBackfillRecoversFluxCrossRepoEvidenceOnSourceBeforeTarget(t *te
 // DEPLOYS_FROM edge must materialize — never before, keeping strict-equality
 // never-fabricate.
 func TestDeferredBackfillRecoversFluxCrossRepoEvidenceOnRemoteURLChange(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)

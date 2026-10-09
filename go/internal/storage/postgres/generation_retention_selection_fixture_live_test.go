@@ -10,54 +10,6 @@ import (
 	"time"
 )
 
-// seedRetentionSelectionScope inserts one active scope with an active
-// generation the scope's own superseded generations must never equal, so the
-// candidate query's active_generation_id predicate never accidentally
-// excludes a fixture row.
-func seedRetentionSelectionScope(t *testing.T, ctx context.Context, database *sql.DB, scopeID string) {
-	t.Helper()
-	activeGeneration := scopeID + "-active"
-	steps := []struct {
-		query string
-		args  []any
-	}{
-		{
-			`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
-    partition_key, observed_at, ingested_at, status, payload)
-VALUES ($1, 'repository', 'git', $1, 'git', $1, now(), now(), 'active', '{}'::jsonb)`,
-			[]any{scopeID},
-		},
-		{
-			`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status)
-VALUES ($1, $2, 'snapshot', now(), now(), 'active')`,
-			[]any{activeGeneration, scopeID},
-		},
-		{
-			`UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2`,
-			[]any{activeGeneration, scopeID},
-		},
-	}
-	for _, step := range steps {
-		if _, err := database.ExecContext(ctx, step.query, step.args...); err != nil {
-			t.Fatalf("seed scope %s: %v", scopeID, err)
-		}
-	}
-}
-
-// seedRetentionSelectionSupersededGeneration inserts one superseded
-// generation. observedAt is set equal to supersededAt: the fixtures here
-// never depend on the difference between the two.
-func seedRetentionSelectionSupersededGeneration(t *testing.T, ctx context.Context, database *sql.DB, scopeID, generationID string, supersededAt time.Time) {
-	t.Helper()
-	if _, err := database.ExecContext(ctx, `
-INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, superseded_at)
-VALUES ($1, $2, 'snapshot', $3, $3, 'superseded', $3)`,
-		generationID, scopeID, supersededAt,
-	); err != nil {
-		t.Fatalf("seed superseded generation %s: %v", generationID, err)
-	}
-}
-
 // seedRetentionSelectionLiveWork gives generationID one running fact_work_items
 // row, which the candidate query's live_work CTE must exclude it for.
 func seedRetentionSelectionLiveWork(t *testing.T, ctx context.Context, database *sql.DB, scopeID, generationID string) {

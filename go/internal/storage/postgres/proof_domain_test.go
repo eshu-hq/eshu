@@ -15,18 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
-
-// testFactChannel converts a slice of envelopes to a closed channel for testing.
-func testFactChannel(envelopes []facts.Envelope) <-chan facts.Envelope {
-	ch := make(chan facts.Envelope, len(envelopes))
-	for _, e := range envelopes {
-		ch <- e
-	}
-	close(ch)
-	return ch
-}
 
 func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) {
 	t.Parallel()
@@ -292,7 +283,7 @@ func TestProofDomainIncrementalRefreshLeavesActiveGenerationUnchangedForIdentica
 		context.Background(),
 		scopeValue,
 		generation,
-		testFactChannel(proofRepositoryFacts(scopeValue.ScopeID, generation.GenerationID, "fact-1", "digest-aaa", generation.ObservedAt)),
+		testfixtures.FactChannel(proofRepositoryFacts(scopeValue.ScopeID, generation.GenerationID, "fact-1", "digest-aaa", generation.ObservedAt)),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
@@ -308,7 +299,7 @@ func TestProofDomainIncrementalRefreshLeavesActiveGenerationUnchangedForIdentica
 		context.Background(),
 		scopeValue,
 		generation,
-		testFactChannel(proofRepositoryFacts(scopeValue.ScopeID, generation.GenerationID, "fact-1", "digest-aaa", generation.ObservedAt)),
+		testfixtures.FactChannel(proofRepositoryFacts(scopeValue.ScopeID, generation.GenerationID, "fact-1", "digest-aaa", generation.ObservedAt)),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() rerun error = %v, want nil", err)
 	}
@@ -366,7 +357,7 @@ func TestProofDomainIncrementalRefreshSupersedesActiveGenerationOnChangedRerun(t
 		context.Background(),
 		scopeValue,
 		generationA,
-		testFactChannel(proofRepositoryFacts(scopeValue.ScopeID, generationA.GenerationID, "fact-1", "digest-aaa", generationA.ObservedAt)),
+		testfixtures.FactChannel(proofRepositoryFacts(scopeValue.ScopeID, generationA.GenerationID, "fact-1", "digest-aaa", generationA.ObservedAt)),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() generation A error = %v, want nil", err)
 	}
@@ -383,7 +374,7 @@ func TestProofDomainIncrementalRefreshSupersedesActiveGenerationOnChangedRerun(t
 		context.Background(),
 		scopeValue,
 		generationB,
-		testFactChannel(proofRepositoryFacts(scopeValue.ScopeID, generationB.GenerationID, "fact-2", "digest-bbb", generationB.ObservedAt)),
+		testfixtures.FactChannel(proofRepositoryFacts(scopeValue.ScopeID, generationB.GenerationID, "fact-2", "digest-bbb", generationB.ObservedAt)),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() generation B error = %v, want nil", err)
 	}

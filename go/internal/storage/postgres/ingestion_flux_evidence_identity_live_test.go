@@ -27,6 +27,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -101,7 +102,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsFluxEvidenceNatively(t *test
 		ctx,
 		derivedEvidenceScope(sourceScope),
 		derivedEvidenceGeneration(sourceScope, generationID, now.Add(time.Minute)),
-		testFactChannel([]facts.Envelope{fluxEnvelope}),
+		testfixtures.FactChannel([]facts.Envelope{fluxEnvelope}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil (SQLSTATE 22021 = NUL identity)", err)
 	}
@@ -193,7 +194,7 @@ func TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist(t *testing.T) {
 		ctx,
 		derivedEvidenceScope(sourceScope),
 		derivedEvidenceGeneration(sourceScope, generationID, now.Add(time.Minute)),
-		testFactChannel([]facts.Envelope{fluxEnvelope}),
+		testfixtures.FactChannel([]facts.Envelope{fluxEnvelope}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
@@ -261,7 +262,7 @@ func mustCommitFluxIdentityRepository(
 		ctx,
 		derivedEvidenceScope(scopeID),
 		derivedEvidenceGeneration(scopeID, generationID, observedAt),
-		testFactChannel([]facts.Envelope{envelope}),
+		testfixtures.FactChannel([]facts.Envelope{envelope}),
 	); err != nil {
 		t.Fatalf("onboard repository %q: CommitScopeGeneration() error = %v, want nil", repoID, err)
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -124,7 +124,7 @@ func deployableUnitCanonicalReposReady(
 // is never reopened (#6184). The own-generation check runs before the read.
 func deployableUnitCorpusFenceDeferral(
 	ctx context.Context,
-	incompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup,
+	incompleteScopesLookup accepted.RelationshipGenerationsIncompleteScopesLookup,
 	intent Intent,
 	read corpusFencedResolvedRead,
 ) error {
@@ -139,7 +139,7 @@ func deployableUnitCorpusFenceDeferral(
 		return deployableUnitCorrelationResolutionNotReadyError{
 			scopeID:         intent.ScopeID,
 			generationID:    intent.GenerationID,
-			holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, incompleteScopesLookup),
+			holdingScopeIDs: accepted.IncompleteScopeIDs(ctx, incompleteScopesLookup),
 		}
 	}
 	return nil

@@ -1,0 +1,250 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package liveness
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
+)
+
+const (
+	defaultGenerationLivenessPollInterval   = 5 * time.Minute
+	defaultGenerationLivenessProgressWindow = 10 * time.Minute
+
+	// generationLivenessRedriveLogMessage is the per-generation Info log
+	// emitted for every re-driven generation (#7265).
+	generationLivenessRedriveLogMessage = "generation liveness re-drove wedged generation"
+	// generationLivenessRedriveReason is the bounded reason on that log: the
+	// generation's actionable outstanding intents sit only in domain queues
+	// that completed nothing inside the progress window.
+	generationLivenessRedriveReason = "no_intent_progress_within_window"
+)
+
+// Policy bounds the liveness sweep that recovers wedged
+// active generations. The storage implementation owns candidate selection and
+// locking; the runner only receives the re-driven rows back for logging.
+type Policy struct {
+	// ActivationDeadline is how long an active generation may make no forward
+	// progress past canonical-nodes-committed before it is treated as wedged.
+	ActivationDeadline time.Duration
+	// MaxRecoverAttempts bounds the automated re-drive budget per generation.
+	MaxRecoverAttempts int
+	// BatchLimit caps how many generations one sweep retires or re-drives.
+	BatchLimit int
+	// ProgressWindow is how recently a blocking projection_domain queue must
+	// have completed any intent for its generation to be draining, not wedged.
+	// Zero or negative means the 10-minute default (#7265).
+	ProgressWindow time.Duration
+}
+
+// effectiveProgressWindow returns the window the storage layer applies after
+// normalization, so logs report the value actually used.
+func (p Policy) effectiveProgressWindow() time.Duration {
+	if p.ProgressWindow <= 0 {
+		return defaultGenerationLivenessProgressWindow
+	}
+	return p.ProgressWindow
+}
+
+// Result summarizes one liveness sweep.
+type Result struct {
+	// Superseded counts orphaned older active generations retired this cycle.
+	Superseded int
+	// Recovered counts wedged active generations re-driven through projector
+	// re-enqueue this cycle.
+	Recovered int
+	// Recoveries lists each re-driven generation. Skipped (draining)
+	// generations never appear here; the draining gauge bucket covers them.
+	Recoveries []Recovery
+}
+
+// Recovery identifies one re-driven generation and the
+// durable liveness_recovery_attempts value its re-enqueue wrote.
+type Recovery struct {
+	ScopeID                  string
+	GenerationID             string
+	LivenessRecoveryAttempts int
+}
+
+// Recoverer runs one bounded liveness recovery sweep over the
+// active generation set.
+type Recoverer interface {
+	RecoverWedgedGenerations(context.Context, Policy, time.Time) (Result, error)
+}
+
+// Config configures the liveness sweep loop.
+type Config struct {
+	PollInterval time.Duration
+	Policy       Policy
+}
+
+func (c Config) pollInterval() time.Duration {
+	if c.PollInterval <= 0 {
+		return defaultGenerationLivenessPollInterval
+	}
+	return c.PollInterval
+}
+
+// Runner detects and recovers wedged active generations
+// beside normal reducer intent processing. It is the self-healing path for the
+// generation lifecycle: an active generation that makes no forward progress
+// past canonical-nodes-committed within the activation deadline is flagged
+// (metric + log) and re-driven through projector re-enqueue rather than left
+// active indefinitely.
+type Runner struct {
+	Recoverer Recoverer
+	Config    Config
+	Now       func() time.Time
+	Wait      func(context.Context, time.Duration) error
+
+	Instruments *telemetry.Instruments
+	Logger      *slog.Logger
+}
+
+// Run sweeps eligible wedged generations until the context is cancelled. A
+// cycle that recovers or supersedes work loops immediately so a backlog drains;
+// an empty cycle waits a poll interval before the next sweep.
+func (r *Runner) Run(ctx context.Context) error {
+	if err := r.validate(); err != nil {
+		return err
+	}
+
+	for {
+		if ctx.Err() != nil {
+			return nil
+		}
+
+		result, err := r.RunOnce(ctx)
+		if err != nil {
+			r.recordFailure(ctx, err)
+			if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
+				if generationLivenessContextDone(ctx, waitErr) {
+					return nil
+				}
+				return fmt.Errorf("wait for generation liveness retry: %w", waitErr)
+			}
+			continue
+		}
+		if result.Recovered > 0 || result.Superseded > 0 {
+			continue
+		}
+		if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
+			if generationLivenessContextDone(ctx, waitErr) {
+				return nil
+			}
+			return fmt.Errorf("wait for generation liveness work: %w", waitErr)
+		}
+	}
+}
+
+// RunOnce executes one bounded liveness recovery sweep.
+func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
+	if err := r.validate(); err != nil {
+		return Result{}, err
+	}
+
+	result, err := r.Recoverer.RecoverWedgedGenerations(ctx, r.Config.Policy, r.now())
+	if err != nil {
+		return Result{}, fmt.Errorf("recover wedged generations: %w", err)
+	}
+	r.recordResult(ctx, result)
+	return result, nil
+}
+
+func (r *Runner) validate() error {
+	if r.Recoverer == nil {
+		return errors.New("generation liveness recoverer is required")
+	}
+	return nil
+}
+
+func (r *Runner) now() time.Time {
+	if r.Now != nil {
+		return r.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+func (r *Runner) wait(ctx context.Context, d time.Duration) error {
+	if r.Wait != nil {
+		return r.Wait(ctx, d)
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (r *Runner) recordResult(ctx context.Context, result Result) {
+	if r.Instruments != nil {
+		if result.Recovered > 0 {
+			r.Instruments.GenerationLivenessRecovered.Add(ctx, int64(result.Recovered))
+		}
+		if result.Superseded > 0 {
+			r.Instruments.GenerationLivenessSuperseded.Add(ctx, int64(result.Superseded))
+		}
+	}
+	if r.Logger == nil {
+		return
+	}
+	progressWindow := r.Config.Policy.effectiveProgressWindow().String()
+	for _, recovery := range result.Recoveries {
+		r.Logger.InfoContext(
+			ctx,
+			generationLivenessRedriveLogMessage,
+			slog.String(telemetry.LogKeyScopeID, recovery.ScopeID),
+			slog.String(telemetry.LogKeyGenerationID, recovery.GenerationID),
+			slog.Int("liveness_recovery_attempts", recovery.LivenessRecoveryAttempts),
+			slog.String("reason", generationLivenessRedriveReason),
+			slog.String("progress_window", progressWindow),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+	if result.Recovered == 0 && result.Superseded == 0 {
+		return
+	}
+	r.Logger.InfoContext(
+		ctx,
+		"generation liveness recovery cycle completed",
+		slog.Int("generations_recovered", result.Recovered),
+		slog.Int("generations_superseded", result.Superseded),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
+}
+
+func (r *Runner) recordFailure(ctx context.Context, err error) {
+	if r.Instruments != nil {
+		r.Instruments.GenerationLivenessFailures.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("reason", "store_error"),
+		))
+	}
+	if r.Logger != nil {
+		r.Logger.ErrorContext(
+			ctx,
+			"generation liveness recovery cycle failed",
+			log.Err(err),
+			telemetry.FailureClassAttr("generation_liveness_error"),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}
+
+func generationLivenessContextDone(ctx context.Context, err error) bool {
+	return errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		ctx.Err() != nil
+}

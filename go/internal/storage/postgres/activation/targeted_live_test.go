@@ -15,9 +15,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -52,7 +53,7 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-real-catalog-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string, later time.Duration) {
 		t.Helper()
-		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID,
+		fact := testfixtures.ActivationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID,
 			"https://github.com/acme/"+repoID+".git")
 		fact.ObservedAt = fact.ObservedAt.Add(later)
 		commitActivationRepository(t, ctx, store, fact, repoID)
@@ -81,10 +82,10 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 		t.Fatal(err)
 	}
 	port := &countingRealMaintainer{inner: postgres.NewActivationMaintainer(postgres.NewIngestionStore(postgres.SQLDB{DB: database}), nil, instruments)}
-	runner := &maintenance.ActivationObligationRunner{
+	runner := &obligation.Runner{
 		Store:       activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer:  port,
-		Config:      maintenance.ActivationObligationRunnerConfig{Owner: "7584-real-catalog-consumer", Lease: 500 * time.Millisecond},
+		Config:      obligation.Config{Owner: "7584-real-catalog-consumer", Lease: 500 * time.Millisecond},
 		Instruments: instruments,
 	}
 	for i := 0; i < 2; i++ { // the second cycle runs inside the lease
@@ -92,8 +93,8 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 			t.Fatal(err)
 		}
 	}
-	assertObligationStateToken(t, ctx, database, "git:catalog-x", "gen-x-2", "leased", 1)
-	assertObligationStateToken(t, ctx, database, "git:catalog-y", "gen-y-1", "leased", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:catalog-x", "gen-x-2", "leased", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:catalog-y", "gen-y-1", "leased", 1)
 	if got := port.calls.Load(); got != 2 {
 		t.Fatalf("callbacks inside one lease = %d, want 2 (one per owed generation)", got)
 	}
@@ -111,8 +112,8 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, "git:catalog-x", "gen-x-2", "completed", 2)
-	assertObligationStateToken(t, ctx, database, "git:catalog-y", "gen-y-1", "completed", 2)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:catalog-x", "gen-x-2", "completed", 2)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:catalog-y", "gen-y-1", "completed", 2)
 	if got := port.calls.Load(); got != 2 {
 		t.Fatalf("callbacks after the epoch pass = %d, want still 2", got)
 	}
@@ -126,13 +127,13 @@ func runRealRefusalHold(t *testing.T, stableRepo bool, reason string) {
 }
 
 type countingRealMaintainer struct {
-	inner  maintenance.ActivationMaintainer
+	inner  obligation.Maintainer
 	calls  atomic.Int32
 	mu     sync.Mutex
 	perGen map[string]int
 }
 
-func (c *countingRealMaintainer) MaintainActivation(ctx context.Context, work maintenance.ActivationObligation) error {
+func (c *countingRealMaintainer) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
 	c.calls.Add(1)
 	c.mu.Lock()
 	if c.perGen == nil {
@@ -172,7 +173,7 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 		scope, generation string
 		later             time.Duration
 	}{{"git:real-loser", "gen-real-loser", 0}, {"git:real-winner", "gen-real-winner", time.Hour}} {
-		fact := activationRepositoryFact("fact-"+r.generation, r.scope, r.generation,
+		fact := testfixtures.ActivationRepositoryFact("fact-"+r.generation, r.scope, r.generation,
 			"repo-real-shared", "https://github.com/acme/real-shared.git")
 		fact.ObservedAt = fact.ObservedAt.Add(r.later)
 		commitActivationRepository(t, ctx, store, fact, "repo-real-shared")
@@ -182,15 +183,15 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 		}
 	}
 	port := &countingRealMaintainer{inner: postgres.NewActivationMaintainer(postgres.NewIngestionStore(postgres.SQLDB{DB: database}), nil, nil)}
-	runner := &maintenance.ActivationObligationRunner{
+	runner := &obligation.Runner{
 		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: port,
-		Config:     maintenance.ActivationObligationRunnerConfig{Owner: "7584-real-collision-consumer", Lease: 300 * time.Millisecond},
+		Config:     obligation.Config{Owner: "7584-real-collision-consumer", Lease: 300 * time.Millisecond},
 	}
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, "git:real-loser", "gen-real-loser", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:real-loser", "gen-real-loser", "inapplicable", 1)
 	if got := port.callsFor("gen-real-loser"); got != 1 {
 		t.Fatalf("callbacks for the collision loser = %d, want 1", got)
 	}
@@ -198,7 +199,7 @@ func TestActivationObligationRealCollisionLoserIsInapplicableLive(t *testing.T) 
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, "git:real-loser", "gen-real-loser", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:real-loser", "gen-real-loser", "inapplicable", 1)
 	// The winner (no memo baseline yet) is held and retried after its lease;
 	// the loser is never reclaimed, so its single callback is not repeated.
 	if got := port.callsFor("gen-real-loser"); got != 1 {
@@ -218,14 +219,14 @@ func TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive(t *
 	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-blocked-projector", time.Minute)
-	commitActivationRepository(t, ctx, store, activationRepositoryFact("fact-blocked", "git:blocked", "gen-blocked",
+	commitActivationRepository(t, ctx, store, testfixtures.ActivationRepositoryFact("fact-blocked", "git:blocked", "gen-blocked",
 		"repo-blocked", "https://github.com/acme/blocked.git"), "repo-blocked")
 	work := claimActivationProjectorWork(t, ctx, queue, "git:blocked", "gen-blocked")
 	if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
 	}
 	var cancelledBy error
-	blocked := &countingActivationMaintainer{decide: func(ctx context.Context, _ maintenance.ActivationObligation) error {
+	blocked := &countingActivationMaintainer{decide: func(ctx context.Context, _ obligation.Obligation) error {
 		<-ctx.Done()
 		cancelledBy = ctx.Err()
 		return ctx.Err()
@@ -238,7 +239,7 @@ func TestActivationObligationBlockedMaintenanceIsCancelledBeforeTheLeaseLive(t *
 	if elapsed := time.Since(started); elapsed > 3*time.Second || !errors.Is(cancelledBy, context.DeadlineExceeded) {
 		t.Fatalf("blocked callback ended after %s with %v, want cancelled by its deadline before the 1 s lease", elapsed, cancelledBy)
 	}
-	assertObligationStateToken(t, ctx, database, "git:blocked", "gen-blocked", "leased", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:blocked", "gen-blocked", "leased", 1)
 	time.Sleep(time.Second) // past the lease on any clock
 	reclaimed, err := activation.NewStore(postgres.SQLDB{DB: database}).Claim(ctx, "7584-second-claimer", time.Minute)
 	if err != nil || reclaimed == nil || reclaimed.GenerationID != "gen-blocked" || reclaimed.LeaseToken != 2 {

@@ -17,7 +17,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	freshnesslinks "github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/evidence"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/infra"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/poison"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/producer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -86,7 +93,7 @@ type Service struct {
 	// model reconciled with the active fact set (#3466) via a lease-guarded
 	// periodic atomic resweep, so the collector-readiness API read joins a small
 	// materialized table instead of scanning fact_records. Nil disables it.
-	CollectorEvidenceSummaryMaintainer *maintenance.CollectorEvidenceSummaryMaintainer
+	CollectorEvidenceSummaryMaintainer *evidence.Maintainer
 
 	// CodeCallProjectionRunner runs the controlled code-call projection lane
 	// concurrently with the main claim/execute/ack loop. Nil disables the lane.
@@ -106,7 +113,7 @@ type Service struct {
 
 	// GenerationRetentionRunner prunes superseded source-generation history in
 	// bounded transactions. Nil disables automated cleanup.
-	GenerationRetentionRunner *maintenance.GenerationRetentionRunner
+	GenerationRetentionRunner *retention.Runner
 
 	// ChangedSinceLinkRunner is the changed_since_link domain (#7127): it
 	// journals generation activations and links each one into the
@@ -116,7 +123,7 @@ type Service struct {
 
 	// InfraInventoryReconcileRunner re-derives infra read model repositories
 	// whose rows drifted from content_entities (#6793). Nil disables it.
-	InfraInventoryReconcileRunner *maintenance.InfraInventoryReconcileRunner
+	InfraInventoryReconcileRunner *infra.Runner
 
 	// StatusSummaryWriter keeps the status_summary_snapshots read model of the
 	// active-work summary current (#7009). Nil (ESHU_STATUS_SUMMARY_WRITER_ENABLED
@@ -126,28 +133,28 @@ type Service struct {
 	// GenerationLivenessRunner re-drives active generations that wedge past the
 	// activation deadline and supersedes orphaned older actives. Nil disables
 	// generation lifecycle self-healing.
-	GenerationLivenessRunner *maintenance.GenerationLivenessRunner
+	GenerationLivenessRunner *liveness.Runner
 
 	// PoisonLivenessRunner bounds-recovers the dead-letter/poison class (#4740):
 	// fact_work_items rows that are terminally 'dead_letter' with no newer
-	// scope generation, a class GenerationLivenessRunner does not reach. Nil
+	// scope generation, a class liveness.Runner does not reach. Nil
 	// when bounded auto-retry is disabled (the default, surface-only posture);
 	// the stuck-gauge remains active independently of this field.
-	PoisonLivenessRunner *maintenance.PoisonLivenessRunner
+	PoisonLivenessRunner *poison.Runner
 
 	// ProducerActivationRunner replays the correlation consumers that wait on
 	// each producer activation (#7635). Nil disables the consumer.
-	ProducerActivationRunner *maintenance.ProducerActivationRunner
+	ProducerActivationRunner *producer.Runner
 	// ActivationObligationRunner settles the exact-generation activation
 	// obligations ProjectorQueue.Ack writes (#7584): it runs the activation
 	// maintenance port when the generation's backward-evidence phase is
 	// missing and wakes the deployment_mapping rows waiting on it. Nil
 	// disables the consumer.
-	ActivationObligationRunner *maintenance.ActivationObligationRunner
+	ActivationObligationRunner *obligation.Runner
 
 	// GraphOrphanSweepRunner marks and deletes aged zero-relationship graph
 	// nodes in bounded batches. Nil disables automated cleanup.
-	GraphOrphanSweepRunner *maintenance.GraphOrphanSweepRunner
+	GraphOrphanSweepRunner *orphan.Runner
 
 	// CodeValueFlowStaleCleanupRunner removes reducer-owned value-flow evidence
 	// from older source generations in bounded batches. Nil disables cleanup.

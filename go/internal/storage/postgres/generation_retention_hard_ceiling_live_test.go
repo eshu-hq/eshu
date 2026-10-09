@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestGenerationRetentionHardCeilingLive is the #7585 boundary proof: the
@@ -53,11 +55,11 @@ func TestGenerationRetentionHardCeilingLive(t *testing.T) {
 		return result
 	}
 
-	seedRetentionSelectionScope(t, ctx, database, "hardceiling-beyond")
-	seedRetentionSelectionSupersededGeneration(t, ctx, database,
+	testfixtures.SeedScope(t, ctx, database, "hardceiling-beyond")
+	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"hardceiling-beyond", "hardceiling-beyond-g0", now.Add(-100*24*time.Hour))
-	seedRetentionSelectionScope(t, ctx, database, "hardceiling-inside")
-	seedRetentionSelectionSupersededGeneration(t, ctx, database,
+	testfixtures.SeedScope(t, ctx, database, "hardceiling-inside")
+	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"hardceiling-inside", "hardceiling-inside-g0", now.Add(-10*24*time.Hour))
 
 	// Configured ceiling honored: the 100-day rank-1 generation is pruned
@@ -76,8 +78,8 @@ func TestGenerationRetentionHardCeilingLive(t *testing.T) {
 
 	// Unset ceiling keeps 90 days: a fresh 100-day rank-1 generation is
 	// pruned under the zero-value policy the same way.
-	seedRetentionSelectionScope(t, ctx, database, "hardceiling-default")
-	seedRetentionSelectionSupersededGeneration(t, ctx, database,
+	testfixtures.SeedScope(t, ctx, database, "hardceiling-default")
+	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"hardceiling-default", "hardceiling-default-g0", now.Add(-100*24*time.Hour))
 	if result := prune(policyWith(0)); result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1 (unset ceiling keeps the 90-day default)", result.GenerationsPruned)

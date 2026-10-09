@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 )
 
 // Real-Postgres proofs for the #4594 disaster-recovery rebuild.
@@ -299,11 +299,11 @@ func activateRefinalizeResetGeneration(
 // refinalizeResetGatedAcceptedGen builds the production repo_dependency
 // authority lookup: the raw acceptance-store lookup fenced by the production
 // relationship-generation active check through
-// maintenance.GateAcceptedGenerationOnActive, exactly as go/cmd/reducer wires
+// accepted.GateOnActive, exactly as go/cmd/reducer wires
 // the lane. Bypassed source runs (code-import, package-consumption) skip the
 // fence; resolver runs ("repo_dependency[:<scope>]") must clear it.
 func refinalizeResetGatedAcceptedGen(database *sql.DB) reducer.AcceptedGenerationLookup {
-	return maintenance.GateAcceptedGenerationOnActive(
+	return accepted.GateOnActive(
 		NewAcceptedGenerationLookup(SQLDB{DB: database}),
 		NewRelationshipGenerationActiveLookup(NewRelationshipStore(SQLDB{DB: database})),
 		nil,
@@ -313,7 +313,7 @@ func refinalizeResetGatedAcceptedGen(database *sql.DB) reducer.AcceptedGeneratio
 // refinalizeResetLaneRunner builds a repo_dependency lane over live Postgres,
 // mirroring causalFenceRunner except for the accepted-generation lookup: where
 // the fence proof uses the raw store lookup, the #7673 lane proofs use the
-// production gate (maintenance.GateAcceptedGenerationOnActive over the
+// production gate (accepted.GateOnActive over the
 // production lookup and the production relationship-generation active check),
 // which is the authority under test. AcceptedGenPrefetch stays nil so both
 // selection and filtering resolve through that one gate. The edge writer is the

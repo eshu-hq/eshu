@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 )
 
 // TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive proves the
@@ -18,7 +18,7 @@ import (
 // activated, the next cycle projects the edges.
 //
 // This test stays in the reducer root rather than moving with
-// maintenance.GateAcceptedGenerationOnActive (issue #6061): it exercises the
+// accepted.GateOnActive (issue #6061): it exercises the
 // gate against RepoDependencyProjectionRunner and its unexported test
 // fixtures (fakeRepoDependencyIntentStore, repoDependencyIntentRow,
 // recordingCodeCallProjectionEdgeWriter), all of which are root-owned and
@@ -47,7 +47,7 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 	writer := &recordingCodeCallProjectionEdgeWriter{}
 
 	active := false
-	gated := maintenance.GateAcceptedGenerationOnActive(
+	gated := accepted.GateOnActive(
 		acceptedGenerationFixed("gen-2", true),
 		func(string) (bool, error) { return active, nil },
 		nil,

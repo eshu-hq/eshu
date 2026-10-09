@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // composedGen is one quiet owed generation of the composed corpus.
@@ -87,7 +88,7 @@ func TestActivationObligationConsumerAndEpochPassOverlapLive(t *testing.T) {
 			}
 		}
 		consumer.requireNoFailures(t, ctx)
-		assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
+		testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
 		references[order] = composedState(t, ctx, database)
 	}
 	if !slices.Equal(references["epoch_first"], references["consumer_first"]) {
@@ -120,7 +121,7 @@ func TestActivationObligationConsumerAndEpochPassOverlapLive(t *testing.T) {
 				}
 			}
 			consumer.requireNoFailures(t, ctx)
-			assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
+			testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
 			if got := consumer.port.total(); got > 1 {
 				t.Fatalf("maintenance callbacks = %d, want at most 1", got)
 			}
@@ -189,7 +190,7 @@ func runForcedLockOverlap(t *testing.T, holder string, references map[string][]s
 		}
 	}
 	consumer.requireNoFailures(t, ctx)
-	assertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:tgt", "tgt-2", "completed", 1)
 	requireWoken(t, ctx, database, "tgt-2", true)
 	got := composedState(t, ctx, database)
 	if !slices.Equal(got, references["epoch_first"]) && !slices.Equal(got, references["consumer_first"]) {
@@ -254,7 +255,7 @@ func runReplicaRace(t *testing.T, gens []composedGen, maxPerCycle int, reference
 		t.Fatalf("claims a=%d b=%d, want %d in all (each obligation claimed once)", claimedA, claimedB, len(gens))
 	}
 	for _, g := range gens {
-		assertObligationStateToken(t, ctx, database, g.scope, g.gen, "completed", 1)
+		testfixtures.AssertObligationStateToken(t, ctx, database, g.scope, g.gen, "completed", 1)
 		if got := a.port.callsFor(g.gen) + b.port.callsFor(g.gen); got != 1 {
 			t.Fatalf("callbacks for %s = %d, want exactly 1", g.gen, got)
 		}

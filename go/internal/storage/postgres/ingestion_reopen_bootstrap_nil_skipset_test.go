@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestReopenDeploymentMappingWorkItemsNilSkipSetReopensPartitionProcessedThisPass
@@ -29,7 +31,7 @@ import (
 // re-read that cannot distinguish this pass's own fresh write from a prior
 // pass's committed one."
 func TestReopenDeploymentMappingWorkItemsNilSkipSetReopensPartitionProcessedThisPass(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -96,7 +98,7 @@ func TestReopenDeploymentMappingWorkItemsNilSkipSetReopensPartitionProcessedThis
 // ReopenCodeImportRepoEdgeWorkItems with a nil skip-set after its own Phase 2
 // BackfillAllRelationshipEvidence call.
 func TestReopenCodeImportRepoEdgeWorkItemsNilSkipSetReopensPartitionProcessedThisPass(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)

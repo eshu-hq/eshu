@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -102,7 +102,7 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// keeps the gate open for test wiring. This is the shared
 	// relationship-generation fence also backing the repo-dependency lane,
 	// so main.go wires the same lookup value here.
-	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	ResolutionActiveLookup accepted.RelationshipGenerationActiveLookup
 	// ResolutionsCompleteLookup backs the corpus-wide resolution-readiness
 	// gate: the load defers while any active scope's current relationship
 	// generation is inactive, because the by-repos resolved read merges
@@ -111,11 +111,11 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// It is not consulted when ResolvedLoader implements
 	// CorpusFencedResolvedRelationshipLoader: that read carries its own
 	// same-snapshot verdict (#6740).
-	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
+	ResolutionsCompleteLookup accepted.RelationshipGenerationsCompleteLookup
 	// IncompleteScopesLookup best-effort names the scopes holding the fence
 	// on a deferral, so the error is actionable instead of opaque (#6730).
 	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
-	IncompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup
+	IncompleteScopesLookup accepted.RelationshipGenerationsIncompleteScopesLookup
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with
@@ -194,7 +194,7 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 		return WorkloadProjectionInputs{}, workloadMaterializationResolutionNotReadyError{
 			scopeID:         intent.ScopeID,
 			generationID:    intent.GenerationID,
-			holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
+			holdingScopeIDs: accepted.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
 		}
 	}
 	if l.ResolvedLoader != nil {
@@ -279,7 +279,7 @@ type corpusFencedResolvedRead struct {
 func readCorpusFencedResolvedRelationships(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
-	completeLookup maintenance.RelationshipGenerationsCompleteLookup,
+	completeLookup accepted.RelationshipGenerationsCompleteLookup,
 	intent Intent,
 	candidates []WorkloadCandidate,
 ) (corpusFencedResolvedRead, error) {
@@ -439,7 +439,7 @@ func correlatedWorkloadName(
 // resolutionGenerationReady reports whether the relationship generation has
 // activated. Lookup errors fail closed; nil preserves isolated test wiring.
 func resolutionGenerationReady(
-	lookup maintenance.RelationshipGenerationActiveLookup,
+	lookup accepted.RelationshipGenerationActiveLookup,
 	generationID string,
 ) bool {
 	if lookup == nil {
@@ -457,7 +457,7 @@ func resolutionGenerationReady(
 // circular. Empty candidate sets are vacuous and do not wait on work they do
 // not consume.
 func ownResolutionGenerationReady(
-	lookup maintenance.RelationshipGenerationActiveLookup,
+	lookup accepted.RelationshipGenerationActiveLookup,
 	intent Intent,
 	candidates []WorkloadCandidate,
 ) bool {
@@ -477,7 +477,7 @@ func ownResolutionGenerationReady(
 // open for test wiring; a lookup error fails safe as incomplete.
 func corpusResolutionsComplete(
 	ctx context.Context,
-	lookup maintenance.RelationshipGenerationsCompleteLookup,
+	lookup accepted.RelationshipGenerationsCompleteLookup,
 	candidates []WorkloadCandidate,
 ) (bool, error) {
 	if len(candidates) == 0 {

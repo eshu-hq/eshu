@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -61,7 +62,7 @@ CREATE TABLE fact_work_items (
 // applyReopenPartitionMemoGate's doc comment). The fix removes that fallback
 // entirely: nil now always means reopen-all.
 func TestReopenDeploymentMappingWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -153,7 +154,7 @@ func TestReopenDeploymentMappingWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit
 // this exactly, unlike the sibling equivalence test above, which seeds a
 // memo HIT from a separate first pass before seeding the work item.
 func TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -215,7 +216,7 @@ func TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass(t *
 // method, confirming the reopen-all-on-nil contract holds independent of
 // whatever the memo table happens to contain.
 func TestReopenDeploymentMappingWorkItemsReopensNonMemoHitPartition(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -261,7 +262,7 @@ VALUES ($1, $2, $3, $4)`,
 // reopens regardless — so this partition's work item reopens for the same
 // reason every other nil-skip-set candidate does.
 func TestReopenDeploymentMappingWorkItemsAlwaysReopensArgoCDBearingPartition(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -310,7 +311,7 @@ func TestReopenDeploymentMappingWorkItemsAlwaysReopensArgoCDBearingPartition(t *
 // applies the same reopen-all-on-nil proof to the code_import_repo_edge
 // reopen path, proving the fix is not deployment_mapping-only.
 func TestReopenCodeImportRepoEdgeWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -22,7 +23,7 @@ import (
 // memo-skipped) because it is ArgoCD-bearing, and that the resulting edge
 // reflects B's NEW content after B changes.
 func TestDeferredBackfillPartitionMemoArgoCDCarveOutAlwaysReloads(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)
@@ -226,7 +227,7 @@ VALUES ($1, $2, $3, 'content', $1, 'git', $1, $4, $4, $5::jsonb)`,
 // partition — identical to the legacy pre-memo full-load behavior — and must
 // not error or silently skip anything.
 func TestDeferredBackfillPartitionMemoBootstrapUnchangedFullLoad(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionDeferredPartitionMemoSchema(t, db)

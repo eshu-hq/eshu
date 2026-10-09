@@ -36,8 +36,8 @@ guarantee between different fact kinds or different conflict domains.
 When a newer generation of a scope's facts lands, the reducer stops reading
 the previous generation's facts. It does not delete them at that moment.
 Deletion of superseded generations is a separate, later concern owned by the
-generation-retention runner (`GenerationRetentionRunner` in
-`go/internal/reducer/maintenance/generation_retention_runner.go`, backed by
+generation-retention runner (`retention.Runner` in
+`go/internal/reducer/maintenance/retention/runner.go`, backed by
 `PruneSupersededGenerations` in `go/internal/storage/postgres`), which prunes
 eligible superseded generations in bounded batches on its own poll interval
 and policy (minimum superseded-generation count, maximum superseded age, and

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 func TestProofDomainReplayRetryReplacesStaleProjectionState(t *testing.T) {
@@ -57,7 +58,7 @@ func TestProofDomainReplayRetryReplacesStaleProjectionState(t *testing.T) {
 		context.Background(),
 		scopeValue,
 		generationA,
-		testFactChannel(proofReplayFacts(scopeValue.ScopeID, generationA.GenerationID, "fact-1", "initial body", generationA.ObservedAt)),
+		testfixtures.FactChannel(proofReplayFacts(scopeValue.ScopeID, generationA.GenerationID, "fact-1", "initial body", generationA.ObservedAt)),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() generation A error = %v, want nil", err)
 	}
@@ -83,7 +84,7 @@ func TestProofDomainReplayRetryReplacesStaleProjectionState(t *testing.T) {
 		context.Background(),
 		scopeValue,
 		generationB,
-		testFactChannel(proofReplayFacts(scopeValue.ScopeID, generationB.GenerationID, "fact-2", "changed body", generationB.ObservedAt)),
+		testfixtures.FactChannel(proofReplayFacts(scopeValue.ScopeID, generationB.GenerationID, "fact-2", "changed body", generationB.ObservedAt)),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() generation B error = %v, want nil", err)
 	}

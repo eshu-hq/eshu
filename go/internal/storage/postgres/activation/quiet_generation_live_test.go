@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // The consumer hooks this flow calls (startQuietActivationConsumer,
@@ -61,7 +62,7 @@ func openQuietGenerationProofDB(t *testing.T) *sql.DB {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	return openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "quiet_generation")
+	return openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "quiet_generation")
 }
 
 // quietRepositoryFacts is one generation's repository fact plus, when alias
@@ -137,9 +138,9 @@ func runQuietGenerationActivation(t *testing.T, controlArm bool) {
 		{quietSourceScope, quietOldID, "repo-source", "source-service", "target-service"},
 		{quietTargetScope, quietTargetID, "repo-target", "target-service", ""},
 	} {
-		if err := store.CommitScopeGeneration(ctx, catalogTestScope(initial.scopeID, initial.repoID),
-			catalogTestGeneration(initial.scopeID, initial.generationID, base),
-			testFactChannel(quietRepositoryFacts(initial.scopeID, initial.generationID,
+		if err := store.CommitScopeGeneration(ctx, testfixtures.CatalogScope(initial.scopeID, initial.repoID),
+			testfixtures.CatalogGeneration(initial.scopeID, initial.generationID, base),
+			testfixtures.FactChannel(quietRepositoryFacts(initial.scopeID, initial.generationID,
 				initial.repoID, initial.name, initial.alias, base))); err != nil {
 			t.Fatalf("commit initial generation %q: %v", initial.generationID, err)
 		}
@@ -150,8 +151,8 @@ func runQuietGenerationActivation(t *testing.T, controlArm bool) {
 	// commit persists the pending generation, its facts and its projector
 	// work in one transaction before Service.Run invokes the maintenance hook.
 	update := collector.FactsFromSlice(
-		catalogTestScope(quietSourceScope, "repo-source"),
-		catalogTestGeneration(quietSourceScope, quietNewID, base.Add(time.Minute)),
+		testfixtures.CatalogScope(quietSourceScope, "repo-source"),
+		testfixtures.CatalogGeneration(quietSourceScope, quietNewID, base.Add(time.Minute)),
 		quietRepositoryFacts(quietSourceScope, quietNewID, "repo-source", "source-service", "target-service", base.Add(time.Minute)),
 	)
 	source := &quietGenerationSource{

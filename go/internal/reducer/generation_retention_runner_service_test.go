@@ -10,26 +10,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	"github.com/stretchr/testify/require"
 )
 
 // TestServiceStartsGenerationRetentionRunner proves Service.startSideRunners
-// starts the maintenance.GenerationRetentionRunner goroutine. The runner
+// starts the retention.Runner goroutine. The runner
 // moved to [maintenance] in #6061, but Service.Run's side-runner startup
 // stays a root concern, so this wiring proof stays here; the runner-behavior
 // tests that used to live beside it moved to
-// go/internal/reducer/maintenance/generation_retention_runner_test.go.
+// go/internal/reducer/maintenance/retention/runner_test.go.
 func TestServiceStartsGenerationRetentionRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	pruner := &fakeRootGenerationRetentionPruner{
-		results: []maintenance.GenerationRetentionResult{{RowsPruned: map[string]int64{}}},
+		results: []retention.Result{{RowsPruned: map[string]int64{}}},
 	}
 	started := make(chan struct{}, 1)
-	runner := &maintenance.GenerationRetentionRunner{
+	runner := &retention.Runner{
 		Pruner: pruner,
-		Config: maintenance.GenerationRetentionRunnerConfig{PollInterval: time.Hour},
+		Config: retention.Config{PollInterval: time.Hour},
 		Wait: func(ctx context.Context, _ time.Duration) error {
 			started <- struct{}{}
 			<-ctx.Done()
@@ -56,24 +56,24 @@ func TestServiceStartsGenerationRetentionRunner(t *testing.T) {
 }
 
 // fakeRootGenerationRetentionPruner is a minimal single-use double for
-// maintenance.GenerationRetentionPruner, scoped to this file's one wiring
+// retention.Pruner, scoped to this file's one wiring
 // test. The full-featured fake used by the runner's own behavior tests lives
 // beside them in maintenance, unexported and out of this package's reach.
 type fakeRootGenerationRetentionPruner struct {
 	mu      sync.Mutex
 	calls   int
-	results []maintenance.GenerationRetentionResult
+	results []retention.Result
 }
 
 func (p *fakeRootGenerationRetentionPruner) PruneSupersededGenerations(
 	_ context.Context,
-	_ maintenance.GenerationRetentionPolicy,
-) (maintenance.GenerationRetentionResult, error) {
+	_ retention.Policy,
+) (retention.Result, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.calls++
 	if len(p.results) == 0 {
-		return maintenance.GenerationRetentionResult{RowsPruned: map[string]int64{}}, nil
+		return retention.Result{RowsPruned: map[string]int64{}}, nil
 	}
 	result := p.results[0]
 	p.results = p.results[1:]

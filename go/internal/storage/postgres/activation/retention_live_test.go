@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationRetentionCascadeLive proves the obligation foreign
@@ -18,8 +19,8 @@ import (
 func TestActivationObligationRetentionCascadeLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_retention")
 	now := time.Now().UTC()
-	seedScope(t, ctx, database, "retention-obligation")
-	seedSupersededGeneration(t, ctx, database,
+	testfixtures.SeedScope(t, ctx, database, "retention-obligation")
+	testfixtures.SeedSupersededGeneration(t, ctx, database,
 		"retention-obligation", "retention-obligation-old", now.Add(-100*24*time.Hour))
 	for _, generationID := range []string{"retention-obligation-old", "retention-obligation-active"} {
 		if err := activation.Insert(ctx, postgres.SQLDB{DB: database}, "retention-obligation", generationID,
@@ -67,7 +68,7 @@ func TestActivationObligationRetentionCascadeLive(t *testing.T) {
 // never an open row.
 func TestActivationObligationPruneLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_prune")
-	seedScope(t, ctx, database, "prune-obligation")
+	testfixtures.SeedScope(t, ctx, database, "prune-obligation")
 	type seed struct {
 		generation string
 		state      string
@@ -157,7 +158,7 @@ VALUES ('prune-obligation', 'prune-leased', 'w', 'leased', 'o', clock_timestamp(
 // one first and deleting nothing.
 func TestActivationObligationPruneIsNotStarvedByInapplicableRowsLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_prune_starve")
-	seedScope(t, ctx, database, "prune-starve")
+	testfixtures.SeedScope(t, ctx, database, "prune-starve")
 	for _, s := range []struct{ generation, state, finished string }{
 		{"prune-starve-inapplicable", "inapplicable", "clock_timestamp() - interval '5 hours'"},
 		{"prune-starve-completed", "completed", "clock_timestamp() - interval '2 hours'"},

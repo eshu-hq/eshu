@@ -11,8 +11,6 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-
-	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // deferredPartitionMemoProofSchemaSQL extends deferredPartitionProofSchemaSQL
@@ -59,13 +57,6 @@ CREATE TABLE deferred_backfill_partition_memo (
     PRIMARY KEY (scope_id, generation_id)
 );
 `
-
-// dsnForDeferredPartitionMemoProof reuses the same proof DSN convention as the
-// #3710 partition-source proof so one configured Postgres serves both gates.
-func dsnForDeferredPartitionMemoProof(t *testing.T) string {
-	t.Helper()
-	return postgresproof.DeferredPartitionProofDSN(t)
-}
 
 func openDeferredPartitionMemoProofDB(t *testing.T, dsn string) *sql.DB {
 	t.Helper()

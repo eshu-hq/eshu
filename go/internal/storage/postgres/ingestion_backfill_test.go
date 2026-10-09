@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // backfillTxDB adapts a single fakeExecQueryer into a transactional store so the
@@ -114,7 +115,7 @@ func TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction(
 		},
 	}}
 
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testFactChannel(envelopes)); err != nil {
+	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testfixtures.FactChannel(envelopes)); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 

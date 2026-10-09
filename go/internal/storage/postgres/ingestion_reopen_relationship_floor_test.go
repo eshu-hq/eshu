@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestRelationshipReopenSkipsSupersededGenerations is the #7637 RED test. The
@@ -35,7 +36,7 @@ import (
 // On current main the stale and failed rows reopen (RED); with the floor they
 // do not (GREEN). The active and never-activated rows reopen in both arms.
 func TestRelationshipReopenSkipsSupersededGenerations(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)
@@ -107,7 +108,7 @@ func TestRelationshipReopenSkipsSupersededGenerations(t *testing.T) {
 // partition-set mismatch); a bug in the shared fragments themselves is
 // covered by the absolute test above and the hermetic fragment pins.
 func TestRelationshipReopenMatchesCorrelationReplayFloor(t *testing.T) {
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
 	db := openDeferredPartitionMemoProofDB(t, dsn)
 	provisionReopenPartitionMemoSchema(t, db)

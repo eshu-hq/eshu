@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationConsumerRestartAndDuplicatesLive: duplicate
@@ -143,7 +144,7 @@ func TestActivationObligationCatchUpLive(t *testing.T) {
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-catchup-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string) {
 		t.Helper()
-		commitActivationRepository(t, ctx, store, activationRepositoryFact("fact-"+generationID,
+		commitActivationRepository(t, ctx, store, testfixtures.ActivationRepositoryFact("fact-"+generationID,
 			scopeID, generationID, repoID, "https://github.com/acme/"+repoID+".git"), repoID)
 		work := claimActivationProjectorWork(t, ctx, queue, scopeID, generationID)
 		if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
@@ -229,7 +230,7 @@ func TestActivationObligationCatchUpReowesObsoleteOfActiveLive(t *testing.T) {
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-catchup-obsolete-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string, later time.Duration) {
 		t.Helper()
-		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID, "https://github.com/acme/"+repoID+".git")
+		fact := testfixtures.ActivationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID, "https://github.com/acme/"+repoID+".git")
 		fact.ObservedAt = fact.ObservedAt.Add(later)
 		commitActivationRepository(t, ctx, store, fact, repoID)
 		work := claimActivationProjectorWork(t, ctx, queue, scopeID, generationID)

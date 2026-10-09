@@ -18,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/evidence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -436,7 +436,7 @@ func buildReducerService(
 			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),
 			Logger:       logger,
 		},
-		CollectorEvidenceSummaryMaintainer: &maintenance.CollectorEvidenceSummaryMaintainer{
+		CollectorEvidenceSummaryMaintainer: &evidence.Maintainer{
 			Rebuilder:    postgres.NewCollectorEvidenceSummaryStore(database),
 			Freshness:    postgres.NewCollectorEvidenceSummaryStore(database),
 			LeaseManager: intentStore,

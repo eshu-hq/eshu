@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -21,13 +21,13 @@ func graphOrphanSweepRunnerFor(
 	reader query.GraphQuery,
 	leaseManager reducer.PartitionLeaseManager,
 	cfg graphOrphanSweepConfig,
-) *maintenance.GraphOrphanSweepRunner {
+) *orphan.Runner {
 	if !cfg.Enabled {
 		return nil
 	}
 	store := sourcecypher.NewOrphanSweepStore(executor, reader)
 	store.CountLimit = cfg.Runner.Policy.CountLimit
-	return &maintenance.GraphOrphanSweepRunner{
+	return &orphan.Runner{
 		Sweeper:      graphOrphanSweeper{store: store},
 		LeaseManager: leaseManager,
 		Config:       cfg.Runner,
@@ -36,8 +36,8 @@ func graphOrphanSweepRunnerFor(
 
 func (s graphOrphanSweeper) SweepOrphanNodes(
 	ctx context.Context,
-	policy maintenance.GraphOrphanSweepPolicy,
-) (maintenance.GraphOrphanSweepResult, error) {
+	policy orphan.Policy,
+) (orphan.Result, error) {
 	result, err := s.store.SweepOrphanNodes(ctx, sourcecypher.OrphanSweepPolicy{
 		OrphanTTL:  policy.OrphanTTL,
 		BatchLimit: policy.BatchLimit,
@@ -45,9 +45,9 @@ func (s graphOrphanSweeper) SweepOrphanNodes(
 		Labels:     policy.Labels,
 	})
 	if err != nil {
-		return maintenance.GraphOrphanSweepResult{}, err
+		return orphan.Result{}, err
 	}
-	return maintenance.GraphOrphanSweepResult{
+	return orphan.Result{
 		Counts:   result.Counts,
 		Marked:   result.Marked,
 		Deleted:  result.Deleted,

@@ -15,10 +15,11 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationInapplicableWithoutRepositoryFactLive (#7584): a
@@ -37,8 +38,8 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	}
 	observed := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 	if err := store.CommitScopeGeneration(ctx, cloud,
-		catalogTestGeneration(cloud.ScopeID, "gen-cloud", observed.Add(time.Minute)),
-		testFactChannel([]facts.Envelope{{
+		testfixtures.CatalogGeneration(cloud.ScopeID, "gen-cloud", observed.Add(time.Minute)),
+		testfixtures.FactChannel([]facts.Envelope{{
 			FactID: "fact-gcp-edge", ScopeID: cloud.ScopeID, GenerationID: "gen-cloud",
 			FactKind: "gcp_cloud_relationship", StableFactKey: "gcp_cloud_relationship:edge",
 			ObservedAt: observed,
@@ -57,7 +58,7 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
 	if got := maintainer.callsFor("gen-cloud"); got != 0 {
 		t.Fatalf("maintenance callbacks for an inapplicable generation = %d, want 0", got)
 	}
@@ -65,7 +66,7 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
 	if got := maintainer.callsFor("gen-cloud"); got != 0 {
 		t.Fatalf("maintenance callbacks after the lease = %d, want 0", got)
 	}
@@ -83,11 +84,11 @@ func TestActivationObligationInapplicableWithoutRepositoryFactLive(t *testing.T)
 	if stats.ByState[activation.StateInapplicable] != 1 {
 		t.Fatalf("census = %+v, want one inapplicable row", stats.ByState)
 	}
-	assertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, cloud.ScopeID, "gen-cloud", "inapplicable", 1)
 }
 
 // TestActivationObligationCatalogChangedIsHeldLive (#7584): the
-// maintainer refuses with ErrActivationCatalogChanged; the consumer keeps the
+// maintainer refuses with obligation.ErrCatalogChanged; the consumer keeps the
 // lease, does not retry inside it, and never runs a pass itself. The epoch
 // whole pass (run here by the test, as the ingester would after the commit
 // that changed the catalog) publishes the phase, and the next cycle after the
@@ -96,15 +97,15 @@ func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 	ctx, database := openActivationObligationProofDB(t, "activation_catalog")
 	store := postgres.NewIngestionStore(postgres.SQLDB{DB: database})
 	store.SkipRelationshipBackfill = true
-	fact := activationRepositoryFact("fact-owed", "git:catalog-owed", "gen-owed", "repo-owed", "https://github.com/acme/owed.git")
+	fact := testfixtures.ActivationRepositoryFact("fact-owed", "git:catalog-owed", "gen-owed", "repo-owed", "https://github.com/acme/owed.git")
 	commitActivationRepository(t, ctx, store, fact, "repo-owed")
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-catalog-projector", time.Minute)
 	work := claimActivationProjectorWork(t, ctx, queue, "git:catalog-owed", "gen-owed")
 	if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
 	}
-	maintainer := &countingActivationMaintainer{decide: func(context.Context, maintenance.ActivationObligation) error {
-		return fmt.Errorf("targeted pass refused: %w", maintenance.ErrActivationCatalogChanged)
+	maintainer := &countingActivationMaintainer{decide: func(context.Context, obligation.Obligation) error {
+		return fmt.Errorf("targeted pass refused: %w", obligation.ErrCatalogChanged)
 	}}
 	runner := newLiveActivationRunner(database, maintainer, 400*time.Millisecond)
 	for i := 0; i < 2; i++ { // the second cycle is inside the lease
@@ -112,7 +113,7 @@ func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	assertObligationStateToken(t, ctx, database, "git:catalog-owed", "gen-owed", "leased", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:catalog-owed", "gen-owed", "leased", 1)
 	if got := maintainer.callsFor("gen-owed"); got != 1 {
 		t.Fatalf("callbacks inside one lease = %d, want 1", got)
 	}
@@ -125,7 +126,7 @@ func TestActivationObligationCatalogChangedIsHeldLive(t *testing.T) {
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, "git:catalog-owed", "gen-owed", "completed", 2)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:catalog-owed", "gen-owed", "completed", 2)
 	if got := maintainer.callsFor("gen-owed"); got != 1 || wholePasses != 1 {
 		t.Fatalf("callbacks=%d wholePasses=%d, want 1 and 1 (the consumer ran no pass)", got, wholePasses)
 	}
@@ -235,11 +236,11 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, f.scope
 }
 
 type countingActivationMaintainer struct {
-	decide func(context.Context, maintenance.ActivationObligation) error
+	decide func(context.Context, obligation.Obligation) error
 	calls  map[string]int
 }
 
-func (m *countingActivationMaintainer) MaintainActivation(ctx context.Context, work maintenance.ActivationObligation) error {
+func (m *countingActivationMaintainer) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
 	if m.calls == nil {
 		m.calls = map[string]int{}
 	}
@@ -254,29 +255,11 @@ func (m *countingActivationMaintainer) callsFor(generationID string) int {
 	return m.calls[generationID]
 }
 
-func newLiveActivationRunner(database *sql.DB, maintainer maintenance.ActivationMaintainer, lease time.Duration) *maintenance.ActivationObligationRunner {
-	return &maintenance.ActivationObligationRunner{
+func newLiveActivationRunner(database *sql.DB, maintainer obligation.Maintainer, lease time.Duration) *obligation.Runner {
+	return &obligation.Runner{
 		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: maintainer,
-		Config:     maintenance.ActivationObligationRunnerConfig{Owner: "7584-terminal-consumer", Lease: lease},
-	}
-}
-
-func assertObligationStateToken(t *testing.T, ctx context.Context, database *sql.DB,
-	scopeID, generationID, wantState string, wantToken int64,
-) {
-	t.Helper()
-	var state string
-	var token int64
-	var finished bool
-	if err := database.QueryRowContext(ctx, `SELECT state, claim_token, finished_at IS NOT NULL
-FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, scopeID, generationID).Scan(&state, &token, &finished); err != nil {
-		t.Fatalf("read obligation %s/%s: %v", scopeID, generationID, err)
-	}
-	terminal := wantState == "completed" || wantState == "obsolete" || wantState == "inapplicable"
-	if state != wantState || token != wantToken || finished != terminal {
-		t.Fatalf("obligation %s/%s = state %q token %d finished %t, want %q token %d finished %t",
-			scopeID, generationID, state, token, finished, wantState, wantToken, terminal)
+		Config:     obligation.Config{Owner: "7584-terminal-consumer", Lease: lease},
 	}
 }
 
@@ -295,7 +278,7 @@ func TestActivationObligationRetireInapplicableIsFencedLive(t *testing.T) {
 	if f.digest(t) != state {
 		t.Fatal("stale-token retire changed durable state")
 	}
-	newer := activationRepositoryFact("fact-retire-newer", f.scope, "gen-retire-newer",
+	newer := testfixtures.ActivationRepositoryFact("fact-retire-newer", f.scope, "gen-retire-newer",
 		"repo-consumer-target", "https://github.com/acme/payments-deploy.git")
 	newer.ObservedAt = newer.ObservedAt.Add(3 * time.Hour)
 	commitActivationRepository(t, f.ctx, f.store, newer, "repo-consumer-target")

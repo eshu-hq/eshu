@@ -35,6 +35,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 func TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence(t *testing.T) {
@@ -82,7 +83,7 @@ func TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence(t 
 		ctx,
 		derivedEvidenceScope(sourceScopeID),
 		derivedEvidenceGeneration(sourceScopeID, generationID, now.Add(2*time.Minute)),
-		testFactChannel([]facts.Envelope{acceptedEnvelope}),
+		testfixtures.FactChannel([]facts.Envelope{acceptedEnvelope}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration(accepted) error = %v, want nil", err)
 	}
@@ -127,7 +128,7 @@ func TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence(t 
 		ctx,
 		derivedEvidenceScope(sourceScopeID),
 		derivedEvidenceGeneration(sourceScopeID, generationID, now.Add(3*time.Minute)),
-		testFactChannel([]facts.Envelope{staleEnvelope}),
+		testfixtures.FactChannel([]facts.Envelope{staleEnvelope}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration(stale) error = %v, want nil", err)
 	}
@@ -200,7 +201,7 @@ func mustCommitDerivedEvidenceRepository(
 		ctx,
 		derivedEvidenceScope(scopeID),
 		derivedEvidenceGeneration(scopeID, generationID, observedAt),
-		testFactChannel([]facts.Envelope{envelope}),
+		testfixtures.FactChannel([]facts.Envelope{envelope}),
 	); err != nil {
 		t.Fatalf("onboard repository %q: CommitScopeGeneration() error = %v, want nil", repoID, err)
 	}

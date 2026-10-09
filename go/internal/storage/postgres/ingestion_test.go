@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -68,7 +69,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 		},
 	}}
 
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testFactChannel(envelopes)); err != nil {
+	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testfixtures.FactChannel(envelopes)); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
@@ -165,7 +166,7 @@ func TestIngestionStoreCommitScopeGenerationLogsCommitStages(t *testing.T) {
 		},
 	}}
 
-	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testFactChannel(envelopes)); err != nil {
+	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, testfixtures.FactChannel(envelopes)); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
@@ -290,7 +291,7 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 		mutation,
 		scopeValue,
 		generation,
-		testFactChannel([]facts.Envelope{{
+		testfixtures.FactChannel([]facts.Envelope{{
 			FactID:        "fact-claimed",
 			ScopeID:       scopeValue.ScopeID,
 			GenerationID:  generation.GenerationID,

@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestGenerationRetentionFairnessAcrossScopesLive is P3: 30 eligible scopes,
@@ -28,12 +30,12 @@ func TestGenerationRetentionFairnessAcrossScopesLive(t *testing.T) {
 	var generations []generation
 	for i := 0; i < scopeCount; i++ {
 		scopeID := retentionSelectionScopeID("fair", i)
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
 		// Scope i=0 (sorts first) is newest; i=scopeCount-1 (sorts last) is
 		// oldest, so scope_id order directly opposes age order.
 		supersededAt := now.Add(-time.Duration(scopeCount-i) * time.Hour * 24)
 		generationID := scopeID + "-g0"
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, generationID, supersededAt)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, generationID, supersededAt)
 		generations = append(generations, generation{id: generationID, supersededAt: supersededAt})
 	}
 
@@ -87,12 +89,12 @@ func TestGenerationRetentionSkipsHeldScopeAndReplacesLive(t *testing.T) {
 	now := time.Now().UTC()
 
 	oldestScope, nextScope := "skip-000", "skip-001"
-	seedRetentionSelectionScope(t, ctx, database, oldestScope)
-	seedRetentionSelectionScope(t, ctx, database, nextScope)
+	testfixtures.SeedScope(t, ctx, database, oldestScope)
+	testfixtures.SeedScope(t, ctx, database, nextScope)
 	oldestGeneration := oldestScope + "-g0"
 	nextGeneration := nextScope + "-g0"
-	seedRetentionSelectionSupersededGeneration(t, ctx, database, oldestScope, oldestGeneration, now.Add(-10*24*time.Hour))
-	seedRetentionSelectionSupersededGeneration(t, ctx, database, nextScope, nextGeneration, now.Add(-9*24*time.Hour))
+	testfixtures.SeedSupersededGeneration(t, ctx, database, oldestScope, oldestGeneration, now.Add(-10*24*time.Hour))
+	testfixtures.SeedSupersededGeneration(t, ctx, database, nextScope, nextGeneration, now.Add(-9*24*time.Hour))
 
 	holderTx, err := database.BeginTx(ctx, nil)
 	if err != nil {

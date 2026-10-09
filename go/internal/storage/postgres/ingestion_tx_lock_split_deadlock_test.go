@@ -36,6 +36,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // beginCountingDB wraps SQLDB and counts every Begin call through an atomic
@@ -121,7 +122,7 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 		store.Now = func() time.Time { return gen.IngestedAt }
 		if err := store.CommitScopeGeneration(
 			ctx, scopeValue, gen,
-			testFactChannel([]facts.Envelope{repoFactEnvelope(fmt.Sprintf("fact-deadlock-seed-%d", i), scopeValue.ScopeID, gen.GenerationID, repoKey, gen.ObservedAt)}),
+			testfixtures.FactChannel([]facts.Envelope{repoFactEnvelope(fmt.Sprintf("fact-deadlock-seed-%d", i), scopeValue.ScopeID, gen.GenerationID, repoKey, gen.ObservedAt)}),
 		); err != nil {
 			t.Fatalf("seed repo %d: CommitScopeGeneration() error = %v, want nil", i, err)
 		}
@@ -221,7 +222,7 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 					store.Now = func() time.Time { return gen.IngestedAt }
 					if err := store.CommitScopeGeneration(
 						ctx, scopeValue, gen,
-						testFactChannel([]facts.Envelope{repoFactEnvelope(
+						testfixtures.FactChannel([]facts.Envelope{repoFactEnvelope(
 							fmt.Sprintf("fact-deadlock-r%d-%d", round, i), scopeValue.ScopeID, gen.GenerationID, onboardedRepoAlias, gen.ObservedAt,
 						)}),
 					); err != nil {

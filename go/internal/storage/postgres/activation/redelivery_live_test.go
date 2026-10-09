@@ -13,10 +13,11 @@ import (
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationRedeliveryAndCatchUpRacesLive (#7584 composed
@@ -212,7 +213,7 @@ func TestActivationObligationSupersessionBetweenClaimAndFinalizeLive(t *testing.
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-supersede-projector", time.Minute)
 	activate := func(scopeID, generationID, repoID string, later time.Duration) {
 		t.Helper()
-		fact := activationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID,
+		fact := testfixtures.ActivationRepositoryFact("fact-"+generationID, scopeID, generationID, repoID,
 			"https://github.com/acme/"+repoID+".git")
 		fact.ObservedAt = fact.ObservedAt.Add(later)
 		commitActivationRepository(t, ctx, store, fact, repoID)
@@ -237,7 +238,7 @@ VALUES ($1, 'git:sup-x', 'sup-x-2', 'reducer', 'deployment_mapping', 'retrying',
 		t.Fatal(err)
 	}
 	consumer := newComposedConsumer(t, database, "7584-supersede-consumer", time.Minute, 0)
-	consumer.port.before = func(_ context.Context, work maintenance.ActivationObligation) error {
+	consumer.port.before = func(_ context.Context, work obligation.Obligation) error {
 		if work.GenerationID == "sup-x-2" {
 			activate("git:sup-x", "sup-x-3", "repo-sup-x", 2*time.Hour)
 		}
@@ -254,12 +255,12 @@ VALUES ($1, 'git:sup-x', 'sup-x-2', 'reducer', 'deployment_mapping', 'retrying',
 	}{
 		{"sup-x-1", "obsolete", 1, 0}, {"sup-x-2", "obsolete", 1, 1}, {"sup-x-3", "completed", 1, 1},
 	} {
-		assertObligationStateToken(t, ctx, database, "git:sup-x", want.gen, want.state, want.token)
+		testfixtures.AssertObligationStateToken(t, ctx, database, "git:sup-x", want.gen, want.state, want.token)
 		if got := consumer.port.callsFor(want.gen); got != want.calls {
 			t.Fatalf("callbacks for %s = %d, want %d", want.gen, got, want.calls)
 		}
 	}
-	assertObligationStateToken(t, ctx, database, "git:sup-z", "sup-z-1", "completed", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:sup-z", "sup-z-1", "completed", 1)
 	for gen, want := range map[string]bool{"sup-x-2": false, "sup-x-3": true} {
 		var exists bool
 		if err := database.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM graph_projection_phase_state

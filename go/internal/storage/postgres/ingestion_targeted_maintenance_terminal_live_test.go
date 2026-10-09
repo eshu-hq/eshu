@@ -14,8 +14,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // This file keeps in the root package the one activation obligation proof
@@ -27,7 +28,7 @@ import (
 // TestActivationObligationInapplicableCollisionLoserLive (#7584):
 // two repository scopes share one repo_id; the shipped active-repository read
 // (DISTINCT ON repo_id) maps it to the newer scope only. The maintainer
-// decides from that read: the loser gets ErrActivationInapplicable and is
+// decides from that read: the loser gets obligation.ErrInapplicable and is
 // retired after exactly one callback; the winner runs the control-arm pass
 // and completes.
 func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
@@ -39,7 +40,7 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 		scope, generation string
 		later             time.Duration
 	}{{"git:collision-loser", "gen-loser", 0}, {"git:collision-winner", "gen-winner", time.Hour}} {
-		fact := activationRepositoryFact("fact-"+r.generation, r.scope, r.generation,
+		fact := testfixtures.ActivationRepositoryFact("fact-"+r.generation, r.scope, r.generation,
 			"repo-shared", "https://github.com/acme/shared.git")
 		fact.ObservedAt = fact.ObservedAt.Add(r.later)
 		commitActivationRepository(t, ctx, store, fact, "repo-shared")
@@ -48,13 +49,13 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	maintainer := &countingActivationMaintainer{decide: func(ctx context.Context, work maintenance.ActivationObligation) error {
+	maintainer := &countingActivationMaintainer{decide: func(ctx context.Context, work obligation.Obligation) error {
 		mapped, err := shippedReadMapsGeneration(ctx, database, work.ScopeID, work.GenerationID)
 		if err != nil {
 			return err
 		}
 		if !mapped {
-			return fmt.Errorf("owed partition %s/%s: %w", work.ScopeID, work.GenerationID, maintenance.ErrActivationInapplicable)
+			return fmt.Errorf("owed partition %s/%s: %w", work.ScopeID, work.GenerationID, obligation.ErrInapplicable)
 		}
 		return NewIngestionStore(SQLDB{DB: database}).RunDeferredRelationshipMaintenance(ctx, nil, nil)
 	}}
@@ -62,8 +63,8 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
-	assertObligationStateToken(t, ctx, database, "git:collision-winner", "gen-winner", "completed", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:collision-winner", "gen-winner", "completed", 1)
 	time.Sleep(450 * time.Millisecond)
 	if _, err := runner.RunOnce(ctx); err != nil {
 		t.Fatal(err)
@@ -71,7 +72,7 @@ func TestActivationObligationInapplicableCollisionLoserLive(t *testing.T) {
 	if got := maintainer.callsFor("gen-loser"); got != 1 {
 		t.Fatalf("maintenance callbacks for the collision loser = %d, want exactly 1", got)
 	}
-	assertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
+	testfixtures.AssertObligationStateToken(t, ctx, database, "git:collision-loser", "gen-loser", "inapplicable", 1)
 }
 
 // shippedReadMapsGeneration reports whether the shipped active-repository read
@@ -102,21 +103,11 @@ func openActivationObligationProofDB(t *testing.T, prefix string) (context.Conte
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	database := openIsolatedBootstrapSchema(t, dsn, prefix)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
 	return ctx, database
-}
-
-func activationRepositoryFact(factID, scopeID, generationID, repoID, remote string) facts.Envelope {
-	return facts.Envelope{
-		FactID: factID, ScopeID: scopeID, GenerationID: generationID,
-		FactKind: "repository", StableFactKey: "repository:" + repoID,
-		ObservedAt: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC),
-		Payload:    map[string]any{"graph_id": repoID, "remote_url": remote},
-		SourceRef:  facts.Ref{SourceSystem: "git", FactKey: factID},
-	}
 }
 
 func commitActivationRepository(t *testing.T, ctx context.Context, store IngestionStore,
@@ -125,9 +116,9 @@ func commitActivationRepository(t *testing.T, ctx context.Context, store Ingesti
 	t.Helper()
 	now := envelope.ObservedAt.Add(time.Minute)
 	if err := store.CommitScopeGeneration(ctx,
-		catalogTestScope(envelope.ScopeID, repoID),
-		catalogTestGeneration(envelope.ScopeID, envelope.GenerationID, now),
-		testFactChannel([]facts.Envelope{envelope})); err != nil {
+		testfixtures.CatalogScope(envelope.ScopeID, repoID),
+		testfixtures.CatalogGeneration(envelope.ScopeID, envelope.GenerationID, now),
+		testfixtures.FactChannel([]facts.Envelope{envelope})); err != nil {
 		t.Fatalf("repository CommitScopeGeneration: %v", err)
 	}
 }
@@ -150,11 +141,11 @@ func claimActivationProjectorWork(t *testing.T, ctx context.Context, queue Proje
 }
 
 type countingActivationMaintainer struct {
-	decide func(context.Context, maintenance.ActivationObligation) error
+	decide func(context.Context, obligation.Obligation) error
 	calls  map[string]int
 }
 
-func (m *countingActivationMaintainer) MaintainActivation(ctx context.Context, work maintenance.ActivationObligation) error {
+func (m *countingActivationMaintainer) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
 	if m.calls == nil {
 		m.calls = map[string]int{}
 	}
@@ -169,28 +160,10 @@ func (m *countingActivationMaintainer) callsFor(generationID string) int {
 	return m.calls[generationID]
 }
 
-func newLiveActivationRunner(database *sql.DB, maintainer maintenance.ActivationMaintainer, lease time.Duration) *maintenance.ActivationObligationRunner {
-	return &maintenance.ActivationObligationRunner{
+func newLiveActivationRunner(database *sql.DB, maintainer obligation.Maintainer, lease time.Duration) *obligation.Runner {
+	return &obligation.Runner{
 		Store:      activation.RunnerStore{Store: activation.NewStore(SQLDB{DB: database})},
 		Maintainer: maintainer,
-		Config:     maintenance.ActivationObligationRunnerConfig{Owner: "7584-terminal-consumer", Lease: lease},
-	}
-}
-
-func assertObligationStateToken(t *testing.T, ctx context.Context, database *sql.DB,
-	scopeID, generationID, wantState string, wantToken int64,
-) {
-	t.Helper()
-	var state string
-	var token int64
-	var finished bool
-	if err := database.QueryRowContext(ctx, `SELECT state, claim_token, finished_at IS NOT NULL
-FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, scopeID, generationID).Scan(&state, &token, &finished); err != nil {
-		t.Fatalf("read obligation %s/%s: %v", scopeID, generationID, err)
-	}
-	terminal := wantState == "completed" || wantState == "obsolete" || wantState == "inapplicable"
-	if state != wantState || token != wantToken || finished != terminal {
-		t.Fatalf("obligation %s/%s = state %q token %d finished %t, want %q token %d finished %t",
-			scopeID, generationID, state, token, finished, wantState, wantToken, terminal)
+		Config:     obligation.Config{Owner: "7584-terminal-consumer", Lease: lease},
 	}
 }

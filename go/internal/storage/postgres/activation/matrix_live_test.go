@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationConsumerQueueIsolationLive: Finalize wakes only the
@@ -180,7 +181,7 @@ func TestActivationObligationConsumerSupersessionLive(t *testing.T) {
 	wake := f.notReady(t, f.scope, f.gen, "wake")
 	obligation := f.claimObligation(t, "super-owner", time.Minute, f.gen)
 	row := f.row(t, wake, false)
-	newer := activationRepositoryFact("fact-consumer-target-new", f.scope, "gen-consumer-target-new",
+	newer := testfixtures.ActivationRepositoryFact("fact-consumer-target-new", f.scope, "gen-consumer-target-new",
 		"repo-consumer-target", "https://github.com/acme/payments-deploy.git")
 	newer.ObservedAt = newer.ObservedAt.Add(2 * time.Hour)
 	commitActivationRepository(t, f.ctx, f.store, newer, "repo-consumer-target")

@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replay/parserfixture"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // activationFluxSourceYAML is one Flux GitRepository whose remote names the
@@ -41,7 +42,7 @@ func openActivationObligationProofDB(t *testing.T, prefix string) (context.Conte
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	dsn := dsnForDeferredPartitionMemoProof(t)
+	dsn := testfixtures.DSNForDeferredPartitionMemoProof(t)
 	database := openIsolatedBootstrapSchema(t, dsn, prefix)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
@@ -86,18 +87,8 @@ func commitFluxSourceGeneration(
 		t.Fatalf("parser output = %+v, want one exact source file", envelopes)
 	}
 	if err := store.CommitScopeGeneration(ctx, collected.Scope, collected.Generation,
-		testFactChannel(envelopes)); err != nil {
+		testfixtures.FactChannel(envelopes)); err != nil {
 		t.Fatalf("source CommitScopeGeneration: %v", err)
-	}
-}
-
-func activationRepositoryFact(factID, scopeID, generationID, repoID, remote string) facts.Envelope {
-	return facts.Envelope{
-		FactID: factID, ScopeID: scopeID, GenerationID: generationID,
-		FactKind: "repository", StableFactKey: "repository:" + repoID,
-		ObservedAt: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC),
-		Payload:    map[string]any{"graph_id": repoID, "remote_url": remote},
-		SourceRef:  facts.Ref{SourceSystem: "git", FactKey: factID},
 	}
 }
 
@@ -107,9 +98,9 @@ func commitActivationRepository(t *testing.T, ctx context.Context, store postgre
 	t.Helper()
 	now := envelope.ObservedAt.Add(time.Minute)
 	if err := store.CommitScopeGeneration(ctx,
-		catalogTestScope(envelope.ScopeID, repoID),
-		catalogTestGeneration(envelope.ScopeID, envelope.GenerationID, now),
-		testFactChannel([]facts.Envelope{envelope})); err != nil {
+		testfixtures.CatalogScope(envelope.ScopeID, repoID),
+		testfixtures.CatalogGeneration(envelope.ScopeID, envelope.GenerationID, now),
+		testfixtures.FactChannel([]facts.Envelope{envelope})); err != nil {
 		t.Fatalf("repository CommitScopeGeneration: %v", err)
 	}
 }
@@ -220,14 +211,14 @@ func setupActivationConsumer(t *testing.T, prefix string) (
 	queue := postgres.NewProjectorQueue(postgres.SQLDB{DB: database}, "7584-consumer-projector", time.Minute)
 	sourceWork := claimActivationProjectorWork(t, ctx, queue, "git:consumer-source", "gen-consumer-source")
 
-	oldTarget := activationRepositoryFact("fact-consumer-target-old", "git:consumer-target",
+	oldTarget := testfixtures.ActivationRepositoryFact("fact-consumer-target-old", "git:consumer-target",
 		"gen-consumer-target-old", "repo-consumer-target", "https://github.com/acme/payments-deploy.git")
 	commitActivationRepository(t, ctx, store, oldTarget, "repo-consumer-target")
 	oldWork := claimActivationProjectorWork(t, ctx, queue, oldTarget.ScopeID, oldTarget.GenerationID)
 	if err := queue.Ack(ctx, oldWork, projectorruntime.Result{}); err != nil {
 		t.Fatal(err)
 	}
-	target := activationRepositoryFact("fact-consumer-target", "git:consumer-target",
+	target := testfixtures.ActivationRepositoryFact("fact-consumer-target", "git:consumer-target",
 		"gen-consumer-target", "repo-consumer-target", "https://github.com/acme/payments-deploy.git")
 	target.ObservedAt = target.ObservedAt.Add(time.Hour)
 	commitActivationRepository(t, ctx, store, target, "repo-consumer-target")

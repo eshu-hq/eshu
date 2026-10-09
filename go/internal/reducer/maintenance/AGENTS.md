@@ -1,7 +1,9 @@
 # AGENTS.md — internal/reducer/maintenance
 
-Scoped instructions for this package. Read them before editing anything here.
-The root `AGENTS.md` still applies; these add to it.
+Scoped instructions for this tree. Read them before editing anything here.
+The root `AGENTS.md` still applies; these add to it. Each leaf's own
+`AGENTS.md` carries its family invariants; this file carries what the
+whole tree shares.
 
 ## The import rule is the one that matters
 
@@ -9,24 +11,26 @@ Imports point strictly downward:
 
     reducer root  ->  family packages  ->  shared-core tiers  ->  contract
 
-This package is a family. It may import `reducer/sharedintent`,
-`internal/telemetry`, and `pkg/log`. It must **never** import the parent
-`internal/reducer` package, directly or transitively.
+Every leaf under this directory is a family. A leaf may import
+`reducer/sharedintent`, `internal/telemetry`, and `pkg/log`. It must
+**never** import the parent `internal/reducer` package, directly or
+transitively.
 
 If you find yourself needing a symbol that the reducer root defines, that is a
 signal about where the symbol belongs, not a reason to reach upward:
 
-- `AcceptedGenerationLookup`, `AcceptedGenerationPrefetch`, and
-  `PartitionLeaseManager` are root-owned contracts (`shared_projection.go`,
-  `shared_projection_worker.go`) this package mirrors locally rather than
-  imports -- extend the local mirror if the root contract's shape changes, do
-  not import root to reach the original.
+- `accepted.Lookup`, `accepted.Prefetch`, and
+  `orphan.PartitionLeaseManager` are root-owned contracts
+  (`shared_projection.go`, `shared_projection_worker.go`) the leaves
+  mirror locally rather than import -- extend the local mirror if the
+  root contract's shape changes, do not import root to reach the
+  original.
 - a generic helper or new shared contract goes to a shared-core tier
   (`reducer/sharedintent` or a new leaf), with a one-line forwarder or alias
   left in root if root still needs it;
 - a symbol the root genuinely owns as logic (e.g. `Service`,
-  `RepoDependencyProjectionRunner`) stays in root, and this package does not
-  use it.
+  `RepoDependencyProjectionRunner`) stays in root, and no leaf here
+  uses it.
 
 Read the declaration before deciding. A body of `return
 gpphase.PublishIntentGraphPhase(...)` is a forwarder and costs nothing to
@@ -35,92 +39,72 @@ hoist to a shared leaf.
 
 ## The alias/interface mirror is load-bearing, not decorative
 
-`AcceptedGenerationLookup` and `AcceptedGenerationPrefetch` in
-`accepted_generation_active_gate.go` are declared with `=` (type aliases),
-not as new defined types. This is required, not stylistic:
+`accepted.Lookup` and `accepted.Prefetch` are declared with `=` (type
+aliases), not as new defined types. This is required, not stylistic:
 
-- `AcceptedGenerationLookup = func(key sharedintent.AcceptanceKey) (string, bool)`
+- `Lookup = func(key sharedintent.AcceptanceKey) (string, bool)`
   resolves to the exact same unnamed underlying type as the reducer root's own
   `AcceptedGenerationLookup` (itself a defined type over that same literal),
   so a root-typed value is directly assignable here with no conversion, and
   vice versa.
-- `AcceptedGenerationPrefetch`'s alias nests `AcceptedGenerationLookup` as a
+- `Prefetch`'s alias nests `Lookup` as a
   return type. Because the root's `AcceptedGenerationPrefetch` nests its OWN
   named `AcceptedGenerationLookup` (not the raw literal) at that same
-  position, the two packages' `AcceptedGenerationPrefetch` types are NOT
+  position, the two packages' prefetch types are NOT
   identical underlying types -- a named type nested one level down breaks the
   free interop the outer alias would otherwise give. `cmd/reducer/main_helpers.go`
   adapts across this one boundary with two thin wrapper closures. Do not
-  "fix" that adapter by trying to make `AcceptedGenerationPrefetch` interop
-  directly; it cannot without importing `internal/reducer`, which this
-  package must never do.
-- `PartitionLeaseManager` (`graph_orphan_sweep_runner.go`) is a plain interface, not an
+  "fix" that adapter by trying to make the prefetch interoperate
+  directly; it cannot without importing `internal/reducer`, which no leaf
+  here must ever do.
+- `orphan.PartitionLeaseManager` is a plain interface, not an
   alias -- interfaces satisfy structurally in Go regardless of which package
   declares them, so no alias trick is needed there.
 
 If you add a new contract that must round-trip through a reducer-root-typed
 value, check whether it is a bare function type (use `=`, matching
-`AcceptedGenerationLookup`) or nests another such type as a parameter/return
-(the free interop breaks one level down, matching `AcceptedGenerationPrefetch`
+`Lookup`) or nests another such type as a parameter/return
+(the free interop breaks one level down, matching `Prefetch`
 -- write an adapter at the one call site that crosses the boundary instead of
 fighting the type system here).
 
 ## What must stay conservative
 
-- `GenerationLivenessRunner` MUST log each re-driven generation from
-  `GenerationLivenessResult.Recoveries` (scope, generation, attempts, the
-  bounded `no_intent_progress_within_window` reason, the effective progress
-  window) and MUST NOT log skipped draining generations individually; the
-  `draining` gauge bucket is their signal (#7265).
-- `PoisonLivenessRunner` MUST only re-drive a dead-letter row when
-  `PoisonLivenessRunnerConfig.AutoRetryEnabled` is true. The stuck-gauge
-  reporting the poison class size is wired independently in `cmd/reducer` and
-  MUST remain active regardless of this flag.
-- `ActivationObligationRunner` MUST call the maintenance port only after a
-  Finalize returned `phase_not_ready`, MUST NOT finalize again after a failed
-  callback (the lease stays held and the obligation retries after it
-  expires), and MUST keep each cycle bounded by `MaxPerCycle`. Whole-corpus
-  deferred maintenance is a test control arm only; never wire it as the
-  shipped `ActivationMaintainer` (#7584).
-- On `ErrActivationInapplicable` the runner MUST retire the row through
-  `RetireActivationInapplicable` and MUST NOT count a maintenance failure.
-  On `ErrActivationCatalogChanged` it MUST keep the lease, MUST NOT finalize
-  again or run any fallback pass, and MUST count
-  `failures_total{reason="catalog_changed"}` with an Info log (#7584).
-- `GateAcceptedGenerationOnActive`'s activation fence MUST apply only to
-  source runs carrying a relationship generation ID
-  (`repo_dependency`/`repo_dependency:<scope>`, see
-  `requiresRelationshipGenerationGate`). Code-import and package-consumption
-  source runs carry scope generation IDs that never appear in
-  `relationship_generations`; applying the fence to them permanently blocks
-  those intents (B-13). Extend the predicate for any new
-  relationship-gen-backed path; never widen it to a scope-generation-ID path.
-- `GraphOrphanSweepRunner` MUST claim its single-owner partition lease
-  (`graph_orphan_sweep` domain) before sweeping when a `LeaseManager` is wired,
-  so concurrent reducer replicas never contend on the same static-label
-  Cypher writes.
-- `CollectorEvidenceSummaryMaintainer` MUST always release its claimed lease
-  (the `defer` in `RunOnce`), even on a rebuild error, so a crashed instance
-  never blocks takeover beyond the lease TTL.
+The per-leaf invariants live in the leaf `AGENTS.md` files; the tree-wide
+shape is:
+
+- every side-runner loop drains-then-waits: a productive cycle loops
+  immediately so a backlog drains, an empty cycle waits the poll
+  interval, and shutdown is prompt and silent (context cancellation is
+  not an error and records no failure);
+- every consumer keeps each cycle bounded (`MaxPerCycle`, prune
+  limits, page sizes) and runs housekeeping once per cycle on one
+  worker;
+- every lease is claimed before the guarded work and released after it,
+  through a context that survives the cycle's own cancellation where
+  the cycle context dies first.
 
 ## Gates that will fire on your change
 
-- **`verify-package-docs.sh`** — this directory must keep `doc.go`,
-  `README.md` and `AGENTS.md`. It checks only that the files exist, so it is
-  not evidence the contents are true; keep them true yourself.
+- **`verify-package-docs.sh`** — this directory and every leaf must keep
+  `doc.go`, `README.md` and `AGENTS.md`. It checks only that the files
+  exist, so it is not evidence the contents are true; keep them true
+  yourself.
 - **`verify-telemetry-coverage.sh`** — any new file under the reducer tree
   needs a row in `docs/public/observability/telemetry-coverage.md`, keyed by
   file path (a line number is optional in that column). If your file
   registers no instrument, use a `No-Observability-Change:` marker naming the
   signals that already cover the stage. Never invent a metric absent from
-  `go/internal/telemetry/instruments.go`.
+  `go/internal/telemetry/instruments.go` (or the family's dedicated
+  `instruments_*.go` beside it).
 - **`verify-doc-citations.sh`** — a `path.go:NNN` citation anywhere under
   `docs/` is tracked LINE debt; a renumbered line on a moved file reads as
   branch-added debt even though nothing changed behaviorally. Prefer a bare
   file-path citation (no `:NNN`) or a symbol anchor over a line number when
   citing a file that might move again.
 - **`verify-performance-evidence.sh`** — fires on this path. Markers must be
-  unbolded and line-initial in a tracked note (`README.md` here carries them).
+  unbolded and line-initial in a tracked note (the parent `README.md`
+  carries them).
 - **`verify-dirgate.sh`** — the `internal/reducer` row in
   `scripts/lib/dirgate-grandfather.tsv` is a monotonic ratchet. If you move
   files, re-derive it with `verify-dirgate.sh --digest internal/reducer` and
@@ -134,14 +118,15 @@ fighting the type system here).
   `maintenance_` -- name a compatibility shim for its subject, never for the
   package directory.
 - Do not suppress `dirgate` with `//nolint`.
-- Do not export a root test helper to use here, or export one from here for
-  root to reach. Go test files cannot share unexported symbols across a
-  package boundary; copy the helper into a `_test_helpers_test.go` file
-  instead, the way the moved tests already do
-  (`acceptance_test_helpers_test.go`, `observability_test_helpers_test.go`).
-- Do not move a `Service`-level "starts side runner" wiring test into this
-  package. `Service` and its unexported `startSideRunners` method are
+- Do not export a leaf test helper to use in another leaf or in root, or
+  export one from root for a leaf to reach. Shared metric reads live in
+  `maintenance/testutil`; family-local helpers stay in the leaf's own
+  test files.
+- Do not move a `Service`-level "starts side runner" wiring test into any
+  leaf here. `Service` and its unexported `startSideRunners` method are
   root-owned; that proof stays in `internal/reducer` beside the other
-  `TestServiceStarts*` tests, referencing this package's types directly
-  (`generation_retention_runner_service_test.go`,
-  `graph_orphan_sweep_runner_service_test.go`).
+  `TestServiceStarts*` tests, referencing the leaf types directly.
+- Do not import one leaf from another to share an unexported helper.
+  The `contextDone` copies in `retention` and `infra` are deliberately
+  duplicated; keep them in lockstep or hoist deliberately to a
+  shared-core tier.

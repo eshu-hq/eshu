@@ -10,21 +10,21 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 )
 
 // TestFinalizeErrorMapsTheConsumerSentinels (#7584): SQLSTATE
 // 55P03 from Finalize's lock_timeout maps to
-// maintenance.ErrActivationFinalizeLockTimeout with the PostgreSQL error kept
+// obligation.ErrFinalizeLockTimeout with the PostgreSQL error kept
 // in the chain; a lease lost inside the transaction maps to
-// maintenance.ErrActivationLeaseLost; every other error is returned as is.
+// obligation.ErrLeaseLost; every other error is returned as is.
 func TestFinalizeErrorMapsTheConsumerSentinels(t *testing.T) {
 	t.Parallel()
 	lockTimeout := fmt.Errorf("finalize activation obligation: lock scope: %w",
 		&pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"})
 	got := finalizeError(lockTimeout)
-	if !errors.Is(got, maintenance.ErrActivationFinalizeLockTimeout) {
-		t.Fatalf("55P03 maps to %v, want ErrActivationFinalizeLockTimeout", got)
+	if !errors.Is(got, obligation.ErrFinalizeLockTimeout) {
+		t.Fatalf("55P03 maps to %v, want obligation.ErrFinalizeLockTimeout", got)
 	}
 	var pgErr *pgconn.PgError
 	if !errors.As(got, &pgErr) || pgErr.Code != "55P03" {
@@ -35,9 +35,9 @@ func TestFinalizeErrorMapsTheConsumerSentinels(t *testing.T) {
 	if got := finalizeError(serialization); got != serialization {
 		t.Fatalf("another SQLSTATE maps to %v, want the error unchanged", got)
 	}
-	if got := finalizeError(fmt.Errorf("finalize activation obligation: completion: %w", ErrLeaseLost)); !errors.Is(got, maintenance.ErrActivationLeaseLost) ||
-		errors.Is(got, maintenance.ErrActivationFinalizeLockTimeout) {
-		t.Fatalf("a lost lease maps to %v, want ErrActivationLeaseLost only", got)
+	if got := finalizeError(fmt.Errorf("finalize activation obligation: completion: %w", ErrLeaseLost)); !errors.Is(got, obligation.ErrLeaseLost) ||
+		errors.Is(got, obligation.ErrFinalizeLockTimeout) {
+		t.Fatalf("a lost lease maps to %v, want obligation.ErrLeaseLost only", got)
 	}
 	if got := finalizeError(nil); got != nil {
 		t.Fatalf("nil maps to %v", got)

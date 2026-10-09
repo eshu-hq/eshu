@@ -22,8 +22,8 @@ resolution engine:     Claim (SKIP LOCKED, lease + token)
                             -> obsolete (pointer moved or NULL)
                             -> inapplicable (no phase and no repository fact)
                             -> phase_not_ready -> maintenance port -> Finalize again
-                                 port ErrActivationInapplicable -> RetireInapplicable
-                                 port ErrActivationCatalogChanged -> hold lease, retry at lease cadence
+                                 port obligation.ErrInapplicable -> RetireInapplicable
+                                 port obligation.ErrCatalogChanged -> hold lease, retry at lease cadence
                             -> wake <=32 rows -> work_pending | completed
                        CatchUp (bounded scope pages) and Prune (bounded, completed/obsolete rows)
 ```
@@ -45,14 +45,14 @@ after the wake ran; the transaction rolled back.
 
 ## Consumer port
 
-`RunnerStore` adapts `Store` to `reducer/maintenance.ActivationObligationStore`,
-the storage port of `maintenance.ActivationObligationRunner`, and maps
-`ErrLeaseLost` to `maintenance.ErrActivationLeaseLost`. The production
+`RunnerStore` adapts `Store` to `reducer/maintenance/obligation.Store`,
+the storage port of `obligation.Runner`, and maps
+`ErrLeaseLost` to `obligation.ErrLeaseLost`. The production
 maintenance port is `postgres.ActivationMaintainer` in the parent package (it
 needs `IngestionStore`, which this package cannot import): it runs the
 partition-scoped pass for the obligation's own partition and maps
 `not_active` to nil (Finalize retires obsolete), `inapplicable` to
-`maintenance.ErrActivationInapplicable`, the typed `catalog_changed`,
+`obligation.ErrInapplicable`, the typed `catalog_changed`,
 `no_memo_baseline` and `closure_too_deep` refusals to holds, `published` to nil
 (Finalize wakes and completes), and `retry` or any other error to a
 maintenance failure.
@@ -68,7 +68,7 @@ pruned generation; see `StatsProducer`). The production
 consumer port is `postgres.ProducerActivationRunnerStore` in the parent
 package (the settle needs `IngestionStore`, which this package cannot
 import); the resolution engine's consumer is
-`maintenance.ProducerActivationRunner`, wired by `cmd/reducer`
+`producer.Runner`, wired by `cmd/reducer`
 (`producer_activation_wiring.go`) when
 `ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED=true`.
 
@@ -276,7 +276,7 @@ Observability Evidence: `eshu_dp_activation_obligations{status}`,
 `eshu_dp_activation_obligation_catch_up_inserted_total`,
 `eshu_dp_activation_obligation_pruned_total` and
 `eshu_dp_activation_obligation_failures_total{reason}`, asserted in
-`reducer/maintenance/activation_obligation_runner_test.go`; per-obligation
+`reducer/maintenance/obligation/runner_test.go`; per-obligation
 logs `activation obligation finalized` and `activation obligation step failed`
 carry `scope_id` and `generation_id`. The Ack insert adds no metric: it is one
 statement of the existing Ack transaction, which the existing Ack instruments

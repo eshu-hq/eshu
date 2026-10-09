@@ -26,7 +26,7 @@
   `WakeBatchLimit`.
 - `obsolete` is only for a moved or NULL active pointer; `inapplicable` is
   only for a generation that can never carry a phase (no repository fact, or
-  the maintainer's `ErrActivationInapplicable`). Prune MUST NOT delete
+  the maintainer's `obligation.ErrInapplicable`). Prune MUST NOT delete
   `inapplicable` rows: CatchUp skips any generation with a row, so pruning
   one would let CatchUp owe it again. Never add an attempt cap that marks a
   row terminal: it would drop an owed phase silently (#7584).

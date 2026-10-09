@@ -213,7 +213,7 @@ and the bounded failure reason lives in reducer logs.
 ## Activation Obligations
 
 The activation obligation consumer (#7584,
-`go/internal/reducer/maintenance/activation_obligation_runner.go`) settles the
+`go/internal/reducer/maintenance/obligation/runner.go`) settles the
 exact-generation obligations `ProjectorQueue.Ack` writes. No scope or generation
 id is ever a label; the per-obligation log line carries them.
 

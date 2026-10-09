@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -195,7 +195,7 @@ type ActivationMaintainer struct {
 	pass func(context.Context, []OwedPartition) (TargetedMaintenanceResult, error)
 }
 
-var _ maintenance.ActivationMaintainer = ActivationMaintainer{}
+var _ obligation.Maintainer = ActivationMaintainer{}
 
 // NewActivationMaintainer returns the maintainer backed by store's
 // RunDeferredRelationshipMaintenanceForPartitions.
@@ -210,14 +210,14 @@ func NewActivationMaintainer(store IngestionStore, tracer trace.Tracer, instrume
 // The owed partition's own outcome decides first, because the pass
 // classifies before any refusal: not_active returns nil so the consumer's
 // Finalize retires the obligation as obsolete on the raw active pointer, and
-// inapplicable returns maintenance.ErrActivationInapplicable so the consumer
+// inapplicable returns obligation.ErrInapplicable so the consumer
 // retires it inapplicable. A typed catalog_changed, no_memo_baseline or
 // closure_too_deep refusal becomes a hold with that reason (lease kept, retry
 // at lease cadence, no fallback pass). A published phase returns nil so
 // Finalize wakes and completes. A retry outcome, a missing outcome or any
 // other error is a maintenance failure; the lease expires and the obligation
 // is retried.
-func (m ActivationMaintainer) MaintainActivation(ctx context.Context, work maintenance.ActivationObligation) error {
+func (m ActivationMaintainer) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
 	owed := OwedPartition{ScopeID: work.ScopeID, GenerationID: work.GenerationID}
 	result, err := m.pass(ctx, []OwedPartition{owed})
 	kind, found := TargetedMaintenanceOutcomeKind(""), false
@@ -231,13 +231,13 @@ func (m ActivationMaintainer) MaintainActivation(ctx context.Context, work maint
 	case found && kind == TargetedMaintenanceNotActive:
 		return nil
 	case found && kind == TargetedMaintenanceInapplicable:
-		return fmt.Errorf("%w: %w", maintenance.ErrActivationInapplicable, ErrTargetedMaintenanceInapplicable)
+		return fmt.Errorf("%w: %w", obligation.ErrInapplicable, ErrTargetedMaintenanceInapplicable)
 	case err != nil:
 		switch reason := TargetedMaintenanceReason(err); reason {
 		case ErrTargetedMaintenanceCatalogChanged.Reason(),
 			ErrTargetedMaintenanceNoMemoBaseline.Reason(),
 			ErrTargetedMaintenanceClosureTooDeep.Reason():
-			return maintenance.HoldActivation(reason, err)
+			return obligation.Hold(reason, err)
 		}
 		return fmt.Errorf("partition-scoped maintenance for %s/%s: %w", owed.ScopeID, owed.GenerationID, err)
 	case !found:

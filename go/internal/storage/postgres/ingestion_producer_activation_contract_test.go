@@ -19,8 +19,9 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -31,7 +32,7 @@ func TestProducerActivationRunnerStoreSettlesThroughThePort(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_port")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_port")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerDependentCostCorpus(t, ctx, database)
@@ -48,7 +49,7 @@ func TestProducerActivationRunnerStoreSettlesThroughThePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("settle producer activation: %v", err)
 	}
-	if result.Outcome != maintenance.ProducerActivationOutcomeCompleted {
+	if result.Outcome != producer.OutcomeCompleted {
 		t.Fatalf("settle outcome = %q, want completed", result.Outcome)
 	}
 	if len(result.Reopened) != 1 || result.Reopened["kubernetes_correlation_materialization"] != 1 {
@@ -80,15 +81,15 @@ func TestProducerActivationRunnerStoreSettlesThroughThePort(t *testing.T) {
 func TestProducerSettleErrorMapsPortSentinels(t *testing.T) {
 	t.Parallel()
 	leaseLost := fmt.Errorf("settle claimed producer activation: reopen: %w", ErrProducerLeaseLost)
-	if err := producerSettleError(leaseLost); !errors.Is(err, maintenance.ErrProducerActivationLeaseLost) {
+	if err := producerSettleError(leaseLost); !errors.Is(err, producer.ErrLeaseLost) {
 		t.Fatalf("lease lost maps to %v, want ErrProducerActivationLeaseLost", err)
 	}
 	lockTimeout := fmt.Errorf("settle claimed producer activation: %w", &pgconn.PgError{Code: "55P03"})
-	if err := producerSettleError(lockTimeout); !errors.Is(err, maintenance.ErrProducerActivationSettleLockTimeout) {
+	if err := producerSettleError(lockTimeout); !errors.Is(err, producer.ErrSettleLockTimeout) {
 		t.Fatalf("lock timeout maps to %v, want ErrProducerActivationSettleLockTimeout", err)
 	}
 	other := errors.New("connection reset")
-	if err := producerSettleError(other); !errors.Is(err, other) || errors.Is(err, maintenance.ErrProducerActivationLeaseLost) {
+	if err := producerSettleError(other); !errors.Is(err, other) || errors.Is(err, producer.ErrLeaseLost) {
 		t.Fatalf("other error maps to %v, want it unchanged", err)
 	}
 	if err := producerSettleError(nil); err != nil {
@@ -240,7 +241,7 @@ func TestProducerDependentListingCostLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_cost")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_cost")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerDependentCostCorpus(t, ctx, database)
@@ -419,7 +420,7 @@ func TestProducerEvidenceProbeCostLive(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_probe_cost")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_probe_cost")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerEvidenceProbeCorpus(t, ctx, database)
@@ -475,7 +476,7 @@ func TestProducerEvidenceKindPrefilterDifferential(t *testing.T) {
 	if os.Getenv("ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE") != "1" {
 		t.Skip("set ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE=1 for disposable PostgreSQL proof")
 	}
-	database := openIsolatedBootstrapSchema(t, dsnForDeferredPartitionMemoProof(t), "producer_probe_diff")
+	database := openIsolatedBootstrapSchema(t, testfixtures.DSNForDeferredPartitionMemoProof(t), "producer_probe_diff")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	seedProducerEvidenceProbeCorpus(t, ctx, database)

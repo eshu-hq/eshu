@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 )
 
 // RelationshipGenerationActiveChecker reports whether a relationship generation
@@ -36,7 +36,7 @@ type RelationshipGenerationActiveChecker interface {
 // (#6730).
 func NewRelationshipGenerationActiveLookup(
 	checker RelationshipGenerationActiveChecker,
-) maintenance.RelationshipGenerationActiveLookup {
+) accepted.RelationshipGenerationActiveLookup {
 	return func(generationID string) (bool, error) {
 		generationID = strings.TrimSpace(generationID)
 		if generationID == "" {
@@ -67,7 +67,7 @@ type RelationshipGenerationsCompleteChecker interface {
 // succeed on a possibly partial foreign resolved set.
 func NewRelationshipGenerationsCompleteLookup(
 	checker RelationshipGenerationsCompleteChecker,
-) maintenance.RelationshipGenerationsCompleteLookup {
+) accepted.RelationshipGenerationsCompleteLookup {
 	return func(ctx context.Context) (bool, error) {
 		return checker.AreActiveScopeRelationshipGenerationsComplete(ctx)
 	}
@@ -85,7 +85,7 @@ type RelationshipGenerationsIncompleteScopesChecker interface {
 // holder list rather than blocking the deferral on diagnosability.
 func NewRelationshipGenerationsIncompleteScopesLookup(
 	checker RelationshipGenerationsIncompleteScopesChecker,
-) maintenance.RelationshipGenerationsIncompleteScopesLookup {
+) accepted.RelationshipGenerationsIncompleteScopesLookup {
 	return func(ctx context.Context) ([]string, error) {
 		return checker.IncompleteActiveScopeRelationshipGenerations(ctx)
 	}

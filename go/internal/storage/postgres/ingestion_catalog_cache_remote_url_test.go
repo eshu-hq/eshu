@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // cachedCatalogRemoteURL reads the shared catalog cache without touching the
@@ -64,9 +65,9 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoRemoteURLDrifts(t *testing.T) 
 	// Commit 1: caches the catalog with the original remote URL.
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-1", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-1", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFactWithRemoteURL(
 				"scope-known", "gen-1", "repo-known", "https://github.com/myorg/old-mirror-host.git", now.Add(-time.Minute),
 			),
@@ -89,9 +90,9 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoRemoteURLDrifts(t *testing.T) 
 	// RemoteURL into the cache so a later commit's Flux resolution observes it.
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-known", "repo-known"),
-		catalogTestGeneration("scope-known", "gen-2", now),
-		testFactChannel([]facts.Envelope{
+		testfixtures.CatalogScope("scope-known", "repo-known"),
+		testfixtures.CatalogGeneration("scope-known", "gen-2", now),
+		testfixtures.FactChannel([]facts.Envelope{
 			catalogRepositoryFactWithRemoteURL(
 				"scope-known", "gen-2", "repo-known", "https://github.com/myorg/new-mirror-host.git", now.Add(-time.Minute),
 			),

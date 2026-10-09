@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/producer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -30,22 +30,22 @@ func oweProducerActivationObligation(ctx context.Context, tx db.ExecQueryer, sco
 
 // ProducerActivationRunnerStore adapts the activation Store plus the
 // ingestion store's dependency-index settle to
-// maintenance.ProducerActivationStore, the storage port of the resolution
+// producer.Store, the storage port of the resolution
 // engine's producer-activation consumer.
 type ProducerActivationRunnerStore struct {
 	Activation activation.Store
 	Ingestion  IngestionStore
 }
 
-var _ maintenance.ProducerActivationStore = ProducerActivationRunnerStore{}
+var _ producer.Store = ProducerActivationRunnerStore{}
 
 // ClaimProducerActivation leases the oldest claimable producer obligation.
-func (r ProducerActivationRunnerStore) ClaimProducerActivation(ctx context.Context, owner string, lease time.Duration) (*maintenance.ProducerActivation, error) {
+func (r ProducerActivationRunnerStore) ClaimProducerActivation(ctx context.Context, owner string, lease time.Duration) (*producer.Activation, error) {
 	work, err := r.Activation.ClaimProducerActivation(ctx, owner, lease)
 	if err != nil || work == nil {
 		return nil, err
 	}
-	return &maintenance.ProducerActivation{
+	return &producer.Activation{
 		ScopeID: work.ScopeID, GenerationID: work.GenerationID,
 		LeaseOwner: work.LeaseOwner, LeaseToken: work.LeaseToken,
 		LeaseUntil: work.LeaseUntil, CreatedAt: work.CreatedAt,
@@ -55,18 +55,18 @@ func (r ProducerActivationRunnerStore) ClaimProducerActivation(ctx context.Conte
 // SettleProducerActivation reopens the succeeded consumer items that wait on
 // the claimed obligation's producer generation and completes the obligation
 // under the caller's lease fence. A lease lost inside the transaction is
-// reported as maintenance.ErrProducerActivationLeaseLost and a lock timeout
-// as maintenance.ErrProducerActivationSettleLockTimeout.
-func (r ProducerActivationRunnerStore) SettleProducerActivation(ctx context.Context, work maintenance.ProducerActivation) (maintenance.ProducerActivationSettleResult, error) {
+// reported as producer.ErrLeaseLost and a lock timeout
+// as producer.ErrSettleLockTimeout.
+func (r ProducerActivationRunnerStore) SettleProducerActivation(ctx context.Context, work producer.Activation) (producer.SettleResult, error) {
 	counts, outcome, err := r.Ingestion.SettleClaimedProducerActivation(ctx, activation.ProducerObligation{
 		ScopeID: work.ScopeID, GenerationID: work.GenerationID,
 		LeaseOwner: work.LeaseOwner, LeaseToken: work.LeaseToken,
 		LeaseUntil: work.LeaseUntil, CreatedAt: work.CreatedAt,
 	})
 	if err != nil {
-		return maintenance.ProducerActivationSettleResult{}, producerSettleError(err)
+		return producer.SettleResult{}, producerSettleError(err)
 	}
-	return maintenance.ProducerActivationSettleResult{
+	return producer.SettleResult{
 		Outcome:  string(outcome),
 		Reopened: counts,
 	}, nil
@@ -74,18 +74,18 @@ func (r ProducerActivationRunnerStore) SettleProducerActivation(ctx context.Cont
 
 // producerSettleError maps a settle error to the consumer port's sentinels,
 // keeping the cause in the chain: a lease lost inside the transaction to
-// maintenance.ErrProducerActivationLeaseLost, and SQLSTATE 55P03 (the
+// producer.ErrLeaseLost, and SQLSTATE 55P03 (the
 // settle's lock_timeout expired while it waited for the scope or obligation
-// row) to maintenance.ErrProducerActivationSettleLockTimeout. Every other
+// row) to producer.ErrSettleLockTimeout. Every other
 // error is returned unchanged.
 func producerSettleError(err error) error {
 	switch {
 	case err == nil:
 		return nil
 	case errors.Is(err, ErrProducerLeaseLost):
-		return fmt.Errorf("%w: %w", maintenance.ErrProducerActivationLeaseLost, err)
+		return fmt.Errorf("%w: %w", producer.ErrLeaseLost, err)
 	case coordination.IsLockNotAvailable(err):
-		return fmt.Errorf("%w: %w", maintenance.ErrProducerActivationSettleLockTimeout, err)
+		return fmt.Errorf("%w: %w", producer.ErrSettleLockTimeout, err)
 	default:
 		return err
 	}
@@ -98,14 +98,14 @@ func (r ProducerActivationRunnerStore) PruneProducerActivations(ctx context.Cont
 }
 
 // ProducerActivationStats reads the per-status census.
-func (r ProducerActivationRunnerStore) ProducerActivationStats(ctx context.Context) (maintenance.ProducerActivationStats, error) {
+func (r ProducerActivationRunnerStore) ProducerActivationStats(ctx context.Context) (producer.Stats, error) {
 	stats, err := r.Activation.StatsProducer(ctx)
 	if err != nil {
-		return maintenance.ProducerActivationStats{}, err
+		return producer.Stats{}, err
 	}
 	byState := make(map[string]int64, len(stats.ByState))
 	for state, count := range stats.ByState {
 		byState[string(state)] = count
 	}
-	return maintenance.ProducerActivationStats{ByState: byState, OldestOpenAge: stats.OldestOpenAge}, nil
+	return producer.Stats{ByState: byState, OldestOpenAge: stats.OldestOpenAge}, nil
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestActivationObligationAtomicAckLive proves the #7584 Ack boundary on the
@@ -35,7 +36,7 @@ func TestActivationObligationAtomicAckLive(t *testing.T) {
 		"activation obligation absent after accepted Ack")
 
 	targetScope := "git:scope-deploy-obligation"
-	target := activationRepositoryFact("fact-repo-deploy-obligation", targetScope,
+	target := testfixtures.ActivationRepositoryFact("fact-repo-deploy-obligation", targetScope,
 		"gen-deploy-obligation", "repo-deploy", "https://github.com/acme/payments-deploy.git")
 	commitActivationRepository(t, ctx, store, target, "repo-deploy")
 	targetWork := claimActivationProjectorWork(t, ctx, queue, target.ScopeID, target.GenerationID)
@@ -69,11 +70,11 @@ func TestActivationObligationAtomicAckLive(t *testing.T) {
 	assertExactActivationObligation(t, ctx, database, targetWork, "duplicate Ack changed obligation")
 
 	supersedeScope := "git:scope-supersede-obligation"
-	oldFact := activationRepositoryFact("fact-repo-obligation-old", supersedeScope,
+	oldFact := testfixtures.ActivationRepositoryFact("fact-repo-obligation-old", supersedeScope,
 		"gen-obligation-old", "repo-supersede", "https://github.com/acme/old.git")
 	commitActivationRepository(t, ctx, store, oldFact, "repo-supersede")
 	oldWork := claimActivationProjectorWork(t, ctx, queue, oldFact.ScopeID, oldFact.GenerationID)
-	newFact := activationRepositoryFact("fact-repo-obligation-new", supersedeScope,
+	newFact := testfixtures.ActivationRepositoryFact("fact-repo-obligation-new", supersedeScope,
 		"gen-obligation-new", "repo-supersede", "https://github.com/acme/new.git")
 	newFact.ObservedAt = oldFact.ObservedAt.Add(time.Hour)
 	commitActivationRepository(t, ctx, store, newFact, "repo-supersede")
@@ -102,7 +103,7 @@ ADD CONSTRAINT eshu_7584_injected_obligation_failure
 CHECK (generation_id <> 'gen-obligation-insert-fail')`); err != nil {
 		t.Fatalf("install injected obligation failure: %v", err)
 	}
-	failFact := activationRepositoryFact("fact-repo-obligation-fail", targetScope,
+	failFact := testfixtures.ActivationRepositoryFact("fact-repo-obligation-fail", targetScope,
 		"gen-obligation-insert-fail", "repo-deploy", "https://github.com/acme/fail.git")
 	failFact.ObservedAt = target.ObservedAt.Add(2 * time.Hour)
 	commitActivationRepository(t, ctx, store, failFact, "repo-deploy")

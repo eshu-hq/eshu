@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -29,17 +29,17 @@ type wholeMaintenanceControlArm struct {
 	store postgres.IngestionStore
 }
 
-func (c wholeMaintenanceControlArm) MaintainActivation(ctx context.Context, _ maintenance.ActivationObligation) error {
+func (c wholeMaintenanceControlArm) MaintainActivation(ctx context.Context, _ obligation.Obligation) error {
 	return c.store.RunDeferredRelationshipMaintenance(ctx, nil, nil)
 }
 
 // countingActivationPort counts the consumer's maintenance callbacks.
 type countingActivationPort struct {
-	inner maintenance.ActivationMaintainer
+	inner obligation.Maintainer
 	calls atomic.Int32
 }
 
-func (c *countingActivationPort) MaintainActivation(ctx context.Context, work maintenance.ActivationObligation) error {
+func (c *countingActivationPort) MaintainActivation(ctx context.Context, work obligation.Obligation) error {
 	c.calls.Add(1)
 	return c.inner.MaintainActivation(ctx, work)
 }
@@ -64,15 +64,15 @@ func startQuietActivationConsumer(t *testing.T, ctx context.Context, database *s
 	if err != nil {
 		t.Fatal(err)
 	}
-	var inner maintenance.ActivationMaintainer = postgres.NewActivationMaintainer(store, nil, instruments)
+	var inner obligation.Maintainer = postgres.NewActivationMaintainer(store, nil, instruments)
 	if controlArm {
 		inner = wholeMaintenanceControlArm{store: store}
 	}
 	consumer := &quietConsumer{controlArm: controlArm, port: &countingActivationPort{inner: inner}, reader: reader}
-	runner := &maintenance.ActivationObligationRunner{
+	runner := &obligation.Runner{
 		Store:      activation.RunnerStore{Store: activation.NewStore(postgres.SQLDB{DB: database})},
 		Maintainer: consumer.port,
-		Config: maintenance.ActivationObligationRunnerConfig{
+		Config: obligation.Config{
 			Owner: "quiet-activation-consumer", Lease: time.Minute,
 			PollInterval: 10 * time.Millisecond,
 		},

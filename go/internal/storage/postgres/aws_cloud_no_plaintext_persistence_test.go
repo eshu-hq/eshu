@@ -13,6 +13,7 @@ import (
 	lambdasvc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
@@ -91,7 +92,7 @@ func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
 		context.Background(),
 		scopeValue,
 		generation,
-		testFactChannel(envelopes),
+		testfixtures.FactChannel(envelopes),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}

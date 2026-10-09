@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // TestGenerationRetentionLockSetMatchesEligibleScopesLive is P2: the scope
@@ -24,14 +26,14 @@ func TestGenerationRetentionLockSetMatchesEligibleScopesLive(t *testing.T) {
 	var eligibleScopes []string
 	for i := 0; i < 5; i++ {
 		scopeID := retentionSelectionScopeID("lockset", i)
-		seedRetentionSelectionScope(t, ctx, database, scopeID)
-		seedRetentionSelectionSupersededGeneration(t, ctx, database, scopeID, scopeID+"-g0", old)
+		testfixtures.SeedScope(t, ctx, database, scopeID)
+		testfixtures.SeedSupersededGeneration(t, ctx, database, scopeID, scopeID+"-g0", old)
 		eligibleScopes = append(eligibleScopes, scopeID)
 	}
 	liveWorkScope := "lockset-live"
-	seedRetentionSelectionScope(t, ctx, database, liveWorkScope)
+	testfixtures.SeedScope(t, ctx, database, liveWorkScope)
 	liveWorkGeneration := liveWorkScope + "-g0"
-	seedRetentionSelectionSupersededGeneration(t, ctx, database, liveWorkScope, liveWorkGeneration, old)
+	testfixtures.SeedSupersededGeneration(t, ctx, database, liveWorkScope, liveWorkGeneration, old)
 	seedRetentionSelectionLiveWork(t, ctx, database, liveWorkScope, liveWorkGeneration)
 
 	allScopes := append(append([]string{}, eligibleScopes...), liveWorkScope)

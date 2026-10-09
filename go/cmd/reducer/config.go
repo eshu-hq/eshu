@@ -15,7 +15,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/poison"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -88,13 +91,13 @@ const (
 	defaultGraphOrphanSweepBatchLimit   = 100
 	defaultGraphOrphanSweepCountLimit   = 10_000
 	// 10m so the lease outlasts the 300s graph write budget with margin
-	// (#7047); mirrors maintenance.defaultGraphOrphanSweepLeaseTTL.
+	// (#7047); mirrors orphan.defaultGraphOrphanSweepLeaseTTL.
 	defaultGraphOrphanSweepLeaseTTL = 10 * time.Minute
 )
 
 type generationRetentionConfig struct {
 	Enabled bool
-	Runner  maintenance.GenerationRetentionRunnerConfig
+	Runner  retention.Config
 	// HardMaxSupersededAgeLifted reports that the hard ceiling env var gave no
 	// valid value and the derived default rose above the flat 2160h because
 	// the soft window is longer (#7611).
@@ -103,7 +106,7 @@ type generationRetentionConfig struct {
 
 type generationLivenessConfig struct {
 	Enabled bool
-	Runner  maintenance.GenerationLivenessRunnerConfig
+	Runner  liveness.Config
 	// ProgressWindowClampedFrom is the configured progress window when it was
 	// below the poll interval and was raised to it; zero when no clamp applied.
 	ProgressWindowClampedFrom time.Duration
@@ -114,12 +117,12 @@ type generationLivenessConfig struct {
 // when Runner.AutoRetryEnabled is true; the stuck-gauge is wired independently
 // in registerReducerObservableGauges and is always active.
 type poisonLivenessConfig struct {
-	Runner maintenance.PoisonLivenessRunnerConfig
+	Runner poison.Config
 }
 
 type graphOrphanSweepConfig struct {
 	Enabled bool
-	Runner  maintenance.GraphOrphanSweepRunnerConfig
+	Runner  orphan.Config
 }
 
 func loadReducerQueueConfig(getenv func(string) string) (runtimecfg.RetryPolicyConfig, error) {
@@ -274,10 +277,10 @@ func loadPoisonLivenessConfig(getenv func(string) string) poisonLivenessConfig {
 		getenv = func(string) string { return "" }
 	}
 	return poisonLivenessConfig{
-		Runner: maintenance.PoisonLivenessRunnerConfig{
+		Runner: poison.Config{
 			AutoRetryEnabled: loadBoolOrDefault(getenv, poisonLivenessAutoRetryEnabledEnv, false),
 			PollInterval:     loadDurationOrDefault(getenv, poisonLivenessPollIntervalEnv, defaultPoisonLivenessPollInterval),
-			Policy: maintenance.PoisonLivenessPolicy{
+			Policy: poison.Policy{
 				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, poisonLivenessMaxRecoverAttemptsEnv, defaultPoisonLivenessMaxRecoverAttempts),
 				BatchLimit:         loadPositiveIntOrDefault(getenv, poisonLivenessBatchLimitEnv, defaultPoisonLivenessBatchLimit),
 			},
@@ -291,11 +294,11 @@ func loadGraphOrphanSweepConfig(getenv func(string) string) graphOrphanSweepConf
 	}
 	return graphOrphanSweepConfig{
 		Enabled: loadBoolOrDefault(getenv, graphOrphanSweepEnabledEnv, true),
-		Runner: maintenance.GraphOrphanSweepRunnerConfig{
+		Runner: orphan.Config{
 			PollInterval: loadDurationOrDefault(getenv, graphOrphanSweepPollIntervalEnv, defaultGraphOrphanSweepPollInterval),
 			LeaseOwner:   loadStringOrDefault(getenv, graphOrphanSweepLeaseOwnerEnv, defaultGraphOrphanSweepLeaseOwner()),
 			LeaseTTL:     loadDurationOrDefault(getenv, graphOrphanSweepLeaseTTLEnv, defaultGraphOrphanSweepLeaseTTL),
-			Policy: maintenance.GraphOrphanSweepPolicy{
+			Policy: orphan.Policy{
 				OrphanTTL:  loadDurationOrDefault(getenv, graphOrphanSweepTTLEnv, defaultGraphOrphanSweepTTL),
 				BatchLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepBatchLimitEnv, defaultGraphOrphanSweepBatchLimit),
 				CountLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepCountLimitEnv, defaultGraphOrphanSweepCountLimit),
