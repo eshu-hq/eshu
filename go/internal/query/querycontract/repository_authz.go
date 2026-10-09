@@ -246,7 +246,9 @@ func (f RepositoryAccessFilter) FilterRepositoryMaps(repos []map[string]any) []m
 // bare repository id). It is the one ingestion-scope shape that names a
 // repository, and stripping it is how a scope grant is read back as the
 // repository it owns. It is the same constant the recovery package classifies
-// with, so the two classifiers cannot drift (#7797).
+// with, so the prefix cannot drift; the agreement test in query/admin pins the
+// classification logic (trim, "@" and non-blank remainder) that both packages
+// keep (#7797).
 const GitRepositoryScopePrefix = recovery.GitRepositoryScopePrefix
 
 // CanonicalRepositoryIDForScopeID returns the canonical repository id a granted
