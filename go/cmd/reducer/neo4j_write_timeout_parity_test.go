@@ -31,18 +31,35 @@ func TestSemanticEntityExecutorForGraphBackendBoundsNeo4jWritesLikeNornicDB(t *t
 	}
 }
 
-// TestSemanticEntityExecutorForGraphBackendLeavesUnboundedNeo4jUnwrapped pins
-// that an unset Neo4j timeout keeps today's executor.
-func TestSemanticEntityExecutorForGraphBackendLeavesUnboundedNeo4jUnwrapped(t *testing.T) {
+// TestSemanticEntityExecutorForGraphBackendBoundsUnsetNeo4jByDefault pins that
+// an unset Neo4j timeout now wraps the executor in the #7471 default bound,
+// while an explicit zero keeps the deliberate unbounded opt-out.
+func TestSemanticEntityExecutorForGraphBackendBoundsUnsetNeo4jByDefault(t *testing.T) {
 	t.Parallel()
 
-	inner := blockingNeo4jTimeoutExecutor{}
-	executor := semanticEntityExecutorForGraphBackend(
-		inner, runtimecfg.GraphBackendNeo4j, reducerTransactionTimeout(runtimecfg.GraphBackendNeo4j, timeoutGetenv("")), false,
-	)
-	if _, ok := executor.(blockingNeo4jTimeoutExecutor); !ok {
-		t.Fatalf("executor = %T, want the unwrapped inner executor", executor)
+	build := func(raw string) sourcecypher.Executor {
+		return semanticEntityExecutorForGraphBackend(
+			blockingNeo4jTimeoutExecutor{}, runtimecfg.GraphBackendNeo4j, reducerTransactionTimeout(runtimecfg.GraphBackendNeo4j, timeoutGetenv(raw)), false,
+		)
 	}
+	t.Run("unset wraps with default", func(t *testing.T) {
+		t.Parallel()
+		executor := build("")
+		bounded, ok := executor.(sourcecypher.TimeoutExecutor)
+		if !ok {
+			t.Fatalf("executor = %T, want sourcecypher.TimeoutExecutor", executor)
+		}
+		if bounded.Timeout != 300*time.Second {
+			t.Fatalf("timeout = %s, want %s", bounded.Timeout, 300*time.Second)
+		}
+	})
+	t.Run("explicit zero stays unwrapped", func(t *testing.T) {
+		t.Parallel()
+		executor := build("0s")
+		if _, ok := executor.(blockingNeo4jTimeoutExecutor); !ok {
+			t.Fatalf("executor = %T, want the unwrapped inner executor", executor)
+		}
+	})
 }
 
 // blockingNeo4jTimeoutExecutor blocks every write until its context ends, the

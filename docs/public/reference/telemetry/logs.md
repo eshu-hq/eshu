@@ -62,9 +62,11 @@ by the pass line that follows (`deferred_backfill_targeted_completed` or
 `failure_reason`.
 
 `graph.write_timeout.unbounded` is a startup WARN from the ingester, reducer,
-projector, and bootstrap-index when the graph backend is Neo4j and
-`ESHU_CANONICAL_WRITE_TIMEOUT` is unset or invalid. It carries `graph_backend`
-and `env_var`: Neo4j graph writes then have no transaction timeout, so a hung
+projector, and bootstrap-index when the graph backend is Neo4j and the
+effective `ESHU_CANONICAL_WRITE_TIMEOUT` is zero, which since #7471 happens
+only when the operator explicitly opts out with a non-positive duration (unset
+or invalid values use the `300s` default). It carries `graph_backend` and
+`env_var`: Neo4j graph writes then have no transaction timeout, so a hung
 write can outlive the lease that admitted it.
 
 `query.graph_read.warning` is emitted only for slow, deadline, or unavailable

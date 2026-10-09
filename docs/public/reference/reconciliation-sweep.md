@@ -273,8 +273,9 @@ retry-backoff throttle, never by a fresh full, and counted against
 is forced a cycle later). Setting `ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` also
 disables this heal. A marked writer is released only by its own completion,
 failure, or a lease expiry after its process dies; on Neo4j
-`ESHU_CANONICAL_WRITE_TIMEOUT` is unbounded by default, so a hung write with a
-live heartbeat freezes that scope's freshness until the worker restarts.
+`ESHU_CANONICAL_WRITE_TIMEOUT` defaults to `300s` (#7471), so a hung write
+aborts and requeues at the bound instead of freezing that scope's freshness
+until the worker restarts (which now takes an explicit unbounded opt-out).
 The heal is paced by that throttle: a pending heal full holds the scope for up
 to the reconcile interval, and a heal full superseded or failed before
 activation backs the scope off a quarter of the interval. The claim path

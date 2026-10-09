@@ -76,7 +76,8 @@ func projectorCanonicalExecutorForGraphBackend(
 		}
 	}
 	// Neo4j gets the same client deadline as NornicDB so a timed-out write
-	// requeues as graph_write_timeout; an unset timeout leaves it unwrapped.
+	// requeues as graph_write_timeout; only an explicit opt-out (zero timeout)
+	// leaves it unwrapped.
 	outer := boundNeo4jWrites(instrumentedExecutor, projectorCanonicalTransactionTimeout(graphBackend, getenv))
 	// Bound concurrent canonical writes so a slow graph backend slows intake
 	// instead of dead-lettering recoverable projector work (issue #3560). The

@@ -41,10 +41,11 @@ flowchart TB
 `telemetry.NewProviders`, then calls `run`. Inside `run`, Postgres is opened
 via `runtimecfg.OpenPostgres` and the canonical graph writer is opened via
 `openProjectorCanonicalWriter` — this creates a Neo4j session executor wrapped
-in `sourcecypher.RetryingExecutor` and `sourcecypher.InstrumentedExecutor`. For
-NornicDB, the same path is also bounded by `sourcecypher.TimeoutExecutor` using
-`ESHU_CANONICAL_WRITE_TIMEOUT` so the standalone projector matches the
-retryable graph-write contract used by bootstrap and ingester. NornicDB writes
+in `sourcecypher.RetryingExecutor` and `sourcecypher.InstrumentedExecutor`. On
+both backends the same path is also bounded by `sourcecypher.TimeoutExecutor`
+using `ESHU_CANONICAL_WRITE_TIMEOUT` (NornicDB default `30s`, Neo4j default
+`300s` since #7471) so the standalone projector matches the retryable
+graph-write contract used by bootstrap and ingester. NornicDB writes
 then route through the shared NornicDB phase-group executor: dependency
 phases commit separately, entity chunks retain configured parallel fan-out,
 and the canonical graph-write gate wraps each inner transaction. The adapter
@@ -125,11 +126,11 @@ package's telemetry section.
   writer groups per write round. The default (0) defers to the writer's built-in
   default. Raising this without watching `eshu_dp_canonical_write_duration_seconds`
   can hit Neo4j transaction size limits.
-- `ESHU_CANONICAL_WRITE_TIMEOUT` bounds NornicDB canonical graph writes in the
+- `ESHU_CANONICAL_WRITE_TIMEOUT` bounds canonical graph writes in the
   standalone projector on both the client and server transaction. Empty or
-  invalid values use the built-in `30s` default. On Neo4j it sets the server
-  transaction timeout only when set to a positive duration; empty or invalid
-  values leave Neo4j transactions unbounded.
+  invalid values use the built-in default (`30s` on NornicDB, `300s` on Neo4j
+  since #7471); only an explicit non-positive duration leaves Neo4j
+  transactions unbounded.
   Retryable MERGE unique conflicts are handled before a queue failure is
   recorded; persistent failures still surface through projector queue metadata.
 - `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`,

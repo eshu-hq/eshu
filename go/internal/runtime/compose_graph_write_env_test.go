@@ -8,8 +8,8 @@ import "testing"
 // TestComposeForwardsGraphWriteBoundsToEveryGraphWriter pins that every
 // canonical graph writer receives the write timeout and the in-flight write
 // ceiling on both backends. A writer that is never handed
-// ESHU_CANONICAL_WRITE_TIMEOUT reads empty, so on Neo4j its transactions stay
-// unbounded even when the operator sets the variable for the stack.
+// ESHU_CANONICAL_WRITE_TIMEOUT reads empty, so on Neo4j its transactions fall
+// back to the 300s default (#7471) instead of the operator's stack setting.
 func TestComposeForwardsGraphWriteBoundsToEveryGraphWriter(t *testing.T) {
 	t.Parallel()
 

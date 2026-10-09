@@ -150,8 +150,8 @@ services:
       # receive it: the Go wiring reads the variable, but a container that is
       # never handed it reads empty and silently emits no dataflow facts.
       ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
-      # Neo4j applies this as the server transaction timeout only when set;
-      # empty keeps Neo4j graph writes unbounded.
+      # Neo4j default 300s when unset or invalid (#7471); only an explicit
+      # non-positive duration leaves Neo4j graph writes unbounded.
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
       # Bound concurrent graph writes, matching docker-compose.yaml. The 8 was
       # measured on NornicDB only; it is unmeasured on Neo4j. Set 0 for legacy
@@ -317,8 +317,8 @@ services:
       # receive it: the Go wiring reads the variable, but a container that is
       # never handed it reads empty and silently emits no dataflow facts.
       ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
-      # Neo4j applies this as the server transaction timeout only when set;
-      # empty keeps Neo4j graph writes unbounded.
+      # Neo4j default 300s when unset or invalid (#7471); only an explicit
+      # non-positive duration leaves Neo4j graph writes unbounded.
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
       # Bound concurrent graph writes, matching docker-compose.yaml. The 8 was
       # measured on NornicDB only; it is unmeasured on Neo4j. Set 0 for legacy
@@ -413,8 +413,8 @@ services:
       ESHU_SHARED_PROJECTION_POLL_INTERVAL: ${ESHU_SHARED_PROJECTION_POLL_INTERVAL:-500ms}
       ESHU_SHARED_PROJECTION_LEASE_TTL: ${ESHU_SHARED_PROJECTION_LEASE_TTL:-}
       ESHU_REDUCER_BATCH_CLAIM_SIZE: ${ESHU_REDUCER_BATCH_CLAIM_SIZE:-}
-      # Neo4j applies this as the server transaction timeout only when set;
-      # empty keeps Neo4j graph writes unbounded.
+      # Neo4j default 300s when unset or invalid (#7471); only an explicit
+      # non-positive duration leaves Neo4j graph writes unbounded.
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
       # Bound concurrent graph writes, matching docker-compose.yaml. The 8 was
       # measured on NornicDB only; it is unmeasured on Neo4j. Set 0 for legacy

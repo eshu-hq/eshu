@@ -53,6 +53,19 @@ type ProjectorClaimInvariantObserver interface {
 	ProjectorScopesMissingClaimFence(ctx context.Context) (int64, error)
 }
 
+// ProjectorMarkedWriteObserver reports the age of the oldest outstanding
+// projector graph write (#7471). A QueueObserver that also implements it gets
+// the eshu_dp_projector_marked_write_oldest_age_seconds gauge on the same
+// collection cadence as the queue depth gauges.
+type ProjectorMarkedWriteObserver interface {
+	// ProjectorMarkedWriteOldestAge returns the age in seconds of the oldest
+	// set projection_write_started_at marker on a non-terminal generation with
+	// open projector work. A hung graph write with a live heartbeat keeps its
+	// marker and its claimed row, so the age grows without bound; zero means
+	// no marked write is outstanding.
+	ProjectorMarkedWriteOldestAge(ctx context.Context) (float64, error)
+}
+
 // WorkflowFamilyQueueDepthObserver provides outstanding claim-aware collector
 // queue depth grouped by collector family and status, backing the per-family
 // queue-depth gauge. Keys: collector_kind -> source_system -> status -> count.
@@ -2198,6 +2211,12 @@ type Instruments struct {
 	// projector work but no claim fence row (#7115). Any value above zero is a
 	// silent projection stall for those scopes.
 	ProjectorScopesMissingClaimFence metric.Int64ObservableGauge
+	// ProjectorMarkedWriteOldestAgeSeconds reports the age, in seconds, of the
+	// oldest set projection_write_started_at marker on a non-terminal
+	// generation with open projector work (#7471). A value climbing past the
+	// graph-write bound means a marked write is stuck; zero means none is
+	// outstanding.
+	ProjectorMarkedWriteOldestAgeSeconds metric.Float64ObservableGauge
 
 	// PoisonDeadLetterScopes and PoisonDeadLetterItems report the current
 	// dead-letter/poison class size (#4740): fact_work_items rows whose status
@@ -6198,6 +6217,11 @@ func RegisterObservableGauges(
 				return err
 			}
 		}
+		if markedObs, ok := queueObs.(ProjectorMarkedWriteObserver); ok {
+			if err := registerProjectorMarkedWriteGauges(inst, meter, markedObs); err != nil {
+				return err
+			}
+		}
 	}
 
 	if workerObs != nil {
@@ -6261,6 +6285,28 @@ func registerProjectorClaimInvariantGauges(inst *Instruments, meter metric.Meter
 	)
 	if err != nil {
 		return fmt.Errorf("register ProjectorScopesMissingClaimFence gauge: %w", err)
+	}
+	return nil
+}
+
+// registerProjectorMarkedWriteGauges registers the unlabeled #7471 marked-write
+// age gauge backed by markedObs.
+func registerProjectorMarkedWriteGauges(inst *Instruments, meter metric.Meter, markedObs ProjectorMarkedWriteObserver) error {
+	var err error
+	inst.ProjectorMarkedWriteOldestAgeSeconds, err = meter.Float64ObservableGauge(
+		"eshu_dp_projector_marked_write_oldest_age_seconds",
+		metric.WithDescription("Age in seconds of the oldest set projection write marker on a non-terminal generation with open projector work; zero means no marked write is outstanding"),
+		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
+			age, err := markedObs.ProjectorMarkedWriteOldestAge(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(age)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ProjectorMarkedWriteOldestAgeSeconds gauge: %w", err)
 	}
 	return nil
 }

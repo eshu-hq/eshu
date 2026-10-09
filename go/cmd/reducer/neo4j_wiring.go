@@ -124,9 +124,10 @@ func (r neo4jSessionRunner) transactionConfigurers() []func(*neo4jdriver.Transac
 // partition lease is exactly the failure class that ceiling already exists to
 // bound, and every consumer of this shared read primitive (both
 // CanonicalNodeChecker and the rationale probe guard) benefits identically.
-// On plain Neo4j r.TxTimeout carries ESHU_CANONICAL_WRITE_TIMEOUT only when an
-// operator sets it (reducerTransactionTimeout); when unset it is 0 and this
-// stays unbounded, matching every other graph read/write on that backend.
+// On plain Neo4j r.TxTimeout carries ESHU_CANONICAL_WRITE_TIMEOUT when an
+// operator sets it, else the 300s default (reducerTransactionTimeout, issue
+// #7471); only an explicit non-positive duration leaves it 0 and this probe
+// unbounded, matching every other graph read/write on that backend.
 func (r neo4jSessionRunner) QueryCypherExists(ctx context.Context, cypher string, params map[string]any) (bool, error) {
 	if r.Driver == nil {
 		return false, fmt.Errorf("neo4j driver is required")
@@ -298,8 +299,8 @@ func openReducerNeo4jAdapters(
 }
 
 // reducerTransactionTimeout returns the server-side transaction timeout for graph writes.
-// NornicDB keeps its ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j applies
-// the variable only when it is explicitly configured.
+// NornicDB keeps its ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j falls back
+// to its 300s default (issue #7471) unless the variable is explicitly configured.
 func reducerTransactionTimeout(graphBackend runtimecfg.GraphBackend, getenv func(string) string) time.Duration {
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		return nornicDBCanonicalWriteTimeout(getenv)

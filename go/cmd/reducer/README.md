@@ -433,7 +433,7 @@ chooses which presence store each consumer receives.
 
 | Variable | Purpose |
 | --- | --- |
-| `ESHU_CANONICAL_WRITE_TIMEOUT` | Per-write timeout for graph writes. NornicDB defaults to `30s`; Neo4j applies it as the server transaction timeout only when set to a positive duration |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | Per-write timeout for graph writes. NornicDB defaults to `30s`; Neo4j defaults to `300s` (#7471), and only an explicit non-positive duration leaves writes unbounded |
 | `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | Enable NornicDB semantic grouped writes for conformance testing |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | Override label batch sizes for NornicDB semantic entity writes |
 

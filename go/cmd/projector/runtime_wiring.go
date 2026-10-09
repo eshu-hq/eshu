@@ -267,8 +267,8 @@ func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Dur
 
 // projectorCanonicalTransactionTimeout returns the server-side transaction
 // timeout for projector graph writes. NornicDB keeps its
-// ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j applies the variable only when
-// it is explicitly configured.
+// ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j falls back to its 300s default
+// (issue #7471) unless the variable is explicitly configured.
 func projectorCanonicalTransactionTimeout(
 	graphBackend runtimecfg.GraphBackend,
 	getenv func(string) string,

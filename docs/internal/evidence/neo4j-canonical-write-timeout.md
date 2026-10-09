@@ -16,13 +16,14 @@ assumed a bounded write.
 ## Change
 
 - Neo4j now applies `ESHU_CANONICAL_WRITE_TIMEOUT` as the server transaction
-  timeout when it is set to a positive duration. Unset or invalid values keep
-  Neo4j unbounded, so a deployment that never configured the budget does not
-  inherit NornicDB's `30s` default. NornicDB behavior is unchanged.
+  timeout when it is set to a positive duration. At the time, unset or invalid
+  values kept Neo4j unbounded, so a deployment that never configured the
+  budget did not inherit NornicDB's `30s` default (since #7471, unset or
+  invalid values use a `300s` default instead). NornicDB behavior is unchanged.
 - With the variable unset on Neo4j, each graph-writing binary (ingester,
-  reducer, projector, bootstrap-index) logs one
+  reducer, projector, bootstrap-index) logged one
   `graph.write_timeout.unbounded` WARN at startup, with `graph_backend` and
-  `env_var`.
+  `env_var` (since #7471 the WARN fires only on explicit opt-out).
 - Retry parity: where NornicDB bounds a write with `TimeoutExecutor`, Neo4j
   now gets the same wrapper when its timeout is set. Those paths are the
   ingester, bootstrap-index, and projector canonical chains and the reducer
@@ -30,7 +31,8 @@ assumed a bounded write.
   before the server terminates the transaction (the lock-wait case returned
   after 2.57 to 3.47s against a 2s timeout), so a timed-out write requeues as
   retryable `graph_write_timeout` on both backends instead of dead-lettering
-  on Neo4j. With the variable unset, no client-deadline wrapper is added.
+  on Neo4j. With the variable unset, no client-deadline wrapper was added at
+  the time (since #7471 the `300s` default wraps it).
 - The retry classifier treats the two statuses Neo4j reports for a timed-out
   transaction the same way it already treated NornicDB's
   `TransactionTimedOutClientConfiguration`: no local retry, a durable
@@ -127,9 +129,10 @@ its classification is unchanged.
   write timeout their TTL equals the write budget. This change does not add a
   startup gate there, because such a gate would fail ops-qa's current
   configuration at boot. It is left for the owner to decide.
-- With `ESHU_CANONICAL_WRITE_TIMEOUT` unset on Neo4j, writes stay unbounded,
-  while the repo-dependency check still counts a `30s` budget. That gap existed
-  before this change and remains until the variable is set.
+- With `ESHU_CANONICAL_WRITE_TIMEOUT` unset on Neo4j, writes stayed unbounded
+  at the time of this change, while the repo-dependency check still counted a
+  `30s` budget. Issue #7471 closed that gap with a 300s Neo4j default; only an
+  explicit non-positive duration opts out now. See `7471-marked-write-bound.md`.
 
 ## Local proof
 
@@ -162,10 +165,13 @@ RED before the change, GREEN after:
   test's 5s guard and returned a bare `context deadline exceeded`; the NornicDB
   subtests already passed. After the change, both backends return a retryable
   `graph_write_timeout`. The companion `LeavesUnboundedNeo4jUnwrapped` tests
-  pin that an unset timeout leaves the chain unchanged.
+  pinned that an unset timeout left the chain unchanged; #7471 replaced them
+  with `BoundsUnsetNeo4jByDefault`, which pins the 300s wrap and the explicit
+  zero opt-out.
 - `TestWarnUnboundedNeo4jWriteTimeoutLogsOnceWhenNeo4jHasNoTimeout`, in each
-  of the four packages: exactly one WARN record for Neo4j when the variable is
-  unset or invalid, and none when it is configured or on NornicDB.
+  of the four packages: at the time, exactly one WARN record for Neo4j when the
+  variable was unset or invalid, and none when configured or on NornicDB. Since
+  #7471 the WARN fires only on an explicit non-positive opt-out.
 - `TestLiveNeo4jIngesterCanonicalWriteTimeoutRequeues`, against
   `neo4j:2026-community` through the production Neo4j
   `canonicalExecutorForGraphBackend` chain with a 2s timeout and a held lock:
@@ -207,10 +213,11 @@ alternating origin/main and head on one shared Apple M5 Max host:
 - both: 64 B/op, 1 alloc/op
 
 The ranges overlap and the gap is host noise on code this change does not
-touch. The Neo4j client-deadline wrapper runs only when the timeout is set.
+touch. The Neo4j client-deadline wrapper ran only when the timeout was set at
+the time (since #7471 the `300s` default wraps unset deployments too).
 It adds one `context.WithTimeout` per write, the same cost NornicDB already pays
-on these paths, next to a Bolt round trip. Unset Neo4j deployments get no
-client-deadline wrapper. The `LockClientStopped` change does apply to them: a
+on these paths, next to a Bolt round trip. Unset Neo4j deployments got no
+client-deadline wrapper then. The `LockClientStopped` change does apply to them: a
 write terminated during a lock wait now requeues after one attempt instead of
 after three in-place retries. These figures do not estimate Neo4j throughput. On Neo4j with the
 variable set, a write that previously would have hung now ends at the

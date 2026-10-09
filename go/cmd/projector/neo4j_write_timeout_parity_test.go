@@ -32,18 +32,37 @@ func TestProjectorCanonicalExecutorBoundsNeo4jWritesLikeNornicDB(t *testing.T) {
 	}
 }
 
-// TestProjectorCanonicalExecutorLeavesUnboundedNeo4jUnwrapped pins that an
-// unset Neo4j timeout keeps today's executor chain.
-func TestProjectorCanonicalExecutorLeavesUnboundedNeo4jUnwrapped(t *testing.T) {
+// TestProjectorCanonicalExecutorBoundsUnsetNeo4jByDefault pins that an unset
+// Neo4j timeout now wraps the executor chain in the #7471 default bound,
+// while an explicit zero keeps the deliberate unbounded opt-out.
+func TestProjectorCanonicalExecutorBoundsUnsetNeo4jByDefault(t *testing.T) {
 	t.Parallel()
 
-	getenv := timeoutGetenv("")
-	executor := projectorCanonicalExecutorForGraphBackend(
-		blockingNeo4jTimeoutExecutor{}, runtimecfg.GraphBackendNeo4j, projectorNornicDBConfigForTest(t, getenv), getenv, nil, nil, nil,
-	)
-	if _, ok := executor.(*sourcecypher.InstrumentedExecutor); !ok {
-		t.Fatalf("executor = %T, want the unwrapped *sourcecypher.InstrumentedExecutor", executor)
+	build := func(t *testing.T, raw string) sourcecypher.Executor {
+		t.Helper()
+		getenv := timeoutGetenv(raw)
+		return projectorCanonicalExecutorForGraphBackend(
+			blockingNeo4jTimeoutExecutor{}, runtimecfg.GraphBackendNeo4j, projectorNornicDBConfigForTest(t, getenv), getenv, nil, nil, nil,
+		)
 	}
+	t.Run("unset wraps with default", func(t *testing.T) {
+		t.Parallel()
+		executor := build(t, "")
+		bounded, ok := executor.(sourcecypher.TimeoutExecutor)
+		if !ok {
+			t.Fatalf("executor = %T, want sourcecypher.TimeoutExecutor", executor)
+		}
+		if bounded.Timeout != 300*time.Second {
+			t.Fatalf("timeout = %s, want %s", bounded.Timeout, 300*time.Second)
+		}
+	})
+	t.Run("explicit zero stays unwrapped", func(t *testing.T) {
+		t.Parallel()
+		executor := build(t, "0s")
+		if _, ok := executor.(*sourcecypher.InstrumentedExecutor); !ok {
+			t.Fatalf("executor = %T, want the unwrapped *sourcecypher.InstrumentedExecutor", executor)
+		}
+	})
 }
 
 // blockingNeo4jTimeoutExecutor blocks every write until its context ends, the

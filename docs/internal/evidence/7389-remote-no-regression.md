@@ -121,7 +121,8 @@ and the same-host shim cost below.
     `log_lock_waits`, `deadlock_timeout=1s`;
   - pprof on the ingester and projector;
   - all other knobs at compose defaults; `ESHU_CANONICAL_WRITE_TIMEOUT`
-    unset, which is unbounded on Neo4j;
+    unset, which was unbounded on Neo4j at the time (before #7471's `300s`
+    default);
   - run-local compose override sha256
     `851a38992bd9cfde4786f28347c0452849327f81f03d4eac8ec5af205cf3cb32`, all
     ports bound to loopback.

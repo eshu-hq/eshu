@@ -47,6 +47,10 @@ PACKAGES = {
         ),
     },
     STORAGE_PACKAGE: {
+        "go/internal/storage/postgres/projector_marked_write_age_live_test.go": (
+            "TestQueueObserverStoreProjectorMarkedWriteOldestAgeLive",
+            "TestQueueObserverStoreProjectorMarkedWriteOldestAgeEmptyLive",
+        ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
