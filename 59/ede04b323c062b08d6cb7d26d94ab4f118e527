@@ -1,0 +1,19 @@
+docs/internal/evidence/7033-fleet-capacity-fallback.md
+  s_b0d7e3abc26c5a::t_77f2b98ab99056 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "59ede04b323c062b08d6cb7d26d94ab4f118e527",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
