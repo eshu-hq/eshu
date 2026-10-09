@@ -8,12 +8,12 @@
 // null-uid trap, and a planted id-only node on an unconstrained label must
 // raise the residual by one. Run it with, for example:
 //
-//	docker run -d --name eshu-7212-neo4j -e NEO4J_AUTH=none \
-//	  -p 127.0.0.1:<bolt-port>:7687 neo4j:2026-community
-//	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:<bolt-port> \
-//	  ESHU_LIVE_GRAPH_DATABASE=neo4j \
-//	  go test ./internal/graph/anchor -tags live_nornicdb_answer_truth \
-//	  -run TestLiveAnchorCensus -count=1 -v
+//	docker compose -p eshu-7212-live -f docker-compose.live-backend-neo4j.yml up -d --wait
+//	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:7687 ESHU_LIVE_GRAPH_BACKEND=neo4j \
+//	  ESHU_LIVE_GRAPH_DATABASE=neo4j go test ./internal/graph/anchor \
+//	  -tags live_nornicdb_answer_truth -run TestLiveAnchorCensus -count=1 -v
+//
+// Without ESHU_LIVE_GRAPH_BACKEND=neo4j the test skips, which reads as ok.
 //
 // The measure is a delta around the seed, so other tests' nodes in a shared
 // database do not move it. Run with -p 1 beside other live packages.

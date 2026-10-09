@@ -61,10 +61,13 @@ type Report struct {
 // the node. Statements repeat across a replay, so identical text, parameters,
 // and callsite count once.
 //
-// The check is fail-closed. A variable the statement does not label, or a
-// dynamic `SET n += <map>` on an uncovered label whose bound parameters do not
-// prove the map has no id key, is a finding. A relationship variable is not a
-// node and is skipped.
+// For the shapes its tests cover, the check fails closed. A variable the
+// statement does not label, a variable rebound to another label, a parameter
+// property map, a SET target that is not a plain variable, an id key in a pattern
+// the scan cannot place, or a dynamic `SET n += <map>` on an uncovered label
+// whose bound parameters do not prove the map has no id key, is a finding. A
+// relationship variable is not a node and is skipped. The check is not a full
+// Cypher parser; the package README lists the shapes it does not model.
 func CheckWriters(statements []Statement, anchorLabels map[string]bool) Report {
 	var report Report
 	seen := make(map[Statement]bool, len(statements))
@@ -91,7 +94,7 @@ func analyze(statement Statement, anchorLabels map[string]bool) (int, []Finding)
 		if parsed.relationshipVars[write.variable] {
 			continue
 		}
-		labels := parsed.labelsOf(write.variable, write.patternLabels)
+		labels := parsed.labelsOf(write)
 		covered := false
 		for _, label := range labels {
 			if anchorLabels[label] {

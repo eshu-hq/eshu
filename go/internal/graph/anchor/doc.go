@@ -15,10 +15,13 @@
 //
 //   - [CheckWriters] reads recorded or literal Cypher and requires every
 //     statement that writes a node id to name at least one label in [Labels].
-//     It is fail-closed: an unlabeled variable, a label expression it cannot
-//     reduce, an id key in a pattern it cannot place, or a dynamic
-//     `SET n += <map>` on an uncovered label whose bound parameters do not
-//     prove the map has no id key, is a finding.
+//     For the shapes its tests cover it fails closed: an unlabeled variable, a
+//     label expression it cannot reduce, an id key in a pattern it cannot place,
+//     a parameter property map, a SET target that is not a plain variable, a
+//     variable rebound to another label, or a dynamic `SET n += <map>` on an
+//     uncovered label whose bound parameters do not prove the map has no id key,
+//     is a finding. It is not a full Cypher parser: the README lists the shapes
+//     it does not model, and the census is their backstop.
 //   - [CensusCypher] counts, over the whole graph, the id-bearing nodes the
 //     anchor cannot reach. [Classify] is the reference definition the Cypher
 //     must agree with; [EvaluateCensus] turns a [Census] into a gate verdict.

@@ -89,3 +89,43 @@ func TestStaticSweepFailsOnAPlantedUnconstrainedIDWriter(t *testing.T) {
 		t.Fatalf("failures with the planted label covered = %v, want none", failures)
 	}
 }
+
+// TestSweepSeesTheShapesItWasTaught plants the shapes the sweep gained in
+// review: a static writer assembled from named constants only, a positional-verb
+// label, and a parameter property map. Each must reach the analyzer.
+func TestSweepSeesTheShapesItWasTaught(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		wantFailure bool
+		wantDynamic bool
+	}{
+		{
+			name: "const-only chain",
+			source: "package planted\n\nconst head = \"MERGE (n:Unconstrained {uid: $u}) \"\nconst tail = \"SET n.id = $u\"\n\n" +
+				"var statement = head + tail\n",
+			wantFailure: true,
+		},
+		{
+			name:        "positional verb label",
+			source:      "package planted\n\nconst planted = `MERGE (n:%[1]s {uid: $u}) SET n.id = $u`\n",
+			wantDynamic: true,
+		},
+		{
+			name:        "parameter property map",
+			source:      "package planted\n\nconst planted = `CREATE (n:Unconstrained $props)`\n",
+			wantFailure: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := sweepSource(t, plantedTree(t, tc.source, ""), Labels())
+			if tc.wantFailure && len(result.Failures) == 0 {
+				t.Errorf("no failure for %q", tc.source)
+			}
+			if tc.wantDynamic && len(result.Dynamic) != 1 {
+				t.Errorf("dynamic sites = %d for %q, want 1", len(result.Dynamic), tc.source)
+			}
+		})
+	}
+}

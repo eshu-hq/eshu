@@ -14,13 +14,21 @@
   the other in the same commit, and run `census_live_test.go` on Neo4j before
   you claim they agree. The live-backend CI job runs it from
   `specs/live-tests.v1.yaml` (Neo4j only; it self-skips elsewhere).
-- **Fail closed.** `CheckWriters` reports an unlabeled variable, an unprovable
-  dynamic map or dynamic key, a label expression it cannot reduce, and an `id`
-  key left in a MERGE or CREATE clause after the recognized patterns are masked,
-  as findings. Do not turn any of them into a skip. A new false red is fixed by
-  teaching `parse.go` the shape, with a test row first, not by an allowlist.
-- **The dynamic-label allowlist is a review point.** Add a row to
-  `sweep_allowlist_test.go` only with a reason that names what covers the writer.
+- **Fail closed for the tested shapes, and say so.** `CheckWriters` reports an
+  unlabeled variable, a variable rebound to another label, an unprovable dynamic
+  map or dynamic key, a parameter property map, a SET target that is not a plain
+  variable, a label expression it cannot reduce, and an `id` key left in a
+  MERGE or CREATE clause after the recognized patterns are masked. Do not turn
+  any of them into a skip. It is not a full Cypher parser: do not write "fail
+  closed" about a shape without a test row for it, and list a new blind spot in
+  the README. A new false red is fixed by teaching `parse.go` the shape, with a
+  test row first, not by an exception list.
+- **A dynamic-label writer carries its own marker.** Put
+  `// anchor-census: dynamic-label writer; label set bounded by <TestName>` within
+  10 lines above the template, and make `<TestName>` a real test that proves the
+  labels are anchor labels. The sweep fails on a template with no marker, on a
+  marker naming no test, and on a marker with no template under it. Do not add a
+  list of exceptions anywhere else.
 - **A gate that sees nothing must fail.** Zero statements, or zero id writes,
   is a failure in the gate phase. Keep that when you edit the phase.
 - **No ids in output.** Failures print label sets and counts, never an entity

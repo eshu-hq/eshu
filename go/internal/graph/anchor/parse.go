@@ -19,24 +19,51 @@ type idWrite struct {
 	// keyExpression is the bracketed key of a dynamic property write,
 	// SET n[<key>] = ...
 	keyExpression string
+	// pos is where the write sits in the scanned text. Variable labels are
+	// read from the nearest preceding labeled occurrence, so a variable
+	// rebound later in the statement does not inherit an earlier label.
+	pos int
+}
+
+// occurrence is one place a variable appears in a node pattern, with the
+// labels the pattern gives it (possibly none).
+type occurrence struct {
+	pos    int
+	labels []string
+	// reset marks `AS name`: the name is bound again to a value whose labels
+	// the scan does not know, so earlier labels no longer apply.
+	reset bool
 }
 
 // parsedStatement is the part of a statement the id-write check reads.
 type parsedStatement struct {
 	writes           []idWrite
-	varLabels        map[string]map[string]bool
+	occurrences      map[string][]occurrence
 	relationshipVars map[string]bool
 	unwindAliases    map[string]string
 }
 
-// labelsOf returns the sorted labels of variable plus any extra pattern
-// labels.
-func (p parsedStatement) labelsOf(variable string, extra []string) []string {
+// labelsOf returns the sorted labels of the write's variable: the labels of
+// its nearest preceding labeled occurrence, plus the write's own pattern
+// labels. A variable rebound by a later pattern takes the later labels, so an
+// earlier anchor label never covers a write on the rebound node.
+func (p parsedStatement) labelsOf(write idWrite) []string {
 	set := make(map[string]bool)
-	for label := range p.varLabels[variable] {
+	var nearest []string
+	for _, occ := range p.occurrences[write.variable] {
+		if occ.pos >= write.pos {
+			break
+		}
+		if occ.reset {
+			nearest = nil
+		} else if len(occ.labels) > 0 {
+			nearest = occ.labels
+		}
+	}
+	for _, label := range nearest {
 		set[label] = true
 	}
-	for _, label := range extra {
+	for _, label := range write.patternLabels {
 		set[label] = true
 	}
 	out := make([]string, 0, len(set))
@@ -55,7 +82,22 @@ var (
 	// part is everything up to the property map or the closing parenthesis, so
 	// a label expression (A&B, A|B, !A) reaches parseLabels instead of hiding
 	// the pattern.
-	nodePattern = regexp.MustCompile(`\(\s*([A-Za-z_]\w*)?\s*((?::[^{)]*)?)(\{[^{}]*\})?\s*\)`)
+	nodePattern = regexp.MustCompile(`\(\s*([A-Za-z_]\w*)?\s*((?::[^{)]*)?)(\{[^{}]*\}|\$\w+)?\s*\)`)
+	// trailingParameterMap splits a parameter property map, (n:L $props), off
+	// the end of the label part the node pattern swallowed.
+	trailingParameterMap = regexp.MustCompile(`^(.*?)\s+(\$\w+)\s*$`)
+	// procedureWrite finds procedures that create or merge nodes from arguments
+	// the parser cannot read.
+	procedureWrite = regexp.MustCompile(`(?i)\bapoc\.(create|merge|cypher|do|periodic|refactor)\.`)
+	// aliasRebind finds names bound again after an UNWIND: AS name.
+	aliasRebind = regexp.MustCompile(`(?i)\bAS\s+(\w+)`)
+	// aliasShadow finds names bound by a comprehension or FOREACH: (name IN and
+	// [name IN.
+	aliasShadow = regexp.MustCompile(`(?i)[(\[]\s*(\w+)\s+IN\b`)
+	// setTarget captures the left side of a SET item up to its first assignment.
+	setTarget = regexp.MustCompile(`^(.*?)\s*(?:\+=|=)(?:[^=]|$)`)
+	// idProperty matches a target that ends in the id property.
+	idProperty = regexp.MustCompile("\\.\\s*(?:id|`id`)\\s*$")
 	// relationshipPattern matches a relationship variable, [r:TYPE] or [r],
 	// only when an arrow dash opens the bracket, so a list literal [n] or a
 	// list index x[i] is never taken for one.
@@ -71,17 +113,24 @@ var (
 func parseStatement(raw string) parsedStatement {
 	text := blankLiteralsAndComments(raw)
 	parsed := parsedStatement{
-		varLabels:        make(map[string]map[string]bool),
+		occurrences:      make(map[string][]occurrence),
 		relationshipVars: make(map[string]bool),
-		unwindAliases:    make(map[string]string),
-	}
-	for _, m := range unwindPattern.FindAllStringSubmatch(text, -1) {
-		parsed.unwindAliases[m[2]] = m[1]
+		unwindAliases:    unwindAliasesOf(text),
 	}
 	for _, m := range relationshipPattern.FindAllStringSubmatch(text, -1) {
 		parsed.relationshipVars[m[1]] = true
 	}
+	if loc := procedureWrite.FindStringIndex(text); loc != nil {
+		// A procedure that creates or merges a node takes labels and properties
+		// as arguments the scan does not read: an unplaced write.
+		parsed.writes = append(parsed.writes, idWrite{variable: "procedure", kind: KindDynamicMap, pos: loc[0]})
+	}
+	for _, loc := range aliasRebind.FindAllStringSubmatchIndex(text, -1) {
+		name := text[loc[2]:loc[3]]
+		parsed.occurrences[name] = append(parsed.occurrences[name], occurrence{pos: loc[0], reset: true})
+	}
 	clauses := clausePositions(text)
+	depths := bracketDepths(text)
 	var nodeRanges [][2]int
 	for _, loc := range nodePattern.FindAllStringSubmatchIndex(text, -1) {
 		if !isPatternStart(text, loc[0]) {
@@ -89,40 +138,79 @@ func parseStatement(raw string) parsedStatement {
 		}
 		nodeRanges = append(nodeRanges, [2]int{loc[0], loc[1]})
 		variable := slice(text, loc[2], loc[3])
-		labels := parseLabels(slice(text, loc[4], loc[5]))
-		if variable != "" {
-			if parsed.varLabels[variable] == nil {
-				parsed.varLabels[variable] = make(map[string]bool)
-			}
-			for _, label := range labels {
-				parsed.varLabels[variable][label] = true
-			}
-		}
+		labelPart := slice(text, loc[4], loc[5])
 		propertyMap := slice(text, loc[6], loc[7])
-		context := clauseAt(clauses, loc[0])
-		if propertyMap != "" && (context == "MERGE" || context == "CREATE") && idKeyInMap.MatchString(propertyMap) {
+		if m := trailingParameterMap.FindStringSubmatch(labelPart); m != nil && propertyMap == "" {
+			labelPart, propertyMap = m[1], m[2]
+		}
+		labels := parseLabels(labelPart)
+		if variable != "" {
+			parsed.occurrences[variable] = append(parsed.occurrences[variable], occurrence{pos: loc[0], labels: labels})
+		}
+		context := clauseAt(clauses, loc[0], depths[loc[0]])
+		if propertyMap == "" || (context != "MERGE" && context != "CREATE") {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(propertyMap, "$"):
 			parsed.writes = append(parsed.writes, idWrite{
-				variable: variable, kind: KindMapKey, patternLabels: labels,
+				variable: variable, kind: KindDynamicMap, patternLabels: labels, expression: propertyMap, pos: loc[0],
+			})
+		case idKeyInMap.MatchString(propertyMap):
+			parsed.writes = append(parsed.writes, idWrite{
+				variable: variable, kind: KindMapKey, patternLabels: labels, pos: loc[0],
 			})
 		}
+	}
+	for _, occs := range parsed.occurrences {
+		sort.SliceStable(occs, func(i, j int) bool { return occs[i].pos < occs[j].pos })
 	}
 	for i, clause := range clauses {
 		end := clauseSpanEnd(text, clauses, i)
 		switch clause.name {
 		case "SET":
+			offset := clause.end
 			for _, item := range splitTopLevel(text[clause.end:end]) {
-				parsed.writes = append(parsed.writes, setItemWrites(strings.TrimSpace(item))...)
+				for _, write := range setItemWrites(strings.TrimSpace(item)) {
+					write.pos = offset
+					parsed.writes = append(parsed.writes, write)
+				}
+				offset += len(item) + 1
 			}
 		case "MERGE", "CREATE":
 			// Fail closed: an id key left in a write clause after the node
 			// patterns and relationship brackets are masked sits in a shape the
 			// parser did not place, so no label can be proven for it.
 			if idKeyInMap.MatchString(maskedSpan(text, clause.end, end, nodeRanges)) {
-				parsed.writes = append(parsed.writes, idWrite{kind: KindMapKey})
+				parsed.writes = append(parsed.writes, idWrite{kind: KindMapKey, pos: clause.end})
 			}
 		}
 	}
 	return parsed
+}
+
+// unwindAliasesOf maps each `UNWIND $param AS alias` to its parameter, minus any
+// alias bound again later in the statement (a second `AS alias`, a
+// comprehension variable, a FOREACH variable): after a rebind the parameter no
+// longer says what the alias holds.
+func unwindAliasesOf(text string) map[string]string {
+	aliases := make(map[string]string)
+	for _, m := range unwindPattern.FindAllStringSubmatch(text, -1) {
+		aliases[m[2]] = m[1]
+	}
+	bound := make(map[string]int)
+	for _, m := range aliasRebind.FindAllStringSubmatch(text, -1) {
+		bound[m[1]]++
+	}
+	for name := range aliases {
+		if bound[name] > 1 {
+			delete(aliases, name)
+		}
+	}
+	for _, m := range aliasShadow.FindAllStringSubmatch(text, -1) {
+		delete(aliases, m[1])
+	}
+	return aliases
 }
 
 // clauseSpanEnd returns where the clause at index i stops: the next clause
@@ -138,61 +226,15 @@ func clauseSpanEnd(text string, clauses []clause, i int) int {
 	return len(text)
 }
 
-// maskedSpan returns text[from:to] with the recognized node patterns and the
-// relationship brackets blanked out.
-func maskedSpan(text string, from, to int, nodeRanges [][2]int) string {
-	masked := []byte(text[from:to])
-	blank := func(a, b int) {
-		for k := max(a, from); k < min(b, to); k++ {
-			masked[k-from] = ' '
-		}
-	}
-	for _, r := range nodeRanges {
-		blank(r[0], r[1])
-	}
-	for _, r := range relationshipBrackets(text) {
-		blank(r[0], r[1])
-	}
-	return string(masked)
-}
-
-// relationshipBrackets returns the [start, end) ranges of every bracket
-// group opened by an arrow dash: the -[r:TYPE {props}]- of a pattern.
-func relationshipBrackets(text string) [][2]int {
-	var out [][2]int
-	for i := 0; i < len(text); i++ {
-		if text[i] != '-' {
-			continue
-		}
-		j := i + 1
-		for j < len(text) && (text[j] == ' ' || text[j] == '\n' || text[j] == '\t') {
-			j++
-		}
-		if j >= len(text) || text[j] != '[' {
-			continue
-		}
-		depth := 0
-		for k := j; k < len(text); k++ {
-			switch text[k] {
-			case '[':
-				depth++
-			case ']':
-				depth--
-				if depth == 0 {
-					out = append(out, [2]int{j, k + 1})
-					i = k
-					k = len(text)
-				}
-			}
-		}
-	}
-	return out
-}
-
 // setItemWrites classifies one SET assignment item.
 func setItemWrites(item string) []idWrite {
 	if m := setPropertyID.FindStringSubmatch(item); m != nil {
 		return []idWrite{{variable: m[1], kind: KindSetProperty}}
+	}
+	// A target that ends in .id but is not a plain variable (a backtick name, a
+	// parenthesized expression) writes an id on a node the scan cannot name.
+	if m := setTarget.FindStringSubmatch(item); m != nil && idProperty.MatchString(m[1]) {
+		return []idWrite{{kind: KindSetProperty}}
 	}
 	if m := setDynamicKey.FindStringSubmatch(item); m != nil {
 		return []idWrite{{variable: m[1], kind: KindDynamicMap, keyExpression: strings.TrimSpace(m[2])}}
@@ -241,72 +283,21 @@ func clausePositions(text string) []clause {
 	return out
 }
 
-// bracketDepths returns the bracket depth, over (), [], and {}, at every byte.
-func bracketDepths(text string) []int {
-	depths := make([]int, len(text)+1)
-	depth := 0
-	for i := 0; i < len(text); i++ {
-		depths[i] = depth
-		switch text[i] {
-		case '(', '[', '{':
-			depth++
-		case ')', ']', '}':
-			depth--
-		}
-	}
-	depths[len(text)] = depth
-	return depths
-}
-
-// clauseAt returns the name of the last clause keyword before position pos.
-func clauseAt(clauses []clause, pos int) string {
+// clauseAt returns the name of the last clause keyword before position pos
+// whose bracket depth does not exceed depth, the pattern's own depth. A keyword
+// inside an earlier pattern's map or a list comprehension is deeper than a later
+// top-level pattern and never becomes its context.
+func clauseAt(clauses []clause, pos, depth int) string {
 	name := ""
 	for _, c := range clauses {
 		if c.start >= pos {
 			break
 		}
-		name = c.name
-	}
-	return name
-}
-
-// isPatternStart reports whether the '(' at pos opens a node pattern rather
-// than a function call: a '(' glued to a preceding identifier is a call
-// unless that identifier is a clause keyword.
-func isPatternStart(text string, pos int) bool {
-	if pos == 0 || !isWordByte(text[pos-1]) {
-		return true
-	}
-	end := pos
-	start := end
-	for start > 0 && isWordByte(text[start-1]) {
-		start--
-	}
-	switch strings.ToUpper(text[start:end]) {
-	case "MERGE", "MATCH", "CREATE":
-		return true
-	}
-	return false
-}
-
-func isWordByte(b byte) bool {
-	return b == '_' || b >= '0' && b <= '9' || b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z'
-}
-
-func previousNonSpace(text string, pos int) byte {
-	for i := pos - 1; i >= 0; i-- {
-		if text[i] != ' ' && text[i] != '\n' && text[i] != '\t' {
-			return text[i]
+		if c.depth <= depth {
+			name = c.name
 		}
 	}
-	return 0
-}
-
-func slice(text string, from, to int) string {
-	if from < 0 || to < 0 {
-		return ""
-	}
-	return text[from:to]
+	return name
 }
 
 // labelExpressionUnknown stands in for a label expression the parser cannot
@@ -329,64 +320,4 @@ func parseLabels(raw string) []string {
 		}
 	}
 	return out
-}
-
-// splitTopLevel splits text on commas that sit outside (), [], and {}.
-func splitTopLevel(text string) []string {
-	var out []string
-	depth, last := 0, 0
-	for i := 0; i < len(text); i++ {
-		switch text[i] {
-		case '(', '[', '{':
-			depth++
-		case ')', ']', '}':
-			depth--
-		case ',':
-			if depth == 0 {
-				out = append(out, text[last:i])
-				last = i + 1
-			}
-		}
-	}
-	return append(out, text[last:])
-}
-
-// blankLiteralsAndComments replaces string-literal contents and comments with
-// nothing, so text inside them never reads as Cypher. Quote characters stay.
-func blankLiteralsAndComments(text string) string {
-	var b strings.Builder
-	for i := 0; i < len(text); {
-		c := text[i]
-		switch {
-		case c == '/' && i+1 < len(text) && text[i+1] == '/':
-			for i < len(text) && text[i] != '\n' {
-				i++
-			}
-		case c == '/' && i+1 < len(text) && text[i+1] == '*':
-			end := strings.Index(text[i+2:], "*/")
-			if end < 0 {
-				return b.String()
-			}
-			i += end + 4
-		case c == '\'' || c == '"':
-			b.WriteByte(c)
-			i++
-			for i < len(text) {
-				if text[i] == '\\' {
-					i += 2
-					continue
-				}
-				if text[i] == c {
-					break
-				}
-				i++
-			}
-			b.WriteByte(c)
-			i++
-		default:
-			b.WriteByte(c)
-			i++
-		}
-	}
-	return b.String()
 }

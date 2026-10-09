@@ -296,3 +296,100 @@ func TestCheckWritersStricterParserKeepsCoveredWritesClean(t *testing.T) {
 		})
 	}
 }
+
+// Round-2 shapes (review F4-r2): each is valid Cypher that writes an id on a
+// node with no anchor label, and each must be a finding. Rows are grouped by
+// the parser mechanism they exercise.
+func TestCheckWritersRound2FailOpenShapes(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		params string
+		kind   string
+	}{
+		// A: a keyword inside an earlier pattern's map must not become the
+		// context of a later pattern.
+		{"A list comprehension in an earlier map", "CREATE (a:Function {uid: [x IN $l WHERE x <> ''][0]}), (n:Unconstrained {id: $id})", "", KindMapKey},
+		{"A EXISTS subquery in an earlier map", "CREATE (a:Function {uid: $u, flag: EXISTS { MATCH (z) }}), (n:Unconstrained {id: $id})", "", KindMapKey},
+		{"A list comprehension on a path", "MERGE (a:Function {uid: [x IN $l WHERE x <> ''][0]})-[:R]->(n:Unconstrained {id: $id})", "", KindMapKey},
+		{"A pattern comprehension in an earlier map", "CREATE (a:Function {uid: $u, xs: [(m)-->(k) WHERE k.x = 1 | k.x]}), (n:Unconstrained {id: $id})", "", KindMapKey},
+		// B: a parameter property map.
+		{"B parameter map on a labeled node", "CREATE (n:Unconstrained $props)", `{"props":{"id":"x"}}`, KindDynamicMap},
+		{"B parameter map on an unlabeled node", "CREATE (n $props)", `{"props":{"id":"x"}}`, KindDynamicMap},
+		{"B parameter map without parameters", "MERGE (n:Unconstrained $props)", "", KindDynamicMap},
+		// C: a SET target that is not a plain variable.
+		{"C backtick variable", "MERGE (n:Unconstrained {uid: $u}) SET `n`.id = $u", "", KindSetProperty},
+		{"C expression target", "MERGE (n:Unconstrained {uid: $u}) SET (CASE WHEN true THEN n END).id = $u", "", KindSetProperty},
+		{"C backtick property on an expression target", "MERGE (n:Unconstrained {uid: $u}) SET (CASE WHEN true THEN n END).`id` = $u", "", KindSetProperty},
+		// D: a variable rebound by a later pattern with a different label.
+		{"D rebound after WITH", "MATCH (n:Function {uid: $u}) WITH n.uid AS u MERGE (n:Unconstrained {uid: u}) SET n.id = u", "", KindSetProperty},
+		{"D rebound across UNION", "MATCH (n:Function {uid: $u}) RETURN n.uid AS u UNION MERGE (n:Unconstrained {uid: $u}) SET n.id = $u RETURN $u AS u", "", KindSetProperty},
+		// E: an UNWIND alias rebound after the UNWIND.
+		{"E alias rebound by WITH", "UNWIND $rows AS row WITH {id: 'x'} AS row MERGE (n:Unconstrained {uid: $u}) SET n += row", `{"rows":[{"a":1}]}`, KindDynamicMap},
+		{"E alias shadowed by a comprehension", "UNWIND $rows AS row MERGE (n:Unconstrained {uid: $u}) SET n += [row IN $other | row][0]", `{"rows":[{"a":1}],"other":[{"id":"x"}]}`, KindDynamicMap},
+		// F: backtick identifiers must not break literal and comment blanking.
+		{"F backtick label with slashes", "CREATE (n:`a//b` {id: $id})", "", KindMapKey},
+		{"F backtick label with an apostrophe", "CREATE (n:`it's` {id: $id}) RETURN 'x'", "", KindMapKey},
+		// Hunt: procedure writes the parser cannot read.
+		{"apoc create node", "CALL apoc.create.node(['Unconstrained'], {id: $id}) YIELD node RETURN node", "", KindDynamicMap},
+		{"apoc merge node", "CALL apoc.merge.node(['Unconstrained'], {uid: $u}, {id: $id}) YIELD node RETURN node", "", KindDynamicMap},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			report := check(t, tc.text, tc.params)
+			for _, f := range report.Findings {
+				if f.Kind == tc.kind {
+					return
+				}
+			}
+			t.Fatalf("no %s finding for %q (report %+v)", tc.kind, tc.text, report)
+		})
+	}
+}
+
+// Counterpart rows: the stricter parser keeps covered writes, proven writes,
+// and a rebound variable that stays covered clean.
+func TestCheckWritersRound2KeepsCoveredWritesClean(t *testing.T) {
+	clean := []struct{ name, text, params string }{
+		{"A covered pattern after a comprehension", "CREATE (a:Function {uid: [x IN $l WHERE x <> ''][0]}), (n:Function {id: $id})", ""},
+		{"B parameter map proven without id", "CREATE (n:Unconstrained $props)", `{"props":{"name":"x"}}`},
+		{"B parameter map on a covered label", "CREATE (n:Function $props)", ""},
+		{"C plain variable on a covered label", "MERGE (n:Function {uid: $u}) SET n.id = $u", ""},
+		{"D rebound to a covered label", "MATCH (n:Unconstrained {uid: $u}) WITH n.uid AS u MERGE (n:Function {uid: u}) SET n.id = u", ""},
+		{"D second occurrence without labels", "MERGE (n:Function {uid: $u}) MERGE (m:Function {uid: $v})-[:R]->(n) SET n.id = $u", ""},
+		{"E alias kept", "UNWIND $rows AS row MERGE (n:Unconstrained {uid: $u}) SET n += row", `{"rows":[{"a":1}]}`},
+		{"F backtick label covered", "CREATE (n:`Function` {id: $id})", ""},
+	}
+	for _, tc := range clean {
+		t.Run(tc.name, func(t *testing.T) {
+			if report := check(t, tc.text, tc.params); len(report.Findings) != 0 {
+				t.Fatalf("clean statement flagged: %+v", report.Findings)
+			}
+		})
+	}
+}
+
+// Hunt rows (round 2): more shapes in the same families as the reviewer's
+// table, found by walking clause context, SET targets, property maps, and
+// variable rebinding. Each must be a finding.
+func TestCheckWritersRound2HuntRows(t *testing.T) {
+	tests := []struct{ name, text, params string }{
+		{"rebound by WITH AS to an uncovered node", "MATCH (n:Function {uid: $u}) MATCH (m:Unconstrained {uid: $v}) WITH m AS n SET n.id = $v", ""},
+		{"SET target is a list index expression", "MERGE (n:Unconstrained {uid: $u}) SET [n][0].id = $u", ""},
+		{"SET target is a function result", "MERGE (n:Unconstrained {uid: $u}) SET head([n]).id = $u", ""},
+		{"SET with a label add before the id", "MERGE (n {uid: $u}) SET n:Extra, n.id = $u", ""},
+		{"ON CREATE SET replaces the whole map", "MERGE (n:Unconstrained {uid: $u}) ON CREATE SET n = $props", ""},
+		{"apoc set property", "MERGE (n:Unconstrained {uid: $u}) WITH n CALL apoc.create.setProperty(n, 'id', $u) YIELD node RETURN node", ""},
+		{"apoc cypher run", "CALL apoc.cypher.doIt('CREATE (n:Unconstrained {id: 1})', {}) YIELD value RETURN value", ""},
+		{"UNWIND alias used as the node", "UNWIND $nodes AS n SET n.id = $u", ""},
+		{"FOREACH variable used as the node", "MATCH p = (a:Function {uid: $u}) FOREACH (n IN nodes(p) | SET n.id = $u)", ""},
+		{"MERGE after a CALL subquery closes", "CALL { MATCH (a:Function {uid: $u}) RETURN a } MERGE (n:Unconstrained {id: $id})", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if report := check(t, tc.text, tc.params); len(report.Findings) == 0 {
+				t.Fatalf("no finding for %q (report %+v)", tc.text, report)
+			}
+		})
+	}
+}
