@@ -108,10 +108,14 @@ migrations_dir="go/internal/storage/postgres/migrations"
 # smaller computed depth could re-shallow a deeper checkout. The destination
 # refspec is required: with none, git leaves the SHA in FETCH_HEAD and applies
 # no depth at all. A leftover private ref from an aborted earlier run is cleared
-# first so each pass starts clean (a depth-limited fetch overwrote an unrelated
-# stale ref without error when tried, so this is hygiene, not a fix). The bare
-# fetch stays as the fallback for a remote that refuses want-by-SHA, so the old
-# behavior is never lost.
+# first: a fetch into a ref that holds unrelated history is REJECTED as
+# non-fast-forward and exits non-zero (reproduced on a file:// remote and on the
+# real GitHub remote), even though the deepened history still arrives. Without
+# the clear, that exit status would send the call down the fallback below for no
+# reason, and fail it outright if the fallback cannot run. No fixture covers
+# this: the history arrives either way, so a test of the end result cannot go
+# RED. The bare fetch stays as the fallback for a remote that refuses
+# want-by-SHA, so the old behavior is never lost.
 deepen_head() {
   local deepen="$1" head_sha have ref="refs/eshu-migration-immutability/head"
   git -C "$repo_root" update-ref -d "$ref" >/dev/null 2>&1 || true
@@ -138,12 +142,17 @@ deepen_head() {
 # as "nothing changed" -- that is the caller's job, and the caller must fail
 # loud on a 1 return, not skip.
 #
-# The bound (100, 400, 1600, 3200 commits, cumulative 5300 per side) was not
-# what failed merge_group runs (#7859): with HEAD deepened correctly the base is
-# found within the first one or two passes even when main is hundreds of
-# commits past the group base (the fixture proves 250). A base that is truly
-# unreachable still fails closed after every pass, only more slowly (a local
-# run against the real remote took 31 to 87 seconds, not a CI figure).
+# The bound (passes of 100, 400, 1600, 3200) is cumulative 5300 generations on
+# the origin/main side. The HEAD side adds each pass to the commits it already
+# holds (see deepen_head), so on a merge-commit history it runs ahead of that:
+# measured on the real remote, a group commit reached 102, 1035, 2869 and 5728
+# commits over the four passes, capped only by the history that exists. The
+# bound was not what failed merge_group runs (#7859): with HEAD deepened
+# correctly the base is found within the first one or two passes even when main
+# is hundreds of commits past the group base (the fixture proves 250). A base
+# that is truly unreachable still fails closed after every pass, only more
+# slowly (a local run against the real remote took 31 to 87 seconds, not a CI
+# figure).
 find_merge_base() {
   local ref="$1" mb remote branch
   if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
