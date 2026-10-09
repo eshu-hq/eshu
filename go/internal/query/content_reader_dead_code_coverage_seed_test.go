@@ -6,11 +6,14 @@ package query
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
+	"github.com/eshu-hq/eshu/go/internal/recovery"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	reachabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 )
 
@@ -19,9 +22,12 @@ type coverageLiveRepo struct {
 	repo      string
 	suffix    string
 	hasGen    bool
-	intent    string // "completed", "pending", "other", or "" for none
+	intent    string // "completed", "pending", "other", "refresh", or "" for none
 	watermark string // "complete", "truncated", "old-epoch", "truncated-old-epoch", or "" for none
 	staleOnly bool   // the only code intents belong to a superseded generation
+	// work seeds one fact_work_items row per entry for the active generation,
+	// keyed by reducer domain with the item status as value (#7602).
+	work map[string]string
 }
 
 // seedCoverageLiveRepo writes the rows a repository scope, its generation, its
@@ -41,6 +47,9 @@ func seedCoverageLiveRepo(ctx context.Context, t *testing.T, db *sql.DB, r cover
 	const intentSQL = `INSERT INTO shared_projection_intents(intent_id, projection_domain, partition_key,
 		scope_id, acceptance_unit_id, repository_id, source_run_id, generation_id, payload, created_at, completed_at)
 		VALUES ($1, $2, 'k', $3, $4, $4, $5, $6, '{}', now(), $7)`
+	const refreshIntentSQL = `INSERT INTO shared_projection_intents(intent_id, projection_domain, partition_key,
+		scope_id, acceptance_unit_id, repository_id, source_run_id, generation_id, payload, created_at, completed_at)
+		VALUES ($1, $2, 'k', $3, $4, $4, $5, $6, '{"action":"refresh","intent_type":"repo_refresh"}', now(), $7)`
 	exec(`INSERT INTO ingestion_scopes(scope_id, scope_kind, source_system, source_key, collector_kind,
 		partition_key, observed_at, ingested_at, status)
 		VALUES ($1, 'repository', 'git', $2, 'git', 'p', now(), now(), 'active')`, scopeID, r.repo)
@@ -66,6 +75,8 @@ func seedCoverageLiveRepo(ctx context.Context, t *testing.T, db *sql.DB, r cover
 		exec(intentSQL, "i-"+r.repo+r.suffix, "inheritance_edges", scopeID, r.repo, "run-new", generationID, nil)
 	case "other":
 		exec(intentSQL, "i-"+r.repo+r.suffix, "platform_infra", scopeID, r.repo, "run-new", generationID, time.Now())
+	case "refresh":
+		exec(refreshIntentSQL, "i-"+r.repo+r.suffix, "code_calls", scopeID, r.repo, "run-new", generationID, nil)
 	}
 	switch r.watermark {
 	case "complete", "truncated", "old-epoch", "truncated-old-epoch":
@@ -77,14 +88,41 @@ func seedCoverageLiveRepo(ctx context.Context, t *testing.T, db *sql.DB, r cover
 			updated_at, verdict_schema_epoch) VALUES ($1, $2, $3, $4, now(), $5)`,
 			scopeID, generationID, r.repo, strings.HasPrefix(r.watermark, "truncated"), epoch)
 	}
+	// Fail on an unknown work key: the seed loop below only reads the two
+	// known domains, so a typo'd domain would seed nothing and a
+	// complete-expecting case would pass vacuously.
+	for key := range r.work {
+		if key != string(reducercontract.DomainCodeCallMaterialization) &&
+			key != string(reducercontract.DomainInheritanceMaterialization) {
+			t.Fatalf("unknown work domain %q", key)
+		}
+	}
+	// Seed in domain order so the fixture is deterministic.
+	for _, domain := range []reducercontract.Domain{
+		reducercontract.DomainCodeCallMaterialization,
+		reducercontract.DomainInheritanceMaterialization,
+	} {
+		status, ok := r.work[string(domain)]
+		if !ok {
+			continue
+		}
+		exec(`INSERT INTO fact_work_items(work_item_id, scope_id, generation_id, stage,
+			domain, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+			"w-"+r.repo+r.suffix+"-"+string(domain), scopeID, generationID,
+			string(recovery.StageReducer), string(domain), status, time.Now())
+	}
 }
 
 // coverageLiveRepos is the repository scopes TestCrossRepoDeadCodeConsumerCoverageLive
 // seeds. r-multi2 is the multi-scope case where "lowest generation id" and "a
 // truncated scope first" disagree (its -a scope has the lower generation id and
 // no watermark, its -b scope is truncated), and r-trunc-old is one watermark that
-// is both truncated and below the current epoch.
+// is both truncated and below the current epoch. The r-window scopes are the
+// activation-to-first-intent window (#7602): refresh-only intents on a full
+// generation with reducer work in various states.
 func coverageLiveRepos() []coverageLiveRepo {
+	codeCalls := string(reducercontract.DomainCodeCallMaterialization)
+	inheritance := string(reducercontract.DomainInheritanceMaterialization)
 	return []coverageLiveRepo{
 		{repo: "r-ok", hasGen: true, intent: "completed", watermark: "complete"},
 		{repo: "r-nowm", hasGen: true, intent: "completed"},
@@ -102,6 +140,16 @@ func coverageLiveRepos() []coverageLiveRepo {
 		{repo: "r-multi", suffix: "-b", hasGen: true, intent: "completed"},
 		{repo: "r-multi2", suffix: "-a", hasGen: true, intent: "completed"},
 		{repo: "r-multi2", suffix: "-b", hasGen: true, intent: "completed", watermark: "truncated"},
+		{repo: "r-window", hasGen: true, intent: "refresh", work: map[string]string{
+			codeCalls: "pending", inheritance: "succeeded",
+		}},
+		{repo: "r-window-done", hasGen: true, intent: "refresh", work: map[string]string{
+			codeCalls: "succeeded", inheritance: "succeeded",
+		}},
+		{repo: "r-window-nowork", hasGen: true, intent: "refresh"},
+		{repo: "r-window-dead", hasGen: true, intent: "refresh", work: map[string]string{
+			codeCalls: "dead_letter", inheritance: "succeeded",
+		}},
 	}
 }
 
@@ -171,15 +219,33 @@ func coverageLiveCases() []coverageLiveCase {
 		{
 			name: "named repositories that cannot be consumers are complete",
 			request: code.CrossRepoDeadCodeCoverageRequest{
-				RepositoryIDs:      []string{"r-ok", "r-docs", "r-docs-trunc", "r-otherdomain", "r-stale", "r-oldepoch-docs"},
+				RepositoryIDs:      []string{"r-ok", "r-docs", "r-docs-trunc", "r-otherdomain", "r-stale", "r-oldepoch-docs", "r-window-done", "r-window-nowork"},
 				RequireActiveScope: true,
 			},
 			want: nil,
 		},
 		{
+			// A refresh-only generation with unfinished reducer work is inside
+			// the activation-to-first-intent window (#7602): its edges are not
+			// drained yet, so it is a gap. A dead-lettered item counts too --
+			// its edges will never arrive without intervention.
+			name: "window: unfinished reducer work on a refresh-only generation is a gap",
+			request: code.CrossRepoDeadCodeCoverageRequest{
+				RepositoryIDs:      []string{"r-window", "r-window-done", "r-window-nowork", "r-window-dead"},
+				RequireActiveScope: true,
+			},
+			want: []code.CrossRepoDeadCodeCoverageGap{
+				coverageLiveGap("r-window", noSnapshot, "gen-r-window"),
+				coverageLiveGap("r-window-dead", noSnapshot, "gen-r-window-dead"),
+			},
+		},
+		{
 			name:    "every repository",
 			request: code.CrossRepoDeadCodeCoverageRequest{AllRepositories: true},
-			want:    consumers,
+			want: append(slices.Clone(consumers),
+				coverageLiveGap("r-window", noSnapshot, "gen-r-window"),
+				coverageLiveGap("r-window-dead", noSnapshot, "gen-r-window-dead"),
+			),
 		},
 	}
 }
