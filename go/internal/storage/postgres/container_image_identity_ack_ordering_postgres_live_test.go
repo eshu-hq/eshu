@@ -44,7 +44,7 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 			t, ackDone, "legacy ACK after marker commit",
 		)
 		assertContainerImageIdentityWorkItemFenced(
-			t, ctx, db, workItemID, 1, "pending",
+			t, ctx, db, workItemID, 1, "pending", "",
 		)
 	})
 
@@ -84,7 +84,7 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 		// first-cutover guard still rejects: its work-item update matches
 		// claimed/running rows only.
 		assertContainerImageIdentityWorkItemFenced(
-			t, ctx, db, workItemID, 1, "",
+			t, ctx, db, workItemID, 1, "", "",
 		)
 		assertContainerImageIdentityAckOrderingMarkerCount(
 			t, ctx, db, scopeID, generationID, 0,
@@ -115,7 +115,7 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 			t, ackDone, "legacy ACK after marker rollback",
 		)
 		assertContainerImageIdentityWorkItemFenced(
-			t, ctx, db, workItemID, 1, "",
+			t, ctx, db, workItemID, 1, "", "",
 		)
 	})
 
@@ -405,7 +405,7 @@ SELECT pg_advisory_xact_lock(
 		)
 		// The fence lands in-tx and the rollback below restores running.
 		assertContainerImageIdentityLegacyAckFenced(
-			t, ctx, legacyTx, legacyWorkItemID, legacyResult, legacyErr, 1, "pending",
+			t, ctx, legacyTx, legacyWorkItemID, legacyResult, legacyErr, 1, "pending", "",
 		)
 		if err := legacyTx.Rollback(); err != nil {
 			t.Fatalf("roll back repeatable-read legacy ACK: %v", err)

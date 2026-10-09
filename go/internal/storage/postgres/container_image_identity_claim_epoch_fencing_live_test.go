@@ -130,9 +130,9 @@ WHERE work_item_id = $1
 		workItemID,
 		owner,
 	)
-	// The capable claim set v2_required with epoch 2; the legacy ACK fences.
+	// The capable claim set v2/v3 required with epoch 2; the legacy ACK fences.
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, workItemID, legacyResult, legacyErr, 2, "pending",
+		t, ctx, db, workItemID, legacyResult, legacyErr, 2, "pending", "pending",
 	)
 }
 

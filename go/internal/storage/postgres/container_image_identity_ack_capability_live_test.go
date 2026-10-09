@@ -136,7 +136,7 @@ WHERE work_item_id = 'ack-5854-legacy-v2'
 		legacyOwner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, "ack-5854-marked-single", legacyResult, legacyErr, 1, "pending",
+		t, ctx, db, "ack-5854-marked-single", legacyResult, legacyErr, 1, "pending", "",
 	)
 	assertContainerImageIdentityAckFactCount(
 		t, ctx, db, scopeMarkedSingle, markedSingle, "image_ref_v2", 1,
@@ -184,7 +184,7 @@ WHERE work_item_id = 'ack-5854-legacy-v2'
 	// Pre-marker rows carry no v2 requirement, so the fence resets the
 	// authorized status to empty rather than pending.
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, "ack-5854-before-marker", legacyResult, legacyErr, 1, "",
+		t, ctx, db, "ack-5854-before-marker", legacyResult, legacyErr, 1, "", "",
 	)
 	preCutover, ok, err := capableQueue.Claim(ctx)
 	if err != nil || !ok || preCutover.IntentID != "ack-5854-before-marker" {
@@ -240,10 +240,10 @@ WHERE work_item_id IN ($2, $3)
 	}
 	assertContainerImageIdentityAckRowsAffected(t, legacyResult, 2)
 	assertContainerImageIdentityWorkItemFenced(
-		t, ctx, db, "ack-5854-batch-marked", 1, "pending",
+		t, ctx, db, "ack-5854-batch-marked", 1, "pending", "",
 	)
 	assertContainerImageIdentityWorkItemFenced(
-		t, ctx, db, "ack-5854-batch-unmarked", 1, "",
+		t, ctx, db, "ack-5854-batch-unmarked", 1, "", "",
 	)
 	// The fence cleared both leases, so the capable owner claims the fenced
 	// rows through the queue (either order) and completes them as a batch.
@@ -278,7 +278,7 @@ WHERE work_item_id IN ($2, $3)
 		legacyOwner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, "ack-5854-reclaim", legacyResult, legacyErr, 1, "pending",
+		t, ctx, db, "ack-5854-reclaim", legacyResult, legacyErr, 1, "pending", "",
 	)
 	reclaimQueue := ReducerQueue{
 		database:      SQLDB{DB: db},
@@ -335,7 +335,7 @@ func openContainerImageIdentityAckCapabilityProofDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func assertContainerImageIdentityLegacyAckRejected(
+func assertContainerImageIdentityRawReopenRejected(
 	t *testing.T,
 	_ sql.Result,
 	err error,
@@ -345,10 +345,10 @@ func assertContainerImageIdentityLegacyAckRejected(
 		err.Error(),
 		"fact_work_items_container_image_identity_v2_status_check",
 	) {
-		t.Fatalf("legacy ACK error = %v, want attempt-token constraint", err)
+		t.Fatalf("raw reopen error = %v, want attempt-token constraint", err)
 	}
 	var sqlState interface{ SQLState() string }
 	if !errors.As(err, &sqlState) || sqlState.SQLState() != "23514" {
-		t.Fatalf("legacy ACK SQLSTATE = %v, want 23514", sqlState)
+		t.Fatalf("raw reopen SQLSTATE = %v, want 23514", sqlState)
 	}
 }

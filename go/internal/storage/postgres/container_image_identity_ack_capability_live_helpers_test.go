@@ -317,13 +317,14 @@ func assertContainerImageIdentityLegacyAckFenced(
 	err error,
 	wantEpoch int64,
 	wantV2Authorized string,
+	wantV3Authorized string,
 ) {
 	t.Helper()
 	if err != nil {
 		t.Fatalf("legacy ACK error = %v, want fenced success", err)
 	}
 	assertContainerImageIdentityAckRowsAffected(t, result, 1)
-	assertContainerImageIdentityWorkItemFenced(t, ctx, db, workItemID, wantEpoch, wantV2Authorized)
+	assertContainerImageIdentityWorkItemFenced(t, ctx, db, workItemID, wantEpoch, wantV2Authorized, wantV3Authorized)
 }
 
 // assertContainerImageIdentityWorkItemFenced pins the fenced row shape
@@ -336,6 +337,7 @@ func assertContainerImageIdentityWorkItemFenced(
 	workItemID string,
 	wantEpoch int64,
 	wantV2Authorized string,
+	wantV3Authorized string,
 ) {
 	t.Helper()
 	var (
@@ -343,6 +345,7 @@ func assertContainerImageIdentityWorkItemFenced(
 		attemptCount   int
 		claimEpoch     int64
 		authorizedV2   string
+		authorizedV3   string
 		leaseOwner     sql.NullString
 		upgradeFlagged bool
 	)
@@ -352,6 +355,7 @@ SELECT
     attempt_count,
     container_image_identity_claim_epoch,
     container_image_identity_v2_authorized_status,
+    container_image_identity_v3_authorized_status,
     lease_owner,
     provenance_edge_identity_upgrade_required
 FROM fact_work_items
@@ -361,25 +365,29 @@ WHERE work_item_id = $1
 		&attemptCount,
 		&claimEpoch,
 		&authorizedV2,
+		&authorizedV3,
 		&leaseOwner,
 		&upgradeFlagged,
 	); err != nil {
 		t.Fatalf("read fenced legacy ACK work item %s: %v", workItemID, err)
 	}
 	if status != "pending" || attemptCount != 0 || claimEpoch != wantEpoch ||
-		authorizedV2 != wantV2Authorized || leaseOwner.Valid || !upgradeFlagged {
+		authorizedV2 != wantV2Authorized || authorizedV3 != wantV3Authorized ||
+		leaseOwner.Valid || !upgradeFlagged {
 		t.Fatalf(
-			"fenced legacy ACK %s = status %s attempt %d epoch %d v2 %q lease %q flagged %t, "+
-				"want pending/0/%d/%q/NULL/true",
+			"fenced legacy ACK %s = status %s attempt %d epoch %d v2 %q v3 %q lease %q flagged %t, "+
+				"want pending/0/%d/%q/%q/NULL/true",
 			workItemID,
 			status,
 			attemptCount,
 			claimEpoch,
 			authorizedV2,
+			authorizedV3,
 			leaseOwner.String,
 			upgradeFlagged,
 			wantEpoch,
 			wantV2Authorized,
+			wantV3Authorized,
 		)
 	}
 }

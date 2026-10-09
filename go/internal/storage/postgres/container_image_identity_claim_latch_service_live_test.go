@@ -53,7 +53,7 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCall
 		owner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, workItemID, legacyResult, legacyErr, 1, "",
+		t, ctx, db, workItemID, legacyResult, legacyErr, 1, "", "",
 	)
 
 	queue := &ReducerQueue{

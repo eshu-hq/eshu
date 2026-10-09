@@ -98,7 +98,7 @@ WHERE work_item_id = $4
 		owner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, workItemID, legacyResult, legacyErr, 2, "pending",
+		t, ctx, db, workItemID, legacyResult, legacyErr, 2, "pending", "pending",
 	)
 
 	refenced, ok, err := queue.Claim(ctx)
@@ -128,7 +128,7 @@ WHERE work_item_id = $2
   AND stage = 'reducer'
   AND status = 'succeeded'
 `, now.Add(time.Minute), workItemID)
-	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
+	assertContainerImageIdentityRawReopenRejected(t, legacyResult, legacyErr)
 
 	reopened, err := queue.ReopenSucceeded(ctx, workItemID)
 	if err != nil {
@@ -156,7 +156,7 @@ WHERE work_item_id = $2
 		owner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, db, workItemID, legacyResult, legacyErr, 4, "pending",
+		t, ctx, db, workItemID, legacyResult, legacyErr, 4, "pending", "pending",
 	)
 	replayedRefenced, ok, err := queue.Claim(ctx)
 	if err != nil {

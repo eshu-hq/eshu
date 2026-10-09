@@ -107,7 +107,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		owner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, conn, "ack-5854-reset-2", result, legacyErr, 1, "pending",
+		t, ctx, conn, "ack-5854-reset-2", result, legacyErr, 1, "pending", "",
 	)
 
 	rollbackTx, err := conn.BeginTx(ctx, nil)
@@ -137,7 +137,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	)
 	// The stamp advanced the epoch to 2; the rolled-back ACK left it there.
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, conn, "ack-5854-reset-3", result, legacyErr, 2, "pending",
+		t, ctx, conn, "ack-5854-reset-3", result, legacyErr, 2, "pending", "",
 	)
 
 	commitTx, err := conn.BeginTx(ctx, nil)
@@ -169,7 +169,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		owner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, conn, "ack-5854-reset-5", result, legacyErr, 1, "pending",
+		t, ctx, conn, "ack-5854-reset-5", result, legacyErr, 1, "pending", "",
 	)
 
 	savepointTx, err := conn.BeginTx(ctx, nil)
@@ -204,7 +204,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	// the legacy statement succeeds rather than poisoning the tx, while the
 	// final rollback below restores the running row.
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, savepointTx, "ack-5854-reset-6", result, legacyErr, 2, "pending",
+		t, ctx, savepointTx, "ack-5854-reset-6", result, legacyErr, 2, "pending", "",
 	)
 	if err := savepointTx.Rollback(); err != nil {
 		t.Fatalf("roll back legacy-fenced savepoint transaction: %v", err)
@@ -221,7 +221,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		owner,
 	)
 	assertContainerImageIdentityLegacyAckFenced(
-		t, ctx, database, "ack-5854-reset-7", result, legacyErr, 1, "pending",
+		t, ctx, database, "ack-5854-reset-7", result, legacyErr, 1, "pending", "",
 	)
 
 	for workItemID, want := range map[string]struct {
