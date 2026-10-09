@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 132 gates. Local execution runs the primary
+The registry currently defines 134 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (42 gates)
+### Hygiene: Is the change well-formed? (44 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -80,6 +80,8 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-replay-drive` (blocking): Statically checks the structure of the Ifá replay-drive verifier script; it does not start Docker or replay any cassette.
 - `trivy-image` (advisory): Scans the published GHCR container image for known vulnerabilities after publish.
 - `docker-image-build` (blocking): Smoke-tests that the Docker image still builds successfully in CI.
+- `docker-publish-shape` (blocking): Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image.
+- `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `helm-package` (blocking): Lints and packages the Helm chart to make sure it builds cleanly before publishing.
 - `root-cause-evidence` (advisory): Checks that any documented root-cause claim also records the observation that established it.
 - `tagged-builds` (blocking): Compiles every build-tag combination that ordinary go build/vet/test skip, so dead tagged code can't silently rot.
@@ -283,9 +285,9 @@ results are derived from the inputs rather than written by hand. See
 | `hot-cypher-source-coverage` | Hot Cypher manifest covers every production query call | exactness | pre-pr | true | `cd go && go test ./internal/queryplan -run '^TestHotCypherManifestCoversEveryProductionQueryCall$' -count=1`<br>then self-test: `cd go && go test ./internal/queryplan -run '^TestValidateSourceCoverage' -count=1` | test.yml / go-core | 3 path(s): go/internal/queryplan/**, go/internal/query/**, specs/ci-gates.v1.yaml |
 | `ask-overlay-inventory-coverage` | Ask catalog overlay covers the surface inventory | exactness | pre-pr | true | `cd go && go test ./internal/ask/catalog -run '^TestOverlayCoversInventory$' -count=1` | test.yml / go-core | 3 path(s): go/internal/ask/catalog/**, go/internal/capabilitycatalog/data/surface-inventory.generated.json, specs/ci-gates.v1.yaml |
 | `ifa-materialized-edge-coverage` | Ifa materialized-edge exhaustiveness gate (#5351) | exactness | pre-pr | true | `cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 36 path(s): go/internal/ifa/**, go/cmd/ifa/**, go/internal/reducer/**, … |
-| `ifa-determinism` | Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-determinism.sh` | ifa-determinism-gate.yml / determinism-matrix | 274 path(s): scripts/lib/test-ifa-determinism-private-data-cases.sh, scripts/lib/ifa_private_data_pattern.sh, scripts/lib/ifa_dead_command_line.sh, … |
+| `ifa-determinism` | Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-determinism.sh` | ifa-determinism-gate.yml / determinism-matrix | 275 path(s): scripts/lib/test-ifa-determinism-private-data-cases.sh, scripts/lib/ifa_private_data_pattern.sh, scripts/lib/ifa_dead_command_line.sh, … |
 | `ifa-dead-letter-matrix` | Ifa P3 failure-path (dead-letter set) determinism matrix | exactness | pre-pr | true | `bash scripts/test-verify-ifa-dead-letter-matrix.sh` | ifa-determinism-gate.yml / dead-letter-matrix | 11 path(s): scripts/lib/ifa_mirror_pins.sh, go/internal/ifa/mutate.go, go/internal/ifa/dead_letters.go, … |
-| `ifa-fault-injection` | Ifa P6 deterministic fault-injection matrix (in-binary decorator, real recovery) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-fault-injection.sh` | ifa-determinism-gate.yml / fault-injection (shard 1/4), fault-injection (shard 2/4), fault-injection (shard 3/4), fault-injection (shard 4/4) | 264 path(s): scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh, scripts/lib/ifa_live_gate_*.sh, go/internal/storage/postgres/migrations/**, … |
+| `ifa-fault-injection` | Ifa P6 deterministic fault-injection matrix (in-binary decorator, real recovery) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-fault-injection.sh` | ifa-determinism-gate.yml / fault-injection (shard 1/4), fault-injection (shard 2/4), fault-injection (shard 3/4), fault-injection (shard 4/4) | 265 path(s): scripts/lib/test-ifa-fault-injection-cell-pins-cases.sh, scripts/lib/ifa_live_gate_*.sh, go/internal/storage/postgres/migrations/**, … |
 | `ifa-load-saturation` | Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression) | exactness | pre-pr | true | `cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1` | static-contract-gates.yml / Verify Ifa P5 load/saturation gate | 13 path(s): .github/workflows/static-contract-gates.yml, specs/ci-gates.v1.yaml, go/internal/ifa/amplify.go, … |
 | `cassette-author` | Cassette author gate (private-data scan + v1 format contract) | security | pre-pr | true | `bash scripts/verify-cassette-author.sh`<br>then self-test: `bash scripts/test-verify-cassette-author.sh` | static-contract-gates.yml / Verify cassette author gate | 7 path(s): testdata/cassettes/**, scripts/verify-cassette-author.sh, scripts/test-verify-cassette-author.sh, … |
 | `ifa-replay-drive` | Ifa P2 replay-drive mirror (bash>=4.4 guard + drive/drain contract) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-replay-drive.sh` | static-contract-gates.yml / Verify Ifa replay-drive mirror gate | 7 path(s): scripts/lib/ifa_mirror_pins.sh, .github/workflows/static-contract-gates.yml, specs/ci-gates.v1.yaml, … |
@@ -297,6 +299,8 @@ results are derived from the inputs rather than written by hand. See
 | `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
+| `docker-publish-shape` | Docker publish workflow shape | build | pre-pr | true | `bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh` | static-contract-gates.yml / Verify docker-publish shape gate | 10 path(s): .github/workflows/docker-publish.yml, .github/workflows/security-scan.yml, .github/workflows/static-contract-gates.yml, … |
+| `docker-image-promotion` | Moving image tag promotion | build | ci-heavy | false | — (CI-only: requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs) | docker-publish.yml / promote-moving-tags | 5 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `apk-floors` | Alpine apk floors match the repository | exactness | pre-pr | true | `bash scripts/verify-apk-floors.sh`<br>then self-test: `bash scripts/test-verify-apk-floors.sh` | docker-publish.yml / verify-apk-floors | 5 path(s): Dockerfile, .github/workflows/docker-publish.yml, scripts/verify-apk-floors.sh, … |
 | `apk-floors-drift` | Alpine apk floors drift (daily) | exactness | ci-heavy | false | — (CI-only: daily scheduled run against the live Alpine repository; the blocking apk-floors row runs the same script) | apk-floors-drift.yml / Apk floors drift (daily) | 5 path(s): Dockerfile, .github/workflows/apk-floors-drift.yml, scripts/verify-apk-floors.sh, … |
 | `helm-package` | Helm chart lint and package | release | ci-heavy | true | — (CI-only: requires the hosted Helm packaging lane; PR runs skip the registry push) | docker-publish.yml / package-and-push-chart | 2 path(s): deploy/helm/**, .github/workflows/docker-publish.yml |

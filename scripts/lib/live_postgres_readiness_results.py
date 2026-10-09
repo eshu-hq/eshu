@@ -88,6 +88,10 @@ PACKAGES = {
         "go/internal/storage/postgres/targeted_partition_evidence_theory_live_test.go": (
             "TestTheoryExactPartitionEvidenceClosure",
         ),
+        "go/internal/storage/postgres/container_image_identity_epoch_barrier_live_test.go": (
+            "TestContainerImageIdentityEpochBarrierDefersPendingLive",
+            "TestContainerImageIdentityActivationEpochMissIsSentinelLive",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (

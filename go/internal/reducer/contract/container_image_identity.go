@@ -3,6 +3,8 @@
 
 package contract
 
+import "errors"
+
 // ContainerImageIdentityOutcome names the reducer decision for one image
 // reference seen in Git or runtime evidence.
 type ContainerImageIdentityOutcome string
@@ -32,3 +34,16 @@ const (
 // downward package-import direction (root -> family -> shared-core ->
 // contract).
 const ContainerImageIdentityFactKind = "reducer_container_image_identity"
+
+// ErrContainerImageIdentityGenerationNotActive reports that the activation
+// epoch read found no row for the intent's (scope, generation): the
+// generation is not the scope's active one, or its scope-state row is
+// missing. The epoch reader cannot tell a pending generation from a
+// superseded or missing one, so callers match this sentinel with errors.Is
+// and disambiguate through a GenerationFreshnessCheck: a pending generation
+// defers (GenerationNotYetActiveError), a superseded one acks as superseded,
+// and a generation the check still calls current re-reads once before
+// surfacing loudly (issue #6502).
+var ErrContainerImageIdentityGenerationNotActive = errors.New(
+	"container image identity generation is not active",
+)

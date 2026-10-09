@@ -88,6 +88,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			Instruments:           handlers.Instruments,
 			ProvenanceEdgeWriter:  handlers.ContainerImageProvenanceEdgeWriter,
 			DerivedFromEdgeWriter: handlers.ContainerImageDerivedFromEdgeWriter,
+			GenerationCheck:       handlers.ContainerImageIdentityGenerationCheck,
 		}
 		definitions = append(definitions, imageIdentity)
 	}

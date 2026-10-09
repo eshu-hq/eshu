@@ -235,6 +235,10 @@ on:
       - 'go/internal/storage/postgres/reducer_queue_batch_query.go'
       - 'go/internal/storage/postgres/reducer_queue_helpers.go'
       - 'go/internal/storage/postgres/reducer_queue_readiness_sql.go'
+      # The fault-injection mirror reads reopenSucceededReducerWorkQuery and
+      # ReopenSucceededReducerSetClause from the replay file (#7823): a refactor
+      # there must re-run this gate, as #7807 proved by merging red.
+      - 'go/internal/storage/postgres/reducer_queue_replay.go'
       - 'go/internal/storage/postgres/reducer_queue_validation.go'
       - 'go/internal/storage/postgres/reducer_queue_ack.go'
       - 'go/internal/ifa/graphdump/**'

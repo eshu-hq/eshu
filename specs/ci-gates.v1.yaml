@@ -3700,6 +3700,7 @@ gates:
       - "go/internal/storage/postgres/reducer_queue_batch_query.go"
       - "go/internal/storage/postgres/reducer_queue_helpers.go"
       - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/storage/postgres/reducer_queue_replay.go"
       - "go/internal/storage/postgres/reducer_queue_validation.go"
       - "go/internal/storage/postgres/reducer_queue_ack.go"
       - "go/internal/ifa/graphdump/**"
@@ -4322,6 +4323,7 @@ gates:
       - "go/internal/storage/postgres/reducer_queue_batch_query.go"
       - "go/internal/storage/postgres/reducer_queue_helpers.go"
       - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
+      - "go/internal/storage/postgres/reducer_queue_replay.go"
       - "go/internal/storage/postgres/reducer_queue_validation.go"
       - "go/internal/storage/postgres/reducer_queue_ack.go"
       # The ifa package root, not a list of its filenames (#6200). go/cmd/ifa
@@ -4988,6 +4990,57 @@ gates:
     requirements:
       - docker
     ci_only_reason: "requires two clean hosted Docker Buildx builds"
+
+  - id: docker-publish-shape
+    name: Docker publish workflow shape
+    category: build
+    layer: hygiene
+    purpose: "Statically checks the publish workflow's per-sha concurrency, immutable build tags, promotion wiring, and per-sha scan resolver; it never pushes an image."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/workflows/docker-publish.yml"
+      - ".github/workflows/security-scan.yml"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "scripts/ci/promote-moving-tags.sh"
+      - "scripts/ci/resolve-image-scan-ref.sh"
+      - "scripts/test-promote-moving-tags.sh"
+      - "scripts/test-resolve-image-scan-ref.sh"
+      - "scripts/test-verify-docker-publish-pr-platforms.sh"
+      - "scripts/test-verify-docker-publish-moving-tags.sh"
+    local:
+      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify docker-publish shape gate"
+    requirements: []
+    ci_only_reason: ""
+
+  - id: docker-image-promotion
+    name: Moving image tag promotion
+    category: build
+    layer: hygiene
+    purpose: "Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish."
+    tier: ci-heavy
+    # Post-publish evidence: the digest does not exist until the build job has
+    # pushed it on main, so this cannot honestly be a pre-merge blocker. The
+    # row exists so main-health classifies a promotion failure as advisory
+    # instead of fail-closing an unclaimed job to red.
+    blocking: false
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+      - "scripts/ci/promote-moving-tags.sh"
+      - "scripts/test-promote-moving-tags.sh"
+    ci:
+      workflow: docker-publish.yml
+      job: "promote-moving-tags"
+    requirements:
+      - credentials
+    ci_only_reason: "requires a pushed digest and GHCR write credentials; push-only job, never runs on PRs"
 
   - id: apk-floors
     name: Alpine apk floors match the repository
