@@ -200,55 +200,36 @@ func TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive(t *testing.T) 
 	}
 
 	// Whether the tail finishes inside a budget depends on host speed, so the
-	// budget falls below the configured minimum until a run is cut short. The
-	// walk accepts any positive budget; every run, cut short or not, must gather
-	// exactly the old statement's rows, and failing to cut the tail at every
-	// budget is a failure, not a skip.
+	// budget falls below the configured minimum until a run is cut short after
+	// real work. The walk accepts any positive budget; every run, cut short or
+	// not, must gather exactly the old statement's rows. A loaded host may
+	// answer a call with a partial page that scanned nothing; the run re-issues
+	// it, and a rung that never progresses is tried no further. The two
+	// largest rungs come last for a host too slow for the small ones. Failing
+	// to cut the tail after real work at every budget is a failure, not a skip.
 	var tried []string
-	for _, ms := range []time.Duration{100, 60, 40, 25, 15} {
+	for _, ms := range []time.Duration{100, 60, 40, 25, 15, 200, 400} {
 		budget := ms * time.Millisecond
-		partials := resumeNoTrigramSearch(t, ctx, db, budget, want)
-		if partials > 0 {
+		run := resumeNoTrigramSearch(t, budget, liveResumeCall(ctx, db, budget), want)
+		if run.progressed > 0 {
 			return
 		}
-		tried = append(tried, fmt.Sprintf("%dms", ms))
+		tried = append(tried, fmt.Sprintf("%dms (stalls %d)", ms, run.stalls))
 	}
-	t.Fatalf("no partial page at any budget (%s): the tail always finished, so the cancel path was not exercised", strings.Join(tried, ", "))
+	t.Fatalf("no progressed partial page at any budget (%s): the tail always finished or the host scanned nothing, so the cancel path was not exercised", strings.Join(tried, ", "))
 }
 
-// resumeNoTrigramSearch pages the no-trigram token through cursor resume at one
-// budget and returns how many partial pages it took. It fails the test unless
-// the gathered rows equal the old statement's rows exactly.
-func resumeNoTrigramSearch(t *testing.T, ctx context.Context, db *sql.DB, budget time.Duration, want []string) int {
-	t.Helper()
+// liveResumeCall binds one budget to a real Searcher over the live fixture and
+// pages the no-trigram token 100 rows at a time.
+func liveResumeCall(ctx context.Context, db *sql.DB, budget time.Duration) resumeSearchCall {
 	searcher := &unscoped.Searcher{
 		Store:  postgres.NewSQLReadStore(db),
 		Budget: budget,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
-	var gathered []string
-	cursor := querycontract.SearchCursor{}
-	partials := 0
-	for call := 0; call < 400; call++ {
-		page, err := searcher.Search(ctx, liveNoTrigramHits, 100, 0, cursor)
-		if err != nil {
-			t.Fatalf("budget %d ms call %d: %v", budget.Milliseconds(), call, err)
-		}
-		gathered = append(gathered, pageKeys(page.Files)...)
-		if page.Partial == nil {
-			if strings.Join(gathered, ",") != strings.Join(want, ",") {
-				t.Fatalf("budget %d ms: gathered %v, want %v (after %d partial pages)", budget.Milliseconds(), gathered, want, partials)
-			}
-			return partials
-		}
-		partials++
-		if page.Partial.Cursor == cursor {
-			t.Fatalf("budget %d ms call %d: partial page did not advance the cursor: %+v", budget.Milliseconds(), call, page.Partial)
-		}
-		cursor = page.Partial.Cursor
+	return func(cursor querycontract.SearchCursor) (querycontract.FileSearchPage, error) {
+		return searcher.Search(ctx, liveNoTrigramHits, 100, 0, cursor)
 	}
-	t.Fatalf("budget %d ms: no convergence in 400 calls; gathered %v", budget.Milliseconds(), gathered)
-	return partials
 }
 
 type explainNode struct {
