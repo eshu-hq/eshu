@@ -11,8 +11,14 @@ type TruthLevel string
 // Truth levels form the ordered evidence-authority scale.
 const (
 	// TruthLevelExact means authoritative evidence directly supports the answer.
-	TruthLevelExact    TruthLevel = "exact"
-	TruthLevelDerived  TruthLevel = "derived"
+	TruthLevelExact   TruthLevel = "exact"
+	TruthLevelDerived TruthLevel = "derived"
+	// TruthLevelPartial means a bounded read stopped at its work budget before
+	// it could prove the answer complete (#7730). The rows returned are a true
+	// prefix of the exact answer in order, the response carries a resume
+	// cursor, and truncated is true. It is emitted only by routes that declare
+	// a work budget; it ranks between derived and fallback.
+	TruthLevelPartial  TruthLevel = "partial"
 	TruthLevelFallback TruthLevel = "fallback"
 )
 
@@ -237,7 +243,7 @@ func basisLevel(basis TruthBasis) TruthLevel {
 // MinTruthLevel returns the lower-authority truth level. An unrecognized value
 // ranks below the closed known vocabulary so callers cannot overstate truth.
 func MinTruthLevel(a, b TruthLevel) TruthLevel {
-	rank := map[TruthLevel]int{TruthLevelExact: 3, TruthLevelDerived: 2, TruthLevelFallback: 1}
+	rank := map[TruthLevel]int{TruthLevelExact: 4, TruthLevelDerived: 3, TruthLevelPartial: 2, TruthLevelFallback: 1}
 	if rank[a] <= rank[b] {
 		return a
 	}
