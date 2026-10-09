@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // ServiceScopedDocumentationEvidenceLoader returns the current documentation
@@ -87,7 +87,7 @@ type ServiceDocumentationRecord struct {
 	// optional and not part of the identity.
 	ObservationHash string
 	// SourceACLState is the bounded source-ACL-state observation the collector
-	// emitted on this documentation fact (facts.DocumentationACLSummary.
+	// emitted on this documentation fact (docs.ACLSummary.
 	// SourceACLState), using the allowed|denied|partial|missing|stale vocabulary.
 	// It is an access-posture axis distinct from freshness (#2138): the reducer
 	// carries it verbatim into the read model and never folds it into freshness,
@@ -182,7 +182,7 @@ func serviceDocumentationEvidencePayload(record ServiceDocumentationRecord) map[
 // review (#2164).
 func projectedSourceACLState(value string) string {
 	value = strings.TrimSpace(value)
-	if !facts.ValidSourceACLState(value) {
+	if !docs.ValidSourceACLState(value) {
 		return ""
 	}
 	return value

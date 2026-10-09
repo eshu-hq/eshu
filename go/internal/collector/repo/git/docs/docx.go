@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -33,7 +33,7 @@ func extractWordDocumentation(
 	digest string,
 	commitSHA string,
 	body []byte,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	document := wordDocumentPayload(repo, documentID, relativePath, revisionID, digest, commitSHA, body)
@@ -84,8 +84,8 @@ func wordDocumentPayload(
 	digest string,
 	commitSHA string,
 	body []byte,
-) facts.DocumentationDocumentPayload {
-	document := facts.DocumentationDocumentPayload{
+) docs.DocumentPayload {
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -179,7 +179,7 @@ func docxSectionPayloads(
 	revisionID string,
 	relativePath string,
 	drafts []docxSectionDraft,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	markdownDrafts := make([]markdownSectionDraft, 0, len(drafts))
 	for _, draft := range drafts {
 		metadata := map[string]string{

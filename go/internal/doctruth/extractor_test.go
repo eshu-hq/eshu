@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestExtractorResolvesExactEntityMentionFromServiceName(t *testing.T) {
@@ -29,11 +30,11 @@ func TestExtractorResolvesExactEntityMentionFromServiceName(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
+	mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
 	if got, want := mention.MentionText, "payment-api"; got != want {
 		t.Fatalf("MentionText = %q, want %q", got, want)
 	}
-	if got, want := mention.ResolutionStatus, facts.DocumentationMentionResolutionExact; got != want {
+	if got, want := mention.ResolutionStatus, docs.MentionResolutionExact; got != want {
 		t.Fatalf("ResolutionStatus = %q, want %q", got, want)
 	}
 	if got, want := len(mention.CandidateRefs), 1; got != want {
@@ -65,14 +66,14 @@ func TestExtractorEmitsAmbiguityAndSuppressesClaims(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
-	if got, want := mention.ResolutionStatus, facts.DocumentationMentionResolutionAmbiguous; got != want {
+	mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
+	if got, want := mention.ResolutionStatus, docs.MentionResolutionAmbiguous; got != want {
 		t.Fatalf("ResolutionStatus = %q, want %q", got, want)
 	}
 	if got, want := len(mention.CandidateRefs), 2; got != want {
 		t.Fatalf("CandidateRefs len = %d, want %d", got, want)
 	}
-	if got := countKind(result.Envelopes, facts.DocumentationClaimCandidateFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.ClaimCandidateFactKind); got != 0 {
 		t.Fatalf("claim candidates = %d, want 0 for ambiguous subject", got)
 	}
 	if got, want := result.Report.ClaimsSuppressedAmbiguous, 1; got != want {
@@ -91,7 +92,7 @@ func TestExtractorResolvesEntityMentionFromLinkURI(t *testing.T) {
 		},
 	}, doctruth.Options{})
 	section := baseSectionInput("Deployment manifests live in the platform deployments repo.")
-	section.Links = []facts.DocumentationLinkPayload{{
+	section.Links = []docs.LinkPayload{{
 		DocumentID: section.DocumentID,
 		RevisionID: section.RevisionID,
 		SectionID:  section.SectionID,
@@ -104,8 +105,8 @@ func TestExtractorResolvesEntityMentionFromLinkURI(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
-	if got, want := mention.ResolutionStatus, facts.DocumentationMentionResolutionExact; got != want {
+	mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
+	if got, want := mention.ResolutionStatus, docs.MentionResolutionExact; got != want {
 		t.Fatalf("ResolutionStatus = %q, want %q", got, want)
 	}
 	if got, want := mention.CandidateRefs[0].ID, "repo:platform-deployments"; got != want {
@@ -130,8 +131,8 @@ func TestExtractorResolvesEntityMentionFromCodePath(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
-	if got, want := mention.ResolutionStatus, facts.DocumentationMentionResolutionExact; got != want {
+	mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
+	if got, want := mention.ResolutionStatus, docs.MentionResolutionExact; got != want {
 		t.Fatalf("ResolutionStatus = %q, want %q", got, want)
 	}
 	if got, want := mention.CandidateRefs[0].ID, "workload:payment-worker"; got != want {
@@ -155,14 +156,14 @@ func TestExtractorEmitsUnmatchedMentionForDeterministicHint(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	mention := onlyPayload[facts.DocumentationEntityMentionPayload](t, result.Envelopes, facts.DocumentationEntityMentionFactKind)
-	if got, want := mention.ResolutionStatus, facts.DocumentationMentionResolutionUnmatched; got != want {
+	mention := onlyPayload[docs.EntityMentionPayload](t, result.Envelopes, docs.EntityMentionFactKind)
+	if got, want := mention.ResolutionStatus, docs.MentionResolutionUnmatched; got != want {
 		t.Fatalf("ResolutionStatus = %q, want %q", got, want)
 	}
 	if got := len(mention.CandidateRefs); got != 0 {
 		t.Fatalf("CandidateRefs len = %d, want 0", got)
 	}
-	if got := countKind(result.Envelopes, facts.DocumentationClaimCandidateFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.ClaimCandidateFactKind); got != 0 {
 		t.Fatalf("claim candidates = %d, want 0 for unmatched subject", got)
 	}
 }
@@ -187,7 +188,7 @@ func TestExtractorClaimCandidateRetainsSectionProvenanceAndExcerptHash(t *testin
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	claim := onlyPayload[facts.DocumentationClaimCandidatePayload](t, result.Envelopes, facts.DocumentationClaimCandidateFactKind)
+	claim := onlyPayload[docs.ClaimCandidatePayload](t, result.Envelopes, docs.ClaimCandidateFactKind)
 	if got, want := claim.DocumentID, section.DocumentID; got != want {
 		t.Fatalf("DocumentID = %q, want %q", got, want)
 	}
@@ -200,7 +201,7 @@ func TestExtractorClaimCandidateRetainsSectionProvenanceAndExcerptHash(t *testin
 	if got, want := claim.ExcerptHash, section.ExcerptHash; got != want {
 		t.Fatalf("ExcerptHash = %q, want %q", got, want)
 	}
-	if got, want := claim.Authority, facts.DocumentationClaimAuthorityDocumentEvidence; got != want {
+	if got, want := claim.Authority, docs.ClaimAuthorityDocumentEvidence; got != want {
 		t.Fatalf("Authority = %q, want %q", got, want)
 	}
 	if got, want := len(claim.EvidenceRefs), 1; got != want {
@@ -236,7 +237,7 @@ func TestExtractorPopulatesExactObjectMentionIDs(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	claim := onlyPayload[facts.DocumentationClaimCandidatePayload](t, result.Envelopes, facts.DocumentationClaimCandidateFactKind)
+	claim := onlyPayload[docs.ClaimCandidatePayload](t, result.Envelopes, docs.ClaimCandidateFactKind)
 	if got, want := len(claim.ObjectMentionIDs), 1; got != want {
 		t.Fatalf("ObjectMentionIDs len = %d, want %d", got, want)
 	}
@@ -268,7 +269,7 @@ func TestExtractorSuppressesClaimWhenObjectMentionIsAmbiguous(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	if got := countKind(result.Envelopes, facts.DocumentationClaimCandidateFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.ClaimCandidateFactKind); got != 0 {
 		t.Fatalf("claim candidates = %d, want 0 for ambiguous object mention", got)
 	}
 	if got, want := result.Report.ClaimsSuppressedAmbiguous, 1; got != want {
@@ -299,7 +300,7 @@ func TestExtractorPreservesCaseSensitiveURIPath(t *testing.T) {
 		},
 	}, doctruth.Options{})
 	section := baseSectionInput("See linked repository.")
-	section.Links = []facts.DocumentationLinkPayload{{
+	section.Links = []docs.LinkPayload{{
 		DocumentID: section.DocumentID,
 		RevisionID: section.RevisionID,
 		SectionID:  section.SectionID,
@@ -312,7 +313,7 @@ func TestExtractorPreservesCaseSensitiveURIPath(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	if got := countKind(result.Envelopes, facts.DocumentationEntityMentionFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.EntityMentionFactKind); got != 0 {
 		t.Fatalf("entity mentions = %d, want 0 for case-distinct URI path", got)
 	}
 }
@@ -328,7 +329,7 @@ func TestExtractorPreservesTrailingSlashURIPath(t *testing.T) {
 		},
 	}, doctruth.Options{})
 	section := baseSectionInput("See linked repository.")
-	section.Links = []facts.DocumentationLinkPayload{{
+	section.Links = []docs.LinkPayload{{
 		DocumentID: section.DocumentID,
 		RevisionID: section.RevisionID,
 		SectionID:  section.SectionID,
@@ -341,7 +342,7 @@ func TestExtractorPreservesTrailingSlashURIPath(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	if got := countKind(result.Envelopes, facts.DocumentationEntityMentionFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.EntityMentionFactKind); got != 0 {
 		t.Fatalf("entity mentions = %d, want 0 for path trailing-slash mismatch", got)
 	}
 }
@@ -357,7 +358,7 @@ func TestExtractorPreservesTrailingSlashQueryValue(t *testing.T) {
 		},
 	}, doctruth.Options{})
 	section := baseSectionInput("See linked repository.")
-	section.Links = []facts.DocumentationLinkPayload{{
+	section.Links = []docs.LinkPayload{{
 		DocumentID: section.DocumentID,
 		RevisionID: section.RevisionID,
 		SectionID:  section.SectionID,
@@ -370,7 +371,7 @@ func TestExtractorPreservesTrailingSlashQueryValue(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	if got := countKind(result.Envelopes, facts.DocumentationEntityMentionFactKind); got != 0 {
+	if got := countKind(result.Envelopes, docs.EntityMentionFactKind); got != 0 {
 		t.Fatalf("entity mentions = %d, want 0 for query trailing-slash mismatch", got)
 	}
 }
@@ -399,7 +400,7 @@ func TestExtractorProtectsReservedProvenanceMetadata(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 
-	claim := onlyPayload[facts.DocumentationClaimCandidatePayload](t, result.Envelopes, facts.DocumentationClaimCandidateFactKind)
+	claim := onlyPayload[docs.ClaimCandidatePayload](t, result.Envelopes, docs.ClaimCandidateFactKind)
 	if got, want := claim.SourceMetadata["source_start_ref"], section.SourceStartRef; got != want {
 		t.Fatalf("source_start_ref = %q, want %q", got, want)
 	}

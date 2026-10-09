@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
@@ -124,7 +125,7 @@ func TestEmitterBuildsValidDocumentationObservationEnvelope(t *testing.T) {
 	if got, want := payload.EvidenceRefs, 1; len(got) != want {
 		t.Fatalf("len(EvidenceRefs) = %d, want %d", len(got), want)
 	}
-	if got, want := payload.EvidenceRefs[0].Kind, facts.DocumentationSectionFactKind; got != want {
+	if got, want := payload.EvidenceRefs[0].Kind, docs.SectionFactKind; got != want {
 		t.Fatalf("EvidenceRefs[0].Kind = %q, want %q", got, want)
 	}
 }

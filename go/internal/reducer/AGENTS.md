@@ -1748,7 +1748,7 @@ matching the incident family's SQL-projected-fields precedent
 `go/internal/query`, locks that those SQL-read fields stay schema-declared
 even though the query layer itself is not converted).
 `documentation_section` carries its OWN schema version
-(`facts.DocumentationSectionFactSchemaVersion`, `"1.1.0"`), preserved via the
+(`docs.SectionFactSchemaVersion`, `"1.1.0"`), preserved via the
 existing `schema_version_overrides: {documentation_section: "1.1.0"}` entry
 in `specs/fact-kind-registry.v1.yaml`; the decode seam still dispatches on
 the schema-version major only (`"1"`), mirroring `gcp_cloud_resource`'s
@@ -1831,7 +1831,7 @@ WASTED-DECODE CHECK (coordinator-directed, before accepting the cold-path
 bound): both functions were audited to confirm the typed decode call sits
 behind the cheapest available pre-filter, not merely after some filter.
 `ExtractDocumentationEdgeRowsWithQuarantine` checks `env.FactKind !=
-facts.DocumentationEntityMentionFactKind || env.IsTombstone` (a struct-field
+docs.EntityMentionFactKind || env.IsTombstone` (a struct-field
 read, no decode) BEFORE calling `decodeDocumentationEntityMention`; there is
 no cheaper pre-filter available before checking `ResolutionStatus ==
 "exact"` because `ResolutionStatus` is itself a required struct field that
@@ -1840,7 +1840,7 @@ identical cost via `payloadStr(env.Payload, "resolution_status")`, a raw map
 lookup of the same key, not a skip). `buildDocumentationDeltaScopeWithQuarantine`
 checks `scope.hasDelta` BEFORE entering the `documentation_document` loop at
 all (no repository delta means zero document facts are decoded), and within
-the loop checks `env.FactKind != facts.DocumentationDocumentFactKind ||
+the loop checks `env.FactKind != docs.DocumentFactKind ||
 env.IsTombstone` before calling `decodeDocumentationDocument`; there is no
 cheaper pre-filter for `document_id`/`source_metadata.path` because both are
 struct fields the pre-typing code also had to read via

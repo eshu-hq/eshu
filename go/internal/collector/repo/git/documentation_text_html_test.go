@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -43,7 +44,7 @@ func TestStreamFactsEmitsLightweightTextDocumentationFormats(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	sourceFacts := factsByKind(envelopes, facts.DocumentationSourceFactKind)
+	sourceFacts := factsByKind(envelopes, factsdocs.SourceFactKind)
 	if got, want := len(sourceFacts), 1; got != want {
 		t.Fatalf("documentation_source count = %d, want %d", got, want)
 	}
@@ -51,7 +52,7 @@ func TestStreamFactsEmitsLightweightTextDocumentationFormats(t *testing.T) {
 		t.Fatalf("source_type = %q, want %q", got, want)
 	}
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 5; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -66,7 +67,7 @@ func TestStreamFactsEmitsLightweightTextDocumentationFormats(t *testing.T) {
 		}
 	}
 
-	sectionFacts := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sectionFacts := factsByKind(envelopes, factsdocs.SectionFactKind)
 	assertSectionHeadingPresent(t, sectionFacts, "Payment Service")
 	assertSectionHeadingPresent(t, sectionFacts, "Guide")
 	assertSectionHeadingPresent(t, sectionFacts, "Usage")
@@ -77,12 +78,12 @@ func TestStreamFactsEmitsLightweightTextDocumentationFormats(t *testing.T) {
 		t.Fatalf("expected unsupported_directive warning in section metadata: %#v", sectionFacts)
 	}
 
-	linkFacts := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	linkFacts := factsByKind(envelopes, factsdocs.LinkFactKind)
 	assertLinkTargetPresent(t, linkFacts, "https://docs.example.test/guide")
 	assertLinkTargetPresent(t, linkFacts, "https://docs.example.test/manual")
 	assertLinkTargetPresent(t, linkFacts, "../README.txt")
 
-	claimFacts := factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)
+	claimFacts := factsByKind(envelopes, factsdocs.ClaimCandidateFactKind)
 	if got, want := len(claimFacts), 1; got != want {
 		t.Fatalf("documentation_claim_candidate count = %d, want %d", got, want)
 	}
@@ -123,7 +124,7 @@ func TestStreamFactsEmitsHTMLDocumentationFacts(t *testing.T) {
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 3; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -133,7 +134,7 @@ func TestStreamFactsEmitsHTMLDocumentationFacts(t *testing.T) {
 		}
 	}
 
-	sectionFacts := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sectionFacts := factsByKind(envelopes, factsdocs.SectionFactKind)
 	reference := sectionByHeading(sectionFacts, "Reference")
 	if reference == nil {
 		t.Fatalf("missing Reference section in %#v", sectionFacts)
@@ -152,7 +153,7 @@ func TestStreamFactsEmitsHTMLDocumentationFacts(t *testing.T) {
 		t.Fatalf("expected malformed_html warning in section metadata: %#v", sectionFacts)
 	}
 
-	linkFacts := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	linkFacts := factsByKind(envelopes, factsdocs.LinkFactKind)
 	assertLinkTargetPresent(t, linkFacts, "#usage")
 	assertLinkTargetPresent(t, linkFacts, "https://docs.example.test/api")
 }
@@ -198,7 +199,7 @@ func TestNativeRepositorySnapshotterIncludesDocumentationMetasWithoutParsingDocs
 		false,
 		"",
 	)
-	documentFacts := factsByKind(drainFactChannel(collected.Facts), facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(drainFactChannel(collected.Facts), factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -240,7 +241,7 @@ func TestNativeRepositorySnapshotterEmitsDocumentationOnlyRepository(t *testing.
 		false,
 		"",
 	)
-	documentFacts := factsByKind(drainFactChannel(collected.Facts), facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(drainFactChannel(collected.Facts), factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}

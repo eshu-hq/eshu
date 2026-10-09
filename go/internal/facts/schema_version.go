@@ -11,6 +11,7 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // schemaSemverPattern matches the MAJOR.MINOR.PATCH form every core fact family
@@ -73,7 +74,7 @@ type schemaVersionFamily struct {
 // declare a schema version. A new versioned family must be added here so the
 // central registry, classifier, and drift guard see it.
 var schemaVersionFamilies = []schemaVersionFamily{
-	{DocumentationFactKinds, DocumentationSchemaVersion},
+	{docs.FactKinds, docs.SchemaVersion},
 	{AWSFactKinds, AWSSchemaVersion},
 	{AzureFactKinds, AzureSchemaVersion},
 	{CICDRunFactKinds, CICDRunSchemaVersion},

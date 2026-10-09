@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -66,7 +67,7 @@ func (v *Verifier) envelope(kind, stableKey string, payload map[string]any) fact
 		GenerationID:     v.generationID,
 		FactKind:         kind,
 		StableFactKey:    stableKey,
-		SchemaVersion:    facts.DocumentationFactSchemaVersion,
+		SchemaVersion:    docs.FactSchemaVersion,
 		CollectorKind:    string(scope.CollectorDocumentation),
 		SourceConfidence: facts.SourceConfidenceDerived,
 		ObservedAt:       observedAt,

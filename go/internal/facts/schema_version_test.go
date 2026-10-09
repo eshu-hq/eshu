@@ -3,7 +3,11 @@
 
 package facts
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+)
 
 func TestIsCanonicalSchemaVersion(t *testing.T) {
 	t.Parallel()
@@ -55,18 +59,18 @@ func TestEveryCoreFactKindHasRegisteredSchemaVersion(t *testing.T) {
 func TestDocumentationFamilySchemaVersions(t *testing.T) {
 	t.Parallel()
 
-	if got, _ := SchemaVersion(DocumentationSectionFactKind); got != DocumentationSectionFactSchemaVersion {
-		t.Fatalf("SchemaVersion(documentation_section) = %q, want %q", got, DocumentationSectionFactSchemaVersion)
+	if got, _ := SchemaVersion(docs.SectionFactKind); got != docs.SectionFactSchemaVersion {
+		t.Fatalf("SchemaVersion(documentation_section) = %q, want %q", got, docs.SectionFactSchemaVersion)
 	}
-	if got, _ := SchemaVersion(DocumentationSourceFactKind); got != DocumentationFactSchemaVersion {
-		t.Fatalf("SchemaVersion(documentation_source) = %q, want %q", got, DocumentationFactSchemaVersion)
+	if got, _ := SchemaVersion(docs.SourceFactKind); got != docs.FactSchemaVersion {
+		t.Fatalf("SchemaVersion(documentation_source) = %q, want %q", got, docs.FactSchemaVersion)
 	}
 	// A core documentation kind on an unsupported major must be rejected, not
 	// treated as unknown_kind.
-	if got := ClassifySchemaVersion(DocumentationSectionFactKind, "9.0.0"); got != CompatibilityUnsupportedMajor {
+	if got := ClassifySchemaVersion(docs.SectionFactKind, "9.0.0"); got != CompatibilityUnsupportedMajor {
 		t.Fatalf("ClassifySchemaVersion(documentation_section, 9.0.0) = %q, want %q", got, CompatibilityUnsupportedMajor)
 	}
-	if err := ValidateSchemaVersion(DocumentationSectionFactKind, "9.0.0"); err == nil {
+	if err := ValidateSchemaVersion(docs.SectionFactKind, "9.0.0"); err == nil {
 		t.Fatal("ValidateSchemaVersion(documentation_section, 9.0.0) error = nil, want unsupported")
 	}
 }
@@ -183,9 +187,9 @@ func TestClassifySchemaVersion(t *testing.T) {
 		// (1.1.0), so it exercises the older-same-major backward-compatible path
 		// against real data: an older same-major version is supported, and a
 		// version ahead of the supported one is not yet authoritative.
-		{"older same-major is supported", DocumentationSectionFactKind, "1.0.0", CompatibilitySupported},
-		{"future minor above supported is not authoritative", DocumentationSectionFactKind, "1.2.0", CompatibilityUnsupportedMinor},
-		{"different major is unsupported", DocumentationSectionFactKind, "2.0.0", CompatibilityUnsupportedMajor},
+		{"older same-major is supported", docs.SectionFactKind, "1.0.0", CompatibilitySupported},
+		{"future minor above supported is not authoritative", docs.SectionFactKind, "1.2.0", CompatibilityUnsupportedMinor},
+		{"different major is unsupported", docs.SectionFactKind, "2.0.0", CompatibilityUnsupportedMajor},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

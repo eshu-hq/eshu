@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestEmitterPropagatesBoundedSourceACLStateOntoObservation proves the bounded
@@ -18,10 +19,10 @@ func TestEmitterPropagatesBoundedSourceACLStateOntoObservation(t *testing.T) {
 	t.Parallel()
 
 	for _, state := range []string{
-		facts.SourceACLStateDenied,
-		facts.SourceACLStatePartial,
-		facts.SourceACLStateMissing,
-		facts.SourceACLStateStale,
+		docs.SourceACLStateDenied,
+		docs.SourceACLStatePartial,
+		docs.SourceACLStateMissing,
+		docs.SourceACLStateStale,
 	} {
 		state := state
 		t.Run(state, func(t *testing.T) {

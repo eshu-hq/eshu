@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestDocumentationMaterializationHandlerScopesDeltaRetractToDocuments(t *testing.T) {
@@ -180,7 +181,7 @@ func TestBuildDocumentationDeltaScopeIgnoresExternalDocumentPathMetadata(t *test
 			},
 		},
 		{
-			FactKind: facts.DocumentationDocumentFactKind,
+			FactKind: docs.DocumentFactKind,
 			Payload: map[string]any{
 				"document_id": "doc:confluence:12345",
 				"source_metadata": map[string]any{
@@ -203,7 +204,7 @@ func TestBuildDocumentationDeltaScopeIgnoresExternalDocumentPathMetadata(t *test
 
 func documentationMentionEnvelope(resolution string, kind string, refs []any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.DocumentationEntityMentionFactKind,
+		FactKind: docs.EntityMentionFactKind,
 		Payload: map[string]any{
 			"document_id":       "doc-runbook",
 			"section_id":        "sec-deploy",
@@ -219,7 +220,7 @@ func TestExtractDocumentationEdgeRowsEmitsExactEntityEdge(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		documentationMentionEnvelope(
-			facts.DocumentationMentionResolutionExact,
+			docs.MentionResolutionExact,
 			"entity",
 			[]any{map[string]any{"kind": "entity", "id": "uid:func"}},
 		),
@@ -252,13 +253,13 @@ func TestExtractDocumentationEdgeRowsSkipsNonExactAndServiceAndMulti(t *testing.
 		resolution string
 		refs       []any
 	}{
-		{"ambiguous", facts.DocumentationMentionResolutionAmbiguous, []any{map[string]any{"kind": "entity", "id": "uid:a"}}},
-		{"unmatched", facts.DocumentationMentionResolutionUnmatched, []any{}},
-		{"multi_candidate", facts.DocumentationMentionResolutionExact, []any{
+		{"ambiguous", docs.MentionResolutionAmbiguous, []any{map[string]any{"kind": "entity", "id": "uid:a"}}},
+		{"unmatched", docs.MentionResolutionUnmatched, []any{}},
+		{"multi_candidate", docs.MentionResolutionExact, []any{
 			map[string]any{"kind": "entity", "id": "uid:a"},
 			map[string]any{"kind": "entity", "id": "uid:b"},
 		}},
-		{"service_target", facts.DocumentationMentionResolutionExact, []any{map[string]any{"kind": "service", "id": "svc-1"}}},
+		{"service_target", docs.MentionResolutionExact, []any{map[string]any{"kind": "service", "id": "svc-1"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -276,7 +277,7 @@ func TestExtractDocumentationEdgeRowsEmitsWorkloadEdge(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		documentationMentionEnvelope(
-			facts.DocumentationMentionResolutionExact,
+			docs.MentionResolutionExact,
 			"workload",
 			[]any{map[string]any{"kind": "workload", "id": "wl-1"}},
 		),
@@ -303,7 +304,7 @@ func documentationDeltaFacts() []facts.Envelope {
 			},
 		},
 		{
-			FactKind: facts.DocumentationDocumentFactKind,
+			FactKind: docs.DocumentFactKind,
 			Payload: map[string]any{
 				"document_id": "doc:git:repo-123:README.md",
 				"source_metadata": map[string]any{
@@ -313,12 +314,12 @@ func documentationDeltaFacts() []facts.Envelope {
 			},
 		},
 		{
-			FactKind: facts.DocumentationEntityMentionFactKind,
+			FactKind: docs.EntityMentionFactKind,
 			Payload: map[string]any{
 				"document_id":       "doc:git:repo-123:README.md",
 				"section_id":        "sec-overview",
 				"mention_kind":      "code_symbol",
-				"resolution_status": facts.DocumentationMentionResolutionExact,
+				"resolution_status": docs.MentionResolutionExact,
 				"candidate_refs": []any{
 					map[string]any{"kind": "entity", "id": "uid:func"},
 				},

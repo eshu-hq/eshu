@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -234,7 +235,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 	// found." Withholding is enforced in Go by applyDocumentationFindingDisclosure;
 	// the cross-tenant authorization clause below is a distinct boundary and stays.
 	clauses := []string{
-		"fact_records.fact_kind = '" + facts.DocumentationFindingFactKind + "'",
+		"fact_records.fact_kind = '" + docs.FindingFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
 	}
 	addColumnFilter := func(field string, value string) {
@@ -362,13 +363,13 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		args = append(args, value)
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'%s' = $%d", field, len(args)))
 	}
-	if strings.TrimSpace(filter.FactKind) == facts.DocumentationSourceFactKind {
+	if strings.TrimSpace(filter.FactKind) == docs.SourceFactKind {
 		// A literal, not a parameter: a generic plan cannot prove the
 		// documentation_source partial index predicate from `fact_kind = $n`,
 		// so a parameterized source page loses the ordered early stop that
 		// index gives it (#7128). The value is the package constant, never
 		// caller input.
-		clauses = append(clauses, "fact_records.fact_kind = '"+facts.DocumentationSourceFactKind+"'")
+		clauses = append(clauses, "fact_records.fact_kind = '"+docs.SourceFactKind+"'")
 	} else if strings.TrimSpace(filter.FactKind) != "" {
 		addColumnFilter("fact_records.fact_kind", filter.FactKind)
 	} else {
@@ -459,11 +460,11 @@ LIMIT $%d OFFSET $%d
 }
 
 func documentationCollectedFactKindSQLList() string {
-	return "'" + facts.DocumentationSourceFactKind + "', " +
-		"'" + facts.DocumentationDocumentFactKind + "', " +
-		"'" + facts.DocumentationSectionFactKind + "', " +
-		"'" + facts.DocumentationLinkFactKind + "', " +
-		"'" + facts.DocumentationEntityMentionFactKind + "', " +
-		"'" + facts.DocumentationClaimCandidateFactKind + "', " +
+	return "'" + docs.SourceFactKind + "', " +
+		"'" + docs.DocumentFactKind + "', " +
+		"'" + docs.SectionFactKind + "', " +
+		"'" + docs.LinkFactKind + "', " +
+		"'" + docs.EntityMentionFactKind + "', " +
+		"'" + docs.ClaimCandidateFactKind + "', " +
 		"'" + facts.SemanticDocumentationObservationFactKind + "'"
 }

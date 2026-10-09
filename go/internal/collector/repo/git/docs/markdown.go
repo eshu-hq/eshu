@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 var markdownLinkPattern = regexp.MustCompile(`!?\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)`)
@@ -50,7 +50,7 @@ func markdownSections(
 	relativePath string,
 	lines []markdownLine,
 	contentFormat string,
-) []facts.DocumentationSectionPayload {
+) []docs.SectionPayload {
 	var drafts []markdownSectionDraft
 	current := -1
 	for _, line := range lines {
@@ -92,8 +92,8 @@ func documentationSectionsFromDrafts(
 	relativePath string,
 	contentFormat string,
 	drafts []markdownSectionDraft,
-) []facts.DocumentationSectionPayload {
-	sections := make([]facts.DocumentationSectionPayload, 0, len(drafts))
+) []docs.SectionPayload {
+	sections := make([]docs.SectionPayload, 0, len(drafts))
 	parentByLevel := map[int]string{}
 	anchorCounts := map[string]int{}
 	for i, draft := range drafts {
@@ -106,7 +106,7 @@ func documentationSectionsFromDrafts(
 			anchor = fmt.Sprintf("%s-%d", anchor, anchorCounts[anchor])
 		}
 		sectionID := "section:" + anchor
-		section := facts.DocumentationSectionPayload{
+		section := docs.SectionPayload{
 			DocumentID:       documentID,
 			RevisionID:       revisionID,
 			SectionID:        sectionID,
@@ -149,8 +149,8 @@ func documentationSectionMetadata(relativePath string, extra map[string]string) 
 	return metadata
 }
 
-func markdownLinks(relativePath string, sections []facts.DocumentationSectionPayload) []facts.DocumentationLinkPayload {
-	links := []facts.DocumentationLinkPayload{}
+func markdownLinks(relativePath string, sections []docs.SectionPayload) []docs.LinkPayload {
+	links := []docs.LinkPayload{}
 	for _, section := range sections {
 		for _, match := range markdownLinkPattern.FindAllStringSubmatch(section.Content, -1) {
 			if strings.HasPrefix(match[0], "!") {
@@ -160,7 +160,7 @@ func markdownLinks(relativePath string, sections []facts.DocumentationSectionPay
 			if target == "" {
 				continue
 			}
-			links = append(links, facts.DocumentationLinkPayload{
+			links = append(links, docs.LinkPayload{
 				DocumentID:     section.DocumentID,
 				RevisionID:     section.RevisionID,
 				SectionID:      section.SectionID,
@@ -191,7 +191,7 @@ func markdownHeading(line string) (int, string, bool) {
 	return level, heading, true
 }
 
-func documentationTitle(relativePath string, sections []facts.DocumentationSectionPayload) string {
+func documentationTitle(relativePath string, sections []docs.SectionPayload) string {
 	for _, section := range sections {
 		if section.HeadingText != "" {
 			return section.HeadingText

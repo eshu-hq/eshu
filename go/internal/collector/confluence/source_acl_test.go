@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestSourceEmitsPartialSourceACLStateOnContentFacts asserts that Confluence
@@ -51,15 +51,15 @@ func TestSourceEmitsPartialSourceACLStateOnContentFacts(t *testing.T) {
 	}
 	envelopes := drainFacts(t, collected.Facts)
 
-	sourceFact := factsByKind(envelopes, facts.DocumentationSourceFactKind)[0]
+	sourceFact := factsByKind(envelopes, docs.SourceFactKind)[0]
 	sourceACL := payloadMap(sourceFact.Payload, "acl_summary")
-	if got, want := payloadString(sourceACL, "source_acl_state"), facts.SourceACLStatePartial; got != want {
+	if got, want := payloadString(sourceACL, "source_acl_state"), docs.SourceACLStatePartial; got != want {
 		t.Fatalf("source fact source_acl_state = %q, want %q", got, want)
 	}
 
-	documentFact := factsByKind(envelopes, facts.DocumentationDocumentFactKind)[0]
+	documentFact := factsByKind(envelopes, docs.DocumentFactKind)[0]
 	documentACL := payloadMap(documentFact.Payload, "acl_summary")
-	if got, want := payloadString(documentACL, "source_acl_state"), facts.SourceACLStatePartial; got != want {
+	if got, want := payloadString(documentACL, "source_acl_state"), docs.SourceACLStatePartial; got != want {
 		t.Fatalf("document fact source_acl_state = %q, want %q", got, want)
 	}
 }
@@ -90,7 +90,7 @@ func TestSourcePropagatesPartialSourceACLStateOntoTruthEvidence(t *testing.T) {
 		TruthExtractor: doctruth.NewExtractor([]doctruth.Entity{
 			{Kind: "service", ID: "service:payment-api", Aliases: []string{"payment-api"}},
 		}, doctruth.Options{}),
-		TruthClaimHints: func(_ Page, _ facts.DocumentationSectionPayload) []doctruth.ClaimHint {
+		TruthClaimHints: func(_ Page, _ docs.SectionPayload) []doctruth.ClaimHint {
 			return []doctruth.ClaimHint{{
 				ClaimID:     "claim:payment-api:deployment",
 				ClaimType:   "service_deployment",
@@ -110,20 +110,20 @@ func TestSourcePropagatesPartialSourceACLStateOntoTruthEvidence(t *testing.T) {
 	}
 	envelopes := drainFacts(t, collected.Facts)
 
-	for _, mention := range factsByKind(envelopes, facts.DocumentationEntityMentionFactKind) {
+	for _, mention := range factsByKind(envelopes, docs.EntityMentionFactKind) {
 		mentionACL := payloadMap(mention.Payload, "acl_summary")
-		if got, want := payloadString(mentionACL, "source_acl_state"), facts.SourceACLStatePartial; got != want {
+		if got, want := payloadString(mentionACL, "source_acl_state"), docs.SourceACLStatePartial; got != want {
 			t.Fatalf("mention fact source_acl_state = %q, want %q (verbatim from document)", got, want)
 		}
 	}
 
-	claims := factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)
+	claims := factsByKind(envelopes, docs.ClaimCandidateFactKind)
 	if len(claims) == 0 {
 		t.Fatal("expected at least one claim candidate fact")
 	}
 	for _, claim := range claims {
 		claimACL := payloadMap(claim.Payload, "acl_summary")
-		if got, want := payloadString(claimACL, "source_acl_state"), facts.SourceACLStatePartial; got != want {
+		if got, want := payloadString(claimACL, "source_acl_state"), docs.SourceACLStatePartial; got != want {
 			t.Fatalf("claim fact source_acl_state = %q, want %q (verbatim from document)", got, want)
 		}
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -24,14 +25,14 @@ func TestDeploymentDriftAnalyzerReturnsMatchForDocumentedDeploymentTruth(t *test
 	findings := analyzer.FindServiceDeploymentDrift(context.Background(), []doctruth.DeploymentDriftInput{{
 		SourceSystem: "confluence",
 		Claim:        deploymentClaim("payment-api", "payment-prod"),
-		Mentions: []facts.DocumentationEntityMentionPayload{
+		Mentions: []docs.EntityMentionPayload{
 			exactMention("mention:service:payment-api", "service", "payment-api", "service:payment-api"),
 			exactMention("mention:workload:payment-prod", "workload", "payment-prod", "workload:payment-prod"),
 		},
 		Truth: doctruth.ServiceDeploymentTruth{
 			ServiceID:      "service:payment-api",
-			DeploymentRefs: []facts.DocumentationEvidenceRef{{Kind: "workload", ID: "workload:payment-prod", Confidence: facts.SourceConfidenceObserved}},
-			EvidenceRefs:   []facts.DocumentationEvidenceRef{{Kind: "argocd_application", ID: "argocd:payments/payment-prod", Confidence: facts.SourceConfidenceObserved}},
+			DeploymentRefs: []docs.EvidenceRef{{Kind: "workload", ID: "workload:payment-prod", Confidence: facts.SourceConfidenceObserved}},
+			EvidenceRefs:   []docs.EvidenceRef{{Kind: "argocd_application", ID: "argocd:payments/payment-prod", Confidence: facts.SourceConfidenceObserved}},
 			FreshnessState: doctruth.FreshnessFresh,
 			ObservedAt:     time.Date(2026, 5, 9, 21, 40, 0, 0, time.UTC),
 		},
@@ -70,14 +71,14 @@ func TestDeploymentDriftAnalyzerReturnsConflictForMismatchedDeploymentTruth(t *t
 	findings := analyzer.FindServiceDeploymentDrift(context.Background(), []doctruth.DeploymentDriftInput{{
 		SourceSystem: "confluence",
 		Claim:        deploymentClaim("payment-api", "payment-old"),
-		Mentions: []facts.DocumentationEntityMentionPayload{
+		Mentions: []docs.EntityMentionPayload{
 			exactMention("mention:service:payment-api", "service", "payment-api", "service:payment-api"),
 			exactMention("mention:workload:payment-old", "workload", "payment-old", "workload:payment-old"),
 		},
 		Truth: doctruth.ServiceDeploymentTruth{
 			ServiceID:      "service:payment-api",
-			DeploymentRefs: []facts.DocumentationEvidenceRef{{Kind: "workload", ID: "workload:payment-prod", Confidence: facts.SourceConfidenceObserved}},
-			EvidenceRefs:   []facts.DocumentationEvidenceRef{{Kind: "helm_release", ID: "helm:payment-prod", Confidence: facts.SourceConfidenceObserved}},
+			DeploymentRefs: []docs.EvidenceRef{{Kind: "workload", ID: "workload:payment-prod", Confidence: facts.SourceConfidenceObserved}},
+			EvidenceRefs:   []docs.EvidenceRef{{Kind: "helm_release", ID: "helm:payment-prod", Confidence: facts.SourceConfidenceObserved}},
 			FreshnessState: doctruth.FreshnessFresh,
 		},
 	}})
@@ -97,8 +98,8 @@ func TestDeploymentDriftAnalyzerClassifiesNonComparableStates(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		claim             facts.DocumentationClaimCandidatePayload
-		mentions          []facts.DocumentationEntityMentionPayload
+		claim             docs.ClaimCandidatePayload
+		mentions          []docs.EntityMentionPayload
 		truth             doctruth.ServiceDeploymentTruth
 		wantStatus        doctruth.FindingStatus
 		wantTruthLevel    doctruth.TruthLevel
@@ -119,7 +120,7 @@ func TestDeploymentDriftAnalyzerClassifiesNonComparableStates(t *testing.T) {
 		{
 			name:  "missing subject mention is unsupported even when truth service is supplied",
 			claim: deploymentClaim("payment-api", "payment-prod"),
-			mentions: []facts.DocumentationEntityMentionPayload{
+			mentions: []docs.EntityMentionPayload{
 				exactMention("mention:workload:payment-prod", "workload", "payment-prod", "workload:payment-prod"),
 			},
 			truth:           deploymentTruth("service:payment-api", "workload:payment-prod", doctruth.FreshnessFresh),
@@ -131,7 +132,7 @@ func TestDeploymentDriftAnalyzerClassifiesNonComparableStates(t *testing.T) {
 		{
 			name:  "unmatched subject mention is unsupported even when truth service is supplied",
 			claim: deploymentClaim("payment-api", "payment-prod"),
-			mentions: []facts.DocumentationEntityMentionPayload{
+			mentions: []docs.EntityMentionPayload{
 				unmatchedMention("mention:service:payment-api", "service", "payment-api"),
 				exactMention("mention:workload:payment-prod", "workload", "payment-prod", "workload:payment-prod"),
 			},
@@ -154,7 +155,7 @@ func TestDeploymentDriftAnalyzerClassifiesNonComparableStates(t *testing.T) {
 		{
 			name:  "ambiguous deployment mention stays ambiguous",
 			claim: deploymentClaim("payment-api", "payment-prod"),
-			mentions: []facts.DocumentationEntityMentionPayload{
+			mentions: []docs.EntityMentionPayload{
 				exactMention("mention:service:payment-api", "service", "payment-api", "service:payment-api"),
 				ambiguousMention("mention:workload:payment-prod", "workload", "payment-prod", "workload:payment-prod-blue", "workload:payment-prod-green"),
 			},
@@ -248,7 +249,7 @@ func TestDeploymentDriftAnalyzerRecordsMetricsAndStructuredLog(t *testing.T) {
 	analyzer.FindServiceDeploymentDrift(context.Background(), []doctruth.DeploymentDriftInput{{
 		SourceSystem: "confluence",
 		Claim:        deploymentClaim("payment-api", "payment-old"),
-		Mentions: []facts.DocumentationEntityMentionPayload{
+		Mentions: []docs.EntityMentionPayload{
 			exactMention("mention:service:payment-api", "service", "payment-api", "service:payment-api"),
 			exactMention("mention:workload:payment-old", "workload", "payment-old", "workload:payment-old"),
 		},
@@ -306,8 +307,8 @@ func TestDeploymentDriftAnalyzerSkipsDurationMetricForEmptyInput(t *testing.T) {
 	assertHistogramPointCount(t, rm, "eshu_dp_documentation_drift_generation_duration_seconds", 0)
 }
 
-func deploymentClaim(serviceName, deploymentName string) facts.DocumentationClaimCandidatePayload {
-	return facts.DocumentationClaimCandidatePayload{
+func deploymentClaim(serviceName, deploymentName string) docs.ClaimCandidatePayload {
+	return docs.ClaimCandidatePayload{
 		DocumentID:       "doc:payments-runbook",
 		RevisionID:       "rev:2026-05-09",
 		SectionID:        "section:deployment",
@@ -318,8 +319,8 @@ func deploymentClaim(serviceName, deploymentName string) facts.DocumentationClai
 		ExcerptHash:      "sha256:excerpt",
 		SubjectMentionID: "mention:service:" + serviceName,
 		ObjectMentionIDs: []string{"mention:workload:" + deploymentName},
-		Authority:        facts.DocumentationClaimAuthorityDocumentEvidence,
-		EvidenceRefs: []facts.DocumentationEvidenceRef{{
+		Authority:        docs.ClaimAuthorityDocumentEvidence,
+		EvidenceRefs: []docs.EvidenceRef{{
 			Kind:       "document_section",
 			ID:         "section:deployment",
 			URI:        "https://confluence.example/pages/payments#deployment",
@@ -328,30 +329,30 @@ func deploymentClaim(serviceName, deploymentName string) facts.DocumentationClai
 	}
 }
 
-func ownershipClaim() facts.DocumentationClaimCandidatePayload {
+func ownershipClaim() docs.ClaimCandidatePayload {
 	claim := deploymentClaim("payment-api", "payment-prod")
 	claim.ClaimID = "claim:owner:payment-api"
 	claim.ClaimType = "service_ownership"
 	return claim
 }
 
-func exactDeploymentMentions(serviceName, deploymentName string) []facts.DocumentationEntityMentionPayload {
-	return []facts.DocumentationEntityMentionPayload{
+func exactDeploymentMentions(serviceName, deploymentName string) []docs.EntityMentionPayload {
+	return []docs.EntityMentionPayload{
 		exactMention("mention:service:"+serviceName, "service", serviceName, "service:"+serviceName),
 		exactMention("mention:workload:"+deploymentName, "workload", deploymentName, "workload:"+deploymentName),
 	}
 }
 
-func exactMention(mentionID, kind, text, entityID string) facts.DocumentationEntityMentionPayload {
-	return facts.DocumentationEntityMentionPayload{
+func exactMention(mentionID, kind, text, entityID string) docs.EntityMentionPayload {
+	return docs.EntityMentionPayload{
 		DocumentID:       "doc:payments-runbook",
 		RevisionID:       "rev:2026-05-09",
 		SectionID:        "section:deployment",
 		MentionID:        mentionID,
 		MentionText:      text,
 		MentionKind:      kind,
-		ResolutionStatus: facts.DocumentationMentionResolutionExact,
-		CandidateRefs: []facts.DocumentationEvidenceRef{{
+		ResolutionStatus: docs.MentionResolutionExact,
+		CandidateRefs: []docs.EvidenceRef{{
 			Kind:       kind,
 			ID:         entityID,
 			Confidence: facts.SourceConfidenceDerived,
@@ -360,19 +361,19 @@ func exactMention(mentionID, kind, text, entityID string) facts.DocumentationEnt
 	}
 }
 
-func unmatchedMention(mentionID, kind, text string) facts.DocumentationEntityMentionPayload {
+func unmatchedMention(mentionID, kind, text string) docs.EntityMentionPayload {
 	mention := exactMention(mentionID, kind, text, "")
-	mention.ResolutionStatus = facts.DocumentationMentionResolutionUnmatched
+	mention.ResolutionStatus = docs.MentionResolutionUnmatched
 	mention.CandidateRefs = nil
 	return mention
 }
 
-func ambiguousMention(mentionID, kind, text string, entityIDs ...string) facts.DocumentationEntityMentionPayload {
+func ambiguousMention(mentionID, kind, text string, entityIDs ...string) docs.EntityMentionPayload {
 	mention := exactMention(mentionID, kind, text, "")
-	mention.ResolutionStatus = facts.DocumentationMentionResolutionAmbiguous
+	mention.ResolutionStatus = docs.MentionResolutionAmbiguous
 	mention.CandidateRefs = mention.CandidateRefs[:0]
 	for _, entityID := range entityIDs {
-		mention.CandidateRefs = append(mention.CandidateRefs, facts.DocumentationEvidenceRef{
+		mention.CandidateRefs = append(mention.CandidateRefs, docs.EvidenceRef{
 			Kind:       kind,
 			ID:         entityID,
 			Confidence: facts.SourceConfidenceDerived,
@@ -384,8 +385,8 @@ func ambiguousMention(mentionID, kind, text string, entityIDs ...string) facts.D
 func deploymentTruth(serviceID, deploymentID string, freshness doctruth.FreshnessState, ambiguityReasons ...string) doctruth.ServiceDeploymentTruth {
 	return doctruth.ServiceDeploymentTruth{
 		ServiceID:        serviceID,
-		DeploymentRefs:   []facts.DocumentationEvidenceRef{{Kind: "workload", ID: deploymentID, Confidence: facts.SourceConfidenceObserved}},
-		EvidenceRefs:     []facts.DocumentationEvidenceRef{{Kind: "kubernetes_workload", ID: deploymentID, Confidence: facts.SourceConfidenceObserved}},
+		DeploymentRefs:   []docs.EvidenceRef{{Kind: "workload", ID: deploymentID, Confidence: facts.SourceConfidenceObserved}},
+		EvidenceRefs:     []docs.EvidenceRef{{Kind: "kubernetes_workload", ID: deploymentID, Confidence: facts.SourceConfidenceObserved}},
 		FreshnessState:   freshness,
 		AmbiguityReasons: ambiguityReasons,
 	}

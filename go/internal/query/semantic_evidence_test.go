@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestSemanticEvidenceHandlerListsDocumentationObservationsWithTruthMetadata(t *testing.T) {
@@ -383,11 +384,11 @@ func TestSemanticEvidencePublicRowSurfacesBoundedSourceACLState(t *testing.T) {
 		freshness string
 		acl       string
 	}{
-		{facts.SemanticFreshnessFresh, facts.SourceACLStateDenied},
-		{facts.SemanticFreshnessStale, facts.SourceACLStateAllowed},
-		{facts.SemanticFreshnessFresh, facts.SourceACLStatePartial},
-		{facts.SemanticFreshnessFresh, facts.SourceACLStateMissing},
-		{facts.SemanticFreshnessStale, facts.SourceACLStateStale},
+		{facts.SemanticFreshnessFresh, docs.SourceACLStateDenied},
+		{facts.SemanticFreshnessStale, docs.SourceACLStateAllowed},
+		{facts.SemanticFreshnessFresh, docs.SourceACLStatePartial},
+		{facts.SemanticFreshnessFresh, docs.SourceACLStateMissing},
+		{facts.SemanticFreshnessStale, docs.SourceACLStateStale},
 	}
 	for _, tc := range cases {
 		tc := tc

@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // Engine transcribes a preflight-approved local media artifact.
@@ -76,7 +77,7 @@ type Segment struct {
 // for one media transcript extraction attempt.
 type Result struct {
 	Preflight media.Result
-	Document  facts.DocumentationDocumentPayload
-	Sections  []facts.DocumentationSectionPayload
+	Document  docs.DocumentPayload
+	Sections  []docs.SectionPayload
 	Envelopes []facts.Envelope
 }

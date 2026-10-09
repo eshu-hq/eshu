@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -29,11 +30,11 @@ func (s *Source) recordFactMetrics(ctx context.Context, envelopes []facts.Envelo
 	var documentCount, sectionCount, linkCount int64
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.DocumentationDocumentFactKind:
+		case docs.DocumentFactKind:
 			documentCount++
-		case facts.DocumentationSectionFactKind:
+		case docs.SectionFactKind:
 			sectionCount++
-		case facts.DocumentationLinkFactKind:
+		case docs.LinkFactKind:
 			linkCount++
 		}
 	}

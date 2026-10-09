@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -73,7 +74,7 @@ type SectionInput struct {
 	SourceStartRef string
 	SourceEndRef   string
 	Text           string
-	Links          []facts.DocumentationLinkPayload
+	Links          []docs.LinkPayload
 	MentionHints   []MentionHint
 	ClaimHints     []ClaimHint
 	// SourceMetadata is caller-supplied bounded provenance for derived mention
@@ -117,8 +118,8 @@ type Result struct {
 
 // Extractor resolves documentation mentions against a known entity catalog.
 type Extractor struct {
-	aliasIndex  map[entityKey][]facts.DocumentationEvidenceRef
-	uriIndex    map[string][]facts.DocumentationEvidenceRef
+	aliasIndex  map[entityKey][]docs.EvidenceRef
+	uriIndex    map[string][]docs.EvidenceRef
 	instruments *telemetry.Instruments
 	logger      *slog.Logger
 }
@@ -140,15 +141,15 @@ type mentionCandidate struct {
 }
 
 type mentionResolution struct {
-	payload facts.DocumentationEntityMentionPayload
+	payload docs.EntityMentionPayload
 }
 
 // NewExtractor constructs an extractor. The returned extractor is safe for
 // concurrent use when Options dependencies are also safe for concurrent use.
 func NewExtractor(entities []Entity, options Options) *Extractor {
 	extractor := &Extractor{
-		aliasIndex:  map[entityKey][]facts.DocumentationEvidenceRef{},
-		uriIndex:    map[string][]facts.DocumentationEvidenceRef{},
+		aliasIndex:  map[entityKey][]docs.EvidenceRef{},
+		uriIndex:    map[string][]docs.EvidenceRef{},
 		instruments: options.Instruments,
 		logger:      options.Logger,
 	}
@@ -174,9 +175,9 @@ func (e *Extractor) Extract(ctx context.Context, section SectionInput) (Result, 
 		mentions = append(mentions, mention)
 		mentionByKey[entityKey{kind: mention.payload.MentionKind, text: normalizeText(mention.payload.MentionText)}] = mention
 		switch mention.payload.ResolutionStatus {
-		case facts.DocumentationMentionResolutionExact:
+		case docs.MentionResolutionExact:
 			report.MentionsExact++
-		case facts.DocumentationMentionResolutionAmbiguous:
+		case docs.MentionResolutionAmbiguous:
 			report.MentionsAmbiguous++
 		default:
 			report.MentionsUnmatched++
@@ -186,7 +187,7 @@ func (e *Extractor) Extract(ctx context.Context, section SectionInput) (Result, 
 
 	envelopes := make([]facts.Envelope, 0, len(mentions)+len(section.ClaimHints))
 	for _, mention := range mentions {
-		envelope, err := e.envelope(section, facts.DocumentationEntityMentionFactKind, facts.DocumentationEntityMentionStableID(mention.payload), mention.payload)
+		envelope, err := e.envelope(section, docs.EntityMentionFactKind, docs.EntityMentionStableID(mention.payload), mention.payload)
 		if err != nil {
 			return Result{}, err
 		}
@@ -196,15 +197,15 @@ func (e *Extractor) Extract(ctx context.Context, section SectionInput) (Result, 
 	for _, hint := range section.ClaimHints {
 		claim, status, suppressionOutcome := e.claimCandidate(section, hint, mentionByKey)
 		switch status {
-		case facts.DocumentationMentionResolutionExact:
-			envelope, err := e.envelope(section, facts.DocumentationClaimCandidateFactKind, facts.DocumentationClaimCandidateStableID(claim), claim)
+		case docs.MentionResolutionExact:
+			envelope, err := e.envelope(section, docs.ClaimCandidateFactKind, docs.ClaimCandidateStableID(claim), claim)
 			if err != nil {
 				return Result{}, err
 			}
 			envelopes = append(envelopes, envelope)
 			report.ClaimCandidates++
 			e.recordClaim(ctx, section.SourceSystem, "emitted")
-		case facts.DocumentationMentionResolutionAmbiguous:
+		case docs.MentionResolutionAmbiguous:
 			report.ClaimsSuppressedAmbiguous++
 			e.recordSuppressedClaim(ctx, section.SourceSystem, suppressionOutcome)
 		default:
@@ -221,7 +222,7 @@ func (e *Extractor) addEntity(entity Entity) {
 	if strings.TrimSpace(entity.Kind) == "" || strings.TrimSpace(entity.ID) == "" {
 		return
 	}
-	ref := facts.DocumentationEvidenceRef{
+	ref := docs.EvidenceRef{
 		Kind:       strings.TrimSpace(entity.Kind),
 		ID:         strings.TrimSpace(entity.ID),
 		Confidence: facts.SourceConfidenceDerived,
@@ -287,7 +288,7 @@ func (e *Extractor) mentionCandidates(section SectionInput) []mentionCandidate {
 }
 
 func (e *Extractor) resolveMention(section SectionInput, candidate mentionCandidate) mentionResolution {
-	refs := append([]facts.DocumentationEvidenceRef{}, e.aliasIndex[entityKey{
+	refs := append([]docs.EvidenceRef{}, e.aliasIndex[entityKey{
 		kind: candidate.kind,
 		text: normalizeText(candidate.text),
 	}]...)
@@ -296,15 +297,15 @@ func (e *Extractor) resolveMention(section SectionInput, candidate mentionCandid
 	}
 	sortRefs(refs)
 
-	status := facts.DocumentationMentionResolutionUnmatched
+	status := docs.MentionResolutionUnmatched
 	if len(refs) == 1 {
-		status = facts.DocumentationMentionResolutionExact
+		status = docs.MentionResolutionExact
 	}
 	if len(refs) > 1 {
-		status = facts.DocumentationMentionResolutionAmbiguous
+		status = docs.MentionResolutionAmbiguous
 	}
 
-	payload := facts.DocumentationEntityMentionPayload{
+	payload := docs.EntityMentionPayload{
 		DocumentID:       section.DocumentID,
 		RevisionID:       section.RevisionID,
 		SectionID:        section.SectionID,
@@ -330,36 +331,36 @@ func (e *Extractor) claimCandidate(
 	section SectionInput,
 	hint ClaimHint,
 	mentions map[entityKey]mentionResolution,
-) (facts.DocumentationClaimCandidatePayload, string, string) {
+) (docs.ClaimCandidatePayload, string, string) {
 	mention, ok := mentions[entityKey{kind: hint.SubjectKind, text: normalizeText(hint.SubjectText)}]
 	if !ok {
-		return facts.DocumentationClaimCandidatePayload{}, facts.DocumentationMentionResolutionUnmatched, claimSuppressionUnresolvedSubject
+		return docs.ClaimCandidatePayload{}, docs.MentionResolutionUnmatched, claimSuppressionUnresolvedSubject
 	}
-	if mention.payload.ResolutionStatus != facts.DocumentationMentionResolutionExact {
-		return facts.DocumentationClaimCandidatePayload{}, mention.payload.ResolutionStatus, claimSuppressionAmbiguousSubject
+	if mention.payload.ResolutionStatus != docs.MentionResolutionExact {
+		return docs.ClaimCandidatePayload{}, mention.payload.ResolutionStatus, claimSuppressionAmbiguousSubject
 	}
 	objectMentionIDs := make([]string, 0, len(hint.ObjectMentions))
-	objectStatus := facts.DocumentationMentionResolutionExact
+	objectStatus := docs.MentionResolutionExact
 	for _, object := range hint.ObjectMentions {
 		objectMention, ok := mentions[entityKey{kind: object.Kind, text: normalizeText(object.Text)}]
 		if !ok {
-			objectStatus = facts.DocumentationMentionResolutionUnmatched
+			objectStatus = docs.MentionResolutionUnmatched
 			continue
 		}
-		if objectMention.payload.ResolutionStatus == facts.DocumentationMentionResolutionAmbiguous {
-			return facts.DocumentationClaimCandidatePayload{}, facts.DocumentationMentionResolutionAmbiguous, claimSuppressionAmbiguousObject
+		if objectMention.payload.ResolutionStatus == docs.MentionResolutionAmbiguous {
+			return docs.ClaimCandidatePayload{}, docs.MentionResolutionAmbiguous, claimSuppressionAmbiguousObject
 		}
-		if objectMention.payload.ResolutionStatus != facts.DocumentationMentionResolutionExact {
+		if objectMention.payload.ResolutionStatus != docs.MentionResolutionExact {
 			objectStatus = objectMention.payload.ResolutionStatus
 			continue
 		}
 		objectMentionIDs = append(objectMentionIDs, objectMention.payload.MentionID)
 	}
-	if objectStatus != facts.DocumentationMentionResolutionExact {
-		return facts.DocumentationClaimCandidatePayload{}, objectStatus, claimSuppressionUnresolvedObject
+	if objectStatus != docs.MentionResolutionExact {
+		return docs.ClaimCandidatePayload{}, objectStatus, claimSuppressionUnresolvedObject
 	}
 
-	payload := facts.DocumentationClaimCandidatePayload{
+	payload := docs.ClaimCandidatePayload{
 		DocumentID:       section.DocumentID,
 		RevisionID:       section.RevisionID,
 		SectionID:        section.SectionID,
@@ -371,8 +372,8 @@ func (e *Extractor) claimCandidate(
 		SubjectMentionID: mention.payload.MentionID,
 		ObjectMentionIDs: objectMentionIDs,
 		ACLSummary:       evidenceACLSummary(section.SourceACLState),
-		Authority:        facts.DocumentationClaimAuthorityDocumentEvidence,
-		EvidenceRefs: []facts.DocumentationEvidenceRef{{
+		Authority:        docs.ClaimAuthorityDocumentEvidence,
+		EvidenceRefs: []docs.EvidenceRef{{
 			Kind:       "document_section",
 			ID:         section.SectionID,
 			URI:        section.CanonicalURI,
@@ -380,7 +381,7 @@ func (e *Extractor) claimCandidate(
 		}},
 		SourceMetadata: claimSourceMetadata(section, hint),
 	}
-	return payload, facts.DocumentationMentionResolutionExact, ""
+	return payload, docs.MentionResolutionExact, ""
 }
 
 func (e *Extractor) envelope(section SectionInput, kind string, stableKey string, payload any) (facts.Envelope, error) {
@@ -403,7 +404,7 @@ func (e *Extractor) envelope(section SectionInput, kind string, stableKey string
 		GenerationID:     section.GenerationID,
 		FactKind:         kind,
 		StableFactKey:    stableKey,
-		SchemaVersion:    facts.DocumentationFactSchemaVersion,
+		SchemaVersion:    docs.FactSchemaVersion,
 		CollectorKind:    string(scope.CollectorDocumentation),
 		SourceConfidence: facts.SourceConfidenceDerived,
 		ObservedAt:       observedAt,
@@ -421,10 +422,10 @@ func (e *Extractor) envelope(section SectionInput, kind string, stableKey string
 
 func documentationExtractionPayload(kind string, payload any) (map[string]any, error) {
 	switch value := payload.(type) {
-	case facts.DocumentationEntityMentionPayload:
-		return facts.EncodeDocumentationEntityMention(value)
-	case facts.DocumentationClaimCandidatePayload:
-		return facts.EncodeDocumentationClaimCandidate(value)
+	case docs.EntityMentionPayload:
+		return docs.EncodeEntityMention(value)
+	case docs.ClaimCandidatePayload:
+		return docs.EncodeClaimCandidate(value)
 	default:
 		return nil, fmt.Errorf("unsupported documentation extraction payload type %T", payload)
 	}

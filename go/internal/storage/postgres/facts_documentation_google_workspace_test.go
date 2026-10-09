@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 )
@@ -53,26 +54,26 @@ func TestFactStoreRoundTripsGoogleWorkspaceDocumentationFacts(t *testing.T) {
 		googleWorkspaceScopeID,
 		googleWorkspaceGenerationID,
 		[]string{
-			facts.DocumentationSourceFactKind,
-			facts.DocumentationDocumentFactKind,
-			facts.DocumentationSectionFactKind,
-			facts.DocumentationLinkFactKind,
+			docs.SourceFactKind,
+			docs.DocumentFactKind,
+			docs.SectionFactKind,
+			docs.LinkFactKind,
 		},
 	)
 	if err != nil {
 		t.Fatalf("ListFactsByKind() error = %v, want nil", err)
 	}
 	assertGoogleWorkspaceFactKinds(t, loaded, map[string]int{
-		facts.DocumentationSourceFactKind:   1,
-		facts.DocumentationDocumentFactKind: 1,
-		facts.DocumentationSectionFactKind:  1,
-		facts.DocumentationLinkFactKind:     1,
+		docs.SourceFactKind:   1,
+		docs.DocumentFactKind: 1,
+		docs.SectionFactKind:  1,
+		docs.LinkFactKind:     1,
 	})
-	section := googleWorkspaceLoadedPayload(t, loaded, facts.DocumentationSectionFactKind)
+	section := googleWorkspaceLoadedPayload(t, loaded, docs.SectionFactKind)
 	if got, want := section["content"], "Synthetic workspace runbook"; got != want {
 		t.Fatalf("section content = %#v, want %#v", got, want)
 	}
-	document := googleWorkspaceLoadedPayload(t, loaded, facts.DocumentationDocumentFactKind)
+	document := googleWorkspaceLoadedPayload(t, loaded, docs.DocumentFactKind)
 	metadata := document["source_metadata"].(map[string]any)
 	if got, want := metadata["export_mime"], googleWorkspaceExportMIMEDOCX; got != want {
 		t.Fatalf("document export_mime = %#v, want %#v", got, want)
@@ -83,13 +84,13 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 	t.Helper()
 
 	observedAt := time.Date(2026, time.June, 9, 14, 0, 0, 0, time.UTC)
-	sourcePayload := facts.DocumentationSourcePayload{
+	sourcePayload := docs.SourcePayload{
 		SourceID:     googleWorkspaceScopeID,
 		SourceSystem: googleWorkspaceSourceSystem,
 		ExternalID:   "gws-allowlist:sha256:synthetic",
 		DisplayName:  "Google Workspace source",
 		SourceType:   "file",
-		ACLSummary: &facts.DocumentationACLSummary{
+		ACLSummary: &docs.ACLSummary{
 			Visibility:    "unknown",
 			IsPartial:     true,
 			PartialReason: "runtime_not_enabled",
@@ -102,7 +103,7 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 			"runtime_status": "removed_facade",
 		},
 	}
-	documentPayload := facts.DocumentationDocumentPayload{
+	documentPayload := docs.DocumentPayload{
 		SourceID:     googleWorkspaceScopeID,
 		DocumentID:   googleWorkspaceDocumentID,
 		ExternalID:   "gws-file:sha256:synthetic",
@@ -111,7 +112,7 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 		Title:        "Google Workspace document",
 		DocumentType: "workspace_document",
 		Format:       "google_workspace_export",
-		ACLSummary: &facts.DocumentationACLSummary{
+		ACLSummary: &docs.ACLSummary{
 			Visibility:   "restricted",
 			ReaderGroups: []string{"group:sha256:synthetic-readers"},
 		},
@@ -122,7 +123,7 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 		},
 		ContentHash: "sha256:synthetic-content",
 	}
-	sectionPayload := facts.DocumentationSectionPayload{
+	sectionPayload := docs.SectionPayload{
 		DocumentID:     googleWorkspaceDocumentID,
 		RevisionID:     googleWorkspaceRevisionID,
 		SectionID:      "export:body",
@@ -140,7 +141,7 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 			"export_mime":  googleWorkspaceExportMIMEDOCX,
 		},
 	}
-	linkPayload := facts.DocumentationLinkPayload{
+	linkPayload := docs.LinkPayload{
 		DocumentID:     googleWorkspaceDocumentID,
 		RevisionID:     googleWorkspaceRevisionID,
 		SectionID:      "export:body",
@@ -154,8 +155,8 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 	return []facts.Envelope{
 		googleWorkspaceEnvelope(
 			t,
-			facts.DocumentationSourceFactKind,
-			facts.DocumentationSourceStableID(sourcePayload),
+			docs.SourceFactKind,
+			docs.SourceStableID(sourcePayload),
 			sourcePayload,
 			"",
 			sourcePayload.ExternalID,
@@ -163,8 +164,8 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 		),
 		googleWorkspaceEnvelope(
 			t,
-			facts.DocumentationDocumentFactKind,
-			facts.DocumentationDocumentStableID(documentPayload),
+			docs.DocumentFactKind,
+			docs.DocumentStableID(documentPayload),
 			documentPayload,
 			documentPayload.CanonicalURI,
 			documentPayload.ExternalID,
@@ -172,8 +173,8 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 		),
 		googleWorkspaceEnvelope(
 			t,
-			facts.DocumentationSectionFactKind,
-			facts.DocumentationSectionStableID(sectionPayload),
+			docs.SectionFactKind,
+			docs.SectionStableID(sectionPayload),
 			sectionPayload,
 			documentPayload.CanonicalURI,
 			documentPayload.ExternalID,
@@ -181,8 +182,8 @@ func collectGoogleWorkspaceReadbackFacts(t *testing.T) []facts.Envelope {
 		),
 		googleWorkspaceEnvelope(
 			t,
-			facts.DocumentationLinkFactKind,
-			facts.DocumentationLinkStableID(linkPayload),
+			docs.LinkFactKind,
+			docs.LinkStableID(linkPayload),
 			linkPayload,
 			documentPayload.CanonicalURI,
 			documentPayload.ExternalID,
@@ -244,10 +245,10 @@ func googleWorkspacePayloadMap(t *testing.T, payload any) map[string]any {
 }
 
 func googleWorkspaceSchemaVersion(kind string) string {
-	if kind == facts.DocumentationSectionFactKind {
-		return facts.DocumentationSectionFactSchemaVersion
+	if kind == docs.SectionFactKind {
+		return docs.SectionFactSchemaVersion
 	}
-	return facts.DocumentationFactSchemaVersion
+	return docs.FactSchemaVersion
 }
 
 func googleWorkspaceFactRows(t *testing.T, envelopes []facts.Envelope) [][]any {
@@ -294,8 +295,8 @@ func assertGoogleWorkspaceFactKinds(t *testing.T, envelopes []facts.Envelope, wa
 		}
 	}
 	for _, forbidden := range []string{
-		facts.DocumentationEntityMentionFactKind,
-		facts.DocumentationClaimCandidateFactKind,
+		docs.EntityMentionFactKind,
+		docs.ClaimCandidateFactKind,
 	} {
 		if got[forbidden] != 0 {
 			t.Fatalf("fact kind %q count = %d, want 0", forbidden, got[forbidden])

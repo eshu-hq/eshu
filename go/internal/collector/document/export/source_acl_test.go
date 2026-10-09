@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestACLSummaryMapsSourceACLState confirms the bounded source_acl_state derived
@@ -24,8 +24,8 @@ func TestACLSummaryMapsSourceACLState(t *testing.T) {
 		policy string
 		want   string
 	}{
-		{name: "evaluated asserts allowed", policy: manifest.ACLPolicyEvaluated, want: facts.SourceACLStateAllowed},
-		{name: "partial stays partial", policy: manifest.ACLPolicyPartial, want: facts.SourceACLStatePartial},
+		{name: "evaluated asserts allowed", policy: manifest.ACLPolicyEvaluated, want: docs.SourceACLStateAllowed},
+		{name: "partial stays partial", policy: manifest.ACLPolicyPartial, want: docs.SourceACLStatePartial},
 		{name: "unavailable omits state", policy: manifest.ACLPolicyUnavailable, want: ""},
 		{name: "empty policy omits state", policy: "", want: ""},
 		{name: "unknown policy omits state", policy: "something_else", want: ""},

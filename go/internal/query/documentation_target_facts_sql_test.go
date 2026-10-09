@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // legacyDocumentationTargetFactsSQL is the single-statement target-facts read
@@ -21,8 +22,8 @@ import (
 func legacyDocumentationTargetFactsSQL(filter documentationFindingFilter) (string, []any) {
 	parts := newDocumentationTargetFactsParts(filter)
 	args := append(append([]any{}, parts.args...), parts.limit+1)
-	kindClause := "fact_records.fact_kind IN ('" + facts.DocumentationEntityMentionFactKind + "', '" +
-		facts.DocumentationClaimCandidateFactKind + "', '" + facts.SemanticDocumentationObservationFactKind + "')"
+	kindClause := "fact_records.fact_kind IN ('" + docs.EntityMentionFactKind + "', '" +
+		docs.ClaimCandidateFactKind + "', '" + facts.SemanticDocumentationObservationFactKind + "')"
 	clauses := append([]string{kindClause}, parts.clauses...)
 	return fmt.Sprintf(`
 SELECT %s AS payload
@@ -51,8 +52,8 @@ func TestBuildDocumentationTargetFactsSQLSplitsIndexedAndSemanticBranches(t *tes
 	}
 	indexed, semantic := branches[0], branches[1]
 
-	mention := "'" + facts.DocumentationEntityMentionFactKind + "'"
-	claim := "'" + facts.DocumentationClaimCandidateFactKind + "'"
+	mention := "'" + docs.EntityMentionFactKind + "'"
+	claim := "'" + docs.ClaimCandidateFactKind + "'"
 	semanticKind := "'" + facts.SemanticDocumentationObservationFactKind + "'"
 	if !strings.Contains(indexed, "fact_records.fact_kind IN ("+mention+", "+claim+")") {
 		t.Fatalf("indexed branch must list exactly the GIN-covered kinds:\n%s", indexed)

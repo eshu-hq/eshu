@@ -8,7 +8,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -32,7 +32,7 @@ func extractGitDocumentation(
 	commitSHA string,
 	body []byte,
 	format GitDocumentationFormat,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	switch format.Format {
 	case "markdown", "quarto":
 		return extractMarkdownDocumentationWithFormat(repo, relativePath, digest, commitSHA, body, format.Format)

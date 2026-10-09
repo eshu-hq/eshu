@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func entityAliases(entity Entity) []string {
@@ -34,7 +35,7 @@ func entityAliases(entity Entity) []string {
 	return out
 }
 
-func appendRefs(existing []facts.DocumentationEvidenceRef, values []facts.DocumentationEvidenceRef) []facts.DocumentationEvidenceRef {
+func appendRefs(existing []docs.EvidenceRef, values []docs.EvidenceRef) []docs.EvidenceRef {
 	out := existing
 	for _, value := range values {
 		out = appendUniqueRef(out, value)
@@ -42,7 +43,7 @@ func appendRefs(existing []facts.DocumentationEvidenceRef, values []facts.Docume
 	return out
 }
 
-func appendUniqueRef(existing []facts.DocumentationEvidenceRef, value facts.DocumentationEvidenceRef) []facts.DocumentationEvidenceRef {
+func appendUniqueRef(existing []docs.EvidenceRef, value docs.EvidenceRef) []docs.EvidenceRef {
 	for _, candidate := range existing {
 		if candidate.Kind == value.Kind && candidate.ID == value.ID {
 			return existing
@@ -51,7 +52,7 @@ func appendUniqueRef(existing []facts.DocumentationEvidenceRef, value facts.Docu
 	return append(existing, value)
 }
 
-func sortRefs(refs []facts.DocumentationEvidenceRef) {
+func sortRefs(refs []docs.EvidenceRef) {
 	sort.Slice(refs, func(i, j int) bool {
 		if refs[i].Kind == refs[j].Kind {
 			return refs[i].ID < refs[j].ID

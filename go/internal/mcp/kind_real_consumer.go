@@ -149,16 +149,25 @@ var rawSQLFactKindINPattern = regexp.MustCompile(`fact_kind\s+IN\s*\(([^)]*)\)`)
 var quotedLiteralPattern = regexp.MustCompile(`'([A-Za-z0-9_.]+)'`)
 
 // factsPackageIdentRefPattern matches a reference to one of go/internal/facts'
-// own FactKind constants (suffix style, e.g. facts.DocumentationLinkFactKind,
-// unlike sdk/go/factschema's prefix style FactKindAWSResource). The query
-// layer builds several SQL predicates by string-concatenating this
-// identifier rather than writing the literal kind
-// (documentation_read_model.go's `"'" + facts.DocumentationLinkFactKind + "'"`
-// is the concrete case), so a plain `fact_kind = '<literal>'` regex alone
-// misses it; this pattern catches any reference to the identifier anywhere
-// in the query-layer source, which is sufficient evidence since Go would
-// fail to compile a reference to an unused import.
-var factsPackageIdentRefPattern = regexp.MustCompile(`facts\.(\w*FactKind\w*)\b`)
+// own FactKind constants (suffix style, e.g. facts.LinkFactKind or, after
+// the #6950 family migration, docs.LinkFactKind — unlike sdk/go/factschema's
+// prefix style FactKindAWSResource). The query layer builds several SQL
+// predicates by string-concatenating this identifier rather than writing
+// the literal kind (documentation_read_model.go's
+// `"'" + docs.LinkFactKind + "'"` is the concrete case), so a plain
+// `fact_kind = '<literal>'` regex alone misses it; this pattern catches any
+// reference to the identifier anywhere in the query-layer source, which is
+// sufficient evidence since Go would fail to compile a reference to an
+// unused import.
+//
+// The qualifier alternation tracks the #6950 importer migration: `facts`
+// for families still on the root compat surface, then one entry per
+// migrated family spelling (`docs`, plus the `factsdocs` alias used where
+// the file already imports another docs package). Each #6950 batch extends
+// this list for the family spellings it introduces; the identifier still
+// resolves through factsConstValues, so an unknown spelling simply matches
+// nothing.
+var factsPackageIdentRefPattern = regexp.MustCompile(`(?:facts|docs|factsdocs)\.(\w*FactKind\w*)\b`)
 
 // realConsumerEvidence is the computed set of fact kinds with a detectable
 // real consumer, derived from source rather than from registry metadata.
@@ -425,7 +434,8 @@ func rawSQLFactKindReaders(dir string) (map[string]bool, error) {
 
 // factsPackageIdentRefKinds scans every non-test .go file directly under dir
 // for references to go/internal/facts' own FactKind-suffixed constants
-// (facts.<Ident>FactKind) and returns the set of wire fact-kind strings
+// (facts.<Ident>FactKind, or the migrated family spelling such as
+// docs.<Ident>FactKind) and returns the set of wire fact-kind strings
 // referenced, resolved through factsConstValues (from factKindConstantValues
 // run against the facts package tree). This is the identifier-reference
 // sibling of rawSQLFactKindReaders: some query-layer SQL is built by

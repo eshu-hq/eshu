@@ -3,7 +3,9 @@
 
 package doctruth
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+)
 
 // evidenceACLSummary builds the bounded acl_summary to attach to a derived
 // documentation evidence fact (mention or claim) from the section's observed
@@ -16,9 +18,9 @@ import "github.com/eshu-hq/eshu/go/internal/facts"
 // propagation only: it copies the observed posture verbatim, never upgrades a
 // denied, partial, missing, or stale observation to allowed, and never
 // synthesizes a default the source did not assert.
-func evidenceACLSummary(sourceACLState string) *facts.DocumentationACLSummary {
-	if !facts.ValidSourceACLState(sourceACLState) {
+func evidenceACLSummary(sourceACLState string) *docs.ACLSummary {
+	if !docs.ValidSourceACLState(sourceACLState) {
 		return nil
 	}
-	return &facts.DocumentationACLSummary{SourceACLState: sourceACLState}
+	return &docs.ACLSummary{SourceACLState: sourceACLState}
 }

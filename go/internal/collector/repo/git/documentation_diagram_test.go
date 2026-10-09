@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -82,7 +83,7 @@ api.link: docs/service-map.md
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -103,7 +104,7 @@ api.link: docs/service-map.md
 		}
 	}
 
-	sectionFacts := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sectionFacts := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sectionFacts), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -122,7 +123,7 @@ api.link: docs/service-map.md
 		assertDocumentationFactLinkedRepository(t, section, "repository:r_12345678")
 	}
 
-	linkFacts := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	linkFacts := factsByKind(envelopes, factsdocs.LinkFactKind)
 	if got, want := len(linkFacts), 2; got != want {
 		t.Fatalf("documentation_link count = %d, want %d: %#v", got, want, linkFacts)
 	}
@@ -130,10 +131,10 @@ api.link: docs/service-map.md
 	assertLinkTargetPresent(t, linkFacts, "docs/service-map.md")
 	assertLinkTargetAbsent(t, linkFacts, "../private.md")
 	assertLinkTargetAbsent(t, linkFacts, "/etc/passwd")
-	if got := len(factsByKind(envelopes, facts.DocumentationEntityMentionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.EntityMentionFactKind)); got != 0 {
 		t.Fatalf("documentation_entity_mention count = %d, want 0 for text diagrams", got)
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationClaimCandidateFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.ClaimCandidateFactKind)); got != 0 {
 		t.Fatalf("documentation_claim_candidate count = %d, want 0 for text diagrams", got)
 	}
 }
@@ -168,7 +169,7 @@ func TestTextDiagramDocumentationUnsafePreflightSuppressesContent(t *testing.T) 
 	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 5; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -189,10 +190,10 @@ func TestTextDiagramDocumentationUnsafePreflightSuppressesContent(t *testing.T) 
 			t.Fatalf("document %q warning leaks sensitive value: %q", path, warning)
 		}
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0 for unsafe diagrams", got)
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationLinkFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.LinkFactKind)); got != 0 {
 		t.Fatalf("documentation_link count = %d, want 0 for unsafe diagrams", got)
 	}
 }
@@ -221,17 +222,17 @@ func TestTextDiagramDocumentationCanceledPreflightSuppressesContent(t *testing.T
 		false,
 	)
 
-	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documentFacts := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documentFacts), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	if warning := payloadSourceMetadataValue(documentFacts[0].Payload, "warning"); !strings.Contains(warning, "timeout") {
 		t.Fatalf("warning = %q, want timeout", warning)
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0 for canceled preflight", got)
 	}
-	if got := len(factsByKind(envelopes, facts.DocumentationLinkFactKind)); got != 0 {
+	if got := len(factsByKind(envelopes, factsdocs.LinkFactKind)); got != 0 {
 		t.Fatalf("documentation_link count = %d, want 0 for canceled preflight", got)
 	}
 }

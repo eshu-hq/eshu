@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestDocumentationHandlerListsCollectedFacts(t *testing.T) {
@@ -484,12 +485,12 @@ func TestBuildDocumentationFactsSQLDefaultAllowlistIncludesSemanticDocumentation
 	})
 
 	for _, want := range []string{
-		facts.DocumentationSourceFactKind,
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationSectionFactKind,
-		facts.DocumentationLinkFactKind,
-		facts.DocumentationEntityMentionFactKind,
-		facts.DocumentationClaimCandidateFactKind,
+		docs.SourceFactKind,
+		docs.DocumentFactKind,
+		docs.SectionFactKind,
+		docs.LinkFactKind,
+		docs.EntityMentionFactKind,
+		docs.ClaimCandidateFactKind,
 		facts.SemanticDocumentationObservationFactKind,
 	} {
 		if !strings.Contains(query, "'"+want+"'") {
@@ -497,8 +498,8 @@ func TestBuildDocumentationFactsSQLDefaultAllowlistIncludesSemanticDocumentation
 		}
 	}
 	for _, unexpected := range []string{
-		facts.DocumentationFindingFactKind,
-		facts.DocumentationEvidencePacketFactKind,
+		docs.FindingFactKind,
+		docs.EvidencePacketFactKind,
 		facts.SemanticCodeHintFactKind,
 	} {
 		if strings.Contains(query, "'"+unexpected+"'") {

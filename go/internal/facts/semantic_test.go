@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestSemanticFactKindRegistry(t *testing.T) {
@@ -444,7 +446,7 @@ func semanticDocumentationObservationFixture() SemanticDocumentationObservationP
 		RedactionState: SemanticRedactionApplied,
 		FreshnessState: SemanticFreshnessFresh,
 		AdmissionState: SemanticAdmissionDocumentationFindingCandidate,
-		EvidenceRefs: []DocumentationEvidenceRef{
+		EvidenceRefs: []docs.EvidenceRef{
 			{Kind: "documentation_section", ID: "section:deployment", Confidence: SourceConfidenceObserved},
 		},
 	}

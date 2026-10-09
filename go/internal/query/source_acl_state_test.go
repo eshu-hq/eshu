@@ -6,7 +6,7 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestBoundedSourceACLStateReturnsObservedState proves every bounded
@@ -16,11 +16,11 @@ func TestBoundedSourceACLStateReturnsObservedState(t *testing.T) {
 	t.Parallel()
 
 	for _, state := range []string{
-		facts.SourceACLStateAllowed,
-		facts.SourceACLStateDenied,
-		facts.SourceACLStatePartial,
-		facts.SourceACLStateMissing,
-		facts.SourceACLStateStale,
+		docs.SourceACLStateAllowed,
+		docs.SourceACLStateDenied,
+		docs.SourceACLStatePartial,
+		docs.SourceACLStateMissing,
+		docs.SourceACLStateStale,
 	} {
 		state := state
 		t.Run(state, func(t *testing.T) {
@@ -43,7 +43,7 @@ func TestBoundedSourceACLStateOmitsWhenAbsent(t *testing.T) {
 
 	cases := map[string]map[string]any{
 		"no payload":              {},
-		"no acl_summary":          {"freshness_state": facts.SourceACLStateStale},
+		"no acl_summary":          {"freshness_state": docs.SourceACLStateStale},
 		"empty acl_summary":       {"acl_summary": map[string]any{}},
 		"empty source_acl_state":  {"acl_summary": map[string]any{"source_acl_state": ""}},
 		"acl_summary wrong type":  {"acl_summary": "denied"},
@@ -89,10 +89,10 @@ func TestSurfaceSourceACLStateIsAdditive(t *testing.T) {
 	out := map[string]any{"freshness_state": "stale"}
 	surfaceSourceACLState(out, map[string]any{
 		"freshness_state": "stale",
-		"acl_summary":     map[string]any{"source_acl_state": facts.SourceACLStateDenied},
+		"acl_summary":     map[string]any{"source_acl_state": docs.SourceACLStateDenied},
 	})
-	if got := out["source_acl_state"]; got != facts.SourceACLStateDenied {
-		t.Fatalf("out[source_acl_state] = %#v, want %q", got, facts.SourceACLStateDenied)
+	if got := out["source_acl_state"]; got != docs.SourceACLStateDenied {
+		t.Fatalf("out[source_acl_state] = %#v, want %q", got, docs.SourceACLStateDenied)
 	}
 	// A row can be fresh+denied or stale+allowed: ACL and freshness are
 	// independent axes, so surfacing ACL must not overwrite freshness.

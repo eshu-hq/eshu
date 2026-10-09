@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -415,7 +416,7 @@ func liveFamilies() []liveFamily {
 		{"azure", facts.AzureFactKinds, facts.AzureSchemaVersion},
 		{"ci_cd_run", facts.CICDRunFactKinds, facts.CICDRunSchemaVersion},
 		{"codeowners", facts.CodeownersFactKinds, facts.CodeownersSchemaVersion},
-		{"documentation", facts.DocumentationFactKinds, facts.DocumentationSchemaVersion},
+		{"documentation", docs.FactKinds, docs.SchemaVersion},
 		{"ec2_instance_posture", cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
 		{"gcp", facts.GCPFactKinds, facts.GCPSchemaVersion},
 		{"incident_context", facts.IncidentContextFactKinds, facts.IncidentContextSchemaVersion},

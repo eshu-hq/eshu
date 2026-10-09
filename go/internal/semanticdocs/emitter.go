@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 const (
@@ -326,8 +327,8 @@ func (e *Emitter) payload(section doctruth.SectionInput, observation MockObserva
 		RedactionSummary: redactionSummary,
 		FreshnessState:   e.config.FreshnessState,
 		AdmissionState:   admissionState,
-		EvidenceRefs: []facts.DocumentationEvidenceRef{{
-			Kind:       facts.DocumentationSectionFactKind,
+		EvidenceRefs: []docs.EvidenceRef{{
+			Kind:       docs.SectionFactKind,
 			ID:         section.SectionID,
 			URI:        section.CanonicalURI,
 			Confidence: facts.SourceConfidenceObserved,

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -25,10 +26,10 @@ const (
 )
 
 type archiveDocumentationResult struct {
-	outerDocument facts.DocumentationDocumentPayload
-	documents     []facts.DocumentationDocumentPayload
-	sections      []facts.DocumentationSectionPayload
-	links         []facts.DocumentationLinkPayload
+	outerDocument docs.DocumentPayload
+	documents     []docs.DocumentPayload
+	sections      []docs.SectionPayload
+	links         []docs.LinkPayload
 }
 
 func gitDocumentationArchiveEnvelopes(
@@ -56,8 +57,8 @@ func gitDocumentationArchiveEnvelopes(
 		scopeID,
 		generationID,
 		observedAt,
-		facts.DocumentationDocumentFactKind,
-		facts.DocumentationDocumentStableID(result.outerDocument),
+		docs.DocumentFactKind,
+		docs.DocumentStableID(result.outerDocument),
 		result.outerDocument,
 		sourceFile,
 	))
@@ -68,8 +69,8 @@ func gitDocumentationArchiveEnvelopes(
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationDocumentFactKind,
-			facts.DocumentationDocumentStableID(document),
+			docs.DocumentFactKind,
+			docs.DocumentStableID(document),
 			document,
 			sourceFile,
 		))
@@ -81,8 +82,8 @@ func gitDocumentationArchiveEnvelopes(
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationSectionFactKind,
-			facts.DocumentationSectionStableID(section),
+			docs.SectionFactKind,
+			docs.SectionStableID(section),
 			section,
 			sourceFile,
 		))
@@ -94,8 +95,8 @@ func gitDocumentationArchiveEnvelopes(
 			scopeID,
 			generationID,
 			observedAt,
-			facts.DocumentationLinkFactKind,
-			facts.DocumentationLinkStableID(link),
+			docs.LinkFactKind,
+			docs.LinkStableID(link),
 			link,
 			sourceFile,
 		))
@@ -169,8 +170,8 @@ func archiveDocumentPayload(
 	commitSHA string,
 	body []byte,
 	archiveFormat string,
-) facts.DocumentationDocumentPayload {
-	document := facts.DocumentationDocumentPayload{
+) docs.DocumentPayload {
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -273,14 +274,14 @@ func gitDocumentationSourceEnvelope(
 	generationID string,
 	observedAt time.Time,
 ) facts.Envelope {
-	sourcePayload := facts.DocumentationSourcePayload{
+	sourcePayload := docs.SourcePayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		SourceSystem: "git",
 		ExternalID:   repo.ID,
 		DisplayName:  model.FirstNonEmptyString(repo.Name, repo.RepoSlug, repo.ID),
 		BaseURI:      repo.RemoteURL,
 		SourceType:   gitDocumentationSourceType,
-		ACLSummary: &facts.DocumentationACLSummary{
+		ACLSummary: &docs.ACLSummary{
 			Visibility:    "repository",
 			IsPartial:     true,
 			PartialReason: "repository_acl_not_collected",
@@ -298,8 +299,8 @@ func gitDocumentationSourceEnvelope(
 		scopeID,
 		generationID,
 		observedAt,
-		facts.DocumentationSourceFactKind,
-		facts.DocumentationSourceStableID(sourcePayload),
+		docs.SourceFactKind,
+		docs.SourceStableID(sourcePayload),
 		sourcePayload,
 		repoPath,
 	)

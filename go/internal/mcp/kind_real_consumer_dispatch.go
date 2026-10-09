@@ -116,20 +116,33 @@ func factsDispatchedKinds(dirs []string, factsConstValues map[string]string) (ma
 	return kinds, nil
 }
 
-// factsSelectorWireKind reports whether expr is a `facts.<Ident>` selector
+// factsSelectorWireKind reports whether expr is a `<qual>.<Ident>` selector
 // naming a known FactKind constant, resolving it to its wire string through
-// factsConstValues.
+// factsConstValues. The qualifier tracks the #6950 importer migration:
+// `facts` for families still on the root compat surface, then one entry per
+// migrated family spelling (`docs`, plus the `factsdocs` alias used where
+// the file already imports another docs package). Each #6950 batch extends
+// factsPackageSelectorNames for the family spellings it introduces.
 func factsSelectorWireKind(expr ast.Expr, factsConstValues map[string]string) (string, bool) {
 	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {
 		return "", false
 	}
 	pkgIdent, ok := sel.X.(*ast.Ident)
-	if !ok || pkgIdent.Name != "facts" {
+	if !ok || !factsPackageSelectorNames[pkgIdent.Name] {
 		return "", false
 	}
 	wire, ok := factsConstValues[sel.Sel.Name]
 	return wire, ok
+}
+
+// factsPackageSelectorNames is the set of import qualifiers that can name a
+// go/internal/facts-tree FactKind constant: the root plus every #6950 batch's
+// migrated family spelling. Keep in sync with factsPackageIdentRefPattern.
+var factsPackageSelectorNames = map[string]bool{
+	"facts":     true,
+	"docs":      true,
+	"factsdocs": true,
 }
 
 // reducerSeamDir is the one entry in realConsumerDecodeSeamDirs that names a
@@ -287,7 +300,7 @@ func factsPackageConstantValues(repoRoot string) (map[string]string, error) {
 // DocumentationLinkFactKind while the docs package declares LinkFactKind. The
 // root keeps the pre-move spelling alive as `DocumentationLinkFactKind =
 // docs.LinkFactKind`, and every caller outside the facts tree still writes
-// facts.DocumentationLinkFactKind.
+// docs.LinkFactKind.
 //
 // Without this pass the root spelling resolves to no wire string, so a query
 // layer that references it reads as having no consumer. Each alias is mapped

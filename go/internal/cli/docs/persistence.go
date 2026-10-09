@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -168,8 +169,8 @@ func resultFromPersisted(
 	summary PersistenceSummary,
 ) (doctruth.VerificationResult, error) {
 	envelopes, err := persistence.ListFactEnvelopes(ctx, summary.ScopeID, summary.GenerationID, []string{
-		facts.DocumentationFindingFactKind,
-		facts.DocumentationEvidencePacketFactKind,
+		docs.FindingFactKind,
+		docs.EvidencePacketFactKind,
 	})
 	if err != nil {
 		return doctruth.VerificationResult{}, fmt.Errorf("load persisted documentation verification facts: %w", err)
@@ -184,13 +185,13 @@ func resultFromEnvelopes(envelopes []facts.Envelope) doctruth.VerificationResult
 	result := doctruth.VerificationResult{Envelopes: envelopes}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.DocumentationFindingFactKind:
+		case docs.FindingFactKind:
 			finding := findingFromPayload(envelope.Payload)
 			if finding.FindingID != "" {
 				result.Findings = append(result.Findings, finding)
 				addFindingStatus(&result.Summary, finding.Status)
 			}
-		case facts.DocumentationEvidencePacketFactKind:
+		case docs.EvidencePacketFactKind:
 			packet := packetFromPayload(envelope.Payload)
 			if packet.PacketID != "" {
 				result.EvidencePackets = append(result.EvidencePackets, packet)

@@ -6,7 +6,7 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // TestSourceACLDispositionForMapsBoundedStateToDisposition proves the bounded
@@ -26,15 +26,15 @@ func TestSourceACLDispositionForMapsBoundedStateToDisposition(t *testing.T) {
 		wantDenied      bool
 		wantWithheld    bool
 	}{
-		{"allowed visible", facts.SourceACLStateAllowed, true, accessDispositionVisible, false, false},
+		{"allowed visible", docs.SourceACLStateAllowed, true, accessDispositionVisible, false, false},
 		{"no claim visible", "", true, accessDispositionVisible, false, false},
-		{"denied withholds", facts.SourceACLStateDenied, true, accessDispositionDenied, true, true},
-		{"partial withholds", facts.SourceACLStatePartial, true, accessDispositionPartial, false, true},
-		{"stale visible", facts.SourceACLStateStale, true, accessDispositionStale, false, false},
-		{"missing empty", facts.SourceACLStateMissing, true, accessDispositionMissing, false, false},
+		{"denied withholds", docs.SourceACLStateDenied, true, accessDispositionDenied, true, true},
+		{"partial withholds", docs.SourceACLStatePartial, true, accessDispositionPartial, false, true},
+		{"stale visible", docs.SourceACLStateStale, true, accessDispositionStale, false, false},
+		{"missing empty", docs.SourceACLStateMissing, true, accessDispositionMissing, false, false},
 		// Binary-denied caller is access-denied even when the source observed allowed.
-		{"binary denied overrides allowed", facts.SourceACLStateAllowed, false, accessDispositionDenied, true, true},
-		{"binary denied overrides stale", facts.SourceACLStateStale, false, accessDispositionDenied, true, true},
+		{"binary denied overrides allowed", docs.SourceACLStateAllowed, false, accessDispositionDenied, true, true},
+		{"binary denied overrides stale", docs.SourceACLStateStale, false, accessDispositionDenied, true, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

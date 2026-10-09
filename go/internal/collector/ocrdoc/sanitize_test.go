@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestExtractRedactsPersonalAndPrivateOCRText(t *testing.T) {
@@ -28,7 +28,7 @@ func TestExtractRedactsPersonalAndPrivateOCRText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	section := payloadByKind(t, result.Envelopes, facts.DocumentationSectionFactKind)
+	section := payloadByKind(t, result.Envelopes, docs.SectionFactKind)
 	content := section["content"].(string)
 	for _, disallowed := range []string{"operator@example.invalid", "internal.example.invalid", "CASE-123", "/Users/example/private.png"} {
 		if strings.Contains(content, disallowed) {
@@ -58,7 +58,7 @@ func TestExtractRedactsUnsafeSourceLocations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	encoded, err := json.Marshal(document)
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v, want nil", err)
@@ -126,7 +126,7 @@ func TestExtractGeneratesSourceNeutralIdentityFallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	for key, wantPrefix := range map[string]string{
 		"document_id": "doc:ocr:sha256:",
 		"external_id": "ocr-source:sha256:",
@@ -146,7 +146,7 @@ func TestExtractGeneratesSourceNeutralIdentityFallbacks(t *testing.T) {
 			t.Fatalf("source_metadata[%q] = %q, want %q", key, got, want)
 		}
 	}
-	section := payloadByKind(t, result.Envelopes, facts.DocumentationSectionFactKind)
+	section := payloadByKind(t, result.Envelopes, docs.SectionFactKind)
 	if got, want := section["document_id"], document["document_id"]; got != want {
 		t.Fatalf("section.document_id = %#v, want %#v", got, want)
 	}

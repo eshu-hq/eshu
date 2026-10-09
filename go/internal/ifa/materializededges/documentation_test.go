@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
@@ -174,7 +175,7 @@ func TestDocumentationFamilyOduExercisesEveryExclusion(t *testing.T) {
 
 	var mentions []facts.Envelope
 	for _, env := range odu.Facts {
-		if env.FactKind == facts.DocumentationEntityMentionFactKind {
+		if env.FactKind == docs.EntityMentionFactKind {
 			mentions = append(mentions, env)
 		}
 	}

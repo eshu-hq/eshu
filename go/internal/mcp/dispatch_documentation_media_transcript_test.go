@@ -21,6 +21,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/mediadoc"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -160,7 +161,7 @@ func mcpDocumentationMediaTranscriptFactRow(t *testing.T) []byte {
 
 	envelopes := mcpDocumentationMediaTranscriptEnvelopes(t)
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.DocumentationSectionFactKind {
+		if envelope.FactKind == docs.SectionFactKind {
 			row := map[string]any{
 				"fact_id":       envelope.FactID,
 				"fact_kind":     envelope.FactKind,

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestGoldenHarnessSeedsDeadLetterAfterFinalDrainBeforeQuery(t *testing.T) {
@@ -107,26 +107,26 @@ func TestGoldenDocumentationFixtureMatchesRegisteredFactContracts(t *testing.T) 
 	}{
 		{
 			name:           "section",
-			kind:           facts.DocumentationSectionFactKind,
+			kind:           docs.SectionFactKind,
 			segment:        helper[sectionAt:findingAt],
 			requiredFields: []string{"document_id", "revision_id", "section_id"},
 		},
 		{
 			name:           "finding",
-			kind:           facts.DocumentationFindingFactKind,
+			kind:           docs.FindingFactKind,
 			segment:        helper[findingAt:packetAt],
 			requiredFields: []string{"finding_id", "finding_version"},
 		},
 		{
 			name:           "evidence packet",
-			kind:           facts.DocumentationEvidencePacketFactKind,
+			kind:           docs.EvidencePacketFactKind,
 			segment:        helper[packetAt:insertAt],
 			requiredFields: []string{"packet_id", "finding_id"},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			version, ok := facts.DocumentationSchemaVersion(test.kind)
+			version, ok := docs.SchemaVersion(test.kind)
 			if !ok {
 				t.Fatalf("DocumentationSchemaVersion(%q) is not registered", test.kind)
 			}

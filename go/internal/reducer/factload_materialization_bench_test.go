@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
@@ -33,14 +34,14 @@ func benchFactloadCorpusEnvelopes(n int) []facts.Envelope {
 				Payload:  map[string]any{"repo_id": "bench-repo"},
 			},
 			facts.Envelope{
-				FactKind: facts.DocumentationDocumentFactKind,
+				FactKind: docs.DocumentFactKind,
 				FactID:   fmt.Sprintf("fact-doc-%d", i),
 				Payload: map[string]any{
 					"document_id": fmt.Sprintf("doc:git:bench-repo:docs/doc-%d.md", i),
 				},
 			},
 			facts.Envelope{
-				FactKind: facts.DocumentationEntityMentionFactKind,
+				FactKind: docs.EntityMentionFactKind,
 				FactID:   fmt.Sprintf("fact-mention-%d", i),
 				Payload: map[string]any{
 					"document_id": fmt.Sprintf("doc:git:bench-repo:docs/doc-%d.md", i),

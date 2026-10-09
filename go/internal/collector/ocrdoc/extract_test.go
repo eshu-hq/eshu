@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
@@ -41,7 +42,7 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 	}
 	assertEngineImage(t, engine.lastImage, picture.FormatPNG, 4, 2, 0)
 
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	if got, want := document["format"], "image_ocr"; got != want {
 		t.Fatalf("document.format = %#v, want %#v", got, want)
 	}
@@ -64,7 +65,7 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 		t.Fatalf("document.content_hash = %#v, want source hash", got)
 	}
 
-	section := payloadByKind(t, result.Envelopes, facts.DocumentationSectionFactKind)
+	section := payloadByKind(t, result.Envelopes, docs.SectionFactKind)
 	if got, want := section["content"], "Architecture dashboard"; got != want {
 		t.Fatalf("section.content = %#v, want %#v", got, want)
 	}
@@ -90,7 +91,7 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 
 	for _, envelope := range result.Envelopes {
 		switch envelope.FactKind {
-		case facts.DocumentationEntityMentionFactKind, facts.DocumentationClaimCandidateFactKind:
+		case docs.EntityMentionFactKind, docs.ClaimCandidateFactKind:
 			t.Fatalf("unexpected truth fact kind from OCR text: %s", envelope.FactKind)
 		}
 	}
@@ -146,7 +147,7 @@ func TestExtractRecordsSkippedImagesAsDocumentWarnings(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Extract() error = %v, want nil", err)
 			}
-			document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+			document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 			metadata := stringMapValue(t, document, "source_metadata")
 			if got := metadata["ocr_status"]; got != tt.wantStatus {
 				t.Fatalf("ocr_status = %q, want %q", got, tt.wantStatus)
@@ -157,7 +158,7 @@ func TestExtractRecordsSkippedImagesAsDocumentWarnings(t *testing.T) {
 			if tt.wantStatus == "skipped" && engine.calls != 0 {
 				t.Fatalf("OCR engine calls = %d, want 0 for skipped preflight", engine.calls)
 			}
-			if got := countKind(result.Envelopes, facts.DocumentationSectionFactKind); got != 0 {
+			if got := countKind(result.Envelopes, docs.SectionFactKind); got != 0 {
 				t.Fatalf("section fact count = %d, want 0", got)
 			}
 		})
@@ -180,7 +181,7 @@ func TestExtractUsesFirstFrameForAnimatedGIFWithWarning(t *testing.T) {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
 	assertEngineImage(t, engine.lastImage, picture.FormatGIF, 2, 1, 0)
-	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
+	document := payloadByKind(t, result.Envelopes, docs.DocumentFactKind)
 	metadata := stringMapValue(t, document, "source_metadata")
 	if got, want := metadata["gif_frame_policy"], "first_frame"; got != want {
 		t.Fatalf("gif_frame_policy = %q, want %q", got, want)
@@ -188,7 +189,7 @@ func TestExtractUsesFirstFrameForAnimatedGIFWithWarning(t *testing.T) {
 	if !strings.Contains(metadata["warning"], string(picture.WarningPartialExtraction)) {
 		t.Fatalf("warning = %q, want partial extraction", metadata["warning"])
 	}
-	if got := countKind(result.Envelopes, facts.DocumentationSectionFactKind); got != 1 {
+	if got := countKind(result.Envelopes, docs.SectionFactKind); got != 1 {
 		t.Fatalf("section fact count = %d, want 1", got)
 	}
 }
@@ -208,7 +209,7 @@ func TestExtractRedactsSensitiveOCRText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	section := payloadByKind(t, result.Envelopes, facts.DocumentationSectionFactKind)
+	section := payloadByKind(t, result.Envelopes, docs.SectionFactKind)
 	if content := section["content"].(string); strings.Contains(content, "credential_marker") {
 		t.Fatalf("section.content leaked sensitive OCR text: %q", content)
 	}

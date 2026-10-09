@@ -3,7 +3,9 @@
 
 package semanticdocs
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+)
 
 // observationACLSummary builds the bounded acl_summary to attach to a semantic
 // documentation observation from the section's observed source access posture.
@@ -15,9 +17,9 @@ import "github.com/eshu-hq/eshu/go/internal/facts"
 // propagation only: it copies the document's observed posture verbatim, never
 // upgrades a denied, partial, missing, or stale observation to allowed, and
 // never synthesizes a default the source did not assert.
-func observationACLSummary(sourceACLState string) *facts.DocumentationACLSummary {
-	if !facts.ValidSourceACLState(sourceACLState) {
+func observationACLSummary(sourceACLState string) *docs.ACLSummary {
+	if !docs.ValidSourceACLState(sourceACLState) {
 		return nil
 	}
-	return &facts.DocumentationACLSummary{SourceACLState: sourceACLState}
+	return &docs.ACLSummary{SourceACLState: sourceACLState}
 }

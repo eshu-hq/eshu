@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
@@ -110,7 +111,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 			if !result.Preflight.Safe {
 				t.Fatalf("preflight Safe = false, want true: %#v", result.Preflight.Warnings)
 			}
-			documents := factsByKind(result.Envelopes, facts.DocumentationDocumentFactKind)
+			documents := factsByKind(result.Envelopes, docs.DocumentFactKind)
 			if got, want := len(documents), 1; got != want {
 				t.Fatalf("documentation_document count = %d, want %d", got, want)
 			}
@@ -120,7 +121,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 			if got := sourceMetadataValue(documents[0].Payload, "source_system"); got != tc.wantMetadata {
 				t.Fatalf("source_system metadata = %q, want %q", got, tc.wantMetadata)
 			}
-			sections := factsByKind(result.Envelopes, facts.DocumentationSectionFactKind)
+			sections := factsByKind(result.Envelopes, docs.SectionFactKind)
 			if len(sections) == 0 {
 				t.Fatalf("documentation_section count = 0, want positive")
 			}
@@ -172,7 +173,7 @@ func TestCollectEmitsMetadataOnlyWarningsForBadRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
-	documents := factsByKind(result.Envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(result.Envelopes, docs.DocumentFactKind)
 	if got, want := len(documents), 2; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -185,7 +186,7 @@ func TestCollectEmitsMetadataOnlyWarningsForBadRecords(t *testing.T) {
 			t.Fatalf("metadata-only warning %q missing from %#v", want, warnings)
 		}
 	}
-	if got := len(factsByKind(result.Envelopes, facts.DocumentationSectionFactKind)); got != 0 {
+	if got := len(factsByKind(result.Envelopes, docs.SectionFactKind)); got != 0 {
 		t.Fatalf("documentation_section count = %d, want 0", got)
 	}
 }
@@ -209,7 +210,7 @@ func TestCollectRedactsTokenBearingLinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
-	links := factsByKind(result.Envelopes, facts.DocumentationLinkFactKind)
+	links := factsByKind(result.Envelopes, docs.LinkFactKind)
 	if got, want := len(links), 1; got != want {
 		t.Fatalf("documentation_link count = %d, want %d", got, want)
 	}
@@ -244,7 +245,7 @@ func TestCollectRedactsUnsafeLocalLinkTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
-	links := factsByKind(result.Envelopes, facts.DocumentationLinkFactKind)
+	links := factsByKind(result.Envelopes, docs.LinkFactKind)
 	if got, want := len(links), 2; got != want {
 		t.Fatalf("documentation_link count = %d, want %d", got, want)
 	}
@@ -281,8 +282,8 @@ func TestCollectContentHashIncludesNestedSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect(second) error = %v, want nil", err)
 	}
-	firstDoc := factsByKind(first.Envelopes, facts.DocumentationDocumentFactKind)[0]
-	secondDoc := factsByKind(second.Envelopes, facts.DocumentationDocumentFactKind)[0]
+	firstDoc := factsByKind(first.Envelopes, docs.DocumentFactKind)[0]
+	secondDoc := factsByKind(second.Envelopes, docs.DocumentFactKind)[0]
 	if got, wantDifferent := payloadString(firstDoc.Payload, "content_hash"), payloadString(secondDoc.Payload, "content_hash"); got == wantDifferent {
 		t.Fatalf("content_hash = %q for both records, want nested message content to affect hash", got)
 	}
@@ -302,7 +303,7 @@ func TestCollectFingerprintsUnknownSourceScopeKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
-	sources := factsByKind(result.Envelopes, facts.DocumentationSourceFactKind)
+	sources := factsByKind(result.Envelopes, docs.SourceFactKind)
 	if got, want := len(sources), 1; got != want {
 		t.Fatalf("documentation_source count = %d, want %d", got, want)
 	}
@@ -327,7 +328,7 @@ func TestCollectTruncatesSectionsOnUTF8Boundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
-	sections := factsByKind(result.Envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(result.Envelopes, docs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}

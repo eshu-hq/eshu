@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 const (
@@ -379,7 +380,7 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		ClaimByteLength:  claim.byteLength,
 	}
 	packetPayload := v.evidencePacketPayload(doc, claim, finding, packetID, canonicalURI)
-	encodedPacketPayload, err := facts.EncodeDocumentationEvidencePacket(packetPayload)
+	encodedPacketPayload, err := docs.EncodeEvidencePacket(packetPayload)
 	if err != nil {
 		return VerificationFinding{}, VerificationEvidencePacket{}, nil, fmt.Errorf("encode documentation evidence packet: %w", err)
 	}
@@ -390,13 +391,13 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		Payload:       packetPayload,
 	}
 	findingPayload := findingPayload(finding)
-	encodedFindingPayload, err := facts.EncodeDocumentationFinding(findingPayload)
+	encodedFindingPayload, err := docs.EncodeFinding(findingPayload)
 	if err != nil {
 		return VerificationFinding{}, VerificationEvidencePacket{}, nil, fmt.Errorf("encode documentation finding: %w", err)
 	}
 	return finding, packet, []facts.Envelope{
-		v.envelope(facts.DocumentationFindingFactKind, facts.DocumentationFindingStableID(findingID, version), encodedFindingPayload),
-		v.envelope(facts.DocumentationEvidencePacketFactKind, facts.DocumentationEvidencePacketStableID(packetID, version), encodedPacketPayload),
+		v.envelope(docs.FindingFactKind, docs.FindingStableID(findingID, version), encodedFindingPayload),
+		v.envelope(docs.EvidencePacketFactKind, docs.EvidencePacketStableID(packetID, version), encodedPacketPayload),
 	}, nil
 }
 

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 func TestSourcePersistsStorageContentOnSectionFacts(t *testing.T) {
@@ -35,8 +35,8 @@ func TestSourcePersistsStorageContentOnSectionFacts(t *testing.T) {
 		t.Fatal("Next() ok = false, want true")
 	}
 
-	section := factsByKind(drainFacts(t, collected.Facts), facts.DocumentationSectionFactKind)[0]
-	if got, want := section.SchemaVersion, facts.DocumentationSectionFactSchemaVersion; got != want {
+	section := factsByKind(drainFacts(t, collected.Facts), docs.SectionFactKind)[0]
+	if got, want := section.SchemaVersion, docs.SectionFactSchemaVersion; got != want {
 		t.Fatalf("section SchemaVersion = %q, want %q", got, want)
 	}
 	if got, want := payloadString(section.Payload, "content"), body; got != want {

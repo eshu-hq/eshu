@@ -10,11 +10,11 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
-func documentPayload(sourceID string, baseURL string, page Page) facts.DocumentationDocumentPayload {
-	return facts.DocumentationDocumentPayload{
+func documentPayload(sourceID string, baseURL string, page Page) docs.DocumentPayload {
+	return docs.DocumentPayload{
 		SourceID:         sourceID,
 		DocumentID:       "doc:confluence:" + page.ID,
 		ExternalID:       page.ID,
@@ -26,12 +26,12 @@ func documentPayload(sourceID string, baseURL string, page Page) facts.Documenta
 		Format:           firstNonEmpty(page.Body.Storage.Representation, "storage"),
 		Labels:           labelNames(pageLabels(page)),
 		OwnerRefs:        ownerRefs(page),
-		ACLSummary: &facts.DocumentationACLSummary{
+		ACLSummary: &docs.ACLSummary{
 			Visibility: "credential_viewable",
 			IsPartial:  true,
 			// Per-page restrictions are not collected, so the ACL read is
 			// incomplete and stays partial (fail closed; never allowed).
-			SourceACLState: facts.SourceACLStatePartial,
+			SourceACLState: docs.SourceACLStatePartial,
 			PartialReason:  "confluence_page_restrictions_not_collected",
 		},
 		SourceMetadata: map[string]string{
@@ -45,10 +45,10 @@ func documentPayload(sourceID string, baseURL string, page Page) facts.Documenta
 	}
 }
 
-func sectionsForPage(page Page) []facts.DocumentationSectionPayload {
+func sectionsForPage(page Page) []docs.SectionPayload {
 	body := page.Body.Storage.Value
 	contentFormat := firstNonEmpty(page.Body.Storage.Representation, "storage")
-	return []facts.DocumentationSectionPayload{{
+	return []docs.SectionPayload{{
 		DocumentID:     "doc:confluence:" + page.ID,
 		RevisionID:     strconvI(page.Version.Number),
 		SectionID:      "body",
@@ -65,14 +65,14 @@ func sectionsForPage(page Page) []facts.DocumentationSectionPayload {
 	}}
 }
 
-func linksForPage(page Page, sections []facts.DocumentationSectionPayload) []facts.DocumentationLinkPayload {
+func linksForPage(page Page, sections []docs.SectionPayload) []docs.LinkPayload {
 	if len(sections) == 0 {
 		return nil
 	}
 	links := extractLinks(page.Body.Storage.Value)
-	out := make([]facts.DocumentationLinkPayload, 0, len(links))
+	out := make([]docs.LinkPayload, 0, len(links))
 	for index, link := range links {
-		out = append(out, facts.DocumentationLinkPayload{
+		out = append(out, docs.LinkPayload{
 			DocumentID:     "doc:confluence:" + page.ID,
 			RevisionID:     strconvI(page.Version.Number),
 			SectionID:      sections[0].SectionID,
@@ -228,12 +228,12 @@ func pageLabels(page Page) []Label {
 	return page.LabelSet.Results
 }
 
-func ownerRefs(page Page) []facts.DocumentationOwnerRef {
+func ownerRefs(page Page) []docs.OwnerRef {
 	owner := firstNonEmpty(page.OwnerID, page.AuthorID)
 	if owner == "" {
 		return nil
 	}
-	return []facts.DocumentationOwnerRef{{Kind: "confluence_user", ID: owner}}
+	return []docs.OwnerRef{{Kind: "confluence_user", ID: owner}}
 }
 
 func parentDocumentID(parentID string) string {

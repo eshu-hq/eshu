@@ -92,3 +92,37 @@ the collector and reducer packages that call it.
 - `docs/public/reference/fact-schema-versioning.md`
 - `docs/internal/design/contract-system-v1.md`
 - `docs/internal/naming.md`
+
+## Evidence
+
+No-Regression Evidence: #6950 batch 3 moves the 48-entry documentation
+compat family onto this package and deletes `compat_docs.go`. All 48
+entries were aliases or thin forwarders to the identical values, types,
+and bytes, so callers are value-identical by construction; no fact kind
+string, payload shape, or registry output changes (contract classification:
+patch — no contract surface touched).
+
+- Baseline: `c3cc407cb0`, `go test -count=1` on the 21 affected-package
+  targets: 20 ok, 1 fail (`TestFetchChurnZombiesDrainedByReaper`, which
+  fails identically on the clean base on this host and passes in CI).
+- After: same command on the branch: 20 ok, same single failing package
+  (ok-package set byte-identical after timing strip).
+- Backend/version: go1.26.9 linux/amd64, in-memory test backends.
+- Contract gates: `verify-factschema-diff.sh`, `verify-payload-usage-manifest.sh`,
+  `verify-fact-kind-registry.sh`, `verify-contracttest.sh` all exit 0, and the
+  regenerated registry outputs are byte-identical (no diff).
+- Detector follow-through: the `internal/mcp` kind-consumer gate's
+  `facts.`-only matchers (`factsPackageIdentRefPattern`,
+  `factsSelectorWireKind`) now also accept this batch's `docs.` and
+  `factsdocs.` spellings; identifiers still resolve through the leaf-owned
+  const table, so unknown spellings match nothing. `TestEveryRegistryKindHasConsumerOrDisclosure`
+  passes.
+- Telemetry/status evidence: no new metric, span, or log; the deleted
+  aliases emitted none.
+- Why safe: compiler-checked retarget across 114 files (893 qualified
+  refs); the RED run (`go build` failing on the undefined `Documentation*`
+  names with the compat file deleted) proves the surface is gone, and the
+  GREEN run proves every former caller resolves to the same value.
+
+No-Observability-Change: this batch adds, removes, and renames no operator
+signal.

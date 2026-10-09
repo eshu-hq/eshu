@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -20,7 +20,7 @@ func extractHTMLDocumentation(
 	digest string,
 	commitSHA string,
 	body []byte,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	bodyText, warnings := boundedDocumentationBody(body)
@@ -33,7 +33,7 @@ func extractHTMLDocumentation(
 	drafts, linkDrafts := htmlSectionDrafts(root, relativePath, warnings)
 	sections := documentationSectionsFromDrafts(documentID, revisionID, relativePath, "html", drafts)
 	title := documentationTitle(relativePath, sections)
-	document := facts.DocumentationDocumentPayload{
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -159,16 +159,16 @@ func htmlSectionDrafts(
 
 func htmlDocumentationLinks(
 	relativePath string,
-	sections []facts.DocumentationSectionPayload,
+	sections []docs.SectionPayload,
 	drafts []htmlLinkDraft,
-) []facts.DocumentationLinkPayload {
-	links := make([]facts.DocumentationLinkPayload, 0, len(drafts))
+) []docs.LinkPayload {
+	links := make([]docs.LinkPayload, 0, len(drafts))
 	for _, draft := range drafts {
 		if draft.sectionIndex < 0 || draft.sectionIndex >= len(sections) {
 			continue
 		}
 		section := sections[draft.sectionIndex]
-		links = append(links, facts.DocumentationLinkPayload{
+		links = append(links, docs.LinkPayload{
 			DocumentID:     section.DocumentID,
 			RevisionID:     section.RevisionID,
 			SectionID:      section.SectionID,

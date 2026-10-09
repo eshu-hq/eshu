@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -39,14 +39,14 @@ func extractSpreadsheetDocumentation(
 	commitSHA string,
 	body []byte,
 	format string,
-) (facts.DocumentationDocumentPayload, []facts.DocumentationSectionPayload, []facts.DocumentationLinkPayload) {
+) (docs.DocumentPayload, []docs.SectionPayload, []docs.LinkPayload) {
 	revisionID := model.FirstNonEmptyString(commitSHA, digest, "unknown")
 	documentID := gitDocumentationDocumentID(repo.ID, relativePath)
 	bodyText, warnings := boundedDocumentationBody(body)
 	table, parseWarnings := parseDelimitedSpreadsheet(bodyText, format)
 	warnings = append(warnings, parseWarnings...)
 	table.warnings = append(table.warnings, parseWarnings...)
-	document := facts.DocumentationDocumentPayload{
+	document := docs.DocumentPayload{
 		SourceID:     gitDocumentationSourceID(repo.ID),
 		DocumentID:   documentID,
 		ExternalID:   relativePath,
@@ -75,7 +75,7 @@ func extractSpreadsheetDocumentation(
 		return document, nil, nil
 	}
 	section := spreadsheetSectionPayload(documentID, revisionID, relativePath, format, table)
-	return document, []facts.DocumentationSectionPayload{section}, textDocumentationLinks(relativePath, []facts.DocumentationSectionPayload{section})
+	return document, []docs.SectionPayload{section}, textDocumentationLinks(relativePath, []docs.SectionPayload{section})
 }
 
 func parseDelimitedSpreadsheet(body string, format string) (spreadsheetTable, []string) {
@@ -165,7 +165,7 @@ func spreadsheetSectionPayload(
 	relativePath string,
 	format string,
 	table spreadsheetTable,
-) facts.DocumentationSectionPayload {
+) docs.SectionPayload {
 	content, contentWarnings := boundedDocumentationSectionContent(spreadsheetSectionContent(relativePath, table))
 	warnings := append([]string{}, table.warnings...)
 	warnings = append(warnings, contentWarnings...)
@@ -176,7 +176,7 @@ func spreadsheetSectionPayload(
 		"sample_row_count": strconv.Itoa(len(table.samples)),
 	})
 	addDocumentationWarnings(metadata, warnings...)
-	return facts.DocumentationSectionPayload{
+	return docs.SectionPayload{
 		DocumentID:       documentID,
 		RevisionID:       revisionID,
 		SectionID:        "section:table",

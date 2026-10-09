@@ -777,7 +777,7 @@ rows surface an optional bounded `source_acl_state` (`allowed`, `denied`,
 separate from freshness and the binary permission decision: a row can be fresh
 yet denied, or stale yet allowed, and `partial` or `stale` ACL — which the binary
 permission flag cannot express — has its own representation. The reader fails
-closed: only a bounded value from `facts.ValidSourceACLState` is read verbatim (a
+closed: only a bounded value from `docs.ValidSourceACLState` is read verbatim (a
 `boundedSourceACLState` helper drops empty, absent, or non-bounded values), so
 absence means "no ACL claim."
 

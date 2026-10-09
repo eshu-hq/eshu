@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 )
 
 // Engine recognizes text regions from a preflight-approved image.
@@ -81,7 +82,7 @@ type Bounds struct {
 // envelopes for one OCR extraction attempt.
 type Result struct {
 	Preflight picture.Result
-	Document  facts.DocumentationDocumentPayload
-	Sections  []facts.DocumentationSectionPayload
+	Document  docs.DocumentPayload
+	Sections  []docs.SectionPayload
 	Envelopes []facts.Envelope
 }

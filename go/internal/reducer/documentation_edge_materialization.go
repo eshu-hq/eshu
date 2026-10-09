@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -176,7 +177,7 @@ func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scop
 	var quarantined []quarantinedFact
 	seen := make(map[string]struct{})
 	for _, env := range envelopes {
-		if env.FactKind != facts.DocumentationEntityMentionFactKind || env.IsTombstone {
+		if env.FactKind != docs.EntityMentionFactKind || env.IsTombstone {
 			continue
 		}
 		mention, err := decodeDocumentationEntityMention(env)
@@ -190,7 +191,7 @@ func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scop
 			}
 			continue
 		}
-		if mention.ResolutionStatus != facts.DocumentationMentionResolutionExact {
+		if mention.ResolutionStatus != docs.MentionResolutionExact {
 			continue
 		}
 		if len(mention.CandidateRefs) != 1 {

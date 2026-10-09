@@ -37,7 +37,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		Served: []routeServedDomain{{
 			Domain: "documentation_materialization",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/documentation_read_model.go", Marker: "facts.DocumentationSourceFactKind"},
+				{File: "go/internal/query/documentation_read_model.go", Marker: "docs.SourceFactKind"},
 				{File: "go/internal/query/documentation_read_model.go", Marker: "FROM fact_records"},
 			},
 		}},

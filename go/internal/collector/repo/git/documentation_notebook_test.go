@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	factsdocs "github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -53,7 +54,7 @@ func TestStreamFactsEmitsNotebookNarrativeDocumentation(t *testing.T) {
 }`)
 
 	envelopes := streamNotebookFacts(t, repoPath, "notebooks/analysis.ipynb")
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
@@ -66,7 +67,7 @@ func TestStreamFactsEmitsNotebookNarrativeDocumentation(t *testing.T) {
 	}
 	assertPayloadWarning(t, document.Payload, "rich_output_omitted")
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 4; got != want {
 		t.Fatalf("documentation_section count = %d, want %d: %#v", got, want, sections)
 	}
@@ -89,7 +90,7 @@ func TestStreamFactsEmitsNotebookNarrativeDocumentation(t *testing.T) {
 		t.Fatalf("attachment_count = %q, want %q", got, want)
 	}
 
-	links := factsByKind(envelopes, facts.DocumentationLinkFactKind)
+	links := factsByKind(envelopes, factsdocs.LinkFactKind)
 	assertLinkTargetPresent(t, links, "../README.md")
 }
 
@@ -101,22 +102,22 @@ func TestStreamFactsEmitsEmptyAndMalformedNotebookDocuments(t *testing.T) {
 	writeCollectorTestFile(t, filepath.Join(repoPath, "notebooks", "broken.ipynb"), `{"cells": [`)
 
 	emptyEnvelopes := streamNotebookFacts(t, repoPath, "notebooks/empty.ipynb")
-	emptyDocuments := factsByKind(emptyEnvelopes, facts.DocumentationDocumentFactKind)
+	emptyDocuments := factsByKind(emptyEnvelopes, factsdocs.DocumentFactKind)
 	if got, want := len(emptyDocuments), 1; got != want {
 		t.Fatalf("empty notebook document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, emptyDocuments[0].Payload, "empty_notebook")
-	if got, want := len(factsByKind(emptyEnvelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(emptyEnvelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("empty notebook section count = %d, want %d", got, want)
 	}
 
 	brokenEnvelopes := streamNotebookFacts(t, repoPath, "notebooks/broken.ipynb")
-	brokenDocuments := factsByKind(brokenEnvelopes, facts.DocumentationDocumentFactKind)
+	brokenDocuments := factsByKind(brokenEnvelopes, factsdocs.DocumentFactKind)
 	if got, want := len(brokenDocuments), 1; got != want {
 		t.Fatalf("malformed notebook document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, brokenDocuments[0].Payload, "malformed_notebook")
-	if got, want := len(factsByKind(brokenEnvelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(brokenEnvelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("malformed notebook section count = %d, want %d", got, want)
 	}
 }
@@ -137,7 +138,7 @@ func TestStreamFactsBoundsLargeNotebookTextOutput(t *testing.T) {
 }`)
 
 	envelopes := streamNotebookFacts(t, repoPath, "notebooks/large-output.ipynb")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -162,7 +163,7 @@ func TestStreamFactsParsesNotebookLargerThanGenericDocumentationLimit(t *testing
 }`)
 
 	envelopes := streamNotebookFacts(t, repoPath, "notebooks/large.ipynb")
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -192,13 +193,13 @@ func TestStreamFactsOmitsNotebookStderrOutput(t *testing.T) {
 }`)
 
 	envelopes := streamNotebookFacts(t, repoPath, "notebooks/stderr.ipynb")
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "stderr_output_omitted")
 
-	sections := factsByKind(envelopes, facts.DocumentationSectionFactKind)
+	sections := factsByKind(envelopes, factsdocs.SectionFactKind)
 	if got, want := len(sections), 1; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -230,7 +231,7 @@ func TestNotebookDocumentationStableIDsAndParserSupport(t *testing.T) {
 		t.Fatalf("notebook documentation fact keys changed:\nfirst=%#v\nsecond=%#v", got, want)
 	}
 
-	sections := factsByKind(first, facts.DocumentationSectionFactKind)
+	sections := factsByKind(first, factsdocs.SectionFactKind)
 	if got, want := len(sections), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
@@ -267,10 +268,10 @@ func TestNotebookDocumentationStableIDsAndParserSupport(t *testing.T) {
 		"",
 	)
 	envelopes := drainFactChannel(collected.Facts)
-	if got, want := len(factsByKind(envelopes, facts.DocumentationDocumentFactKind)), 1; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.DocumentFactKind)), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 2; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 2; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }
@@ -307,12 +308,12 @@ func TestNativeSnapshotMalformedNotebookStillEmitsDocumentationWarning(t *testin
 		"",
 	)
 	envelopes := drainFactChannel(collected.Facts)
-	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
+	documents := factsByKind(envelopes, factsdocs.DocumentFactKind)
 	if got, want := len(documents), 1; got != want {
 		t.Fatalf("documentation_document count = %d, want %d", got, want)
 	}
 	assertPayloadWarning(t, documents[0].Payload, "malformed_notebook")
-	if got, want := len(factsByKind(envelopes, facts.DocumentationSectionFactKind)), 0; got != want {
+	if got, want := len(factsByKind(envelopes, factsdocs.SectionFactKind)), 0; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)
 	}
 }
@@ -376,7 +377,7 @@ func notebookDocumentationFactKeys(envelopes []facts.Envelope) []string {
 	keys := []string{}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
-		case facts.DocumentationDocumentFactKind, facts.DocumentationSectionFactKind, facts.DocumentationLinkFactKind:
+		case factsdocs.DocumentFactKind, factsdocs.SectionFactKind, factsdocs.LinkFactKind:
 			keys = append(keys, envelope.StableFactKey)
 		}
 	}

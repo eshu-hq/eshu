@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
@@ -72,5 +72,5 @@ func TestSourceBacksOffRetryableFailureWithoutTerminalError(t *testing.T) {
 	if !ok {
 		t.Fatal("third Next() ok = false, want retry after backoff")
 	}
-	assertFactCount(t, drainFacts(t, collected.Facts), facts.DocumentationDocumentFactKind, 1)
+	assertFactCount(t, drainFacts(t, collected.Facts), docs.DocumentFactKind, 1)
 }
