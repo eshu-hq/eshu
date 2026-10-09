@@ -92,8 +92,10 @@ set (`passthrough_total{reason="epoch_moved"}`); "waiters" counts
 
 Reading the table.
 
-- The 5 s churn is outside today's production (one activation per 24 hours) and
-  inside the repair and maintenance-reopen windows. At one change per 5 s against a
+- Steady-state production churn is 1 to 2 activations per hour (#7825, read-only,
+  2026-10-09), where q is negligible. Bursts reach up to 41 activations per minute,
+  faster than this 5 s row; during a burst every load in the window tears and items
+  can dead-letter. The 5 s row is the closest measured case. At one change per 5 s against a
   7 to 13 s load, every flight tears, no cache entry survives, and every item
   dead-letters after 3 attempts with class `identity_epoch_unstable`. The run
   terminates. That is the F21 case and the reason for #7825. Dead letters with
@@ -226,7 +228,7 @@ and can tear an in-flight load. Two kinds of caller fail with
 `identity_epoch_unstable`, and both are counted in the churn table above.
 
 - A leader fails when the epoch moves during both of its two load attempts. Let q
-  be the chance that one flight tears (that the epoch moves during one load). An
+  be the chance that one flight fails (both of its load attempts tore). An
   item dead-letters only after three failures in a row, which is about q cubed.
   Two measured values of q, from two different runs, each with its own host:
   - Quiet host, earlier head (loads 4.7 s, 10 s churn,
@@ -236,8 +238,11 @@ and can tear an in-flight load. Two kinds of caller fail with
     `after-drain-final-active-10s.txt`): 9 of about 22 flights tore, so q is about
     0.41 and q cubed is about 7 percent.
 
-  The shim churn is not production churn. At production churn today (one
-  activation in 24 hours, per the activation profile on #7825) q is negligible.
+  The shim churn is not steady-state production churn. Production today (#7825,
+  read-only, 2026-10-09): about 1 to 2 activations per hour in steady state, where q
+  is negligible for a load of about 5 s. Bursts occur: one burst was observed in a production-like environment when a scheduled sync's first pass ran over 161 repositories: 83 activations in about 4 minutes, up to 41 per minute (one about every 1.5 s). That sync is paused.
+  During a burst like that every identity load tears, so items in that window fail
+  retryably and can dead-letter with `identity_epoch_unstable`.
   Neither figure is a per-item failure rate; both are the odds of three failures
   in a row on the shim.
 - A waiter fails when 3 flights in a row do not serve it, or when it has waited
@@ -254,9 +259,13 @@ At the production churn that is rare for the leader path. It is not impossible
 for the waiter path while loads stay slower than about 30 s with the set
 uncached. The measured rates are in the churn table: at 5 s churn on a loaded
 host, 91 leader failures and 299 waiter give-ups ended with all 130 items
-dead-lettered. Measured production churn today is one activation in 24 hours (a
-read-only count on the reader). The elevated windows are the delta-active repair
-and maintenance reopens, which activate many scopes in a short time.
+dead-lettered. Production churn (#7825, read-only count, 2026-10-09): 88
+activations in 24 hours; about 1 to 2 per hour in steady state. The rest came in
+one burst when a scheduled sync's first pass ran over 161 repositories: 83
+activations in about 4 minutes (5, 22, 41 and 14 per minute). That sync is paused.
+Such a burst tears an identity load that takes about 5 s. The delta-active repair
+and maintenance reopens activate many scopes in a short time and produce the same
+kind of burst.
 
 A repeatedly failing item is findable: the dead-letter row and
 `eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}`
