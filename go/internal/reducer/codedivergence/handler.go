@@ -124,6 +124,7 @@ func (h CodeDriftedHandler) Handle(
 	write.Suppressions[querycodedivergence.RuleBelowFloor] = page.Stats.BelowFloor
 	write.Suppressions[FilterNoShingles] = page.Stats.NoShingles
 	write.Suppressions[FilterEqualityDuplicate] = page.Stats.EqualityDuplicates
+	write.Suppressions[ReasonSkippedBucket] = page.Stats.SkippedBuckets
 	for _, pair := range page.Pairs {
 		admitted, suppressed, reason := ApplyRules(pair)
 		if suppressed {
@@ -134,7 +135,7 @@ func (h CodeDriftedHandler) Handle(
 	}
 	write.BudgetExhausted = page.Stats.BudgetExhausted
 	h.emitTelemetry(ctx, write)
-	h.logEvaluated(ctx, intent, repoID, len(page.Pairs), write)
+	h.logEvaluated(ctx, intent, repoID, len(page.Pairs), page.Stats, write)
 	if h.Writer == nil {
 		h.log(ctx, intent, "writer_unavailable", fmt.Sprintf(
 			"evaluated %d pairs, %d admitted, durable write skipped", len(page.Pairs), len(write.Pairs)))
@@ -214,14 +215,18 @@ func succeeded(intent reducercontract.Intent) reducercontract.Result {
 }
 
 // logEvaluated emits the per-intent operator summary: candidates evaluated,
-// pairs admitted, suppression totals, and budget exhaustions. It is the 3AM
-// signal for this domain: a generation that evaluates pairs but admits none
-// is visible here with its reason breakdown, not as a silent empty write.
+// pairs admitted, suppression totals, budget exhaustions, and the bucket
+// shape (nominated denominator, skipped buckets, largest bucket). It is the
+// 3AM signal for this domain: a generation that evaluates pairs but admits
+// none is visible here with its reason breakdown, not as a silent empty
+// write, and a repo flirting with the quadratic bucket cliff shows its max
+// bucket size here before it falls off.
 func (h CodeDriftedHandler) logEvaluated(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	repoID string,
 	candidates int,
+	stats CandidateStats,
 	write DriftedWrite,
 ) {
 	if h.Logger == nil {
@@ -237,9 +242,12 @@ func (h CodeDriftedHandler) logEvaluated(
 		"generation_id", intent.GenerationID,
 		"repo_id", repoID,
 		"candidates", candidates,
+		"pairs_considered", stats.PairsConsidered,
 		"admitted", len(write.Pairs),
 		"suppressed", suppressed,
 		"budget_exhausted", len(write.BudgetExhausted),
+		"skipped_buckets", stats.SkippedBuckets,
+		"max_bucket_size", stats.MaxBucketSize,
 	)
 }
 

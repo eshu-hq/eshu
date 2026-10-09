@@ -30,7 +30,8 @@ for name in \
   ESHU_STATUS_SUMMARY_PROOF_DSN \
   ESHU_ADMIN_REOPEN_PROOF_DSN \
   ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN \
-  ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN; do
+  ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN \
+  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
@@ -49,7 +50,8 @@ for name in \
   ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE \
   ESHU_ADMIN_REOPEN_PROOF_DISPOSABLE \
   ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE \
-  ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE; do
+  ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE \
+  ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 
