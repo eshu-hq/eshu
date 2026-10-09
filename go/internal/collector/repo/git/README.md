@@ -200,6 +200,28 @@ local commands run there. A `githubApp` token is always scoped to github.com.
 `TestGitCommandEnvTokenHeaderMatchesCloneURLHost` asserts the header host
 matches the clone URL host for each provider.
 
+No-Regression Evidence: #7763 adds one `filepath.Abs`/`filepath.Rel` and a
+string split to `gitCommandEnv`, which runs once per git child process. A
+throwaway `go test -bench` (not committed) of `gitCommandEnv` in token mode with
+`ReposDir=/data/repos`, `-count=5`, Go 1.26.6 on darwin/arm64 (Apple M5)
+measured:
+
+| Build | Checkout path | ns/op (median) | B/op | allocs/op |
+| --- | --- | --- | --- | --- |
+| Baseline `0a65fccd0` | (no path argument) | 760 | 2273 | 6 |
+| After | `/data/repos/acme/app` | 1169 | 2410 | 10 |
+| After | `/data/repos/gitlab/example-org/payments/example-web-app` | 1616 | 2618 | 12 |
+
+The added 0.4 to 0.9 µs sits next to the git process it configures. A local
+`git rev-parse HEAD` spawn took a median of 12.3 ms over 50 runs on the same
+host, and clone and fetch are network-bound, so the added cost is under 0.01%
+of the cheapest git command. No query, queue, graph-write, or worker path
+changes.
+
+No-Observability-Change: the change alters only the environment handed to the
+git child process. No metric, span, log key, or status field changes, and the
+token still appears only in that child environment, never in logs.
+
 ## Two-phase content
 
 Snapshotting collects content file *metadata* first (bodies are temporary), then
