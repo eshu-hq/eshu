@@ -403,7 +403,7 @@ func TestContentEntitiesRepoLanguageTypeIndexIsCreatedOnceAndNeverDropped(t *tes
 // corpus-wide (language, entity_type) index. Reordering the key to lead with
 // language, or dropping repo_id, keeps the name and the guard above intact
 // while restoring the defect (121,106 filtered entries, 155,688 buffers on the
-// ops-prod read replica), so the column list is asserted here.
+// production read replica), so the column list is asserted here.
 func TestContentEntitiesRepoLanguageTypeIndexKeyLeadsWithRepository(t *testing.T) {
 	t.Parallel()
 
