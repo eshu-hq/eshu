@@ -5,8 +5,10 @@
 `POST /api/v0/content/files/search` and the MCP tool `search_file_content`
 with no repository filter. The entity twin, the scoped and multi-repository
 pages, and the oversized-document policy are out of scope. This note records the
-measurements behind the design and the proof of the change; the design and the
-arbiter rulings are in the issue thread and are not repeated here.
+measurements behind the design and the proof of the change. The design and the
+arbiter rulings are not in the repository; the transcripts of the measurement
+runs are private and the figures below are cited from the coordinator's V4c
+reader run, not re-run by this change.
 
 Performance Evidence: the old single statement, `content ILIKE '%x%' ORDER BY
 repo_id, relative_path LIMIT/OFFSET`, costs the byte mass of the trigram
@@ -14,18 +16,39 @@ candidate set and flips plan with each `ANALYZE` (the planner prices the
 pattern from a histogram of values of at most 1 KB, so one pattern is a 9 ms
 ordered walk after one refresh and a 3 s trigram bitmap after the next). The
 new walk bounds the work it issues and does not depend on the planner's choice.
+It is not faster for every class: on the real corpus it is slower for the
+selective and zero-match classes and much faster for the common-token classes.
 
-| class (ops-qa read replica, read-only, V4c reader run, SQL `Execution Time` sums) | old | new | result |
-| --- | --- | --- | --- |
-| selective literal (C2) | 333.8 ms | 410.6 ms | exact, bar 484 ms |
-| zero match (C4) | measured with the V4 table | 71.8 ms | exact, bar 200 ms |
-| medium token (C3p) | 2,640 ms | 40.5 ms | exact, bar 500 ms |
-| dense token | 5,603 ms | 32.8 ms | exact |
-| late rare token (C3) | 2,613.6 ms | explicit partial inside the budget | partial with cursor and reported overrun |
+V4c reader run (ops-qa read replica, read-only, SQL `Execution Time` sums, the
+same run for old and new; budget B = 800 ms; old is the single statement in the
+planner's natural regime, warm and cold):
 
-These are the figures of the V4c reader run reported to the issue; this change
-did not re-run them and the raw transcripts are private. The regime (planner
-row estimate and plan shape at launch) was recorded per class in that run.
+| class | old warm | old cold | new | outcome | bar |
+| --- | --- | --- | --- | --- | --- |
+| C2 selective literal | 334.1 ms | 416.5 ms | 410.6 ms | exact | 484 ms |
+| C4 zero match | 0.536 ms | 3.82 ms | 71.8 ms | exact, 0 rows | 200 ms |
+| C3p medium token | 2,639.8 ms | 3,001.1 ms | 40.5 ms | exact | 500 ms |
+| C5b dense token (5,809 matches) | 5,602.6 ms | not reported | 32.8 ms | exact | 300 ms |
+| C3 rare token, first match late | 1,920.9 ms | 2,060.9 ms | 527.7 ms (tail counted at its 400 ms cap) | partial, 0 rows, overrun 539.1 ms | explicit partial inside budget plus one reported overrun |
+| C3pf cap edge (cursor about 5,000 rows before the first match) | 2,679.4 ms | 2,765.4 ms | 515.2 ms | partial, tail cancelled, overrun 595.5 ms | exact or honest partial |
+
+Read the table plainly:
+
+- C4: the old statement answered a zero-match pattern in 0.5 ms warm and 3.8 ms
+  cold; the walk takes 71.8 ms, about 130 times slower warm. It stays inside
+  its 200 ms bar. The same holds for C2 (334 to 411 ms, inside 484 ms).
+- C3pf is the cap-edge class: the exact answer was not reachable inside
+  B = 800 ms, so the walk answers partial with a cursor and reports the overrun
+  of the cancelled tail instead of running on.
+- C3 answers partial with no rows and a reported overrun of 539.1 ms: the
+  cancelled tail ran past its timeout by one candidate's uninterruptible
+  recheck. The call exceeds the budget by that reported amount.
+- The 3 s and longer cost of the old statement for common tokens is the
+  measured column above. Its worst case when the planner takes the ordered walk
+  for a rare token is a full-table walk, computed (not measured) as 146,844 rows
+  x 0.36 ms, about 53 s.
+- Figures from the earlier S1 run (old C2 333.8 ms, old C3 2,613.6 ms) are a
+  different run and are not mixed into this table.
 
 Local fixture proof (disposable PostgreSQL 18.6, 12,000 synthetic files in 60
 repositories, half under 1 KB, one in 20 about 26 KB; warm; two runs of
@@ -43,9 +66,9 @@ repositories, half under 1 KB, one in 20 about 26 KB; warm; two runs of
 Read the last two rows plainly: at this small scale the old bitmap answers a
 selective or zero-match pattern in about a millisecond, and the walk spends its
 continuation cap (0.15 x budget) before the tail runs, so it is slower here.
-On the measured corpus the same two classes stayed inside their bars (above).
-The walk trades a bounded constant for removing the 3 s to 53 s tail of the old
-statement; it does not make every class faster. Pages 1, 2 and 3 of the walk
+On the measured corpus the same two classes stayed inside their bars (table
+above). The walk trades a bounded constant for removing the multi-second tail
+of the old statement; it does not make every class faster. Pages 1, 2 and 3 of the walk
 equal the old statement's `OFFSET 0 / 10 / 20` pages for every class, including
 ILIKE wildcards and case folding, and `truncated` agrees with the old look-ahead
 row (`TestSearchFilesUnscopedMatchesOldStatementLive`, which derives the old
@@ -70,8 +93,16 @@ aborts the transaction on a cancel until `ROLLBACK TO`): phase order and
 timeouts, tail floor, exhaustion at the window boundary, offset served by
 `offset + limit + 1`, cursor resume with and without an offset, overrun and the
 large-document reason, scaling with the budget, exec mode on every bounded
-statement. Mutation checks: removing the cursor advance fails two tests;
-removing the tail-cancel counter fails the metrics test.
+statement. Mutation checks: removing the cursor advance fails two tests; removing the
+tail-cancel counter fails the metrics test. The fake reads the keyset operator
+and the edge OFFSET from the statement text, and hermetic tests pin the
+shipped predicates (`TestShippedStatementsCarryStrictKeysetAndLastRowEdge`).
+Three SQL mutants each fail a named unit test and a named live test: an
+inclusive window keyset (`>=` in both window predicates), an inclusive tail
+keyset, and an edge OFFSET past the window (`OFFSET ($2::bigint)`). The live
+fixture plants the edge token on every window edge row and the row after it,
+and `TestSearchFilesUnscopedEdgeRowsAreExactLive` needs the probe, at least two
+continuation steps and a completed tail to return the old statement's rows.
 
 Observability Evidence: span `postgres.query` (`db.operation=
 search_file_content_any_repo_page`) carries `search.scope`, `search.budget_ms`,
@@ -106,3 +137,17 @@ accepted budget is 10 s.
 - Corpus-scale plan shape of every class on the tail (the fixture proves the
   selective and medium classes; the reader run proved the rest).
 - The deployed end-to-end envelope overhead against the one-second bar.
+
+## Limits recorded, not fixed here
+
+- The hand-written live fixture schema has the primary key and the trigram
+  index only; the production schema also has the repo-path indexes. The plan
+  shape on the production schema is covered by the V4c reader run.
+- The console maps an unknown `truth.level` (now including `partial`) to its
+  exact chip. The console does not call file search today; the truth
+  vocabulary is no longer closed, so a console label for `partial` is a
+  follow-up.
+- `search.continuation_rows` adds the full step size for each completed step,
+  including a short final step; and the control statements (SAVEPOINT, RELEASE,
+  set_config, RESET) go through the same transaction, so the fenced reader
+  counts them as queries. Neither changes a decision.
