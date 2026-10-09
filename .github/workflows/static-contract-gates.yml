@@ -54,6 +54,7 @@ jobs:
       claudrules: ${{ steps.filter.outputs.claudrules }}
       rootcauseevidence: ${{ steps.filter.outputs.rootcauseevidence }}
       pgstatementreport: ${{ steps.filter.outputs.pgstatementreport }}
+      dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -429,6 +430,17 @@ jobs:
               - 'docs/public/reference/postgres-diagnostics.md'
               - 'scripts/pg-statement-report.sh'
               - 'scripts/test-pg-statement-report.sh'
+            dockerpublish:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - '.github/workflows/docker-publish.yml'
+              - '.github/workflows/security-scan.yml'
+              - 'scripts/ci/promote-moving-tags.sh'
+              - 'scripts/ci/resolve-image-scan-ref.sh'
+              - 'scripts/test-promote-moving-tags.sh'
+              - 'scripts/test-resolve-image-scan-ref.sh'
+              - 'scripts/test-verify-docker-publish-pr-platforms.sh'
+              - 'scripts/test-verify-docker-publish-moving-tags.sh'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -491,6 +503,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.claudrules }}" "claudrules" "Verify Claude path-scoped rules gate" "bash scripts/test-claude-rules-lint.sh" "bash scripts/dev/claude-rules-lint.sh"
           append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh"
           append_gate "${{ steps.filter.outputs.pgstatementreport }}" "pgstatementreport" "Verify pg-statement-report gate" "bash scripts/test-pg-statement-report.sh" "bash scripts/test-pg-statement-report.sh"
+          append_gate "${{ steps.filter.outputs.dockerpublish }}" "dockerpublish" "Verify docker-publish shape gate" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
           # 30, not the default 15: this gate vets every //go:build configuration
           # in the module serially (37 today) and takes about 14 minutes on main,
           # so it was being cancelled at the 15-minute mark rather than failing.

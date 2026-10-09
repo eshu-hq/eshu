@@ -42,7 +42,14 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Main pushes key on the commit sha (#7699): GitHub keeps only one running
+  # plus one pending run per group, and a publish run outlasts the ~30m merge
+  # cadence, so a per-ref group drops intermediate commits' images. Per-sha
+  # groups give every main commit its own lossless run (hosted-runner queuing
+  # is FIFO: bursts delay but never drop). Tags stay on the ref — one run per
+  # tag push, and a re-pushed tag supersedes. PR, merge_group, and dispatch
+  # keep ref grouping (dispatch is manual; queue refs are unique per entry).
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -188,6 +195,8 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout repository
@@ -212,14 +221,17 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Immutable tags only (#7699): the moving branch and latest tags are
+          # promoted by promote-moving-tags AFTER the push, behind an ancestry
+          # guard, so overlapping runs cannot move them backward. The sha tag
+          # is pinned long: the scan resolver and the promotion sanity check
+          # both address sha-<full sha>.
           tags: |
-            type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=long
 
       - name: Compute source date epoch
         if: env.LANE_APPLIES == 'true'
@@ -322,6 +334,55 @@ jobs:
           gh attestation verify "${OCI_IMAGE_REF}" \
             -R "${GITHUB_REPOSITORY}" \
             --predicate-type https://spdx.dev/Document/v2.3
+
+  # Moves the pushed per-commit digest to the moving `main` and `latest` tags
+  # (#7699). Runs after the build pushes, in its own short job: with per-sha
+  # push concurrency several publish runs overlap, and the ancestry guard in
+  # scripts/ci/promote-moving-tags.sh keeps an older run from moving the tags
+  # backward. There is deliberately no job-level concurrency group here: GitHub
+  # keeps only one pending run per group, so a mutex would DROP intermediate
+  # promotions and cancel their runs, skipping their Trivy scans.
+  promote-moving-tags:
+    needs:
+      - changes
+      - build-and-push-image
+    # Push lane only: tag pushes carry immutable semver tags already, and PR
+    # and merge_group runs never push, so there is nothing to promote there.
+    # The image lane must have run: a chart-only push has no digest (the guard
+    # script also refuses an empty digest).
+    if: >-
+      needs.changes.outputs.image == 'true' &&
+      needs.build-and-push-image.result == 'success' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote moving tags behind the ancestry guard
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          REPOSITORY: ${{ github.repository }}
+          DIGEST: ${{ needs.build-and-push-image.outputs.digest }}
+          MY_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/promote-moving-tags.sh
 
   verify-reproducibility:
     needs:
@@ -483,4 +544,28 @@ jobs:
           helm registry login ${{ env.REGISTRY }} \
             --username "${{ github.actor }}" \
             --password "${{ secrets.GITHUB_TOKEN }}"
-          helm push dist/eshu-*.tgz ${{ env.CHART_REGISTRY }}
+          # Overlapping publish runs (#7699) can push the same chart version
+          # twice: tolerate the duplicate only when the published bytes are
+          # identical to this run's, so a real versioning error stays red.
+          set +e
+          push_output="$(helm push dist/eshu-*.tgz ${{ env.CHART_REGISTRY }} 2>&1)"
+          push_status=$?
+          set -e
+          if [[ "${push_status}" -eq 0 ]]; then
+            printf '%s\n' "${push_output}"
+            exit 0
+          fi
+          version="$(awk '/^version:/ {print $2; exit}' "${{ env.CHART_PATH }}/Chart.yaml")"
+          remote_dir="$(mktemp -d)"
+          if helm pull "${{ env.CHART_REGISTRY }}/eshu" --version "${version}" \
+              --destination "${remote_dir}" >/dev/null 2>&1; then
+            for local_tgz in dist/eshu-*.tgz; do
+              if cmp -s "${local_tgz}" "${remote_dir}/eshu-${version}.tgz"; then
+                echo "::notice::Chart ${version} already published with identical bytes; treating the duplicate push as success."
+                exit 0
+              fi
+            done
+          fi
+          printf '%s\n' "${push_output}" >&2
+          echo "::error::Helm push failed and the published ${version} differs (or is unreadable); not overwriting." >&2
+          exit "${push_status}"
