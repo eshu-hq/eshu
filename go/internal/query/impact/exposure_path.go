@@ -5,6 +5,7 @@ package impact
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/code"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // exposurePathCapability gates the trace-exposure-path tool on authoritative
@@ -29,6 +31,21 @@ const (
 	exposurePathMaxDepth     = 10
 	// exposurePathResultLimit bounds the number of returned paths.
 	exposurePathResultLimit = 25
+)
+
+// Fixed failure bodies for the exposure-path route and, beside the anchor
+// helpers below that they share, the resource-to-code and dependency-path
+// routes in handler.go. The backend error goes to the request span, never the
+// body (#7674).
+const (
+	exposurePathSourceFailedMessage      = "exposure path source read failed"
+	exposurePathTraversalFailedMessage   = "exposure path traversal failed"
+	resourceToCodeStartFailedMessage     = "resource-to-code start resolution failed"
+	resourceToCodePathsFailedMessage     = "resource-to-code path query failed"
+	resourceToCodeOwnershipFailedMessage = "resource-to-code ownership check failed"
+	dependencyPathEndpointsFailedMessage = "dependency path endpoint resolution failed"
+	dependencyPathQueryFailedMessage     = "dependency path query failed"
+	dependencyPathOwnershipFailedMessage = "dependency path ownership check failed"
 )
 
 // exposurePathRequest is the trace-exposure-path request body.
@@ -81,7 +98,15 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 
 	source, spec, classified, reason, err := h.resolveExposureSource(r.Context(), access, req)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, exposurePathCapability) {
+			return
+		}
+		var ambiguous exposureSourceAmbiguousError
+		if errors.As(err, &ambiguous) {
+			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, exposurePathSourceFailedMessage)
 		return
 	}
 
@@ -109,7 +134,7 @@ func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, exposurePathCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, exposurePathTraversalFailedMessage)
 		return
 	}
 
@@ -235,8 +260,24 @@ func (h *Handler) resolveExposureSourceEntity(ctx context.Context, req exposureP
 	if err != nil {
 		return nil, err
 	}
-	return entity.SelectExactGraphEntityCandidate(req.RepoID, req.Source, candidates)
+	selected, err := entity.SelectExactGraphEntityCandidate(req.RepoID, req.Source, candidates)
+	if err != nil {
+		return nil, exposureSourceAmbiguousError{err: err}
+	}
+	return selected, nil
 }
+
+// exposureSourceAmbiguousError marks a source name that matched more than one
+// entity. Its text names only the caller's selector and the matched entities,
+// so it is the one source-resolution error the 400 echoes; a content-store
+// failure is a server fault and never reaches the body (#7674).
+type exposureSourceAmbiguousError struct {
+	err error
+}
+
+func (e exposureSourceAmbiguousError) Error() string { return e.err.Error() }
+
+func (e exposureSourceAmbiguousError) Unwrap() error { return e.err }
 
 // exposurePathCandidates runs the bounded CALLS traversal from the source handler
 // and recognizes cloud sinks among the reached nodes via the catalog. It returns

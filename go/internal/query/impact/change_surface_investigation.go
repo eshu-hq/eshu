@@ -25,6 +25,14 @@ const (
 	changeSurfaceInvestigationMaxDepth     = 8
 )
 
+// Fixed failure bodies for the change-surface investigation route. The
+// backend error goes to the request span, never the body (#7674).
+const (
+	changeSurfaceInvestigationCodeEvidenceFailedMessage = "change surface code evidence read failed"
+	changeSurfaceInvestigationTargetFailedMessage       = "change surface target resolution failed"
+	changeSurfaceInvestigationTraversalFailedMessage    = "change surface impact traversal failed"
+)
+
 type ChangeSurfaceInvestigationRequest struct {
 	Target       string   `json:"target"`
 	TargetType   string   `json:"target_type"`
@@ -61,7 +69,7 @@ type changeSurfaceResolverQuery struct {
 }
 
 func (h *Handler) investigateChangeSurface(w http.ResponseWriter, r *http.Request) {
-	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(queryHandlerTracer,
 		r,
 		telemetry.SpanQueryChangeSurfaceInvestigation,
 		"POST /api/v0/impact/change-surface/investigate",
@@ -99,7 +107,10 @@ func (h *Handler) investigateChangeSurface(w http.ResponseWriter, r *http.Reques
 			querycontract.WriteError(w, http.StatusNotFound, "repository not found")
 			return
 		}
-		querycontract.WriteError(w, http.StatusServiceUnavailable, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, changeSurfaceInvestigationCapability) {
+			return
+		}
+		writeCodeSurfaceUnavailable(w, r, err, changeSurfaceInvestigationCodeEvidenceFailedMessage)
 		return
 	}
 
@@ -111,7 +122,7 @@ func (h *Handler) investigateChangeSurface(w http.ResponseWriter, r *http.Reques
 			if querycontract.WriteGraphReadError(w, r, err, changeSurfaceInvestigationCapability) {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, changeSurfaceInvestigationTargetFailedMessage)
 			return
 		}
 		if selected == nil {
@@ -134,7 +145,7 @@ func (h *Handler) investigateChangeSurface(w http.ResponseWriter, r *http.Reques
 			if querycontract.WriteGraphReadError(w, r, err, changeSurfaceInvestigationCapability) {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, changeSurfaceInvestigationTraversalFailedMessage)
 			return
 		}
 	}

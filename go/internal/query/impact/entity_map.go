@@ -23,6 +23,13 @@ const (
 	entityMapMaxDepth     = 4
 )
 
+// Fixed failure bodies for the entity map route. The backend error goes to the
+// request span, never the body (#7674).
+const (
+	entityMapStartFailedMessage     = "entity map start resolution failed"
+	entityMapTraversalFailedMessage = "entity map traversal failed"
+)
+
 type entityMapRequest struct {
 	From         string `json:"from"`
 	FromType     string `json:"from_type"`
@@ -57,7 +64,7 @@ type entityMapResolverQuery struct {
 }
 
 func (h *Handler) entityMap(w http.ResponseWriter, r *http.Request) {
-	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(queryHandlerTracer,
 		r,
 		telemetry.SpanQueryEntityMap,
 		"POST /api/v0/impact/entity-map",
@@ -94,7 +101,7 @@ func (h *Handler) entityMap(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, entityMapCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, entityMapStartFailedMessage)
 		return
 	}
 	if selected == nil {
@@ -117,12 +124,12 @@ func (h *Handler) entityMap(w http.ResponseWriter, r *http.Request) {
 	rows, truncated, err := h.entityMapNeighborhoodRows(r.Context(), req, *selected)
 	span.SetAttributes(attribute.Float64("eshu.entity_map.traversal_seconds", time.Since(traversalStart).Seconds()))
 	if err != nil {
-		span.RecordError(err)
 		span.SetAttributes(attribute.Bool("eshu.entity_map.traversal_error", true))
 		if querycontract.WriteGraphReadError(w, r, err, entityMapCapability) {
+			span.RecordError(err)
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, entityMapTraversalFailedMessage)
 		return
 	}
 	span.SetAttributes(

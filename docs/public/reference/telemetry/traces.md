@@ -112,9 +112,11 @@ is `context.Canceled` and the request's own context was canceled; a cancel
 from inside the server still reads as a fault. The routes covered are the
 selector lookups that answer through `selector.WriteLookupFailure` (the
 supply-chain security-alert selector writes its own `500`), the content read
-and search routes, repository stats and coverage, and the service context,
-investigation, and story routes. Other routes still answer a cancel with `500`
-until #7674 lands.
+and search routes, repository stats and coverage, the service context,
+investigation, and story routes, and the `POST /api/v0/impact/*` routes
+(#7674). The impact code-evidence reads that answer `503` mark the span the
+same way a fault does. Other routes still answer a cancel with `500` until
+#7674 lands.
 
 Two operator effects follow. Eshu's own `eshu_dp_api_request_errors_total`
 counts only `5xx`, so a canceled read on these routes leaves that counter and

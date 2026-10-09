@@ -5,13 +5,13 @@ package impact
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/evidence"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 type traceDeploymentChainRequest struct {
@@ -88,6 +88,19 @@ func traceEnrichmentOptions(req traceDeploymentChainRequest) TraceEnrichmentConf
 	}
 }
 
+// Fixed failure bodies for each read step of the deployment-trace route. The
+// backend error goes to the request span, never the body (#7674).
+const (
+	traceDeploymentQueryFailedMessage                      = "deployment trace query failed"
+	traceDeploymentSourcesFailedMessage                    = "deployment trace deployment source query failed"
+	traceDeploymentCloudResourcesFailedMessage             = "deployment trace cloud resource query failed"
+	traceDeploymentConfigCloudResourcesFailedMessage       = "deployment trace config-derived cloud resource query failed"
+	traceDeploymentUncorrelatedCloudResourcesFailedMessage = "deployment trace uncorrelated cloud resource query failed"
+	traceDeploymentK8sResourcesFailedMessage               = "deployment trace k8s resource query failed"
+	traceDeploymentGitOpsEvidenceFailedMessage             = "deployment trace deployment source gitops evidence query failed"
+	traceDeploymentOCIRegistryTruthFailedMessage           = "deployment trace OCI image registry truth query failed"
+)
+
 // TraceDeploymentChain returns a story-first deployment trace for a service.
 // POST /api/v0/impact/trace-deployment-chain
 func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +160,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentQueryFailedMessage)
 		return
 	}
 	if ctx == nil {
@@ -160,7 +173,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment sources: %v", err))
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentSourcesFailedMessage)
 			return
 		}
 		deploymentSources := deploymentSourceResult.rows
@@ -173,7 +186,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query cloud resources: %v", err))
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentCloudResourcesFailedMessage)
 			return
 		}
 		cloudResources := cloudResourceResult.Rows
@@ -197,7 +210,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 				if querycontract.WriteGraphReadError(w, r, configErr, "platform_impact.deployment_chain") {
 					return
 				}
-				querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", configErr))
+				tracing.WriteServerFailure(w, r, configErr, http.StatusInternalServerError, traceDeploymentConfigCloudResourcesFailedMessage)
 				return
 			}
 			if configTruncated {
@@ -218,7 +231,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 				if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 					return
 				}
-				querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query uncorrelated cloud resources: %v", err))
+				tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentUncorrelatedCloudResourcesFailedMessage)
 				return
 			}
 			if len(cloudCandidates) > 0 {
@@ -230,7 +243,10 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 		}
 		k8sResourceResult, err := h.FetchK8sResourceResult(r.Context(), querycontract.SafeStr(ctx, "repo_id"), querycontract.SafeStr(ctx, "name"))
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query k8s resources: %v", err))
+			if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+				return
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentK8sResourcesFailedMessage)
 			return
 		}
 		deploymentSourceGitOps, err := h.fetchDeploymentSourceGitOpsResult(
@@ -240,7 +256,10 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			deploymentSources,
 		)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment source gitops evidence: %v", err))
+			if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+				return
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentGitOpsEvidenceFailedMessage)
 			return
 		}
 		k8sResourceResult = boundedK8sResourceResult(
@@ -257,7 +276,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			if querycontract.WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
 				return
 			}
-			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query OCI image registry truth: %v", err))
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, traceDeploymentOCIRegistryTruthFailedMessage)
 			return
 		}
 		ctx["deployment_sources"] = deploymentSources

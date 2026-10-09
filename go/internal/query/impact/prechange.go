@@ -21,6 +21,13 @@ const (
 	developerChangePlanCapability = "platform_impact.developer_change_plan"
 )
 
+// Fixed failure bodies for the pre-change impact route. The backend error goes
+// to the request span, never the body (#7674).
+const (
+	preChangeImpactQueryFailedMessage        = "pre-change impact query failed"
+	preChangeImpactCodeEvidenceFailedMessage = "pre-change impact code evidence read failed"
+)
+
 type preChangeImpactRequest struct {
 	RepoID          string                `json:"repo_id"`
 	DeveloperIntent string                `json:"developer_intent"`
@@ -52,7 +59,7 @@ type preChangeFileChange struct {
 }
 
 func (h *Handler) preChangeImpact(w http.ResponseWriter, r *http.Request) {
-	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(queryHandlerTracer,
 		r,
 		telemetry.SpanQueryChangeSurfaceInvestigation,
 		"POST /api/v0/impact/pre-change",
@@ -89,7 +96,7 @@ func (h *Handler) preChangeImpact(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, preChangeImpactCapability) {
 			return
 		}
-		querycontract.WriteError(w, preChangeImpactErrorStatus(err), err.Error())
+		writePreChangeImpactFailure(w, r, err, preChangeImpactQueryFailedMessage, preChangeImpactCodeEvidenceFailedMessage)
 		return
 	}
 	truth := querycontract.BuildTruthEnvelope(

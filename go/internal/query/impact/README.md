@@ -61,6 +61,39 @@ spans an operator can use at 3 AM.
 No-Observability-Change: relocating handler methods between packages emits
 nothing and moves no span boundary, attribute, or log line.
 
+Failed reads (#7674): every route answers a failed read with a fixed message
+per step (for example `blast radius query failed` or `deployment trace k8s
+resource query failed`), never the backend error text. A server fault records
+the error on the request span (an `exception` event, span status Error with
+the fixed message). A client cancel answers `499` with an
+`eshu.request.client_canceled` event and no span error. A stale or timed-out
+PostgreSQL reader answers the retryable `503` with `Retry-After`. The
+change-surface, pre-change, and developer-change-plan code-evidence reads
+keep their `503` with a fixed message. The ambiguity `409`s and the
+ambiguous-source `400` on trace-exposure-path still echo the caller's
+selector. `server_failure*_test.go` covers each route and step. The
+operator contract is in
+[Selector And Read Failures](../../../../docs/public/reference/http-api/selector-and-read-failures.md#platform-impact-read-failures).
+
+No-Regression Evidence (#7674): the change runs only after a read has
+already returned an error. No Cypher text, SQL, query parameter, call count,
+row bound, or success path changed. The two `impact/handler.go` digests in
+`queryplan/testdata/query-source-coverage.yaml` were re-pinned with the same
+call count, key bound, and result bound. A failure now costs one span
+`RecordError`/`SetStatus` and a fixed-string write instead of formatting the
+error into the body. `go test ./internal/query/... -count=1` (74 packages),
+`go test ./internal/queryplan/... -count=1`, and
+`go test -race ./internal/query/impact/... ./internal/query/tracing/...` exit
+0. No benchmark is claimed because the success path has no runtime delta to
+measure.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the request span as an `exception` event and sets status Error with the
+step's fixed message as the description; a client cancel adds
+`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
+`server_failure*_test.go` asserts both span shapes with a recording tracer for
+every route and step.
+
 ## Performance
 
 Handler methods are request-orchestration, not a hot decode loop; the move

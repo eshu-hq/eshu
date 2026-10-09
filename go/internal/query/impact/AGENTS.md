@@ -30,6 +30,13 @@
 - `BuildDeploymentTraceResponse` requires a non-nil caller-built overview
   map; counts attach in place. Evidence lists attach only when absent;
   `deployment_truth_tier` stays caller-owned.
+- A failed read never puts the backend error in the body (#7674). Order each
+  failure branch: the route's own `503`, then
+  `querycontract.WriteGraphReadError` with the route's capability, then the
+  route's `400`/`404`/`409` sentinels, then `tracing.WriteServerFailure` with
+  a fixed message constant for that step. The code-evidence `503` goes
+  through `writeCodeSurfaceUnavailable`. The root
+  `TestNoNewQueryErrorTextLeakSites` guard fails on any new leak site here.
 
 ## Verification
 
