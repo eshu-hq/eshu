@@ -16,15 +16,15 @@ case "${command_name}" in
   digest)
     ref="$1"
     case "${ref}" in
-      *ci-postgres-alpine:18)
+      *ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873)
         [[ -f "${CRANE_STATE}/alpine" ]] || exit 1
         digest='sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873'
         ;;
-      *ci-postgres-bookworm:18.6)
+      *ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c)
         [[ -f "${CRANE_STATE}/bookworm" ]] || exit 1
         digest='sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c'
         ;;
-      *ci-neo4j-community:2026)
+      *ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f)
         [[ -f "${CRANE_STATE}/neo4j" ]] || exit 1
         digest='sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f'
         ;;
@@ -50,9 +50,9 @@ case "${command_name}" in
   cp)
     [[ "$1" == '--no-clobber' ]] || exit 3
     case "$3" in
-      *ci-postgres-alpine:18) name=alpine ;;
-      *ci-postgres-bookworm:18.6) name=bookworm ;;
-      *ci-neo4j-community:2026) name=neo4j ;;
+      *ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873) name=alpine ;;
+      *ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c) name=bookworm ;;
+      *ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f) name=neo4j ;;
       *) exit 4 ;;
     esac
     [[ ! -f "${CRANE_STATE}/${name}" ]] || exit 1
@@ -116,9 +116,12 @@ unset CRANE_BAD_SOURCE
 
 bash "${publisher}" publish > "${scratch}/out"
 [[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'not exactly three guarded copies'
-rg -q '^cp --no-clobber mirror.gcr.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873 ghcr.io/eshu-hq/ci-postgres-alpine:18$' "${CRANE_CALLS}" || fail 'Alpine source/destination mismatch'
-rg -q '^cp --no-clobber mirror.gcr.io/library/postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c ghcr.io/eshu-hq/ci-postgres-bookworm:18.6$' "${CRANE_CALLS}" || fail 'Bookworm source/destination mismatch'
-rg -q '^cp --no-clobber mirror.gcr.io/library/neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f ghcr.io/eshu-hq/ci-neo4j-community:2026$' "${CRANE_CALLS}" || fail 'Neo4j source/destination mismatch'
+rg -q '^cp --no-clobber mirror.gcr.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873 ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873$' "${CRANE_CALLS}" || fail 'Alpine source/destination mismatch'
+rg -q '^cp --no-clobber mirror.gcr.io/library/postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c$' "${CRANE_CALLS}" || fail 'Bookworm source/destination mismatch'
+rg -q '^cp --no-clobber mirror.gcr.io/library/neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f$' "${CRANE_CALLS}" || fail 'Neo4j source/destination mismatch'
+if rg -q '^cp .*ghcr.io/eshu-hq/ci-[^@: ]+:[^@ ]+$' "${CRANE_CALLS}"; then
+  fail 'publisher attempted a mutable tag destination'
+fi
 
 # The existing default-branch workflow can dispatch this exact reviewed branch
 # to bootstrap the packages before consumers depend on them.
