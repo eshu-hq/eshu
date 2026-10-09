@@ -294,7 +294,8 @@ func validatePilotCases(entry Entry, recorded PilotEvidenceEntry, fixtureSHA, co
 
 func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage, budget PilotBudget, runner string) []string {
 	var violations []string
-	if !structuredPilotJSON(run.Plan) || !structuredPilotJSON(run.Work) || !pilotHasNumber(run.Work) {
+	useAlternate := !structuredPilotJSON(run.Plan) || !structuredPilotJSON(run.Work) || !pilotHasNumber(run.Work)
+	if useAlternate {
 		if strings.TrimSpace(run.PlanUnavailable) == "" || !validPilotAlternateProof(run.AlternateProof, runner) {
 			violations = append(violations, key+": full plan and work or alternate proof required")
 		}
@@ -323,7 +324,7 @@ func validatePilotCaseRun(key string, run PilotCaseRun, expected json.RawMessage
 		}
 	}
 	work := run.Work
-	if !structuredPilotJSON(work) {
+	if useAlternate {
 		var alternate struct {
 			Work json.RawMessage `json:"work"`
 		}

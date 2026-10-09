@@ -79,7 +79,7 @@ func validPilotAlternateProof(raw json.RawMessage, runner string) bool {
 	}
 	return json.Unmarshal(raw, &alternate) == nil && structuredPilotJSON(alternate.Plan) &&
 		structuredPilotJSON(alternate.Work) && pilotHasNumber(alternate.Work) &&
-		strings.TrimSpace(alternate.Producer) != "" && alternate.Producer != runner &&
+		strings.TrimSpace(alternate.Producer) != "" && strings.TrimSpace(alternate.Producer) != strings.TrimSpace(runner) &&
 		alternate.ArtifactSHA256 == PilotJSONSHA256(alternate.Plan)
 }
 

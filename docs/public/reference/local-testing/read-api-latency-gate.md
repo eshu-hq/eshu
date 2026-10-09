@@ -330,6 +330,22 @@ bash scripts/refresh-read-api-work-budgets.sh \
 Use GREEN reports from the runner class the gate enforces on, and commit the
 rendered file; do not edit a number by hand.
 
+When adding only a few routes, render their named rows from those GREEN reports
+into a temporary table, then append only those rows to the committed baseline:
+
+```bash
+git show HEAD:testdata/benchmarks/read-api-route-work-budgets.txt >baseline.txt
+bash scripts/refresh-read-api-work-budgets.sh --baseline /dev/null --out rendered.txt REPORT.json...
+bash scripts/extend-read-api-work-budgets.sh \
+  --baseline baseline.txt --rendered rendered.txt \
+  --route 'GET /api/v0/example' --provenance 'GREEN reports on the enforced runner class for #ISSUE' \
+  --out testdata/benchmarks/read-api-route-work-budgets.txt
+```
+
+The extension helper requires absent, unique, numeric renderer rows and preserves
+every baseline byte. It cannot determine whether an input report came from a
+passing gate; establish that from the gate result and retained run artifacts.
+
 **Non-goal.** This is a latency and work-ceiling gate: a work budget only ever
 fails on more reads, and the seed is verified so a shrunken corpus cannot pass
 silently, but the gate does not assert that a route returns the right rows. A
