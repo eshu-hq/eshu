@@ -66,35 +66,59 @@ would bring it back to an index-only scan; that needs a migration and is not
 part of this change.
 
 Drain of 130 items, 8 workers, 2 s of handler work per item, same shim, at the
-final code, including the waiter bound (3 flights or one heartbeat interval of
-total waiting, 30 s). Each item retries on a leader or waiter error up to 3
-attempts (`ESHU_REDUCER_MAX_ATTEMPTS` default 3), then counts as dead-lettered.
-The churn is one active-generation fact inserted at the interval shown. Before
-each run the harness times two uncached full loads on the host as it is at that
-moment, because the host was shared and its speed moved between runs. Raw
-captures: `after-drain-head-superseded.txt`, `after-drain-bound-active-10s.txt`,
-`after-drain-bound-active-7s.txt`, `after-drain-bound-active-5s.txt`,
-`after-drain-bound-active-10s-loaded-host.txt`.
+final code: the waiter bound (3 flights or one heartbeat interval of total
+waiting, 30 s), one final probe before a waiter gives up, and the rule that a call
+with its wait budget used up never starts a load. Each item retries on an error up
+to 3 attempts (`ESHU_REDUCER_MAX_ATTEMPTS` default 3), then counts as
+dead-lettered. The churn is one active-generation fact inserted at the interval
+shown. Before each run the harness times two uncached full loads on the host as
+it is at that moment. The host was shared and heavily loaded during these runs
+(load average 45 to 57), so loads cost 7 to 13 s here against 4.7 s on a quiet
+host, and with 8 workers loading at once a load takes longer still. Raw captures:
+`after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
+`after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`.
 
-| Churn | Calibrated full load | Elapsed | Items/h | Loads / in-flight retries | Cache hits | Waiter outcomes | Leader errors | Dead-lettered | Longest single call in the cache |
+Failures split by who failed. "Leaders" counts flights whose leader discarded a torn
+set (`passthrough_total{reason="epoch_moved"}`); "waiters" counts
+`flight_waiter_total{outcome=gave_up_*}`. Their sum is the number of
+`identity_epoch_unstable` errors the items saw.
+
+| Churn | Calibrated full load | Elapsed | Items/h | Loads / in-flight retries | Hits | Leader failures | Waiter give-ups (flights / wall) | Dead-lettered | Max time in the cache by one call (led only / waited then led / waited only) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Superseded row deleted every 10 s | 4.7 s | 45.4 s | 10,302 | 1 / 0 | 122 | shared 7 | 0 | 0 | n/a |
-| Active insert every 10 s | 4.8 s, 4.7 s | 70.0 s | 6,683 | 7 / 0 | 74 | shared 49 | 0 | 0 | 6.0 s |
-| Active insert every 7 s | 4.5 s, 4.7 s | 2 min 28.6 s | 3,150 | 21 / 4 | 0 | shared 113 | 0 | 0 | 11.7 s |
-| Active insert every 5 s, host slowed (loads took 21 s and 29 s) | 21.3 s, 28.8 s | 17 min 57.6 s | 434 | 175 / 86 | 0 | shared 43, torn_set 457, stale_epoch 92, gave_up 198 | 280 | 80 of 130 | 49.5 s |
+| Superseded row deleted every 10 s (quiet host, earlier run) | 4.7 s | 45.4 s | 10,302 | 1 / 0 | 122 | 0 | 0 | 0 | n/a |
+| Active insert every 10 s | 10.3 s, 12.9 s | 6 min 1 s | 1,296 | 31 / 9 | 24 | 9 | 0 / 40 | 8 of 130 | 33.3 s / 45.8 s / 32.1 s |
+| Active insert every 7 s | 7.3 s, 7.0 s | 12 min 39 s | 617 | 100 / 48 | 0 | 40 | 8 / 100 | 40 of 130 | 25.1 s / 60.6 s / 31.9 s |
+| Active insert every 5 s | 7.2 s, 6.7 s | 26 min 31 s | 294 | 182 / 91 | 0 | 91 | 35 / 264 | 130 of 130 | 31.9 s / 64.6 s / 32.6 s |
 
-The last row is the stress case, and it terminates. Churn at 5 s against a 21 to
-29 s load is about 4 active-set changes per load, so every flight tears, no cache
-entry ever survives, and 80 of 130 items dead-letter after 3 attempts while 50
-succeed. That is the F21 case (any epoch move tears a load) and the motivation
-for the follow-up #7825. The dead letters carry the class
-`identity_epoch_unstable`. The longest single call of 49.5 s is a waiter that
-spent its 30 s budget and then led a load of about 20 s; it is not time spent
-waiting past the bound.
+Reading the table.
 
-The run before the bound existed (churn at 5 s, loads at 4.7 s) did not finish
-in 600 s and had to be stopped, which is why the bound was added. These are the
-pre-bound runs, kept as history (pre-bound, host quiet):
+- The 5 s churn is outside today's production (one activation per 24 hours) and
+  inside the repair and maintenance-reopen windows. At one change per 5 s against a
+  7 to 13 s load, every flight tears, no cache entry survives, and every item
+  dead-letters after 3 attempts with class `identity_epoch_unstable`. The run
+  terminates. That is the F21 case and the reason for #7825. The operator runbook
+  requeues those dead letters per cycle.
+- Most failures are waiters, and mostly `gave_up_wall`. With loads this slow, a
+  waiter's 30 s budget runs out on a flight that is still loading or still torn.
+  `gave_up_flights` dominant would mean churn on its own; here the slow host makes
+  `gave_up_wall` dominant too. A slow but stable flight (a load over about 30 s)
+  fails its waiters the same way, with the same class.
+- The 10 s and 7 s rows are not comparable with the quiet-host figures of earlier
+  rounds (0 errors at 10 s and 7 s with 4.7 s loads). The same churn that cost
+  nothing at 4.7 s loads tears flights at 7 to 13 s loads, because the exposure is
+  churn times load time.
+- Measured worst case per call under the final rule: a call that led only took up
+  to 33.3 s (two load attempts and their probes). A call that waited only took up
+  to 32.6 s (the 30 s wait plus the final probe). A call that waited and then led
+  took up to 64.6 s: 30 s of waiting plus up to two loads, each slower than the
+  calibrated single load because 8 workers load at once. That is the bound: one
+  heartbeat interval plus two load attempts. The earlier 49.5 s figure was this
+  same case under the previous rule. Calls that exhausted their wait budget never
+  start a load.
+
+Earlier runs, kept as history and labelled.
+
+Before the waiter bound existed (quiet host, loads 4.7 s):
 
 | Churn | Elapsed | Items/h | Leader errors | Dead-lettered |
 | --- | --- | --- | --- | --- |
@@ -102,11 +126,21 @@ pre-bound runs, kept as history (pre-bound, host quiet):
 | Active insert every 7 s | 6 min 41 s | 1,167 | 10 | 0 |
 | Active insert every 5 s | not finished in 600 s (stopped) | n/a | n/a | n/a |
 
-One run at 10 s churn on a heavily loaded host, before the calibration step
-existed, took 8 min 21 s with 23 dead letters
-(`after-drain-bound-active-10s-loaded-host.txt`). The host was slowing every
-load, so it is the same stress case as the 5 s row and is not comparable to the
-quiet 10 s row.
+Waiter bound without the wait-or-lead rule and without the final probe (commit
+35f0abd65, host slowed, loads 21 to 29 s at 5 s churn). The earlier table called
+all 280 errors "leader errors"; 82 were leaders and 198 were waiters:
+
+| Churn | Elapsed | Items/h | Leaders / waiters failed | Dead-lettered | Longest call |
+| --- | --- | --- | --- | --- | --- |
+| Active insert every 10 s | 70.0 s | 6,683 | 0 / 0 | 0 | 6.0 s |
+| Active insert every 7 s | 2 min 28.6 s | 3,150 | 0 / 0 | 0 | 11.7 s |
+| Active insert every 5 s (loads 21 to 29 s) | 17 min 57.6 s | 434 | 82 / 198 | 80 of 130 | 49.5 s |
+
+One more 10 s run on a loaded host before the calibration step existed took
+8 min 21 s with 23 dead letters. Aborted runs (stopped by hand) are not kept.
+Between those 35f0abd65 drains and its commit, the cache logic did not change;
+the commit only moved the patience code into existing files so the directory file
+cap holds. The final-rule runs above were taken after the wait-or-lead change.
 
 Why the bound exists. Before it, a waiter whose probe never matched a stable
 flight re-probed and re-joined the next flight without limit, while only the
@@ -120,9 +154,13 @@ taken from the same claim lease the queue uses, no new setting) fails the
 waiter's item with the same retryable `identity_epoch_unstable` as a leader, so
 the queue re-runs it under the existing attempt limit. The leader is bounded by
 its two load attempts and is not cut off by wall time, so a slow healthy load
-still finishes. Invariant: no worker blocks inside the identity cache longer
-than one heartbeat interval; the leader bounds by attempts, waiters by flights
-and wall time.
+still finishes. Invariant: A call's time inside the identity cache is bounded by one heartbeat interval plus two load attempts; a call that has exhausted its wait budget (3 flights or one heartbeat interval) never starts a load: it fails retryably with identity_epoch_unstable and the next caller leads with a fresh budget.
+A caller that still has budget may lead (at most 2 load attempts). Waiter failures split
+into two labels on one counter: `gave_up_flights` dominant means sustained churn,
+`gave_up_wall` dominant means a slow stable flight (a load longer than about 30 s also
+trips the wall bound, with the same class). Before a waiter gives up it makes one final
+probe and is served a cache that a consistent flight filled in the meantime; the probe
+never starts a load.
 Tests: `TestContainerImageIdentityHandlerGivesUpAfterThreeTornFlights` (a
 handler that joins three torn flights fails retryably with no decision write),
 `TestIdentityEpochCacheWaiterGivesUpAfterOneHeartbeatInterval` and
@@ -203,10 +241,11 @@ Raw outputs are attached to the PR (no private paths). File names:
 `green-unit-r3.txt`, `green-live-r3.txt`, `red-live-epoch.txt`,
 `red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
 `red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
-`after-drain-head-superseded.txt`, `after-drain-bound-active-10s.txt`,
-`after-drain-bound-active-7s.txt`, `after-drain-bound-active-5s.txt`,
-`after-drain-bound-active-10s-loaded-host.txt`, `aborted-drain-head-active-5s-timeout600s.txt`,
-`red-noflightbound-mutation.txt`, `red-nowallbound-mutation.txt`, `green-patience.txt`,
+`after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
+`after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`,
+`red-noflightbound-mutation.txt`, `red-nowallbound-mutation.txt`,
+`red-wallleads-mutation.txt`, `red-nofinalprobe-mutation.txt`, `red-heartbeat-wiring-mutation.txt`,
+`green-unit-r6.txt`,
 `postgres-race-r3.txt`, `gates-r3.txt`.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph

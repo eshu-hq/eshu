@@ -90,7 +90,6 @@ const (
 	identityWaiterStaleEpoch     = "stale_epoch"
 	identityWaiterLeaderCanceled = "leader_canceled"
 	identityWaiterTornSet        = "torn_set"
-	identityWaiterGaveUp         = "gave_up"
 )
 
 // IdentityEpochCache caches the full set of active container-image identity
@@ -122,6 +121,10 @@ type IdentityEpochCache struct {
 	// each time a flight it waited on did not serve it, before the caller
 	// loops. It is a deterministic seam for the patience tests only.
 	afterUnservedFlight func(waited int)
+	// callObserver, when set by a test or measurement harness, receives the
+	// wall time of every get call, whether it waited on a flight, and whether it
+	// led a load. It never runs in production.
+	callObserver func(took time.Duration, waited, led bool)
 }
 
 // NewIdentityEpochCache constructs the identity epoch cache. maxBytes caps
@@ -164,10 +167,19 @@ func NewIdentityEpochCache(
 //   - an in-flight load that started from a different epoch is waited out and
 //     the caller then retries, so a caller never gets a set older than the
 //     active set it observed;
-//   - otherwise the caller becomes the leader of a new flight.
+//   - otherwise the caller becomes the leader of a new flight, unless it has
+//     used up its wait budget (3 unserved flights or one heartbeat interval of
+//     total waiting): such a caller never leads, it fails retryably and the
+//     next caller leads with a fresh budget. A caller that still has budget may
+//     lead, with at most 2 load attempts.
 func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts.Envelope, error) {
 	unserved := 0
 	var waitedFor time.Duration
+	waited, led := false, false
+	if c.callObserver != nil {
+		callStart := time.Now()
+		defer func() { c.callObserver(time.Since(callStart), waited, led) }()
+	}
 	for {
 		// Probe the epoch WITHOUT the lock held, so concurrent callers' probes
 		// overlap instead of serializing behind mu.
@@ -181,9 +193,13 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 		c.mu.Lock()
 		if flight := c.loading; flight != nil {
 			flight.waiters++
+			waited = true
 			joinable := flight.startEpoch == probe
 			c.mu.Unlock()
 			if err := c.waitForFlight(ctx, flight, &waitedFor); err != nil {
+				if errors.Is(err, errIdentityWaitExpired) {
+					return c.giveUp(ctx, store, identityWaiterGaveUpWall, identityGaveUpWallClock)
+				}
 				return nil, err
 			}
 			if rows, served, flightErr := c.settleWaiter(ctx, flight, joinable); served {
@@ -194,7 +210,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 				c.afterUnservedFlight(unserved)
 			}
 			if unserved >= maxIdentityWaiterFlights {
-				return nil, c.gaveUp(ctx, identityGaveUpFlights)
+				return c.giveUp(ctx, store, identityWaiterGaveUpFlights, identityGaveUpFlights)
 			}
 			continue
 		}
@@ -206,10 +222,19 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 			return result, nil
 		}
 
+		if c.waitBudgetUsedUp(waitedFor) {
+			// The caller spent its whole wait budget on other callers' flights.
+			// A caller that has used up its budget never leads: its item fails
+			// retryably and the next caller, with a fresh budget, leads (#7805).
+			c.mu.Unlock()
+			return nil, c.gaveUp(ctx, identityWaiterGaveUpWall, identityGaveUpWallClock)
+		}
+
 		c.inst.IdentityCacheMissTotal.Add(ctx, 1)
 		flight := &identityFlight{done: make(chan struct{}), startEpoch: probe}
 		c.loading = flight
 		c.mu.Unlock()
+		led = true
 		return c.lead(ctx, store, flight)
 	}
 }
@@ -385,87 +410,4 @@ func (c *IdentityEpochCache) finish(flight *identityFlight, publish func()) {
 	c.loading = nil
 	c.mu.Unlock()
 	close(flight.done)
-}
-
-// maxIdentityWaiterFlights is how many flights one caller may wait out without
-// being served before it gives up. Without the bound a caller whose probe never
-// matches a stable flight re-probes and re-joins forever while only the leaders
-// of those flights consume claim attempts. Each such caller holds one worker of
-// the reducer pool for as long as the churn lasts, so under sustained churn the
-// pool stalls (#7805). The leader is bounded by its two load attempts instead.
-const maxIdentityWaiterFlights = 3
-
-// Reasons carried in the error text of a caller that gave up. They are not
-// metric labels; the metric records only the closed outcome gave_up.
-const (
-	identityGaveUpFlights   = "waited out the maximum number of flights"
-	identityGaveUpWallClock = "waited longer than one heartbeat interval"
-)
-
-// IdentityEpochCacheOption tunes an IdentityEpochCache at construction.
-type IdentityEpochCacheOption func(*IdentityEpochCache)
-
-// WithHeartbeatInterval bounds the total time one caller may spend waiting on
-// other callers' flights to one reducer heartbeat interval. Pass the interval
-// the reducer service already derives from its claim lease (LeaseDuration / 2),
-// so the cache adds no knob of its own. A non-positive value disables the
-// wall-clock half of the bound; the flight-count half always applies.
-func WithHeartbeatInterval(interval time.Duration) IdentityEpochCacheOption {
-	return func(c *IdentityEpochCache) {
-		c.heartbeatInterval = interval
-	}
-}
-
-// waitForFlight blocks until flight finishes, the caller's context ends, or the
-// caller has spent a full heartbeat interval waiting on flights in total
-// (waitedFor accumulates across calls). It returns nil when the flight finished,
-// the context error when the caller's own context ended, and the retryable
-// identity_epoch_unstable error when the wall-clock bound tripped.
-func (c *IdentityEpochCache) waitForFlight(
-	ctx context.Context,
-	flight *identityFlight,
-	waitedFor *time.Duration,
-) error {
-	var expired <-chan time.Time
-	stop := func() bool { return true }
-	if c.heartbeatInterval > 0 {
-		remaining := c.heartbeatInterval - *waitedFor
-		if remaining <= 0 {
-			return c.gaveUp(ctx, identityGaveUpWallClock)
-		}
-		if c.newTimer != nil {
-			expired, stop = c.newTimer(remaining)
-		} else {
-			timer := time.NewTimer(remaining)
-			expired, stop = timer.C, timer.Stop
-		}
-	}
-	started := c.clockNow()
-	defer func() {
-		stop()
-		*waitedFor += c.clockNow().Sub(started)
-	}()
-	select {
-	case <-flight.done:
-		return nil
-	case <-expired:
-		return c.gaveUp(ctx, identityGaveUpWallClock)
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (c *IdentityEpochCache) clockNow() time.Time {
-	if c.now != nil {
-		return c.now()
-	}
-	return time.Now()
-}
-
-// gaveUp records that a caller hit its patience bound and returns the
-// retryable error that fails its item.
-func (c *IdentityEpochCache) gaveUp(ctx context.Context, reason string) error {
-	c.inst.IdentityCacheFlightWaiterTotal.Add(context.WithoutCancel(ctx), 1,
-		metric.WithAttributes(telemetry.AttrOutcome(identityWaiterGaveUp)))
-	return newIdentityLoadUnstableError(reason)
 }
