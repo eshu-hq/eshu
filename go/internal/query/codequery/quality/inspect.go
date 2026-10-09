@@ -108,6 +108,8 @@ MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 	// drops a function-call subtrahend in `coalesce(a) - coalesce(b)`
 	// (evaluates 30 - 0 instead of 30 - 1), while Neo4j answers 29.
 	// Aliased `end_line - start_line + 1` agrees on both backends.
+	// Upstream NornicDB executor bug: #7815 — remove the pre-alias once the
+	// pinned image includes its fix.
 	builder.WriteString(`
 WITH e, f, repo,
      coalesce(e.cyclomatic_complexity, 0) as complexity,
