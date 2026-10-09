@@ -159,3 +159,29 @@ go/.gocache-*/
 # machine-local signal that a self-review ran; nothing in the repository reads
 # it, so it must never be committed.
 .claude-review-ok
+
+# Bare-directory negations for the go/<binary> lines above (#7750): when
+# ripgrep runs rooted at go/, anchored patterns relativize to bare basenames
+# and silently prune same-named source dirs (go/internal/reducer,
+# go/internal/projector, go/cmd/api, ... -- 3,352 tracked files invisible to
+# `rg ... go/` with exit code 0, measured at 825d9335634e). These negations
+# un-prune rg subdir
+# searches. They are no-ops for git: nothing git ignores matches them, so
+# `git ls-files` and `git status --ignored` are byte-identical with and
+# without this block (pinned by the gitignore-rg-parity gate). Keep this
+# block AFTER every go/<binary> line: a binary line added below it would not
+# be negated, and the gate would fail on the next PR that touches .gitignore.
+!admin-status/
+!api/
+!bootstrap-data-plane/
+!bootstrap-index/
+!capability-inventory/
+!collector-git/
+!eshu/
+!golden-corpus-gate/
+!ingester/
+!mcp-server/
+!projector/
+!proof-of-value/
+!reducer/
+!skillgen/

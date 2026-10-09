@@ -311,6 +311,32 @@ gates:
     ci_only_reason: ""
     hook_id: ""
 
+  - id: gitignore-rg-parity
+    name: Tracked files visible to ripgrep from every search root
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when an anchored .gitignore line (e.g. go/<binary>) relativizes under a subdirectory search root and hides tracked files from rg (#7750)."
+    tier: pre-push
+    blocking: true
+    triggers:
+      - ".gitignore"
+      - "**/.gitignore"
+      - "scripts/test-verify-gitignore-rg-parity.sh"
+      - "scripts/verify-gitignore-rg-parity.sh"
+    self_test_triggers:
+      - "scripts/test-verify-gitignore-rg-parity.sh"
+      - "scripts/verify-gitignore-rg-parity.sh"
+    local:
+      command: "bash scripts/verify-gitignore-rg-parity.sh"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-gitignore-rg-parity.sh"
+    ci:
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
   - id: agent-canon
     name: Agent canon check
     category: hygiene
