@@ -10,30 +10,42 @@
 # Run 37773153037 proved the old single-suppression order is a harness race:
 # one 62s ignored drain consumed the 20s window armed at phase start, and the
 # hidden assertion failed on a genuinely-expired suppression. The D4 fix
-# reorders the phase (expiry leg first on a freshly-armed 20s window, hidden
-# leg second on a 600s window) so drain duration cannot trip either leg. These
-# cases simulate both drain regimes against the CURRENT lib with a fake clock
-# and a findings API that mirrors the real read-time semantics (single
-# persisted winner, active-beats-expired, expiry re-checked at read time):
-# the 62s case fails on the old order (dies at ignored_hidden) and passes on
-# the new one, and the 2s case passes on both (matching the 12/12 ~2.1s CI
-# drains). A future reorder back to hidden-before-expiry turns CI red here
-# instead of flaking B-7 under load.
+# reordered the phase (expiry leg first on a freshly-armed 20s window, hidden
+# leg second) — but left A's window active at phase end, and #7862 proved
+# that leaks downstream: B-7c query truth runs ~1min later and pins
+# (A, expired), so an active A fails it findings-empty. The end-clean fix
+# arms A late on a 200s window, then waits A out and asserts the expired
+# readback under A, so the phase always ends at the exact B-7c pins.
+# These cases simulate drain regimes against the CURRENT libs with a fake
+# clock and a findings API that mirrors the real semantics: the reducer
+# persists one winner per drain (newest-authored active wins, else
+# newest-authored expired), reads return the persisted id with only state
+# flipped by expires_at, and identical-body retry is blind to expiry.
+# Covered: the 2s normal regime (matching the 12/12 ~2.1s CI drains), the
+# observed single-62s stall, a triple-62s extreme (still inside the window),
+# and a beyond-ceiling stall that must red honestly at the hidden assert
+# with the stall diagnostic. Every pass case ends with a B-7c mirror (+60s,
+# full (A, expired) pins). A future reorder, a leg that stops ending clean,
+# or a lost stall diagnostic turns CI red here instead of flaking B-7.
 #
 # Everything timing-shaped runs inside one subshell per case; the date/sleep/
 # python3/curl/pg/start_bg/die shadows never leak into the caller.
 
 # suppression_seq_run_case runs golden_suppression_verify_producer_truth from
-# the sourced lib with a fake clock, a scripted drain length, and stubbed
-# IO. Args: case name, drain seconds, stall-line expectation (want|want-not).
+# the sourced libs with a fake clock, scripted per-drain lengths, and
+# stubbed IO. Args: case name, drain seconds for the
+# setup/malformed/expiry/ignored drains in call order (space-separated),
+# stall-line expectation (want|want-not), outcome expectation (pass, or
+# red-hidden for a beyond-ceiling stall that must die at the hidden assert).
 suppression_seq_run_case() (
-	local case_name="$1" drain_seconds="$2" stall_want="$3"
-	local case_dir epoch_file gens_file work_file state_dir log_dir bin_dir
+	local case_name="$1" drain_seconds="$2" stall_want="$3" expect="$4"
+	local case_dir epoch_file gens_file work_file dur_file state_dir log_dir bin_dir
 	case_dir="$(mktemp -d -t golden-suppression-seq.XXXXXX)"
 	trap 'rm -rf "${case_dir}"' EXIT
 	epoch_file="${case_dir}/epoch"
 	gens_file="${case_dir}/gens"
 	work_file="${case_dir}/work"
+	dur_file="${case_dir}/durations"
 	state_dir="${case_dir}/state"
 	log_dir="${case_dir}/logs"
 	bin_dir="${case_dir}/bin"
@@ -41,6 +53,9 @@ suppression_seq_run_case() (
 	echo 1000000 >"${epoch_file}"
 	echo 0 >"${gens_file}"
 	echo 0 >"${work_file}"
+	local -a dur_list
+	read -ra dur_list <<<"${drain_seconds}"
+	printf '%s\n' "${dur_list[@]}" >"${dur_file}"
 
 	date() {
 		if [[ "$*" == "-u +%s" ]]; then
@@ -148,30 +163,14 @@ suppression_seq_run_case() (
 			printf '201 0.01\n'
 			return
 		fi
-		# GET findings: newest-authored active suppression wins (hidden);
-		# otherwise the newest wins as expired; none means the active
-		# baseline. Mirrors EvaluateSupplyChainSuppression +
-		# supplyChainImpactEffectiveDecisionStateSQL, not the script.
-		local meta winner="" winner_authored=0 active_id="" active_authored=0
-		for meta in "${state_dir}"/*.meta; do
-			[[ -e "${meta}" ]] || break
-			# Adjacency: only same-CVE suppressions touch this finding. The
-			# scope-setup suppression (CVE-2026-99999) never does.
-			[[ "$(jq -r '.cve' "${meta}")" == "${golden_suppression_cve}" ]] || continue
-			local a e mid
-			a="$(jq -r '.authored' "${meta}")"
-			e="$(jq -r '.expires' "${meta}")"
-			mid="$(basename "${meta}" .meta)"
-			if ((a >= winner_authored)); then
-				winner_authored="${a}"
-				winner="${mid}"
-			fi
-			if ((now < e)) && ((a >= active_authored)); then
-				active_authored="${a}"
-				active_id="${mid}"
-			fi
-		done
-		if [[ -z "${winner}" ]]; then
+		# GET findings: the persisted winner id with only state flipped by
+		# expires_at, mirroring supplyChainImpactEffectiveDecisionStateSQL
+		# over the winners read model. There is deliberately NO
+		# re-derivation here: EvaluateSupplyChainSuppression runs at drain
+		# time (the stub gate binary below persists its verdict); reads
+		# never reorder winners.
+		local persist="${state_dir}/persisted.json"
+		if [[ ! -f "${persist}" ]]; then
 			jq -n '{
 				count: 1,
 				findings: [{
@@ -180,32 +179,32 @@ suppression_seq_run_case() (
 					suppression: {state: "active"}
 				}]
 			}' >"${out}"
-		elif [[ -n "${active_id}" ]] && [[ "${url}" != *"include_suppressed=true"* ]]; then
-			jq -n '{count: 0, findings: []}' >"${out}"
-		elif [[ -n "${active_id}" ]]; then
-			jq -n --arg id "${active_id}" '{
-				count: 1,
-				findings: [{
-					cve_id: "CVE-2026-00010",
-					suppression: {state: "ignored", suppression_id: $id}
-				}]
-			}' >"${out}"
 		else
-			jq -n --arg id "${winner}" '{
-				count: 1,
-				findings: [{
-					cve_id: "CVE-2026-00010",
-					suppression: {state: "expired", suppression_id: $id}
-				}]
-			}' >"${out}"
+			local pid pexp
+			pid="$(jq -r '.id' "${persist}")"
+			pexp="$(jq -r '.expires' "${persist}")"
+			if ((now < pexp)) && [[ "${url}" != *"include_suppressed=true"* ]]; then
+				jq -n '{count: 0, findings: []}' >"${out}"
+			elif ((now < pexp)); then
+				jq -n --arg id "${pid}" '{
+					count: 1,
+					findings: [{
+						cve_id: "CVE-2026-00010",
+						suppression: {state: "ignored", suppression_id: $id}
+					}]
+				}' >"${out}"
+			else
+				jq -n --arg id "${pid}" '{
+					count: 1,
+					findings: [{
+						cve_id: "CVE-2026-00010",
+						suppression: {state: "expired", suppression_id: $id}
+					}]
+				}' >"${out}"
+			fi
 		fi
 		printf '200 0.01\n'
 	}
-	cat >"${bin_dir}/eshu-golden-corpus-gate" <<-EOF
-#!/usr/bin/env bash
-echo \$((\$(cat "${epoch_file}") + ${drain_seconds})) > "${epoch_file}"
-	EOF
-	chmod +x "${bin_dir}/eshu-golden-corpus-gate"
 
 	# Plain assignments: an env-prefix before the source builtin does not
 	# persist in non-POSIX bash, and the lib reads these under set -u.
@@ -214,9 +213,61 @@ echo \$((\$(cat "${epoch_file}") + ${drain_seconds})) > "${epoch_file}"
 	GATE_DRAIN_TIMEOUT="1s"
 	# shellcheck source=scripts/lib/golden-corpus-vulnerability-suppression.sh
 	. "${suppression_lib}"
+	# shellcheck source=scripts/lib/golden-corpus-suppression-window-leg.sh
+	. "${suppression_window_leg_lib}"
+
+	# The stub gate binary pops one duration per drain call (setup,
+	# malformed, expiry, ignored — in call order) and persists the drain
+	# verdict like the reducer: newest-authored active suppression wins,
+	# else newest-authored expired, same CVE only (the scope-setup
+	# suppression never touches this finding). Running dry is a loud
+	# failure, not a silent zero. Generated after sourcing: it bakes in
+	# the lib's CVE id.
+	cat >"${bin_dir}/eshu-golden-corpus-gate" <<-EOF
+#!/usr/bin/env bash
+dur=\$(head -n 1 "${dur_file}")
+[ -n "\$dur" ] || { echo "sim: out of drain durations" >&2; exit 3; }
+echo \$((\$(cat "${epoch_file}") + \$dur)) > "${epoch_file}"
+tail -n +2 "${dur_file}" > "${dur_file}.next" && mv "${dur_file}.next" "${dur_file}"
+now=\$(cat "${epoch_file}")
+best_active=""; best_active_a=0; best_active_e=0
+best_any=""; best_any_a=0; best_any_e=0
+for meta in "${state_dir}"/*.meta; do
+    [ -e "\$meta" ] || break
+    [ "\$(jq -r '.cve' "\$meta")" = "${golden_suppression_cve}" ] || continue
+    a=\$(jq -r '.authored' "\$meta"); e=\$(jq -r '.expires' "\$meta"); mid=\$(basename "\$meta" .meta)
+    if [ "\$a" -ge "\$best_any_a" ]; then best_any="\$mid"; best_any_a="\$a"; best_any_e="\$e"; fi
+    if [ "\$now" -lt "\$e" ] && [ "\$a" -ge "\$best_active_a" ]; then best_active="\$mid"; best_active_a="\$a"; best_active_e="\$e"; fi
+done
+if [ -n "\$best_active" ]; then
+    jq -n --arg id "\$best_active" --argjson expires "\$best_active_e" '{id: \$id, expires: \$expires}' > "${state_dir}/persisted.json"
+elif [ -n "\$best_any" ]; then
+    jq -n --arg id "\$best_any" --argjson expires "\$best_any_e" '{id: \$id, expires: \$expires}' > "${state_dir}/persisted.json"
+fi
+	EOF
+	chmod +x "${bin_dir}/eshu-golden-corpus-gate"
 
 	local leg_out="" leg_status=0
 	leg_out="$(golden_suppression_verify_producer_truth 2>&1)" || leg_status=$?
+	# Beyond-ceiling stalls must die exactly at the hidden assert (status
+	# 42 is the sim die), with the ignored-drain stall diagnostic. Any
+	# other death — or a pass — fails the case.
+	if [[ "${expect}" == "red-hidden" ]]; then
+		((leg_status == 42)) || {
+			printf 'case %s: want death at hidden (42), got status %s: %s\n' \
+				"${case_name}" "${leg_status}" "${leg_out}" >&2
+			return 1
+		}
+		printf '%s\n' "${leg_out}" | grep -q 'suppression ignored_hidden query assertion failed' || {
+			printf 'case %s: want the hidden-assert die site, got: %s\n' "${case_name}" "${leg_out}" >&2
+			return 1
+		}
+		printf '%s\n' "${leg_out}" | grep -q 'suppression_stall drain_state=ignored ' || {
+			printf 'case %s: want the ignored-drain suppression_stall line\n' "${case_name}" >&2
+			return 1
+		}
+		return 0
+	fi
 	if ((leg_status != 0)); then
 		printf 'case %s: proof died (status %s): %s\n' "${case_name}" "${leg_status}" "${leg_out}" >&2
 		return 1
@@ -231,20 +282,27 @@ echo \$((\$(cat "${epoch_file}") + ${drain_seconds})) > "${epoch_file}"
 			"${case_name}" "${expiry_line}" "${ignored_line}" >&2
 		return 1
 	fi
-	# Stall diagnostic fires only on a slow drain.
-	if [[ "${stall_want}" == "want" ]]; then
-		printf '%s\n' "${leg_out}" | grep -q 'suppression_stall drain_state=ignored_expiry' || {
-			printf 'case %s: want suppression_stall line\n' "${case_name}" >&2
-			return 1
-		}
-	else
+	# Stall diagnostic fires exactly on the slow drains: stall_want names
+	# the one stalled drain state, "any" when several stall, or "want-not".
+	if [[ "${stall_want}" == "want-not" ]]; then
 		printf '%s\n' "${leg_out}" | grep -q 'suppression_stall ' && {
 			printf 'case %s: want no suppression_stall line\n' "${case_name}" >&2
 			return 1
 		}
+	elif [[ "${stall_want}" == "any" ]]; then
+		printf '%s\n' "${leg_out}" | grep -q 'suppression_stall ' || {
+			printf 'case %s: want suppression_stall lines\n' "${case_name}" >&2
+			return 1
+		}
+	else
+		printf '%s\n' "${leg_out}" | grep -q "suppression_stall drain_state=${stall_want} " || {
+			printf 'case %s: want the %s suppression_stall line\n' "${case_name}" "${stall_want}" >&2
+			return 1
+		}
 	fi
-	# B is a live 20s window, A a 600s window; the expired assertion pinned B.
-	local b_window a_window expired_id b_expires b_authored a_expires a_authored
+	# B is a live 20s window, A a 200s window; the final expired readback
+	# pins (A, expired) — the persisted winner with state flipped.
+	local b_window a_window expired_id expired_state b_expires b_authored a_expires a_authored
 	b_expires="$(command date -u -d "$(jq -r '.expires_at' "${log_dir}/suppression-expiry-request.json")" '+%s')"
 	b_authored="$(command date -u -d "$(jq -r '.authored_at' "${log_dir}/suppression-expiry-request.json")" '+%s')"
 	a_expires="$(command date -u -d "$(jq -r '.expires_at' "${log_dir}/suppression-active-request.json")" '+%s')"
@@ -252,29 +310,67 @@ echo \$((\$(cat "${epoch_file}") + ${drain_seconds})) > "${epoch_file}"
 	b_window=$((b_expires - b_authored))
 	a_window=$((a_expires - a_authored))
 	expired_id="$(jq -r '.findings[0].suppression.suppression_id' "${log_dir}/suppression-expired_visible-query.json")"
+	expired_state="$(jq -r '.findings[0].suppression.state' "${log_dir}/suppression-expired_visible-query.json")"
 	((b_window == 20)) || {
 		printf 'case %s: B window %s, want 20\n' "${case_name}" "${b_window}" >&2
 		return 1
 	}
-	((a_window == 600)) || {
-		printf 'case %s: A window %s, want 600\n' "${case_name}" "${a_window}" >&2
+	((a_window == 200)) || {
+		printf 'case %s: A window %s, want 200\n' "${case_name}" "${a_window}" >&2
 		return 1
 	}
-	[[ "${expired_id}" == "golden-CVE-2026-00010-expiry" ]] || {
-		printf 'case %s: expired id %s, want the B id\n' "${case_name}" "${expired_id}" >&2
+	[[ "${expired_id}" == "golden-CVE-2026-00010" && "${expired_state}" == "expired" ]] || {
+		printf 'case %s: expired readback (%s, %s), want (A, expired)\n' \
+			"${case_name}" "${expired_id}" "${expired_state}" >&2
+		return 1
+	}
+	# End-clean: the B-7c mirror. ~1min after the phase (the B-7c query-truth
+	# gap that #7862 failed), the finding must read the full committed pins:
+	# visible with (A, expired). Count alone would miss an id/state drift.
+	echo $(($(cat "${epoch_file}") + 60)) >"${epoch_file}"
+	local b7c_file="${case_dir}/b7c-findings.json"
+	curl -sS \
+		-o "${b7c_file}" \
+		-w '%{http_code} %{time_total}' \
+		-H "Authorization: Bearer sim" \
+		"http://localhost:1/api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&profile=comprehensive" >/dev/null
+	local b7c_count b7c_id b7c_state
+	b7c_count="$(jq -r '.count' "${b7c_file}")"
+	b7c_id="$(jq -r '.findings[0].suppression.suppression_id' "${b7c_file}")"
+	b7c_state="$(jq -r '.findings[0].suppression.state' "${b7c_file}")"
+	((b7c_count >= 1)) || {
+		printf 'case %s: B-7c mirror count %s, want >= 1 (active leak)\n' "${case_name}" "${b7c_count}" >&2
+		return 1
+	}
+	[[ "${b7c_id}" == "golden-CVE-2026-00010" && "${b7c_state}" == "expired" ]] || {
+		printf 'case %s: B-7c mirror (%s, %s), want (A, expired)\n' \
+			"${case_name}" "${b7c_id}" "${b7c_state}" >&2
 		return 1
 	}
 	return 0
 )
 
-# Case 1: the #7740 stall regime. A 62s ignored drain must still pass: B is
-# already expired when its wait runs (no-op), and A holds 600s of headroom.
-suppression_seq_run_case "slow-drain-62s" 62 "want" ||
-	fail "#7740 sequencing: 62s drain must pass with a suppression_stall line"
+# Case 1: the normal regime. Every drain takes 2s, matching the 12/12
+# ~2.1s drains in the passing attempt of run 37773153037: no stall line,
+# and the B-7c mirror reads the full (A, expired) pins.
+suppression_seq_run_case "fast-drain-2s" "2 2 2 2" "want-not" "pass" ||
+	fail "#7740 sequencing: 2s drains must pass with no stall line"
 
-# Case 2: the normal regime. A 2s drain passes with no stall line, matching
-# the 12/12 ~2.1s drains in the passing attempt of run 37773153037.
-suppression_seq_run_case "fast-drain-2s" 2 "want-not" ||
-	fail "#7740 sequencing: 2s drain must pass with no suppression_stall line"
+# Case 2: the observed #7740 stall shape. Only the ignored drain stalls
+# (62s); the hidden asserts land at ~84s, inside the window, with exactly
+# the ignored-drain stall line.
+suppression_seq_run_case "single-stall-62s" "2 2 2 62" "ignored" "pass" ||
+	fail "#7740 sequencing: single 62s stall must pass with its stall line"
+
+# Case 3: the extreme. Every drain stalls 62s at once; the hidden asserts
+# land at ~186s, still inside the 200s window.
+suppression_seq_run_case "triple-stall-62s" "62 62 62 62" "any" "pass" ||
+	fail "#7740 sequencing: triple 62s stall must still pass"
+
+# Case 4: beyond the ceiling. A 200s ignored drain consumes the window, so
+# the proof must die exactly at the hidden assert with the ignored-drain
+# stall diagnostic — an honest red, not a silent wrong answer.
+suppression_seq_run_case "beyond-ceiling-200s" "2 2 2 200" "ignored" "red-hidden" ||
+	fail "#7740 sequencing: 200s stall must red honestly at hidden"
 
 suppression_sequencing_cases_completed=1

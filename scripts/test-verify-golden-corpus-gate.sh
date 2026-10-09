@@ -137,6 +137,9 @@ rg --fixed-strings --quiet -- "${fixture_count} corpus repos" < <(printf '%s\n' 
 suppression_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
 [[ -f "${suppression_lib}" ]] || fail "missing suppression proof lib: ${suppression_lib}"
 bash -n "${suppression_lib}" || fail "golden-corpus-vulnerability-suppression.sh has a syntax error"
+suppression_window_leg_lib="${repo_root}/scripts/lib/golden-corpus-suppression-window-leg.sh"
+[[ -f "${suppression_window_leg_lib}" ]] || fail "missing suppression window-leg lib: ${suppression_window_leg_lib}"
+bash -n "${suppression_window_leg_lib}" || fail "golden-corpus-suppression-window-leg.sh has a syntax error"
 captured_suppression_count_query=""
 pg() {
 	captured_suppression_count_query="$1"
