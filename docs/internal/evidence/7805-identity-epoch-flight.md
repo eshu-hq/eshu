@@ -226,12 +226,20 @@ and can tear an in-flight load. Two kinds of caller fail with
 `identity_epoch_unstable`, and both are counted in the churn table above.
 
 - A leader fails when the epoch moves during both of its two load attempts. Let q
-  be the chance that one flight tears (that the epoch moves during one load).
-  At the shim's 10 s churn the table shows 9 leader failures in about 22 flights,
-  so q is about 0.14, and an item dead-letters only after three failures in a row,
-  which is q cubed, about 0.3 percent. At q about 0.4 it is about 6 percent. The
-  shim churn is not production churn: at production churn q is negligible. The
-  0.3 percent is the dead-letter odds on the shim, not a per-item failure rate.
+  be the chance that one flight tears (that the epoch moves during one load). An
+  item dead-letters only after three failures in a row, which is about q cubed.
+  Two measured values of q, from two different runs, each with its own host:
+  - Quiet host, earlier head (loads 4.7 s, 10 s churn,
+    `after-drain-final-active.txt`): 2 of 12 flights tore, so q is about 0.17 and
+    q cubed is about 0.5 percent.
+  - Loaded host, final rule (loads 7 to 13 s, 10 s churn,
+    `after-drain-final-active-10s.txt`): 9 of about 22 flights tore, so q is about
+    0.41 and q cubed is about 7 percent.
+
+  The shim churn is not production churn. At production churn today (one
+  activation in 24 hours, per the activation profile on #7825) q is negligible.
+  Neither figure is a per-item failure rate; both are the odds of three failures
+  in a row on the shim.
 - A waiter fails when 3 flights in a row do not serve it, or when it has waited
   one heartbeat interval (30 s) in total, and a final probe finds no usable set.
   This path needs no churn. A set that stays over the cache cap is never cached,
@@ -263,10 +271,9 @@ Raw outputs are attached to the PR (no private paths). File names:
 `red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-noreprobe-mutation.txt`,
 `red-probeerr-mutation.txt`, `red-noclass-mutation.txt`,
 `red-noflightbound-mutation.txt`, `red-nowallbound-mutation.txt`,
-`red-wallleads-mutation.txt`, `red-nofinalprobe-mutation.txt`,
 `red-heartbeat-wiring-mutation.txt`, `red-live-epoch.txt`,
 `red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
-`red-keyset-live-mutation.txt`, `red-probectx-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
+`red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
 `after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
 `after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`, and, from
 the final-head recapture directory `final-r10/`: `exit-codes.txt`,
@@ -275,10 +282,23 @@ the final-head recapture directory `final-r10/`: `exit-codes.txt`,
 `verify-live-tests-ledger.txt`, `verify-ledger-results.txt`,
 `test-verify-live-tests-ledger.txt`, `test-run-live-postgres-readiness.txt`,
 `test-verify-ifa-fault-injection.txt`, `telemetry-coverage.txt`, `docs-cli-env-refs.txt`. Every green capture in
-`final-r10/` was taken on the final head (`binding.txt` names it). The RED
-mutation captures and the drains were taken earlier on the same cache logic: the
-cache, patience, test and wiring sources are byte-identical between the head they
-were taken on and the final head (only the base moved).
+`final-r10/` was taken on the final head (`binding.txt` names it). It includes
+`registry-gates.txt`, which finished at exit 0 on that head (see `exit-codes.txt`).
+
+What binds the final head and what does not. The three RED mutations that cover
+the patience code were re-run on the final head and are in `final-r12/`:
+`red-wallleads-mutation.txt` (a spent wall budget may lead),
+`red-nofinalprobe-mutation.txt` (no final probe), and
+`red-probectx-mutation.txt` (context error during the final probe); their exit
+codes are in `final-r12/exit-codes.txt` and `binding.txt` names the head. The
+other RED captures (`red-f6-f8`, `red-joinable`, `red-noreprobe`, `red-probeerr`,
+`red-noclass`, `red-noflightbound`, `red-nowallbound`, `red-heartbeat-wiring`,
+and the live ones) and the drains were taken on earlier heads. They do not bind
+the final head. Since those captures, `identity_epoch_cache.go` and the wiring
+did not change in the parts they test; `facts_active_container_image_identity.go`
+changed (`giveUp`, F37) and the waiter test file was split in two (F33). The
+drains ran the cache logic of the wait-or-lead change; the `giveUp` edit since
+then only changes which error a caller receives when its own context ends.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
 (Cypher) reads only, so it has no entry for this query. The guard is
