@@ -44,6 +44,14 @@ func (h *IncidentHandler) profile() querycontract.QueryProfile {
 // reads.
 var incidentHandlerTracer = tracing.HandlerTracer()
 
+// Fixed bodies for a failed incident context read and a failed scoped-token
+// authorization lookup. The store error is recorded on the request span, never
+// written to the client (#7674).
+const (
+	incidentContextReadFailedMessage          = "read incident context failed"
+	incidentContextAuthorizationFailedMessage = "incident context authorization failed"
+)
+
 func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Request) {
 	r, span := tracing.StartHandlerSpanWith(
 		incidentHandlerTracer,

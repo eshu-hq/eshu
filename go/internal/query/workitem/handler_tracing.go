@@ -22,3 +22,8 @@ var workitemHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(workitemHandlerTracer, r, spanName, route, capability)
 }
+
+// workItemEvidenceListFailedMessage is the fixed body for a failed work-item
+// evidence read. The store error is recorded on the request span, never
+// written to the client (#7674).
+const workItemEvidenceListFailedMessage = "list work-item evidence failed"

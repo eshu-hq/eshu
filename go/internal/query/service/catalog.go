@@ -16,7 +16,16 @@ import (
 
 const (
 	serviceCatalogCorrelationsCapability = "service_catalog.correlations.list"
+	// serviceCatalogCorrelationsListFailedMessage is the fixed body for a
+	// failed correlation read. The store error is recorded on the request
+	// span, never written to the client (#7674).
+	serviceCatalogCorrelationsListFailedMessage = "list service catalog correlations failed"
 )
+
+// catalogHandlerTracer is the catalog route's tracer and the seam its span
+// tests swap. Seeding it from tracing.HandlerTracer keeps a swap private to
+// this package rather than mutating what every other importer reads.
+var catalogHandlerTracer = tracing.HandlerTracer()
 
 // CatalogHandler exposes reducer-owned service catalog correlation reads.
 type CatalogHandler struct {
@@ -69,7 +78,7 @@ func (h *CatalogHandler) profile() querycontract.QueryProfile {
 
 func (h *CatalogHandler) listCorrelations(w http.ResponseWriter, r *http.Request) {
 	r, span := tracing.StartHandlerSpanWith(
-		tracing.HandlerTracer(),
+		catalogHandlerTracer,
 		r,
 		telemetry.SpanQueryServiceCatalogCorrelations,
 		"GET /api/v0/service-catalog/correlations",

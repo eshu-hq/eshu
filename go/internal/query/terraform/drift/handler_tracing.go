@@ -21,3 +21,11 @@ var driftHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(driftHandlerTracer, r, spanName, route, capability)
 }
+
+// Fixed bodies for a failed Terraform config-vs-state drift finding read, one
+// per step. The store error is recorded on the request span, never written to
+// the client (#7674).
+const (
+	driftFindingsCountFailedMessage = "count Terraform config-vs-state drift findings failed"
+	driftFindingsListFailedMessage  = "list Terraform config-vs-state drift findings failed"
+)

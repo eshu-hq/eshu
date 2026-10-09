@@ -21,3 +21,11 @@ var cicdHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(cicdHandlerTracer, r, spanName, route, capability)
 }
+
+// Fixed bodies for a failed CI/CD read. The store error is recorded on the
+// request span, never written to the client (#7674).
+const (
+	runCorrelationsListFailedMessage      = "list CI/CD run correlations failed"
+	runCorrelationsCountFailedMessage     = "count CI/CD run correlations failed"
+	runCorrelationsInventoryFailedMessage = "read CI/CD run correlation inventory failed"
+)

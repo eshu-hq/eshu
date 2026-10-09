@@ -19,6 +19,11 @@ const (
 
 var errInvalidMetricsRange = errors.New("invalid metrics time-series range")
 
+// metricsQueryFailedMessage is the fixed body for a failed time-series read.
+// The source error is recorded on the request span, never written to the
+// client (#7674).
+const metricsQueryFailedMessage = "metrics query failed"
+
 // Point is one timestamped sample in a metric series.
 type Point struct {
 	T string  `json:"t"`

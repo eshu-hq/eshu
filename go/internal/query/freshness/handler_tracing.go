@@ -21,3 +21,11 @@ var freshnessHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(freshnessHandlerTracer, r, spanName, route, capability)
 }
+
+// Fixed bodies for a failed freshness read, one per route. The store error is
+// recorded on the request span, never written to the client (#7674).
+const (
+	changedSinceFailedMessage        = "compute changed-since delta failed"
+	generationLifecycleFailedMessage = "list generation lifecycle failed"
+	serviceChangedSinceFailedMessage = "compute service changed-since delta failed"
+)

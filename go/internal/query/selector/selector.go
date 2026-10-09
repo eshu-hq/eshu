@@ -218,20 +218,26 @@ func ResolveForRequestWithAccess(
 ) (string, bool) {
 	repoID, err := ResolveExactForAccess(r.Context(), graph, content, selector, access)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, capability) {
-			return "", false
-		}
-		if WriteLookupFailure(w, r, err) {
-			return "", false
-		}
-		status := http.StatusBadRequest
-		if IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		querycontract.WriteError(w, status, err.Error())
+		writeResolveFailure(w, r, err, capability)
 		return "", false
 	}
 	return repoID, true
+}
+
+// writeResolveFailure answers a failed ResolveExactForAccess in the order
+// ResolveForRequestWithAccess documents.
+func writeResolveFailure(w http.ResponseWriter, r *http.Request, err error, capability string) {
+	if querycontract.WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	if WriteLookupFailure(w, r, err) {
+		return
+	}
+	status := http.StatusBadRequest
+	if IsNotFound(err) {
+		status = http.StatusNotFound
+	}
+	querycontract.WriteError(w, status, err.Error())
 }
 
 // IsNotFound reports whether err is (or wraps) a NotFoundError, so callers

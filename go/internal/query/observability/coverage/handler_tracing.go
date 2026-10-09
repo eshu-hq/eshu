@@ -21,3 +21,8 @@ var coverageHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(coverageHandlerTracer, r, spanName, route, capability)
 }
+
+// coverageCorrelationsListFailedMessage is the fixed body for a failed
+// observability coverage correlation read. The store error is recorded on the
+// request span, never written to the client (#7674).
+const coverageCorrelationsListFailedMessage = "list observability coverage correlations failed"
