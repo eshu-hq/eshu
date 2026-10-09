@@ -124,6 +124,7 @@ nav:
         - Code: reference/http-api/code.md
         - Source Cache Read Clip: reference/http-api/source-cache-clip.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
+        - Unscoped File Search: reference/http-api/unscoped-file-search.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md
         - Repositories: reference/http-api/repositories-ingesters-bundles.md
         - Images, Ingester, And Bundles: reference/http-api/images-ingesters-bundles.md
@@ -319,6 +320,7 @@ nav:
       - Overview: reference/telemetry/index.md
       - Runtime Signals: reference/telemetry/runtime-signals.md
       - Secret-Line Finalizer Signals: reference/telemetry/secret-lines.md
+      - Unscoped File Search Signals: reference/telemetry/unscoped-file-search.md
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md

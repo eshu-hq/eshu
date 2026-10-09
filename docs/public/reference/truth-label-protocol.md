@@ -13,6 +13,7 @@ Reducer materialization layer names live in `go/internal/truth`.
 | --- | --- |
 | `exact` | Authoritative graph truth or durable semantic truth. |
 | `derived` | Deterministic result from indexed entities, content, or structured relational state. |
+| `partial` | A budgeted read stopped at its work budget before it could prove the answer complete (#7730). The rows are an ordered prefix of the exact answer, `truncated` is true, and the response carries a resume cursor. Only routes that declare a work budget emit it; today that is the file-content search with no repository filter. |
 | `fallback` | Exploratory result that is useful but not authoritative for the capability. |
 
 High-authority capabilities such as transitive call graphs, call-chain paths,

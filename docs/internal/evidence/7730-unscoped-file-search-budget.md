@@ -1,0 +1,108 @@
+# Unscoped file search: budgeted key-ordered walk (#7730)
+
+## Scope
+
+`POST /api/v0/content/files/search` and the MCP tool `search_file_content`
+with no repository filter. The entity twin, the scoped and multi-repository
+pages, and the oversized-document policy are out of scope. This note records the
+measurements behind the design and the proof of the change; the design and the
+arbiter rulings are in the issue thread and are not repeated here.
+
+Performance Evidence: the old single statement, `content ILIKE '%x%' ORDER BY
+repo_id, relative_path LIMIT/OFFSET`, costs the byte mass of the trigram
+candidate set and flips plan with each `ANALYZE` (the planner prices the
+pattern from a histogram of values of at most 1 KB, so one pattern is a 9 ms
+ordered walk after one refresh and a 3 s trigram bitmap after the next). The
+new walk bounds the work it issues and does not depend on the planner's choice.
+
+| class (ops-qa read replica, read-only, V4c reader run, SQL `Execution Time` sums) | old | new | result |
+| --- | --- | --- | --- |
+| selective literal (C2) | 333.8 ms | 410.6 ms | exact, bar 484 ms |
+| zero match (C4) | measured with the V4 table | 71.8 ms | exact, bar 200 ms |
+| medium token (C3p) | 2,640 ms | 40.5 ms | exact, bar 500 ms |
+| dense token | 5,603 ms | 32.8 ms | exact |
+| late rare token (C3) | 2,613.6 ms | explicit partial inside the budget | partial with cursor and reported overrun |
+
+These are the figures of the V4c reader run reported to the issue; this change
+did not re-run them and the raw transcripts are private. The regime (planner
+row estimate and plan shape at launch) was recorded per class in that run.
+
+Local fixture proof (disposable PostgreSQL 18.6, 12,000 synthetic files in 60
+repositories, half under 1 KB, one in 20 about 26 KB; warm; two runs of
+`TestSearchFilesUnscopedMatchesOldStatementLive`, page 1 of 10):
+
+| class | old | new, run 1 | new, run 2 |
+| --- | --- | --- | --- |
+| dense | 49.4 ms | 1.7 ms | 21.1 ms |
+| wildcard (`han_ler`) | 51.0 ms | 1.6 ms | 1.1 ms |
+| medium | 3.0 ms | 4.8 ms | 5.6 ms |
+| upper case of medium | 3.0 ms | 4.6 ms | 4.2 ms |
+| selective | 1.0 ms | 91.4 ms | 77.5 ms |
+| zero match | 0.4 ms | 113.7 ms | 102.7 ms |
+
+Read the last two rows plainly: at this small scale the old bitmap answers a
+selective or zero-match pattern in about a millisecond, and the walk spends its
+continuation cap (0.15 x budget) before the tail runs, so it is slower here.
+On the measured corpus the same two classes stayed inside their bars (above).
+The walk trades a bounded constant for removing the 3 s to 53 s tail of the old
+statement; it does not make every class faster. Pages 1, 2 and 3 of the walk
+equal the old statement's `OFFSET 0 / 10 / 20` pages for every class, including
+ILIKE wildcards and case folding, and `truncated` agrees with the old look-ahead
+row (`TestSearchFilesUnscopedMatchesOldStatementLive`, which derives the old
+statement from the shipped tail text and asserts the byte-prefix).
+
+Plan shape (`TestUnscopedSearchPlanShapesLive`): the key-ordered window plans
+as an index walk on `content_files_pkey` with no trigram node; the tail under
+`SET LOCAL enable_indexscan = off` plans as `Bitmap Index Scan on
+content_files_content_trgm_idx` with no sequential scan and no primary-key walk.
+The test first proves the planner's natural plan for the medium token is the
+primary-key walk (the plan lottery the setting removes) and fails when the
+setting is dropped.
+
+Cancel and resume (`TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive`):
+a token with no trigram makes the tail recheck every row; at the smallest budget
+the server cancels it, the savepoint keeps the transaction usable, and resuming
+from each returned cursor gathers exactly the old statement's rows, no gap and
+no duplicate.
+
+Unit proof (`go/internal/query/search/unscoped`, fake clock and a fake that
+aborts the transaction on a cancel until `ROLLBACK TO`): phase order and
+timeouts, tail floor, exhaustion at the window boundary, offset served by
+`offset + limit + 1`, cursor resume with and without an offset, overrun and the
+large-document reason, scaling with the budget, exec mode on every bounded
+statement. Mutation checks: removing the cursor advance fails two tests;
+removing the tail-cancel counter fails the metrics test.
+
+Observability Evidence: span `postgres.query` (`db.operation=
+search_file_content_any_repo_page`) carries `search.scope`, `search.budget_ms`,
+`search.elapsed_ms`, `search.overrun_ms`, `search.probe_rows_visited`,
+`search.continuation_steps`, `search.continuation_rows`, `search.tail_ran`,
+`search.tail_cancelled`, `search.outcome` and `search.cursor_present`. Metrics:
+`eshu_dp_content_search_unscoped_total{outcome}`,
+`eshu_dp_content_search_tail_cancel_total`,
+`eshu_dp_content_search_unscoped_duration_seconds{outcome}` and
+`eshu_dp_content_search_unscoped_overrun_seconds`. One
+`content_search.unscoped_partial` log line per partial result with the reason,
+elapsed, overrun, rows scanned and matched. Tests assert that no span attribute
+and no log line carries the search pattern. At 3 AM an operator reads the
+`partial` share of the counter, the overrun histogram for the large-document
+effect, and the `reason` on the log line.
+
+## Concurrency and cost shape
+
+One call is one read-only snapshot transaction on one pooled connection, so the
+read pool sees the same connection use as before for a short call and at most
+the budget plus one reported overrun for a long one. The walk takes no lock
+beyond the snapshot, writes nothing, and never retries a statement. The
+standby cancels a long conflicting transaction at about 30 s; the maximum
+accepted budget is 10 s.
+
+## NOT_CHECKED
+
+- The V4c reader run is cited, not repeated here. A deployed re-sweep on a
+  pinned image with two planner-estimate regimes recorded is the next proof.
+- Candidate-size distribution per statement and the largest document's
+  candidacy (arbiter rulings 4 and 5).
+- Corpus-scale plan shape of every class on the tail (the fixture proves the
+  selective and medium classes; the reader run proved the rest).
+- The deployed end-to-end envelope overhead against the one-second bar.

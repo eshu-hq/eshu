@@ -130,7 +130,7 @@ The block instructs assistants to:
   `next_cursor`.
 - Start from concrete first prompts such as building a service story or tracing a
   deployment chain.
-- Respect Eshu truth labels: read `truth.level` (exact, derived, fallback) and
+- Respect Eshu truth labels: read `truth.level` (exact, derived, partial, fallback) and
   `truth.freshness.state` (fresh, stale, building, unavailable), and state when
   evidence is missing rather than inventing graph edges.
 
