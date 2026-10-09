@@ -162,6 +162,41 @@ func TestRecordSelectionPrefetch_SkipsWhenNoSelection(t *testing.T) {
 	}
 }
 
+// TestErrorVisitRecordsSelectionPrefetch proves a visit whose write fails
+// still records the selection rounds its prefetch queries already issued:
+// the error returns carry the batch's SelectionRounds/PrefetchStats and the
+// visit recorder runs on error visits too, so a prefetch-error storm stays
+// visible in prefetch_queries_total next to the error visits.
+func TestErrorVisitRecordsSelectionPrefetch(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	reader, inst := backoffTestInstruments(t)
+	runner, _ := backoffTestRunner(&now, func(runner *Runner) {
+		runner.Instruments = inst
+		runner.IntentReader = &fakeSharedIntentReader{
+			intents: []sharedintent.Row{selectionTestRow(reducercontract.DomainWorkloadDependency, "scope-a", "unit-a", "gen-1", 0)},
+		}
+		runner.EdgeWriter = &fakeEdgeWriter{writeErr: errBackoffTestWrite}
+	})
+
+	result, err := runner.processPartitionWithTelemetry(context.Background(), now, reducercontract.DomainWorkloadDependency, 0, 1)
+	if err == nil {
+		t.Fatal("processPartitionWithTelemetry() error = nil, want the write error")
+	}
+	if result.SelectionRounds == 0 {
+		t.Fatal("error visit SelectionRounds = 0, want the selection rounds the visit issued")
+	}
+
+	rm := collectMetrics(t, reader)
+	if !sumHasAttrsAndValue(rm, "eshu_dp_shared_projection_selection_rounds_total", map[string]any{
+		telemetry.MetricDimensionDomain: reducercontract.DomainWorkloadDependency,
+	}, int64(result.SelectionRounds)) {
+		t.Errorf("selection_rounds_total: no data point with domain=%q value=%d",
+			reducercontract.DomainWorkloadDependency, result.SelectionRounds)
+	}
+}
+
 // TestRecordCycleBackoff_EmitsGauges proves the per-cycle backoff summary
 // samples the global interval and at-max gauges.
 func TestRecordCycleBackoff_EmitsGauges(t *testing.T) {

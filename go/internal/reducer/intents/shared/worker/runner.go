@@ -387,8 +387,12 @@ func (r *Runner) processPartitionWithTelemetry(
 	if err == nil {
 		r.recordSharedProjectionTiming(ctx, domain, result)
 		r.recordSharedProjectionPartitionMetrics(ctx, domain, partitionID, duration, result)
-		r.recordSelectionPrefetch(ctx, domain, result)
 	}
+	// Prefetch load stays visible on error visits: the selection already
+	// issued its queries before the write failed, and the error returns
+	// above carry the batch's SelectionRounds/PrefetchStats for exactly
+	// this. Visits that never selected record nothing (zero rounds).
+	r.recordSelectionPrefetch(ctx, domain, result)
 
 	if err == nil && result.ProcessedIntents > 0 {
 		r.recordSharedProjectionCycle(ctx, domain, duration, result)

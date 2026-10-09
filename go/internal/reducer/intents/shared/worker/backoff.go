@@ -292,7 +292,7 @@ func (r *Runner) visitPartition(
 	if tracker.shouldSkip(domain, partitionID, now) {
 		delay, _ := tracker.delayFor(domain, partitionID)
 		r.recordPartitionVisit(ctx, domain, partitionID, telemetry.SharedProjectionVisitOutcomeBackoffSkipped, delay)
-		return PartitionProcessResult{BackoffSkipped: true, PartitionsBackoffSkipped: 1}, nil
+		return PartitionProcessResult{PartitionsBackoffSkipped: 1}, nil
 	}
 	result, err := r.processPartitionWithTelemetry(ctx, now, domain, partitionID, partitionCount)
 	if err != nil {

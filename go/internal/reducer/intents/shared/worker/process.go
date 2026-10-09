@@ -98,10 +98,6 @@ type PartitionProcessResult struct {
 	// behavior: per-kind keys, queries, rows, readiness cache hits, and
 	// durations (#7724 telemetry: per-visit prefetch stats).
 	PrefetchStats sharedintent.PrefetchStats
-	// BackoffSkipped reports the partition was skipped by per-partition
-	// backoff (#7724 2A): no lease claim, no selection, no state change.
-	// A skipped result carries no other visit outcome.
-	BackoffSkipped bool
 	// PartitionsVisited counts visits that ran (lease acquired, selection
 	// attempted, including error visits). MergePartitionProcessResult
 	// sums these three counters across the cycle so the runner can
@@ -228,6 +224,8 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, planErr
 	}
 	retractRows, writeRows := rwPlan.retractRows, rwPlan.writeRows
@@ -240,6 +238,8 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, err
 	}
 	retractDuration, writeDuration, upsertRows := writeResult.retractDuration, writeResult.writeDuration, writeResult.upsertRows
@@ -250,6 +250,8 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, err
 	}
 	processingDuration := time.Since(processingStart).Seconds()
