@@ -305,6 +305,8 @@ PACKAGES = {
         "go/internal/query/content_reader_search_unscoped_live_test.go": (
             "TestSearchFilesUnscopedMatchesOldStatementLive",
             "TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive",
+            "TestSearchFilesUnscopedEdgeRowsAreExactLive",
+            "TestSearchFilesUnscopedTailFilledPageKeepsMoreLive",
             "TestUnscopedSearchPlanShapesLive",
         ),
         "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (

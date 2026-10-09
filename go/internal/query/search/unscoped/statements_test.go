@@ -96,3 +96,28 @@ func TestSearchTailDoesNotRepeatTheCursorRow(t *testing.T) {
 		t.Fatalf("files = %v, want %v", got, want)
 	}
 }
+
+// A page the tail fills exactly (it returns every row it was asked for, the
+// look-ahead row included) is not the end of the answer: More must be true.
+// A tail asked for one row too few would return a short list that the walk
+// reads as "the key space ended", reporting a page that looks complete.
+func TestSearchTailFilledPageReportsMore(t *testing.T) {
+	t.Parallel()
+
+	rows := map[int]bool{15000: true, 15001: true, 15002: true}
+	corpus := newCorpus(20000, 50*time.Microsecond, func(i int) bool { return rows[i] })
+	corpus.tailCost = func(int) time.Duration { return 334 * ms }
+	page, fdb, _, err := run(t, corpus, 2, 0, querycontract.SearchCursor{})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if got := fdb.tx.labels(t, "tail"); len(got) != 1 {
+		t.Fatalf("tail statements = %v, want the tail to fill the page", got)
+	}
+	if got, want := keys(page.Files), matchKeys(corpus)[:2]; !equalKeys(got, want) {
+		t.Fatalf("files = %v, want %v", got, want)
+	}
+	if !page.More || page.Partial != nil {
+		t.Fatalf("More=%v Partial=%+v, want a complete page with a further match", page.More, page.Partial)
+	}
+}

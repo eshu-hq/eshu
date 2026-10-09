@@ -338,38 +338,29 @@ func planHas(plan explainNode, want string) bool {
 	return false
 }
 
-// TestSearchFilesUnscopedEdgeRowsAreExactLive is the SQL-level exactness proof
-// for the keyset and the window edge: the edge token is planted on every row a
-// window ends on and on the row after it, the budget is small enough that the
-// probe, at least two continuation steps and then the trigram tail all run, and
-// the answer must equal the old statement's rows exactly. An inclusive keyset
-// operator duplicates a boundary row; an edge offset past the window skips
-// one; either changes the list.
-func TestSearchFilesUnscopedEdgeRowsAreExactLive(t *testing.T) {
-	ctx, db := openUnscopedLiveFixture(t)
+// liveWalk is one live search with the span attributes that say which phases ran.
+type liveWalk struct {
+	page   querycontract.FileSearchPage
+	budget time.Duration
+	steps  int64
+	tail   bool
+	cancel bool
+}
+
+// searchLive runs a search at the given budget and records its phases.
+func searchLive(t *testing.T, ctx context.Context, db *sql.DB, budget time.Duration, token string, limit int) liveWalk {
+	t.Helper()
 	spans := tracetest.NewSpanRecorder()
 	searcher := &unscoped.Searcher{
 		Store:  postgres.NewSQLReadStore(db),
-		Budget: 200 * time.Millisecond,
+		Budget: budget,
 		Tracer: sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
-
-	want := oracleKeys(t, ctx, db, liveEdgeToken, 1000, 0)
-	if len(want) < 40 {
-		t.Fatalf("fixture has %d edge matches, want a boundary-rich set", len(want))
-	}
-	page, err := searcher.Search(ctx, liveEdgeToken, 200, 0, querycontract.SearchCursor{})
+	page, err := searcher.Search(ctx, token, limit, 0, querycontract.SearchCursor{})
 	if err != nil {
-		t.Fatalf("Search() error = %v", err)
+		t.Fatalf("Search(%d ms) error = %v", budget.Milliseconds(), err)
 	}
-	if page.Partial != nil {
-		t.Fatalf("partial result %+v, want the tail to complete the answer", page.Partial)
-	}
-	if got := pageKeys(page.Files); strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("walk rows (%d) != old statement rows (%d)\nwalk: %v\nold:  %v", len(got), len(want), got, want)
-	}
-
 	ended := spans.Ended()
 	if len(ended) != 1 {
 		t.Fatalf("ended spans = %d, want 1", len(ended))
@@ -378,11 +369,96 @@ func TestSearchFilesUnscopedEdgeRowsAreExactLive(t *testing.T) {
 	for _, kv := range ended[0].Attributes() {
 		attrs[string(kv.Key)] = kv.Value
 	}
-	if steps := attrs["search.continuation_steps"].AsInt64(); steps < 2 {
-		t.Fatalf("continuation steps = %d, want at least 2 so a step edge is the next cursor", steps)
+	return liveWalk{
+		page:   page,
+		budget: budget,
+		steps:  attrs["search.continuation_steps"].AsInt64(),
+		tail:   attrs["search.tail_ran"].AsBool(),
+		cancel: attrs["search.tail_cancelled"].AsBool(),
 	}
-	if !attrs["search.tail_ran"].AsBool() || attrs["search.tail_cancelled"].AsBool() {
-		t.Fatalf("tail_ran=%v tail_cancelled=%v, want a tail that ran and completed from a step-edge cursor",
-			attrs["search.tail_ran"].AsBool(), attrs["search.tail_cancelled"].AsBool())
+}
+
+// searchLiveUntil runs the search at a series of budgets until accept holds for
+// the phases that ran. Which phases run depends on host speed: a slow host
+// cancels the tail at a small budget, a fast host finishes in the continuation.
+// Rows and the look-ahead flag must be exact at every budget; only the choice of
+// the budget that exercises the wanted phases is adaptive, and failing to find
+// one is a failure, never a skip.
+func searchLiveUntil(
+	t *testing.T, ctx context.Context, db *sql.DB, token string, limit int,
+	check func(walk liveWalk),
+	accept func(walk liveWalk) bool,
+) liveWalk {
+	t.Helper()
+	budgets := []time.Duration{200, 300, 400, 800, 1600, 150, 100}
+	var tried []string
+	for _, ms := range budgets {
+		walk := searchLive(t, ctx, db, ms*time.Millisecond, token, limit)
+		check(walk)
+		if accept(walk) {
+			return walk
+		}
+		tried = append(tried, fmt.Sprintf("%dms(steps=%d tail=%v cancelled=%v)", ms, walk.steps, walk.tail, walk.cancel))
+	}
+	t.Fatalf("no budget exercised the wanted phases; tried %s", strings.Join(tried, " "))
+	return liveWalk{}
+}
+
+// TestSearchFilesUnscopedEdgeRowsAreExactLive is the SQL-level exactness proof
+// for the keyset and the window edge: the edge token is planted on every row a
+// window ends on and on the row after it, the budget is chosen so the probe, at
+// least two continuation steps and then the trigram tail all run, and the
+// answer must equal the old statement's rows exactly. An inclusive keyset
+// operator duplicates a boundary row; an edge offset past the window skips
+// one; either changes the list.
+func TestSearchFilesUnscopedEdgeRowsAreExactLive(t *testing.T) {
+	ctx, db := openUnscopedLiveFixture(t)
+	want := oracleKeys(t, ctx, db, liveEdgeToken, 1000, 0)
+	if len(want) < 40 {
+		t.Fatalf("fixture has %d edge matches, want a boundary-rich set", len(want))
+	}
+	searchLiveUntil(t, ctx, db, liveEdgeToken, 200,
+		func(walk liveWalk) {
+			if walk.page.Partial != nil {
+				return // a cut-short walk is not the exactness case; rows are a prefix
+			}
+			if got := pageKeys(walk.page.Files); strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Fatalf("budget %d ms: walk rows (%d) != old statement rows (%d)\nwalk: %v\nold:  %v",
+					walk.budget.Milliseconds(), len(got), len(want), got, want)
+			}
+		},
+		func(walk liveWalk) bool {
+			return walk.page.Partial == nil && walk.steps >= 2 && walk.tail && !walk.cancel
+		})
+}
+
+// TestSearchFilesUnscopedTailFilledPageKeepsMoreLive pins the look-ahead flag
+// of a page the trigram tail fills. The selective token's matches sit past what
+// the continuation reaches, so the tail returns the whole page and its look-ahead
+// row; More must equal the old statement's "a further row exists", and a page
+// that looks complete while another match exists is the failure.
+func TestSearchFilesUnscopedTailFilledPageKeepsMoreLive(t *testing.T) {
+	ctx, db := openUnscopedLiveFixture(t)
+	for _, limit := range []int{2, 1} {
+		old := oracleKeys(t, ctx, db, liveRareToken, limit+1, 0)
+		if len(old) != limit+1 {
+			t.Fatalf("limit %d: fixture gives the old statement %d rows, want %d (a further match must exist)", limit, len(old), limit+1)
+		}
+		searchLiveUntil(t, ctx, db, liveRareToken, limit,
+			func(walk liveWalk) {
+				if walk.page.Partial != nil {
+					return
+				}
+				if got, want := pageKeys(walk.page.Files), old[:limit]; strings.Join(got, ",") != strings.Join(want, ",") {
+					t.Fatalf("limit %d budget %d ms: rows %v, want %v", limit, walk.budget.Milliseconds(), got, want)
+				}
+				if !walk.page.More {
+					t.Fatalf("limit %d budget %d ms: More=false but the old statement saw %d rows for limit %d",
+						limit, walk.budget.Milliseconds(), len(old), limit)
+				}
+			},
+			func(walk liveWalk) bool {
+				return walk.page.Partial == nil && walk.tail && !walk.cancel
+			})
 	}
 }
