@@ -58,9 +58,15 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
   base="origin/$GITHUB_BASE_REF"
 fi
 if [ -z "$base" ]; then
-  git -C "$repo_root" fetch --no-tags origin \
-    main:refs/remotes/origin/main >/dev/null 2>&1 \
-    || { printf 'verify-measurement-citations: cannot refresh origin/main\n' >&2; exit 2; }
+  if [ "$(git -C "$repo_root" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+    git -C "$repo_root" fetch --no-tags --unshallow origin \
+      main:refs/remotes/origin/main >/dev/null 2>&1 \
+      || { printf 'verify-measurement-citations: cannot fetch full origin/main history\n' >&2; exit 2; }
+  else
+    git -C "$repo_root" fetch --no-tags origin \
+      main:refs/remotes/origin/main >/dev/null 2>&1 \
+      || { printf 'verify-measurement-citations: cannot refresh origin/main\n' >&2; exit 2; }
+  fi
   base=origin/main
 fi
 if ! base_commit="$(git -C "$repo_root" rev-parse --verify "${base}^{commit}" 2>/dev/null)"; then
@@ -279,12 +285,13 @@ while IFS= read -r line; do
   case "${current_file}" in
     "${ledger_rel_path}") continue ;;
     testdata/*|*/testdata/*) continue ;;
-    # The gate's own script and test mirror necessarily contain the trigger
+    # The gate's own script and test mirrors necessarily contain the trigger
     # patterns as regex source and test fixtures (e.g. the claim_pattern
     # literal, or a fixture line like "0/30 trials failed"). Those are not
     # claims about Eshu's measured behavior, so they are exempt from citation.
     scripts/verify-measurement-citations.sh) continue ;;
     scripts/test-verify-measurement-citations.sh) continue ;;
+    scripts/test-verify-measurement-citations-wrapper.sh) continue ;;
   esac
 
   payload="${line:1}"

@@ -31,6 +31,10 @@ printf '%s\n' 'A cited result: 0/10 trials (ledger:9999-common).' \
   >"${fixture}/feature/finding.md"
 git -C "${fixture}/feature" add finding.md
 git -C "${fixture}/feature" commit -q -m 'cite common row on feature'
+printf '%s\n' '# A fixture string: 7/10 trials without a citation.' \
+  >"${fixture}/feature/scripts/test-verify-measurement-citations-wrapper.sh"
+git -C "${fixture}/feature" add scripts/test-verify-measurement-citations-wrapper.sh
+git -C "${fixture}/feature" commit -q -m 'edit wrapper mirror with fixture claim text'
 
 git clone -q "${fixture}/origin.git" "${fixture}/main-writer"
 git -C "${fixture}/main-writer" config user.name "Eshu Test"
@@ -121,6 +125,44 @@ if ! env -u ESHU_MEASUREMENT_CITATIONS_BASE GITHUB_BASE_REF=main \
   sed -n '1,30p' "${fixture}/gate.err" >&2
   exit 1
 fi
+
+git clone -q "${fixture}/feature" "${fixture}/queue-writer"
+git -C "${fixture}/queue-writer" config user.name "Eshu Test"
+git -C "${fixture}/queue-writer" config user.email "test@example.invalid"
+git -C "${fixture}/queue-writer" remote add upstream "${fixture}/origin.git"
+git -C "${fixture}/queue-writer" fetch -q upstream main
+git -C "${fixture}/queue-writer" branch -f main upstream/main
+git -C "${fixture}/queue-writer" checkout -q -b queue
+git -C "${fixture}/queue-writer" merge -q --no-ff upstream/main -m 'queue merge'
+printf '%s\n' 'queue tip' >"${fixture}/queue-writer/queue.txt"
+git -C "${fixture}/queue-writer" add queue.txt
+git -C "${fixture}/queue-writer" commit -q -m 'queue tip after merge'
+git clone -q --depth 2 "file://${fixture}/queue-writer" "${fixture}/queue-shallow"
+if ! env -u ESHU_MEASUREMENT_CITATIONS_BASE -u GITHUB_BASE_REF \
+    ESHU_MEASUREMENT_CITATIONS_REPO_ROOT="${fixture}/queue-shallow" \
+    "${fixture}/queue-shallow/scripts/verify-measurement-citations.sh" \
+    >"${fixture}/gate.out" 2>"${fixture}/gate.err"; then
+  printf 'shallow merge-queue checkout rejected despite a clean feature branch\n' >&2
+  sed -n '1,30p' "${fixture}/gate.err" >&2
+  exit 1
+fi
+
+printf '%s\n' 'Earlier uncited result: 3/10 trials failed.' \
+  >"${fixture}/feature/early-claim.md"
+git -C "${fixture}/feature" add early-claim.md
+git -C "${fixture}/feature" commit -q -m 'early uncited claim'
+printf '%s\n' 'innocent tip' >"${fixture}/feature/tip.md"
+git -C "${fixture}/feature" add tip.md
+git -C "${fixture}/feature" commit -q -m 'innocent tip'
+git clone -q --depth 1 "file://${fixture}/feature" "${fixture}/ci-multicommit"
+if env -u ESHU_MEASUREMENT_CITATIONS_BASE GITHUB_BASE_REF=main \
+    ESHU_MEASUREMENT_CITATIONS_REPO_ROOT="${fixture}/ci-multicommit" \
+    "${fixture}/ci-multicommit/scripts/verify-measurement-citations.sh" \
+    >"${fixture}/gate.out" 2>"${fixture}/gate.err"; then
+  printf 'shallow multi-commit CI checkout missed an early uncited claim\n' >&2
+  exit 1
+fi
+rg -q 'early-claim.md: added line states a measurement' "${fixture}/gate.err"
 
 # A common-ancestor row remains protected even after main moves forward.
 printf '%s\n' '{"id":"9999-changed","value":0,"trials":10}' \
