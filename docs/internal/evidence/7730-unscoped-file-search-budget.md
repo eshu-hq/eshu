@@ -6,9 +6,9 @@
 with no repository filter. The entity twin, the scoped and multi-repository
 pages, and the oversized-document policy are out of scope. This note records the
 measurements behind the design and the proof of the change. The design and the
-arbiter rulings are not in the repository; the transcripts of the measurement
-runs are private and the figures below are cited from the coordinator's V4c
-reader run, not re-run by this change.
+arbiter rulings are not in the repository. The V4c figures are in the comment
+of 2026-10-08 on issue #7730 (issuecomment-6073885986); the transcripts behind
+them are private. This change did not re-run them.
 
 Performance Evidence: the old single statement, `content ILIKE '%x%' ORDER BY
 repo_id, relative_path LIMIT/OFFSET`, costs the byte mass of the trigram
@@ -19,30 +19,32 @@ new walk bounds the work it issues and does not depend on the planner's choice.
 It is not faster for every class: on the real corpus it is slower for the
 selective and zero-match classes and much faster for the common-token classes.
 
-V4c reader run (ops-qa read replica, read-only, SQL `Execution Time` sums, the
-same run for old and new; budget B = 800 ms; old is the single statement in the
-planner's natural regime, warm and cold):
+V4c reader run (ops-qa read replica, read-only, SQL `Execution Time` sums, one
+run for old and new, figures rounded as in the issue comment; budget B = 800 ms;
+old is the single statement in the planner's natural regime, warm with the
+first run (cold) in parentheses):
 
-| class | old warm | old cold | new | outcome | bar |
-| --- | --- | --- | --- | --- | --- |
-| C2 selective literal | 334.1 ms | 416.5 ms | 410.6 ms | exact | 484 ms |
-| C4 zero match | 0.536 ms | 3.82 ms | 71.8 ms | exact, 0 rows | 200 ms |
-| C3p medium token | 2,639.8 ms | 3,001.1 ms | 40.5 ms | exact | 500 ms |
-| C5b dense token (5,809 matches) | 5,602.6 ms | not reported | 32.8 ms | exact | 300 ms |
-| C3 rare token, first match late | 1,920.9 ms | 2,060.9 ms | 527.7 ms (tail counted at its 400 ms cap) | partial, 0 rows, overrun 539.1 ms | explicit partial inside budget plus one reported overrun |
-| C3pf cap edge (cursor about 5,000 rows before the first match) | 2,679.4 ms | 2,765.4 ms | 515.2 ms | partial, tail cancelled, overrun 595.5 ms | exact or honest partial |
+| class | old warm (cold) | new | outcome | bar |
+| --- | --- | --- | --- | --- |
+| C2 selective literal, 3 matches | 334 ms (417 ms) | 411 ms | exact | 484 ms |
+| C4 zero match | 0.5 ms (3.8 ms) | 72 ms | exact, 0 rows | 200 ms |
+| C3p medium token, 348 small matching files | 2,640 ms (3,001 ms) | 40.5 ms | exact, pages 1 to 3 equal the old statement | 500 ms |
+| C5b dense token, 5,809 matches | 5,603 ms | 32.8 ms | exact | 300 ms |
+| C3 rare token, first match deep in key order | 1,921 ms (2,061 ms) | 528 ms | explicit partial, 0 rows, tail cancelled, overrun reported | partial within budget |
+| C3pf medium token started 5,184 rows before its next match | 2,679 ms (2,765 ms) | 515 ms | explicit partial, tail cancelled, overrun reported | partial within budget |
 
 Read the table plainly:
 
 - C4: the old statement answered a zero-match pattern in 0.5 ms warm and 3.8 ms
-  cold; the walk takes 71.8 ms, about 130 times slower warm. It stays inside
+  cold; the walk takes 72 ms, about 130 times slower warm. It stays inside
   its 200 ms bar. The same holds for C2 (334 to 411 ms, inside 484 ms).
-- C3pf is the cap-edge class: the exact answer was not reachable inside
-  B = 800 ms, so the walk answers partial with a cursor and reports the overrun
-  of the cancelled tail instead of running on.
-- C3 answers partial with no rows and a reported overrun of 539.1 ms: the
-  cancelled tail ran past its timeout by one candidate's uninterruptible
-  recheck. The call exceeds the budget by that reported amount.
+- C3pf is the cap-edge class (the cursor sits 5,184 rows before the next
+  match): the exact answer was not reachable inside B = 800 ms, so the walk
+  answers partial with a cursor and reports the overrun of the cancelled tail
+  (595.5 ms in the V4c run) instead of running on.
+- C3 answers partial with no rows and a reported overrun of 539.1 ms in the
+  V4c run: the cancelled tail ran past its timeout by one candidate's
+  uninterruptible recheck. The call exceeds the budget by that reported amount.
 - The 3 s and longer cost of the old statement for common tokens is the
   measured column above. Its worst case when the planner takes the ordered walk
   for a rare token is a full-table walk, computed (not measured) as 146,844 rows
