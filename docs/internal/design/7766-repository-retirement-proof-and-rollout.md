@@ -11,8 +11,8 @@ the prove-first results, the corrections, and the issues kept out of scope.
 
 Binding inputs: the
 [shared-contract arbiter ruling](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598)
-and the arbiter ruling on the #7766 prove-first results (to be posted on
-#7766).
+and the [arbiter ruling on the #7766 prove-first
+results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964).
 
 Source check: origin/main 195337b97, 2026-10-08; amendments re-checked against
 16c8c2a36, 2026-10-09.
@@ -57,7 +57,7 @@ in [Prove-First Results](#prove-first-results).
 
 P1, P2, and P9 ran on 2026-10-08. **P1 and P9 failed as originally designed,
 and the design was amended per the arbiter ruling on the #7766 prove-first
-results (to be posted on #7766).** P2 passed only after the gate was folded
+results ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964)).** P2 passed only after the gate was folded
 into the scope upsert. P3-P8 and P10 run in the PR that builds each piece, and
 the bars in the table above that the amendments added must pass before code.
 
@@ -335,7 +335,7 @@ holds what the prove-first results review found false or imprecise.
    sits inside the ruling's non-goals.
 
 Found false or imprecise in the results review (arbiter ruling on the #7766
-prove-first results, to be posted on #7766):
+prove-first results, [posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964)):
 
 1. **The P1 pass text "7a touches ≤ 3 rows"** counted statuses; it is not an
    invariant. A stalled scope updated 5,000 rows. The pass text now reads
@@ -375,16 +375,15 @@ Two items the first ruling listed as not verified are now closed:
 ## Out Of Scope: Pre-Existing Issues
 
 Two defects the proof exposed predate #7766. #7766 references them and does not
-depend on them. Both are to be filed; the coordinator adds the numbers after the
-owner approves.
+depend on them: #7852 and #7853.
 
-- **Refinalize `LOCK TABLE` convoy (to be filed).**
+- **Refinalize `LOCK TABLE` convoy (#7852).**
   `AcquireReducerClaimFence` runs `LOCK TABLE fact_work_items IN EXCLUSIVE
   MODE` (`rebuild/reset/refinalize.go:65-66`, `:381`, driven from
   `storage/postgres/recovery.go:369`) with no `lock_timeout` anywhere in `recovery.go`
   or `refinalize.go`. The fix is the bounded-wait and retry fence helper in
   `rebuild/reset`. #7766 PR 5 builds it, and the refinalize issue adopts it.
-- **Orphan-intent starvation and silent 0-row completion (to be filed).** All
+- **Orphan-intent starvation and silent 0-row completion (#7853).** All
   three shared selectors skip an intent whose acceptance row is absent, forever,
   and `MarkIntentsCompleted` ignores rows affected (P9). Rule for the fix: mark
   an intent completed (reason `acceptance_absent_generation_gone`) only when its
