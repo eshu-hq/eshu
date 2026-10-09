@@ -653,6 +653,8 @@ jobs:
           cache: false
       - name: Install pinned crane
         run: GOBIN="${RUNNER_TEMP}" go install github.com/google/go-containerregistry/cmd/crane@v0.20.6
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Test publisher safety contract
         run: bash scripts/dev/test-publish-ci-image-mirrors.sh
       - name: Log in to GHCR
@@ -684,6 +686,8 @@ jobs:
           cache: false
       - name: Install pinned crane
         run: GOBIN="${RUNNER_TEMP}" go install github.com/google/go-containerregistry/cmd/crane@v0.20.6
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
       - name: Test publisher safety contract
         run: bash scripts/dev/test-publish-ci-image-mirrors.sh
       - name: Verify anonymous digests
