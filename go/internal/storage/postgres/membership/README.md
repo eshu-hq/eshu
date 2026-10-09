@@ -9,8 +9,9 @@ repository. The git collector's `membership.Observer` reads and writes it once
 per githubOrg or explicit cycle (once per owner for an explicit list), on
 shard 0 only. The rows are evidence; nothing deletes, hides, or retires a
 scope because of them. The only rows this package deletes are observation
-rows that stayed expired for a 7-day grace past their own liveness window
-(#7774).
+rows that stayed expired for a grace (`membership.ExpiredObservationGrace`,
+7 days) past their own liveness window (#7774), and never `not_listed` rows,
+which the mass-miss guard reads.
 
 ## Ownership boundary
 
@@ -67,12 +68,18 @@ collector cycle continues.
   one statement cannot update a row twice (SQLSTATE 21000).
 - The sweep predicate is strict (`< now`) and uses each row's own
   `liveness_window_seconds`, so a row at the boundary or with a longer window
-  stays. Each batch is one statement selected `FOR UPDATE SKIP LOCKED`, so a
-  row an upsert holds is skipped. `FOR UPDATE` rechecks the predicate against
-  the newest version, so a row renewed before the lock is kept. An upsert
-  that collides with an in-flight delete waits, then inserts a fresh row.
-  The live test covers all three and fails the boundary, grace, and
-  lock-wait mutants.
+  stays. `state <> $4`, bound to `membership.StateNotListed`, keeps every
+  `not_listed` row: deleting one could make the mass-miss guard count an
+  already-confirmed missing scope as newly unlisted and trip forever. Each
+  batch is one statement selected `FOR UPDATE SKIP LOCKED`, so a row an
+  upsert holds is skipped. `FOR UPDATE` rechecks the whole predicate,
+  including the state, against the newest version, so a row renewed before
+  the lock is kept. An upsert that collides with an in-flight delete waits,
+  then inserts a fresh row. The live test covers all of these and fails the
+  `not_listed`, window, boundary, grace, and lock-wait mutants.
+- Abandoned selectors' `not_listed` rows are never reclaimed. They are
+  bounded by the selectors ever created times the scopes each had unlisted;
+  freshness reads only live rows and `Evaluate` reads only its own selector.
 
 ### Expired-row sweep
 
@@ -90,9 +97,25 @@ batch of 500:
 | Steady-state probe, 40,000 kept rows, unordered | seq scan | 5,000 | 3.8-4.4 ms, 0 deleted |
 | Steady-state probe, 40,000 kept rows, ordered | full primary-key index scan | 44,203 | 10.5-11.4 ms, 0 deleted |
 
-The drain left all 20,000 live rows and all 20,000 in-grace rows. The probe
-runs once per evaluated or guard-tripped cycle on shard 0, so the steady
-state is the common case; that is why the batch is unordered. No index: the
+The drain left all 20,000 live rows and all 20,000 in-grace rows.
+
+Re-measured with the `not_listed` exclusion on the same setup, with one scope
+in ten of every selector `not_listed` (16,000 abandoned `not_listed` rows),
+two runs each of the shipped statement without and with `state <> $4`:
+
+| Case | Without | With (shipped) |
+| --- | --- | --- |
+| One batch | 5.2-5.4 ms, 3,014 buffers | 5.2-5.4 ms, 3,015 buffers |
+| One capped call, 10,000 deleted | 87-92 ms | 90-91 ms |
+| Drain of the rest | 149,500 rows, 1.32-1.36 s | 133,500 rows, 1.23-1.24 s |
+| Steady-state probe | 40,000 kept, 5,000 buffers, 4.2-5.2 ms | 56,000 kept, 5,000 buffers, 6.5-8.5 ms |
+
+With the exclusion all 16,000 abandoned `not_listed` rows survive and no
+abandoned row of another state does. The probe costs about 3 ms more because
+it filters the kept `not_listed` rows on each pass.
+
+The probe runs once per collector cycle on shard 0, so the steady state is
+the common case; that is why the batch is unordered. No index: the
 predicate combines two columns with an interval, and an expression index on
 `timestamptz + interval` is not allowed because the operator is only
 `STABLE`.

@@ -21,8 +21,9 @@
 //   - DeleteExpiredObservations (#7774) deletes rows of any selector that
 //     stayed expired for the grace past their own liveness window, in bounded
 //     batches of one statement each, skipping rows another transaction holds.
+//     It never deletes a not_listed row, which the mass-miss guard reads.
 //
 // The store deletes only those long-expired observation rows, never a live
-// one, and never writes ingestion_scopes or the graph. It must not import the
-// parent postgres package.
+// or not_listed one, and never writes ingestion_scopes or the graph. It must
+// not import the parent postgres package.
 package membershipstore

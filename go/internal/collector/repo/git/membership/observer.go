@@ -53,14 +53,18 @@ type Store interface {
 	// DeleteExpiredObservations deletes rows of every selector whose
 	// evaluated_at plus their own liveness window plus grace is before now,
 	// in bounded batches, and returns the rows deleted, including those
-	// deleted before an error. It never deletes a row inside its window or
-	// the grace after it.
+	// deleted before an error. It never deletes a not_listed row, which
+	// Evaluate's mass-miss guard reads, or a row inside its window or the
+	// grace after it.
 	DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (int64, error)
 }
 
 // Request is one cycle's evaluation request from the git collector.
 // LivenessWindow is the configured ESHU_REPO_SELECTION_LIVENESS_WINDOW; zero
-// means DefaultLivenessWindow.
+// means DefaultLivenessWindow. SweepExpired asks Observe to run the
+// expired-row sweep after this evaluation; the collector sets it on exactly
+// one request per cycle, so a cycle sweeps at most once whatever its number
+// of explicit owners.
 type Request struct {
 	Selector       Selector
 	SourceMode     string
@@ -69,6 +73,7 @@ type Request struct {
 	Now            time.Time
 	LivenessWindow time.Duration
 	Listing        Listing
+	SweepExpired   bool
 }
 
 // Observer evaluates one selector per cycle and records the outcome. It never
@@ -87,17 +92,18 @@ type Observer struct {
 // also logs git_repository_selection_liveness_lapsed: the selector's rows had
 // expired and read as unknown until this evaluation.
 //
-// After an evaluated or guard-tripped cycle (the store reads succeeded) it
-// sweeps rows of every selector that expired more than
-// ExpiredObservationGrace ago. A sweep failure is logged as the
-// expired_sweep failure class and leaves the outcome unchanged.
+// When req.SweepExpired is set and the store reads succeeded (an evaluated or
+// guard-tripped outcome), it then sweeps rows of every selector that expired
+// more than ExpiredObservationGrace ago, never not_listed rows. A sweep
+// failure is logged as the expired_sweep failure class and leaves the outcome
+// unchanged.
 func (o Observer) Observe(ctx context.Context, req Request) Result {
 	result, failureClass, err := o.evaluate(ctx, req)
 	if failureClass != "" {
 		result.Outcome = OutcomeStoreError
 		o.storeFailed(ctx, req, failureClass, err)
 	}
-	if result.Outcome == OutcomeEvaluated || result.Outcome == OutcomeGuardTripped {
+	if req.SweepExpired && (result.Outcome == OutcomeEvaluated || result.Outcome == OutcomeGuardTripped) {
 		result.ExpiredDeleted, err = o.Store.DeleteExpiredObservations(ctx, req.Now, ExpiredObservationGrace)
 		if err != nil {
 			o.storeFailed(ctx, req, FailureClassExpiredSweep, err)

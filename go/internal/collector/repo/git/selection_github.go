@@ -30,7 +30,9 @@ type RepositorySelectionObserver interface {
 
 // observeSelection hands the cycle's full pre-shard selection to the
 // configured observer: the githubOrg listing as one request, or the explicit
-// configured list as one request per owner. Only shard 0 observes, because
+// configured list as one request per owner. Exactly one request per cycle
+// carries SweepExpired, so the expired-row sweep runs at most once per cycle.
+// Only shard 0 observes, because
 // every shard sees the same selection and N writers would race on the same
 // observation rows. Filesystem mode has no remote identity to observe.
 func (s NativeRepositorySelector) observeSelection(
@@ -92,6 +94,9 @@ func explicitSelectionRequests(config RepoSyncConfig, repositoryIDs []string, ob
 			Listing:        membership.Listing{Complete: true, Repositories: group.listed},
 		})
 	}
+	if n := len(requests); n > 0 {
+		requests[n-1].SweepExpired = true
+	}
 	return requests
 }
 
@@ -141,6 +146,7 @@ func githubOrgSelectionRequest(
 			Complete:     discovered.ListingComplete,
 			Repositories: listed,
 		},
+		SweepExpired: true,
 	}
 }
 

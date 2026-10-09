@@ -35,6 +35,7 @@ func TestDeleteExpiredObservationsQueryShape(t *testing.T) {
 
 	query := membershipstore.DeleteExpiredObservationsQuery
 	for _, want := range []string{
+		"WHERE state <> $4",
 		"evaluated_at + make_interval(secs => liveness_window_seconds) + make_interval(secs => $2::bigint) < $1::timestamptz",
 		"LIMIT $3",
 		"FOR UPDATE SKIP LOCKED",
@@ -61,9 +62,9 @@ func TestDeleteExpiredObservationsBatchesUntilAShortBatch(t *testing.T) {
 	if len(database.Execs) != 3 {
 		t.Fatalf("statements = %d, want 3 (two full batches, then a short one)", len(database.Execs))
 	}
-	want := []any{evaluatedAt.UTC(), int64(7 * 24 * 3600), membershipstore.ExpiredSweepBatchSize}
+	want := []any{evaluatedAt.UTC(), int64(7 * 24 * 3600), membershipstore.ExpiredSweepBatchSize, "not_listed"}
 	if got := database.Execs[0].Args; !reflect.DeepEqual(got, want) {
-		t.Fatalf("bound args = %#v, want %#v (UTC now, grace seconds, batch size)", got, want)
+		t.Fatalf("bound args = %#v, want %#v (UTC now, grace seconds, batch size, the kept not_listed state)", got, want)
 	}
 }
 

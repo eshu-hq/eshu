@@ -106,7 +106,10 @@ const (
 )
 
 // deleteExpiredObservationsQuery deletes one batch of rows, by primary key,
-// whose own liveness window plus the grace period ended before $1. Each batch
+// whose own liveness window plus the grace period ended before $1. It never
+// deletes a $4 (not_listed) row: membership.Evaluate reads that history to
+// keep scopes already confirmed missing out of the mass-miss guard, so
+// deleting it could trip the guard forever once access returns. Each batch
 // is its own statement, so locks last one batch. SKIP LOCKED passes over a
 // row an upsert holds, and FOR UPDATE rechecks the expiry predicate against
 // the newest row version, so a row renewed before the lock is never deleted.
@@ -117,7 +120,8 @@ const deleteExpiredObservationsQuery = `
 WITH doomed AS (
     SELECT scope_id, selector_id
     FROM repository_selection_observations
-    WHERE evaluated_at + make_interval(secs => liveness_window_seconds) + make_interval(secs => $2::bigint) < $1::timestamptz
+    WHERE state <> $4
+      AND evaluated_at + make_interval(secs => liveness_window_seconds) + make_interval(secs => $2::bigint) < $1::timestamptz
     LIMIT $3
     FOR UPDATE SKIP LOCKED
 )
@@ -255,10 +259,10 @@ func (s ObservationStore) UpsertObservations(ctx context.Context, batch membersh
 
 // DeleteExpiredObservations deletes rows of every selector whose evaluated_at
 // plus their own liveness window plus grace is before now. It runs batches of
-// expiredSweepBatchSize rows, stops at the first short
-// batch or after expiredSweepMaxBatches, and returns the rows deleted,
-// including those deleted before an error. A row still inside its window, or
-// inside the grace after it, is never deleted.
+// expiredSweepBatchSize rows, stops at the first short batch or after
+// expiredSweepMaxBatches, and returns the rows deleted, including those
+// deleted before an error. A not_listed row, a row still inside its window,
+// or a row inside the grace after it is never deleted.
 func (s ObservationStore) DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (int64, error) {
 	switch {
 	case s.database == nil:
@@ -271,7 +275,7 @@ func (s ObservationStore) DeleteExpiredObservations(ctx context.Context, now tim
 	var deleted int64
 	for range expiredSweepMaxBatches {
 		result, err := s.database.ExecContext(ctx, deleteExpiredObservationsQuery,
-			now.UTC(), int64(grace/time.Second), expiredSweepBatchSize)
+			now.UTC(), int64(grace/time.Second), expiredSweepBatchSize, string(membership.StateNotListed))
 		if err != nil {
 			return deleted, fmt.Errorf("delete expired repository selection observations: %w", err)
 		}

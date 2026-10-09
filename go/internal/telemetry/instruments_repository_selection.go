@@ -82,7 +82,7 @@ func registerRepositorySelection(meter metric.Meter, inst *Instruments) error {
 	}
 	if inst.RepositorySelectionObservationsDeleted, err = meter.Int64Counter(
 		"eshu_dp_collector_repository_selection_observations_deleted_total",
-		metric.WithDescription("Expired repository_selection_observations rows deleted by the git collector's sweep, by collector_kind; a row is deleted only after its liveness window plus a 7-day grace (#7774)"),
+		metric.WithDescription("Expired repository_selection_observations rows deleted by the git collector's sweep, by collector_kind; a row is deleted only after its liveness window plus the expired-observation grace, and a not_listed row never (#7774)"),
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionObservationsDeleted counter: %w", err)
 	}

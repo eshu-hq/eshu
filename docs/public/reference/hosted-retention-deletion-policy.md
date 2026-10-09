@@ -65,10 +65,15 @@ freshness verdict; it never triggers repository removal, which stays the
 tombstone path above (phase 3). An expired `repository_selection_observations`
 row reads as no evidence (`unknown`) at once. The git collector deletes it
 once it has stayed expired for a 7-day grace past its own liveness window
-(#7774). The collector does this on shard 0 after each evaluation whose
-store reads succeeded, in batches of at most 500 rows and 10,000 rows per
-cycle. The grace keeps a briefly lapsed selector's history, so its unlisted
-scopes do not count as newly unlisted when it resumes. The deletion never
+(#7774), unless its state is `not_listed`. The collector sweeps once per
+cycle on shard 0, after an evaluation whose store reads succeeded, in batches
+of at most 500 rows and 10,000 rows per cycle. `not_listed` rows are never
+deleted, because the mass-miss guard reads them: without that history a
+recovered selector could count scopes it had already confirmed missing as
+newly unlisted and hold every write. Those rows of an abandoned selector
+therefore stay, bounded by the selectors ever created times the scopes each
+had unlisted. The grace keeps the rest of a briefly lapsed selector's history,
+so its exclusion confirmations survive a short outage. The deletion never
 touches a live row, `ingestion_scopes`, facts, or the graph.
 `eshu_dp_collector_repository_selection_observations_deleted_total` counts
 the deleted rows.

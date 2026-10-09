@@ -170,7 +170,9 @@ In explicit mode, shard 0 hands the full pre-shard configured list to the
 observer as one all-`selected` listing per owner
 (`explicitSelectionRequests`), with scope IDs and slugs from
 `gitScopeIdentityForRepositoryID`; only configured repositories that already
-have scopes get rows.
+have scopes get rows. Exactly one request per cycle carries
+`SweepExpired` (the githubOrg request, or the last explicit owner's), so the
+expired-row sweep runs at most once per cycle.
 `listGitHubOrgRepositories` requests every page at `per_page=100`, because
 GitHub pages by offset and a smaller page would re-read earlier repositories,
 and trims to `ESHU_REPO_LIMIT` client-side. Only an empty page or the limit

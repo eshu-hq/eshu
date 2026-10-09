@@ -98,7 +98,10 @@ under `outcome="guard_tripped"`. The scope gauge keeps its last `evaluated`
 sample. Because the selector's rows are no longer refreshed, they expire after
 the liveness window. Unless another selector still has live rows for them, the
 org's scopes then read selection `unknown`, which leaves their freshness
-verdict where it was before #7625. Nothing is deleted.
+verdict where it was before #7625. The expired-row sweep never deletes the
+selector's `not_listed` rows, so the scopes it had already confirmed missing
+still do not count as newly unlisted once access returns, however long the
+guard tripped.
 
 To confirm the cause, check the `not_listed_sample` slugs on GitHub:
 
@@ -140,24 +143,42 @@ To confirm the cause, check the `not_listed_sample` slugs on GitHub:
   until this evaluation.
 - Counter `eshu_dp_collector_repository_selection_observations_deleted_total`
   `{collector_kind="git"}` (#7774): expired rows the sweep deleted. The INFO
-  line carries the cycle's `expired_deleted_count`; a failed sweep logs
+  line of the request that swept carries `expired_deleted_count`, zero on
+  every other request; a failed sweep logs
   `git_repository_selection_store_failed` with `failure_class=expired_sweep`
   and keeps the cycle's outcome.
 
 ## Expired-row sweep
 
-After an `evaluated` or `guard_tripped` cycle, `Observer` calls
-`Store.DeleteExpiredObservations(now, ExpiredObservationGrace)`. That deletes
-rows of every selector whose `evaluated_at` plus their own liveness window
-plus 7 days has passed (#7774). Rows orphaned by a credential rotation, rules
-change, or owner change are the target. A truncated listing or a failed store
-read skips the sweep.
+The collector marks exactly one request per cycle with `Request.SweepExpired`:
+the githubOrg request, or the last owner's request in explicit mode. After that
+request's `evaluated` or `guard_tripped` outcome, `Observer` calls
+`Store.DeleteExpiredObservations(now, ExpiredObservationGrace)` once. That
+deletes rows of every selector whose `evaluated_at` plus their own liveness
+window plus `ExpiredObservationGrace` has passed (#7774), except `not_listed`
+rows, which are never deleted. Rows orphaned by a credential rotation, rules
+change, or owner change are the target. A truncated listing, a failed store
+read, or a failed upsert on that request skips the sweep for the cycle.
 
-The grace exists because `Evaluate` reads expired prior rows. A selector that
-resumes inside the grace keeps its `not_listed` history, so the mass-miss
-guard does not count those scopes as newly unlisted. Its first evaluation
-also logs `liveness_lapsed`. A selector gone longer than its window plus 7
-days resumes exactly like a new selector.
+`not_listed` rows stay because the mass-miss guard reads them: a scope whose
+prior row is `not_listed` is not newly unlisted, and a relist is counted only
+against one. Deleting that history could hold a recovered selector's guard
+tripped forever. Deleting any other prior row changes no guard count, since a
+missing prior and a prior in another state both count the scope as newly
+unlisted. What a selector does lose past its window plus the grace:
+
+- A returning `archived_excluded` or `rule_excluded` scope restarts at one
+  cycle and reads pending until confirmed again. That errs toward no
+  `not_selected` verdict, never a wrong one.
+- `liveness_lapsed` may not fire on its first evaluation, because
+  `PreviousEvaluatedAt` reads only the rows that remain.
+
+The grace still matters for those: a selector that resumes inside it keeps
+its full history and logs `liveness_lapsed`. Explicit selectors write no
+`not_listed` rows, so the exception never applies to them. The cost is that
+an abandoned selector's `not_listed` rows stay forever. They are bounded by
+the selectors ever created times the scopes each had unlisted, freshness
+reads only live rows, and `Evaluate` reads only its own selector.
 
 ## Evidence
 

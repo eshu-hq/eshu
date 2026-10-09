@@ -14,9 +14,11 @@
   that every `selection_*.go` file in `git/` move into it.
 - It records evidence only. Do not add scope deletion, hiding, retirement, or
   graph writes here. The one deletion is the #7774 sweep of observation rows
-  past their window plus `ExpiredObservationGrace`, run after an evaluated or
-  guard-tripped cycle. Shortening the grace lets a resuming selector's
-  unlisted scopes count as newly unlisted against the mass-miss guard.
+  past their window plus `ExpiredObservationGrace`, run once per cycle on the
+  request marked `SweepExpired` after an evaluated or guard-tripped outcome.
+  It never deletes `not_listed` rows: the mass-miss guard reads them, and
+  deleting them can hold a recovered selector's guard tripped forever. Do not
+  remove that exclusion, and keep exactly one `SweepExpired` request per cycle.
 - A sweep failure is the `expired_sweep` failure class and never changes the
   cycle's outcome.
 - The state set, `Live`, and the uniform `Confirmed` rule live in

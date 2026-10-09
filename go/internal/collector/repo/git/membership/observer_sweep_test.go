@@ -77,6 +77,21 @@ func TestObserverSkipsTheSweepWithoutASuccessfulStoreRead(t *testing.T) {
 	}
 }
 
+func TestObserverSweepsOnlyWhenTheRequestAsks(t *testing.T) {
+	t.Parallel()
+
+	known, listing := qaFixture()
+	store := &fakeStore{known: known, sweepDeleted: 9}
+	h := newObserverHarness(t, store)
+	request := qaRequest(listing)
+	request.SweepExpired = false
+	result := h.observer.Observe(context.Background(), request)
+	if result.Outcome != OutcomeEvaluated || len(store.sweeps) != 0 || result.ExpiredDeleted != 0 {
+		t.Fatalf("result = %q with %d sweeps and %d deleted, want %q with no sweep", result.Outcome, len(store.sweeps), result.ExpiredDeleted, OutcomeEvaluated)
+	}
+	h.assertNoDeletedCount(t)
+}
+
 func TestObserverSweepFailureIsLoggedAndKeepsTheOutcome(t *testing.T) {
 	t.Parallel()
 

@@ -29,9 +29,10 @@ const (
 	// ExpiredObservationGrace is how long an observation row is kept after
 	// its own liveness window ends before the sweep deletes it (#7774). An
 	// expired row already reads as unknown, but Evaluate still uses it as
-	// prior state, so a selector that resumes inside the grace keeps its
-	// not_listed history and the mass-miss guard does not count those
-	// scopes as newly unlisted. A selector gone longer resumes like a new one.
+	// prior state: a selector that resumes inside the grace keeps its
+	// exclusion confirmations and logs liveness_lapsed. The sweep never
+	// deletes not_listed rows, so the mass-miss guard keeps its history
+	// whatever the gap.
 	ExpiredObservationGrace = 7 * 24 * time.Hour
 )
 

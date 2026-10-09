@@ -6,7 +6,9 @@ package membershipstore_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"maps"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -20,8 +22,8 @@ import (
 //
 //  1. Only rows whose evaluated_at plus their own liveness window plus the
 //     grace is strictly before now are deleted. A live row, a row inside the
-//     grace, a row exactly at the boundary, and an old row with a long window
-//     are kept.
+//     grace, a row exactly at the boundary, and a row a 1h window would
+//     expire but its own 48h window keeps are kept.
 //  2. A backlog drains in batches: 1,203 rows in one call, and a
 //     backlog past the batch cap stops at the cap and finishes next call.
 //  3. Four sweeps released together over one backlog delete each row once,
@@ -30,6 +32,9 @@ import (
 //     kept once the evaluation renews it.
 //  5. An evaluation that collides with an in-flight delete waits for it,
 //     then inserts a fresh row, so a racing evaluation is never lost.
+//  6. not_listed rows are never deleted, however old, so a selector whose
+//     rows all expired still evaluates instead of tripping the mass-miss
+//     guard on scopes it had already confirmed missing.
 //
 // It runs in the live-postgres-readiness runner. Run locally with a disposable
 // PostgreSQL 18 administrative database:
@@ -48,7 +53,7 @@ func TestObservationStoreSweepLive(t *testing.T) {
 	seedObservations(ctx, t, sqlDB, "sel:grace", 3, expired.Add(time.Minute), window)
 	seedObservations(ctx, t, sqlDB, "sel:boundary", 2, expired, window)
 	seedObservations(ctx, t, sqlDB, "sel:live", 4, now.Add(-10*time.Minute), window)
-	seedObservations(ctx, t, sqlDB, "sel:long", 2, now.Add(-72*time.Hour), int((48*time.Hour)/time.Second))
+	seedObservations(ctx, t, sqlDB, "sel:long", 2, now.Add(-grace-24*time.Hour), int((48*time.Hour)/time.Second))
 
 	deleted, err := store.DeleteExpiredObservations(ctx, now, grace)
 	if err != nil {
@@ -76,6 +81,49 @@ func TestObservationStoreSweepLive(t *testing.T) {
 	assertConcurrentSweepsDeleteEachRowOnce(ctx, t, sqlDB, store, now, grace, expired)
 	assertLockedRowIsSkippedThenKept(ctx, t, sqlDB, store, now, grace, expired)
 	assertRacingEvaluationIsNotLost(ctx, t, sqlDB, store, now, expired)
+	assertNotListedHistoryKeepsGuardClear(ctx, t, sqlDB, store, now, grace, expired)
+}
+
+// assertNotListedHistoryKeepsGuardClear seeds a github_org selector whose 30
+// rows all expired past the grace: 20 confirmed not_listed and 10 selected.
+// The sweep deletes only the 10 selected rows. A listing that still misses
+// the 20 then evaluates. Had their history been deleted they would count as
+// newly unlisted, above the max(10, ceil(10% of 30)) threshold, and the guard
+// would trip on every cycle.
+func assertNotListedHistoryKeepsGuardClear(ctx context.Context, t *testing.T, sqlDB *sql.DB, store membershipstore.ObservationStore, now time.Time, grace time.Duration, expired time.Time) {
+	t.Helper()
+	selector := membership.NewGitHubOrgSelector("githubOrg", "acme", nil, false, membership.GitHubAppPrincipal("9", "10"))
+	known := make([]membership.KnownScope, 30)
+	listing := membership.Listing{Complete: true}
+	for i := range known {
+		known[i] = membership.KnownScope{ScopeID: fmt.Sprintf("scope:guard-%02d", i), Slug: fmt.Sprintf("acme/guard-%02d", i)}
+		state := membership.StateNotListed
+		if i >= 20 {
+			state = membership.StateSelected
+			listing.Repositories = append(listing.Repositories, membership.ListedRepository{
+				ScopeID: known[i].ScopeID, Slug: known[i].Slug, GitHubID: int64(500 + i), State: membership.StateSelected,
+			})
+		}
+		if _, err := sqlDB.ExecContext(ctx, `
+INSERT INTO repository_selection_observations (scope_id, selector_id, selector_kind, selector_owner, state,
+    state_since, state_cycle_count, evaluated_at, liveness_window_seconds)
+VALUES ($1, $2, 'github_org', 'acme', $3, $4, 5, $4, 3600)`, known[i].ScopeID, selector.ID, string(state), expired.Add(-time.Hour)); err != nil {
+			t.Fatalf("seed %s: %v", known[i].ScopeID, err)
+		}
+	}
+	if deleted, err := store.DeleteExpiredObservations(ctx, now, grace); err != nil || deleted != 10 {
+		t.Fatalf("sweep = (%d, %v), want (10, nil): only the expired selected rows", deleted, err)
+	}
+	prior := readByScope(ctx, t, store, selector.ID)
+	if len(prior) != 20 {
+		t.Fatalf("rows left = %d, want the 20 expired not_listed rows kept", len(prior))
+	}
+	result := membership.Evaluate(membership.Input{
+		Selector: selector, Now: now, LivenessWindow: time.Hour, Listing: listing, Known: known, Prior: slices.Collect(maps.Values(prior)),
+	})
+	if result.Outcome != membership.OutcomeEvaluated {
+		t.Fatalf("outcome = %q with %d newly unlisted (threshold %d), want evaluated", result.Outcome, result.Counts.NewlyUnlisted, result.GuardThreshold)
+	}
 }
 
 // assertConcurrentSweepsDeleteEachRowOnce releases four sweeps at once over a

@@ -70,8 +70,8 @@ func TestNativeRepositorySelectorObservesTheFullListingOnShardZero(t *testing.T)
 		t.Fatalf("observations = %d, want 1 on shard 0", len(observer.requests))
 	}
 	request := observer.requests[0]
-	if !request.Listing.Complete || request.RepoShardCount != 3 || request.RepoLimit != 4000 || request.SourceMode != "githubOrg" {
-		t.Fatalf("request = %+v, want complete listing, 3 shards, repo limit 4000, githubOrg", request)
+	if !request.Listing.Complete || request.RepoShardCount != 3 || request.RepoLimit != 4000 || request.SourceMode != "githubOrg" || !request.SweepExpired {
+		t.Fatalf("request = %+v, want complete listing, 3 shards, repo limit 4000, githubOrg, and the cycle's one sweep", request)
 	}
 	wantSelector := membership.NewGitHubOrgSelector("githubOrg", "acme", []membership.Rule{{Kind: "regex", Value: "^acme/(api|old)"}}, false, "anonymous")
 	if request.Selector != wantSelector {
