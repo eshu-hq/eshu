@@ -5545,9 +5545,12 @@ gates:
       - "scripts/test-resolve-image-scan-ref.sh"
       - "scripts/test-verify-docker-publish-pr-platforms.sh"
       - "scripts/test-verify-docker-publish-moving-tags.sh"
+      - "scripts/dev/publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-publish-ci-image-mirrors.sh"
+      - "scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     local:
-      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
-      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+      command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
+      test_command: "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify docker-publish shape gate"

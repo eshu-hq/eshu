@@ -7,9 +7,12 @@ upstream OCI indexes to dedicated Eshu GHCR packages. It does not rebuild them.
 
 | Upstream index | Eshu GHCR tag | Index digest |
 | --- | --- | --- |
-| `mirror.gcr.io/library/postgres:18-alpine` | `ghcr.io/eshu-hq/ci-postgres-alpine:18` | `sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` |
-| `mirror.gcr.io/library/postgres:18.6-bookworm` | `ghcr.io/eshu-hq/ci-postgres-bookworm:18.6` | `sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c` |
-| `mirror.gcr.io/library/neo4j:2026-community` | `ghcr.io/eshu-hq/ci-neo4j-community:2026` | `sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` |
+| `mirror.gcr.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` | `ghcr.io/eshu-hq/ci-postgres-alpine:18` | `sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` |
+| `mirror.gcr.io/library/postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c` | `ghcr.io/eshu-hq/ci-postgres-bookworm:18.6` | `sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c` |
+| `mirror.gcr.io/library/neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` | `ghcr.io/eshu-hq/ci-neo4j-community:2026` | `sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` |
+
+The digest-qualified Neo4j source is an earlier `2026-community` index. The
+unqualified tag has since moved; the publisher does not follow it.
 
 The publisher accepts no image or destination input. It checks each source
 digest, copies the complete index with `crane cp --no-clobber`, and checks the

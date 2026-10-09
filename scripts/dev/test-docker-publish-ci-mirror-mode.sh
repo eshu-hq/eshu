@@ -22,6 +22,21 @@ fail() {
 rg -q '^  workflow_dispatch:$' "${workflow}" || fail 'manual dispatch missing'
 rg -q '^        default: release$' "${workflow}" || fail 'normal dispatch default changed'
 
+# An added job cannot silently bypass the mirror-mode partition.
+expected_jobs="$(printf '%s\n' changes verify-apk-floors build-and-push-image \
+  promote-moving-tags verify-reproducibility attach-release-sbom \
+  package-and-push-chart publish-ci-service-mirrors \
+  verify-public-ci-service-mirrors | LC_ALL=C sort)"
+actual_jobs="$(awk '
+  /^jobs:$/ { in_jobs = 1; next }
+  in_jobs && /^  [a-zA-Z][a-zA-Z0-9-]*:$/ {
+    job = $1
+    sub(/:$/, "", job)
+    print job
+  }
+' "${workflow}" | LC_ALL=C sort)"
+[[ "${actual_jobs}" == "${expected_jobs}" ]] || fail 'workflow jobs differ from the guarded seven-plus-two partition'
+
 for job in changes verify-apk-floors build-and-push-image promote-moving-tags \
   verify-reproducibility attach-release-sbom package-and-push-chart; do
   condition="$(job_condition "${job}")"
@@ -49,6 +64,12 @@ if [[ "$#" -eq 0 ]]; then
     "${workflow}" > "${scratch}/bad.yml"
   if bash "$0" "${scratch}/bad.yml" > /dev/null 2>&1; then
     fail 'seeded mirror-dispatch violation was not detected'
+  fi
+  cp "${workflow}" "${scratch}/extra.yml"
+  printf '\n  unguarded-extra-job:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo unexpected\n' \
+    >> "${scratch}/extra.yml"
+  if bash "$0" "${scratch}/extra.yml" > /dev/null 2>&1; then
+    fail 'seeded unguarded tenth job was not detected'
   fi
 fi
 
