@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -20,16 +21,14 @@ const activeCodeCallSymbolProofKey = "scip-go gomod github.com/acme/lib Client#R
 // than the caller. Its prefix enrolls it in the blocking real-Postgres reducer
 // contention job; the hermetic workflow guard pins that enrollment.
 func TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository(t *testing.T) {
-	dsn := reducerDomainFairnessDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the real-Postgres loader proof")
-	}
-
-	ctx := context.Background()
-	database, _ := openFactCrossBatchFencingSchema(t, ctx, dsn)
+	// The content schema carries content_files, which the loader's go.mod
+	// manifest read needs; the library repository declares the module the Go
+	// proof key belongs to.
+	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-api", "generation-api", now)
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:repo-lib", "go.mod", "github.com/acme/lib", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-api-caller", "repository:repo-api", "generation-api", "api.go", "scip-go gomod github.com/acme/api Handler#Serve().", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now.Add(time.Second))
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-stale", "repository:repo-lib", "generation-lib-stale", "old_client.go", activeCodeCallSymbolProofKey, now.Add(-time.Second))
@@ -177,7 +176,7 @@ INSERT INTO scope_generations (
 		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
 	}
 	if got, want := queryer.queries, []string{
-		listActiveCodeCallPackageManifestsQuery,
+		producerstore.PackageManifestsQuery,
 		listAnchoredActiveCodeCallSymbolDefinitionFactsQuery,
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("issued %d queries, want the manifest read then the anchored scan only", len(got))
@@ -190,18 +189,20 @@ INSERT INTO scope_generations (
 
 // TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 // proves a package key that no stored manifest publishes runs only the
-// manifest read and never the definition scan, while a Go key in the same
-// request still loads through the corpus-wide scan.
+// manifest read and never the definition scan, while a key no manifest anchors
+// (a scip-java symbol) in the same request still loads through the corpus-wide
+// scan.
 func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer(t *testing.T) {
+	const unanchoredKey = "scip-java maven org.acme/lib org.acme/Client#request()."
 	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
-	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now)
+	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.java", unanchoredKey, now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-unpublished", "repository:repo-lib", "generation-lib", "index.js", "@acme/unpublished", "run", now.Add(time.Second))
 
 	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
 	loaded, err := NewFactStore(queryer).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{
-		activeCodeCallSymbolProofKey,
+		unanchoredKey,
 		"package:@acme/unpublished#run",
 	})
 	if err != nil {
@@ -212,9 +213,9 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 	}
 	if got, want := queryer.queries, []string{
 		listActiveCodeCallSymbolDefinitionFactsQuery,
-		listActiveCodeCallPackageManifestsQuery,
+		producerstore.PackageManifestsQuery,
 	}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("issued %d queries, want the unanchored scan then the manifest read only", len(got))
+		t.Fatalf("issued %d queries, want the corpus-wide scan then the package manifest read only", len(got))
 	}
 }
 
@@ -291,7 +292,7 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanForVendoredOnly
 	if len(loaded) != 0 {
 		t.Fatalf("loaded fact ids = %#v, want none", factIDs(loaded))
 	}
-	if got, want := queryer.queries, []string{listActiveCodeCallPackageManifestsQuery}; !reflect.DeepEqual(got, want) {
+	if got, want := queryer.queries, []string{producerstore.PackageManifestsQuery}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("issued %d queries, want the manifest read only", len(got))
 	}
 }
@@ -344,6 +345,17 @@ INSERT INTO content_files (
     repo_id, relative_path, content, content_hash, line_count, language, indexed_at
 ) VALUES ($1, $2, $3, md5($3), 1, 'json', $4)`, repoID, relativePath, content, indexedAt); err != nil {
 		t.Fatalf("insert manifest %s/%s: %v", repoID, relativePath, err)
+	}
+}
+
+func seedActiveCodeCallSymbolGoMod(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, module string, indexedAt time.Time) {
+	t.Helper()
+	content := "module " + module + "\n\ngo 1.24\n"
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO content_files (
+    repo_id, relative_path, content, content_hash, line_count, language, indexed_at
+) VALUES ($1, $2, $3, md5($3), 3, 'gomod', $4)`, repoID, relativePath, content, indexedAt); err != nil {
+		t.Fatalf("insert go.mod %s/%s: %v", repoID, relativePath, err)
 	}
 }
 

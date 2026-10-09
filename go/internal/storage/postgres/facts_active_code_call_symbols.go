@@ -5,13 +5,12 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"slices"
-	"strings"
+	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	producerstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/producers"
 )
 
 // codeCallSymbolDefinitionFactsSelect is the shared head of the definition
@@ -132,8 +131,9 @@ LIMIT $4
 `
 
 // listActiveCodeCallSymbolDefinitionFactsQuery scans every active file fact in
-// the corpus. It serves keys that do not name a package (Go stable_symbol_key,
-// SCIP symbols), whose producer the loader cannot resolve up front.
+// the corpus. It serves only keys no stored manifest can anchor: SCIP symbols
+// from other indexers and a scip-go gomod key without a symbol. A Go key with no
+// declaring module issues no definition scan at all.
 const listActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefinitionFactsSelect +
 	codeCallSymbolDefinitionFactsMatch
 
@@ -147,11 +147,19 @@ const listAnchoredActiveCodeCallSymbolDefinitionFactsQuery = codeCallSymbolDefin
 // LoadActiveCodeCallSymbolDefinitionFacts loads active file facts whose parsed
 // definitions carry one of the requested stable symbol keys.
 //
-// Keys of the form package:<package_id>#<export_name> are anchored on their
-// producer scopes: the repositories whose stored package.json manifests name
-// that package. Only those scopes' active file facts are scanned, and a
-// package key with no producer issues no definition scan and stays
-// unresolved. Every other key keeps the corpus-wide scan.
+// Two kinds of key are anchored on the repositories that can define them, so
+// the scan reads only those repositories' active file facts:
+//
+//   - package:<package_id>#<export_name> keys, on the repositories whose stored
+//     package.json manifests name that package (#7601);
+//   - scip-go gomod <import path> <symbol> keys, on the repositories whose
+//     stored go.mod module path is that import path or a prefix of it (#7623).
+//     The Go parser builds a definition's import path from its nearest go.mod
+//     module path, so the defining repository always stores such a go.mod.
+//
+// A key with no producer issues no definition scan and stays unresolved. Every
+// other key keeps the corpus-wide scan. The three groups run as separate scans,
+// so a manifest that matches one group never widens another.
 func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	symbolKeys []string,
@@ -165,36 +173,101 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 		return nil, nil
 	}
 
-	packageKeys, otherKeys := splitCodeCallPackageSymbolKeys(symbolKeys)
+	packageKeys, goKeys, otherKeys := producerstore.Split(symbolKeys)
+	load := codeCallSymbolLoadStats{
+		otherKeys: len(otherKeys), packageKeys: len(packageKeys), goKeys: len(goKeys),
+	}
+	loaded, err := s.loadCodeCallSymbolDefinitionLegs(ctx, packageKeys, goKeys, otherKeys, &load)
+	load.log(ctx, err)
+	return loaded, err
+}
+
+// loadCodeCallSymbolDefinitionLegs runs the three scans (keys no manifest
+// anchors, package keys, Go keys) and merges their facts, recording each leg's
+// producer scope count and duration in load.
+func (s FactStore) loadCodeCallSymbolDefinitionLegs(
+	ctx context.Context,
+	packageKeys, goKeys, otherKeys []string,
+	load *codeCallSymbolLoadStats,
+) ([]facts.Envelope, error) {
+	producers := producerstore.New(s.database)
 
 	var loaded []facts.Envelope
 	if len(otherKeys) > 0 {
+		started := time.Now()
 		page, err := s.loadActiveCodeCallSymbolDefinitionFacts(
 			ctx, listActiveCodeCallSymbolDefinitionFactsQuery, otherKeys, nil,
 		)
 		if err != nil {
 			return nil, err
 		}
+		load.otherScanSeconds = time.Since(started).Seconds()
 		loaded = append(loaded, page...)
 	}
-	if len(packageKeys) == 0 {
-		return loaded, nil
+	for _, leg := range []struct {
+		keys       []string
+		producers  func(context.Context, []string) ([]string, error)
+		scopeCount *int
+		seconds    *float64
+	}{
+		{packageKeys, producers.PackageScopeIDs, &load.packageProducerScopes, &load.packageSeconds},
+		{goKeys, producers.GoModuleScopeIDs, &load.goProducerScopes, &load.goSeconds},
+	} {
+		if len(leg.keys) == 0 {
+			continue
+		}
+		started := time.Now()
+		producerScopeIDs, err := leg.producers(ctx, leg.keys)
+		if err != nil {
+			return nil, err
+		}
+		*leg.scopeCount = len(producerScopeIDs)
+		if len(producerScopeIDs) > 0 {
+			anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
+				ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, leg.keys, producerScopeIDs,
+			)
+			if err != nil {
+				return nil, err
+			}
+			loaded = appendUniqueFactEnvelopes(loaded, anchored)
+		}
+		*leg.seconds = time.Since(started).Seconds()
 	}
+	return loaded, nil
+}
 
-	producerScopeIDs, err := s.listCodeCallPackageProducerScopeIDs(ctx, packageKeys)
+// codeCallSymbolLoadStats records how one definition load split its keys and
+// what each leg cost, so an operator can tell from one log line which scan made
+// a slow code call materialization slow. A producer scope count of zero with
+// keys of that group means no stored manifest names a producer, so that leg
+// issued no definition scan and its keys stay unresolved.
+type codeCallSymbolLoadStats struct {
+	otherKeys, packageKeys, goKeys              int
+	packageProducerScopes, goProducerScopes     int
+	otherScanSeconds, packageSeconds, goSeconds float64
+}
+
+// log emits the load summary at Info, on success and on failure. The loader has
+// no scope id, so correlate with the "code call materialization completed" line
+// of the same consumer by adjacency. On failure the durations and producer scope
+// counts cover only the legs that finished, so read outcome first.
+func (l codeCallSymbolLoadStats) log(ctx context.Context, err error) {
+	attrs := []any{
+		"outcome", "ok",
+		"other_key_count", l.otherKeys,
+		"package_key_count", l.packageKeys,
+		"go_key_count", l.goKeys,
+		"package_producer_scope_count", l.packageProducerScopes,
+		"go_producer_scope_count", l.goProducerScopes,
+		"other_scan_duration_seconds", l.otherScanSeconds,
+		"package_leg_duration_seconds", l.packageSeconds,
+		"go_leg_duration_seconds", l.goSeconds,
+	}
 	if err != nil {
-		return nil, err
+		attrs[1] = "error"
+		attrs = append(attrs, "error", err.Error())
 	}
-	if len(producerScopeIDs) == 0 {
-		return loaded, nil
-	}
-	anchored, err := s.loadActiveCodeCallSymbolDefinitionFacts(
-		ctx, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery, packageKeys, producerScopeIDs,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return appendUniqueFactEnvelopes(loaded, anchored), nil
+	slog.Default().InfoContext(ctx, "code call symbol definition load", attrs...)
 }
 
 // loadActiveCodeCallSymbolDefinitionFacts pages one definition scan to the
@@ -289,139 +362,4 @@ func appendUniqueFactEnvelopes(loaded, extra []facts.Envelope) []facts.Envelope 
 		loaded = append(loaded, envelope)
 	}
 	return loaded
-}
-
-// codeCallPackageSymbolKeyPrefix starts the import-binding key the reducer
-// derives from a definition's package_id and export_name
-// (package:<package_id>#<export_name>).
-const codeCallPackageSymbolKeyPrefix = "package:"
-
-// listActiveCodeCallPackageManifestsQuery reads every stored package.json
-// manifest of a repository scope that has an active generation. It reads every
-// manifest except one under a path segment that begins with node_modules
-// (case-insensitive, so node_modules.bak and Node_Modules-old count too).
-// Nested workspace packages are included, because a package name maps to its
-// repository wherever its manifest sits; the nearest-manifest rule applies when
-// the parser stamps package_id on a definition, not here. A vendored copy of a
-// dependency is not a publisher: counting it would anchor a scan of the whole
-// backup repository for every consumer of that name and could mint false edges.
-// Discovery already prunes the exact node_modules directory; this covers the
-// renamed backups it does not.
-//
-// content_files holds the latest projected content of each repository and has
-// no generation column. The definition scan that follows reads only active
-// generation file facts and still matches each definition's own package_id, so
-// a manifest that is ahead of or behind the active generation can only add or
-// drop a candidate scope.
-//
-// The manifest read is a MATERIALIZED CTE on purpose. Inlined, the planner
-// estimates the scope join at one row and probes content_files once per
-// repository scope; on the ops-qa replica (2026-10-04) that took 125 ms warm
-// and 758 ms cold over 155k buffers. Materialized, content_files is read once
-// through content_files_relative_path_trgm_idx: 15 to 21 ms and 3,497 buffers
-// for the same 469 rows. See
-// docs/internal/evidence/7601-anchored-symbol-definition-loader.md.
-const listActiveCodeCallPackageManifestsQuery = `
-WITH manifest AS MATERIALIZED (
-    SELECT repo_id, content
-    FROM content_files
-    WHERE (relative_path = 'package.json' OR relative_path LIKE '%/package.json')
-      AND relative_path !~* '(^|/)node_modules[^/]*/'
-)
-SELECT
-    scope.scope_id,
-    manifest.content
-FROM manifest
-JOIN ingestion_scopes AS scope
-  ON scope.source_key = manifest.repo_id
- AND scope.scope_kind = 'repository'
-JOIN scope_generations AS generation
-  ON generation.scope_id = scope.scope_id
- AND generation.generation_id = scope.active_generation_id
- AND generation.status = 'active'
-`
-
-// splitCodeCallPackageSymbolKeys separates package:<package_id>#<export_name>
-// keys from every other symbol key, keeping the input order of each group.
-func splitCodeCallPackageSymbolKeys(symbolKeys []string) (packageKeys, otherKeys []string) {
-	for _, key := range symbolKeys {
-		if strings.HasPrefix(key, codeCallPackageSymbolKeyPrefix) {
-			packageKeys = append(packageKeys, key)
-			continue
-		}
-		otherKeys = append(otherKeys, key)
-	}
-	return packageKeys, otherKeys
-}
-
-// codeCallPackageSymbolKeyPackageName returns the package_id of a
-// package:<package_id>#<export_name> key, trimmed to match the trimmed manifest
-// names, or "" when either part is empty.
-// npm package names cannot contain '#', so the first '#' ends the name.
-// Every key with the package: prefix takes the anchored path, so a key in any
-// other shape (no '#', an empty part) resolves no producer and stays
-// unresolved. No emitter produces such keys today; a new package: key shape
-// must change this function too.
-func codeCallPackageSymbolKeyPackageName(key string) string {
-	packageName, exportName, ok := strings.Cut(strings.TrimPrefix(key, codeCallPackageSymbolKeyPrefix), "#")
-	if !ok || strings.TrimSpace(packageName) == "" || strings.TrimSpace(exportName) == "" {
-		return ""
-	}
-	return strings.TrimSpace(packageName)
-}
-
-// codeCallPackageManifestName returns the "name" of a package.json manifest.
-// Invalid JSON, a non-object document, or a missing, blank, or non-string
-// name yields "" so one bad manifest never fails the load.
-func codeCallPackageManifestName(content string) string {
-	var manifest struct {
-		Name any `json:"name"`
-	}
-	if err := json.Unmarshal([]byte(content), &manifest); err != nil {
-		return ""
-	}
-	name, _ := manifest.Name.(string)
-	return strings.TrimSpace(name)
-}
-
-// listCodeCallPackageProducerScopeIDs resolves the package keys to the sorted,
-// distinct scope ids whose stored manifests publish one of the named packages.
-// A package published by several repositories returns every one of them, so
-// the reducer sees each candidate definition and keeps the key unresolved.
-func (s FactStore) listCodeCallPackageProducerScopeIDs(
-	ctx context.Context,
-	packageKeys []string,
-) ([]string, error) {
-	packageNames := make(map[string]struct{}, len(packageKeys))
-	for _, key := range packageKeys {
-		if name := codeCallPackageSymbolKeyPackageName(key); name != "" {
-			packageNames[name] = struct{}{}
-		}
-	}
-	if len(packageNames) == 0 {
-		return nil, nil
-	}
-
-	rows, err := s.database.QueryContext(ctx, listActiveCodeCallPackageManifestsQuery)
-	if err != nil {
-		return nil, fmt.Errorf("list code call package producer manifests: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	scopeIDs := make([]string, 0)
-	for rows.Next() {
-		var scopeID, content string
-		if err := rows.Scan(&scopeID, &content); err != nil {
-			return nil, fmt.Errorf("list code call package producer manifests: %w", err)
-		}
-		if _, ok := packageNames[codeCallPackageManifestName(content)]; ok {
-			scopeIDs = append(scopeIDs, scopeID)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list code call package producer manifests: %w", err)
-	}
-
-	slices.Sort(scopeIDs)
-	return slices.Compact(scopeIDs), nil
 }
