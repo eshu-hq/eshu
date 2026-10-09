@@ -186,6 +186,8 @@ func TestCodeCallGoModuleManifestPath(t *testing.T) {
 		{"empty", "", ""},
 		{"module with no path", "module\n", ""},
 		{"module prefix only", "modular github.com/acme/nope\n", ""},
+		{"bare CR endings", "\r// fork of upstream\rmodule github.com/acme/cr\r", "github.com/acme/cr"},
+		{"CRLF endings", "\r\n// fork of upstream\r\nmodule github.com/acme/crlf\r\n", "github.com/acme/crlf"},
 	} {
 		if got := codeCallGoModuleManifestPath(tc.content); got != tc.want {
 			t.Errorf("%s: codeCallGoModuleManifestPath() = %q, want %q", tc.name, got, tc.want)
