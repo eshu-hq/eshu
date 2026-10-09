@@ -2405,6 +2405,16 @@ tests:
     tag: ~
     class: scheduled
     reason: "#7389 write-through proof, untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; under 0.3s locally and enrolled in the blocking reducer contention gate workflow, not the live-backend job"
+  - file: go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7209 graph-truth proof on Neo4j Community (production-writer zombie retract deletes the active generation's files, refused Ack heals, claim/mark/write/ack drain restores them), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN (+ DISPOSABLE) and ESHU_NEO4J_URI env Skips (with a Neo4j backend the runner also requires ESHU_GRAPH_BACKEND=neo4j and ESHU_NEO4J_USERNAME/PASSWORD; without one it excuses this proof and names the skip); about 6s locally; enrolled in the #7529 live-postgres-readiness runner, which also provides the Neo4j service"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7209 zombie-heal proof (refused Ack/Heartbeat re-opens the active row, sequential + 4-way concurrent convergence, four skip gates, closed outcome labels), untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN (+ DISPOSABLE) env Skip; Postgres only; about 0.5s locally; enrolled in the #7529 live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_write_marker_replay_live_test.go
     tag: ~
     class: scheduled

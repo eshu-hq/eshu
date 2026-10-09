@@ -18,7 +18,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -234,8 +233,9 @@ func (q ProjectorQueue) activateAckGeneration(
 // refuseSupersededAck handles an Ack whose generation is already superseded.
 // It rolls tx back, which undoes the scope repoint, the work succeeded mark,
 // and any supersede of the published generation the earlier statements made.
-// It then marks the work item superseded in one statement and returns
-// failure.ErrWorkSuperseded.
+// It then marks the work item superseded in one statement, heals the scope's
+// active generation when the refused zombie may have written (#7209), and
+// returns failure.ErrWorkSuperseded.
 //
 // Rolling back instead of using a savepoint keeps subtransactions off the Ack
 // hot path; this branch only runs when replayed or raced work reaches Ack. If
@@ -263,48 +263,18 @@ func (q ProjectorQueue) refuseSupersededAck(
 		return fmt.Errorf("ack projector work: %w", ErrProjectorClaimRejected)
 	}
 	recordSupersededGenerationFence(ctx, q.Instruments, projectorAckGenerationSupersededClass, 1)
+	q.healZombieRefusal(ctx, work, now)
 	return fmt.Errorf("ack projector work: generation %s is superseded: %w",
 		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: projectorAckGenerationSupersededClass})
 }
-
-// recordSupersededGenerationFence counts work a superseded-generation fence
-// stopped, labeled by its closed failure_class. Nil instruments are a no-op.
-func recordSupersededGenerationFence(
-	ctx context.Context,
-	instruments *telemetry.Instruments,
-	failureClass string,
-	count int,
-) {
-	if instruments == nil || instruments.SupersededGenerationFence == nil || count <= 0 {
-		return
-	}
-	instruments.SupersededGenerationFence.Add(context.WithoutCancel(ctx), int64(count),
-		metric.WithAttributes(telemetry.AttrFailureClass(failureClass)))
-}
-
-// projectorWorkSupersededError is failure.ErrWorkSuperseded carrying the
-// failure_class the queue wrote on the work row. The projector service logs
-// that class, so a log search for a row's class finds its refusal.
-type projectorWorkSupersededError struct {
-	failureClass string
-}
-
-// Error reports the superseded outcome and its failure class.
-func (e projectorWorkSupersededError) Error() string {
-	return fmt.Sprintf("%s (failure_class=%s)", failure.ErrWorkSuperseded, e.failureClass)
-}
-
-// Unwrap keeps errors.Is(err, failure.ErrWorkSuperseded) true for callers.
-func (e projectorWorkSupersededError) Unwrap() error { return failure.ErrWorkSuperseded }
-
-// FailureClass returns the bounded failure_class recorded on the work row.
-func (e projectorWorkSupersededError) FailureClass() string { return e.failureClass }
 
 // supersedeRunningWork runs Heartbeat's supersede statement. It returns nil
 // when the work may keep running, and an error wrapping
 // failure.ErrWorkSuperseded when the statement ended it: either a newer
 // generation replaces it, or its own generation is already superseded (#7130).
-// The second case counts on eshu_dp_superseded_generation_fence_total.
+// The second case counts on eshu_dp_superseded_generation_fence_total and
+// heals the scope's active generation when the stopped zombie may have
+// written (#7209). The first case never wrote, so it never heals.
 func (q ProjectorQueue) supersedeRunningWork(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
@@ -337,11 +307,16 @@ func (q ProjectorQueue) supersedeRunningWork(
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("supersede running projector work: %w", err)
 	}
+	// Release the connection before the heal below issues its own query: a
+	// single-connection pool would serialize the heal behind these open
+	// rows. The deferred Close stays as the error-path safety net.
+	_ = rows.Close()
 
 	class := "projector_superseded_by_newer_generation"
 	if generationStatus == "superseded" {
 		class = projectorHeartbeatGenerationSupersededClass
 		recordSupersededGenerationFence(ctx, q.Instruments, class, 1)
+		q.healZombieRefusal(ctx, work, now)
 	}
 	return fmt.Errorf("heartbeat projector work: generation %s: %w",
 		work.Generation.GenerationID, projectorWorkSupersededError{failureClass: class})

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Run the readiness, dead-code incoming, status route-selection,
 # quiet-generation, activation obligation, #7584 targeted-maintenance,
-# reindex watermark plan/correctness, and container image identity epoch-gate
-# proofs listed in scripts/lib/live_postgres_readiness_results.py on
-# disposable PostgreSQL 18, one go test per package.
+# reindex watermark plan/correctness, container image identity epoch-gate,
+# and #7209 projector zombie-heal proofs listed in
+# scripts/lib/live_postgres_readiness_results.py on disposable PostgreSQL 18
+# (plus a disposable Neo4j for the zombie-heal graph proof when its env is
+# configured; without one the graph proofs are excused and named in the
+# summary), one go test per package.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -32,7 +35,8 @@ for name in \
   ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN \
   ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN \
   ESHU_DRIFTED_BUCKET_SKIP_PROOF_DSN \
-  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN; do
+  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DSN \
+  ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
@@ -53,9 +57,36 @@ for name in \
   ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DISPOSABLE \
   ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE \
   ESHU_DRIFTED_BUCKET_SKIP_PROOF_DISPOSABLE \
-  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE; do
+  ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE \
+  ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
+# Only the Neo4j graph proofs need a backend; everything else runs on plain
+# Postgres. All three Neo4j variables set selects strict mode (the CI path):
+# the backend must be neo4j and every enrolled proof must pass. None set
+# selects degrade mode: the graph proofs are excused from verification and
+# named in the summary, so a developer without a container still runs every
+# other proof. A partial set dies loud instead of silently degrading.
+neo4j_missing=()
+for name in \
+  ESHU_NEO4J_URI \
+  ESHU_NEO4J_USERNAME \
+  ESHU_NEO4J_PASSWORD; do
+  [[ -n "${!name:-}" ]] || neo4j_missing+=("${name}")
+done
+skip_args=()
+if [[ "${#neo4j_missing[@]}" -eq 0 ]]; then
+  [[ "${ESHU_GRAPH_BACKEND:-}" == "neo4j" ]] || die "ESHU_GRAPH_BACKEND must be neo4j"
+elif [[ "${#neo4j_missing[@]}" -eq 3 ]]; then
+  graph_tests="$(python3 "${results}" list-neo4j-tests)" ||
+    die "neo4j test list from the results verifier is invalid"
+  for name in ${graph_tests}; do skip_args+=(--skip "${name}"); done
+  if [[ "${#skip_args[@]}" -gt 0 ]]; then
+    printf 'live-postgres-readiness: no Neo4j proof backend configured; excusing %s\n' "${graph_tests}"
+  fi
+else
+  die "${neo4j_missing[*]} must name the Neo4j proof backend (set all three or none)"
+fi
 
 python3 "${results}" verify-ledger "${ledger}" "${repo_root}" ||
   die "postgres_ci ledger selection is invalid"
@@ -86,7 +117,10 @@ while IFS=$'\t' read -r package pattern _tests; do
   else
     go_status=$?
   fi
-  if python3 "${results}" verify-results "${events}" "${package}" </dev/null; then
+  # The empty-array expansion keeps `set -u` safe on older bash: with no
+  # --skip flags this is exactly the historical three-argument call.
+  # shellcheck disable=SC2086
+  if python3 "${results}" verify-results "${events}" "${package}" ${skip_args[@]+"${skip_args[@]}"} </dev/null; then
     results_status=0
   else
     results_status=$?
@@ -106,4 +140,5 @@ printf 'live-postgres-readiness: suite_elapsed=%ss\n' "$((SECONDS - started))"
 if [[ "${#failed_packages[@]}" -ne 0 ]]; then
   die "failed packages: ${failed_packages[*]}"
 fi
-python3 "${results}" summary
+# shellcheck disable=SC2086
+python3 "${results}" summary ${skip_args[@]+"${skip_args[@]}"}

@@ -92,6 +92,18 @@ PACKAGES = {
             "TestContainerImageIdentityEpochBarrierDefersPendingLive",
             "TestContainerImageIdentityActivationEpochMissIsSentinelLive",
         ),
+        "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
+            "TestProjectorZombieHealRestoresCanonicalNodesLive",
+        ),
+        "go/internal/storage/postgres/projector_queue_zombie_heal_live_test.go": (
+            "TestProjectorRefusalHealsMarkedSupersededGeneration",
+            "TestProjectorRepeatedRefusalsOpenOneActiveRow",
+            "TestProjectorConcurrentHealsOpenOneActiveRow",
+            "TestProjectorRefusalSkipsHealWithoutWriteMarker",
+            "TestProjectorSupersededByNewerSkipsHeal",
+            "TestProjectorRefusalSkipsHealWithoutActiveGeneration",
+            "TestProjectorRefusalSkipsHealWhenActiveRowInFlight",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (
@@ -334,6 +346,43 @@ def list_packages() -> int:
     return 0
 
 
+def neo4j_tests() -> list[str]:
+    """Return the enrolled tests that need a Neo4j proof backend.
+
+    These are the tests carried by `*_graph_live_test.go` files: they open
+    a Bolt driver and self-skip without one. The runner excuses exactly
+    these (and only these) when no Neo4j env is configured.
+    """
+    tests: set[str] = set()
+    for files in PACKAGES.values():
+        for path, names in files.items():
+            if path.endswith("_graph_live_test.go"):
+                tests.update(names)
+    return sorted(tests)
+
+
+def list_neo4j_tests() -> int:
+    """Print the Neo4j-backed test names separated by spaces."""
+    print(" ".join(neo4j_tests()))
+    return 0
+
+
+def parse_skips(args: list[str]) -> tuple[set[str], str]:
+    """Parse repeated `--skip NAME` flags, failing closed on bad input."""
+    skipped: set[str] = set()
+    rest = list(args)
+    while rest:
+        flag = rest.pop(0)
+        if flag != "--skip" or not rest:
+            return set(), f"expected `--skip NAME`, got {flag!r}"
+        skipped.add(rest.pop(0))
+    known = {test for tests in EXPECTED.values() for test in tests}
+    unknown = sorted(skipped - known)
+    if unknown:
+        return set(), f"unknown --skip test(s): {', '.join(unknown)}"
+    return skipped, ""
+
+
 def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
     """Require the untagged rows, runner ownership, and test names."""
     ledger = ledger_path.read_text(encoding="utf-8")
@@ -377,15 +426,23 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
     return 0
 
 
-def verify_results(events_path: pathlib.Path, package: str) -> int:
-    """Require one run and one passing terminal event per expected test of a package."""
+def verify_results(
+    events_path: pathlib.Path, package: str, skipped: set[str] | None = None
+) -> int:
+    """Require one run and one passing terminal event per expected test of a package.
+
+    Names in `skipped` are excused from the pass requirement: absence or a
+    skip passes, but a failure still fails closed.
+    """
+    excused = set(skipped or ())
     expected_tests = {
         test for tests in PACKAGES[package].values() for test in tests
-    }
+    } - excused
     runs = {name: 0 for name in expected_tests}
     terminals: dict[str, list[tuple[str, float]]] = {
         name: [] for name in expected_tests
     }
+    excused_terminals: dict[str, list[str]] = {name: [] for name in excused}
     package_terminal = []
     # Tail ring per test: a failing test's assertion is in its LAST output
     # events, so keep the trailing window, not the leading one (#7814).
@@ -408,6 +465,8 @@ def verify_results(events_path: pathlib.Path, package: str) -> int:
                     terminals[name].append((action, event.get("Elapsed", 0)))
                 elif action == "output":
                     output[name].append(event.get("Output", "").rstrip()[:300])
+            elif name in excused_terminals and action in {"pass", "fail", "skip"}:
+                excused_terminals[name].append(action)
             elif not name and action in {"pass", "fail", "skip"}:
                 package_terminal.append(action)
 
@@ -427,6 +486,10 @@ def verify_results(events_path: pathlib.Path, package: str) -> int:
             failed = True
             for text in list(output[name])[-6:]:
                 print(f"  {text}")
+    for name in sorted(excused_terminals):
+        if "fail" in excused_terminals[name]:
+            print(f"{name}: FAIL (a --skip excuse does not cover failure)")
+            failed = True
     if package_terminal != ["pass"]:
         print(f"package terminal ({package}): expected PASS, actual={package_terminal}")
         failed = True
@@ -443,16 +506,32 @@ def main() -> int:
     """Dispatch the ledger, per-package go-test event, and summary checks."""
     if len(sys.argv) == 4 and sys.argv[1] == "verify-ledger":
         return verify_ledger(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]))
-    if len(sys.argv) == 4 and sys.argv[1] == "verify-results" and sys.argv[3] in PACKAGES:
-        return verify_results(pathlib.Path(sys.argv[2]), sys.argv[3])
+    if len(sys.argv) >= 4 and sys.argv[1] == "verify-results" and sys.argv[3] in PACKAGES:
+        skipped, error = parse_skips(sys.argv[4:])
+        if error:
+            print(f"verify-results: {error}", file=sys.stderr)
+            return 2
+        return verify_results(pathlib.Path(sys.argv[2]), sys.argv[3], skipped)
     if len(sys.argv) == 2 and sys.argv[1] == "list-packages":
         return list_packages()
-    if len(sys.argv) == 2 and sys.argv[1] == "summary":
-        print(f"live-postgres-readiness: {TOTAL_TESTS}/{TOTAL_TESTS} PASS")
+    if len(sys.argv) == 2 and sys.argv[1] == "list-neo4j-tests":
+        return list_neo4j_tests()
+    if len(sys.argv) >= 2 and sys.argv[1] == "summary":
+        skipped, error = parse_skips(sys.argv[2:])
+        if error:
+            print(f"summary: {error}", file=sys.stderr)
+            return 2
+        passed = TOTAL_TESTS - len(skipped)
+        if skipped:
+            names = " ".join(sorted(skipped))
+            print(f"live-postgres-readiness: {passed}/{TOTAL_TESTS} PASS (skipped: {names})")
+        else:
+            print(f"live-postgres-readiness: {TOTAL_TESTS}/{TOTAL_TESTS} PASS")
         return 0
     print(
         "usage: live_postgres_readiness_results.py "
-        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> | list-packages | summary",
+        "verify-ledger <ledger> <repo-root> | verify-results <events> <package> [--skip NAME]... "
+        "| list-packages | list-neo4j-tests | summary [--skip NAME]...",
         file=sys.stderr,
     )
     return 2
