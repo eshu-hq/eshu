@@ -66,8 +66,8 @@ function flush(   first, words, w) {
     next
   }
   if (infence) { fencelines++; next }
-  if (line ~ /<details>/) { flush(); indet = 1; next }
-  if (line ~ /<\/details>/) { flush(); indet = 0; next }
+  if (line ~ /^[ \t]*<details[^>]*>[ \t]*$/) { flush(); indet = 1; next }
+  if (line ~ /^[ \t]*<\/details>[ \t]*$/) { flush(); indet = 0; next }
   if (indet) next
   if (line ~ /^## /) {
     flush(); h2++; seenh2 = 1

@@ -85,6 +85,11 @@ expect "pr: long line inside a fence is fine" 0 "" pr "${tmp}/fenced.md"
 set +e; out="$(bash "${checker}" --pr "${tmp}/diagram.md" 2>&1)"; set -e
 if printf '%s' "${out}" | rg -q 'WARN block'; then echo "FAIL pr: long mermaid fence got a WARN"; fail=$((fail + 1)); else echo "ok   pr: long mermaid fence gets no WARN"; pass=$((pass + 1)); fi
 
+# A prose mention of the tag is not a details block. Text after it must still be
+# checked: the long paragraph below it has to fail, and NOT_CHECKED must be seen.
+{ cat "${fixtures}/pr-good.md"; echo; echo 'Put logs inside `<details>` when they are long.'; echo; printf 'Filler sentence for length. %.0s' $(seq 1 30); echo; } > "${tmp}/inline-tag.md"
+expect "pr: inline <details> mention does not hide later text" 1 "FAIL paragraph" pr "${tmp}/inline-tag.md"
+
 # The documented templates and worked examples must pass the checker they
 # point to, so the docs cannot drift from the rules. Each 4-backtick markdown
 # block is cut out into its own file; the placeholder issue number is filled.
