@@ -1,42 +1,90 @@
 # Repository Retirement: Fenced, Idempotent, Operator-Driven (#7766)
 
 Issue: #7766
-Companions: [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md)
-holds the prove-first table and results, concurrency proof, test plan, and PR
-breakdown. [Concurrency Contract](7766-repository-retirement-concurrency.md)
-holds the phase 1 lock budget, the intent-delete barrier, the invariants, and
-the commit gate.
+Companions, one file per concern:
+- [Concurrency Contract](7766-repository-retirement-concurrency.md): phase 1
+  lock budget and deadline, the lock-order rule and the `Fail` fix, the
+  shared-projection barrier, invariants I1 to I4, the commit gate, and
+  re-admission.
+- [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md):
+  every path that creates or reopens a reducer row after phase 1, and the
+  reducer quiesce (2q) that closes them.
+- [Runner](7766-repository-retirement-runner.md): Deliverable 2, phases 2 and 3
+  and the graph retraction plan.
+- [Table Census](7766-repository-retirement-table-census.md): the disposition
+  of every scope- and repo-keyed table.
+- [Surfaces](7766-repository-retirement-surfaces.md): read surfaces, OpenAPI,
+  the operator surface, candidates, and telemetry.
+- [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md): the
+  prove-first table by deliverable, results, tests, and the PR breakdown.
+- [Corrections And Open Items](7766-repository-retirement-corrections.md):
+  corrections to the rulings, issues kept out of scope, and NOT_CHECKED.
+- Evidence note:
+  [7766-retirement-prove-first.md](../evidence/7766-retirement-prove-first.md)
+  holds the raw P1, P2, and P9 results and the re-runnable harness.
+
 Binding inputs: the
 [arbiter ruling for #7765 and #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598)
-(Option C: signal only, plus one operator-driven retire primitive), the arbiter
-ruling on the #7766 prove-first results ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964)), ADR 2248
+(Option C: signal only, plus one operator-driven retire primitive), the
+[arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
+the arbiter ruling, round 3 (to be posted on #7766), ADR 2248
 ([retention semantics](2248-retention-semantics-generations-facts-content.md)),
 design [7324](7324-cross-scope-writer-rearm.md),
 `docs/public/reference/hosted-retention-deletion-policy.md`, and
-`docs/public/operate/graph-rebuild-from-facts.md`.
+`docs/public/operate/graph-rebuild-from-facts.md`. Round 3 changes the earlier
+rulings only where this design says so.
 
-Status: proposed design, amended on 2026-10-09. P1 and P9 failed as originally
-designed, and the design changed per the ruling on the
-[Prove-first results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
-No code lands until the remaining bars in the
-[Prove-first table](7766-repository-retirement-proof-and-rollout.md#prove-first-table)
-pass. See also
-[Corrections](7766-repository-retirement-proof-and-rollout.md#corrections-to-the-arbiter-ruling):
-seven premises of the first ruling and nine items from the results review.
+Status: proposed design, reworked on 2026-10-09 per round 3. P1 and P9 failed
+as originally designed (the second ruling amended the design). Round 3 found
+that reducer work for a retiring scope is re-created after phase 1, a
+lock-order cycle between phase 1 and `Fail`, and a silent grant cascade, and it
+split the work into two deliverables. No code lands until the bars for that
+deliverable in the
+[prove-first table](7766-repository-retirement-proof-and-rollout.md#prove-first-table)
+pass.
 
-Source check: origin/main 195337b97, 2026-10-08; amendments re-checked against
-16c8c2a36, 2026-10-09.
+Source check: origin/main 3b03f018e, 2026-10-09. Every `file:line` citation in
+the eight design files was re-verified against that SHA.
 
 ## Purpose
 
 Eshu has no operator path to remove an indexed repository. A deselected or
 duplicate repository (the #7766 report: a stale filesystem copy plus a remote
 copy with the same name) keeps its scope, generations, facts, content, and
-graph nodes. It keeps answering as indexed. This design adds one
-service-level retire primitive. The admin route and the CLI call it, and any
-future opt-in policy would call it unchanged. It is fenced against every
-ingest path, purges in bounded batches, retracts the graph through existing
-paths, and leaves a durable tombstone that read surfaces report as `retired`.
+graph nodes. It keeps answering as indexed. This design adds one service-level
+retire primitive. The admin route and the CLI call it, and any future opt-in
+policy would call it unchanged. It is fenced against every ingest path, purges
+in bounded batches, retracts the graph through existing paths, and leaves a
+durable tombstone that read surfaces report as `retired`.
+
+## Two Deliverables
+
+| | Deliverable 1: fence, tombstone, read surfaces | Deliverable 2: the runner |
+| --- | --- | --- |
+| Contents | Marker table and folded commit gate; ingest refusals (collector, webhook, backfill, recover, reindex); phase 1 with 7d as a mark; the `Fail` lock-order fix; admin create, get, list, and dry run; read surfaces; OpenAPI and MCP | 2a, 2q, 2b, 2b', 2c, 2d, 2e, 2z, and phase 3; the graph retraction library; the lease epoch (`claimed_at`); the table census test |
+| PRs | 1 to 5 and 8, plus 4a (the `Fail` fix) | 6, 6a, and 7 |
+| Bars before code | P1', P1'', P1''', P2' | P1q, P9a to P9d, P10' |
+| End state | Scope `pending`, fenced, reported `retiring` | `complete`, tombstone, reported `retired`, re-admission works |
+
+**Deliverable 1 is safe alone.** After phase 1 commits, every generation of the
+scope is `superseded`, the active pointer is NULL, and every claimable
+non-succeeded projector and reducer row is terminal. Collector commits,
+webhooks, deferred backfill, `recover-generations`, and reindex are refused.
+Read surfaces report `retiring`. Nothing is deleted, so nothing is lost, and the
+#7766 outcome lands: the stale copy stops answering as indexed.
+
+What Deliverable 1 does not do, stated plainly:
+- **Reducer work can still be replayed.** Until the runner ships, maintenance
+  reopens can replay reducer work on a retiring scope (see
+  [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md)).
+  That work is wasted, not wrong: reads already say `retiring`, and the graph
+  for the repository has not been retracted yet. 2q stops it.
+- **There is no way back.** The row stays `pending`. Re-issue is idempotent and
+  the open-repo index refuses a second marker. Nothing in Deliverable 1 cancels
+  a retirement; re-admission exists only after the runner completes it. An
+  operator who retires the wrong repository waits for Deliverable 2. The dry
+  run exists to prevent that, and Deliverable 1 does not remove the risk.
+- **Nothing is purged.** Storage and graph nodes stay until the runner runs.
 
 ## Decision Summary
 
@@ -44,37 +92,40 @@ paths, and leaves a durable tombstone that read surfaces report as `retired`.
   repo id (`ingestion_scopes.partition_key`). One open row covers the
   default-branch scope and every `@ref` scope of the repository. The table has
   no FK to `ingestion_scopes`, so the tombstone outlives the scope row.
-- Phase 1 runs in the API, in one transaction. It takes the existing
-  per-repository advisory lock in exclusive mode. It reuses
-  `WaitForReducerDrain` -> `AcquireReducerClaimFence` -> `AssertRetirementFenced`.
-  It marks every non-superseded generation `superseded` and writes the marker.
-  Superseding the generations is what fences the projector. No claim SQL changes.
-  A precheck bounds the request, and the table lock waits 1 s with a jittered
-  retry ([lock budget](7766-repository-retirement-concurrency.md#phase-1-lock-budget)).
-- Phases 2 and 3 run in a reducer runner. Phase 2 first deletes the shared
-  intents and waits out the shared-projection leases claimed before the delete
-  (the barrier). It then retracts the graph through existing retract paths and
-  purges Postgres in ADR 2248 batches
-  under the `retention:<scope_id>` conflict domain, which is the scope-row lock.
-  Phase 3 deletes the scope rows and marks the tombstone `complete` in the
-  same transaction.
+- Phase 1 runs in the API, in one transaction, inside one 5 min 30 s deadline.
+  It takes the existing per-repository advisory lock in exclusive mode, uses a
+  scope-bound drain, recheck, and fence helper, marks every non-superseded
+  generation `superseded`, marks the claimable reducer rows `superseded` (a
+  mark, never a delete), and writes the marker. Superseding the generations
+  fences the projector. No claim SQL changes.
+- Phases 2 and 3 run in a reducer runner (Deliverable 2). Phase 2 order is 2a,
+  2q, 2b, 2b', 2c, 2d, 2e, 2z: wait out projector leases, quiesce the reducer
+  queue, delete shared intents and wait out the pre-barrier shared-projection
+  leases, retract the graph, purge Postgres in ADR 2248 batches, clear
+  repo-keyed leftovers, and census the residue. Phase 3 deletes the scope rows
+  and marks the tombstone `complete` in the same transaction.
 - The Repository node is never deleted by the primitive. It is demoted to a
   non-projector stub shape, and the existing `Repository` orphan sweep reaps it
-  once its other owners retract (see Graph Retraction).
+  once its other owners retract (see
+  [Graph Retraction](7766-repository-retirement-runner.md#graph-retraction)).
 - Re-admission is a fresh first generation. It sets `readmitted_at` inside the
   ingest transaction that re-admits, and it emits
-  `outcome=readmitted_after_retirement`.
+  `outcome=readmitted_after_retirement`. Tenant and role grants are dropped by
+  design and not restored (see
+  [Operator Surface](7766-repository-retirement-surfaces.md#operator-surface)).
 
 ## Durable Marker And Writers
 
 `ingestion_scopes.status` cannot carry the marker. The ON CONFLICT arm of the
 upsert rewrites it on every commit (`storage/postgres/ingestion_queries.go:79-85`, value bound at `:249`).
 
-The migration takes the next free number (167 at this check;
-`go/internal/storage/postgres/migrations/166_repository_selection_observations.sql` is the latest).
-It also adds `shared_projection_partition_leases.claimed_at`, the lease epoch
-the phase 2 barrier reads (see
-[Shared-Projection Barrier](7766-repository-retirement-concurrency.md#shared-projection-barrier)):
+The Deliverable 1 migration takes the next free number: 169 at this check
+(`migrations/168_webhook_refresh_triggers_claim_fencing.sql` is the latest;
+167 is `167_unroutable_intents_generation_idx.sql`). Re-check at PR time,
+because open branches can claim the same number. The table carries every column
+the runner needs, because a merged migration cannot be edited. The
+`shared_projection_partition_leases.claimed_at` column is not here: it belongs
+to Deliverable 2 (PR 6a), since only the barrier reads it.
 
 ```sql
 CREATE TABLE IF NOT EXISTS repository_retirements (
@@ -83,11 +134,13 @@ CREATE TABLE IF NOT EXISTS repository_retirements (
     scope_id TEXT NOT NULL,                    -- default-branch scope
     repo_slug_key TEXT NOT NULL DEFAULT '',    -- lower(payload->>'repo_slug'), webhook gate only
     state TEXT NOT NULL CHECK (state IN ('pending','running','blocked','repairing_graph','complete','failed')),
-    phase TEXT NOT NULL CHECK (phase IN ('fenced','graph_retract','purge','finalize','done')),
+    phase TEXT NOT NULL CHECK (phase IN ('fenced','quiesce','barrier','graph_retract','purge','census','finalize','done')),
     graph_step_cursor INTEGER NOT NULL DEFAULT 0,
     blocked_reason TEXT NOT NULL DEFAULT '' CHECK (blocked_reason IN
-      ('','projector_lease_live','shared_lease_live','scope_lock_busy','graph_unavailable')),
-    failure_class TEXT NOT NULL DEFAULT '',
+      ('','projector_lease_live','reducer_lease_live','shared_lease_live',
+       'scope_lock_busy','claim_fence_busy','graph_unavailable')),
+    failure_class TEXT NOT NULL DEFAULT '',    -- failed rows: e.g. graph_residue
+    failure_details JSONB NOT NULL DEFAULT '{}'::jsonb,  -- 2z residue census
     reason_code TEXT NOT NULL CHECK (reason_code IN ('operator_retired')),
     reason_hash TEXT NOT NULL, actor_class TEXT NOT NULL, actor_id_hash TEXT NOT NULL DEFAULT '',
     idempotency_key_hash TEXT NOT NULL, scope_id_hash TEXT NOT NULL,
@@ -101,7 +154,6 @@ CREATE TABLE IF NOT EXISTS repository_retirements (
     requested_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL,
     retired_at TIMESTAMPTZ NULL, readmitted_at TIMESTAMPTZ NULL
 );
-ALTER TABLE shared_projection_partition_leases ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS repository_retirements_open_repo_idx
     ON repository_retirements (repo_id) WHERE readmitted_at IS NULL;
 CREATE INDEX IF NOT EXISTS repository_retirements_runnable_idx
@@ -112,15 +164,16 @@ CREATE INDEX IF NOT EXISTS repository_retirements_scope_idx ON repository_retire
 
 An open row (`readmitted_at IS NULL`) in any state except `complete` refuses
 ingest. A `complete` row is a tombstone. The next ingest re-admits the
-repository and stamps `readmitted_at`. The `ingest refusal` column below gives
+repository and stamps `readmitted_at`. The `Ingest refusal` column below gives
 the bounded refusal each writer returns.
 
 | Writer | Check point | Ingest refusal |
 | --- | --- | --- |
-| Collector commit: `CommitScopeGeneration` / `CommitClaimedScopeGeneration` (`ingestion.go:118-143`), bootstrap-index (`cmd/bootstrap-index/bootstrap_collector_commit.go:79`), ingester's in-process path, collector dead-letter replay (`recovery.go:288-311` re-commits) | Inside `commitScopeGeneration`, after the shared advisory lock (`ingestion.go:219`), folded into `upsertIngestionScope` (`:231`) so the check and the write share one snapshot (see Commit Gate in the concurrency contract) | `repository_retiring`. Roll back, drain the stream, return nil. This mirrors the finalized-skip branch (`ingestion.go:237-251`), so there is no dead letter. |
+| Collector commit: `CommitScopeGeneration` / `CommitClaimedScopeGeneration` (`ingestion.go:118-143`), bootstrap-index (`cmd/bootstrap-index/bootstrap_collector_commit.go:79`), ingester's in-process path, collector dead-letter replay (`recovery.go:288-311` re-commits) | Inside `commitScopeGeneration`, after the shared advisory lock (`ingestion.go:219`), folded into `upsertIngestionScope` (`:231`) so the check and the write share one snapshot (see [Commit Gate](7766-repository-retirement-concurrency.md#commit-gate-folded-into-the-scope-upsert)) | `repository_retiring`. Roll back, drain the stream, return nil. This mirrors the finalized-skip branch (`ingestion.go:237-251`), so there is no dead letter. |
 | Webhook handoff (`collector/repo/git/webhook_trigger_selector.go:142`) | After `repositoryIDsFromWebhookTriggers`, match on `repo_slug_key` for open, non-`complete` rows | `MarkTriggersFailed(..., "repository_retiring", ...)`, a new constant beside `:36-40`. A slug-form miss still hits the commit fence. |
-| Projector claim (`projector_queue_claim_sql.go:158-179`) | No SQL change. Phase 1 supersedes the generations, so the #7130 branch supersedes claimable rows. Heartbeat and Ack refuse (`projector_queue_sql.go:230-262`), and replay is fenced (`recovery.go:119`). | Existing `projector_superseded_by_newer_generation` / ack-superseded classes. |
-| Reducer claim | Phase 1 deletes the claimable reducer rows of the fenced generations under the claim fence | No row is left to claim |
+| Projector claim (`projector_queue_claim_sql.go:158-179`) | No SQL change. Phase 1 supersedes the generations, so the #7130 branch supersedes claimable rows. Heartbeat refuses (`projector_queue_scan.go:405-420`), Ack refuses (`projector_queue_sql.go:108-116`, the refusal marker at `:275-305`), and replay is fenced (`recovery.go:119`, `projector_queue_sql.go:307-316`). | Existing `projector_superseded_by_newer_generation` / ack-superseded classes. |
+| Projector zombie heal (`projector_queue_zombie_heal.go`, #7209) | No change. The heal re-opens the scope's active generation row only when `scope.active_generation_id IS NOT NULL` (`:97`), and 7b nulls it. A heal whose snapshot predates phase 1 can insert a pending projector row of a superseded generation; the #7130 claim branch supersedes it. | None needed. |
+| Reducer claim | Phase 1 marks the claimable reducer rows `superseded` (7d) under the claim fence. Later inserts and reopens are closed by 2q (see [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md)). | No claimable row at commit |
 | `recover-generations` / `refinalize` (`rebuild/reset/reset.go:63-100`) | New first CASE arm: `EXISTS` open row → skip. Named unknown scope with a `complete` row (`refinalize.go:262-267`) | `skip_reason=repository_retiring` / `repository_retired`, new `recovery.SkipReason*` |
 | Repository reindex (`query/admin/reindex_repository.go:68`) | After `gitDefaultScopeMatch`, look up the open row | 400 problem `"<sel>": repository is retiring (state <s>)`. Phase 1 also deletes the scope's `repository_reindex_requests` row. |
 | Deferred backfill (`ingestion_backfill.go:333`, under the same exclusive repo lock) | Filter repo ids that have an open row from `loadGenerations` | skipped; `writer=deferred_backfill` refusal count |
@@ -136,258 +189,91 @@ migration 115 write non-git scopes.
 
 ### Phase 1: mark and fence, one transaction
 
-The API runs this inside its existing 6-minute response window, the same bound
-as `recover-generations` (`graph-rebuild-from-facts.md`). The
+The API runs this inside its response window. `WriteTimeout` is
+`DefaultRefinalizeDrainTimeout + apiRecoveryResponseMargin`, 5 min plus 1 min
+(`cmd/api/main.go:26`, `:130-131`; `refinalize.go:31`). Phase 1 therefore runs
+under **one deadline of 5 min 30 s** from request start. Every wait below is
+bounded by `min(its own bound, remaining)`. The
 [lock budget](7766-repository-retirement-concurrency.md#phase-1-lock-budget)
-justifies the waits, bindings, and request bound.
+justifies the waits, bindings, and request bound. The drain, recheck, and fence
+helper is new and bound by `scope_id = ANY`
+([why](7766-repository-retirement-corrections.md#round-3-corrections)):
+`WaitForReducerDrain` and `AcquireReducerClaimFence` in `rebuild/reset` bind
+`(scope_id, generation_id)` pairs (`refinalize.go:148-150`), which is the
+refinalize shape and the wrong one here.
 
 1. Read the generation set of every scope with `partition_key = ANY($repo_ids)`.
    The read takes no locks. This mirrors `ReadAffectedGenerations`
    (`refinalize.go:227-271`). Build `reset.Generations`.
    - **Precheck.** Count non-superseded generations and reducer rows matching
      step 7d's predicate. Over 5,000 generations or 20,000 rows in total: 409
-     `request_too_large` with per-repo counts.
-2. `reset.WaitForReducerDrain` (`refinalize.go:330-366`, 5 min bound) runs
-   while the transaction holds no locks.
+     `request_too_large` with per-repo counts. These limits are candidates that
+     P1' confirms or lowers.
+2. The scope-bound drain wait runs while the transaction holds no locks. Bound:
+   `min(5 min, remaining)`.
 3. Take `lockstore.AcquireDeferredMaintenanceRepoExclusiveLocks(repo_ids)`
    (`lock/deferred_maintenance.go:66-79`, sorted). The same key is held in
    shared mode by every commit (`ingestion.go:219`), so this waits for in-flight
-   commits of these repos and blocks new ones. It runs under
-   `set_config('lock_timeout','5min',true)`.
+   commits of these repos and blocks new ones. `lock_timeout` is computed from
+   the remaining budget minus a fence reserve (see the lock budget), not a
+   constant.
 4. Re-read the generation set under the lock. It is now authoritative,
-   because no commit for these repos can land. If it grew, run step 2 again. If
-   it exceeds the step 1 budget, abort with the same 409.
+   because no commit for these repos can land. If it exceeds the step 1 budget,
+   abort with the same 409. If it grew within budget, **roll back and restart
+   at step 1** inside the same deadline. Do not wait for a drain while holding
+   the key: a draining reducer can itself need the shared key (the
+   acceptance-unit gate at `repo_dependency_acceptance_gate.go:72` and the
+   acceptance writer at `shared_intent_acceptance_writer.go:83-87`), so a
+   drain under the exclusive key can stall until the deadline.
 5. `SELECT ... FROM ingestion_scopes WHERE partition_key = ANY($1) ORDER BY scope_id FOR NO KEY UPDATE`.
    - The scope row is locked first, before any generation or work row (postgres `AGENTS.md`, Ack lock order).
    - NO KEY UPDATE, not UPDATE, keeps FK `KEY SHARE` inserts compatible. A
      concurrent refinalize that holds the table lock and inserts work for this
      scope (`refinalize.go:80-132`) proceeds instead of deadlocking.
-6. `set_config('lock_timeout','1s',true)`, then `reset.AcquireReducerClaimFence`
-   (`refinalize.go:373-392`): `LOCK TABLE fact_work_items IN EXCLUSIVE MODE`, then
-   recheck by `scope_id = ANY`. On `55P03`: roll back, sleep a jittered 100 to
-   500 ms, and re-run steps 1 to 8. After a 30 s total budget, return 409
-   `blocked` / `claim_fence_busy`.
+   - **Lock-order rule: advisory key, then scope row, then the
+     `fact_work_items` relation.** A writer that blocks on a retired scope row
+     or on the key takes it in a statement that references no other relation
+     (Ack `projector_queue.go:221`, Finalize `activation/sql.go:68`, admin
+     reopen `store/reopen.go:257`, the commit `ingestion.go:219` and `:231`).
+     `Fail` violated this at the relation level and is fixed in PR 4a, which
+     lands before PR 5 (see
+     [Lock-Order Rule](7766-repository-retirement-concurrency.md#lock-order-rule-and-the-fail-fix)).
+6. `set_config('lock_timeout','1s',true)`, then the scope-bound fence:
+   `LOCK TABLE fact_work_items IN EXCLUSIVE MODE`, then recheck live reducer
+   leases by `scope_id = ANY`. On `55P03`: roll back, sleep a jittered 100 to
+   500 ms, and re-run steps 1 to 8. After a 30 s total fence budget (also
+   capped by the remaining deadline), return 409 `blocked` / `claim_fence_busy`.
 7. Writes (7f, the shared-lease horizon, was removed; letters are kept so the
    proof outputs still map):
    - (a) `UPDATE scope_generations SET status='superseded', superseded_at=$now WHERE scope_id = ANY AND status IN ('pending','active','failed')`;
    - (b) `UPDATE ingestion_scopes SET active_generation_id = NULL`;
    - (c) projector rows in `pending`/`retrying`, or `claimed`/`running` with an expired lease → `superseded` with `failure_class='repository_retired'`, bound to the step-4 non-superseded `(scope_id, generation_id)` pairs;
-   - (d) `DELETE` reducer rows of the scopes (`scope_id = ANY`) in `pending, retrying, failed, dead_letter`, plus expired `claimed`/`running`. The guard is `NOT (status IN ('claimed','running') AND claim_until > clock_timestamp())`, the predicate of `refinalize.go:142-151`. 7d stays in phase 1: after 7b nulls the active pointer, the reducer claim would otherwise pick these rows up;
+   - (d) **mark, not delete.** The reducer rows of the scopes (`scope_id = ANY`) in `pending, retrying, failed, dead_letter`, plus expired `claimed`/`running`, become `superseded`. The statement is in the
+     [reducer writers file](7766-repository-retirement-reducer-writers.md#the-7d-statement).
+     Succeeded rows are not touched in phase 1. 7d stays in phase 1: after 7b nulls the active pointer, the reducer claim would otherwise pick these rows up. It never deletes a row, because deleting is what re-opens the enqueue path (`ON CONFLICT (work_item_id) DO NOTHING` is inert for every id that still exists);
    - (e) `DELETE FROM repository_reindex_requests WHERE scope_id = ANY`;
-   - (g) `INSERT INTO repository_retirements ... ON CONFLICT DO NOTHING` on the open-repo index. An existing open row is returned unchanged, which makes a re-issue idempotent.
-8. `reset.AssertRetirementFenced(retired = generations superseded + reducer rows deleted)` (`refinalize.go:401-418`), then commit.
+   - (g) `INSERT INTO repository_retirements ... ON CONFLICT DO NOTHING RETURNING *` on the open-repo index. `DO NOTHING` returns no row on a conflict, so when `RETURNING` is empty the transaction reads the existing open row by `repo_id`. It holds the key and the scope rows, so the read is stable. Either path yields the row, which makes a re-issue idempotent.
+8. `AssertRetirementFenced` (scope-bound form, counting generations superseded
+   plus reducer rows marked; the shape of `refinalize.go:401-418`), then commit.
+
+Phase 1 closes the claim path for rows that exist at commit. It does not stop
+later inserts or reopens, and it does not carry I2. The 2q recheck under
+`EXCLUSIVE` does (see
+[Invariants](7766-repository-retirement-concurrency.md#invariants)).
 
 The `rebuild/reset` invariant "never widen the reducer delete past `succeeded`"
-protects live leases during a rebuild. Step 7d keeps it: it never deletes a
-live-lease row, and it also deletes rows of already-superseded generations that
+protects live leases during a rebuild. Step 7d keeps its spirit: it never marks
+a live-lease row, and it marks rows of already-superseded generations that
 phase 2d's cascade would delete anyway.
 
 Up to 25 repositories go in one request, all or nothing. That is the request
 cap; the precheck is the cost bound. Errors:
 - `InflightReducersError`, `55P03` at step 3, and `40P01` → 409 `blocked`, rolled back, no marker;
 - `55P03` at step 6 retries, then 409 `blocked` / `claim_fence_busy`; over budget → 409 `request_too_large`;
+- deadline exhausted in a wait → the 409 reason of that wait (`inflight_reducers`, `lock_timeout`, or `claim_fence_busy`);
 - the idempotency ledger stays `in_progress`, as in `generations.go:118-122`. Retrying with a new key is safe, because step 7g resumes the same row.
 
-### Phase 2: graph, then bounded purge (reducer runner)
-
-The runner claims rows from `repository_retirements_runnable_idx` with
-`FOR UPDATE SKIP LOCKED`, `lease_owner`, and `claim_until` (60s, heartbeat).
-Every step persists `phase` and `graph_step_cursor`. The order is
-**2b, 2b', 2a, 2c, 2d, 2e**. The first three are specified in
-[Shared-Projection Barrier](7766-repository-retirement-concurrency.md#shared-projection-barrier);
-the invariants I1 to I4 there are what make the order safe.
-
-- **2b, intent delete, then the barrier:** delete `shared_projection_intents`
-  and `shared_projection_unroutable_intents` by `repository_id` and by
-  `scope_id`, in chunks of 10,000 rows. Assert zero remain, commit, then set
-  `intent_barrier_at` in a later statement. This runs before any acceptance row
-  can go (I3), so retirement creates no orphan intents.
-- **2b', lease-epoch wait (`state=blocked`, `shared_lease_live`):** until no live
-  shared-projection lease was claimed at or before `intent_barrier_at`. A
-  pre-barrier cycle has finished its writes by then, and 2c retracts them.
-- **2a, projector-lease wait (`state=blocked`, `projector_lease_live`):** no
-  projector row of the scopes has `claim_until > now()`. This only converges,
-  because nothing new can be claimed after phase 1.
-- **2c, graph (`state=repairing_graph`):** see Graph Retraction. Each statement is
-  idempotent. The cursor advances after each statement commits.
-- **2d, purge (`state=running`):** each batch is one transaction:
-  1. `SELECT ... FROM ingestion_scopes WHERE scope_id = ANY FOR NO KEY UPDATE SKIP LOCKED`.
-     This is the `retention:<scope_id>` domain, and it conflicts with
-     `generationRetentionCandidateQuery`'s `FOR UPDATE OF scope SKIP LOCKED`
-     (`generation_retention_sql.go:61-68`). On a miss: `blocked/scope_lock_busy`, retry.
-  2. Select up to `BatchGenerationLimit=100` generations of the scopes, oldest
-     first, all `superseded`. Count them with `generationRetentionRowCountsQuery`
-     and apply `BatchRowLimit=100000` with the same one-generation exception
-     (`generation_retention.go:27-28`, ADR 2248).
-  3. Run the ADR 2248 cascade (`generation_retention.go:437-471`):
-     shared intents → unroutable intents → `content_file_references` →
-     infra repo lock → `content_entities` → `infra_resource_entities` →
-     `content_files` → changed-since ledger → `scope_generations`. The last
-     step cascades `fact_records`, `fact_work_items`, `shared_projection_acceptance`
-     (`migrations/011:2-5`), and the rest.
-  4. `rows_deleted = rows_deleted + batch` in the same transaction, then commit.
-- **2e, repo-keyed leftovers, chunked 10,000 by ctid:**
-  - `content_files`, `content_entities`, `content_file_references` `WHERE repo_id=$1`
-    (`content_files_repo_path_idx`, `content_entities_repo_idx`, `migrations/004:57-60`);
-  - `repository_refs WHERE repo_id=$1` (`004:46-55`);
-  - `repository_selection_observations` and `repository_reindex_requests` `WHERE scope_id = ANY`.
-
-### Phase 3: complete, one transaction
-
-1. Lock the scope rows `FOR UPDATE`.
-2. Assert no generation remains.
-3. `DELETE FROM ingestion_scopes` (ref scopes first). This cascades
-   `projector_scope_claim_fences`.
-4. Set `state='complete'`, `phase='done'`, `retired_at=now()`, then commit.
-
-**Crash, restart, and failure handling** (batch-level resume, retry classes,
-`failed` → `pending` on re-issue) are in
-[Runner Crash And Retry](7766-repository-retirement-concurrency.md#runner-crash-and-retry).
-
-## Graph Retraction
-
-The API holds no graph write credential
-(`graph-rebuild-from-facts.md:71-72`), so the graph steps run in the reducer.
-The order is reducer-owned edges, then projector-owned nodes, then the
-Repository node:
-
-| Step | Reused path | Removes |
-| --- | --- | --- |
-| G1 | `EdgeWriter.RetractEdges` (`edge/writer/retract.go:33-131`) per repo-keyed domain, rows from `buildRepoDependencyRetractRows` (`reducer/repo_dependency_projection_replay.go:285`) and siblings: repo_dependency, submodule_pin, codeowners, workload_dependency, deployable_unit_edges, code_calls, handles_route, runs_in, invokes_cloud_action, shell_exec, sql_relationships, inheritance_edges | Source-anchored, `evidence_source`-scoped edges the repo owns, including its outgoing edges into other Repositories (rule 2 holds) |
-| G2 | `RetractEdges(rationale_edges, buildRationaleRepoRetractRows)` (`reducer/rationale_delta_scope.go:143`) | `EXPLAINS` |
-| G3 | `RetractEdges(documentation_edges, buildDocumentationScopeRetractRows(scope_ids))` (`reducer/documentation_edge_delta_scope.go:287`) | `DOCUMENTS` by `section.scope_id` |
-| G4 | `RetractSingleRepoRelationshipEdgesCypher`, `RetractSingleRepoRunsOnEdgesCypher`, `RetractSingleRepoEvidenceArtifactsCypher` (`canonical_relationships.go:351-382`) | Repo-anchored relationship edges and evidence artifacts |
-| G5 | `CanonicalNodeWriter.buildRetractStatements` + `buildEntityRetractStatements` (`canonical_node_writer_retract.go:19-146`) with `RepoID`, sentinel `GenerationID="retired:<retirement_id>"`, no files, `FirstGeneration=false`, `DeltaProjection=false`, `Drain=true`; plus `canonicalNodeRetractParametersCypher` (`canonical_node_cypher.go:110-113`) with paths paged from `content_files` (still present, because 2c precedes 2d) | Every projector-owned File, Directory, entity, and Parameter node of the repo, and every relationship on them |
-| G6 | New statement (below) | Demotes the Repository node |
-
-Which evidence sources each G1 domain is retracted under comes from one closed
-table in `go/internal/reducer/retirement/plan.go`. Coverage is enforced by
-`TestRetirementRetractPlanClassifiesEveryDomain`. It iterates the reducer domain
-set (`reducer/contract/domain.go:17-180`) and requires each domain to be one of:
-- `retract_by_repo`;
-- `removed_by_node_retract` (edges only incident to G5 nodes);
-- `not_repository_scoped`, with a reason (cloud, IAM, Kubernetes).
-
-It is the same shape as `TestWholeScopeRetractDomainsCoversFencedSet`, so a
-domain added later fails the test until someone classifies it.
-
-**Repository node decision: demote, then the orphan sweep reaps it.**
-
-```cypher
-MATCH (r:Repository {id: $repo_id})
-WHERE r.evidence_source = 'projector/canonical'
-SET r.evidence_source = 'retirement/repository', r.path = null, r.local_path = null,
-    r.scope_id = null, r.generation_id = $sentinel_generation_id
-```
-
-Reasons:
-- **Leaving the node to the sweep alone does not work.** A retired node is
-  `projector/canonical` (`canonical_node_cypher.go:124-129`), and the sweep's
-  Repository guard excludes exactly that value (`orphan_sweep.go:410-412`).
-- **A direct delete does not work either.**
-  - `DETACH DELETE` breaks contract A, because other repos' incoming edges remain.
-  - A plain `DELETE` errors on Neo4j while relationships remain.
-  - Making the delete conditional needs a relationship-existence predicate,
-    and those are mis-evaluated on the pinned NornicDB (`orphan_sweep.go:94-104`).
-- **Demotion only writes properties in the projector-owned set**, so
-  `TestRepositoryPropertyWritersStayInsideTheProjectorUpsert`
-  (`canonical_repository_property_writers_test.go:132`) holds. It adds no
-  delete, so rule 1 of `TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners`
-  is unchanged.
-- **Clearing `path` keeps the node out of `canonicalNodeRepositoryPathCleanupCypher`**
-  (`canonical_node_cypher.go:120-122`).
-
-**Contract A and stubs:**
-- Incoming edges owned by other repositories stay until those owners retract
-  by `evidence_source`.
-- While an owner still names the id, `repo_dependency` and `submodule_pin`
-  MERGE onto the demoted node. Their `ON CREATE SET` does not fire, so the node
-  stays `retirement/repository`, and `eshu_dp_canonical_repository_stubs_created_total`
-  does not move.
-- Once every owner has retracted, the sweep marks the node and, after the TTL
-  (7 days, `orphan_sweep.go:17`), deletes it with a plain `DELETE`. This is the
-  existing 7324 path.
-- If an owner names the id again after the reap, the documented path-less stub
-  (`resolver/cross-repo`) re-appears and is counted.
-- Read surfaces resolve a node's state from the tombstone first, so a stub under
-  a retired id still reads `retired`.
-- On re-admission, the canonical upsert `MERGE` by id re-promotes the node and
-  rewrites every owned property, which adopts the existing incoming edges.
-
-## Read Surfaces And OpenAPI
-
-The bounded `index_state` is `indexed | stub | retiring | retired`, derived in
-this order:
-1. an open tombstone in a non-`complete` state → `retiring`;
-2. a `complete` tombstone → `retired`;
-3. otherwise `evidence_source = 'projector/canonical'` → `indexed`;
-4. else `stub`.
-
-Retiring and retired rows also carry `retirement` = {`state` (policy enum),
-`retired_at`, `retirement_id`}.
-
-| Surface | Change |
-| --- | --- |
-| GET `/api/v0/repositories` (`query/repository/handler.go:137-219`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; the dir carries `//nolint:dirgate`, `doc.go:16`). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
-| MCP `list_indexed_repositories` (`mcp/dispatch_repositories.go:74`, routes to the above) | Picks up the fields; the tool description in `tools_codebase.go:227` names `index_state` (mcp-schema-drift). |
-| `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:225-245`) | `repository_count` keeps its query. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
-| Freshness (`status/repository_freshness.go:183-205`) | New verdict `retired`, rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
-| Console (`apps/console/src/api/repoCatalog.ts`) | Badge from `index_state`; retired and retiring rows are muted, not hidden. |
-
-OpenAPI changes:
-- `paths/repository/freshness.go:40`: add `retired` to the verdict enum, plus a `retirement` object;
-- the repositories list schema: add `index_state` and `retirement`;
-- the index-status schema: add the new blocks;
-- new admin fragments go in `paths/status/repository_retirement.go` (`paths/status/admin.go` is 460 lines).
-
-## Operator Surface
-
-Admin routes live in a new leaf, `query/admin/retirement/`, because the admin
-`AGENTS.md` sends new families to their own leaf. The root router wires them.
-
-- `POST /api/v0/admin/repository-retirements` with body
-  `{"repositories":[sel,...1..25], "reason":str, "idempotency_key":str, "dry_run":bool}`.
-  - **Selectors:** resolved with `MatchRepositories` and `gitDefaultScopeMatch`
-    (`reindex_repository.go:55-131`, `content_reader_repository_catalog.go:145-171`
-    matches repo id, `scope_id`, name, slug, path, local path). The request is
-    all or nothing, and a 400 names every bad selector. A scope id
-    disambiguates the duplicate case.
-  - **Required fields:** `reason` and `idempotency_key` are mandatory.
-    `ClaimReplayIdempotency` uses fingerprint `sha256(sorted scope_ids)`, and
-    `CompleteReplayIdempotency` follows the semantics in
-    `query/admin/generations.go:84-128`.
-  - **Auth:** admin (all-scopes) only. Scoped tokens get 403 (`generations.go:97-101`).
-  - **Responses:**
-    - 202 `{status:"accepted", retirements:[{retirement_id, repository_id, scope_id, state:"pending", requested_at}], idempotency_key, duplicate}`;
-    - 200 dry-run preview;
-    - 409 for `blocked` (`inflight_reducers`, `lock_timeout`, `claim_fence_busy`), `request_too_large` (with per-repo counts), key reuse, or in progress.
-- `GET /api/v0/admin/repository-retirements/{retirement_id}` and
-  `GET /api/v0/admin/repository-retirements?state=&limit=&cursor=` return the
-  readback:
-  - `retirement_id`, `repository_id`, `scope_id`;
-  - `state` (`pending|running|blocked|repairing_graph|complete|failed`), `phase`, `blocked_reason`, `failure_class`, `attempt_count`;
-  - `requested_at`, `updated_at`, `retired_at`, `readmitted_at`;
-  - `rows_deleted_by_table`;
-  - `graph{nodes_deleted, relationships_deleted, repository_node: demoted|absent|readmitted}`.
-- **Dry run:** writes no ledger row and no marker, but emits an audit event.
-  Per repository it returns:
-  - `ref_scope_count` and `generations_by_status`;
-  - per-table row counts from cheap index counts by scope/repo key, under a 10s
-    `statement_timeout`, with `counts_partial` on timeout;
-  - `live_leases{projector,reducer}`;
-  - a graph `{file_count, incoming_foreign_edges:[{type, evidence_source, count}]}`
-    from anchored reads on `Repository {id}`;
-  - `selection.state`, plus `will_readmit:true` when the repo is still `selected`.
-    Retirement does not change selection, so the next sync re-admits it.
-- **CLI:** `eshu admin repository retire <sel>... --reason --idempotency-key [--dry-run]`,
-  `eshu admin repository retirement-status <id>|--state`, and
-  `eshu admin repository retirement-candidates`.
-  - Request builders go in `internal/cli/admin/retirement.go` and cobra in
-    `cmd/eshu/admin.go`, because `cmd/eshu` already has 40 non-test files.
-  - With no key given, the CLI generates one, as `replay` does (`admin.go:88`).
-- **Tombstone row:** the marker row itself, holding the safe hashes, bounded
-  reason code, actor class, counts by table, and lifecycle timestamps. Raw ids
-  appear only in admin readbacks, which is where `reindex` already returns them.
+Phases 2 and 3 are in the [Runner](7766-repository-retirement-runner.md).
 
 ## Re-Admission And In-Flight Syncs
 
@@ -400,76 +286,51 @@ and
 [Re-Admission](7766-repository-retirement-concurrency.md#re-admission-and-in-flight-syncs)
 sections of the concurrency contract.
 
-## Candidates
-
-`GET /api/v0/admin/repository-retirements/candidates?limit=(1..200)&cursor=<scope_id>`
-is read-only. It never feeds the primitive.
-
-The SQL is a prefilter, and `selection.Summarize`
-(`scope/selection/summary.go:74-144`) re-runs on the page's rows (PK reads) as
-the authority:
-
-```sql
-WITH live AS (SELECT * FROM repository_selection_observations
-  WHERE evaluated_at + make_interval(secs => liveness_window_seconds) >= $1),
-agg AS (SELECT scope_id, bool_or(state='selected') AS any_sel,
-  bool_and(state_cycle_count >= 2 AND evaluated_at - state_since >= interval '5 minutes') AS confirmed,
-  max(state_since) AS newest_exclusion FROM live GROUP BY scope_id)
-SELECT a.scope_id, a.newest_exclusion FROM agg a
-JOIN ingestion_scopes s ON s.scope_id = a.scope_id AND s.scope_kind = 'repository'
-WHERE NOT a.any_sel AND a.confirmed AND a.scope_id > $2
-  AND NOT EXISTS (SELECT 1 FROM scope_generations g WHERE g.scope_id = a.scope_id
-                  AND g.observed_at > a.newest_exclusion)
-  AND NOT EXISTS (SELECT 1 FROM repository_retirements r
-                  WHERE r.scope_id = a.scope_id AND r.readmitted_at IS NULL)
-ORDER BY a.scope_id LIMIT $3
-```
-
-## Telemetry
-
-Instruments go in `telemetry/instruments_operator_repository_retirement.go`.
-The existing `instruments_repository_retirement.go` is the 7324 counter.
-
-| Signal | Definition |
-| --- | --- |
-| `eshu_dp_repository_retirements_total{outcome}` | `accepted`, `refused`, `completed`, `failed`, `readmitted_after_retirement` |
-| `eshu_dp_repository_retirement_ingest_refusals_total{writer}` | `collector_commit`, `webhook_handoff`, `deferred_backfill`, `recover_generations`, `reindex` |
-| `eshu_dp_repository_retirement_step_duration_seconds{phase}` | `fence`, `graph_retract`, `purge_batch`, `finalize` |
-| Spans | `admin.repository_retire` and `reducer.repository_retirement_step` (attr `phase`), registered through a contract subpackage step (telemetry `AGENTS.md`) |
-| Logs | WARN `repository retirement completed`: `scope_id`, `retirement_id`, `generation_count`, ≤10 `generation_ids` + `generation_ids_hash`, `rows_deleted`, `nodes_deleted`, `relationships_deleted`. WARN `repository ingest refused: retiring` with `writer`. WARN readmitted. |
-| Audit | `governanceaudit.EventTypeRepositoryRetirement = "repository_retirement"` beside `audit.go:56`, added to `validEventType` (`:327-342`), `ScopeClassRepository`. Reason codes `repository_retire_{accepted,preview,idempotent_replay,refused_missing_reason,refused_missing_idempotency_key,refused_unauthorized,refused_selector,refused_key_reused,refused_request_too_large,blocked}`. |
-| Status | Readback fields (see Operator Surface) and the index-status block (see Read Surfaces And OpenAPI) |
-
-Every row lands in `docs/public/observability/telemetry-coverage.md`, the
-`telemetry-coverage` gate, `docs/public/reference/telemetry/metrics-reducer-storage.md`,
-`logs.md`, and `traces.md`. The metrics doc entry must distinguish the new
-counter from `eshu_dp_canonical_repository_retirements_total`.
-
 ## Risks And Rejected Alternatives
 
 **Risks:**
 - **Fleet-wide claim pause.** The `EXCLUSIVE` table lock blocks unrelated
   claim, heartbeat, and enqueue statements for the section, as refinalize does.
-  Measured (P1 blocking runs, n=10 each, design-form statements): realistic
-  5,000-generation scope p50 47.9 ms, max 99.4 ms; stalled scope p50 115.5 ms,
-  max 229.1 ms (blocked statements max 230.5 ms). The precheck bounds the work.
+  Measured with design-form statements and a claim-shaped proxy (P1 blocking
+  runs, n=10 each): the realistic 5,000-generation scope had a section p50 of
+  47.9 ms and a max of 99.4 ms; the stalled scope p50 115.5 ms and max 229.1 ms
+  (blocked statements max 230.5 ms). 2q step B is a second fenced section and
+  carries its own bar (P1q). P1'' adds a fleet-throughput bar. The precheck
+  bounds the work.
 - **Barrier waits.** A worker that renews forever holds 2b' in
-  `blocked/shared_lease_live` with the lease named, never failing automatically.
-  NULL `claimed_at` rows block until their first re-claim. Wait length: P9d.
-- **Retry, snapshot, gate shape.** A step 6 retry restarts step 2's drain wait.
-  The precheck is a snapshot, and step 4 is authoritative. The gate moves
+  `blocked/shared_lease_live` with the lease named, never failing
+  automatically. NULL `claimed_at` rows block until their first re-claim. Wait
+  length: P9d.
+- **Fresh-id window between 2q and 2d.** An INSERT with a fresh
+  `work_item_id` can land after 2q's last pass. 2d's cascade bounds it and 2z
+  catches it. If 2z ever finds residue after a clean 2c, the structural fix is a
+  claim-side supersede arm, tracked as a separate issue (see
+  [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md#residual-risk)).
+- **Retry, snapshot, gate shape.** A step 6 retry restarts from step 1. The
+  precheck is a snapshot, and step 4 is authoritative. The gate moves
   `upsertIngestionScope` from `Exec` to `Query`; `LIMIT 1` relies on the
   partial unique open-repo index.
 - **Retired id lingers in the ingester catalog.** The catalog read covers every
   `repository` fact (`ingestion_queries.go:19-24`), and the in-process catalog
   cache may hold a retired id until restart. Other repos' evidence then names
   it and produces truthful stubs.
-- **Name confusion with the 7324 counter.** The new `eshu_dp_repository_retirements_total` sits beside `eshu_dp_canonical_repository_retirements_total`, which counts the path-conflict delete. The metrics doc must keep them apart.
+- **Name confusion with the 7324 counter.** The new
+  `eshu_dp_repository_retirements_total` sits beside
+  `eshu_dp_canonical_repository_retirements_total`, which counts the
+  path-conflict delete. The metrics doc must keep them apart.
 - **Retiring a still-selected repo bounces it back.** The dry run warns.
+- **Grants do not survive.** Phase 3 drops tenant and role grants on purpose.
+  The dry run and the tombstone count them.
 
 **Rejected:**
 - **`ingestion_scopes.status` as the marker.** It is overwritten on every upsert.
 - **A predicate in `claimProjectorWorkQuery`.** It is a hot path, and superseding the generations already fences the projector.
+- **A marker gate on reducer enqueue or reopen.** Both are hot paths (enqueue
+  runs per projector Run in 500-row batches; the reopen listings run every
+  drain), nothing has measured a gate there, and it still leaves the fresh-id
+  path unless the INSERT itself is gated. 2q closes the paths instead.
+- **Deleting reducer rows in phase 1.** A deleted id is a free id: `DO NOTHING`
+  stops being inert, and an enqueue re-creates the row. Marking keeps the id.
 - **The shared-lease horizon, or claiming every shared partition.** The first
   is unsound under heartbeats (P9H), and the second pauses all shared
   projection fleet-wide. A claim epoch replaces both.
@@ -483,11 +344,20 @@ counter from `eshu_dp_canonical_repository_retirements_total`.
   - The policy's privacy-first order is a stated non-goal here.
 - **Graph retraction in the API.** The API holds no write credential.
 - **A new per-repository lock, or serialising workers.** The existing advisory key already linearises commits.
+- **Keeping the scope row, re-pointing grants, or a tombstone-held grant snapshot.**
+  Keeping the scope row changes re-admission from a first generation and keeps
+  catalog reads answering. There is no target to re-point to. Restoring a
+  snapshot would re-grant access to content the retirement erased, which is a
+  policy decision this primitive must not make.
 - **Deleting webhook trigger rows.** They are delivery history.
 - **A single-transaction purge.** It is unbounded.
 
 ## Open Questions
 
+- What does the freshness route report for a `retiring` scope? The design adds
+  only the `retired` verdict. Deliverable 1 never produces it, so a retiring
+  scope keeps the verdict that `latestGenerationCTE` yields over its superseded
+  generations. PR 8 decides whether to add `retiring` to the enum.
 - Should the other per-repository routes (context, story, stats) return the
   policy's tombstone envelope instead of 404 after completion? A proposed
   follow-up, not required by the ruling.
