@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // RelationshipGenerationActiveChecker reports whether a relationship generation
@@ -146,29 +148,28 @@ func NewAcceptedGenerationLookup(database db.ExecQueryer) reducer.AcceptedGenera
 // partition slice and returns an in-memory lookup closure for the reducer hot
 // path. This keeps the shared runner collector-agnostic while avoiding repeated
 // store calls for duplicate bounded-unit keys.
+//
+// The batch resolves through SharedProjectionAcceptanceStore.LookupBatch:
+// one UNNEST/JOIN query per 1000 distinct keys (#7724 1A), replacing the
+// former one-Lookup-per-key loop. Per-key found/not-found semantics,
+// TrimSpace normalization, and the batch-error-fails-selection contract
+// are unchanged.
 func NewAcceptedGenerationPrefetch(database db.ExecQueryer) reducer.AcceptedGenerationPrefetch {
 	store := NewSharedProjectionAcceptanceStore(database)
 
 	return func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {
-		acceptedByKey := make(map[reducer.SharedProjectionAcceptanceKey]string, len(intents))
-
+		keys := make([]sharedintent.AcceptanceKey, 0, len(intents))
 		for _, intent := range intents {
 			key, ok := intent.AcceptanceKey()
 			if !ok {
 				continue
 			}
-			if _, seen := acceptedByKey[key]; seen {
-				continue
-			}
+			keys = append(keys, key)
+		}
 
-			generationID, found, err := store.Lookup(ctx, key.ScopeID, key.AcceptanceUnitID, key.SourceRunID)
-			if err != nil {
-				return nil, err
-			}
-			if !found {
-				continue
-			}
-			acceptedByKey[key] = generationID
+		acceptedByKey, err := store.LookupBatch(ctx, keys)
+		if err != nil {
+			return nil, err
 		}
 
 		return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
@@ -210,4 +211,119 @@ func (s *RelationshipStore) AreActiveScopeRelationshipGenerationsComplete(
 		return false, fmt.Errorf("scan active scope relationship generations complete: %w", err)
 	}
 	return complete, rows.Err()
+}
+
+// sharedProjectionAcceptanceLookupChunkSize bounds one batched
+// acceptance lookup (#7724 1A). Each chunk is a single UNNEST/JOIN
+// query over at most this many distinct keys, so a widen round costs
+// ceil(keys/1000) queries instead of one Lookup per key.
+const sharedProjectionAcceptanceLookupChunkSize = 1000
+
+// lookupSharedProjectionAcceptanceBatchSQL resolves one chunk of exact
+// bounded-unit keys in a single round trip (#7724 1A). The multi-argument
+// UNNEST zips the three key arrays positionally and the JOIN probes the
+// (scope_id, acceptance_unit_id, source_run_id) primary key once per key,
+// so the plan is a nested loop over PK index scans with no sequential
+// scan. Only present keys return rows; the caller treats absent keys as
+// not-found, exactly like a Lookup miss.
+const lookupSharedProjectionAcceptanceBatchSQL = `
+SELECT a.scope_id, a.acceptance_unit_id, a.source_run_id, a.generation_id
+FROM UNNEST($1::text[], $2::text[], $3::text[]) AS k(scope_id, acceptance_unit_id, source_run_id)
+JOIN shared_projection_acceptance AS a
+  ON a.scope_id = k.scope_id
+ AND a.acceptance_unit_id = k.acceptance_unit_id
+ AND a.source_run_id = k.source_run_id
+`
+
+// LookupBatch returns the accepted generation for each exact bounded-unit
+// key present in shared_projection_acceptance (#7724 1A). It issues one
+// UNNEST/JOIN query per chunk of at most
+// sharedProjectionAcceptanceLookupChunkSize distinct keys, so a widen
+// round costs ceil(keys/1000) queries instead of one Lookup per key.
+//
+// Keys are normalized (TrimSpace) before the query and compared on
+// normalized keys, matching the prefetch closure's comparison; blank keys
+// cannot match and are skipped without a query. Absent keys are simply
+// missing from the result, exactly like a Lookup miss. A query error fails
+// the whole batch: the caller must fail its selection rather than drop or
+// keep rows. An empty key set issues no query.
+//
+// The call records keys/queries/rows/duration into the context's
+// PrefetchStats when the caller attached one.
+func (s *SharedProjectionAcceptanceStore) LookupBatch(
+	ctx context.Context,
+	keys []sharedintent.AcceptanceKey,
+) (map[sharedintent.AcceptanceKey]string, error) {
+	seen := make(map[sharedintent.AcceptanceKey]struct{}, len(keys))
+	distinct := make([]sharedintent.AcceptanceKey, 0, len(keys))
+	for _, key := range keys {
+		key.ScopeID = strings.TrimSpace(key.ScopeID)
+		key.AcceptanceUnitID = strings.TrimSpace(key.AcceptanceUnitID)
+		key.SourceRunID = strings.TrimSpace(key.SourceRunID)
+		if key.ScopeID == "" || key.AcceptanceUnitID == "" || key.SourceRunID == "" {
+			continue
+		}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		distinct = append(distinct, key)
+	}
+	if len(distinct) == 0 {
+		return map[sharedintent.AcceptanceKey]string{}, nil
+	}
+
+	start := time.Now()
+	acceptedByKey := make(map[sharedintent.AcceptanceKey]string, len(distinct))
+	queries := 0
+	for i := 0; i < len(distinct); i += sharedProjectionAcceptanceLookupChunkSize {
+		end := i + sharedProjectionAcceptanceLookupChunkSize
+		if end > len(distinct) {
+			end = len(distinct)
+		}
+		if err := s.lookupAcceptanceChunk(ctx, distinct[i:end], acceptedByKey); err != nil {
+			sharedintent.RecordPrefetch(ctx, sharedintent.PrefetchKindAcceptance, len(distinct), queries, len(acceptedByKey), 0, time.Since(start))
+			return nil, err
+		}
+		queries++
+	}
+	sharedintent.RecordPrefetch(ctx, sharedintent.PrefetchKindAcceptance, len(distinct), queries, len(acceptedByKey), 0, time.Since(start))
+	return acceptedByKey, nil
+}
+
+// lookupAcceptanceChunk resolves one chunk of normalized distinct keys
+// with a single UNNEST/JOIN query and merges the found rows into out.
+func (s *SharedProjectionAcceptanceStore) lookupAcceptanceChunk(
+	ctx context.Context,
+	chunk []sharedintent.AcceptanceKey,
+	out map[sharedintent.AcceptanceKey]string,
+) error {
+	scopes := make([]string, len(chunk))
+	units := make([]string, len(chunk))
+	runs := make([]string, len(chunk))
+	for i, key := range chunk {
+		scopes[i] = key.ScopeID
+		units[i] = key.AcceptanceUnitID
+		runs[i] = key.SourceRunID
+	}
+	rows, err := s.database.QueryContext(ctx, lookupSharedProjectionAcceptanceBatchSQL, scopes, units, runs)
+	if err != nil {
+		return fmt.Errorf("query shared projection acceptance batch (%d keys): %w", len(chunk), err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var scopeID, acceptanceUnitID, sourceRunID, generationID string
+		if err := rows.Scan(&scopeID, &acceptanceUnitID, &sourceRunID, &generationID); err != nil {
+			return fmt.Errorf("scan shared projection acceptance batch: %w", err)
+		}
+		out[sharedintent.AcceptanceKey{
+			ScopeID:          strings.TrimSpace(scopeID),
+			AcceptanceUnitID: strings.TrimSpace(acceptanceUnitID),
+			SourceRunID:      strings.TrimSpace(sourceRunID),
+		}] = generationID
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate shared projection acceptance batch (%d keys): %w", len(chunk), err)
+	}
+	return nil
 }

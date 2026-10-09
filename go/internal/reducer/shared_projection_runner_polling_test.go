@@ -58,7 +58,13 @@ func TestSharedProjectionRunnerBackoffOnEmptyCycles(t *testing.T) {
 	}
 }
 
-func TestSharedProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked(t *testing.T) {
+// TestSharedProjectionRunnerBacksOffWhileReadinessBlocked proves the #7724
+// 2A contract change: blocked rows no longer pin the global poll interval.
+// A cycle with blocked rows but zero completions engages the global
+// consecutive-empty backoff (per-partition backoff paces the stuck cells;
+// the global loop must not spin at full cadence behind them). Blocked rows
+// still never complete.
+func TestSharedProjectionRunnerBacksOffWhileReadinessBlocked(t *testing.T) {
 	t.Parallel()
 
 	var mu sync.Mutex
@@ -112,8 +118,8 @@ func TestSharedProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked(t *test
 
 	expected := []time.Duration{
 		500 * time.Millisecond,
-		500 * time.Millisecond,
-		500 * time.Millisecond,
+		1 * time.Second,
+		2 * time.Second,
 	}
 	if len(waits) < len(expected) {
 		t.Fatalf("wait calls = %d, want at least %d", len(waits), len(expected))

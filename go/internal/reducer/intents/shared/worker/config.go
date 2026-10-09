@@ -23,6 +23,13 @@ type RunnerConfig struct {
 	BatchLimit     int
 	EvidenceSource string
 	Workers        int // concurrent partition workers; 0 or 1 means sequential
+	// PartitionBackoffMax is T_max: the longest a persistently
+	// unproductive (domain, partition) waits between visits (#7724 2A).
+	// It is also the pickup bound: work arriving during backoff is
+	// picked up within T_max plus one global poll interval (at most
+	// 5s). Zero means the 30s default; values above the 5-minute hard
+	// cap are clamped.
+	PartitionBackoffMax time.Duration
 }
 
 func (c RunnerConfig) partitionCount() int {
@@ -67,6 +74,18 @@ func (c RunnerConfig) leaseOwner() string {
 	return c.LeaseOwner
 }
 
+// backoffMax returns T_max: the configured cap clamped to (0,
+// MaxPartitionBackoffMax], defaulting to DefaultPartitionBackoffMax.
+func (c RunnerConfig) backoffMax() time.Duration {
+	if c.PartitionBackoffMax <= 0 {
+		return DefaultPartitionBackoffMax
+	}
+	if c.PartitionBackoffMax > MaxPartitionBackoffMax {
+		return MaxPartitionBackoffMax
+	}
+	return c.PartitionBackoffMax
+}
+
 // sharedProjectionDomainEvidenceSource returns the evidence source the worker must
 // stamp on a domain's edges, falling back to the runner's global source. Domains
 // promoted onto the shared-projection runner from a dedicated materialization
@@ -90,11 +109,12 @@ func sharedProjectionDomainEvidenceSource(domain, fallback string) string {
 // LoadConfig parses shared projection env vars.
 func LoadConfig(getenv func(string) string) RunnerConfig {
 	return RunnerConfig{
-		PartitionCount: intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", defaultPartitionCount),
-		PollInterval:   durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_POLL_INTERVAL", DefaultPollInterval),
-		LeaseTTL:       durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_LEASE_TTL", DefaultLeaseTTL),
-		BatchLimit:     intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_BATCH_LIMIT", DefaultBatchLimit),
-		Workers:        intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_WORKERS", defaultSharedProjectionWorkers()),
+		PartitionCount:      intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", defaultPartitionCount),
+		PollInterval:        durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_POLL_INTERVAL", DefaultPollInterval),
+		LeaseTTL:            durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_LEASE_TTL", DefaultLeaseTTL),
+		BatchLimit:          intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_BATCH_LIMIT", DefaultBatchLimit),
+		Workers:             intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_WORKERS", defaultSharedProjectionWorkers()),
+		PartitionBackoffMax: durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_PARTITION_BACKOFF_MAX", DefaultPartitionBackoffMax),
 	}
 }
 

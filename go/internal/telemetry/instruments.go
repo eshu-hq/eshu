@@ -276,10 +276,50 @@ type Instruments struct {
 	// short-circuited by active reducer-graph work return before the probe
 	// and emit nothing, as do failed consultations.
 	SharedProjectionLaneGateDuration metric.Float64Histogram
-	GenerationRetentionPruned        metric.Int64Counter
-	GenerationRetentionRowsPruned    metric.Int64Counter
-	GenerationRetentionFailures      metric.Int64Counter
-	GenerationRetentionSkipped       metric.Int64Counter
+	// SharedProjectionPartitionVisits counts shared-projection partition
+	// visits by domain and outcome (#7724). Every cell records exactly
+	// one outcome per cycle (visited, backoff_skipped, lease_held,
+	// error), so every non-skipped visit is one lease claim attempt: the
+	// issue's idle-claim signal.
+	SharedProjectionPartitionVisits metric.Int64Counter
+	// SharedProjectionPartitionBackoff is the current per-partition
+	// backoff delay by domain and partition_id (#7724). Zero means full
+	// cadence; T_max means pinned. Bounded: 11 domains by 8 partitions.
+	SharedProjectionPartitionBackoff metric.Float64Gauge
+	// SharedProjectionCycleBackoff is the current global
+	// shared-projection cycle backoff interval (#7724), sampled every
+	// cycle (0 on productive ones: immediate re-poll, no wait) so it
+	// never goes stale behind a drain.
+	SharedProjectionCycleBackoff metric.Float64Gauge
+	// SharedProjectionPartitionsAtMaxBackoff counts partitions pinned at
+	// T_max backoff, sampled each cycle (#7724).
+	SharedProjectionPartitionsAtMaxBackoff metric.Int64Gauge
+	// SharedProjectionPrefetchKeys counts distinct prefetch keys
+	// submitted to the store by domain and kind (acceptance, readiness).
+	// Readiness counts only queried keys; cache hits ride the
+	// cache-hits counter (#7724).
+	SharedProjectionPrefetchKeys metric.Int64Counter
+	// SharedProjectionPrefetchQueries counts prefetch SQL queries by
+	// domain and kind. Batched prefetches issue at most ceil(keys/1000)
+	// (#7724).
+	SharedProjectionPrefetchQueries metric.Int64Counter
+	// SharedProjectionPrefetchRows counts prefetch rows returned
+	// (found keys) by domain and kind (#7724).
+	SharedProjectionPrefetchRows metric.Int64Counter
+	// SharedProjectionPrefetchCacheHits counts readiness answers served
+	// from the cross-round cache by domain and kind. Acceptance never
+	// records hits: it is re-queried fresh every round (#7724).
+	SharedProjectionPrefetchCacheHits metric.Int64Counter
+	// SharedProjectionPrefetchDuration records prefetch store time by
+	// domain and kind (#7724).
+	SharedProjectionPrefetchDuration metric.Float64Histogram
+	// SharedProjectionSelectionRounds counts selection widen rounds by
+	// domain (#7724).
+	SharedProjectionSelectionRounds metric.Int64Counter
+	GenerationRetentionPruned       metric.Int64Counter
+	GenerationRetentionRowsPruned   metric.Int64Counter
+	GenerationRetentionFailures     metric.Int64Counter
+	GenerationRetentionSkipped      metric.Int64Counter
 	// GenerationRetentionOverLimitBatches counts retention batches of one
 	// generation admitted over BatchRowLimit by its changed-since ledger rows
 	// (#7127); registered with the changed-since instruments.
@@ -4969,6 +5009,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerRepositorySelection(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSharedProjectionCycle(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

@@ -15,41 +15,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const maxSharedSelectionScanLimit = 10_000
-
 // IntentReader reads and marks shared projection intents.
 type IntentReader interface {
 	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error)
 	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
-}
-
-// PartitionBatchResult holds the result of selecting one partition batch.
-type PartitionBatchResult struct {
-	LatestRows  []sharedintent.Row
-	BlockedRows []sharedintent.Row
-	// TerminalRows are phase-ready rows that are complete with no edge — the
-	// handles_route #2809 terminal-no-endpoint set. They are retracted (to clear
-	// any stale edge whose endpoint vanished) and marked complete, but never
-	// written and never deferred, so a route-only repo cannot stall the backlog.
-	TerminalRows []sharedintent.Row
-	StaleIDs     []string
-	StaleCount   int
-	// SupersededGenerationCount is the subset of StaleIDs drained because the
-	// intent's generation is superseded (#7121), as opposed to an acceptance
-	// mismatch. StaleCount is the total.
-	SupersededGenerationCount int
-	SupersededIDs             []string
-	BlockedCount              int
-	TerminalCount             int
-	// IndexedSelection is true when candidates were read through the indexed
-	// partition predicate rather than the in-memory domain scan. It is a bounded
-	// operator signal for diagnosing which selection path a domain used.
-	IndexedSelection bool
-	// UnhashedFallbackRows counts legacy partition-matched rows from the unhashed
-	// lane that were selected into this cycle's candidate batch (after limit
-	// truncation). A non-zero value during steady state means pre-hash rows are
-	// still draining for the domain.
-	UnhashedFallbackRows int
 }
 
 // PartitionProcessorConfig holds configuration for one partition processor
@@ -121,160 +90,27 @@ type PartitionProcessResult struct {
 	// for a repo means its refresh intent is not completing — a stall signal,
 	// distinct from readiness-blocked and terminal-no-endpoint.
 	RefreshFenceDeferred int
-}
-
-// SelectPartitionBatch selects one accepted partition batch, matching the
-// Python _select_partition_batch function. It scans pending intents, filters
-// by partition, checks authoritative generation state, and deduplicates to
-// latest per repo/partition pair.
-func SelectPartitionBatch(
-	ctx context.Context,
-	reader IntentReader,
-	domain string,
-	partitionID, partitionCount int,
-	batchLimit int,
-	acceptedGen sharedintent.AcceptedGenerationLookup,
-	prefetch sharedintent.AcceptedGenerationPrefetch,
-	readinessLookup gpphase.ReadinessLookup,
-	readinessPrefetch gpphase.ReadinessPrefetch,
-	endpointPresence gpphase.EndpointPresenceLookup,
-) (PartitionBatchResult, error) {
-	if batchLimit < 1 {
-		batchLimit = 1
-	}
-
-	// Indexed candidate readers (Postgres) return only this partition's pending
-	// rows, so the scan never dilutes across partitions and cannot starve at the
-	// scan cap. Readers without the candidate interface keep the in-memory
-	// domain scan with its widen-and-cap behavior unchanged.
-	_, indexed := reader.(PartitionCandidateReader)
-
-	scanLimit := batchLimit * max(partitionCount, 1) * 2
-	if scanLimit > maxSharedSelectionScanLimit {
-		scanLimit = maxSharedSelectionScanLimit
-	}
-
-	for {
-		if err := ctx.Err(); err != nil {
-			return PartitionBatchResult{}, err
-		}
-
-		partitionRows, loadedCount, unhashedFallback, err := loadPartitionRows(
-			ctx, reader, domain, partitionID, partitionCount, scanLimit, indexed,
-		)
-		if err != nil {
-			return PartitionBatchResult{}, err
-		}
-
-		seenAll := loadedCount < scanLimit
-		if len(partitionRows) == 0 {
-			if seenAll {
-				return PartitionBatchResult{IndexedSelection: indexed}, nil
-			}
-			if scanLimit >= maxSharedSelectionScanLimit {
-				if indexed {
-					return PartitionBatchResult{IndexedSelection: indexed}, nil
-				}
-				return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
-			}
-			scanLimit = widenScanLimit(scanLimit)
-			continue
-		}
-
-		lookup := acceptedGen
-		if prefetch != nil {
-			resolvedLookup, err := prefetch(ctx, partitionRows)
-			if err != nil {
-				return PartitionBatchResult{}, fmt.Errorf("prefetch accepted generations: %w", err)
-			}
-			lookup = resolvedLookup
-		}
-
-		active, mismatchIDs := FilterAuthoritativeIntents(partitionRows, lookup)
-		latest, supersededIntentIDs := LatestIntentsByRepoAndPartition(active)
-		readyRows, blockedRows, terminalRows, err := FilterRowsByReadiness(
-			ctx,
-			domain,
-			latest,
-			readinessLookup,
-			readinessPrefetch,
-			endpointPresence,
-		)
-		if err != nil {
-			return PartitionBatchResult{}, err
-		}
-
-		// Drain only the rows the readiness gate blocked, and only when their
-		// scope generation is superseded with no in-flight producer (#7121): that
-		// phase row never publishes. The reader omits a superseded generation
-		// while its producer is still running, so an in-flight producer defers the
-		// drain to a later pass instead of losing the edge. Readiness is re-read
-		// for the rows about to drain, after the lookup, so a producer that
-		// published between the first readiness read and the lookup keeps its row
-		// (it projects). Ready and terminal rows on a superseded generation keep
-		// projecting, because a delta successor would never re-emit their edge.
-		// The lookup is one bounded round trip over the blocked rows' generation
-		// ids and is skipped when nothing is blocked; the re-check adds one more
-		// only when there are rows to drain.
-		drain, err := drainSupersededBlockedRows(
-			ctx, reader, domain, blockedRows,
-			readinessLookup, readinessPrefetch, endpointPresence,
-		)
-		if err != nil {
-			return PartitionBatchResult{}, err
-		}
-		blockedRows = drain.Blocked
-		generationSupersededIDs := drain.DrainedIDs
-		readyRows = append(readyRows, drain.Ready...)
-		terminalRows = append(terminalRows, drain.Terminal...)
-		staleIDs := make([]string, 0, len(mismatchIDs)+len(generationSupersededIDs))
-		staleIDs = append(staleIDs, mismatchIDs...)
-		staleIDs = append(staleIDs, generationSupersededIDs...)
-
-		// Terminal rows are complete with no edge; draining them promptly (rather
-		// than widening the scan in search of more ready rows) is what keeps a
-		// route-only backlog from stalling, so they count toward returning a batch.
-		// Blocked rows drained as superseded are progress for the same reason: a
-		// window full of orphans must not widen the scan toward the cap.
-		if len(readyRows) >= batchLimit || len(terminalRows) > 0 || len(generationSupersededIDs) > 0 || seenAll {
-			if len(readyRows) > batchLimit {
-				readyRows = readyRows[:batchLimit]
-			}
-			return PartitionBatchResult{
-				LatestRows:                readyRows,
-				BlockedRows:               blockedRows,
-				TerminalRows:              terminalRows,
-				StaleIDs:                  staleIDs,
-				StaleCount:                len(staleIDs),
-				SupersededGenerationCount: len(generationSupersededIDs),
-				SupersededIDs:             supersededIntentIDs,
-				BlockedCount:              len(blockedRows),
-				TerminalCount:             len(terminalRows),
-				IndexedSelection:          indexed,
-				UnhashedFallbackRows:      unhashedFallback,
-			}, nil
-		}
-
-		if scanLimit >= maxSharedSelectionScanLimit {
-			if indexed {
-				return PartitionBatchResult{
-					LatestRows:                readyRows,
-					BlockedRows:               blockedRows,
-					TerminalRows:              terminalRows,
-					StaleIDs:                  staleIDs,
-					StaleCount:                len(staleIDs),
-					SupersededGenerationCount: len(generationSupersededIDs),
-					SupersededIDs:             supersededIntentIDs,
-					BlockedCount:              len(blockedRows),
-					TerminalCount:             len(terminalRows),
-					IndexedSelection:          indexed,
-					UnhashedFallbackRows:      unhashedFallback,
-				}, nil
-			}
-			return PartitionBatchResult{}, scanCapError(domain, partitionID, partitionCount)
-		}
-		scanLimit = widenScanLimit(scanLimit)
-	}
+	// SelectionRounds counts the widen passes SelectPartitionBatch ran
+	// for this visit, including the final one (#7724 telemetry:
+	// per-visit widen rounds).
+	SelectionRounds int
+	// PrefetchStats accumulates this visit's selection prefetch
+	// behavior: per-kind keys, queries, rows, readiness cache hits, and
+	// durations (#7724 telemetry: per-visit prefetch stats).
+	PrefetchStats sharedintent.PrefetchStats
+	// PartitionsVisited counts visits that ran and were neither
+	// backoff-skipped nor lease-held: successful visits plus every error
+	// visit, including lease-claim errors that acquired no lease and ran
+	// no selection. MergePartitionProcessResult sums these three counters
+	// across the cycle so the runner can report partitions visited vs
+	// skipped by reason (#7724 telemetry: per-cycle visited vs skipped).
+	PartitionsVisited int
+	// PartitionsBackoffSkipped counts visits skipped by per-partition
+	// backoff.
+	PartitionsBackoffSkipped int
+	// PartitionsLeaseHeld counts visits whose lease claim lost to
+	// another owner.
+	PartitionsLeaseHeld int
 }
 
 // ProcessPartitionOnce processes one partition cycle: claim lease, select
@@ -361,6 +197,8 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, fmt.Errorf("select batch: %w", err)
 	}
 
@@ -373,6 +211,8 @@ func ProcessPartitionOnce(
 			SelectionDurationSeconds:    selectionDuration,
 			IndexedSelection:            batch.IndexedSelection,
 			UnhashedFallbackRows:        batch.UnhashedFallbackRows,
+			SelectionRounds:             batch.SelectionRounds,
+			PrefetchStats:               batch.PrefetchStats,
 		}, nil
 	}
 
@@ -387,6 +227,8 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, planErr
 	}
 	retractRows, writeRows := rwPlan.retractRows, rwPlan.writeRows
@@ -399,33 +241,21 @@ func ProcessPartitionOnce(
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
 			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
 		}, err
 	}
 	retractDuration, writeDuration, upsertRows := writeResult.retractDuration, writeResult.writeDuration, writeResult.upsertRows
 
-	var processedIDs []string
-	processedIDs = append(processedIDs, batch.StaleIDs...)
-	processedIDs = append(processedIDs, batch.SupersededIDs...)
-	for _, row := range completedLatestRows {
-		processedIDs = append(processedIDs, row.IntentID)
-	}
-	// Terminal rows are completed with no edge (drained, never deferred), so the
-	// route-only backlog drains instead of re-enqueuing forever (#2809).
-	for _, row := range batch.TerminalRows {
-		processedIDs = append(processedIDs, row.IntentID)
-	}
-
-	var markCompletedDuration float64
-	if len(processedIDs) > 0 {
-		markStart := time.Now()
-		if err := reader.MarkIntentsCompleted(ctx, processedIDs, now); err != nil {
-			return PartitionProcessResult{
-				LeaseAcquired:             true,
-				LeaseClaimDurationSeconds: leaseDuration,
-				SelectionDurationSeconds:  selectionDuration,
-			}, fmt.Errorf("mark completed: %w", err)
-		}
-		markCompletedDuration = time.Since(markStart).Seconds()
+	processedIDs, markCompletedDuration, err := markSelectedBatchCompleted(ctx, reader, now, batch, completedLatestRows)
+	if err != nil {
+		return PartitionProcessResult{
+			LeaseAcquired:             true,
+			LeaseClaimDurationSeconds: leaseDuration,
+			SelectionDurationSeconds:  selectionDuration,
+			SelectionRounds:           batch.SelectionRounds,
+			PrefetchStats:             batch.PrefetchStats,
+		}, err
 	}
 	processingDuration := time.Since(processingStart).Seconds()
 
@@ -449,5 +279,38 @@ func ProcessPartitionOnce(
 		IndexedSelection:             batch.IndexedSelection,
 		UnhashedFallbackRows:         batch.UnhashedFallbackRows,
 		TerminalNoEndpoint:           len(batch.TerminalRows),
+		SelectionRounds:              batch.SelectionRounds,
+		PrefetchStats:                batch.PrefetchStats,
 	}, nil
+}
+
+// markSelectedBatchCompleted assembles the completed intent ids — stale,
+// superseded, projected-latest, and terminal — and marks them completed,
+// returning the ids and the mark duration. Terminal rows drain with no
+// edge (never deferred), so a route-only backlog drains instead of
+// re-enqueuing forever (#2809).
+func markSelectedBatchCompleted(
+	ctx context.Context,
+	reader IntentReader,
+	now time.Time,
+	batch PartitionBatchResult,
+	completedLatestRows []sharedintent.Row,
+) (processedIDs []string, markCompletedDuration float64, err error) {
+	processedIDs = append(processedIDs, batch.StaleIDs...)
+	processedIDs = append(processedIDs, batch.SupersededIDs...)
+	for _, row := range completedLatestRows {
+		processedIDs = append(processedIDs, row.IntentID)
+	}
+	for _, row := range batch.TerminalRows {
+		processedIDs = append(processedIDs, row.IntentID)
+	}
+
+	if len(processedIDs) > 0 {
+		markStart := time.Now()
+		if err := reader.MarkIntentsCompleted(ctx, processedIDs, now); err != nil {
+			return nil, 0, fmt.Errorf("mark completed: %w", err)
+		}
+		markCompletedDuration = time.Since(markStart).Seconds()
+	}
+	return processedIDs, markCompletedDuration, nil
 }

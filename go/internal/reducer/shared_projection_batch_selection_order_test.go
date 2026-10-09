@@ -46,16 +46,17 @@ import (
 // one function rather than about a value any caller can observe, matching the
 // source-grep tests in cmd/reducer/neo4j_wiring_test.go.
 //
-// SelectPartitionBatch's real implementation moved to
-// intents/shared/worker/process.go (issue #6061); this file's own
-// SelectPartitionBatch is now a thin forwarder, so the assertion reads the
-// worker package's source instead.
+// SelectPartitionBatch's real implementation lives in
+// intents/shared/worker/selection.go (moved from process.go by the #7724
+// file-cap split; originally hoisted from the root by issue #6061), so the
+// assertion reads the worker package's source instead of this package's
+// thin forwarder.
 func TestSelectPartitionBatchFiltersBeforeDeduping(t *testing.T) {
 	t.Parallel()
 
-	src, err := os.ReadFile("intents/shared/worker/process.go")
+	src, err := os.ReadFile("intents/shared/worker/selection.go")
 	if err != nil {
-		t.Fatalf("read intents/shared/worker/process.go: %v", err)
+		t.Fatalf("read intents/shared/worker/selection.go: %v", err)
 	}
 
 	body := selectPartitionBatchBody(t, string(src))
@@ -93,7 +94,7 @@ func selectPartitionBatchBody(t *testing.T, src string) string {
 
 	start := strings.Index(src, "func SelectPartitionBatch(")
 	if start < 0 {
-		t.Fatal("SelectPartitionBatch not found in shared_projection_worker.go")
+		t.Fatal("SelectPartitionBatch not found in intents/shared/worker/selection.go")
 	}
 	rest := src[start+1:]
 	if end := strings.Index(rest, "\nfunc "); end >= 0 {

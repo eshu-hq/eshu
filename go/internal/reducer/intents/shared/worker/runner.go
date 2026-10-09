@@ -109,17 +109,27 @@ type Runner struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+
+	// backoff tracks per-(domain, partition) unproductive state (#7724
+	// 2A). It is created lazily by tracker; BackoffState exposes it.
+	backoff *partitionBackoffTracker
+	// nowFn overrides the clock for tests. Nil means time.Now.
+	nowFn func() time.Time
 }
 
 // Run processes shared projection intents until the context is cancelled.
-// Each cycle iterates over all domains and partitions, calling
-// ProcessPartitionOnce for each combination. When no work is found, the
-// poll interval doubles on each consecutive empty cycle (up to 5s) to
-// avoid sustained high-frequency polling during idle periods.
+// Each cycle iterates over all domains and partitions, visiting each
+// combination through per-partition backoff (#7724 2A): a partition whose
+// visits complete no intents is skipped with exponential delay to T_max,
+// while any productive visit resets it to full cadence. When a whole cycle
+// completes no intents, the poll interval doubles on each consecutive
+// empty cycle (up to 5s) to avoid sustained high-frequency polling during
+// idle periods; blocked rows do not pin the poll interval.
 func (r *Runner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
+	r.tracker()
 
 	consecutiveEmpty := 0
 
@@ -132,17 +142,10 @@ func (r *Runner) Run(ctx context.Context) error {
 
 		if result.ProcessedIntents > 0 {
 			consecutiveEmpty = 0
+			// Productive cycles re-poll immediately, so the recorded
+			// wait is 0 rather than the poll interval (#7826 T2).
+			r.sampleCycleBackoffGauges(ctx, 0)
 			continue // immediately re-poll
-		}
-		if result.BlockedReadiness > 0 {
-			consecutiveEmpty = 0
-			if err := r.wait(ctx, r.Config.pollInterval()); err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
-					return nil
-				}
-				return fmt.Errorf("wait for shared projection readiness: %w", err)
-			}
-			continue
 		}
 
 		consecutiveEmpty++
@@ -153,6 +156,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		if backoff > maxSharedPollInterval {
 			backoff = maxSharedPollInterval
 		}
+		r.recordCycleBackoff(ctx, backoff, result)
 
 		if err := r.wait(ctx, backoff); err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
@@ -174,7 +178,7 @@ func (r *Runner) runOneCycle(ctx context.Context) PartitionProcessResult {
 
 // runOneCycleSequential processes partitions one at a time.
 func (r *Runner) runOneCycleSequential(ctx context.Context) PartitionProcessResult {
-	now := time.Now().UTC()
+	now := r.clock().UTC()
 	partitionCount := r.Config.partitionCount()
 	var cycleResult PartitionProcessResult
 
@@ -184,17 +188,17 @@ func (r *Runner) runOneCycleSequential(ctx context.Context) PartitionProcessResu
 				return cycleResult
 			}
 
-			result, err := r.processPartitionWithTelemetry(
+			result, err := r.visitPartition(
 				ctx,
 				now,
 				domain,
 				partitionID,
 				partitionCount,
 			)
+			MergePartitionProcessResult(&cycleResult, result)
 			if err != nil {
 				continue
 			}
-			MergePartitionProcessResult(&cycleResult, result)
 		}
 	}
 
@@ -209,7 +213,7 @@ type partitionWork struct {
 
 // runOneCycleConcurrent processes partitions across N concurrent workers.
 func (r *Runner) runOneCycleConcurrent(ctx context.Context) PartitionProcessResult {
-	now := time.Now().UTC()
+	now := r.clock().UTC()
 	partitionCount := r.Config.partitionCount()
 
 	// Build work queue
@@ -241,19 +245,19 @@ func (r *Runner) runOneCycleConcurrent(ctx context.Context) PartitionProcessResu
 					return
 				}
 
-				result, err := r.processPartitionWithTelemetry(
+				result, err := r.visitPartition(
 					ctx,
 					now,
 					w.domain,
 					w.partitionID,
 					partitionCount,
 				)
-				if err != nil {
-					continue
-				}
 				mu.Lock()
 				MergePartitionProcessResult(&cycleResult, result)
 				mu.Unlock()
+				if err != nil {
+					continue
+				}
 			}
 		}()
 	}
@@ -270,6 +274,9 @@ func MergePartitionProcessResult(total *PartitionProcessResult, result Partition
 	if result.MaxBlockedIntentWaitSeconds > total.MaxBlockedIntentWaitSeconds {
 		total.MaxBlockedIntentWaitSeconds = result.MaxBlockedIntentWaitSeconds
 	}
+	total.PartitionsVisited += result.PartitionsVisited
+	total.PartitionsBackoffSkipped += result.PartitionsBackoffSkipped
+	total.PartitionsLeaseHeld += result.PartitionsLeaseHeld
 }
 
 func (r *Runner) processPartitionWithTelemetry(
@@ -381,6 +388,11 @@ func (r *Runner) processPartitionWithTelemetry(
 		r.recordSharedProjectionTiming(ctx, domain, result)
 		r.recordSharedProjectionPartitionMetrics(ctx, domain, partitionID, duration, result)
 	}
+	// Prefetch load stays visible on error visits: the selection already
+	// issued its queries before the write failed, and the error returns
+	// above carry the batch's SelectionRounds/PrefetchStats for exactly
+	// this. Visits that never selected record nothing (zero rounds).
+	r.recordSelectionPrefetch(ctx, domain, result)
 
 	if err == nil && result.ProcessedIntents > 0 {
 		r.recordSharedProjectionCycle(ctx, domain, duration, result)
