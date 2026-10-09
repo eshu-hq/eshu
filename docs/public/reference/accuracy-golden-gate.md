@@ -32,7 +32,7 @@ or exceeds a published floor. It is intentionally:
 | Dimension | Measured by | Metric |
 | --- | --- | --- |
 | `complexity` | Each language's straight-line and branchy fixtures parsed through `parser.DefaultEngine`. | Coverage: count of languages whose straight-line function scores `1` and branchy function scores its hand-counted McCabe value. A language reverting to a constant drops from coverage. |
-| `resolvers` | Caller→callee `CALLS` edges extracted by `reducer.ExtractCodeCallRows` and scored with `parser/goldenaudit.ScoreAccuracy`, plus the published [#3487 resolver coverage matrix](https://github.com/eshu-hq/eshu/blob/main/go/internal/reducer/README.md). | Precision/recall of observed vs golden edges, and the count of resolver-covered languages. |
+| `resolvers` | Caller→callee `CALLS` edges extracted by `codecall.ExtractRows` and scored with `parser/goldenaudit.ScoreAccuracy`, plus the published [#3487 resolver coverage matrix](https://github.com/eshu-hq/eshu/blob/main/go/internal/reducer/README.md). | Precision/recall of observed vs golden edges, and the count of resolver-covered languages. |
 | `correlation` | Admission decisions over the `correlation_admission_golden` suite run through the real `admissionaudit.Audit`. | Precision/recall of admitted (positive-class) decisions against fixture intent. |
 
 ## The published baseline

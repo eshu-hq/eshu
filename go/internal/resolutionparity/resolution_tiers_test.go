@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 // entityBuckets are the parsed_file_data buckets whose items the reducer indexes
@@ -161,7 +161,7 @@ func tallyResolutionTiers(t *testing.T, fixture resolutionTierFixture) map[strin
 		})
 	}
 
-	_, rows := reducer.ExtractCodeCallRows(envelopes)
+	_, rows := codecall.ExtractRows(envelopes)
 	return tallyCodeCallRows(rows)
 }
 
@@ -224,7 +224,7 @@ func tallySourceResolutionTiers(t *testing.T, fixture goldenCallGraphFixture) ma
 		})
 	}
 
-	_, rows := reducer.ExtractCodeCallRows(envelopes)
+	_, rows := codecall.ExtractRows(envelopes)
 	return tallyCodeCallRows(rows)
 }
 

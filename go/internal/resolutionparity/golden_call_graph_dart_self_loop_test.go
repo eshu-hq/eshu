@@ -13,7 +13,7 @@ import (
 // fixture for eshu-hq/eshu#5332's overcorrection guard: a genuinely
 // recursive Dart function must still materialize a real self-loop CALLS
 // edge (caller and callee are the same entity) through the production
-// parser -> reducer.ExtractCodeCallRows path, not a hand-built envelope. The
+// parser -> codecall.ExtractRows path, not a hand-built envelope. The
 // legacy byte-scanner this fixture guards against would have ALSO produced
 // this self-loop, but for the wrong reason (every declaration matched, not
 // just the genuine recursive call site); TestDeclarationOnlyDartSourceHasNoCallGraphEdges
@@ -37,7 +37,7 @@ int fib(int n) => n < 2 ? n : fib(n - 1) + fib(n - 2);
 // any identifier immediately followed by "(" as a call, so every
 // function/method/constructor declaration materialized a spurious self-loop
 // CALLS edge. This drives a declaration-only Dart file through the actual
-// production `parser.DefaultEngine()` -> `reducer.ExtractCodeCallRows` path
+// production `parser.DefaultEngine()` -> `codecall.ExtractRows` path
 // (the same harness `TestGoldenCallGraphCorrectnessHarness` uses for every
 // other language's exact-edge fixture) and asserts zero function_calls-derived
 // CALLS edges reach the graph. A regression back to declaration-as-call
@@ -73,7 +73,7 @@ void topFn() {}
 
 // TestDartRecursionCallGraphSelfLoopSurvives proves the fix does not
 // overcorrect into a self-loop guard: driven through the same real
-// parser -> reducer.ExtractCodeCallRows pipeline, a genuinely recursive Dart
+// parser -> codecall.ExtractRows pipeline, a genuinely recursive Dart
 // function (caller calls itself from within its own body) must still
 // produce a real self-loop CALLS edge with resolution_method "same_file".
 // Filtering a resolved self-loop would trade one accuracy bug (#5332's

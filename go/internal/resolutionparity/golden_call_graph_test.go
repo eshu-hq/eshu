@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 	"github.com/eshu-hq/eshu/go/internal/parser/goldenaudit"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 func TestGoldenCallGraphCorrectnessHarness(t *testing.T) {
@@ -57,7 +57,7 @@ func TestGoldenCallGraphSCIPTierFixture(t *testing.T) {
 			{SourceID: "content-entity:scip-caller", TargetID: "content-entity:scip-callee", Type: "CALLS"},
 		},
 	}
-	_, rows := reducer.ExtractCodeCallRows([]facts.Envelope{
+	_, rows := codecall.ExtractRows([]facts.Envelope{
 		{FactKind: "file", Payload: map[string]any{
 			"repo_id":       "repo-scip-golden",
 			"relative_path": "caller.py",
@@ -220,7 +220,7 @@ func observeSourceCallGraph(t *testing.T, fixture goldenCallGraphFixture) (golde
 		})
 	}
 
-	_, rows := reducer.ExtractCodeCallRows(envelopes)
+	_, rows := codecall.ExtractRows(envelopes)
 	return graphFromCodeCallRows(rows)
 }
 
