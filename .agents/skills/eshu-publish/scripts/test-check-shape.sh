@@ -190,6 +190,8 @@ cut_blocks() { # cut_blocks <markdown-file> <out-prefix>
 cut_blocks "${refs}/pr-templates.md" "${tmp}/tpl-"
 expect "placeholder: unfilled template warns" 0 "WARN placeholder" pr "${tmp}/tpl-1.md"
 expect_not "placeholder: filled text is quiet" 0 "WARN placeholder" pr "${good}"
+printf 'Every placeholder starts with `REPLACE:`.\n' | with placeholder-mention
+expect_not "placeholder: a mention in inline code is quiet" 0 "WARN placeholder" pr "${tmp}/placeholder-mention.md"
 printf '```text\nnever closed\n' | with unclosed-fence
 expect "fence: unclosed fence warns"     0 "WARN fence" pr "${tmp}/unclosed-fence.md"
 printf '<details>\n<summary>x</summary>\n' | with unclosed-details

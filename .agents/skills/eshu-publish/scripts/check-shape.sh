@@ -75,7 +75,9 @@ function flush(   first, w, len) {
   sub(/\r$/, "", line)
   sub(/[ \t]+$/, "", line)
   if (!started && line !~ /^[ \t]*$/) { started = 1; firstreal = line }
-  if (line ~ /REPLACE:/) replace++
+  t = line
+  gsub(/`[^`]*`/, "", t)
+  if (t ~ /REPLACE:/) replace++
   t = line
   sub(/^[ \t]+/, "", t)
   if (infence) {
