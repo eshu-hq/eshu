@@ -51,7 +51,7 @@ func (h *StatusHandler) getOperatorControlPlane(w http.ResponseWriter, r *http.R
 	}
 
 	cp := status.ControlPlane(report)
-	WriteJSON(w, http.StatusOK, operatorControlPlaneToMap(cp, scopedAuthContext(r.Context())))
+	WriteJSON(w, http.StatusOK, withActiveWorkSource(operatorControlPlaneToMap(cp, scopedAuthContext(r.Context())), report.ActiveWorkSource))
 }
 
 // operatorControlPlaneToMap renders the read model to a JSON-friendly map. When

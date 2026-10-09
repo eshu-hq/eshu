@@ -44,7 +44,8 @@ const Causality = `
                     },
                     "generations": {"type": "object"},
                     "pending_projection": {"type": "object"},
-                    "recent_transitions": {"type": "array", "items": {"type": "object"}}
+                    "recent_transitions": {"type": "array", "items": {"type": "object"}},
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}
                   }
                 }
               }

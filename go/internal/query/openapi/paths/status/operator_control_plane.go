@@ -52,7 +52,8 @@ const OperatorControlPlane = `
                         "latest_failure": {"type": "object"}
                       }
                     },
-                    "retry_policies": {"type": "array", "items": {"type": "object"}}
+                    "retry_policies": {"type": "array", "items": {"type": "object"}},
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}
                   }
                 }
               }
