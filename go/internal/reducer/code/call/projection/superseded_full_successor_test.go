@@ -56,8 +56,10 @@ func coveredCodeCallRow(intentID, genID string, now time.Time) sharedintent.Row 
 
 // TestCodeCallProjectionRunnerDrainsCoveredGenerations proves the #7165 drain:
 // rows on a generation covered by a newer emitted full generation are marked
-// completed without a retract or write cycle, and counted apart from
-// acceptance mismatches.
+// completed without a write cycle, and counted apart from acceptance
+// mismatches. Since #7736 F5 the pure-drain cycle runs the forced retract on
+// the drained scope (one call per evidence source) so a crash-window partial
+// write ahead of the drain cannot linger.
 func TestCodeCallProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	t.Parallel()
 
@@ -89,8 +91,8 @@ func TestCodeCallProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	if reader.lookups != 1 {
 		t.Fatalf("drain lookups = %d, want exactly 1", reader.lookups)
 	}
-	if len(writer.retractCalls) != 0 {
-		t.Fatalf("len(retractCalls) = %d, want 0: covered rows must not retract", len(writer.retractCalls))
+	if len(writer.retractCalls) != 2 {
+		t.Fatalf("len(retractCalls) = %d, want 2: the forced drain retract runs once per evidence source (#7736 F5)", len(writer.retractCalls))
 	}
 	if len(writer.writeCalls) != 0 {
 		t.Fatalf("len(writeCalls) = %d, want 0: covered rows must not write", len(writer.writeCalls))
