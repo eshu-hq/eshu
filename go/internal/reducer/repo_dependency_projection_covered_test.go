@@ -46,8 +46,10 @@ func coveredRepoDependencyRow(intentID, genID string, now time.Time) SharedProje
 
 // TestRepoDependencyProjectionRunnerDrainsCoveredGenerations proves the #7165
 // drain: rows on a generation covered by a newer emitted full generation are
-// marked completed without a retract or write cycle, and counted apart from
-// acceptance mismatches.
+// marked completed without a write cycle, and counted apart from acceptance
+// mismatches. Since #7736 F5 the pure-drain cycle runs the forced retract on
+// the drained scope so a crash-window partial write ahead of the drain cannot
+// linger on this otherwise upsert-only lane.
 func TestRepoDependencyProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	t.Parallel()
 
@@ -79,8 +81,8 @@ func TestRepoDependencyProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	if reader.lookups != 1 {
 		t.Fatalf("drain lookups = %d, want exactly 1", reader.lookups)
 	}
-	if len(writer.retractCalls) != 0 {
-		t.Fatalf("len(retractCalls) = %d, want 0: covered rows must not retract", len(writer.retractCalls))
+	if len(writer.retractCalls) != 1 {
+		t.Fatalf("len(retractCalls) = %d, want 1: the forced drain retract runs once for the drained repo (#7736 F5)", len(writer.retractCalls))
 	}
 	if len(writer.writeCalls) != 0 {
 		t.Fatalf("len(writeCalls) = %d, want 0: covered rows must not write", len(writer.writeCalls))

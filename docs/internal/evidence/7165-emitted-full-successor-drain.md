@@ -121,3 +121,35 @@ rows and normal projection for kept rows.
   no-port passthrough, error propagation).
 - `TestCoveredByEmittedFullSuccessorIDs*`: SQL shape pins and round-trip/
   empty/error unit proofs.
+
+## Follow-Up: Quarantined-File Transient Loss (#7736 F4, Accepted)
+
+When a successor generation quarantines a file fact (input_invalid: the file's
+parsed body is missing), the file is absent from the successor's intents. The
+drain then drops that file's last-valid edges — the forced retract wipes the
+scope and the partial successor cannot re-emit the missing file — until the
+next valid generation re-emits the file and its cycle restores the edges. This
+transient loss is accepted, not a bug: the successor's emitted set is the
+source of truth, and quarantine means the successor genuinely has no
+replacement edges to offer. The window lasts at most one generation, and the
+heal is structural (a normal retract/write cycle), not a repair path.
+
+Operator signal: WARN log `code call file quarantined, edges excluded` with
+`scope_id`, `generation_id`, `quarantined_files` (up to 32 `repo_id:path`
+entries, fact-ID fallback when the payload lacks file identity) and
+`quarantined_file_count` (true total), emitted by
+`logCodeCallQuarantinedFiles` in
+`go/internal/reducer/code/call/materialization/handler.go`. The existing
+factdecode ERROR log carries only fact IDs; this signal names the paths so an
+operator can correlate a transient edge loss with the quarantining generation
+without a `fact_records` lookup.
+
+Proof:
+
+- `TestCodeCallMaterializationHandlerNamesQuarantinedFiles` (RED before the
+  signal: missing quarantine file-identity log): one quarantined file fact
+  produces the WARN naming its `repo_id:relative_path`.
+- `TestCodeCallQuarantinedFileHealsOnNextValidGeneration` (characterization
+  pin, GREEN on current code): drives write-G, drain-G, partial-F,
+  healing-H through the real code-call runner against a stateful edge set and
+  asserts file 2's edges are present, dropped, still absent, then restored.

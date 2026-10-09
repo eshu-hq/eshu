@@ -52,7 +52,8 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	// Drain rows covered by a newer emitted full generation (#7165): the
 	// successor re-emits their edges, so replaying them would be a wasted
 	// retract/write cycle. Drained rows join the stale set and are marked
-	// completed without a write; a lookup error fails the cycle instead of
+	// completed without a write; a pure-drain cycle still runs the forced
+	// retract below (#7736 F5). A lookup error fails the cycle instead of
 	// guessing.
 	kept, drainable, err := worker.SplitCoveredByFullSuccessorRows(ctx, reader, DomainRepoDependency, active)
 	if err != nil {
@@ -116,6 +117,27 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 				return result, active, writtenGroups, fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
 			}
 		}
+	}
+	// #7736 F5 drain-forced-retract marker: a pure-drain cycle (nothing
+	// kept, drainable rows present) runs retract on the drained scope before
+	// marking completed, with no write and no skip check. This lane is
+	// otherwise upsert-only (repoDependencyNeedsRetract has no history arm),
+	// so without the forced retract a crash-window partial write (write ok,
+	// mark failed) ahead of the drain would linger: the drained rows
+	// complete without a write, and the successor's cycle has neither stale
+	// IDs nor delete actions to force its own retract. The drain only fires
+	// for the accepted generation, which the successor has not yet
+	// superseded, so this retract cannot wipe the successor's edges: the
+	// drain always precedes the successor's write. All-stale cycles with no
+	// drainable rows keep the old skip.
+	if len(active) == 0 && len(drainable) > 0 {
+		retractStart := time.Now()
+		retractedRows, err := r.retractRepo(ctx, drainable)
+		result.RetractDurationSeconds = time.Since(retractStart).Seconds()
+		if err != nil {
+			return result, active, writtenGroups, err
+		}
+		result.RetractedRows = retractedRows
 	}
 
 	processedIDs := make([]string, 0, len(staleIDs)+len(active))

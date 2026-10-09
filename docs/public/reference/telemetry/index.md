@@ -311,14 +311,14 @@ separate `GraphOrphanSweepRunner`.
 Two counters report facts skipped during Contract System v1 typed-payload
 decode because a required identity field was missing or null (`input_invalid`).
 Each increment is a per-fact dead-letter: the malformed fact is skipped and NOT
-projected, while every valid fact in the same batch still materializes, so one
-malformed fact never stalls a scope generation or fails a whole repository
-projection. A non-zero rate means the graph is under-projecting for that
-label set until the collector defect is fixed; treat a sustained spike as an
-accuracy alarm, not routine noise. The paired structured error log
-(`reducer input_invalid fact quarantined` / `projector input_invalid fact
-quarantined`) carries the `fact_id` and `missing_field` so an operator can
-locate the exact fact and the field the collector dropped.
+projected while valid facts in the same batch still materialize. A non-zero
+rate means the graph is under-projecting until the collector defect is fixed;
+treat a sustained spike as an accuracy alarm. The paired error log
+(`reducer`/`projector` `input_invalid fact quarantined`) carries `fact_id` and
+`missing_field` so an operator can locate the fact and the dropped field. On
+the code-call path a paired WARN (`code call file quarantined, edges excluded`)
+names the files as `repo_id:relative_path` (up to 32; `quarantined_file_count`
+holds the total); see the #7736 F4 note in `docs/internal/evidence/7165-emitted-full-successor-drain.md`.
 
 - `eshu_dp_reducer_input_invalid_facts_total` — reducer handler decode
   quarantine. Labels: `domain` (the reducer domain that consumed the fact),

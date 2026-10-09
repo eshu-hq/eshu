@@ -142,6 +142,9 @@ func (h Handler) Handle(
 	quarantinedFiles := extraction.Quarantined
 	extractDuration := time.Since(extractStart)
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeCallMaterialization, intent.ScopeID, intent.GenerationID, quarantinedFiles)
+	if inputInvalidCount > 0 {
+		logCodeCallQuarantinedFiles(ctx, intent, relationshipEnvelopes, quarantinedFiles)
+	}
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
@@ -408,5 +411,52 @@ func logCodeCallMaterializationCompleted(ctx context.Context, timing codeCallMat
 		slog.Float64("build_intents_duration_seconds", timing.intentBuildDuration.Seconds()),
 		slog.Float64("upsert_intents_duration_seconds", timing.upsertDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
+	)
+}
+
+// maxCodeCallQuarantinedLogFiles bounds the quarantined_files attribute of the
+// file-identity signal so one pathological generation cannot flood the log.
+// The quarantined_file_count attribute always carries the true total.
+const maxCodeCallQuarantinedLogFiles = 32
+
+// logCodeCallQuarantinedFiles names the repo-relative path of each quarantined
+// file fact so an operator can correlate a transient CALLS-edge loss with the
+// quarantining generation without a fact_records lookup (#7736 F4). A successor
+// generation whose file fact quarantines causes the emitted-full-successor
+// drain to drop that file's last-valid edges until the next valid generation
+// re-emits them; that transient loss is accepted and documented in
+// 7165-emitted-full-successor-drain.md, and this WARN is its pointer. The
+// factdecode error log carries only fact IDs, so this handler-level signal
+// resolves them against the loaded envelopes. Facts whose payload lacks file
+// identity fall back to their fact ID.
+func logCodeCallQuarantinedFiles(ctx context.Context, intent reducercontract.Intent, envelopes []facts.Envelope, quarantined []factdecode.QuarantinedFact) {
+	byFactID := make(map[string]facts.Envelope, len(envelopes))
+	for _, envelope := range envelopes {
+		if envelope.FactID == "" {
+			continue
+		}
+		byFactID[envelope.FactID] = envelope
+	}
+	files := make([]string, 0, min(len(quarantined), maxCodeCallQuarantinedLogFiles))
+	for i, q := range quarantined {
+		if i >= maxCodeCallQuarantinedLogFiles {
+			break
+		}
+		identity := q.FactID
+		if envelope, ok := byFactID[q.FactID]; ok {
+			repoID := payloadcore.PayloadString(envelope.Payload, "repo_id")
+			relPath := payloadcore.PayloadString(envelope.Payload, "relative_path")
+			if repoID != "" && relPath != "" {
+				identity = repoID + ":" + relPath
+			}
+		}
+		files = append(files, identity)
+	}
+	slog.WarnContext(
+		ctx, "code call file quarantined, edges excluded",
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		slog.Any("quarantined_files", files),
+		slog.Int("quarantined_file_count", len(quarantined)),
 	)
 }

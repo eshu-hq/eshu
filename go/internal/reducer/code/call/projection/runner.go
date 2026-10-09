@@ -350,7 +350,8 @@ func (r *Runner) processPartitionOnce(
 	// Drain rows covered by a newer emitted full generation (#7165): the
 	// successor re-emits their edges, so replaying them would be a wasted
 	// retract/write cycle. Drained rows join the stale set and are marked
-	// completed without a write; a lookup error fails the cycle instead of
+	// completed without a write; a pure-drain cycle still runs the forced
+	// retract below (#7736 F5). A lookup error fails the cycle instead of
 	// guessing.
 	kept, drainable, err := worker.SplitCoveredByFullSuccessorRows(ctx, r.IntentReader, reducercontract.DomainCodeCalls, active)
 	if err != nil {
@@ -412,6 +413,24 @@ func (r *Runner) processPartitionOnce(
 		result.WriteDurationSeconds = time.Since(writeStart).Seconds()
 		writtenGroups = groups
 		result.UpsertedRows = writtenRows
+	}
+	// #7736 F5 drain-forced-retract marker: a pure-drain cycle (nothing
+	// kept, drainable rows present) runs retract on the drained scope before
+	// marking completed, with no write and no history check. A crash-window
+	// partial write (write ok, mark failed) ahead of the drain would
+	// otherwise linger: the drained rows complete without a write, and the
+	// successor's own cycle has no stale IDs to force its retract. The
+	// drain only fires for the accepted generation, which the successor has
+	// not yet superseded, so this retract cannot wipe the successor's
+	// edges: the drain always precedes the successor's write. All-stale
+	// cycles with no drainable rows keep the old skip.
+	if len(active) == 0 && len(drainable) > 0 {
+		retractStart := time.Now()
+		if err := r.retractRepo(ctx, drainable); err != nil {
+			return result, err
+		}
+		result.RetractDurationSeconds = time.Since(retractStart).Seconds()
+		result.RetractedRows = len(drainable)
 	}
 
 	processedIDs := make([]string, 0, len(staleIDs)+len(active))
