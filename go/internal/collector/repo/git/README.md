@@ -193,30 +193,42 @@ host of the repository the command runs against. It derives that host from the
 checkout path (`<ReposDir>/<repoID>`) the same way `repoRemoteURL` builds the
 clone URL, so the header and the remote always name the same host (#7763):
 github.com with username `x-access-token`, gitlab.com with `oauth2`, or
-bitbucket.org with `x-token-auth`. A path with no provider prefix, or one
-outside `ReposDir`, resolves to github.com. Ref worktrees under
-`.eshu-ref-worktrees` resolve to github.com too; that is safe because only
-local commands run there. A `githubApp` token is always scoped to github.com.
+bitbucket.org with `x-token-auth`. A path with no provider prefix resolves to
+github.com, as `repoRemoteURL` does. A path that is not a managed checkout gets
+no credential header: `tokenAuthProvider` applies the same `repoCheckoutName`
+rule the clone path uses, so a path outside `ReposDir` (no repository ID) and
+the reserved `.eshu-ref-worktrees` namespace (never cloned; only local commands
+run there) fail closed instead of defaulting to github.com. The skip has no
+runtime signal, because the function cannot tell a local command from a network
+one and ref worktrees run local commands every cycle. The fail-closed rule
+applies to `token` mode only: a `githubApp` token is scoped to github.com from
+any path, because it authenticates nowhere else.
 `TestGitCommandEnvTokenHeaderMatchesCloneURLHost` asserts the header host
-matches the clone URL host for each provider.
+matches the clone URL host for each provider, and
+`TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader` asserts the fail-closed
+cases.
 
-No-Regression Evidence: #7763 adds one `filepath.Abs`/`filepath.Rel` and a
-string split to `gitCommandEnv`, which runs once per git child process. A
-throwaway `go test -bench` (not committed) of `gitCommandEnv` in token mode with
-`ReposDir=/data/repos`, `-count=5`, Go 1.26.6 on darwin/arm64 (Apple M5)
-measured:
+No-Regression Evidence: #7763 adds one `filepath.Abs`/`filepath.Rel`, a string
+split, and a `repoCheckoutName` validation to `gitCommandEnv`, which runs once
+per git child process. A throwaway `go test -bench` (not committed) of
+`gitCommandEnv` in token mode with `ReposDir=/data/repos`, `-count=5`, on
+darwin/arm64 (Apple M5) measured:
 
 | Build | Checkout path | ns/op (median) | B/op | allocs/op |
 | --- | --- | --- | --- | --- |
-| Baseline `0a65fccd0` | (no path argument) | 760 | 2273 | 6 |
-| After | `/data/repos/acme/app` | 1169 | 2410 | 10 |
-| After | `/data/repos/gitlab/example-org/payments/example-web-app` | 1616 | 2618 | 12 |
+| Baseline `0a65fccd0`, Go 1.26.6 | (no path argument) | 760 | 2273 | 6 |
+| Host scope, Go 1.26.6 | `/data/repos/acme/app` | 1169 | 2410 | 10 |
+| Host scope, Go 1.26.6 | `/data/repos/gitlab/example-org/payments/example-web-app` | 1616 | 2618 | 12 |
+| Host scope and fail-closed, Go 1.26.3 | `/data/repos/acme/app` | 1355 | 2554 | 13 |
+| Host scope and fail-closed, Go 1.26.3 | `/data/repos/gitlab/example-org/payments/example-web-app` | 1949 | 2802 | 15 |
+| Host scope and fail-closed, Go 1.26.3 | `/data/repos/.eshu-ref-worktrees/gitlab/acme/app/main` | 1739 | 2482 | 8 |
 
-The added 0.4 to 0.9 µs sits next to the git process it configures. A local
-`git rev-parse HEAD` spawn took a median of 12.3 ms over 50 runs on the same
-host, and clone and fetch are network-bound, so the added cost is under 0.01%
-of the cheapest git command. No query, queue, graph-write, or worker path
-changes.
+The two toolchain patch levels were not run side by side, so deltas between
+the row groups are approximate. The whole function costs about 2 µs next to
+the git process it configures. A local `git rev-parse HEAD` spawn took a median
+of 12.3 ms over 50 runs on the same host, and clone and fetch are
+network-bound, so the full cost is under 0.02% of the cheapest git command. No
+query, queue, graph-write, or worker path changes.
 
 No-Observability-Change: the change alters only the environment handed to the
 git child process. No metric, span, log key, or status field changes, and the

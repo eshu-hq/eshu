@@ -51,9 +51,15 @@ func gitCommandEnv(config RepoSyncConfig, token string, repoPath string) []strin
 		}
 		// A GitHub App installation token only authenticates to GitHub, so
 		// it is never offered to another provider's host.
-		provider := "github"
+		provider, ok := "github", true
 		if authMethod == "token" {
-			provider = tokenAuthProvider(config, repoPath)
+			provider, ok = tokenAuthProvider(config, repoPath)
+		}
+		if !ok {
+			// Not a managed checkout: no remote URL was built for this path,
+			// so no host is owed the credential. Fail closed instead of
+			// defaulting to github.com.
+			return env
 		}
 		env = append(
 			env,
@@ -73,13 +79,23 @@ func gitCommandEnv(config RepoSyncConfig, token string, repoPath string) []strin
 // tokenAuthProvider returns the provider whose host a token-auth git command
 // talks to, derived from the managed checkout path exactly as repoRemoteURL
 // derives the remote: <ReposDir>/<provider>/<slug> names its provider, and a
-// path with no provider prefix (or outside ReposDir) is a GitHub repository.
-func tokenAuthProvider(config RepoSyncConfig, repoPath string) string {
-	provider, _ := repoProviderAndSlug(repoIDFromManagedPath(config.ReposDir, repoPath))
-	if provider == "" {
-		return "github"
+// path with no provider prefix is a GitHub repository.
+//
+// The second result is false when the path is not a checkout the collector
+// would clone, judged by the same repoCheckoutName rule the clone path uses:
+// a path outside ReposDir yields no repository ID, and the reserved .eshu-
+// namespace that holds ref worktrees is never cloned. Such a command gets no
+// credential at all rather than a header a wrong host could receive.
+func tokenAuthProvider(config RepoSyncConfig, repoPath string) (string, bool) {
+	repoID := repoIDFromManagedPath(config.ReposDir, repoPath)
+	if _, err := repoCheckoutName(repoID); err != nil {
+		return "", false
 	}
-	return provider
+	provider, _ := repoProviderAndSlug(repoID)
+	if provider == "" {
+		return "github", true
+	}
+	return provider, true
 }
 
 // tokenAuthUsername returns the HTTP Basic username each provider expects

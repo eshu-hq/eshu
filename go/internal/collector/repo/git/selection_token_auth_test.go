@@ -141,3 +141,47 @@ func TestGitCommandEnvTokenAuthWithoutTokenSendsNoHeader(t *testing.T) {
 		}
 	}
 }
+
+// TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader pins the fail-closed
+// side of the host-scope contract: a path that does not resolve to a
+// repository the collector would clone gets no credential header at all,
+// not a header scoped to github.com. A path outside ReposDir has no remote,
+// and a ref worktree lives under the reserved .eshu- namespace inside
+// ReposDir and runs only local commands. Sending the token to github.com from
+// either would offer a GitLab or Bitbucket credential to the wrong host if a
+// network command were ever run there.
+func TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader(t *testing.T) {
+	reposDir := t.TempDir()
+	config := RepoSyncConfig{GitAuthMethod: "token", ReposDir: reposDir}
+	cases := []struct {
+		name     string
+		repoPath string
+	}{
+		{"outside ReposDir", filepath.Join(t.TempDir(), "gitlab", "acme", "app")},
+		{"ref worktree under reserved namespace", filepath.Join(reposDir, ".eshu-ref-worktrees", "gitlab", "acme", "app", "main")},
+		{"ReposDir itself", reposDir},
+		{"empty path", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := extraHeaderEntries(t, gitCommandEnv(config, "tok-secret", tc.repoPath))
+			if len(headers) != 0 {
+				t.Fatalf("unmanaged path %q produced extraheader entries %v, want none", tc.repoPath, headers)
+			}
+		})
+	}
+}
+
+// TestGitCommandEnvGithubAppIgnoresUnmanagedPath pins that the fail-closed
+// rule is token-mode only. A GitHub App installation token authenticates
+// nowhere but github.com, so it is scoped there from any path.
+func TestGitCommandEnvGithubAppIgnoresUnmanagedPath(t *testing.T) {
+	reposDir := t.TempDir()
+	config := RepoSyncConfig{GitAuthMethod: "githubApp", ReposDir: reposDir}
+	outside := filepath.Join(t.TempDir(), "gitlab", "acme", "app")
+	headers := extraHeaderEntries(t, gitCommandEnv(config, "tok-secret", outside))
+	const wantKey = "http.https://github.com/.extraheader"
+	if _, ok := headers[wantKey]; !ok || len(headers) != 1 {
+		t.Fatalf("githubApp from unmanaged path produced %v, want only %q", headers, wantKey)
+	}
+}
