@@ -103,8 +103,12 @@ after commit:
   ids. The live test asserts `{reindex_requested: 2, reindex_unsupported: 2}`.
 - The span attribute `eshu.recovery.delta_active_scopes` on the caller's
   request span.
-- One WARN log per delta-active scope, with `scope_id`, `generation_id`, and
-  `outcome`.
+- Per-scope logs with `scope_id`, `generation_id`, and `outcome`: the first
+  `recovery.DeltaActiveScopeSampleLimit` (10) scopes at WARN, every further
+  scope at INFO, then one summary WARN with `delta_active_total`, the exact
+  `reindex_requested` and `reindex_unsupported` counts, `per_scope_warn_limit`,
+  and `per_scope_info_count`. A recovery of about 160 delta-active scopes emits
+  11 WARN lines, not 160 (`TestReportDeltaActiveCapsPerScopeWarnings`).
 
 The handler's refinalize outcome log carries `delta_active_total` and moves to
 WARN when that value is not zero. The response bodies carry

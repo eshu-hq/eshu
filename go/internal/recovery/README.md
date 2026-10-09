@@ -94,6 +94,11 @@ backend, or any network connection directly.
   `ReindexRequestsWritten` returns `ReindexRequestsWrittenReport`, the
   `reindex_requests_written` wire form: the exact count of watermarks written
   and up to `DeltaActiveScopeSampleLimit` of their scope ids (never null).
+- `DeltaActiveGeneration` / `LogDeltaActive` — one delta-active pair
+  (scope, generation, outcome) and the bounded log writer for a committed
+  refinalize: the first `DeltaActiveScopeSampleLimit` pairs log at WARN, the
+  rest at INFO with the same fields, then one summary WARN with the exact
+  count per outcome. The postgres recovery store calls it after commit.
 - `IsGitDefaultBranchScope` / `GitRepositoryScopePrefix` — the one predicate
   for "this scope id names a git default-branch repository scope", the only
   kind a per-repository reindex watermark can force. It trims surrounding

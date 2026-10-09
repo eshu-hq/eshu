@@ -50,6 +50,10 @@ type RecoveryStore struct {
 	// instruments records the superseded-generation replay fence counter.
 	// Nil is a no-op.
 	instruments *telemetry.Instruments
+
+	// logger receives the refinalize delta-active logs (#7797). Nil uses
+	// slog.Default(). It is set with WithRecoveryLogger.
+	logger *slog.Logger
 }
 
 // resetQueryer adapts Transaction to reset.Queryer. The row
@@ -91,6 +95,14 @@ func WithRefinalizeDrainPollInterval(d time.Duration) RecoveryStoreOption {
 func WithRecoveryInstruments(instruments *telemetry.Instruments) RecoveryStoreOption {
 	return func(s *RecoveryStore) {
 		s.instruments = instruments
+	}
+}
+
+// WithRecoveryLogger sets the logger for the refinalize delta-active logs
+// (#7797). Nil keeps slog.Default().
+func WithRecoveryLogger(logger *slog.Logger) RecoveryStoreOption {
+	return func(s *RecoveryStore) {
+		s.logger = logger
 	}
 }
 
@@ -431,26 +443,19 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 }
 
 // reportDeltaActive emits the operator signals for one committed refinalize's
-// delta-active scopes (#7797): the count as an attribute on the caller's span,
-// eshu_dp_recovery_delta_active_scopes_total by outcome, and one WARN log per
-// scope naming the scope and the delta generation re-projected. It runs only
-// after the transaction commits, so a rolled-back refinalize reports nothing it
-// did not do.
+// delta-active scopes (#7797): the count as a span attribute,
+// eshu_dp_recovery_delta_active_scopes_total by outcome, and the logs, whose
+// WARN budget recovery.LogDeltaActive owns. It runs only after the commit, so
+// a rolled-back refinalize reports nothing it did not do.
 func (s RecoveryStore) reportDeltaActive(
 	ctx context.Context,
 	report recovery.DeltaActiveScopes,
-	delta []reset.DeltaActiveGeneration,
+	delta []recovery.DeltaActiveGeneration,
 ) {
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.Int(contract.SpanAttrRecoveryDeltaActiveScopes, report.Total()),
 	)
-	for _, generation := range delta {
-		slog.WarnContext(ctx, "refinalize re-projected a delta generation; graph incomplete until a full generation activates",
-			slog.String(telemetry.LogKeyScopeID, generation.ScopeID),
-			slog.String(telemetry.LogKeyGenerationID, generation.GenerationID),
-			slog.String("outcome", generation.Outcome),
-		)
-	}
+	recovery.LogDeltaActive(ctx, s.logger, report, delta)
 	if s.instruments == nil || s.instruments.RecoveryDeltaActiveScopes == nil {
 		return
 	}

@@ -300,8 +300,9 @@ the repair window:
 `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` can stay `true`; queued triggers are
 still served first. Restore the previous values when the requests are satisfied.
 
-The rebuild logs one Warn line per delta-active scope, with `scope_id`,
-`generation_id`, and `outcome`. It counts the scopes in
+The rebuild logs the first 10 delta-active scopes at Warn and the rest at
+Info, each with `scope_id`, `generation_id`, and `outcome`, then one summary
+Warn with the exact count per outcome. It counts the scopes in
 `eshu_dp_recovery_delta_active_scopes_total{outcome}` and sets
 `eshu.recovery.delta_active_scopes` on the request span. Watch the repair with
 `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`.

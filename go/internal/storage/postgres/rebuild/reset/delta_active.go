@@ -53,23 +53,13 @@ func RequestReindex(ctx context.Context, q Queryer, scopeIDs []string) error {
 	return nil
 }
 
-// DeltaActiveGeneration is one refinalized pair whose generation is a delta,
-// with the outcome the refinalize reports for it.
-type DeltaActiveGeneration struct {
-	ScopeID      string
-	GenerationID string
-	// Outcome is recovery.DeltaActiveOutcomeReindexRequested for a git
-	// default-branch scope, else recovery.DeltaActiveOutcomeReindexUnsupported.
-	Outcome string
-}
-
 // DeltaActive returns the pairs of g whose generation is a delta, in the order
 // g holds them (ascending scope ID for a refinalize read), and the scope IDs
 // a reindex watermark can force to a full re-parse. A delta carries only the
 // files that changed since its baseline, so re-projecting it onto an empty
 // graph restores only those files (#7797).
-func (g Generations) DeltaActive() ([]DeltaActiveGeneration, []string) {
-	var delta []DeltaActiveGeneration
+func (g Generations) DeltaActive() ([]recovery.DeltaActiveGeneration, []string) {
+	var delta []recovery.DeltaActiveGeneration
 	var reindexable []string
 	for i, isDelta := range g.IsDelta {
 		if !isDelta {
@@ -85,7 +75,7 @@ func (g Generations) DeltaActive() ([]DeltaActiveGeneration, []string) {
 			outcome = recovery.DeltaActiveOutcomeReindexRequested
 			reindexable = append(reindexable, scopeID)
 		}
-		delta = append(delta, DeltaActiveGeneration{
+		delta = append(delta, recovery.DeltaActiveGeneration{
 			ScopeID:      scopeID,
 			GenerationID: g.GenerationIDs[i],
 			Outcome:      outcome,
@@ -112,7 +102,7 @@ func RequestDeltaActiveReindex(
 	ctx context.Context,
 	q Queryer,
 	generations Generations,
-) (recovery.DeltaActiveScopes, []DeltaActiveGeneration, error) {
+) (recovery.DeltaActiveScopes, []recovery.DeltaActiveGeneration, error) {
 	delta, reindexable := generations.DeltaActive()
 	var report recovery.DeltaActiveScopes
 	for _, generation := range delta {
