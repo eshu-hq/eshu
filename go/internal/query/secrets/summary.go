@@ -209,16 +209,13 @@ func (h *Handler) summary(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := h.Summary.SummarizeSecretsIAMPosture(r.Context(), scopeID)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSecretsReadFailure(w, r, err, IAMPostureSummaryCapability, secretsIAMPostureSummaryFailedMessage)
 		return
 	}
 	if h.GrantPosture != nil {
 		grantPosture, err := h.GrantPosture.SummarizeS3ExternalPrincipalGrantPosture(r.Context(), scopeID)
 		if err != nil {
-			if querycontract.WriteGraphReadError(w, r, err, IAMPostureSummaryCapability) {
-				return
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeSecretsReadFailure(w, r, err, IAMPostureSummaryCapability, secretsIAMGrantPostureFailedMessage)
 			return
 		}
 		summary.S3ExternalPrincipalGrantPosture = &grantPosture

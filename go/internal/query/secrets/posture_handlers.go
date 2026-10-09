@@ -114,7 +114,7 @@ func (h *Handler) listPrivilegePostureObservations(w http.ResponseWriter, r *htt
 
 	rows, err := h.PrivilegePostureObservations.ListSecretsIAMPrivilegePostureObservations(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSecretsReadFailure(w, r, err, IAMPrivilegePostureObservationsCapability, secretsIAMPrivilegePostureObservationsFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
@@ -188,7 +188,7 @@ func (h *Handler) listSecretAccessPaths(w http.ResponseWriter, r *http.Request) 
 
 	rows, err := h.SecretAccessPaths.ListSecretsIAMSecretAccessPaths(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSecretsReadFailure(w, r, err, IAMSecretAccessPathsCapability, secretsIAMSecretAccessPathsFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
@@ -262,7 +262,7 @@ func (h *Handler) listPostureGaps(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.PostureGaps.ListSecretsIAMPostureGaps(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeSecretsReadFailure(w, r, err, IAMPostureGapsCapability, secretsIAMPostureGapsFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
