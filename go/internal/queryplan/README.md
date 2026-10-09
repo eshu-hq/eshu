@@ -34,6 +34,50 @@ entry, changed hot-callsite source digest, or a missing disposition fails the ga
 execution must therefore update the inventory and either register its hot query
 shape or explain the non-hot classification in the same change.
 
+## Executable pilot contracts
+
+`pilot_required_ids` in the existing handler manifest names the #7881 pilot
+entries. Each named entry has a versioned `contract` or a manifest-relative
+`contract_file` under `testdata/contracts/`. The package test pins the production
+pilot membership: the cloud-resource SQL page and the import-dependency Cypher
+family. Other entries remain visible as `legacy` in `PilotCoverage`; they have
+not gained executable methodology proof.
+
+The contract states result, grant, history, null, duplicate, order, page, and
+partial-result semantics. It also names the considered patterns, rationale,
+alternatives, index cost, representative workload, engine, fixture, oracle,
+runner, numeric budgets, and every required emitted variant and parameter case.
+Each case declares `scoped` or `all_scopes` independently of its query text.
+`ValidatePilotCaseQuery` checks exact emitted bytes, declared mode, schema and
+index names, page order and bound, and structural authorization before the page
+bound. The SQL pilot requires its correlated grant probe as a mandatory outer
+filter. The parser rejects syntax it does not cover. Comments and literals
+cannot satisfy its clause or predicate checks. Live database execution remains
+the authority for result semantics and the actual plan.
+
+`pilot_postgres_files` scopes the PostgreSQL call census. It checks direct
+`QueryContext`, `QueryRowContext`, `ExecContext`, `Query`, `QueryRow`, and `Exec`
+selector candidates, including calls through wrapper values, against exact
+enclosing source digests, methods, counts, and hot entry links or explicit pilot
+exclusions. `PostgresCoverageMatrix` reports discovered files outside that
+scope as excluded. The AST cannot prove the receiver is a SQL connection; the
+registered disposition and production binding provide that review. The pilot
+does not certify every PostgreSQL operation in the repository.
+
+The JSON `PilotEvidenceArtifact` carries emitted base and candidate text,
+independent oracle rows, both database results, complete plan and work data or
+declared alternate proof, repeated cold and warm normal timings, and the exact
+engine, build, schema, migration, index, dataset, fixture, harness, binary, and
+workload identities. Schema and indexes may differ across builds; common engine
+settings and workload stay fixed. `ValidatePilotEvidenceSet` requires one
+artifact per pilot engine and every required case. It rejects stale hashes,
+missing or extra cases, a declared oracle that uses the database runner or was
+recorded after measurement, result differences,
+missing numeric work counters, and budget breaches. The validator checks
+provenance declarations and hashes; it cannot independently attest that the
+producer ran a separate oracle. Live tests must preserve that separate run and
+verify manifest source digests against the current tree.
+
 `testdata/handler-hot-cypher.yaml` and `testdata/hot-cypher.yaml` hold the
 handler-owned and legacy cross-service hot shapes. Their required entries must
 be linked back to production execution callsites, and neither manifest stores a

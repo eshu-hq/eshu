@@ -1,0 +1,119 @@
+version: 1
+result: "Unique current authorized cloud-resource UID/type identities in stable keyset order."
+authorization: "Apply the caller grant in each relevant branch before scan or page bounds; all-scope access is declared per case."
+current_history: "Require active source generation and reject tombstones and retired facts."
+nulls: "Exclude NULL resource types; NULL filter attributes do not satisfy equality."
+duplicates: "UID identifies an owner row; two UIDs backed by one fact remain two distinct resources."
+ordering: "Production stable identity order is checked against an independently ordered fixture ledger."
+pagination: "Apply grant and logical filtering before page boundaries; include unique tie breakers and sentinel rows."
+partial: "SQL selects page-size-plus-one identities; the HTTP response reports the sentinel and keyset cursor truthfully."
+patterns: ["selective anchors", "authorization before bounds", "stable identity pagination"]
+rationale: "Extend existing production-bound query families and independent fixtures; hashes bind evidence but do not prove semantics."
+alternatives: ["schema-only plans do not prove seeded result semantics", "a copied query oracle cannot prove correctness"]
+index_cost: "Use existing schema indexes; no index is added by the pilot. Real-index acceptance must measure write work and storage."
+exceptions: ["Planner variation and bounded Cartesian products are recorded; accept only within declared workload and result budgets."]
+budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1}, noise_tolerance: "Absolute two-second fixture ceiling; paired normal timing records expose noise without claiming a speedup. Scale calibration is a separate required stage."}
+workload: {"budgets": "PostgreSQL normal execution <=2000 ms on the 20000-row fixture; graph plans and endpoint budgets use the selected workload.", "cardinality": "PostgreSQL 20001 owners and 20000 source facts; Neo4j two tenants plus duplicate edges and 128 skew files.", "depth": "Declared bounded code traversals; cycle reconstruction scans capped edges.", "fanout": "128 skew imports plus repeated import edges; record PROFILE expansion rows.", "payload": "Narrow identity and import fields; large-payload operation proof is a dedicated stage.", "query_count": "One SQL statement per page; graph query counts recorded per request and emitted family.", "skew": "Cross-scope negative cases and high-degree imports; zero-result reads retain the populated fixture."}
+require_order: true
+require_limit: true
+environment: {"engine": "postgresql", "fixture": "cloud-resource-arithmetic-v1", "indexes": "physical indexes and full definitions captured per run", "oracle": "cloud-resource-fixture-arithmetic-v1", "runner": "TestQueryMethodologyPostgresLive", "schema": "disposable declared fixture DDL", "version": "18.6"}
+required_schema: ["graph_node_owner_cloud_resource_page_idx", "graph_node_owner_cloud_resource_provider_page_idx", "graph_node_owner_cloud_resource_region_page_idx", "graph_node_owner_cloud_resource_account_page_idx"]
+scope_predicates: [{"alias": "scope", "expression": "((scope.scope_kind = 'repository' AND scope.source_key = ANY($PARAM::text[])) OR fact.scope_id = ANY($PARAM::text[]))"}]
+correlation_predicates: ["fact.fact_id = owner.winning_row->>'source_fact_id'"]
+required_cases:
+  - {"case_id": "all", "query_sha256": "399efb8b971d53f51f0b6d75710f855fe908e9649592450d2058a27b4c2d956e", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/account"}
+  - {"case_id": "all", "query_sha256": "8833d60f74265f0b0dc6ef2a774931dfc576b68c49473a82eecba3cc1337f238", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/account+cursor"}
+  - {"case_id": "all", "query_sha256": "a12da6de8c785139ab259e4afc1cd9b1ace3d3501fc9325cb01d021d65df3878", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/cursor"}
+  - {"case_id": "all", "query_sha256": "2873066d9065356ad252f5532706aaa13e87dd33522552d21c5ab93bec7ce46d", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider"}
+  - {"case_id": "all", "query_sha256": "99a18f0ed663fb33bcf66dd69c937e9bf09d545f761e92c31696ec4dffac934b", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+account"}
+  - {"case_id": "all", "query_sha256": "9ae2cbe5c06db3061917e6d6d8870e956ff309075a974f70f6d2a7ef03322489", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+account+cursor"}
+  - {"case_id": "all", "query_sha256": "87428da89c9791e769dba2d6f57c8715b1854380b01a292b18273e6d3a004433", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+cursor"}
+  - {"case_id": "all", "query_sha256": "e882363152e123d6d7d398439b5e8c21a87763f9aecf6ccc3254053e98d5b160", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+region"}
+  - {"case_id": "all", "query_sha256": "2889b98c41a402e485ec9fc0a5db5b15a78cfe9d3be055f52ceec74d8d6f8094", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+region+account"}
+  - {"case_id": "all", "query_sha256": "609bcc12913ef401a91f197ce00510b5dcf2fd474942a859ac3fb93bf6410866", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+region+account+cursor"}
+  - {"case_id": "all", "query_sha256": "5592ebe0abc6ba903c3bd05ea5acd30c3a60e65ec646dbb23ef64a30de0d79d2", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+region+cursor"}
+  - {"case_id": "all", "query_sha256": "c70e8e7ac89e2bb6ebd921f064cb0fd5849aa512a94a4197e8f42f4af5305fae", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type"}
+  - {"case_id": "all", "query_sha256": "a987ffe21f17874b24960c740319510ac549f71132bbddf0cc8e7ad8c25b083d", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+account"}
+  - {"case_id": "all", "query_sha256": "18cb920f097bd101b9b6ce53d1e89352255adc6b78e2bd1d0652c69b5a68b8d0", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+account+cursor"}
+  - {"case_id": "all", "query_sha256": "7468a6ea592cfcea633720b64b41f6d5a199b2ee4fc2525b60a906885a20d7a7", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+cursor"}
+  - {"case_id": "all", "query_sha256": "0069cc1b8d4d8160361e321b823b5be422cee43095218c5a3bd95adcf5980326", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+region"}
+  - {"case_id": "all", "query_sha256": "5f2cae5fd6f5d7aed4e24819ff41d64f1d99d67c27a2efda1605f64c3ded6e3c", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+region+account"}
+  - {"case_id": "all", "query_sha256": "038f9988d07ba7cbfb95f22bac36e90377226db221d9b0e6cf13743df10a0304", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+region+account+cursor"}
+  - {"case_id": "all", "query_sha256": "5cef6e1ff1a35e3eecf3fd71f2225be00f4e33029e9bdcae08a7e4eafbf06032", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/provider+resource-type+region+cursor"}
+  - {"case_id": "all", "query_sha256": "7409be1cb72b8d2029ea8c4d7a6219eef8064ff7656e35572fe2b892a04f891d", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/region"}
+  - {"case_id": "all", "query_sha256": "e43445eb71396846bbbb4f78fb821bec36f124c8ec37b554337b8b52d1325e70", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/region+account"}
+  - {"case_id": "all", "query_sha256": "2a2b78941ec5c714cf505751b4a372854445010e167a4988a4475e1ca9d2d3cc", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/region+account+cursor"}
+  - {"case_id": "all", "query_sha256": "4be5075a0863d77fbc8866253a582724e44a1b25d8b39dc545f0e807f23e750d", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/region+cursor"}
+  - {"case_id": "all", "query_sha256": "e02e4b907fe8157718a65b6cc51623742b1980a4ae87ee9c63eed39ad3209e0b", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type"}
+  - {"case_id": "all", "query_sha256": "a44430cb57f85edf203f5dd5dce4f8bb3092247253454c09c53e52341f690098", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+account"}
+  - {"case_id": "all", "query_sha256": "3ff0fbc918bd6afaecc03b8e79c6ee55c2795acec14fc83d598fe0d5ac970347", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+account+cursor"}
+  - {"case_id": "all", "query_sha256": "cd4db4dc2cdb4ca96d05b4aae42dc6b3344702c245460445b613887778768c0b", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+cursor"}
+  - {"case_id": "all", "query_sha256": "b2b84e33cb492a3962dae81f43324a470678c747da0892981459fa1d74907d48", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+region"}
+  - {"case_id": "all", "query_sha256": "44d034df35c6a9a88f83aeb356a12b296e91e186b9dc14edbda3eabcd5b55db8", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+region+account"}
+  - {"case_id": "all", "query_sha256": "3025d5116e238ec6ae5547ea5a2137f85368ed121ff8317933e55d3eff9ed2ab", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+region+account+cursor"}
+  - {"case_id": "all", "query_sha256": "0e9de47fac6e69bcb0e15ffeefc176fdc0a71850a19c9ae1feaa0a3c1664ef53", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/resource-type+region+cursor"}
+  - {"case_id": "all", "query_sha256": "083f2c78ad5c85a132dc87362027d1079577452d10ecb20d39493d82d3a402e3", "scope_mode": "all_scopes", "variant_id": "cloud-resource-list/all/unfiltered"}
+  - {"case_id": "scoped", "query_sha256": "bee35e60a72d6f3c85b376ad16bfd678b922ab050322d11bac1ccd22a5cd7553", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "bee35e60a72d6f3c85b376ad16bfd678b922ab050322d11bac1ccd22a5cd7553", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/account"}
+  - {"case_id": "scoped", "query_sha256": "e76376d68b7059151e69707ecf8a00007f8a1952e8d9bd619107effac084b79b", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "e76376d68b7059151e69707ecf8a00007f8a1952e8d9bd619107effac084b79b", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "73e3b89ed3b63b18561272318b1a21cfbf01617435f0d770f77a9b53b9f51b4e", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "73e3b89ed3b63b18561272318b1a21cfbf01617435f0d770f77a9b53b9f51b4e", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/cursor"}
+  - {"case_id": "scoped", "query_sha256": "cd95aff9b5eb99d7bfc4664a2738ebea690d0c5567da805a0aaf469b7db9128e", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider"}
+  - {"case_id": "scoped-no-match", "query_sha256": "cd95aff9b5eb99d7bfc4664a2738ebea690d0c5567da805a0aaf469b7db9128e", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider"}
+  - {"case_id": "scoped", "query_sha256": "35fe53d6b468633e89f99bd80e4c6a5b9131b9d56ae78edf3e230d815e8c8833", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "35fe53d6b468633e89f99bd80e4c6a5b9131b9d56ae78edf3e230d815e8c8833", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+account"}
+  - {"case_id": "scoped", "query_sha256": "49650ba83d09a23c5908165e2faeb0cbeed1852ace327f96ac1aaf603ad98a87", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "49650ba83d09a23c5908165e2faeb0cbeed1852ace327f96ac1aaf603ad98a87", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "238899b703c2a5b786ec8a86dd11f85881b655910d1ef80a3b1e9c4f822f55c9", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "238899b703c2a5b786ec8a86dd11f85881b655910d1ef80a3b1e9c4f822f55c9", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+cursor"}
+  - {"case_id": "scoped", "query_sha256": "50cc8dd4cf62baae83f36d89158ddd3923887c0b85f0624dd08342c118b48f25", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region"}
+  - {"case_id": "scoped-no-match", "query_sha256": "50cc8dd4cf62baae83f36d89158ddd3923887c0b85f0624dd08342c118b48f25", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region"}
+  - {"case_id": "scoped", "query_sha256": "2fecfb256b823cd73ab7d0f9825eed4b663ff4e8d17d5a115d707a0bb2b06c52", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "2fecfb256b823cd73ab7d0f9825eed4b663ff4e8d17d5a115d707a0bb2b06c52", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region+account"}
+  - {"case_id": "scoped", "query_sha256": "6f19937d2514a51ab92fe7343dca03e7edac70e81b666aed4d697ff542badca2", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "6f19937d2514a51ab92fe7343dca03e7edac70e81b666aed4d697ff542badca2", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "be428a5607d7279bac31544d236965793c1db169eda47bcfc2124414d28995ab", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "be428a5607d7279bac31544d236965793c1db169eda47bcfc2124414d28995ab", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+region+cursor"}
+  - {"case_id": "scoped", "query_sha256": "257dcd165b714f67d7cda64d18dd7d3e713c6041c6dc8210abd67f9c66dc4fbd", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type"}
+  - {"case_id": "scoped-no-match", "query_sha256": "257dcd165b714f67d7cda64d18dd7d3e713c6041c6dc8210abd67f9c66dc4fbd", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type"}
+  - {"case_id": "scoped", "query_sha256": "d6912c8bf9e5415cdddad48abc7c57d7938489d6cb86819a8a69c65d20ca5786", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "d6912c8bf9e5415cdddad48abc7c57d7938489d6cb86819a8a69c65d20ca5786", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+account"}
+  - {"case_id": "scoped", "query_sha256": "1e3a7ea00f0886faf554886dfa8dea22e8dc1e3c36308aa71e7345062c05b457", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "1e3a7ea00f0886faf554886dfa8dea22e8dc1e3c36308aa71e7345062c05b457", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "59b2cb3e3c68b5b7b166b357c3cbeec340b338410f5a98b7ae74189ef6da94d5", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "59b2cb3e3c68b5b7b166b357c3cbeec340b338410f5a98b7ae74189ef6da94d5", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+cursor"}
+  - {"case_id": "scoped", "query_sha256": "6e4146f90d44121961bb043ea91d57768ba680854d017820bb7c1dd9443581a0", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region"}
+  - {"case_id": "scoped-no-match", "query_sha256": "6e4146f90d44121961bb043ea91d57768ba680854d017820bb7c1dd9443581a0", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region"}
+  - {"case_id": "scoped", "query_sha256": "d6f1d27ea03d332c8671769801cb2aceba232f0466586e19cd2d6b6b1dcd29e2", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "d6f1d27ea03d332c8671769801cb2aceba232f0466586e19cd2d6b6b1dcd29e2", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region+account"}
+  - {"case_id": "scoped", "query_sha256": "8f9a6b81491d9fd0eeb2ad59df596c58d9a3506dcaee2aa529e1a9e0f0cbe435", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "8f9a6b81491d9fd0eeb2ad59df596c58d9a3506dcaee2aa529e1a9e0f0cbe435", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "df402214e5c4032f2245769c94ed85cdbc90a82e98cc9ad2f653ea26636b5d1b", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "df402214e5c4032f2245769c94ed85cdbc90a82e98cc9ad2f653ea26636b5d1b", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/provider+resource-type+region+cursor"}
+  - {"case_id": "scoped", "query_sha256": "51f6a4f270f3c82393d48f0c50814d1310cf5d2991c6669c27ad0985871b2e06", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region"}
+  - {"case_id": "scoped-no-match", "query_sha256": "51f6a4f270f3c82393d48f0c50814d1310cf5d2991c6669c27ad0985871b2e06", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region"}
+  - {"case_id": "scoped", "query_sha256": "4d2604a44543094b37edbc67275468e125a42c9ac87c0631ebb6304748619c03", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "4d2604a44543094b37edbc67275468e125a42c9ac87c0631ebb6304748619c03", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region+account"}
+  - {"case_id": "scoped", "query_sha256": "cbc2289a46252866120b0f444e8c50f707472a5ea80ec3f2a85006bf40f9e035", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "cbc2289a46252866120b0f444e8c50f707472a5ea80ec3f2a85006bf40f9e035", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "d294adf543021d460ce13aadf568c5f3378e49af869883d541ee33d45d7e5caa", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "d294adf543021d460ce13aadf568c5f3378e49af869883d541ee33d45d7e5caa", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/region+cursor"}
+  - {"case_id": "scoped", "query_sha256": "c41a3ec60b58e1c01149898ad60545e0cd59f7abd815a3f13eea6308a7e69145", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type"}
+  - {"case_id": "scoped-no-match", "query_sha256": "c41a3ec60b58e1c01149898ad60545e0cd59f7abd815a3f13eea6308a7e69145", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type"}
+  - {"case_id": "scoped", "query_sha256": "93cc4f93d6e1b00ea9e30d7733346c46922a7457a81952e60a27592da98be8dc", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "93cc4f93d6e1b00ea9e30d7733346c46922a7457a81952e60a27592da98be8dc", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+account"}
+  - {"case_id": "scoped", "query_sha256": "2dad422d6718e8d1ab7d2f690b1900a9c5e74a9b8278c9db3b4223d351f9820a", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "2dad422d6718e8d1ab7d2f690b1900a9c5e74a9b8278c9db3b4223d351f9820a", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "34fbbd25f3f322f6739b6d51af3ec1c6fa3570c64d7a3e380d86de06123d39d4", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "34fbbd25f3f322f6739b6d51af3ec1c6fa3570c64d7a3e380d86de06123d39d4", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+cursor"}
+  - {"case_id": "scoped", "query_sha256": "3c04c86a57120c33fb8175a6824aa54a2c7dec59dbc0122831d116e1260608d6", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region"}
+  - {"case_id": "scoped-no-match", "query_sha256": "3c04c86a57120c33fb8175a6824aa54a2c7dec59dbc0122831d116e1260608d6", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region"}
+  - {"case_id": "scoped", "query_sha256": "f6864a31a4f7b5f69f9eee19b8bad94ebccca1dd4664a601b3c3b1b6a11320a6", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region+account"}
+  - {"case_id": "scoped-no-match", "query_sha256": "f6864a31a4f7b5f69f9eee19b8bad94ebccca1dd4664a601b3c3b1b6a11320a6", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region+account"}
+  - {"case_id": "scoped", "query_sha256": "c0c9209016027a69c41109fd3919b0d0e4836e3f14dd3869f707ec3b8f442b93", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region+account+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "c0c9209016027a69c41109fd3919b0d0e4836e3f14dd3869f707ec3b8f442b93", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region+account+cursor"}
+  - {"case_id": "scoped", "query_sha256": "88411e558f786082f8ccced14c1ac15d0aa83f17543e269498aec6a40eaa8d86", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region+cursor"}
+  - {"case_id": "scoped-no-match", "query_sha256": "88411e558f786082f8ccced14c1ac15d0aa83f17543e269498aec6a40eaa8d86", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/resource-type+region+cursor"}
+  - {"case_id": "scoped", "query_sha256": "ac2d84057ec73f7a0396c91bb181fee4bb740a752b571972af4962d49487d2d3", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/unfiltered"}
+  - {"case_id": "scoped-no-match", "query_sha256": "ac2d84057ec73f7a0396c91bb181fee4bb740a752b571972af4962d49487d2d3", "scope_mode": "scoped", "variant_id": "cloud-resource-list/scoped/unfiltered"}

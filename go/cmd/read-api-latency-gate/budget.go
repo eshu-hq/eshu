@@ -19,6 +19,10 @@ type RouteLatency struct {
 	// Route is "METHOD /path", matching the capabilitycatalog surface
 	// inventory Name field for an api_route entry.
 	Route string
+	// Method, Path, and MCP identify the HTTP request sent for this operation.
+	Method string
+	Path   string
+	MCP    bool
 	// P95 is the measured p95 latency. Meaningful only when Exercised is
 	// true; a not-exercised route was never sampled past its first probe.
 	P95 time.Duration

@@ -4,7 +4,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +16,14 @@ import (
 	"sort"
 	"time"
 )
+
+// Operation is a seeded read request with a stable budget and report ID.
+type Operation struct {
+	Method string
+	Path   string
+	Body   string
+	MCP    bool
+}
 
 // warmupRequests is the number of probes issued (and discarded) per route
 // before the counted sample set starts. A cold connection and cold
@@ -32,11 +42,15 @@ const hardFailedBodyCap = 500
 type SweepOptions struct {
 	// BaseURL is the running eshu-api's base address, e.g. "http://localhost:18080".
 	BaseURL string
+	// MCPBaseURL is the running MCP HTTP transport address.
+	MCPBaseURL string
 	// APIKey authenticates every request as "Authorization: Bearer <APIKey>".
 	APIKey string
-	// Routes are "METHOD /path" entries to sweep; SweepRoutes only issues the
-	// path (the method is always GET — NoArgGetRoutes already filters to GET).
+	// Routes are operation IDs. Inventory routes use "METHOD /path"; selected
+	// MCP calls use "MCP <tool>" and require an Operations fixture.
 	Routes []string
+	// Operations overrides the request shape for selected route IDs.
+	Operations map[string]Operation
 	// QueryArgs optionally supplies a raw query string (no leading "?") per
 	// route, so a route that requires a selector (e.g. scope_id) can run its
 	// real query instead of 400ing on a missing parameter. A route absent
@@ -88,19 +102,31 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 	results := make([]RouteLatency, 0, len(opts.Routes))
 
 	for _, route := range opts.Routes {
-		_, path, err := SplitRoute(route)
-		if err != nil {
-			return nil, err
+		op, ok := opts.Operations[route]
+		if !ok {
+			method, path, err := SplitRoute(route)
+			if err != nil {
+				return nil, err
+			}
+			op = Operation{Method: method, Path: path}
 		}
-		url := opts.BaseURL + path
+		baseURL := opts.BaseURL
+		if op.MCP {
+			baseURL = opts.MCPBaseURL
+		}
+		if baseURL == "" {
+			return nil, fmt.Errorf("sweep %s: base URL is empty", route)
+		}
+		url := baseURL + op.Path
 		if q := opts.QueryArgs[route]; q != "" {
 			url += "?" + q
 		}
 
-		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, runs, opts.Meter)
+		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, runs, opts.Meter, op)
 		if err != nil {
 			return nil, err
 		}
+		result.Method, result.Path, result.MCP = op.Method, op.Path, op.MCP
 		results = append(results, result)
 	}
 
@@ -109,12 +135,12 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 
 // sweepRoute runs the warmup-then-counted sweep for one route: warmupRequests
 // discarded probes, then `runs` independent passes of `iterations` counted
-// requests each, with no additional warmup between passes. Run 1 is the cold
-// pass (RouteLatency.Samples); runs 2..runs are warm passes
+// requests each, with no additional warmup between passes. Run 1 follows
+// warmupRequests probes (RouteLatency.Samples); runs 2..runs are later passes
 // (RouteLatency.WarmSamples/WarmRunP95s). See SweepOptions.Runs.
-func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations, runs int, meter WorkMeter) (RouteLatency, error) {
+func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations, runs int, meter WorkMeter, op Operation) (RouteLatency, error) {
 	for i := 0; i < warmupRequests; i++ {
-		_, status, _, err := sweepOne(client, url, apiKey)
+		_, status, _, err := sweepOperation(client, url, apiKey, op)
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s (warmup %d/%d): %w", route, i+1, warmupRequests, err)
 		}
@@ -133,17 +159,21 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 	var warmSamples []time.Duration
 	var warmRunP95s []time.Duration
 	hardFailed := false
+	clientFailed := false
 	hardFailedBody := ""
 	status := 0
 
 	for run := 0; run < runs; run++ {
 		runSamples := make([]time.Duration, 0, iterations)
 		for i := 0; i < iterations; i++ {
-			d, s, body, err := sweepOne(client, url, apiKey)
+			d, s, body, err := sweepOperation(client, url, apiKey, op)
 			if err != nil {
 				return RouteLatency{}, fmt.Errorf("sweep %s (run %d/%d, iteration %d/%d): %w", route, run+1, runs, i+1, iterations, err)
 			}
 			status = s
+			if s >= 400 && s < 500 {
+				clientFailed = true
+			}
 			if s >= 500 {
 				if !hardFailed {
 					hardFailedBody = body
@@ -164,8 +194,8 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 		warmRunP95s = append(warmRunP95s, p95(runSamples))
 	}
 
-	// official is the sample set RouteLatency.P95 is computed from: the cold
-	// pass alone when there is no warm data (Runs<=1, so this is
+	// official is the sample set RouteLatency.P95 is computed from: the first
+	// pass alone when there is no later data (Runs<=1, so this is
 	// byte-for-byte what the gate has always computed), otherwise the pooled
 	// warm samples — the cold pass's cache-cold connection makes it
 	// unrepresentative of steady state, the same reasoning warmupRequests
@@ -177,7 +207,7 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 	result := RouteLatency{
 		Route:          route,
 		P95:            p95(append([]time.Duration(nil), official...)),
-		Exercised:      true,
+		Exercised:      !clientFailed,
 		Status:         status,
 		HardFailed:     hardFailed,
 		HardFailedBody: hardFailedBody,
@@ -201,7 +231,7 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 	return result, nil
 }
 
-// sweepOne issues one GET request and returns its wall-clock duration and
+// sweepOperation issues one request and returns its wall-clock duration and
 // status code (0 for a timeout, which has no response).
 //
 // A response's status code does not fail the sweep, whatever it is: a
@@ -220,12 +250,15 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 // Only a connection-level failure (nothing is listening, DNS failed) returns
 // an error: that means eshu-api itself never came up, which is a gate setup
 // problem, not a per-route latency signal.
-func sweepOne(client *http.Client, url, apiKey string) (time.Duration, int, string, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time.Duration, int, string, error) {
+	req, err := http.NewRequest(op.Method, url, bytes.NewBufferString(op.Body))
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if op.Body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	start := time.Now()
 	resp, err := client.Do(req)
@@ -240,11 +273,34 @@ func sweepOne(client *http.Client, url, apiKey string) (time.Duration, int, stri
 	defer func() { _ = resp.Body.Close() }()
 
 	body := ""
-	if resp.StatusCode >= 500 {
+	if op.MCP {
+		const maxMCPResponseBytes = 8 << 20
+		b, readErr := io.ReadAll(io.LimitReader(resp.Body, maxMCPResponseBytes+1))
+		elapsed = time.Since(start)
+		if readErr != nil || len(b) > maxMCPResponseBytes {
+			return elapsed, http.StatusInternalServerError, "MCP response body could not be read within 8 MiB", nil
+		}
+		body = string(b)
+	} else if resp.StatusCode >= 500 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, hardFailedBodyCap))
 		body = string(b)
 	}
+	if op.MCP && resp.StatusCode < 400 {
+		var envelope struct {
+			JSONRPC string `json:"jsonrpc"`
+			Result  *struct {
+				IsError bool `json:"isError"`
+			} `json:"result"`
+			Error json.RawMessage `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(body), &envelope); err != nil || envelope.JSONRPC != "2.0" || envelope.Result == nil || len(envelope.Error) > 0 || envelope.Result.IsError {
+			return elapsed, http.StatusInternalServerError, body, nil
+		}
+	}
 
+	if op.MCP && len(body) > hardFailedBodyCap {
+		body = body[:hardFailedBodyCap]
+	}
 	return elapsed, resp.StatusCode, body, nil
 }
 

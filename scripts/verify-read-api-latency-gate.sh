@@ -54,6 +54,7 @@ cd "${repo_root}"
 : "${GATE_NEO4J_PASSWORD:=change-me}"
 : "${GATE_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18097}"
+: "${GATE_MCP_PORT:=18098}"
 : "${GATE_API_KEY:=read-api-latency-gate-local-key}"
 : "${GATE_COMPOSE_PROJECT:=eshu-read-api-latency-gate-$$}"
 : "${GATE_TOTAL_SCOPES:=800}"
@@ -66,6 +67,9 @@ cd "${repo_root}"
 # comparison recipe sets it to 5 or more; see
 # docs/public/reference/local-testing/read-api-latency-gate.md.
 : "${GATE_RUNS:=1}"
+: "${GATE_CONCURRENT_WORKERS:=0}"
+: "${GATE_CONCURRENT_REQUESTS:=20}"
+: "${GATE_CONCURRENT_REPORT:=}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
 : "${GATE_WORK_REPORT:=}"
@@ -133,6 +137,7 @@ stack_up=0
 # "Dump service logs on failure" workflow step reads it) instead of losing
 # it to the same rm -rf that clears everything else.
 api_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-api.log"
+mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
 
 cleanup() {
 	local status=$?
@@ -141,6 +146,9 @@ cleanup() {
 	done
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
 		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
+	fi
+	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
+		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
 	fi
 	if [[ "${keep}" -eq 1 ]]; then
 		printf 'verify-read-api-latency-gate: --keep set; leaving %s and the compose stack up\n' "${work_dir}" >&2
@@ -190,6 +198,8 @@ export ESHU_POSTGRES_DSN="postgresql://eshu:${GATE_POSTGRES_PASSWORD}@localhost:
 export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+export ESHU_MCP_TRANSPORT="http"
+export ESHU_MCP_ADDR="127.0.0.1:${GATE_MCP_PORT}"
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"
@@ -256,6 +266,7 @@ else
 	build_bin api
 fi
 build_bin read-api-latency-gate
+build_bin mcp-server
 
 # Recorded in the latency report's identity block (-api-binary-sha256 below)
 # so a cross-backend comparison can refuse two legs measured against
@@ -290,6 +301,9 @@ fi
 if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
 	gate_report_args+=(-latency-report "${GATE_LATENCY_REPORT}")
 fi
+if [[ -n "${GATE_CONCURRENT_REPORT}" ]]; then
+	gate_report_args+=(-concurrent-report "${GATE_CONCURRENT_REPORT}")
+fi
 
 # Two phases, like a real deploy: seed first, THEN start eshu-api. eshu-api's
 # startup backfill of the infra read model derives whatever content_entities
@@ -304,6 +318,7 @@ gate_common_args=(
 	-graph-username "${NEO4J_USERNAME}"
 	-graph-password "${NEO4J_PASSWORD}"
 	-api-base-url "http://localhost:${GATE_API_PORT}"
+	-mcp-base-url "http://127.0.0.1:${GATE_MCP_PORT}"
 	-api-key "${GATE_API_KEY}"
 	-total-scopes "${GATE_TOTAL_SCOPES}"
 	-nodes-per-label "${GATE_NODES_PER_LABEL}"
@@ -311,6 +326,8 @@ gate_common_args=(
 	-shared-intent-count "${GATE_SHARED_INTENT_COUNT}"
 	-iterations "${GATE_ITERATIONS}"
 	-runs "${GATE_RUNS}"
+	-concurrent-workers "${GATE_CONCURRENT_WORKERS}"
+	-concurrent-requests "${GATE_CONCURRENT_REQUESTS}"
 	-eshu-commit "${gate_eshu_commit}"
 	-api-binary-sha256 "${gate_api_binary_sha256}"
 )
@@ -341,6 +358,19 @@ done
 # unique to this gate (see the port comment above), but this is a cheap extra
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
+
+log "start MCP HTTP transport"
+start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server"
+mcp_ready=false
+for _ in $(seq 1 240); do
+	if curl -fsS "http://127.0.0.1:${GATE_MCP_PORT}/health" >/dev/null 2>&1; then
+		mcp_ready=true
+		break
+	fi
+	sleep 1
+done
+[[ "${mcp_ready}" == "true" ]] || { tail -40 "${log_dir}/mcp-server.log" >&2 || true; die "MCP /health never returned on port ${GATE_MCP_PORT}"; }
+kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) exited while /health answered"
 
 # Exact pre-existing text at the default GATE_RUNS=1 (see the
 # "byte-for-byte identical at default settings" doc claim); only mentions

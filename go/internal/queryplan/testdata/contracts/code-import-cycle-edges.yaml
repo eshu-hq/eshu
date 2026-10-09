@@ -1,0 +1,26 @@
+version: 1
+result: "Exact ordered import identities and fields, with paging and cycle enumeration metadata, match the independent edge ledger."
+authorization: "Apply the caller grant in each relevant branch before scan or page bounds; all-scope access is declared per case."
+current_history: "Read repository-connected code; orphan history is outside the current repository graph."
+nulls: "Nullable import line/name/type fields follow declared projection defaults; absence must not invent an import."
+duplicates: "Preserve declared import edge multiplicity; deduplicate logical packages, scopes and cycles before paging."
+ordering: "Production stable identity order is checked against an independently ordered fixture ledger."
+pagination: "Apply grant and logical filtering before page boundaries; include unique tie breakers and sentinel rows."
+partial: "A cycle-cap terminal page has truncated=true, has_more=false and no invented next offset."
+patterns: ["selective anchors", "authorization before bounds", "stable identity pagination"]
+rationale: "Extend existing production-bound query families and independent fixtures; hashes bind evidence but do not prove semantics."
+alternatives: ["schema-only plans do not prove seeded result semantics", "a copied query oracle cannot prove correctness"]
+index_cost: "Use existing schema indexes; no index is added by the pilot. Real-index acceptance must measure write work and storage."
+exceptions: ["Planner variation and bounded Cartesian products are recorded; accept only within declared workload and result budgets."]
+budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1}, noise_tolerance: "Absolute two-second fixture ceiling; paired normal timing records expose noise without claiming a speedup. Scale calibration is a separate required stage."}
+workload: {"budgets": "PostgreSQL normal execution <=2000 ms on the 20000-row fixture; graph plans and endpoint budgets use the selected workload.", "cardinality": "PostgreSQL 20001 owners and 20000 source facts; Neo4j two tenants plus duplicate edges and 128 skew files.", "depth": "Declared bounded code traversals; cycle reconstruction scans capped edges.", "fanout": "128 skew imports plus repeated import edges; record PROFILE expansion rows.", "payload": "Narrow identity and import fields; large-payload operation proof is a dedicated stage.", "query_count": "One SQL statement per page; graph query counts recorded per request and emitted family.", "skew": "Cross-scope negative cases and high-degree imports; zero-result reads retain the populated fixture."}
+require_order: true
+require_limit: true
+environment: {"engine": "neo4j", "fixture": "import-edge-ledger-v1", "indexes": "physical indexes and full definitions captured per run", "oracle": "import-edge-ledger-v1", "runner": "TestImportDependencyMethodologyLive", "schema": "disposable declared fixture DDL", "version": "2026.08.1"}
+required_schema: ["methodology_repo_id", "methodology_file_relative", "methodology_file_path", "methodology_module_name", "methodology_function_uid"]
+authorization_aliases: ["repo"]
+required_cases:
+  - {"case_id": "representative", "query_sha256": "d7c9e82091dd8d35f42604a0fc4a94f0f2550f75aacf1b10f3ccd26048e276ce", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+file_import_cycles+repo/cycle-edges"}
+  - {"case_id": "representative", "query_sha256": "b5e69dbdceabc62389bdbf28614db82ede276f8a44208a4cda789e4e6033bbcb", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+file_import_cycles+source-file/cycle-edges"}
+  - {"case_id": "representative", "query_sha256": "2713b2b53571471da8baadfb9a5c8033bfacc6ca229910bafb51ddb1189dcc93", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+file_import_cycles+repo/cycle-edges"}
+  - {"case_id": "representative", "query_sha256": "31cde3db95add9b7a36d257f77f6f86c0b9f8b74d70f59e39b93b86d7e0bc179", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+file_import_cycles+source-file/cycle-edges"}
