@@ -180,6 +180,7 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsGoKeysOnModulePr
 	if got, want := db.queries[0].query, producerstore.GoModuleManifestsQuery; got != want {
 		t.Fatalf("first query is the manifest read:\n%s", got)
 	}
+	assertCodeCallManifestShape(t, db.queries[0].query, "relative_path = 'go.mod'", "relative_path LIKE '%/go.mod'")
 	if got, want := db.queries[1].query, listAnchoredActiveCodeCallSymbolDefinitionFactsQuery; got != want {
 		t.Fatalf("second query is the anchored scan:\n%s", got)
 	}
