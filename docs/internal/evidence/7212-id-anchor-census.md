@@ -223,7 +223,8 @@ two reachability booleans into a `WITH` (the NornicDB label-predicate guard
 rejects a quantifier over `labels()` inside a `WHERE`, #6786 X11). The run was at
 commit cd8250cb0 after a rebase onto main at 16c8c2a36, on the pinned
 `neo4j:2026-community` image (server 2026.08.1, arm64 container, private host
-ports), torn down after. The same three tests also passed one rebase earlier,
+ports; the final run kept its data in tmpfs because the Docker VM disk was full,
+and used the same image digest as the compose service), torn down after. The same three tests also passed one rebase earlier,
 before the runner moved to its leaf package. Later commits change only
 documentation. `TestLiveAnchorCensus`
 passed. `TestLiveAnchorCensusCheck` passed with the same clean line
@@ -242,8 +243,8 @@ configurations collect the gauge.
   `golden-corpus-gate-neo4j`, and the Neo4j legs of the differential job). The
   three live tests are rows in `specs/live-tests.v1.yaml` (class `ci`, Neo4j only,
   self-skipping elsewhere), so the live-backend CI job also runs them. They ran
-  on `fce583612`; the census Cypher, the gate's Bolt reader, and the reducer
-  wiring are unchanged since that head.
+  last on `cd8250cb0` (the rebased head with the rewritten residual statement;
+  see Observability Evidence above); later commits change only documentation.
 - The writer-coverage phase over a real replay's recordings. The analyzer is
   proved on recorded-session fixtures and the sweep on the source tree, not on a
   full replay.
