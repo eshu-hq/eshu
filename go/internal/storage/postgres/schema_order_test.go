@@ -390,4 +390,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// Migration 166 (#7625) adds repository_selection_observations, the
 	// per-scope, per-selector githubOrg listing evidence shard 0 writes.
 	"repository_selection_observations",
+	// Migration 167 (#7799) adds a (generation_id) btree on
+	// shared_projection_unroutable_intents, so the generation-only
+	// retention count leg and the generation-only reap DELETE both probe
+	// instead of skip-scanning the scope-leading index.
+	"unroutable_intents_generation_idx",
 }

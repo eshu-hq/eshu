@@ -13,7 +13,9 @@ import (
 // keys rows on doomed gen-old facts plus one per table on the retained
 // gen-active fact; secret lines on the doomed main.tf file plus one on
 // kept.tf, which the new gen-active file fact keeps alive; one doomed and
-// one retained unroutable intent.
+// one retained unroutable intent, plus two malformed-scope doomed
+// unroutable intents (#7799: the generation-only reap deletes rows the
+// scope-joined count arm cannot see).
 func seedGenerationRetentionGrandchildren7784(t *testing.T, ctx context.Context, database *sql.DB) {
 	t.Helper()
 	steps := []string{
@@ -40,7 +42,9 @@ VALUES ('repo-1', 'kept.tf', 'x', 'h', 1, now())`,
 ('fact-entity-new', 'scope-1', 'gen-active', 'repo-1', 'ref-kept')`,
 		`INSERT INTO shared_projection_unroutable_intents (intent_id, projection_domain, partition_key, repository_id, scope_id, generation_id, evidence_source, reason, decided_at) VALUES
 ('unr-doomed', 'd', 'p', 'repo-1', 'scope-1', 'gen-old', 'e', 'r', now()),
-('unr-kept', 'd', 'p', 'repo-1', 'scope-1', 'gen-active', 'e', 'r', now())`,
+('unr-kept', 'd', 'p', 'repo-1', 'scope-1', 'gen-active', 'e', 'r', now()),
+('unr-doomed-empty-scope', 'd', 'p', 'repo-1', '', 'gen-old', 'e', 'r', now()),
+('unr-doomed-wrong-scope', 'd', 'p', 'repo-1', 'scope-gone', 'gen-old', 'e', 'r', now())`,
 	}
 	for i, step := range steps {
 		if _, err := database.ExecContext(ctx, step); err != nil {
@@ -60,7 +64,7 @@ func assertGenerationRetentionGrandchildren7784(t *testing.T, ctx context.Contex
 		{"package_registry_identity_keys", "package_name IN ('pkg-a','pkg-b')", "package_name = 'pkg-kept'"},
 		{"relationship_reference_candidate_keys", "reference_key = 'ref-a'", "reference_key = 'ref-kept'"},
 		{"content_file_secret_lines", "relative_path = 'main.tf'", "relative_path = 'kept.tf'"},
-		{"shared_projection_unroutable_intents", "intent_id = 'unr-doomed'", "intent_id = 'unr-kept'"},
+		{"shared_projection_unroutable_intents", "intent_id IN ('unr-doomed', 'unr-doomed-empty-scope', 'unr-doomed-wrong-scope')", "intent_id = 'unr-kept'"},
 	} {
 		var doomed, kept int
 		if err := database.QueryRowContext(ctx, "SELECT count(*) FROM "+tc.table+" WHERE "+tc.doomed).Scan(&doomed); err != nil {

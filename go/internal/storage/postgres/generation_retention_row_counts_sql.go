@@ -36,14 +36,22 @@ package postgres
 // generic plan into a scope-wide fact bitmap plus a generation join filter,
 // whose cost grows with the scope instead of the batch. The subquery keeps
 // the (scope_id, generation_id) probe in every plan the guard checks.
-// relationship_reference_candidate_keys and
-// shared_projection_unroutable_intents have the scope prefix, so theirs join
-// scope_generations directly. content_file_secret_lines hangs off
+// relationship_reference_candidate_keys has the scope prefix, so its leg
+// joins scope_generations directly. content_file_secret_lines hangs off
 // content_files, whose doomed keys already live in doomed_files: a secret
 // row dies exactly when its key is doomed, so that arm joins doomed_files
 // straight onto the secret PRIMARY KEY prefix. All five stay index-backed
 // with cost following the batch, measured with EXPLAIN ANALYZE before
 // landing like the #7700 arm.
+//
+// The unroutable leg is generation-only (#7799), not scope-joined: the
+// table carries no foreign keys by design (migration 098: scope_id may be
+// ” on legacy rows) and the reap DELETE matches on generation_id alone,
+// so a scope-joined count misses malformed-scope rows the prune deletes.
+// A generation-only probe of the scope-leading index would skip-scan once
+// per candidate over every scope, so migration 167 adds a (generation_id)
+// btree the leg and the DELETE both probe; measured with EXPLAIN ANALYZE
+// before landing like the arms above.
 //
 // Its cost follows the batch, not fact_records (#7279). candidate_* reads only
 // the candidates' own facts, through scope_generations and the (scope_id,
@@ -399,10 +407,7 @@ GROUP BY candidate.generation_id
 UNION ALL
 SELECT candidate.generation_id, 'shared_projection_unroutable_intents' AS table_name, COUNT(row.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate
-LEFT JOIN scope_generations AS generation
-  ON generation.generation_id = candidate.generation_id
 LEFT JOIN shared_projection_unroutable_intents AS row
-  ON row.scope_id = generation.scope_id
- AND row.generation_id = candidate.generation_id
+  ON row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 `

@@ -223,12 +223,14 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"reducer_input_invalid_facts":             1,
 		// #7784: the cascade grandchildren the prune deletes (keys via
 		// the fact delete, secret lines via the file delete) plus the
-		// explicitly reaped unroutable intents.
+		// explicitly reaped unroutable intents. #7799: the unroutable
+		// count covers the well-formed doomed row and both
+		// malformed-scope doomed rows the generation-only reap deletes.
 		"package_manifest_consumption_keys":     2,
 		"package_registry_identity_keys":        2,
 		"relationship_reference_candidate_keys": 1,
 		"content_file_secret_lines":             2,
-		"shared_projection_unroutable_intents":  1,
+		"shared_projection_unroutable_intents":  3,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,

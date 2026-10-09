@@ -119,8 +119,9 @@ ledger tables (`changed_since_links`, `changed_since_link_deltas`,
 two pruned generations is counted on the newer), a batch's event
 counts sum to the rows that `eshu_dp_generation_retention_rows_pruned_total`
 adds for that table, in the absence of concurrent writes between the count and
-the deletes. `scope_generations` and `shared_projection_unroutable_intents` have
-no event count. The `infra_resource_entities` delete also removes mirror rows
+the deletes. `scope_generations` has no event count (every other pruned
+table, including `shared_projection_unroutable_intents` since #7784, is
+counted). The `infra_resource_entities` delete also removes mirror rows
 that were already orphaned before the batch, so the counter can exceed the event
 sum for that table.
 
