@@ -66,8 +66,9 @@ tombstone path above (phase 3). An expired `repository_selection_observations`
 row reads as no evidence (`unknown`) at once. The git collector deletes it
 once it has stayed expired for a 7-day grace past its own liveness window
 (#7774), unless its state is `not_listed`. The collector sweeps once per
-cycle on shard 0, after an evaluation whose store reads succeeded, in batches
-of at most 500 rows and 10,000 rows per cycle. `not_listed` rows are never
+cycle on shard 0, after any outcome but a store error (a truncated listing
+still sweeps, so a repo limit below the org size cannot stop the drain), in
+batches of at most 500 rows and 10,000 rows per cycle. `not_listed` rows are never
 deleted, because the mass-miss guard reads them: without that history a
 recovered selector could count scopes it had already confirmed missing as
 newly unlisted and hold every write. Those rows of an abandoned selector
