@@ -258,6 +258,9 @@ PACKAGES = {
         "go/internal/query/admin/reopen_live_test.go": (
             "TestAdminHandler_ReopenLive",
         ),
+        "go/internal/query/admin/scope_selector_live_test.go": (
+            "TestAdminHandler_ScopeSelectorCollisionLive",
+        ),
     },
     REACHABILITY_PACKAGE: {
         "go/internal/storage/postgres/code/reachability/loader_edges_scope_live_test.go": (
