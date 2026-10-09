@@ -284,11 +284,15 @@ the full set is in `repository_reindex_requests`.
 
 #### Complete the graph with scheduled sync
 
-A reindex request is honored by the git ingester's **scheduled** repository
-selection, which visits every repository it selects. A webhook-only ingester
-(`ESHU_REPO_SCHEDULED_SYNC_ENABLED=false`) honors a request only for a
-repository that a webhook triggers, so most requests wait. To complete the
-graph, set these on the git ingester for the repair window:
+Scheduled selection (`explicit` and `githubOrg` source modes) reads the
+per-repository reindex rows on every cycle. The webhook selector reads them
+only in a cycle that claimed triggers, and applies them only to the triggered
+repositories, so a webhook-only ingester
+(`ESHU_REPO_SCHEDULED_SYNC_ENABLED=false`) leaves most requests waiting.
+Filesystem source mode never reads them. With
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS=0` the ingester decides only scopes that
+hold a watermark. To complete the graph, set these on the git ingester for
+the repair window:
 
 | Variable | Value | Why |
 | --- | --- | --- |
