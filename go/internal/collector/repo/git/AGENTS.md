@@ -76,11 +76,16 @@ full generation, which re-emits id keys. A new follow-up envelope takes
 
 Pass the managed checkout path (`<ReposDir>/<repoID>`) to `gitCommandEnv` and
 `gitRun` for every command that reaches a remote. Token auth derives the
-credential's host from that path (#7763). Any other path resolves to
-github.com, so a network command run from it would send a GitLab or Bitbucket
-token to the wrong host or clone anonymously. Paths under
-`.eshu-ref-worktrees` are for local commands only. Keep the header host and
-`repoRemoteURL` in lockstep:
+credential's host from that path (#7763) and fails closed for any other path:
+`tokenAuthProvider` applies the `repoCheckoutName` rule the clone path uses, so
+a path outside `ReposDir` or under the reserved `.eshu-ref-worktrees` namespace
+gets no credential header at all. A network command run from such a path goes
+out anonymous and fails at the remote instead of offering a GitLab or Bitbucket
+token to github.com. The skip has no runtime signal: the function cannot tell a
+local command from a network one, and ref worktrees run local commands every
+cycle, so a log there would be noise.
+`TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader` pins the skip. Keep the
+header host and `repoRemoteURL` in lockstep:
 `TestGitCommandEnvTokenHeaderMatchesCloneURLHost` covers that contract.
 
 ## Directory size
