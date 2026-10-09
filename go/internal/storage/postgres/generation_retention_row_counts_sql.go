@@ -27,6 +27,24 @@ package postgres
 // then the evidence (decision_id) prefix. Both probes stay index-only and
 // the cost follows the batch, measured with EXPLAIN ANALYZE before landing.
 //
+// The five #7784 arms count the remaining cascade grandchildren. The two
+// package keys tables carry no (scope_id, generation_id) prefix index (only
+// the ecosystem-first lookup), so their legs count through the generation's
+// facts: fact_records_scope_generation_idx, then the keys PRIMARY KEY
+// (fact_id, ...) prefix. The probe sits in a correlated scalar subquery,
+// not a fourth LEFT JOIN: as a join the planner reorders the leg under a
+// generic plan into a scope-wide fact bitmap plus a generation join filter,
+// whose cost grows with the scope instead of the batch. The subquery keeps
+// the (scope_id, generation_id) probe in every plan the guard checks.
+// relationship_reference_candidate_keys and
+// shared_projection_unroutable_intents have the scope prefix, so theirs join
+// scope_generations directly. content_file_secret_lines hangs off
+// content_files, whose doomed keys already live in doomed_files: a secret
+// row dies exactly when its key is doomed, so that arm joins doomed_files
+// straight onto the secret PRIMARY KEY prefix. All five stay index-backed
+// with cost following the batch, measured with EXPLAIN ANALYZE before
+// landing like the #7700 arm.
+//
 // Its cost follows the batch, not fact_records (#7279). candidate_* reads only
 // the candidates' own facts, through scope_generations and the (scope_id,
 // generation_id) prefix of fact_records_scope_generation_idx, and doomed_*
@@ -335,6 +353,55 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN scope_generations AS generation
   ON generation.generation_id = candidate.generation_id
 LEFT JOIN reducer_input_invalid_facts AS row
+  ON row.scope_id = generation.scope_id
+ AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'package_manifest_consumption_keys' AS table_name,
+  (SELECT COUNT(keys.fact_id)
+   FROM fact_records AS fact
+   JOIN package_manifest_consumption_keys AS keys
+     ON keys.fact_id = fact.fact_id
+   WHERE fact.scope_id = generation.scope_id
+     AND fact.generation_id = candidate.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'package_registry_identity_keys' AS table_name,
+  (SELECT COUNT(keys.fact_id)
+   FROM fact_records AS fact
+   JOIN package_registry_identity_keys AS keys
+     ON keys.fact_id = fact.fact_id
+   WHERE fact.scope_id = generation.scope_id
+     AND fact.generation_id = candidate.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'relationship_reference_candidate_keys' AS table_name, COUNT(keys.fact_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN relationship_reference_candidate_keys AS keys
+  ON keys.scope_id = generation.scope_id
+ AND keys.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'content_file_secret_lines' AS table_name, COUNT(lines.line_number) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN doomed_files AS file
+  ON file.attributed_rank = candidate.rank
+LEFT JOIN content_file_secret_lines AS lines
+  ON lines.repo_id = file.repo_id
+ AND lines.relative_path = file.relative_path
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'shared_projection_unroutable_intents' AS table_name, COUNT(row.generation_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN shared_projection_unroutable_intents AS row
   ON row.scope_id = generation.scope_id
  AND row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
