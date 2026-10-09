@@ -215,6 +215,7 @@ var migrationShippedChecksums = map[string]string{
 	"165_phase_state_quiescence_gate_stats.sql":                              "764c584ebfd2ff8527a299a928a3ade5e3ed14130e01d033ebe6a2aa862b79b3",
 	"166_repository_selection_observations.sql":                              "a54e3077dc6c78c13362c8fcf462d01a6aa6a19483b5f57ec46cd0484088c2c7",
 	"167_unroutable_intents_generation_idx.sql":                              "dc4fdd29cd33dba04c920dbc4353cb54b152dc50860e5ddf4ebb117debd19c8e",
+	"168_webhook_refresh_triggers_claim_fencing.sql":                         "67f9b9e1af559735d3ed01f42109145f7bfe383c9480b4bf20d5d29fa80bb4f0",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
