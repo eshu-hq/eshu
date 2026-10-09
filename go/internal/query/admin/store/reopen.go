@@ -197,11 +197,13 @@ func (s *postgresStore) ReopenCompletedWork(ctx context.Context, f admin.ReopenF
 		return result, fmt.Errorf("set reopen lock timeout: %w", err)
 	}
 	// Rollover fence (#7734): lock the scope row, then re-resolve the
-	// active generation inside the transaction and act on that. A rollover
-	// moves the scope's active-generation pointer, which takes the same
-	// row lock, so no rollover can land between this resolve and the
-	// commit; a rollover that landed after the pre-transaction resolve is
-	// picked up here instead of silently repairing the old generation.
+	// active generation inside the transaction and act on that for the
+	// reducer domains; for the intent domain the fence still serializes
+	// the repair but selection is scope-level. A rollover moves the
+	// scope's active-generation pointer, which takes the same row lock,
+	// so no rollover can land between this resolve and the commit; a
+	// rollover that landed after the pre-transaction resolve is picked
+	// up here instead of silently repairing the old generation.
 	// The lock covers exactly the dangerous case: the supersede sweep
 	// keys on the pointer, so a scope with no pinned pointer cannot have
 	// its reopened rows swept. Row locks below are all SKIP LOCKED, so

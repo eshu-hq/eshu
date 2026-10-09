@@ -44,9 +44,11 @@ path reads, as `replaySucceededReducerDomainQuery` does.
 
 A rollover between the probe and the commit cannot strand the repair: the
 run transaction locks the scope row (`FOR UPDATE`) and then re-resolves the
-active generation inside the transaction, so the reopen always acts on the
-generation that is active when the transaction locks the scope. A rollover
-moves the same row lock, so it serializes against the reopen instead of
+active generation inside the transaction, so a reducer-domain reopen always
+acts on the generation that is active when the transaction locks the scope
+(for `repo_dependency` the fence still serializes the repair but selection
+is scope-level). A rollover
+takes the same row lock to move the pointer, so it serializes against the reopen instead of
 landing mid-run, and the response `generation_id` names the generation that
 was acted on. The fence covers exactly the dangerous case: the supersede
 sweep keys on the active-generation pointer, so a scope with no pinned
