@@ -92,6 +92,7 @@ func analyze(statement Statement, anchorLabels map[string]bool) (int, []Finding)
 	var findings []Finding
 	writes := 0
 	counted := make(map[string]bool)
+	reported := make(map[string]bool)
 	for _, write := range parsed.writes {
 		if parsed.nearestIsRelationship(write) {
 			continue
@@ -118,9 +119,10 @@ func analyze(statement Statement, anchorLabels map[string]bool) (int, []Finding)
 			counted[key] = true
 			writes++
 		}
-		if covered {
+		if covered || reported[key] {
 			continue
 		}
+		reported[key] = true
 		findings = append(findings, Finding{
 			Variable:  write.variable,
 			Labels:    labels,
