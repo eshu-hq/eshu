@@ -24,20 +24,23 @@ observations (production: 1,027,363 identity facts, a 618 to 640 s load).
 Host load average during the runs was 7 to 17 (shared laptop), so absolute
 seconds carry that noise. Before and after ran on the same cluster and corpus.
 
-Raw captures: the after-load and after-drain runs are saved beside the
-report. The before-load run (494.9 s and 504.9 s, digest 9875824362cef277)
-was recorded in session output only; its raw capture is NOT_CHECKED until the
-base-predicate run is repeated and saved.
-
 Performance Evidence: One full load of the active identity set
-(`FactStore.loadIdentityFactsUncached`, 500-row keyset pages, 546,562 rows):
+(`FactStore.loadIdentityFactsUncached`, 500-row keyset pages), raw captures
+`before-load.txt` (base `01ceb1dd0`, JOIN page query) and `after-load-final.txt`
+(final head), same cluster and rows (546,568 rows; six more than the first
+runs because live tests left residue), host load average 8 to 21:
 
 | Page query | Run 1 | Run 2 | Rows | Ordered fact-id digest |
 | --- | --- | --- | --- | --- |
-| JOIN form (before) | 494.9 s (8 min 15 s) | 504.9 s (8 min 25 s) | 546,562 | 9875824362cef277 |
-| Hashed SubPlan form (after) | 4.99 s | 4.77 s | 546,562 | 9875824362cef277 |
+| JOIN form (before) | 12 min 4.2 s (724.2 s) | 9 min 48.7 s (588.7 s) | 546,568 | 54cd8324a2d7fc04 |
+| Hashed SubPlan form (after) | 4.66 s | 4.71 s | 546,568 | 54cd8324a2d7fc04 |
 
-That is about 100 times faster, with an identical ordered row set. The
+An earlier session run on 546,562 rows measured 494.9 s and 504.9 s before and
+4.99 s and 4.77 s after (digest 9875824362cef277 on both); that run was not
+saved raw, and the table above supersedes it. The before time varies with host
+load (495 to 724 s); the after time does not (4.7 to 5.0 s).
+
+That is about 125 to 155 times faster on the raw runs, with an identical ordered row set. The
 per-page `EXPLAIN (ANALYZE, BUFFERS)` on the same shim, first page and a page
 at row 270,000: JOIN form 634 ms and 359 ms (1,676,069 and 844,240 shared
 buffer hits, `Sort` over 546,562 and 274,261 rows); hashed SubPlan form 2.5 ms
@@ -54,7 +57,7 @@ Epoch probe, `EXPLAIN (ANALYZE, BUFFERS)` on the same shim:
 | --- | --- | --- | --- |
 | All generations (before) | 59 to 65 ms | 446,946 | Index-only scan, 1,013,982 rows counted |
 | Active set, JOIN form | 550 to 593 ms | 1,676,082 | Scope-driven nested loop, rejected |
-| Active set, hashed SubPlan (after) | 120 to 135 ms | 51,015 | Parallel bitmap heap scan, 546,562 rows counted |
+| Active set, hashed SubPlan (after) | 120 to 135 ms (EXPLAIN); 100 to 104 ms through the Go path (`after-load-final.txt`) | 51,015 | Parallel bitmap heap scan, 546,562 rows counted |
 
 The after probe is about twice the before probe and needs no new index. It
 reads the heap for `scope_id` and `generation_id` because the partial index
@@ -62,18 +65,21 @@ holds only `(observed_at, fact_id)`. An index that includes `generation_id`
 would bring it back to an index-only scan; that needs a migration and is not
 part of this change.
 
-Drain of 130 items, 8 workers, 2 s of handler work per item, with the new
-code before the in-flight retry was added (no epoch move happened during the
-run, so the retry path was not exercised), a superseded-generation row deleted every 10 s during the run (four
-deletes) on the same shim: 42.9 s total (about 10,900 items per hour), one
-load started (`reload_total` 1), 122 cache hits, 7 waiters served by the shared
-flight, no discarded load. Measured. The before drain was not run: with a 495 to
-505 s load and an epoch that moves every few minutes the cache never populates,
-so each load serves one item. That gives about 130 loads of about 8.4 minutes
-each (about 18 hours at the shim load time), consistent with the production
-backlog projection of more than 12 hours. This before figure is an estimate from
-the measured single-load time and the production observation, not a measured
-drain.
+Drain of 130 items, 8 workers, 2 s of handler work per item, final code, same
+shim (`after-drain-final-superseded.txt`, `after-drain-final-active.txt`):
+
+| Churn during the run | Elapsed | Items per hour | Loads started | In-flight retries | Cache hits | Shared waiters | Torn-set waiters | Discarded loads |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Superseded-generation row deleted every 10 s (4 deletes) | 49.5 s | 9,461 | 1 | 0 | 122 | 7 | 0 | 0 |
+| Active-generation identity fact inserted every 10 s (13 inserts, about two per load) | 139.6 s | 3,353 | 14 | 2 | 52 | 66 | 14 | 2 |
+
+The second row is a worst case: the active set moves about every other load.
+The before drain was not run: with a 500 to 720 s load and an epoch that moves
+every few minutes the cache never populates, so each load served one item. That
+gives about 130 loads of 8 to 12 minutes each (17 to 26 hours at the shim load
+time), consistent with the production projection of more than 12 hours. That
+before figure is an estimate from the measured single-load time and the
+production observation, not a measured drain.
 
 Concurrency: one flight serves every caller that joined it. Arbiter ruling
 (clarification of "every waiter gets the flight rows"): a waiter joins an
@@ -100,6 +106,8 @@ change. Unit tests
 `TestIdentityEpochCacheSharedFlightServesEveryWaiterWhenEpochStable`,
 `...LeaderCancelDoesNotFailWaiters`, `...LoadErrorIsSharedWithWaiters`, and
 `...LeaderPanicReleasesWaiters` cover these paths under `-race`.
+
+Raw captures live in the executor's evidence directory (`red-f6-f8.txt`, `green-unit-r2.txt`, `green-live.txt`, `red-plan-mutation.txt`, `postgres-race-r2.txt`, `gates-r2.txt`).
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
 (Cypher) reads only, so it has no entry for this query. The guard is
