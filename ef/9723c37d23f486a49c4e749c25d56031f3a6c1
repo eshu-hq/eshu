@@ -1,0 +1,36 @@
+go/internal/queryplan/pilot_plan_validation_test.go
+  s_29175cf8c573b8::t_e3b0c7724671f5 49-50,52,65-79
+  s_29175cf8c573b8::t_7c1ed252e49f20 46-48,51,53-64,80-81
+  s_29175cf8c573b8::t_e7dd6d1ea3819f 1-45
+go/internal/queryplan/pilot_test.go
+  s_29175cf8c573b8::t_c1f6723ae19010 53-54
+  s_29175cf8c573b8::t_d91a607fed81e6 52
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_b5024ff2370aaf 73-93,95-153,157-178,180-191,199
+  s_29175cf8c573b8::t_32289bbc075879 94,154-156,179
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_423a7203aa2e8d 284-285,295,297-298,334-339
+go/internal/queryplan/pilot_alternate_test.go
+  s_29175cf8c573b8::t_b5b3160c617171 20,38,50,65,71,77
+go/internal/query/methodology_graph_live_test.go
+  s_29175cf8c573b8::t_dbc9263926e3fd 390-392,406-436
+  s_29175cf8c573b8::t_0b779428eba0d5 437-438
+go/internal/query/methodology_graph_metrics_test.go
+  s_29175cf8c573b8::t_2e85fd18d94ba2 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ef9723c37d23f486a49c4e749c25d56031f3a6c1",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
