@@ -40,6 +40,20 @@ on:
       - scripts/test-verify-apk-floors.sh
       - scripts/fixtures/apk-floors/**
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Normal release publication or pinned CI service image mirror
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - ci-mirrors-publish
+          - ci-mirrors-verify-public
+      expected_sha:
+        description: Exact independently reviewed branch SHA required for mirror publication
+        required: false
+        type: string
 
 concurrency:
   # Main pushes key on the commit sha (#7699): GitHub keeps only one running
@@ -61,6 +75,8 @@ env:
 
 jobs:
   changes:
+    # Mirror dispatches must never enter the normal release graph.
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -158,7 +174,9 @@ jobs:
   # entry that touches none of the paths passes as a no-op.
   verify-apk-floors:
     needs: changes
-    if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true')
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
+      (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.apkfloors == 'true'))
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.apkfloors }}
     timeout-minutes: 10
@@ -185,7 +203,9 @@ jobs:
     # and a queue entry that does not touch this lane passes as a no-op.
     # `changes` diffs the full merge-base range with no file cap, a superset
     # of what required-gates.yml selects, so a selected lane always builds.
-    if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
+      (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
@@ -363,6 +383,7 @@ jobs:
     # The image lane must have run: a chart-only push has no digest (the guard
     # script also refuses an empty digest).
     if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
       needs.changes.outputs.image == 'true' &&
       needs.build-and-push-image.result == 'success' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
@@ -419,7 +440,9 @@ jobs:
     # and a queue entry that does not touch this lane passes as a no-op.
     # `changes` diffs the full merge-base range with no file cap, a superset
     # of what required-gates.yml selects, so a selected lane always builds.
-    if: github.event_name == 'merge_group' || needs.changes.outputs.image == 'true'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
+      (github.event_name == 'merge_group' || needs.changes.outputs.image == 'true')
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.image }}
       # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
@@ -502,7 +525,9 @@ jobs:
     needs:
       - changes
       - build-and-push-image
-    if: needs.changes.outputs.image == 'true' && github.ref_type == 'tag'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
+      needs.changes.outputs.image == 'true' && github.ref_type == 'tag'
     timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
@@ -542,7 +567,9 @@ jobs:
     # and a queue entry that does not touch this lane passes as a no-op.
     # `changes` diffs the full merge-base range with no file cap, a superset
     # of what required-gates.yml selects, so a selected lane always builds.
-    if: github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true'
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') &&
+      (github.event_name == 'merge_group' || needs.changes.outputs.chart == 'true')
     env:
       LANE_APPLIES: ${{ needs.changes.outputs.chart }}
     timeout-minutes: 10
@@ -607,3 +634,59 @@ jobs:
           printf '%s\n' "${push_output}" >&2
           echo "::error::Helm push failed and the published ${version} differs (or is unreadable); not overwriting." >&2
           exit "${push_status}"
+
+  publish-ci-service-mirrors:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' &&
+      github.repository == 'eshu-hq/eshu' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/ci-owned-image-mirror-20261009')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+      - name: Install pinned crane
+        run: GOBIN="${RUNNER_TEMP}" go install github.com/google/go-containerregistry/cmd/crane@v0.20.6
+      - name: Test publisher safety contract
+        run: bash scripts/dev/test-publish-ci-image-mirrors.sh
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Copy exact upstream indexes
+        env:
+          CRANE_BIN: ${{ runner.temp }}/crane
+          EXPECTED_REVIEWED_SHA: ${{ inputs.expected_sha }}
+        run: bash scripts/dev/publish-ci-image-mirrors.sh publish
+
+  verify-public-ci-service-mirrors:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' &&
+      github.repository == 'eshu-hq/eshu' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/ci-owned-image-mirror-20261009')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+      - name: Install pinned crane
+        run: GOBIN="${RUNNER_TEMP}" go install github.com/google/go-containerregistry/cmd/crane@v0.20.6
+      - name: Test publisher safety contract
+        run: bash scripts/dev/test-publish-ci-image-mirrors.sh
+      - name: Verify anonymous digests
+        env:
+          CRANE_BIN: ${{ runner.temp }}/crane
+        run: bash scripts/dev/publish-ci-image-mirrors.sh verify-public
