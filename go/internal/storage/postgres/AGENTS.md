@@ -950,7 +950,7 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   `WithHeartbeatInterval`, from the claim lease in `cmd/reducer`) after ONE
   final probe that serves a filled cache. Outcomes `gave_up_flights` (churn),
   `gave_up_wall` (slow flight). A call's time in the cache is bounded by one
-  heartbeat plus two load attempts; a call with its wait budget used up never
+  heartbeat plus two load attempts and a few probes; a call with its budget spent never
   leads: it fails retryably and the next caller leads. Evidence:
   docs/internal/evidence/7805-identity-epoch-flight.md.
 - **TOCTOU analysis**: the probe→serve window (between epoch probe and cache

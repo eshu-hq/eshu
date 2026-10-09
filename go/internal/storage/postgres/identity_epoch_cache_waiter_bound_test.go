@@ -498,3 +498,32 @@ func TestIdentityEpochCacheFinalProbeServesAFilledCache(t *testing.T) {
 		_ = i
 	}
 }
+
+// TestIdentityEpochCacheGiveUpHonorsTheCallersContext pins that the final probe
+// runs on the caller's own context: a caller whose context has ended gets its
+// own context error, not a give-up, and no gave_up outcome is counted.
+func TestIdentityEpochCacheGiveUpHonorsTheCallersContext(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("giveup-ctx"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	cache, err := NewIdentityEpochCache(inst, 0)
+	if err != nil {
+		t.Fatalf("NewIdentityEpochCache: %v", err)
+	}
+	store := &FactStore{database: newFlightQueryer(1), identityCache: cache}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	rows, err := cache.giveUp(ctx, store, identityWaiterGaveUpFlights, identityGaveUpFlights)
+	if !errors.Is(err, context.Canceled) || len(rows) != 0 {
+		t.Fatalf("giveUp = rows %v err %v, want context.Canceled", rows, err)
+	}
+	outcomes := sumByAttribute(t, reader, "eshu_dp_identity_cache_flight_waiter_total", "outcome")
+	if outcomes[identityWaiterGaveUpFlights] != 0 {
+		t.Fatalf("flight_waiter_total = %v, want no gave_up outcome for an ended context", outcomes)
+	}
+}
