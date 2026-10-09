@@ -1,0 +1,28 @@
+Timing is on.
+SET
+Time: 1.962 ms
+DROP TABLE
+Time: 17.648 ms
+CREATE TABLE
+Time: 6.695 ms
+INSERT 0 180
+Time: 1.473 ms
+INSERT 0 250
+Time: 0.752 ms
+INSERT 0 430
+Time: 1.179 ms
+INSERT 0 430
+Time: 15.818 ms
+INSERT 0 700930
+Time: 16091.783 ms (00:16.092)
+UPDATE 430
+Time: 23.324 ms
+INSERT 0 700930
+Time: 26164.087 ms (00:26.164)
+INSERT 0 2803720
+Time: 180401.740 ms (03:00.402)
+UPDATE 430
+Time: 175.227 ms
+INSERT 0 430
+Time: 3.723 ms
+./psql.sh < sql/06_seed_targets_final.sql  0.01s user 0.01s system 0% cpu 3:42.98 total
