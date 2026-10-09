@@ -91,36 +91,61 @@ WHERE generation.status = 'superseded'
 FOR UPDATE OF generation, scope SKIP LOCKED
 `
 
-// Savepoint around candidate selection (arbiter ruling arb-7127-3d-c). Row
-// locks are released by a rollback to a savepoint, so a batch of one
-// generation admitted over BatchRowLimit can give back every scope and
-// generation row the selection locked and keep only its own. SET LOCAL
-// work_mem is issued before the savepoint, so the rollback keeps it.
+// Savepoint around candidate selection (arbiter ruling arb-7127-3d-c, #7334
+// fix 1). Row locks are released by a rollback to a savepoint, so every
+// pass rolls the selection back and holds no lock while it prescreens,
+// counts, and rechecks; the selected set is re-locked afterwards by the
+// targeted lock. SET LOCAL work_mem is issued before the savepoint, so
+// the rollback keeps it.
 const (
 	generationRetentionSavepointStatement         = "SAVEPOINT retention_selection"
-	generationRetentionReleaseSavepointStatement  = "RELEASE SAVEPOINT retention_selection"
 	generationRetentionRollbackSavepointStatement = "ROLLBACK TO SAVEPOINT retention_selection"
 )
 
-// generationRetentionTargetedCandidateQuery re-locks one candidate after the
-// selection's savepoint rollback: the candidate query's predicates for one
-// (scope, generation) pair, FOR UPDATE OF generation, scope SKIP LOCKED, so
-// the delete of an over-limit batch holds one scope row and one generation
-// row. Rank > $2 is written as "at least $2 newer superseded generations",
-// which is what ROW_NUMBER over (superseded_at, generation_id) DESC means. It
-// is its own statement so the general candidate query's plan is untouched.
-// No row means another session took, re-activated or started work on the
-// candidate after the rollback; the pass then prunes nothing.
+// generationRetentionPrescreenQuery counts own fact_records rows per
+// candidate generation (#7334 fix 2): the pre-screen runs unlocked right
+// after the selection's savepoint rollback, before the heavyweight row
+// count. A generation with more own facts than BatchRowLimit is over the
+// limit on facts alone and is skipped without ever entering the full
+// count. Soundness: fact rows are a subset of the rows outside the
+// changed-since ledger, and every count arm is non-negative, so own facts
+// above the limit decisively exceed it. The join follows the
+// (scope_id, generation_id) index prefix; the LEFT JOIN keeps zero-fact
+// generations in the result with a zero count so they stay countable.
+//
+// $1 generation ids.
+const generationRetentionPrescreenQuery = `-- retention: own-fact pre-screen
+SELECT candidate.generation_id, COUNT(row.fact_id) AS own_facts
+FROM (SELECT unnest($1::text[]) AS generation_id) AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN fact_records AS row
+  ON row.scope_id = generation.scope_id
+ AND row.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+`
+
+// generationRetentionTargetedCandidateQuery re-locks the provisionally
+// selected set after the selection's savepoint rollback (#7334 fix 1): the
+// candidate query's predicates for the given (scope, generation) pairs, in
+// deterministic (scope_id, generation_id) order so two overlapping passes
+// lock rows in the same sequence, FOR UPDATE OF generation, scope SKIP
+// LOCKED, so the delete holds only the rows it is about to prune. Rank >
+// $2 is written as "at least $2 newer superseded generations", which is
+// what ROW_NUMBER over (superseded_at, generation_id) DESC means. It is its
+// own statement so the general candidate query's plan is untouched. A
+// missing row means another session took, re-activated or started work on
+// that candidate after the rollback; the pass silently drops it and prunes
+// the locked subset.
 //
 // $1 soft cutoff, $2 minimum newer generations, $3 excluded ids, $4 scope
-// id, $5 generation id, $6 hard-ceiling cutoff (#7585).
+// ids, $5 generation ids, $6 hard-ceiling cutoff (#7585).
 const generationRetentionTargetedCandidateQuery = `-- retention: targeted candidate lock
 SELECT generation.scope_id, generation.generation_id, scope.scope_kind, generation.superseded_at, generation.observed_at
 FROM scope_generations AS generation
 JOIN ingestion_scopes AS scope ON scope.scope_id = generation.scope_id
-WHERE scope.scope_id = $4
-  AND generation.scope_id = $4
-  AND generation.generation_id = $5
+WHERE generation.scope_id = ANY($4::text[])
+  AND generation.generation_id = ANY($5::text[])
   AND generation.status = 'superseded'
   AND generation.generation_id <> ALL($3::text[])
   AND generation.superseded_at IS NOT NULL
@@ -140,6 +165,7 @@ WHERE scope.scope_id = $4
       WHERE work.generation_id = generation.generation_id
         AND work.status IN ('claimed', 'running', 'retrying')
   )
+ORDER BY generation.scope_id, generation.generation_id
 FOR UPDATE OF generation, scope SKIP LOCKED
 `
 

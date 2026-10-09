@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -119,10 +118,12 @@ func (p GenerationRetentionPolicy) normalize() GenerationRetentionPolicy {
 // table to the deletes (recounted after a row-limit skip).
 //
 // PhaseDurations is keyed by the closed GenerationRetentionPhase* set.
-// ScopeLockHold is the time from the candidate statement, which locks the
-// batch's ingestion_scopes and scope_generations rows, to the end of the
-// commit that releases them: the window a concurrent fact insert into one of
-// those scopes waits out (#7279).
+// ScopeLockHold is the time from the targeted re-lock of the provisionally
+// selected set, which locks only the batch's ingestion_scopes and
+// scope_generations rows, to the end of the commit that releases them: the
+// window a concurrent fact insert into one of those scopes waits out. The
+// candidate selection, pre-screen and row counts run before it, unlocked
+// (#7334). It is zero when the pass locks nothing.
 type GenerationRetentionResult struct {
 	GenerationsPruned int
 	RowsPruned        map[string]int64
@@ -142,12 +143,11 @@ type GenerationRetentionResult struct {
 	// pre-count, so a link that commits after the count and names the
 	// generation on its prior side is deleted uncounted: it can understate.
 	RowsOverLimit int64
-	// LockedScopeRows is the scope rows held by the pruned batch, not the
-	// selection's full lock set: the batch's distinct scopes, 1 for a batch
-	// of one narrowed after its selection (arbiter ruling arb-7127-3d-c). In
-	// the general path the candidate query can also hold further scope rows
-	// it locked while choosing, up to BatchGenerationLimit, which this
-	// figure does not count.
+	// LockedScopeRows is the distinct scopes of the pruned batch. Since
+	// every pass releases the selection's locks before planning and
+	// re-locks only the selected set (#7334), this is usually the pass's
+	// full lock set; when the under-lock refit skips re-locked members,
+	// those stay held through the commit but uncounted here.
 	LockedScopeRows int
 }
 
@@ -157,8 +157,8 @@ type GenerationRetentionStore struct {
 	database db.ExecQueryer
 	Now      func() time.Time
 	// beforeTargetedLock, when set by a test, runs between the selection's
-	// savepoint rollback and the targeted re-lock of an over-limit batch of
-	// one, where another session can take the candidate.
+	// savepoint rollback and the targeted re-lock of the provisionally
+	// selected set, where another session can take a candidate.
 	beforeTargetedLock func()
 }
 
@@ -223,21 +223,27 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 	result.PhaseDurations[GenerationRetentionPhaseKeyIndexCheck] = time.Since(phaseStart)
 
-	// The selection runs inside a savepoint so an over-limit batch of one can
-	// give its other locks back (arbiter ruling arb-7127-3d-c).
+	// The selection runs inside a savepoint so the pass can give the wide
+	// selection lock set back right after selecting (#7334 fix 1): the
+	// pre-screen and the row counts plan the batch unlocked, and only the
+	// provisionally selected set is re-locked before the prune.
 	if _, err := tx.ExecContext(ctx, generationRetentionSavepointStatement); err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: savepoint: %w", err)
 	}
-	// The candidate statement takes the scope and generation row locks; they
-	// are held until the commit below, and ScopeLockHold measures that window.
-	lockStart := time.Now()
 	candidates, rowCounts, eventRowCounts, err := s.selectPrunableCandidates(ctx, tx, now, policy, &result)
 	if err != nil {
 		return GenerationRetentionResult{}, err
 	}
-	candidates, rowCounts, eventRowCounts, err = s.narrowOverLimitBatch(ctx, tx, now, policy, candidates, rowCounts, eventRowCounts, &result)
-	if err != nil {
-		return GenerationRetentionResult{}, err
+	// ScopeLockHold spans the re-lock, its recount and the prune, and is
+	// zero when the pass locks nothing.
+	var narrowHoldStart time.Time
+	held := false
+	if len(candidates) > 0 {
+		narrowHoldStart = time.Now()
+		candidates, rowCounts, eventRowCounts, held, err = s.relockRetentionSelection(ctx, tx, now, policy, candidates, &result)
+		if err != nil {
+			return GenerationRetentionResult{}, err
+		}
 	}
 	if len(candidates) > 0 {
 		if err := s.pruneCandidates(ctx, tx, candidates, rowCounts, eventRowCounts, policy, now, &result); err != nil {
@@ -251,7 +257,9 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	}
 	committed = true
 	result.PhaseDurations[GenerationRetentionPhaseCommit] = time.Since(phaseStart)
-	result.ScopeLockHold = time.Since(lockStart)
+	if held {
+		result.ScopeLockHold = time.Since(narrowHoldStart)
+	}
 	result.Duration = time.Since(start)
 	return result, nil
 }
@@ -263,7 +271,10 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 // skip and re-querying. The re-check loop over a shrinking or growing recount
 // (arbiter ruling arb-7127-3d-b, generationRetentionRecheckLimit) is
 // unrelated and stays: it re-evaluates the same already-fetched candidates
-// after a recount, it does not requery scope_generations.
+// after a recount, it does not requery scope_generations. The selection's
+// savepoint is rolled back before planning, so the pre-screen, the row count
+// and the re-check loop all run unlocked; the caller re-locks the
+// provisionally selected set before pruning (#7334 fix 1).
 func (s GenerationRetentionStore) selectPrunableCandidates(
 	ctx context.Context,
 	tx db.Transaction,
@@ -280,48 +291,39 @@ func (s GenerationRetentionStore) selectPrunableCandidates(
 	if len(candidates) == 0 {
 		return nil, nil, nil, nil
 	}
-
+	// Give the selection's locks back immediately; everything below plans
+	// unlocked, and the caller re-locks only the selected set.
+	if _, err := tx.ExecContext(ctx, generationRetentionRollbackSavepointStatement); err != nil {
+		return nil, nil, nil, fmt.Errorf("generation retention: rollback to savepoint: %w", err)
+	}
+	// #7334 fix 2: generations over the limit on own facts alone can never
+	// join a batch; skip them without running the heavyweight row count.
 	phaseStart = time.Now()
-	_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(candidates), retentionGenerationIDs(candidates))
+	ownFacts, err := s.prescreenOwnFacts(ctx, tx, candidates)
 	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	selected, rowCounts, selectedEventRowCounts, skipped := selectCandidatesWithinRowLimit(
-		candidates, eventRowCounts, policy.BatchRowLimit)
-	for rechecks := 0; len(skipped) > 0; rechecks++ {
-		for _, generationID := range skipped {
-			result.Skipped[rowLimitSkipReason(eventRowCounts[generationID], policy.BatchRowLimit)]++
+	rowLimit := int64(policy.BatchRowLimit)
+	countable := make([]generationRetentionCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if ownFacts[candidate.generationID] > rowLimit {
+			result.Skipped["row_limit_own_rows"]++
+			continue
 		}
-		if len(selected) == 0 {
-			break
-		}
-		if rechecks == generationRetentionRecheckLimit {
-			// Keep the first member only; its rows outside the ledger only
-			// shrink on a recount, so one recount settles it.
-			for _, dropped := range selected[1:] {
-				result.Skipped[rowLimitSkipReason(eventRowCounts[dropped.generationID], policy.BatchRowLimit)]++
-			}
-			selected = selected[:1]
-		}
-		// Skipped generations stay on disk. Their facts protect keys the
-		// count charged to a selected one (#6809), and a changed-since link
-		// shared with one is still deleted with the selected generation, so
-		// its charge moves there (#7127). The recount can shrink or grow;
-		// re-check the limit, at most generationRetentionRecheckLimit times.
-		phaseStart = time.Now()
-		_, eventRowCounts, _, err = s.countRows(ctx, tx, retentionScopeIDs(selected), retentionGenerationIDs(selected))
-		result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		selected, rowCounts, selectedEventRowCounts, skipped = selectCandidatesWithinRowLimit(
-			selected, eventRowCounts, policy.BatchRowLimit)
-		if rechecks == generationRetentionRecheckLimit {
-			break
-		}
+		countable = append(countable, candidate)
 	}
-	return selected, rowCounts, selectedEventRowCounts, nil
+	if len(countable) == 0 {
+		return nil, nil, nil, nil
+	}
+
+	phaseStart = time.Now()
+	_, eventRowCounts, _, err := s.countRows(ctx, tx, retentionScopeIDs(countable), retentionGenerationIDs(countable))
+	result.PhaseDurations[GenerationRetentionPhaseCountRows] += time.Since(phaseStart)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return s.recheckRetentionBatch(ctx, tx, countable, eventRowCounts, policy.BatchRowLimit, result)
 }
 
 type generationRetentionCandidate struct {
@@ -349,40 +351,22 @@ func (s GenerationRetentionStore) selectCandidates(
 	if err != nil {
 		return nil, fmt.Errorf("generation retention: select candidates: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-
-	var candidates []generationRetentionCandidate
-	for rows.Next() {
-		var candidate generationRetentionCandidate
-		if err := rows.Scan(
-			&candidate.scopeID,
-			&candidate.generationID,
-			&candidate.scopeKind,
-			&candidate.supersededAt,
-			&candidate.observedAt,
-		); err != nil {
-			return nil, fmt.Errorf("generation retention: scan candidate: %w", err)
-		}
-		candidates = append(candidates, candidate)
-	}
-	if err := rows.Err(); err != nil {
+	candidates, err := scanRetentionCandidates(rows)
+	if err != nil {
 		return nil, fmt.Errorf("generation retention: select candidates: %w", err)
 	}
 	// The locking SELECT has no ORDER BY; the row count's attribution and the
 	// row limit both rely on oldest-first, generation id breaking ties.
-	slices.SortStableFunc(candidates, func(a, b generationRetentionCandidate) int {
-		if c := a.supersededAt.Compare(b.supersededAt); c != 0 {
-			return c
-		}
-		return strings.Compare(a.generationID, b.generationID)
-	})
+	sortRetentionCandidatesOldestFirst(candidates)
 	return candidates, nil
 }
 
 // Retention cycle phases reported in GenerationRetentionResult.PhaseDurations.
-// The set is closed so it can label a metric: every phase after
-// GenerationRetentionPhaseKeyIndexCheck runs while the batch holds its
-// ingestion_scopes and scope_generations row locks.
+// The set is closed so it can label a metric. Since #7334 the selection,
+// pre-screen and planning counts run unlocked and only the targeted re-lock,
+// its recount and the prune run while the batch holds its ingestion_scopes
+// and scope_generations row locks; the re-lock and recount are timed under
+// the existing select_candidates and count_rows phases.
 const (
 	GenerationRetentionPhaseKeyIndexCheck         = "key_index_check"
 	GenerationRetentionPhaseSelectCandidates      = "select_candidates"

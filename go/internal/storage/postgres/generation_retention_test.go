@@ -218,8 +218,10 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotReportRowsPruned(t *testing.
 	if result.GenerationsPruned != 0 {
 		t.Fatalf("GenerationsPruned = %d, want 0", result.GenerationsPruned)
 	}
-	if got, want := result.Skipped["row_limit"], 1; got != want {
-		t.Fatalf("Skipped[row_limit] = %d, want %d", got, want)
+	// 101 own fact rows over a limit of 100: permanently unprunable on
+	// this path, so #7334 fix 3 reports row_limit_own_rows, not row_limit.
+	if got, want := result.Skipped["row_limit_own_rows"], 1; got != want {
+		t.Fatalf("Skipped[row_limit_own_rows] = %d, want %d", got, want)
 	}
 	if len(result.RowsPruned) != 0 {
 		t.Fatalf("RowsPruned = %#v, want empty for skipped batch", result.RowsPruned)
@@ -281,8 +283,10 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if got, want := result.Skipped["row_limit"], 1; got != want {
-		t.Fatalf("Skipped[row_limit] = %d, want %d", got, want)
+	// generation-huge is over on own facts alone, so #7334 fix 3 reports
+	// row_limit_own_rows; generation-small still prunes behind it.
+	if got, want := result.Skipped["row_limit_own_rows"], 1; got != want {
+		t.Fatalf("Skipped[row_limit_own_rows] = %d, want %d", got, want)
 	}
 	if got, want := result.GenerationsPruned, 1; got != want {
 		t.Fatalf("GenerationsPruned = %d, want %d", got, want)
@@ -361,8 +365,10 @@ func TestGenerationRetentionStoreRowLimitCountsContentCleanupRows(t *testing.T) 
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if got, want := result.Skipped["row_limit"], 1; got != want {
-		t.Fatalf("Skipped[row_limit] = %d, want %d", got, want)
+	// 101 content rows outside the ledger over a limit of 100: #7334 fix 3
+	// reports row_limit_own_rows, not row_limit.
+	if got, want := result.Skipped["row_limit_own_rows"], 1; got != want {
+		t.Fatalf("Skipped[row_limit_own_rows] = %d, want %d", got, want)
 	}
 	if len(result.RowsPruned) != 0 {
 		t.Fatalf("RowsPruned = %#v, want empty for content-row skip", result.RowsPruned)

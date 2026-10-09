@@ -70,12 +70,11 @@ type Result struct {
 	// RowsOverLimit is how far a batch of one generation exceeded
 	// BatchRowLimit because of its changed-since ledger rows (#7127), else 0.
 	RowsOverLimit int64
-	// LockedScopeRows is the scope rows held by the pruned batch, not the
-	// selection's full lock set: the batch's distinct scopes, 1 for a
-	// narrowed batch of one (#7127). In the general path the selection can
-	// also hold other scope rows it locked while choosing, up to
-	// BatchGenerationLimit; the locked_scope_rows log field does not count
-	// them.
+	// LockedScopeRows is the distinct scopes of the pruned batch (#7127).
+	// Since every pass releases the selection's locks before planning and
+	// re-locks only the selected set (#7334), this is usually the pass's
+	// full lock set; when the under-lock refit skips re-locked members,
+	// those stay held through the commit but uncounted here.
 	LockedScopeRows int
 }
 
@@ -267,7 +266,7 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Any("phase_seconds", generationRetentionPhaseSeconds(result.PhaseDurations)),
 		slog.Any("changed_since_ledger_rows_pruned", result.LedgerRowsPruned),
 		slog.Int64("rows_over_batch_row_limit", result.RowsOverLimit),
-		// Scope rows held by the pruned batch, not the selection's full lock set.
+		// Scope rows the re-locked batch held: the pass's full lock set (#7334).
 		slog.Int("locked_scope_rows", result.LockedScopeRows),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

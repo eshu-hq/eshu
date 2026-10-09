@@ -56,8 +56,9 @@ const retentionScaleGrowthControl = 1.5
 // statement to grow more than 10%. The frozen #6809 statements are measured on
 // the same fixture as a control and must grow at least 1.5x. After each
 // measurement it runs a real retention cycle while a second session inserts a
-// fact into a locked scope, and checks that the insert waits for the scope lock
-// and is released by the commit.
+// fact into a locked scope, and checks that the insert waits for the
+// re-locked scope lock and is released by the commit (the planning counts
+// run unlocked since #7334; only the narrow window blocks).
 func TestGenerationRetentionProbeCostIsIndependentOfTableSizeLive(t *testing.T) {
 	database, ctx := openGenerationRetentionMigratedSchema(t)
 	disableRetentionProbeAutovacuum(t, ctx, database)
@@ -192,10 +193,12 @@ func retentionTextPlan(t *testing.T, ctx context.Context, database *sql.DB, stat
 }
 
 // runRetentionCycleUnderContention runs one real retention cycle. As soon as
-// the cycle holds its scope locks (its row-count statement starts), a second
-// session inserts a fact into lockedScope, which needs a FOR KEY SHARE lock on
-// that scope row. It fails unless the insert waited for the cycle's commit and
-// finished right after it, and returns the cycle's scope-lock hold.
+// the cycle holds its scope locks (its targeted re-lock of the selected set
+// starts; the selection, pre-screen and planning counts run unlocked since
+// #7334), a second session inserts a fact into lockedScope, which needs a FOR
+// KEY SHARE lock on that scope row. It fails unless the insert waited for the
+// cycle's commit and finished right after it, and returns the cycle's
+// scope-lock hold (the narrow re-lock-to-commit window).
 func runRetentionCycleUnderContention(t *testing.T, ctx context.Context, database *sql.DB, lockedScope, generation string) time.Duration {
 	t.Helper()
 	probe := &retentionLockProbeDB{inner: SQLDB{DB: database}, locked: make(chan struct{})}
@@ -254,8 +257,9 @@ VALUES ('contention/' || $1, $1, $2, 'filler', 'contention', 'git', 'contention'
 }
 
 // retentionLockProbeDB wraps the store's database to timestamp the moment the
-// retention transaction holds its scope locks (its first row-count statement),
-// the moment it starts to commit, and the moment the commit returns.
+// retention transaction holds its scope locks (its recount under the
+// targeted re-lock of the selected set), the moment it starts to commit,
+// and the moment the commit returns.
 type retentionLockProbeDB struct {
 	inner       SQLDB
 	locked      chan struct{}
@@ -286,10 +290,22 @@ func (p *retentionLockProbeDB) Begin(ctx context.Context) (db.Transaction, error
 type retentionLockProbeTx struct {
 	db.Transaction
 	probe *retentionLockProbeDB
+	// relocked is set once the pass issues its targeted re-lock, so the
+	// probe can tell the re-lock's recount (locks held) from the unlocked
+	// planning counts before it.
+	relocked bool
 }
 
 func (tx *retentionLockProbeTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	if strings.Contains(query, "generation_retention_row_counts") && tx.probe.lockedAt.IsZero() {
+	// The re-lock's rows are locked once the store consumes them, which is
+	// strictly before its recount: firing on the first row count after the
+	// targeted lock observes the narrow window while it is held. Firing on
+	// the targeted lock itself would release the insert before any row is
+	// locked, since this hook runs before the statement executes.
+	if strings.Contains(query, "retention: targeted candidate lock") {
+		tx.relocked = true
+	}
+	if tx.relocked && strings.Contains(query, "generation_retention_row_counts") && tx.probe.lockedAt.IsZero() {
 		tx.probe.lockedAt = time.Now()
 		tx.probe.release()
 		// Give the contending insert time to reach its lock wait.

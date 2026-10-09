@@ -150,12 +150,14 @@ most its own ledger rows; while another batch is being filled it is deferred
 with reason `row_limit_ledger` and leads a later batch. So a link larger than
 the limit no longer holds the generations it names
 (`TestRetentionRowLimitDoesNotStarveLedgerHeavyGenerations`). A candidate
-whose rows outside the ledger exceed the limit is still skipped
-(`row_limit`, ADR #2248). Such a batch of one holds one scope row and one
-generation row while it deletes: the retention store selects inside a
-savepoint, rolls back to it (which releases the selection's row locks), and
-re-locks only that candidate with its own targeted query before it recounts
-and deletes (arbiter ruling arb-7127-3d-c). After a skip the
+whose own rows outside the ledger exceed the limit is skipped as
+permanent (`row_limit_own_rows`, ADR #2248): the pre-screen excludes it
+before the full count, since only its own prune could delete those rows.
+The deferred rest keep `row_limit`. Every pass selects inside a
+savepoint, rolls back to it (which releases the selection's row locks),
+plans unlocked, and re-locks only the selected set in `(scope,
+generation)` order with `SKIP LOCKED` before it recounts and deletes
+(arbiter ruling arb-7127-3d-c). After a skip the
 batch is recounted and the limit is checked again: a link shared with a
 skipped generation is still deleted with the selected one, so its charge
 moves there and a recount can grow.
