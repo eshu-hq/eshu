@@ -28,7 +28,8 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // such intent (docs, IaC) is complete without a watermark. A zero-root
 // repository WITH edge intents is not excluded: without a snapshot none of
 // its own edges has been examined, so one may still reach the producer
-// symbol directly, and its missing or truncated watermark stays a gap.
+// symbol through its own edges alone, and its missing or truncated
+// watermark stays a gap.
 // Each snapshot is its own transitive closure over its own scope's edges
 // only (#7592); the walk never chains one repository's edges with another's.
 //
