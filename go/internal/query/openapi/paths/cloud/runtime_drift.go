@@ -127,7 +127,14 @@ const RuntimeDrift = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "501": {
+            "description": "Not implemented: the active query profile does not support cloud runtime drift readback (unsupported_capability), or the reducer drift finding read model is not wired (read_model_unavailable). Neither is a transient outage, so retrying does not help.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
