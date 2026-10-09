@@ -37,6 +37,7 @@ EOF
 cat >>"${seed_dir}/bin/go" <<'EOF'
 while read -r var; do
   case "${var}" in
+    ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN) want="${ESHU_EXPECTED_READER_DSN:-}" ;;
     *_DSN) want="${ESHU_EXPECTED_DSN:-}" ;;
     ESHU_NEO4J_URI) want="${ESHU_EXPECTED_NEO4J_URI:-}" ;;
     ESHU_NEO4J_USERNAME) want="${ESHU_EXPECTED_NEO4J_USERNAME:-}" ;;
@@ -65,9 +66,11 @@ for var in ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF ESHU_PACKAGE_MANIFEST_REPO_SCOPE_
   ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF \
   ESHU_PROJECTOR_SUPERSESSION_PROOF \
   ESHU_PREFETCH_BATCH_PLAN_PROOF ESHU_REDUCER_FAIRNESS_PROOF \
-  ESHU_RECOVERY_DELTA_ACTIVE_PROOF; do
+  ESHU_RECOVERY_DELTA_ACTIVE_PROOF \
+  ESHU_TEST_CONTENT_INDEX_POSTGRES; do
   printf '%s_DSN\n%s_DISPOSABLE\n' "${var}" "${var}" >>"${fake}/envs"
 done
+printf '%s\n' ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN >>"${fake}/envs"
 for var in ESHU_NEO4J_URI ESHU_NEO4J_USERNAME ESHU_NEO4J_PASSWORD \
   ESHU_GRAPH_BACKEND; do
   printf '%s\n' "${var}" >>"${fake}/envs"
@@ -75,11 +78,13 @@ done
 
 export ESHU_FAKE_DIR="${fake}"
 export ESHU_EXPECTED_DSN='postgres://postgres:local-test@127.0.0.1:15432/postgres?sslmode=disable'
+export ESHU_EXPECTED_READER_DSN='postgres://postgres:local-test@127.0.0.1:15433/postgres?sslmode=disable'
 export ESHU_EXPECTED_NEO4J_URI='neo4j://127.0.0.1:17687'
 export ESHU_EXPECTED_NEO4J_USERNAME='neo4j'
 export ESHU_EXPECTED_NEO4J_PASSWORD='local-test-neo4j'
 while read -r var; do
   case "${var}" in
+    ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN) export "${var}=${ESHU_EXPECTED_READER_DSN}" ;;
     *_DSN) export "${var}=${ESHU_EXPECTED_DSN}" ;;
     ESHU_NEO4J_URI) export "${var}=${ESHU_EXPECTED_NEO4J_URI}" ;;
     ESHU_NEO4J_USERNAME) export "${var}=${ESHU_EXPECTED_NEO4J_USERNAME}" ;;
@@ -106,6 +111,8 @@ load_proofs() {
   [[ "${#packages[@]}" -gt 0 && "${#proofs[@]}" -gt 0 ]] || fail "list-packages produced no proofs from $1"
 }
 load_proofs "${checker}"
+[[ " ${proofs[*]} " == *"./internal/query|TestCodeTopicFleetCapacityEndpointPostgresLive"* ]] ||
+  fail "code-topic fleet endpoint proof is not enrolled"
 first_pkg="${packages[0]}"
 last_pkg="${packages[$((${#packages[@]} - 1))]}"
 total="${#proofs[@]}"
@@ -313,6 +320,7 @@ out="$(python3 "${checker}" verify-ledger "${seed_dir}/ledger-wrong-runner.yaml"
 tree="${seed_dir}/tree"
 mkdir -p "${tree}/scripts/lib" "${tree}/specs"
 cp "${runner}" "${tree}/scripts/"
+cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${tree}/scripts/lib/"
 ln -s "${repo_root}/go" "${tree}/go"
 tree_runner="${tree}/scripts/$(basename "${runner}")"
 tree_checker="${tree}/scripts/lib/$(basename "${checker}")"
@@ -373,6 +381,7 @@ runner="${repo_root}/scripts/run-live-postgres-readiness-tests.sh"
 load_proofs "${checker}"
 
 # list-packages fails closed on an empty or malformed PACKAGES.
+cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/"
 awk '/^PACKAGES = \{/ { print "PACKAGES = {}"; skip = 1; next } skip && /^\}$/ { skip = 0; next } !skip' \
   "${checker}" >"${seed_dir}/empty.py"
 out="$(python3 "${seed_dir}/empty.py" list-packages 2>&1)" && fail "empty PACKAGES listed"
