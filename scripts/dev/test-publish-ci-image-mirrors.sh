@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 publisher="${repo_root}/scripts/dev/publish-ci-image-mirrors.sh"
+mirror_doc="${repo_root}/docs/internal/ci-service-image-mirrors.md"
 scratch="$(mktemp -d)"
 trap 'rm -r -- "${scratch}"' EXIT
 
@@ -84,6 +85,19 @@ expect_failure() {
   fi
 }
 
+check_documented_copies() {
+  local document="$1" command source destination row
+  local count=0
+  while IFS= read -r command; do
+    read -r _ _ source destination <<< "${command}"
+    printf -v row "| \`%s\` | \`%s\` | \`%s\` |" "${source}" "${destination}" "${source##*@}"
+    rg -Fqx -- "${row}" "${document}" || return 1
+    count=$((count + 1))
+  done < <(rg '^cp --no-clobber ' "${CRANE_CALLS}" | sort -u)
+  [[ "${count}" -eq 3 ]] || return 1
+  [[ "$(rg -c '^\| `mirror\.gcr\.io/library/' "${document}")" -eq 3 ]]
+}
+
 expect_failure bash "${publisher}" unknown
 [[ ! -e "${CRANE_CALLS}" ]] || fail 'invalid mode called crane'
 
@@ -116,6 +130,12 @@ unset CRANE_BAD_SOURCE
 
 bash "${publisher}" publish > "${scratch}/out"
 [[ "$(rg -c '^cp --no-clobber ' "${CRANE_CALLS}")" == 3 ]] || fail 'not exactly three guarded copies'
+check_documented_copies "${mirror_doc}" || fail 'operator image table differs from publisher copies'
+sed 's/sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873/sha256:0000000000000000000000000000000000000000000000000000000000000000/' \
+  "${mirror_doc}" > "${scratch}/drifted-doc.md"
+if check_documented_copies "${scratch}/drifted-doc.md"; then
+  fail 'seeded operator image-table drift was not detected'
+fi
 rg -q '^cp --no-clobber mirror.gcr.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873 ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873$' "${CRANE_CALLS}" || fail 'Alpine source/destination mismatch'
 rg -q '^cp --no-clobber mirror.gcr.io/library/postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c$' "${CRANE_CALLS}" || fail 'Bookworm source/destination mismatch'
 rg -q '^cp --no-clobber mirror.gcr.io/library/neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f$' "${CRANE_CALLS}" || fail 'Neo4j source/destination mismatch'
