@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -197,24 +198,55 @@ func TestProjectorCanonicalExecutorPreservesConfiguredNornicDBFanout(t *testing.
 	}
 }
 
-func TestProjectorCanonicalExecutorKeepsNeo4jGroupedWithoutNornicDBTimeout(t *testing.T) {
+// TestProjectorCanonicalExecutorBoundsUnsetNeo4jGroupedWrites pins that an
+// unset Neo4j timeout wraps the grouped projector executor in the #7471
+// default bound, while an explicit zero keeps it unwrapped. The 300s value
+// (not NornicDB's 30s) proves the Neo4j path does not inherit the NornicDB
+// timeout.
+func TestProjectorCanonicalExecutorBoundsUnsetNeo4jGroupedWrites(t *testing.T) {
 	t.Parallel()
 
-	executor := projectorCanonicalExecutorForGraphBackend(
-		&projectorRetryRecordingExecutor{},
-		runtimecfg.GraphBackendNeo4j,
-		projectorNornicDBConfig{},
-		func(string) string { return "" },
-		nil,
-		nil,
-		nil, // no capture session: passthrough
-	)
-	if _, ok := executor.(sourcecypher.TimeoutExecutor); ok {
-		t.Fatal("Neo4j projector executor unexpectedly uses NornicDB timeout wrapper")
+	build := func(raw string) sourcecypher.Executor {
+		getenv := func(key string) string {
+			if key == "ESHU_CANONICAL_WRITE_TIMEOUT" {
+				return raw
+			}
+			return ""
+		}
+		return projectorCanonicalExecutorForGraphBackend(
+			&projectorRetryRecordingExecutor{},
+			runtimecfg.GraphBackendNeo4j,
+			projectorNornicDBConfig{},
+			getenv,
+			nil,
+			nil,
+			nil, // no capture session: passthrough
+		)
 	}
-	if _, ok := executor.(sourcecypher.GroupExecutor); !ok {
-		t.Fatal("Neo4j projector executor does not expose grouped writes")
-	}
+	t.Run("unset wraps with default", func(t *testing.T) {
+		t.Parallel()
+		executor := build("")
+		bounded, ok := executor.(sourcecypher.TimeoutExecutor)
+		if !ok {
+			t.Fatalf("executor = %T, want sourcecypher.TimeoutExecutor", executor)
+		}
+		if bounded.Timeout != 300*time.Second {
+			t.Fatalf("timeout = %s, want %s", bounded.Timeout, 300*time.Second)
+		}
+		if _, ok := executor.(sourcecypher.GroupExecutor); !ok {
+			t.Fatal("Neo4j projector executor does not expose grouped writes")
+		}
+	})
+	t.Run("explicit zero stays unwrapped", func(t *testing.T) {
+		t.Parallel()
+		executor := build("0s")
+		if _, ok := executor.(sourcecypher.TimeoutExecutor); ok {
+			t.Fatal("Neo4j projector executor unexpectedly uses timeout wrapper")
+		}
+		if _, ok := executor.(sourcecypher.GroupExecutor); !ok {
+			t.Fatal("Neo4j projector executor does not expose grouped writes")
+		}
+	})
 }
 
 func projectorNornicDBConfigForTest(

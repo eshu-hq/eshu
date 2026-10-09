@@ -31,7 +31,8 @@ assumed a bounded write.
   before the server terminates the transaction (the lock-wait case returned
   after 2.57 to 3.47s against a 2s timeout), so a timed-out write requeues as
   retryable `graph_write_timeout` on both backends instead of dead-lettering
-  on Neo4j. With the variable unset, no client-deadline wrapper is added.
+  on Neo4j. With the variable unset, no client-deadline wrapper was added at
+  the time (since #7471 the `300s` default wraps it).
 - The retry classifier treats the two statuses Neo4j reports for a timed-out
   transaction the same way it already treated NornicDB's
   `TransactionTimedOutClientConfiguration`: no local retry, a durable
