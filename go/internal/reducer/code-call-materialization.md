@@ -242,11 +242,25 @@ manifests in `content_files` name that package, nested workspace manifests
 included. Only those scopes' active file facts are scanned. A package published
 by two or more repositories loads every producer, so the unique-or-unresolved
 rule still leaves the key unresolved. A package key with no producer manifest
-issues no definition scan and stays unresolved. Every other key (Go
-`stable_symbol_key`, SCIP symbols) keeps the corpus-wide scan unchanged. No
+issues no definition scan and stays unresolved. Every other key (SCIP symbols,
+malformed Go keys) keeps the corpus-wide scan unchanged. No
 parser emits `package:` call keys yet, so resolution output is unchanged until
 the JavaScript and TypeScript parser change lands. Measurements are in
 `docs/internal/evidence/7601-anchored-symbol-definition-loader.md`.
+
+## Producer-anchored Go module keys (issue #7623)
+
+A `scip-go gomod <import_path> ...` key is anchored on its producer scopes:
+the repository scopes with an active generation whose stored `go.mod`
+manifests in `content_files` declare that import path's module, matched at a
+path boundary so `github.com/acme/libext` never answers for
+`github.com/acme/lib`. Only those scopes' active file facts are scanned. A
+module declared by two or more repositories loads every producer, so the
+unique-or-unresolved rule still leaves the key unresolved. A Go key whose
+module no stored manifest declares falls back to the corpus-wide scan with
+the same keys, so the answer stays exactly the full-scan answer.
+Measurements are in
+`docs/internal/evidence/7623-go-module-anchored-loader.md`.
 
 Both scans read each file's `parsed_file_data` once, in a `LATERAL` subquery in
 the shared query head, and match the five definition arrays from that value.
