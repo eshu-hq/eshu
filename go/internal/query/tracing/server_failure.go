@@ -60,12 +60,22 @@ func ServerFailureEnvelope(ctx context.Context, err error, message, capability s
 	}
 }
 
+// ClientCanceled reports whether err is the caller walking away from its own
+// request: errors.Is(err, context.Canceled) && errors.Is(ctx.Err(),
+// context.Canceled), where ctx is the request context. A context.Canceled
+// from some inner context on a live request is a server fault, not a client
+// cancel. WriteServerFailure answers 499 exactly when this holds, so a caller
+// that also logs on it keeps its log decision and the status in step.
+func ClientCanceled(ctx context.Context, err error) bool {
+	return errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled)
+}
+
 // markServerFailure records the failure on ctx's span and returns the status
 // to answer: 499 for a client cancel, otherwise status (504 kept, anything
 // else 500).
 func markServerFailure(ctx context.Context, err error, status int, message string) int {
 	span := trace.SpanFromContext(ctx)
-	if errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled) {
+	if ClientCanceled(ctx, err) {
 		span.AddEvent(ClientCanceledEvent)
 		return querycontract.StatusClientClosedRequest
 	}
