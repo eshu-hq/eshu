@@ -3,6 +3,8 @@
 
 package evidencebundle
 
+import "github.com/eshu-hq/eshu/go/internal/status"
+
 // SchemaVersion is the stable schema identifier for portable evidence bundles.
 const SchemaVersion = "evidence_bundle.v1"
 
@@ -18,6 +20,12 @@ type Bundle struct {
 	Reproduce     []ReproduceCall   `json:"reproduce"`
 	Bounds        Bounds            `json:"bounds"`
 	Validation    Validation        `json:"validation"`
+	// ActiveWorkSource says whether the queue, stage, backlog, blockage, and
+	// failure figures in Contents came from the stored status summary or the
+	// live statement and how old they are (#7660). It is nil, and the key
+	// omitted, for bundles built without a status reader report (demo
+	// bundles and marker-less callers).
+	ActiveWorkSource *status.ActiveWorkSourceJSON `json:"active_work_source,omitempty"`
 }
 
 // Identity names the bounded bundle scope without embedding private locators.

@@ -44,7 +44,7 @@ func (h *StatusHandler) getFreshnessCausality(w http.ResponseWriter, r *http.Req
 		w,
 		r,
 		http.StatusOK,
-		freshnessCausalityToMap(fc, report.AsOf, scopedAuthContext(r.Context())),
+		withActiveWorkSource(freshnessCausalityToMap(fc, report.AsOf, scopedAuthContext(r.Context())), report.ActiveWorkSource),
 		freshnessCausalityTruth(h.profile(), fc, report.AsOf),
 	)
 }
