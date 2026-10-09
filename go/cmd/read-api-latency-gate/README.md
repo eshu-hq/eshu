@@ -47,6 +47,7 @@ not own the routes themselves (`go/internal/query`), the surface inventory
 - `SweepConcurrentOperations` — optional bounded worker proof over the pilots
   after the required sequential metered sweep. It rejects a work meter because
   overlapping requests cannot be attributed to one operation. Its report
+  requires observed overlap (at least two client requests in flight) and
   includes exact request/success counts, peak in-flight requests, wall time,
   throughput, samples, and p95. Set `GATE_CONCURRENT_WORKERS=2..16` and
   `GATE_CONCURRENT_REQUESTS` in the runner.

@@ -197,3 +197,8 @@ only, so it adds no metric, span, log or runtime path.
 No-Observability-Change: this package performs static validation only. It adds
 no API route, graph query, graph write, metric, span, runtime knob, queue work,
 or provider call.
+
+When a backend cannot return a full plan, alternate evidence must include a
+nonempty structured `plan` surrogate, structured numeric `work`, and a
+`producer` distinct from the declared runner. Its `artifact_sha256` must equal
+`PilotJSONSHA256(plan)`. A reason alone, null, or an empty object is insufficient.

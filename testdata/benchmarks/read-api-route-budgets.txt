@@ -144,6 +144,8 @@ GET /api/v0/status/governance	1000	#6794 post-fix target
 GET /api/v0/status/hosted-readiness	1000	#6794 post-fix target
 GET /api/v0/status/index	1000	#6794 post-fix target
 GET /api/v0/status/ingesters	1000	#6794 post-fix target
+GET /api/v0/status/ingesters/{ingester}	1000	#7881: adopt existing status-family SLO for the parameterized shared status reader
+MCP get_index_status	1000	#7881: adopt existing index-status SLO through the MCP transport
 GET /api/v0/status/operations	1000	#6794 post-fix target; catalog p95 2000ms is looser
 GET /api/v0/status/operator-control-plane	1000	#6794 post-fix target
 GET /api/v0/status/pipeline	1000	#6794 post-fix target
