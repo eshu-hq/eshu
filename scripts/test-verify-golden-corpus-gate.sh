@@ -206,6 +206,16 @@ runtime_snapshot_quarantine_generation="$(
 [[ "${runtime_snapshot_quarantine_generation}" == "${runtime_snapshot_generation}" ]] ||
 	fail "runtime snapshot must bind quarantine readback to the producer-created generation"
 rm -rf "${runtime_snapshot_test_dir}"
+# #7740 sequencing cases: simulated slow/fast drains against the suppression
+# proof lib. Extracted to a chunk; this file only sources it and checks the
+# completion sentinel, as with the matcher guard cases above.
+suppression_seq_cases_lib="${repo_root}/scripts/lib/golden-corpus-suppression-sequencing-cases.sh"
+[[ -f "${suppression_seq_cases_lib}" ]] || fail "missing suppression sequencing cases lib: ${suppression_seq_cases_lib}"
+bash -n "${suppression_seq_cases_lib}" || fail "golden-corpus-suppression-sequencing-cases.sh has a syntax error"
+# shellcheck source=scripts/lib/golden-corpus-suppression-sequencing-cases.sh
+. "${suppression_seq_cases_lib}"
+[[ "${suppression_sequencing_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-suppression-sequencing-cases.sh did not run to completion (gutted, or returned early)"
 rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth" "${script}" \
 	|| fail "golden gate must execute the suppression producer proof helper"
 rg --fixed-strings --quiet -- '${golden_suppression_runtime_snapshot}' "${script}" \
