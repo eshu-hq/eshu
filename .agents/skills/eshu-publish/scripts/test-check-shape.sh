@@ -165,8 +165,16 @@ expect_not "block: 11-line fence in <details> is quiet" 0 "WARN block" pr "${tmp
 expect_not "block: long Mermaid fence is quiet" 0 "WARN block" pr "${tmp}/diagram.md"
 seq 1 14 | sed 's/^/- item /' | with list14
 expect "block: 14-line list in the open warns" 0 "WARN block" pr "${tmp}/list14.md"
+# A list may follow its intro line with no blank line (CommonMark and GitHub render it as a list).
+{ echo 'What changed:'; for i in $(seq 1 11); do echo "- Item ${i}: the verb, the object, and the why, in about one sentence of text here."; done; } | with intro-list11
+expect_not "list: bullets right after an intro line are not one paragraph" 0 "paragraph" pr "${tmp}/intro-list11.md"
+expect "list: 11 bullets after an intro line still warn as a list" 0 "WARN block" pr "${tmp}/intro-list11.md"
+{ echo 'Steps:'; echo '1. one'; echo '2. two'; echo 'Done.'; } | with intro-numbered
+expect_not "list: a numbered list right after an intro line is quiet" 0 "paragraph" pr "${tmp}/intro-numbered.md"
 seq 1 14 | sed 's/^/+ item /' | with plus14
 expect "list: + markers count as a list, not prose" 0 "WARN block" pr "${tmp}/plus14.md"
+seq 1 14 | sed 's/^/* item /' | with star14
+expect "list: * markers count as a list, not prose" 0 "WARN block" pr "${tmp}/star14.md"
 seq 1 14 | sed 's/$/) item/' | with paren14
 expect "list: 1) markers count as a list, not prose" 0 "WARN block" pr "${tmp}/paren14.md"
 

@@ -112,10 +112,13 @@ function flush(   first, w, len) {
   if (line ~ /NOT_CHECKED/) notchecked = 1
   total += length(line) + 1
   if (line ~ /^[ \t]*$/) { flush(); next }
+  # A list may follow its intro line with no blank line, so a list item that
+  # starts while a prose block is open closes that block first.
+  if (n > 0 && line ~ /^(- |\+ |\* |[0-9]+[.)] )/ && firstline !~ /^(\||- |\* |\+ |[0-9]+[.)] |#|<|>)/) flush()
   if (n == 0) firstline = line
   buf = (n == 0) ? line : buf " " line
   n++
-  if (line ~ /^(\||- |\+ |[0-9]+[.)] )/) nlist++
+  if (line ~ /^(\||- |\+ |\* |[0-9]+[.)] )/) nlist++
 }
 END {
   flush()
