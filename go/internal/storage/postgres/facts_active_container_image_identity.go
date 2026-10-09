@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -261,4 +262,90 @@ func (s *FactStore) listActiveContainerImageIdentityFactsPage(
 	}
 
 	return loaded, nil
+}
+
+// IdentityEpochUnstableFailureClass is the durable failure_class of
+// identityLoadUnstableError. It labels the reducer retry and failure metrics and
+// the queue's failure_class column. It is deliberately NOT one of the
+// non-counting retry classes: each retry consumes a claim attempt, so a
+// persistently moving epoch ends in the normal dead-letter policy instead of an
+// unbounded loop (#7805).
+const IdentityEpochUnstableFailureClass = "identity_epoch_unstable"
+
+// identityLoadUnstableError reports that the identity fact set kept changing
+// (or could not be re-validated) while it was being paged, so no consistent set
+// exists to decide on. It is retryable and carries a failure class: the reducer
+// queue re-runs the item, which re-enters the cache with a fresh epoch probe.
+type identityLoadUnstableError struct {
+	reason string
+}
+
+func newIdentityLoadUnstableError(reason string) error {
+	return identityLoadUnstableError{reason: reason}
+}
+
+// Error implements error.
+func (e identityLoadUnstableError) Error() string {
+	return "identity fact set did not stabilize (" + e.reason + "); the item will be retried"
+}
+
+// Retryable marks the failure as one the durable queue should retry.
+func (identityLoadUnstableError) Retryable() bool { return true }
+
+// FailureClass names the failure for queue status and operator triage.
+func (identityLoadUnstableError) FailureClass() string { return IdentityEpochUnstableFailureClass }
+
+// estimateEnvelopesByteSize returns a conservative byte estimate for a set of
+// fact envelopes, used for the cache cap check. It returns an error if any
+// envelope's Payload cannot be sized via json.Marshal (e.g. a NaN/Inf float or
+// another value json.Marshal rejects). Callers MUST treat a non-nil error as
+// "unsizable, do not cache" rather than substituting a 0 or estimated size:
+// silently under-counting an unsizable payload could let it slip under the
+// cache's maxBytes cap.
+func estimateEnvelopesByteSize(loaded []facts.Envelope) (int64, error) {
+	var total int64
+	for _, env := range loaded {
+		total += int64(len(env.FactID))
+		total += int64(len(env.ScopeID))
+		total += int64(len(env.GenerationID))
+		total += int64(len(env.FactKind))
+		total += int64(len(env.StableFactKey))
+		total += int64(len(env.SchemaVersion))
+		total += int64(len(env.CollectorKind))
+		total += int64(len(env.SourceConfidence))
+		total += int64(len(env.SourceRef.SourceSystem))
+		total += int64(len(env.SourceRef.FactKey))
+		total += int64(len(env.SourceRef.SourceURI))
+		total += int64(len(env.SourceRef.SourceRecordID))
+		// Estimate payload as its JSON serialization size.
+		if env.Payload != nil {
+			b, err := json.Marshal(env.Payload)
+			if err != nil {
+				return 0, fmt.Errorf("estimate envelope %s payload size: %w", env.FactID, err)
+			}
+			total += int64(len(b))
+		}
+		// Fixed overhead: each time.Time, int64, bool ~ 40 bytes.
+		total += 40
+	}
+	return total, nil
+}
+
+// defensiveCopyEnvelopes returns a fresh slice with a one-level copy of each
+// envelope's Payload map, so callers cannot mutate the shared cache through
+// top-level payload keys. Nested payload values (e.g. entity_metadata maps)
+// are shared by reference; identity-load callers are read-only by audit, and
+// new callers must not mutate nested payload values.
+func defensiveCopyEnvelopes(src []facts.Envelope) []facts.Envelope {
+	dst := make([]facts.Envelope, len(src))
+	for i, env := range src {
+		dst[i] = env
+		if env.Payload != nil {
+			dst[i].Payload = make(map[string]any, len(env.Payload))
+			for k, v := range env.Payload {
+				dst[i].Payload[k] = v
+			}
+		}
+	}
+	return dst
 }

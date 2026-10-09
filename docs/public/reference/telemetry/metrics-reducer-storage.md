@@ -466,7 +466,7 @@ whether callers are sharing one load or queueing behind many.
 | `eshu_dp_identity_cache_load_retry_total` | counter | Loads discarded and repeated inside one flight because the epoch moved during the paged load (at most one retry per flight). |
 | `eshu_dp_identity_cache_reload_duration_seconds` | histogram | Duration of every load, cached or not. |
 | `eshu_dp_identity_cache_passthrough_total` | counter | Loads that were not cached. Label `reason`: `cap_exceeded` and `size_unknown` serve the consistent set to its callers uncached; `epoch_moved` and `probe_error` discard an unvalidated set (the leader's item fails with the `identity_epoch_unstable` failure class). |
-| `eshu_dp_identity_cache_flight_waiter_total` | counter | Callers that arrived during a load. Label `outcome`: `shared` (served that load's rows), `shared_error`, `stale_epoch` (the caller's epoch probe differs from the load's start epoch; retried), `leader_canceled` (retried), `torn_set` (the load could not be validated against a stable epoch; retried). |
+| `eshu_dp_identity_cache_flight_waiter_total` | counter | Callers that arrived during a load. Label `outcome`: `shared` (served that load's rows), `shared_error`, `stale_epoch` (the caller's epoch probe differs from the load's start epoch; retried), `leader_canceled` (retried), `torn_set` (the load could not be validated against a stable epoch; retried), `gave_up` (the caller hit its patience bound, 3 unserved flights or one reducer heartbeat interval of total waiting, and its item failed with `identity_epoch_unstable`). |
 | `eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total` | counter | Epoch-validated cache hits and misses. |
 | `eshu_dp_identity_cache_probe_duration_seconds` | histogram | Duration of the epoch probe, which runs on every call. |
 
@@ -480,6 +480,14 @@ count repeatedly torn items, use
 `sum(increase(eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}[1h]))`.
 The class counts claim attempts, so the existing attempt limit bounds it. Waiters of that
 flight show as `flight_waiter_total{outcome="torn_set"}`.
+
+A waiter does not wait without limit. It gives up after 3 flights that did not serve it, or
+after one reducer heartbeat interval of total waiting (30 s with the default one-minute claim
+lease), whichever comes first, and its item fails with the same retryable
+`identity_epoch_unstable` class (counted as `flight_waiter_total{outcome="gave_up"}`). The
+leader is bounded by its two load attempts instead. No worker blocks inside the identity cache
+longer than one heartbeat interval. Without the bound, sustained epoch churn parked every
+worker of the pool on a flight and the pool stalled.
 
 A healthy domain shows many `shared` waiters per `reload_total`. A high
 `passthrough_total{reason="epoch_moved"}` means the active set changes faster

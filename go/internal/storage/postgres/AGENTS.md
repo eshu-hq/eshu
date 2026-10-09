@@ -949,7 +949,12 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   mixed-generation set. Cached only when the
   post-load probe equals `startEpoch` and the set fits the cap. Signals:
   `..._passthrough_total{reason}`, `..._flight_waiter_total{outcome}`,
-  `..._load_retry_total`. Evidence: docs/internal/evidence/7805-identity-epoch-flight.md.
+  `..._load_retry_total`. A waiter gives up after 3 unserved flights or one
+  reducer heartbeat interval (30 s, `WithHeartbeatInterval`, derived from the
+  claim lease in `cmd/reducer`) of total waiting, with the same retryable error
+  (`flight_waiter_total{outcome="gave_up"}`); the leader is bounded by its 2
+  load attempts. No worker blocks in the cache longer than one heartbeat.
+  Evidence: docs/internal/evidence/7805-identity-epoch-flight.md.
 - **TOCTOU analysis**: the probe→serve window (between epoch probe and cache
   hit) is a bounded probe-interval gap. Today's baseline does a full paginated
   O(corpus) scan inside every call, mixing facts from different commit

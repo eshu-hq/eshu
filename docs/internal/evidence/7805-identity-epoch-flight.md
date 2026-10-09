@@ -65,36 +65,70 @@ holds only `(observed_at, fact_id)`. An index that includes `generation_id`
 would bring it back to an index-only scan; that needs a migration and is not
 part of this change.
 
-Drain of 130 items, 8 workers, 2 s of handler work per item, same shim, run at
-the final code (head of this change, after the retryable-error rule for a torn
-leader). Each item retries on a leader error up to 3 attempts, the
-`ESHU_REDUCER_MAX_ATTEMPTS` default of 3 in the env registry, then counts as dead-lettered. Raw captures
-`after-drain-head-superseded.txt`, `after-drain-head-active.txt`,
-`after-drain-head-active-7s.txt`, `aborted-drain-head-active-5s-timeout600s.txt`:
+Drain of 130 items, 8 workers, 2 s of handler work per item, same shim, at the
+final code, including the waiter bound (3 flights or one heartbeat interval of
+total waiting, 30 s). Each item retries on a leader or waiter error up to 3
+attempts (`ESHU_REDUCER_MAX_ATTEMPTS` default 3), then counts as dead-lettered.
+The churn is one active-generation fact inserted at the interval shown. Before
+each run the harness times two uncached full loads on the host as it is at that
+moment, because the host was shared and its speed moved between runs. Raw
+captures: `after-drain-head-superseded.txt`, `after-drain-bound-active-10s.txt`,
+`after-drain-bound-active-7s.txt`, `after-drain-bound-active-5s.txt`,
+`after-drain-bound-active-10s-loaded-host.txt`.
 
-| Churn during the run | Elapsed | Items per hour | Loads / in-flight retries | Cache hits | Shared / torn-set waiters | Leader errors (`identity_epoch_unstable`) | Items needing a retry | Max attempts one item used | Dead-lettered |
+| Churn | Calibrated full load | Elapsed | Items/h | Loads / in-flight retries | Cache hits | Waiter outcomes | Leader errors | Dead-lettered | Longest single call in the cache |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Superseded-generation row deleted every 10 s (4 deletes) | 45.4 s | 10,302 | 1 / 0 | 122 | 7 / 0 | 0 | 0 | 1 | 0 |
-| Active-generation fact inserted every 10 s (7 inserts, about one per 2 loads) | 70.8 s | 6,611 | 7 / 0 | 74 | 49 / 0 | 0 | 0 | 1 | 0 |
-| Active-generation fact inserted every 7 s (57 inserts, 1.5 per load time) | 6 min 41 s | 1,167 | 49 / 22 | 0 | 113 / 64 | 10 | 8 | 3 | 0 |
-| Active-generation fact inserted every 5 s (about one per load time) | did not finish in 600 s (stopped) | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| Superseded row deleted every 10 s | 4.7 s | 45.4 s | 10,302 | 1 / 0 | 122 | shared 7 | 0 | 0 | n/a |
+| Active insert every 10 s | 4.8 s, 4.7 s | 70.0 s | 6,683 | 7 / 0 | 74 | shared 49 | 0 | 0 | 6.0 s |
+| Active insert every 7 s | 4.5 s, 4.7 s | 2 min 28.6 s | 3,150 | 21 / 4 | 0 | shared 113 | 0 | 0 | 11.7 s |
+| Active insert every 5 s, host slowed (loads took 21 s and 29 s) | 21.3 s, 28.8 s | 17 min 57.6 s | 434 | 175 / 86 | 0 | shared 43, torn_set 457, stale_epoch 92, gave_up 198 | 280 | 80 of 130 | 49.5 s |
 
-The older drain files `after-drain-final-*.txt` ran before the retryable-error
-rule existed and are kept only as history (pre-F17): they measured 49.5 s and
-139.6 s for the first two churn profiles.
+The last row is the stress case, and it terminates. Churn at 5 s against a 21 to
+29 s load is about 4 active-set changes per load, so every flight tears, no cache
+entry ever survives, and 80 of 130 items dead-letter after 3 attempts while 50
+succeed. That is the F21 case (any epoch move tears a load) and the motivation
+for the follow-up #7825. The dead letters carry the class
+`identity_epoch_unstable`. The longest single call of 49.5 s is a waiter that
+spent its 30 s budget and then led a load of about 20 s; it is not time spent
+waiting past the bound.
 
-Reading the table. Superseded-generation churn costs nothing. At one active-set
-change per two loads the cache still serves 74 of 130 items. At 1.5 changes per
-load time the cache never serves a hit, every flight is retried, 10 leaders fail
-retryably, and 8 items need a second or third attempt, but none dead-letters
-(1,167 items per hour, still about 200 times the pre-change rate of one item
-per 8 to 12 minutes, 5 to 7 items per hour). At one change per load time (5 s churn against a 4.7 s load) the
-drain did not finish: every flight tears, joined waiters re-probe and wait for
-the next flight, and only leaders consume attempts. Production churn is far
-below that (see the torn-load paragraph below), but the cache then has no
-bound on waiter patience other than the caller's context and the lease, a limit
-of the caller loop that existed before this change (each flight now makes at
-most two loads) and is bounded only by that context.
+The run before the bound existed (churn at 5 s, loads at 4.7 s) did not finish
+in 600 s and had to be stopped, which is why the bound was added. These are the
+pre-bound runs, kept as history (pre-bound, host quiet):
+
+| Churn | Elapsed | Items/h | Leader errors | Dead-lettered |
+| --- | --- | --- | --- | --- |
+| Active insert every 10 s | 70.8 s | 6,611 | 0 | 0 |
+| Active insert every 7 s | 6 min 41 s | 1,167 | 10 | 0 |
+| Active insert every 5 s | not finished in 600 s (stopped) | n/a | n/a | n/a |
+
+One run at 10 s churn on a heavily loaded host, before the calibration step
+existed, took 8 min 21 s with 23 dead letters
+(`after-drain-bound-active-10s-loaded-host.txt`). The host was slowing every
+load, so it is the same stress case as the 5 s row and is not comparable to the
+quiet 10 s row.
+
+Why the bound exists. Before it, a waiter whose probe never matched a stable
+flight re-probed and re-joined the next flight without limit, while only the
+leaders consumed claim attempts. The reducer keeps a claim alive with a
+heartbeat every 30 s, so such a waiter did not lose its claim and there was no
+duplicate execution. The harm is a stalled pool: each stuck waiter holds one of
+the 8 workers for as long as the churn lasts, and under sustained churn every
+worker ends up parked in the cache and no item makes progress. The bound
+(3 unserved flights or 30 s of total waiting, the reducer heartbeat interval
+taken from the same claim lease the queue uses, no new setting) fails the
+waiter's item with the same retryable `identity_epoch_unstable` as a leader, so
+the queue re-runs it under the existing attempt limit. The leader is bounded by
+its two load attempts and is not cut off by wall time, so a slow healthy load
+still finishes. Invariant: no worker blocks inside the identity cache longer
+than one heartbeat interval; the leader bounds by attempts, waiters by flights
+and wall time.
+Tests: `TestContainerImageIdentityHandlerGivesUpAfterThreeTornFlights` (a
+handler that joins three torn flights fails retryably with no decision write),
+`TestIdentityEpochCacheWaiterGivesUpAfterOneHeartbeatInterval` and
+`TestIdentityEpochCacheWaiterWaitBudgetIsCumulative` (the 30 s bound against an
+injected clock, and that it is a total budget), and
+`TestIdentityCacheWaitBoundIsOneHeartbeatOfTheClaimLease` in `cmd/reducer`.
 
 The before drain was not run: with a 500 to 720 s load and an epoch that moves
 every few minutes the cache never populates, so each load served one item. That
@@ -169,8 +203,10 @@ Raw outputs are attached to the PR (no private paths). File names:
 `green-unit-r3.txt`, `green-live-r3.txt`, `red-live-epoch.txt`,
 `red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
 `red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
-`after-drain-head-superseded.txt`, `after-drain-head-active.txt`,
-`after-drain-head-active-7s.txt`, `aborted-drain-head-active-5s-timeout600s.txt`,
+`after-drain-head-superseded.txt`, `after-drain-bound-active-10s.txt`,
+`after-drain-bound-active-7s.txt`, `after-drain-bound-active-5s.txt`,
+`after-drain-bound-active-10s-loaded-host.txt`, `aborted-drain-head-active-5s-timeout600s.txt`,
+`red-noflightbound-mutation.txt`, `red-nowallbound-mutation.txt`, `green-patience.txt`,
 `postgres-race-r3.txt`, `gates-r3.txt`.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
