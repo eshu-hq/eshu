@@ -5,6 +5,7 @@ import json
 import pathlib
 import re
 import sys
+from collections import deque
 
 
 IMPACT_PACKAGE = "./internal/query/supply/chain/impact"
@@ -366,7 +367,11 @@ def verify_results(events_path: pathlib.Path, package: str) -> int:
         name: [] for name in expected_tests
     }
     package_terminal = []
-    output: dict[str, list[str]] = {name: [] for name in expected_tests}
+    # Tail ring per test: a failing test's assertion is in its LAST output
+    # events, so keep the trailing window, not the leading one (#7814).
+    output: dict[str, deque[str]] = {
+        name: deque(maxlen=12) for name in expected_tests
+    }
     with events_path.open(encoding="utf-8") as events:
         for line_number, line in enumerate(events, start=1):
             try:
@@ -381,7 +386,7 @@ def verify_results(events_path: pathlib.Path, package: str) -> int:
                     runs[name] += 1
                 elif action in {"pass", "fail", "skip"}:
                     terminals[name].append((action, event.get("Elapsed", 0)))
-                elif action == "output" and len(output[name]) < 12:
+                elif action == "output":
                     output[name].append(event.get("Output", "").rstrip()[:300])
             elif not name and action in {"pass", "fail", "skip"}:
                 package_terminal.append(action)
@@ -400,7 +405,7 @@ def verify_results(events_path: pathlib.Path, package: str) -> int:
         print(f"{name}: {action.upper()} elapsed={elapsed:.3f}s")
         if action != "pass":
             failed = True
-            for text in output[name][-6:]:
+            for text in list(output[name])[-6:]:
                 print(f"  {text}")
     if package_terminal != ["pass"]:
         print(f"package terminal ({package}): expected PASS, actual={package_terminal}")
