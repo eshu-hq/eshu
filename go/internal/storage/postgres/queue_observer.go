@@ -183,6 +183,34 @@ WHERE work.stage = 'projector'
   )
 `
 
+// projectorMarkedWriteOldestAgeQuery reports the age of the oldest set
+// projection_write_started_at marker on a non-retired generation with open
+// projector work (#7471). The marker is monotonic and never cleared, so the
+// predicate must exclude retired (superseded, completed) generations or their
+// stale markers would alarm forever; the EXISTS join on the
+// fact_work_items_scope_generation_idx prefix keeps a marked generation with
+// no open projector work (a completed write awaiting Ack) out of the signal.
+// Measured at 200k fact_work_items (2k generations, 3 live marked): nested
+// loop over a parallel scan of the live-status rows, 21.3 ms and 4,188 shared
+// buffers per 60s observable-gauge collection.
+const projectorMarkedWriteOldestAgeQuery = `
+SELECT GREATEST(
+  COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(generation.projection_write_started_at))), 0),
+  0
+) AS oldest_age_seconds
+FROM scope_generations AS generation
+WHERE generation.projection_write_started_at IS NOT NULL
+  AND generation.status NOT IN ('superseded', 'completed')
+  AND EXISTS (
+    SELECT 1
+    FROM fact_work_items AS work
+    WHERE work.scope_id = generation.scope_id
+      AND work.generation_id = generation.generation_id
+      AND work.stage = 'projector'
+      AND work.status IN ('pending', 'claimed', 'running', 'retrying')
+  )
+`
+
 // QueueObserverStore implements telemetry.QueueObserver by querying the
 // fact_work_items table for live queue depth and oldest-item age per stage.
 type QueueObserverStore struct {
@@ -363,6 +391,35 @@ func (s *QueueObserverStore) ReducerGraphWriteTimeoutDepth(ctx context.Context) 
 	}
 
 	return depth, nil
+}
+
+// ProjectorMarkedWriteOldestAge returns the age in seconds of the oldest set
+// projection_write_started_at marker on a non-retired generation with open
+// projector work (#7471). A hung graph write with a live heartbeat keeps its
+// marker and its claimed row, so the age grows without bound; zero means no
+// marked write is outstanding.
+func (s *QueueObserverStore) ProjectorMarkedWriteOldestAge(ctx context.Context) (float64, error) {
+	if s.queryer == nil {
+		return 0, fmt.Errorf("queue observer queryer is required")
+	}
+
+	rows, err := s.queryer.QueryContext(ctx, projectorMarkedWriteOldestAgeQuery, s.now())
+	if err != nil {
+		return 0, fmt.Errorf("projector marked write oldest age: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var age float64
+	if rows.Next() {
+		if err := rows.Scan(&age); err != nil {
+			return 0, fmt.Errorf("projector marked write oldest age scan: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("projector marked write oldest age: %w", err)
+	}
+
+	return age, nil
 }
 
 // SourceQueueOldestAge returns oldest outstanding item age by stage and source.

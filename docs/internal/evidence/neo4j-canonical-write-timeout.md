@@ -127,9 +127,10 @@ its classification is unchanged.
   write timeout their TTL equals the write budget. This change does not add a
   startup gate there, because such a gate would fail ops-qa's current
   configuration at boot. It is left for the owner to decide.
-- With `ESHU_CANONICAL_WRITE_TIMEOUT` unset on Neo4j, writes stay unbounded,
-  while the repo-dependency check still counts a `30s` budget. That gap existed
-  before this change and remains until the variable is set.
+- With `ESHU_CANONICAL_WRITE_TIMEOUT` unset on Neo4j, writes stayed unbounded
+  at the time of this change, while the repo-dependency check still counted a
+  `30s` budget. Issue #7471 closed that gap with a 300s Neo4j default; only an
+  explicit non-positive duration opts out now. See `7471-marked-write-bound.md`.
 
 ## Local proof
 
@@ -162,10 +163,13 @@ RED before the change, GREEN after:
   test's 5s guard and returned a bare `context deadline exceeded`; the NornicDB
   subtests already passed. After the change, both backends return a retryable
   `graph_write_timeout`. The companion `LeavesUnboundedNeo4jUnwrapped` tests
-  pin that an unset timeout leaves the chain unchanged.
+  pinned that an unset timeout left the chain unchanged; #7471 replaced them
+  with `BoundsUnsetNeo4jByDefault`, which pins the 300s wrap and the explicit
+  zero opt-out.
 - `TestWarnUnboundedNeo4jWriteTimeoutLogsOnceWhenNeo4jHasNoTimeout`, in each
-  of the four packages: exactly one WARN record for Neo4j when the variable is
-  unset or invalid, and none when it is configured or on NornicDB.
+  of the four packages: at the time, exactly one WARN record for Neo4j when the
+  variable was unset or invalid, and none when configured or on NornicDB. Since
+  #7471 the WARN fires only on an explicit non-positive opt-out.
 - `TestLiveNeo4jIngesterCanonicalWriteTimeoutRequeues`, against
   `neo4j:2026-community` through the production Neo4j
   `canonicalExecutorForGraphBackend` chain with a 2s timeout and a held lock:

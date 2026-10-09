@@ -44,30 +44,48 @@ func TestCanonicalExecutorForGraphBackendBoundsNeo4jWritesLikeNornicDB(t *testin
 	}
 }
 
-// TestCanonicalExecutorForGraphBackendLeavesUnboundedNeo4jUnwrapped pins that
-// an unset Neo4j timeout keeps today's executor chain byte-for-byte.
-func TestCanonicalExecutorForGraphBackendLeavesUnboundedNeo4jUnwrapped(t *testing.T) {
+// TestCanonicalExecutorForGraphBackendBoundsUnsetNeo4jByDefault pins that an
+// unset Neo4j timeout now wraps the executor chain in the #7471 default
+// bound, while an explicit zero keeps the deliberate unbounded opt-out.
+func TestCanonicalExecutorForGraphBackendBoundsUnsetNeo4jByDefault(t *testing.T) {
 	t.Parallel()
 
-	executor := canonicalExecutorForGraphBackend(
-		blockingNeo4jTimeoutExecutor{},
-		runtimecfg.GraphBackendNeo4j,
-		canonicalTransactionTimeout(runtimecfg.GraphBackendNeo4j, timeoutGetenv("")),
-		false,
-		defaultNornicDBPhaseGroupStatements,
-		defaultNornicDBFilePhaseStatements,
-		defaultNornicDBStructuralEdgePhaseStatements,
-		defaultNornicDBEntityPhaseStatements,
-		nil,
-		0,
-		defaultNornicDBCanonicalRetractBatchSize,
-		nil,
-		nil,
-		nil,
-	)
-	if _, ok := executor.(*sourcecypher.InstrumentedExecutor); !ok {
-		t.Fatalf("executor = %T, want the unwrapped *sourcecypher.InstrumentedExecutor", executor)
+	build := func(raw string) sourcecypher.Executor {
+		return canonicalExecutorForGraphBackend(
+			blockingNeo4jTimeoutExecutor{},
+			runtimecfg.GraphBackendNeo4j,
+			canonicalTransactionTimeout(runtimecfg.GraphBackendNeo4j, timeoutGetenv(raw)),
+			false,
+			defaultNornicDBPhaseGroupStatements,
+			defaultNornicDBFilePhaseStatements,
+			defaultNornicDBStructuralEdgePhaseStatements,
+			defaultNornicDBEntityPhaseStatements,
+			nil,
+			0,
+			defaultNornicDBCanonicalRetractBatchSize,
+			nil,
+			nil,
+			nil,
+		)
 	}
+	t.Run("unset wraps with default", func(t *testing.T) {
+		t.Parallel()
+		executor := build("")
+		bounded, ok := executor.(sourcecypher.TimeoutExecutor)
+		if !ok {
+			t.Fatalf("executor = %T, want sourcecypher.TimeoutExecutor", executor)
+		}
+		if bounded.Timeout != 300*time.Second {
+			t.Fatalf("timeout = %s, want %s", bounded.Timeout, 300*time.Second)
+		}
+	})
+	t.Run("explicit zero stays unwrapped", func(t *testing.T) {
+		t.Parallel()
+		executor := build("0s")
+		if _, ok := executor.(*sourcecypher.InstrumentedExecutor); !ok {
+			t.Fatalf("executor = %T, want the unwrapped *sourcecypher.InstrumentedExecutor", executor)
+		}
+	})
 }
 
 // blockingNeo4jTimeoutExecutor blocks every write until its context ends, the

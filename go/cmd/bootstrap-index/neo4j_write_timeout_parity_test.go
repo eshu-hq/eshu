@@ -34,20 +34,40 @@ func TestBootstrapCanonicalExecutorBoundsNeo4jWritesLikeNornicDB(t *testing.T) {
 	}
 }
 
-// TestBootstrapCanonicalExecutorLeavesUnboundedNeo4jUnwrapped pins that an
-// unset Neo4j timeout keeps today's executor chain.
-func TestBootstrapCanonicalExecutorLeavesUnboundedNeo4jUnwrapped(t *testing.T) {
+// TestBootstrapCanonicalExecutorBoundsUnsetNeo4jByDefault pins that an unset
+// Neo4j timeout now wraps the executor chain in the #7471 default bound,
+// while an explicit zero keeps the deliberate unbounded opt-out.
+func TestBootstrapCanonicalExecutorBoundsUnsetNeo4jByDefault(t *testing.T) {
 	t.Parallel()
 
-	executor, err := bootstrapCanonicalExecutorForGraphBackend(
-		blockingNeo4jTimeoutExecutor{}, runtimecfg.GraphBackendNeo4j, timeoutGetenv(""), nil, nil, nil, nil,
-	)
-	if err != nil {
-		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v", err)
+	build := func(t *testing.T, raw string) sourcecypher.Executor {
+		t.Helper()
+		executor, err := bootstrapCanonicalExecutorForGraphBackend(
+			blockingNeo4jTimeoutExecutor{}, runtimecfg.GraphBackendNeo4j, timeoutGetenv(raw), nil, nil, nil, nil,
+		)
+		if err != nil {
+			t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v", err)
+		}
+		return executor
 	}
-	if _, ok := executor.(*sourcecypher.InstrumentedExecutor); !ok {
-		t.Fatalf("executor = %T, want the unwrapped *sourcecypher.InstrumentedExecutor", executor)
-	}
+	t.Run("unset wraps with default", func(t *testing.T) {
+		t.Parallel()
+		executor := build(t, "")
+		bounded, ok := executor.(sourcecypher.TimeoutExecutor)
+		if !ok {
+			t.Fatalf("executor = %T, want sourcecypher.TimeoutExecutor", executor)
+		}
+		if bounded.Timeout != 300*time.Second {
+			t.Fatalf("timeout = %s, want %s", bounded.Timeout, 300*time.Second)
+		}
+	})
+	t.Run("explicit zero stays unwrapped", func(t *testing.T) {
+		t.Parallel()
+		executor := build(t, "0s")
+		if _, ok := executor.(*sourcecypher.InstrumentedExecutor); !ok {
+			t.Fatalf("executor = %T, want the unwrapped *sourcecypher.InstrumentedExecutor", executor)
+		}
+	})
 }
 
 // blockingNeo4jTimeoutExecutor blocks every write until its context ends, the

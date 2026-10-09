@@ -418,6 +418,12 @@ func registerPostgresQueueGauges(
 			return err
 		}
 	}
+	if markedObs, ok := queueObs.(telemetry.ProjectorMarkedWriteObserver); ok {
+		cached, err = withProjectorMarkedWriteAge(refresher, cached, markedObs)
+		if err != nil {
+			return err
+		}
+	}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, cached, nil); err != nil {
 		return fmt.Errorf("register queue observable gauges: %w", err)
 	}

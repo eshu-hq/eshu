@@ -400,6 +400,46 @@ func TestQueueObserverStoreNilQueryer(t *testing.T) {
 	if err == nil {
 		t.Fatal("SourceQueueOldestAge() error = nil, want non-nil for nil queryer")
 	}
+
+	_, err = observer.ProjectorMarkedWriteOldestAge(context.Background())
+	if err == nil {
+		t.Fatal("ProjectorMarkedWriteOldestAge() error = nil, want non-nil for nil queryer")
+	}
+}
+
+func TestQueueObserverStoreProjectorMarkedWriteOldestAge(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{rows: [][]any{{90.5}}},
+		},
+	}
+
+	observer := NewQueueObserverStore(queryer)
+	age, err := observer.ProjectorMarkedWriteOldestAge(context.Background())
+	if err != nil {
+		t.Fatalf("ProjectorMarkedWriteOldestAge() error = %v", err)
+	}
+	if age != 90.5 {
+		t.Fatalf("ProjectorMarkedWriteOldestAge() = %v, want 90.5", age)
+	}
+}
+
+func TestQueueObserverStoreProjectorMarkedWriteOldestAgeQueryError(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{
+		responses: []fakeRows{
+			{err: errors.New("connection lost")},
+		},
+	}
+
+	observer := NewQueueObserverStore(queryer)
+	_, err := observer.ProjectorMarkedWriteOldestAge(context.Background())
+	if err == nil {
+		t.Fatal("ProjectorMarkedWriteOldestAge() error = nil, want non-nil")
+	}
 }
 
 func TestQueueObserverStoreQueueDepthsQueryError(t *testing.T) {
