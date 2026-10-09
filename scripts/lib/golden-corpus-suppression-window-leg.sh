@@ -6,8 +6,11 @@
 # Companion to scripts/lib/golden-corpus-vulnerability-suppression.sh, which
 # holds the globals, payload writers, drains, and orchestration; sourcers load
 # that lib first, then this one. Split to keep both files under the repo's
-# 500-line cap. The caller provides start_bg, pg, die, bin_dir, log_dir,
-# GATE_API_PORT, GATE_API_KEY, and GATE_DRAIN_TIMEOUT.
+# 500-line cap. This chunk reads log_dir and date directly and reaches
+# everything else through companion helpers (measure_get, counts, request,
+# rfc3339_from_epoch, die), which pull pg/curl/GATE vars in; start_bg,
+# bin_dir, and GATE_DRAIN_TIMEOUT serve the drain path in the companion
+# lib, not this chunk.
 # shellcheck disable=SC2154,SC2016
 
 # #7740: arms A's window immediately before the snapshot block and records
