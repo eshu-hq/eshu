@@ -6,6 +6,7 @@
 package query
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -13,10 +14,13 @@ import (
 )
 
 type methodologyMetricPlan struct {
-	operator   string
-	args       map[string]any
-	hits, rows int64
-	children   []neo4j.ProfiledPlan
+	operator               string
+	args                   map[string]any
+	hits, rows             int64
+	cacheHits, cacheMisses int64
+	ratio                  float64
+	time                   int64
+	children               []neo4j.ProfiledPlan
 }
 
 func (p methodologyMetricPlan) Operator() string               { return p.operator }
@@ -25,13 +29,13 @@ func (p methodologyMetricPlan) Identifiers() []string          { return nil }
 func (p methodologyMetricPlan) DbHits() int64                  { return p.hits }
 func (p methodologyMetricPlan) Records() int64                 { return p.rows }
 func (p methodologyMetricPlan) Children() []neo4j.ProfiledPlan { return p.children }
-func (p methodologyMetricPlan) PageCacheMisses() int64         { return 0 }
-func (p methodologyMetricPlan) PageCacheHits() int64           { return 0 }
-func (p methodologyMetricPlan) PageCacheHitRatio() float64     { return 0 }
-func (p methodologyMetricPlan) Time() int64                    { return 0 }
+func (p methodologyMetricPlan) PageCacheMisses() int64         { return p.cacheMisses }
+func (p methodologyMetricPlan) PageCacheHits() int64           { return p.cacheHits }
+func (p methodologyMetricPlan) PageCacheHitRatio() float64     { return p.ratio }
+func (p methodologyMetricPlan) Time() int64                    { return p.time }
 
 func TestMethodologyProfileMetricsRequireRawCounters(t *testing.T) {
-	valid := methodologyMetricPlan{operator: "ProduceResults@neo4j", args: map[string]any{"DbHits": int64(0), "Rows": int64(0)}, hits: 0, rows: 0}
+	valid := methodologyMetricPlan{operator: "ProduceResults@neo4j", args: map[string]any{"DbHits": int64(0), "Rows": int64(0), "PageCacheHits": int64(0), "PageCacheMisses": int64(0)}, hits: 0, rows: 0}
 	if err := methodologyValidateProfileCounters(valid, 0); err != nil {
 		t.Fatalf("legitimate zero counters rejected: %v", err)
 	}
@@ -41,6 +45,7 @@ func TestMethodologyProfileMetricsRequireRawCounters(t *testing.T) {
 		capturedRows int
 	}{
 		{"missing db hits", methodologyMetricPlan{operator: valid.operator, args: map[string]any{"Rows": int64(0)}}, 0},
+		{"missing cache hits", methodologyMetricPlan{operator: valid.operator, args: map[string]any{"DbHits": int64(0), "Rows": int64(0), "PageCacheMisses": int64(0)}}, 0},
 		{"wrong type", methodologyMetricPlan{operator: valid.operator, args: map[string]any{"DbHits": "0", "Rows": int64(0)}}, 0},
 		{"hydrated mismatch", methodologyMetricPlan{operator: valid.operator, args: map[string]any{"DbHits": int64(4), "Rows": int64(0)}}, 0},
 		{"captured row mismatch", valid, 1},
@@ -53,4 +58,29 @@ func TestMethodologyProfileMetricsRequireRawCounters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMethodologyPlanOmitsUnavailableOptionalMetrics(t *testing.T) {
+	plan := methodologyMetricPlan{operator: "ProduceResults@neo4j", args: map[string]any{"DbHits": int64(0), "Rows": int64(0), "PageCacheHits": int64(0), "PageCacheMisses": int64(0)}}
+	check := func(t *testing.T, plan methodologyMetricPlan, wantOptional bool) {
+		t.Helper()
+		encoded, err := json.Marshal(methodologyPlanTree(plan))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"time_raw", "page_cache_hit_ratio"} {
+			value, present := fields[key]
+			if present != wantOptional || present && value != float64(0) {
+				t.Fatalf("%s present=%v value=%v, want optional=%v", key, present, value, wantOptional)
+			}
+		}
+	}
+	check(t, plan, false)
+	plan.args["Time"] = int64(0)
+	plan.args["PageCacheHitRatio"] = float64(0)
+	check(t, plan, true)
 }
