@@ -276,6 +276,32 @@ func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsAnchorsGoKeysOnModulePr
 	}
 }
 
+func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesGoAnchoredAgainstCorpusScan(t *testing.T) {
+	t.Parallel()
+
+	goKey := "scip-go gomod github.com/acme/lib Client#Request()."
+	otherKey := "other-namespace-key"
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{"scope:producer", "module github.com/acme/lib\n\ngo 1.24\n"}}},
+			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
+			{rows: [][]any{codeCallDefinitionScanRow("fact-shared")}},
+		},
+	}
+	store := NewFactStore(db)
+
+	loaded, err := store.LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{goKey, otherKey})
+	if err != nil {
+		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
+	}
+	if got, want := factIDs(loaded), []string{"fact-shared"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded fact ids = %#v, want %#v", got, want)
+	}
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("issued %d queries, want manifest read, anchored scan, then corpus scan", got)
+	}
+}
+
 func TestFactStoreLoadActiveCodeCallSymbolDefinitionFactsFallsBackToCorpusScanWithoutModuleProducer(t *testing.T) {
 	t.Parallel()
 
