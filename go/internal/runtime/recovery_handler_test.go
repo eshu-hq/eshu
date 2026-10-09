@@ -279,6 +279,37 @@ func TestRecoveryHandlerRefinalizeReportsDeltaActiveScopes(t *testing.T) {
 	}
 }
 
+// TestRecoveryHandlerRefinalizeReportsUnsupportedDeltaWithoutReindex pins the
+// reindex_unsupported outcome on the runtime surface: a ref-scope delta is
+// reported as delta-active, and reindex_requests_written stays a zero count
+// with an empty, non-null list, because no reindex row was written for it.
+func TestRecoveryHandlerRefinalizeReportsUnsupportedDeltaWithoutReindex(t *testing.T) {
+	t.Parallel()
+
+	var delta recovery.DeltaActiveScopes
+	delta.Add(recovery.DeltaActiveOutcomeReindexUnsupported, "git-repository-scope:repo-a@feature")
+	store := &fakeRecoveryStore{
+		refinalizeResult: recovery.RefinalizeResult{Enqueued: 1, ScopeIDs: []string{"git-repository-scope:repo-a@feature"}, DeltaActive: delta},
+	}
+	recorder := httptest.NewRecorder()
+	mustNewRecoveryHandler(t, store).handleRefinalize(recorder, httptest.NewRequest(http.MethodPost, "/admin/refinalize",
+		bytes.NewReader(mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"git-repository-scope:repo-a@feature"}}))))
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"reindex_requests_written":{"count":0,"scope_ids":[]}`)) {
+		t.Fatalf("body = %s, want reindex_requests_written with a zero count and an empty list", recorder.Body.String())
+	}
+	var resp refinalizeResponse
+	mustUnmarshal(t, recorder.Body.Bytes(), &resp)
+	if got := resp.DeltaActiveScopes.ByOutcome[recovery.DeltaActiveOutcomeReindexUnsupported]; got != 1 {
+		t.Fatalf("delta_active_scopes.by_outcome[reindex_unsupported] = %d, want 1", got)
+	}
+	if _, ok := resp.DeltaActiveScopes.ByOutcome[recovery.DeltaActiveOutcomeReindexRequested]; ok {
+		t.Fatalf("delta_active_scopes.by_outcome = %v, want no reindex_requested entry", resp.DeltaActiveScopes.ByOutcome)
+	}
+}
+
 func TestRecoveryHandlerRefinalizeRejectsEmptyScopeIDs(t *testing.T) {
 	t.Parallel()
 

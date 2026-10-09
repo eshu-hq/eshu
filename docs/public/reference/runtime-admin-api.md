@@ -250,7 +250,9 @@ full generation activates. For each git default-branch scope (outcome
 `reindex_requested`) the refinalize records a per-repository reindex watermark
 in the same transaction, so the owning git ingester forces a full re-parse on
 its next sync cycle. A git ref scope or another collector's scope gets outcome
-`reindex_unsupported` and needs a full collection from its own collector.
+`reindex_unsupported` and no reindex request: a pinned ref gets a full snapshot
+from the next scheduled sync cycle, and another collector's scope needs a full
+collection from that collector.
 `reindex_requests_written` (`count`, up to 10 `scope_ids`; always present)
 names the watermarks written. See
 [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md#delta-active-scopes).

@@ -280,7 +280,7 @@ the full set is in `repository_reindex_requests`.
 | Outcome | What the rebuild did | What the operator does |
 | --- | --- | --- |
 | `reindex_requested` | A git default-branch scope. In the same transaction as the re-enqueue, the rebuild recorded a per-repository reindex watermark, the same row `POST /api/v0/admin/reindex` with `scope: repository` writes. | Run scheduled sync cycles on the owning git ingester (below). |
-| `reindex_unsupported` | A git ref scope or another collector's scope. No reindex watermark can force a full snapshot for it. | Trigger a full collection for that scope through its own collector. |
+| `reindex_unsupported` | A git ref scope (`git-repository-scope:<repo>@<ref>`) or another collector's scope. The rebuild writes **no** reindex request for it: `POST /api/v0/admin/reindex` refuses ref and non-git scopes, and the ingester applies reindex rows only to default-branch scopes. | For a pinned ref, run a scheduled sync cycle: the git ingester snapshots each pinned ref in full and never emits a ref-scope delta, so the next ref snapshot is a full generation. For another collector's scope, run a full collection with that collector. |
 
 #### Complete the graph with scheduled sync
 
