@@ -41,12 +41,15 @@ not own the routes themselves (`go/internal/query`), the surface inventory
   `capabilitycatalog.LoadSurfaceInventory`
 - `PilotOperations` — seeded representative parameterized GET and query POST
   requests plus a real MCP `tools/call` request. The runner starts a separate
-  MCP HTTP server for this operation. Each pilot must be exercised; an MCP
-  JSON-RPC error or `result.isError` fails even when HTTP returns 200.
+  MCP HTTP server for this operation. Each pilot must return its seeded
+  result shape; an empty, unrelated, or inconsistent 200 payload fails.
+  An MCP JSON-RPC error or `result.isError` also fails.
 - `SweepConcurrentOperations` — optional bounded worker proof over the pilots
   after the required sequential metered sweep. It rejects a work meter because
-  overlapping requests cannot be attributed to one operation. Set
-  `GATE_CONCURRENT_WORKERS=2..16` and `GATE_CONCURRENT_REQUESTS` in the runner.
+  overlapping requests cannot be attributed to one operation. Its report
+  includes exact request/success counts, peak in-flight requests, wall time,
+  throughput, samples, and p95. Set `GATE_CONCURRENT_WORKERS=2..16` and
+  `GATE_CONCURRENT_REQUESTS` in the runner.
 - `SweepRoutes` — measures true nearest-rank p95 latency per route against a
   running eshu-api, over a warmup-discarded counted sample; flags any 5xx
   response as `HardFailed` regardless of latency and captures the first

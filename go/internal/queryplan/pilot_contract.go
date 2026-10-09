@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -191,12 +192,12 @@ func validatePilotContract(entry Entry) []string {
 	if len(c.Patterns) == 0 || len(c.Alternatives) == 0 {
 		violations = append(violations, fmt.Sprintf("%s: patterns and alternatives are required", entry.ID))
 	}
-	if c.Budget.MaxNormalMilliseconds <= 0 || c.Budget.MaxQueryCount <= 0 ||
+	if c.Budget.MaxNormalMilliseconds <= 0 || math.IsNaN(c.Budget.MaxNormalMilliseconds) || math.IsInf(c.Budget.MaxNormalMilliseconds, 0) || c.Budget.MaxQueryCount <= 0 ||
 		len(c.Budget.MaxWork) == 0 || strings.TrimSpace(c.Budget.NoiseTolerance) == "" {
 		violations = append(violations, fmt.Sprintf("%s: executable timing, query-count, work, and noise budgets are required", entry.ID))
 	}
 	for key, ceiling := range c.Budget.MaxWork {
-		if strings.TrimSpace(key) == "" || ceiling <= 0 {
+		if strings.TrimSpace(key) == "" || ceiling < 0 || math.IsNaN(ceiling) || math.IsInf(ceiling, 0) {
 			violations = append(violations, fmt.Sprintf("%s: invalid work budget %s", entry.ID, key))
 		}
 	}

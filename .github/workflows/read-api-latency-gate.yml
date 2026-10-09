@@ -79,6 +79,69 @@ permissions:
   contents: read
 
 jobs:
+  # Supported-backend scale/concurrency proof is a dedicated manual run.
+  # Existing NornicDB PR, push and merge-group checks retain their identity.
+  methodology-scale:
+    if: github.event_name == 'workflow_dispatch'
+    name: methodology scale (neo4j)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GATE_COMPOSE_PROJECT: eshu-methodology-scale-ci
+      ESHU_GRAPH_BACKEND: neo4j
+      GATE_NEO4J_PASSWORD: change-me
+      GATE_POSTGRES_PASSWORD: change-me
+      GATE_CONCURRENT_WORKERS: 4
+      GATE_CONCURRENT_REQUESTS: 20
+      GATE_RUNS: 3
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Run scale and concurrent HTTP/MCP proof
+        env:
+          GATE_WORK_REPORT: ${{ runner.temp }}/methodology-work.json
+          GATE_LATENCY_REPORT: ${{ runner.temp }}/methodology-latency.json
+          GATE_CONCURRENT_REPORT: ${{ runner.temp }}/methodology-concurrency.json
+        run: |
+          resource_report="${RUNNER_TEMP}/methodology-resources.txt"
+          {
+            printf 'logical_cpus='; nproc
+            printf 'start_load='; cat /proc/loadavg
+          } > "$resource_report"
+          (
+            while true; do
+              date -u +%FT%TZ
+              cat /proc/loadavg
+              docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}'
+              sleep 10
+            done
+          ) >> "$resource_report" 2>&1 &
+          observer=$!
+          trap 'kill "$observer" 2>/dev/null || true' EXIT
+          bash scripts/verify-read-api-latency-gate.sh
+      - name: Archive scale proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodology-scale-${{ github.sha }}
+          path: ${{ runner.temp }}/methodology-*
+          if-no-files-found: error
+      - name: Dump supported-backend logs on failure
+        if: failure()
+        run: docker compose -p "$GATE_COMPOSE_PROJECT" -f docker-compose.neo4j.yml -f docker-compose.read-api-latency-gate.yaml logs --tail=200 || true
+      - name: Tear down supported-backend services
+        if: always()
+        run: docker compose -p "$GATE_COMPOSE_PROJECT" -f docker-compose.neo4j.yml -f docker-compose.read-api-latency-gate.yaml down -v || true
+
   # The work budget table's generator has a test mirror that the heavy job below
   # never runs (it only executes the live gate). It is cheap and needs no Docker,
   # so a change to the jq formula fails here instead of silently going unproven.

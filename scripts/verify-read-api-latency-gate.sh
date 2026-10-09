@@ -341,7 +341,7 @@ start_bg api api_pid "${bin_dir}/eshu-api"
 if command -v lsof >/dev/null 2>&1; then
 	sleep 0.2 # give the process a moment to finish exec() before lsof inspects it
 	log "eshu-api binary provenance (lsof -p ${api_pid})"
-	lsof -p "${api_pid}" 2>/dev/null | grep -E 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
+	lsof -p "${api_pid}" 2>/dev/null | rg 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
 fi
 api_ready=false
 for _ in $(seq 1 240); do

@@ -26,12 +26,14 @@ Do not require one exact plan when several satisfy the contract and budget.
 
 | Family | Production execution | Required coverage |
 |---|---|---|
-| Cloud-resource pages | `PostgresCloudResourceListStore.ListCloudResourceIdentities` | 64 emitted SQL variants, both access classes, all filter/cursor masks |
-| Import dependencies | `codequery/imports` row readers and handler | 488 valid request shapes, 280 emitted Cypher variants, both access classes |
+| Cloud-resource pages | `PostgresCloudResourceListStore.ListCloudResourceIdentities` | 64 emitted SQL variants, 96 parameter cases, both access classes, all filter/cursor masks |
+| Import dependencies | `codequery/imports` row readers and handler | 488 valid request shapes, 280 emitted Cypher variants, 282 statement cases, both access classes |
 
 The manifest independently declares pilot membership. Removing a contract or
-required case must fail coverage. The generated matrix reports legacy and
-excluded families separately; pilot success is not universal query coverage.
+required case must fail coverage. The generated `coverage.json` reports legacy
+and excluded families separately; pilot success is not universal query coverage.
+The executable schemas are `go/internal/queryplan/pilot_contract.go` and
+`pilot_evidence.go`; manifest entries link YAML contracts in `testdata/contracts/`.
 
 ## PostgreSQL patterns
 
@@ -60,8 +62,8 @@ its size and representative insert/update cost when evaluating an index.
 ## Cypher patterns
 
 Use the supported Neo4j pin from `docker-compose.neo4j.yml`; record the actual
-engine and Cypher version. The existing profile runner's different historical
-pin must not be treated as the same environment. Read the
+engine and Cypher version. The profile and methodology runners use the same
+supported pin. Read the
 [Cypher 25 execution plan reference](https://neo4j.com/docs/cypher-manual/25/planning-and-tuning/execution-plans/)
 for plan semantics; verify version-specific features on the selected binary.
 
@@ -112,6 +114,14 @@ cold preparation explicitly. A first pass after warmups is not a cold-cache
 sample. Report warm distributions and noise separately from workload budgets.
 Do not require exact equality of nondeterministic work counters.
 
+The initial pilot verifies that base and candidate production query/schema
+sources are unchanged, then alternates those same emitted statements on one
+disposable fixture. This proves unchanged-query behavior and overhead, with no
+speedup claim. A query rewrite needs independently built base and candidate
+executables before this runner can supply comparative evidence for that change.
+PostgreSQL cold preparation discards plans; it does not evict operating-system
+or shared-buffer caches. Neo4j records first-pass and warm samples separately.
+
 ## Enforcement stages
 
 | Stage | Required proof | Activation rule |
@@ -125,6 +135,21 @@ Do not require exact equality of nondeterministic work counters.
 Preserve current backend support policy and required NornicDB checks. Neo4j
 proof is mandatory for supported graph correctness and performance. Each stage
 needs observed RED/GREEN and coverage before becoming blocking.
+
+`bash scripts/verify-query-methodology.sh --static` is the pre-commit registry
+gate. Its live mode is selected through `query-plan-regression`, which runs
+before push and in the `verify-contracts` PR and merge-group job. Both backend
+artifacts must validate as a complete set. `scripts/test-verify-query-methodology.sh`
+plants absent output and failed producers and exercises the real selector with
+query-only, each backend's schema-only, and combined-tree paths.
+
+The dedicated `methodology scale (neo4j)` manual job runs the existing latency
+fixture at its default scale with four concurrent workers, twenty requests per
+operation and three sequential samples. It archives latency, concurrency,
+PostgreSQL work and host/container resource observations. It does not replace
+the existing required NornicDB check. Selected parameterized GETs, POSTs and
+MCP tool calls validate independent fixture results, including warmups; every
+concurrent request contributes its status and result outcome.
 
 ## Regression discipline
 

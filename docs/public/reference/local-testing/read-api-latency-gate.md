@@ -78,6 +78,32 @@ lanes never exercise.
    exercised route the meter never read, a coverage-floor shortfall, or an
    explicitly-budgeted route dropping out of coverage.
 
+The #7881 pilot adds a seeded `GET /api/v0/status/ingesters/repository`,
+`POST /api/v0/relationships/catalog` with `{}`, and an actual MCP HTTP
+`tools/call` for `get_index_status`. Each selected operation must return
+HTTP 200 with the expected payload: the repository ingester identity and
+status sections; a nonempty relationship verb catalog whose declared counts
+equal its rows; or a JSON-RPC result whose structured index status matches
+its resource block and the zero-repository graph seed. A malformed, empty,
+or mismatched 200 response fails the gate, including during warmup. Pilot
+latency includes reading and checking the response body. The MCP server is a
+separate process started by the runner and exercises the production tool dispatcher.
+The existing no-arg GET coverage and Postgres meter still run first.
+
+`GATE_CONCURRENT_WORKERS=2..16` enables a later, unmetered pass over those
+three operations. `GATE_CONCURRENT_REQUESTS` sets requests per operation
+(at least the worker count, at most 1000), and
+`GATE_CONCURRENT_REPORT=<path>` writes a version 1 JSON report with each
+operation's worker count,
+requested and successful response counts, every request status, peak client
+requests in flight, wall duration, throughput, samples, and p95. Every
+response is checked, so one wrong 200 or failed request fails the pass.
+Concurrent Postgres work is
+not attributed per request because the existing shared meter cannot assign
+overlapping statements to individual operations. Use the report with service
+CPU, memory, and backend observations from the dedicated run before drawing
+a capacity conclusion.
+
 **Sampling**: for each route, `SweepRoutes` issues 2 discarded warmup
 requests (a cold connection and cold Postgres/NornicDB caches make the
 first request unrepresentatively slow) and then `-iterations` counted
@@ -127,6 +153,24 @@ must not quietly stop being checked while the gate stays green.
 ```bash
 bash scripts/verify-read-api-latency-gate.sh
 ```
+
+For the supported Neo4j #7881 pilot, reserve an otherwise quiet runner and
+run the default scale with an explicit concurrent report:
+
+```bash
+ESHU_GRAPH_BACKEND=neo4j GATE_CONCURRENT_WORKERS=4 \
+  GATE_CONCURRENT_REQUESTS=20 GATE_RUNS=3 \
+  GATE_LATENCY_REPORT=/tmp/eshu-7881-api-latency.json \
+  GATE_CONCURRENT_REPORT=/tmp/eshu-7881-api-concurrency.json \
+  bash scripts/verify-read-api-latency-gate.sh
+```
+
+Record the actual Compose image digest, host load, API/MCP/Postgres/Neo4j
+CPU and memory, seed verification counts, and both report hashes alongside
+the command and exit status. The concurrent report shows offered load and
+client overlap; it does not measure backend resource use by itself. Keep the
+existing NornicDB CI lane under its current blocking policy while the
+supported-backend pilot is added.
 
 Flags mirror the golden corpus gate's: `--keep` leaves the stack up for
 debugging a breach, `--no-compose` assumes Postgres/NornicDB are already

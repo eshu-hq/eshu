@@ -270,9 +270,28 @@ func methodologyPostgresWork(t *testing.T, plan string) json.RawMessage {
 	}
 	// Preserve each operator's counters. PostgreSQL buffer counters include
 	// descendants, so adding them would invent work by counting it twice.
+	root, ok := value[0]["Plan"].(map[string]any)
+	if !ok {
+		t.Fatal("measured plan has no root operator")
+	}
+	rootTotal := func(keys ...string) float64 {
+		var total float64
+		for _, key := range keys {
+			if counter, present := root[key]; present {
+				number, valid := counter.(float64)
+				if !valid {
+					t.Fatalf("invalid root counter %s: %v", key, counter)
+				}
+				total += number
+			}
+		}
+		return total
+	}
 	return methodologyJSON(t, map[string]any{
 		"query_count": 1, "operator_counters": value[0]["Plan"],
-		"buffer_accounting": "inclusive per-node, never summed", "timing": "normal execution measured separately",
+		"root_buffers_total":     rootTotal("Shared Hit Blocks", "Shared Read Blocks", "Local Hit Blocks", "Local Read Blocks"),
+		"root_temp_blocks_total": rootTotal("Temp Read Blocks", "Temp Written Blocks"),
+		"buffer_accounting":      "inclusive per-node, never summed", "timing": "normal execution measured separately",
 	})
 }
 
@@ -283,4 +302,15 @@ func methodologyJSON(t *testing.T, value any) json.RawMessage {
 		t.Fatal(err)
 	}
 	return encoded
+}
+
+func TestMethodologyPostgresWorkUsesInclusiveRootCounters(t *testing.T) {
+	plan := `[{"Plan":{"Shared Hit Blocks":1,"Shared Read Blocks":2,"Local Hit Blocks":3,"Local Read Blocks":4,"Temp Read Blocks":0,"Temp Written Blocks":0,"Plans":[{"Shared Hit Blocks":1000}]}}]`
+	var work map[string]any
+	if err := json.Unmarshal(methodologyPostgresWork(t, plan), &work); err != nil {
+		t.Fatal(err)
+	}
+	if work["root_buffers_total"] != float64(10) || work["root_temp_blocks_total"] != float64(0) {
+		t.Fatalf("root work=%v", work)
+	}
 }

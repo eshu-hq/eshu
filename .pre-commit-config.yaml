@@ -210,6 +210,14 @@ repos:
       # triggers for the trivy-fs and ci-gate-registry gates; they are listed
       # again here so this hook's own drift coverage does not silently skip on
       # an edit to either file alone.)
+      - id: query-methodology-static
+        name: query methodology production contracts
+        entry: scripts/verify-query-methodology.sh --static
+        language: script
+        files: '^(go/internal/(query|queryplan)/.*|go/internal/graph/schema.*\.go|go/internal/storage/postgres/migrations/.*|scripts/(test-)?verify-query-methodology\.sh|scripts/lib/(go-test-run-guard|live-gate-lock)\.sh)$'
+        pass_filenames: false
+        require_serial: true
+
       - id: gate-registry-drift
         name: ci-gate registry + hook/workflow drift
         entry: scripts/verify-ci-gates-registry.sh --drift

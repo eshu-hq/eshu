@@ -8,6 +8,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -55,17 +56,28 @@ func TestImportDependencyMethodologyMCPTerminalCapLive(t *testing.T) {
 	handler := &codequery.CodeHandler{Neo4j: graph}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	transport := InProcessMessageHandler(mux, nil)
+	transport := httptest.NewServer(NewServer(mux, nil).Handler(nil))
+	defer transport.Close()
 	body := `{"jsonrpc":"2.0","id":7881,"method":"tools/call","params":{"name":"investigate_import_dependencies","arguments":{"query_type":"file_import_cycles","repo_id":"mcp-cycle-cap-repository","offset":999,"limit":200}}}`
-	request := httptest.NewRequest(http.MethodPost, "/mcp/message", strings.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, transport.URL+"/mcp/message", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
 	request.Header.Set("Content-Type", "application/json")
-	response := httptest.NewRecorder()
-	transport.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("MCP HTTP %d: %s", response.Code, response.Body.String())
+	response, err := transport.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	payload, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("MCP HTTP %d: %s", response.StatusCode, payload)
 	}
 	var wire map[string]any
-	if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+	if err := json.Unmarshal(payload, &wire); err != nil {
 		t.Fatal(err)
 	}
 	result, ok := wire["result"].(map[string]any)

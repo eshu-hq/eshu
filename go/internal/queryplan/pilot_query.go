@@ -61,6 +61,9 @@ func ValidatePilotQuery(kind, query string, contract PilotContract, schemaStatem
 	if err := pilotBalanced(tokens); err != nil {
 		return err
 	}
+	if err := pilotStatementSyntax(tokens, kind); err != nil {
+		return err
+	}
 	switch kind {
 	case queryKindCypher:
 		if !containsPilotToken(tokens, "MATCH") || !containsPilotToken(tokens, "RETURN") {
@@ -75,8 +78,8 @@ func ValidatePilotQuery(kind, query string, contract PilotContract, schemaStatem
 			return err
 		}
 	case queryKindSQLReadModel:
-		if !containsPilotToken(tokens, "SELECT") || !containsPilotToken(tokens, "FROM") || (tokens[0] != "SELECT" && tokens[0] != "WITH") {
-			return errors.New("unsupported pilot SQL: SELECT or WITH SELECT required")
+		if !containsPilotToken(tokens, "SELECT") || !containsPilotToken(tokens, "FROM") || tokens[0] != "SELECT" {
+			return errors.New("unsupported pilot SQL: SELECT required")
 		}
 		for _, unsupported := range []string{"UNION", "INSERT", "UPDATE", "DELETE", "MERGE", "DROP", "CREATE", "ALTER"} {
 			if containsPilotToken(tokens, unsupported) {
@@ -105,7 +108,7 @@ func ValidatePilotQuery(kind, query string, contract PilotContract, schemaStatem
 		if !pilotValidName(alias) {
 			return fmt.Errorf("invalid authorization alias %q", alias)
 		}
-		if !pilotAliasBound(tokens, alias, kind) {
+		if !pilotAliasBound(tokens, alias, kind) || kind == queryKindCypher && !pilotRepositoryAliasBound(tokens, alias) {
 			return fmt.Errorf("authorization alias %s is not bound", alias)
 		}
 		if !pilotScopeGuaranteed(tokens, alias, nil, kind, order, limit, contract.CorrelationPredicates) {
@@ -135,12 +138,13 @@ func pilotScopeGuaranteed(tokens []string, alias string, wanted []string, kind s
 }
 
 func pilotSQLScopeGuaranteed(tokens []string, alias string, wanted []string, correlations []string) bool {
+	outerAliases := pilotSQLTableAliases(tokens)
 	depth := 0
 	for i, token := range tokens {
 		if token == "WHERE" && depth == 0 {
 			for _, bounds := range pilotWhereRanges(tokens, queryKindSQLReadModel) {
 				if bounds[0] == i+1 {
-					return pilotSQLGuarantees(tokens[bounds[0]:bounds[1]], alias, wanted, correlations)
+					return pilotSQLGuarantees(tokens[bounds[0]:bounds[1]], alias, wanted, correlations, outerAliases)
 				}
 			}
 		}
@@ -154,14 +158,14 @@ func pilotSQLScopeGuaranteed(tokens []string, alias string, wanted []string, cor
 	return false
 }
 
-func pilotSQLGuarantees(expression []string, alias string, wanted []string, correlations []string) bool {
+func pilotSQLGuarantees(expression []string, alias string, wanted []string, correlations []string, outerAliases map[string]bool) bool {
 	expression = pilotTrimParens(expression)
 	if len(expression) == 0 || expression[0] == "NOT" {
 		return false
 	}
 	if parts := pilotSplitBoolean(expression, "OR"); len(parts) > 1 {
 		for _, part := range parts {
-			if !pilotSQLGuarantees(part, alias, wanted, correlations) {
+			if !pilotSQLGuarantees(part, alias, wanted, correlations, outerAliases) {
 				return false
 			}
 		}
@@ -169,28 +173,58 @@ func pilotSQLGuarantees(expression []string, alias string, wanted []string, corr
 	}
 	if parts := pilotSplitBoolean(expression, "AND"); len(parts) > 1 {
 		for _, part := range parts {
-			if pilotSQLGuarantees(part, alias, wanted, correlations) {
+			if pilotSQLGuarantees(part, alias, wanted, correlations, outerAliases) {
 				return true
 			}
 		}
 		return false
 	}
-	if len(expression) < 8 || expression[0] != "COALESCE" || expression[len(expression)-3] != "," ||
-		expression[len(expression)-2] != "FALSE" || expression[len(expression)-1] != ")" ||
-		!containsPilotToken(expression, "SELECT") ||
-		!containsPilotToken(expression, "FALSE") || !pilotAliasBound(expression, alias, queryKindSQLReadModel) {
+	if len(expression) < 8 || expression[0] != "COALESCE" || expression[1] != "(" || expression[2] != "(" ||
+		expression[len(expression)-3] != "," || expression[len(expression)-2] != "FALSE" || expression[len(expression)-1] != ")" {
 		return false
 	}
-	if !pilotScopedWhere(expression, alias, wanted, queryKindSQLReadModel, -1, -1) {
-		return false
-	}
-	for _, correlation := range correlations {
-		pattern, err := pilotTokens(correlation)
-		if err != nil || len(pattern) == 0 || !pilotContainsTokens(expression, pattern) {
-			return false
+	depth, close := 0, -1
+	for i := 2; i < len(expression); i++ {
+		switch expression[i] {
+		case "(":
+			depth++
+		case ")":
+			depth--
+			if depth == 0 {
+				close = i
+			}
+		}
+		if close >= 0 {
+			break
 		}
 	}
-	return true
+	if close != len(expression)-4 {
+		return false
+	}
+	subquery := expression[3:close]
+	innerAliases := pilotSQLTableAliases(subquery)
+	if len(subquery) == 0 || subquery[0] != "SELECT" || !innerAliases[strings.ToUpper(alias)] {
+		return false
+	}
+	where := pilotWhereRanges(subquery, queryKindSQLReadModel)
+	if len(where) != 1 || !pilotGuarantees(subquery[where[0][0]:where[0][1]], alias, wanted) {
+		return false
+	}
+	grantJoinBound := false
+	for _, correlation := range correlations {
+		pattern, err := pilotTokens(correlation)
+		if err != nil || len(pattern) == 0 || !pilotGuarantees(subquery[where[0][0]:where[0][1]], "", pattern) ||
+			!pilotSQLCorrelationLinksScopes(pattern, outerAliases, innerAliases) {
+			return false
+		}
+		for i := 0; i+2 < len(pattern); i++ {
+			if pattern[i+1] == "." && innerAliases[pattern[i]] && pattern[i] != strings.ToUpper(alias) &&
+				pilotSQLGrantJoinBound(subquery, alias, pattern[i]) {
+				grantJoinBound = true
+			}
+		}
+	}
+	return grantJoinBound
 }
 
 func pilotAliasBound(tokens []string, alias, kind string) bool {
@@ -208,6 +242,16 @@ func pilotAliasBound(tokens []string, alias, kind string) bool {
 					break
 				}
 			}
+		}
+	}
+	return false
+}
+
+func pilotRepositoryAliasBound(tokens []string, alias string) bool {
+	wanted := strings.ToUpper(alias)
+	for i := 0; i+3 < len(tokens); i++ {
+		if tokens[i] == "(" && tokens[i+1] == wanted && tokens[i+2] == ":" && tokens[i+3] == "REPOSITORY" {
+			return true
 		}
 	}
 	return false
@@ -304,20 +348,11 @@ func pilotGuarantees(expression []string, alias string, wanted []string) bool {
 		return false
 	}
 	if len(wanted) > 0 {
-		return pilotContainsTokens(expression, pilotTrimParens(wanted))
+		return false
 	}
-	upperAlias := strings.ToUpper(alias)
-	aliasProperty := false
-	grantParameter := false
-	for i := 0; i < len(expression); i++ {
-		if i+2 < len(expression) && expression[i] == upperAlias && expression[i+1] == "." && pilotValidName(expression[i+2]) {
-			aliasProperty = true
-		}
-		if strings.HasPrefix(expression[i], "$ALLOWED_") || strings.HasPrefix(expression[i], "$GRANT_") {
-			grantParameter = true
-		}
-	}
-	return aliasProperty && grantParameter
+	return len(expression) == 5 && expression[0] == strings.ToUpper(alias) && expression[1] == "." &&
+		expression[2] == "ID" && expression[3] == "IN" &&
+		(strings.HasPrefix(expression[4], "$ALLOWED_") || strings.HasPrefix(expression[4], "$GRANT_"))
 }
 
 func pilotTrimParens(tokens []string) []string {
@@ -378,16 +413,4 @@ func pilotSameTokens(left, right []string) bool {
 		}
 	}
 	return true
-}
-
-func pilotContainsTokens(haystack, needle []string) bool {
-	if len(needle) == 0 || len(haystack) < len(needle) {
-		return false
-	}
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		if pilotSameTokens(haystack[i:i+len(needle)], needle) {
-			return true
-		}
-	}
-	return false
 }

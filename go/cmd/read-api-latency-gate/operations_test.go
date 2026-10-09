@@ -4,10 +4,15 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -68,7 +73,7 @@ func TestConcurrentPilotSweepOverlapsRequestsWithoutMeter(t *testing.T) {
 	}))
 	defer server.Close()
 	results, err := SweepConcurrentOperations(SweepOptions{BaseURL: server.URL, APIKey: "key", Timeout: time.Second}, map[string]Operation{"POST /pilot": {Method: http.MethodPost, Path: "/pilot", Body: `{}`}}, 4, 8)
-	if err != nil || len(results) != 1 || len(results[0].Samples) != 8 || peak < 2 || results[0].Metered {
+	if err != nil || len(results) != 1 || len(results[0].Samples) != 8 || peak < 2 || results[0].Metered || results[0].Requested != 8 || results[0].Succeeded != 8 || results[0].PeakInFlight < 2 || len(results[0].Statuses) != 8 {
 		t.Fatalf("results=%+v peak=%d err=%v", results, peak, err)
 	}
 }
@@ -76,11 +81,11 @@ func TestConcurrentPilotSweepOverlapsRequestsWithoutMeter(t *testing.T) {
 func TestSweepOperationsUsesRealMCPTransport(t *testing.T) {
 	queryMux := http.NewServeMux()
 	queryMux.HandleFunc("GET /api/v0/index-status", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, `{"data":{"status":"ready"}}`)
+		_, _ = io.WriteString(w, `{"version":"test","status":"ready","repository_count":0,"queue":{}}`)
 	})
 	server := httptest.NewServer(mcp.NewServer(queryMux, slog.Default()).Handler(http.NewServeMux()))
 	defer server.Close()
-	op := Operation{Method: http.MethodPost, Path: "/mcp/message", Body: `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_index_status","arguments":{}}}`, MCP: true}
+	op := Operation{Method: http.MethodPost, Path: "/mcp/message", Body: `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_index_status","arguments":{}}}`, MCP: true, Expect: "mcp_index_status"}
 	results, err := SweepRoutes(SweepOptions{BaseURL: server.URL, MCPBaseURL: server.URL, Routes: []string{"MCP get_index_status"}, Operations: map[string]Operation{"MCP get_index_status": op}, Iterations: 1, Timeout: time.Second})
 	if err != nil || len(results) != 1 || !results[0].Exercised || results[0].HardFailed {
 		t.Fatalf("real transport: results=%+v err=%v", results, err)
@@ -115,5 +120,105 @@ func TestSweepOperationsRejectsCountedClientError(t *testing.T) {
 	results, err := SweepRoutes(SweepOptions{BaseURL: server.URL, Routes: []string{"POST /pilot"}, Operations: map[string]Operation{"POST /pilot": {Method: http.MethodPost, Path: "/pilot", Body: `{}`}}, Iterations: 2, Timeout: time.Second})
 	if err != nil || results[0].Exercised {
 		t.Fatalf("results=%+v err=%v", results, err)
+	}
+}
+
+func TestPilotOperationsRejectWrongSuccessfulPayloads(t *testing.T) {
+	cases := []struct {
+		name string
+		op   Operation
+		body string
+	}{
+		{"ingester", Operation{Method: http.MethodGet, Path: "/ingester", Expect: "ingester_status"}, `{"ingester":"other","queue":{}}`},
+		{"catalog", Operation{Method: http.MethodPost, Path: "/catalog", Expect: "relationships_catalog"}, `{"verbs":[],"verb_count":2,"total_edges":0,"layer_count":0}`},
+		{"no_content", Operation{Method: http.MethodGet, Path: "/ingester", Expect: "ingester_status"}, ``},
+		{"mcp", Operation{Method: http.MethodPost, Path: "/mcp/message", MCP: true, Expect: "mcp_index_status"}, `{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"repository_count":"bad"}}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.name == "no_content" {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			defer server.Close()
+			opts := SweepOptions{BaseURL: server.URL, MCPBaseURL: server.URL, Routes: []string{tc.name}, Operations: map[string]Operation{tc.name: tc.op}, Iterations: 1, Timeout: time.Second}
+			results, err := SweepRoutes(opts)
+			if err != nil || len(results) != 1 || !results[0].HardFailed {
+				t.Fatalf("wrong successful payload passed: results=%+v err=%v", results, err)
+			}
+		})
+	}
+}
+
+func TestConcurrentPilotRejectsOneWrongResponse(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 3 {
+			_, _ = io.WriteString(w, `{"ingester":"other","queue":{}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"ingester":"repository","runtime_family":"ingester","queue":{},"health":{}}`)
+	}))
+	defer server.Close()
+	results, err := SweepConcurrentOperations(SweepOptions{BaseURL: server.URL, Timeout: time.Second}, map[string]Operation{"GET /pilot": {Method: http.MethodGet, Path: "/pilot", Expect: "ingester_status"}}, 2, 8)
+	if err != nil || len(results) != 1 || !results[0].HardFailed || results[0].Succeeded != 7 || results[0].Requested != 8 || len(results[0].Statuses) != 8 {
+		t.Fatalf("wrong concurrent response passed: results=%+v err=%v", results, err)
+	}
+}
+
+func TestPilotErrorBodyRemainsBounded(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, strings.Repeat("x", hardFailedBodyCap+100))
+	}))
+	defer server.Close()
+	results, err := SweepRoutes(SweepOptions{BaseURL: server.URL, Routes: []string{"GET /pilot"}, Operations: map[string]Operation{"GET /pilot": {Method: http.MethodGet, Path: "/pilot", Expect: "ingester_status"}}, Iterations: 1, Timeout: time.Second})
+	if err != nil || len(results) != 1 || !results[0].HardFailed || len(results[0].HardFailedBody) != hardFailedBodyCap {
+		t.Fatalf("pilot error body cap: results=%+v err=%v", results, err)
+	}
+}
+
+func TestPilotWarmupWrongPayloadCannotPassCountedSweep(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			_, _ = io.WriteString(w, `{"ingester":"other","runtime_family":"ingester","queue":{},"health":{}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"ingester":"repository","runtime_family":"ingester","queue":{},"health":{}}`)
+	}))
+	defer server.Close()
+	results, err := SweepRoutes(SweepOptions{BaseURL: server.URL, Routes: []string{"GET /pilot"}, Operations: map[string]Operation{"GET /pilot": {Method: http.MethodGet, Path: "/pilot", Expect: "ingester_status"}}, Iterations: 1, Timeout: time.Second})
+	if err != nil || len(results) != 1 || !results[0].HardFailed {
+		t.Fatalf("warmup mismatch passed: results=%+v err=%v", results, err)
+	}
+}
+
+func TestConcurrentReportRecordsVersionAndEveryOutcome(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "concurrent.json")
+	results := []RouteLatency{{Route: "GET /pilot", Method: http.MethodGet, Path: "/pilot", Requested: 3, Succeeded: 2, Workers: 2, PeakInFlight: 2, Wall: 100 * time.Millisecond, Samples: []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}, Statuses: []int{200, 500, 200}}}
+	if err := writeConcurrentReport(path, runOptions{concurrentWorkers: 2, concurrentRequests: 3}, results); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Version    int `json:"version"`
+		Operations []struct {
+			Requested int   `json:"requested"`
+			Succeeded int   `json:"succeeded"`
+			Statuses  []int `json:"statuses"`
+		} `json:"operations"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Version != 1 || len(report.Operations) != 1 || report.Operations[0].Requested != 3 || report.Operations[0].Succeeded != 2 || !slices.Equal(report.Operations[0].Statuses, []int{200, 500, 200}) {
+		t.Fatalf("report missing load identity or outcomes: %+v", report)
 	}
 }

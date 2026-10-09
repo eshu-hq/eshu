@@ -23,6 +23,9 @@ type Operation struct {
 	Path   string
 	Body   string
 	MCP    bool
+	// Expect names the seeded response contract checked on every pilot read.
+	// Empty keeps the inventory route's status-only sampling behavior.
+	Expect string
 }
 
 // warmupRequests is the number of probes issued (and discarded) per route
@@ -137,12 +140,17 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 // discarded probes, then `runs` independent passes of `iterations` counted
 // requests each, with no additional warmup between passes. Run 1 follows
 // warmupRequests probes (RouteLatency.Samples); runs 2..runs are later passes
-// (RouteLatency.WarmSamples/WarmRunP95s). See SweepOptions.Runs.
+// (RouteLatency.WarmSamples/WarmRunP95s). Selected pilots fail if a warmup
+// response violates their expected result, so an intermittent wrong answer
+// cannot disappear from the counted sample. See SweepOptions.Runs.
 func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations, runs int, meter WorkMeter, op Operation) (RouteLatency, error) {
 	for i := 0; i < warmupRequests; i++ {
-		_, status, _, err := sweepOperation(client, url, apiKey, op)
+		_, status, body, err := sweepOperation(client, url, apiKey, op)
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s (warmup %d/%d): %w", route, i+1, warmupRequests, err)
+		}
+		if op.Expect != "" && (status >= 500 || status == 0) {
+			return RouteLatency{Route: route, Exercised: true, Status: status, HardFailed: true, HardFailedBody: body}, nil
 		}
 		if status >= 400 && status < 500 {
 			return RouteLatency{Route: route, Exercised: false, Status: status}, nil
@@ -174,7 +182,7 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 			if s >= 400 && s < 500 {
 				clientFailed = true
 			}
-			if s >= 500 {
+			if s >= 500 || (s == 0 && op.Expect != "") {
 				if !hardFailed {
 					hardFailedBody = body
 				}
@@ -271,14 +279,17 @@ func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time
 		return 0, 0, "", fmt.Errorf("request %s: %w", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if op.Expect != "" && resp.StatusCode >= 200 && resp.StatusCode < 400 && resp.StatusCode != http.StatusOK {
+		return elapsed, http.StatusInternalServerError, fmt.Sprintf("pilot expected HTTP 200, got %d", resp.StatusCode), nil
+	}
 
 	body := ""
-	if op.MCP {
+	if op.MCP || op.Expect != "" {
 		const maxMCPResponseBytes = 8 << 20
 		b, readErr := io.ReadAll(io.LimitReader(resp.Body, maxMCPResponseBytes+1))
 		elapsed = time.Since(start)
 		if readErr != nil || len(b) > maxMCPResponseBytes {
-			return elapsed, http.StatusInternalServerError, "MCP response body could not be read within 8 MiB", nil
+			return elapsed, http.StatusInternalServerError, "pilot response body could not be read within 8 MiB", nil
 		}
 		body = string(b)
 	} else if resp.StatusCode >= 500 {
@@ -297,8 +308,13 @@ func sweepOperation(client *http.Client, url, apiKey string, op Operation) (time
 			return elapsed, http.StatusInternalServerError, body, nil
 		}
 	}
+	if op.Expect != "" && resp.StatusCode == http.StatusOK {
+		if err := validatePilotResponse(op.Expect, []byte(body)); err != nil {
+			return elapsed, http.StatusInternalServerError, fmt.Sprintf("pilot response violates %s: %v", op.Expect, err), nil
+		}
+	}
 
-	if op.MCP && len(body) > hardFailedBodyCap {
+	if (op.MCP || op.Expect != "") && len(body) > hardFailedBodyCap {
 		body = body[:hardFailedBodyCap]
 	}
 	return elapsed, resp.StatusCode, body, nil

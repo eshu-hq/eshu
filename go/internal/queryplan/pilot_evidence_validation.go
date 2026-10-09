@@ -6,6 +6,7 @@ package queryplan
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,32 +20,42 @@ func pilotWorkNumber(raw json.RawMessage, metric string) (float64, bool) {
 		return 0, false
 	}
 	wanted := normalizePilotMetric(metric)
-	var visit func(any) (float64, bool)
-	visit = func(current any) (float64, bool) {
+	matchCount := 0
+	var matches []float64
+	var visit func(any)
+	visit = func(current any) {
 		switch typed := current.(type) {
 		case map[string]any:
 			for key, child := range typed {
 				if normalizePilotMetric(key) == wanted {
+					matchCount++
 					if number, ok := child.(float64); ok {
-						return number, true
+						matches = append(matches, number)
 					}
 				}
 			}
 			for _, child := range typed {
-				if number, ok := visit(child); ok {
-					return number, true
-				}
+				visit(child)
 			}
 		case []any:
 			for _, child := range typed {
-				if number, ok := visit(child); ok {
-					return number, true
-				}
+				visit(child)
 			}
 		}
+	}
+	visit(value)
+	if matchCount != 1 || len(matches) != 1 || math.IsNaN(matches[0]) || math.IsInf(matches[0], 0) {
 		return 0, false
 	}
-	return visit(value)
+	return matches[0], true
+}
+
+func pilotGitObjectID(commit string) bool {
+	if len(commit) != 40 && len(commit) != 64 || commit != strings.ToLower(commit) {
+		return false
+	}
+	decoded, err := hex.DecodeString(commit)
+	return err == nil && (len(decoded) == 20 || len(decoded) == 32)
 }
 
 func normalizePilotMetric(metric string) string {
@@ -120,8 +131,8 @@ func PilotJSONSHA256(raw json.RawMessage) string {
 	return fmt.Sprintf("%x", sha256.Sum256(data))
 }
 
-// ValidatePilotEvidenceForBackend validates the required pilot entries owned
-// by the artifact engine. Use ValidatePilotEvidenceSet for the full gate.
+// jsonEqual compares decoded values so harmless JSON whitespace does not
+// change an independent oracle comparison.
 func jsonEqual(left, right json.RawMessage) bool {
 	var leftValue, rightValue any
 	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {

@@ -174,8 +174,6 @@ func validatePilotRunIdentity(artifact PilotEvidenceArtifact) []string {
 		"workload":             artifact.Environment.WorkloadSHA256,
 		"harness":              artifact.Environment.HarnessSHA256,
 		"binary":               artifact.Environment.BinarySHA256,
-		"base commit":          artifact.Base.Commit,
-		"candidate commit":     artifact.Candidate.Commit,
 		"base schema":          artifact.Base.SchemaSHA256,
 		"candidate schema":     artifact.Candidate.SchemaSHA256,
 		"base migrations":      artifact.Base.MigrationsSHA256,
@@ -185,6 +183,11 @@ func validatePilotRunIdentity(artifact PilotEvidenceArtifact) []string {
 	} {
 		if !isSHA256(value) {
 			violations = append(violations, fmt.Sprintf("malformed or missing %s identity", label))
+		}
+	}
+	for label, commit := range map[string]string{"base": artifact.Base.Commit, "candidate": artifact.Candidate.Commit} {
+		if !pilotGitObjectID(commit) {
+			violations = append(violations, "malformed or missing "+label+" commit identity")
 		}
 	}
 	if strings.TrimSpace(artifact.Environment.Engine) == "" || strings.TrimSpace(artifact.Environment.EngineVersion) == "" ||
