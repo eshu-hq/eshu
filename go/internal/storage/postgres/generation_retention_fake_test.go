@@ -38,9 +38,18 @@ type generationRetentionFakeDB struct {
 	// as when another session holds the candidate after the selection's
 	// savepoint rollback.
 	targetedLockMiss bool
-	execResults      []sql.Result
-	queries          []fakeQueryCall
-	execs            []fakeExecCall
+	// targetedLockRows, when set, answers the targeted lock with exactly
+	// these candidate rows, so a test can drop one member of the set while
+	// keeping the rest (a partial re-lock miss).
+	targetedLockRows [][]any
+	// prescreenRows answers the own-fact pre-screen (generation_id,
+	// own_facts); generations missing from it count as zero, as in the
+	// store. Tests that need no pre-screened generation leave it unset.
+	prescreenRows  [][]any
+	prescreenCalls int
+	execResults    []sql.Result
+	queries        []fakeQueryCall
+	execs          []fakeExecCall
 	// statements records every statement in the order the transaction issued
 	// it, reads and writes together, including the transaction-local setting
 	// statement that execs and execResults deliberately skip so the positional
@@ -84,16 +93,36 @@ func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query strin
 		}
 		return &queueFakeRows{rows: generationRetentionCountFakeRows(rows, args)}, nil
 	case strings.Contains(query, "retention: targeted candidate lock"):
-		if tx.database.targetedLockMiss || len(args) < 5 {
+		if tx.database.targetedLockMiss {
 			return &queueFakeRows{}, nil
 		}
-		generationID, _ := args[4].(string)
+		if rows := tx.database.targetedLockRows; rows != nil {
+			return &queueFakeRows{rows: rows}, nil
+		}
+		if len(args) < 5 {
+			return &queueFakeRows{}, nil
+		}
+		ids, _ := args[4].([]string)
+		locked := make([][]any, 0, len(ids))
 		for _, row := range tx.database.candidateRows {
-			if id, _ := row[1].(string); id == generationID {
-				return &queueFakeRows{rows: [][]any{row}}, nil
+			if id, _ := row[1].(string); slices.Contains(ids, id) {
+				locked = append(locked, row)
 			}
 		}
-		return &queueFakeRows{}, nil
+		return &queueFakeRows{rows: locked}, nil
+	case strings.Contains(query, "retention: own-fact pre-screen"):
+		tx.database.prescreenCalls++
+		if len(args) == 0 {
+			return &queueFakeRows{rows: tx.database.prescreenRows}, nil
+		}
+		ids, _ := args[0].([]string)
+		matched := make([][]any, 0, len(tx.database.prescreenRows))
+		for _, row := range tx.database.prescreenRows {
+			if id, _ := row[0].(string); slices.Contains(ids, id) {
+				matched = append(matched, row)
+			}
+		}
+		return &queueFakeRows{rows: matched}, nil
 	case strings.Contains(query, "del_activations"):
 		deleted := tx.database.ledgerDeleted
 		if deleted == nil {

@@ -176,7 +176,8 @@ func TestGenerationRetentionRecheckDefersTheGrownMember(t *testing.T) {
 // TestGenerationRetentionRecheckIsCapped is PB3's second fixture: every
 // recount grows the last member, forcing more than three re-checks. After
 // three the pass keeps the first selected candidate only, recounts it once,
-// and stops: one generation, and at most five count statements.
+// and stops: one generation, and at most five planning count statements plus
+// #7334 fix 1's one mandatory recount under the re-locked set, six total.
 func TestGenerationRetentionRecheckIsCapped(t *testing.T) {
 	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
 	grow := func(id string, n int64) [][]any {
@@ -209,7 +210,7 @@ func TestGenerationRetentionRecheckIsCapped(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("pruned %d, skipped %v; want one generation after the capped re-check", result.GenerationsPruned, result.Skipped)
 	}
-	if database.countCalls > 5 {
-		t.Fatalf("%d count statements for one candidate query, want at most 5", database.countCalls)
+	if database.countCalls > 6 {
+		t.Fatalf("%d count statements for one candidate query, want at most 6 (5 planning + 1 re-lock recount)", database.countCalls)
 	}
 }

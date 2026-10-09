@@ -267,7 +267,7 @@ func (r *Runner) recordResult(ctx context.Context, result Result) {
 		slog.Any("phase_seconds", generationRetentionPhaseSeconds(result.PhaseDurations)),
 		slog.Any("changed_since_ledger_rows_pruned", result.LedgerRowsPruned),
 		slog.Int64("rows_over_batch_row_limit", result.RowsOverLimit),
-		// Scope rows held by the pruned batch, not the selection's full lock set.
+		// Scope rows the re-locked batch held: the pass's full lock set (#7334).
 		slog.Int("locked_scope_rows", result.LockedScopeRows),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
 	)

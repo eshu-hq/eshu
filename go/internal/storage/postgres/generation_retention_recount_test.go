@@ -51,8 +51,10 @@ func TestGenerationRetentionStoreRecountsAfterRowLimitSkip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if got := result.Skipped["row_limit"]; got != 1 {
-		t.Fatalf("Skipped[row_limit] = %d, want 1", got)
+	// generation-huge is 101 own facts over a limit of 100, so #7334 fix 3
+	// reports row_limit_own_rows, not row_limit.
+	if got := result.Skipped["row_limit_own_rows"]; got != 1 {
+		t.Fatalf("Skipped[row_limit_own_rows] = %d, want 1", got)
 	}
 	var countIDs [][]string
 	for _, query := range database.queries {
@@ -61,9 +63,11 @@ func TestGenerationRetentionStoreRecountsAfterRowLimitSkip(t *testing.T) {
 			countIDs = append(countIDs, ids)
 		}
 	}
-	want := [][]string{{"generation-huge", "generation-small"}, {"generation-small"}}
+	// The first two counts are the planning count and its re-check; the
+	// third is #7334 fix 1's mandatory recount under the re-locked set.
+	want := [][]string{{"generation-huge", "generation-small"}, {"generation-small"}, {"generation-small"}}
 	if !slices.EqualFunc(countIDs, want, slices.Equal[[]string]) {
-		t.Fatalf("row-count query ids = %v, want %v (a recount over the selected id)", countIDs, want)
+		t.Fatalf("row-count query ids = %v, want %v (planning, re-check, re-lock recount)", countIDs, want)
 	}
 	var event map[string]int64
 	if err := json.Unmarshal(database.execs[0].args[9].([]byte), &event); err != nil {

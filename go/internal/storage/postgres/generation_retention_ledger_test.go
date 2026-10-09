@@ -75,9 +75,11 @@ func TestGenerationRetentionRowLimitCountsChangedSinceLedgerRows(t *testing.T) {
 	}
 }
 
-// TestGenerationRetentionRowLimitSkipOverFactsAloneStaysRowLimit proves a
-// candidate whose facts alone exceed the limit keeps the row_limit reason.
-func TestGenerationRetentionRowLimitSkipOverFactsAloneStaysRowLimit(t *testing.T) {
+// TestGenerationRetentionRowLimitSkipOverFactsAloneReportsOwnRowsReason proves
+// a candidate whose facts alone exceed the limit reports row_limit_own_rows
+// (#7334 fix 3 renamed this from row_limit): its own rows already exceed the
+// limit, so no recount can ever admit it, unlike a row_limit_ledger skip.
+func TestGenerationRetentionRowLimitSkipOverFactsAloneReportsOwnRowsReason(t *testing.T) {
 	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
 	database := ledgerRetentionFake(now)
 	store := NewGenerationRetentionStore(database)
@@ -87,8 +89,8 @@ func TestGenerationRetentionRowLimitSkipOverFactsAloneStaysRowLimit(t *testing.T
 	if err != nil {
 		t.Fatalf("PruneSupersededGenerations() error = %v", err)
 	}
-	if result.Skipped["row_limit"] != 1 || result.Skipped["row_limit_ledger"] != 0 {
-		t.Fatalf("skipped %v; want one row_limit skip", result.Skipped)
+	if result.Skipped["row_limit_own_rows"] != 1 || result.Skipped["row_limit_ledger"] != 0 || result.Skipped["row_limit"] != 0 {
+		t.Fatalf("skipped %v; want one row_limit_own_rows skip", result.Skipped)
 	}
 }
 

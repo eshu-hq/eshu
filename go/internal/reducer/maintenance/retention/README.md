@@ -81,7 +81,9 @@ Never `internal/reducer`.
   4 … minutes while skips persist, and returning to the poll interval once the
   streak is capped or a pass prunes.
 - `ScopeLockHold` is the window a concurrent fact insert into a
-  pruned scope waits out (#7279); keep the transaction bounded.
+  pruned scope waits out (#7279); since #7334 it spans the targeted
+  re-lock to the commit (selection, pre-screen and planning counts run
+  unlocked). Keep the transaction bounded.
 - The unexported `contextDone` helper is duplicated in the `infra`
   leaf; the two shared one copy before the #7648 split.
 
