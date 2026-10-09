@@ -242,6 +242,19 @@ response includes `status`, `enqueued`, and `scope_ids`, plus
 did not re-enqueue. An active scope is re-enqueued through its active generation
 and a failed scope through its newest failed generation.
 
+The response also carries `delta_active_scopes` (`total`, `by_outcome`,
+`sample_scope_ids`, `detail`; always present, #7797). It lists re-enqueued
+scopes whose generation is a delta. A delta carries only the files that changed
+since its baseline, so after a graph wipe those scopes stay incomplete until a
+full generation activates. For each git default-branch scope (outcome
+`reindex_requested`) the refinalize records a per-repository reindex watermark
+in the same transaction, so the owning git ingester forces a full re-parse on
+its next sync cycle. A git ref scope or another collector's scope gets outcome
+`reindex_unsupported` and needs a full collection from its own collector.
+`reindex_requests_written` (`count`, up to 10 `scope_ids`; always present)
+names the watermarks written. See
+[Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md#delta-active-scopes).
+
 Those five counts are not bookkeeping. Re-enqueueing a scope's projector work
 alone rebuilds only what the projector owns; the reducer domains behind it stay
 deduplicated against their existing `succeeded` rows and never re-run. So a

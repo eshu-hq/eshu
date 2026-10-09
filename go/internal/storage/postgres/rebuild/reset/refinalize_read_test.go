@@ -12,24 +12,28 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
 
-// readFakeRows replays (scope_id, generation_id, skip_reason) rows.
+// readFakeRows replays (scope_id, generation_id, skip_reason, is_delta) rows.
+// deltas[i] is row i's is_delta; a missing entry is false.
 type readFakeRows struct {
-	rows  [][3]string
-	index int
-	err   error
+	rows   [][3]string
+	deltas []bool
+	index  int
+	err    error
 }
 
 func (r *readFakeRows) Next() bool { return r.index < len(r.rows) }
 
 func (r *readFakeRows) Scan(dest ...any) error {
 	row := r.rows[r.index]
+	isDelta := r.index < len(r.deltas) && r.deltas[r.index]
 	r.index++
-	if len(dest) != 3 {
-		return errors.New("scan destination count is not 3")
+	if len(dest) != 4 {
+		return errors.New("scan destination count is not 4")
 	}
-	for i := range dest {
+	for i := range 3 {
 		*dest[i].(*string) = row[i]
 	}
+	*dest[3].(*bool) = isDelta
 	return nil
 }
 
@@ -38,15 +42,16 @@ func (r *readFakeRows) Close() error { return nil }
 
 // readFakeQueryer serves one canned generation read and records the statement.
 type readFakeQueryer struct {
-	rows  [][3]string
-	query string
-	args  []any
+	rows   [][3]string
+	deltas []bool
+	query  string
+	args   []any
 }
 
 func (q *readFakeQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
 	q.query = query
 	q.args = args
-	return &readFakeRows{rows: q.rows}, nil
+	return &readFakeRows{rows: q.rows, deltas: q.deltas}, nil
 }
 
 // TestReadAffectedGenerationsSplitsCoveredFromSkipped pins the classification

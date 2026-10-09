@@ -250,6 +250,35 @@ func TestRecoveryHandlerRefinalizeReportsSkippedScopes(t *testing.T) {
 	}
 }
 
+// TestRecoveryHandlerRefinalizeReportsDeltaActiveScopes carries the #7797
+// delta-active report on the runtime admin surface, always as an object.
+func TestRecoveryHandlerRefinalizeReportsDeltaActiveScopes(t *testing.T) {
+	t.Parallel()
+
+	var delta recovery.DeltaActiveScopes
+	delta.Add(recovery.DeltaActiveOutcomeReindexRequested, "s1")
+	store := &fakeRecoveryStore{
+		refinalizeResult: recovery.RefinalizeResult{Enqueued: 1, ScopeIDs: []string{"s1"}, DeltaActive: delta},
+	}
+	recorder := httptest.NewRecorder()
+	mustNewRecoveryHandler(t, store).handleRefinalize(recorder, httptest.NewRequest(http.MethodPost, "/admin/refinalize",
+		bytes.NewReader(mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"s1"}}))))
+	if got, want := recorder.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	var resp refinalizeResponse
+	mustUnmarshal(t, recorder.Body.Bytes(), &resp)
+	if got := resp.DeltaActiveScopes.ByOutcome[recovery.DeltaActiveOutcomeReindexRequested]; got != 1 || resp.DeltaActiveScopes.Total != 1 {
+		t.Fatalf("delta_active_scopes = %+v, want one reindex_requested scope", resp.DeltaActiveScopes)
+	}
+	if resp.DeltaActiveScopes.Detail != recovery.DeltaActiveDetail {
+		t.Fatalf("delta_active_scopes.detail = %q, want the incomplete-graph message", resp.DeltaActiveScopes.Detail)
+	}
+	if got := resp.ReindexRequestsWritten; got.Count != 1 || len(got.ScopeIDs) != 1 || got.ScopeIDs[0] != "s1" {
+		t.Fatalf("reindex_requests_written = %+v, want count 1 naming s1", got)
+	}
+}
+
 func TestRecoveryHandlerRefinalizeRejectsEmptyScopeIDs(t *testing.T) {
 	t.Parallel()
 

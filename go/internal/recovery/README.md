@@ -81,7 +81,19 @@ backend, or any network connection directly.
   Those five are how an
   operator tells a rebuild that will restore the whole graph from one that will
   come back with only its source-local layer; see
-  `docs/public/operate/graph-rebuild-from-facts.md`.
+  `docs/public/operate/graph-rebuild-from-facts.md`. `Skipped` reports the
+  scopes left out, and `DeltaActive` the re-enqueued scopes whose generation is
+  a delta (#7797).
+- `DeltaActiveScopes` / `DeltaActiveScopesReport` — the delta-active report
+  and its wire form, by the closed outcomes `reindex_requested` (a git
+  default-branch scope; the refinalize recorded a per-repository reindex
+  watermark in its transaction) and `reindex_unsupported`. A delta generation
+  carries only its changed files, so after a graph wipe those scopes stay
+  incomplete until a full generation activates. `Report` always returns
+  non-nil maps; `Detail` is `DeltaActiveDetail` when the total is non-zero.
+  `ReindexRequestsWritten` returns `ReindexRequestsWrittenReport`, the
+  `reindex_requests_written` wire form: the exact count of watermarks written
+  and up to `DeltaActiveScopeSampleLimit` of their scope ids (never null).
 - `CollectorGenerationReplayFilter` — filter for collector generation replay
   requests: `CollectorKind` (required and non-blank), `ScopeIDs`,
   `FailureClass`, `Limit`.

@@ -13,8 +13,8 @@ const Admin = `
         "summary": "Refinalize scopes",
         "responses": {
           "200": {
-            "description": "Refinalize request accepted. Alongside status, enqueued, scope_ids, and the five dedup counters it carries skipped_scopes, the scopes named in the request that were considered but not re-enqueued, by reason.",
-            "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}}}}}
+            "description": "Refinalize request accepted. Alongside status, enqueued, scope_ids, and the five dedup counters it carries skipped_scopes, the scopes named in the request that were considered but not re-enqueued, by reason, delta_active_scopes, the re-enqueued scopes whose generation is a delta and whose graph stays incomplete until a full generation activates, and reindex_requests_written, the per-repository reindex watermarks written for them in the same transaction.",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}, "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"}, "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"}}}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"}
@@ -122,7 +122,7 @@ const Admin = `
                     {
                       "type": "object",
                       "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all five counters should be non-zero; five zeros mean the rebuild will restore source-local structure and nothing else.",
-                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "shared_projection_acceptance_cleared", "skipped_scopes", "idempotency_key", "duplicate"],
+                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "shared_projection_acceptance_cleared", "skipped_scopes", "delta_active_scopes", "reindex_requests_written", "idempotency_key", "duplicate"],
                       "properties": {
                         "status": {"type": "string", "enum": ["recovered"]},
                         "enqueued": {"type": "integer", "description": "Scope generations re-enqueued for projection."},
@@ -133,13 +133,15 @@ const Admin = `
                         "generations_retired": {"type": "integer", "description": "Active relationship generations superseded so the re-projection never consumes the prior wave's resolved rows as current truth."},
                         "shared_projection_acceptance_cleared": {"type": "integer", "description": "Shared projection acceptance rows deleted so the repo_dependency lane cannot project edges for a refinalized generation from its pre-wipe watermark; the re-projection's intent commits re-advance acceptance."},
                         "skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"},
+                        "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"},
+                        "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"},
                         "idempotency_key": {"type": "string"},
                         "duplicate": {"type": "boolean", "enum": [false]}
                       }
                     },
                     {
                       "type": "object",
-                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The five dedup counters and skipped_scopes are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
+                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The five dedup counters, skipped_scopes, delta_active_scopes, and reindex_requests_written are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
                       "required": ["status", "enqueued", "scope_ids", "idempotency_key", "duplicate"],
                       "properties": {
                         "status": {"type": "string", "enum": ["recovered"]},

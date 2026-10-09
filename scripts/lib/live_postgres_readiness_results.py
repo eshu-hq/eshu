@@ -125,6 +125,14 @@ PACKAGES = {
             "TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole",
             "TestReducerContentionGateActiveCodeCallSymbolLoaderDirtyNonProducerStaysGated",
         ),
+        "go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go": (
+            "TestRefinalizeDeltaActiveRequestsFullReindex",
+            "TestRefinalizeDeltaActiveConvergesAcrossTwoCalls",
+        ),
+        "go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go": (
+            "TestRefinalizeDeltaActiveRollsBackReindexWithTheTransaction",
+            "TestRefinalizeDeltaActiveReindexLockContention",
+        ),
     },
     ACTIVATION_PACKAGE: {
         "go/internal/storage/postgres/activation/ack_live_test.go": (

@@ -23,7 +23,12 @@
 // active relationship generations, and shared projection acceptance rows —
 // because all five outlive a graph wipe and would otherwise tell the pipeline
 // the work is already done, leaving the rebuild stuck at source-local structure.
-// RefinalizeResult reports each of those five counts.
+// RefinalizeResult reports each of those five counts. RefinalizeResult.DeltaActive
+// reports, by closed outcome (DeltaActiveOutcome*), each re-enqueued scope whose
+// generation is a delta (#7797): a delta restores only its changed files onto a
+// wiped graph, so those scopes stay incomplete until a full generation activates.
+// DeltaActiveScopes.ReindexRequestsWritten reports the per-repository reindex
+// watermarks the refinalize wrote for them, the reindex_requests_written field.
 // ReplayCollectorGenerations
 // marks collector generation
 // commit failures for source-level replay when the failure happened before

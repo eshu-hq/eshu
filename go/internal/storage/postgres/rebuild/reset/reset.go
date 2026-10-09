@@ -52,8 +52,20 @@ type Execer interface {
 // of what was left out cannot disagree with what was put in. The skip reasons
 // are the recovery.SkipReason* values.
 //
+// The read also returns is_delta for the selected generation (#7797). A delta
+// generation carries only the files that changed since its baseline, so the
+// caller must know which re-projections cannot restore a complete graph. An
+// active scope reads it with a correlated scalar subquery: one
+// scope_generations_pkey probe per active scope, evaluated only in the active
+// arm of the CASE, so the plan keeps the ingestion_scopes_pkey order and needs
+// no sort. The failed-scope lateral already holds the row. The read runs once
+// per refinalize. Measured with EXPLAIN (ANALYZE, BUFFERS) on PostgreSQL 18 at
+// 10,000 scopes and 30,000 generations, on a loaded host, eight interleaved
+// runs: about 13-17 ms without the column, about 40-49 ms with it (8,001
+// primary-key probes).
+//
 // The lateral lookup is gated on the outer row being a failed scope with no
-// active generation, so an active scope costs no scope_generations probe. For
+// active generation, so an active scope pays only that primary-key probe. For
 // a failed scope it reads scope_generations_scope_latest_lookup_idx in
 // (ingested_at DESC, generation_id DESC) order and stops at the first
 // generation that is not superseded.
@@ -71,7 +83,8 @@ SELECT candidate.scope_id,
              ELSE '` + recovery.SkipReasonNewestGenerationNotFailed + `'
            END
          ELSE '` + recovery.SkipReasonNoActiveGeneration + `'
-       END AS skip_reason
+       END AS skip_reason,
+       COALESCE(candidate.is_delta, false) AS is_delta
 FROM (
   SELECT scope.scope_id,
          scope.status,
@@ -81,10 +94,20 @@ FROM (
            WHEN scope.status = 'active' AND scope.active_generation_id IS NOT NULL
              THEN scope.active_generation_id
            WHEN newest.status = 'failed' THEN newest.generation_id
-         END AS generation_id
+         END AS generation_id,
+         CASE
+           WHEN scope.status = 'active' AND scope.active_generation_id IS NOT NULL
+             THEN (
+               SELECT active.is_delta
+               FROM scope_generations AS active
+               WHERE active.generation_id = scope.active_generation_id
+                 AND active.scope_id = scope.scope_id
+             )
+           WHEN newest.status = 'failed' THEN newest.is_delta
+         END AS is_delta
   FROM ingestion_scopes AS scope
   LEFT JOIN LATERAL (
-    SELECT g.generation_id, g.status
+    SELECT g.generation_id, g.status, g.is_delta
     FROM scope_generations AS g
     WHERE scope.status = 'failed'
       AND scope.active_generation_id IS NULL
@@ -242,19 +265,28 @@ func AffectedGenerationsQuery(filter recovery.RefinalizeFilter) (string, []any) 
 // Generations is one refinalize's materialized generation set, held as parallel
 // arrays because that is the shape every statement binds.
 //
-// The two slices are index-aligned: ScopeIDs[i] holds GenerationIDs[i]. Nothing
-// enforces that in the type, so build it with Append rather than assembling the
-// slices separately.
+// The slices are index-aligned: ScopeIDs[i] holds GenerationIDs[i], and
+// IsDelta[i] reports whether that generation is a delta (#7797). Nothing
+// enforces that in the type, so build it with Append or AppendSelected rather
+// than assembling the slices separately.
 type Generations struct {
 	ScopeIDs      []string
 	GenerationIDs []string
+	IsDelta       []bool
 }
 
-// Append records one (scope_id, generation_id) pair, keeping the two slices
-// aligned.
+// Append records one (scope_id, generation_id) pair of a full generation,
+// keeping the slices aligned.
 func (g *Generations) Append(scopeID, generationID string) {
+	g.AppendSelected(scopeID, generationID, false)
+}
+
+// AppendSelected records one (scope_id, generation_id) pair and whether the
+// generation is a delta, keeping the slices aligned.
+func (g *Generations) AppendSelected(scopeID, generationID string, isDelta bool) {
 	g.ScopeIDs = append(g.ScopeIDs, scopeID)
 	g.GenerationIDs = append(g.GenerationIDs, generationID)
+	g.IsDelta = append(g.IsDelta, isDelta)
 }
 
 // Len reports how many generations the refinalize covers.

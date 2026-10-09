@@ -154,6 +154,8 @@ func (h *Handler) recoverGenerations(w http.ResponseWriter, r *http.Request) {
 		"generations_retired":                  result.GenerationsRetired,
 		"shared_projection_acceptance_cleared": result.SharedProjectionAcceptanceCleared,
 		"skipped_scopes":                       skippedScopesResponse(result.Skipped),
+		"delta_active_scopes":                  result.DeltaActive.Report(),
+		"reindex_requests_written":             result.DeltaActive.ReindexRequestsWritten(),
 		"idempotency_key":                      req.IdempotencyKey,
 		"duplicate":                            false,
 	})

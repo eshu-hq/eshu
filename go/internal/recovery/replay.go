@@ -272,6 +272,12 @@ type RefinalizeResult struct {
 	// Skipped reports the scopes the refinalize considered but did not
 	// re-enqueue, by reason, so a partial rebuild is visible to the operator.
 	Skipped SkippedScopes
+
+	// DeltaActive reports the re-enqueued scopes whose generation is a delta,
+	// by outcome (#7797). Re-projecting a delta onto an empty graph restores
+	// only its changed files, so these scopes stay incomplete until a full
+	// generation activates.
+	DeltaActive DeltaActiveScopes
 }
 
 // CollectorGenerationReplayFilter constrains collector generation commit

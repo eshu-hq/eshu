@@ -26,8 +26,11 @@ func skippedScopesResponse(skipped recovery.SkippedScopes) recovery.SkippedScope
 // and one counter increment per skip reason. It is what lets an operator with
 // only logs and dashboards see that a rebuild was partial.
 //
-// The log is at Info when nothing was skipped and Warn when anything was, so a
-// partial rebuild stands out in a log stream without a query on the fields.
+// The log is at Info when nothing was skipped and Warn when anything was, or
+// when any re-projected generation was a delta (#7797), so a partial or
+// incomplete rebuild stands out in a log stream without a query on the fields.
+// The delta-active counter and per-scope logs are emitted by the store, which
+// owns the transaction.
 // Scope ids stay out of the log and metric labels; the response body carries a
 // bounded sample for the caller.
 func (h *Handler) reportRefinalizeOutcome(ctx context.Context, operation string, mode string, result recovery.RefinalizeResult) {
@@ -37,13 +40,14 @@ func (h *Handler) reportRefinalizeOutcome(ctx context.Context, operation string,
 		"enqueued", result.Enqueued,
 		"generations_retired", result.GenerationsRetired,
 		"skipped_total", result.Skipped.Total(),
+		"delta_active_total", result.DeltaActive.Total(),
 	}
 	for _, reason := range result.Skipped.Reasons() {
 		attrs = append(attrs, "skipped_"+reason, result.Skipped.ByReason[reason])
 	}
 
 	level := slog.LevelInfo
-	if result.Skipped.Total() > 0 {
+	if result.Skipped.Total() > 0 || result.DeltaActive.Total() > 0 {
 		level = slog.LevelWarn
 	}
 	slog.Log(ctx, level, operation+" completed", attrs...)

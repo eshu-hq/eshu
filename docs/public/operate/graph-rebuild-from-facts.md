@@ -174,7 +174,9 @@ curl -fsS -X POST \
 
 `all_scopes` re-enqueues projector work for every recoverable scope: each active
 scope through its active generation, and each failed scope through its newest
-failed generation. A scope whose last projection attempt failed on the old graph
+failed generation. When that generation is a delta, the rebuild restores only
+its changed files and requests a full re-parse; see
+[Delta-active scopes](#delta-active-scopes). A scope whose last projection attempt failed on the old graph
 backend (a write timeout, for example) has no active generation, and the new
 backend has not seen that failure, so the rebuild includes it. It exists because
 after a restore nobody has a scope list to type, and it is the difference
@@ -238,6 +240,77 @@ anything was skipped) and counted in `eshu_dp_recovery_scopes_skipped_total`. Th
 durable audit ledger after logs rotate. The audit event carries no counts; the
 response body and the log line do.
 An idempotent retry (`duplicate: true`) does not repeat the report.
+
+### Delta-active scopes
+
+The rebuild restores only the delta for a delta-active scope. The recovery
+writes one reindex request for each such git repository. Run scheduled sync
+cycles until those requests are satisfied to complete the graph.
+
+A git repository that last synced through a push webhook usually has a delta
+generation as its active generation. A delta generation carries facts only for
+the files that changed since its baseline. In normal operation the graph keeps
+the unchanged files from the earlier full generation, so this is not visible.
+After a graph wipe, the rebuild re-projects only that delta generation, and the
+graph gets only the changed files. The content store in Postgres stays complete.
+
+Every performed refinalize reports these scopes in two objects (issue #7797).
+Both are always present, with zero counts when no re-projected generation was
+a delta:
+
+```json
+"delta_active_scopes": {
+  "total": 2,
+  "by_outcome": {"reindex_requested": 1, "reindex_unsupported": 1},
+  "sample_scope_ids": {
+    "reindex_requested": ["git-repository-scope:repo-a"],
+    "reindex_unsupported": ["git-repository-scope:repo-a@feature"]
+  },
+  "detail": "A delta generation carries only the files that changed ..."
+},
+"reindex_requests_written": {
+  "count": 1,
+  "scope_ids": ["git-repository-scope:repo-a"]
+}
+```
+
+`reindex_requests_written.count` is exact. `scope_ids` names up to 10 scopes;
+the full set is in `repository_reindex_requests`.
+
+| Outcome | What the rebuild did | What the operator does |
+| --- | --- | --- |
+| `reindex_requested` | A git default-branch scope. In the same transaction as the re-enqueue, the rebuild recorded a per-repository reindex watermark, the same row `POST /api/v0/admin/reindex` with `scope: repository` writes. | Run scheduled sync cycles on the owning git ingester (below). |
+| `reindex_unsupported` | A git ref scope or another collector's scope. No reindex watermark can force a full snapshot for it. | Trigger a full collection for that scope through its own collector. |
+
+#### Complete the graph with scheduled sync
+
+A reindex request is honored by the git ingester's **scheduled** repository
+selection, which visits every repository it selects. A webhook-only ingester
+(`ESHU_REPO_SCHEDULED_SYNC_ENABLED=false`) honors a request only for a
+repository that a webhook triggers, so most requests wait. To complete the
+graph, set these on the git ingester for the repair window:
+
+| Variable | Value | Why |
+| --- | --- | --- |
+| `ESHU_REPO_SCHEDULED_SYNC_ENABLED` | `true` | Scheduled selection reads the reindex rows and syncs requested repositories first. |
+| `ESHU_REPO_RECONCILE_INTERVAL_HOURS` | `0` | Only scopes with a reindex row, or behind an unsatisfied fleet reindex watermark, are forced to a full snapshot. The default `24` also forces every scope without a full in the last 24 hours. |
+| `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` | `10` (default) or `0` | Forced fulls per cycle. `N` requested repositories need `ceil(N / cap)` cycles; `0` removes the cap. |
+
+`ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` can stay `true`: queued webhook
+triggers are still served first. Restore the previous values when the
+requests are satisfied.
+
+The rebuild logs one Warn line per delta-active scope, with `scope_id`,
+`generation_id`, and `outcome`. It counts the scopes in
+`eshu_dp_recovery_delta_active_scopes_total{outcome}` and sets
+`eshu.recovery.delta_active_scopes` on the request span. Watch the repair with
+`eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`.
+A reindex request is satisfied when a full generation activates. There is no
+separate completion status. To check one repository, compare the
+`requested_at` of its `repository_reindex_requests` row with the newest
+activated full generation (`is_delta = false`) in `scope_generations`. The
+[reconciliation sweep](../reference/reconciliation-sweep.md#per-repository-reindex-requests)
+page describes how the ingester reads the watermark.
 
 A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,
 `shared_intents_reopened`, `readiness_phases_cleared`, `generations_retired`

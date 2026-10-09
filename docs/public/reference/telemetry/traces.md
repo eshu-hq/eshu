@@ -257,7 +257,9 @@ or URLs.
 
 - There is no current universal `eshu.query.*` span family.
 - Replay, admin, and recovery flows do not have a dedicated trace namespace
-  unless code has added a specific span.
+  unless code has added a specific span. A refinalize sets
+  `eshu.recovery.delta_active_scopes` (the count of scopes re-projected through
+  a delta generation, #7797) on the caller's request span.
 - A trace ID follows one trace tree. Use `scope_id`, `generation_id`,
   `work_item_id`, `domain`, and `partition_key` to connect async work across
   services.

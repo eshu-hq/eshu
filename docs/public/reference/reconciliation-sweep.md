@@ -203,6 +203,17 @@ later watermark, otherwise `reindex_requested`.
   request after every git ingester runs a binary that reads the table: older
   ingesters ignore it.
 
+A refinalize (`POST /api/v0/admin/recover-generations`,
+`POST /api/v0/admin/refinalize`, or the runtime `/admin/refinalize`) writes the
+same rows, with the same upsert, for each git default-branch scope it
+re-projects through a delta generation (#7797). It does that inside its own
+transaction, so the rows commit or roll back with the re-enqueue. A delta
+restores only its changed files onto a wiped graph; the forced full restores the
+rest. The response reports those scopes in `delta_active_scopes` and the rows
+in `reindex_requests_written`. As with any per-repository row, a webhook-only
+ingester honors it only when the repository is triggered. See
+[Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md#delta-active-scopes).
+
 Watch progress with
 `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`
 and the `git_reconcile_forced` log for the requested `scope_id`.

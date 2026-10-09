@@ -45,7 +45,13 @@
 // its transaction around Apply, so every statement binds the one generation set
 // read first. That one read also classifies every scope it could not cover
 // (recovery.SkipReason*), so the skipped-scope report describes the same
-// snapshot as the covered set. The late EXCLUSIVE queue lock blocks both claim UPDATEs and the
+// snapshot as the covered set. It also returns is_delta for each covered
+// generation (#7797): a delta carries only the files that changed since its
+// baseline, so re-projecting it onto a wiped graph restores only those files.
+// Generations.DeltaActive classifies those pairs, and RequestReindex records a
+// per-repository reindex watermark for each git default-branch scope among
+// them, in the same transaction, so the owning git ingester forces a full
+// re-parse. The late EXCLUSIVE queue lock blocks both claim UPDATEs and the
 // SELECT FOR UPDATE used by exact-claim relationship publication for only the
 // final recheck, retirement, and commit window (#6184 P1 review).
 //

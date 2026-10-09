@@ -42,8 +42,17 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   through its newest failed generation (#7116). It also classifies every scope it
   could not cover with a `skip_reason`. The caller runs it once, first, inside
   its transaction.
-- `Generations` — that set, held as two index-aligned arrays. Build it with
-  `Append`; `Args` hands it to a statement.
+- `Generations` — that set, held as index-aligned arrays, including whether
+  each generation is a delta (`IsDelta`, #7797). Build it with `Append` or
+  `AppendSelected`; `Args` hands the pair arrays to a statement.
+- `RequestDeltaActiveReindex`, `Generations.DeltaActive`, and `RequestReindex` — classify the covered
+  generations that are deltas (`reindex_requested` for a git default-branch
+  scope, `reindex_unsupported` otherwise) and record a per-repository reindex
+  watermark for the requested ones inside the refinalize transaction.
+  `RequestReindexQuery` is byte-identical to the `POST /api/v0/admin/reindex`
+  upsert in `storage/postgres/maintenance`; a test there pins the two. It lives
+  here because the maintenance store imports `runtime`, which the postgres root
+  must not import.
 - `ApplyPreRetirement(ctx, tx, generations) (Counts, error)` and
   `RetireResolutionGenerations(ctx, tx, generations) (int, error)` — run the
   reset steps inside the caller's fenced transaction, against the same bound
@@ -104,6 +113,16 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
 - **All-scopes drops the clause.** It never passes an empty array:
   `scope_id = ANY('{}')` matches no rows, so a rebuild would report success and
   leave the graph empty.
+- **A delta re-projection requests its own repair (#7797).** A delta
+  generation restores only its changed files onto a wiped graph. The refinalize
+  upserts `repository_reindex_requests` for each delta-active git default-branch
+  scope after the claim fence and the projector re-enqueue, in the same
+  transaction, so the request commits or rolls back with the re-enqueue. The
+  upsert adds `ROW EXCLUSIVE` on that table plus row locks on the named scopes.
+  Its only other writer, the admin reindex route, is one autocommit statement
+  that takes no `fact_work_items` lock, and the git collector only reads the
+  table with a plain `SELECT`, so the upsert adds no lock cycle
+  (`TestRefinalizeDeltaActiveReindexLockContention`).
 - **One read of `ingestion_scopes` per refinalize.** The transaction is READ
   COMMITTED, so every statement that reads that table gets its own snapshot. Two
   reads mean an ingester activating a generation mid-refinalize can have the
@@ -132,7 +151,7 @@ operation through `RecoveryStore.RefinalizeScopeProjections`:
 
 ```bash
 cd go && go test ./internal/storage/postgres \
-  -run 'Refinalize(RebuildReset|.*Reducer|.*Claim)|RelationshipStoreClaimFencedActivation' \
+  -run 'Refinalize(RebuildReset|.*Reducer|.*Claim|DeltaActive)|RelationshipStoreClaimFencedActivation' \
   -count=1
 ```
 

@@ -2555,6 +2555,16 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/recovery_refinalize_delta_active_fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7797 PostgreSQL 18 proofs that the refinalize delta-active reindex request rolls back with the refinalize transaction and that, while the refinalize holds EXCLUSIVE on fact_work_items and the reindex row lock, the collector watermark read does not block and the admin reindex upsert waits then commits with no deadlock; isolated schema per test; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/recovery_refinalize_delta_active_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7797 PostgreSQL 18 proofs that a refinalize of a delta-active git default-branch scope records a per-repository reindex watermark the collector read path sees, reports the delta-active outcome matrix and counter, writes no row for full-active, ref, or other-collector scopes, and is idempotent; isolated schema per test; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/recovery_refinalize_failed_scope_live_test.go
     tag: ~
     class: scheduled

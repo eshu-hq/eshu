@@ -22,15 +22,20 @@ import (
 // short-circuits without a fourth read, exactly as production does when the
 // retirement guard did not trip.
 //
-// The generation read returns (scope_id, generation_id, skip_reason). A
-// two-column pair row is a covered scope, so it gains the empty skip_reason the
-// production statement returns for one; a three-column row is passed through
-// untouched so a test can seed a skipped scope.
+// The generation read returns (scope_id, generation_id, skip_reason,
+// is_delta). A two-column pair row is a covered full generation, so it gains
+// the empty skip_reason and the false is_delta the production statement
+// returns for one; a three-column row gains is_delta false so a test can seed
+// a skipped scope; a four-column row is passed through untouched.
 func refinalizeFakeDB(pairs [][]any, enqueued [][]any) *fakeBeginnerExecQueryer {
 	generationRows := make([][]any, 0, len(pairs))
 	for _, row := range pairs {
+		row = append([]any{}, row...)
 		if len(row) == 2 {
-			row = append(append([]any{}, row...), "")
+			row = append(row, "")
+		}
+		if len(row) == 3 {
+			row = append(row, false)
 		}
 		generationRows = append(generationRows, row)
 	}
