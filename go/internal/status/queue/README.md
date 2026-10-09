@@ -95,6 +95,13 @@ runtime behavior: the compiler resolves the same types through their
 new paths, and the compat deletion is compile-enforced total — any
 missed caller would fail the build.
 
+No-Observability-Change (#6949 batch 2, queue family): this package
+carries no instrumentation (see Telemetry above) and the move adds,
+removes, or renames no metric, span, structured log, or status field in
+any touched package. The status readers, query handlers, cli/mcp
+surfaces, and postgres readers that use these types are untouched;
+operator signals are identical before and after.
+
 ## Related docs
 
 - `docs/internal/naming.md` — the nesting rules this leaf was created under
