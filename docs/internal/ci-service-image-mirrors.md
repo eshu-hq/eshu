@@ -23,8 +23,9 @@ normal Eshu image, chart, and release job.
 ## Bootstrap and public-access gate
 
 1. Independently review the exact branch commit and record its full SHA. The
-   existing `docker-publish.yml` workflow is already on the default branch,
-   so it can run the reviewed bootstrap branch before this change merges:
+   `workflow_dispatch` trigger exists on the default branch, so manual runs
+   are available. The mirror jobs exist on the reviewed branch; `--ref`
+   runs that branch's workflow and code before merge:
 
    ```bash
    gh workflow run docker-publish.yml --ref fix/ci-owned-image-mirror-20261009 \
