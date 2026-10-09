@@ -97,11 +97,9 @@ Reading the table.
   7 to 13 s load, every flight tears, no cache entry survives, and every item
   dead-letters after 3 attempts with class `identity_epoch_unstable`. The run
   terminates. That is the F21 case and the reason for #7825. Dead letters with
-  class `identity_epoch_unstable` are requeued per cycle through the deployment
-  runbook. The eshu docs describe the guarded manual replay by `failure_class`
-  (3 AM runbook, "Symptom: deadletter growth"); the class is not in the
-  unsafe-replay list, so no `force` is needed. The eshu docs do not describe a
-  per-cycle requeue, and none is added here.
+  class `identity_epoch_unstable` can be replayed with the guarded
+  `/api/v0/admin/replay` by `failure_class` (3 AM runbook, "Symptom: deadletter
+  growth"); the class is not in the unsafe-replay list, so no `force` is needed.
 - Most failures are waiters, and mostly `gave_up_wall`. With loads this slow, a
   waiter's 30 s budget runs out on a flight that is still loading or still torn.
   `gave_up_flights` dominant would mean churn on its own; here the slow host makes
@@ -227,9 +225,13 @@ generation activation in any scope, identity-relevant or not, moves the epoch
 and can tear an in-flight load. Two kinds of caller fail with
 `identity_epoch_unstable`, and both are counted in the churn table above.
 
-- A leader fails when the epoch moves during both of its two load attempts. At
-  the churn measured in production that is about 0.3 percent per leader item; if
-  one activation landed per load, about 6 percent.
+- A leader fails when the epoch moves during both of its two load attempts. Let q
+  be the chance that one flight tears (that the epoch moves during one load).
+  At the shim's 10 s churn the table shows 9 leader failures in about 22 flights,
+  so q is about 0.14, and an item dead-letters only after three failures in a row,
+  which is q cubed, about 0.3 percent. At q about 0.4 it is about 6 percent. The
+  shim churn is not production churn: at production churn q is negligible. The
+  0.3 percent is the dead-letter odds on the shim, not a per-item failure rate.
 - A waiter fails when 3 flights in a row do not serve it, or when it has waited
   one heartbeat interval (30 s) in total, and a final probe finds no usable set.
   This path needs no churn. A set that stays over the cache cap is never cached,
@@ -255,6 +257,8 @@ says whether churn or a slow flight caused it. No code changes for this in this
 PR. Follow-up: narrow the epoch fingerprint to identity-relevant activations only.
 Follow-up: #7825
 
+Measured production figure, for scale only (not a claim about the speedup of this change). With scheduled sync paused, the identity load on the image without this fix took about 615 s per load (count 3 to 4, sum 1858.88 to 2473.7 s, 254 to 324 cache hits in the window), and the queue drained about 30 items per minute (posted on #7825).
+
 Raw outputs are attached to the PR (no private paths). File names:
 `red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-noreprobe-mutation.txt`,
 `red-probeerr-mutation.txt`, `red-noclass-mutation.txt`,
@@ -262,7 +266,7 @@ Raw outputs are attached to the PR (no private paths). File names:
 `red-wallleads-mutation.txt`, `red-nofinalprobe-mutation.txt`,
 `red-heartbeat-wiring-mutation.txt`, `red-live-epoch.txt`,
 `red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
-`red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
+`red-keyset-live-mutation.txt`, `red-probectx-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
 `after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
 `after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`, and, from
 the final-head recapture directory `final-r10/`: `exit-codes.txt`,
