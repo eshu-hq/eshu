@@ -165,6 +165,23 @@ out="$(run_runner)" && fail "failures in two packages passed"
 [[ "${out}" == *"${first_proof}: FAIL"* && "${out}" == *"${last_proof}: SKIP"* ]] ||
   fail "an earlier package failure hid a later package failure: ${out}"
 
+# A failing test prints the TAIL of its output stream: a long test's early
+# progress lines must not crowd out the assertion (#7814).
+write_events
+sed -i.bak "/\"Test\":\"${first_proof}\"/d" "$(events_of "${first_pkg}")"
+{
+  printf '{"Action":"run","Test":"%s"}\n' "${first_proof}"
+  for i in $(seq 0 19); do
+    printf '{"Action":"output","Test":"%s","Output":"early line %d\\n"}\n' "${first_proof}" "${i}"
+  done
+  printf '{"Action":"output","Test":"%s","Output":"--- FAIL: %s (40.38s)\\n"}\n' "${first_proof}" "${first_proof}"
+  printf '{"Action":"output","Test":"%s","Output":"    seeded_test.go:99: SEEDED-FAILURE-MARKER\\n"}\n' "${first_proof}"
+  printf '{"Action":"fail","Test":"%s","Elapsed":40.38}\n' "${first_proof}"
+} >>"$(events_of "${first_pkg}")"
+out="$(run_runner)" && fail "tailed failure passed"
+[[ "${out}" == *"SEEDED-FAILURE-MARKER"* ]] || fail "failure tail not printed: ${out}"
+[[ "${out}" != *"early line 0"* ]] || fail "early noise crowded out the failure: ${out}"
+
 # A missing DSN or opt-in names the variable before any package runs.
 while read -r var; do
   out="$(env -u "${var}" bash "${runner}" 2>&1)" && fail "unset ${var} passed"
