@@ -39,7 +39,7 @@
 // -runs (default 1) repeats the counted sweep per route: run 1 follows the
 // warmup probes, and runs 2..-runs are later passes issued with no additional
 // warmup between them. -latency-report writes the full per-route
-// distribution (cold and warm samples, warm n/p50/p95/min/max/stddev, the
+// distribution (first and later samples, later n/p50/p95/min/max/stddev, the
 // per-run p95 spread, and an identity block identifying the corpus, run
 // shape, and binary) as JSON, before budget evaluation runs, so a leg that
 // goes on to breach its budget still yields a report.

@@ -358,10 +358,9 @@ func TestSweepRoutesRunsProducesColdAndWarmSamples(t *testing.T) {
 	}
 }
 
-// TestSweepRoutesRunsDefaultLeavesWarmDataEmpty pins the byte-for-byte
-// compatibility guarantee: Runs unset (zero value) behaves exactly like
-// Runs=1 — a single cold pass, no warm data, P95 computed from that one pass
-// alone, matching every pre-existing caller of SweepRoutes.
+// TestSweepRoutesRunsDefaultLeavesWarmDataEmpty pins the default sample
+// selection: Runs unset (zero value) behaves like Runs=1, with a single
+// counted pass after warmups and no later-pass data.
 func TestSweepRoutesRunsDefaultLeavesWarmDataEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

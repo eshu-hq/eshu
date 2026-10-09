@@ -62,8 +62,8 @@ cd "${repo_root}"
 : "${GATE_IAC_FACT_COUNT:=150000}"
 : "${GATE_SHARED_INTENT_COUNT:=2500000}"
 : "${GATE_ITERATIONS:=20}"
-# GATE_RUNS defaults to 1: identical sweep behavior (one cold pass per route,
-# no warm data) to before -runs existed. #6965 phase 6's cross-backend
+# GATE_RUNS defaults to 1: one counted pass after discarded warmups, with
+# no later-pass data. #6965 phase 6's cross-backend
 # comparison recipe sets it to 5 or more; see
 # docs/public/reference/local-testing/read-api-latency-gate.md.
 : "${GATE_RUNS:=1}"
@@ -274,10 +274,8 @@ build_bin mcp-server
 # computed (and only then does its own log line print) when a report was
 # actually asked for: GATE_LATENCY_REPORT is the only consumer, and CI's
 # default invocation never sets it, so computing/logging this unconditionally
-# would add both a new shasum cost and a new stdout line to every default
-# run -- the exact thing docs/public/reference/local-testing/
-# read-api-latency-gate.md's "byte-for-byte identical at default settings"
-# claim depends on NOT happening. Best effort: an empty string when shasum is
+# would add a shasum cost and a stdout line to every default run.
+# Best effort: an empty string when shasum is
 # unavailable, same as the already-conditional lsof provenance print below.
 gate_api_binary_sha256=""
 # Best effort: the commit this worktree's HEAD resolves to, recorded in the
@@ -372,9 +370,7 @@ done
 [[ "${mcp_ready}" == "true" ]] || { tail -40 "${log_dir}/mcp-server.log" >&2 || true; die "MCP /health never returned on port ${GATE_MCP_PORT}"; }
 kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) exited while /health answered"
 
-# Exact pre-existing text at the default GATE_RUNS=1 (see the
-# "byte-for-byte identical at default settings" doc claim); only mentions
-# runs when there is more than one.
+# Include the repeat count when more than one counted pass is requested.
 if [[ "${GATE_RUNS}" -eq 1 ]]; then
 	log "sweep (${GATE_ITERATIONS} requests/route)"
 else

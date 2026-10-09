@@ -1484,11 +1484,12 @@ gates:
       - "scripts/verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-profile.sh"
       - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-query-plan-regression.sh"
       test_command: "bash scripts/test-verify-query-plan-regression.sh"
       pre_push: deferred
-      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 30s (Docker), ~8% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via test.yml's verify-contracts job (required-gates-complete). Run `make pre-pr` before a hot-path Cypher or graph-write change: this is the gate that proves the query plan did not regress."
+      pre_push_reason: "The expanded #7881 targeted stage took 291s (4m51s) in local calibration, including disposable PostgreSQL/Neo4j correctness, paired plans and timings, and legacy PROFILE proof. It is deferred from the fast floor, runs in `make pre-pr`/`make pre-pr-full`, and blocks merge via test.yml's verify-contracts job (required-gates-complete). Run this selected live stage before pushing a covered change."
     ci:
       workflow: test.yml
       job: "verify-contracts"

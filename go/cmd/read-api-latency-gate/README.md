@@ -64,7 +64,7 @@ not own the routes themselves (`go/internal/query`), the surface inventory
 - `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
   report (schema version 1): an identity block (backend, best-effort eshu
   commit/api binary sha256, seed sizing, runs/iterations/warmups) plus every
-  route's cold/warm samples and warm distribution stats (n/p50/p95/min/max/
+  route's first/later samples and later distribution stats (n/p50/p95/min/max/
   stddev, and the per-run p95 min..max). Written before budget evaluation, so
   a breaching leg still yields a report. `scripts/compare-backend-latency.sh`
   is the reader: it renders a per-route markdown comparison table between two
