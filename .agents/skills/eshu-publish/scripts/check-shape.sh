@@ -39,7 +39,7 @@ if [ -z "${file}" ] || [ ! -f "${file}" ]; then
   exit 2
 fi
 
-awk -v mode="${mode}" '
+LC_ALL=C awk -v mode="${mode}" '
 function fail(rule, msg) { print "FAIL " rule ": " msg; fails++ }
 function warn(rule, msg) { print "WARN " rule ": " msg }
 # fencemark sets mk_c, mk_n, mk_rest when s starts with 3 or more of ` or ~.
