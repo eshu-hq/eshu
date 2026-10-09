@@ -77,7 +77,7 @@ graph is identical before and after.
 - Baseline: `cb5fa4a515`, `go test -count=1 ./internal/reducer/
   ./internal/reducer/code/call/ ./internal/accuracygate/
   ./internal/resolutionparity/`: 4 ok, 0 fail.
-- After: measurement commit `0293a6de6c` (docs-only refresh on top),
+- After: measurement commit `d597f1ef70` (docs-only refresh on top),
   same command:
   4 ok, 0 fail (identical ok-package set; input shape is the unchanged
   test corpus, terminal row counts unchanged because no projection code
