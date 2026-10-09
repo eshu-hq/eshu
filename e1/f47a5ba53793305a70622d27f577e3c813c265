@@ -1,0 +1,23 @@
+scripts/test-verify-measurement-citations-wrapper.sh
+  s_b0d7e3abc26c5a::t_5ca65b743abf04 34-37
+  s_b0d7e3abc26c5a::t_27206fd8a371e9 129-166
+scripts/verify-measurement-citations.sh
+  s_b0d7e3abc26c5a::t_f41e01752742b2 288,294
+  s_b0d7e3abc26c5a::t_9cd0b22de8f780 61-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1f47a5ba53793305a70622d27f577e3c813c265",
+  "prompts": {},
+  "sessions": {
+    "s_b0d7e3abc26c5a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d983-94b6-77c2-aeaf-92355b3bef6c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
