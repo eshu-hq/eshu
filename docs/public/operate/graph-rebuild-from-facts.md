@@ -302,7 +302,7 @@ still served first. Restore the previous values when the requests are satisfied.
 
 The rebuild logs the first 10 delta-active scopes at Warn and the rest at
 Info, each with `scope_id`, `generation_id`, and `outcome`, then one summary
-Warn with the exact count per outcome. It counts the scopes in
+Warn with `delta_active_total`, `reindex_requested`, `reindex_unsupported`, `per_scope_warn_limit` (10), `per_scope_info_count` (see [Metrics](../reference/telemetry/metrics.md)). It counts the scopes in
 `eshu_dp_recovery_delta_active_scopes_total{outcome}` and sets
 `eshu.recovery.delta_active_scopes` on the request span. Watch the repair with
 `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`.

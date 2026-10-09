@@ -97,8 +97,10 @@ backend, or any network connection directly.
 - `DeltaActiveGeneration` / `LogDeltaActive` — one delta-active pair
   (scope, generation, outcome) and the bounded log writer for a committed
   refinalize: the first `DeltaActiveScopeSampleLimit` pairs log at WARN, the
-  rest at INFO with the same fields, then one summary WARN with the exact
-  count per outcome. The postgres recovery store calls it after commit.
+  rest at INFO with the same fields, then one summary WARN ("refinalize
+  re-projected delta generations; ... see the response's delta_active_scopes
+  for samples") with `delta_active_total`, `reindex_requested`,
+  `reindex_unsupported`, `per_scope_warn_limit`, and `per_scope_info_count`. The postgres recovery store calls it after commit.
 - `IsGitDefaultBranchScope` / `GitRepositoryScopePrefix` — the one predicate
   for "this scope id names a git default-branch repository scope", the only
   kind a per-repository reindex watermark can force. It trims surrounding

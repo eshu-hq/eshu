@@ -21,6 +21,12 @@ const GitRepositoryScopePrefix = "git-repository-scope:"
 //
 // The refinalize delta-active classification and the admin reindex route both
 // call it, so a scope one accepts the other cannot refuse.
+//
+// It classifies a whitespace-padded id as a default-branch scope, but the
+// callers write the reindex row with the id unchanged, which the collector
+// would never match. That case is theoretical: the git collector builds the
+// scope id as the prefix plus repositoryidentity.CanonicalRepositoryID, a
+// "repository:r_<8-hex>" hash that cannot carry whitespace.
 func IsGitDefaultBranchScope(scopeID string) bool {
 	rest, ok := strings.CutPrefix(strings.TrimSpace(scopeID), GitRepositoryScopePrefix)
 	if !ok {
