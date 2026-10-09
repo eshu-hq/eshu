@@ -22,4 +22,9 @@
 // Store runs the two manifest reads over an injected db.Queryer. This package
 // must not import the parent internal/storage/postgres package from non-test
 // code (#6693).
+//
+// The package.json read UNION ALLs the scopes whose stored manifest may be
+// ahead of the active generation (#7609); those rows carry a NULL manifest
+// and always join the producer set, because a dropped candidate would let a
+// same-named producer resolve alone and bypass the ambiguity rule.
 package producerstore
