@@ -434,6 +434,7 @@ jobs:
               - 'scripts/pg-statement-report.sh'
               - 'scripts/test-pg-statement-report.sh'
             dockerpublish:
+              - 'docs/internal/ci-service-image-mirrors.md'
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
               - '.github/workflows/docker-publish.yml'

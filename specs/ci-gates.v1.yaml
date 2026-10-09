@@ -5535,6 +5535,7 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      - "docs/internal/ci-service-image-mirrors.md"
       - ".github/workflows/docker-publish.yml"
       - ".github/workflows/security-scan.yml"
       - ".github/workflows/static-contract-gates.yml"
