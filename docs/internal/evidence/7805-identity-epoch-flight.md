@@ -262,12 +262,19 @@ Raw outputs are attached to the PR (no private paths). File names:
 `red-wallleads-mutation.txt`, `red-nofinalprobe-mutation.txt`,
 `red-heartbeat-wiring-mutation.txt`, `red-live-epoch.txt`,
 `red-oldprobe-live-mutation.txt`, `red-orfalse-live-mutation.txt`,
-`red-keyset-live-mutation.txt`, `green-unit-r7.txt`, `green-live-r7.txt`,
-`before-load.txt`, `after-load-final.txt`, `after-drain-head-superseded.txt`,
-`after-drain-final-active-10s.txt`, `after-drain-final-active-7s.txt`,
-`after-drain-final-active-5s.txt`, `gates-r7.txt`. The captures `green-unit-r6.txt`,
-`green-live-r6.txt`, and `gates-r6.txt` are the earlier run at the same logic;
-the r7 files were taken after the final context change in the give-up probe.
+`red-keyset-live-mutation.txt`, `before-load.txt`, `after-load-final.txt`,
+`after-drain-head-superseded.txt`, `after-drain-final-active-10s.txt`,
+`after-drain-final-active-7s.txt`, `after-drain-final-active-5s.txt`, and, from
+the final-head recapture directory `final-r10/`: `exit-codes.txt`,
+`unit-race-with-overlay.txt`, `postgres-package-race-with-overlay.txt`,
+`live-proofs-with-overlay.txt`, `cmd-reducer-wiring.txt`, `registry-gates.txt`,
+`verify-live-tests-ledger.txt`, `verify-ledger-results.txt`,
+`test-verify-live-tests-ledger.txt`, `test-run-live-postgres-readiness.txt`,
+`telemetry-coverage.txt`, `docs-cli-env-refs.txt`. Every green capture in
+`final-r10/` was taken on the final head (`binding.txt` names it). The RED
+mutation captures and the drains were taken earlier on the same cache logic: the
+cache, patience, test and wiring sources are byte-identical between the head they
+were taken on and the final head (only the base moved).
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
 (Cypher) reads only, so it has no entry for this query. The guard is
