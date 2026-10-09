@@ -27,6 +27,7 @@ import (
 type describingQuiescence struct {
 	mu          sync.Mutex
 	uncommitted bool
+	probeErr    error
 	total       int
 	ids         []string
 	describeErr error
@@ -36,7 +37,7 @@ type describingQuiescence struct {
 func (d *describingQuiescence) HasUncommittedCanonicalCodeScopes(context.Context) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.uncommitted, nil
+	return d.uncommitted, d.probeErr
 }
 
 func (d *describingQuiescence) DescribeUncommittedCanonicalCodeScopes(_ context.Context, limit int) (int, []string, error) {
@@ -150,6 +151,24 @@ func blockedCounterValue(rm metricdata.ResourceMetrics, reason string) int64 {
 	return -1
 }
 
+func gateDurationPointCount(rm metricdata.ResourceMetrics, reason string) uint64 {
+	want := laneAttrs(reason)
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_shared_projection_lane_gate_seconds" {
+				continue
+			}
+			histogram, _ := m.Data.(metricdata.Histogram[float64])
+			for _, point := range histogram.DataPoints {
+				if point.Attributes.Equals(&want) {
+					return point.Count
+				}
+			}
+		}
+	}
+	return 0
+}
+
 func blockingScopesGauge(rm metricdata.ResourceMetrics, reason string) int64 {
 	want := laneAttrs(reason)
 	for _, scope := range rm.ScopeMetrics {
@@ -216,6 +235,44 @@ func TestCodeCallProjectionRunnerReportsQuiescenceBlock(t *testing.T) {
 	}
 	if got := blockingScopesGauge(h.metrics(t), BlockedReasonCanonicalCodeQuiescence); got != 0 {
 		t.Fatalf("lane_blocking_scopes after release = %d, want 0", got)
+	}
+}
+
+// TestCodeCallProjectionRunnerRecordsGateProbeLatency pins the #7166 gate-cost
+// signal: every successful gate consultation records one quiescence-probe
+// latency point, whether the gate holds the lane or lets it run, so the
+// probe's own cost stays visible on a free-running lane.
+func TestCodeCallProjectionRunnerRecordsGateProbeLatency(t *testing.T) {
+	t.Parallel()
+
+	gate := &describingQuiescence{uncommitted: true}
+	h := newBlockedTelemetryHarness(t, func(r *Runner) { r.CanonicalQuiescence = gate })
+
+	h.process(t)
+	h.process(t)
+	gate.set(false)
+	h.process(t)
+	h.process(t)
+
+	if got := gateDurationPointCount(h.metrics(t), BlockedReasonCanonicalCodeQuiescence); got != 4 {
+		t.Fatalf("lane_gate_seconds{canonical_code_quiescence} count = %d, want 4 (one per successful consultation, held or open)", got)
+	}
+}
+
+// TestCodeCallProjectionRunnerSkipsGateProbeLatencyOnError pins that a
+// failed gate consultation emits no latency point: the histogram covers
+// only consultations that produced an answer.
+func TestCodeCallProjectionRunnerSkipsGateProbeLatencyOnError(t *testing.T) {
+	t.Parallel()
+
+	gate := &describingQuiescence{probeErr: errors.New("probe boom")}
+	h := newBlockedTelemetryHarness(t, func(r *Runner) { r.CanonicalQuiescence = gate })
+
+	if _, err := h.runner.processOnce(context.Background(), time.Now().UTC()); err == nil {
+		t.Fatal("processOnce() error = nil, want probe error")
+	}
+	if got := gateDurationPointCount(h.metrics(t), BlockedReasonCanonicalCodeQuiescence); got != 0 {
+		t.Fatalf("lane_gate_seconds{canonical_code_quiescence} count after failed probe = %d, want 0", got)
 	}
 }
 

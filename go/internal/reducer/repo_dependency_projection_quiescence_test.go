@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -89,6 +90,72 @@ func TestRepoDependencyProjectionRunnerRecordsQuiescenceBlockedCycle(t *testing.
 	if got := laneBlockedCount(resources, DomainRepoDependency, "canonical_code_quiescence"); got != 1 {
 		t.Fatalf("lane_blocked_total{repo_dependency,canonical_code_quiescence} = %d, want 1", got)
 	}
+	// #7166: the gate probe's own latency is recorded on the same cycle.
+	if !quiescenceGateDurationHasPoint(resources) {
+		t.Fatal("blocked cycle left no lane-gate-duration point for domain repo_dependency")
+	}
+}
+
+// TestRepoDependencyProjectionRunnerSkipsGateProbeLatencyOnError pins that a
+// failed gate consultation emits no latency point: the histogram covers
+// only consultations that produced an answer.
+func TestRepoDependencyProjectionRunnerSkipsGateProbeLatencyOnError(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	intentStore := &fakeRepoDependencyIntentStore{leaseGranted: true}
+	runner := RepoDependencyProjectionRunner{
+		Instruments:         instruments,
+		IntentReader:        intentStore,
+		LeaseManager:        intentStore,
+		AcceptanceUnitGate:  intentStore,
+		CanonicalQuiescence: staticReducerGraphDrain{err: errors.New("probe boom")},
+		Config:              RepoDependencyProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	if _, err := runner.processOnce(context.Background(), time.Now().UTC()); err == nil {
+		t.Fatal("processOnce() error = nil, want probe error")
+	}
+
+	var resources metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &resources); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if quiescenceGateDurationHasPoint(resources) {
+		t.Fatal("failed probe left a lane-gate-duration point for domain repo_dependency, want none")
+	}
+}
+
+func quiescenceGateDurationHasPoint(resources metricdata.ResourceMetrics) bool {
+	for _, scope := range resources.ScopeMetrics {
+		for _, candidate := range scope.Metrics {
+			if candidate.Name != "eshu_dp_shared_projection_lane_gate_seconds" {
+				continue
+			}
+			histogram, ok := candidate.Data.(metricdata.Histogram[float64])
+			if !ok {
+				continue
+			}
+			for _, point := range histogram.DataPoints {
+				domain, domainOK := point.Attributes.Value(attribute.Key("domain"))
+				reason, reasonOK := point.Attributes.Value(attribute.Key("reason"))
+				if domainOK && reasonOK &&
+					domain.AsString() == DomainRepoDependency &&
+					reason.AsString() == "canonical_code_quiescence" &&
+					point.Count == 1 {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func laneBlockedCount(resources metricdata.ResourceMetrics, domain, reason string) int64 {

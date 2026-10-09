@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -158,9 +159,16 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	// #6184: hold the whole lane while any code scope's canonical nodes are
 	// uncommitted, before claiming the lease. See CanonicalCodeQuiescenceChecker.
 	if r.CanonicalQuiescence != nil {
+		gateStart := time.Now()
 		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
 		if err != nil {
 			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
+		if r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
+			r.Instruments.SharedProjectionLaneGateDuration.Record(ctx, time.Since(gateStart).Seconds(), metric.WithAttributes(
+				telemetry.AttrDomain(DomainRepoDependency),
+				telemetry.AttrReason(projection.BlockedReasonCanonicalCodeQuiescence),
+			))
 		}
 		if uncommitted {
 			r.recordRepoDependencyQuiescenceBlocked(ctx, cycleStart)
