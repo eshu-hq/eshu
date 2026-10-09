@@ -1,6 +1,6 @@
 go/internal/runtime/postgres/reservation_capacity_test.go
   s_b0d7e3abc26c5a::t_921a3539dce92e 8,51-76
-  s_b0d7e3abc26c5a::t_cd205fb145e5c8 77-79
+  s_b0d7e3abc26c5a::t_6ef94230086c26 77-79
 ---
 {
   "schema_version": "authorship/3.0.0",
