@@ -34,4 +34,6 @@ printf 'default\t13\t18\t14\nGET /old\t34\t55683\t76\tGREEN-derived work guard\n
 reject bash "${script}" --baseline "${work}/duplicate-baseline" --rendered "${work}/rendered" --route 'GET /a' --provenance ok
 printf 'GET /old\t34\t55683\t76\tGREEN-derived work guard\n' >"${work}/missing-default"
 reject bash "${script}" --baseline "${work}/missing-default" --rendered "${work}/rendered" --route 'GET /a' --provenance ok
+printf 'default\t50\t20000\t100\nGET /old\t50\t20000\t100\tGREEN-derived work guard\n' >"${work}/high-default"
+reject bash "${script}" --baseline "${work}/high-default" --rendered "${work}/rendered" --route 'GET /a' --provenance ok
 printf 'test-extend-read-api-work-budgets: PASS\n'

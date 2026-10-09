@@ -43,10 +43,15 @@ awk -F '\t' '
 ' "${baseline}" || die 'malformed or duplicate baseline row'
 awk -F '\t' -v selected="${work}/selected" '
 	BEGIN { while ((getline route < selected) > 0) { if (route == "" || route == "default") exit 1; wanted[route] = 1; need++ } }
-	FILENAME == ARGV[1] && NF && $1 !~ /^#/ { if ($1 in wanted) exit 1; next }
+	FILENAME == ARGV[1] && NF && $1 !~ /^#/ {
+		if ($1 == "default") for (i = 2; i <= 4; i++) floor[i] = $i + 0
+		if ($1 in wanted) exit 1
+		next
+	}
 	FILENAME == ARGV[2] && NF && $1 !~ /^#/ {
 		if (!($1 in wanted)) next
 		if (++found[$1] != 1 || NF != 5 || $2 !~ /^[0-9]+$/ || $3 !~ /^[0-9]+$/ || $4 !~ /^[0-9]+$/ || $5 != "GREEN-derived work guard") exit 1
+		for (i = 2; i <= 4; i++) if ($i + 0 < floor[i]) exit 1
 		print $0
 	}
 	END { for (route in wanted) if (found[route] != 1) exit 1 }
