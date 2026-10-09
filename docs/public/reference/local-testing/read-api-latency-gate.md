@@ -183,17 +183,18 @@ Tunables (env, matching the script's own defaults): `GATE_POSTGRES_PORT`
 `GATE_API_PORT` (18097), `GATE_TOTAL_SCOPES` (800), `GATE_NODES_PER_LABEL`
 (150000), `GATE_IAC_FACT_COUNT` (150000 seeded IaC facts), `GATE_ITERATIONS`
 (counted requests per route, 20), `GATE_RUNS` (independent counted sweeps per
-route, default 1 — run 1 is always the cold pass; runs 2.. are warm passes
-with no additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
+route, default 1 — run 1 follows two discarded warmups; runs 2.. repeat
+without additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
 `GATE_WORK_REPORT` (write the per-route measured work as JSON),
 `GATE_LATENCY_REPORT` (write the full per-route latency distribution — cold
 and warm samples, warm n/p50/p95/min/max/stddev, the per-run p95 spread, and
 an identity block — as JSON, before budget evaluation runs). `GATE_API_BIN=<path>`
 swaps in a pre-built `eshu-api` binary (built from a different commit, e.g.
 main with a candidate fix) instead of building one from this worktree, for a
-RED/GREEN comparison without rebasing. At default settings (`GATE_RUNS=1`,
-no `GATE_LATENCY_REPORT`), the gate's stdout and exit behavior are
-byte-for-byte identical to before either flag existed.
+RED/GREEN comparison without rebasing. The report retains the legacy `cold`
+name for run 1, but it does not prove a cold cache. The #7881 parameterized,
+POST and MCP checks add output and fail on invalid fixture responses even at
+default settings. Repeated sweeps preserve the existing route budgets.
 
 ## Cross-backend comparison (remote)
 
