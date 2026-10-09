@@ -375,7 +375,12 @@ shares the intent probe's shape (scalar subquery, `LIMIT 1`, no `EXISTS`, no
 `completed_at` filter) and its gate: it runs only for a scope that already
 failed the watermark test, as an index scan on
 `fact_work_items_scope_generation_idx`. No schema, response shape or index
-changes.
+changes. Enqueue precedes activation in the live path: `projector.Service.processWork`
+runs `Runner.Project` (which enqueues the reducer intents via `IntentWriter.Enqueue`)
+and only acks -- setting `active_generation_id` / `status = 'active'`, the columns
+the `matched` CTE reads -- after projection succeeds, so an active generation with
+neither work rows nor intents means its projection emitted no materialization work
+and correctly reads complete.
 
 Proof: `TestCrossRepoDeadCodeConsumerCoverageLive` gains four refresh-only
 repositories: pending code-call work is a `no_snapshot_yet` gap (failed before
