@@ -41,10 +41,26 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	database := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	now := time.Date(2026, time.July, 30, 13, 0, 0, 0, time.UTC)
+	// Live clock: the ACK fence requires claim_until > clock_timestamp().
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	const (
 		owner = "capable-reducer-5854-reset"
 	)
+	// stampAttemptBoundIntent stamps a seeded row the way a real claim would
+	// (#7691) and returns the attempt-bound intent the capable ACK must
+	// carry: the fence matches last_attempt_at, a live claim_until, and the
+	// post-stamp claim epoch, so a hand-built intent without them is
+	// legitimately rejected.
+	stampAttemptBoundIntent := func(workItemID string) reducer.Intent {
+		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, database, workItemID)
+		return reducer.Intent{
+			IntentID:     workItemID,
+			Domain:       reducer.DomainContainerImageIdentity,
+			AttemptCount: 1,
+			ClaimEpoch:   claimEpoch,
+			ClaimedAt:    &claimedAt,
+		}
+	}
 
 	for index := 1; index <= 7; index++ {
 		scopeID := fmt.Sprintf("repository:5854-ack-reset-%d", index)
@@ -78,12 +94,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	}
 	if err := connQueue.Ack(
 		ctx,
-		reducer.Intent{
-			IntentID:     "ack-5854-reset-1",
-			Domain:       reducer.DomainContainerImageIdentity,
-			AttemptCount: 1,
-			ClaimEpoch:   1,
-		},
+		stampAttemptBoundIntent("ack-5854-reset-1"),
 		reducer.Result{},
 	); err != nil {
 		t.Fatalf("autocommit attempt-bound ACK: %v", err)
@@ -95,7 +106,9 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		"ack-5854-reset-2",
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, result, legacyErr)
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, conn, "ack-5854-reset-2", result, legacyErr, 1, "pending",
+	)
 
 	rollbackTx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
@@ -107,16 +120,8 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	if err := rollbackQueue.Ack(
-		ctx,
-		reducer.Intent{
-			IntentID:     "ack-5854-reset-3",
-			Domain:       reducer.DomainContainerImageIdentity,
-			AttemptCount: 1,
-			ClaimEpoch:   1,
-		},
-		reducer.Result{},
-	); err != nil {
+	reset3 := stampAttemptBoundIntent("ack-5854-reset-3")
+	if err := rollbackQueue.Ack(ctx, reset3, reducer.Result{}); err != nil {
 		_ = rollbackTx.Rollback()
 		t.Fatalf("attempt-bound ACK before rollback: %v", err)
 	}
@@ -130,7 +135,10 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		"ack-5854-reset-3",
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, result, legacyErr)
+	// The stamp advanced the epoch to 2; the rolled-back ACK left it there.
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, conn, "ack-5854-reset-3", result, legacyErr, 2, "pending",
+	)
 
 	commitTx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
@@ -144,12 +152,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	}
 	if err := commitQueue.Ack(
 		ctx,
-		reducer.Intent{
-			IntentID:     "ack-5854-reset-4",
-			Domain:       reducer.DomainContainerImageIdentity,
-			AttemptCount: 1,
-			ClaimEpoch:   1,
-		},
+		stampAttemptBoundIntent("ack-5854-reset-4"),
 		reducer.Result{},
 	); err != nil {
 		_ = commitTx.Rollback()
@@ -165,7 +168,9 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		"ack-5854-reset-5",
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, result, legacyErr)
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, conn, "ack-5854-reset-5", result, legacyErr, 1, "pending",
+	)
 
 	savepointTx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
@@ -181,16 +186,8 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	if err := savepointQueue.Ack(
-		ctx,
-		reducer.Intent{
-			IntentID:     "ack-5854-reset-6",
-			Domain:       reducer.DomainContainerImageIdentity,
-			AttemptCount: 1,
-			ClaimEpoch:   1,
-		},
-		reducer.Result{},
-	); err != nil {
+	reset6 := stampAttemptBoundIntent("ack-5854-reset-6")
+	if err := savepointQueue.Ack(ctx, reset6, reducer.Result{}); err != nil {
 		t.Fatalf("attempt-bound ACK inside savepoint: %v", err)
 	}
 	if _, err := savepointTx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT before_capable_ack"); err != nil {
@@ -203,9 +200,14 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		"ack-5854-reset-6",
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, result, legacyErr)
+	// Read through the transaction: the fence is visible in-tx and proves
+	// the legacy statement succeeds rather than poisoning the tx, while the
+	// final rollback below restores the running row.
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, savepointTx, "ack-5854-reset-6", result, legacyErr, 2, "pending",
+	)
 	if err := savepointTx.Rollback(); err != nil {
-		t.Fatalf("roll back legacy-rejected savepoint transaction: %v", err)
+		t.Fatalf("roll back legacy-fenced savepoint transaction: %v", err)
 	}
 	if err := conn.Close(); err != nil {
 		t.Fatalf("return ACK attempt fence connection to pool: %v", err)
@@ -218,28 +220,29 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		"ack-5854-reset-7",
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, result, legacyErr)
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, database, "ack-5854-reset-7", result, legacyErr, 1, "pending",
+	)
 
-	for workItemID, wantStatus := range map[string]string{
-		"ack-5854-reset-1": "succeeded",
-		"ack-5854-reset-2": "running",
-		"ack-5854-reset-3": "running",
-		"ack-5854-reset-4": "succeeded",
-		"ack-5854-reset-5": "running",
-		"ack-5854-reset-6": "running",
-		"ack-5854-reset-7": "running",
+	for workItemID, want := range map[string]struct {
+		status string
+		owner  string
+	}{
+		"ack-5854-reset-1": {"succeeded", ""},
+		"ack-5854-reset-2": {"pending", ""},
+		"ack-5854-reset-3": {"pending", ""},
+		"ack-5854-reset-4": {"succeeded", ""},
+		"ack-5854-reset-5": {"pending", ""},
+		"ack-5854-reset-6": {"running", owner},
+		"ack-5854-reset-7": {"pending", ""},
 	} {
-		wantOwner := owner
-		if wantStatus == "succeeded" {
-			wantOwner = ""
-		}
 		assertContainerImageIdentityAckWorkItemState(
 			t,
 			ctx,
 			database,
 			workItemID,
-			wantStatus,
-			wantOwner,
+			want.status,
+			want.owner,
 		)
 	}
 }

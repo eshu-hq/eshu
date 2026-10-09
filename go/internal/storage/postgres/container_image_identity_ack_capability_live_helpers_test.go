@@ -295,6 +295,95 @@ WHERE work_item_id = $1
 	}
 }
 
+// containerImageIdentityRowQueryer abstracts the row-state reads the fence
+// assertions need over pools, connections, and transactions.
+type containerImageIdentityRowQueryer interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// assertContainerImageIdentityLegacyAckFenced pins the post-096 legacy-ACK
+// contract: a legacy ACK (claimed/running to a terminal status without
+// clearing provenance_edge_identity_upgrade_required) succeeds and the 096
+// enforcement trigger fences the row back to pending with attempt 0, a
+// cleared lease, and v2/v3 authorized statuses reset to pending where the
+// version is required (empty otherwise, e.g. pre-marker rows). The claim
+// epoch is untouched by the fence, so the caller passes the expected value.
+func assertContainerImageIdentityLegacyAckFenced(
+	t *testing.T,
+	ctx context.Context,
+	db containerImageIdentityRowQueryer,
+	workItemID string,
+	result sql.Result,
+	err error,
+	wantEpoch int64,
+	wantV2Authorized string,
+) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("legacy ACK error = %v, want fenced success", err)
+	}
+	assertContainerImageIdentityAckRowsAffected(t, result, 1)
+	assertContainerImageIdentityWorkItemFenced(t, ctx, db, workItemID, wantEpoch, wantV2Authorized)
+}
+
+// assertContainerImageIdentityWorkItemFenced pins the fenced row shape
+// without checking the statement result, for multi-row legacy ACKs where the
+// caller asserts the total rows affected separately.
+func assertContainerImageIdentityWorkItemFenced(
+	t *testing.T,
+	ctx context.Context,
+	db containerImageIdentityRowQueryer,
+	workItemID string,
+	wantEpoch int64,
+	wantV2Authorized string,
+) {
+	t.Helper()
+	var (
+		status         string
+		attemptCount   int
+		claimEpoch     int64
+		authorizedV2   string
+		leaseOwner     sql.NullString
+		upgradeFlagged bool
+	)
+	if err := db.QueryRowContext(ctx, `
+SELECT
+    status,
+    attempt_count,
+    container_image_identity_claim_epoch,
+    container_image_identity_v2_authorized_status,
+    lease_owner,
+    provenance_edge_identity_upgrade_required
+FROM fact_work_items
+WHERE work_item_id = $1
+`, workItemID).Scan(
+		&status,
+		&attemptCount,
+		&claimEpoch,
+		&authorizedV2,
+		&leaseOwner,
+		&upgradeFlagged,
+	); err != nil {
+		t.Fatalf("read fenced legacy ACK work item %s: %v", workItemID, err)
+	}
+	if status != "pending" || attemptCount != 0 || claimEpoch != wantEpoch ||
+		authorizedV2 != wantV2Authorized || leaseOwner.Valid || !upgradeFlagged {
+		t.Fatalf(
+			"fenced legacy ACK %s = status %s attempt %d epoch %d v2 %q lease %q flagged %t, "+
+				"want pending/0/%d/%q/NULL/true",
+			workItemID,
+			status,
+			attemptCount,
+			claimEpoch,
+			authorizedV2,
+			leaseOwner.String,
+			upgradeFlagged,
+			wantEpoch,
+			wantV2Authorized,
+		)
+	}
+}
+
 func assertContainerImageIdentityAckFactCount(
 	t *testing.T,
 	ctx context.Context,

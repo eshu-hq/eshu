@@ -182,6 +182,7 @@ WHERE work_item_id = $1
 `, identityID); err != nil {
 		t.Fatalf("claim provenance upgrade for new reducer failure: %v", err)
 	}
+	failureClaimedAt, failureClaimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, identityID)
 	newFailureQueue := ReducerQueue{
 		database:      SQLDB{DB: db},
 		LeaseOwner:    "new-reducer-failure",
@@ -193,6 +194,8 @@ WHERE work_item_id = $1
 		IntentID:     identityID,
 		Domain:       reducer.DomainContainerImageIdentity,
 		AttemptCount: 1,
+		ClaimEpoch:   failureClaimEpoch,
+		ClaimedAt:    &failureClaimedAt,
 	}, errors.New("synthetic new binary failure")); err != nil {
 		t.Fatalf("new reducer dead letter: %v", err)
 	}
@@ -226,6 +229,7 @@ WHERE work_item_id = $1
 `, packageID); err != nil {
 		t.Fatalf("claim provenance upgrade for new reducer ACK: %v", err)
 	}
+	successClaimedAt, successClaimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, packageID)
 	newSuccessQueue := ReducerQueue{
 		database:      SQLDB{DB: db},
 		LeaseOwner:    "new-reducer",
@@ -233,8 +237,10 @@ WHERE work_item_id = $1
 		Now:           func() time.Time { return now.Add(2 * time.Minute) },
 	}
 	if err := newSuccessQueue.Ack(ctx, reducer.Intent{
-		IntentID: packageID,
-		Domain:   reducer.DomainPackageSourceCorrelation,
+		IntentID:   packageID,
+		Domain:     reducer.DomainPackageSourceCorrelation,
+		ClaimEpoch: successClaimEpoch,
+		ClaimedAt:  &successClaimedAt,
 	}, reducer.Result{}); err != nil {
 		t.Fatalf("new reducer ACK: %v", err)
 	}
@@ -312,6 +318,9 @@ WHERE work_item_id = $1
 `, workItemID, newOwner); err != nil {
 		t.Fatalf("claim %s for new reducer: %v", workItemID, err)
 	}
+	// Stamp the hand-claimed row the way a real queue claim would (#7691):
+	// the ack fence matches last_attempt_at and requires a live lease.
+	claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 	queue := ReducerQueue{
 		database:      SQLDB{DB: db},
 		LeaseOwner:    newOwner,
@@ -319,8 +328,10 @@ WHERE work_item_id = $1
 		Now:           func() time.Time { return now },
 	}
 	if err := queue.AckBatch(ctx, []reducer.Intent{{
-		IntentID: workItemID,
-		Domain:   domain,
+		IntentID:   workItemID,
+		Domain:     domain,
+		ClaimEpoch: claimEpoch,
+		ClaimedAt:  &claimedAt,
 	}}, []reducer.Result{{}}); err != nil {
 		t.Fatalf("new reducer ACK for %s: %v", workItemID, err)
 	}

@@ -25,7 +25,10 @@ func TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayL
 		workItemID   = "ack-5854-attempt-fence"
 		owner        = "reducer"
 	)
-	now := time.Date(2026, time.July, 30, 21, 0, 0, 0, time.UTC)
+	// Live clock, not a fixed date: the ACK fence requires
+	// claim_until > clock_timestamp(), so a fixed seed date rots into a
+	// permanent fence rejection once it falls behind the database clock.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
 	seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
 	seedContainerImageIdentityAckWorkItem(
@@ -94,13 +97,23 @@ WHERE work_item_id = $4
 		workItemID,
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, db, workItemID, legacyResult, legacyErr, 2, "pending",
+	)
 
-	if err := queue.Ack(ctx, reclaimed, reducer.Result{}); err != nil {
+	refenced, ok, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("claim fenced work: %v", err)
+	}
+	if !ok || refenced.IntentID != workItemID ||
+		refenced.AttemptCount != 1 || refenced.ClaimEpoch != 3 {
+		t.Fatalf("refenced claim = %+v ok=%t, want attempt 1 at epoch 3", refenced, ok)
+	}
+	if err := queue.Ack(ctx, refenced, reducer.Result{}); err != nil {
 		t.Fatalf("current attempt ACK: %v", err)
 	}
 	assertContainerImageIdentityAckClaimFence(
-		t, ctx, db, workItemID, "succeeded", 2, 2,
+		t, ctx, db, workItemID, "succeeded", 1, 3,
 	)
 
 	legacyResult, legacyErr = db.ExecContext(ctx, `
@@ -125,15 +138,15 @@ WHERE work_item_id = $2
 		t.Fatal("attempt-safe reopen = false, want true")
 	}
 	assertContainerImageIdentityAckClaimFence(
-		t, ctx, db, workItemID, "pending", 0, 2,
+		t, ctx, db, workItemID, "pending", 0, 3,
 	)
 	replayed, ok, err := queue.Claim(ctx)
 	if err != nil {
 		t.Fatalf("claim replayed work: %v", err)
 	}
 	if !ok || replayed.IntentID != workItemID ||
-		replayed.AttemptCount != 1 || replayed.ClaimEpoch != 3 {
-		t.Fatalf("replayed claim = %+v ok=%t, want attempt 1 at monotonic epoch 3", replayed, ok)
+		replayed.AttemptCount != 1 || replayed.ClaimEpoch != 4 {
+		t.Fatalf("replayed claim = %+v ok=%t, want attempt 1 at monotonic epoch 4", replayed, ok)
 	}
 	legacyResult, legacyErr = db.ExecContext(
 		ctx,
@@ -142,12 +155,26 @@ WHERE work_item_id = $2
 		workItemID,
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
-	if err := queue.Ack(ctx, replayed, reducer.Result{}); err != nil {
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, db, workItemID, legacyResult, legacyErr, 4, "pending",
+	)
+	replayedRefenced, ok, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("claim refenced replayed work: %v", err)
+	}
+	if !ok || replayedRefenced.IntentID != workItemID ||
+		replayedRefenced.AttemptCount != 1 || replayedRefenced.ClaimEpoch != 5 {
+		t.Fatalf(
+			"refenced replayed claim = %+v ok=%t, want attempt 1 at monotonic epoch 5",
+			replayedRefenced,
+			ok,
+		)
+	}
+	if err := queue.Ack(ctx, replayedRefenced, reducer.Result{}); err != nil {
 		t.Fatalf("replayed current attempt ACK: %v", err)
 	}
 	assertContainerImageIdentityAckClaimFence(
-		t, ctx, db, workItemID, "succeeded", 1, 3,
+		t, ctx, db, workItemID, "succeeded", 1, 5,
 	)
 }
 

@@ -130,7 +130,10 @@ WHERE work_item_id = $1
 		workItemID,
 		owner,
 	)
-	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
+	// The capable claim set v2_required with epoch 2; the legacy ACK fences.
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, db, workItemID, legacyResult, legacyErr, 2, "pending",
+	)
 }
 
 func TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive(
@@ -141,7 +144,8 @@ func TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive(
 	defer cancel()
 
 	const owner = "reducer-5854-current-batch"
-	now := time.Date(2026, time.July, 31, 1, 30, 0, 0, time.UTC)
+	// Live clock: the ACK fence requires claim_until > clock_timestamp().
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	workItemIDs := []string{
 		"claim-trigger-5854-current-batch-a",
 		"claim-trigger-5854-current-batch-b",

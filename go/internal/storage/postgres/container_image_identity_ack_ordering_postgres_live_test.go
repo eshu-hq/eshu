@@ -17,9 +17,10 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	now := time.Date(2026, time.July, 30, 19, 0, 0, 0, time.UTC)
+	// Live clock: the ACK fence requires claim_until > clock_timestamp().
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	t.Run("marker commit makes blocked legacy ACK reject", func(t *testing.T) {
+	t.Run("marker commit makes blocked legacy ACK fence", func(t *testing.T) {
 		scopeID, generationID, workItemID, owner := seedContainerImageIdentityAckOrderingScenario(
 			t, ctx, db, "marker-first", now, true,
 		)
@@ -39,9 +40,11 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 		if err := markerTx.Commit(); err != nil {
 			t.Fatalf("commit marker-first transaction: %v", err)
 		}
-		assertContainerImageIdentityOrderingLegacyAckRejected(t, ackDone)
-		assertContainerImageIdentityAckWorkItemState(
-			t, ctx, db, workItemID, "running", owner,
+		assertContainerImageIdentityOrderingOperationSucceeded(
+			t, ackDone, "legacy ACK after marker commit",
+		)
+		assertContainerImageIdentityWorkItemFenced(
+			t, ctx, db, workItemID, 1, "pending",
 		)
 	})
 
@@ -77,8 +80,11 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 			"marker after legacy ACK",
 			"first cutover requires the exact active claim epoch",
 		)
-		assertContainerImageIdentityAckWorkItemState(
-			t, ctx, db, workItemID, "succeeded", "",
+		// The committed legacy ACK fenced the row to pending, so the
+		// first-cutover guard still rejects: its work-item update matches
+		// claimed/running rows only.
+		assertContainerImageIdentityWorkItemFenced(
+			t, ctx, db, workItemID, 1, "",
 		)
 		assertContainerImageIdentityAckOrderingMarkerCount(
 			t, ctx, db, scopeID, generationID, 0,
@@ -108,8 +114,8 @@ func TestContainerImageIdentityAckMarkerOrderingLive(t *testing.T) {
 		assertContainerImageIdentityOrderingOperationSucceeded(
 			t, ackDone, "legacy ACK after marker rollback",
 		)
-		assertContainerImageIdentityAckWorkItemState(
-			t, ctx, db, workItemID, "succeeded", "",
+		assertContainerImageIdentityWorkItemFenced(
+			t, ctx, db, workItemID, 1, "",
 		)
 	})
 
@@ -338,6 +344,14 @@ ON CONFLICT (scope_id, generation_id) DO NOTHING
 		scopeID, generationID, workItemID, owner := seedContainerImageIdentityAckOrderingScenario(
 			t, ctx, db, "capable-bypass", now, true,
 		)
+		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
+		intent := reducer.Intent{
+			IntentID:     workItemID,
+			Domain:       reducer.DomainContainerImageIdentity,
+			AttemptCount: 1,
+			ClaimEpoch:   claimEpoch,
+			ClaimedAt:    &claimedAt,
+		}
 		blocker, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			t.Fatalf("begin capable-bypass advisory blocker: %v", err)
@@ -358,16 +372,7 @@ SELECT pg_advisory_xact_lock(
 		}
 		done := make(chan error, 1)
 		go func() {
-			done <- queue.Ack(
-				ctx,
-				reducer.Intent{
-					IntentID:     workItemID,
-					Domain:       reducer.DomainContainerImageIdentity,
-					AttemptCount: 1,
-					ClaimEpoch:   1,
-				},
-				reducer.Result{},
-			)
+			done <- queue.Ack(ctx, intent, reducer.Result{})
 		}()
 		assertContainerImageIdentityOrderingOperationSucceeded(
 			t, done, "attempt-bound ACK behind advisory blocker",
@@ -377,7 +382,7 @@ SELECT pg_advisory_xact_lock(
 		)
 	})
 
-	t.Run("isolation fails legacy closed but permits attempt-bound ACK", func(t *testing.T) {
+	t.Run("isolation fences legacy in-tx but permits attempt-bound ACK", func(t *testing.T) {
 		legacyScopeID, legacyGenerationID, legacyWorkItemID, legacyOwner := seedContainerImageIdentityAckOrderingScenario(
 			t, ctx, db, "isolation-legacy", now, true,
 		)
@@ -391,16 +396,17 @@ SELECT pg_advisory_xact_lock(
 		if err != nil {
 			t.Fatalf("begin repeatable-read legacy ACK: %v", err)
 		}
-		if _, err := legacyTx.ExecContext(
+		legacyResult, legacyErr := legacyTx.ExecContext(
 			ctx,
 			legacyContainerImageIdentityAckQuery,
 			now,
 			legacyWorkItemID,
 			legacyOwner,
-		); err == nil {
-			_ = legacyTx.Rollback()
-			t.Fatalf("repeatable-read legacy ACK error = nil, want constraint rejection")
-		}
+		)
+		// The fence lands in-tx and the rollback below restores running.
+		assertContainerImageIdentityLegacyAckFenced(
+			t, ctx, legacyTx, legacyWorkItemID, legacyResult, legacyErr, 1, "pending",
+		)
 		if err := legacyTx.Rollback(); err != nil {
 			t.Fatalf("roll back repeatable-read legacy ACK: %v", err)
 		}
@@ -413,6 +419,9 @@ SELECT pg_advisory_xact_lock(
 		)
 		insertContainerImageIdentityCutoverMarker(
 			t, ctx, db, capableScopeID, capableGenerationID,
+		)
+		capableClaimedAt, capableEpoch := stampContainerImageIdentityAckClaim(
+			t, ctx, db, capableWorkItemID,
 		)
 		capableTx, err := db.BeginTx(
 			ctx,
@@ -433,7 +442,8 @@ SELECT pg_advisory_xact_lock(
 				IntentID:     capableWorkItemID,
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: 1,
-				ClaimEpoch:   1,
+				ClaimEpoch:   capableEpoch,
+				ClaimedAt:    &capableClaimedAt,
 			},
 			reducer.Result{},
 		); err != nil {
