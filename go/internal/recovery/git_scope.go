@@ -7,9 +7,10 @@ import "strings"
 
 // GitRepositoryScopePrefix is the scope id prefix of a git repository's
 // ingestion scope. A default-branch scope is the prefix plus the repository
-// id; a ref scope appends "@<ref>". It equals
-// querycontract.GitRepositoryScopePrefix; recovery must not import the query
-// layer, so a test in query/admin pins the two classifications together.
+// id; a ref scope appends "@<ref>". This is the single source of the literal:
+// querycontract.GitRepositoryScopePrefix is defined as this constant, so the
+// two classifiers cannot drift, and a test in query/admin pins the two
+// classifications together on every edge case.
 const GitRepositoryScopePrefix = "git-repository-scope:"
 
 // IsGitDefaultBranchScope reports whether scopeID names a git default-branch

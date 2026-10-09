@@ -7,6 +7,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
 
 // RepositoryAccessFilter is the scoped-token authorization seam every
@@ -243,8 +245,9 @@ func (f RepositoryAccessFilter) FilterRepositoryMaps(repos []map[string]any) []m
 // (gitrepo's IngestionScope.ScopeID, whose PartitionKey and source_key are the
 // bare repository id). It is the one ingestion-scope shape that names a
 // repository, and stripping it is how a scope grant is read back as the
-// repository it owns.
-const GitRepositoryScopePrefix = "git-repository-scope:"
+// repository it owns. It is the same constant the recovery package classifies
+// with, so the two classifiers cannot drift (#7797).
+const GitRepositoryScopePrefix = recovery.GitRepositoryScopePrefix
 
 // CanonicalRepositoryIDForScopeID returns the canonical repository id a granted
 // git repository ingestion scope names, or "" for a scope that names something
