@@ -1,0 +1,23 @@
+testdata/benchmarks/read-api-route-budgets.txt
+  s_29175cf8c573b8::t_0582cc0f1e8bf4 56
+go/cmd/read-api-latency-gate/operation_overlap_test.go
+  s_29175cf8c573b8::t_01e99663e3d517 23-51
+go/cmd/read-api-latency-gate/operation_run.go
+  s_29175cf8c573b8::t_0582cc0f1e8bf4 35-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "463f241231b1d89284f140cf7dc55d7ad6e2e689",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
