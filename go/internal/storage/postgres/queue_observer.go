@@ -394,7 +394,7 @@ func (s *QueueObserverStore) ReducerGraphWriteTimeoutDepth(ctx context.Context) 
 }
 
 // ProjectorMarkedWriteOldestAge returns the age in seconds of the oldest set
-// projection_write_started_at marker on a non-retired generation with open
+// projection_write_started_at marker on a non-terminal generation with open
 // projector work (#7471). A hung graph write with a live heartbeat keeps its
 // marker and its claimed row, so the age grows without bound; zero means no
 // marked write is outstanding.

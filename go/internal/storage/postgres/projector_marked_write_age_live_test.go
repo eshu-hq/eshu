@@ -65,12 +65,12 @@ func TestQueueObserverStoreProjectorMarkedWriteOldestAgeLive(t *testing.T) {
 		t.Fatalf("ProjectorMarkedWriteOldestAge() error = %v", err)
 	}
 	if age < 80 || age > 150 {
-		t.Fatalf("ProjectorMarkedWriteOldestAge() = %v, want the ~90s marked live write (retired and unmarked excluded)", age)
+		t.Fatalf("ProjectorMarkedWriteOldestAge() = %v, want the ~90s marked live write (terminal and unmarked generations excluded)", age)
 	}
 }
 
 // TestQueueObserverStoreProjectorMarkedWriteOldestAgeEmptyLive proves the
-// gauge rests at zero when no non-retired generation with open projector
+// gauge rests at zero when no non-terminal generation with open projector
 // work holds a marker.
 func TestQueueObserverStoreProjectorMarkedWriteOldestAgeEmptyLive(t *testing.T) {
 	database := heartbeatProofDB(t, `
