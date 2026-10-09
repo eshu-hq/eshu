@@ -92,3 +92,27 @@ WHERE (repo_id, relative_path) > ($3::text, $4::text)
   AND content ILIKE '%' || $1 || '%'
 ORDER BY repo_id, relative_path
 LIMIT $2::bigint`
+
+// StatementSet is the shipped text of the four bounded statements, exported so
+// the live plan-shape and differential proofs derive their statements from the
+// constants production runs instead of copying them.
+type StatementSet struct {
+	// StepFirst and StepAfter are the key-ordered window statements for the
+	// first window and for a window after a cursor.
+	StepFirst, StepAfter string
+	// TailFirst and TailAfter are the trigram tail statements.
+	TailFirst, TailAfter string
+	// DisableIndexScan is the SET LOCAL the tail runs under.
+	DisableIndexScan string
+}
+
+// Statements returns the shipped statement text.
+func Statements() StatementSet {
+	return StatementSet{
+		StepFirst:        stepFirstSQL,
+		StepAfter:        stepAfterSQL,
+		TailFirst:        tailFirstSQL,
+		TailAfter:        tailAfterSQL,
+		DisableIndexScan: disableIndexScanSQL,
+	}
+}

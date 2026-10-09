@@ -43,7 +43,8 @@ for name in \
   ESHU_REDUCER_FAIRNESS_PROOF_DSN \
   ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DSN \
   ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN \
-  ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN; do
+  ESHU_TEST_CONTENT_INDEX_POSTGRES_READ_DSN \
+  ESHU_CONTENT_SEARCH_PROOF_DSN; do
   [[ -n "${!name:-}" ]] || die "${name} must name the administrative postgres database"
   [[ "${!name}" == */postgres\?* || "${!name}" == */postgres ]] ||
     die "${name} must target the administrative postgres database"
@@ -70,7 +71,8 @@ for name in \
   ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE \
   ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE \
   ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE \
-  ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE; do
+  ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE \
+  ESHU_CONTENT_SEARCH_PROOF_DISPOSABLE; do
   [[ "${!name:-}" == "1" ]] || die "${name} must be 1"
 done
 # Only the Neo4j graph proofs need a backend; everything else runs on plain

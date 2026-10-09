@@ -302,6 +302,11 @@ PACKAGES = {
         "go/internal/query/code_topic_fleet_endpoint_live_test.go": (
             "TestCodeTopicFleetCapacityEndpointPostgresLive",
         ),
+        "go/internal/query/content_reader_search_unscoped_live_test.go": (
+            "TestSearchFilesUnscopedMatchesOldStatementLive",
+            "TestSearchFilesUnscopedCancelledTailResumesToExactAnswerLive",
+            "TestUnscopedSearchPlanShapesLive",
+        ),
         "go/internal/query/content_reader_dead_code_incoming_bound_live_test.go": (
             "TestDeadCodeIncomingEntityIDsActiveRunBoundLive",
             "TestCrossRepoDeadCodeConsumerCoverageLive",
