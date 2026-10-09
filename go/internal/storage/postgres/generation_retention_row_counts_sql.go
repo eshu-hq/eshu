@@ -13,13 +13,16 @@ package postgres
 // Per table the per-generation counts therefore sum to the rows the content
 // prunes delete, and BatchRowLimit compares against that sum (#6809).
 //
-// The fifteen #7396 arms count the cascade children of scope_generations the
-// final DELETE removes implicitly: without them BatchRowLimit and the
-// retention events under-count the prune. Each arm joins its table through
-// scope_generations on both (scope_id, generation_id), the fact_records
-// shape: a generation-only probe would skip-scan the two-column index once
-// per candidate over every scope, with cost growing with the table instead
-// of the batch.
+// The sixteen cascade-child arms (#7396 plus #7751) count the cascade
+// children of scope_generations the final DELETE removes implicitly:
+// without them BatchRowLimit and the retention events under-count the
+// prune. Each arm joins its table through scope_generations on both
+// (scope_id, generation_id), the fact_records shape: a generation-only
+// probe would skip-scan the two-column index once per candidate over every
+// scope, with cost growing with the table instead of the batch. The #7751
+// arm counts producer_activation_obligations through its generation-leading
+// PRIMARY KEY (generation_id, scope_id), measured with EXPLAIN ANALYZE
+// before landing like the #7700 arm.
 //
 // The sixteenth arm (#7700) counts admission_decision_evidence, a cascade
 // grandchild: evidence rows hang off admission_decisions by decision_id, so
