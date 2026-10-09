@@ -59,9 +59,12 @@ generation has a `code_calls` or
 `inheritance_edges` projection intent (completed or still pending). On a full
 generation a refresh intent (a projection intent whose payload `action` is `refresh`)
 does not count, because it carries no edge. On a delta generation any such intent counts,
-because a delta generation never gets a watermark. A repository with no such
-intent has no code edges, cannot be a consumer, and is complete
-without a watermark. A repository with intents is never excluded for having zero
+because a delta generation never gets a watermark. Between activation and the first
+per-edge intent the check also counts unfinished reducer work (#7602): a scope is a gap
+while any `fact_work_items` row for its active generation is not `succeeded` in the
+`code_call_materialization` or `inheritance_materialization` domain, including a
+dead-lettered one. A repository with no such intent and no such work has no code edges,
+cannot be a consumer, and is complete without a watermark. A repository with intents is never excluded for having zero
 roots: without a snapshot none of its own edges has been examined, so one may still reach the producer symbol through its own edges alone (#7592: each snapshot is the transitive closure of its own repository's edges only; the walk never chains one repository's edges with another's, though within one repository several hops can apply). The check covers the consumers the request named (a named
 repository with no active generation is incomplete), otherwise the caller's
 grant, otherwise every repository with an active generation. When

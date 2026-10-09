@@ -43,6 +43,16 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // gap there: the probe filter is (is_delta OR NOT is_refresh_intent). A legacy
 // row with no action key has is_refresh_intent = false and counts as an edge.
 //
+// Between activation and the first per-edge intent the intent probe reads the
+// repository as complete, so a second correlated probe ORs in the reducer work
+// still outstanding for the active generation (#7602): a scope is also a gap
+// while any fact_work_items row for (scope, active generation) in the reducer
+// stage and the code_call_materialization or inheritance_materialization domain
+// has a status other than succeeded. Every non-succeeded status counts,
+// including dead_letter: its edges will never arrive without intervention, so
+// the missing snapshot stays a gap rather than reading complete. A repository
+// with no such rows (docs, IaC, drained generations) is unaffected.
+//
 // A scope with an active generation and such intents is a gap when it has no
 // code_reachability_repository_watermarks row for that generation, or the row is
 // truncated, or its verdict_schema_epoch is below $3 (the snapshot was built
@@ -74,7 +84,12 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // only for a scope that already failed the watermark test. That shape is what
 // keeps it a correlated probe: written as EXISTS, Postgres 18 hoists it into a
 // hashed subplan that reads every code_calls and inheritance_edges intent in the
-// database (observed in EXPLAIN on a fixture).
+// database (observed in EXPLAIN on a fixture). The work probe shares the shape
+// (no EXISTS, no completed_at filter) and the gate: it runs only for a scope
+// that already failed the watermark test, as an index scan on
+// fact_work_items_scope_generation_idx. Measured on a local 1,004-scope
+// fixture: named 1.717 ms to 1.752 ms (+11 buffers), all-repositories
+// 0.962 ms to 0.986 ms; the probe ran only for the 4 watermark-gated scopes.
 //
 // Plan class, measured on the QA replica (PostgreSQL 18.3, 819-row
 // ingestion_scopes, see docs/internal/evidence/7547-cross-repo-consumer-coverage.md):
@@ -113,7 +128,7 @@ WITH matched AS MATERIALIZED (
    AND watermark.repository_id = scope.source_key
   WHERE CASE WHEN watermark.scope_id IS NULL OR watermark.truncated
                   OR watermark.verdict_schema_epoch < $3::integer
-             THEN COALESCE((SELECT true
+             THEN (COALESCE((SELECT true
               FROM shared_projection_acceptance AS acceptance
               JOIN shared_projection_intents AS intent
                 ON intent.scope_id = acceptance.scope_id
@@ -126,6 +141,14 @@ WITH matched AS MATERIALIZED (
                 AND acceptance.generation_id = scope.active_generation_id
                 AND acceptance.acceptance_unit_id = scope.source_key
               LIMIT 1), false)
+               OR COALESCE((SELECT true
+              FROM fact_work_items AS work
+              WHERE work.scope_id = scope.scope_id
+                AND work.generation_id = scope.active_generation_id
+                AND work.stage = 'reducer'
+                AND work.domain IN ('code_call_materialization', 'inheritance_materialization')
+                AND work.status <> 'succeeded'
+              LIMIT 1), false))
              ELSE false END
   UNION ALL
   SELECT requested.id, NULL::text, 'no_active_scope'
@@ -147,7 +170,9 @@ LIMIT $4
 // active generation has a code_calls or inheritance_edges intent, probed the
 // same way and for the same reason, including the refresh-intent rule: on a full
 // generation a refresh intent does not count, on a delta generation it does
-// (#7591).
+// (#7591). The reducer-work probe is OR'd in here too, with the same predicate
+// (#7602), so the LIMIT still stops the scan at the first cap-plus-one gaps
+// and the probe still runs only for watermark-gated scopes.
 //
 // Each row carries the same state and generation_id as the named statement's;
 // a repository with several gap scopes can return several rows, and the caller
@@ -181,7 +206,7 @@ WHERE scope.scope_kind = 'repository'
   AND scope.active_generation_id IS NOT NULL
   AND CASE WHEN watermark.scope_id IS NULL OR watermark.truncated
                 OR watermark.verdict_schema_epoch < $1::integer
-           THEN COALESCE((SELECT true
+           THEN (COALESCE((SELECT true
             FROM shared_projection_acceptance AS acceptance
             JOIN shared_projection_intents AS intent
               ON intent.scope_id = acceptance.scope_id
@@ -194,6 +219,14 @@ WHERE scope.scope_kind = 'repository'
               AND acceptance.generation_id = scope.active_generation_id
               AND acceptance.acceptance_unit_id = scope.source_key
             LIMIT 1), false)
+             OR COALESCE((SELECT true
+            FROM fact_work_items AS work
+            WHERE work.scope_id = scope.scope_id
+              AND work.generation_id = scope.active_generation_id
+              AND work.stage = 'reducer'
+              AND work.domain IN ('code_call_materialization', 'inheritance_materialization')
+              AND work.status <> 'succeeded'
+            LIMIT 1), false))
            ELSE false END
 LIMIT $2
 `

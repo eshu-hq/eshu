@@ -268,7 +268,7 @@ func TestCrossRepoDeadCodeConsumerCoverageStatementShape(t *testing.T) {
 		}
 		// The state CASE in the select list also starts "CASE WHEN"; the gating
 		// CASE is the one right before the intent probe.
-		then := strings.Index(query, "THEN COALESCE((SELECT true")
+		then := strings.Index(query, "THEN (COALESCE((SELECT true")
 		when := strings.LastIndex(query[:max(then, 0)], "CASE WHEN")
 		if when < 0 || then < when || !strings.Contains(query[when:then], want) {
 			t.Errorf("%s coverage SQL does not test %q inside the CASE that gates the intent probe", name, want)
@@ -295,6 +295,24 @@ func coverageIntentProbe(t *testing.T, query, repoExpr, deltaExpr string) string
 	return strings.Join(strings.Fields(probe), " ")
 }
 
+// coverageWorkProbe returns the reducer-work probe a coverage statement ORs
+// into the gating CASE (#7602), with the whitespace collapsed, so the two
+// statements' probes can be compared. Both probes bind the same scope columns,
+// so no expression needs normalizing.
+func coverageWorkProbe(t *testing.T, query string) string {
+	t.Helper()
+
+	start := strings.Index(query, "FROM fact_work_items AS work")
+	if start < 0 {
+		t.Fatalf("coverage SQL has no reducer-work probe:\n%s", query)
+	}
+	end := strings.Index(query[start:], "LIMIT 1), false)")
+	if end < 0 {
+		t.Fatalf("coverage SQL reducer-work probe has no LIMIT 1) end:\n%s", query)
+	}
+	return strings.Join(strings.Fields(query[start:start+end+len("LIMIT 1), false)")]), " ")
+}
+
 // A missing or truncated watermark is a gap only for a repository that CAN be a
 // consumer: its active generation has a code_calls or inheritance_edges intent,
 // completed or pending (#7547). Both statements apply the same predicate, as a
@@ -305,6 +323,11 @@ func coverageIntentProbe(t *testing.T, query, repoExpr, deltaExpr string) string
 // watermark is a gap, and a pending-only repository with no watermark is a gap
 // (TestCrossRepoDeadCodeConsumerCoverageLive). A refresh intent counts only on a
 // delta generation (TestCrossRepoDeadCodeConsumerCoverageRefreshIntentLive).
+// Between activation and the first per-edge intent the intent probe reads the
+// repository as complete, so a second correlated probe ORs in the reducer work
+// still outstanding for the active generation: any non-succeeded reducer item
+// in the code_call_materialization or inheritance_materialization domain keeps
+// the gap, including a dead-lettered one (#7602).
 func TestCrossRepoDeadCodeConsumerCoverageUniversePredicate(t *testing.T) {
 	t.Parallel()
 
@@ -312,6 +335,22 @@ func TestCrossRepoDeadCodeConsumerCoverageUniversePredicate(t *testing.T) {
 	all := coverageIntentProbe(t, deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery, "scope.source_key", "generation.is_delta")
 	if named != all {
 		t.Fatalf("the two statements disagree about which repositories can be consumers:\nnamed: %s\nall:   %s", named, all)
+	}
+	namedWork := coverageWorkProbe(t, deadcode.CrossRepoDeadCodeNamedConsumerCoverageQuery)
+	allWork := coverageWorkProbe(t, deadcode.CrossRepoDeadCodeAllConsumerCoverageQuery)
+	if namedWork != allWork {
+		t.Fatalf("the two statements disagree about which reducer work keeps a gap:\nnamed: %s\nall:   %s", namedWork, allWork)
+	}
+	for _, want := range []string{
+		"work.scope_id = scope.scope_id",
+		"work.generation_id = scope.active_generation_id",
+		"work.stage = 'reducer'",
+		"work.domain IN ('code_call_materialization', 'inheritance_materialization')",
+		"work.status <> 'succeeded'",
+	} {
+		if !strings.Contains(namedWork, want) {
+			t.Errorf("work probe is missing %q:\n%s", want, namedWork)
+		}
 	}
 	for _, want := range []string{
 		"FROM shared_projection_acceptance AS acceptance",

@@ -301,8 +301,8 @@ carries `is_delta` through its `matched` CTE):
   inheritance refresh-only write while the code-call item is still queued is
   inside the window. Within one handler the intents and the acceptance row
   commit in one transaction (`SharedIntentAcceptanceWriter.UpsertIntents`), so
-  the window is only between the two handlers. It is not closed here; see
-  #7602. Net effect on
+  the window is only between the two handlers. It was not closed there; #7602
+  closes it (see below). Net effect on
   accuracy: the 278 repositories that were permanent false gaps on ops-qa leave
   the gap list.
 
@@ -348,6 +348,57 @@ Observability Evidence: no change. The read keeps its `postgres.query` span
 (`db.operation=cross_repo_dead_code_consumer_coverage`) and the response's
 `consumer_coverage.incomplete` list; the removed gaps simply stop appearing.
 
+## Reducer-work probe (#7602)
+
+The queue-time window above is now closed. Both statements OR a second
+correlated probe into the gating `CASE`: a scope is also a gap while any
+`fact_work_items` row for (scope, active generation) in the reducer stage and
+the `code_call_materialization` or `inheritance_materialization` domain has a
+status other than `succeeded`:
+
+```sql
+COALESCE((SELECT true FROM fact_work_items AS work
+          WHERE work.scope_id = scope.scope_id
+            AND work.generation_id = scope.active_generation_id
+            AND work.stage = 'reducer'
+            AND work.domain IN ('code_call_materialization', 'inheritance_materialization')
+            AND work.status <> 'succeeded'
+          LIMIT 1), false)
+```
+
+Every non-succeeded status counts, including `dead_letter`: its edges will
+never arrive without intervention, so the missing snapshot stays a gap rather
+than reading complete. There is no other terminal non-succeeded status in the
+queue vocabulary (pending, claimed, running, retrying, failed, dead_letter,
+succeeded), so the predicate cannot strand a repository that drained. The probe
+shares the intent probe's shape (scalar subquery, `LIMIT 1`, no `EXISTS`, no
+`completed_at` filter) and its gate: it runs only for a scope that already
+failed the watermark test, as an index scan on
+`fact_work_items_scope_generation_idx`. No schema, response shape or index
+changes.
+
+Proof: `TestCrossRepoDeadCodeConsumerCoverageLive` gains four refresh-only
+repositories: pending code-call work is a `no_snapshot_yet` gap (failed before
+the change: the generation read complete), both items succeeded is complete, no
+work items is complete, and a dead-lettered code-call item is a
+`no_snapshot_yet` gap; the window and every-repository cases pin both
+statements. `TestCrossRepoDeadCodeConsumerCoverageUniversePredicate` pins the
+work predicate in both probes.
+
+Performance Evidence: local disposable PostgreSQL 18, 1,004-scope seeded
+fixture (1,000 drained bulk scopes plus the four window shapes),
+`EXPLAIN (ANALYZE, BUFFERS)` before and after on both statements. Plan class
+unchanged: the probe is an index scan on
+`fact_work_items_scope_generation_idx` that ran only for the 4
+watermark-gated scopes (0.004 ms per loop). Execution: named 1.717 ms to
+1.752 ms (+11 buffers), all-repositories 0.962 ms to 0.986 ms; the
+all-repositories early stop is unchanged (the probe sits in the per-row filter,
+so the `LIMIT` still ends the scan at the first cap-plus-one gaps).
+
+Observability Evidence: no change. The read keeps its `postgres.query` span
+and the response's `consumer_coverage.incomplete` list; repositories inside the
+window now appear as `no_snapshot_yet` gaps until their reducer work drains.
+
 ## Known gaps
 
 - **Unscoped requests are judged against every repository that can be a
@@ -355,7 +406,10 @@ Observability Evidence: no change. The read keeps its `postgres.query` span
   watermark, or a truncated one, makes every symbol of an unscoped, unnamed request unknown.
   Repositories with no such work (docs, IaC) no longer do. Name
   `consumer_repo_ids` or use a grant to narrow a request.
-- The queue-time window above is not closed by #7591 (#7602).
+- The queue-time window above was not closed by #7591; #7602 closes it with the
+  reducer-work probe. A dead-lettered reducer item keeps its repository a
+  `no_snapshot_yet` gap until the work is retried or the generation is
+  superseded.
 - The check detects only a missing, truncated or older-epoch watermark on a repository with
   code edges (on a full generation, per-edge intents; see "Refresh intents (#7591)"). A stale or partly drained snapshot with `truncated = false`, even
   beside a pending intent, reads complete until the reducer rebuilds it. A
