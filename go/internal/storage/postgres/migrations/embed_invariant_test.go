@@ -63,7 +63,7 @@ import (
 // 165_phase_state_quiescence_gate_stats.sql; #7625 adds
 // 166_repository_selection_observations.sql; #7799 adds
 // 167_unroutable_intents_generation_idx.sql.
-const goldenBootstrapDefinitionsDigest = "2b470b222b51fa8a2a57abc3af200f2be7b93645b0b071e92909ab7c02306742"
+const goldenBootstrapDefinitionsDigest = "93149226f6ba0cfcbf5a671dad5987e3694a6ae882d071e1a8ef595f624f704e"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

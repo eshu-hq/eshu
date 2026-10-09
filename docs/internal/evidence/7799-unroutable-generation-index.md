@@ -34,7 +34,7 @@ generations. All statements `EXPLAIN (ANALYZE, BUFFERS)` after
 | Scope-joined leg (current arm) | Nested loop, index-only probe of the scope-leading index per candidate | hit=101 | 0.174 ms |
 | Generation-only leg, no new index | Nested loop, 902 index searches skip-scanning the scope-leading index | hit=7696 | 11.480 ms |
 | Generation-only leg + (generation_id) index, custom plan | Nested loop, 20 index-only probes of the new index | hit=61 | 0.229 ms |
-| Same, generic plan (PREPARE, 6 executions) | Nested loop, 5 probes each, identical all 6 | hit=11 | ~0.05 ms |
+| Same leg, generic plan (PREPARE, 5-candidate batch, 6 executions) | Nested loop, 5 probes each, identical all 6 | hit=11 | ~0.05 ms |
 | DELETE, no new index | Bitmap heap + bitmap index scan | hit=649 | 4.519 ms |
 | DELETE + (generation_id) index | Bitmap heap + bitmap index scan on the new index | hit=313 | 0.199 ms |
 
@@ -56,6 +56,24 @@ Correctness on the seeded malformed rows: the scope-joined leg counts
   the index closes the mismatch for both the count and the reap at one
   small btree entry per unroutable insert, a table written only on
   routing failures.
+
+## Performance Evidence
+
+Performance Evidence: on the 200k-row scratch schema the generation-only
+leg without the index skip-scans the scope-leading index (902 searches,
+7696 buffers, 11.480 ms for a 20-generation batch); with migration 167
+it is a nested-loop probe of the new btree (20 searches, 61 buffers,
+0.229 ms custom plan; 11 buffers stable across six generic-plan
+executions of a 5-candidate batch), and the 5-generation reap DELETE
+drops from 649 to 313 buffers.
+
+## Observability Evidence
+
+No-Observability-Change: the change reshapes one count leg to the
+envelope the reap already uses and adds one btree index. The count runs
+under the retention cycle's existing instrumentation, and the per-table
+event `row_counts` and `rows_pruned_total{table}` counter now agree for
+this table with no new signal.
 
 ## Guard-corpus note
 

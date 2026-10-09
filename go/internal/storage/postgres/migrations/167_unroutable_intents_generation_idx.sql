@@ -19,9 +19,10 @@
 --
 -- THE INDEX. (generation_id) makes both the reshaped count leg and the
 -- reap DELETE a btree probe per candidate: 20 index searches, 61
--- buffers, 0.229 ms custom plan, and 11 buffers stable across six
--- generic-plan executions for the same batch; the 5-generation DELETE
--- drops from 649 to 313 buffers. The key is generation_id alone on
+-- buffers, 0.229 ms custom plan for the 20-generation batch, and 11
+-- buffers stable across six generic-plan executions of a 5-candidate
+-- batch; the 5-generation DELETE drops from 649 to 313 buffers. The key
+-- is generation_id alone on
 -- purpose: the count leg needs only that column and the DELETE must
 -- visit the heap row anyway, so INCLUDE columns would only bloat the
 -- index. Write cost is one small btree entry per unroutable insert, and
