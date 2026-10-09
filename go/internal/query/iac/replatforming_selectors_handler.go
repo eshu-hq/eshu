@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -17,6 +18,10 @@ import (
 const (
 	replatformingSelectorDefaultLimit = 100
 	replatformingSelectorMaxLimit     = 200
+
+	// replatformingSelectorsFailedMessage is the fixed body for a failed
+	// selector inventory read; the store error goes to the request span.
+	replatformingSelectorsFailedMessage = "replatforming selector inventory failed"
 )
 
 var replatformingFindingKinds = []string{
@@ -88,16 +93,17 @@ func (h *Handler) handleReplatformingSelectors(w http.ResponseWriter, r *http.Re
 	}
 	page, err := store.ListReplatformingSelectors(r.Context(), limit, allowedScopeIDs)
 	if err != nil {
-		querycontract.WriteContractError(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"replatforming selector inventory failed",
-			querycontract.ErrorCodeInternalError,
-			ReplatformingSelectorInventoryCapability,
-			h.profile(),
-			querycontract.RequiredProfile(ReplatformingSelectorInventoryCapability),
+		if querycontract.WriteGraphReadError(w, r, err, ReplatformingSelectorInventoryCapability) {
+			return
+		}
+		status, errEnv := tracing.ServerFailureEnvelope(
+			r.Context(), err, replatformingSelectorsFailedMessage, ReplatformingSelectorInventoryCapability,
 		)
+		errEnv.Profiles = &querycontract.ErrorProfiles{
+			Current:  h.profile(),
+			Required: querycontract.RequiredProfile(ReplatformingSelectorInventoryCapability),
+		}
+		querycontract.WriteErrorEnvelope(w, r, status, errEnv)
 		return
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, replatformingSelectorResponse(page, limit), querycontract.BuildTruthEnvelope(

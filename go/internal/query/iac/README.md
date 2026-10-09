@@ -182,6 +182,41 @@ root registered before the move.
 
 Inventory, reachability, and AWS management readers expose `WithReadStore` constructors that accept guarded query-only connections. The existing constructors retain legacy SQL callers.
 
+## Failed reads (#7674)
+
+Every route answers a failed store or graph read with a fixed message per
+step (for example `count unmanaged cloud resources failed` or `IaC resource
+graph read failed`), never the backend error text. A server fault records the
+error on the handler span (an `exception` event, span status Error with the
+fixed message). A client cancel answers `499` with an
+`eshu.request.client_canceled` event and no span error. A stale or timed-out
+PostgreSQL reader answers the retryable `503` with `Retry-After` on every
+route; before #7674 only `POST /api/v0/iac/dead` and the graph read of
+`GET /api/v0/iac/resources` did. The selector inventory keeps its
+`internal_error` envelope with capability and profiles. The replatforming
+plan contract check answers `composed replatforming plan failed contract
+validation` without the validation error, which quoted finding ids.
+`server_failure*_test.go` covers each route and step. The operator contract is
+in
+[Selector And Read Failures](../../../../docs/public/reference/http-api/selector-and-read-failures.md#iac-read-failures).
+
+No-Regression Evidence (#7674): the change runs only after a read has already
+returned an error. No SQL, Cypher, query parameter, call count, row bound, or
+success path changed. A failure now costs one span `RecordError`/`SetStatus`
+and a fixed-string write instead of formatting the error into the body.
+`go test ./internal/query/... ./internal/queryplan/... -count=1` and
+`go test -race ./internal/query/iac/... ./internal/query/tracing/...` exit 0.
+No benchmark is claimed because the success path has no runtime delta to
+measure.
+
+Observability Evidence (#7674): a server fault records the backend error on
+the handler span as an `exception` event and sets status Error with the step's
+fixed message as the description; a client cancel adds
+`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
+The resource route's `resources_metrics.go` error counter is unchanged.
+`server_failure*_test.go` asserts both span shapes with a recording tracer for
+every route and step.
+
 ## Dead-IaC selector errors
 
 `POST /api/v0/iac/dead` resolves each `repo_id`/`repo_ids` selector against

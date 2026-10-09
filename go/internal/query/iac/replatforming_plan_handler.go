@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -18,6 +19,15 @@ import (
 // evidence. It is read-only: it observes, compares, and plans, but never runs
 // Terraform, imports resources, or mutates cloud or repository state.
 const ReplatformingPlanRoute = "/api/v0/replatforming/plans"
+
+// Fixed bodies for a failed replatforming plan read or a composed plan that
+// breaks its own contract. The cause is recorded on the request span, never
+// written to the client: a validation error quotes finding ids (#7674).
+const (
+	replatformingPlanCountFailedMessage      = "count replatforming plan findings failed"
+	replatformingPlanListFailedMessage       = "list replatforming plan findings failed"
+	replatformingPlanValidationFailedMessage = "composed replatforming plan failed contract validation"
+)
 
 // replatformingPlanRequest is the bounded request body for the replatforming
 // plan compose route. ScopeKind anchors the plan on one primary dimension; the
@@ -92,19 +102,19 @@ func (h *Handler) handleReplatformingPlan(w http.ResponseWriter, r *http.Request
 
 	totalFindings, err := h.Management.CountUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ReplatformingPlanReadinessCapability, replatformingPlanCountFailedMessage)
 		return
 	}
 	findings, err := h.Management.ListUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeIaCReadFailure(w, r, err, ReplatformingPlanReadinessCapability, replatformingPlanListFailedMessage)
 		return
 	}
 	findings = normalizeIaCManagementFindingsSafety(findings)
 
 	plan := composeReplatformingPlan(scope, findings, filter)
 	if validationErr := plan.Validate(); validationErr != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("composed replatforming plan failed contract validation: %v", validationErr))
+		tracing.WriteServerFailure(w, r, validationErr, http.StatusInternalServerError, replatformingPlanValidationFailedMessage)
 		return
 	}
 	truncated := ManagementTruncated(filter.Offset, len(findings), totalFindings)
