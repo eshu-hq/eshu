@@ -81,7 +81,9 @@ func TestLiveIDAnchorCensusStartup(t *testing.T) {
 		wait := startIDAnchorCensus(runCtx, cfg, runtimecfg.GraphBackendNeo4j, idAnchorCensusReader(runner, nil), inst, logger)
 		deadline := time.After(time.Minute)
 		for {
-			if v := readCensusMetrics(t, reader); v.okPasses > 0 {
+			// The runner records the pass counter first and the last-success time
+			// last, so a visible last-success time means both gauges are recorded.
+			if v := readCensusMetrics(t, reader); v.okPasses > 0 && v.lastSuccess > 0 {
 				gauge, idBearing, lastSuccess, okPasses = v.gauge, v.idBearing, v.lastSuccess, v.okPasses
 				break
 			}
