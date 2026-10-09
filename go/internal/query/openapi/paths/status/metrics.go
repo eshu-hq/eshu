@@ -43,8 +43,7 @@ const Metrics = `
               }
             }
           },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+          "400": {"$ref": "#/components/responses/BadRequest"}
         }
       }
     },

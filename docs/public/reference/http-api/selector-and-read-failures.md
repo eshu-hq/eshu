@@ -128,8 +128,8 @@ failed`, and `secrets/IAM posture summary query failed`.
 The package-registry scoped-access probes run for a scoped caller before a
 row is shown. A probe failure answers `500` with one fixed access-check
 message per route, for example `package registry package access check
-failed`, and never the empty page, `403`, or `404` a denial answers, so a
-failure neither fails open nor reveals whether a package or version exists.
+failed`, and never the empty page a denial answers, so a failure neither
+fails open nor reveals whether a package or version exists.
 
 A reader fence answers the retryable `503` with `Retry-After` on every one of
 these reads. The `correlations` and `dependency-chains` reads and all five
@@ -163,9 +163,10 @@ error text (#7674):
   drift findings failed`.
 
 A reader fence on these reads answers the retryable `503` with `Retry-After`.
-The metrics route reads Prometheus, which cannot produce a fence today. The OpenAPI spec now declares that `503` on the CI/CD, service catalog,
-Terraform drift, and metrics routes. An incident that is not found answers
-`404` with the fixed not-found text, not the wrapped lookup error.
+The metrics route reads Prometheus, which cannot produce a fence, so it
+declares no `503`. The OpenAPI spec now declares that `503` on the CI/CD,
+service catalog, and Terraform drift routes. An incident that is not found
+answers `404` with the fixed not-found text, not the wrapped lookup error.
 
 A shared selector helper error that is neither an unmatched nor an ambiguous
 selector answers the fixed `500` `repository selector lookup failed`, never a
