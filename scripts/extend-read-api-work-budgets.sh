@@ -37,7 +37,9 @@ LC_ALL=C sort "${work}/routes" >"${work}/selected"
 awk -F '\t' '
 	NF && $1 !~ /^#/ {
 		if (NF < 4 || $1 == "" || $2 !~ /^[0-9]+$/ || $3 !~ /^[0-9]+$/ || $4 !~ /^[0-9]+$/ || seen[$1]++) exit 1
+		if ($1 == "default") default_count++
 	}
+	END { if (default_count != 1) exit 1 }
 ' "${baseline}" || die 'malformed or duplicate baseline row'
 awk -F '\t' -v selected="${work}/selected" '
 	BEGIN { while ((getline route < selected) > 0) { if (route == "" || route == "default") exit 1; wanted[route] = 1; need++ } }
