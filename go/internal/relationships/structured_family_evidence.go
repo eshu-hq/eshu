@@ -91,6 +91,7 @@ func discoverStructuredArgoCDEvidence(
 	parsedFileData map[string]any,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
+	stats *DiscoveryStats,
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
@@ -169,27 +170,53 @@ func discoverStructuredArgoCDEvidence(
 					templatePath := firstCSV(templatePaths)
 					templateRoot := firstCSV(templateRoots)
 					for _, deployedRepo := range matchingCatalogEntries(templateRepoURL, matcher) {
-						if deployedRepo.RepoID == configRepo.RepoID || deployedRepo.RepoID == sourceRepoID {
+						if deployedRepo.RepoID == sourceRepoID {
+							recordApplicationSetSkipOnce(
+								stats, seen, evidenceKeySkippedControlRepo,
+								ApplicationSetTemplateSourceOutcomeSkippedControlRepo,
+								sourceRepoID, deployedRepo.RepoID, filePath,
+							)
 							continue
 						}
-						evidence = append(evidence, appendDeploySourceEvidence(
+						if deployedRepo.RepoID == configRepo.RepoID {
+							evidence = append(evidence, appendSelfReferenceEvidence(
+								sourceRepoID, deployedRepo, filePath, path, templateRepoURL,
+								[]argocdDestination{{
+									name:      appSet.DestName,
+									namespace: appSet.DestNamespace,
+									server:    appSet.DestServer,
+								}},
+								seen, stats,
+							)...)
+							applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetTemplateSource, configRepo.RepoID, func(details map[string]any) map[string]any {
+								return withFirstPartyRefDetails(
+									mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
+									"argocd_applicationset_template_source", appSetName, templatePath, templateRoot, "", templateRepoURL,
+								)
+							})
+							continue
+						}
+						deploySource := appendDeploySourceEvidence(
 							sourceRepoID, deployedRepo, configRepo, filePath, path, templateRepoURL, seen,
-						)...)
+						)
+						if len(deploySource) > 0 {
+							stats.recordApplicationSetTemplateSource(ApplicationSetTemplateSourceOutcomeDeploySource)
+						}
+						evidence = append(evidence, deploySource...)
 						applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDeploySource, configRepo.RepoID, func(details map[string]any) map[string]any {
 							return withFirstPartyRefDetails(
 								mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
 								"argocd_applicationset_template_source", appSetName, templatePath, templateRoot, "", templateRepoURL,
 							)
 						})
-						evidence = append(evidence, appendDestinationPlatformEvidence(
-							deployedRepo.RepoID,
-							filePath,
-							argocdDestination{
+						evidence = append(evidence, appendApplicationSetPlatformEvidence(
+							sourceRepoID, deployedRepo.RepoID, filePath,
+							[]argocdDestination{{
 								name:      appSet.DestName,
 								namespace: appSet.DestNamespace,
 								server:    appSet.DestServer,
-							},
-							seen,
+							}},
+							seen, stats,
 						)...)
 					}
 				}

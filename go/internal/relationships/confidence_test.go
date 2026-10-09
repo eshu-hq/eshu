@@ -25,6 +25,7 @@ var allEvidenceKinds = []EvidenceKind{
 	EvidenceKindFluxGitRepositorySource,
 	EvidenceKindArgoCDApplicationSetDiscovery,
 	EvidenceKindArgoCDApplicationSetDeploySource,
+	EvidenceKindArgoCDApplicationSetTemplateSource,
 	EvidenceKindArgoCDDestinationPlatform,
 	EvidenceKindGitHubActionsReusableWorkflow,
 	EvidenceKindGitHubActionsCheckoutRepository,

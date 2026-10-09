@@ -330,6 +330,7 @@ func hasDeploymentEvidence(details map[string]any) bool {
 		switch relationships.EvidenceKind(kind) {
 		case relationships.EvidenceKindArgoCDAppSource,
 			relationships.EvidenceKindArgoCDApplicationSetDeploySource,
+			relationships.EvidenceKindArgoCDApplicationSetTemplateSource,
 			relationships.EvidenceKindKustomizeResource,
 			relationships.EvidenceKindHelmValues,
 			relationships.EvidenceKindHelmChart:
@@ -342,8 +343,9 @@ func hasDeploymentEvidence(details map[string]any) bool {
 
 // isDeployRepoOriginatedEvidence reports whether a resolved edge starts at the
 // deployment or control repository and points at the deployed application.
-// ArgoCD Application, Kustomize, and Helm evidence use that direction.
-// ApplicationSet deploy-source evidence is normalized in the reverse direction.
+// ArgoCD Application, ApplicationSet template-source, Kustomize, and Helm
+// evidence use that direction. ApplicationSet deploy-source evidence is
+// normalized in the reverse direction.
 func isDeployRepoOriginatedEvidence(details map[string]any) bool {
 	rawKinds, ok := details["evidence_kinds"]
 	if !ok {
@@ -352,6 +354,7 @@ func isDeployRepoOriginatedEvidence(details map[string]any) bool {
 	for _, kind := range toStringSlice(rawKinds) {
 		switch relationships.EvidenceKind(kind) {
 		case relationships.EvidenceKindArgoCDAppSource,
+			relationships.EvidenceKindArgoCDApplicationSetTemplateSource,
 			relationships.EvidenceKindKustomizeResource,
 			relationships.EvidenceKindHelmValues,
 			relationships.EvidenceKindHelmChart:
@@ -366,6 +369,8 @@ func argoDeploymentProvenance(details map[string]any) string {
 		switch relationships.EvidenceKind(kind) {
 		case relationships.EvidenceKindArgoCDApplicationSetDeploySource:
 			return "argocd_applicationset_deploy_source"
+		case relationships.EvidenceKindArgoCDApplicationSetTemplateSource:
+			return "argocd_applicationset_template_source"
 		case relationships.EvidenceKindArgoCDAppSource:
 			return "argocd_application_source"
 		case relationships.EvidenceKindKustomizeResource:

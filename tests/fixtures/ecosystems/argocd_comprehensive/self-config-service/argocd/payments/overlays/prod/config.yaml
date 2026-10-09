@@ -1,0 +1,5 @@
+helm:
+  repoURL: registry.example.invalid
+  chart: charts/payments
+git:
+  repoURL: https://github.com/myorg/payments-service
