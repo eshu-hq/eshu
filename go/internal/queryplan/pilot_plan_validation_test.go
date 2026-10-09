@@ -51,9 +51,11 @@ func TestPilotGraphPlanMetricsRequireEveryOperatorCounter(t *testing.T) {
 		wantHits float64
 		valid    bool
 	}{
-		{"legitimate zero leaf", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":0,"arguments":{"DbHits":0,"Rows":0},"children":null}`, 0, true},
-		{"child work", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"arguments":{"DbHits":0,"Rows":1},"children":[{"operator":"NodeIndexSeek@neo4j","db_hits":8,"rows":1,"arguments":{"DbHits":8,"Rows":1},"children":null}]}`, 8, true},
+		{"legitimate zero leaf", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":0,"page_cache_hits":0,"page_cache_misses":0,"arguments":{"DbHits":0,"Rows":0,"PageCacheHits":0,"PageCacheMisses":0},"children":null}`, 0, true},
+		{"child work", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"page_cache_hits":0,"page_cache_misses":0,"arguments":{"DbHits":0,"Rows":1,"PageCacheHits":0,"PageCacheMisses":0},"children":[{"operator":"NodeIndexSeek@neo4j","db_hits":8,"rows":1,"page_cache_hits":0,"page_cache_misses":0,"arguments":{"DbHits":8,"Rows":1,"PageCacheHits":0,"PageCacheMisses":0},"children":null}]}`, 8, true},
 		{"missing raw counter", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"arguments":{"Rows":1},"children":null}`, 0, false},
+		{"missing cache metric", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"page_cache_hits":0,"arguments":{"DbHits":0,"Rows":1,"PageCacheHits":0},"children":null}`, 0, false},
+		{"invented optional time", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"page_cache_hits":0,"page_cache_misses":0,"time_raw":0,"arguments":{"DbHits":0,"Rows":1,"PageCacheHits":0,"PageCacheMisses":0},"children":null}`, 0, false},
 		{"child mismatch", `{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"arguments":{"DbHits":0,"Rows":1},"children":[{"operator":"NodeIndexSeek@neo4j","db_hits":0,"rows":1,"arguments":{"DbHits":8,"Rows":1}}]}`, 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -68,7 +70,7 @@ func TestPilotGraphPlanMetricsRequireEveryOperatorCounter(t *testing.T) {
 func TestPilotGraphWorkMustMatchMeasuredPlan(t *testing.T) {
 	_, artifact := pilotEvidenceFixture()
 	run := artifact.Entries[0].Cases[0].Candidate
-	run.Plan = json.RawMessage(`{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"arguments":{"DbHits":0,"Rows":1},"children":[{"operator":"NodeIndexSeek@neo4j","db_hits":8,"rows":1,"arguments":{"DbHits":8,"Rows":1},"children":null}]}`)
+	run.Plan = json.RawMessage(`{"operator":"ProduceResults@neo4j","db_hits":0,"rows":1,"page_cache_hits":0,"page_cache_misses":0,"arguments":{"DbHits":0,"Rows":1,"PageCacheHits":0,"PageCacheMisses":0},"children":[{"operator":"NodeIndexSeek@neo4j","db_hits":8,"rows":1,"page_cache_hits":0,"page_cache_misses":0,"arguments":{"DbHits":8,"Rows":1,"PageCacheHits":0,"PageCacheMisses":0},"children":null}]}`)
 	run.Work = json.RawMessage(`{"query_count":1,"total_operator_db_hits":0,"root_output_rows":1}`)
 	budget := PilotBudget{MaxNormalMilliseconds: 2000, MaxQueryCount: 1, MaxWork: map[string]float64{"total_operator_db_hits": 10, "root_output_rows": 1}}
 	if got := validatePilotCaseRun("candidate", run, run.Result, budget, "graph-runner", queryKindCypher); len(got) == 0 {

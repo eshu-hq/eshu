@@ -146,9 +146,32 @@ func pilotGraphOperatorHits(node map[string]any) (float64, bool) {
 	}
 	hits, hitsOK := pilotFiniteCounter(node["db_hits"])
 	rows, rowsOK := pilotFiniteCounter(node["rows"])
+	cacheHits, cacheHitsOK := pilotFiniteCounter(node["page_cache_hits"])
+	cacheMisses, cacheMissesOK := pilotFiniteCounter(node["page_cache_misses"])
 	arguments, argsOK := node["arguments"].(map[string]any)
-	if !hitsOK || !rowsOK || !argsOK || arguments["DbHits"] != hits || arguments["Rows"] != rows {
+	if !hitsOK || !rowsOK || !cacheHitsOK || !cacheMissesOK || !argsOK ||
+		arguments["DbHits"] != hits || arguments["Rows"] != rows ||
+		arguments["PageCacheHits"] != cacheHits || arguments["PageCacheMisses"] != cacheMisses {
 		return 0, false
+	}
+	for _, optional := range []struct {
+		field, argument string
+	}{
+		{"page_cache_hit_ratio", "PageCacheHitRatio"},
+		{"time_raw", "Time"},
+	} {
+		fieldValue, fieldPresent := node[optional.field]
+		argumentValue, argumentPresent := arguments[optional.argument]
+		if fieldPresent != argumentPresent {
+			return 0, false
+		}
+		if fieldPresent {
+			fieldNumber, fieldOK := pilotFiniteCounter(fieldValue)
+			argumentNumber, argumentOK := pilotFiniteCounter(argumentValue)
+			if !fieldOK || !argumentOK || fieldNumber != argumentNumber {
+				return 0, false
+			}
+		}
 	}
 	if children, present := node["children"]; present {
 		if children == nil {
