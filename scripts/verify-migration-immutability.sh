@@ -85,8 +85,10 @@ fi
 
 migrations_dir="go/internal/storage/postgres/migrations"
 
-# deepen_head deepens HEAD's own shallow history by about $1 commits and
-# returns 0, or returns 1 when it cannot. It asks the remote for HEAD's commit
+# deepen_head deepens HEAD's own shallow history by at least $1 commits and
+# returns 0, or returns 1 when it cannot. On pull_request and push this is the
+# same loop as before with one change: its first fetch is this function, which
+# falls back to the old bare fetch. It asks the remote for HEAD's commit
 # by SHA into a private ref, NOT through a bare `git fetch --deepen=N`: that
 # form only deepens whatever the remote still advertises, and GitHub deletes a
 # merge queue's gh-readonly-queue/... branch the moment its group is dequeued
@@ -98,12 +100,21 @@ migrations_dir="go/internal/storage/postgres/migrations"
 # relative --deepen for a commit no branch points at (observed against the real
 # remote: --deepen=100 left the group at 2 commits, --depth=102 gave 102). The
 # target depth is therefore the commits already present plus $1, so the call
-# only ever deepens, never re-shallows. The destination refspec is required:
-# with none, git leaves the SHA in FETCH_HEAD and applies no depth at all. The
-# bare fetch stays as the fallback for a remote that refuses want-by-SHA, so
-# the old behavior is never lost.
+# only ever deepens, never re-shallows. --depth counts generations, not
+# commits, so on a merge-commit history the commit count over-states the
+# generations and the call deepens MORE than $1 (measured on the real remote:
+# 2 commits -> 102, then +400 -> 1035, then +1600 -> 3823). That is deliberate:
+# it errs toward finding the base, stays bounded by main's own history, and a
+# smaller computed depth could re-shallow a deeper checkout. The destination
+# refspec is required: with none, git leaves the SHA in FETCH_HEAD and applies
+# no depth at all. A leftover private ref from an aborted earlier run is cleared
+# first so each pass starts clean (a depth-limited fetch overwrote an unrelated
+# stale ref without error when tried, so this is hygiene, not a fix). The bare
+# fetch stays as the fallback for a remote that refuses want-by-SHA, so the old
+# behavior is never lost.
 deepen_head() {
   local deepen="$1" head_sha have ref="refs/eshu-migration-immutability/head"
+  git -C "$repo_root" update-ref -d "$ref" >/dev/null 2>&1 || true
   if head_sha="$(git -C "$repo_root" rev-parse --verify --quiet 'HEAD^{commit}')" &&
     have="$(git -C "$repo_root" rev-list --count HEAD 2>/dev/null)" &&
     git -C "$repo_root" fetch --no-tags --depth="$((have + deepen))" origin \
@@ -131,8 +142,8 @@ deepen_head() {
 # what failed merge_group runs (#7859): with HEAD deepened correctly the base is
 # found within the first one or two passes even when main is hundreds of
 # commits past the group base (the fixture proves 250). A base that is truly
-# unreachable still fails closed after every pass, measured at 62 to 87 seconds
-# against the real remote.
+# unreachable still fails closed after every pass, only more slowly (a local
+# run against the real remote took 31 to 87 seconds, not a CI figure).
 find_merge_base() {
   local ref="$1" mb remote branch
   if mb="$(git -C "$repo_root" merge-base "$ref" HEAD 2>/dev/null)"; then
