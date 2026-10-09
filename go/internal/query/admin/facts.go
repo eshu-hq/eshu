@@ -4,11 +4,15 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
+	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -204,6 +208,13 @@ func (h *Handler) skip(w http.ResponseWriter, r *http.Request) {
 
 	items, err := h.Store.SkipRepositoryWorkItems(r.Context(), repoID, strings.TrimSpace(req.OperatorNote))
 	if err != nil {
+		var ambiguous ScopeSelectorAmbiguousError
+		if errors.As(err, &ambiguous) {
+			authCtx, _ := auth.AuthContextFromContext(r.Context())
+			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "skip_refused_ambiguous_scope", authCtx, audit.SafeCorrelationID(audit.CorrelationID(r)))
+			querycontract.WriteError(w, http.StatusConflict, ambiguous.Error())
+			return
+		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("skip: %v", err))
 		return
 	}

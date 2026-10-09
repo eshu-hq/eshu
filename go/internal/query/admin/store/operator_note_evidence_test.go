@@ -5,6 +5,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // #7388: an operator note used to replace failure_details outright, so
@@ -43,7 +46,7 @@ func TestDeadLetterWorkItemsFoldsPriorFailureUnderTheOperatorNote(t *testing.T) 
 func TestSkipRepositoryWorkItemsFoldsPriorFailureUnderTheOperatorNote(t *testing.T) {
 	t.Parallel()
 
-	database := &recordingAdminExecQueryer{rows: &recordingAdminRows{}}
+	database := &scopeResolvingNoteQueryer{}
 	s := &postgresStore{database: database, now: func() time.Time { return time.Unix(1700000000, 0).UTC() }}
 	if _, err := s.SkipRepositoryWorkItems(context.Background(), "repo-a", "skip: scope is retired"); err != nil {
 		t.Fatalf("SkipRepositoryWorkItems() error = %v", err)
@@ -52,7 +55,62 @@ func TestSkipRepositoryWorkItemsFoldsPriorFailureUnderTheOperatorNote(t *testing
 	if !strings.Contains(database.query, "failure_class = COALESCE(NULLIF(work.failure_class, ''), 'operator_skipped')") {
 		t.Fatalf("skip must treat an empty failure_class like a missing one, as dead-letter does:\n%s", database.query)
 	}
+	if !strings.Contains(database.query, "WHERE scope.scope_id = $1") {
+		t.Fatalf("skip must filter the UPDATE on the resolved scope id, not the raw selector:\n%s", database.query)
+	}
 }
+
+// scopeResolvingNoteQueryer answers the shared scope-resolve SELECT (#7732)
+// with one scope row, then records the mutation query for statement-text
+// assertions.
+type scopeResolvingNoteQueryer struct {
+	query     string
+	queryArgs []any
+	calls     int
+}
+
+func (database *scopeResolvingNoteQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.calls++
+	if database.calls == 1 {
+		return &singleScopeRow{scopeID: "scope-a"}, nil
+	}
+	database.query = query
+	database.queryArgs = append([]any(nil), args...)
+	return &recordingAdminRows{}, nil
+}
+
+func (*scopeResolvingNoteQueryer) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	return nil, fmt.Errorf("unexpected ExecContext call")
+}
+
+// singleScopeRow yields exactly one scope id, then ends.
+type singleScopeRow struct {
+	scopeID string
+	done    bool
+}
+
+func (rows *singleScopeRow) Next() bool {
+	if rows.done {
+		return false
+	}
+	rows.done = true
+	return true
+}
+
+func (rows *singleScopeRow) Scan(dest ...any) error {
+	if len(dest) != 1 {
+		return fmt.Errorf("singleScopeRow scans one column, got %d destinations", len(dest))
+	}
+	id, ok := dest[0].(*string)
+	if !ok {
+		return fmt.Errorf("singleScopeRow scans into *string, got %T", dest[0])
+	}
+	*id = rows.scopeID
+	return nil
+}
+
+func (*singleScopeRow) Err() error   { return nil }
+func (*singleScopeRow) Close() error { return nil }
 
 // requireNoteFold asserts the statement wraps a non-empty note around the
 // work-alias fold and leaves the details untouched when the note is empty.

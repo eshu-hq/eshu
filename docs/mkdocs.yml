@@ -104,6 +104,7 @@ nav:
         - Admin Replay Refusals: reference/http-api/admin-replay-refusals.md
         - Selector And Read Failures: reference/http-api/selector-and-read-failures.md
         - Completed Work Reopen: reference/http-api/status-admin-reopen.md
+        - Admin Scope Selector: reference/http-api/status-admin-scope-selector.md
         - Index Status: reference/http-api/index-status.md
         - Active Work Source: reference/http-api/active-work-source.md
         - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md

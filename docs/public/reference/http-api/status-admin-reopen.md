@@ -20,11 +20,18 @@ idempotency claim, so the key is not consumed.
 
 ## Scope and generation resolution
 
-`scope_id` accepts the raw scope id or the scope's source key. An unknown
+`scope_id` accepts the raw scope id or the scope's source key, resolved by the
+shared skip/reopen resolver. An unknown
 scope is `404` and a scope with no active generation is `422`, both refused
 before the idempotency claim so the key stays usable for a corrected retry.
 (On a resolve race after the claim the same refused body is returned and the
 key stays in progress.)
+A selector matching more than one scope (one scope's id colliding with
+another scope's source key) fails closed with `409`, naming the matched
+scopes so the operator can resubmit with the exact scope id
+([scope selector](status-admin-scope-selector.md)); the refusal
+records a `reopen_refused_ambiguous_scope` governance audit event and leaves
+the idempotency key unconsumed.
 Reducer reopens run against the resolved active generation; intent reopens
 select by accepted source run. Intent selection deliberately follows the
 accepted run across generations: the newest acceptance for a unit may point

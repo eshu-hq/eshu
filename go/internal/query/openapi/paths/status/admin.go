@@ -310,10 +310,11 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Skip repository work items",
-        "description": "Dead-letters at most 100 pending, retrying, or failed work items for a repository or scope. Claimed, running, succeeded, superseded, and already dead-lettered items are left unchanged. The response count includes only rows transitioned by this call.",
+        "description": "Dead-letters at most 100 pending, retrying, or failed work items for a repository or scope. Claimed, running, succeeded, superseded, and already dead-lettered items are left unchanged. The response count includes only rows transitioned by this call. The repository_id accepts a scope id or a source key; a selector matching more than one scope fails closed with 409, naming the matched scopes.",
         "responses": {
           "200": {"description": "Skip request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -389,7 +390,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Reopen completed work items",
-        "description": "Reopens completed reducer or shared-projection work for one domain and scope, the admin surface for the #7285 hand-SQL repair. Requires an explicit domain, scope_id, reason and idempotency_key, and an admin (all-scopes) token. Only repo_dependency (one completed intent row per acceptance unit, at the accepted source run), workload_materialization and submodule_pin (succeeded reducer rows) reopen; every other domain is refused. The store resolves the scope's active generation at run time and locks with SKIP LOCKED under a lock_timeout. A 200 with reopened_total_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true, totals without the reducer/intent split) instead of reopening again.",
+        "description": "Reopens completed reducer or shared-projection work for one domain and scope, the admin surface for the #7285 hand-SQL repair. Requires an explicit domain, scope_id, reason and idempotency_key, and an admin (all-scopes) token. Only repo_dependency (one completed intent row per acceptance unit, at the accepted source run), workload_materialization and submodule_pin (succeeded reducer rows) reopen; every other domain is refused. The store resolves the scope's active generation at run time and locks with SKIP LOCKED under a lock_timeout. A 200 with reopened_total_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true, totals without the reducer/intent split) instead of reopening again. A scope_id matching more than one scope fails closed with 409, naming the matched scopes.",
         "requestBody": {
           "required": true,
           "content": {

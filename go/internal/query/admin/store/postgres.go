@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -96,14 +97,25 @@ SET status = 'dead_letter',
 
 // SkipRepositoryWorkItems dead-letters only unclaimed, actionable rows for one
 // repository or scope and rechecks their status after the target row is locked.
+// The selector resolves through the shared skip/reopen resolver first: an
+// unknown selector skips nothing, and an ambiguous one fails closed (#7732),
+// so the UPDATE below filters on the exact resolved scope id and can never
+// reach a second scope, even one inserted after the resolve.
 func (s *postgresStore) SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]admin.WorkItem, error) {
+	scopeID, err := s.resolveScopeID(ctx, repoID)
+	if err != nil {
+		if errors.Is(err, admin.ErrScopeSelectorNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	now := s.time()
 	const query = `
 WITH selected AS (
     SELECT work.work_item_id, work.status AS selected_status
     FROM fact_work_items AS work
     JOIN ingestion_scopes AS scope ON scope.scope_id = work.scope_id
-    WHERE (scope.scope_id = $1 OR scope.source_key = $1)
+    WHERE scope.scope_id = $1
       AND work.status IN ('pending', 'retrying', 'failed')
     ORDER BY work.updated_at DESC, work.work_item_id ASC
     LIMIT 100
@@ -146,7 +158,7 @@ WITH selected AS (
 )
 SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 `
-	return scanWorkItems(ctx, s.database, query, repoID, now, strings.TrimSpace(note))
+	return scanWorkItems(ctx, s.database, query, scopeID, now, strings.TrimSpace(note))
 }
 
 func (s *postgresStore) RequestBackfill(ctx context.Context, input admin.BackfillInput) (*admin.BackfillRequest, error) {

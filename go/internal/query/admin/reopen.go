@@ -40,13 +40,9 @@ const DefaultReopenLimit = 1000
 // Reopen errors the store returns for expected operator-facing failures. The
 // handler maps them to statuses; anything else is a 500 that leaves the
 // idempotency claim in progress.
-var (
-	// ErrReopenScopeNotFound means no ingestion scope matches the selector.
-	ErrReopenScopeNotFound = errors.New("reopen scope not found")
-	// ErrReopenNoActiveGeneration means the scope has no resolvable active
-	// generation to reopen work for.
-	ErrReopenNoActiveGeneration = errors.New("reopen scope has no active generation")
-)
+// ErrReopenNoActiveGeneration means the scope has no resolvable active
+// generation to reopen work for.
+var ErrReopenNoActiveGeneration = errors.New("reopen scope has no active generation")
 
 // ReopenFilter selects completed work to reopen.
 type ReopenFilter struct {
@@ -149,10 +145,15 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 	// the idempotency key unconsumed for a corrected retry. The store
 	// re-resolves authoritatively at run time inside ReopenCompletedWork.
 	if _, _, err := h.Store.ResolveReopenTarget(r.Context(), req.ScopeID); err != nil {
+		var ambiguous ScopeSelectorAmbiguousError
 		switch {
-		case errors.Is(err, ErrReopenScopeNotFound):
+		case errors.Is(err, ErrScopeSelectorNotFound):
 			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_unknown_scope", authCtx, correlationID)
 			querycontract.WriteError(w, http.StatusNotFound, "no ingestion scope matches scope_id")
+			return
+		case errors.As(err, &ambiguous):
+			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_ambiguous_scope", authCtx, correlationID)
+			querycontract.WriteError(w, http.StatusConflict, ambiguous.Error())
 			return
 		case errors.Is(err, ErrReopenNoActiveGeneration):
 			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_no_active_generation", authCtx, correlationID)
@@ -191,10 +192,15 @@ func (h *Handler) reopen(w http.ResponseWriter, r *http.Request) {
 		// gets a 409 instead of losing the outcome.
 		// The scope/generation arms below only fire on a resolve race: the
 		// pre-claim probe already refused the expected cases.
+		var ambiguous ScopeSelectorAmbiguousError
 		switch {
-		case errors.Is(err, ErrReopenScopeNotFound):
+		case errors.Is(err, ErrScopeSelectorNotFound):
 			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_unknown_scope", authCtx, correlationID)
 			querycontract.WriteError(w, http.StatusNotFound, "no ingestion scope matches scope_id")
+			return
+		case errors.As(err, &ambiguous):
+			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_ambiguous_scope", authCtx, correlationID)
+			querycontract.WriteError(w, http.StatusConflict, ambiguous.Error())
 			return
 		case errors.Is(err, ErrReopenNoActiveGeneration):
 			h.recordRecoveryAction(r.Context(), governanceaudit.DecisionDenied, "reopen_refused_no_active_generation", authCtx, correlationID)
