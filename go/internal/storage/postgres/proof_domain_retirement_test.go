@@ -94,8 +94,12 @@ func TestProofRetirementProductionQueriesCarryRetirementPredicates(t *testing.T)
 			t.Fatalf("listActiveRepositoryFactsQuery missing supersession predicate %q", want)
 		}
 	}
+	// The identity page restricts to active generations with a hashed SubPlan
+	// filter rather than a JOIN (#7805), so the supersession predicate is the
+	// active-pair membership test plus the generation row status.
 	for _, want := range []string{
-		"scope.active_generation_id = fact.generation_id",
+		"(fact.scope_id, fact.generation_id) IN (",
+		"scope.active_generation_id",
 		"generation.status = 'active'",
 		"fact.is_tombstone = FALSE",
 	} {
