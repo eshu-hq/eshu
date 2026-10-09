@@ -55,6 +55,7 @@ jobs:
       rootcauseevidence: ${{ steps.filter.outputs.rootcauseevidence }}
       pgstatementreport: ${{ steps.filter.outputs.pgstatementreport }}
       dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
+      dockerhublogin: ${{ steps.filter.outputs.dockerhublogin }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -443,6 +444,13 @@ jobs:
               - 'scripts/test-resolve-image-scan-ref.sh'
               - 'scripts/test-verify-docker-publish-pr-platforms.sh'
               - 'scripts/test-verify-docker-publish-moving-tags.sh'
+            dockerhublogin:
+              - '.github/**'
+              - '**/*.*sh'
+              - 'scripts/lib/dockerhub-login-*.awk'
+              - '**/Dockerfile*'
+              - '**/docker-compose*.y*ml'
+              - 'specs/ci-gates.v1.yaml'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -506,6 +514,12 @@ jobs:
           append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh"
           append_gate "${{ steps.filter.outputs.pgstatementreport }}" "pgstatementreport" "Verify pg-statement-report gate" "bash scripts/test-pg-statement-report.sh" "bash scripts/test-pg-statement-report.sh"
           append_gate "${{ steps.filter.outputs.dockerpublish }}" "dockerpublish" "Verify docker-publish shape gate" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh"
+          # 30, not the default 15: the 116-check suite (bash scripts/test-verify-
+          # dockerhub-login.sh) measured 548 to 688 s wall on a loaded 18-core Mac
+          # (three suites at once, load average 25 to 50), most of it forks of awk,
+          # rg and yq, so a 2-core hosted runner has under 2x margin at 15 minutes
+          # and over 2x at 30.
+          append_gate "${{ steps.filter.outputs.dockerhublogin }}" "dockerhublogin" "Verify Docker Hub login gate" "bash scripts/test-verify-dockerhub-login.sh" "bash scripts/verify-dockerhub-login.sh" 30
           # 30, not the default 15: this gate vets every //go:build configuration
           # in the module serially (37 today) and takes about 14 minutes on main,
           # so it was being cancelled at the 15-minute mark rather than failing.
@@ -526,11 +540,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    env:
+      # #7886: true only when both Docker Hub secrets exist (fork and Dependabot
+      # PRs get none). Expose the boolean, not the secrets, so no step sees them.
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+
+      # #7886: authenticated pulls avoid the shared anonymous Docker Hub limit
+      # on hosted runners. Skipped, not failed, when the secrets are absent.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

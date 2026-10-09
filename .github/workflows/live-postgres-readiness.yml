@@ -100,6 +100,12 @@ jobs:
     services:
       postgres:
         image: postgres:18.6-bookworm
+        # #7886: service images are pulled at job init, before any step, so a
+        # login step cannot cover them. The runner skips the login when either
+        # value is empty (fork and Dependabot PRs), so the pull stays anonymous.
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         env:
           POSTGRES_DB: postgres
           POSTGRES_USER: postgres
@@ -113,6 +119,9 @@ jobs:
           --health-retries 20
       neo4j:
         image: neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         env:
           NEO4J_AUTH: neo4j/local-proof-only
           NEO4J_PLUGINS: '[]'

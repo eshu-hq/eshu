@@ -129,11 +129,23 @@ func TestStaticContractGateJobReadsTheMatrixTimeout(t *testing.T) {
 	}
 }
 
-// TestStaticContractTaggedBuildsGetsTheLongerTimeout pins the exception and the
-// default together, so neither can drift without the other being noticed. The
-// tagged-builds sweep vets every //go:build configuration in the module
-// serially and was being cancelled at the shared 15-minute bound.
-func TestStaticContractTaggedBuildsGetsTheLongerTimeout(t *testing.T) {
+// staticContractRaisedTimeouts names the gates that carry the longer bound and
+// why. Every other gate stays on the default, so a genuine hang in it is still
+// cancelled on time.
+//
+//   - taggedbuilds vets every //go:build configuration in the module serially
+//     and was being cancelled at the shared 15-minute bound.
+//   - dockerhublogin runs a 116-check suite that forks awk, rg and yq per case;
+//     it measured 548 to 688 s wall on a loaded 18-core machine, which leaves a
+//     hosted runner under 2x margin at 15 minutes.
+var staticContractRaisedTimeouts = map[string]int{
+	"taggedbuilds":   30,
+	"dockerhublogin": 30,
+}
+
+// TestStaticContractLongGatesGetTheLongerTimeout pins the exceptions and the
+// default together, so neither can drift without the other being noticed.
+func TestStaticContractLongGatesGetTheLongerTimeout(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(repositoryRoot(t), ".github", "workflows", "static-contract-gates.yml")
@@ -142,24 +154,26 @@ func TestStaticContractTaggedBuildsGetsTheLongerTimeout(t *testing.T) {
 		t.Fatalf("read static contract workflow: %v", err)
 	}
 	rows := staticContractMatrixRows(t, raw)
-	var taggedBuilds, defaults int
+	raised := map[string]int{}
+	var defaults int
 	for _, row := range rows {
-		switch row.Key {
-		case "taggedbuilds":
-			taggedBuilds++
-			if row.Timeout != 30 {
-				t.Fatalf("taggedbuilds timeout = %d, want 30", row.Timeout)
+		if want, ok := staticContractRaisedTimeouts[row.Key]; ok {
+			raised[row.Key]++
+			if row.Timeout != want {
+				t.Fatalf("%s timeout = %d, want %d", row.Key, row.Timeout, want)
 			}
-		default:
-			if row.Timeout != 15 {
-				t.Fatalf("gate %q timeout = %d, want the default 15; raise one gate at a time, not the matrix",
-					row.Key, row.Timeout)
-			}
-			defaults++
+			continue
 		}
+		if row.Timeout != 15 {
+			t.Fatalf("gate %q timeout = %d, want the default 15; raise one gate at a time, not the matrix",
+				row.Key, row.Timeout)
+		}
+		defaults++
 	}
-	if taggedBuilds != 1 {
-		t.Fatalf("taggedbuilds rows = %d, want 1", taggedBuilds)
+	for key := range staticContractRaisedTimeouts {
+		if raised[key] != 1 {
+			t.Fatalf("%s rows = %d, want 1", key, raised[key])
+		}
 	}
 	if defaults == 0 {
 		t.Fatal("no gate is on the default timeout; the default arm of append_gate is unexercised")
