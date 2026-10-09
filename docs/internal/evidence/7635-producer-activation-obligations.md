@@ -185,6 +185,26 @@ Proof: `TestProducerRemovalOnlyGenerationReopensConsumersLive`,
 `TestProducerRemovalOwedKeysPlanLive` (20k bulk rows, no sequence scan,
 one probe per side).
 
+No-Regression Evidence: baseline is the pre-#7705 owe (identity probe with
+no tombstone arm; removed-key linkage absent, so removal-affected consumers
+stayed stale until the next epoch pass). After, on local Postgres 18 with
+20k bulk OCI rows in other generations plus the removal fixtures: the owe
+probe adds one tombstone arm and the owed-keys query adds one `UNION ALL`
+arm, both bounded to the scope's older generations
+(`producerOlderGenerationIDsSQL`) and every fact probe stays
+`(scope_id, generation_id)`-anchored — EXPLAIN shows no sequence scan, one
+index probe per side, zero bulk-row touches. No new index, no plan-shape
+change on the existing arms (differential test pins identical reopen sets
+for non-removal shapes). Safe because both new arms reuse the existing
+anchored probe pattern and fire only for identity-filter-kind tombstones
+with a live predecessor, a narrow subset of owe evaluations.
+
+Observability Evidence: removal settles reuse the existing
+`eshu_dp_producer_activation_settle_total` (by outcome) and
+`eshu_dp_producer_activation_reopened_total` (by consumer) counters — no
+new telemetry; see this note's Observability Evidence section for the full
+operator surface.
+
 Observability Evidence: the consumer emits `eshu_dp_producer_activation_settle_total`
 (by outcome), `eshu_dp_producer_activation_reopened_total` (by consumer
 domain), `eshu_dp_producer_activations` and
