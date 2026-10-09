@@ -71,7 +71,7 @@ type domainDataSignature struct {
 // intra-group distinction has no route boundary to cross.
 var domainDataSignatures = map[string]domainDataSignature{
 	// documentation_read_model.go builds its IN (...) list from the
-	// facts.Documentation*FactKind constants, not inline literals.
+	// docs.*FactKind constants, not inline literals.
 	"documentation_materialization": {Markers: []string{"docs.SourceFactKind", "docs.DocumentFactKind"}},
 
 	// The three provider inventory domains converge into ONE reducer-owned

@@ -29,10 +29,11 @@ encoders. It moved out of the facts root in issue #6776.
   re-acquire the old `Documentation` prefix (`docs/internal/naming.md`
   rule 4). A file name must not repeat its directory
   (`scripts/verify-filename-stutter.sh`).
-- **Removing a `facts.Documentation*` alias is a separate, caller-driven
-  step.** `compat_docs.go` in the facts root carries the pre-move spellings
-  for callers that still use them; delete an entry only once its last caller
-  has moved.
+- **The `facts.Documentation*` aliases are gone.** The root's
+  transitional `compat_docs.go` was retired in #6950 batch 3 once the last
+  caller moved; do not reintroduce root aliases for this family's names.
+  (Other families still migrate under the same caller-driven rule in their
+  own batches.)
 
 ## Proof expected for a change here
 

@@ -89,8 +89,8 @@ consume these types as their input or storage shape.
   mentions, non-authoritative claim candidates, owner references, ACL
   summaries, and evidence references. These now live in
   [`internal/facts/docs`](docs/README.md) as `docs.SourcePayload` and
-  friends; `compat_docs.go` keeps every `facts.Documentation*` spelling
-  working for callers that have not moved.
+  friends; the transitional `compat_docs.go` surface was retired in #6950
+  batch 3 once the last caller moved.
 - Semantic evidence payloads — provenance-rich documentation observations and
   code hints emitted by optional semantic extraction. These facts carry source,
   chunk, provider-profile, prompt-version, redaction, policy, confidence,
@@ -146,13 +146,14 @@ excludes every `.go` file in a package named `documentation`; see
 `docs/doc.go`. `supply/chain/` is nested rather than glued as `supplychain`
 per `docs/internal/naming.md` rule 3, matching `internal/query/supply/chain`.
 
-`compat_cloud.go`, `compat_docs.go`, and `compat_supply_chain.go` are this
-package's
-transitional compatibility surface for those moves: every entry is an alias
-or a thin forwarder, so a caller that spells a moved name `facts.X` gets the
-same type and the same value it did before. Each entry is deleted once its
-last caller has moved to the nested package directly — that migration is
-issue #6950. Nesting the `security_alert.go` / `secrets_iam.go` /
+`compat_cloud.go` and `compat_supply_chain.go` are this package's
+transitional compatibility surface for those moves (`compat_code.go` and
+`compat_cloud_posture.go` already retired, `compat_docs.go` retired in
+#6950 batch 3): every entry is an alias or a thin forwarder, so a caller
+that spells a moved name `facts.X` gets the same type and the same value
+it did before. Each entry is deleted once its last caller has moved to
+the nested package directly — that migration is issue #6950. Nesting the
+`security_alert.go` / `secrets_iam.go` /
 `incident_*.go` groups and the remaining single-file families is issue
 #6951; the cap is already satisfied without them.
 

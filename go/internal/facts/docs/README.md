@@ -60,11 +60,12 @@ the reverse edge is an import cycle.
 
 ## Dependents
 
-- `internal/facts` — `compat_docs.go` re-exports every pre-move spelling,
-  and `semantic.go` / `semantic_encode.go` reuse `ACLSummary`,
-  `EvidenceRef`, `EncodeACLSummary`, and `EncodeEvidenceRefs`
+- `internal/facts` — `semantic.go` / `semantic_encode.go` reuse
+  `ACLSummary`, `EvidenceRef`, `EncodeACLSummary`, and `EncodeEvidenceRefs`
+  (the transitional `compat_docs.go` re-export was retired in #6950
+  batch 3 once the last caller moved)
 - `internal/doctruth`, `internal/semanticdocs` and the documentation
-  collector path reach these names through `facts.Documentation*` today
+  collector path reach these names through `docs.*` directly
 
 ## Telemetry
 
