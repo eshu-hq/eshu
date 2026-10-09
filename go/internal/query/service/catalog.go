@@ -155,7 +155,10 @@ func (h *CatalogHandler) listCorrelations(w http.ResponseWriter, r *http.Request
 
 	rows, err := h.Correlations.ListServiceCatalogCorrelations(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, serviceCatalogCorrelationsCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, serviceCatalogCorrelationsListFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

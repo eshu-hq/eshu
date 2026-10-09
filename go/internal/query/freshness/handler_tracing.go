@@ -6,6 +6,7 @@ package freshness
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -29,3 +30,16 @@ const (
 	generationLifecycleFailedMessage = "list generation lifecycle failed"
 	serviceChangedSinceFailedMessage = "compute service changed-since delta failed"
 )
+
+// writeFreshnessReadFailure answers a failed freshness read. A stale or
+// timed-out PostgreSQL reader gets its shared verdict from
+// querycontract.WriteGraphReadError (503 with Retry-After). Anything else
+// answers message through tracing.WriteServerFailure: 500 with err recorded on
+// the request span, or 499 with only the client-cancel event when the caller
+// canceled the request.
+func writeFreshnessReadFailure(w http.ResponseWriter, r *http.Request, err error, capability, message string) {
+	if querycontract.WriteGraphReadError(w, r, err, capability) {
+		return
+	}
+	tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, message)
+}

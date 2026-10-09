@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 const (
@@ -107,11 +108,14 @@ func (h *Handler) getTimeSeries(w http.ResponseWriter, r *http.Request) {
 
 	points, err := h.Source.RangeQuery(r.Context(), query)
 	if err != nil {
+		if querycontract.WriteGraphReadError(w, r, err, Capability) {
+			return
+		}
 		if errors.Is(err, errInvalidMetricsRange) {
 			querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("invalid metrics range: %v", err))
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("metrics query failed: %v", err))
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, metricsQueryFailedMessage)
 		return
 	}
 	if points == nil {

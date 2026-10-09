@@ -121,7 +121,7 @@ func (h *Handler) listGenerationLifecycle(w http.ResponseWriter, r *http.Request
 
 	page, err := h.Generations.ListGenerationLifecycle(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list generation lifecycle: %v", err))
+		writeFreshnessReadFailure(w, r, err, GenerationLifecycleCapability, generationLifecycleFailedMessage)
 		return
 	}
 

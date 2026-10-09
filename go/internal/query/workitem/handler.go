@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -108,7 +109,10 @@ func (h *Handler) listWorkItemEvidence(w http.ResponseWriter, r *http.Request) {
 
 	page, err := h.Evidence.ListWorkItemEvidence(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		if querycontract.WriteGraphReadError(w, r, err, EvidenceCapability) {
+			return
+		}
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, workItemEvidenceListFailedMessage)
 		return
 	}
 	// Truncated and the next cursor come from page (derived from the raw

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -139,7 +140,7 @@ func (h *Handler) listDependencies(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, Capability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, dependenciesReadFailedMessage)
 		return
 	}
 

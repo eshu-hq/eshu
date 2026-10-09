@@ -88,7 +88,7 @@ func (h *Handler) listChangedSince(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := h.ChangedSince.ComputeChangedSinceDelta(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compute changed-since delta: %v", err))
+		writeFreshnessReadFailure(w, r, err, ChangedSinceCapability, changedSinceFailedMessage)
 		return
 	}
 

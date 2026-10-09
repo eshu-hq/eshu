@@ -36,11 +36,3 @@ var queryHandlerTracer = tracing.HandlerTracer()
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(queryHandlerTracer, r, spanName, route, capability)
 }
-
-// Fixed bodies for a failed codeowners ownership read, one per step. The
-// backend error is recorded on the request span, never written to the client
-// (#7674).
-const (
-	codeownersOwnershipReadFailedMessage  = "codeowners ownership graph read failed"
-	codeownersEffectiveOwnerFailedMessage = "resolve effective repository owner failed"
-)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -24,6 +25,14 @@ const (
 	// after_order_index (order_index is always >= 0), mirroring
 	// OwnershipCyphers' own doc comment.
 	codeownersOwnershipNoCursor = -1
+)
+
+// Fixed bodies for a failed codeowners ownership read, one per step. The
+// backend error is recorded on the request span, never written to the client
+// (#7674).
+const (
+	codeownersOwnershipReadFailedMessage  = "codeowners ownership graph read failed"
+	codeownersEffectiveOwnerFailedMessage = "resolve effective repository owner failed"
 )
 
 // Handler exposes a bounded, graph-backed read of one repository's Phase 3
@@ -149,7 +158,7 @@ func (h *Handler) ListOwnership(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, codeownersOwnershipCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, codeownersOwnershipReadFailedMessage)
 		return
 	}
 
@@ -177,7 +186,7 @@ func (h *Handler) ListOwnership(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, codeownersOwnershipCapability) {
 			return
 		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, codeownersEffectiveOwnerFailedMessage)
 		return
 	}
 
