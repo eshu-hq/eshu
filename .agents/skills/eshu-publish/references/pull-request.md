@@ -6,6 +6,7 @@ that is not there.
 
 Start from the skeleton for your kind of PR in [templates](pr-templates.md).
 Fill in the blanks. Then run `scripts/check-shape.sh --pr <file>` on the text.
+Skip the check for a revert. `AGENTS.md` owns that rule.
 
 ## Title
 
