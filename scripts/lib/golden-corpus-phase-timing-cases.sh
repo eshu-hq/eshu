@@ -15,19 +15,19 @@
 # to eshu-api plus eshu-mcp-server startup -- it "excludes the gate's own
 # assertion time". #5465's suppression producer proof
 # (golden_suppression_verify_producer_truth) runs BETWEEN those two stamps, and
-# it floors itself at 20s: golden_suppression_prepare_payloads sets
-# golden_suppression_expiry_epoch = now + 20 and golden_suppression_wait_for_expiry
-# then blocks until that deadline, so the block cannot finish faster however
-# quick the host is.
+# it floors itself at its expiry waits (#7740): golden_suppression_prepare_expiry_payload
+# sets golden_suppression_expiry_epoch = now + 20, the hidden leg arms a second
+# window, and golden_suppression_wait_for_expiry then blocks until each deadline,
+# so the block cannot finish faster however quick the host is.
 #
-# Unbracketed, that 20s was billed to pipeline startup, against a 3s baseline
+# Unbracketed, those waits were billed to pipeline startup, against a 3s baseline
 # and an 8s effective ceiling (baseline_seconds=3 + absolute_slack_seconds=5,
 # testdata/golden/e2e-baseline.json). That is advisory on shared CI only because
 # the lane defaults GATE_PHASE_REGRESSION_ADVISORY=true; a controlled host
 # running it blocking fails on it, with nothing in the pipeline actually slower.
 #
-# No measurement is needed to prove that: 20 > 8 by construction, on any host
-# and any corpus. The "~4s -> ~23s" figure quoted around this change is an
+# No measurement is needed to prove that: any wait > 8 by construction, on any
+# host and any corpus. The "~4s -> ~23s" figure quoted around this change is an
 # illustrative local reading with no committed phase-timings.json, host, or
 # manifest behind it -- see docs/internal/evidence/5837-aws-drift-reopen.md,
 # "Golden-gate phase-timing note", for the source-only proof and for what would
