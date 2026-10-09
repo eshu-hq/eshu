@@ -13,7 +13,7 @@ invariants that make the phase 2 order safe, the folded commit gate, and the
 re-admission interleavings. Binding inputs: the
 [shared-contract arbiter ruling](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598),
 the [arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-and the arbiter ruling, round 3 (to be posted on #7766). Measurements are in the
+and the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)). Measurements are in the
 [evidence note](../evidence/7766-retirement-prove-first.md) and summarized in
 [Prove-First Results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
 

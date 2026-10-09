@@ -5,7 +5,7 @@ Companions: [Repository Retirement](7766-repository-retirement.md),
 [Runner](7766-repository-retirement-runner.md) (2d, 2e, phase 3 act on this
 list), and [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md).
 
-Binding input: the arbiter ruling, round 3 (to be posted on #7766), F6. The
+Binding input: the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F6. The
 design's earlier phase 3 text said the scope delete "cascades
 `projector_scope_claim_fences`". That was incomplete: about 30 tables reference
 `ingestion_scopes`, and more are keyed by scope or repo with no FK. This file

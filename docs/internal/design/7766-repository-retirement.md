@@ -27,7 +27,7 @@ Binding inputs: the
 [arbiter ruling for #7765 and #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598)
 (Option C: signal only, plus one operator-driven retire primitive), the
 [arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-the arbiter ruling, round 3 (to be posted on #7766), ADR 2248
+the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), ADR 2248
 ([retention semantics](2248-retention-semantics-generations-facts-content.md)),
 design [7324](7324-cross-scope-writer-rearm.md),
 `docs/public/reference/hosted-retention-deletion-policy.md`, and
