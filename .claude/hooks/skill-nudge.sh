@@ -57,6 +57,7 @@ ROOT="$(eshu_root_path "$FP")" || exit 0
 #   eshu-release            invoked by release intent
 #   resolve-review-threads  invoked with a PR number
 #   eshu-session-lifecycle  session events; nudged by .claude/hooks/on-compact.sh
+#   eshu-executor-preflight run by an executor at handoff, not on a path
 # NUDGE_EXEMPT_END
 
 # IDS is the canonical, space-separated list this hook enforces. NOTE is the

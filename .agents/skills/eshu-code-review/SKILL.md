@@ -15,7 +15,11 @@ Load the project skills whose contracts match the diff, using root skill routing
 1. Bind the review to the intended base/head, branch, target, acceptance criteria,
    changed files, proof actually run, and open findings. Build the bounded
    [review packet](references/review-packet.md) for a separate reviewer or a
-   self-review; never substitute chat history for it.
+   self-review; never substitute chat history for it. Before any expensive
+   proof, run `eshu-publish`'s `check-shape.sh` on the PR body when one exists.
+   Re-measure each count, SHA, and file list that the body or changed docs claim
+   at this head. Both checks take seconds. A defect found after a live proof
+   wastes that proof.
 2. Map the changed flow, owners, consumers, invariants, and failure boundaries.
    Use the full-picture checklist in [cold-review-probes.md](references/cold-review-probes.md).
    Explain which runtime, concurrency, rollback, and operator concerns apply;
@@ -86,19 +90,24 @@ for the old base and head, and again for the new ones. Overlap is empty when
 --name-only <old-base>..<new-base> | sort -u)` prints nothing. If the patch-id
 is unchanged and that overlap is empty, a scoped re-review replaces the full
 one. The scoped re-review must still:
-- confirm the patch-id and the empty overlap itself;
+- confirm the patch-id, `git range-diff <old-base>..<old-head>
+  <new-base>..HEAD` (every commit `=`), and the empty overlap itself;
 - check semantic interaction with the new base commits;
 - re-check the claims;
 - rerun affected proof;
 - capture a new receipt.
 
-A conflict, a changed patch-id, or any file overlap requires the full review.
+A conflict, a changed patch-id, any file overlap, or any range-diff entry that
+is not `=` requires the full review.
 Do not edit between verified attestation and push. This receipt
 reuses semantic review; it does not waive independent review, current GitHub
 state, CI, or authorization. CI's `required-gates-complete` (with
 `go-core-complete` and `go-race-complete`) is the actual blocking authority
 once pushed — nothing merges while it is red, and reproduce only the failing
-gate locally rather than re-running everything.
+gate locally rather than re-running everything. After a rebase, a gate can be
+red on the new base itself. Reproduce it on the bare base before you attribute
+it to the diff; the procedure is in
+[rebase-verify.md](../eshu-session-lifecycle/references/rebase-verify.md).
 
 ## Reporting
 

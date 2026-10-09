@@ -25,6 +25,11 @@ or shared-state changes, use `concurrency-deadlock-rigor` for the relevant proof
 Runtime and performance work retains the repo's accuracy, performance, and
 concurrency evidence requirements.
 
+Every new `.go` file, tests included, needs the MIT SPDX header; the
+`license-header` gate fails without it. Run `bash scripts/add-license-header.sh`
+inside the worktree, or copy the two header lines from a sibling file, before
+the first commit that holds the file.
+
 ## Restructuring and naming
 
 Apply [naming.md](../../../docs/internal/naming.md) to every package,
