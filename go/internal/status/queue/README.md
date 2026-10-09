@@ -80,12 +80,12 @@ ledger:6949-queue-batch2-after). The command is `go test -count=1` over
 the 7 affected package targets (`./internal/status/...`,
 `./internal/query/`, `./internal/mcp/`, `./internal/cli/evbundle/`,
 `./internal/cli/localsupervisor/`, `./internal/storage/postgres/`,
-`./cmd/eshu/`) on baseline `b815f40364` vs measurement commit
-`e16db3f067` (this Evidence section, the two ledger rows, and
+`./cmd/eshu/`) on baseline `3b03f018ed` vs measurement commit
+`5ed5c3d17d` (this Evidence section, the two ledger rows, and
 content-identical rebases tracking main are the only later changes):
 7 packages ok, 0 fail on both sides, with the ok-package set
 byte-identical after timing strip. `go test -list` inventory is
-identical on both sides (6703 tests). Backend/version: go1.26.9
+identical on both sides (6735 tests). Backend/version: go1.26.9
 linux/amd64, in-memory; no backend touched. Input shape: n/a (no
 runtime input). Terminal queue/row counts: none — no queue, lease,
 Cypher, or SQL path is touched. Contract gates green on the branch:
