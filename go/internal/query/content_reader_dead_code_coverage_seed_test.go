@@ -88,6 +88,15 @@ func seedCoverageLiveRepo(ctx context.Context, t *testing.T, db *sql.DB, r cover
 			updated_at, verdict_schema_epoch) VALUES ($1, $2, $3, $4, now(), $5)`,
 			scopeID, generationID, r.repo, strings.HasPrefix(r.watermark, "truncated"), epoch)
 	}
+	// Fail on an unknown work key: the seed loop below only reads the two
+	// known domains, so a typo'd domain would seed nothing and a
+	// complete-expecting case would pass vacuously.
+	for key := range r.work {
+		if key != string(reducercontract.DomainCodeCallMaterialization) &&
+			key != string(reducercontract.DomainInheritanceMaterialization) {
+			t.Fatalf("unknown work domain %q", key)
+		}
+	}
 	// Seed in domain order so the fixture is deterministic.
 	for _, domain := range []reducercontract.Domain{
 		reducercontract.DomainCodeCallMaterialization,
