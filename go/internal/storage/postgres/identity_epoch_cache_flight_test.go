@@ -29,7 +29,12 @@ type flightQueryer struct {
 	loadCalls   atomic.Int64
 	loadStarted chan struct{}
 	gate        chan struct{}
-	loadErr     error
+	// loadGates overrides gate for the numbered load (1-based). A test sets it
+	// before the first call and never mutates it afterwards.
+	loadGates map[int64]chan struct{}
+	loadErr   error
+	// loadPanic makes a load panic once its gate opens.
+	loadPanic bool
 }
 
 func newFlightQueryer(epoch int64) *flightQueryer {
@@ -56,10 +61,17 @@ func (q *flightQueryer) QueryContext(ctx context.Context, query string, _ ...any
 
 	n := q.loadCalls.Add(1)
 	q.loadStarted <- struct{}{}
+	gate := q.gate
+	if g, ok := q.loadGates[n]; ok {
+		gate = g
+	}
 	select {
-	case <-q.gate:
+	case <-gate:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+	if q.loadPanic {
+		panic("identity load exploded")
 	}
 	if q.loadErr != nil {
 		return nil, q.loadErr
@@ -185,12 +197,14 @@ func TestIdentityEpochCacheSharedFlightServesEveryWaiterWhenEpochStable(t *testi
 	}
 }
 
-// TestIdentityEpochCacheSharedFlightServesWaitersWhenEpochMovesDuringLoad is
-// the #7805 regression. The epoch moves while the load runs, so the result must
-// not be cached, but the leader and every waiter that joined the flight must
-// still receive that flight's rows instead of each queueing behind a new serial
-// load. The next call after the flight starts a new load.
-func TestIdentityEpochCacheSharedFlightServesWaitersWhenEpochMovesDuringLoad(t *testing.T) {
+// TestIdentityEpochCacheRetriesInsideFlightWhenEpochMovesDuringLoad is the
+// #7805 regression for a moving epoch. The paged load is many READ COMMITTED
+// statements, so a commit that lands mid-load can tear the set it returns. The
+// leader must not hand that set to the waiters that joined the flight, and the
+// waiters must not each queue behind their own serial load: the flight loads
+// once more from the moved epoch, and every caller receives that second set,
+// which is also cached because the epoch held steady through it.
+func TestIdentityEpochCacheRetriesInsideFlightWhenEpochMovesDuringLoad(t *testing.T) {
 	t.Parallel()
 
 	q := newFlightQueryer(1)
@@ -200,30 +214,63 @@ func TestIdentityEpochCacheSharedFlightServesWaitersWhenEpochMovesDuringLoad(t *
 	awaitLoadStarted(t, q)
 	followers := startFlightWaiters(t, store, 7)
 
-	q.epoch.Store(2) // a commit lands while the load is still running
+	q.epoch.Store(2) // a commit lands while the first load is still running
 	close(q.gate)
 
-	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-1")
+	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-2")
 	for i, ch := range followers {
 		name := fmt.Sprintf("waiter %d", i)
-		requireFactID(t, name, collectFlightCaller(t, name, ch), "fact-load-1")
+		requireFactID(t, name, collectFlightCaller(t, name, ch), "fact-load-2")
 	}
-	if got := q.loadCalls.Load(); got != 1 {
-		t.Fatalf("loader executions = %d, want 1 (waiters must receive the flight's rows)", got)
+	if got := q.loadCalls.Load(); got != 2 {
+		t.Fatalf("loader executions = %d, want 2 (the torn first set is retried once inside the flight)", got)
 	}
 
-	// The moved epoch means nothing was cached: the next call loads again.
+	// The retry started from the moved epoch and it held, so it was cached.
 	next := collectFlightCaller(t, "next", startFlightCaller(context.Background(), store))
 	requireFactID(t, "next", next, "fact-load-2")
 	if got := q.loadCalls.Load(); got != 2 {
-		t.Fatalf("loader executions after the next call = %d, want 2 (uncached flight)", got)
+		t.Fatalf("loader executions after the next call = %d, want 2 (cache hit)", got)
+	}
+}
+
+// TestIdentityEpochCacheNeverDeliversTornSetToWaiters pins the F6 contract: if
+// the epoch is still moving after the flight's bounded attempts, the leader
+// keeps its last set uncached, but no waiter receives either unvalidated set.
+// The waiters re-probe and are served by a fresh, validated load.
+func TestIdentityEpochCacheNeverDeliversTornSetToWaiters(t *testing.T) {
+	t.Parallel()
+
+	q := newFlightQueryer(1)
+	secondGate := make(chan struct{})
+	q.loadGates = map[int64]chan struct{}{2: secondGate}
+	store := newFactStoreWithCache(q, 0)
+
+	leader := startFlightCaller(context.Background(), store)
+	awaitLoadStarted(t, q)
+	followers := startFlightWaiters(t, store, 3)
+
+	q.epoch.Store(2)
+	close(q.gate) // load 1 ends; its post-load probe sees epoch 2, so load 2 starts
+	awaitLoadStarted(t, q)
+	q.epoch.Store(3) // the epoch moves again during the retry
+	close(secondGate)
+
+	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-2")
+	for i, ch := range followers {
+		name := fmt.Sprintf("waiter %d", i)
+		requireFactID(t, name, collectFlightCaller(t, name, ch), "fact-load-3")
+	}
+	if got := q.loadCalls.Load(); got != 3 {
+		t.Fatalf("loader executions = %d, want 3 (two bounded attempts, then one validated load for the waiters)", got)
 	}
 }
 
 // TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight guards accuracy: a
 // caller that arrives after the epoch moved past the flight's start epoch could
-// need rows the flight may have missed, so it must not be served by that flight.
-// It waits for the flight, then loads for itself.
+// need rows the flight may have missed, so it must not be served by that
+// flight's first set. It waits for the flight and is then served by a set
+// loaded from the epoch it observed.
 func TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight(t *testing.T) {
 	t.Parallel()
 
@@ -236,11 +283,10 @@ func TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight(t *testing.T) {
 	late := startFlightWaiters(t, store, 1)[0]
 	close(q.gate)
 
-	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-1")
-	awaitLoadStarted(t, q) // the late caller leads a second, fresh load
+	requireFactID(t, "leader", collectFlightCaller(t, "leader", leader), "fact-load-2")
 	requireFactID(t, "late caller", collectFlightCaller(t, "late caller", late), "fact-load-2")
 	if got := q.loadCalls.Load(); got != 2 {
-		t.Fatalf("loader executions = %d, want 2 (late caller loads its own fresh set)", got)
+		t.Fatalf("loader executions = %d, want 2 (the stale first set never reaches the late caller)", got)
 	}
 }
 

@@ -2374,12 +2374,18 @@ type Instruments struct {
 	IdentityCacheMissTotal metric.Int64Counter
 	// IdentityCacheReloadTotal counts identity-fact cache reloads (singleflight leader) (#5438).
 	IdentityCacheReloadTotal metric.Int64Counter
-	// IdentityCachePassthroughTotal counts identity-fact passthroughs (cap exceeded or mid-load commit) (#5438).
+	// IdentityCachePassthroughTotal counts identity-fact loads served to their
+	// flight without being cached, by reason (epoch_moved, cap_exceeded,
+	// size_unknown, probe_error) (#5438, #7805).
 	IdentityCachePassthroughTotal metric.Int64Counter
 	// IdentityCacheFlightWaiterTotal counts callers that arrived while an
 	// identity-fact load was in flight, by outcome (shared, shared_error,
-	// stale_epoch, leader_canceled) (#7805).
+	// stale_epoch, leader_canceled, torn_set) (#7805).
 	IdentityCacheFlightWaiterTotal metric.Int64Counter
+	// IdentityCacheLoadRetryTotal counts identity-fact loads discarded and
+	// repeated inside one flight because the epoch moved during the paged load
+	// (#7805).
+	IdentityCacheLoadRetryTotal metric.Int64Counter
 	// IdentityCacheReloadDuration records the duration of identity-fact cache reloads (#5438).
 	IdentityCacheReloadDuration metric.Float64Histogram
 	// IdentityCacheProbeDuration records the duration of identity-fact epoch probe queries (#5438).
@@ -6183,11 +6189,20 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_identity_cache_flight_waiter_total",
 		metric.WithDescription("Identity-fact callers that arrived during an in-flight load, by outcome: "+
 			"shared (served the flight's rows), shared_error (served the flight's error), "+
-			"stale_epoch (active set moved past the flight start; retried), "+
-			"leader_canceled (flight leader gave up; retried)"),
+			"stale_epoch (caller's epoch probe differs from the flight's start epoch; retried), "+
+			"leader_canceled (flight leader gave up; retried), "+
+			"torn_set (flight could not validate its set; retried)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCacheFlightWaiterTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheLoadRetryTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_load_retry_total",
+		metric.WithDescription("Identity-fact loads discarded and repeated inside one flight because the epoch moved during the paged load"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheLoadRetryTotal counter: %w", err)
 	}
 
 	inst.IdentityCacheReloadDuration, err = meter.Float64Histogram(

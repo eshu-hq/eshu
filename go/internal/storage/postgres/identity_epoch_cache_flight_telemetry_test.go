@@ -72,14 +72,58 @@ func TestIdentityEpochCacheFlightTelemetry(t *testing.T) {
 		collectFlightCaller(t, string(rune('a'+i)), ch)
 	}
 
-	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_reload_total", "")[""]; got != 1 {
-		t.Fatalf("reload_total = %d, want 1 load started", got)
+	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_reload_total", "")[""]; got != 2 {
+		t.Fatalf("reload_total = %d, want 2 loads started (first load plus the in-flight retry)", got)
 	}
-	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_passthrough_total", "reason")[identityDiscardEpochMoved]; got != 1 {
-		t.Fatalf("passthrough_total{reason=epoch_moved} = %d, want 1", got)
+	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_load_retry_total", "")[""]; got != 1 {
+		t.Fatalf("load_retry_total = %d, want 1 retry after the epoch moved", got)
+	}
+	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_passthrough_total", "reason"); len(got) != 0 {
+		t.Fatalf("passthrough_total = %v, want none (the retry was validated and cached)", got)
 	}
 	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_flight_waiter_total", "outcome")[identityWaiterShared]; got != 3 {
 		t.Fatalf("flight_waiter_total{outcome=shared} = %d, want 3 waiters served", got)
+	}
+}
+
+// TestIdentityEpochCacheTornFlightTelemetry proves the discard path an
+// operator sees when the epoch keeps moving: a passthrough with reason
+// epoch_moved, and every joined waiter counted as torn_set.
+func TestIdentityEpochCacheTornFlightTelemetry(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("torn-telemetry-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	cache, err := NewIdentityEpochCache(inst, 0)
+	if err != nil {
+		t.Fatalf("NewIdentityEpochCache: %v", err)
+	}
+	q := newFlightQueryer(1)
+	secondGate := make(chan struct{})
+	q.loadGates = map[int64]chan struct{}{2: secondGate}
+	store := &FactStore{database: q, identityCache: cache}
+
+	leader := startFlightCaller(context.Background(), store)
+	awaitLoadStarted(t, q)
+	followers := startFlightWaiters(t, store, 2)
+	q.epoch.Store(2)
+	close(q.gate)
+	awaitLoadStarted(t, q)
+	q.epoch.Store(3)
+	close(secondGate)
+	collectFlightCaller(t, "leader", leader)
+	for i, ch := range followers {
+		collectFlightCaller(t, string(rune('a'+i)), ch)
+	}
+
+	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_passthrough_total", "reason")[identityDiscardEpochMoved]; got != 1 {
+		t.Fatalf("passthrough_total{reason=epoch_moved} = %d, want 1", got)
+	}
+	if got := sumByAttribute(t, reader, "eshu_dp_identity_cache_flight_waiter_total", "outcome")[identityWaiterTornSet]; got != 2 {
+		t.Fatalf("flight_waiter_total{outcome=torn_set} = %d, want 2 waiters sent to re-probe", got)
 	}
 }
 

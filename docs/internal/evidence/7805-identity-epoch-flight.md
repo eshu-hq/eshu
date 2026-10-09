@@ -24,6 +24,11 @@ observations (production: 1,027,363 identity facts, a 618 to 640 s load).
 Host load average during the runs was 7 to 17 (shared laptop), so absolute
 seconds carry that noise. Before and after ran on the same cluster and corpus.
 
+Raw captures: the after-load and after-drain runs are saved beside the
+report. The before-load run (494.9 s and 504.9 s, digest 9875824362cef277)
+was recorded in session output only; its raw capture is NOT_CHECKED until the
+base-predicate run is repeated and saved.
+
 Performance Evidence: One full load of the active identity set
 (`FactStore.loadIdentityFactsUncached`, 500-row keyset pages, 546,562 rows):
 
@@ -58,7 +63,8 @@ would bring it back to an index-only scan; that needs a migration and is not
 part of this change.
 
 Drain of 130 items, 8 workers, 2 s of handler work per item, with the new
-code, a superseded-generation row deleted every 10 s during the run (four
+code before the in-flight retry was added (no epoch move happened during the
+run, so the retry path was not exercised), a superseded-generation row deleted every 10 s during the run (four
 deletes) on the same shim: 42.9 s total (about 10,900 items per hour), one
 load started (`reload_total` 1), 122 cache hits, 7 waiters served by the shared
 flight, no discarded load. Measured. The before drain was not run: with a 495 to
@@ -69,15 +75,40 @@ backlog projection of more than 12 hours. This before figure is an estimate from
 the measured single-load time and the production observation, not a measured
 drain.
 
-Concurrency: one flight serves every caller whose epoch probe equals the
-flight's start epoch (see `identity_epoch_cache.go`). A caller whose probe
-differs from the start epoch waits for the flight and loads for itself, so it
-never receives a set older than the active set it observed. The unit tests
+Concurrency: one flight serves every caller that joined it. Arbiter ruling
+(clarification of "every waiter gets the flight rows"): a waiter joins an
+in-flight load only if its trigger committed before the leader's probe
+snapshot, which the code checks as "the waiter's own epoch probe equals the
+flight's start epoch". Otherwise the waiter waits for the flight and then
+starts or joins a fresh load, so it never decides on a set that predates its own
+trigger. `TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight` pins it.
+
+The paged load is more than a thousand READ COMMITTED statements, so a
+generation flip between pages can tear the set (old-generation rows after the
+cursor drop out, new-generation rows before the cursor are never read). The
+post-load probe detects the flip. The flight then loads once more from the moved
+epoch (at most two attempts, `eshu_dp_identity_cache_load_retry_total`). If the
+epoch is still moving after the second attempt, or the post-load probe fails,
+the leader keeps its last set uncached and every waiter re-probes
+(`flight_waiter_total{outcome="torn_set"}`), so a possibly mixed set is never
+delivered to a waiter. A single long REPEATABLE READ snapshot was refused: it
+pins the vacuum horizon and blocks `CREATE INDEX CONCURRENTLY`. Snapshot
+consistent paging without a long snapshot is a follow-up, not part of this
+change. Unit tests
+`TestIdentityEpochCacheRetriesInsideFlightWhenEpochMovesDuringLoad`,
+`TestIdentityEpochCacheNeverDeliversTornSetToWaiters`,
 `TestIdentityEpochCacheSharedFlightServesEveryWaiterWhenEpochStable`,
-`...ServesWaitersWhenEpochMovesDuringLoad`, `...LateCallerDoesNotJoinStaleFlight`,
-`...LeaderCancelDoesNotFailWaiters`, and `...LoadErrorIsSharedWithWaiters` cover
-shared results, the uncached flight, the stale late caller, a cancelled leader,
-and a shared error, all under `-race`.
+`...LeaderCancelDoesNotFailWaiters`, `...LoadErrorIsSharedWithWaiters`, and
+`...LeaderPanicReleasesWaiters` cover these paths under `-race`.
+
+Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
+(Cypher) reads only, so it has no entry for this query. The guard is
+`TestIdentityPageQueryPlanRidesOrderedIndexLive`: on a private schema with the
+production tables and indexes it runs `EXPLAIN (FORMAT JSON)` of the page query
+and asserts an Index Scan on `fact_records_identity_epoch_idx_v2`, a hashed
+SubPlan filter, no Sort, and no Seq Scan on `fact_records`. The rewrite depends
+on planner behavior verified on PostgreSQL 18; that test pins it, and the
+text-shape asserts only stop the `OR FALSE` from being deleted.
 
 Correctness: `TestIdentityEpochIgnoresSupersededGenerationRowsLive` shows a
 delete on a superseded generation leaves the epoch unchanged and an insert or
@@ -91,8 +122,9 @@ Observability Evidence: `eshu_dp_identity_cache_reload_total` counts loads
 started. `eshu_dp_identity_cache_passthrough_total` gained a `reason` label
 (`epoch_moved`, `cap_exceeded`, `size_unknown`, `probe_error`) and records every
 discarded load. The new `eshu_dp_identity_cache_flight_waiter_total` has an
-`outcome` label (`shared`, `shared_error`, `stale_epoch`, `leader_canceled`) and
-counts callers that joined or queued behind a load.
+`outcome` label (`shared`, `shared_error`, `stale_epoch`, `leader_canceled`, `torn_set`) and
+counts callers that joined or queued behind a load. The new
+`eshu_dp_identity_cache_load_retry_total` counts loads repeated inside a flight.
 `eshu_dp_identity_cache_reload_duration_seconds` now records every load, not
 only cached ones. At 3 AM: many `shared` per `reload_total` is healthy; a high
 `passthrough_total{reason="epoch_moved"}` or `stale_epoch` count means the
