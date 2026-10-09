@@ -24,7 +24,7 @@ package postgres
 // PRIMARY KEY (generation_id, scope_id), measured with EXPLAIN ANALYZE
 // before landing like the #7700 arm.
 //
-// The sixteenth arm (#7700) counts admission_decision_evidence, a cascade
+// The #7700 arm counts admission_decision_evidence, a cascade
 // grandchild: evidence rows hang off admission_decisions by decision_id, so
 // the arm joins through the decision's (scope_id, generation_id) probe and
 // then the evidence (decision_id) prefix. Both probes stay index-only and
