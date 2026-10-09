@@ -22,7 +22,7 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderAheadManifestKeepsProduc
 	now := time.Now().UTC()
 
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:ahead-a", "repository:r_ahead_a", "generation-ahead-a", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_ahead_a", "package.json", `{"name":"@acme/shared"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_ahead_a", "package.json", `{"name":"@acme/shared"}`, "generation-ahead-a", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-ahead-a", "scope:ahead-a", "generation-ahead-a", "index.js", "@acme/shared", "Thing", now.Add(2*time.Second))
 
 	// scope:ahead-b: the active generation still publishes @acme/shared, but
@@ -39,7 +39,7 @@ UPDATE scope_generations SET activated_at = $1
 WHERE generation_id = 'generation-ahead-b'`, now.Add(time.Minute)); err != nil {
 		t.Fatalf("stamp active generation activation: %v", err)
 	}
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_ahead_b", "package.json", `{"name":"@acme/other"}`, now.Add(2*time.Minute))
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_ahead_b", "package.json", `{"name":"@acme/other"}`, "generation-ahead-b-refused", now.Add(2*time.Minute))
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-ahead-b", "scope:ahead-b", "generation-ahead-b", "index.js", "@acme/shared", "Thing", now.Add(3*time.Second))
 
 	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
@@ -58,18 +58,19 @@ WHERE generation_id = 'generation-ahead-b'`, now.Add(time.Minute)); err != nil {
 }
 
 // TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole pins
-// the dirty predicate shape (#7609): G3 wrote C3 (@acme/other) and was
-// refused, then G4 (a delta that never touched package.json) activated and
-// Ack superseded G3. G3 is superseded and older than active with its write
-// older than G4's activation, so "pending/failed" and "newer than active"
-// both miss; only the never-activated leg (G3.activated_at IS NULL) keeps the
-// scope in the producer set.
+// the supersede-then-delta shape (#7609, #7760): G3 wrote C3 (@acme/other)
+// and was refused, then G4 (a delta that never touched package.json)
+// activated and Ack superseded G3. The stored manifest is tagged with G3,
+// whose activated_at is NULL, so the tag rule reads it dirty
+// (unactivated_tag) and keeps the scope in the producer set; a status or
+// timestamp comparison alone would miss, because G3 is superseded and C3
+// predates G4's activation.
 func TestReducerContentionGateActiveCodeCallSymbolLoaderSupersedeThenDeltaHole(t *testing.T) {
 	ctx, database := openActiveCodeCallSymbolContentSchema(t)
 	now := time.Now().UTC()
 
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:hole-clean", "repository:r_hole_clean", "generation-hole-clean", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_hole_clean", "package.json", `{"name":"@acme/shared"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_hole_clean", "package.json", `{"name":"@acme/shared"}`, "generation-hole-clean", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-hole-clean", "scope:hole-clean", "generation-hole-clean", "index.js", "@acme/shared", "Thing", now.Add(2*time.Second))
 
 	if _, err := database.ExecContext(ctx, `
@@ -99,7 +100,7 @@ INSERT INTO scope_generations (
 		}
 	}
 	// C3 predates G4's activation: the timestamp leg alone would miss.
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_hole", "package.json", `{"name":"@acme/other"}`, now.Add(-30*time.Second))
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_hole", "package.json", `{"name":"@acme/other"}`, "generation-hole-g3", now.Add(-30*time.Second))
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-hole", "scope:hole", "generation-hole-g4", "index.js", "@acme/shared", "Thing", now.Add(3*time.Second))
 
 	queryer := &recordingCodeCallSymbolQueryer{SQLDB: SQLDB{DB: database}}
@@ -126,11 +127,11 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderDirtyNonProducerStaysGat
 	now := time.Now().UTC()
 
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:solo", "repository:r_solo", "generation-solo", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_solo", "package.json", `{"name":"@acme/solo"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_solo", "package.json", `{"name":"@acme/solo"}`, "generation-solo", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-solo", "scope:solo", "generation-solo", "index.js", "@acme/solo", "run", now.Add(2*time.Second))
 
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:noisy", "repository:r_noisy", "generation-noisy", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_noisy", "package.json", `{"name":"@acme/unrelated"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_noisy", "package.json", `{"name":"@acme/unrelated"}`, "generation-noisy-pending", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-noisy", "scope:noisy", "generation-noisy", "index.js", "@acme/unrelated", "run", now.Add(3*time.Second))
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (

@@ -191,8 +191,9 @@ func (s Store) WithInstruments(instruments *telemetry.Instruments) Store {
 }
 
 // recordTagOutcomes adds one counter sample per tag outcome observed in a
-// manifest read. It no-ops without instruments; the kind label is the closed
-// pair the two manifest reads pass (package|gomod), never the error text.
+// manifest read. It no-ops without instruments. The reads pass "package" and
+// "go module"; the label is normalized to the closed pair (package|gomod),
+// never the error text.
 func (s Store) recordTagOutcomes(ctx context.Context, kind string, outcomes map[string]int64) {
 	if s.instruments == nil {
 		return

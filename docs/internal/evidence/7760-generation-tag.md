@@ -70,6 +70,19 @@ plus 30 null_tag: the 30 pending-scope manifests stayed NULL through clause
 a live never-activated generation and is pinned by the live ahead-write
 test, not by this fixture.
 
+Before/after on the same fixture shape (review finding 3): the base-revision
+query (the #7776 dirty union) runs 19.6 ms warm on a freshly seeded table,
+but that table holds manifests in 53 contiguous heap blocks, which flatters
+any scan. After the migration UPDATE churns the table (the realistic layout)
+plus `VACUUM (ANALYZE)`, base runs 33.2 ms and 33.4 ms warm with 4,173
+buffers for 3030 rows, while the new query runs 36.9 ms and 37.7 ms warm
+with ~13,000 buffers for 3000 rows: +11%, bounded by the 3000 pkey probes
+(~6 ms, partly offset by dropping the MAX aggregate and IN-subquery leg)
+and the wider CTE carrying the tag. All buffers are shared-hit; no new
+index. The loader runs this read once per code-call materialization pass,
+not per key, so a sub-50 ms read keeps its budget while the tag buys the
+precision gain and the post-hole permanence the union could not.
+
 Operator visibility: each manifest read counts every row it saw into
 `eshu_dp_producer_manifest_tag_outcomes_total` by `kind` (package|gomod) and
 `outcome` (clean|null_tag|dangling_tag|unactivated_tag|manifest_less). A

@@ -28,7 +28,7 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository(t *testi
 	now := time.Now().UTC()
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-api", "generation-api", now)
 	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
-	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:repo-lib", "go.mod", "github.com/acme/lib", now)
+	seedActiveCodeCallSymbolGoMod(t, ctx, database, "repository:repo-lib", "go.mod", "github.com/acme/lib", "generation-lib", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-api-caller", "repository:repo-api", "generation-api", "api.go", "scip-go gomod github.com/acme/api Handler#Serve().", now)
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now.Add(time.Second))
 	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-stale", "repository:repo-lib", "generation-lib-stale", "old_client.go", activeCodeCallSymbolProofKey, now.Add(-time.Second))
@@ -117,24 +117,24 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderAnchorsPackageKeys(t *te
 
 	// Producer of @acme/logging: a root manifest plus a nested workspace one.
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:logging", "repository:r_logging", "generation-logging", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "package.json", `{"name":"@acme/logging","version":"1.0.0"}`, now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "packages/format/package.json", `{"name":"@acme/format"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "package.json", `{"name":"@acme/logging","version":"1.0.0"}`, "generation-logging", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_logging", "packages/format/package.json", `{"name":"@acme/format"}`, "generation-logging", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-logging-active", "scope:logging", "generation-logging", "src/logger.js", "@acme/logging", "Logger", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-logging-stale", "scope:logging", "generation-logging-stale", "src/old_logger.js", "@acme/logging", "Logger", now.Add(-time.Second))
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-format-active", "scope:logging", "generation-logging", "packages/format/index.js", "@acme/format", "format", now.Add(time.Second))
 
 	// Two repositories publish @acme/shared: both producers must load.
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:shared-a", "repository:r_shared_a", "generation-shared-a", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_shared_a", "package.json", `{"name":"@acme/shared"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_shared_a", "package.json", `{"name":"@acme/shared"}`, "generation-shared-a", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-shared-a", "scope:shared-a", "generation-shared-a", "index.js", "@acme/shared", "Thing", now.Add(2*time.Second))
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:shared-b", "repository:r_shared_b", "generation-shared-b", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_shared_b", "package.json", `{"name":"@acme/shared"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_shared_b", "package.json", `{"name":"@acme/shared"}`, "generation-shared-b", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-shared-b", "scope:shared-b", "generation-shared-b", "index.js", "@acme/shared", "Thing", now.Add(3*time.Second))
 
 	// Not a producer: the same derived key, but no manifest names the package.
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:vendored", "repository:r_vendored", "generation-vendored", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_vendored", "package.json", `{"name":"@acme/app"}`, now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_vendored", "broken/package.json", `{"name": "@acme/logging",`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_vendored", "package.json", `{"name":"@acme/app"}`, "generation-vendored", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_vendored", "broken/package.json", `{"name": "@acme/logging",`, "generation-vendored", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-vendored", "scope:vendored", "generation-vendored", "vendor/logger.js", "@acme/logging", "Logger", now.Add(4*time.Second))
 
 	// Manifests whose scope has no active generation are not producers: one
@@ -158,7 +158,7 @@ INSERT INTO scope_generations (
 ) VALUES ('generation-pending-' || $1, $1, 'snapshot', $2, $2, 'pending')`, pending.scopeID, now); err != nil {
 			t.Fatalf("insert pending generation for %q: %v", pending.scopeID, err)
 		}
-		seedActiveCodeCallSymbolManifest(t, ctx, database, pending.repoID, "package.json", `{"name":"@acme/logging"}`, now)
+		seedActiveCodeCallSymbolManifest(t, ctx, database, pending.repoID, "package.json", `{"name":"@acme/logging"}`, "generation-pending-"+pending.scopeID, now)
 		seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-"+pending.scopeID, pending.scopeID, "generation-pending-"+pending.scopeID, "src/logger.js", "@acme/logging", "Logger", now.Add(5*time.Second))
 	}
 
@@ -226,8 +226,8 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderSkipsScanWithoutProducer
 func seedVendoredManifestScopes(t *testing.T, ctx context.Context, database db.Executor, now time.Time) {
 	t.Helper()
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:backup", "repository:r_backup", "generation-backup", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_backup", "tools/node_modules.bak/lodash/package.json", `{"name":"lodash"}`, now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_backup", "Node_Modules-old/async/package.json", `{"name":"async"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_backup", "tools/node_modules.bak/lodash/package.json", `{"name":"lodash"}`, "generation-backup", now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_backup", "Node_Modules-old/async/package.json", `{"name":"async"}`, "generation-backup", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-backup-lodash", "scope:backup", "generation-backup", "tools/node_modules.bak/lodash/index.js", "lodash", "map", now.Add(time.Second))
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-backup-async", "scope:backup", "generation-backup", "Node_Modules-old/async/index.js", "async", "each", now.Add(2*time.Second))
 
@@ -237,10 +237,10 @@ func seedVendoredManifestScopes(t *testing.T, ctx context.Context, database db.E
 	// producer through the other manifest and hide a predicate that wrongly
 	// excludes one of them.
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:control", "repository:r_control", "generation-control", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_control", "packages/format/package.json", `{"name":"ctl-format"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_control", "packages/format/package.json", `{"name":"ctl-format"}`, "generation-control", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-control-format", "scope:control", "generation-control", "packages/format/index.js", "ctl-format", "format", now.Add(3*time.Second))
 	seedActiveCodeCallSymbolRepositoryScope(t, ctx, database, "scope:control-prefixed", "repository:r_control_prefixed", "generation-control-prefixed", now)
-	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_control_prefixed", "my_node_modules/x/package.json", `{"name":"ctl-prefixed"}`, now)
+	seedActiveCodeCallSymbolManifest(t, ctx, database, "repository:r_control_prefixed", "my_node_modules/x/package.json", `{"name":"ctl-prefixed"}`, "generation-control-prefixed", now)
 	seedActiveCodeCallSymbolPackageFact(t, ctx, database, "fact-control-prefixed", "scope:control-prefixed", "generation-control-prefixed", "my_node_modules/x/index.js", "ctl-prefixed", "run", now.Add(4*time.Second))
 }
 
@@ -313,6 +313,9 @@ func openActiveCodeCallSymbolContentSchema(t *testing.T) (context.Context, *sql.
 	if _, err := database.ExecContext(ctx, MigrationSQL("content_store")); err != nil {
 		t.Fatalf("apply content_store schema: %v", err)
 	}
+	if _, err := database.ExecContext(ctx, MigrationSQL("content_files_generation_id")); err != nil {
+		t.Fatalf("apply content_files_generation_id migration: %v", err)
+	}
 	return ctx, database
 }
 
@@ -344,23 +347,23 @@ INSERT INTO scope_generations (
 	}
 }
 
-func seedActiveCodeCallSymbolManifest(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, content string, indexedAt time.Time) {
+func seedActiveCodeCallSymbolManifest(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, content, generationID string, indexedAt time.Time) {
 	t.Helper()
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO content_files (
-    repo_id, relative_path, content, content_hash, line_count, language, indexed_at
-) VALUES ($1, $2, $3, md5($3), 1, 'json', $4)`, repoID, relativePath, content, indexedAt); err != nil {
+    repo_id, relative_path, content, content_hash, line_count, language, indexed_at, generation_id
+) VALUES ($1, $2, $3, md5($3), 1, 'json', $4, $5)`, repoID, relativePath, content, indexedAt, generationID); err != nil {
 		t.Fatalf("insert manifest %s/%s: %v", repoID, relativePath, err)
 	}
 }
 
-func seedActiveCodeCallSymbolGoMod(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, module string, indexedAt time.Time) {
+func seedActiveCodeCallSymbolGoMod(t *testing.T, ctx context.Context, database db.Executor, repoID, relativePath, module, generationID string, indexedAt time.Time) {
 	t.Helper()
 	content := "module " + module + "\n\ngo 1.24\n"
 	if _, err := database.ExecContext(ctx, `
 INSERT INTO content_files (
-    repo_id, relative_path, content, content_hash, line_count, language, indexed_at
-) VALUES ($1, $2, $3, md5($3), 3, 'gomod', $4)`, repoID, relativePath, content, indexedAt); err != nil {
+    repo_id, relative_path, content, content_hash, line_count, language, indexed_at, generation_id
+) VALUES ($1, $2, $3, md5($3), 3, 'gomod', $4, $5)`, repoID, relativePath, content, indexedAt, generationID); err != nil {
 		t.Fatalf("insert go.mod %s/%s: %v", repoID, relativePath, err)
 	}
 }

@@ -171,7 +171,8 @@ func TestGoModuleScopeIDsRequiresPathBoundary(t *testing.T) {
 
 // TestScopeIDsRecordTagOutcomes proves each manifest read counts every row it
 // saw under kind and the tag outcome the SQL rule assigned, so an operator
-// can watch dirty-tagged manifests without reading the database (#7760).
+// can watch dirty-tagged manifests without reading the database (#7760). It
+// covers both reads, pinning that "go module" normalizes to gomod.
 func TestScopeIDsRecordTagOutcomes(t *testing.T) {
 	t.Parallel()
 
@@ -187,6 +188,14 @@ func TestScopeIDsRecordTagOutcomes(t *testing.T) {
 	}}
 	if _, err := New(q).WithInstruments(instruments).PackageScopeIDs(context.Background(), []string{"package:@acme/shared#Thing"}); err != nil {
 		t.Fatalf("PackageScopeIDs() error = %v, want nil", err)
+	}
+	// The go.mod read passes "go module" and must still land on gomod.
+	g := &fakeQueryer{rows: [][3]any{
+		{"scope-lib", "module github.com/acme/lib\n", "clean"},
+		{"scope-dirty", nil, "unactivated_tag"},
+	}}
+	if _, err := New(g).WithInstruments(instruments).GoModuleScopeIDs(context.Background(), []string{"scip-go gomod github.com/acme/lib/client Client#Request()."}); err != nil {
+		t.Fatalf("GoModuleScopeIDs() error = %v, want nil", err)
 	}
 
 	var rm metricdata.ResourceMetrics
@@ -210,7 +219,7 @@ func TestScopeIDsRecordTagOutcomes(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]int64{"package/clean": 1, "package/dangling_tag": 1, "package/manifest_less": 1}
+	want := map[string]int64{"package/clean": 1, "package/dangling_tag": 1, "package/manifest_less": 1, "gomod/clean": 1, "gomod/unactivated_tag": 1}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("tag outcomes = %v, want %v", got, want)
 	}
