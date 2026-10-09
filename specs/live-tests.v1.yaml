@@ -219,6 +219,11 @@ tests:
     class: postgres_ci
     reason: "#7321 disposable PostgreSQL 18 proof that the admin reopen reopens succeeded reducer rows (claimable through the production claim path) and one completed intent row per acceptance unit at the accepted source run, and that a repeated idempotency key is a no-op; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/admin/scope_selector_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7732 disposable PostgreSQL 18 proof that a scope-id/source-key collision fails closed (409 on skip and reopen, rows untouched); enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/query/admin/operator_note_live_test.go
     tag: ~
     class: scheduled

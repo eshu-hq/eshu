@@ -21,17 +21,9 @@ import (
 // (for example behind DDL); an admin repair must fail fast rather than wedge.
 const reopenLockTimeout = "5s"
 
-// reopenScopeQuery resolves the operator's scope selector to the canonical
-// scope id. It accepts the raw scope id or the scope's source key, mirroring
-// the skip route's selector.
-const reopenScopeQuery = `
-SELECT scope.scope_id
-FROM ingestion_scopes AS scope
-WHERE scope.scope_id = $1
-   OR scope.source_key = $1
-ORDER BY scope.scope_id
-LIMIT 1
-`
+// Scope selection is the shared resolveScopeID (scope_selector.go): skip and
+// reopen resolve the same selector to the same scope, and both fail closed
+// when it matches more than one scope (#7732).
 
 // reopenActiveGenerationQuery resolves the scope's active generation: the
 // scope's pinned active_generation_id, else the newest generation row. It
@@ -233,24 +225,10 @@ func (s *postgresStore) ReopenCompletedWork(ctx context.Context, f admin.ReopenF
 	return result, nil
 }
 
-// reopenScopeID resolves the scope selector to the canonical scope id.
+// reopenScopeID resolves the scope selector to the canonical scope id
+// through the shared skip/reopen resolver.
 func (s *postgresStore) reopenScopeID(ctx context.Context, scope string) (string, error) {
-	rows, err := s.database.QueryContext(ctx, reopenScopeQuery, strings.TrimSpace(scope))
-	if err != nil {
-		return "", fmt.Errorf("resolve reopen scope: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return "", fmt.Errorf("resolve reopen scope: %w", err)
-		}
-		return "", admin.ErrReopenScopeNotFound
-	}
-	var scopeID string
-	if err := rows.Scan(&scopeID); err != nil {
-		return "", fmt.Errorf("scan reopen scope: %w", err)
-	}
-	return scopeID, rows.Err()
+	return s.resolveScopeID(ctx, scope)
 }
 
 // reopenActiveGeneration resolves the scope's active generation.

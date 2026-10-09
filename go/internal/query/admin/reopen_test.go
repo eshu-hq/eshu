@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -265,7 +266,7 @@ func TestReopenReusedKeyDifferentParamsConflicts(t *testing.T) {
 }
 
 func TestReopenUnknownScopeIsNotFound(t *testing.T) {
-	stub := &stubAdminStore{resolveErr: ErrReopenScopeNotFound}
+	stub := &stubAdminStore{resolveErr: ErrScopeSelectorNotFound}
 	h := &Handler{Store: stub}
 	rec := postReopen(t, h, reopenBody(), nil)
 	if rec.Code != http.StatusNotFound {
@@ -294,11 +295,37 @@ func TestReopenWithoutActiveGenerationIsUnprocessable(t *testing.T) {
 	}
 }
 
+// TestReopenAmbiguousScopeIsConflict pins the joint scope-selector contract
+// (#7732) on the pre-claim probe: a selector matching more than one scope
+// fails closed with 409 and names the matched scopes, without consuming
+// the idempotency key.
+func TestReopenAmbiguousScopeIsConflict(t *testing.T) {
+	audit := &testutil.FakeGovernanceAuditAppender{}
+	stub := &stubAdminStore{resolveErr: ScopeSelectorAmbiguousError{Selector: "repo-x", ScopeIDs: []string{"scope-a", "scope-b"}}}
+	h := &Handler{Store: stub, Audit: audit}
+	rec := postReopen(t, h, reopenBody(), nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body: %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{"scope-a", "scope-b"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("409 body names %q: %s", want, rec.Body.String())
+		}
+	}
+	if len(audit.Events) != 1 || audit.Events[0].ReasonCode != "reopen_refused_ambiguous_scope" {
+		t.Fatalf("want reopen_refused_ambiguous_scope denied audit, got %+v", audit.Events)
+	}
+	assertAuditValid(t, audit.Events)
+	if stub.claimCalls != 0 || stub.reopenCalls != 0 {
+		t.Fatalf("pre-claim refusal must not claim or reopen (claim=%d reopen=%d)", stub.claimCalls, stub.reopenCalls)
+	}
+}
+
 func TestReopenResolveRaceAfterClaimFailsClosed(t *testing.T) {
 	// The pre-claim probe passed but the scope vanished before the store
 	// ran: the post-claim mapping still reports 404 and leaves the claim
 	// in progress instead of losing the outcome.
-	stub := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}, reopenErr: ErrReopenScopeNotFound}
+	stub := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}, reopenErr: ErrScopeSelectorNotFound}
 	h := &Handler{Store: stub}
 	rec := postReopen(t, h, reopenBody(), nil)
 	if rec.Code != http.StatusNotFound {
@@ -321,6 +348,21 @@ func TestReopenNoActiveGenerationRaceAfterClaimIsRefused(t *testing.T) {
 		t.Fatalf("status = %d, want 422", rec.Code)
 	}
 	assertReopenRefusedBody(t, rec, "scope has no active generation to reopen work for", "the scope lost its active generation after the claim; the idempotency key stays in progress")
+	if stub.completed {
+		t.Fatal("failed reopen must leave the claim in progress")
+	}
+}
+
+func TestReopenAmbiguousScopeRaceAfterClaimIsConflict(t *testing.T) {
+	// The pre-claim probe passed but a colliding scope appeared before the
+	// store ran: the post-claim arm reports the same 409 as the probe and
+	// leaves the claim in progress instead of losing the outcome.
+	stub := &stubAdminStore{claim: ReplayIdempotencyClaim{Claimed: true}, reopenErr: ScopeSelectorAmbiguousError{Selector: "repo-x", ScopeIDs: []string{"scope-a", "scope-b"}}}
+	h := &Handler{Store: stub}
+	rec := postReopen(t, h, reopenBody(), nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body: %s", rec.Code, rec.Body.String())
+	}
 	if stub.completed {
 		t.Fatal("failed reopen must leave the claim in progress")
 	}

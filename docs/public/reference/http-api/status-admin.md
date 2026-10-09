@@ -616,7 +616,7 @@ console or API defect.
 
 The recovery handler owns replay, dead-letter, skip, backfill, and decisions;
 mount it only where durable queue mutation is allowed. Each item returned by `POST /api/v0/admin/work-items/query` and by the dead-letter and skip responses can carry `operator_note` and `prior_failure` (`status`, `failure_class`, `failure_message`, `updated_at`), read from the `operator_note` and `prior_failure` keys of the row's `failure_details` when it is a JSON object, and omitted otherwise (a replay clears `failure_details`, so replay responses never carry them); this route has no OpenAPI response schema. Skip dead-letters at most
-100 pending, retrying, or failed repository rows; other statuses stay, and `count` is changed rows.
+100 pending, retrying, or failed repository rows ([scope selector](status-admin-scope-selector.md)); other statuses stay, and `count` is changed rows.
 
 ### Safe Replay Workflow
 

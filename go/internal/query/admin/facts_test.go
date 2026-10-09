@@ -5,8 +5,11 @@ package admin
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 )
 
 func TestAdminHandler_WorkItemsQuery(t *testing.T) {
@@ -208,6 +211,36 @@ func TestAdminHandler_Skip_EmptyRepoID(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
+}
+
+// TestAdminHandler_Skip_AmbiguousSelector pins the joint scope-selector
+// contract (#7732): a selector matching more than one scope fails closed
+// with 409 and names the matched scopes, instead of dead-lettering rows
+// across every matched scope.
+func TestAdminHandler_Skip_AmbiguousSelector(t *testing.T) {
+	audit := &testutil.FakeGovernanceAuditAppender{}
+	store := &stubAdminStore{
+		skipErr: ScopeSelectorAmbiguousError{Selector: "repo-x", ScopeIDs: []string{"scope-a", "scope-b"}},
+	}
+	h := &Handler{Store: store, Audit: audit}
+	mux := newAdminMux(h)
+
+	w := postJSON(mux, "/api/v0/admin/skip", map[string]any{
+		"repository_id": "repo-x",
+	})
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusConflict, w.Body.String())
+	}
+	for _, want := range []string{"scope-a", "scope-b"} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Errorf("409 body names %q: %s", want, w.Body.String())
+		}
+	}
+	if len(audit.Events) != 1 || audit.Events[0].ReasonCode != "skip_refused_ambiguous_scope" {
+		t.Fatalf("want skip_refused_ambiguous_scope denied audit, got %+v", audit.Events)
+	}
+	assertAuditValid(t, audit.Events)
 }
 
 func TestAdminHandler_Replay(t *testing.T) {
