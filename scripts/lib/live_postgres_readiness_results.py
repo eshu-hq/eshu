@@ -230,6 +230,9 @@ PACKAGES = {
         "go/internal/storage/postgres/membership/observations_live_test.go": (
             "TestObservationStoreLive",
         ),
+        "go/internal/storage/postgres/membership/observations_sweep_live_test.go": (
+            "TestObservationStoreSweepLive",
+        ),
     },
     REDUCER_PACKAGE: {
         "go/cmd/reducer/package_manifest_backfill_live_test.go": (

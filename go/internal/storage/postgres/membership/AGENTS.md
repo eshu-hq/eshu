@@ -19,8 +19,13 @@
   Do not split it per row or add a retry loop that hides a conflict.
 - Do not read `ingestion_scopes` with `FOR UPDATE` or write it from here: the
   projector locks those rows first.
-- Do not add deletion or hiding. A freshness verdict that reads these rows is
-  a separate phase with its own API contract.
+- The only deletion is `DeleteExpiredObservations` (#7774): rows strictly past
+  their own liveness window plus the grace, in bounded `SKIP LOCKED` batches.
+  Never delete a live or in-grace row, and never delete or hide a scope. Keep
+  `TestObservationStoreSweepLive` green: it fails a boundary, grace, or
+  lock-wait mutant.
+- Keep the sweep batch unordered. An `ORDER BY` forces a full primary-key scan
+  on every steady-state probe; the README has the measurement.
 - This package must not import the parent `postgres` package (tests may).
 - Use `eshu-postgres-rigor` for any SQL or index change, with an
   `EXPLAIN (ANALYZE, BUFFERS)` before and after.

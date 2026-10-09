@@ -15,6 +15,16 @@ const KnownScopesQuery = knownScopesQuery
 // can assert on its shape.
 const UpsertObservationsQuery = upsertObservationsQuery
 
+// DeleteExpiredObservationsQuery exposes deleteExpiredObservationsQuery so
+// external tests can assert on its expiry predicate and locking.
+const DeleteExpiredObservationsQuery = deleteExpiredObservationsQuery
+
+// ExpiredSweepBatchSize and ExpiredSweepMaxBatches expose the sweep bounds.
+const (
+	ExpiredSweepBatchSize  = expiredSweepBatchSize
+	ExpiredSweepMaxBatches = expiredSweepMaxBatches
+)
+
 // LiveScopeObservationsQuery exposes liveScopeObservationsQuery so external
 // tests can assert on its live filter.
 const LiveScopeObservationsQuery = liveScopeObservationsQuery

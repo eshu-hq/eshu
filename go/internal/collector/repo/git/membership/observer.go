@@ -31,11 +31,15 @@ const (
 	FailureClassUpsert = "upsert"
 	// FailureClassStoreMissing means the observer was wired without a store.
 	FailureClassStoreMissing = "store_missing"
+	// FailureClassExpiredSweep means deleting expired observation rows
+	// failed. The evaluation outcome stands.
+	FailureClassExpiredSweep = "expired_sweep"
 )
 
 // Store persists selection observations. KnownScopes and Observations are
 // plain reads that take no row locks; UpsertObservations writes one batch in
-// one statement and only advances rows older than the batch.
+// one statement and only advances rows older than the batch;
+// DeleteExpiredObservations deletes long-expired rows in bounded batches.
 type Store interface {
 	// KnownScopes returns the git default-branch repository scopes whose
 	// stored repo slug belongs to owner, case-insensitively. A non-empty
@@ -46,6 +50,12 @@ type Store interface {
 	Observations(ctx context.Context, selectorID string) ([]Observation, error)
 	// UpsertObservations writes batch.
 	UpsertObservations(ctx context.Context, batch Batch) error
+	// DeleteExpiredObservations deletes rows of every selector whose
+	// evaluated_at plus their own liveness window plus grace is before now,
+	// in bounded batches, and returns the rows deleted, including those
+	// deleted before an error. It never deletes a row inside its window or
+	// the grace after it.
+	DeleteExpiredObservations(ctx context.Context, now time.Time, grace time.Duration) (int64, error)
 }
 
 // Request is one cycle's evaluation request from the git collector.
@@ -76,16 +86,22 @@ type Observer struct {
 // gap since the selector's previous evaluation exceeds the liveness window it
 // also logs git_repository_selection_liveness_lapsed: the selector's rows had
 // expired and read as unknown until this evaluation.
+//
+// After an evaluated or guard-tripped cycle (the store reads succeeded) it
+// sweeps rows of every selector that expired more than
+// ExpiredObservationGrace ago. A sweep failure is logged as the
+// expired_sweep failure class and leaves the outcome unchanged.
 func (o Observer) Observe(ctx context.Context, req Request) Result {
 	result, failureClass, err := o.evaluate(ctx, req)
 	if failureClass != "" {
 		result.Outcome = OutcomeStoreError
-		o.warn(ctx, "git_repository_selection_store_failed",
-			slog.String("selector_id", req.Selector.ID),
-			slog.String("selector_kind", req.Selector.Kind),
-			log.FailureClass(failureClass),
-			log.Err(err),
-		)
+		o.storeFailed(ctx, req, failureClass, err)
+	}
+	if result.Outcome == OutcomeEvaluated || result.Outcome == OutcomeGuardTripped {
+		result.ExpiredDeleted, err = o.Store.DeleteExpiredObservations(ctx, req.Now, ExpiredObservationGrace)
+		if err != nil {
+			o.storeFailed(ctx, req, FailureClassExpiredSweep, err)
+		}
 	}
 	o.record(ctx, req.Selector.Kind, result)
 	gap := evaluationGap(req.Now, result.PreviousEvaluatedAt)
@@ -157,9 +173,23 @@ func (o Observer) evaluate(ctx context.Context, req Request) (Result, string, er
 	return result, "", nil
 }
 
+func (o Observer) storeFailed(ctx context.Context, req Request, failureClass string, err error) {
+	o.warn(ctx, "git_repository_selection_store_failed",
+		slog.String("selector_id", req.Selector.ID),
+		slog.String("selector_kind", req.Selector.Kind),
+		log.FailureClass(failureClass),
+		log.Err(err),
+	)
+}
+
 func (o Observer) record(ctx context.Context, selectorKind string, result Result) {
 	if o.Instruments == nil {
 		return
+	}
+	if result.ExpiredDeleted > 0 && o.Instruments.RepositorySelectionObservationsDeleted != nil {
+		o.Instruments.RepositorySelectionObservationsDeleted.Add(ctx, result.ExpiredDeleted, metric.WithAttributes(
+			telemetry.AttrCollectorKind(collectorKind),
+		))
 	}
 	if o.Instruments.RepositorySelectionEvaluations != nil {
 		o.Instruments.RepositorySelectionEvaluations.Add(ctx, 1, metric.WithAttributes(
@@ -210,6 +240,7 @@ func (o Observer) logEvaluated(ctx context.Context, req Request, result Result, 
 		slog.Int64("evaluation_gap_seconds", int64(gap/time.Second)),
 		slog.Int64("liveness_window_seconds", int64(window/time.Second)),
 		slog.String("outcome", string(result.Outcome)),
+		slog.Int64("expired_deleted_count", result.ExpiredDeleted),
 		slog.Any("not_listed_sample", result.NotListedSample),
 	)
 }

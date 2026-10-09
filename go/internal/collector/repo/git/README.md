@@ -182,8 +182,10 @@ repositories, so a listing cut at `ESHU_REPO_LIMIT` is never evaluated.
 A store failure is logged and counted, and the cycle carries on. The webhook
 selector never observes. Telemetry: the
 `eshu_dp_collector_repository_selection_evaluations_total` counter, the
-`eshu_dp_collector_repository_selection_scopes` gauge, and the
-`git_repository_selection_*` logs; see `membership/README.md`.
+`eshu_dp_collector_repository_selection_scopes` gauge, the
+`eshu_dp_collector_repository_selection_observations_deleted_total` counter
+for the expired-row sweep (#7774), and the `git_repository_selection_*` logs;
+see `membership/README.md`.
 
 ## Two-phase content
 

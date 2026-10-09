@@ -62,7 +62,8 @@ const (
 )
 
 // registerRepositorySelection registers the #7625 repository selection
-// evaluation counter and scope gauge on inst. Labels are closed sets
+// evaluation counter and scope gauge, and the #7774 expired-row deletion
+// counter, on inst. Labels are closed sets
 // (collector_kind, selector_kind, outcome, state); repository slugs ride only
 // on logs.
 func registerRepositorySelection(meter metric.Meter, inst *Instruments) error {
@@ -78,6 +79,12 @@ func registerRepositorySelection(meter metric.Meter, inst *Instruments) error {
 		metric.WithDescription("Known repository scopes of the evaluating githubOrg selector by collector_kind and state (selected, not_listed_pending, not_listed, archived_excluded, rule_excluded), sampled after each evaluated cycle (#7625)"),
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionScopes gauge: %w", err)
+	}
+	if inst.RepositorySelectionObservationsDeleted, err = meter.Int64Counter(
+		"eshu_dp_collector_repository_selection_observations_deleted_total",
+		metric.WithDescription("Expired repository_selection_observations rows deleted by the git collector's sweep, by collector_kind; a row is deleted only after its liveness window plus a 7-day grace (#7774)"),
+	); err != nil {
+		return fmt.Errorf("register RepositorySelectionObservationsDeleted counter: %w", err)
 	}
 	return nil
 }

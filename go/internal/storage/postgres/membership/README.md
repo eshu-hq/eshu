@@ -7,8 +7,10 @@ repository scope and per selector, whether the newest complete GitHub org
 listing, or an explicit configured repository list, still selects the
 repository. The git collector's `membership.Observer` reads and writes it once
 per githubOrg or explicit cycle (once per owner for an explicit list), on
-shard 0 only. The rows are evidence; nothing in this phase deletes, hides, or retires
-a scope because of them.
+shard 0 only. The rows are evidence; nothing deletes, hides, or retires a
+scope because of them. The only rows this package deletes are observation
+rows that stayed expired for a 7-day grace past their own liveness window
+(#7774).
 
 ## Ownership boundary
 
@@ -25,7 +27,8 @@ native selector, which observes in githubOrg and explicit mode.
 ## Exported surface
 
 - `ObservationStore` with `NewObservationStore(database db.ExecQueryer)`.
-- `KnownScopes`, `Observations`, `UpsertObservations`.
+- `KnownScopes`, `Observations`, `UpsertObservations`,
+  `DeleteExpiredObservations`.
 
 See `doc.go` for the godoc contract.
 
@@ -40,7 +43,10 @@ None of its own. Store errors return to `membership.Observer`, which logs
 `git_repository_selection_store_failed` with `failure_class`
 (`known_scopes_read`, `observations_read`, `upsert`) and counts
 `eshu_dp_collector_repository_selection_evaluations_total{outcome="store_error"}`.
-The collector cycle continues.
+A sweep error logs `failure_class=expired_sweep` without changing the outcome,
+and the rows deleted count on
+`eshu_dp_collector_repository_selection_observations_deleted_total`. The
+collector cycle continues.
 
 ## Gotchas / invariants
 
@@ -59,6 +65,37 @@ The collector cycle continues.
   fails that mutant.
 - Two rows for one scope that disagree are rejected before any write, because
   one statement cannot update a row twice (SQLSTATE 21000).
+- The sweep predicate is strict (`< now`) and uses each row's own
+  `liveness_window_seconds`, so a row at the boundary or with a longer window
+  stays. Each batch is one statement selected `FOR UPDATE SKIP LOCKED`, so a
+  row an upsert holds is skipped. `FOR UPDATE` rechecks the predicate against
+  the newest version, so a row renewed before the lock is kept. An upsert
+  that collides with an in-flight delete waits, then inserts a fresh row.
+  The live test covers all three and fails the boundary, grace, and
+  lock-wait mutants.
+
+### Expired-row sweep
+
+Performance Evidence (#7774, prove-theory-first): PostgreSQL 18.6 at
+127.0.0.1:25432 with 200,000 rows (20,000 scopes x 10 selectors, 48h windows):
+one live selector, one inside the grace, and eight abandoned 30 days ago. The
+shipped statement was run as a prepared statement with a 7-day grace and a
+batch of 500:
+
+| Case | Plan | Buffers | Result |
+| --- | --- | --- | --- |
+| One batch, unordered (shipped) | seq scan, stops at 500 | 3,014 | 5.3 ms, 500 deleted |
+| One batch, `ORDER BY` primary key | primary-key index scan | 3,641 | 4.8 ms, 500 deleted |
+| One capped call, 20 batches, unordered | | | 91 ms, 10,000 deleted (116 ms ordered) |
+| Steady-state probe, 40,000 kept rows, unordered | seq scan | 5,000 | 3.8-4.4 ms, 0 deleted |
+| Steady-state probe, 40,000 kept rows, ordered | full primary-key index scan | 44,203 | 10.5-11.4 ms, 0 deleted |
+
+The drain left all 20,000 live rows and all 20,000 in-grace rows. The probe
+runs once per evaluated or guard-tripped cycle on shard 0, so the steady
+state is the common case; that is why the batch is unordered. No index: the
+predicate combines two columns with an interval, and an expression index on
+`timestamptz + interval` is not allowed because the operator is only
+`STABLE`.
 
 ## Evidence
 
@@ -186,5 +223,5 @@ binaries pass in (`eshu_dp_postgres_query_duration_seconds`).
 cd go && go test ./internal/storage/postgres/membership -count=1
 ESHU_GENERATION_RETENTION_PROOF_DSN=postgresql://postgres:postgres@localhost:<port>/postgres?sslmode=disable \
 ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE=1 \
-  go test ./internal/storage/postgres/membership -run ObservationStoreLive -count=1
+  go test ./internal/storage/postgres/membership -run 'ObservationStoreLive|ObservationStoreSweepLive' -count=1
 ```

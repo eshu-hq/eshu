@@ -99,7 +99,8 @@ type ScopeCounts struct {
 // Result is one evaluation's decision. Batch.Rows and Projected are set only
 // for OutcomeEvaluated; Projected is the post-write observation per row.
 // PreviousEvaluatedAt is the selector's newest prior evaluated_at, zero on
-// its first evaluation.
+// its first evaluation. ExpiredDeleted is set only by Observer: the expired
+// rows its sweep deleted this cycle.
 type Result struct {
 	Outcome             Outcome
 	Batch               Batch
@@ -109,6 +110,7 @@ type Result struct {
 	Scopes              ScopeCounts
 	NotListedSample     []string
 	GuardThreshold      int
+	ExpiredDeleted      int64
 }
 
 // Evaluate decides one selector's observation batch from a listing, the known

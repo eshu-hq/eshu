@@ -62,9 +62,16 @@ The policy preserves Eshu's facts-first model:
 Collector deselection (#7625), where a repository drops out of a git
 collector's org listing, is an observation that surfaces as the `not_selected`
 freshness verdict; it never triggers repository removal, which stays the
-tombstone path above (phase 3). Its `repository_selection_observations` rows
-are kept after they expire: an expired row reads as no evidence (`unknown`),
-and no sweep deletes it until #7774 lands.
+tombstone path above (phase 3). An expired `repository_selection_observations`
+row reads as no evidence (`unknown`) at once. The git collector deletes it
+once it has stayed expired for a 7-day grace past its own liveness window
+(#7774). The collector does this on shard 0 after each evaluation whose
+store reads succeeded, in batches of at most 500 rows and 10,000 rows per
+cycle. The grace keeps a briefly lapsed selector's history, so its unlisted
+scopes do not count as newly unlisted when it resumes. The deletion never
+touches a live row, `ingestion_scopes`, facts, or the graph.
+`eshu_dp_collector_repository_selection_observations_deleted_total` counts
+the deleted rows.
 
 ## Tombstones And Query Truth
 

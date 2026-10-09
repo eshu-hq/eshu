@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -33,6 +34,21 @@ type fakeStore struct {
 	// the way the Postgres store filters by remote host.
 	knownHosts  []string
 	knownByHost map[string][]KnownScope
+	// sweeps records every DeleteExpiredObservations call; it returns
+	// sweepDeleted and sweepErr.
+	sweeps       []sweepCall
+	sweepDeleted int64
+	sweepErr     error
+}
+
+type sweepCall struct {
+	now   time.Time
+	grace time.Duration
+}
+
+func (s *fakeStore) DeleteExpiredObservations(_ context.Context, now time.Time, grace time.Duration) (int64, error) {
+	s.sweeps = append(s.sweeps, sweepCall{now: now, grace: grace})
+	return s.sweepDeleted, s.sweepErr
 }
 
 func (s *fakeStore) expected() Selector {

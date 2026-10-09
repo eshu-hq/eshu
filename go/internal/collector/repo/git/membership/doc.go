@@ -14,7 +14,9 @@
 // gauge, and the structured logs.
 //
 // The package only records evidence. It never deletes, hides, or retires a
-// scope and never writes the graph. Three rails keep a bad cycle from writing
+// scope and never writes the graph. After an evaluated or guard-tripped cycle
+// Observer asks the Store to delete observation rows that stayed expired for
+// ExpiredObservationGrace past their own liveness window (#7774). Three rails keep a bad cycle from writing
 // a false not_listed: a truncated listing writes nothing, a mass miss (more
 // newly unlisted scopes than max(10, 10% of known), or an empty listing with
 // known scopes) trips the guard and writes nothing, and a non-selected state

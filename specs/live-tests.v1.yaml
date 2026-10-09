@@ -2314,6 +2314,11 @@ tests:
     class: postgres_ci
     reason: "#7625 disposable PostgreSQL 18 proof of repository selection observations: the org partition read excludes other orgs, repository_ref scopes, and other collectors; over three cycles the stored rows equal membership.Evaluate's projection (a repeated state keeps state_since and adds a cycle, a changed state restarts both); a replayed or older batch changes nothing; explicit selected rows sit beside org rows; and eight writers released by a start barrier (four on one selector, four on a second) neither deadlock nor double-count. Enrolled in the live-postgres-readiness runner; 1.47-1.57s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/observations_sweep_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7774 disposable PostgreSQL 18 proof of the expired repository_selection_observations sweep: only rows strictly past their own liveness window plus the grace are deleted (live, in-grace, boundary, and long-window rows are kept); a 1,203-row backlog drains in batches and a backlog past the batch cap stops at the cap and finishes on the next call; a row an open evaluation holds is skipped without waiting and kept once renewed; and an evaluation that collides with an in-flight delete waits, then inserts a fresh row. Enrolled in the live-postgres-readiness runner; 1.76-1.99s of test time on postgres:18 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/migration_148_delta_baseline_live_test.go
     tag: ~
     class: scheduled
