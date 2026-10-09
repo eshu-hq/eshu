@@ -186,7 +186,7 @@ Tunables (env, matching the script's own defaults): `GATE_POSTGRES_PORT`
 route, default 1 — run 1 follows two discarded warmups; runs 2.. repeat
 without additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
 `GATE_WORK_REPORT` (write the per-route measured work as JSON),
-`GATE_LATENCY_REPORT` (write the full per-route latency distribution — cold
+`GATE_LATENCY_REPORT` (write the full per-route latency distribution — first
 and warm samples, warm n/p50/p95/min/max/stddev, the per-run p95 spread, and
 an identity block — as JSON, before budget evaluation runs). `GATE_API_BIN=<path>`
 swaps in a pre-built `eshu-api` binary (built from a different commit, e.g.
@@ -225,7 +225,7 @@ this run's data. Removing it first turns that failure mode into a loud one:
 or malformed file instead of quietly comparing against old numbers.
 
 ```bash
-# Leg A: NornicDB, 5 runs (1 cold + 4 warm).
+# Leg A: NornicDB, 5 counted passes after discarded warmups.
 rm -f /tmp/nornicdb.json
 ESHU_GRAPH_BACKEND=nornicdb GATE_RUNS=5 \
   GATE_LATENCY_REPORT=/tmp/nornicdb.json \
@@ -237,7 +237,7 @@ ESHU_GRAPH_BACKEND=neo4j GATE_RUNS=5 \
   GATE_LATENCY_REPORT=/tmp/neo4j.json \
   bash scripts/verify-read-api-latency-gate.sh || true
 
-# Drift sentinel: a second NornicDB leg with GATE_RUNS=2 -- one cold run plus
+# Drift sentinel: a second NornicDB leg with GATE_RUNS=2 -- one first pass plus
 # ONE warm run, just enough for the report to carry a warm p95
 # (LatencyReportWarmStats.p95_ms). Compare that single value by hand against
 # leg A's own per-run p95 BAND (run_p95_min_ms..run_p95_max_ms in
