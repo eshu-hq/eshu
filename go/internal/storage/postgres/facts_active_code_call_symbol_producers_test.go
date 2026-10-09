@@ -43,12 +43,38 @@ func isAnchoredDefinitionQuery(query string) bool {
 	return strings.Contains(query, "fact.scope_id = ANY($5::text[])")
 }
 
+// assertCodeCallManifestShape pins the manifest-read contract both anchors
+// share: a MATERIALIZED CTE over content_files joined to the repository
+// scopes' active generations, filtered to the manifest's file names.
+func assertCodeCallManifestShape(t *testing.T, query string, pathPredicates ...string) {
+	t.Helper()
+	// The manifest read must stay a MATERIALIZED CTE. Inlined, the planner
+	// misestimates the scope join at one row and probes content_files once per
+	// repository scope (ops-qa replica, 2026-10-04: 125 ms warm, 758 ms cold,
+	// 155k buffers) instead of one trigram-index read (15 to 21 ms, 3,497 buffers).
+	if !strings.Contains(query, "WITH manifest AS MATERIALIZED (") {
+		t.Fatalf("manifest query must read content_files in a MATERIALIZED CTE:\n%s", query)
+	}
+	for _, want := range append([]string{
+		"scope.source_key = manifest.repo_id",
+		"scope.scope_kind = 'repository'",
+		"generation.generation_id = scope.active_generation_id",
+		"generation.status = 'active'",
+	}, pathPredicates...) {
+		if !strings.Contains(query, want) {
+			t.Fatalf("manifest query missing %q:\n%s", want, query)
+		}
+	}
+}
+
 func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScopes(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.October, 4, 9, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// No stored go.mod declares the Go key's module: it falls back.
+			{},
 			// Unanchored scan for the Go key.
 			{rows: [][]any{codeCallSymbolFactRow("fact-go", "scope-go", observedAt)}},
 			// Manifest read.
@@ -71,45 +97,33 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsAnchorsPackageKeysOnProducerScop
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 3; got != want {
-		t.Fatalf("queries = %d, want %d (unanchored, manifest, anchored)", got, want)
+	if got, want := len(db.queries), 4; got != want {
+		t.Fatalf("queries = %d, want %d (go manifest, unanchored, manifest, anchored)", got, want)
 	}
 
-	unanchored := db.queries[0]
+	goManifest := db.queries[0]
+	if !isManifestQuery(goManifest.query) {
+		t.Fatalf("first query must read go.mod manifests:\n%s", goManifest.query)
+	}
+	assertCodeCallManifestShape(t, goManifest.query, "relative_path = 'go.mod'", "relative_path LIKE '%/go.mod'")
+
+	unanchored := db.queries[1]
 	if isManifestQuery(unanchored.query) || isAnchoredDefinitionQuery(unanchored.query) {
-		t.Fatalf("first query must be the unanchored definition scan:\n%s", unanchored.query)
+		t.Fatalf("second query must be the unanchored definition scan:\n%s", unanchored.query)
 	}
 	if got, want := unanchored.args[0], []string{goKey}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("unanchored keys = %#v, want only the non-package keys %#v", got, want)
 	}
 
-	manifest := db.queries[1]
+	manifest := db.queries[2]
 	if !isManifestQuery(manifest.query) {
-		t.Fatalf("second query must read package.json manifests:\n%s", manifest.query)
+		t.Fatalf("third query must read package.json manifests:\n%s", manifest.query)
 	}
-	// The manifest read must stay a MATERIALIZED CTE. Inlined, the planner
-	// misestimates the scope join at one row and probes content_files once per
-	// repository scope (ops-qa replica, 2026-10-04: 125 ms warm, 758 ms cold,
-	// 155k buffers) instead of one trigram-index read (15 to 21 ms, 3,497 buffers).
-	if !strings.Contains(manifest.query, "WITH manifest AS MATERIALIZED (") {
-		t.Fatalf("manifest query must read content_files in a MATERIALIZED CTE:\n%s", manifest.query)
-	}
-	for _, want := range []string{
-		"scope.source_key = manifest.repo_id",
-		"scope.scope_kind = 'repository'",
-		"generation.generation_id = scope.active_generation_id",
-		"generation.status = 'active'",
-		"relative_path = 'package.json'",
-		"relative_path LIKE '%/package.json'",
-	} {
-		if !strings.Contains(manifest.query, want) {
-			t.Fatalf("manifest query missing %q:\n%s", want, manifest.query)
-		}
-	}
+	assertCodeCallManifestShape(t, manifest.query, "relative_path = 'package.json'", "relative_path LIKE '%/package.json'")
 
-	anchored := db.queries[2]
+	anchored := db.queries[3]
 	if !isAnchoredDefinitionQuery(anchored.query) {
-		t.Fatalf("third query must be the anchored definition scan:\n%s", anchored.query)
+		t.Fatalf("fourth query must be the anchored definition scan:\n%s", anchored.query)
 	}
 	if got, want := anchored.args[0], []string{packageKey}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("anchored keys = %#v, want %#v", got, want)
@@ -223,20 +237,27 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsIssuesNoScanWithoutProducer(t *t
 func TestLoadActiveCodeCallSymbolDefinitionFactsKeepsNonPackageKeysUnanchored(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
-	keys := []string{"scip-go gomod github.com/acme/lib Client#Request().", "typescript:@acme/lib#run"}
+	goKey := "scip-go gomod github.com/acme/lib Client#Request()."
+	otherKey := "typescript:@acme/lib#run"
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
 
-	if _, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), keys); err != nil {
+	if _, err := NewFactStore(db).LoadActiveCodeCallSymbolDefinitionFacts(context.Background(), []string{goKey, otherKey}); err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("queries = %d, want %d", got, want)
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("queries = %d, want %d (go manifest, unanchored)", got, want)
 	}
-	query := db.queries[0].query
+	if !isManifestQuery(db.queries[0].query) {
+		t.Fatalf("first query must be the go.mod manifest read:\n%s", db.queries[0].query)
+	}
+	query := db.queries[1].query
 	if isManifestQuery(query) || isAnchoredDefinitionQuery(query) {
 		t.Fatalf("non-package keys must use the unanchored scan:\n%s", query)
 	}
-	if got, want := len(db.queries[0].args), 4; got != want {
+	if got, want := db.queries[1].args[0], []string{otherKey, goKey}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unanchored keys = %#v, want the other keys plus the fallback Go key %#v", got, want)
+	}
+	if got, want := len(db.queries[1].args), 4; got != want {
 		t.Fatalf("unanchored args = %d, want %d", got, want)
 	}
 }
@@ -295,6 +316,8 @@ func TestLoadActiveCodeCallSymbolDefinitionFactsDeduplicatesAcrossScans(t *testi
 	observedAt := time.Date(2026, time.October, 4, 9, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			// No stored go.mod declares the Go key's module: it falls back.
+			{},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
 			{rows: [][]any{{"scope-logging", `{"name":"@acme/logging"}`}}},
 			{rows: [][]any{codeCallSymbolFactRow("fact-shared", "scope-logging", observedAt)}},
