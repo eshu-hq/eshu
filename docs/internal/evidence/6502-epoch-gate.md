@@ -43,7 +43,7 @@ Handle routes it through a generation-freshness gate
 |---|---|
 | Pending and newer than active | `GenerationNotYetActiveError`: the queue retries without counting against the attempt budget until the generation activates, fails, or is superseded |
 | Superseded, failed, or missing | Early `Result` with status `superseded`, acked succeeded |
-| Still current | One epoch re-read (the activation may have landed between the reads); a still-missing row surfaces loudly as the genuinely missing epoch |
+| Still current | One epoch re-read (the activation may have landed between the reads); a still-missing row re-consults the check once (a flip in that window supersedes) and surfaces loudly only when still current — the genuinely missing epoch |
 | Check lookup failure | Loud wrapped error, fails closed |
 
 A nil check preserves the legacy loud error, so unwired callers and old tests
@@ -68,7 +68,9 @@ disposable PostgreSQL 18 (single shared host, warm cache):
   superseded Result; dead-letter count 0).
 - `TestContainerImageIdentityActivationEpochMissIsSentinelLive`: GREEN
   (active hit plus pending, superseded, missing, and unknown-scope misses).
-- `TestGatedActivationEpochClassifiesMiss`: 8/8 subtests GREEN in 0.006s.
+- `TestGatedActivationEpochClassifiesMiss`: 11/11 subtests GREEN in 0.00s
+  (includes the second-miss re-consult, supersede-between-check-and-reread,
+  and second-consult lookup-failure cases).
 - Full `containerimage`, `reducer`, `contract`, `factload`, `cmd/reducer`,
   and `recordpseudo` suites GREEN; store-touching Postgres live tests GREEN.
 

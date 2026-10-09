@@ -139,8 +139,33 @@ func TestGatedActivationEpochClassifiesMiss(t *testing.T) {
 				return true, nil
 			},
 			wantCalls:  2,
-			wantChecks: 1,
+			wantChecks: 2,
 			wantIs:     sentinel,
+			wantText:   "read container image identity activation epoch",
+		},
+		{
+			name:   "generation superseded between check and re-read returns superseded",
+			epochs: []int64{0, 0}, errs: []error{sentinel, sentinel},
+			check: func() reducercontract.GenerationFreshnessCheck {
+				calls := 0
+				return func(_ context.Context, _, _ string) (bool, error) {
+					calls++
+					return calls == 1, nil
+				}
+			}(),
+			wantCalls:  2,
+			wantChecks: 2,
+			wantResult: true,
+		},
+		{
+			name:   "non-sentinel re-read failure stays loud without a second consult",
+			epochs: []int64{0, 0}, errs: []error{sentinel, otherErr},
+			check: func(_ context.Context, _, _ string) (bool, error) {
+				return true, nil
+			},
+			wantCalls:  2,
+			wantChecks: 1,
+			wantIs:     otherErr,
 			wantText:   "read container image identity activation epoch",
 		},
 		{
@@ -151,6 +176,24 @@ func TestGatedActivationEpochClassifiesMiss(t *testing.T) {
 			},
 			wantCalls:  1,
 			wantChecks: 1,
+			wantIs:     lookupErr,
+			wantText:   "check container image identity generation",
+		},
+		{
+			name:   "second consult lookup failure surfaces loudly",
+			epochs: []int64{0, 0}, errs: []error{sentinel, sentinel},
+			check: func() reducercontract.GenerationFreshnessCheck {
+				calls := 0
+				return func(_ context.Context, _, _ string) (bool, error) {
+					calls++
+					if calls == 1 {
+						return true, nil
+					}
+					return false, lookupErr
+				}
+			}(),
+			wantCalls:  2,
+			wantChecks: 2,
 			wantIs:     lookupErr,
 			wantText:   "check container image identity generation",
 		},
