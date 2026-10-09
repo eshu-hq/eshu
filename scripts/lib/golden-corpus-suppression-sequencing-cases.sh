@@ -237,6 +237,9 @@ suppression_seq_run_case() (
 	# suppression never touches this finding). Running dry is a loud
 	# failure, not a silent zero. Generated after sourcing: it bakes in
 	# the lib's CVE id.
+	# Four appends: the heredoc-budget gate bars an unquoted heredoc body
+	# over 384 bytes (512 literal), and the whole stub is ~1200. The
+	# generated file is byte-identical to the single-heredoc form.
 	cat >"${bin_dir}/eshu-golden-corpus-gate" <<-EOF
 #!/usr/bin/env bash
 dur=\$(head -n 1 "${dur_file}")
@@ -245,15 +248,21 @@ echo \$((\$(cat "${epoch_file}") + \$dur)) > "${epoch_file}"
 tail -n +2 "${dur_file}" > "${dur_file}.next" && mv "${dur_file}.next" "${dur_file}"
 now=\$(cat "${epoch_file}")
 best_active=""; best_active_a=0; best_active_e=0
+	EOF
+	cat >>"${bin_dir}/eshu-golden-corpus-gate" <<-EOF
 best_any=""; best_any_a=0; best_any_e=0
 for meta in "${state_dir}"/*.meta; do
     [ -e "\$meta" ] || break
     [ "\$(jq -r '.cve' "\$meta")" = "${golden_suppression_cve}" ] || continue
     a=\$(jq -r '.authored' "\$meta"); e=\$(jq -r '.expires' "\$meta"); mid=\$(basename "\$meta" .meta)
+	EOF
+	cat >>"${bin_dir}/eshu-golden-corpus-gate" <<-EOF
     if [ "\$a" -ge "\$best_any_a" ]; then best_any="\$mid"; best_any_a="\$a"; best_any_e="\$e"; fi
     if [ "\$now" -lt "\$e" ] && [ "\$a" -ge "\$best_active_a" ]; then best_active="\$mid"; best_active_a="\$a"; best_active_e="\$e"; fi
 done
 if [ -n "\$best_active" ]; then
+	EOF
+	cat >>"${bin_dir}/eshu-golden-corpus-gate" <<-EOF
     jq -n --arg id "\$best_active" --argjson expires "\$best_active_e" '{id: \$id, expires: \$expires}' > "${state_dir}/persisted.json"
 elif [ -n "\$best_any" ]; then
     jq -n --arg id "\$best_any" --argjson expires "\$best_any_e" '{id: \$id, expires: \$expires}' > "${state_dir}/persisted.json"
