@@ -446,6 +446,7 @@ jobs:
               - 'scripts/test-verify-docker-publish-pr-platforms.sh'
               - 'scripts/test-verify-docker-publish-moving-tags.sh'
               - 'scripts/dev/publish-ci-image-mirrors.sh'
+              - 'scripts/dev/fixtures/ci-image-mirror-crane-stub.sh'
               - 'scripts/dev/test-publish-ci-image-mirrors.sh'
               - 'scripts/dev/test-docker-publish-ci-mirror-mode.sh'
             dockerhublogin:
