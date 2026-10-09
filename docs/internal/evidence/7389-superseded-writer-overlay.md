@@ -345,9 +345,10 @@ shipped:
   The graph is correct.
 - A marked writer is released only by its own completion, its own failure, or
   a lease expiry after its process dies: the heartbeat no longer supersedes it.
-  On Neo4j `ESHU_CANONICAL_WRITE_TIMEOUT` defaults to unbounded, so a hung
-  canonical write with a live heartbeat freezes that scope's freshness until
-  the process is restarted (bounded by follow-up #7447 item 3). Runbook: a scope whose
+  On Neo4j `ESHU_CANONICAL_WRITE_TIMEOUT` defaulted to unbounded at the time
+  (before #7471's `300s` default), so a hung canonical write with a live
+  heartbeat froze that scope's freshness until the process was restarted
+  (bounded by follow-up #7447 item 3). Runbook at the time: a scope whose
   projector work stays `running` with a set marker and no progress logs is
   cleared by restarting the worker; the lease then expires and a later attempt
   re-projects.

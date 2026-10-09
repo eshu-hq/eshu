@@ -109,8 +109,9 @@ func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) 
 // the queue retries the whole pass, so it too needs no in-executor retry.
 // Routing probes through runWithRetry would inherit the write budget
 // -- four attempts, each bounded by ESHU_CANONICAL_WRITE_TIMEOUT (30s by
-// default) -- so a backend sustaining TransientError could hold the partition
-// lease for roughly two minutes before the fail-safe DELETE even starts, to
+// default on NornicDB, 300s on Neo4j since #7471) -- so a backend sustaining
+// TransientError could hold the partition lease for roughly two minutes on
+// NornicDB (twenty on Neo4j) before the fail-safe DELETE even starts, to
 // avoid a single DELETE the guard exists to make cheaper. Failing straight
 // through bounds the worst case at that one DELETE (or, for the deployment-
 // source guard, at one failed pass the queue retries). The DELETE that follows
