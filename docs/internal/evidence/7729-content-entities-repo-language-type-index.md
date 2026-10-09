@@ -10,6 +10,9 @@ This is a **Prove-The-Theory-First** record. The defect was reproduced on the
 production read replica, three predicate-only rewrites were measured and rejected
 there, and the index was measured on a scratch clone. No DDL ran on production.
 
+`repo-A` to `repo-I` in this note are stable one-to-one placeholders for the
+measured repository ids; the mapping is held outside the repository.
+
 ## The defect
 
 The #6540 gate wraps the ordered page read in
@@ -20,7 +23,7 @@ For a repository with many JavaScript functions the planner probes
 `(javascript, Function)` entries in heap order and discards every entry that
 belongs to another repository until the first row of the target repository.
 
-production read replica (PG 18.3, 2,240,821 `content_entities` rows),
+Measured on the production read replica (PG 18.3, 2,240,821 `content_entities` rows),
 `repository:repo-B` (241,726 rows, 44,433 JavaScript functions), body
 `{language: javascript, entity_type: function, limit: 10}`, 2026-10-08:
 
