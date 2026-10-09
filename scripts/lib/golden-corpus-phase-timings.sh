@@ -45,11 +45,12 @@ emit_phase_timings_and_flags() {
 
 	# #5837: assertion work that runs BETWEEN a bracket's open and close stamps has
 	# to be subtracted, or it is silently billed to pipeline startup. #5465's
-	# suppression producer proof sits inside one such bracket and is floored at a
-	# fixed 20s by its own expiry wait (golden_suppression_expiry_epoch = now +
-	# 20), so counting it pushes graph_query past its 8s effective ceiling (3s
-	# baseline + 5s absolute_slack_seconds) on ANY host — 20 > 8 by construction, a
-	# required failure with no pipeline slowdown behind it. See
+	# suppression producer proof sits inside one such bracket and is floored
+	# at a minimum set by its own expiry waits (#7740: B's 20s window plus
+	# the hidden-leg window), so counting them pushes graph_query past its
+	# 8s effective ceiling (3s baseline + 5s absolute_slack_seconds) on ANY
+	# host — any wait fails by construction, a required failure with no
+	# pipeline slowdown behind it. See
 	# docs/internal/evidence/5837-aws-drift-reopen.md, "Golden-gate phase-timing
 	# note"; the ~23s figure quoted elsewhere is illustrative, not captured.
 	# The orchestrator brackets that proof; everything bracketed is excluded here.

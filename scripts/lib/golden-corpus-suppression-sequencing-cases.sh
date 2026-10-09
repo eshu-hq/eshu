@@ -67,6 +67,20 @@ suppression_seq_run_case() (
 	sleep() {
 		echo $(($(cat "${epoch_file}") + $1)) >"${epoch_file}"
 	}
+	# Portable RFC3339 -> epoch for the lib's fixed '%Y-%m-%dT%H:%M:%SZ'
+	# stamps: BSD date -j first, GNU date -d fallback (mirroring the
+	# lib's try-BSD-then-GNU shape), so the sim runs wherever the lib
+	# does, macOS included. Uses command date to bypass the fake clock.
+	# Exits nonzero on unparseable input so callers keep their fallbacks.
+	suppression_seq_epoch_from_rfc3339() {
+		local stamp="$1" out
+		out="$(command date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "${stamp}" '+%s' 2>/dev/null || true)"
+		if [[ -z "${out}" ]]; then
+			out="$(command date -u -d "${stamp}" '+%s' 2>/dev/null || true)"
+		fi
+		[[ -n "${out}" ]] || return 1
+		printf '%s\n' "${out}"
+	}
 	# The lib uses python3 only for monotonic drain-wall timing.
 	python3() {
 		printf '%s.0\n' "$(cat "${epoch_file}")"
@@ -143,8 +157,8 @@ suppression_seq_run_case() (
 		if [[ -n "${data_file}" ]]; then
 			local id authored expires cve
 			id="$(jq -r '.suppression_id' "${data_file}")"
-			authored="$(command date -u -d "$(jq -r '.authored_at' "${data_file}")" '+%s')"
-			expires="$(command date -u -d "$(jq -r '.expires_at // empty' "${data_file}")" '+%s' 2>/dev/null || echo 9999999999)"
+			authored="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.authored_at' "${data_file}")")"
+			expires="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.expires_at // empty' "${data_file}")" 2>/dev/null || echo 9999999999)"
 			cve="$(jq -r '.scope.cve_id // empty' "${data_file}")"
 			if [[ -f "${state_dir}/${id}.payload" ]] && cmp -s "${data_file}" "${state_dir}/${id}.payload"; then
 				jq -n --arg id "${id}" \
@@ -303,10 +317,10 @@ fi
 	# B is a live 20s window, A a 200s window; the final expired readback
 	# pins (A, expired) — the persisted winner with state flipped.
 	local b_window a_window expired_id expired_state b_expires b_authored a_expires a_authored
-	b_expires="$(command date -u -d "$(jq -r '.expires_at' "${log_dir}/suppression-expiry-request.json")" '+%s')"
-	b_authored="$(command date -u -d "$(jq -r '.authored_at' "${log_dir}/suppression-expiry-request.json")" '+%s')"
-	a_expires="$(command date -u -d "$(jq -r '.expires_at' "${log_dir}/suppression-active-request.json")" '+%s')"
-	a_authored="$(command date -u -d "$(jq -r '.authored_at' "${log_dir}/suppression-active-request.json")" '+%s')"
+	b_expires="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.expires_at' "${log_dir}/suppression-expiry-request.json")")"
+	b_authored="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.authored_at' "${log_dir}/suppression-expiry-request.json")")"
+	a_expires="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.expires_at' "${log_dir}/suppression-active-request.json")")"
+	a_authored="$(suppression_seq_epoch_from_rfc3339 "$(jq -r '.authored_at' "${log_dir}/suppression-active-request.json")")"
 	b_window=$((b_expires - b_authored))
 	a_window=$((a_expires - a_authored))
 	expired_id="$(jq -r '.findings[0].suppression.suppression_id' "${log_dir}/suppression-expired_visible-query.json")"

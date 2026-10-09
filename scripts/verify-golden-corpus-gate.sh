@@ -376,7 +376,7 @@ for _ in $(seq 1 30); do
 done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 
-log "B-7 suppression producer truth: active -> hidden -> expired"
+log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
 # #5837: this proof runs inside the phase_graph_query window but is assertion
 # work, not pipeline startup — and it cannot go faster than the expiry waits
 # it schedules for itself (B's 20s window plus the hidden-leg window, #7740).
