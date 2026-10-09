@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/search/unscoped"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
@@ -165,7 +166,16 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	contentReader := query.NewContentReaderWithReadStore(readStore).WithInstruments(instruments)
+	// The unscoped file-search work budget (#7730) is read once here; an
+	// invalid ESHU_CONTENT_SEARCH_BUDGET_MS fails startup instead of running
+	// unbounded or starved.
+	contentSearchBudget, err := unscoped.BudgetFromEnv(getenv)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("configure content search budget: %w", err)
+	}
+	contentReader := query.NewContentReaderWithReadStore(readStore).
+		WithInstruments(instruments).
+		WithUnscopedSearch(contentSearchBudget, logger)
 	// The stored-summary reader is resolved once here: every snapshot
 	// transaction builds its own StatusStore, so a reader (or its shared live
 	// statement) owned by that store would never be shared (#7009).

@@ -6030,7 +6030,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ContentSearchTailCancel counter: %w", err)
 	}
 
-	contentSearchBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 0.8, 1, 1.5, 2.5, 5}
+	contentSearchBuckets := []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 	inst.ContentSearchUnscopedDuration, err = meter.Float64Histogram(
 		"eshu_dp_content_search_unscoped_duration_seconds",
 		metric.WithDescription("SQL wall time of one unscoped file-content search, by outcome."),
@@ -6045,7 +6045,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_content_search_unscoped_overrun_seconds",
 		metric.WithDescription("How far a cancelled statement ran past its own timeout in one unscoped file-content search; 0 when none overran."),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0, 0.025, 0.05, 0.1, 0.25, 0.5, 1),
+		metric.WithExplicitBucketBoundaries(0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContentSearchUnscopedOverrun histogram: %w", err)

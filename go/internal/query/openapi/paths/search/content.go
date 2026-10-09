@@ -129,7 +129,7 @@ const Content = `
       "post": {
         "tags": ["content"],
         "summary": "Search file content",
-        "description": "Searches file content by pattern.",
+        "description": "Searches file content by pattern. A search with no repository filter runs inside a work budget (ESHU_CONTENT_SEARCH_BUDGET_MS, default 800 ms): when the budget ends before the page is proven complete the answer is still HTTP 200, with truncated true, a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, hint) and truth level partial. The returned rows are an ordered prefix of the exact answer; resume with the cursor request field and offset max(0, offset - rows_matched), or add repo_id to scope the search.",
         "operationId": "searchFiles",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -155,7 +155,15 @@ const Content = `
                     "description": "Alias for query used by MCP content-search tools."
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200},
-                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}
+                  "offset": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000},
+                  "cursor": {
+                    "type": "object",
+                    "description": "Resumes a search with no repository filter strictly after this key. Use the cursor of a previous partial result. Refused (400) on any search that has a repository filter.",
+                    "properties": {
+                      "repo_id": {"type": "string"},
+                      "relative_path": {"type": "string"}
+                    }
+                  }
                 }
               }
             }
@@ -173,7 +181,27 @@ const Content = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean", "description": "True when another matching row follows the page, and always true when partial is present."},
+                    "partial": {
+                      "type": "object",
+                      "description": "Present only when a search with no repository filter ended at its work budget before the page was proven complete. results is then an ordered prefix of the exact answer.",
+                      "properties": {
+                        "reason": {"type": "string", "enum": ["candidate_budget_exceeded", "budget_exceeded_on_large_document"]},
+                        "rows_scanned_in_order": {"type": "integer", "description": "Rows visited in repo_id, relative_path order, up to and including cursor."},
+                        "rows_matched": {"type": "integer", "description": "Matching rows found so far, before the request offset is applied."},
+                        "cursor": {
+                          "type": "object",
+                          "properties": {
+                            "repo_id": {"type": "string"},
+                            "relative_path": {"type": "string"}
+                          }
+                        },
+                        "budget_ms": {"type": "integer", "description": "The requested work budget."},
+                        "elapsed_ms": {"type": "integer", "description": "SQL wall time the server measured."},
+                        "overrun_ms": {"type": "integer", "description": "How far a cancelled statement ran past its own timeout; above 100 the reason is budget_exceeded_on_large_document."},
+                        "hint": {"type": "string"}
+                      }
+                    }
                   }
                 }
               }
