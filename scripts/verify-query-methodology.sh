@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Production-bound #7881 pilot: deterministic contracts or disposable paired proof.
+# Standard and coverage boundary: docs/internal/query-engineering.md.
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="${1:---live}"

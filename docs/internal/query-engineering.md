@@ -35,6 +35,22 @@ and excluded families separately; pilot success is not universal query coverage.
 The executable schemas are `go/internal/queryplan/pilot_contract.go` and
 `pilot_evidence.go`; manifest entries link YAML contracts in `testdata/contracts/`.
 
+| Manifest family | Backend | Variants | Parameter cases |
+|---|---|---:|---:|
+| `QP-CLOUD-RESOURCE-IDENTITY-PAGE` | PostgreSQL | 64 | 96 |
+| `QP-CODE-IMPORT-CROSS-MODULE-CALLS` | Neo4j | 124 | 124 |
+| `QP-CODE-IMPORT-CYCLE-EDGES` | Neo4j | 4 | 4 |
+| `QP-CODE-IMPORT-PACKAGES` | Neo4j | 60 | 60 |
+| `QP-CODE-IMPORT-ROWS-REPOSITORY` | Neo4j | 28 | 30 |
+| `QP-CODE-IMPORT-SOURCE-MODULE-FILES` | Neo4j | 16 | 16 |
+| `QP-CODE-IMPORT-SOURCE-MODULE-ROWS` | Neo4j | 32 | 32 |
+| `QP-CODE-IMPORT-TARGET-MODULE-FILES` | Neo4j | 16 | 16 |
+
+The initial matrix also reports 19 legacy handler families and 108 excluded
+PostgreSQL candidate files. One PostgreSQL file has pilot execution-site proof;
+its registered adapter and two other reads have explicit exclusions. These
+counts describe the pilot boundary, not validated repository-wide semantics.
+
 ## PostgreSQL patterns
 
 Use PostgreSQL 18 semantics. The engine version and image identity in each
@@ -121,6 +137,9 @@ speedup claim. A query rewrite needs independently built base and candidate
 executables before this runner can supply comparative evidence for that change.
 PostgreSQL cold preparation discards plans; it does not evict operating-system
 or shared-buffer caches. Neo4j records first-pass and warm samples separately.
+The graph runner records actual calls for each of the 488 request shapes and
+fails when a request exceeds three graph reads, including repeated identical
+statements. Each emitted-statement artifact separately records its one read.
 
 ## Enforcement stages
 
