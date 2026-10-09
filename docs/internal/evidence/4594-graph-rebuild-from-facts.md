@@ -608,7 +608,7 @@ story fitted to one number. Three things line up:
 2. **Nothing re-checks it.** `WriteEdges` returns a report whose `writtenRows` is
    the count *submitted*, not the count the backend matched, and the runner then
    unconditionally calls `MarkIntentsCompleted`
-   (`reducer/code_call_projection_runner.go:461`). There is no repair queue on
+   (`reducer/code/call/projection/runner.go`). There is no repair queue on
    the code-call family, unlike workload materialization.
 3. **The readiness gate only covers the caller's repository.** `code_calls` is
    gated on canonical-nodes-committed, but the key is built from the intent's own
