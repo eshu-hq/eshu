@@ -1,0 +1,423 @@
+######## repository_retirements rows=0
+ rows | open_rows
+------+-----------
+    0 |         0
+(1 row)
+
+--- MISS (no open marker), custom plan, run 1 (cold-ish)
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.005..0.006 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:nomatch:1'::text))
+ Planning:
+   Buffers: shared hit=27
+ Planning Time: 0.129 ms
+ Execution Time: 0.016 ms
+(7 rows)
+
+--- MISS custom plan, runs 2-6 (last shown)
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.004..0.004 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.004..0.004 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:nomatch:2'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.019 ms
+ Execution Time: 0.011 ms
+(7 rows)
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:nomatch:3'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.011 ms
+ Execution Time: 0.008 ms
+(7 rows)
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:nomatch:4'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.011 ms
+ Execution Time: 0.007 ms
+(7 rows)
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:nomatch:5'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.009 ms
+ Execution Time: 0.007 ms
+(7 rows)
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:nomatch:6'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.008 ms
+ Execution Time: 0.006 ms
+(7 rows)
+
+--- HIT (open marker present), custom plan
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:rr:000007'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.008 ms
+ Execution Time: 0.006 ms
+(7 rows)
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = 'repo:rr:000013'::text))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.008 ms
+ Execution Time: 0.007 ms
+(7 rows)
+
+--- MISS, GENERIC plan (prepared statement after 5 executions, as pgx/database-sql will run it)
+SET
+PREPARE
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.006..0.006 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.006..0.006 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = $1))
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.020 ms
+ Execution Time: 0.010 ms
+(7 rows)
+
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = $1))
+ Planning Time: 0.001 ms
+ Execution Time: 0.006 ms
+(5 rows)
+
+--- HIT, GENERIC plan
+                                                        QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+   ->  Seq Scan on repository_retirements  (cost=0.00..0.00 rows=1 width=26) (actual time=0.003..0.003 rows=0.00 loops=1)
+         Filter: ((readmitted_at IS NULL) AND (repo_id = $1))
+ Planning Time: 0.001 ms
+ Execution Time: 0.006 ms
+(5 rows)
+
+######## repository_retirements rows=100
+ rows | open_rows
+------+-----------
+  100 |        90
+(1 row)
+
+--- MISS (no open marker), custom plan, run 1 (cold-ish)
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.009..0.009 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.008..0.008 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:1'::text)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=23
+ Planning Time: 0.151 ms
+ Execution Time: 0.026 ms
+(10 rows)
+
+--- MISS custom plan, runs 2-6 (last shown)
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:2'::text)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.019 ms
+ Execution Time: 0.013 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:3'::text)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.014 ms
+ Execution Time: 0.017 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:4'::text)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.015 ms
+ Execution Time: 0.012 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:5'::text)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.014 ms
+ Execution Time: 0.012 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:6'::text)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.015 ms
+ Execution Time: 0.012 ms
+(8 rows)
+
+--- HIT (open marker present), custom plan
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=1.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=1.00 loops=1)
+         Index Cond: (repo_id = 'repo:rr:000007'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.014 ms
+ Execution Time: 0.015 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=1.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=1.00 loops=1)
+         Index Cond: (repo_id = 'repo:rr:000013'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.016 ms
+ Execution Time: 0.016 ms
+(8 rows)
+
+--- MISS, GENERIC plan (prepared statement after 5 executions, as pgx/database-sql will run it)
+SET
+PREPARE
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.008..0.008 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=0.00 loops=1)
+         Index Cond: (repo_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.035 ms
+ Execution Time: 0.018 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.006..0.006 rows=0.00 loops=1)
+   Buffers: shared hit=1
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.006..0.006 rows=0.00 loops=1)
+         Index Cond: (repo_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=1
+ Planning Time: 0.002 ms
+ Execution Time: 0.011 ms
+(8 rows)
+
+--- HIT, GENERIC plan
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.14..2.36 rows=1 width=26) (actual time=0.008..0.008 rows=1.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.14..2.36 rows=1 width=26) (actual time=0.007..0.007 rows=1.00 loops=1)
+         Index Cond: (repo_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.002 ms
+ Execution Time: 0.012 ms
+(8 rows)
+
+######## repository_retirements rows=10000
+ rows  | open_rows
+-------+-----------
+ 10000 |      9000
+(1 row)
+
+--- MISS (no open marker), custom plan, run 1 (cold-ish)
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.015..0.016 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.015..0.015 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:1'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=23
+ Planning Time: 0.524 ms
+ Execution Time: 0.046 ms
+(10 rows)
+
+--- MISS custom plan, runs 2-6 (last shown)
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.010..0.010 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.009..0.009 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:2'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.043 ms
+ Execution Time: 0.023 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.006..0.006 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.006..0.006 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:3'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.021 ms
+ Execution Time: 0.015 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.011..0.011 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.010..0.011 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:4'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.038 ms
+ Execution Time: 0.045 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.007..0.007 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.007..0.007 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:5'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.031 ms
+ Execution Time: 0.018 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.005..0.005 rows=0.00 loops=1)
+         Index Cond: (repo_id = 'repo:nomatch:6'::text)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.017 ms
+ Execution Time: 0.013 ms
+(8 rows)
+
+--- HIT (open marker present), custom plan
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.010..0.010 rows=1.00 loops=1)
+   Buffers: shared hit=3
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.010..0.010 rows=1.00 loops=1)
+         Index Cond: (repo_id = 'repo:rr:000007'::text)
+         Index Searches: 1
+         Buffers: shared hit=3
+ Planning Time: 0.018 ms
+ Execution Time: 0.022 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.006..0.006 rows=1.00 loops=1)
+   Buffers: shared hit=3
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.006..0.006 rows=1.00 loops=1)
+         Index Cond: (repo_id = 'repo:rr:000013'::text)
+         Index Searches: 1
+         Buffers: shared hit=3
+ Planning Time: 0.014 ms
+ Execution Time: 0.014 ms
+(8 rows)
+
+--- MISS, GENERIC plan (prepared statement after 5 executions, as pgx/database-sql will run it)
+SET
+PREPARE
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.008..0.008 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.007..0.007 rows=0.00 loops=1)
+         Index Cond: (repo_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.032 ms
+ Execution Time: 0.021 ms
+(8 rows)
+
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.008..0.008 rows=0.00 loops=1)
+   Buffers: shared hit=2
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.008..0.008 rows=0.00 loops=1)
+         Index Cond: (repo_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=2
+ Planning Time: 0.003 ms
+ Execution Time: 0.014 ms
+(8 rows)
+
+--- HIT, GENERIC plan
+                                                                              QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..2.50 rows=1 width=26) (actual time=0.010..0.010 rows=1.00 loops=1)
+   Buffers: shared hit=3
+   ->  Index Scan using repository_retirements_open_repo_idx on repository_retirements  (cost=0.29..2.50 rows=1 width=26) (actual time=0.010..0.010 rows=1.00 loops=1)
+         Index Cond: (repo_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=3
+ Planning Time: 0.002 ms
+ Execution Time: 0.016 ms
+(8 rows)

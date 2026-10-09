@@ -11,8 +11,9 @@ and phase 1), [Concurrency Contract](7766-repository-retirement-concurrency.md)
 Binding inputs: the arbiter rulings on
 [#7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598) and
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-and the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)).
-Source check: origin/main 3b03f018e, 2026-10-09.
+the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
+and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), section 3.
+Source check: origin/main c88c3806a, 2026-10-09.
 
 Deliverable 2 completes what Deliverable 1 starts. Deliverable 1 leaves the
 scope `pending`, fenced, and reported `retiring`. The runner takes it through
@@ -26,7 +27,7 @@ P1q, P9a to P9d, and P10' before code lands (see the
 The runner claims rows from `repository_retirements_runnable_idx` with
 `FOR UPDATE SKIP LOCKED`, `lease_owner`, and `claim_until` (60s, heartbeat).
 Every step persists `phase` and `graph_step_cursor`. The order is
-**2a, 2q, 2b, 2b', 2c, 2d, 2e, 2z**. The invariants I1 to I4 in the
+**2a, 2q, 2b, 2b', 2c, 2d, 2d', 2e, 2z**. The invariants I1 to I4 in the
 [concurrency contract](7766-repository-retirement-concurrency.md#invariants) are
 what make the order safe.
 
@@ -38,7 +39,8 @@ what make the order safe.
 | 2b', lease-epoch wait | `blocked/shared_lease_live` | `barrier` | Same |
 | 2c, graph | `repairing_graph` | `graph_retract` | Below |
 | 2d, purge | `running`, `blocked/scope_lock_busy` | `purge` | Below |
-| 2e, repo-keyed leftovers | `running` | `purge` | Below |
+| 2d', lease settle | `running`, `next_attempt_at` in the future | set by the last 2d batch: `census` | Below |
+| 2e, repo-keyed leftovers | `running` | `census` | Below |
 | 2z, residue census | `running`, `failed/graph_residue` | `census` | Below |
 
 2q re-runs on every runner resume while the phase is before `purge`, because a
@@ -64,6 +66,26 @@ resumed runner cannot assume the queue stayed quiet.
      (`migrations/011:2-5`), and the rest (the
      [census](7766-repository-retirement-table-census.md#purged-at-2d-by-the-generation-cascade) lists them).
   4. `rows_deleted = rows_deleted + batch` in the same transaction, then commit.
+- **2d', lease settle.** When the last 2d batch commits, set `phase='census'`
+  and `next_attempt_at = clock_timestamp() + ReducerQueue.LeaseDuration` in the
+  same transaction. The runner's claim honours `next_attempt_at` through
+  `repository_retirements_runnable_idx`, so 2e and 2z run no earlier than one
+  reducer lease after the last cascade. A cascaded fresh-id row can have a
+  handler that claimed it before the cascade and writes after it: the workload
+  materializer writes the graph directly through `CypherExecutor.ExecuteCypher`
+  (`reducer/workload_materializer.go:18-19`, `:104`), not through intents. A
+  heartbeat on a vanished row affects 0 rows and returns `ErrReducerClaimRejected`
+  (`storage/postgres/reducer_queue.go:385-409`), and the reducer service cancels
+  the handler context on the first periodic failure
+  (`reducer/service_heartbeat.go:97-123`; interval `LeaseDuration/2`,
+  `cmd/reducer/main.go:404`; lease 1 min, `cmd/reducer/main_helpers.go:53`). So a
+  handler whose row the cascade removed is cancelled within `LeaseDuration/2` plus
+  one in-flight statement, and the lease TTL is the bound the lease contract
+  gives. No new column and no new `blocked_reason`: the cost is one pause of
+  about one lease (1 min by default) in a background runner. Residual: a handler
+  that ignores cancellation past its lease is outside the lease contract, as
+  every lease in the system today. Placing 2e after the settle also lets it sweep
+  repo-keyed rows a late writer produced.
 - **2e, repo-keyed leftovers, chunked 10,000 by ctid.** Tables with no
   generation FK and a repo or scope key that retention does not reach. The
   [census](7766-repository-retirement-table-census.md#removed-at-2e)
@@ -83,7 +105,8 @@ resumed runner cannot assume the queue stayed quiet.
   - Dirty: re-run 2c once and re-census.
   - Still dirty: `state=failed`, `failure_class=graph_residue`, the census in
     `failure_details`. A re-issue resumes at 2c.
-  - A retirement never reaches `complete` with residue.
+  - A retirement never reaches `complete` with residue that a lease-abiding
+    writer could have produced; 2z is the census that proves it.
 
   The full table coverage is a CI test, not a runtime query (see the census).
 
@@ -125,6 +148,8 @@ Crash or restart: the lease expires, and another runner reclaims the row and
 resumes at `phase` and the cursor:
 - each 2d batch committed its deletes and its counts together, so a re-run
   selects only the generations that remain;
+- the settle rides in the last 2d batch's transaction, so a crash resumes at
+  `census` with `next_attempt_at` already set and the lease wait is not skipped;
 - a graph statement re-run deletes nothing;
 - 2q and 2b re-run to zero. `intent_barrier_at` is set once, after the delete
   commits, and a re-run never moves it earlier;

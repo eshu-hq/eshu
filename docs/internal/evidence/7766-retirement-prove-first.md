@@ -7,13 +7,25 @@ is free (P2), and a shared-projection worker drops intents whose acceptance or
 generation is gone (P9). P1 and P9 failed as designed, and P2 passed only after
 the gate was folded into the scope upsert. The design was amended per the
 arbiter ruling on these results. The design files are
-`docs/internal/design/7766-repository-retirement*.md`; this note is the record
-of the numbers and the material to re-run them.
+`docs/internal/design/7766-repository-retirement*.md`.
+
+This note is the index and the record of the numbers. The raw per-run outputs,
+the fixture SQL, and the shell wrappers are committed in the directory
+[7766-retirement-prove-first/](7766-retirement-prove-first/), which follows the
+`7265-liveness-recovery-progress-window/` precedent (see [Files](#files)). The Go
+drivers that produced the outputs are described, not committed (see
+[Harness not committed](#harness-not-committed)). This is the
+raw-output branch of the round 3 F10 ruling; the arbiter ruling, round 4
+([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231))
+chose it over a committed harness.
 
 Scope: Postgres only, no graph backend. The harness ran against a throwaway
 container and never touched shared data. Everything under "Results" was
-measured on 2026-10-08. Nothing here measures the final design: P1', P1q, P2',
-and P9a to P9d are still owed (see the design's prove-first table).
+measured on 2026-10-08 on code at origin/main `3b03f018e` plus scratch edits.
+Nothing here measures the final design: P1', P1q, P2', and P9a to P9d are still
+owed (see the design's prove-first table), and every owed bar must be measured
+by a live test or benchmark committed in the implementing PR, never by scratch
+code.
 
 ## Method
 
@@ -33,11 +45,19 @@ and P9a to P9d are still owed (see the design's prove-first table).
 
 ### Data
 
-- Background: 12,000 scopes and 729,462 generations, lognormal per-scope counts
-  (p50 27, p90 141, p99 522, max 3,280), heavier than the QA shape's p99 of 79.
-  Status mix: 12,000 active, 941 pending, 325 failed, the rest superseded. Two
-  reducer rows and one projector row per generation. The final database held
-  2.2M generations and 8.0M work items, about 3x QA scale.
+- Background (`sql/01_seed_background.sql`, `sql/02_seed_background_work.sql`):
+  12,000 scopes and 729,462 generations, lognormal per-scope counts (p50 27,
+  p90 141, p99 522, max 3,280), heavier than the QA shape's p99 of 79. Status
+  mix: 12,000 active, 941 pending, 325 failed, the rest superseded. Two reducer
+  rows and one projector row per generation.
+- Totals across all seed scripts, summed from the `INSERT 0 n` lines in
+  `out/01_seed_bg.out` to `out/06_seed_targets_final.out`: 2,126,917 generations
+  (729,462 background, then 435,330, 261,195, and 700,930 from seeds 04, 05, and
+  06) and 9,175,661 work-item inserts (2,188,386 from seed 02, then
+  2,176,650, 1,305,975, and 3,504,650 from seeds 04, 05, and 06). That is about 2.13M generations and
+  9.18M work-item inserts, roughly 2.9x the QA shape's 739,838 generations.
+  These are insert counts, not a final row count: the design-form commit-mode
+  runs deleted reducer rows (7d), and nothing recorded the final table size.
 - Shapes: **R** has one pending, one active, and one failed generation and the
   rest superseded. **W** has every non-active generation pending or failed. **M**
   is a 25-repo request (one 5,000, one 3,280, and 23 of 79 generations,
@@ -48,6 +68,15 @@ and P9a to P9d are still owed (see the design's prove-first table).
   blocking runs. `Rw5000` is the R shape with 5,000 generations in the `w` set.
   `Rc`, `Rh`, `Wc`, and `Wh` have 20 groups each (n=20). `Mc` and the `w` and
   `Bk` families have 10 (n=10).
+- Which script built which family: `sql/06_seed_targets_final.sql` builds the
+  `c` and `h` families and `Mc`. `sql/05_seed_targets_extra.sql` builds the `w`
+  and `Bk` families (`Rw79`, `Rw3280`, `Rw5000`, `Ww5000`, `Bk5000`, `Bk79`,
+  `BkW5000`), the cold extras (run 21 and M:11) that replace runs pre-warmed by
+  the EXPLAIN pass, and run 21 of each R and W size. `sql/04_seed_targets.sql`
+  is the first pass: the 20-run R and W singles at 79, 3,280, and 5,000, and ten
+  25-repo requests. It fed the EXPLAIN runs and the exploratory
+  `p1_time_R5000_design.csv`, and no figure in the tables below comes from it
+  except that file's exploratory row.
 
 ### What was timed
 
@@ -56,7 +85,7 @@ locks and the scope-row lock outside the window, then
 `LOCK TABLE fact_work_items IN EXCLUSIVE MODE`, the live-lease recheck, steps 7a
 to 7g (the design-form 7f lease-horizon read is included), and `COMMIT` or
 `ROLLBACK`. `lock_to_commit_ms` runs from the lock request to the end of the
-commit.
+commit. The statements are in `sql/p1_timed_statements.sql`.
 
 - **Design form** binds 7c, 7d, and the recheck to every
   `(scope_id, generation_id)` pair. 7d is a DELETE.
@@ -73,6 +102,9 @@ the same total and must not be compared as a speedup.
 ## Results
 
 ### P1: design form, commit mode (failed)
+
+Per-run rows: `out/p1_time_{Rc,Rh,Wc,Wh,Mc}*_design_*.csv`; the table is
+`out/p1_summary.txt`, regenerated from them by `summarize_p1.py`.
 
 Milliseconds, lock request to commit. The last four columns are mean
 per-statement times; `(r)` is rows affected.
@@ -113,18 +145,21 @@ is exploratory and not used.
 | Rw5000 | cold | `scope` | 46.9 | 180.2 | |
 | Rw5000 | warm | `scope` | 27.5 | 41.8 | |
 
-Caveat: the tuned Ww5000 files record 107 to 171 rows for 7a and 106 to 170 for
-7c per run, not 5,000, while 7d records 19,996. So the 184.9 ms figure does not
-prove the 5,000-row 7a and 7c leg. The cause was not investigated, and P1'
-re-measures at the precheck limits in commit mode.
+Caveat: the tuned Ww5000 files (`out/p1_time_Ww5000_tuned_*_rollback.csv`)
+record 107 to 171 rows for 7a and 106 to 170 for 7c per run, not 5,000, while 7d
+records 19,996. So the 184.9 ms figure does not prove the 5,000-row 7a and 7c
+leg. No run examined why those row counts are low, and P1' re-measures at the
+precheck limits in commit mode.
 
 ### P1: fleet pause
 
 Claim-shaped statements ran against unrelated scopes while the section ran:
 three that claim a pending row, two heartbeat-shaped, and one enqueue-shaped,
-all design-form (the three shapes are in the SQL below). The real projector
-claim did not finish in 150 s on this fixture, so the harness used proxies of
-the same shape. n=10 per family, milliseconds.
+all design-form (the three shapes are in `sql/p1_claim_proxies.sql`). The
+harness used proxies of the same shape because a probe of the real projector
+claim, run with a 150 s deadline, did not finish on this fixture. That probe's
+output was not kept, so the 150 s observation is unrecorded. n=10 per family,
+milliseconds.
 
 | Shape | Section p50 | Section max | Blocked statement max | Baseline statement p50 |
 | --- | --- | --- | --- | --- |
@@ -133,8 +168,10 @@ the same shape. n=10 per family, milliseconds.
 | R79, excluding run 1 | 4.0 | 4.8 | 5.4 | 0.8 |
 
 R79 run 1 stalled: the lock request waited 451,585.3 ms (the section took
-451,635.6 ms) behind a leftover real claim statement of about 7.5 minutes. That
-is the convoy the design guards against. Claim-shaped statements started inside
+451,635.6 ms). The harness labelled it a wait behind a leftover real claim
+statement of about 7.5 minutes (`out/p1_block_summary.txt`); the statement
+itself was not recorded, so that attribution is unrecorded too. The stall is
+the convoy shape the design guards against. Claim-shaped statements started inside
 the section: 60 for R5000, 58 for W5000, and 54 for R79 without run 1.
 
 ### P1: convoy
@@ -148,9 +185,9 @@ by the table lock, not from the advisory wait.
 
 - **Lookup.** At 0 rows the planner used a sequential scan, 0.006 to 0.016 ms.
   At 100 and 10,000 rows it used an index scan on
-  `repository_retirements_open_repo_idx`: 0.011 to 0.046 ms in custom plans and
+  `repository_retirements_open_repo_idx`: 0.012 to 0.046 ms in custom plans and
   0.011 to 0.021 ms in generic plans (prepared after five executions, as `pgx`
-  runs it). `pgbench` over a unix socket, one client, prepared protocol, 8 s
+  runs it; `out/p2_explain.txt`). `pgbench` over a unix socket, one client, prepared protocol, 8 s
   each: protocol floor 0.004 ms; miss 0.005 ms at 0 rows and 0.008 ms at
   10,000; hit 0.004 ms and 0.009 ms.
 - **End to end.** A scratch benchmark committed one generation per arm per
@@ -171,7 +208,12 @@ real commit code, and facts=400 had four runs.
 
 ### P9: shared worker and orphan intents
 
-Real Postgres, the real shared worker.
+Real Postgres, the real shared worker, at origin/main `3b03f018e`. Outputs:
+`out/p9_run1.txt` (the case table), `out/p9_run2.txt` (P9H and a first
+starvation run), `out/p9_run3_starvation.txt`. The shared worker's `process.go`
+and `selection.go` were restructured on main after these runs (#7724, now at
+`c88c3806a`); the orphan skip is unchanged in `FilterAuthoritativeIntents`
+(`selection.go:134-155`), but nothing here re-ran P9 on that code (NOT_CHECKED).
 
 | Case | Result |
 | --- | --- |
@@ -205,272 +247,94 @@ The horizon wait would have passed at 1.5 s with the writer holding a renewed
 lease until 4.0 s. The design's wait was unsound, and the intent-delete barrier
 replaced it.
 
+## Files
+
+Everything below is under `docs/internal/evidence/7766-retirement-prove-first/`.
+The outputs are the tool output of the 2026-10-08 runs, with three changes:
+colons in file names became hyphens (`p1_explain_M:01_design.txt` is
+`p1_explain_M-01_design.txt`); `out/p1_summary.txt` was regenerated from the CSVs
+by `summarize_p1.py` because the original file lacked five tuned rows; and the
+repository's pre-commit hooks trimmed trailing whitespace in
+`out/p2_explain.txt` and `out/p2_bench_2arm_partial.txt`. No
+DSN, password, or absolute path of the scratch machine appears in any file.
+
+| Path | What it holds | Backs |
+| --- | --- | --- |
+| `sql/00_marker_table.sql` | The first-draft `repository_retirements` DDL, applied to the scratch database only | P2 |
+| `sql/01_seed_background.sql`, `sql/02_seed_background_work.sql`, `sql/03_seed_leases.sql` | Background scopes, generations, work items, leases, reindex requests, partition leases | all |
+| `sql/04_seed_targets.sql`, `sql/05_seed_targets_extra.sql`, `sql/06_seed_targets_final.sql` | Target scopes and their rows (see "Which script built which family") | P1 |
+| `sql/p1_timed_statements.sql`, `sql/p1_claim_proxies.sql` | The statements the P1 driver and the fleet-pause workers ran (bind parameters; documentation, not runnable) | P1 |
+| `sql/p2_setup.sql` | Marker-row loader, psql variable `n` | P2 |
+| `psql.sh`, `run_p2_bench.sh`, `summarize_p1.py` | Shell wrappers and the CSV summariser. `run_p2_bench.sh` records how the P2 numbers ran; it needs the uncommitted benchmark | P1, P2 |
+| `out/0[0-6]_*.out` | psql output of each seed script, with the `INSERT 0 n` counts behind the totals | Data |
+| `out/p1_time_*.csv` | Per-run P1 timings, one row per run, per-statement columns | P1 tables |
+| `out/p1_block_*.csv`, `out/p1_block_summary.txt` | Fleet-pause runs | fleet pause |
+| `out/p1_explain_*.txt` | `EXPLAIN (ANALYZE, BUFFERS)` of each timed statement per shape and cache state | P1 |
+| `out/p1_convoy_*.txt` | The convoy runs | convoy |
+| `out/p1_summary.txt` | One line per timing CSV | P1 tables |
+| `out/p2_explain.txt`, `out/p2_pgbench.txt` | Lookup plans and `pgbench` latency | P2 lookup |
+| `out/p2_bench.txt`, `out/p2_bench_summary.txt`, `out/p2_bench_2arm_partial.txt` | End-to-end commit benchmark; the summary is the source of the P2 table; the partial file is an earlier two-arm run | P2 end to end |
+| `out/p9_run1.txt`, `out/p9_run2.txt`, `out/p9_run3_starvation.txt` | P9 cases, P9H, and starvation. Lines cite `proof7766_p9_test.go`, a scratch file that is not committed | P9 |
+
+Omitted: 14 `out/explain_*.err` files, which were empty stderr captures. The
+Go drivers and tests are the only material not committed.
+
 ## Reproducing
 
-Order: start a disposable Postgres 18 with `shared_buffers=2GB` and
-`pg_buffercache`; apply the bootstrap schema; run the SQL below in order; build
-the drivers described at the end. Pass the DSN through an environment variable
-(`PROOF_PG_DSN`); no credential belongs in a file.
+Order: start a disposable Postgres 18 container named `eshu-proof-7766` with
+`shared_buffers=2GB` and `pg_buffercache`; apply the bootstrap schema; run the
+files in `sql/` in numeric order through `./psql.sh < sql/<file>`
+(`00_marker_table.sql` through `06_seed_targets_final.sql`, then `p2_setup.sql`
+for P2 with `-v n=<rows>`). Build the drivers described below. Pass the DSN
+through `PROOF_PG_DSN`; no credential belongs in a file.
 
-### Background scopes and generations
-
-```sql
-SET synchronous_commit = off;
-SELECT setseed(0.7766);
-DROP TABLE IF EXISTS _bg_counts;
-CREATE TABLE _bg_counts AS
-WITH z AS (SELECT i, sqrt(-2*ln(1-random()))*cos(2*pi()*random()) AS z FROM generate_series(1,12000) i)
-SELECT i, least(3280, greatest(2, round(27*exp(1.27*z))))::int AS n,
-       (random() < 0.08) AS has_pending, (random() < 0.03) AS has_failed
-FROM z;
-
-INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, parent_scope_id, collector_kind,
-                              partition_key, observed_at, ingested_at, status, active_generation_id, payload)
-SELECT 'scope:bg:'||lpad(i::text,5,'0'), 'repository', 'git', 'src:bg:'||i, NULL, 'git',
-       'repo:bg:'||lpad(i::text,5,'0'), now(), now(), 'active', NULL,
-       jsonb_build_object('repo_slug','org/bg-'||i)
-FROM _bg_counts;
-
--- generations: history rows k=1..n (k=n active, rest superseded); extra pending/failed rows.
-INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, superseded_at, payload)
-SELECT 'gen:bg:'||lpad(c.i::text,5,'0')||':'||g.k,
-       'scope:bg:'||lpad(c.i::text,5,'0'), 'snapshot',
-       ts, ts + interval '1 minute',
-       CASE WHEN g.k = c.n THEN 'active' WHEN g.k = 0 THEN 'pending' WHEN g.k = -1 THEN 'failed' ELSE 'superseded' END,
-       CASE WHEN g.k >= 1 THEN ts + interval '2 minutes' END,
-       CASE WHEN g.k BETWEEN 1 AND c.n-1 THEN ts + interval '1 day' END,
-       '{}'::jsonb
-FROM _bg_counts c
-CROSS JOIN LATERAL (
-   SELECT k FROM generate_series(1, c.n) k
-   UNION ALL SELECT 0 WHERE c.has_pending
-   UNION ALL SELECT -1 WHERE c.has_failed
-) g
-CROSS JOIN LATERAL (
-   SELECT now() - interval '200 days' + (CASE WHEN g.k <= 0 THEN c.n+1 ELSE g.k END) * (interval '199 days' / (c.n+1))
-          + (c.i % 977) * interval '1 second' AS ts
-) t
-ORDER BY ts, c.i;
-
-UPDATE ingestion_scopes s SET active_generation_id = 'gen:bg:'||substr(s.scope_id,10)||':'||c.n
-FROM _bg_counts c WHERE s.scope_id = 'scope:bg:'||lpad(c.i::text,5,'0');
-```
-
-### Background work items
-
-```sql
-SET synchronous_commit = off;
--- projector row per generation
-INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, visible_at, created_at, updated_at, failure_class)
-SELECT 'proj:'||g.generation_id, g.scope_id, g.generation_id, 'projector', 'source_local',
-       CASE g.status WHEN 'pending' THEN 'pending' WHEN 'failed' THEN 'failed' ELSE 'succeeded' END,
-       CASE WHEN g.status='pending' THEN g.ingested_at END,
-       g.ingested_at, g.ingested_at + interval '3 minutes',
-       CASE WHEN g.status='failed' THEN 'projection_error' END
-FROM scope_generations g WHERE g.scope_id LIKE 'scope:bg:%';
--- two reducer rows per generation
-INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, visible_at, created_at, updated_at, payload)
-SELECT 'red:'||d.dom||':'||g.generation_id, g.scope_id, g.generation_id, 'reducer', d.dom,
-       CASE g.status WHEN 'pending' THEN 'pending' WHEN 'failed' THEN 'dead_letter' ELSE 'succeeded' END,
-       CASE WHEN g.status='pending' THEN g.ingested_at END,
-       g.ingested_at, g.ingested_at + interval '5 minutes', '{"source_system":"git"}'::jsonb
-FROM scope_generations g CROSS JOIN (VALUES ('workload_materialization'),('deployment_mapping')) d(dom)
-WHERE g.scope_id LIKE 'scope:bg:%';
-```
-
-### Leases and reindex requests
-
-```sql
-SET synchronous_commit = off;
--- live projector leases on 60 other (background) scopes, expired ones on 20 more
-WITH pick AS (SELECT s.scope_id, row_number() OVER (ORDER BY s.scope_id) rn FROM ingestion_scopes s WHERE s.scope_id LIKE 'scope:bg:%' AND (substr(s.scope_id,10)::int % 150)=7)
-UPDATE fact_work_items w SET status = CASE WHEN p.rn <= 60 THEN 'running' ELSE 'claimed' END,
-       lease_owner = 'proj-live', claim_until = CASE WHEN p.rn <= 60 THEN now() + interval '30 days' ELSE now() - interval '1 hour' END
-FROM pick p, ingestion_scopes s
-WHERE s.scope_id = p.scope_id AND w.work_item_id = 'proj:'||s.active_generation_id AND p.rn <= 80;
--- live + expired reducer leases (one per scope: live-lease unique index)
-WITH pick AS (SELECT s.scope_id, s.active_generation_id, row_number() OVER (ORDER BY s.scope_id) rn FROM ingestion_scopes s WHERE s.scope_id LIKE 'scope:bg:%' AND (substr(s.scope_id,10)::int % 150)=11)
-UPDATE fact_work_items w SET status = CASE WHEN p.rn <= 40 THEN 'claimed' WHEN p.rn <= 60 THEN 'running' ELSE 'claimed' END,
-       lease_owner = 'red-live', claim_until = CASE WHEN p.rn <= 60 THEN now() + interval '30 days' ELSE now() - interval '1 hour' END
-FROM pick p
-WHERE w.work_item_id = 'red:workload_materialization:'||p.active_generation_id AND p.rn <= 80;
--- reindex requests on 200 background scopes
-INSERT INTO repository_reindex_requests (scope_id, requested_at)
-SELECT scope_id, now() FROM ingestion_scopes WHERE scope_id LIKE 'scope:bg:%' AND (substr(scope_id,10)::int % 60)=3;
--- shared projection partition leases: 4 domains x 8 partitions, some live
-INSERT INTO shared_projection_partition_leases (projection_domain, partition_id, partition_count, lease_owner, lease_expires_at, updated_at)
-SELECT d.dom, p, 8, CASE WHEN (p % 3)=0 THEN 'shared-worker-'||p END,
-       CASE WHEN (p % 3)=0 THEN clock_timestamp() + interval '30 days' WHEN (p%3)=1 THEN clock_timestamp() - interval '1 hour' END, now()
-FROM (VALUES ('platform_infra'),('workload_dependency'),('inheritance_edges'),('sql_relationships')) d(dom), generate_series(0,7) p;
-```
-
-### Target scopes
-
-Run once before the next block: `CREATE TABLE _targets (scope_id text primary
-key, repo_id text, variant text, grp text, n int);`. The `w` and `Bk` families
-(10 groups each) come from the same statement with
-`('Rw79','R',79),('Rw3280','R',3280),('Rw5000','R',5000),('Ww5000','W',5000),
-('Bk5000','R',5000),('Bk79','R',79),('BkW5000','W',5000)` in place of the `c`
-and `h` list and `generate_series(1,10)` in place of `(1,20)`.
-
-```sql
-SET synchronous_commit = off;
-DROP TABLE IF EXISTS _targets_new;
-CREATE TABLE _targets_new (scope_id text primary key, repo_id text, variant text, grp text, n int);
-INSERT INTO _targets_new
-SELECT 'scope:t:'||fam||':'||lpad(r::text,2,'0'), 'repo:t:'||fam||':'||lpad(r::text,2,'0'), v, fam||':'||lpad(r::text,2,'0'), sz
-FROM (VALUES ('Rc79','R',79),('Rc3280','R',3280),('Rc5000','R',5000),
-             ('Rh79','R',79),('Rh3280','R',3280),('Rh5000','R',5000),
-             ('Wc5000','W',5000),('Wc3280','W',3280),('Wh5000','W',5000)) f(fam,v,sz),
-     generate_series(1,20) r;
--- 25-repo requests (1x5000, 1x3280, 23x79), realistic statuses, cold
-INSERT INTO _targets_new
-SELECT 'scope:t:Mc:'||lpad(r::text,2,'0')||':'||lpad(j::text,2,'0'), 'repo:t:Mc:'||lpad(r::text,2,'0')||':'||lpad(j::text,2,'0'), 'R', 'Mc:'||lpad(r::text,2,'0'),
-       CASE j WHEN 1 THEN 5000 WHEN 2 THEN 3280 ELSE 79 END
-FROM generate_series(1,10) r, generate_series(1,25) j;
-INSERT INTO _targets SELECT * FROM _targets_new;
-INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, parent_scope_id, collector_kind,
-                              partition_key, observed_at, ingested_at, status, active_generation_id, payload)
-SELECT scope_id, 'repository', 'git', 'src:'||scope_id, NULL, 'git', repo_id, now(), now(), 'active', NULL,
-       jsonb_build_object('repo_slug','org/'||repo_id)
-FROM _targets_new;
-
-INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, superseded_at, payload)
-SELECT t.scope_id||':g'||k, t.scope_id, 'snapshot', ts, ts + interval '1 minute',
-       CASE
-         WHEN t.variant='R' AND k = t.n THEN 'pending'
-         WHEN t.variant='R' AND k = t.n-1 THEN 'active'
-         WHEN t.variant='R' AND k = t.n-2 THEN 'failed'
-         WHEN t.variant='W' AND k = t.n-1 THEN 'active'
-         WHEN t.variant='W' AND k % 2 = 0 THEN 'pending'
-         WHEN t.variant='W' THEN 'failed'
-         ELSE 'superseded' END,
-       CASE WHEN k <= t.n-1 THEN ts + interval '2 minutes' END,
-       CASE WHEN t.variant='R' AND k <= t.n-3 THEN ts + interval '1 day' END,
-       '{}'::jsonb
-FROM _targets_new t
-CROSS JOIN LATERAL generate_series(1, t.n) k
-CROSS JOIN LATERAL (SELECT now() - interval '200 days' + k * (interval '199 days' / (t.n+1)) + (hashtext(t.scope_id) % 977 + 977) * interval '1 second' AS ts) x
-ORDER BY ts, t.scope_id;
-
-UPDATE ingestion_scopes s SET active_generation_id = s.scope_id||':g'||(t.n-1)
-FROM _targets_new t WHERE s.scope_id = t.scope_id;
-
--- projector rows
-INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, visible_at, created_at, updated_at, failure_class, lease_owner, claim_until)
-SELECT 'proj:'||g.generation_id, g.scope_id, g.generation_id, 'projector', 'source_local',
-       CASE WHEN g.status='pending' AND (hashtext(g.generation_id) % 20)=0 THEN 'claimed'
-            WHEN g.status='pending' THEN 'pending' WHEN g.status='failed' THEN 'failed' ELSE 'succeeded' END,
-       CASE WHEN g.status='pending' THEN g.ingested_at END,
-       g.ingested_at, g.ingested_at + interval '3 minutes',
-       CASE WHEN g.status='failed' THEN 'projection_error' END,
-       CASE WHEN g.status='pending' AND (hashtext(g.generation_id) % 20)=0 THEN 'dead-proj' END,
-       CASE WHEN g.status='pending' AND (hashtext(g.generation_id) % 20)=0 THEN now() - interval '1 hour' END
-FROM scope_generations g WHERE g.scope_id IN (SELECT scope_id FROM _targets_new);
--- reducer rows, 4 per generation
-INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, visible_at, created_at, updated_at, payload)
-SELECT 'red:'||d.dom||':'||g.generation_id, g.scope_id, g.generation_id, 'reducer', d.dom,
-       CASE g.status WHEN 'pending' THEN 'pending' WHEN 'failed' THEN (CASE WHEN d.dom IN ('workload_materialization','deployment_mapping') THEN 'dead_letter' ELSE 'failed' END) ELSE 'succeeded' END,
-       CASE WHEN g.status='pending' THEN g.ingested_at END,
-       g.ingested_at, g.ingested_at + interval '5 minutes', '{"source_system":"git"}'::jsonb
-FROM scope_generations g CROSS JOIN (VALUES ('workload_materialization'),('deployment_mapping'),('code_calls_x'),('repo_dep_x')) d(dom)
-WHERE g.scope_id IN (SELECT scope_id FROM _targets_new);
--- exactly one expired claimed reducer row per target scope (live-lease unique index allows one per conflict key)
-UPDATE fact_work_items w SET status='claimed', lease_owner='dead-red', claim_until = now() - interval '1 hour', visible_at = NULL
-FROM _targets_new t
-WHERE w.work_item_id = 'red:workload_materialization:'||t.scope_id||':g'||t.n AND t.variant='R'
-   OR w.work_item_id = 'red:workload_materialization:'||t.scope_id||':g2' AND t.variant='W';
--- one reindex request per target scope
-INSERT INTO repository_reindex_requests (scope_id, requested_at) SELECT scope_id, now() FROM _targets_new;
-```
-
-### P1 timed statements
-
-The design-form statements the driver ran, in order. `$1` is the scope id
-array, and the pair form unnests `(scope_id, generation_id)` arrays.
-
-```sql
--- step 4 read, step 5 lock (outside the timed window)
-SELECT scope_id, generation_id FROM scope_generations WHERE scope_id = ANY($1) ORDER BY scope_id, generation_id;
-SELECT scope_id FROM ingestion_scopes WHERE partition_key = ANY($1) ORDER BY scope_id FOR NO KEY UPDATE;
--- timed window
-LOCK TABLE fact_work_items IN EXCLUSIVE MODE;
-SELECT COUNT(*) FROM fact_work_items AS w WHERE w.stage = 'reducer' AND w.status IN ('claimed','running') AND w.claim_until > clock_timestamp() AND (w.scope_id, w.generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]) AS affected(scope_id, generation_id));  -- tuned: w.scope_id = ANY($1)
--- 7a
-UPDATE scope_generations SET status='superseded', superseded_at=$2 WHERE scope_id = ANY($1) AND status IN ('pending','active','failed');
--- 7b
-UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = ANY($1);
--- 7c (pair form; tuned binds only the non-superseded pairs)
-UPDATE fact_work_items SET status='superseded', failure_class='repository_retired', lease_owner=NULL, claim_until=NULL, visible_at=NULL, next_attempt_at=NULL, updated_at=$3 WHERE stage='projector' AND (scope_id, generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]) AS affected(scope_id, generation_id)) AND (status IN ('pending','retrying') OR (status IN ('claimed','running') AND claim_until <= clock_timestamp()));
--- 7d (pair form; tuned: scope_id = ANY($1)); a DELETE in the proven form
-DELETE FROM fact_work_items WHERE stage='reducer' AND (scope_id, generation_id) IN (SELECT * FROM unnest($1::text[], $2::text[]) AS affected(scope_id, generation_id)) AND status IN ('pending','retrying','failed','dead_letter','claimed','running') AND NOT (status IN ('claimed','running') AND claim_until > clock_timestamp());
--- 7e, 7f (design form only), 7g
-DELETE FROM repository_reindex_requests WHERE scope_id = ANY($1);
-SELECT max(lease_expires_at) FROM shared_projection_partition_leases WHERE lease_owner IS NOT NULL AND lease_expires_at > clock_timestamp();
--- 7g: INSERT INTO repository_retirements (...) SELECT ... FROM unnest($1::text[], $2::text[]) ON CONFLICT (repo_id) WHERE readmitted_at IS NULL DO NOTHING
-```
-
-The three claim-shaped proxies of the fleet-pause runs:
-
-```sql
-UPDATE fact_work_items SET status='claimed', lease_owner='proof-claimer', claim_until=now()+interval '10 minutes', attempt_count=attempt_count+1, updated_at=now() WHERE work_item_id=$1 AND status='pending';
-UPDATE fact_work_items SET claim_until = now()+interval '30 days', updated_at=now() WHERE work_item_id=$1;
-INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, visible_at, created_at, updated_at) SELECT $1, g.scope_id, g.generation_id, 'projector', 'source_local', 'succeeded', NULL, now(), now() FROM scope_generations g WHERE g.generation_id=$2;
-```
-
-### P2 marker rows
-
-The marker table was the first-draft design DDL. P2 relied on these columns
-and indexes, which the current design keeps: `repo_id TEXT NOT NULL`,
-`state`, `readmitted_at TIMESTAMPTZ NULL`, a unique partial index
-`repository_retirements_open_repo_idx ON (repo_id) WHERE readmitted_at IS NULL`,
-and the two secondary indexes. The separate lookup was `SELECT retirement_id,
-state FROM repository_retirements WHERE repo_id = $1 AND readmitted_at IS NULL
-LIMIT 1`; the folded form is in the concurrency contract. Row loader (psql
-variable `n`, 90% open, 10% readmitted history):
-
-```sql
-TRUNCATE repository_retirements;
-INSERT INTO repository_retirements (retirement_id, repo_id, scope_id, state, phase, reason_code, reason_hash, actor_class, idempotency_key_hash, scope_id_hash, generation_ids_hash, generations_fenced, next_attempt_at, requested_at, updated_at, retired_at, readmitted_at)
-SELECT 'rr_'||lpad(i::text,14,'0'), 'repo:rr:'||lpad(i::text,6,'0'), 'scope:rr:'||i,
-       (ARRAY['complete','complete','pending','running','blocked','failed'])[1 + i % 6], 'done', 'operator_retired', 'h','admin','k','s','g', 3,
-       now(), now(), now(), now(), CASE WHEN i % 10 = 0 THEN now() END
-FROM generate_series(1, :n) i;
-```
+This reproduces the fixture, not the harness. The drivers are not committed, so
+a re-run needs them rewritten from the description. Future proof avoids that by
+construction: each owed bar is measured by a live test or benchmark committed in
+the implementing PR and cited by name (see the design's
+[prove-first table](../design/7766-repository-retirement-proof-and-rollout.md#prove-first-table)).
 
 ## Harness not committed
 
-The Go drivers are scratch code that built against the repository at the time
-and are not reproduced here. What each did, so they can be rewritten:
+The Go drivers are scratch code that built against the repository at the time.
+They import `go/internal/...`, so Go's internal-import rule would put them inside
+the `go/` module, where they would meet lint, vet, the file cap, the directory
+gate, and the live-test build tags. The P2 benchmark also needed a patch into the
+commit path that cannot be committed as a shim. The outputs above are what they
+produced. Together the scratch Go is 1,177 lines (645 in `cmd/` drivers, 532 in
+tests and the gate shim) plus the 32-line patch. What each did:
 
-- **P1 driver** (about 590 lines): modes `explain` (`EXPLAIN (ANALYZE, BUFFERS)`
-  of each statement), `time` (the loop in "What was timed", one transaction per
-  target group, cache eviction or prewarm before each run), and `block` (the
-  same section while 3 claim-shaped, 2 heartbeat-shaped, and 1 enqueue-shaped
-  worker ran against unrelated scopes, recording each statement's start and
-  end). Flags: family, runs, variant, cache state, commit or rollback.
-  Percentiles are nearest-rank. A small script summarised the CSVs.
-- **P2 benchmark** (about 120 lines, plus an 87-line gate shim and a 30-line
-  patch that hooked it into the commit path): a real-Postgres benchmark on
+- **P1 driver**: 389 lines in `main.go` (modes `explain` and `time`) and 202 in
+  `block.go` (mode `block`). `explain` runs `EXPLAIN (ANALYZE, BUFFERS)` of each
+  statement. `time` is the loop in "What was timed", one transaction per target
+  group, with cache eviction or prewarm before each run. `block` is the same
+  section while 3 claim-shaped, 2 heartbeat-shaped, and 1 enqueue-shaped worker
+  ran against unrelated scopes, recording each statement's start and end. Flags:
+  family, runs, variant, cache state, commit or rollback. `summarize_p1.py`
+  summarises the CSVs.
+- **P2 benchmark** (119 lines, plus an 87-line gate shim and a 32-line patch
+  that hooked it into the commit path): a real-Postgres benchmark on
   `IngestionStore.CommitScopeGeneration` with 64 scopes and 1 or 400 facts per
   generation, three arms per iteration in rotating order.
-- **P9 tests** (about 330 lines): three Go tests on the shared worker with real
+- **P9 tests** (326 lines): three Go tests on the shared worker with real
   Postgres. One drove the control, orphan, mid-batch, and after-phase-1 cases
   through five cycles each. One ran a 4 s write cycle and polled the lease row
   at fixed offsets (P9H). One seeded 10,100 orphan intents plus one healthy
   intent and timed one cycle.
 - **Schema loader and claim probe** (25 and 29 lines): apply the bootstrap
   schema; run the real projector and reducer claim once with a 150 s deadline.
+  The claim probe's output was not kept.
 
 ## Performance Evidence
 
-Performance Evidence: on the scratch fixture (12,000 scopes, 2.2M generations,
-8.0M work items), the design-form phase 1 held `fact_work_items` in `EXCLUSIVE`
-mode for a p99 of 252.2 ms on the realistic 5,000-generation scope (cold) and
-885.9 ms on the stalled one, failing the 250 ms bar. The tuned bindings measured
-88.5 ms and 184.9 ms in rollback mode, which is not a pass: the tuned stalled
-runs touched about 170 generation rows, not 5,000. The separate commit-gate
-lookup cost +3.04% median at facts=1, and the folded gate +0.46%.
+Performance Evidence: on the scratch fixture (12,000 scopes, 2.13M generations,
+about 9.18M work-item inserts), the design-form phase 1 held `fact_work_items`
+in `EXCLUSIVE` mode for a p99 of 252.2 ms on the realistic 5,000-generation
+scope (cold) and 885.9 ms on the stalled one, failing the 250 ms bar. The tuned
+bindings measured 88.5 ms and 184.9 ms in rollback mode, which is not a pass:
+the tuned stalled runs touched 107 to 171 generation rows, not 5,000. The
+separate commit-gate lookup cost +3.04% median at facts=1, and the folded gate
++0.46%.
 
 ## Observability Evidence
 

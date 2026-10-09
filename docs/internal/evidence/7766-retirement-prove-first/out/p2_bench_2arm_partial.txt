@@ -1,0 +1,11 @@
+### repository_retirements rows=0
+BenchmarkCommitScopeGenerationLive/facts=1-10         	    1500	   7901184 ns/op	         4.183 delta_mean_pct	         3.795 delta_median_pct	   3525750 off_median_ns	   3866534 off_ns/commit	   3659542 on_median_ns	   4028264 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=1-10         	    1500	   8557474 ns/op	         3.255 delta_mean_pct	         1.837 delta_median_pct	   4026583 off_median_ns	   4206209 off_ns/commit	   4100541 on_median_ns	   4343142 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=1-10         	    1500	   8065383 ns/op	         4.378 delta_mean_pct	         3.747 delta_median_pct	   3659375 off_median_ns	   3942658 off_ns/commit	   3796500 on_median_ns	   4115250 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=1-10         	    1500	  10205577 ns/op	         3.412 delta_mean_pct	         5.260 delta_median_pct	   4993208 off_median_ns	   5012665 off_ns/commit	   5255875 on_median_ns	   5183715 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=1-10         	    1500	   9284493 ns/op	         4.371 delta_mean_pct	         4.732 delta_median_pct	   4194125 off_median_ns	   4538650 off_ns/commit	   4392584 on_median_ns	   4737053 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=1-10         	    1500	   9010556 ns/op	         4.681 delta_mean_pct	         3.898 delta_median_pct	   3570375 off_median_ns	   4400027 off_ns/commit	   3709542 on_median_ns	   4605970 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=400-10         	     300	  77529508 ns/op	        -0.4818 delta_mean_pct	        -0.5112 delta_median_pct	  39427458 off_median_ns	  38851751 off_ns/commit	  39225916 on_median_ns	  38664563 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=400-10         	     300	  72889431 ns/op	         0.8374 delta_mean_pct	         1.519 delta_median_pct	  35980208 off_median_ns	  36286816 off_ns/commit	  36526625 on_median_ns	  36590670 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=400-10         	     300	  80175304 ns/op	         1.382 delta_mean_pct	        -0.7011 delta_median_pct	  36695792 off_median_ns	  39806327 off_ns/commit	  36438500 on_median_ns	  40356401 on_ns/commit
+BenchmarkCommitScopeGenerationLive/facts=400-10

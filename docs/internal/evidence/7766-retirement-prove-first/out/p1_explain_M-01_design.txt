@@ -1,0 +1,161 @@
+### group=M:01 variant=design repos=25 generations=10097
+
+--- step4_read_generations
+Index Only Scan using scope_generations_scope_generation_idx on scope_generations  (cost=0.43..313.25 rows=9437 width=33) (actual time=0.030..5.420 rows=10097.00 loops=1)
+  Index Cond: (scope_id = ANY ('{scope:t:M:01:01,scope:t:M:01:02,scope:t:M:01:03,scope:t:M:01:04,scope:t:M:01:05,scope:t:M:01:06,scope:t:M:01:07,scope:t:M:01:08,scope:t:M:01:09,scope:t:M:01:10,scope:t:M:01:11,scope:t:M:01:12,scope:t:M:01:13,scope:t:M:01:14,scope:t:M:01:15,scope:t:M:01:16,scope:t:M:01:17,scope:t:M:01:18,scope:t:M:01:19,scope:t:M:01:20,scope:t:M:01:21,scope:t:M:01:22,scope:t:M:01:23,scope:t:M:01:24,scope:t:M:01:25}'::text[]))
+  Heap Fetches: 4752
+  Index Searches: 1
+  Buffers: shared hit=4888
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.903 ms
+Execution Time: 5.757 ms
+
+--- step5_lock_scopes_by_partition_key
+LockRows  (cost=88.23..88.54 rows=25 width=21) (actual time=0.217..0.244 rows=25.00 loops=1)
+  Buffers: shared hit=108 read=1 dirtied=3
+  ->  Sort  (cost=88.23..88.29 rows=25 width=21) (actual time=0.169..0.171 rows=25.00 loops=1)
+        Sort Key: scope_id
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=58 read=1 dirtied=1
+        ->  Index Scan using ingestion_scopes_source_idx on ingestion_scopes  (cost=0.29..87.65 rows=25 width=21) (actual time=0.115..0.159 rows=25.00 loops=1)
+              Index Cond: (partition_key = ANY ('{repo:t:M:01:01,repo:t:M:01:02,repo:t:M:01:03,repo:t:M:01:04,repo:t:M:01:05,repo:t:M:01:06,repo:t:M:01:07,repo:t:M:01:08,repo:t:M:01:09,repo:t:M:01:10,repo:t:M:01:11,repo:t:M:01:12,repo:t:M:01:13,repo:t:M:01:14,repo:t:M:01:15,repo:t:M:01:16,repo:t:M:01:17,repo:t:M:01:18,repo:t:M:01:19,repo:t:M:01:20,repo:t:M:01:21,repo:t:M:01:22,repo:t:M:01:23,repo:t:M:01:24,repo:t:M:01:25}'::text[]))
+              Index Searches: 3
+              Buffers: shared hit=58 read=1 dirtied=1
+Planning:
+  Buffers: shared hit=100
+Planning Time: 0.357 ms
+Execution Time: 0.263 ms
+
+--- recheck_inflight
+Aggregate  (cost=231.77..231.78 rows=1 width=8) (actual time=6.229..6.230 rows=1.00 loops=1)
+  Buffers: shared hit=29
+  ->  Hash Join  (cost=221.14..231.74 rows=12 width=0) (actual time=6.227..6.228 rows=0.00 loops=1)
+        Hash Cond: ((w.scope_id = affected.scope_id) AND (w.generation_id = affected.generation_id))
+        Buffers: shared hit=29
+        ->  Bitmap Heap Scan on fact_work_items w  (cost=44.43..48.91 rows=1138 width=34) (actual time=0.398..0.486 rows=60.00 loops=1)
+              Recheck Cond: ((stage = 'reducer'::text) AND (status = ANY ('{claimed,running}'::text[])) AND (claim_until IS NOT NULL))
+              Filter: (claim_until > clock_timestamp())
+              Rows Removed by Filter: 390
+              Heap Blocks: exact=17
+              Buffers: shared hit=29
+              ->  BitmapAnd  (cost=44.43..44.43 rows=4 width=0) (actual time=0.381..0.381 rows=0.00 loops=1)
+                    Buffers: shared hit=12
+                    ->  Bitmap Index Scan on fact_work_items_reducer_live_lease_uniq  (cost=0.00..11.25 rows=3413 width=0) (actual time=0.029..0.029 rows=450.00 loops=1)
+                          Index Searches: 1
+                          Buffers: shared hit=5
+                    ->  Bitmap Index Scan on fact_work_items_claim_until_idx  (cost=0.00..32.37 rows=4657 width=0) (actual time=0.347..0.347 rows=4779.00 loops=1)
+                          Index Searches: 1
+                          Buffers: shared hit=7
+        ->  Hash  (cost=161.56..161.56 rows=1010 width=64) (actual time=5.733..5.733 rows=10097.00 loops=1)
+              Buckets: 16384 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 813kB
+              ->  HashAggregate  (cost=151.46..161.56 rows=1010 width=64) (actual time=3.517..4.321 rows=10097.00 loops=1)
+                    Group Key: affected.scope_id, affected.generation_id
+                    Batches: 1  Memory Usage: 1305kB
+                    ->  Function Scan on affected  (cost=0.01..100.97 rows=10097 width=64) (actual time=1.073..1.646 rows=10097.00 loops=1)
+Planning:
+  Buffers: shared hit=269
+Planning Time: 1.064 ms
+Execution Time: 6.450 ms
+
+--- 7a_supersede_generations
+Update on scope_generations  (cost=0.43..1286.50 rows=0 width=0) (actual time=9.055..9.055 rows=0.00 loops=1)
+  Buffers: shared hit=1349 read=50 dirtied=98 written=1
+  ->  Index Scan using scope_generations_scope_idx on scope_generations  (cost=0.43..1286.50 rows=1475 width=46) (actual time=0.296..3.331 rows=75.00 loops=1)
+        Index Cond: ((scope_id = ANY ('{scope:t:M:01:01,scope:t:M:01:02,scope:t:M:01:03,scope:t:M:01:04,scope:t:M:01:05,scope:t:M:01:06,scope:t:M:01:07,scope:t:M:01:08,scope:t:M:01:09,scope:t:M:01:10,scope:t:M:01:11,scope:t:M:01:12,scope:t:M:01:13,scope:t:M:01:14,scope:t:M:01:15,scope:t:M:01:16,scope:t:M:01:17,scope:t:M:01:18,scope:t:M:01:19,scope:t:M:01:20,scope:t:M:01:21,scope:t:M:01:22,scope:t:M:01:23,scope:t:M:01:24,scope:t:M:01:25}'::text[])) AND (status = ANY ('{pending,active,failed}'::text[])))
+        Index Searches: 4
+        Buffers: shared hit=81 read=23
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.748 ms
+Execution Time: 9.146 ms
+
+--- 7b_null_active_generation
+Update on ingestion_scopes  (cost=0.29..42.35 rows=0 width=0) (actual time=0.649..0.649 rows=0.00 loops=1)
+  Buffers: shared hit=386 read=1 dirtied=2
+  ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes  (cost=0.29..42.35 rows=25 width=38) (actual time=0.027..0.035 rows=25.00 loops=1)
+        Index Cond: (scope_id = ANY ('{scope:t:M:01:01,scope:t:M:01:02,scope:t:M:01:03,scope:t:M:01:04,scope:t:M:01:05,scope:t:M:01:06,scope:t:M:01:07,scope:t:M:01:08,scope:t:M:01:09,scope:t:M:01:10,scope:t:M:01:11,scope:t:M:01:12,scope:t:M:01:13,scope:t:M:01:14,scope:t:M:01:15,scope:t:M:01:16,scope:t:M:01:17,scope:t:M:01:18,scope:t:M:01:19,scope:t:M:01:20,scope:t:M:01:21,scope:t:M:01:22,scope:t:M:01:23,scope:t:M:01:24,scope:t:M:01:25}'::text[]))
+        Index Searches: 1
+        Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.046 ms
+Trigger ingestion_scopes_container_image_identity_state_reset: time=1.873 calls=25
+Execution Time: 2.577 ms
+
+--- 7c_supersede_projector_rows
+Update on fact_work_items  (cost=152.02..2973.06 rows=0 width=0) (actual time=305.673..305.674 rows=0.00 loops=1)
+  Buffers: shared hit=60659 read=1460 dirtied=73 written=1
+  ->  Nested Loop  (cost=152.02..2973.06 rows=1152 width=222) (actual time=20.555..300.892 rows=25.00 loops=1)
+        Buffers: shared hit=60022 read=1449
+        ->  HashAggregate  (cost=151.46..161.56 rows=1010 width=152) (actual time=4.214..7.248 rows=10097.00 loops=1)
+              Group Key: affected.scope_id, affected.generation_id
+              Batches: 1  Memory Usage: 2329kB
+              ->  Function Scan on affected  (cost=0.01..100.97 rows=10097 width=152) (actual time=1.189..2.276 rows=10097.00 loops=1)
+        ->  Index Scan using fact_work_items_scope_generation_idx on fact_work_items  (cost=0.56..2.77 rows=1 width=40) (actual time=0.029..0.029 rows=0.00 loops=10097)
+              Index Cond: ((scope_id = affected.scope_id) AND (generation_id = affected.generation_id))
+              Filter: ((stage = 'projector'::text) AND ((status = ANY ('{pending,retrying}'::text[])) OR ((status = ANY ('{claimed,running}'::text[])) AND (claim_until <= clock_timestamp()))))
+              Rows Removed by Filter: 5
+              Index Searches: 10097
+              Buffers: shared hit=60022 read=1449
+Planning Time: 0.242 ms
+Execution Time: 305.983 ms
+
+--- 7d_delete_reducer_rows
+Delete on fact_work_items  (cost=152.02..10937.96 rows=0 width=0) (actual time=42.515..42.516 rows=0.00 loops=1)
+  Buffers: shared hit=40965 dirtied=45
+  ->  Nested Loop  (cost=152.02..10937.96 rows=6440 width=94) (actual time=4.324..41.841 rows=200.00 loops=1)
+        Buffers: shared hit=40541
+        ->  HashAggregate  (cost=151.46..161.56 rows=1010 width=152) (actual time=4.163..5.837 rows=10097.00 loops=1)
+              Group Key: affected.scope_id, affected.generation_id
+              Batches: 1  Memory Usage: 2329kB
+              ->  Function Scan on affected  (cost=0.01..100.97 rows=10097 width=152) (actual time=1.104..2.218 rows=10097.00 loops=1)
+        ->  Index Scan using fact_work_items_scope_generation_idx on fact_work_items  (cost=0.56..10.66 rows=1 width=40) (actual time=0.003..0.003 rows=0.02 loops=10097)
+              Index Cond: ((scope_id = affected.scope_id) AND (generation_id = affected.generation_id) AND (status = ANY ('{pending,retrying,failed,dead_letter,claimed,running}'::text[])))
+              Filter: ((stage = 'reducer'::text) AND ((status <> ALL ('{claimed,running}'::text[])) OR (claim_until <= clock_timestamp())))
+              Rows Removed by Filter: 0
+              Index Searches: 10097
+              Buffers: shared hit=40541
+Planning:
+  Buffers: shared hit=13
+Planning Time: 0.404 ms
+Trigger for constraint fact_replay_events_work_item_id_fkey: time=3.423 calls=200
+Execution Time: 46.130 ms
+
+--- 7e_delete_reindex_requests
+Delete on repository_reindex_requests  (cost=0.28..6.26 rows=0 width=0) (actual time=0.096..0.096 rows=0.00 loops=1)
+  Buffers: shared hit=29 dirtied=1
+  ->  Index Scan using repository_reindex_requests_pkey on repository_reindex_requests  (cost=0.28..6.26 rows=25 width=6) (actual time=0.037..0.041 rows=25.00 loops=1)
+        Index Cond: (scope_id = ANY ('{scope:t:M:01:01,scope:t:M:01:02,scope:t:M:01:03,scope:t:M:01:04,scope:t:M:01:05,scope:t:M:01:06,scope:t:M:01:07,scope:t:M:01:08,scope:t:M:01:09,scope:t:M:01:10,scope:t:M:01:11,scope:t:M:01:12,scope:t:M:01:13,scope:t:M:01:14,scope:t:M:01:15,scope:t:M:01:16,scope:t:M:01:17,scope:t:M:01:18,scope:t:M:01:19,scope:t:M:01:20,scope:t:M:01:21,scope:t:M:01:22,scope:t:M:01:23,scope:t:M:01:24,scope:t:M:01:25}'::text[]))
+        Index Searches: 1
+        Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=20
+Planning Time: 0.124 ms
+Execution Time: 0.125 ms
+
+--- 7f_lease_horizon
+Aggregate  (cost=1.49..1.50 rows=1 width=8) (actual time=0.018..0.018 rows=1.00 loops=1)
+  Buffers: shared hit=1
+  ->  Seq Scan on shared_projection_partition_leases  (cost=0.00..1.48 rows=4 width=8) (actual time=0.012..0.015 rows=12.00 loops=1)
+        Filter: ((lease_owner IS NOT NULL) AND (lease_expires_at > clock_timestamp()))
+        Rows Removed by Filter: 20
+        Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=37
+Planning Time: 0.162 ms
+Execution Time: 0.030 ms
+
+--- 7g_insert_marker
+Insert on repository_retirements  (cost=0.01..0.94 rows=0 width=0) (actual time=0.563..0.563 rows=0.00 loops=1)
+  Conflict Resolution: NOTHING
+  Conflict Arbiter Indexes: repository_retirements_open_repo_idx
+  Tuples Inserted: 25
+  Conflicting Tuples: 0
+  Buffers: shared hit=179
+  ->  Subquery Scan on "*SELECT*"  (cost=0.01..0.94 rows=25 width=628) (actual time=0.061..0.112 rows=25.00 loops=1)
+        ->  Function Scan on r  (cost=0.01..0.69 rows=25 width=388) (actual time=0.059..0.106 rows=25.00 loops=1)
+Planning:
+  Buffers: shared hit=60
+Planning Time: 0.174 ms
+Execution Time: 0.591 ms

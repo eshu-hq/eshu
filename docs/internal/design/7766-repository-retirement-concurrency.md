@@ -13,11 +13,14 @@ invariants that make the phase 2 order safe, the folded commit gate, and the
 re-admission interleavings. Binding inputs: the
 [shared-contract arbiter ruling](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598),
 the [arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-and the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)). Measurements are in the
+the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
+and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)). Measurements are in the
 [evidence note](../evidence/7766-retirement-prove-first.md) and summarized in
 [Prove-First Results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
 
-Source check: origin/main 3b03f018e, 2026-10-09.
+Source check: origin/main c88c3806a, 2026-10-09. The shared-worker citations in
+the barrier and invariant sections were re-read at that SHA (#7724 restructured
+`process.go` and `selection.go`).
 
 ## Phase 1 Lock Budget
 
@@ -38,7 +41,7 @@ amended bindings:
 | --- | --- | --- |
 | 7c, projector rows to `superseded` | pairs for all generations | step-4 non-superseded `(scope_id, generation_id)` pairs |
 | 7d, reducer rows to `superseded` (a mark) | pairs for all generations, a delete | `scope_id = ANY($scopes)` |
-| Step 6 recheck of live reducer leases | pairs for all generations | `scope_id = ANY($scopes)` |
+| Step 6 recheck of live leases, both stages | pairs for all generations (reducer stage only) | `scope_id = ANY($scopes)`, `stage IN ('projector','reducer')` |
 
 This is valid because the retire unit is the whole scope, every generation.
 `refinalize` binds a subset of generations, which is why its pair form is right
@@ -65,7 +68,9 @@ Both stay in phase 1.
   Heartbeat refuse. Dropping 7c would move a one-off sweep of up to 5,000
   generation-row and 5,000 work-row locks into an unrelated worker's claim
   statement, which is a hot path nobody measured. Tuned 7c costs 6.5 ms cold on
-  the realistic shape and 32 ms on the stalled one (mean, n=10, rollback mode).
+  the realistic shape (mean, n=10, rollback mode). The stalled-shape run
+  (Ww5000, 32.3 ms mean) touched only 106 to 170 7c rows, not 5,000, so it does
+  not measure the stalled-shape cost and P1' owes that figure.
 - 7e could move to phase 2. It costs 0.5 ms, so it stays.
 
 ### Deadline and lock waits
@@ -77,7 +82,9 @@ s. Those sum past 6 min, so a slow drain could outlive the response. Phase 1
 now runs under **one deadline of 5 min 30 s** from request start, leaving 30 s
 to write the response. Each wait is bounded by `min(its own bound, remaining)`:
 
-1. Step 2, the scope-bound drain: `min(5 min, remaining)`.
+1. Step 2, the scope-bound drain: `min(5 min, remaining)`. It waits for live
+   leases of both stages, so an in-flight projector Run finishes before the
+   fence starts (I0).
 2. Step 3, the advisory wait: `set_config('lock_timeout', <ms>, true)` with
    `<ms> = remaining - fenceReserve`, computed at that moment and not a
    constant. `fenceReserve` is 35 s (the 30 s fence budget plus 5 s for steps 4
@@ -120,8 +127,9 @@ precheck bounds it:
   exceeds 20,000.
 - **The limits are candidates, not measurements.** P1 measured the design form
   on shapes with 5,000 generations and 19,996 reducer rows. P1' sets the final
-  limits by measuring the tuned, mark-form phase 1 in commit mode, and the
-  limits drop if the 250 ms bar fails. P1' also measures unrelated claim
+  limits by measuring the tuned, mark-form phase 1 in commit mode, with the projector-stage
+  recheck count in the fenced section, and the limits drop if the 250 ms bar
+  fails. P1' also measures unrelated claim
   throughput across the section: at least 90% of the no-retirement baseline over
   the whole run, with the per-statement max as the second bar.
 - The precheck is a snapshot. Step 4 is authoritative: if the re-read under the
@@ -205,9 +213,10 @@ that this is unsound in code, not only in a repro:
 - `claimPartitionLeaseSQL`'s `ON CONFLICT` rewrites `lease_expires_at` whenever
   `lease_owner = $4` (`storage/postgres/shared_intents.go:180-186`), and the
   heartbeat calls it every TTL/2
-  (`reducer/intents/shared/worker/heartbeat.go:76-80`).
-- The lease is held from claim (`worker/process.go:301`) through `WriteEdges`
-  and `MarkIntentsCompleted` (`:421`) to release (`:339`).
+  (`reducer/intents/shared/worker/heartbeat.go:32-38`, `:60`, `:78-80`).
+- The lease is held from claim (`worker/process.go:137`) through the edge write
+  (`:238`) and `MarkIntentsCompleted` (`:250`, call at `:310`) to the deferred
+  release (`:175`).
 - Measured: with the horizon taken at t=300 ms, `now() > horizon` was true at
   t=1.5 s, the lease was still renewed 3.0 s past the horizon at t=3.5 s, and
   the worker stayed inside `RetractEdges` until t=4.0 s.
@@ -288,7 +297,7 @@ At this check the writers are:
 
 | Writer | Claim site | Class |
 | --- | --- | --- |
-| Shared projection worker (every shared domain) | `worker/process.go:301`, heartbeat `worker/heartbeat.go:78` | `repo_graph_writer` |
+| Shared projection worker (every shared domain) | `worker/process.go:137`, heartbeat `worker/heartbeat.go:78` | `repo_graph_writer` |
 | code_calls | `code/call/projection/runner.go:267`, heartbeat `lease.go:58` | `repo_graph_writer` |
 | repo_dependency | `repo_dependency_projection_runner.go:178`, heartbeat `repo_dependency_projection_telemetry.go:109` | `repo_graph_writer` |
 | Graph orphan sweep | `maintenance/orphan/runner.go:161` | `maintenance_lease` |
@@ -301,10 +310,28 @@ at all, so the restriction removes nothing 2b' could have protected.
 
 ## Invariants
 
+- **I0 (Deliverable 1).** At phase 1 commit, no projector or reducer row of the
+  scopes holds a live lease, and every projector row of the scopes is terminal.
+  From commit on, no projector Run writes the repository's graph or content,
+  except a Run that outlived its lease, which is outside the lease contract for
+  every lease in the system today. The #7130 claim branch, the Heartbeat
+  refusal, and the Ack refusal are backstops, not the fence. The step 2 wait and
+  the step 6 recheck under `EXCLUSIVE` carry it. Without the wait, a live Run
+  survives phase 1 until the next heartbeat (lease/3 capped at 1 min,
+  `cmd/projector/runtime_wiring.go:121-131`) cancels its context, and a Run
+  cancelled between its canonical write and its content write leaves a frozen
+  half-Run graph: on Neo4j each node phase is one transaction, and the full
+  refresh retract deletes every `projector/canonical` entity node whose
+  `generation_id` differs from the new one and every File absent from the new
+  path list (`canonical_node_writer.go:149-166`, `canonical_node_cypher.go:15-18`,
+  `:55-57`), dropping other repositories' edges into those nodes. Lease defaults:
+  1 min for the projector service (`cmd/projector/runtime_wiring.go:69`), 5 min
+  for the ingester's in-process projector (`cmd/ingester/wiring.go:276`), and 1
+  min for bootstrap-index (`cmd/bootstrap-index/wiring.go:115`).
 - **I1.** Every writer of shared-domain graph edges holds a
   `shared_projection_partition_leases` row from before it reads intents until
   after its last graph write and `MarkIntentsCompleted`. Confirmed for the
-  shared worker (`worker/process.go:301-339`), code_calls, and, by source read,
+  shared worker (`worker/process.go:137-250`, release `:175`), code_calls, and, by source read,
   repo_dependency: the lease is claimed at `repo_dependency_projection_runner.go:178`
   before `selectAcceptanceUnitWork`; the heartbeat renews it through
   `ClaimPartitionLease` (`repo_dependency_projection_telemetry.go:109`); the
@@ -330,7 +357,12 @@ at all, so the restriction removes nothing 2b' could have protected.
   outlived its lease). It is bounded by 2d: `fact_work_items.generation_id` is
   `NOT NULL REFERENCES scope_generations ON DELETE CASCADE`
   (`migrations/005_fact_work_items.sql:4`), so an insert that names a deleted
-  generation fails `23503`. 2z catches what lands in between. **The guarantee is
+  generation fails `23503`. A handler that claimed a cascaded row before 2d
+  loses its next heartbeat (a heartbeat on a vanished row affects 0 rows and
+  returns `ErrReducerClaimRejected`, `storage/postgres/reducer_queue.go:385-409`)
+  and is cancelled within `LeaseDuration/2` plus one in-flight statement
+  (`reducer/service_heartbeat.go:97-123`, `cmd/reducer/main.go:404`); 2d' waits
+  one reducer lease for that. 2z catches what lands in between. **The guarantee is
   the 2q recheck under `EXCLUSIVE`, not phase 1.** Phase 1's recheck cannot
   carry it, because a pre-phase-1 projector Run or a maintenance reopen can
   insert or reopen rows after phase 1 commits.
@@ -350,11 +382,11 @@ Intents and acceptance rows are written together
 (`shared_intent_acceptance_writer.go:111-121`, one transaction when a beginner
 exists, `:78-93`). An intent without an acceptance row can therefore come only
 from a cascade delete or a torn non-transactional write. All three selectors
-skip such an intent forever (`reducer/intents/shared/worker/selection.go:98-101`,
+skip such an intent forever (`reducer/intents/shared/worker/selection.go:139-147`,
 `code/call/projection/selection.go:203-206`,
 `repo_dependency_projection_runner.go:348-350`, which errors at its 10,000 cap
 at `:366-370`). The indexed shared path returns an empty batch at the 10,000
-cap with no error (`process.go:174-177`), and `MarkIntentsCompleted` ignores
+cap with no error (`selection.go:233-238`, `:322-339`), and `MarkIntentsCompleted` ignores
 rows affected (`shared_intents.go:265-276`).
 
 Measured (P9, real Postgres): an intent whose acceptance row or generation was

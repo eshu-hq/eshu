@@ -12,8 +12,9 @@ adjustment, not the original wording.
 Binding inputs: the arbiter rulings on
 [#7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598) and
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-and the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)).
-Source check: origin/main 3b03f018e, 2026-10-09.
+the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
+and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)).
+Source check: origin/main c88c3806a, 2026-10-09.
 
 ## Corrections To The First Arbiter Ruling
 
@@ -87,7 +88,7 @@ Found false or imprecise in the review of the prove-first results:
    `:366-370`, not `:340-343`.
 8. **The working notes' tuned "p99" figures** are n=10 rollback-mode maxima and
    are not comparable to the n=20 commit-mode design-form totals.
-9. **The comment at `reducer/intents/shared/worker/process.go:145-149`**, "cannot
+9. **The comment at `reducer/intents/shared/worker/selection.go:179-183`**, "cannot
    starve at the scan cap", is false within one partition (P9 starvation run).
 
 Two items the first ruling listed as not verified are closed:
@@ -139,15 +140,19 @@ fixed in the design file named.
 - Round 3 named `fact_work_item_audit` as a `SET NULL` table. That is the
   migration file name (`006_fact_work_item_audit.sql`); the table is
   `fact_backfill_requests`.
-- Round 3's draft listed admin reopen as closed by phase 1. It is closed by 2q:
-  with the pointer NULL it resolves the newest generation, not an error
-  (`admin/store/reopen.go:28-39`).
+- An earlier draft of this design had admin reopen closed by phase 1. The posted
+  round 3 ruling already lists it among the succeeded-only writers that 2q
+  closes, so the ruling needed no correction. With the pointer NULL the reopen
+  resolves the newest generation, not an error (`admin/store/reopen.go:28-39`),
+  so phase 1 does not close it.
 
 **Review items (P3):**
 - The stalled R79 run in the fleet-pause table was run 1, not run 10.
 - Commit added 1.8 to 19.0 ms to the design-form section (the design said 2.7
   to 19).
-- The tuned Ww5000 7c touched 106 to 170 rows and 7a touched 107 to 171.
+- The tuned Ww5000 7c touched 106 to 170 rows and 7a touched 107 to 171. The
+  design's "32 ms on the stalled one" for tuned 7c measured only those rows, not
+  5,000 (concurrency file, 7c bullet).
 - `ingestion.go:213` (`HeartbeatClaim`) precedes `:219`.
 - I3 ignored generation retention's cascade, which also deletes acceptance
   rows. That is harmless: retention deletes the generation's intents first.
@@ -158,6 +163,73 @@ fixed in the design file named.
   existing open row when `RETURNING` is empty.
 - The labels `Rw` and `Ww` were never defined. They are defined in the
   [prove-first table](7766-repository-retirement-proof-and-rollout.md#prove-first-table).
+
+## Round 4 Corrections
+
+The round 4 ruling and the round 2 review of this design found these. Each is
+fixed in the file named.
+
+**Ruling section 7:**
+- N1: "one atomic group that retracts the published generation's nodes" is
+  precise for entity nodes and removed files only. Kept files are `MERGE`d, not
+  deleted. The #7130 comment spans `projector_queue_claim_sql.go:114-121`, not
+  `:114-116`. "Nothing is lost" is true as a graph claim and false as a Postgres
+  claim, so the sentence is replaced, not deleted (design file, Two
+  Deliverables). Waiting for the Run does not remove the post-Ack,
+  pre-reducer frozen state.
+- N2: the Deliverable 1 churn does not come from 7a's `failed` to `superseded`.
+  It comes from the replay floor's fallback to the latest generation, and it
+  equals today's active-scope replay (writers file, Interim Behavior). Freshness
+  is a wrong-truth surface, not only an unlabelled one.
+- N3: accurate. The "insert arm" is the `enqueueReducerBatch` call at
+  `reducer_queue_replay.go:278-281`.
+- N5: the scratch harness is 1,177 lines, not about 1,000, and both
+  `run_p2_bench.sh` and the P1 driver embedded a local DSN with a password. The
+  committed wrappers read `PROOF_PG_DSN`. The main design and the evidence note
+  contradicted each other on the harness; both now say the outputs, SQL, and
+  wrappers are committed and the drivers are described.
+- The writer table's "Heartbeat refuses" sentence described a backstop, not the
+  fence. `LeaseDuration` is no longer NOT_CHECKED.
+
+**Review items (P3), round 2 review:**
+- Admin reopen attribution (above, round 3 list).
+- The acceptance-unit gate takes the repo key in exclusive mode
+  (`repo_dependency_acceptance_gate.go:72`) and is not a draining reducer. The
+  acceptance writer takes it in shared mode (`shared_intent_acceptance_writer.go:83-87`),
+  which is what a drain under the exclusive key could stall on. The design's step
+  4 now says so. The option of making the step 6 `InflightReducersError` restart
+  like step 4 is adopted: step 6 restarts on a live lease and returns 409 only
+  on deadline exhaustion.
+- Evidence note figures: the P1 driver is 389 lines in `main.go` plus 202 in
+  `block.go`. The seed scripts inserted 2,126,917 generations and 9,175,661
+  work items (about 2.13M and 9.18M, as insert counts), not 2.2M and 8.0M. Seed
+  04 was not reproduced in the note; it is committed now. The `w` and `Bk`
+  families come from seed 05. The tuned Ww5000 runs touched 107 to 171 rows for
+  7a and 106 to 170 for 7c. The custom-plan minimum for the marker lookup at 100
+  and 10,000 rows is 0.012 ms, not 0.011. The "150 s projector claim" has no
+  output file and is marked unrecorded.
+- "The cause was not investigated" is reworded to say no run examined why the
+  row counts are low (evidence note, proof file).
+- The F11 fleet-throughput bar is added to P1q.
+- The ACK trigger text is read (NOT_CHECKED, closed list above).
+- The writers file's interim paragraph no longer says a projector must outlive
+  its lease: a live lease was enough before round 4, and phase 1 now waits it
+  out.
+- The shared-intent admin reopen (`admin/store/reopen.go:124-134`) is in the
+  writer table as harmless, because 2b deletes those intents.
+
+**Citations corrected at `c88c3806a`** (#7724 restructured the shared worker
+after `3b03f018e`):
+- `worker/process.go:301` (claim) is `:137`; the release (`:339`) is the deferred
+  call at `:175`; the edge write is `:238`; `MarkIntentsCompleted` (`:421`) is
+  called at `:310` from the helper at `:292-316`.
+- `worker/heartbeat.go:76-80` is `:32-38` (interval), `:60` (ticker), and `:78-80`
+  (the claim call).
+- `worker/selection.go:98-101` (orphan skip) is `:139-147`.
+- `process.go:174-177` (empty batch at the cap) is `selection.go:233-238` and
+  `:322-339`; the comment at `process.go:145-149` ("cannot starve at the scan
+  cap") is `selection.go:179-183`.
+- `worker/runner.go:30` (`DefaultLeaseTTL`, 60 s) is unchanged.
 
 ## Out Of Scope: Pre-Existing Issues
 
@@ -196,16 +268,31 @@ depend on them: #7852 and #7853.
   invariant I1.
 - The column order of `fact_work_items_scope_generation_idx`: `scope_id` leads
   (`migrations/005_fact_work_items.sql:30-31`).
-- Provenance of the P1, P2, and P9 numbers: the evidence note now carries the
-  results, the method, and the harness SQL. The Go harness is partly omitted;
-  the note lists what.
+- Provenance of the P1, P2, and P9 numbers: the evidence note indexes the
+  results and the method, and its directory holds the raw per-run outputs, the
+  fixture SQL, and the shell wrappers. The Go drivers are described, not
+  committed (round 4, N5).
+- Projector `LeaseDuration` defaults: 1 min for the projector service
+  (`cmd/projector/runtime_wiring.go:69`), 5 min for the ingester's in-process
+  projector (`cmd/ingester/wiring.go:276`), 1 min for bootstrap-index
+  (`cmd/bootstrap-index/wiring.go:115`).
+- ACK dirty-reopen trigger text (migration 093): it fires only on a `BEFORE
+  UPDATE OF status` of a reducer row where `OLD.cross_scope_replay_required` and
+  `OLD.status IN ('claimed','running')` and `NEW.status IN ('succeeded',
+  'retrying','dead_letter','failed')` (`093_cross_scope_completion_queue.sql:150-159`).
+  `NEW.status = 'succeeded'` returns the row to `pending` once; any other target
+  clears the flag (`:108-135`). It never fires for a move to `superseded`, so 2q's
+  mark is not undone by it. The sibling `fact_work_items_cross_scope_completion`
+  trigger (`:212-224`) is an `AFTER UPDATE` that writes
+  `cross_scope_completion_events` only.
 
 **Open**
-- **Projector lease.** The default `LeaseDuration` (the 2a bound in seconds),
-  and whether a projector mid-write is guaranteed stopped once `claim_until`
-  passes.
+- **Projector lease.** Whether a projector mid-write is guaranteed stopped once
+  `claim_until` passes. The lease contract says so for every lease in the system
+  today, and a Run that ignores it is outside the contract.
 - **Tuned numbers.** Commit-mode tuned figures and any 25-repo tuned figure
-  (P1'). The cause of the 106 to 171 row counts on the tuned Ww5000 runs.
+  (P1'). Why 7a and 7c touched only 106 to 171 rows on the tuned Ww5000 runs: no
+  run examined it.
 - **Gate benchmark.** P2 measured a harness copy of the scope upsert with four
   runs at facts=400, not the real PR 3 code (P2').
 - **Starvation discrepancy.** Why one earlier starvation run processed the
@@ -216,9 +303,6 @@ depend on them: #7852 and #7853.
   written by pre-barrier cycles (the P10 census covers it once built).
 - **Reducer replay.** Whether `ReplayWorkloadMaterialization` callers can name a
   retired scope's generation between 2q and 2d (reasoned structurally only).
-- **ACK dirty-reopen trigger.** Its text was not read; the design relies on the
-  comments at `reducer_queue_claim_query.go:19-27` and
-  `reducer_queue_replay.go:69-72`.
 - **Runtime cost of the 2z census.** P10' is the bar.
 - **Identity target writers.** Who writes `identity_role_scope_targets` and
   `identity_role_repository_targets`.
@@ -241,3 +325,21 @@ depend on them: #7852 and #7853.
   RED tests run.
 - **Performance numbers.** Every performance number outside P1, P2, and P9:
   none has been measured yet.
+- **P9 after #7724.** P9 ran at `3b03f018e`. The shared worker's `process.go` and
+  `selection.go` were restructured on main since, and P9 was not re-run on that
+  code. The orphan skip is unchanged in `FilterAuthoritativeIntents`.
+- **Round 4's own proof.** The ruling ran no command against Postgres or Neo4j;
+  the projector-wait and settle analysis is from source until the RED tests run.
+- **Partial projector Run.** Whether `writeContentProjection` is one
+  transaction, and whether a 500-row reducer `Enqueue` batch is. Both bound how
+  partial a cancelled Run can be. The design does not depend on either.
+- **Driver cancel semantics.** Whether a Neo4j `ExecuteGroup` already sent can
+  commit after context cancellation.
+- **Failed generations.** Whether a `failed` generation ever holds succeeded
+  reducer rows (the marginal 7a churn case).
+- **NornicDB projector write.** The `PhaseGroupExecutor` path is non-atomic, so a
+  cancelled Run can leave a partial canonical write there. Neo4j is the supported
+  backend.
+- **Evidence file types.** No gate in `specs/ci-gates.v1.yaml` or
+  `static-contract-gates.yml` rejects CSV under `docs/internal/evidence/` (a read,
+  not a gate run).

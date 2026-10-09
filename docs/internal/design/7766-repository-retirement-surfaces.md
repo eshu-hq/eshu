@@ -13,8 +13,9 @@ candidates, and console follow (PRs 9 to 11).
 Binding inputs: the arbiter rulings on
 [#7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598) and
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
-and the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F7.
-Source check: origin/main 3b03f018e, 2026-10-09.
+the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F7,
+and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), section 2.
+Source check: origin/main c88c3806a, 2026-10-09.
 
 ## Read Surfaces And OpenAPI
 
@@ -25,8 +26,11 @@ this order:
 3. otherwise `evidence_source = 'projector/canonical'` → `indexed`;
 4. else `stub`.
 
-Deliverable 1 never produces a `complete` row, so it reports `retiring` and
-`indexed` and `stub`. `retired` appears once the runner completes a retirement.
+Deliverable 1 never produces a `complete` row, so its `index_state` reports
+`retiring`, `indexed`, and `stub`. `retired` appears once the runner completes a
+retirement. The freshness verdict is different: it gains both `retiring` and
+`retired` in PR 8 (below), because Deliverable 1 would otherwise answer
+`current` or `building` for a repository it has fenced.
 
 Retiring and retired rows also carry `retirement` = {`state` (policy enum),
 `retired_at`, `retirement_id`}.
@@ -36,11 +40,32 @@ Retiring and retired rows also carry `retirement` = {`state` (policy enum),
 | GET `/api/v0/repositories` (`query/repository/handler.go:137-219`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; the dir carries `//nolint:dirgate`, `doc.go:16`). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
 | MCP `list_indexed_repositories` (`mcp/dispatch_repositories.go:74`, routes to the above) | Picks up the fields; the tool description in `tools_codebase.go:227` names `index_state` (mcp-schema-drift). |
 | `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:225-245`) | `repository_count` keeps its query. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
-| Freshness (`status/repository_freshness.go:183-205`) | New verdict `retired`, rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
+| Freshness (`status/repository_freshness.go:22-27`, computed at `:183-205`) | The verdict is a closed set today (`current`, `building`, `behind`, `unobserved`, `not_selected`, `unknown`), and nothing in it knows a tombstone. Add `retiring` and `retired` to `RepositoryFreshnessVerdict` as rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`: an open non-`complete` row gives `retiring`, a `complete` row gives `retired`. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
 | Console (`apps/console/src/api/repoCatalog.ts`) | Badge from `index_state`; retired and retiring rows are muted, not hidden. |
 
+### Deliverable 1: Labelled And Unlabelled
+
+Deliverable 1 freezes the repository's graph at the phase 1 point and does not
+retract it (see the
+[frozen-graph risk](7766-repository-retirement.md#risks-and-rejected-alternatives)).
+The table says what a reader sees on each surface until the runner ships.
+
+| Surface | Deliverable 1 shows |
+| --- | --- |
+| `GET /api/v0/repositories`, graph and content paths | Labelled `retiring` |
+| MCP `list_indexed_repositories` | Labelled `retiring` |
+| `/api/v0/index-status` and MCP `get_index_status` (counts) | Labelled: `repository_count_by_state` and the `repository_retirements` block count it as retiring |
+| The freshness route | Labelled: verdict `retiring` (PR 8) |
+| Every per-repository route: context, story, stats, files, content | Unlabelled: serves the frozen state |
+| Every graph traversal that reaches the repository's nodes or stubs from another repository's view | Unlabelled: serves the frozen state |
+| Every MCP tool built on those routes or traversals | Unlabelled |
+| Fact-backed reads that join `active_generation_id` | Return empty rather than labelled, because phase 1 nulls the pointer |
+
+The tombstone envelope for per-repository routes stays a follow-up after
+Deliverable 2 (see the design's open questions).
+
 OpenAPI changes:
-- `paths/repository/freshness.go:40`: add `retired` to the verdict enum, plus a `retirement` object;
+- `openapi/paths/repository/freshness.go:40`: add `retiring` and `retired` to the verdict enum, plus a `retirement` object;
 - the repositories list schema: add `index_state` and `retirement`;
 - the index-status schema: add the new blocks;
 - new admin fragments go in `paths/status/repository_retirement.go`
@@ -66,7 +91,7 @@ Admin routes live in a new leaf, `query/admin/retirement/`, because the admin
   - **Responses:**
     - 202 `{status:"accepted", retirements:[{retirement_id, repository_id, scope_id, state:"pending", requested_at}], idempotency_key, duplicate}`;
     - 200 dry-run preview;
-    - 409 for `blocked` (`inflight_reducers`, `lock_timeout`, `claim_fence_busy`), `request_too_large` (with per-repo counts), key reuse, or in progress.
+    - 409 for `blocked` (`projector_lease_live`, `inflight_reducers`, `lock_timeout`, `claim_fence_busy`), `request_too_large` (with per-repo counts), key reuse, or in progress.
 - `GET /api/v0/admin/repository-retirements/{retirement_id}` and
   `GET /api/v0/admin/repository-retirements?state=&limit=&cursor=` return the
   readback:

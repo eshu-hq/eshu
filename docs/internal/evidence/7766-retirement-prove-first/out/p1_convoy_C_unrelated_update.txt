@@ -1,0 +1,3 @@
+Timing is on.
+UPDATE 1
+Time: 5963.016 ms (00:05.963)
