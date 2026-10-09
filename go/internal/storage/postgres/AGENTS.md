@@ -937,17 +937,14 @@ path is unchanged.
 The identity epoch cache (`identityEpochCache`) holds the full set of active
 container-image identity facts, reloaded under singleflight on epoch mismatch.
 
-- **Shared state**: `epoch` (count + max_observed_at + active_fingerprint),
-  `facts` slice, `loading` channel. All guarded by `sync.Mutex mu`.
-- **Lock scope**: `mu` is held ONLY for map/state reads, state swaps, and the
-  channel handoff. It is NEVER held across DB loads or epoch probes — both
-  release the lock before I/O.
-- **Singleflight**: the first cache-miss caller sets `c.loading = make(chan
-  struct{})` under lock, releases the lock, performs the DB load + post-load
-  probe, re-acquires the lock, populates the cache, `close(c.loading)`, and sets
-  `loading = nil`. Concurrent callers see non-nil `loading`, release the lock,
-  `<-waitCh`, and retry `get()` which then serves from the newly populated
-  cache.
+- **Shared state**: `epoch`, `facts`, and `loading` (`*identityFlight`), all
+  guarded by `mu`, which is NEVER held across a DB load or an epoch probe.
+- **Shared flight (#7805)**: a caller whose probe equals a running flight's
+  `startEpoch` receives that flight's rows (cached or not); a caller whose probe
+  differs waits and retries; a cancelled leader or non-matching epoch never fails
+  a waiter, a load error is shared. Cached only when the post-load probe equals
+  `startEpoch` and the set fits the cap; reasons in `..._passthrough_total`,
+  waiters in `..._flight_waiter_total`. See docs/internal/evidence/7805-*.md.
 - **TOCTOU analysis**: the probe→serve window (between epoch probe and cache
   hit) is a bounded probe-interval gap. Today's baseline does a full paginated
   O(corpus) scan inside every call, mixing facts from different commit

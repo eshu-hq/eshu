@@ -454,6 +454,26 @@ artifact identifiers stay in logs, traces, or durable facts.
 Ambiguous or unmatched mention outcomes usually point to catalog or alias
 problems, not writer problems.
 
+## Identity Fact Cache
+
+The reducer shares one identity fact set (container-image and Kubernetes
+correlation handlers) through an epoch-validated cache. These counters show
+whether callers are sharing one load or queueing behind many.
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_identity_cache_reload_total` | counter | Loads started (flight leaders). |
+| `eshu_dp_identity_cache_reload_duration_seconds` | histogram | Duration of every load, cached or not. |
+| `eshu_dp_identity_cache_passthrough_total` | counter | Loads served to their callers without being cached. Label `reason`: `epoch_moved`, `cap_exceeded`, `size_unknown`, `probe_error`. |
+| `eshu_dp_identity_cache_flight_waiter_total` | counter | Callers that arrived during a load. Label `outcome`: `shared` (served that load's rows), `shared_error`, `stale_epoch` (active set moved past the load's start; retried), `leader_canceled` (retried). |
+| `eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total` | counter | Epoch-validated cache hits and misses. |
+| `eshu_dp_identity_cache_probe_duration_seconds` | histogram | Duration of the epoch probe, which runs on every call. |
+
+A healthy domain shows many `shared` waiters per `reload_total`. A high
+`passthrough_total{reason="epoch_moved"}` means the active set changes faster
+than a load runs. A high `flight_waiter_total{outcome="stale_epoch"}` with many
+loads means callers keep arriving after the active set moved.
+
 ## Capacity And Memory
 
 | Metric | Type | Use |
