@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -28,11 +29,14 @@ var (
 // Manifest describes the set of hot paths that a query-plan regression gate
 // must validate.
 type Manifest struct {
-	Version                     int              `yaml:"version"`
-	RequiredIDs                 []string         `yaml:"required_ids"`
-	Entries                     []Entry          `yaml:"entries"`
-	GrandfatheredNonHotBaseline string           `yaml:"grandfathered_non_hot_baseline,omitempty"`
-	SourceCoverage              []SourceCoverage `yaml:"source_coverage"`
+	Version                     int                      `yaml:"version"`
+	RequiredIDs                 []string                 `yaml:"required_ids"`
+	PilotRequiredIDs            []string                 `yaml:"pilot_required_ids,omitempty"`
+	Entries                     []Entry                  `yaml:"entries"`
+	GrandfatheredNonHotBaseline string                   `yaml:"grandfathered_non_hot_baseline,omitempty"`
+	SourceCoverage              []SourceCoverage         `yaml:"source_coverage"`
+	PostgresCoverage            []PostgresSourceCoverage `yaml:"postgres_coverage,omitempty"`
+	PilotPostgresFiles          []string                 `yaml:"pilot_postgres_files,omitempty"`
 }
 
 // Entry describes one hot query or read model in the query-plan gate.
@@ -52,6 +56,8 @@ type Entry struct {
 	AllowUnlabeled  bool            `yaml:"allow_unlabeled,omitempty"`
 	Plan            PlanExpectation `yaml:"plan,omitempty"`
 	Caveats         []string        `yaml:"caveats,omitempty"`
+	Contract        *PilotContract  `yaml:"contract,omitempty"`
+	ContractFile    string          `yaml:"contract_file,omitempty"`
 }
 
 // SourceRef points a manifest entry at the production source that owns it.
@@ -83,6 +89,31 @@ func LoadManifestFile(path string) (Manifest, error) {
 	var manifest Manifest
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		return Manifest{}, err
+	}
+	for i := range manifest.Entries {
+		entry := &manifest.Entries[i]
+		if entry.ContractFile == "" {
+			continue
+		}
+		if entry.Contract != nil {
+			return Manifest{}, fmt.Errorf("%s: contract and contract_file cannot both be set", entry.ID)
+		}
+		clean := filepath.Clean(entry.ContractFile)
+		if filepath.IsAbs(clean) || clean != entry.ContractFile || filepath.Ext(clean) != ".yaml" ||
+			!strings.HasPrefix(filepath.ToSlash(clean), "contracts/") ||
+			strings.HasPrefix(filepath.ToSlash(clean), "contracts/../") {
+			return Manifest{}, fmt.Errorf("%s: contract_file must be a clean relative YAML path under contracts/", entry.ID)
+		}
+		contractPath := filepath.Join(filepath.Dir(path), clean)
+		contractData, readErr := os.ReadFile(contractPath) // #nosec G304 -- constrained manifest-relative contract file
+		if readErr != nil {
+			return Manifest{}, fmt.Errorf("%s: read contract_file: %w", entry.ID, readErr)
+		}
+		var contract PilotContract
+		if unmarshalErr := yaml.Unmarshal(contractData, &contract); unmarshalErr != nil {
+			return Manifest{}, fmt.Errorf("%s: parse contract_file: %w", entry.ID, unmarshalErr)
+		}
+		entry.Contract = &contract
 	}
 	return manifest, nil
 }
@@ -117,6 +148,9 @@ func ValidateManifest(manifest Manifest, schemaStatements []string) error {
 		if _, exists := entriesByID[id]; !exists {
 			violations = append(violations, fmt.Sprintf("missing required hot path %s", id))
 		}
+	}
+	if err := ValidatePilotContracts(manifest); err != nil {
+		violations = append(violations, err.Error())
 	}
 
 	schemaNames := schemaNames(schemaStatements)

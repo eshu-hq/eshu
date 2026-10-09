@@ -1,0 +1,38 @@
+version: 1
+result: "Exact ordered import identities and fields, with paging and cycle enumeration metadata, match the independent edge ledger."
+authorization: "Apply the caller grant in each relevant branch before scan or page bounds; all-scope access is declared per case."
+current_history: "Read repository-connected code; orphan history is outside the current repository graph."
+nulls: "Nullable import line/name/type fields follow declared projection defaults; absence must not invent an import."
+duplicates: "Preserve declared import edge multiplicity; deduplicate logical packages, scopes and cycles before paging."
+ordering: "Production stable identity order is checked against an independently ordered fixture ledger."
+pagination: "Apply grant and logical filtering before page boundaries; include unique tie breakers and sentinel rows."
+partial: "A cycle-cap terminal page has truncated=true, has_more=false and no invented next offset."
+patterns: ["selective anchors", "authorization before bounds", "stable identity pagination"]
+rationale: "Extend existing production-bound query families and independent fixtures; hashes bind evidence but do not prove semantics."
+alternatives: ["schema-only plans do not prove seeded result semantics", "a copied query oracle cannot prove correctness"]
+index_cost: "Use existing schema indexes; no index is added by the pilot. Real-index acceptance must measure write work and storage."
+exceptions: ["Planner variation and bounded Cartesian products are recorded; accept only within declared workload and result budgets."]
+budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1}, noise_tolerance: "Absolute two-second fixture ceiling; paired normal timing records expose noise without claiming a speedup. Scale calibration is a separate required stage."}
+workload: {"budgets": "PostgreSQL normal execution <=2000 ms on the 20000-row fixture; graph plans and endpoint budgets use the selected workload.", "cardinality": "PostgreSQL 20001 owners and 20000 source facts; Neo4j two tenants plus duplicate edges and 128 skew files.", "depth": "Declared bounded code traversals; cycle reconstruction scans capped edges.", "fanout": "128 skew imports plus repeated import edges; record PROFILE expansion rows.", "payload": "Narrow identity and import fields; large-payload operation proof is a dedicated stage.", "query_count": "One SQL statement per page; graph query counts recorded per request and emitted family.", "skew": "Cross-scope negative cases and high-degree imports; zero-result reads retain the populated fixture."}
+require_order: true
+require_limit: true
+environment: {"engine": "neo4j", "fixture": "import-edge-ledger-v1", "indexes": "physical indexes and full definitions captured per run", "oracle": "import-edge-ledger-v1", "runner": "TestImportDependencyMethodologyLive", "schema": "disposable declared fixture DDL", "version": "2026.08.1"}
+required_schema: ["methodology_repo_id", "methodology_file_relative", "methodology_file_path", "methodology_module_name", "methodology_function_uid"]
+authorization_aliases: ["repo"]
+required_cases:
+  - {"case_id": "representative", "query_sha256": "1d1d5d539c8a3901662ef67778255d2e39a10f120738b5a193e8efc92bcd759d", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+repo+source-file+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "db32756a1dade40714a1fb3742a91d9339b4ff47451b8420070af1843cbd64fc", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+repo+source-file+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "a5470cdf28e3132ce9d24a9e5da434999cdb38e3dfe3d540b845086790f82ae5", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+repo+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "5014ca18249b1d5ca81bcda31e3be4c01425ba7542a0859a08408acf10c18694", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+repo+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "69276815fac0408c8e54bb19953fc641ea5ffb510aae821e4fb562fac9f342ae", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+source-file+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "f74bf70451768a1bd531d3a9190b6b74932cab9c44634b964c95ab825efaf31b", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+source-file+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "2435c1afafc415281f949a2dcf4455954bfd273ea8d5c497a721b4bf085fc476", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "b5966d27c41a9394b0f123a77f67bb30011c11bec91fb4cdb6899592fef7b3b8", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+imports_by_file+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "043923ffcba1789cdc698385bd0848bccbb84bf53505cfda32428240c2e2f9c0", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+repo+source-file+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "34457fcddb07944b0fa0fab4020fe663dbddb40974497b8cdeed25d7b867b34b", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+repo+source-file+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "ba22cc771b15d55c9ee98ad917be9f24ebb22e1b353fb291b9226c179fe7929a", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+repo+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "aeb8cdd9690b91f9b07072adad9dea0b32c92835963d8ffff6a8f4eea71142fa", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+repo+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "431a8756e7a72720c76a330053f10deac18549420eca9e422fc0c9007897ebe9", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+source-file+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "1d78bf6e860eec0db7fbdb7542bc7ba529e943a58e029ef57ad8f53492fb6b7b", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+source-file+source-module/source-membership"}
+  - {"case_id": "representative", "query_sha256": "5ab16d724bfd4f4501b1064d9674dd8b731fb8af88c9cddf374e04282160f486", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+source-module+language/source-membership"}
+  - {"case_id": "representative", "query_sha256": "86c65aec502436d18fe6246f816df98ebf6f65bc0c1522e2bd50215abc797e28", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+imports_by_file+source-module/source-membership"}

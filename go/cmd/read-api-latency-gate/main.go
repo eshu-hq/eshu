@@ -25,6 +25,7 @@ func main() {
 	graphUsername := flag.String("graph-username", os.Getenv("NEO4J_USERNAME"), "graph username (empty for no-auth backends)")
 	graphPassword := flag.String("graph-password", os.Getenv("NEO4J_PASSWORD"), "graph password")
 	apiBaseURL := flag.String("api-base-url", envOr("READ_API_LATENCY_GATE_BASE_URL", "http://localhost:18080"), "running eshu-api base URL")
+	mcpBaseURL := flag.String("mcp-base-url", "", "running MCP HTTP transport base URL for pilot tools/call")
 	apiKey := flag.String("api-key", os.Getenv("ESHU_API_KEY"), "eshu-api bearer token")
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
@@ -42,32 +43,39 @@ func main() {
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
 	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (eshu-api starts after this, so its startup backfill sees the seeded content)")
 	requestTimeout := flag.Duration("request-timeout", 30*time.Second, "per-request timeout for the sweep")
+	concurrentWorkers := flag.Int("concurrent-workers", 0, "optional bounded pilot read concurrency after the metered sequential stage (2..16)")
+	concurrentRequests := flag.Int("concurrent-requests", 20, "requests per pilot operation in the optional concurrent stage")
+	concurrentReport := flag.String("concurrent-report", "", "optional JSON report for the concurrent pilot stage")
 	flag.Parse()
 
 	if err := run(runOptions{
-		postgresDSN:       *postgresDSN,
-		graphURI:          *graphURI,
-		graphDatabase:     *graphDatabase,
-		graphUsername:     *graphUsername,
-		graphPassword:     *graphPassword,
-		apiBaseURL:        *apiBaseURL,
-		apiKey:            *apiKey,
-		totalScopes:       *totalScopes,
-		nodesPerLabel:     *nodesPerLabel,
-		iacFactCount:      *iacFactCount,
-		sharedIntents:     *sharedIntentCount,
-		iterations:        *iterations,
-		runs:              *runs,
-		budgetsPath:       *budgetsPath,
-		workBudgetsPath:   *workBudgetsPath,
-		workReportPath:    *workReportPath,
-		latencyReportPath: *latencyReportPath,
-		eshuCommit:        *eshuCommit,
-		apiBinarySHA256:   *apiBinarySHA256,
-		backgroundIdle:    *backgroundIdle,
-		skipSeed:          *skipSeed,
-		seedOnly:          *seedOnly,
-		requestTimeout:    *requestTimeout,
+		postgresDSN:        *postgresDSN,
+		graphURI:           *graphURI,
+		graphDatabase:      *graphDatabase,
+		graphUsername:      *graphUsername,
+		graphPassword:      *graphPassword,
+		apiBaseURL:         *apiBaseURL,
+		mcpBaseURL:         *mcpBaseURL,
+		apiKey:             *apiKey,
+		totalScopes:        *totalScopes,
+		nodesPerLabel:      *nodesPerLabel,
+		iacFactCount:       *iacFactCount,
+		sharedIntents:      *sharedIntentCount,
+		iterations:         *iterations,
+		runs:               *runs,
+		budgetsPath:        *budgetsPath,
+		workBudgetsPath:    *workBudgetsPath,
+		workReportPath:     *workReportPath,
+		latencyReportPath:  *latencyReportPath,
+		eshuCommit:         *eshuCommit,
+		apiBinarySHA256:    *apiBinarySHA256,
+		backgroundIdle:     *backgroundIdle,
+		skipSeed:           *skipSeed,
+		seedOnly:           *seedOnly,
+		requestTimeout:     *requestTimeout,
+		concurrentWorkers:  *concurrentWorkers,
+		concurrentRequests: *concurrentRequests,
+		concurrentReport:   *concurrentReport,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate:", err)
 		os.Exit(1)
@@ -75,42 +83,40 @@ func main() {
 }
 
 type runOptions struct {
-	postgresDSN       string
-	graphURI          string
-	graphDatabase     string
-	graphUsername     string
-	graphPassword     string
-	apiBaseURL        string
-	apiKey            string
-	totalScopes       int
-	nodesPerLabel     int
-	iacFactCount      int
-	sharedIntents     int
-	iterations        int
-	runs              int
-	budgetsPath       string
-	workBudgetsPath   string
-	workReportPath    string
-	latencyReportPath string
-	eshuCommit        string
-	apiBinarySHA256   string
-	backgroundIdle    time.Duration
-	skipSeed          bool
-	seedOnly          bool
-	requestTimeout    time.Duration
+	postgresDSN        string
+	graphURI           string
+	graphDatabase      string
+	graphUsername      string
+	graphPassword      string
+	apiBaseURL         string
+	mcpBaseURL         string
+	apiKey             string
+	totalScopes        int
+	nodesPerLabel      int
+	iacFactCount       int
+	sharedIntents      int
+	iterations         int
+	runs               int
+	budgetsPath        string
+	workBudgetsPath    string
+	workReportPath     string
+	latencyReportPath  string
+	eshuCommit         string
+	apiBinarySHA256    string
+	backgroundIdle     time.Duration
+	skipSeed           bool
+	seedOnly           bool
+	requestTimeout     time.Duration
+	concurrentWorkers  int
+	concurrentRequests int
+	concurrentReport   string
 }
 
 func run(opts runOptions) error {
 	ctx := context.Background()
 
-	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
-		return fmt.Errorf("latency exemptions: %w", err)
-	}
-	if opts.postgresDSN == "" {
-		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
-	}
-	if opts.seedOnly && opts.skipSeed {
-		return fmt.Errorf("-seed-only and -skip-seed are mutually exclusive")
+	if err := validateRunOptions(opts); err != nil {
+		return err
 	}
 	if !opts.skipSeed {
 		if err := seed(ctx, opts); err != nil {
@@ -143,14 +149,16 @@ func run(opts runOptions) error {
 	if err != nil {
 		return fmt.Errorf("load surface inventory: %w", err)
 	}
-	routes := NoArgGetRoutes(inventory)
-	if len(routes) == 0 {
-		return fmt.Errorf("no-arg GET routes: found none in the surface inventory")
+	routes, operations, err := selectedOperations(inventory, opts.mcpBaseURL != "")
+	if err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "read-api-latency-gate: sweeping %d no-arg GET routes x %d iterations\n", len(routes), opts.iterations)
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: sweeping %d read operations x %d iterations\n", len(routes), opts.iterations)
 
 	results, err := SweepRoutes(SweepOptions{
 		BaseURL:    opts.apiBaseURL,
+		MCPBaseURL: opts.mcpBaseURL,
+		Operations: operations,
 		APIKey:     opts.apiKey,
 		Routes:     routes,
 		QueryArgs:  RouteQueryArgs,
@@ -240,9 +248,13 @@ func run(opts runOptions) error {
 		fmt.Fprintf(os.Stderr, "read-api-latency-gate: %d explicitly-budgeted route(s) were not exercised: %s\n", len(missing), strings.Join(missing, ", "))
 		failures = append(failures, fmt.Sprintf("%d explicitly-budgeted route(s) were not exercised", len(missing)))
 	}
+	failures = append(failures, pilotFailures(results, operations)...)
 
 	if len(failures) > 0 {
 		return fmt.Errorf("%s", strings.Join(failures, "; "))
+	}
+	if err := runConcurrentPilot(opts, operations, budgets); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: all %d exercised routes within budget\n", exercised)
@@ -464,4 +476,20 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func validateRunOptions(opts runOptions) error {
+	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
+		return fmt.Errorf("latency exemptions: %w", err)
+	}
+	if opts.postgresDSN == "" {
+		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
+	}
+	if opts.seedOnly && opts.skipSeed {
+		return fmt.Errorf("-seed-only and -skip-seed are mutually exclusive")
+	}
+	if err := validateOperationOptions(opts); err != nil {
+		return err
+	}
+	return nil
 }

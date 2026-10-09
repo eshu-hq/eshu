@@ -77,11 +77,13 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   body, capped at `hardFailedBodyCap` bytes.** The first failure is the most
   informative; overwriting it with a later repeat discards the evidence an
   operator needs to root-cause a HardFailed route.
-- **The work meter is never skipped.** `SweepRoutes` resets the meter after the
+- **The sequential work meter is never skipped.** `SweepRoutes` resets the meter after the
   warmup requests and reads it after the counted ones; a meter error aborts the
   run, and `UnmeteredExercisedRoutes` fails the run on any exercised route the
   meter never read. Catching a meter/extension failure and continuing on
   latency alone is the exact failure the work budget exists to prevent.
+  The optional `SweepConcurrentOperations` runs only after that metered stage,
+  refuses a meter, and reports its own request count and worker count.
 - **`testdata/benchmarks/read-api-route-work-budgets.txt` is generated.**
   Render it with `scripts/refresh-read-api-work-budgets.sh` from GREEN
   `-work-report` files (from the runner class the gate enforces on, not a local

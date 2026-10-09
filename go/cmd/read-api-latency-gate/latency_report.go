@@ -37,13 +37,15 @@ type LatencyReportSeedOptions struct {
 // always known; EshuCommit and APIBinarySHA256 are best-effort and empty
 // when the caller did not supply them (-eshu-commit / -api-binary-sha256).
 type LatencyReportIdentity struct {
-	Backend         string                   `json:"backend"`
-	EshuCommit      string                   `json:"eshu_commit,omitempty"`
-	APIBinarySHA256 string                   `json:"api_binary_sha256,omitempty"`
-	SeedOptions     LatencyReportSeedOptions `json:"seed_options"`
-	Runs            int                      `json:"runs"`
-	Iterations      int                      `json:"iterations"`
-	Warmups         int                      `json:"warmups"`
+	Backend                 string                   `json:"backend"`
+	EshuCommit              string                   `json:"eshu_commit,omitempty"`
+	APIBinarySHA256         string                   `json:"api_binary_sha256,omitempty"`
+	SeedOptions             LatencyReportSeedOptions `json:"seed_options"`
+	Runs                    int                      `json:"runs"`
+	Iterations              int                      `json:"iterations"`
+	Warmups                 int                      `json:"warmups"`
+	ConcurrentPilotWorkers  int                      `json:"concurrent_pilot_workers,omitempty"`
+	ConcurrentPilotRequests int                      `json:"concurrent_pilot_requests_per_operation,omitempty"`
 }
 
 // LatencyReportWarmStats summarizes a route's pooled warm samples (every
@@ -65,6 +67,9 @@ type LatencyReportWarmStats struct {
 // to re-derive everything printReport shows plus the raw distribution.
 type LatencyReportRoute struct {
 	Route          string         `json:"route"`
+	Method         string         `json:"method,omitempty"`
+	Path           string         `json:"path,omitempty"`
+	MCP            bool           `json:"mcp,omitempty"`
 	Exercised      bool           `json:"exercised"`
 	Status         int            `json:"status"`
 	HardFailed     bool           `json:"hard_failed"`
@@ -136,6 +141,9 @@ func minMaxMS(samples []time.Duration) (min, max float64) {
 func buildLatencyReportRoute(r RouteLatency) LatencyReportRoute {
 	out := LatencyReportRoute{
 		Route:          r.Route,
+		Method:         r.Method,
+		Path:           r.Path,
+		MCP:            r.MCP,
 		Exercised:      r.Exercised,
 		Status:         r.Status,
 		HardFailed:     r.HardFailed,
@@ -217,6 +225,10 @@ func latencyReportIdentityFrom(opts runOptions) LatencyReportIdentity {
 	if runs < 1 {
 		runs = 1
 	}
+	concurrentRequests := 0
+	if opts.concurrentWorkers > 0 {
+		concurrentRequests = opts.concurrentRequests
+	}
 	return LatencyReportIdentity{
 		Backend:         backend,
 		EshuCommit:      opts.eshuCommit,
@@ -227,9 +239,11 @@ func latencyReportIdentityFrom(opts runOptions) LatencyReportIdentity {
 			IACFactCount:      opts.iacFactCount,
 			SharedIntentCount: opts.sharedIntents,
 		},
-		Runs:       runs,
-		Iterations: opts.iterations,
-		Warmups:    warmupRequests,
+		Runs:                    runs,
+		Iterations:              opts.iterations,
+		Warmups:                 warmupRequests,
+		ConcurrentPilotWorkers:  opts.concurrentWorkers,
+		ConcurrentPilotRequests: concurrentRequests,
 	}
 }
 

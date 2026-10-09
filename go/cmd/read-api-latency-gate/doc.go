@@ -9,7 +9,9 @@
 // graph nodes correlated with those IaC facts so /iac/resources can hydrate
 // its Postgres candidates from the graph) into a live Postgres and
 // NornicDB/Neo4j backend, sweeps every no-arg GET route the
-// generated surface inventory reports against a running eshu-api (true
+// generated surface inventory reports against a running eshu-api, then sweeps
+// seeded parameterized GET and query POST operations and an MCP tools/call
+// through the running MCP HTTP transport (true
 // nearest-rank p95 over a warmup-discarded sample), and fails when any
 // route exceeds its budget, a 5xx response occurs, the exercised-route
 // coverage floor is not met, or an explicitly-budgeted route drops out of
@@ -34,8 +36,8 @@
 // binary, starts eshu-api, runs this binary to seed and sweep, and tears the
 // stack down.
 //
-// -runs (default 1) repeats the counted sweep per route: run 1 is always the
-// cold pass, and runs 2..-runs are warm passes issued with no additional
+// -runs (default 1) repeats the counted sweep per route: run 1 follows the
+// warmup probes, and runs 2..-runs are later passes issued with no additional
 // warmup between them. -latency-report writes the full per-route
 // distribution (cold and warm samples, warm n/p50/p95/min/max/stddev, the
 // per-run p95 spread, and an identity block identifying the corpus, run

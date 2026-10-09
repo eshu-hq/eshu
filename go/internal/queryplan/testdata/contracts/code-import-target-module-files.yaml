@@ -1,0 +1,38 @@
+version: 1
+result: "Exact ordered import identities and fields, with paging and cycle enumeration metadata, match the independent edge ledger."
+authorization: "Apply the caller grant in each relevant branch before scan or page bounds; all-scope access is declared per case."
+current_history: "Read repository-connected code; orphan history is outside the current repository graph."
+nulls: "Nullable import line/name/type fields follow declared projection defaults; absence must not invent an import."
+duplicates: "Preserve declared import edge multiplicity; deduplicate logical packages, scopes and cycles before paging."
+ordering: "Production stable identity order is checked against an independently ordered fixture ledger."
+pagination: "Apply grant and logical filtering before page boundaries; include unique tie breakers and sentinel rows."
+partial: "A cycle-cap terminal page has truncated=true, has_more=false and no invented next offset."
+patterns: ["selective anchors", "authorization before bounds", "stable identity pagination"]
+rationale: "Extend existing production-bound query families and independent fixtures; hashes bind evidence but do not prove semantics."
+alternatives: ["schema-only plans do not prove seeded result semantics", "a copied query oracle cannot prove correctness"]
+index_cost: "Use existing schema indexes; no index is added by the pilot. Real-index acceptance must measure write work and storage."
+exceptions: ["Planner variation and bounded Cartesian products are recorded; accept only within declared workload and result budgets."]
+budget: {max_normal_ms: 2000, max_query_count: 1, max_work: {query_count: 1}, noise_tolerance: "Absolute two-second fixture ceiling; paired normal timing records expose noise without claiming a speedup. Scale calibration is a separate required stage."}
+workload: {"budgets": "PostgreSQL normal execution <=2000 ms on the 20000-row fixture; graph plans and endpoint budgets use the selected workload.", "cardinality": "PostgreSQL 20001 owners and 20000 source facts; Neo4j two tenants plus duplicate edges and 128 skew files.", "depth": "Declared bounded code traversals; cycle reconstruction scans capped edges.", "fanout": "128 skew imports plus repeated import edges; record PROFILE expansion rows.", "payload": "Narrow identity and import fields; large-payload operation proof is a dedicated stage.", "query_count": "One SQL statement per page; graph query counts recorded per request and emitted family.", "skew": "Cross-scope negative cases and high-degree imports; zero-result reads retain the populated fixture."}
+require_order: true
+require_limit: true
+environment: {"engine": "neo4j", "fixture": "import-edge-ledger-v1", "indexes": "physical indexes and full definitions captured per run", "oracle": "import-edge-ledger-v1", "runner": "TestImportDependencyMethodologyLive", "schema": "disposable declared fixture DDL", "version": "2026.08.1"}
+required_schema: ["methodology_repo_id", "methodology_file_relative", "methodology_file_path", "methodology_module_name", "methodology_function_uid"]
+authorization_aliases: ["repo"]
+required_cases:
+  - {"case_id": "representative", "query_sha256": "e34081c66601263b6d71aa53118c92008aaa6828f6d3efa0e3a188106fbafc55", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+repo+target-file+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "20adaf7ad8c3e1ea1ad268c05c68ad8dc7fda2aa9228e85880c0316b147cffc5", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+repo+target-file+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "439dfeab0b4e71c6c640177804faccd324df32129dc35399fe402dbd48c537af", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+repo+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "05521bbbf2c74af41b0f4f9f01399bc8c1715eed15a6c8919baea70368211cc8", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+repo+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "fa7cc430658fbfc8d25dfb4c1a3ee56a216934c8c779a9b7091d1dfc0e545f2b", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+target-file+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "819649636ff781d2490a71e161f0e0d285c0a3261dde6bae875885a27f3de8fc", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+target-file+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "c2ffb050d876dd3ea2ceb98d419d867bf6f30e35c21cc6157af7a30661414b0c", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "05f5198c993ce7ca8dd2d1700034813a187d6b3f01420394e9112281bd7553a2", "scope_mode": "all_scopes", "variant_id": "import-dependencies/all+cross_module_calls+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "b45971ad9159c33128c1ac0cea3bf0e8328bae76e116994a5428865654a03dd7", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+repo+target-file+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "cd7df8b216bdb0c76e494802780fbfc7992c8626d5782a63035293008b82a117", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+repo+target-file+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "94a79b2c18e72c55da380d359723f322a46e6f968d1a34618dec8cd0bfbe4fb0", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+repo+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "36c20e4beb9e1a4eee4cee20ec9c97a39fff74720eb22212b822fd2f9223bb04", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+repo+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "84371783ddef26a4071061e087d02d5b7609cc5a514e86943216ec1049cf0af7", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+target-file+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "c10a44933bf3db3150b9ab2994aab8e9c83ceaff0fad1c600691e4a998e983bf", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+target-file+target-module/target-membership"}
+  - {"case_id": "representative", "query_sha256": "0d76f012ee2e1007033a73bee1189f1079e4953a8975516e07025a170d067906", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+target-module+language/target-membership"}
+  - {"case_id": "representative", "query_sha256": "c0bedecd3d11f8a5d2e96c1005893b3c164d56665bae76e66e2c51c252e2f8af", "scope_mode": "scoped", "variant_id": "import-dependencies/scoped+cross_module_calls+target-module/target-membership"}
