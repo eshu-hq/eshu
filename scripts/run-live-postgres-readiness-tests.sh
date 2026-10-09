@@ -21,6 +21,7 @@ command -v go >/dev/null 2>&1 || die "go is required"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
 for name in \
+  ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN \
   ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN \
   ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN \
   ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN \
@@ -44,6 +45,7 @@ for name in \
     die "${name} must target the administrative postgres database"
 done
 for name in \
+  ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE \
   ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE \
   ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DISPOSABLE \
   ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE \

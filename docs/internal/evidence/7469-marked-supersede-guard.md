@@ -145,3 +145,16 @@ strictly milder than the pre-fix always-retire: a temporary backward scope
 pointer — delta projections are still refused by the #7319 fence, and the
 next sync heals automatically. Follow-up: close the skip-blindness (fence
 bump on marker, or candidate-time re-verification of older generations).
+
+## Runner enrollment
+
+The five `projector_queue_claim_marked_guard_*_live_test.go` proofs are
+`postgres_ci` rows in `specs/live-tests.v1.yaml`, enrolled in the
+live-postgres-readiness runner with their 15 test names pinned in
+`scripts/lib/live_postgres_readiness_results.py`. They reuse the existing
+`ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN` proof database (each test mints
+and drops its own `claim_deadlock_proof_*` schema), now wired into the
+runner script, its fail-closed test, and the workflow env alongside its
+`_DISPOSABLE` opt-in. Local wall time for the enrolled set is about 96s on
+disposable PostgreSQL 18 (the contention proof alone is about 60s), inside
+the runner's 15-minute per-package budget.

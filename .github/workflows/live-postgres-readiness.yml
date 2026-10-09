@@ -125,6 +125,8 @@ jobs:
 
       - name: Run live readiness proofs
         env:
+          ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE: '1'
           ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PACKAGE_MANIFEST_REPO_SCOPE_EXPLAIN_PROOF_DISPOSABLE: '1'
           ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
