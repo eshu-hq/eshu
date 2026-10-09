@@ -198,7 +198,10 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 		if err != nil {
 			return nil, err
 		}
-		loaded = append(loaded, page...)
+		// The corpus scan can return a fact the Go-anchored leg already
+		// loaded, so merge unique here rather than at the anchored
+		// append, where loaded is still empty and the call is a no-op.
+		loaded = appendUniqueFactEnvelopes(loaded, page)
 	}
 	if len(packageKeys) == 0 {
 		return loaded, nil
