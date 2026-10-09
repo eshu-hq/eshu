@@ -639,7 +639,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-publish' &&
       github.repository == 'eshu-hq/eshu' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/ci-owned-image-mirror-20261009')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -673,7 +673,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.mode == 'ci-mirrors-verify-public' &&
       github.repository == 'eshu-hq/eshu' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/ci-owned-image-mirror-20261009')
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

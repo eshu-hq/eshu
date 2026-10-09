@@ -17,9 +17,8 @@ case "$1" in
   publish)
     if [[ "${GITHUB_REPOSITORY:-}" != 'eshu-hq/eshu' ||
           "${GITHUB_EVENT_NAME:-}" != 'workflow_dispatch' ||
-          ( "${GITHUB_REF:-}" != 'refs/heads/main' &&
-            "${GITHUB_REF:-}" != 'refs/heads/fix/ci-owned-image-mirror-20261009' ) ]]; then
-      printf 'publish requires a manual run on eshu-hq/eshu main or its reviewed bootstrap branch\n' >&2
+          "${GITHUB_REF:-}" != 'refs/heads/main' ]]; then
+      printf 'publish requires a manual run on eshu-hq/eshu main\n' >&2
       exit 2
     fi
     if [[ ! "${EXPECTED_REVIEWED_SHA:-}" =~ ^[0-9a-f]{40}$ ||
