@@ -6,9 +6,12 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -43,15 +46,44 @@ type identityEpoch struct {
 }
 
 // identityFlight is one in-flight identity-fact load. The leader that created
-// it owns the load; every other caller that joins while it runs waits on done.
-// startEpoch is the leader's pre-load probe, and waiters counts the callers
-// currently blocked on done. All fields except done are guarded by
-// IdentityEpochCache.mu.
+// it owns the load; every other caller that parks on it waits on done.
+//
+// startEpoch is the leader's pre-load probe. A parked caller whose own probe
+// equals startEpoch is served the flight's rows; a caller whose probe differs
+// saw a newer active set than the flight started from, so it waits for the
+// flight and loads for itself rather than risk a set that predates its trigger.
+//
+// rows, err, and leaderCanceled are written by the leader before it closes
+// done and read by waiters only after done closes; the channel close is the
+// happens-before edge. waiters is a cumulative count of callers that parked on
+// the flight and is guarded by IdentityEpochCache.mu with startEpoch.
 type identityFlight struct {
 	done       chan struct{}
 	startEpoch identityEpoch
 	waiters    int
+
+	rows           []facts.Envelope
+	err            error
+	leaderCanceled bool
 }
+
+// Reason values for eshu_dp_identity_cache_passthrough_total: why a finished
+// load was served to its flight without being cached.
+const (
+	identityDiscardEpochMoved  = "epoch_moved"
+	identityDiscardCapExceeded = "cap_exceeded"
+	identityDiscardSizeUnknown = "size_unknown"
+	identityDiscardProbeError  = "probe_error"
+)
+
+// Outcome values for eshu_dp_identity_cache_flight_waiter_total: what happened
+// to a caller that arrived while a load was in flight.
+const (
+	identityWaiterShared         = "shared"
+	identityWaiterSharedError    = "shared_error"
+	identityWaiterStaleEpoch     = "stale_epoch"
+	identityWaiterLeaderCanceled = "leader_canceled"
+)
 
 // IdentityEpochCache caches the full set of active container-image identity
 // facts, validated by an O(1) epoch probe (count + max observed_at) backed
@@ -92,128 +124,178 @@ func NewIdentityEpochCache(inst *telemetry.Instruments, maxBytes int64) (*Identi
 }
 
 // get serves the identity fact set, transparently applying the epoch cache
-// and singleflight reload.
+// and the shared flight.
+//
+// Every caller first probes the epoch (no lock held). Then, under mu:
+//   - a cache whose epoch equals the probe serves a defensive copy;
+//   - an in-flight load whose start epoch equals the probe is joined: the
+//     caller receives that flight's rows whether or not the flight ends up
+//     cached, so N callers behind one load cost one load (#7805);
+//   - an in-flight load that started from a different epoch is waited out and
+//     the caller then retries, so a caller never gets a set older than the
+//     active set it observed;
+//   - otherwise the caller becomes the leader of a new flight.
 func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts.Envelope, error) {
-	// Fast path: check whether a reload is already in flight, under lock.
-	c.mu.Lock()
-	if c.loading != nil {
-		waitCh := c.loading.done
-		c.loading.waiters++
-		c.mu.Unlock()
-		select {
-		case <-waitCh:
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	for {
+		// Probe the epoch WITHOUT the lock held, so concurrent callers' probes
+		// overlap instead of serializing behind mu.
+		probeStart := time.Now()
+		probe, err := store.probeIdentityEpoch(ctx)
+		c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(probeStart).Seconds())
+		if err != nil {
+			return nil, err
 		}
-		// After the flight lands, retry: the cache may now be populated.
-		return c.get(ctx, store)
-	}
-	c.mu.Unlock() // Release before I/O: mu must never be held across the probe.
 
-	// Probe the epoch WITHOUT the lock held, so concurrent callers' probes
-	// overlap instead of serializing behind mu (and behind each other's
-	// possibly-uncancellable lock wait).
-	probeStart := time.Now()
-	probe, err := store.probeIdentityEpoch(ctx)
-	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(probeStart).Seconds())
-	if err != nil {
-		return nil, err
-	}
-
-	c.mu.Lock()
-	// Double-check: another goroutine may have started a reload, or
-	// repopulated the cache, while we were probing without the lock.
-	if c.loading != nil {
-		waitCh := c.loading.done
-		c.loading.waiters++
-		c.mu.Unlock()
-		select {
-		case <-waitCh:
-		case <-ctx.Done():
-			return nil, ctx.Err()
+		c.mu.Lock()
+		if flight := c.loading; flight != nil {
+			flight.waiters++
+			joinable := flight.startEpoch == probe
+			c.mu.Unlock()
+			select {
+			case <-flight.done:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			if rows, served, flightErr := c.settleWaiter(ctx, flight, joinable); served {
+				return rows, flightErr
+			}
+			continue
 		}
-		return c.get(ctx, store)
-	}
 
-	// Check cache hit.
-	if c.facts != nil && c.epoch == probe {
-		// Cache hit: serve with defensive copy.
-		result := defensiveCopyEnvelopes(c.facts)
-		c.inst.IdentityCacheHitTotal.Add(ctx, 1)
+		if c.facts != nil && c.epoch == probe {
+			result := defensiveCopyEnvelopes(c.facts)
+			c.inst.IdentityCacheHitTotal.Add(ctx, 1)
+			c.mu.Unlock()
+			return result, nil
+		}
+
+		c.inst.IdentityCacheMissTotal.Add(ctx, 1)
+		flight := &identityFlight{done: make(chan struct{}), startEpoch: probe}
+		c.loading = flight
 		c.mu.Unlock()
-		return result, nil
+		return c.lead(ctx, store, flight)
 	}
+}
 
-	// Cache miss: start a singleflight reload.
-	c.inst.IdentityCacheMissTotal.Add(ctx, 1)
-	flight := &identityFlight{done: make(chan struct{}), startEpoch: probe}
-	c.loading = flight
-	preLoadProbe := probe // save for post-load comparison
-	c.mu.Unlock()
+// settleWaiter resolves a caller that parked on a finished flight. It reports
+// served=true with the flight's rows or error when the caller is done, and
+// served=false when the caller must retry from the top: its probe predates a
+// newer active set than the flight started from, or the leader gave up on its
+// own context and its error belongs to the leader alone.
+func (c *IdentityEpochCache) settleWaiter(
+	ctx context.Context,
+	flight *identityFlight,
+	joinable bool,
+) ([]facts.Envelope, bool, error) {
+	if !joinable {
+		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterStaleEpoch)))
+		return nil, false, nil
+	}
+	if flight.leaderCanceled {
+		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterLeaderCanceled)))
+		return nil, false, nil
+	}
+	if flight.err != nil {
+		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterSharedError)))
+		return nil, true, flight.err
+	}
+	c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
+		metric.WithAttributes(telemetry.AttrOutcome(identityWaiterShared)))
+	return defensiveCopyEnvelopes(flight.rows), true, nil
+}
 
-	// Singleflight leader: load from DB.
+// lead runs the load for a flight this caller created, publishes the outcome to
+// every waiter, and caches the rows only when the active set did not move while
+// the load ran. The flight is always closed and cleared, even on error.
+func (c *IdentityEpochCache) lead(
+	ctx context.Context,
+	store *FactStore,
+	flight *identityFlight,
+) ([]facts.Envelope, error) {
 	c.inst.IdentityCacheReloadTotal.Add(ctx, 1)
+	finished := false
+	defer func() {
+		// A panic in the load must not strand the waiters on a flight that
+		// never closes; fail them with an error and let the panic continue.
+		if !finished {
+			flight.err = errors.New("identity fact load aborted before it finished")
+			c.finish(flight, nil)
+		}
+	}()
 	reloadStart := time.Now()
 	loaded, err := store.loadIdentityFactsUncached(ctx)
+	c.inst.IdentityCacheReloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
 	if err != nil {
-		c.mu.Lock()
-		close(flight.done)
-		c.loading = nil
-		c.mu.Unlock()
+		flight.err = err
+		flight.leaderCanceled = ctx.Err() != nil &&
+			(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+		finished = true
+		c.finish(flight, nil)
 		return nil, err
 	}
+	flight.rows = loaded
 
-	// Post-load probe: verify the raw fact_records set did not change during the load.
+	cacheable, reason := c.cacheDecision(ctx, store, flight, loaded)
+	if !cacheable {
+		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrReason(reason)))
+	}
+	finished = true
+	c.finish(flight, func() {
+		if cacheable {
+			// Cache the epoch from the pre-load probe (raw fact_records state),
+			// not the loaded set's self-epoch, so subsequent probes match.
+			c.epoch = flight.startEpoch
+			c.facts = loaded
+		}
+	})
+	return defensiveCopyEnvelopes(loaded), nil
+}
+
+// cacheDecision reports whether a finished load may be cached, and when it may
+// not, the closed reason the passthrough counter records. A set is cacheable
+// only when the post-load probe equals the flight's start epoch (nothing moved
+// while the load ran) and the set fits the byte cap. A sizing error counts as
+// "does not fit": a set that cannot be sized cannot be proven to fit.
+func (c *IdentityEpochCache) cacheDecision(
+	ctx context.Context,
+	store *FactStore,
+	flight *identityFlight,
+	loaded []facts.Envelope,
+) (bool, string) {
 	postProbeStart := time.Now()
 	postProbe, postProbeErr := store.probeIdentityEpoch(ctx)
 	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(postProbeStart).Seconds())
 	if postProbeErr != nil {
-		c.mu.Lock()
-		close(flight.done)
-		c.loading = nil
-		c.mu.Unlock()
-		// Serve uncached on probe error (best effort).
-		return loaded, nil
+		return false, identityDiscardProbeError
 	}
-
-	// If post-load probe disagrees with pre-load probe, a commit landed mid-load.
-	// Serve the loaded rows uncached; next call retries.
-	if postProbe != preLoadProbe {
-		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
-		c.mu.Lock()
-		close(flight.done)
-		c.loading = nil
-		c.mu.Unlock()
-		return loaded, nil
+	if postProbe != flight.startEpoch {
+		return false, identityDiscardEpochMoved
 	}
-
-	// Cap check: if estimated bytes exceed maxBytes, passthrough uncached.
-	// A sizing error (json.Marshal failed on some envelope's Payload) is
-	// treated the same as cap-exceeded: if the set can't be sized, it can't
-	// be proven to fit, so it is not safe to cache.
 	estBytes, sizeErr := estimateEnvelopesByteSize(loaded)
-	if sizeErr != nil || (c.maxBytes > 0 && estBytes > c.maxBytes) {
-		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
-		c.mu.Lock()
-		close(flight.done)
-		c.loading = nil
-		c.mu.Unlock()
-		return loaded, nil
+	if sizeErr != nil {
+		return false, identityDiscardSizeUnknown
 	}
+	if c.maxBytes > 0 && estBytes > c.maxBytes {
+		return false, identityDiscardCapExceeded
+	}
+	return true, ""
+}
 
-	// Store in cache and wake waiters.
-	// Cache the epoch from the pre-load probe (raw fact_records state),
-	// not the loaded set's self-epoch, so subsequent probes match.
+// finish clears the in-flight marker and wakes every waiter. publish, when
+// non-nil, runs under mu before the flight clears so a caller that probes next
+// sees the populated cache rather than an empty gap.
+func (c *IdentityEpochCache) finish(flight *identityFlight, publish func()) {
 	c.mu.Lock()
-	c.epoch = preLoadProbe
-	c.facts = loaded
-	close(flight.done)
+	if publish != nil {
+		publish()
+	}
 	c.loading = nil
 	c.mu.Unlock()
-
-	c.inst.IdentityCacheReloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
-
-	return defensiveCopyEnvelopes(loaded), nil
+	close(flight.done)
 }
 
 // estimateEnvelopesByteSize returns a conservative byte estimate for a set of

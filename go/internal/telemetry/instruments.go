@@ -2376,6 +2376,10 @@ type Instruments struct {
 	IdentityCacheReloadTotal metric.Int64Counter
 	// IdentityCachePassthroughTotal counts identity-fact passthroughs (cap exceeded or mid-load commit) (#5438).
 	IdentityCachePassthroughTotal metric.Int64Counter
+	// IdentityCacheFlightWaiterTotal counts callers that arrived while an
+	// identity-fact load was in flight, by outcome (shared, shared_error,
+	// stale_epoch, leader_canceled) (#7805).
+	IdentityCacheFlightWaiterTotal metric.Int64Counter
 	// IdentityCacheReloadDuration records the duration of identity-fact cache reloads (#5438).
 	IdentityCacheReloadDuration metric.Float64Histogram
 	// IdentityCacheProbeDuration records the duration of identity-fact epoch probe queries (#5438).
@@ -6169,10 +6173,21 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IdentityCachePassthroughTotal, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_passthrough_total",
-		metric.WithDescription("Total identity-fact cache passthroughs (cap exceeded or mid-load commit)"),
+		metric.WithDescription("Total identity-fact loads served to their flight without being cached, by reason (epoch_moved, cap_exceeded, size_unknown, probe_error)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IdentityCachePassthroughTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheFlightWaiterTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_flight_waiter_total",
+		metric.WithDescription("Identity-fact callers that arrived during an in-flight load, by outcome: "+
+			"shared (served the flight's rows), shared_error (served the flight's error), "+
+			"stale_epoch (active set moved past the flight start; retried), "+
+			"leader_canceled (flight leader gave up; retried)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheFlightWaiterTotal counter: %w", err)
 	}
 
 	inst.IdentityCacheReloadDuration, err = meter.Float64Histogram(
