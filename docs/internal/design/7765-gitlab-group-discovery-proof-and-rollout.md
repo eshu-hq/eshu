@@ -50,7 +50,102 @@ on every generation. Record the numbers in the store README as
 
 ## Prove-first results
 
-Pending: results are added before this PR is published.
+The shim ran on 2026-10-08, and every figure below comes from that run. The
+prefix query is `starts_with(lower(payload->>'repo_slug'), $1)` plus the host
+predicate, as specified in the design. The 12,000-scope run passes every
+criterion, but the CPU margin is thin. At 50,000 scopes the prefix query is
+1.54x the slug-only query with parallelism off, slightly over the 1.5x bar.
+That bar was specified at 12,000 scopes only, so it is not a failure, but it is
+reported here instead of hidden.
+
+**Environment.**
+- PostgreSQL 18.6, image
+  `postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336`,
+  default settings (`shared_buffers` 128MB, `en_US.utf8`, JIT on,
+  `max_parallel_workers_per_gather` 2).
+- Apple M5, 10 CPUs, 32 GiB, Docker 28.5.2, `linux/arm64`.
+- origin/main 195337b97 with migrations 001 and 091 applied verbatim.
+- 20,000 rows (12,000 git repository scopes) and 58,000 rows (50,000),
+  seeded per the shim above with a shuffled heap.
+
+**Method.** Prepared statements under `EXPLAIN (ANALYZE, BUFFERS)`, with 12
+executions each in auto, forced-generic and forced-custom plan modes.
+Timing used `pgbench -M prepared` and container CPU (`cpu.stat` usage per
+execution) over nine rounds of 200 executions, variants alternating. A first
+pass at host load 100-200 was discarded. The figures below are from load 6-10.
+
+**Results at 12,000 git scopes.**
+
+| Criterion | Bar | Result | Verdict |
+|---|---|---|---|
+| Row set | exactly the 1,000 nested scopes | 1,000 rows, 0 missing, 0 unexpected, 0 ref scopes, depths 3-6 at 250 each | PASS |
+| Median vs slug-only | at most 1.5x | 1.34-1.41x (7.04 ms vs 5.26 ms container CPU) | PASS, thin margin |
+| Absolute time | at most 10 ms | 6.9-8.1 ms | PASS |
+| Buffers | at most slug-only + 5% | 853 vs 985 for slug-only custom (-13.4%) | PASS |
+| Plan shape | same as the generic plan | Bitmap Heap Scan over `ingestion_scopes_source_idx`, the same shape as the host-filtered query | PASS |
+| Locks | `AccessShareLock` only | 6 relation locks, 0 tuple locks, 0 non-AccessShare | PASS |
+
+The prefix query is 1.22x the host-filtered query that `github_org` runs today
+(7.04 ms vs 5.77 ms). The slug-only custom plan is a Seq Scan and near-ties the
+bitmap plan, and auto mode never promoted any statement to a generic plan.
+
+Two controls held. The same prefix with host `github.com` returns 0 rows, and a
+peer session holding `FOR UPDATE` on a matching scope did not block the
+prefix query (8.8 ms at 12,000, 17.0 ms at 50,000, with no tuple locks).
+
+**Results at 50,000 git scopes.** The row set is identical to the 12,000 run
+and the locks are unchanged. With parallelism on, the planner chose a parallel
+seq scan for the host-filtered and prefix queries (13.8 ms prefix, 17.5 ms
+slug-only in auto mode), which makes ratios against the serial slug-only plan
+misleading. The apples-to-apples comparison is `max_parallel_workers_per_gather = 0`,
+where all variants run the same serial scan:
+
+| Variant | Latency (ms) | Ratio to prefix |
+|---|---|---|
+| slug-only | 18.98 | prefix is 1.54x |
+| host-filtered, github.com | 18.17 | prefix is 1.61x |
+| host-filtered, gitlab.com | 19.61 | prefix is 1.49x |
+| prefix, gitlab.com | 29.18 | |
+
+Latency is the `pgbench` per-statement median over seven rounds. Time grew
+4.2x for 4.17x the rows (6.92 ms to 29.18 ms), so growth is linear. No variant
+reaches 10 ms at 50,000 rows, including the query `github_org` runs today, so
+the 10 ms bar does not hold for any query at that size.
+
+**Cause of the CPU gap.** Buffers do not explain it, because the prefix query
+reads fewer. The extra time is CPU in `lower()` over the full slug under
+`en_US.utf8`. Without `lower()` the prefix query is 0.80x slug-only at 12,000
+rows and 0.83x at 50,000 (serial). Dropping it relies on `repo_slug` always
+being lowercase, which holds today: `NormalizeRemoteURL` lowercases the slug
+and `buildScope` is the only writer. That is an invariant of the writer, not of
+the schema.
+
+**Recommendation.** Keep `lower()` as specified. It keeps the match
+case-insensitive without depending on a writer invariant. The
+owner may drop it as a documented option if the 50,000-scope margin matters; the
+change must then state the lowercase-slug invariant next to the constant. No
+index is justified. The index candidates were not triggered, because no
+criterion failed at the bar's size.
+
+**Go side.** `BenchmarkEvaluateQAFixtureSteadyState` with a scratch
+`partitionKnown` prefix variant, six alternating pairs: the baseline median is
+251.7 µs/op and the prefix median is 258.5 µs/op (+2.7%, bar 10%), both at 19
+allocs/op. Absolute times are above the recorded 181-183 µs because the host was
+loaded, so only the same-session comparison counts.
+
+**NOT_CHECKED.**
+- Index candidates (not triggered).
+- Absolute time on a quiet host.
+- Driver plan-cache behavior.
+- Real QA slug lengths.
+- Cold cache.
+- Collations other than `en_US.utf8`.
+- `pg_stat_statements`.
+- Concurrent-write contention at 50,000 scopes.
+- The migration 092 and 130 triggers.
+
+The raw outputs are in the proof agent's scratch directory, not committed. The
+store README gets the "Performance Evidence (#7765)" section in PR 1.
 
 ## Test plan (red first)
 
