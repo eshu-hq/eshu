@@ -8,8 +8,9 @@ query path: `EntityContextStatements` still returns two statements on Neo4j.
 It adds the proof and the operator signal that the second change depends on.
 
 - `go/internal/graph/anchor`: the definition of which id-bearing nodes the
-  labeled anchor reaches, a fail-closed analyzer for statements that write a
-  node id, and the census Cypher.
+  labeled anchor reaches, an analyzer for statements that write a node id (it
+  fails closed for the shapes its tests cover, and the package README lists what
+  it does not model), and the census Cypher.
 - `golden-corpus-gate`: the opt-in `writer-coverage` phase over the capture
   recordings, and the required `graph/anchor_census` check on the Neo4j leg.
 - The reducer's id-anchor census `Runner` (`internal/reducer/maintenance/census`): a bounded periodic census, a gauge, and
@@ -46,27 +47,45 @@ and the gauge below, not this count alone. The graph has 1,130,424 nodes; the
 differential capture recordings, every statement that writes a node id must name
 at least one label in the union of the uid-constrained and id-constrained label
 sets. A write is `MERGE`/`CREATE` with an `id` key in a node property map,
-`SET n.id = ...`, or a dynamic `SET n += <map>`. The check is fail-closed: an
-unlabeled variable is a finding, and a dynamic map on an uncovered label is a
-finding unless the recorded parameters prove the map has no `id` key at any
-depth. A relationship variable is not a node and is skipped. An empty capture,
+`SET n.id = ...`, or a dynamic `SET n += <map>`. For the shapes the tests cover
+the check fails closed: an unlabeled variable is a finding, so is a variable
+rebound to another label, a parameter property map, a SET target that is not a
+plain variable, and an id key in a pattern the scan cannot place; a dynamic map
+on an uncovered label is a finding unless the recorded parameters prove the map
+has no `id` key at any depth. A relationship variable is not a node and is
+skipped. It is not a full Cypher parser. Known blind spots, backed by the census
+check and gauge only: a procedure call that writes a node outside the
+`apoc.create/merge/cypher/do/periodic/refactor` families, an UNWIND alias
+rebound by a form other than `AS name`, a comprehension variable, or a FOREACH
+variable, and Cypher the scan does not model (quantified path patterns). An empty capture,
 and a capture that never sees an id write, both fail, because either would pass a
 blind analyzer. All four capture legs join, because the writers are the same
 code on both backends.
 
 **Static sweep** (`TestEveryProductionIDWriterNamesAnAnchorLabel`,
-`TestEveryDynamicLabelWriterIsNamed`). An independent test over the Cypher
-literals in `go/`. It does not depend on what a replay executes. It admits a
-string literal or a `+` chain (a non-literal operand reads as a placeholder) with
-a write keyword, an `id` token or `+=`, and a node pattern that is labeled,
-unlabeled with an `id` key, or has a placeholder label. On the clean tree it
-admits 109 sites. Static-label sites go through `CheckWriters` (90 id writes, none
-uncovered). The 13 placeholder-label sites (the canonical and semantic entity
-upsert templates, the `internal/graph` batch helpers, the read-API latency seed
-tool) cannot be decided statically, so each is a named allowlist row with a
-reason, and a new or edited one fails the sweep. A dynamic-label writer outside
-these shapes that the replay does not execute is covered only by the census
-check and gauge.
+`TestEveryDynamicLabelWriterIsMarkedWithAProof`). An independent test over the
+Cypher in `go/`. It does not depend on what a replay executes. It admits a string
+literal or a `+` chain of literals, same-package named constants, and other
+operands (an unresolved operand reads as a placeholder), with a write keyword, an
+`id` token or `+=` and a node pattern that is labeled, unlabeled with an `id` key,
+or has a placeholder label (also `%[1]s`), or a parameter property map. Measured on
+the final tree by the test's own walk: 92 admitted sites, 79 with a static label
+and 13 with a placeholder label; of the 79, 76 report id writes and 3 report none;
+none is uncovered. The 13 placeholder-label sites (the canonical and semantic
+entity upsert templates, the `internal/graph` entity merge helpers, the read-API
+latency seed tool) cannot be decided statically, so each carries a co-located
+marker comment that names a test proving its labels are anchor labels, and the
+sweep fails on a template with no marker, a marker naming no test, or a marker
+with no template under it. The four proofs are
+`TestEntityUpsertTemplateLabelsAreAnchorLabels` (every canonical entity label
+except Parameter, which the generic entity phase never writes, is an anchor
+label), `TestSemanticEntityUpsertLabelsAreAnchorLabels`,
+`TestEntityMergeHelpersHaveNoProductionCaller` (no production file outside
+`internal/graph` calls the helpers), and `TestSeedLabelsAreAnchorLabels`. The
+sweep does not see a writer assembled outside an admitted literal or `+` chain: a
+`strings.Builder`, a `fmt.Sprintf` whose verb supplies the `id` key, a statement
+reached only through a bare constant name. Those rest on the replay half of the
+gate and on the census check and gauge.
 
 **Census check** (`graph/anchor_census`, graph phase, Neo4j leg). After the
 replay, the count of nodes with an id that are not anchor-reachable must be zero,
