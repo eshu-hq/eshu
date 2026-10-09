@@ -142,11 +142,12 @@ deepen_head() {
 # as "nothing changed" -- that is the caller's job, and the caller must fail
 # loud on a 1 return, not skip.
 #
-# The bound (passes of 100, 400, 1600, 3200) is cumulative 5300 generations on
+# The bound (three passes of 100, 400, 1600; a fourth would be 6400, past the
+# 3200 limit of the loop) is cumulative 2100 generations on
 # the origin/main side. The HEAD side adds each pass to the commits it already
 # holds (see deepen_head), so on a merge-commit history it runs ahead of that:
-# measured on the real remote, a group commit reached 102, 1035, 3823 and 5728
-# commits over the four passes, capped only by the history that exists. The
+# measured on the real remote, a group commit reached 102, 1035 and 3823
+# commits over the three passes, capped only by the history that exists. The
 # bound was not what failed merge_group runs (#7859): with HEAD deepened
 # correctly the base is found within the first one or two passes even when main
 # is hundreds of commits past the group base (the fixture proves 250). A base
