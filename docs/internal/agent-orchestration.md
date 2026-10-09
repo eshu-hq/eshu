@@ -184,7 +184,8 @@ Use this lookup for ordinary tasks as well as goal phases. The skill body in
 | Issue/epic work explicitly requested through closure | `eshu-issue-driver` |
 | Final diff, pre-push review, merge-readiness | `eshu-code-review` |
 | Resolve review threads after verified fixes | `resolve-review-threads` |
-| Resume, handoff, PR monitoring, liveness, worktree cleanup | `eshu-session-lifecycle` |
+| Resume, handoff, PR monitoring, liveness, worktree cleanup, rebase and re-verify | `eshu-session-lifecycle` |
+| Executor self-check before a branch goes to a reviewer | `eshu-executor-preflight` |
 | Write or polish a PR, issue, review reply, doc, or owner report | `eshu-publish` |
 
 ### Where the model binds
@@ -335,6 +336,9 @@ Every implementation handoff MUST contain:
    total, target gap, candidate-stage seconds, maximum/expected recoverable
    seconds, minimum worthwhile win, measured resource envelope, reference
    profile, and absolute-target applicability.
+7. **Head line** — the branch name and `HEAD=<sha> BASE=<sha> RE:<request-id>`, as
+   [eshu-session-lifecycle](../../.agents/skills/eshu-session-lifecycle/SKILL.md#messages-name-their-head)
+   defines it, so a receiver can tell a stale request from a live one.
 
 The raw material already exists in the project skills and `eshu-issue-driver`.
 Render that spec format on every handoff before dispatching implementation.

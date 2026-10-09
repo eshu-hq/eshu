@@ -1,6 +1,6 @@
 ---
 name: eshu-session-lifecycle
-description: Session mechanics for Eshu work — resume a branch/handoff, pause with a resume note, babysit an open PR through CI, judge agent/worktree liveness, or clean up worktrees.
+description: Session mechanics for Eshu work — resume a branch/handoff, pause with a resume note, babysit an open PR through CI, judge agent/worktree liveness, clean up worktrees, rebase and re-verify a branch, or answer a stale handoff message.
 ---
 
 # Eshu Session Lifecycle
@@ -35,6 +35,7 @@ authority. See [local testing](../../../docs/public/reference/local-testing.md).
 | A PR is open and needs watching through review and CI to merge | [babysit-prs.md](references/babysit-prs.md) |
 | `git worktree list` has grown long, disk is tight, trees look abandoned | [worktree-cleanup.md](references/worktree-cleanup.md) |
 | "run until done", "going to bed", a `/loop`, or any goal handed over with no checkpoint schedule | [autonomous-run.md](references/autonomous-run.md) |
+| `main` moved under a branch you have out; rebase and re-verify; a gate red after a rebase | [rebase-verify.md](references/rebase-verify.md) |
 
 Choose the playbook for the current event. Preserve its applicable ownership,
 evidence, and authorization checks; report the resulting resume point or
@@ -42,7 +43,7 @@ blocker. Do not copy an entire playbook into a todo list for a narrow task.
 
 ## Liveness is not mtime
 
-This applies across all five playbooks, so it lives here.
+This applies across every playbook, so it lives here.
 
 A subagent that is thinking writes no files. Its transcript buffer stays small
 until it completes. Judging "this agent is dead" or "this worktree is
@@ -57,6 +58,22 @@ Judge liveness from something that moves for a reason:
 - the user telling you.
 
 When those disagree, the answer is "assume alive": leave it and keep working.
+
+## Messages name their head
+
+Heads move while a request is in flight, so a request can arrive after the
+state it describes is gone. This applies across every playbook.
+
+- Put one line in every message that carries a verdict, handoff, ruling, or
+  request about a branch: `HEAD=<sha> BASE=<sha> RE:<request-id>`. Put it first,
+  after any status token the message must start with, such as `RULING:` or
+  `BLOCKED:`.
+- Name the branch in the same message. `HEAD` is `git rev-parse HEAD` in that
+  branch's worktree. `BASE` is `git merge-base HEAD origin/main`. A prefix of
+  10 or more characters matches.
+- The sender chooses a short request id. The reply copies it.
+- If a request names a `HEAD` that is not the current tip of that branch,
+  reply `STALE` with the current tip. Do not start the work.
 
 ## Common mistakes
 

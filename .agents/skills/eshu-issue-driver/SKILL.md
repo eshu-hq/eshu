@@ -89,8 +89,7 @@ liveness misjudgement.
    commit, tree, worktree, submodule, PR claim, review packet, or verdict
    requires affected proof and a new full review/receipt before promotion.
    The one exception is the scoped base-only re-review that `eshu-code-review`
-   defines (conflict-free rebase, unchanged cumulative patch-id, no file
-   overlap).
+   defines under Promotion And Evidence Reuse.
    On preflight failure, diagnose and fix it, rerun affected proof, and obtain
    a clean preliminary review before another attempt. Deferred P2 and cosmetic
    P3 findings do not restart this loop. Once pushed, CI's
