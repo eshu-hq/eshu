@@ -1,0 +1,33 @@
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_bdeac6cdd9c42f 188-192
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_a789f25a7d7715 9,23-26,31,33,38,42,45-47,50-58,134-135
+go/internal/queryplan/pilot_parser_test.go
+  s_29175cf8c573b8::t_da79d9a0767f43 1-182
+go/internal/queryplan/pilot_query.go
+  s_29175cf8c573b8::t_a0cce014bc6d35 64-66,81-82,111,141,147,161,168,176,182-206,209-210,213,216-217,220-225,227,250-259,351,353-355
+go/internal/queryplan/pilot_query_lex.go
+  s_29175cf8c573b8::t_c321d99545a51f 35,58-60,75-79
+go/internal/queryplan/pilot_query_sql_alias.go
+  s_29175cf8c573b8::t_1f41c22e1e7b43 1-111
+go/internal/queryplan/pilot_query_syntax.go
+  s_29175cf8c573b8::t_f056a307365c2d 1-252
+go/internal/queryplan/pilot_query_syntax_expr.go
+  s_29175cf8c573b8::t_9a67d5a610f034 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a08f12e78ca2436edf63310471efb0dfea4573ab",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
