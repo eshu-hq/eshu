@@ -151,7 +151,7 @@ store implements it (`unscoped_search.go`). The store answers inside a work
 budget (`ESHU_CONTENT_SEARCH_BUDGET_MS`, see `internal/query/search/unscoped`).
 A page the budget cut short is HTTP 200 with `truncated=true`, `data.partial`
 (reason, `rows_scanned_in_order`, `rows_matched`, `cursor`, `budget_ms`,
-`elapsed_ms`, `overrun_ms`, `hint`) and `truth.level=partial`; the `cursor`
+`elapsed_ms`, `overrun_ms`, `progressed`, `hint`) and `truth.level=partial`; the `cursor`
 request field resumes it. A cursor on a scoped search or the entity search is a
 400. Every other search shape still goes through `PagedContentSearcher`.
 

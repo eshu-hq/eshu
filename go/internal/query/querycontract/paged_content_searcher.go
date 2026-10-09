@@ -46,7 +46,10 @@ const (
 	SearchLargeDocumentOverrunMS = 100
 	// SearchPartialHint tells the caller how to turn a partial result into an
 	// exact one.
-	SearchPartialHint = "add repo_id to scope the search"
+	SearchPartialHint = "add repo_id (repo_ids in the MCP tool) to scope the search"
+	// SearchPartialNoProgressHint replaces the hint when the call completed no
+	// window: resuming from its cursor repeats the same request.
+	SearchPartialNoProgressHint = "this call scanned no rows inside the budget, so resuming from this cursor repeats the same request and will not progress: add repo_id (repo_ids in the MCP tool) to scope the search, or ask the operator to raise the server setting ESHU_CONTENT_SEARCH_BUDGET_MS"
 )
 
 // SearchCursor names the last key a budgeted search visited, in repo_id then
@@ -85,6 +88,12 @@ type SearchPartial struct {
 	// OverrunMS is how far a cancelled statement ran past its own timeout; 0
 	// when none did.
 	OverrunMS int64 `json:"overrun_ms"`
+	// Progressed is true when this call advanced the cursor past the request
+	// cursor (it completed at least one window). False means the call scanned
+	// nothing inside its budget: resuming from Cursor repeats the identical
+	// request, so a client must stop, scope the search with repo_id, or ask
+	// the operator for a larger server budget instead of resuming.
+	Progressed bool `json:"progressed"`
 	// Hint tells the caller how to get an exact answer.
 	Hint string `json:"hint"`
 }

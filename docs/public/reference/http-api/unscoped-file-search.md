@@ -51,7 +51,8 @@ If the budget ends first, the answer is **HTTP 200**, never an error:
       "rows_matched": 1,
       "cursor": {"repo_id": "...", "relative_path": "..."},
       "budget_ms": 800, "elapsed_ms": 785, "overrun_ms": 0,
-      "hint": "add repo_id to scope the search"
+      "progressed": true,
+      "hint": "add repo_id (repo_ids in the MCP tool) to scope the search"
     }
   },
   "truth": {"level": "partial", "truncated": true, "reason": "candidate_budget_exceeded"}
@@ -75,6 +76,16 @@ Send `partial.cursor` back as the `cursor` request field and
 after the cursor, so pages have no gap and no duplicate. A cursor on a request
 that has a repository filter, or on the entity search, is refused with `400`.
 Adding `repo_id` turns a partial into an exact answer.
+
+`partial.progressed` says whether the call advanced the cursor. When it is
+`false` the call scanned no rows inside its budget (for example the first
+window held very large documents), `cursor` is the cursor you sent (empty on a
+first call) and `rows_matched` is `0`, so resuming repeats the identical
+request and will not progress. Do not retry it unchanged: scope the search with
+`repo_id`, ask the operator to raise the server setting
+`ESHU_CONTENT_SEARCH_BUDGET_MS` (read at startup), or stop. In any case bound a
+resume loop (for example a fixed number of resumes) rather than looping until
+`partial` disappears; the `hint` then names the next step.
 
 ## Operator signals
 

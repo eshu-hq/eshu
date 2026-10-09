@@ -48,6 +48,7 @@ type walk struct {
 	want    int // matches needed: offset + limit + 1
 
 	cursor    querycontract.SearchCursor // last visited key (request cursor until a step completes)
+	requested querycontract.SearchCursor // the cursor the call started from
 	matches   []querycontract.FileContent
 	visited   int  // rows visited by completed windows, up to the cursor
 	finished  bool // want reached, or the key space is exhausted
@@ -330,6 +331,11 @@ func (w *walk) partial() *querycontract.SearchPartial {
 	if w.overrun.Milliseconds() > querycontract.SearchLargeDocumentOverrunMS {
 		reason = querycontract.SearchPartialBudgetExceededOnLargeDocument
 	}
+	progressed := w.cursor != w.requested
+	hint := querycontract.SearchPartialHint
+	if !progressed {
+		hint = querycontract.SearchPartialNoProgressHint
+	}
 	return &querycontract.SearchPartial{
 		Reason:             reason,
 		RowsScannedInOrder: w.visited,
@@ -338,6 +344,7 @@ func (w *walk) partial() *querycontract.SearchPartial {
 		BudgetMS:           w.plan.budget.Milliseconds(),
 		ElapsedMS:          w.elapsed().Milliseconds(),
 		OverrunMS:          w.overrun.Milliseconds(),
-		Hint:               querycontract.SearchPartialHint,
+		Progressed:         progressed,
+		Hint:               hint,
 	}
 }

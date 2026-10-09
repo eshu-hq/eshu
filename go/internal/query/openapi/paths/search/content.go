@@ -129,7 +129,7 @@ const Content = `
       "post": {
         "tags": ["content"],
         "summary": "Search file content",
-        "description": "Searches file content by pattern. A search with no repository filter runs inside a work budget (ESHU_CONTENT_SEARCH_BUDGET_MS, default 800 ms): when the budget ends before the page is proven complete the answer is still HTTP 200, with truncated true, a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, hint) and truth level partial. The returned rows are an ordered prefix of the exact answer; resume with the cursor request field and offset max(0, offset - rows_matched), or add repo_id to scope the search.",
+        "description": "Searches file content by pattern. A search with no repository filter runs inside a work budget (ESHU_CONTENT_SEARCH_BUDGET_MS, default 800 ms): when the budget ends before the page is proven complete the answer is still HTTP 200, with truncated true, a partial object (reason, rows_scanned_in_order, rows_matched, cursor, budget_ms, elapsed_ms, overrun_ms, hint) and truth level partial. The returned rows are an ordered prefix of the exact answer; resume with the cursor request field and offset max(0, offset - rows_matched) while progressed is true, or add repo_id to scope the search. A partial with progressed false scanned nothing inside the budget: resuming repeats the same request, so scope with repo_id, ask the operator to raise the server budget (ESHU_CONTENT_SEARCH_BUDGET_MS), or stop, and bound any resume loop.",
         "operationId": "searchFiles",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -199,6 +199,7 @@ const Content = `
                         "budget_ms": {"type": "integer", "description": "The requested work budget."},
                         "elapsed_ms": {"type": "integer", "description": "SQL wall time the server measured."},
                         "overrun_ms": {"type": "integer", "description": "How far a cancelled statement ran past its own timeout; above 100 the reason is budget_exceeded_on_large_document."},
+                        "progressed": {"type": "boolean", "description": "True when this call advanced the cursor past the request cursor. False means it scanned nothing inside the budget and resuming repeats the identical request."},
                         "hint": {"type": "string"}
                       }
                     }

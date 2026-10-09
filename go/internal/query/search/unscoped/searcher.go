@@ -87,13 +87,14 @@ func (s *Searcher) Search(
 	defer func() { _ = tx.Rollback() }()
 
 	w := &walk{
-		tx:      tx,
-		plan:    newPlan(budget),
-		now:     now,
-		pattern: pattern,
-		want:    offset + limit + 1,
-		cursor:  cursor,
-		start:   now(),
+		tx:        tx,
+		plan:      newPlan(budget),
+		now:       now,
+		pattern:   pattern,
+		want:      offset + limit + 1,
+		cursor:    cursor,
+		requested: cursor,
+		start:     now(),
 	}
 	if err := w.exec(ctx, readinessSQL); err != nil {
 		span.RecordError(err)

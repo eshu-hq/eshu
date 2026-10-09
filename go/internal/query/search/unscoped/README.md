@@ -30,7 +30,9 @@ reading `offset + limit + 1` matches under the same budget.
 - `Searcher.Search` returns `querycontract.FileSearchPage`. `Partial` is set
   when the budget ended the search first; `Files` is then an ordered prefix of
   the exact answer. A client resumes with `Partial.Cursor` and
-  `offset = max(0, offset - Partial.RowsMatched)`.
+  `offset = max(0, offset - Partial.RowsMatched)`. `Partial.Progressed` is false when the call
+  completed no window: its cursor is the request cursor and resuming repeats the
+  request, so the hint then says to scope with repo_id or ask the operator to raise the server budget.
 - `overrun_ms` is how far a cancelled statement ran past its own timeout.
   PostgreSQL cannot interrupt the lowercase copy and the TOAST decompression
   of one value, so a single large candidate adds to the wall time. Above
