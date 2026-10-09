@@ -53,7 +53,7 @@ type identityEpoch struct {
 // saw a newer active set than the flight started from, so it waits for the
 // flight and loads for itself rather than risk a set that predates its trigger.
 //
-// rows, err, and leaderCanceled are written by the leader before it closes
+// rows, err, leaderCanceled, and torn are written by the leader before it closes
 // done and read by waiters only after done closes; the channel close is the
 // happens-before edge. waiters is a cumulative count of callers that parked on
 // the flight and is guarded by IdentityEpochCache.mu with startEpoch.
@@ -65,6 +65,10 @@ type identityFlight struct {
 	rows           []facts.Envelope
 	err            error
 	leaderCanceled bool
+	// torn marks a flight whose set could not be validated against a stable
+	// epoch (the epoch kept moving through every attempt, or the post-load
+	// probe failed). Only the leader keeps those rows; waiters re-probe.
+	torn bool
 }
 
 // Reason values for eshu_dp_identity_cache_passthrough_total: why a finished
@@ -83,6 +87,7 @@ const (
 	identityWaiterSharedError    = "shared_error"
 	identityWaiterStaleEpoch     = "stale_epoch"
 	identityWaiterLeaderCanceled = "leader_canceled"
+	identityWaiterTornSet        = "torn_set"
 )
 
 // IdentityEpochCache caches the full set of active container-image identity
@@ -181,7 +186,8 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 // served=true with the flight's rows or error when the caller is done, and
 // served=false when the caller must retry from the top: its probe predates a
 // newer active set than the flight started from, or the leader gave up on its
-// own context and its error belongs to the leader alone.
+// own context and its error belongs to the leader alone, or the flight's set
+// could not be validated (torn) and only the leader keeps it.
 func (c *IdentityEpochCache) settleWaiter(
 	ctx context.Context,
 	flight *identityFlight,
@@ -197,6 +203,11 @@ func (c *IdentityEpochCache) settleWaiter(
 			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterLeaderCanceled)))
 		return nil, false, nil
 	}
+	if flight.torn {
+		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterTornSet)))
+		return nil, false, nil
+	}
 	if flight.err != nil {
 		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
 			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterSharedError)))
@@ -207,15 +218,26 @@ func (c *IdentityEpochCache) settleWaiter(
 	return defensiveCopyEnvelopes(flight.rows), true, nil
 }
 
+// maxIdentityLoadAttempts bounds how many times one flight loads the identity
+// set. The paged load is many READ COMMITTED statements, so a generation flip
+// that lands between pages can tear it (old-generation rows after the cursor
+// drop out, new-generation rows before the cursor are never read). The
+// post-load probe detects such a flip; the flight then loads once more from
+// the moved epoch. A flight whose epoch is still moving after this many loads
+// stops retrying: its leader keeps the last set uncached and the waiters
+// re-probe, so a torn set is never delivered as truth to a waiter (#7805).
+const maxIdentityLoadAttempts = 2
+
 // lead runs the load for a flight this caller created, publishes the outcome to
 // every waiter, and caches the rows only when the active set did not move while
-// the load ran. The flight is always closed and cleared, even on error.
+// the load ran. When it moved, the load is retried inside the same flight (see
+// maxIdentityLoadAttempts). The flight is always closed and cleared, even on
+// error or panic.
 func (c *IdentityEpochCache) lead(
 	ctx context.Context,
 	store *FactStore,
 	flight *identityFlight,
 ) ([]facts.Envelope, error) {
-	c.inst.IdentityCacheReloadTotal.Add(ctx, 1)
 	finished := false
 	defer func() {
 		// A panic in the load must not strand the waiters on a flight that
@@ -225,64 +247,89 @@ func (c *IdentityEpochCache) lead(
 			c.finish(flight, nil)
 		}
 	}()
-	reloadStart := time.Now()
-	loaded, err := store.loadIdentityFactsUncached(ctx)
-	c.inst.IdentityCacheReloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
-	if err != nil {
-		flight.err = err
-		flight.leaderCanceled = ctx.Err() != nil &&
-			(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
-		finished = true
-		c.finish(flight, nil)
-		return nil, err
-	}
-	flight.rows = loaded
 
-	cacheable, reason := c.cacheDecision(ctx, store, flight, loaded)
-	if !cacheable {
-		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1,
-			metric.WithAttributes(telemetry.AttrReason(reason)))
-	}
-	finished = true
-	c.finish(flight, func() {
-		if cacheable {
-			// Cache the epoch from the pre-load probe (raw fact_records state),
-			// not the loaded set's self-epoch, so subsequent probes match.
-			c.epoch = flight.startEpoch
-			c.facts = loaded
+	for attempt := 1; ; attempt++ {
+		c.inst.IdentityCacheReloadTotal.Add(ctx, 1)
+		reloadStart := time.Now()
+		loaded, err := store.loadIdentityFactsUncached(ctx)
+		c.inst.IdentityCacheReloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
+		if err != nil {
+			flight.err = err
+			flight.leaderCanceled = ctx.Err() != nil &&
+				(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+			finished = true
+			c.finish(flight, nil)
+			return nil, err
 		}
-	})
-	return defensiveCopyEnvelopes(loaded), nil
+
+		verdict := c.judgeLoad(ctx, store, flight, loaded)
+		if verdict.retry && attempt < maxIdentityLoadAttempts {
+			c.inst.IdentityCacheLoadRetryTotal.Add(ctx, 1)
+			c.mu.Lock()
+			flight.startEpoch = verdict.postProbe
+			c.mu.Unlock()
+			continue
+		}
+
+		if !verdict.cacheable {
+			c.inst.IdentityCachePassthroughTotal.Add(ctx, 1,
+				metric.WithAttributes(telemetry.AttrReason(verdict.reason)))
+		}
+		flight.rows = loaded
+		flight.torn = verdict.retry || verdict.reason == identityDiscardProbeError
+		finished = true
+		c.finish(flight, func() {
+			if verdict.cacheable {
+				// Cache the epoch the load started from (raw fact_records
+				// state), not the loaded set's self-epoch, so later probes match.
+				c.epoch = flight.startEpoch
+				c.facts = loaded
+			}
+		})
+		return defensiveCopyEnvelopes(loaded), nil
+	}
 }
 
-// cacheDecision reports whether a finished load may be cached, and when it may
-// not, the closed reason the passthrough counter records. A set is cacheable
-// only when the post-load probe equals the flight's start epoch (nothing moved
-// while the load ran) and the set fits the byte cap. A sizing error counts as
+// loadVerdict is the outcome of validating one finished load against the
+// active set. retry means the epoch moved during the load, so the set may be
+// torn. cacheable means the set may be retained. reason names the closed
+// passthrough reason when it is not cacheable.
+type loadVerdict struct {
+	cacheable bool
+	retry     bool
+	reason    string
+	postProbe identityEpoch
+}
+
+// judgeLoad validates a finished load. A set is cacheable only when the
+// post-load probe equals the flight's start epoch (nothing moved while the load
+// ran) and the set fits the byte cap. A probe error leaves the set unvalidated:
+// it is treated as possibly torn but not retried, because the database that
+// failed the probe would likely fail the retry too. A sizing error counts as
 // "does not fit": a set that cannot be sized cannot be proven to fit.
-func (c *IdentityEpochCache) cacheDecision(
+func (c *IdentityEpochCache) judgeLoad(
 	ctx context.Context,
 	store *FactStore,
 	flight *identityFlight,
 	loaded []facts.Envelope,
-) (bool, string) {
+) loadVerdict {
 	postProbeStart := time.Now()
 	postProbe, postProbeErr := store.probeIdentityEpoch(ctx)
 	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(postProbeStart).Seconds())
 	if postProbeErr != nil {
-		return false, identityDiscardProbeError
+		return loadVerdict{reason: identityDiscardProbeError}
 	}
 	if postProbe != flight.startEpoch {
-		return false, identityDiscardEpochMoved
+		return loadVerdict{retry: true, reason: identityDiscardEpochMoved, postProbe: postProbe}
 	}
 	estBytes, sizeErr := estimateEnvelopesByteSize(loaded)
 	if sizeErr != nil {
-		return false, identityDiscardSizeUnknown
+		return loadVerdict{reason: identityDiscardSizeUnknown, postProbe: postProbe}
 	}
 	if c.maxBytes > 0 && estBytes > c.maxBytes {
-		return false, identityDiscardCapExceeded
+		return loadVerdict{reason: identityDiscardCapExceeded, postProbe: postProbe}
 	}
-	return true, ""
+	return loadVerdict{cacheable: true, postProbe: postProbe}
 }
 
 // finish clears the in-flight marker and wakes every waiter. publish, when

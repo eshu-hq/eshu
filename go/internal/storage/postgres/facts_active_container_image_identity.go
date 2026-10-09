@@ -64,8 +64,11 @@ const identityFactFilterSQL = `(
 // planner from pulling the IN subquery up into a semi-join, so the filter
 // rides on the ordered scan of fact_records_identity_epoch_idx_v2 and the
 // LIMIT stops that scan after about one page of rows. PostgreSQL folds the
-// constant away after sublink pull-up, so it costs nothing at run time.
-// TestIdentityPageQueryRidesOrderedIndexLive pins the plan on a real database.
+// constant away during planning, so it costs nothing at run time.
+// TestIdentityPageQueryPlanRidesOrderedIndexLive pins the plan on a real
+// server (verified on PostgreSQL 18); the text-shape asserts in
+// TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
+// only keep the "OR FALSE" from being deleted.
 //
 // The (scope_id, active_generation_id) pairs are exactly the pairs the former
 // JOIN matched: a scope's active generation, when that generation row is
