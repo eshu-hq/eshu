@@ -7,8 +7,9 @@ then terminalized the reopened rows to `superseded` (unreplayable) and the
 idempotency key stayed consumed. The run transaction now locks the scope
 row (`SELECT ... FOR UPDATE`) and re-resolves the active generation inside
 the transaction, acting on whatever is active at lock time. A rollover
-moves the same row lock, so it serializes against the reopen instead of
-landing mid-run: the reopen provably still repairs.
+takes the same row lock to move the pointer, so it serializes against
+the reopen instead of landing mid-run: the reopen provably still
+repairs.
 
 ## No-Regression Evidence (#7734):
 
