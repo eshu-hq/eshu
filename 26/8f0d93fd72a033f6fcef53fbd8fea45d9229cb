@@ -1,0 +1,33 @@
+docs/public/reference/local-testing/read-api-latency-gate.md
+  s_29175cf8c573b8::t_59e61a41d80146 333-348
+go/internal/queryplan/pilot_evidence_validation.go
+  s_29175cf8c573b8::t_2770672a14ed8c 82
+go/internal/queryplan/pilot_alternate_test.go
+  s_29175cf8c573b8::t_59e61a41d80146 68-79
+  s_29175cf8c573b8::t_5db0cf19b2dfab 55-67,80
+  s_29175cf8c573b8::t_7584073ea74142 44
+scripts/test-extend-read-api-work-budgets.sh
+  s_29175cf8c573b8::t_5db0cf19b2dfab 1-26,29-32,35
+  s_29175cf8c573b8::t_1a8c70a02e87fb 27-28,33-34
+go/internal/queryplan/pilot_evidence.go
+  s_29175cf8c573b8::t_11b63773a6463d 297-298,327
+scripts/extend-read-api-work-budgets.sh
+  s_29175cf8c573b8::t_77cd5850c352e4 28-30
+  s_29175cf8c573b8::t_11b63773a6463d 1-27,31-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "268f0d93fd72a033f6fcef53fbd8fea45d9229cb",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

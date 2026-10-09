@@ -1,0 +1,29 @@
+.github/workflows/read-api-latency-gate.yml
+  s_29175cf8c573b8::t_7e329a5511643a 46-47,162
+docs/internal/evidence/7881-query-methodology-pilot.md
+  s_29175cf8c573b8::t_808ebc5c23733b 108-138
+docs/public/reference/ci-gates.md
+  s_29175cf8c573b8::t_dec35d8fd13b90 174,274-275
+scripts/test-verify-query-methodology.sh
+  s_29175cf8c573b8::t_8e4c441d1d0a46 65-72
+specs/ci-gates.v1.yaml
+  s_29175cf8c573b8::t_94d9bfa84f954f 2845-2846,2874,2880-2881,2883
+testdata/benchmarks/read-api-route-work-budgets.txt
+  s_29175cf8c573b8::t_125bbc48b1bb4e 37-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d7f3a2b90ae827087706406846258cee6525d12",
+  "prompts": {},
+  "sessions": {
+    "s_29175cf8c573b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1224a-0fdd-7a40-af08-d0883625f84d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
