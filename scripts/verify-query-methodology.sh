@@ -8,10 +8,12 @@ case "$mode" in --static|--live) ;; *) printf 'usage: %s [--static|--live]\n' "$
 artifact_dir="${ESHU_QUERY_METHODOLOGY_ARTIFACT_DIR:-$repo_root/.proof-artifacts/query-methodology}"
 mkdir -p "$artifact_dir"
 export ESHU_QUERY_METHODOLOGY_COVERAGE="$artifact_dir/coverage.json"
+rm -f "$ESHU_QUERY_METHODOLOGY_COVERAGE"
 cd "$repo_root/go"
 # shellcheck source=scripts/lib/go-test-run-guard.sh
 . "$repo_root/scripts/lib/go-test-run-guard.sh"
 go test ./internal/queryplan -count=1
+[[ -s "$ESHU_QUERY_METHODOLOGY_COVERAGE" ]] || { printf 'missing required produced coverage artifact\n' >&2; exit 1; }
 go_test_run_guard 3 '^(TestMethodologyRequiredProductionVariants|TestHandlerQueryplanManifestBindsProductionBuilders|TestLegacyQueryplanManifestBindsProductionQueries)$' -- ./internal/query -count=1
 if [[ "$mode" == --static ]]; then
  printf 'verify-query-methodology: deterministic production contracts pass\n'
@@ -66,6 +68,6 @@ export ESHU_NEO4J_URI="bolt://127.0.0.1:$graph_port" ESHU_NEO4J_USERNAME=neo4j E
 go_test_run_guard 1 '^TestImportDependencyMethodologyLive$' -- -tags queryplan_profile_live ./internal/query -count=1 -v -timeout=10m
 go_test_run_guard 1 '^TestImportDependencyMethodologyMCPTerminalCapLive$' -- -tags queryplan_profile_live ./internal/mcp -count=1 -v -timeout=5m
 go_test_run_guard 1 '^TestQueryplanProfileFlagsUnboundedVarLength$' -- -tags queryplan_profile_live ./internal/query -count=1 -v -timeout=5m
-[[ -s "$ESHU_QUERY_METHODOLOGY_POSTGRES_ARTIFACT" && -s "$ESHU_QUERY_METHODOLOGY_GRAPH_ARTIFACT" ]] || { printf 'missing required produced artifact\n' >&2; exit 1; }
+[[ -s "$ESHU_QUERY_METHODOLOGY_POSTGRES_ARTIFACT" && -s "$ESHU_QUERY_METHODOLOGY_GRAPH_ARTIFACT" && -s "$ESHU_QUERY_METHODOLOGY_REPORT" ]] || { printf 'missing required produced artifact\n' >&2; exit 1; }
 go_test_run_guard 1 '^TestPilotArtifactFiles$' -- ./internal/queryplan -count=1 -v
 printf 'verify-query-methodology: paired production evidence passed; artifacts=%s\n' "$artifact_dir"
