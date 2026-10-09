@@ -1,12 +1,14 @@
 # Manifest Read Bound to the Active Generation (#7609)
 
-`listActiveCodeCallPackageManifestsQuery`
-(`go/internal/storage/postgres/facts_active_code_call_symbols.go`) reads every
-stored `package.json` manifest in `content_files`, which has no generation
-column and is written before the Ack that activates the generation. A stored
-manifest can be ahead of the active generation and, in one corner, drop a
-producer candidate (a miss) or let a second same-named producer resolve alone
-and bypass the ambiguity rule.
+`PackageManifestsQuery`
+(`go/internal/storage/postgres/code/producers/store.go`, the #7623 leaf that
+owns the producer manifest reads) scans every stored `package.json` manifest
+in `content_files`, which has no generation column and is written before the
+Ack that activates the generation. A stored manifest can be ahead of the
+active generation and, in one corner, drop a producer candidate (a miss) or
+let a second same-named producer resolve alone and bypass the ambiguity
+rule. `scopeIDsWhere` scans content as `sql.NullString`: the UNION ALL dirty
+leg returns NULL rows that always join the producer set.
 
 The fix makes the producer set the manifest match UNION ALL the dirty scopes:
 a scope with a never-activated generation, an unstamped activation, or a
@@ -54,7 +56,11 @@ prevalence was not measured (no production access); the 1% is a planted
 fixture value. The change is safe because the rewrite is scope-preserving
 (MAX >= t equals EXISTS >= t; the IN list includes the active row itself
 only when the unchanged first disjunct already fires), proven by the
-identical multisets plus the RED regression and hole tests.
+identical multisets plus the RED regression and hole tests. The #7623 leaf
+move relocated the statement text unchanged: post-rebase `EXPLAIN (ANALYZE,
+BUFFERS)` on seeded rows still shows the Append over the manifest-join leg
+and the dirty leg with the materialized manifest CTE (Storage: Memory) and
+the hashed IN SubPlan, so the benchmark numbers still describe this shape.
 
 No-Observability-Change: this PR adds no metric, span, or log field and
 removes none; operator visibility into the loader is unchanged. The only
