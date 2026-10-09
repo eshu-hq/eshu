@@ -16,13 +16,14 @@ assumed a bounded write.
 ## Change
 
 - Neo4j now applies `ESHU_CANONICAL_WRITE_TIMEOUT` as the server transaction
-  timeout when it is set to a positive duration. Unset or invalid values keep
-  Neo4j unbounded, so a deployment that never configured the budget does not
-  inherit NornicDB's `30s` default. NornicDB behavior is unchanged.
+  timeout when it is set to a positive duration. At the time, unset or invalid
+  values kept Neo4j unbounded, so a deployment that never configured the
+  budget did not inherit NornicDB's `30s` default (since #7471, unset or
+  invalid values use a `300s` default instead). NornicDB behavior is unchanged.
 - With the variable unset on Neo4j, each graph-writing binary (ingester,
-  reducer, projector, bootstrap-index) logs one
+  reducer, projector, bootstrap-index) logged one
   `graph.write_timeout.unbounded` WARN at startup, with `graph_backend` and
-  `env_var`.
+  `env_var` (since #7471 the WARN fires only on explicit opt-out).
 - Retry parity: where NornicDB bounds a write with `TimeoutExecutor`, Neo4j
   now gets the same wrapper when its timeout is set. Those paths are the
   ingester, bootstrap-index, and projector canonical chains and the reducer

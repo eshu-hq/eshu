@@ -418,8 +418,8 @@ func (e bootstrapNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.Tra
 }
 
 // bootstrapCanonicalTransactionTimeout returns the server-side transaction timeout for graph writes.
-// NornicDB keeps its ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j applies
-// the variable only when it is explicitly configured.
+// NornicDB keeps its ESHU_CANONICAL_WRITE_TIMEOUT default; Neo4j falls back
+// to its 300s default (issue #7471) unless the variable is explicitly configured.
 func bootstrapCanonicalTransactionTimeout(graphBackend runtimecfg.GraphBackend, getenv func(string) string) time.Duration {
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		return nornicDBCanonicalWriteTimeout(getenv)

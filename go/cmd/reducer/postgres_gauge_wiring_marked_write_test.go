@@ -6,11 +6,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
@@ -46,6 +49,46 @@ func (s scriptedMarkedWriteClaimStore) ProjectorScopesWithMultipleLiveLeases(con
 
 func (s scriptedMarkedWriteClaimStore) ProjectorScopesMissingClaimFence(context.Context) (int64, error) {
 	return s.missingFence, s.err
+}
+
+// scriptedMarkedWriteQueueOnlyStore hides the source-queue methods so the
+// non-source cached observer path is exercised.
+type scriptedMarkedWriteQueueOnlyStore struct{ inner scriptedMarkedWriteStore }
+
+func (s scriptedMarkedWriteQueueOnlyStore) QueueDepths(ctx context.Context) (map[string]map[string]int64, error) {
+	return s.inner.QueueDepths(ctx)
+}
+
+func (s scriptedMarkedWriteQueueOnlyStore) QueueOldestAge(ctx context.Context) (map[string]float64, error) {
+	return s.inner.QueueOldestAge(ctx)
+}
+
+func (s scriptedMarkedWriteQueueOnlyStore) ProjectorMarkedWriteOldestAge(ctx context.Context) (float64, error) {
+	return s.inner.ProjectorMarkedWriteOldestAge(ctx)
+}
+
+// scriptedMarkedWriteClaimQueueOnlyStore is the queue-only store plus the
+// #7115 claim invariants.
+type scriptedMarkedWriteClaimQueueOnlyStore struct{ inner scriptedMarkedWriteClaimStore }
+
+func (s scriptedMarkedWriteClaimQueueOnlyStore) QueueDepths(ctx context.Context) (map[string]map[string]int64, error) {
+	return s.inner.QueueDepths(ctx)
+}
+
+func (s scriptedMarkedWriteClaimQueueOnlyStore) QueueOldestAge(ctx context.Context) (map[string]float64, error) {
+	return s.inner.QueueOldestAge(ctx)
+}
+
+func (s scriptedMarkedWriteClaimQueueOnlyStore) ProjectorMarkedWriteOldestAge(ctx context.Context) (float64, error) {
+	return s.inner.ProjectorMarkedWriteOldestAge(ctx)
+}
+
+func (s scriptedMarkedWriteClaimQueueOnlyStore) ProjectorScopesWithMultipleLiveLeases(ctx context.Context) (int64, error) {
+	return s.inner.ProjectorScopesWithMultipleLiveLeases(ctx)
+}
+
+func (s scriptedMarkedWriteClaimQueueOnlyStore) ProjectorScopesMissingClaimFence(ctx context.Context) (int64, error) {
+	return s.inner.ProjectorScopesMissingClaimFence(ctx)
 }
 
 // observeMarkedWriteGauge wires queueObs through the production
@@ -99,6 +142,8 @@ func TestPostgresBackedGaugesServeProjectorMarkedWriteAge(t *testing.T) {
 	}{
 		{name: "marked-write observer", queueObs: scriptedMarkedWriteStore{age: 90.5}},
 		{name: "marked-write plus claim observer", queueObs: scriptedMarkedWriteClaimStore{scriptedMarkedWriteStore: scriptedMarkedWriteStore{age: 90.5}, multipleLeases: 1, missingFence: 0}},
+		{name: "queue-only marked-write observer", queueObs: scriptedMarkedWriteQueueOnlyStore{inner: scriptedMarkedWriteStore{age: 90.5}}},
+		{name: "queue-only marked-write plus claim observer", queueObs: scriptedMarkedWriteClaimQueueOnlyStore{inner: scriptedMarkedWriteClaimStore{scriptedMarkedWriteStore: scriptedMarkedWriteStore{age: 90.5}, multipleLeases: 1, missingFence: 0}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -107,6 +152,24 @@ func TestPostgresBackedGaugesServeProjectorMarkedWriteAge(t *testing.T) {
 				t.Errorf("marked_write_oldest_age_seconds = %v (observed=%v), want 90.5", got, ok)
 			}
 		})
+	}
+}
+
+// TestPostgresBackedGaugesServeClaimInvariantsThroughMarkedWriteWrapper proves
+// the claim gauges still fire when the marked-write wrapper composes around
+// the claim wrapper, which is the production path: the store implements both
+// observers, so both wrappers always apply.
+func TestPostgresBackedGaugesServeClaimInvariantsThroughMarkedWriteWrapper(t *testing.T) {
+	store := scriptedMarkedWriteClaimStore{scriptedMarkedWriteStore: scriptedMarkedWriteStore{age: 12.5}, multipleLeases: 3, missingFence: 5}
+	if got, ok := observeMarkedWriteGauge(t, store); !ok || got != 12.5 {
+		t.Fatalf("marked_write_oldest_age_seconds = %v (observed=%v), want 12.5", got, ok)
+	}
+	got := observeClaimGauges(t, store)
+	if v, ok := got["eshu_dp_projector_scopes_multiple_live_leases"]; !ok || v != 3 {
+		t.Errorf("multiple_live_leases = %d (observed=%v), want 3", v, ok)
+	}
+	if v, ok := got["eshu_dp_projector_scopes_missing_claim_fence"]; !ok || v != 5 {
+		t.Errorf("missing_claim_fence = %d (observed=%v), want 5", v, ok)
 	}
 }
 
@@ -142,6 +205,55 @@ func TestProjectorMarkedWriteAgeGaugeReportsNothingBeforeFirstRefresh(t *testing
 			}
 		}
 	}
+}
+
+// TestWithProjectorMarkedWriteAgePreservesUpstreamContracts pins that every
+// upstream cached shape keeps its optional contracts through the marked-write
+// wrapper: embedding the telemetry.QueueObserver interface instead would drop
+// the source-queue and claim-invariant methods (only the interface's own two
+// methods promote) and their gauges would silently unregister.
+func TestWithProjectorMarkedWriteAgePreservesUpstreamContracts(t *testing.T) {
+	markedObs := scriptedMarkedWriteStore{age: 1}
+	tests := []struct {
+		name       string
+		cached     telemetry.QueueObserver
+		wantType   string
+		wantSource bool
+		wantClaim  bool
+	}{
+		{name: "plain", cached: cachedQueueObserver{}, wantType: "cachedMarkedWriteQueueObserver"},
+		{name: "source", cached: cachedSourceQueueObserver{}, wantType: "cachedMarkedWriteSourceQueueObserver", wantSource: true},
+		{name: "claim", cached: cachedClaimQueueObserver{}, wantType: "cachedMarkedWriteClaimQueueObserver", wantClaim: true},
+		{name: "claim source", cached: cachedClaimSourceQueueObserver{}, wantType: "cachedMarkedWriteClaimSourceQueueObserver", wantSource: true, wantClaim: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			refresher, err := snapshot.New(snapshot.Config{})
+			if err != nil {
+				t.Fatalf("snapshot.New() error = %v", err)
+			}
+			wrapped, err := withProjectorMarkedWriteAge(refresher, tt.cached, markedObs)
+			if err != nil {
+				t.Fatalf("withProjectorMarkedWriteAge() error = %v", err)
+			}
+			if got := typeName(wrapped); got != tt.wantType {
+				t.Fatalf("wrapped type = %s, want %s", got, tt.wantType)
+			}
+			if _, ok := wrapped.(telemetry.ProjectorMarkedWriteObserver); !ok {
+				t.Fatalf("%s does not implement ProjectorMarkedWriteObserver", tt.wantType)
+			}
+			if _, ok := wrapped.(telemetry.SourceQueueObserver); ok != tt.wantSource {
+				t.Fatalf("%s SourceQueueObserver = %v, want %v", tt.wantType, ok, tt.wantSource)
+			}
+			if _, ok := wrapped.(telemetry.ProjectorClaimInvariantObserver); ok != tt.wantClaim {
+				t.Fatalf("%s ProjectorClaimInvariantObserver = %v, want %v", tt.wantType, ok, tt.wantClaim)
+			}
+		})
+	}
+}
+
+func typeName(v any) string {
+	return strings.TrimPrefix(fmt.Sprintf("%T", v), "main.")
 }
 
 // TestProjectorMarkedWriteAgeRefreshFailureKeepsGaugeUnobserved proves a

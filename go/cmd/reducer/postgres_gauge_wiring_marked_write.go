@@ -38,14 +38,36 @@ func (c cachedProjectorMarkedWriteObserver) ProjectorMarkedWriteOldestAge(ctx co
 }
 
 // cachedMarkedWriteQueueObserver is the queue observer that also serves the
-// marked-write age gauge. It embeds the incoming cached observer as the
-// telemetry.QueueObserver interface rather than one concrete wrapper, so one
-// type covers every upstream shape (plain, source-queue, claim-invariant, and
-// their combinations); the ProjectorMarkedWriteObserver assertion in
-// RegisterObservableGauges keeps its exact meaning because only this wrapper
-// provides the method.
+// marked-write age gauge. Each combination with the upstream cached shapes
+// (plain, source-queue, claim-invariant, claim+source) is its own type
+// embedding the concrete wrapper, because only concrete embedding promotes
+// the upstream optional methods: embedding the telemetry.QueueObserver
+// interface would drop the source-queue and claim-invariant contracts and
+// their gauges would silently unregister.
 type cachedMarkedWriteQueueObserver struct {
-	telemetry.QueueObserver
+	cachedQueueObserver
+	cachedProjectorMarkedWriteObserver
+}
+
+// cachedMarkedWriteSourceQueueObserver is cachedMarkedWriteQueueObserver plus
+// the source-system queue gauges.
+type cachedMarkedWriteSourceQueueObserver struct {
+	cachedSourceQueueObserver
+	cachedProjectorMarkedWriteObserver
+}
+
+// cachedMarkedWriteClaimQueueObserver is cachedMarkedWriteQueueObserver plus
+// the projector claim invariant gauges.
+type cachedMarkedWriteClaimQueueObserver struct {
+	cachedClaimQueueObserver
+	cachedProjectorMarkedWriteObserver
+}
+
+// cachedMarkedWriteClaimSourceQueueObserver is
+// cachedMarkedWriteSourceQueueObserver plus the projector claim invariant
+// gauges.
+type cachedMarkedWriteClaimSourceQueueObserver struct {
+	cachedClaimSourceQueueObserver
 	cachedProjectorMarkedWriteObserver
 }
 
@@ -72,8 +94,17 @@ func withProjectorMarkedWriteAge(
 	if err != nil {
 		return nil, fmt.Errorf("register projector marked write snapshot source: %w", err)
 	}
-	return cachedMarkedWriteQueueObserver{
-		QueueObserver:                      cached,
-		cachedProjectorMarkedWriteObserver: cachedProjectorMarkedWriteObserver{source: source},
-	}, nil
+	marked := cachedProjectorMarkedWriteObserver{source: source}
+	switch base := cached.(type) {
+	case cachedClaimSourceQueueObserver:
+		return cachedMarkedWriteClaimSourceQueueObserver{cachedClaimSourceQueueObserver: base, cachedProjectorMarkedWriteObserver: marked}, nil
+	case cachedClaimQueueObserver:
+		return cachedMarkedWriteClaimQueueObserver{cachedClaimQueueObserver: base, cachedProjectorMarkedWriteObserver: marked}, nil
+	case cachedSourceQueueObserver:
+		return cachedMarkedWriteSourceQueueObserver{cachedSourceQueueObserver: base, cachedProjectorMarkedWriteObserver: marked}, nil
+	case cachedQueueObserver:
+		return cachedMarkedWriteQueueObserver{cachedQueueObserver: base, cachedProjectorMarkedWriteObserver: marked}, nil
+	default:
+		return nil, fmt.Errorf("wrap cached queue observer for projector marked write: unexpected type %T", cached)
+	}
 }
