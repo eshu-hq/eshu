@@ -149,8 +149,8 @@ func TestEdgesBySourceToolCypherIsTypeAnchored(t *testing.T) {
 		}
 		// Group cap must be applied after grouping (cap returned groups, not the
 		// rows counted), exactly like the file query.
-		if !strings.Contains(q, "count(r) AS cnt\nORDER BY cnt DESC\nLIMIT $limit") {
-			t.Errorf("edge query must group-then-LIMIT (cap returned groups, not rows):\n%s", q)
+		if !strings.Contains(q, "count(r) AS cnt\nORDER BY cnt DESC, source_tool\nLIMIT $limit") {
+			t.Errorf("edge query must group-then-LIMIT with a source_tool tiebreaker:\n%s", q)
 		}
 	}
 }
@@ -196,8 +196,8 @@ func TestFilesByLanguageCypherIsLabelAnchoredGroupLimited(t *testing.T) {
 	if strings.Contains(q, "WITH f.language") && strings.Contains(q, "WITH f.language AS language, f\nLIMIT") {
 		t.Errorf("file query must not row-sample before grouping:\n%s", q)
 	}
-	if !strings.Contains(q, "count(f) AS cnt\nORDER BY cnt DESC\nLIMIT $limit") {
-		t.Errorf("file query must group-then-LIMIT (cap returned groups, not rows):\n%s", q)
+	if !strings.Contains(q, "count(f) AS cnt\nORDER BY cnt DESC, language\nLIMIT $limit") {
+		t.Errorf("file query must group-then-LIMIT with a language tiebreaker:\n%s", q)
 	}
 }
 
