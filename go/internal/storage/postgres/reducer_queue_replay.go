@@ -13,14 +13,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// reopenSucceededReducerWorkQuery resets a succeeded row to pending for
-// replay. It resets reopened_at to the reopen timestamp ($1) alongside
-// attempt_count -- both mark the start of a fresh repair cycle -- but never
-// touches created_at, which stays the row's original enqueue time for every
-// other consumer of Intent.EnqueuedAt (see migration 088's doc comment).
-const reopenSucceededReducerWorkQuery = `
-UPDATE fact_work_items
-SET status = 'pending',
+// ReopenSucceededReducerSetClause is the SET list every succeeded-to-pending
+// reducer reopen shares: status, attempt_count, the identity authorization
+// statuses, lease columns, visible_at, failure evidence, updated_at,
+// reopened_at -- every state column the reducer claim path reads. It is the
+// single source (#7731): reopenSucceededReducerWorkQuery,
+// replaySucceededReducerDomainQuery, and the admin reopen compose it, so the
+// lists cannot drift. $1 is the reopen timestamp, bound by every composer;
+// composers keep their own WHERE arg numbering after it.
+const ReopenSucceededReducerSetClause = `status = 'pending',
     attempt_count = 0,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required THEN 'pending'
@@ -38,7 +39,16 @@ SET status = 'pending',
     reopened_at = $1,
     failure_class = NULL,
     failure_message = NULL,
-    failure_details = NULL
+    failure_details = NULL`
+
+// reopenSucceededReducerWorkQuery resets a succeeded row to pending for
+// replay. It resets reopened_at to the reopen timestamp ($1) alongside
+// attempt_count -- both mark the start of a fresh repair cycle -- but never
+// touches created_at, which stays the row's original enqueue time for every
+// other consumer of Intent.EnqueuedAt (see migration 088's doc comment).
+const reopenSucceededReducerWorkQuery = `
+UPDATE fact_work_items
+SET ` + ReopenSucceededReducerSetClause + `
 WHERE work_item_id = $2
   AND stage = 'reducer'
   AND status = 'succeeded'
@@ -48,25 +58,7 @@ WHERE work_item_id = $2
 // (see that query's doc comment for why reopened_at resets here too).
 const replaySucceededReducerDomainQuery = `
 UPDATE fact_work_items
-SET status = 'pending',
-    attempt_count = 0,
-    container_image_identity_v2_authorized_status = CASE
-        WHEN container_image_identity_v2_required THEN 'pending'
-        ELSE ''
-    END,
-    container_image_identity_v3_authorized_status = CASE
-        WHEN container_image_identity_v3_required THEN 'pending'
-        ELSE ''
-    END,
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = $1,
-    next_attempt_at = NULL,
-    updated_at = $1,
-    reopened_at = $1,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL
+SET ` + ReopenSucceededReducerSetClause + `
 WHERE scope_id = $2
   AND generation_id = $3
   AND domain = $4
