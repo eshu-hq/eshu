@@ -22,7 +22,7 @@ type sweepResult struct {
 }
 
 // sweepSource runs CheckWriters over every static-label Cypher literal under
-// root and collects the dynamic-label template sites for the allowlist check.
+// root and collects the dynamic-label template sites for the marker check.
 func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult {
 	t.Helper()
 	var result sweepResult
@@ -50,8 +50,9 @@ func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult 
 //
 // Static-label sites are decided here. A statement whose label is built at run
 // time ("MERGE (n:" + label + ...) or a fmt template (`(n:%s`) is a dynamic-label
-// site: TestEveryDynamicLabelWriterIsNamed requires a named allowlist row for
-// each, and the replay half of the gate covers what the corpus executes.
+// site: TestEveryDynamicLabelWriterIsMarkedWithAProof requires a marker beside
+// each, naming a test that proves its labels, and the replay half of the gate
+// covers what the corpus executes.
 func TestEveryProductionIDWriterNamesAnAnchorLabel(t *testing.T) {
 	root, err := filepath.Abs("../../..")
 	if err != nil {

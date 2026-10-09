@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/anchor"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
 // TestEntityUpsertTemplateLabelsAreAnchorLabels is the proof named by the
@@ -59,5 +60,35 @@ func TestSemanticEntityUpsertLabelsAreAnchorLabels(t *testing.T) {
 	if len(outside) > 0 {
 		sort.Strings(outside)
 		t.Fatalf("semantic entity labels the anchor cannot reach: %v", outside)
+	}
+
+	// The single-row writer takes its label from the row's EntityType, which
+	// buildSemanticEntityRowMap filters with its own inline list, not with
+	// semanticEntityPlans. Offer it a valid row for every candidate type and
+	// require that every type it accepts is an anchor label, so a type added to
+	// the filter alone cannot reach the writer.
+	candidates := map[string]bool{"Directory": true, "File": true, "Parameter": true, "Unconstrained": true}
+	for _, plan := range plans {
+		candidates[plan.label] = true
+	}
+	for _, label := range canonical.EntityTypeLabelMap() {
+		candidates[label] = true
+	}
+	var accepted []string
+	for candidate := range candidates {
+		row := semantic.EntityRow{
+			RepoID: "repo", EntityID: "entity", EntityName: "name", FilePath: "/f", RelativePath: "f",
+			EntityType: candidate, StartLine: 1, EndLine: 1,
+		}
+		if _, ok := buildSemanticEntityRowMap(row); !ok {
+			continue
+		}
+		accepted = append(accepted, candidate)
+		if !labels[candidate] {
+			t.Errorf("buildSemanticEntityRowMap accepts entity type %q, which is not an anchor label", candidate)
+		}
+	}
+	if len(accepted) < len(plans) {
+		t.Fatalf("buildSemanticEntityRowMap accepted %d of %d plan types; the candidate rows are not valid", len(accepted), len(plans))
 	}
 }

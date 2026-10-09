@@ -17,9 +17,10 @@ import (
 // (#7212). Those helpers take the node label from their caller and let the
 // caller add property keys, so their label set is not bounded by the helper
 // itself. They are a port of the original Python persistence layer and today
-// only tests call them. The proof is that no non-test file outside this package
-// calls them: a new production caller fails here, and the author must then bound
-// the labels the caller passes (and add the proof) before the marker can stand.
+// only tests call them. The proof is that no non-test file other than their own
+// definition files calls them: a new production caller fails here, and the
+// author must then bound the labels the caller passes (and add the proof)
+// before the marker can stand.
 func TestEntityMergeHelpersHaveNoProductionCaller(t *testing.T) {
 	root, err := filepath.Abs("../..")
 	if err != nil {
@@ -29,7 +30,12 @@ func TestEntityMergeHelpersHaveNoProductionCaller(t *testing.T) {
 		t.Fatalf("go module root %s: %v", root, err)
 	}
 	call := regexp.MustCompile(`\b(graph\.)?(BatchMergeEntities|BuildEntityMergeStatement|MergeEntity)\(`)
-	graphDir := filepath.Join(root, "internal", "graph") + string(filepath.Separator)
+	// Only the helpers' own definition files are exempt: they call each other.
+	// A caller anywhere else, including elsewhere in internal/graph, fails.
+	definitionFiles := map[string]bool{
+		filepath.Join(root, "internal", "graph", "batch.go"):  true,
+		filepath.Join(root, "internal", "graph", "entity.go"): true,
+	}
 	var callers []string
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -42,7 +48,7 @@ func TestEntityMergeHelpersHaveNoProductionCaller(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.HasPrefix(path, graphDir) {
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || definitionFiles[path] {
 			return nil
 		}
 		raw, readErr := os.ReadFile(path)

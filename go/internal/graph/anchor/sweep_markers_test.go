@@ -19,11 +19,13 @@ import (
 //
 //	// anchor-census: dynamic-label writer; label set bounded by TestSomething
 //
-// The marker sits within markerReach lines above the literal's first line. The
-// named test must exist in a _test.go file under the scanned root, and it is the
-// proof that the labels the writer can use are anchor labels. The sweep fails on
-// a dynamic-label writer with no marker, on a marker that names no existing test,
-// and on a marker with no dynamic-label writer under it, so the annotation moves
+// The marker sits within markerReach lines above the literal's first line and
+// excuses the nearest template below it, one marker per template. The named test
+// must exist in a _test.go file in the marker's own directory, so the owning
+// package's own tests run the proof, and it is the proof that the labels the
+// writer can use are anchor labels. The sweep fails on a dynamic-label writer
+// with no marker of its own, on a marker that names no test in its directory,
+// and on a marker with no template of its own under it, so the annotation moves
 // with the code it excuses and nothing is listed by hand elsewhere.
 const markerReach = 10
 
@@ -57,49 +59,73 @@ func scanMarkers(t *testing.T, root string) []marker {
 	return out
 }
 
-// definedTests returns the names of the Test functions in the _test.go files
-// under root.
-func definedTests(t *testing.T, root string) map[string]bool {
+// definedTests returns, for each Test function in the _test.go files under
+// root, the set of directories (relative to root) that define it.
+func definedTests(t *testing.T, root string) map[string]map[string]bool {
 	t.Helper()
-	out := make(map[string]bool)
-	walkGoFiles(t, root, true, func(_, path string) {
+	out := make(map[string]map[string]bool)
+	walkGoFiles(t, root, true, func(rel, path string) {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
 		}
 		for _, m := range testFuncLine.FindAllStringSubmatch(string(raw), -1) {
-			out[m[1]] = true
+			if out[m[1]] == nil {
+				out[m[1]] = make(map[string]bool)
+			}
+			out[m[1]][filepath.Dir(rel)] = true
 		}
 	})
 	return out
 }
 
 // markerProblems checks the dynamic-label sites against the markers and the
-// defined tests. It returns one line per problem.
-func markerProblems(sites []cypherSite, markers []marker, tests map[string]bool) []string {
+// defined tests. Each marker excuses the nearest template below it and nothing
+// else: a marker claims at most one site, a site is paired with the nearest
+// marker above it that claims it, and a marker whose nearest template is out of
+// reach, or already paired with a nearer marker, is stale. The named proof must
+// be a test defined in the marker's own directory. It returns one line per
+// problem.
+func markerProblems(sites []cypherSite, markers []marker, tests map[string]map[string]bool) []string {
 	var problems []string
-	paired := make(map[int]bool)
-	for _, site := range sites {
-		match := -1
-		for i, m := range markers {
-			if m.File == site.File && m.Line < site.Line && site.Line-m.Line <= markerReach {
-				match = i
+	claimed := make(map[int][]int) // site index -> marker indexes that claim it
+	for i, m := range markers {
+		nearest := -1
+		for j, site := range sites {
+			if site.File != m.File || site.Line <= m.Line {
+				continue
+			}
+			if nearest < 0 || site.Line < sites[nearest].Line {
+				nearest = j
 			}
 		}
-		if match < 0 {
-			problems = append(problems, site.Key+": dynamic-label writer has no marker within "+strconv.Itoa(markerReach)+
-				" lines above it; add `// anchor-census: dynamic-label writer; label set bounded by <TestName>` with a test that proves the labels are anchor labels")
+		if nearest >= 0 && sites[nearest].Line-m.Line <= markerReach {
+			claimed[nearest] = append(claimed[nearest], i)
 			continue
 		}
-		paired[match] = true
+		problems = append(problems, m.File+":"+strconv.Itoa(m.Line)+": marker has no dynamic-label writer within "+strconv.Itoa(markerReach)+
+			" lines below it (stale marker)")
 	}
-	for i, m := range markers {
-		if !tests[m.Test] {
-			problems = append(problems, m.File+":"+strconv.Itoa(m.Line)+": marker names "+m.Test+", which no _test.go file defines")
+	for j, site := range sites {
+		claimers := claimed[j]
+		if len(claimers) == 0 {
+			problems = append(problems, site.Key+": dynamic-label writer has no marker of its own within "+strconv.Itoa(markerReach)+
+				" lines above it; add `// anchor-census: dynamic-label writer; label set bounded by <TestName>` with a test in the same directory that proves the labels are anchor labels")
+			continue
 		}
-		if !paired[i] {
-			problems = append(problems, m.File+":"+strconv.Itoa(m.Line)+": marker has no dynamic-label writer within "+strconv.Itoa(markerReach)+
-				" lines below it (stale marker)")
+		// The nearest marker pairs with the site; any further claimer is shared.
+		for _, i := range claimers[:len(claimers)-1] {
+			m := markers[i]
+			problems = append(problems, m.File+":"+strconv.Itoa(m.Line)+": marker shares its writer with a nearer marker (stale marker)")
+		}
+	}
+	for _, m := range markers {
+		dirs, defined := tests[m.Test]
+		switch {
+		case !defined:
+			problems = append(problems, m.File+":"+strconv.Itoa(m.Line)+": marker names "+m.Test+", which no _test.go file defines")
+		case !dirs[filepath.Dir(m.File)]:
+			problems = append(problems, m.File+":"+strconv.Itoa(m.Line)+": marker names "+m.Test+", which is not defined in the marker's own directory")
 		}
 	}
 	sort.Strings(problems)
@@ -178,5 +204,37 @@ func TestMarkerBesideNoDynamicWriterFails(t *testing.T) {
 	far := plantedTree(t, "package planted\n\n"+plantedMarker+strings.Repeat("// filler\n", markerReach)+plantedTemplate, plantedTest)
 	if problems := problemsFor(t, far); len(problems) != 2 {
 		t.Fatalf("problems = %v, want a missing marker and a stale marker for a marker out of reach", problems)
+	}
+}
+
+// TestOneMarkerExcusesOnlyTheNearestWriter is the seeded violation for marker
+// reuse: a second template placed under an existing marker has no marker of its
+// own and is reported, so a new writer cannot hide behind a neighbour's proof.
+func TestOneMarkerExcusesOnlyTheNearestWriter(t *testing.T) {
+	second := "const plantedSecond = `UNWIND $rows AS row MERGE (m:%s {uid: row.uid}) SET m.id = row.uid`\n"
+	root := plantedTree(t, "package planted\n\n"+plantedMarker+plantedTemplate+"\n"+second, plantedTest)
+	problems := problemsFor(t, root)
+	if len(problems) != 1 || !strings.Contains(problems[0], "has no marker of its own") || !strings.Contains(problems[0], "planted.go:6") {
+		t.Fatalf("problems = %v, want the second template reported", problems)
+	}
+	// Two markers over one template: the farther marker is shared and reported.
+	two := plantedTree(t, "package planted\n\n"+plantedMarker+plantedMarker+plantedTemplate, plantedTest)
+	if problems := problemsFor(t, two); len(problems) != 1 || !strings.Contains(problems[0], "shares its writer") {
+		t.Fatalf("problems = %v, want the shared marker reported", problems)
+	}
+}
+
+// TestMarkerProofMustLiveInTheMarkersDirectory: a test of the same name in
+// another directory does not prove the writer.
+func TestMarkerProofMustLiveInTheMarkersDirectory(t *testing.T) {
+	root := plantedTree(t, "package planted\n\n"+plantedMarker+plantedTemplate, "")
+	if err := os.MkdirAll(filepath.Join(root, "other"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "other", "proof_test.go"), []byte(plantedTest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if problems := problemsFor(t, root); len(problems) != 1 || !strings.Contains(problems[0], "not defined in the marker's own directory") {
+		t.Fatalf("problems = %v, want the foreign proof reported", problems)
 	}
 }

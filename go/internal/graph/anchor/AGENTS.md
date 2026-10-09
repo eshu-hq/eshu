@@ -40,5 +40,9 @@
 - **A new constrained label** needs no edit: `Labels` derives from the schema.
 - **A new Cypher shape the analyzer misreads** → add a row to `TestCheckWriters`
   first (RED), then extend `parse.go`.
-- **A dynamic-label writer** → the static sweep cannot see it; make sure the
-  corpus replay exercises it.
+- **A dynamic-label writer** (a template whose node label is a placeholder) →
+  put `// anchor-census: dynamic-label writer; label set bounded by <TestName>`
+  beside it, within 10 lines above, with `<TestName>` a real test in the same
+  directory that proves every label the writer can use is an anchor label. The
+  sweep fails without the marker, without the test, or when two writers share
+  one marker. The corpus replay still has to exercise the writer.
