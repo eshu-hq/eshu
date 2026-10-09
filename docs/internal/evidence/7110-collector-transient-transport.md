@@ -78,9 +78,12 @@ the collector. `isSkippableTransientError`
 when the error chain carries an `sdk.HTTPError` whose status
 `collector.RegistryFailureClassForHTTPStatus` marks retryable (408, 5xx) or
 rate-limited (429). Matching on the status, not the failure class, keeps the
-existing guards intact: transport-shaped `registry_retryable_failure` errors
-(x509, empty body, cancelled context) still propagate because their HTTP
-status is 0, which maps to terminal. The skip reuses the same per-target
+existing guards intact three separate ways: transport-shaped errors (x509 and
+other `registry_retryable_failure` transport failures) carry HTTP status 0,
+which maps to terminal; content errors such as an empty-body decode carry no
+`sdk.HTTPError` at all; and cancelled contexts are rejected by the explicit
+`ctx.Err()` / `context.Canceled` checks before status classification runs.
+The skip reuses the same per-target
 counter and 20-cycle ceiling, and the warn-log `cause_class` carries the
 registry failure class for status skips. Claimed scans are unchanged:
 `ClaimedSource.NextClaimed` calls `scanTarget` directly and never `Next`.
