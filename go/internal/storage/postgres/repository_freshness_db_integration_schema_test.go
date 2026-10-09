@@ -62,6 +62,8 @@ func openRepositoryFreshnessDBIntegrationSchema(t *testing.T, ctx context.Contex
 		MigrationSQL("reducer_work_item_reopened_at"),
 		MigrationSQL("shared_projection_intents"),
 		MigrationSQL("webhook_refresh_triggers"),
+		// migration 168 (#7777): claim_fencing_token, written by StoreTrigger.
+		MigrationSQL("webhook_refresh_triggers_claim_fencing"),
 		MigrationSQL("repository_selection_observations"),
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
