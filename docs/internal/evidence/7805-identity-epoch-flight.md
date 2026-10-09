@@ -161,7 +161,7 @@ scopes in a short time. A repeatedly torn item is findable: the dead-letter row
 and `eshu_dp_queue_dead_letters_total{queue="reducer",failure_class="identity_epoch_unstable"}`
 carry the class. No code changes for this in this PR. Follow-up: narrow the
 epoch fingerprint to identity-relevant activations only.
-Follow-up: #NNNN
+Follow-up: #7825
 
 Raw outputs are attached to the PR (no private paths). File names:
 `red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-noreprobe-mutation.txt`,
