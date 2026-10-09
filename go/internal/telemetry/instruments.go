@@ -266,7 +266,6 @@ type Instruments struct {
 	// domain and reason, as for SharedProjectionLaneBlocked. The scope ids
 	// themselves are in the runner's "lane blocked" log line, never a label.
 	SharedProjectionLaneBlockerCount metric.Int64Gauge
-<<<<<<< HEAD
 	// SharedProjectionLaneGateDuration records one lane-wide gate probe's
 	// latency per successful gate consultation (#7166): every consultation
 	// that produced an answer, open or held, so the gate's own cost is

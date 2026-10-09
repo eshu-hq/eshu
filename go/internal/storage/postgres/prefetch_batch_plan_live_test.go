@@ -27,6 +27,17 @@ import (
 func TestPrefetchBatchQueriesUsePrimaryKeyLive(t *testing.T) {
 	const schema = "eshu_7724_prefetch_batch_live"
 
+	// Bridge the live-postgres-readiness runner's family DSN onto the
+	// generic variable. Local runs keep using ESHU_POSTGRES_TEST_DSN
+	// directly; the runner sets only the family pair, and a family DSN
+	// without its disposable acknowledgment fails closed.
+	if dsn := strings.TrimSpace(os.Getenv("ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN")); dsn != "" {
+		if os.Getenv("ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN is set without ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE=1")
+		}
+		t.Setenv("ESHU_POSTGRES_TEST_DSN", dsn)
+	}
+
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live prefetch plan proof")

@@ -6,7 +6,8 @@ cross-round cache, and per-partition backoff with the global
 `BlockedReadiness` pin removed.
 
 Source: branch `fix/7724-idle-claim-spin` on base `01ceb1dd05`
-(`worktrees/fix-7724-idle-claim-spin`, uncommitted at measurement time).
+(`worktrees/fix-7724-idle-claim-spin`, uncommitted at measurement time;
+rebased through `195337b97d` and `4a509716f6` since).
 Probe container `eshu-pg18-ws1b11bd5`, DB `shim7724`, same seed and
 partition for every run below.
 
@@ -66,7 +67,7 @@ Full text: `/tmp/7724-arbiter-verdict.txt` (session-local; not committed).
 - Telemetry: 10 new instruments (visits by outcome, per-partition and
   global backoff gauges, at-max gauge, prefetch keys/queries/rows/hits,
   prefetch durations, selection rounds), a per-cycle backoff summary log
-  line, and `Runner.BackoffState()` as the debug surface. Stall signals
+  line, and `Runner.BackoffState()` as the debug API. Stall signals
   (`blocked_count`, `blocked_intent_wait_seconds`) are untouched and stay
   distinct from backoff.
 
@@ -108,7 +109,7 @@ forbidden-label discipline).
 
 Committed live test
 `go/internal/storage/postgres/prefetch_batch_plan_live_test.go`
-(`integration` tag; representative shape: 10 scopes × 10K units). Plans
+(untagged, DSN skip-guard, enrolled postgres_ci in live-postgres-readiness; representative shape: 10 scopes × 10K units). Plans
 from `ESHU_POSTGRES_TEST_DSN` against `eshu-pg18-ws1b11bd5`:
 
 Acceptance batch:
@@ -155,8 +156,9 @@ the `_pkey` probe by name.)
   productive, hold on lease-miss/error, per-partition independence,
   8-worker race-detector concurrency proof.
 - Starvation soak: all partitions pinned at T_max behind a blocked head
-  still pick up an injected ready row within T_max; the blocked head
-  stays pending.
+  still pick up an injected ready row within T_max at the cycle level
+  (the soak drives runOneCycle directly; end-to-end pickup adds one
+  global poll interval, at most 5s); the blocked head stays pending.
 - `TestSharedProjectionRunnerBacksOffWhileReadinessBlocked` (updated from
   the pin-era `...UsesBasePollIntervalWhileReadinessBlocked`): blocked
   rows no longer pin the global interval; nothing completes while

@@ -26,8 +26,9 @@ type RunnerConfig struct {
 	// PartitionBackoffMax is T_max: the longest a persistently
 	// unproductive (domain, partition) waits between visits (#7724 2A).
 	// It is also the pickup bound: work arriving during backoff is
-	// picked up within T_max. Zero means the 30s default; values above
-	// the 5-minute hard cap are clamped.
+	// picked up within T_max plus one global poll interval (at most
+	// 5s). Zero means the 30s default; values above the 5-minute hard
+	// cap are clamped.
 	PartitionBackoffMax time.Duration
 }
 

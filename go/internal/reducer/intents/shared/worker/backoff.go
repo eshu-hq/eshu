@@ -22,7 +22,8 @@ const (
 	// DefaultPartitionBackoffMax is the default T_max: the longest a
 	// persistently unproductive partition waits between visits. It is
 	// also the pickup bound: work arriving during backoff is picked up
-	// within T_max.
+	// within T_max plus one global poll interval (at most 5s), the
+	// idle sleep Run takes between cycles.
 	DefaultPartitionBackoffMax = 30 * time.Second
 	// MaxPartitionBackoffMax hard-caps the configured T_max so an
 	// operator cannot silence a partition past five minutes.
@@ -53,9 +54,11 @@ type partitionBackoffEntry struct {
 // they report nothing, so progress elsewhere never penalizes a partition
 // and errors never hide behind silence.
 //
-// Every partition is visited at least once per T_max unconditionally, and
-// skip decisions use only the partition's own counters, so no row waits
-// more than T_max plus its partition-window scan. The zero value is not
+// Every partition is visited at least once per T_max at the cycle level,
+// and skip decisions use only the partition's own counters, so no row
+// waits more than T_max plus its partition-window scan plus one global
+// poll interval (at most 5s of idle sleep between Run cycles). The zero
+// value is not
 // usable; construct with newPartitionBackoffTracker. It is safe for
 // concurrent use by the runner's sequential and concurrent cycle paths.
 type partitionBackoffTracker struct {

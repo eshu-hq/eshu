@@ -256,8 +256,10 @@ func TestRunnerBlockedOnlyCycleBacksOffGlobally(t *testing.T) {
 
 // TestRunnerPicksUpWorkWithinBackoffBound is the #7724 2A starvation soak:
 // every partition backs off to T_max behind a blocked head, then ready
-// work arrives and must drain within T_max. No sleeps: the fake clock
-// advances one poll per cycle.
+// work arrives and must drain within T_max. Cycle-level bound only: the
+// test drives runOneCycle directly with no Run sleep, so end-to-end
+// pickup adds one global poll interval (at most 5s). No sleeps: the
+// fake clock advances one poll per cycle.
 func TestRunnerPicksUpWorkWithinBackoffBound(t *testing.T) {
 	t.Parallel()
 

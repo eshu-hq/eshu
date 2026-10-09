@@ -2316,7 +2316,7 @@ tests:
   - file: go/internal/storage/postgres/prefetch_batch_plan_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7724 disposable PostgreSQL 18 proof that both shared-projection prefetch batch queries probe the primary key with no sequential scan at 500-key scale over 100K-row tables, that the shipped SQL binds UNNEST arrays against real Postgres, and that LookupBatch returns exactly the present subset; enrolled in the live-postgres-readiness runner"
+    reason: "#7724 disposable PostgreSQL 18 proof that both shared-projection prefetch batch queries probe the primary key with no sequential scan at 500-key scale over 100K-row tables, that the shipped SQL binds UNNEST arrays against real Postgres, and that LookupBatch returns exactly the present subset; enrolled in the live-postgres-readiness runner, bridging its ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN family pair onto ESHU_POSTGRES_TEST_DSN with a disposable-ack fail-closed"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go
     tag: ~

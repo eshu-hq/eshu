@@ -156,6 +156,8 @@ jobs:
           ESHU_CONTAINER_IMAGE_IDENTITY_EPOCH_PROOF_DISPOSABLE: '1'
           ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: '1'
+          ESHU_PREFETCH_BATCH_PLAN_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_PREFETCH_BATCH_PLAN_PROOF_DISPOSABLE: '1'
           ESHU_GRAPH_BACKEND: neo4j
           ESHU_NEO4J_URI: neo4j://127.0.0.1:7687
           ESHU_NEO4J_USERNAME: neo4j
