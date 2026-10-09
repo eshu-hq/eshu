@@ -37,10 +37,11 @@ install before its first whole pass, or an all-ArgoCD install). Both are held
 by the consumer until the next epoch whole pass writes the memos and the phase.
 For `catalog_changed` that pass is triggered by the ingestion commit that
 changed the catalog. For `no_memo_baseline` there may be no such commit: the
-hold lasts until any committed drain runs the whole pass. The same hold occurs
-after the first whole pass whenever every memo-bearing scope advanced past its
-memo, including a single-repository install's quiet generation; see #7638
-item 9. `ErrTargetedMaintenanceClosureTooDeep`
+hold lasts until any committed drain runs the whole pass. After the first whole
+pass the hold also fires when no owed scope's latest memo carries the current
+catalog fingerprint; an owed scope's own most recent memo with the current
+fingerprint admits the pass, so a single-repository install's quiet generation
+completes within one lease (see #7638 item 9). `ErrTargetedMaintenanceClosureTooDeep`
 reports a closure that did not settle in 8 promotion rounds. Every
 `TargetedMaintenanceError` has a stable `Reason()` used as the telemetry label.
 
