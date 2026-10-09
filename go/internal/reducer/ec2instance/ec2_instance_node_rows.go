@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -55,7 +56,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 	byUID := make(map[string]map[string]any, len(envelopes))
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.EC2InstancePostureFactKind {
+		if env.FactKind != cloud.EC2InstancePostureFactKind {
 			continue
 		}
 		// A terminated/tombstoned instance no longer runs, so it materializes no

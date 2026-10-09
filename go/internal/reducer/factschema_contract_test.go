@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -21,8 +22,8 @@ var factSchemaWireKindCases = []struct {
 	{"aws_resource", factschema.FactKindAWSResource, facts.AWSResourceFactKind},
 	{"aws_relationship", factschema.FactKindAWSRelationship, facts.AWSRelationshipFactKind},
 	{"aws_security_group_rule", factschema.FactKindAWSSecurityGroupRule, facts.AWSSecurityGroupRuleFactKind},
-	{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, facts.EC2InstancePostureFactKind},
-	{"s3_bucket_posture", factschema.FactKindS3BucketPosture, facts.S3BucketPostureFactKind},
+	{"ec2_instance_posture", factschema.FactKindEC2InstancePosture, cloud.EC2InstancePostureFactKind},
+	{"s3_bucket_posture", factschema.FactKindS3BucketPosture, cloud.S3BucketPostureFactKind},
 	{"aws_iam_permission", factschema.FactKindAWSIAMPermission, facts.AWSIAMPermissionFactKind},
 	{"aws_resource_policy_permission", factschema.FactKindAWSResourcePolicyPermission, facts.AWSResourcePolicyPermissionFactKind},
 	{"aws_iam_principal", factschema.FactKindAWSIAMPrincipal, facts.AWSIAMPrincipalFactKind},

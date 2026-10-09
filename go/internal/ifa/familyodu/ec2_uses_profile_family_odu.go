@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -296,9 +297,9 @@ func EC2UsesProfileFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          ec2UsesProfileFamilyScopeID,
 			GenerationID:     ec2UsesProfileFamilyGenerationID,
-			FactKind:         facts.EC2InstancePostureFactKind,
-			StableFactKey:    ec2UsesProfileFamilyStableFactKey(facts.EC2InstancePostureFactKind, ec2UsesProfileFamilyPostureIdentity(fixture)),
-			SchemaVersion:    facts.EC2InstancePostureSchemaVersionV1,
+			FactKind:         cloud.EC2InstancePostureFactKind,
+			StableFactKey:    ec2UsesProfileFamilyStableFactKey(cloud.EC2InstancePostureFactKind, ec2UsesProfileFamilyPostureIdentity(fixture)),
+			SchemaVersion:    cloud.EC2InstancePostureSchemaVersionV1,
 			CollectorKind:    ec2UsesProfileFamilyCollectorKind,
 			SourceConfidence: ec2UsesProfileFamilySourceConfidence,
 			IsTombstone:      fixture.Tombstone,

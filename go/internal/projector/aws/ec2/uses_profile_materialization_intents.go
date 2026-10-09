@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -34,7 +35,7 @@ func BuildUsesProfileMaterializationReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKindMatching(facts.EC2InstancePostureFactKind, func(envelope facts.Envelope) bool {
+	envelope, ok := lookup.FirstOfKindMatching(cloud.EC2InstancePostureFactKind, func(envelope facts.Envelope) bool {
 		posture, err := decodeEC2InstancePosture(envelope)
 		if err != nil {
 			return false

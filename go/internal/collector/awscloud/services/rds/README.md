@@ -52,8 +52,8 @@ See `doc.go` for the godoc contract.
   relationship details.
 
 The `rds_instance_posture` fact kind, schema version, and payload envelope are
-owned by `internal/facts` and `internal/collector/awscloud`
-(`facts.RDSInstancePostureFactKind`, `awscloud.RDSPostureObservation`,
+owned by `internal/facts/cloud` and `internal/collector/awscloud`
+(`cloud.RDSInstancePostureFactKind`, `awscloud.RDSPostureObservation`,
 `awscloud.NewRDSInstancePostureEnvelope`).
 
 ## Dependencies

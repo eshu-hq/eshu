@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -93,7 +94,7 @@ func NewS3ExternalPrincipalGrantEnvelope(observation S3ExternalPrincipalGrantObs
 		return facts.Envelope{}, fmt.Errorf("s3 external principal grant observation requires grant_outcome")
 	}
 
-	stableKey := facts.StableID(facts.S3ExternalPrincipalGrantFactKind, map[string]any{
+	stableKey := facts.StableID(cloud.S3ExternalPrincipalGrantFactKind, map[string]any{
 		"account_id":      observation.Boundary.AccountID,
 		"bucket":          bucketIdentity,
 		"grant_outcome":   grantOutcome,
@@ -128,8 +129,8 @@ func NewS3ExternalPrincipalGrantEnvelope(observation S3ExternalPrincipalGrantObs
 	}
 	return newEnvelope(
 		observation.Boundary,
-		facts.S3ExternalPrincipalGrantFactKind,
-		facts.S3ExternalPrincipalGrantSchemaVersionV1,
+		cloud.S3ExternalPrincipalGrantFactKind,
+		cloud.S3ExternalPrincipalGrantSchemaVersionV1,
 		stableKey,
 		sourceRecordID(observation.SourceRecordID, bucketIdentity+"#grant#"+principalKind+"#"+principalValue),
 		observation.SourceURI,

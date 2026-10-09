@@ -82,7 +82,7 @@ boundary.
   one posture fact has a non-blank, trimmed `instance_profile_arn`; an
   invalid (non-decodable) posture fact is treated as no match, not an error.
 - All five builders trigger on `ec2_instance_posture`
-  (`facts.EC2InstancePostureFactKind`) and anchor to the earliest matching
+  (`cloud.EC2InstancePostureFactKind`) and anchor to the earliest matching
   fact so the reducer claim is stable across reprojections of the same
   generation.
 

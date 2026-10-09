@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
@@ -298,7 +299,7 @@ func TestEC2InstanceIdentityMaterializationDoesNotDisturbPostureNode(t *testing.
 func ec2PostureEnvelopeForIdentityTest(instanceID, arn string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "fact-posture-" + instanceID,
-		FactKind: facts.EC2InstancePostureFactKind,
+		FactKind: cloud.EC2InstancePostureFactKind,
 		Payload: map[string]any{
 			"account_id":       testEC2IdentityAccount,
 			"region":           testEC2IdentityRegion,

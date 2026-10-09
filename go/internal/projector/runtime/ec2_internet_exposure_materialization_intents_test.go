@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -19,8 +20,8 @@ func TestBuildProjectionQueuesEC2InternetExposureMaterializationFromPosture(t *t
 		FactID:        "fact-ec2-posture-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
-		FactKind:      facts.EC2InstancePostureFactKind,
-		SchemaVersion: facts.EC2InstancePostureSchemaVersionV1,
+		FactKind:      cloud.EC2InstancePostureFactKind,
+		SchemaVersion: cloud.EC2InstancePostureSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

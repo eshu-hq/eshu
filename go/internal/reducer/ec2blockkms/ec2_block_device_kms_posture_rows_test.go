@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
@@ -22,7 +23,7 @@ func ec2BlockKMSPostureEnvelope(factID, account, region, instanceID string, volu
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.EC2InstancePostureFactKind,
+		FactKind: cloud.EC2InstancePostureFactKind,
 		Payload: map[string]any{
 			"account_id":    account,
 			"region":        region,

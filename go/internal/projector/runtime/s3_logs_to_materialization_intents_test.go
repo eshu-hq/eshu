@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -17,8 +18,8 @@ func s3PostureIntentEnvelope(factID, scopeID, generationID, loggingTarget string
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.S3BucketPostureFactKind,
-		SchemaVersion: facts.S3BucketPostureSchemaVersionV1,
+		FactKind:      cloud.S3BucketPostureFactKind,
+		SchemaVersion: cloud.S3BucketPostureSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

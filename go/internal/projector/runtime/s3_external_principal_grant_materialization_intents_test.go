@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -23,8 +24,8 @@ func s3ExternalPrincipalGrantIntentEnvelope(
 		FactID:        factID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
-		FactKind:      facts.S3ExternalPrincipalGrantFactKind,
-		SchemaVersion: facts.S3ExternalPrincipalGrantSchemaVersionV1,
+		FactKind:      cloud.S3ExternalPrincipalGrantFactKind,
+		SchemaVersion: cloud.S3ExternalPrincipalGrantSchemaVersionV1,
 		CollectorKind: "aws_cloud",
 		ObservedAt:    time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC),
 		SourceRef: facts.Ref{

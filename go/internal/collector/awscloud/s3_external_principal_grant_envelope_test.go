@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestNewS3ExternalPrincipalGrantEnvelopeCarriesBoundedMetadata(t *testing.T) {
@@ -24,11 +25,11 @@ func TestNewS3ExternalPrincipalGrantEnvelopeCarriesBoundedMetadata(t *testing.T)
 		t.Fatalf("NewS3ExternalPrincipalGrantEnvelope() error = %v, want nil", err)
 	}
 
-	if envelope.FactKind != facts.S3ExternalPrincipalGrantFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.S3ExternalPrincipalGrantFactKind)
+	if envelope.FactKind != cloud.S3ExternalPrincipalGrantFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.S3ExternalPrincipalGrantFactKind)
 	}
-	if envelope.SchemaVersion != facts.S3ExternalPrincipalGrantSchemaVersionV1 {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.S3ExternalPrincipalGrantSchemaVersionV1)
+	if envelope.SchemaVersion != cloud.S3ExternalPrincipalGrantSchemaVersionV1 {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.S3ExternalPrincipalGrantSchemaVersionV1)
 	}
 	if envelope.SourceConfidence != facts.SourceConfidenceReported {
 		t.Fatalf("SourceConfidence = %q, want %q", envelope.SourceConfidence, facts.SourceConfidenceReported)

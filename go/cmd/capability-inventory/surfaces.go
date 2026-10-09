@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -226,10 +227,10 @@ func collectorFactKinds() map[string][]string {
 		),
 		string(scope.CollectorAWS): appendFactKinds(
 			facts.AWSFactKinds(),
-			facts.EC2InstancePostureFactKinds(),
-			facts.RDSPostureFactKinds(),
-			facts.S3BucketPostureFactKinds(),
-			facts.S3ExternalPrincipalGrantFactKinds(),
+			cloud.EC2InstancePostureFactKinds(),
+			cloud.RDSPostureFactKinds(),
+			cloud.S3BucketPostureFactKinds(),
+			cloud.S3ExternalPrincipalGrantFactKinds(),
 			filterFactKinds(facts.SecretsIAMFactKinds(), "aws_", "eks_"),
 		),
 		string(scope.CollectorAzure): facts.AzureFactKinds(),

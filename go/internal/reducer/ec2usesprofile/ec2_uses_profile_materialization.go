@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -131,7 +132,7 @@ type EC2UsesProfileMaterializationHandler struct {
 // the aws_resource IAM instance-profile node substrate for the join index and the
 // ec2_instance_posture facts that drive the edges.
 func ec2UsesProfileFactKinds() []string {
-	return []string{facts.AWSResourceFactKind, facts.EC2InstancePostureFactKind}
+	return []string{facts.AWSResourceFactKind, cloud.EC2InstancePostureFactKind}
 }
 
 // Handle executes one EC2 USES_PROFILE materialization intent.
@@ -385,7 +386,7 @@ func splitEC2UsesProfileEnvelopes(envelopes []facts.Envelope) (resources, postur
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
-		case facts.EC2InstancePostureFactKind:
+		case cloud.EC2InstancePostureFactKind:
 			postures = append(postures, env)
 		}
 	}

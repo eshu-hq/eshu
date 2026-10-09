@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -141,7 +142,7 @@ func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetE
 	postures := make([]s3InternetExposurePosture, 0, len(envelopes))
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.S3BucketPostureFactKind {
+		if env.FactKind != cloud.S3BucketPostureFactKind {
 			continue
 		}
 		posture, err := schemadecode.DecodeS3BucketPosture(env)

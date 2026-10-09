@@ -4,7 +4,7 @@
 package ec2
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -20,7 +20,7 @@ func BuildBlockDeviceKMSPostureMaterializationReducerIntent(
 	generationID string,
 	lookup projectorintent.FactLookup,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKind(facts.EC2InstancePostureFactKind)
+	envelope, ok := lookup.FirstOfKind(cloud.EC2InstancePostureFactKind)
 	if !ok {
 		return projectorintent.ReducerIntent{}, false
 	}

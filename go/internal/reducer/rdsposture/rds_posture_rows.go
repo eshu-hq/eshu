@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -61,7 +62,7 @@ func ExtractRDSPostureRows(
 	}
 	byUID := make(map[string]map[string]any, len(postureEnvelopes))
 	for _, env := range postureEnvelopes {
-		if env.FactKind != facts.RDSInstancePostureFactKind {
+		if env.FactKind != cloud.RDSInstancePostureFactKind {
 			continue
 		}
 		row, uid, ok, err := rdsPostureRow(env)

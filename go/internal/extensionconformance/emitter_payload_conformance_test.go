@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -43,7 +44,7 @@ func emitterConformanceCases() []emitterConformanceCase {
 			},
 		},
 		{
-			name: facts.EC2InstancePostureFactKind,
+			name: cloud.EC2InstancePostureFactKind,
 			build: func() (facts.Envelope, error) {
 				return awscloud.NewEC2InstancePostureEnvelope(ec2InstancePostureObservation())
 			},
@@ -61,7 +62,7 @@ func emitterConformanceCases() []emitterConformanceCase {
 			},
 		},
 		{
-			name: facts.S3BucketPostureFactKind,
+			name: cloud.S3BucketPostureFactKind,
 			build: func() (facts.Envelope, error) {
 				return awscloud.NewS3BucketPostureEnvelope(s3BucketPostureObservation())
 			},

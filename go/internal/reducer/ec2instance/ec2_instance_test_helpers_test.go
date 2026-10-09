@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -71,7 +72,7 @@ func (w *recordingEC2InstanceNodeWriter) WriteEC2InstanceNodes(
 
 func ec2InstancePostureEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.EC2InstancePostureFactKind,
+		FactKind: cloud.EC2InstancePostureFactKind,
 		FactID:   "fact-" + payloadcore.AnyToString(payload["instance_id"]),
 		Payload:  payload,
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
@@ -29,7 +30,7 @@ func ec2ExposurePostureEnvelope(factID, instanceID string, payload map[string]an
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.EC2InstancePostureFactKind,
+		FactKind: cloud.EC2InstancePostureFactKind,
 		Payload:  merged,
 	}
 }

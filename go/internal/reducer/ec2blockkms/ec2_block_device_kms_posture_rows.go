@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -283,7 +284,7 @@ func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDevi
 	postures := make([]ec2BlockDeviceKMSPostureItem, 0, len(envelopes))
 	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
-		if env.FactKind != facts.EC2InstancePostureFactKind {
+		if env.FactKind != cloud.EC2InstancePostureFactKind {
 			continue
 		}
 		posture, err := schemadecode.DecodeEC2InstancePosture(env)

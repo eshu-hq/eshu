@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
@@ -185,8 +186,8 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.EC2InstancePostureFactKind] != 1 {
-		t.Fatalf("ec2_instance_posture count = %d, want 1", counts[facts.EC2InstancePostureFactKind])
+	if counts[cloud.EC2InstancePostureFactKind] != 1 {
+		t.Fatalf("ec2_instance_posture count = %d, want 1", counts[cloud.EC2InstancePostureFactKind])
 	}
 	// #5717: two aws_resource facts now — the instance identity fact AND the
 	// AMI node-class fact the instance->AMI relationship resolves against.
@@ -290,11 +291,11 @@ func TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank(t *testing.T
 func assertInstancePostureFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.EC2InstancePostureFactKind {
+		if envelope.FactKind == cloud.EC2InstancePostureFactKind {
 			return envelope
 		}
 	}
-	t.Fatalf("missing %q fact in %#v", facts.EC2InstancePostureFactKind, envelopes)
+	t.Fatalf("missing %q fact in %#v", cloud.EC2InstancePostureFactKind, envelopes)
 	return facts.Envelope{}
 }
 

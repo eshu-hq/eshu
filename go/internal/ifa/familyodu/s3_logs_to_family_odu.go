@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -295,9 +296,9 @@ func S3LogsToFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          s3LogsToFamilyScopeID,
 			GenerationID:     s3LogsToFamilyGenerationID,
-			FactKind:         facts.S3BucketPostureFactKind,
-			StableFactKey:    s3LogsToFamilyStableFactKey(facts.S3BucketPostureFactKind, s3LogsToFamilyPostureIdentity(fixture)),
-			SchemaVersion:    facts.S3BucketPostureSchemaVersionV1,
+			FactKind:         cloud.S3BucketPostureFactKind,
+			StableFactKey:    s3LogsToFamilyStableFactKey(cloud.S3BucketPostureFactKind, s3LogsToFamilyPostureIdentity(fixture)),
+			SchemaVersion:    cloud.S3BucketPostureSchemaVersionV1,
 			CollectorKind:    s3LogsToFamilyCollectorKind,
 			SourceConfidence: s3LogsToFamilySourceConfidence,
 			Payload:          payload,

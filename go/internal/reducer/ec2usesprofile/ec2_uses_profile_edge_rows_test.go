@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -39,7 +40,7 @@ func ec2UsesProfileResourceEnvelope(account, region, name string) facts.Envelope
 // no profile, which must produce no edge and no skip-error).
 func ec2UsesProfilePostureEnvelope(account, region, instanceID, profileARN string) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.EC2InstancePostureFactKind,
+		FactKind: cloud.EC2InstancePostureFactKind,
 		FactID:   "fact-" + instanceID,
 		Payload: map[string]any{
 			"account_id":           account,

@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"gopkg.in/yaml.v3"
 )
 
@@ -415,7 +416,7 @@ func liveFamilies() []liveFamily {
 		{"ci_cd_run", facts.CICDRunFactKinds, facts.CICDRunSchemaVersion},
 		{"codeowners", facts.CodeownersFactKinds, facts.CodeownersSchemaVersion},
 		{"documentation", facts.DocumentationFactKinds, facts.DocumentationSchemaVersion},
-		{"ec2_instance_posture", facts.EC2InstancePostureFactKinds, facts.EC2InstancePostureSchemaVersion},
+		{"ec2_instance_posture", cloud.EC2InstancePostureFactKinds, cloud.EC2InstancePostureSchemaVersion},
 		{"gcp", facts.GCPFactKinds, facts.GCPSchemaVersion},
 		{"incident_context", facts.IncidentContextFactKinds, facts.IncidentContextSchemaVersion},
 		{"incident_routing", facts.IncidentRoutingFactKinds, facts.IncidentRoutingSchemaVersion},
@@ -423,10 +424,10 @@ func liveFamilies() []liveFamily {
 		{"observability", facts.ObservabilityFactKinds, facts.ObservabilitySchemaVersion},
 		{"oci_registry", facts.OCIRegistryFactKinds, facts.OCIRegistrySchemaVersion},
 		{"package_registry", facts.PackageRegistryFactKinds, facts.PackageRegistrySchemaVersion},
-		{"rds_posture", facts.RDSPostureFactKinds, facts.RDSPostureSchemaVersion},
+		{"rds_posture", cloud.RDSPostureFactKinds, cloud.RDSPostureSchemaVersion},
 		{"reducer_derived", facts.ReducerDerivedFactKinds, facts.ReducerDerivedSchemaVersion},
-		{"s3_bucket_posture", facts.S3BucketPostureFactKinds, facts.S3BucketPostureSchemaVersion},
-		{"s3_external_principal_grant", facts.S3ExternalPrincipalGrantFactKinds, facts.S3ExternalPrincipalGrantSchemaVersion},
+		{"s3_bucket_posture", cloud.S3BucketPostureFactKinds, cloud.S3BucketPostureSchemaVersion},
+		{"s3_external_principal_grant", cloud.S3ExternalPrincipalGrantFactKinds, cloud.S3ExternalPrincipalGrantSchemaVersion},
 		{"sbom_attestation", facts.SBOMAttestationFactKinds, facts.SBOMAttestationSchemaVersion},
 		{"scanner_worker", facts.ScannerWorkerFactKinds, facts.ScannerWorkerSchemaVersion},
 		{"secrets_iam", facts.SecretsIAMFactKinds, facts.SecretsIAMSchemaVersion},
