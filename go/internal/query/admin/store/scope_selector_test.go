@@ -55,6 +55,23 @@ func TestResolveScopeID(t *testing.T) {
 	})
 }
 
+// TestSkipRepositoryWorkItemsUnknownSelectorSkipsNothing pins the preserved
+// contract: an unknown selector resolves to zero scopes and skips nothing
+// (the handler answers 200 with count 0), exactly as the old OR-matched
+// UPDATE did when it matched zero rows.
+func TestSkipRepositoryWorkItemsUnknownSelectorSkipsNothing(t *testing.T) {
+	t.Parallel()
+
+	s := &postgresStore{database: &scriptedScopeQueryer{ids: nil}}
+	items, err := s.SkipRepositoryWorkItems(context.Background(), "nope", "")
+	if err != nil {
+		t.Fatalf("SkipRepositoryWorkItems() error = %v, want nil", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("SkipRepositoryWorkItems() items = %v, want none", items)
+	}
+}
+
 // scriptedScopeQueryer answers the resolve SELECT with a fixed id list.
 type scriptedScopeQueryer struct {
 	ids []string
