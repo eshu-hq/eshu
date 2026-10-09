@@ -465,10 +465,16 @@ whether callers are sharing one load or queueing behind many.
 | `eshu_dp_identity_cache_reload_total` | counter | Loads started, retries inside a flight included. |
 | `eshu_dp_identity_cache_load_retry_total` | counter | Loads discarded and repeated inside one flight because the epoch moved during the paged load (at most one retry per flight). |
 | `eshu_dp_identity_cache_reload_duration_seconds` | histogram | Duration of every load, cached or not. |
-| `eshu_dp_identity_cache_passthrough_total` | counter | Loads served to their callers without being cached. Label `reason`: `epoch_moved`, `cap_exceeded`, `size_unknown`, `probe_error`. |
+| `eshu_dp_identity_cache_passthrough_total` | counter | Loads that were not cached. Label `reason`: `cap_exceeded` and `size_unknown` serve the consistent set to its callers uncached; `epoch_moved` and `probe_error` discard an unvalidated set (the leader's item fails with the `identity_epoch_unstable` failure class). |
 | `eshu_dp_identity_cache_flight_waiter_total` | counter | Callers that arrived during a load. Label `outcome`: `shared` (served that load's rows), `shared_error`, `stale_epoch` (the caller's epoch probe differs from the load's start epoch; retried), `leader_canceled` (retried), `torn_set` (the load could not be validated against a stable epoch; retried). |
 | `eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total` | counter | Epoch-validated cache hits and misses. |
 | `eshu_dp_identity_cache_probe_duration_seconds` | histogram | Duration of the epoch probe, which runs on every call. |
+
+A leader whose epoch moved on both load attempts fails its item with the retryable
+failure class `identity_epoch_unstable`. It appears as `failure_class` on the reducer retry,
+failure and dead-letter metrics and in the work item's `failure_class` column, and it counts
+claim attempts, so the existing attempt limit bounds it. Waiters of that flight show as
+`flight_waiter_total{outcome="torn_set"}`. No item is decided on such a set.
 
 A healthy domain shows many `shared` waiters per `reload_total`. A high
 `passthrough_total{reason="epoch_moved"}` means the active set changes faster

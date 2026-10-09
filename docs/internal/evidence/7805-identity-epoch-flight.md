@@ -87,7 +87,13 @@ in-flight load only if its trigger committed before the leader's probe
 snapshot, which the code checks as "the waiter's own epoch probe equals the
 flight's start epoch". Otherwise the waiter waits for the flight and then
 starts or joins a fresh load, so it never decides on a set that predates its own
-trigger. `TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight` pins it.
+trigger. Two tests pin it. `TestIdentityEpochCacheLateCallerAfterValidatingProbeDoesNotJoinFlight`
+parks the leader after its validating post-load probe returned the start epoch
+(so no in-flight retry can run), moves the epoch, and adds a late caller: it
+must get a fresh load, and it fails under a `joinable := true` mutation.
+`TestIdentityEpochCacheLateCallerDoesNotJoinStaleFlight` covers the other
+window, a commit before the validating probe, which the in-flight retry also
+covers.
 
 The paged load is more than a thousand READ COMMITTED statements, so a
 generation flip between pages can tear the set (old-generation rows after the
@@ -95,9 +101,19 @@ cursor drop out, new-generation rows before the cursor are never read). The
 post-load probe detects the flip. The flight then loads once more from the moved
 epoch (at most two attempts, `eshu_dp_identity_cache_load_retry_total`). If the
 epoch is still moving after the second attempt, or the post-load probe fails,
-the leader keeps its last set uncached and every waiter re-probes
-(`flight_waiter_total{outcome="torn_set"}`), so a possibly mixed set is never
-delivered to a waiter. A single long REPEATABLE READ snapshot was refused: it
+the set is discarded: every waiter re-probes
+(`flight_waiter_total{outcome="torn_set"}`) and the leader's own item fails
+with a retryable `identityLoadUnstableError` (failure class
+`identity_epoch_unstable`, a counting retry class bounded by the claim-attempt
+limit; `TestIdentityEpochUnstableFailureClassCountsClaimAttempts` pins that it is
+not in the non-counting list), so the queue re-runs it from a fresh probe. No item
+is decided on a set whose post-load probe differs from its pre-load probe, and the
+former passthrough of a known-mismatched set is gone.
+`TestContainerImageIdentityHandlerDecidesNothingOnATornSet` drives the real
+handler over the real cache with a flip on every attempt and asserts the
+retryable error, the failure class, zero decision writes and two loads. The
+code has no per-item direct query to fall back to, so the retryable error is the
+passthrough. A single long REPEATABLE READ snapshot was refused: it
 pins the vacuum horizon and blocks `CREATE INDEX CONCURRENTLY`. Snapshot
 consistent paging without a long snapshot is a follow-up, not part of this
 change. Unit tests
@@ -107,21 +123,29 @@ change. Unit tests
 `...LeaderCancelDoesNotFailWaiters`, `...LoadErrorIsSharedWithWaiters`, and
 `...LeaderPanicReleasesWaiters` cover these paths under `-race`.
 
-Raw captures live in the executor's evidence directory (`red-f6-f8.txt`, `green-unit-r2.txt`, `green-live.txt`, `red-plan-mutation.txt`, `postgres-race-r2.txt`, `gates-r2.txt`).
+Raw outputs are attached to the PR (no private paths). File names:
+`red-f6-f8.txt`, `red-joinable-mutation.txt`, `red-torn-leader-mutation.txt`,
+`green-unit-r3.txt`, `green-live-r3.txt`, `red-live-epoch.txt`,
+`red-plan-mutation.txt`, `red-plan-keyset-mutation.txt`, `before-load.txt`,
+`after-load-final.txt`, `after-drain-final-superseded.txt`,
+`after-drain-final-active.txt`, `gates-r3.txt`.
 
 Plan guard: the page SQL is Postgres, and `internal/queryplan` pins graph
 (Cypher) reads only, so it has no entry for this query. The guard is
-`TestIdentityPageQueryPlanRidesOrderedIndexLive`: on a private schema with the
-production tables and indexes it runs `EXPLAIN (FORMAT JSON)` of the page query
-and asserts an Index Scan on `fact_records_identity_epoch_idx_v2`, a hashed
-SubPlan filter, no Sort, and no Seq Scan on `fact_records`. The rewrite depends
+`TestIdentityPageQueryPlanRidesOrderedIndexLive`: on a private schema built by
+the real migrations it runs `EXPLAIN (FORMAT JSON)` of the page query for the
+first page and for a mid-load page, and asserts an Index Scan on
+`fact_records_identity_epoch_idx_v2`, a hashed SubPlan filter, no Sort, no Seq
+Scan on `fact_records`, and, on the mid-load page, the keyset comparison as an
+Index Cond (not a Filter). It runs in the `postgres_ci` lane
+(`live-postgres-readiness`, advisory today). The rewrite depends
 on planner behavior verified on PostgreSQL 18; that test pins it, and the
 text-shape asserts only stop the `OR FALSE` from being deleted.
 
 Correctness: `TestIdentityEpochIgnoresSupersededGenerationRowsLive` shows a
 delete on a superseded generation leaves the epoch unchanged and an insert or
 delete on the active generation moves it (before the change the first assertion
-failed with count 1,013,982 then 1,013,981).
+failed with count 1,013,986 then 1,013,985, raw `red-live-epoch.txt`).
 `TestIdentityPageQueryServesOnlyActiveGenerationsLive` serves only a
 non-tombstone identity fact of a scope's active generation whose generation row
 is `active`.
