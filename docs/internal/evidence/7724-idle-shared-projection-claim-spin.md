@@ -7,7 +7,7 @@ cross-round cache, and per-partition backoff with the global
 
 Source: branch `fix/7724-idle-claim-spin` on base `01ceb1dd05`
 (`worktrees/fix-7724-idle-claim-spin`, uncommitted at measurement time;
-rebased through `195337b97d` and `4a509716f6` since).
+rebased through `195337b97d` onto `16c8c2a365` since).
 Probe container `eshu-pg18-ws1b11bd5`, DB `shim7724`, same seed and
 partition for every run below.
 
@@ -97,7 +97,8 @@ Performance Evidence: per-visit query count 506 → 9 and wall 128ms →
 58ms on the issue's stuck load (probe runs above, same seed/container);
 EXPLAIN plans below show PK nested-loop probes with no sequential scan;
 the #7724 2A soak test proves ready-behind-blocked-head pickup within
-T_max with a fake clock (no sleeps).
+T_max plus one global poll interval (at most 5s) with a fake clock
+(no sleeps).
 
 Observability Evidence: the 10 new `eshu_dp_shared_projection_*`
 instruments plus the `shared projection cycle backoff summary` log line

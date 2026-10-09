@@ -317,7 +317,7 @@ without repository paths, resource identifiers, or generation ids.
 These metrics are domain-scoped. Use traces and logs when you need repository
 or generation context. Backing-off cycles also log one `shared projection
 cycle backoff summary` line, and `Runner.BackoffState()` exposes the
-per-partition debug surface; `blocked_intent_wait_seconds` stays the
+per-partition debug API; `blocked_intent_wait_seconds` stays the
 prerequisite-phase stall signal, distinct from backoff.
 
 ## Storage And Graph Writes

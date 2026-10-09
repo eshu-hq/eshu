@@ -172,7 +172,7 @@ full-cadence unproductive visits, then `min(poll*2^(n-K), T_max)` with
 hard cap 5m). Any completion resets the cell; lease-miss and error visits
 hold it. The global poll interval doubles on consecutive zero-completion
 cycles regardless of blocked counts. `Runner.BackoffState()` is the debug
-surface; `blocked_count` / `blocked_intent_wait_seconds` stay the
+API; `blocked_count` / `blocked_intent_wait_seconds` stay the
 stall signals, distinct from backoff.
 
 ## Related docs
