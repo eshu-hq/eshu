@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 func TestRenderStatusIncludesCollectorRuntimeCategories(t *testing.T) {
@@ -31,7 +32,7 @@ func TestRenderStatusIncludesCollectorRuntimeCategories(t *testing.T) {
 					UpdatedAt:      now.Add(-4 * time.Minute),
 				}},
 			},
-			AWSCloudScans: []status.AWSCloudScanStatus{{
+			AWSCloudScans: []cloud.AWSScanStatus{{
 				CollectorInstanceID: "aws-direct",
 				AccountID:           "123456789012",
 				Region:              "us-east-1",
@@ -139,7 +140,7 @@ func TestCollectorRuntimeStatusesMergesDirectEvidenceHealthForRegisteredCollecto
 					UpdatedAt:      now.Add(-9 * time.Minute),
 				}},
 			},
-			AWSCloudScans: []status.AWSCloudScanStatus{{
+			AWSCloudScans: []cloud.AWSScanStatus{{
 				CollectorInstanceID: "aws-shared",
 				AccountID:           "123456789012",
 				Region:              "us-east-1",
@@ -196,7 +197,7 @@ func TestCollectorRuntimeStatusesTreatsCommittedSuccessfulAWSScanAsObserved(t *t
 					UpdatedAt:      now.Add(-19 * time.Minute),
 				}},
 			},
-			AWSCloudScans: []status.AWSCloudScanStatus{{
+			AWSCloudScans: []cloud.AWSScanStatus{{
 				CollectorInstanceID: "collector-aws-claims",
 				AccountID:           "123456789012",
 				Region:              "us-east-1",
@@ -385,7 +386,7 @@ func TestCollectorRuntimeStatusesMapsUnattributedFactsToSingleCoordinatorInstanc
 					UpdatedAt:      now.Add(-19 * time.Minute),
 				}},
 			},
-			AWSCloudScans: []status.AWSCloudScanStatus{{
+			AWSCloudScans: []cloud.AWSScanStatus{{
 				CollectorInstanceID: "collector-aws-direct",
 				AccountID:           "123456789012",
 				Region:              "us-east-1",

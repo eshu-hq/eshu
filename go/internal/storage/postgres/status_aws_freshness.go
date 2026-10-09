@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/status/cloud"
 )
 
 const awsFreshnessStatusCountsQuery = `
@@ -31,16 +31,16 @@ func readAWSFreshnessSnapshot(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
-) (statuspkg.AWSFreshnessSnapshot, error) {
+) (cloud.AWSFreshnessSnapshot, error) {
 	counts, err := listNamedCounts(ctx, queryer, awsFreshnessStatusCountsQuery, "list AWS freshness status counts")
 	if err != nil {
-		return statuspkg.AWSFreshnessSnapshot{}, err
+		return cloud.AWSFreshnessSnapshot{}, err
 	}
 	oldestQueuedAge, err := readAWSFreshnessOldestQueuedAge(ctx, queryer, asOf.UTC())
 	if err != nil {
-		return statuspkg.AWSFreshnessSnapshot{}, err
+		return cloud.AWSFreshnessSnapshot{}, err
 	}
-	return statuspkg.AWSFreshnessSnapshot{
+	return cloud.AWSFreshnessSnapshot{
 		StatusCounts:    counts,
 		OldestQueuedAge: oldestQueuedAge,
 	}, nil
