@@ -53,7 +53,7 @@
 # GREEN p95, and none is derived from local numbers.
 #
 # WORK BUDGET FLOOR: no named row in the work table is below its default row (13
-# calls, 21 buffers, 14 rows). A route that reads almost nothing would otherwise
+# calls, 18 buffers, 14 rows). A route that reads almost nothing would otherwise
 # render a budget of 0 rows and 3 buffers, and the meter window sums the whole
 # database, so one stray statement would be a blocking breach. Source figure: 47
 # routes read at most 8 buffers, and across the three GREEN artifacts and the RED
