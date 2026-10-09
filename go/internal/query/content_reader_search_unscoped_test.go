@@ -39,6 +39,7 @@ type unscopedSnapshotTx struct {
 	readyErr error
 	hitKeys  []string
 	log      []string
+	args     [][]any
 	// cancelSteps makes every window statement fail with a server cancel, so
 	// the walk can only end in a partial result.
 	cancelSteps bool
@@ -50,9 +51,10 @@ func (tx *unscopedSnapshotTx) QueryRowContext(context.Context, string, ...any) d
 	return nil
 }
 
-func (tx *unscopedSnapshotTx) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (tx *unscopedSnapshotTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q := strings.TrimSpace(query)
 	tx.log = append(tx.log, strings.SplitN(q, "\n", 2)[0])
+	tx.args = append(tx.args, args)
 	switch {
 	case strings.Contains(q, "eshu_require_content_substring_indexes_ready"):
 		if tx.readyErr != nil {

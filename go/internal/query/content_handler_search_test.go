@@ -308,22 +308,8 @@ func TestContentHandlerSearchFilesUsesSinglePagedQueryForExplicitRepoIDs(t *test
 func TestContentHandlerSearchFilesUsesAnyRepoWhenRepoScopeOmitted(t *testing.T) {
 	t.Parallel()
 
-	db, recorder := openRecordingContentSearchDB(t, []contentSearchQueryResult{
-		{
-			columns: []string{
-				"repo_id", "relative_path", "commit_sha", "content",
-				"content_hash", "line_count", "language", "artifact_type",
-			},
-			rows: [][]driver.Value{
-				{
-					"repo-2", "src/app.ts", "", "",
-					"hash-1", int64(24), "typescript", "source",
-				},
-			},
-		},
-	})
-
-	handler := &ContentHandler{Content: NewContentReader(db)}
+	tx := &unscopedSnapshotTx{hitKeys: []string{"src/app.ts"}}
+	handler := &ContentHandler{Content: NewContentReaderWithReadStore(&unscopedSnapshotStore{tx: tx})}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -339,23 +325,27 @@ func TestContentHandlerSearchFilesUsesAnyRepoWhenRepoScopeOmitted(t *testing.T) 
 		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
 	}
 
-	if len(recorder.args) != 1 {
-		t.Fatalf("len(recorder.args) = %d, want 1", len(recorder.args))
+	// The unscoped search runs through the bounded walk (#7730): readiness
+	// first, then a key-ordered window that reads limit+1 matches.
+	if !strings.Contains(tx.log[0], "eshu_require_content_substring_indexes_ready") {
+		t.Fatalf("first statement = %q, want the readiness check", tx.log[0])
 	}
-	if got, want := len(recorder.args[0]), 3; got != want {
-		t.Fatalf("len(query args) = %d, want %d", got, want)
+	window := -1
+	for i, line := range tx.log {
+		if strings.HasPrefix(line, "(SELECT 'hit'") {
+			window = i
+			break
+		}
 	}
-	if got, want := recorder.args[0][0], "renderApp"; got != want {
-		t.Fatalf("query arg pattern = %#v, want %#v", got, want)
+	if window < 0 {
+		t.Fatalf("no key-ordered window statement in %v", tx.log)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(11); got != want {
-		t.Fatalf("query arg limit = %d, want %d", got, want)
+	args := tx.args[window][1:] // args[0] is pgx's exec mode
+	if got, want := args[0], "renderApp"; got != want {
+		t.Fatalf("window pattern arg = %#v, want %#v", got, want)
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(0); got != want {
-		t.Fatalf("query arg offset = %d, want %d", got, want)
-	}
-	if strings.Contains(recorder.queries[0], "repo_id =") {
-		t.Fatalf("query = %q, want any-repo search without repo filter", recorder.queries[0])
+	if got, want := args[2], int64(11); got != want {
+		t.Fatalf("window matches wanted = %#v, want limit+1 = %d", got, want)
 	}
 
 	var resp map[string]any
@@ -368,13 +358,6 @@ func TestContentHandlerSearchFilesUsesAnyRepoWhenRepoScopeOmitted(t *testing.T) 
 	results, ok := resp["results"].([]any)
 	if !ok || len(results) != 1 {
 		t.Fatalf("resp[results] = %#v, want one any-repo file result", resp["results"])
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok {
-		t.Fatalf("resp[results][0] type = %T, want map[string]any", results[0])
-	}
-	if got, want := result["repo_id"], "repo-2"; got != want {
-		t.Fatalf("result[repo_id] = %#v, want %#v", got, want)
 	}
 }
 
