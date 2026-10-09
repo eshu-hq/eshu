@@ -137,9 +137,10 @@ did. The handler span records the error once and carries the step's message as
 its Error description. A reader fence still answers the retryable `503` with
 `Retry-After`.
 
-A client cancel on these routes answers `499` with the same fixed message. The
-route logs one INFO `supply_chain_query.stage_canceled` line for the stage and
-no `supply_chain_query.stage_failed` line, so a client walking away does not
-page at ERROR. A `context.Canceled` from an inner context while the request is
+A client cancel on these routes answers `499` with the same fixed message. A
+query route logs one INFO `supply_chain_query.stage_canceled` line for the
+stage and no `supply_chain_query.stage_failed` line, so a client walking away
+does not page at ERROR. The suppression mutation has no stage timer and writes
+neither line. A `context.Canceled` from an inner context while the request is
 still live is a server fault and answers `500` with `stage_failed`. See
 [Logging](../logging.md) for both events.
