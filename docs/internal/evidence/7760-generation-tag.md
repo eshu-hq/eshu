@@ -92,3 +92,22 @@ generations rewrite) from live unactivated tags (real ahead-write
 pressure). Post-deploy SQL: wrap either manifest query as
 `SELECT outcome, count(*) FROM (<query>) AS q(scope_id, content, outcome)
 GROUP BY 1 ORDER BY 1;`.
+
+Benchmark Evidence (#7760): baseline is the base-revision manifest query on
+the 1M-row / 3000-scope fixture (local PostgreSQL 18, post-VACUUM churned
+state): 33.2–33.4 ms warm, 4,173 shared-hit buffers, 3030 rows. After: the
+tag-rule query on the identical storage state, 36.9–37.7 ms warm, ~13,000
+shared-hit buffers, 3000 rows (+11%, bounded by 3000
+scope_generations_pkey probes at ~0.002 ms each, partly offset by dropping
+the MAX aggregate and IN-subquery leg; no new index). The loader runs this
+read once per code-call materialization pass, not per key, so the sub-50 ms
+read keeps its budget. Migration: ADD COLUMN 4.0 ms (catalog-only),
+backfill UPDATE 30.9 s over 1M rows (890,300 tagged, 109,700 skipped with
+counts cross-checked), ANALYZE 1.0 s; row locks only, idempotent re-run.
+
+Observability Evidence (#7760): `eshu_dp_producer_manifest_tag_outcomes_total`
+counts every manifest row by kind (package|gomod) and outcome
+(clean|null_tag|dangling_tag|unactivated_tag|manifest_less); a rising
+non-clean share means tags are failing safe. Post-deploy per-outcome counts
+come from the diagnostic query above; coverage row and metrics reference
+updated in the same PR.
