@@ -17,7 +17,8 @@ func TestContainerImageIdentityFailureStatusAuthorizationLive(t *testing.T) {
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	now := time.Date(2026, time.July, 30, 20, 0, 0, 0, time.UTC)
+	// Live clock: the Fail fence requires claim_until > clock_timestamp().
+	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	for _, test := range []struct {
 		name        string
@@ -62,18 +63,24 @@ func TestContainerImageIdentityFailureStatusAuthorizationLive(t *testing.T) {
 				MaxAttempts: test.maxAttempts, JitterFraction: 0,
 				Now: func() time.Time { return now },
 			}
+			// Stamp the seeded row the way a real claim would (#7691): the
+			// Fail fence matches last_attempt_at, a live claim_until, and
+			// the claim epoch, so a hand-built intent is legitimately
+			// rejected. The stamp advances the epoch 1 to 2.
+			claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 			intent := reducer.Intent{
 				IntentID:     workItemID,
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: 1,
-				ClaimEpoch:   1,
+				ClaimEpoch:   claimEpoch,
+				ClaimedAt:    &claimedAt,
 			}
 			if err := queue.Fail(ctx, intent, test.cause); err != nil {
 				t.Fatalf("Fail() error = %v", err)
 			}
 			assertContainerImageIdentityFailureOutcome(
 				t, ctx, db, workItemID, test.wantStatus,
-				test.wantClass, 1, test.wantStatus,
+				test.wantClass, 2, test.wantStatus,
 			)
 		})
 	}
@@ -92,11 +99,14 @@ func TestContainerImageIdentityFailureStatusAuthorizationLive(t *testing.T) {
 			owner, now.Add(time.Minute), now,
 		)
 		insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generationID)
+		// Stamp first so the lease and attempt binding are live: the
+		// rejection below must come from the stale epoch alone.
+		staleClaimedAt, staleEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
 		if _, err := db.ExecContext(ctx, `
 UPDATE fact_work_items
-SET container_image_identity_claim_epoch = 2
+SET container_image_identity_claim_epoch = $2
 WHERE work_item_id = $1
-`, workItemID); err != nil {
+`, workItemID, staleEpoch+1); err != nil {
 			t.Fatalf("advance stale failure epoch: %v", err)
 		}
 		queue := ReducerQueue{
@@ -110,7 +120,8 @@ WHERE work_item_id = $1
 				IntentID:     workItemID,
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: 1,
-				ClaimEpoch:   1,
+				ClaimEpoch:   staleEpoch,
+				ClaimedAt:    &staleClaimedAt,
 			},
 			errors.New("synthetic stale terminal failure"),
 		)
@@ -118,7 +129,7 @@ WHERE work_item_id = $1
 			t.Fatalf("stale Fail() error = %v, want claim rejection", err)
 		}
 		assertContainerImageIdentityFailureOutcome(
-			t, ctx, db, workItemID, "running", "", 2, "running",
+			t, ctx, db, workItemID, "running", "", staleEpoch+1, "running",
 		)
 	})
 }

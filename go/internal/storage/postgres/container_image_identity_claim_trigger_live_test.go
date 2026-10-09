@@ -30,32 +30,70 @@ ORDER BY tgname
 	}
 	defer func() { _ = rows.Close() }()
 
-	var definitions []string
+	definitions := make(map[string]string)
 	for rows.Next() {
 		var name, definition string
 		if err := rows.Scan(&name, &definition); err != nil {
 			t.Fatalf("scan fact work item trigger catalog: %v", err)
 		}
-		definitions = append(definitions, name+"|"+definition)
+		definitions[name] = definition
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate fact work item trigger catalog: %v", err)
 	}
-	if len(definitions) != 1 {
-		t.Fatalf(
-			"fact work item user triggers = %v, want only claim epoch trigger",
-			definitions,
-		)
+	// Fail-closed drift guard: exactly these six user triggers, each pinned
+	// by timing, guard function, and one WHEN discriminator. An unknown
+	// trigger or a rebound definition fails here, not silently downstream.
+	wantFragments := map[string][]string{
+		"fact_work_items_container_image_identity_claim_epoch_advance": {
+			"BEFORE UPDATE OF last_attempt_at, container_image_identity_claim_epoch",
+			"old.domain = 'container_image_identity'",
+			"new.container_image_identity_claim_epoch <> (old.container_image_identity_claim_epoch + 1)",
+			"advance_container_image_identity_claim_epoch()",
+		},
+		"fact_work_items_cross_scope_completion": {
+			"AFTER UPDATE OF status",
+			"new.status = 'succeeded'",
+			"enqueue_cross_scope_completion_event()",
+		},
+		"fact_work_items_enforce_cross_scope_required_replay": {
+			"BEFORE UPDATE OF status",
+			"old.cross_scope_replay_required",
+			"enforce_cross_scope_required_replay()",
+		},
+		"fact_work_items_enforce_provenance_edge_identity_upgrade": {
+			"BEFORE UPDATE OF status",
+			"old.provenance_edge_identity_upgrade_required",
+			"new.provenance_edge_identity_upgrade_required",
+			"enforce_provenance_edge_identity_upgrade()",
+		},
+		"fact_work_items_require_provenance_edge_identity_insert": {
+			"BEFORE INSERT",
+			"package_source_correlation",
+			"require_provenance_edge_identity_upgrade()",
+		},
+		"fact_work_items_require_provenance_edge_identity_update": {
+			"BEFORE UPDATE OF status, domain, stage",
+			"NOT old.provenance_edge_identity_upgrade_required",
+			"require_provenance_edge_identity_upgrade()",
+		},
 	}
-	for _, want := range []string{
-		"fact_work_items_container_image_identity_claim_epoch_advance",
-		"BEFORE UPDATE OF last_attempt_at, container_image_identity_claim_epoch",
-		"WHEN (((old.domain = 'container_image_identity'::text)",
-		"new.container_image_identity_claim_epoch <> (old.container_image_identity_claim_epoch + 1)",
-		"advance_container_image_identity_claim_epoch()",
-	} {
-		if !strings.Contains(definitions[0], want) {
-			t.Fatalf("claim epoch trigger definition missing %q: %s", want, definitions[0])
+	if len(definitions) != len(wantFragments) {
+		got := make([]string, 0, len(definitions))
+		for name := range definitions {
+			got = append(got, name)
+		}
+		t.Fatalf("fact work item user triggers = %v, want %d pinned triggers", got, len(wantFragments))
+	}
+	for name, fragments := range wantFragments {
+		definition, ok := definitions[name]
+		if !ok {
+			t.Fatalf("fact work item trigger catalog missing %q", name)
+		}
+		for _, want := range fragments {
+			if !strings.Contains(definition, want) {
+				t.Fatalf("trigger %q definition missing %q: %s", name, want, definition)
+			}
 		}
 	}
 }
@@ -146,7 +184,8 @@ func TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive(
 		workItemID   = "claim-trigger-5854-contention"
 		owner        = "reducer-5854-claim-trigger-contention"
 	)
-	now := time.Date(2026, time.July, 30, 23, 10, 0, 0, time.UTC)
+	// Live clock: the winning ACK's fence requires claim_until > clock_timestamp().
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
 	seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
 	seedContainerImageIdentityAckWorkItem(

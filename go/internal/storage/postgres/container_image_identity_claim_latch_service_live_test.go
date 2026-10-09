@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndRejectsLegacyCallbacksLive(
+func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCallbacksLive(
 	t *testing.T,
 ) {
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
@@ -25,7 +25,8 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndRejectsLegacyCal
 		workItemID   = "claim-latch-service-5854"
 		owner        = "reducer-5854-shared-owner"
 	)
-	now := time.Date(2026, time.July, 31, 13, 0, 0, 0, time.UTC)
+	// Live clock: the Fail fence requires claim_until > clock_timestamp().
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
 	seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
 	seedContainerImageIdentityAckWorkItem(
@@ -38,6 +39,21 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndRejectsLegacyCal
 		owner,
 		now.Add(-time.Minute),
 		now.Add(-2*time.Minute),
+	)
+
+	// The legacy callback fences the seeded row before the service starts: a
+	// mid-flight fence would reset the service's attempt to pending and the
+	// service's Fail (claimed/running only) could no longer land the retry
+	// this test drives below. Pre-cutover rows carry no v2 requirement.
+	legacyResult, legacyErr := db.ExecContext(
+		ctx,
+		legacyContainerImageIdentityAckQuery,
+		now,
+		workItemID,
+		owner,
+	)
+	assertContainerImageIdentityLegacyAckFenced(
+		t, ctx, db, workItemID, legacyResult, legacyErr, 1, "", "",
 	)
 
 	queue := &ReducerQueue{
@@ -82,15 +98,6 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndRejectsLegacyCal
 	assertContainerImageIdentityClaimLatchState(
 		t, ctx, db, workItemID, "claimed", 2, true, "claimed",
 	)
-
-	legacyResult, legacyErr := db.ExecContext(
-		ctx,
-		legacyContainerImageIdentityAckQuery,
-		now,
-		workItemID,
-		owner,
-	)
-	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
 
 	close(executor.release)
 	select {

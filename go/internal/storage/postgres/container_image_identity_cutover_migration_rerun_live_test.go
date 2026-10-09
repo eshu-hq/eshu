@@ -62,6 +62,22 @@ func proveContainerImageIdentityCutoverMigrationRerunStates(
 ) {
 	t.Helper()
 
+	// Tracked bootstrap skips recorded migrations, so a plain ApplyBootstrap
+	// rerun would never execute migration 088's guard body again. Clear
+	// 088's tracking receipt before each rerun to force re-execution, the
+	// same recovery mechanism schema_migration_recovery_live_test.go uses.
+	_, cutoverMigration := containerImageIdentityCutoverUpgradeDefinitions(t)
+	forceCutoverMigrationRerun := func(step string) {
+		t.Helper()
+		if _, err := database.ExecContext(
+			ctx,
+			`DELETE FROM eshu_schema_migrations WHERE path = $1`,
+			cutoverMigration.Path,
+		); err != nil {
+			t.Fatalf("clear 088 tracking for %s rerun: %v", step, err)
+		}
+	}
+
 	for _, queueStatus := range []string{
 		"pending",
 		"running",
@@ -83,6 +99,7 @@ WHERE scope_id = 'repository:5854-cutover-migration'
 			t.Fatalf("set cutover work item to %s: %v", queueStatus, err)
 		}
 
+		forceCutoverMigrationRerun(queueStatus + "/" + queueStatus)
 		if err := ApplyBootstrap(ctx, exec); err != nil {
 			t.Fatalf(
 				"reapply migration 088 with authorized %s cutover work item: %v",
@@ -156,6 +173,7 @@ WHERE scope_id = 'repository:5854-cutover-migration'
 				t.Fatalf("seed invalid rerun state: %v", err)
 			}
 
+			forceCutoverMigrationRerun(test.status + "/" + test.authorized)
 			err := ApplyBootstrap(ctx, exec)
 			var sqlState interface{ SQLState() string }
 			if err == nil ||

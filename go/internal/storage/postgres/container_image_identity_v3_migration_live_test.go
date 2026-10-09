@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -65,12 +66,26 @@ func TestContainerImageIdentityV3MigrationPopulatedUpgradeLive(t *testing.T) {
 	assertContainerImageIdentityV3MigrationRows(t, ctx, db, containerImageIdentityV3MigrationRows)
 	first := readContainerImageIdentityV3MigrationCatalog(t, ctx, db)
 
+	// The repeat covers the pinned 092..097 v3 chain minus the 096 fence.
+	// The 096 fence rides the first apply in chain order, but it cannot join
+	// the writer-held repeat: its top-level ADD COLUMN IF NOT EXISTS and
+	// DROP/CREATE TRIGGER take fact_work_items locks even when they are
+	// logical no-ops, while the 092/093 DDL guards with procedural IF NOT
+	// EXISTS and never issues a lock-taking statement on re-apply.
+	// Production's migrator absorbs 096 through its lock-retry budget, but
+	// the repeat holds writers open by design, so 096 is re-applied
+	// standalone below to prove its own marker-gated idempotence.
+	// Post-097 migrations ride the first apply only: they are independent
+	// later work with their own rerun homes, and their unconditional DDL
+	// must not be able to break this test's repeat contract.
+	repeatUpgrade, fenceSeed := splitContainerImageIdentityV3RepeatDefinitions(t, upgrade)
 	repeatDuration := repeatContainerImageIdentityV3MigrationWithWriters(
-		t, ctx, exec, upgrade, db,
+		t, ctx, exec, repeatUpgrade, db,
 	)
 	if repeatDuration > 2*time.Second {
 		t.Fatalf("populated repeated digest-v3 migration = %s, want <= 2s", repeatDuration)
 	}
+	reapplyContainerImageIdentityV3FenceSeed(t, ctx, exec, fenceSeed)
 	second := readContainerImageIdentityV3MigrationCatalog(t, ctx, db)
 	if second != first {
 		t.Fatalf("repeated migration changed catalog/state: first=%+v second=%+v", first, second)
@@ -82,25 +97,100 @@ func TestContainerImageIdentityV3MigrationPopulatedUpgradeLive(t *testing.T) {
 
 func containerImageIdentityV3UpgradeDefinitions(t *testing.T) ([]Definition, []Definition) {
 	t.Helper()
-	upgradeNames := map[string]struct{}{
+	// Order-based split at the 092 boundary: preUpgrade is the historical
+	// pre-v3 world, upgrade is the v3 chain (092..097) plus everything after
+	// it in true bootstrap order. A name-based split rotted when the 093/095
+	// seeds landed inside the chain and referenced v3 columns from the pre
+	// set (#7790); splitting on the migration number keeps every definition
+	// behind its prerequisites no matter what lands later. All migration
+	// files carry a 3-digit (plus optional letter) prefix, so a lexicographic
+	// basename comparison is the version comparison.
+	const boundary = "092"
+	var preUpgrade, upgrade []Definition
+	for _, definition := range BootstrapDefinitions() {
+		if base := path.Base(definition.Path); base < boundary {
+			preUpgrade = append(preUpgrade, definition)
+		} else {
+			upgrade = append(upgrade, definition)
+		}
+	}
+	if len(preUpgrade) == 0 || len(upgrade) == 0 {
+		t.Fatalf("digest-v3 split is empty: pre=%d upgrade=%d", len(preUpgrade), len(upgrade))
+	}
+	// Anchor the split: the upgrade must open with the 092 support store and
+	// must contain the whole interleaved v3 chain, including the 093/095/096
+	// definitions the name-based split dropped into the pre set.
+	chainNames := map[string]struct{}{
 		"container_image_identity_support_store":                  {},
 		"container_image_identity_support_current_view":           {},
 		"container_image_identity_current_facts_function":         {},
 		"container_image_identity_current_support_facts_function": {},
+		"cross_scope_completion_queue":                            {},
+		"cross_scope_completion_upgrade_seed":                     {},
+		"provenance_edge_identity_upgrade_seed":                   {},
 		"container_image_identity_strength_precedence":            {},
 	}
-	var preUpgrade, upgrade []Definition
-	for _, definition := range BootstrapDefinitions() {
-		if _, ok := upgradeNames[definition.Name]; ok {
-			upgrade = append(upgrade, definition)
-		} else {
-			preUpgrade = append(preUpgrade, definition)
+	seen := make(map[string]struct{}, len(chainNames))
+	for _, definition := range upgrade {
+		if _, ok := chainNames[definition.Name]; ok {
+			seen[definition.Name] = struct{}{}
 		}
 	}
-	if len(upgrade) != len(upgradeNames) {
-		t.Fatalf("digest-v3 upgrade definitions = %d, want %d", len(upgrade), len(upgradeNames))
+	if len(seen) != len(chainNames) {
+		t.Fatalf("digest-v3 upgrade is missing chain definitions: seen %d of %d", len(seen), len(chainNames))
+	}
+	if upgrade[0].Name != "container_image_identity_support_store" {
+		t.Fatalf("digest-v3 upgrade opens with %q, want the 092 support store", upgrade[0].Name)
 	}
 	return preUpgrade, upgrade
+}
+
+// splitContainerImageIdentityV3RepeatDefinitions partitions the upgrade set
+// into the pinned 092..097 chain repeat set and the 096 provenance fence,
+// which needs fact_work_items locks even for its no-op re-apply. Post-097
+// definitions are dropped from the repeat: they ride the first apply only.
+// Order is preserved. The count anchor forces a conscious decision if the
+// historical chain ever gains a sibling.
+func splitContainerImageIdentityV3RepeatDefinitions(t *testing.T, upgrade []Definition) ([]Definition, []Definition) {
+	t.Helper()
+	const (
+		repeatFloor   = "092"
+		repeatCeiling = "098"
+		fenceName     = "provenance_edge_identity_upgrade_seed"
+	)
+	var repeat, fence []Definition
+	for _, definition := range upgrade {
+		base := path.Base(definition.Path)
+		switch {
+		case definition.Name == fenceName:
+			fence = append(fence, definition)
+		case base >= repeatFloor && base < repeatCeiling:
+			repeat = append(repeat, definition)
+		default:
+			// Post-097: first-apply only, out of the repeat contract.
+		}
+	}
+	if len(fence) != 1 {
+		t.Fatalf("digest-v3 upgrade holds %d 096 fence definitions, want 1", len(fence))
+	}
+	if len(repeat) != 7 {
+		t.Fatalf("digest-v3 chain repeat holds %d definitions, want 7 (092..097 minus 096)", len(repeat))
+	}
+	return repeat, fence
+}
+
+// reapplyContainerImageIdentityV3FenceSeed proves the 096 fence re-applies
+// cleanly once writers release: DDL re-runs and the marker-gated reopen
+// matches zero rows.
+func reapplyContainerImageIdentityV3FenceSeed(t *testing.T, ctx context.Context, exec SQLDB, fence []Definition) {
+	t.Helper()
+	start := time.Now()
+	if err := ApplyDefinitions(ctx, exec, fence); err != nil {
+		t.Fatalf("re-apply 096 provenance fence without writers: %v", err)
+	}
+	if duration := time.Since(start); duration > 2*time.Second {
+		t.Fatalf("096 provenance fence re-apply = %s, want <= 2s", duration)
+	}
 }
 
 func proveContainerImageIdentityV3MigrationLockTimeout(

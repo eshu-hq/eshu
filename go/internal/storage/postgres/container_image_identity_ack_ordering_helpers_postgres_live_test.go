@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -134,19 +133,6 @@ func assertContainerImageIdentityAckStillBlocked(
 	}
 }
 
-func assertContainerImageIdentityOrderingLegacyAckRejected(
-	t *testing.T,
-	done <-chan error,
-) {
-	t.Helper()
-	select {
-	case err := <-done:
-		assertContainerImageIdentityStatementLegacyRejected(t, err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("legacy ACK did not return after marker transaction completed")
-	}
-}
-
 func assertContainerImageIdentityOrderingOperationSucceeded(
 	t *testing.T,
 	done <-chan error,
@@ -177,24 +163,6 @@ func assertContainerImageIdentityOrderingOperationRejected(
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("%s did not complete", name)
-	}
-}
-
-func assertContainerImageIdentityStatementLegacyRejected(
-	t *testing.T,
-	err error,
-) {
-	t.Helper()
-	if err == nil || !strings.Contains(
-		err.Error(),
-		"fact_work_items_container_image_identity_v2_status_check",
-	) {
-		t.Fatalf("legacy ACK error = %v, want attempt-token rejection", err)
-	}
-	var sqlState interface{ SQLState() string }
-	if !errors.As(err, &sqlState) ||
-		sqlState.SQLState() != "23514" {
-		t.Fatalf("legacy ACK SQLSTATE = %v, want 23514", sqlState)
 	}
 }
 
