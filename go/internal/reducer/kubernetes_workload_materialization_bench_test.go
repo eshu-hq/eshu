@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func benchPodTemplateEnvelopes(n int) []facts.Envelope {
@@ -15,7 +16,7 @@ func benchPodTemplateEnvelopes(n int) []facts.Envelope {
 	for i := 0; i < n; i++ {
 		objectID := fmt.Sprintf("object-%d", i)
 		envelopes = append(envelopes, facts.Envelope{
-			FactKind: facts.KubernetesPodTemplateFactKind,
+			FactKind: cloud.KubernetesPodTemplateFactKind,
 			FactID:   "fact-" + objectID,
 			Payload: map[string]any{
 				"object_id":              objectID,

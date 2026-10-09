@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 func sampleIdentity() ObjectIdentity {
@@ -48,11 +49,11 @@ func TestNewPodTemplateEnvelopeShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
 	}
-	if envelope.FactKind != facts.KubernetesPodTemplateFactKind {
-		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.KubernetesPodTemplateFactKind)
+	if envelope.FactKind != cloud.KubernetesPodTemplateFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, cloud.KubernetesPodTemplateFactKind)
 	}
-	if envelope.SchemaVersion != facts.KubernetesPodTemplateSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.KubernetesPodTemplateSchemaVersion)
+	if envelope.SchemaVersion != cloud.KubernetesPodTemplateSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.KubernetesPodTemplateSchemaVersion)
 	}
 	if envelope.CollectorKind != CollectorKind {
 		t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, CollectorKind)
@@ -159,7 +160,7 @@ func TestNewRelationshipEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRelationshipEnvelope() error = %v", err)
 	}
-	if envelope.FactKind != facts.KubernetesRelationshipFactKind {
+	if envelope.FactKind != cloud.KubernetesRelationshipFactKind {
 		t.Fatalf("FactKind = %q, want relationship", envelope.FactKind)
 	}
 	if envelope.Payload["relationship_type"] != string(RelationshipOwnerReference) {
@@ -187,7 +188,7 @@ func TestNewWarningEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWarningEnvelope() error = %v", err)
 	}
-	if envelope.FactKind != facts.KubernetesWarningFactKind {
+	if envelope.FactKind != cloud.KubernetesWarningFactKind {
 		t.Fatalf("FactKind = %q, want warning", envelope.FactKind)
 	}
 	if envelope.Payload["reason"] != WarningForbiddenResource {

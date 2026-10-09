@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -21,15 +22,15 @@ func TestPodTemplateIntentBuildersPreserveContract(t *testing.T) {
 		generationID = "k8s-generation-1"
 	)
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
-		{FactKind: facts.KubernetesWarningFactKind, FactID: "warning-first"},
+		{FactKind: cloud.KubernetesWarningFactKind, FactID: "warning-first"},
 		{
-			FactKind:      facts.KubernetesPodTemplateFactKind,
+			FactKind:      cloud.KubernetesPodTemplateFactKind,
 			FactID:        "pod-template-first",
 			CollectorKind: " collector-fallback ",
 			SourceRef:     facts.Ref{SourceSystem: " kubernetes-live-source "},
 		},
 		{
-			FactKind:      facts.KubernetesPodTemplateFactKind,
+			FactKind:      cloud.KubernetesPodTemplateFactKind,
 			FactID:        "pod-template-second",
 			CollectorKind: "ignored-collector",
 			SourceRef:     facts.Ref{SourceSystem: "ignored-source"},
@@ -93,7 +94,7 @@ func TestPodTemplateIntentBuildersRejectMissingTrigger(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind: facts.KubernetesWarningFactKind,
+		FactKind: cloud.KubernetesWarningFactKind,
 		FactID:   "warning-only",
 	}})
 	builders := []struct {
@@ -119,7 +120,7 @@ func TestPodTemplateIntentSourceFallsBackToTrimmedCollector(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
-		FactKind:      facts.KubernetesPodTemplateFactKind,
+		FactKind:      cloud.KubernetesPodTemplateFactKind,
 		FactID:        "pod-template",
 		CollectorKind: " kubernetes_live ",
 		SourceRef:     facts.Ref{SourceSystem: "   "},
@@ -141,7 +142,7 @@ func TestNamespaceMaterializationIntentPreservesFactAndReconciliationContract(t 
 		generationID = "k8s-generation-namespace"
 	)
 	namespaceFact := facts.Envelope{
-		FactKind:      facts.KubernetesNamespaceFactKind,
+		FactKind:      cloud.KubernetesNamespaceFactKind,
 		FactID:        "namespace-first",
 		CollectorKind: "ignored-collector",
 		SourceRef:     facts.Ref{SourceSystem: " kubernetes-live-source "},

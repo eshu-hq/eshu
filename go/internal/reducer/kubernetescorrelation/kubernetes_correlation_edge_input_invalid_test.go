@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -31,7 +32,7 @@ func TestKubernetesCorrelationMaterializationQuarantinesMalformedFact(t *testing
 	// input_invalid quarantine (a per-fact dead-letter), not a fatal error.
 	malformed := facts.Envelope{
 		FactID:   "rel-malformed",
-		FactKind: facts.KubernetesRelationshipFactKind,
+		FactKind: cloud.KubernetesRelationshipFactKind,
 		Payload: map[string]any{
 			// "relationship_type" intentionally absent.
 			"from_object_id": "k8s://a",
@@ -106,7 +107,7 @@ func TestKubernetesCorrelationMaterializationFatalDecodeDoesNotRetract(t *testin
 	// ErrUnsupportedSchemaMajor, excluded from the per-fact quarantine path.
 	fatal := facts.Envelope{
 		FactID:        "pod-unsupported-major",
-		FactKind:      facts.KubernetesPodTemplateFactKind,
+		FactKind:      cloud.KubernetesPodTemplateFactKind,
 		SchemaVersion: "2.0.0",
 		Payload: map[string]any{
 			"object_id": "k8s://unsupported",

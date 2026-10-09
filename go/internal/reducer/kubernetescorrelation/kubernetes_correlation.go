@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -264,9 +265,9 @@ func buildKubernetesCorrelationDecisionsWithQuarantine(envelopes []facts.Envelop
 
 func kubernetesCorrelationFactKinds() []string {
 	return []string{
-		facts.KubernetesPodTemplateFactKind,
-		facts.KubernetesRelationshipFactKind,
-		facts.KubernetesWarningFactKind,
+		cloud.KubernetesPodTemplateFactKind,
+		cloud.KubernetesRelationshipFactKind,
+		cloud.KubernetesWarningFactKind,
 	}
 }
 

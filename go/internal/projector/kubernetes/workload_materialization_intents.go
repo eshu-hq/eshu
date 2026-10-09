@@ -4,7 +4,7 @@
 package kubernetes
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -57,7 +57,7 @@ func buildPodTemplateReducerIntent(
 	domain reducer.Domain,
 	entityKey string,
 ) (projectorintent.ReducerIntent, bool) {
-	envelope, ok := lookup.FirstOfKind(facts.KubernetesPodTemplateFactKind)
+	envelope, ok := lookup.FirstOfKind(cloud.KubernetesPodTemplateFactKind)
 	if !ok {
 		return projectorintent.ReducerIntent{}, false
 	}

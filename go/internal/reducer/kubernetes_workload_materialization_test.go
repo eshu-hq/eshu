@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // recordingKubernetesWorkloadNodeWriter captures the rows handed to the node
@@ -34,7 +35,7 @@ func (w *recordingKubernetesWorkloadNodeWriter) WriteKubernetesWorkloadNodes(
 
 func kubernetesPodTemplateEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.KubernetesPodTemplateFactKind,
+		FactKind: cloud.KubernetesPodTemplateFactKind,
 		FactID:   "fact-" + anyToString(payload["object_id"]),
 		Payload:  payload,
 	}
@@ -177,7 +178,7 @@ func TestExtractKubernetesWorkloadNodeRowsSkipsNonPodTemplateFacts(t *testing.T)
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		{FactKind: facts.KubernetesRelationshipFactKind, Payload: map[string]any{"from_object_id": "ignored"}},
+		{FactKind: cloud.KubernetesRelationshipFactKind, Payload: map[string]any{"from_object_id": "ignored"}},
 		kubernetesPodTemplateEnvelope(samplePodTemplatePayload("object-a", "checkout")),
 	}
 

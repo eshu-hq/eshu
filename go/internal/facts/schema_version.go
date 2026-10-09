@@ -83,7 +83,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{GCPFactKinds, GCPSchemaVersion},
 	{IncidentContextFactKinds, IncidentContextSchemaVersion},
 	{IncidentRoutingFactKinds, IncidentRoutingSchemaVersion},
-	{KubernetesLiveFactKinds, KubernetesLiveSchemaVersion},
+	{cloud.KubernetesLiveFactKinds, cloud.KubernetesLiveSchemaVersion},
 	{ObservabilityFactKinds, ObservabilitySchemaVersion},
 	{OCIRegistryFactKinds, OCIRegistrySchemaVersion},
 	{PackageRegistryFactKinds, PackageRegistrySchemaVersion},

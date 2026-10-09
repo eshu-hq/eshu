@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // podTemplateFactWithContainerDigests builds a kubernetes_live.pod_template fact
@@ -42,7 +43,7 @@ func podTemplateFactWithContainerDigests(
 	}
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: facts.KubernetesPodTemplateFactKind,
+		FactKind: cloud.KubernetesPodTemplateFactKind,
 		Payload: map[string]any{
 			"cluster_id":             testK8sCluster,
 			"object_id":              objectID,

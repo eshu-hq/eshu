@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestSourceSelectorMatchEmitsRelationshipEdge is the issue #5437 positive
@@ -46,7 +46,7 @@ func TestSourceSelectorMatchEmitsRelationshipEdge(t *testing.T) {
 	wantToID := identityFromMeta(clusterID, pod.Meta).ObjectID()
 
 	found := 0
-	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesRelationshipFactKind) {
 		if env.Payload["relationship_type"] != string(RelationshipSelectorMatch) {
 			continue
 		}
@@ -55,7 +55,7 @@ func TestSourceSelectorMatchEmitsRelationshipEdge(t *testing.T) {
 		}
 	}
 	if found != 1 {
-		t.Fatalf("selector_match edges From=Service To=Pod = %d, want 1 (envs=%d relationship facts)", found, countKind(envs, facts.KubernetesRelationshipFactKind))
+		t.Fatalf("selector_match edges From=Service To=Pod = %d, want 1 (envs=%d relationship facts)", found, countKind(envs, cloud.KubernetesRelationshipFactKind))
 	}
 }
 
@@ -91,12 +91,12 @@ func TestSourceSelectorMismatchEmitsNoRelationshipEdge(t *testing.T) {
 	}
 	envs := drain(t, collected.Facts)
 
-	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesRelationshipFactKind) {
 		if env.Payload["relationship_type"] == string(RelationshipSelectorMatch) {
 			t.Fatalf("unexpected selector_match edge for a selector that is not a label subset: %+v", env.Payload)
 		}
 	}
-	if got := countKind(envs, facts.KubernetesWarningFactKind); got != 0 {
+	if got := countKind(envs, cloud.KubernetesWarningFactKind); got != 0 {
 		t.Fatalf("warning facts = %d, want 0 (a selector mismatch is not an error, just absence of an edge)", got)
 	}
 }
@@ -164,7 +164,7 @@ func TestSourceSelectorMatchHandlesMultipleMatches(t *testing.T) {
 		want[[2]string{from, to}] = false
 	}
 
-	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesRelationshipFactKind) {
 		if env.Payload["relationship_type"] != string(RelationshipSelectorMatch) {
 			continue
 		}
@@ -179,7 +179,7 @@ func TestSourceSelectorMatchHandlesMultipleMatches(t *testing.T) {
 			t.Fatalf("missing expected selector_match edge From=%s To=%s", key[0], key[1])
 		}
 	}
-	if got := countKind(envs, facts.KubernetesRelationshipFactKind); got != len(want) {
+	if got := countKind(envs, cloud.KubernetesRelationshipFactKind); got != len(want) {
 		t.Fatalf("relationship facts = %d, want %d (exactly the four selector_match edges)", got, len(want))
 	}
 }
@@ -221,7 +221,7 @@ func TestSourceSelectorMatchNamespaceIsolation(t *testing.T) {
 	}
 	envs := drain(t, collected.Facts)
 
-	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesRelationshipFactKind) {
 		if env.Payload["relationship_type"] == string(RelationshipSelectorMatch) {
 			t.Fatalf("unexpected selector_match edge across namespaces (service ns=a, pod ns=b): %+v", env.Payload)
 		}
@@ -263,7 +263,7 @@ func TestSourceHeadlessServiceEmitsNoSelectorMatchEdge(t *testing.T) {
 	}
 	envs := drain(t, collected.Facts)
 
-	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+	for _, env := range envelopesOfKind(envs, cloud.KubernetesRelationshipFactKind) {
 		if env.Payload["relationship_type"] == string(RelationshipSelectorMatch) {
 			t.Fatalf("unexpected selector_match edge for a headless (empty-selector) Service: %+v", env.Payload)
 		}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	kuberneteslivev1 "github.com/eshu-hq/eshu/sdk/go/factschema/kuberneteslive/v1"
 )
@@ -172,7 +173,7 @@ func KubernetesNamespaceEnvironmentFamilyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, facts.Envelope{
 			ScopeID:          kubernetesNamespaceEnvironmentFamilyScopeID,
 			GenerationID:     kubernetesNamespaceEnvironmentFamilyGenerationID,
-			FactKind:         facts.KubernetesNamespaceFactKind,
+			FactKind:         cloud.KubernetesNamespaceFactKind,
 			StableFactKey:    kubernetesNamespaceEnvironmentFamilyStableFactKey(fixture.Namespace),
 			SchemaVersion:    kubernetesNamespaceEnvironmentFamilySchemaVersion,
 			CollectorKind:    kubernetesNamespaceEnvironmentFamilyCollectorKind,

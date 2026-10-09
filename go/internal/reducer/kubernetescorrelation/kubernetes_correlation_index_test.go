@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestBuildKubernetesCorrelationDecisionsFallsBackToContainerImages proves a
@@ -19,7 +20,7 @@ func TestBuildKubernetesCorrelationDecisionsFallsBackToContainerImages(t *testin
 	objectID := "k8s://" + testK8sCluster + "/apps/v1/deployments/" + testK8sNamespace + "/checkout"
 	workload := facts.Envelope{
 		FactID:   "pod-no-refs",
-		FactKind: facts.KubernetesPodTemplateFactKind,
+		FactKind: cloud.KubernetesPodTemplateFactKind,
 		Payload: map[string]any{
 			"cluster_id": testK8sCluster,
 			"object_id":  objectID,

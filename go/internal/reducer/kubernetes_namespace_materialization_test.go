@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // recordingKubernetesNamespaceNodeWriter captures the rows handed to the
@@ -54,7 +55,7 @@ func (w *recordingKubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 
 func kubernetesNamespaceEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: facts.KubernetesNamespaceFactKind,
+		FactKind: cloud.KubernetesNamespaceFactKind,
 		FactID:   "fact-" + anyToString(payload["object_id"]),
 		Payload:  payload,
 	}
@@ -287,7 +288,7 @@ func TestExtractKubernetesNamespaceNodeRowsSkipsNonNamespaceFacts(t *testing.T) 
 	t.Parallel()
 
 	envs := []facts.Envelope{
-		{FactKind: facts.KubernetesPodTemplateFactKind, Payload: map[string]any{"object_id": "pod-a"}},
+		{FactKind: cloud.KubernetesPodTemplateFactKind, Payload: map[string]any{"object_id": "pod-a"}},
 	}
 	rows, _, quarantined, err := ExtractKubernetesNamespaceNodeRows(envs)
 	if err != nil {

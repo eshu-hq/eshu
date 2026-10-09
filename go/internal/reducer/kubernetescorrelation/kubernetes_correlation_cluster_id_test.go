@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
 // TestBuildKubernetesCorrelationDecisionsIdentityEdgeUsesRelationshipClusterID
@@ -53,7 +54,7 @@ func TestBuildKubernetesCorrelationDecisionsIdentityEdgeUsesRelationshipClusterI
 
 			envelope := facts.Envelope{
 				FactID:   "rel-opaque-" + tc.name,
-				FactKind: facts.KubernetesRelationshipFactKind,
+				FactKind: cloud.KubernetesRelationshipFactKind,
 				Payload: map[string]any{
 					"cluster_id":          wantClusterID,
 					"relationship_type":   tc.relType,
