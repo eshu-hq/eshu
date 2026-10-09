@@ -168,10 +168,7 @@ func (h *Handler) listPackages(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryPackagesCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryPackagesCapability, packageRegistryPackagesQueryFailedMessage)
 		return
 	}
 	results := make([]PackageResult, 0, len(rows))
@@ -225,10 +222,7 @@ func (h *Handler) listPackages(w http.ResponseWriter, r *http.Request) {
 		results = append(results, result)
 	}
 	if err := h.attachPackageVersionCounts(r.Context(), results); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryPackagesCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryPackagesCapability, packageRegistryPackageVersionCountsFailedMessage)
 		return
 	}
 	body := map[string]any{
@@ -277,10 +271,7 @@ func (h *Handler) listVersions(w http.ResponseWriter, r *http.Request) {
 		"limit":      limit + 1,
 	})
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryVersionsCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryVersionsCapability, packageRegistryVersionsQueryFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit

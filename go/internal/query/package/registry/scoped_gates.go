@@ -92,10 +92,7 @@ func packageRegistryPackagesGate(
 	case packageID != "":
 		gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageID, access)
 		if err != nil {
-			if querycontract.WriteGraphReadError(w, r, err, packageRegistryPackagesCapability) {
-				return result, true
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeRegistryReadFailure(w, r, err, packageRegistryPackagesCapability, packageRegistryPackagesAccessCheckFailedMessage)
 			return result, true
 		}
 		if !gate.proceed {
@@ -112,10 +109,7 @@ func packageRegistryPackagesGate(
 		// name (see packageRegistryNameAnchorCandidates's doc comment).
 		candidates, candidatesTruncated, err := packageRegistryNameAnchorCandidates(r.Context(), h.Neo4j, ecosystem, name)
 		if err != nil {
-			if querycontract.WriteGraphReadError(w, r, err, packageRegistryPackagesCapability) {
-				return result, true
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeRegistryReadFailure(w, r, err, packageRegistryPackagesCapability, packageRegistryPackagesNameLookupFailedMessage)
 			return result, true
 		}
 		if candidatesTruncated {
@@ -129,9 +123,11 @@ func packageRegistryPackagesGate(
 			// resolving-but-gated package would (against the sentinel anchor),
 			// discard its result, and write the empty page -- so a nonexistent
 			// name is indistinguishable from an existing-but-ungranted one by
-			// store round-trip count and latency (no existence oracle).
+			// store round-trip count and latency (no existence oracle). A
+			// probe failure answers the same fixed access-check body the
+			// batch probe below answers, for the same reason.
 			if _, probeErr := packageRegistryGateForVisibility(r.Context(), span, h.Correlations, packageRegistryNonexistentAnchorSentinel, "", access); probeErr != nil {
-				querycontract.WriteError(w, http.StatusInternalServerError, probeErr.Error())
+				writeRegistryReadFailure(w, r, probeErr, packageRegistryPackagesCapability, packageRegistryPackagesAccessCheckFailedMessage)
 				return result, true
 			}
 			writeEmptyPackageRegistryPackagesPage(w, r, h, limit)
@@ -139,7 +135,7 @@ func packageRegistryPackagesGate(
 		}
 		candidateGates, err := packageRegistryGateForVisibilityBatch(r.Context(), span, h.Correlations, candidates, access)
 		if err != nil {
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeRegistryReadFailure(w, r, err, packageRegistryPackagesCapability, packageRegistryPackagesAccessCheckFailedMessage)
 			return result, true
 		}
 		redactByID := make(map[string]bool, len(candidates))
@@ -216,10 +212,7 @@ func packageRegistryVersionsGate(
 	}
 	gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageID, access)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryVersionsCapability) {
-			return true
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryVersionsCapability, packageRegistryVersionsAccessCheckFailedMessage)
 		return true
 	}
 	if !gate.proceed {
@@ -268,10 +261,7 @@ func packageRegistryDependenciesGate(
 	if anchorPackageID == "" {
 		resolvedID, err := packageRegistryVersionAnchorPackageID(r.Context(), h.Neo4j, versionID)
 		if err != nil {
-			if querycontract.WriteGraphReadError(w, r, err, packageRegistryDependenciesCapability) {
-				return true
-			}
-			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			writeRegistryReadFailure(w, r, err, packageRegistryDependenciesCapability, packageRegistryDependenciesVersionLookupFailedMessage)
 			return true
 		}
 		if resolvedID == "" {
@@ -282,12 +272,10 @@ func packageRegistryDependenciesGate(
 			// from an existing-but-ungranted one by store round-trip count and
 			// latency (no existence oracle). This keeps the total round-trips
 			// (version anchor + visibility + probe) equal to the resolving
-			// path.
+			// path. A probe failure answers the same fixed access-check body
+			// the resolving path's gate answers, for the same reason.
 			if _, probeErr := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageRegistryNonexistentAnchorSentinel, access); probeErr != nil {
-				if querycontract.WriteGraphReadError(w, r, probeErr, packageRegistryDependenciesCapability) {
-					return true
-				}
-				querycontract.WriteError(w, http.StatusInternalServerError, probeErr.Error())
+				writeRegistryReadFailure(w, r, probeErr, packageRegistryDependenciesCapability, packageRegistryDependenciesAccessCheckFailedMessage)
 				return true
 			}
 			writeEmptyPackageRegistryDependenciesPage(w, r, h, limit)
@@ -297,10 +285,7 @@ func packageRegistryDependenciesGate(
 	}
 	gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, anchorPackageID, access)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryDependenciesCapability) {
-			return true
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryDependenciesCapability, packageRegistryDependenciesAccessCheckFailedMessage)
 		return true
 	}
 	if !gate.proceed {

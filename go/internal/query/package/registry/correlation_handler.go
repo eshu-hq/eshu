@@ -100,7 +100,7 @@ func (h *Handler) listCorrelations(w http.ResponseWriter, r *http.Request) {
 	filter = packageRegistryCorrelationFilterWithRepositoryAccess(filter, access)
 	page, err := h.Correlations.ListPackageRegistryCorrelations(r.Context(), filter)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryCorrelationsCapability, packageRegistryCorrelationsQueryFailedMessage)
 		return
 	}
 	// Truncated and the next cursor come from page (derived from the raw

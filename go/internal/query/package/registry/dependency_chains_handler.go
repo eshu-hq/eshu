@@ -109,7 +109,7 @@ func (h *Handler) listDependencyChains(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := ResolvePackageDependencyChains(r.Context(), h.Correlations, req)
 	if err != nil {
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryDependencyChainsCapability, packageRegistryDependencyChainsQueryFailedMessage)
 		return
 	}
 	// Truncated and the next cursor come from page (derived from the raw

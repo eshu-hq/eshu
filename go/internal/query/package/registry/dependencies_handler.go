@@ -55,10 +55,7 @@ func (h *Handler) listDependencies(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rows, err := h.Neo4j.Run(queryCtx, cypher, params)
 	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, packageRegistryDependenciesCapability) {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		writeRegistryReadFailure(w, r, err, packageRegistryDependenciesCapability, packageRegistryDependenciesQueryFailedMessage)
 		return
 	}
 	truncated := len(rows) > limit
