@@ -308,3 +308,10 @@ docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/sco
 .sse-report.md:go/internal/query/ask_sse.go
 .sse-report.md:go/internal/query/ask_sse_test.go
 .sse-report.md:go/internal/query/ask_handler.go
+
+# #6950 docs batch 3: pr-bad.md is the verbatim body of PR #7838 as filed
+# (a deliberate negative fixture for check-shape.sh, documented as a real
+# text in test-check-shape.sh). Its sentence describes deleting the emptied
+# compat file itself, so any repoint would make the sentence wrong, not
+# merely stale; the fixture must keep naming the path as filed.
+.agents/skills/eshu-publish/scripts/testdata/pr-bad.md:go/internal/facts/compat_docs.go
