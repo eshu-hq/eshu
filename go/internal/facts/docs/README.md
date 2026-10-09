@@ -103,10 +103,11 @@ and bytes, so callers are value-identical by construction; no fact kind
 string, payload shape, or registry output changes (contract classification:
 patch — no contract surface touched).
 
-- Baseline: `c3cc407cb0`, `go test -count=1` on the 21 affected-package
-  targets: 20 ok, 1 fail (`TestFetchChurnZombiesDrainedByReaper`, which
-  fails identically on the clean base on this host and passes in CI).
-- After: same command on the branch: 20 ok, same single failing package
+- Baseline: `35d869c4a9`, `go test -count=1` on the 23 affected-package
+  targets (every Go directory the diff touches): 22 ok, 1 fail
+  (`TestFetchChurnZombiesDrainedByReaper`, which fails identically on
+  the clean base on this host and passes in CI).
+- After: same command on the branch: 22 ok, same single failing package
   (ok-package set byte-identical after timing strip).
 - Backend/version: go1.26.9 linux/amd64, in-memory test backends.
 - Contract gates: `verify-factschema-diff.sh`, `verify-payload-usage-manifest.sh`,
@@ -118,12 +119,18 @@ patch — no contract surface touched).
   `factsdocs.` spellings; identifiers still resolve through the leaf-owned
   const table, so unknown spellings match nothing. `TestEveryRegistryKindHasConsumerOrDisclosure`
   passes.
+- Ratchet follow-through: `TestContractEncodeAdoptionRatchet` (in
+  `internal/collector`, outside the caller set) matches encoder calls by
+  bare name, so its eight expected `EncodeDocumentation*` names now use
+  the canonical `Encode*` spellings the migrated call sites carry. The
+  test passes; no encoder behavior changes.
 - Telemetry/status evidence: no new metric, span, or log; the deleted
   aliases emitted none.
-- Why safe: compiler-checked retarget across 114 files (893 qualified
-  refs); the RED run (`go build` failing on the undefined `Documentation*`
-  names with the compat file deleted) proves the surface is gone, and the
-  GREEN run proves every former caller resolves to the same value.
+- Why safe: compiler-checked retarget across 115 files (893 qualified
+  refs, plus the bare-name ratchet expectations); the RED run (`go build`
+  failing on the undefined `Documentation*` names with the compat file
+  deleted) proves the surface is gone, and the GREEN run proves every
+  former caller resolves to the same value.
 
 No-Observability-Change: this batch adds, removes, and renames no operator
 signal.
