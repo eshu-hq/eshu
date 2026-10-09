@@ -11,6 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -71,9 +72,9 @@ func TestIngestionStoreCommitScopeGenerationEmitsApplicationSetTemplateSourceMet
 
 	if err := store.CommitScopeGeneration(
 		context.Background(),
-		catalogTestScope("scope-gitops", "repo-gitops"),
-		catalogTestGeneration("scope-gitops", "gen-gitops-1", now),
-		testFactChannel([]facts.Envelope{appSetEnvelope}),
+		testfixtures.CatalogScope("scope-gitops", "repo-gitops"),
+		testfixtures.CatalogGeneration("scope-gitops", "gen-gitops-1", now),
+		testfixtures.FactChannel([]facts.Envelope{appSetEnvelope}),
 	); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
