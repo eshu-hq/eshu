@@ -19,8 +19,8 @@ database.
 
 Scratch schema on local Postgres 18.6 (`SELECT version()`:
 PostgreSQL 18.6 on x86_64-pc-linux-gnu), 2026-10-09. Tables
-`scope_generations` and `shared_projection_unroutable_intents` (migration
-098 DDL verbatim), seeded with 200 scopes x 50 generations (10k
+`scope_generations` (minimal) and `shared_projection_unroutable_intents`
+(migration 098 DDL verbatim), seeded with 200 scopes x 50 generations (10k
 generations) and ~200k unroutable rows (~20 per generation), plus one
 empty-scope and one wrong-scope row on prunable generations. Candidate
 batch: 20 generations (`gen:1:1`..`gen:1:20`); DELETE batch: 5
